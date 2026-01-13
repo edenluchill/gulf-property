@@ -1,0 +1,56 @@
+{
+  "name": "gulf-property-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Gulf Property Dubai off-plan properties platform",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File ./start-dev.ps1",
+    "dev:direct": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "kill": "powershell -ExecutionPolicy Bypass -File ./kill-backend.ps1",
+    "migrate": "ts-node src/db/migrate.ts",
+    "migrate:developer": "ts-node src/db/migrate-developer-submissions.ts",
+    "import-data": "ts-node src/db/import-dubai-data.ts",
+    "seed": "ts-node src/db/seed.ts"
+  },
+  "keywords": [
+    "dubai",
+    "real-estate",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/generative-ai": "^0.24.1",
+    "@langchain/google-genai": "^2.1.7",
+    "@langchain/langgraph": "^1.0.14",
+    "@types/multer": "^2.0.0",
+    "@types/uuid": "^10.0.0",
+    "cloudinary": "^2.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "pdf-img-convert": "^2.0.0",
+    "pg": "^8.11.3",
+    "sharp": "^0.34.5",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^20.11.5",
+    "@types/pg": "^8.10.9",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}
