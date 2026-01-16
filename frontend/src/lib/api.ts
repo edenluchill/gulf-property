@@ -1,6 +1,8 @@
-import { OffPlanProperty, PropertyFilters, PropertySearchResult, MapBounds } from '../types';
+import { OffPlanProperty, PropertyFilters, PropertySearchResult, MapBounds, DubaiArea, DubaiLandmark } from '../types';
+import { API_BASE_URL } from './config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// 后端路由都在 /api/* 下，所以需要添加 /api 前缀
+const API_URL = `${API_BASE_URL}/api`;
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -97,7 +99,7 @@ export async function fetchPropertyClusters(
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/clusters?${params.toString()}`)
+    const response = await fetch(`${API_URL}/properties/clusters?${params.toString()}`)
     const result: ApiResponse<any[]> = await response.json()
 
     if (!result.success || !result.data) {
@@ -116,7 +118,7 @@ export async function fetchPropertyClusters(
  */
 export async function fetchPropertiesBatch(ids: string[]): Promise<OffPlanProperty[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/batch`, {
+    const response = await fetch(`${API_URL}/properties/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,7 +177,7 @@ export async function fetchPropertiesForMap(
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/map?${params.toString()}`);
+    const response = await fetch(`${API_URL}/properties/map?${params.toString()}`);
     const result: ApiResponse<any[]> = await response.json();
 
     if (!result.success || !result.data) {
@@ -222,7 +224,7 @@ export async function fetchProperties(
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/properties?${params.toString()}`);
+    const response = await fetch(`${API_URL}/properties?${params.toString()}`);
     const result: ApiResponse<any[]> = await response.json();
 
     if (!result.success || !result.data) {
@@ -247,7 +249,7 @@ export async function fetchProperties(
  */
 export async function fetchPropertyById(id: string): Promise<OffPlanProperty | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/${id}`);
+    const response = await fetch(`${API_URL}/properties/${id}`);
     const result: ApiResponse<any> = await response.json();
 
     if (!result.success || !result.data) {
@@ -266,7 +268,7 @@ export async function fetchPropertyById(id: string): Promise<OffPlanProperty | n
  */
 export async function fetchDevelopers(): Promise<{ developer: string; developer_logo_url: string }[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/meta/developers`);
+    const response = await fetch(`${API_URL}/properties/meta/developers`);
     const result: ApiResponse<{ developer: string; developer_logo_url: string }[]> = await response.json();
 
     if (!result.success || !result.data) {
@@ -291,7 +293,7 @@ export async function fetchAreas(): Promise<{
   max_price: number;
 }[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/meta/areas`);
+    const response = await fetch(`${API_URL}/properties/meta/areas`);
     const result: ApiResponse<any[]> = await response.json();
 
     if (!result.success || !result.data) {
@@ -317,7 +319,7 @@ export async function fetchProjects(): Promise<{
   max_price: number;
 }[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/meta/projects`);
+    const response = await fetch(`${API_URL}/properties/meta/projects`);
     const result: ApiResponse<any[]> = await response.json();
 
     if (!result.success || !result.data) {
@@ -346,7 +348,7 @@ export async function fetchStats(): Promise<{
   completed_count: number;
 } | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/properties/meta/stats`);
+    const response = await fetch(`${API_URL}/properties/meta/stats`);
     const result: ApiResponse<any> = await response.json();
 
     if (!result.success || !result.data) {
@@ -392,4 +394,136 @@ export function convertToLegacyProject(property: OffPlanProperty): any {
     },
     amenities: property.amenities,
   };
+}
+
+/**
+ * Fetch Dubai areas (districts with boundaries)
+ */
+export async function fetchDubaiAreas(): Promise<DubaiArea[]> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/areas`);
+    const areas: DubaiArea[] = await response.json();
+    return areas;
+  } catch (error) {
+    console.error('Error fetching Dubai areas:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch Dubai landmarks (points of interest)
+ */
+export async function fetchDubaiLandmarks(): Promise<DubaiLandmark[]> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/landmarks`);
+    const landmarks: DubaiLandmark[] = await response.json();
+    return landmarks;
+  } catch (error) {
+    console.error('Error fetching Dubai landmarks:', error);
+    return [];
+  }
+}
+
+/**
+ * Create a new Dubai area
+ */
+export async function createDubaiArea(area: Partial<DubaiArea>): Promise<DubaiArea | null> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/areas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(area),
+    });
+    if (!response.ok) throw new Error('Failed to create area');
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating area:', error);
+    return null;
+  }
+}
+
+/**
+ * Update a Dubai area
+ */
+export async function updateDubaiArea(id: string, area: Partial<DubaiArea>): Promise<DubaiArea | null> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/areas/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(area),
+    });
+    if (!response.ok) throw new Error('Failed to update area');
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating area:', error);
+    return null;
+  }
+}
+
+/**
+ * Delete a Dubai area
+ */
+export async function deleteDubaiArea(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/areas/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete area');
+    return true;
+  } catch (error) {
+    console.error('Error deleting area:', error);
+    return false;
+  }
+}
+
+/**
+ * Create a new Dubai landmark
+ */
+export async function createDubaiLandmark(landmark: Partial<DubaiLandmark>): Promise<DubaiLandmark | null> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/landmarks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(landmark),
+    });
+    if (!response.ok) throw new Error('Failed to create landmark');
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating landmark:', error);
+    return null;
+  }
+}
+
+/**
+ * Update a Dubai landmark
+ */
+export async function updateDubaiLandmark(id: string, landmark: Partial<DubaiLandmark>): Promise<DubaiLandmark | null> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/landmarks/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(landmark),
+    });
+    if (!response.ok) throw new Error('Failed to update landmark');
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating landmark:', error);
+    return null;
+  }
+}
+
+/**
+ * Delete a Dubai landmark
+ */
+export async function deleteDubaiLandmark(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/landmarks/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete landmark');
+    return true;
+  } catch (error) {
+    console.error('Error deleting landmark:', error);
+    return false;
+  }
 }

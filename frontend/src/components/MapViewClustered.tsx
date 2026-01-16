@@ -1,6 +1,7 @@
 import { useEffect, useMemo, memo } from 'react'
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import { DubaiArea, DubaiLandmark } from '../types'
 
 // Helper function to format price in short form (K, M)
 const formatPriceShort = (price: number): string => {
@@ -91,6 +92,9 @@ interface MapViewClusteredProps {
   clusters: any[]
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
   onClusterClick?: (cluster: any) => void
+  dubaiAreas?: DubaiArea[]
+  dubaiLandmarks?: DubaiLandmark[]
+  showDubaiLayer?: boolean
 }
 
 interface MapControllerProps {
@@ -98,14 +102,14 @@ interface MapControllerProps {
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
 }
 
-function MapController({ clusters, onBoundsChange }: MapControllerProps) {
+function MapController({ onBoundsChange }: MapControllerProps) {
   const map = useMap()
 
   // Listen for map movement to update bounds with throttling
   useEffect(() => {
     if (!onBoundsChange) return
 
-    let timeoutId: NodeJS.Timeout | null = null
+    let timeoutId: number | null = null
 
     const handleMoveEnd = () => {
       // Clear any pending timeout
@@ -151,7 +155,7 @@ function MapController({ clusters, onBoundsChange }: MapControllerProps) {
   return null
 }
 
-function MapViewClustered({ clusters, onBoundsChange, onClusterClick }: MapViewClusteredProps) {
+function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas = [], dubaiLandmarks = [], showDubaiLayer = false }: MapViewClusteredProps) {
   // Memoize cluster markers to prevent unnecessary re-renders
   const clusterMarkers = useMemo(() => {
     return clusters.map((cluster) => ({
@@ -160,6 +164,38 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick }: MapViewC
       position: [cluster.center.lat, cluster.center.lng] as [number, number]
     }))
   }, [clusters])
+
+  // Memoize Dubai landmark icons
+  const landmarkIcons = useMemo(() => {
+    if (!Array.isArray(dubaiLandmarks)) return []
+    return dubaiLandmarks.map((landmark) => {
+      const sizeMap = { small: [24, 24], medium: [32, 32], large: [40, 40] }
+      const size = sizeMap[landmark.size] || [32, 32]
+      
+      return {
+        landmark,
+        icon: L.divIcon({
+          html: `
+            <div class="flex items-center justify-center" style="width: ${size[0]}px; height: ${size[1]}px;">
+              <div class="relative">
+                <div class="absolute inset-0 rounded-full opacity-30" style="background: ${landmark.color}; filter: blur(4px);"></div>
+                <div class="relative w-full h-full rounded-full flex items-center justify-center shadow-lg border-2 border-white" 
+                     style="background: ${landmark.color};">
+                  <svg class="w-1/2 h-1/2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          `,
+          className: 'custom-landmark-icon',
+          iconSize: L.point(size[0], size[1]),
+          iconAnchor: [size[0] / 2, size[1]],
+        }),
+        position: [landmark.location.lat, landmark.location.lng] as [number, number]
+      }
+    })
+  }, [dubaiLandmarks])
 
   return (
     <MapContainer
@@ -172,6 +208,66 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick }: MapViewC
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <MapController clusters={clusters} onBoundsChange={onBoundsChange} />
+      
+      {/* Render Dubai areas as polygons (if layer is enabled) */}
+      {showDubaiLayer && Array.isArray(dubaiAreas) && dubaiAreas.map((area) => {
+        // Convert GeoJSON coordinates to Leaflet format
+        const coordinates = area.boundary.type === 'Polygon' 
+          ? (area.boundary as any).coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng] as [number, number])
+          : []
+        
+        return (
+          <Polygon
+            key={area.id}
+            positions={coordinates}
+            pathOptions={{
+              color: area.color,
+              fillColor: area.color,
+              fillOpacity: area.opacity,
+              weight: 2,
+            }}
+          >
+            <Popup>
+              <div className="p-2">
+                <h3 className="font-bold text-base mb-1">{area.name}</h3>
+                {area.description && <p className="text-sm text-gray-600 mb-2">{area.description}</p>}
+                {area.wealthLevel && (
+                  <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1">
+                    {area.wealthLevel}
+                  </span>
+                )}
+                {area.culturalAttribute && (
+                  <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                    {area.culturalAttribute}
+                  </span>
+                )}
+              </div>
+            </Popup>
+          </Polygon>
+        )
+      })}
+
+      {/* Render Dubai landmarks as markers (if layer is enabled) */}
+      {showDubaiLayer && landmarkIcons.map(({ landmark, icon, position }) => (
+        <Marker
+          key={landmark.id}
+          position={position}
+          icon={icon}
+        >
+          <Popup>
+            <div className="p-2 min-w-[200px]">
+              <h3 className="font-bold text-base mb-1">{landmark.name}</h3>
+              {landmark.landmarkType && (
+                <span className="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded mb-2">
+                  {landmark.landmarkType}
+                </span>
+              )}
+              {landmark.description && <p className="text-sm text-gray-600 mb-2">{landmark.description}</p>}
+              {landmark.yearBuilt && <p className="text-xs text-gray-500">Built: {landmark.yearBuilt}</p>}
+            </div>
+          </Popup>
+        </Marker>
+      ))}
       
       {/* Render cluster markers */}
       {clusterMarkers.map(({ cluster, icon, position }) => (

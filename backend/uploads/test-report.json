@@ -1,0 +1,5002 @@
+{
+  "jobId": "job_1768536342068_yz0np",
+  "timestamp": "2026-01-16T04:07:58.049Z",
+  "inputFiles": [
+    "The Edit at d3 FloorPlans.pdf"
+  ],
+  "totalChunks": 19,
+  "totalPages": 93,
+  "processingTime": 135936,
+  "summary": {
+    "totalUnits": 87,
+    "totalPaymentPlans": 0,
+    "totalAmenities": 36,
+    "totalProjectImages": 0,
+    "totalFloorPlanImages": 93,
+    "pagesWithFloorPlans": 93,
+    "pagesWithBuildingImages": 0
+  },
+  "chunks": [
+    {
+      "chunkIndex": 4,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 21,
+        "end": 25
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 21,
+          "chunkIndex": 4,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 22,
+          "chunkIndex": 4,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 23,
+          "chunkIndex": 4,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 24,
+          "chunkIndex": 4,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 25,
+          "chunkIndex": 4,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 46700,
+      "errors": []
+    },
+    {
+      "chunkIndex": 7,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 36,
+        "end": 40
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 36,
+          "chunkIndex": 7,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 37,
+          "chunkIndex": 7,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 38,
+          "chunkIndex": 7,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 39,
+          "chunkIndex": 7,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 40,
+          "chunkIndex": 7,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 58293,
+      "errors": []
+    },
+    {
+      "chunkIndex": 5,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 26,
+        "end": 30
+      },
+      "totalUnits": 4,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 26,
+          "chunkIndex": 5,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 4,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 27,
+          "chunkIndex": 5,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 28,
+          "chunkIndex": 5,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 29,
+          "chunkIndex": 5,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 30,
+          "chunkIndex": 5,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 58967,
+      "errors": []
+    },
+    {
+      "chunkIndex": 9,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 46,
+        "end": 50
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 46,
+          "chunkIndex": 9,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 47,
+          "chunkIndex": 9,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 48,
+          "chunkIndex": 9,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 49,
+          "chunkIndex": 9,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 50,
+          "chunkIndex": 9,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 59794,
+      "errors": []
+    },
+    {
+      "chunkIndex": 1,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 6,
+        "end": 10
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 6,
+          "chunkIndex": 1,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 7,
+          "chunkIndex": 1,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 8,
+          "chunkIndex": 1,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 9,
+          "chunkIndex": 1,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 10,
+          "chunkIndex": 1,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 62780,
+      "errors": []
+    },
+    {
+      "chunkIndex": 8,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 41,
+        "end": 45
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 41,
+          "chunkIndex": 8,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 42,
+          "chunkIndex": 8,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 43,
+          "chunkIndex": 8,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 44,
+          "chunkIndex": 8,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 45,
+          "chunkIndex": 8,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 63307,
+      "errors": []
+    },
+    {
+      "chunkIndex": 2,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 11,
+        "end": 15
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 11,
+          "chunkIndex": 2,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 12,
+          "chunkIndex": 2,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 13,
+          "chunkIndex": 2,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 14,
+          "chunkIndex": 2,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 15,
+          "chunkIndex": 2,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 63508,
+      "errors": []
+    },
+    {
+      "chunkIndex": 3,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 16,
+        "end": 20
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 16,
+          "chunkIndex": 3,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 17,
+          "chunkIndex": 3,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 18,
+          "chunkIndex": 3,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 19,
+          "chunkIndex": 3,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 20,
+          "chunkIndex": 3,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 65118,
+      "errors": []
+    },
+    {
+      "chunkIndex": 0,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 1,
+        "end": 5
+      },
+      "totalUnits": 3,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 1,
+          "chunkIndex": 0,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 3,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 2,
+          "chunkIndex": 0,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 3,
+          "chunkIndex": 0,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 4,
+          "chunkIndex": 0,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 5,
+          "chunkIndex": 0,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 68130,
+      "errors": []
+    },
+    {
+      "chunkIndex": 6,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 31,
+        "end": 35
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 31,
+          "chunkIndex": 6,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 32,
+          "chunkIndex": 6,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 33,
+          "chunkIndex": 6,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 34,
+          "chunkIndex": 6,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 35,
+          "chunkIndex": 6,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 70003,
+      "errors": []
+    },
+    {
+      "chunkIndex": 18,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 91,
+        "end": 93
+      },
+      "totalUnits": 2,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 91,
+          "chunkIndex": 18,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 2,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 92,
+          "chunkIndex": 18,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 93,
+          "chunkIndex": 18,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png"
+        ]
+      },
+      "processingTime": 38678,
+      "errors": []
+    },
+    {
+      "chunkIndex": 13,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 66,
+        "end": 70
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 66,
+          "chunkIndex": 13,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 67,
+          "chunkIndex": 13,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 68,
+          "chunkIndex": 13,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 69,
+          "chunkIndex": 13,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 70,
+          "chunkIndex": 13,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 46874,
+      "errors": []
+    },
+    {
+      "chunkIndex": 14,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 71,
+        "end": 75
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 71,
+          "chunkIndex": 14,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 72,
+          "chunkIndex": 14,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 73,
+          "chunkIndex": 14,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 74,
+          "chunkIndex": 14,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 75,
+          "chunkIndex": 14,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 46908,
+      "errors": []
+    },
+    {
+      "chunkIndex": 12,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 61,
+        "end": 65
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 61,
+          "chunkIndex": 12,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 62,
+          "chunkIndex": 12,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 63,
+          "chunkIndex": 12,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 64,
+          "chunkIndex": 12,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 65,
+          "chunkIndex": 12,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 47146,
+      "errors": []
+    },
+    {
+      "chunkIndex": 15,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 76,
+        "end": 80
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 76,
+          "chunkIndex": 15,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 77,
+          "chunkIndex": 15,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 78,
+          "chunkIndex": 15,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 79,
+          "chunkIndex": 15,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 80,
+          "chunkIndex": 15,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 59834,
+      "errors": []
+    },
+    {
+      "chunkIndex": 10,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 51,
+        "end": 55
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 51,
+          "chunkIndex": 10,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 52,
+          "chunkIndex": 10,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 53,
+          "chunkIndex": 10,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 54,
+          "chunkIndex": 10,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 55,
+          "chunkIndex": 10,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 60672,
+      "errors": []
+    },
+    {
+      "chunkIndex": 11,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 56,
+        "end": 60
+      },
+      "totalUnits": 3,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 56,
+          "chunkIndex": 11,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 3,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 57,
+          "chunkIndex": 11,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 58,
+          "chunkIndex": 11,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 59,
+          "chunkIndex": 11,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 60,
+          "chunkIndex": 11,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 61900,
+      "errors": []
+    },
+    {
+      "chunkIndex": 17,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 86,
+        "end": 90
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 86,
+          "chunkIndex": 17,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 87,
+          "chunkIndex": 17,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 88,
+          "chunkIndex": 17,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 89,
+          "chunkIndex": 17,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 90,
+          "chunkIndex": 17,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 64004,
+      "errors": []
+    },
+    {
+      "chunkIndex": 16,
+      "sourceFile": "The Edit at d3 FloorPlans.pdf",
+      "pageRange": {
+        "start": 81,
+        "end": 85
+      },
+      "totalUnits": 5,
+      "totalPaymentPlans": 0,
+      "pages": [
+        {
+          "pageNumber": 81,
+          "chunkIndex": 16,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 5,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 82,
+          "chunkIndex": 16,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 83,
+          "chunkIndex": 16,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 84,
+          "chunkIndex": 16,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        },
+        {
+          "pageNumber": 85,
+          "chunkIndex": 16,
+          "sourceFile": "The Edit at d3 FloorPlans.pdf",
+          "hasFloorPlan": true,
+          "hasBuilding": false,
+          "hasProjectImages": false,
+          "hasFloorPlanImages": true,
+          "extractedUnits": 0,
+          "extractedPaymentPlans": 0
+        }
+      ],
+      "images": {
+        "projectImages": [],
+        "floorPlanImages": [
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.1.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.2.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.3.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.4.png",
+          "/app/uploads/langgraph-output/job_1768536342068_yz0np/images/page.5.png"
+        ]
+      },
+      "processingTime": 64412,
+      "errors": []
+    }
+  ],
+  "finalData": {
+    "name": "THE EDIT",
+    "developer": "Meraas",
+    "address": "Dubai Design District (d3), Dubai, UAE",
+    "area": "City Walk",
+    "completionDate": "",
+    "launchDate": "",
+    "description": "The Edit at d3 is a luxury residential development by Meraas located in the heart of the Dubai Design District (d3). The project features modern architecture with a focus on designer living, offering high-end apartments with spacious layouts, balconies, and premium finishes. The development includes Tower A and offers a lifestyle integrated with Dubai's creative hub.",
+    "amenities": [
+      "Laundry Room",
+      "Powder Room",
+      "Master Dressing Room",
+      "Balcony",
+      "Entrance Foyer",
+      "En-suite Bathrooms",
+      "Dressing Room",
+      "Open Kitchen",
+      "Foyer",
+      "Maid's Room",
+      "Built-in Wardrobes",
+      "Maid's Room (in select units)",
+      "Swimming Pool",
+      "Sun Deck/Loungers",
+      "Landscaped Gardens",
+      "Balconies",
+      "Laundry Rooms",
+      "Powder Rooms (in select units)",
+      "Entrance Foyers",
+      "Powder Room (select units)",
+      "Dressing Area (select units)",
+      "Kitchen Appliances Space (Fridge, Dishwasher)",
+      "Master Bathroom",
+      "Dressing Areas",
+      "Open Kitchens",
+      "Maid's room",
+      "Laundry room",
+      "Powder room",
+      "Private terrace",
+      "Private pool (Penthouse)",
+      "Gym/Yoga studio (Penthouse)",
+      "Show kitchen (Penthouse)",
+      "BOH kitchen (Penthouse)",
+      "Outdoor dining area",
+      "Dressing rooms",
+      "Dressing Rooms"
+    ],
+    "units": [
+      {
+        "category": "1BR",
+        "typeName": "A-1B-A.1",
+        "unitNumbers": [
+          "102",
+          "302",
+          "502",
+          "702",
+          "902",
+          "1102",
+          "1302",
+          "1702",
+          "1902",
+          "2102",
+          "2302",
+          "2502",
+          "2702",
+          "2902"
+        ],
+        "unitCount": 14,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area": 754.76,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (per compass on page)",
+        "balconyArea": 70.61,
+        "features": [
+          "Laundry room",
+          "Entrance foyer",
+          "Balcony",
+          "Open kitchen",
+          "Master bedroom with built-in storage"
+        ],
+        "id": "A-1B-A.1",
+        "tower": "Tower A",
+        "_key": "A-1B-A.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "A-1B-A.2",
+        "unitNumbers": [
+          "202",
+          "402",
+          "602",
+          "802",
+          "1002",
+          "1202",
+          "1402",
+          "1802",
+          "2002",
+          "2202",
+          "2402",
+          "2602",
+          "2802"
+        ],
+        "unitCount": 13,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area": 754.66,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (per compass on page)",
+        "balconyArea": 68.89,
+        "features": [
+          "Laundry room",
+          "Entrance foyer",
+          "Balcony",
+          "Open kitchen",
+          "Master bedroom with built-in storage"
+        ],
+        "id": "A-1B-A.2",
+        "tower": "Tower A",
+        "_key": "A-1B-A.2"
+      },
+      {
+        "category": "1BR",
+        "typeName": "A-1B-B.1",
+        "unitNumbers": [
+          "101",
+          "301",
+          "501",
+          "701",
+          "901",
+          "1101",
+          "1301",
+          "1701",
+          "1901",
+          "2101",
+          "2301",
+          "2501",
+          "2701",
+          "2901"
+        ],
+        "unitCount": 14,
+        "bedrooms": 1,
+        "bathrooms": 2,
+        "area": 855.08,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (per compass on page)",
+        "balconyArea": 72.01,
+        "features": [
+          "Powder room",
+          "Master bathroom with double vanity",
+          "Laundry room",
+          "Entrance foyer",
+          "Balcony",
+          "U-shaped kitchen"
+        ],
+        "id": "A-1B-B.1",
+        "tower": "Tower A",
+        "_key": "A-1B-B.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "A-1B-B.2",
+        "unitNumbers": [
+          "201",
+          "401",
+          "601",
+          "801",
+          "1001",
+          "1201",
+          "1401",
+          "1801",
+          "2001",
+          "2201",
+          "2401",
+          "2601",
+          "2801"
+        ],
+        "unitCount": 13,
+        "bedrooms": 1,
+        "bathrooms": 2,
+        "area": 872.95,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 89.88,
+        "features": [
+          "Laundry",
+          "Powder Room",
+          "Master Bathroom",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-1B-B.2",
+        "tower": "Tower A",
+        "_key": "A-1B-B.2"
+      },
+      {
+        "category": "1BR",
+        "typeName": "A-1B-C.1",
+        "unitNumbers": [
+          "103",
+          "303",
+          "503",
+          "703",
+          "903",
+          "1103",
+          "1303",
+          "1703",
+          "1903",
+          "2103",
+          "2303",
+          "2503",
+          "2703",
+          "2903"
+        ],
+        "unitCount": 14,
+        "bedrooms": 1,
+        "bathrooms": 2,
+        "area": 875.75,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 71.47,
+        "features": [
+          "Laundry",
+          "Powder Room",
+          "Master Bathroom",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-1B-C.1",
+        "tower": "Tower A",
+        "_key": "A-1B-C.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "A-1B-C.2",
+        "unitNumbers": [
+          "203",
+          "403",
+          "603",
+          "803",
+          "1003",
+          "1203",
+          "1403",
+          "1803",
+          "2003",
+          "2203",
+          "2403",
+          "2603",
+          "2803"
+        ],
+        "unitCount": 13,
+        "bedrooms": 1,
+        "bathrooms": 2,
+        "area": 894.26,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 89.99,
+        "features": [
+          "Laundry",
+          "Powder Room",
+          "Master Bathroom",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-1B-C.2",
+        "tower": "Tower A",
+        "_key": "A-1B-C.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2B-A.1",
+        "unitNumbers": [
+          "104",
+          "204",
+          "304",
+          "404",
+          "504",
+          "604",
+          "704",
+          "1004",
+          "1104",
+          "1204",
+          "1304",
+          "1404",
+          "1704",
+          "1804",
+          "1904",
+          "2004",
+          "2104",
+          "2204",
+          "2304"
+        ],
+        "unitCount": 19,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1266.27,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 58.99,
+        "features": [
+          "Master Suite with Dressing Room",
+          "Laundry",
+          "Powder Room",
+          "Passage",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-2B-A.1",
+        "tower": "Tower A",
+        "_key": "A-2B-A.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2B-B.1",
+        "unitNumbers": [
+          "107",
+          "207",
+          "307",
+          "407",
+          "507",
+          "607",
+          "707",
+          "806",
+          "906",
+          "1007",
+          "1107",
+          "1207",
+          "1307",
+          "1407",
+          "1707",
+          "1807",
+          "1907",
+          "2007",
+          "2107",
+          "2207",
+          "2307"
+        ],
+        "unitCount": 21,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1330.31,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 58.99,
+        "features": [
+          "Entrance Foyer",
+          "Master Suite with Dressing Room",
+          "Laundry",
+          "Powder Room",
+          "Passage",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-2B-B.1",
+        "tower": "Tower A",
+        "_key": "A-2B-B.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2B-C.1",
+        "unitNumbers": [
+          "2704",
+          "2804",
+          "2904"
+        ],
+        "unitCount": 3,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1327.4,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 58.99,
+        "features": [
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Dressing room in Master Bedroom",
+          "En-suite Master Bathroom",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-2B-C.1",
+        "tower": "Tower A",
+        "_key": "A-2B-C.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2B-D.1",
+        "unitNumbers": [
+          "1603"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1328.27,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 58.99,
+        "features": [
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Dressing room",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "A-2B-D.1",
+        "tower": "Tower A",
+        "_key": "A-2B-D.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2B-E.1",
+        "unitNumbers": [
+          "1601"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1373.9,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 95.69,
+        "features": [
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Large Balcony (1.40m wide)",
+          "Dressing room"
+        ],
+        "id": "A-2B-E.1",
+        "tower": "Tower A",
+        "_key": "A-2B-E.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2BM-A.1",
+        "unitNumbers": [
+          "205",
+          "405",
+          "605",
+          "804",
+          "1005",
+          "1205",
+          "1405",
+          "1805",
+          "2005",
+          "2205"
+        ],
+        "unitCount": 10,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1443.55,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 148.22,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry Room",
+          "Powder Room",
+          "Large Balcony (1.40m wide)",
+          "Dressing room"
+        ],
+        "id": "A-2BM-A.1",
+        "tower": "Tower A",
+        "_key": "A-2BM-A.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2BM-A.2",
+        "unitNumbers": [
+          "305",
+          "505",
+          "705",
+          "904",
+          "1105",
+          "1305",
+          "1705",
+          "1905",
+          "2105",
+          "2305"
+        ],
+        "unitCount": 10,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1445.7,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 150.37,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry Room",
+          "Powder Room",
+          "Wrap-around style Balcony",
+          "Dressing room"
+        ],
+        "id": "A-2BM-A.2",
+        "tower": "Tower A",
+        "_key": "A-2BM-A.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "A-2BM-A.3",
+        "unitNumbers": [
+          "105"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1549.25,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 253.92,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Dressing room",
+          "Powder room",
+          "Entrance foyer"
+        ],
+        "id": "A-2BM-A.3",
+        "tower": "Tower A",
+        "_key": "A-2BM-A.3"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-A.1",
+        "unitNumbers": [
+          "206",
+          "406",
+          "606",
+          "805",
+          "1006",
+          "1206",
+          "1406",
+          "1806",
+          "2006",
+          "2206"
+        ],
+        "unitCount": 10,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2153.53,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 168.78,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Dressing room",
+          "Powder room",
+          "Entrance foyer",
+          "En-suite bathrooms"
+        ],
+        "id": "A-3B-A.1",
+        "tower": "Tower A",
+        "_key": "A-3B-A.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-A.2",
+        "unitNumbers": [
+          "306",
+          "506",
+          "706",
+          "905",
+          "1106",
+          "1306",
+          "1706",
+          "1906",
+          "2106",
+          "2306"
+        ],
+        "unitCount": 10,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2151.38,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 166.63,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Dressing room",
+          "Powder room",
+          "Entrance foyer"
+        ],
+        "id": "A-3B-A.2",
+        "tower": "Tower A",
+        "_key": "A-3B-A.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-A.3",
+        "unitNumbers": [
+          "106"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2267.63,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 282.88,
+        "features": [
+          "Large balcony",
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Dressing room",
+          "Powder room"
+        ],
+        "id": "A-3B-A.3",
+        "tower": "Tower A",
+        "_key": "A-3B-A.3"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-B.1",
+        "unitNumbers": [
+          "1602"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2158.48,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 168.78,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Dressing room",
+          "Powder room",
+          "Entrance foyer"
+        ],
+        "id": "A-3B-B.1",
+        "tower": "Tower A",
+        "_key": "A-3B-B.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-C.1",
+        "unitNumbers": [
+          "2404"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2165.48,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 142.19,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two Balconies"
+        ],
+        "id": "A-3B-C.1",
+        "tower": "Tower A",
+        "_key": "A-3B-C.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-C.2",
+        "unitNumbers": [
+          "2504"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2203.59,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 180.3,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two Balconies"
+        ],
+        "id": "A-3B-C.2",
+        "tower": "Tower A",
+        "_key": "A-3B-C.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-D.1",
+        "unitNumbers": [
+          "2405",
+          "2605",
+          "2806"
+        ],
+        "unitCount": 3,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2167.42,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 172.98,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two Balconies"
+        ],
+        "id": "A-3B-D.1",
+        "tower": "Tower A",
+        "_key": "A-3B-D.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "A-3B-D.2",
+        "unitNumbers": [
+          "2505",
+          "2706",
+          "2906"
+        ],
+        "unitCount": 3,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2127.05,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 132.61,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two Balconies"
+        ],
+        "id": "A-3B-D.2",
+        "tower": "Tower A",
+        "_key": "A-3B-D.2"
+      },
+      {
+        "category": "4BR",
+        "typeName": "A-4B-A.1",
+        "unitNumbers": [
+          "2604"
+        ],
+        "unitCount": 1,
+        "bedrooms": 4,
+        "bathrooms": 5,
+        "area": 2975.14,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 257.36,
+        "features": [
+          "Family Dining area",
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry room",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two Balconies"
+        ],
+        "id": "A-4B-A.1",
+        "tower": "Tower A",
+        "_key": "A-4B-A.1"
+      },
+      {
+        "category": "4BR",
+        "typeName": "A-4B-B.1",
+        "unitNumbers": [
+          "2705",
+          "2905"
+        ],
+        "unitCount": 2,
+        "bedrooms": 4,
+        "bathrooms": 5,
+        "area": 2812.82,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 297.3,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two balconies"
+        ],
+        "id": "A-4B-B.1",
+        "tower": "Tower A",
+        "_key": "A-4B-B.1"
+      },
+      {
+        "category": "4BR",
+        "typeName": "A-4B-C.1",
+        "unitNumbers": [
+          "2805"
+        ],
+        "unitCount": 1,
+        "bedrooms": 4,
+        "bathrooms": 5,
+        "area": 2771.27,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 257.36,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry",
+          "Powder room",
+          "Dressing room",
+          "Entrance Foyer",
+          "Two balconies"
+        ],
+        "id": "A-4B-C.1",
+        "tower": "Tower A",
+        "_key": "A-4B-C.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "B-1B-A.1",
+        "unitNumbers": [
+          "202",
+          "402",
+          "602",
+          "802",
+          "1002",
+          "1202",
+          "1402",
+          "1602",
+          "1802",
+          "2202",
+          "2402",
+          "2602",
+          "2802",
+          "3002",
+          "3202",
+          "3402"
+        ],
+        "unitCount": 16,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area": 873.6,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 110.33,
+        "features": [
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony",
+          "Built-in wardrobes"
+        ],
+        "id": "B-1B-A.1",
+        "tower": "Tower B",
+        "_key": "B-1B-A.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "B-1B-A.2",
+        "unitNumbers": [
+          "102",
+          "302",
+          "502",
+          "702",
+          "902",
+          "1102",
+          "1302",
+          "1502",
+          "1702",
+          "1902",
+          "2302",
+          "2502",
+          "2702",
+          "2902",
+          "3102",
+          "3302",
+          "3502"
+        ],
+        "unitCount": 17,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area": 873.49,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 110.33,
+        "features": [
+          "Laundry room",
+          "Entrance Foyer",
+          "Large Balcony",
+          "Kitchen with FR and DW space"
+        ],
+        "id": "B-1B-A.2",
+        "tower": "Tower B",
+        "_key": "B-1B-A.2"
+      },
+      {
+        "category": "1BR",
+        "typeName": "B-1B-B.1",
+        "unitNumbers": [
+          "201",
+          "401",
+          "601",
+          "801",
+          "1001",
+          "1201",
+          "1401",
+          "1601",
+          "1801",
+          "2201",
+          "2401",
+          "2601",
+          "2801",
+          "3001",
+          "3201",
+          "3401"
+        ],
+        "unitCount": 16,
+        "bedrooms": 1,
+        "bathrooms": 1.5,
+        "area": 939.26,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 109.9,
+        "features": [
+          "Dressing room",
+          "Powder room",
+          "Laundry room",
+          "Entrance Foyer",
+          "Master Bathroom"
+        ],
+        "id": "B-1B-B.1",
+        "tower": "Tower B",
+        "_key": "B-1B-B.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "B-1B-B.2",
+        "unitNumbers": [
+          "101",
+          "301",
+          "501",
+          "701",
+          "901",
+          "1101",
+          "1301",
+          "1501",
+          "1701",
+          "1901",
+          "2301",
+          "2501",
+          "2701",
+          "2901",
+          "3101",
+          "3301",
+          "3501"
+        ],
+        "unitCount": 17,
+        "bedrooms": 1,
+        "bathrooms": 1.5,
+        "area": 939.69,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 110.33,
+        "features": [
+          "Dressing room",
+          "Powder room",
+          "Laundry room",
+          "Master Bathroom",
+          "Balcony"
+        ],
+        "id": "B-1B-B.2",
+        "tower": "Tower B",
+        "_key": "B-1B-B.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-A.1",
+        "unitNumbers": [
+          "106",
+          "206",
+          "306",
+          "406",
+          "506",
+          "605",
+          "705",
+          "806",
+          "1206",
+          "1306",
+          "1406",
+          "1506",
+          "1606",
+          "1706",
+          "1806",
+          "1906"
+        ],
+        "unitCount": 16,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1267.23,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 59.09,
+        "features": [
+          "Master Bedroom with Dressing",
+          "Powder Room",
+          "Laundry",
+          "Passage",
+          "Entrance Foyer"
+        ],
+        "id": "B-2B-A.1",
+        "tower": "Tower B",
+        "_key": "B-2B-A.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-B.1",
+        "unitNumbers": [
+          "103",
+          "203",
+          "303",
+          "403",
+          "503",
+          "803",
+          "903",
+          "1003",
+          "1103",
+          "1203",
+          "1303",
+          "1403",
+          "1503",
+          "1603",
+          "1703",
+          "1803",
+          "1903",
+          "2101",
+          "2903",
+          "3003"
+        ],
+        "unitCount": 20,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1331.39,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 58.99,
+        "features": [
+          "Master Dressing Room",
+          "Powder Room",
+          "Laundry Room",
+          "Double Vanity Master Bathroom",
+          "L-shaped Balcony"
+        ],
+        "id": "B-2B-B.1",
+        "tower": "Tower B",
+        "_key": "B-2B-B.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-C.1",
+        "unitNumbers": [
+          "2103"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1379.07,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (as per compass)",
+        "balconyArea": 98.27,
+        "features": [
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Master Bedroom with En-suite",
+          "Living & Dining Area",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "B-2B-C.1",
+        "tower": "Tower B",
+        "_key": "B-2B-C.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-C.2",
+        "unitNumbers": [
+          "3205"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1435.8,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 155.22,
+        "features": [
+          "Large Balcony",
+          "Entrance Foyer",
+          "Laundry Room",
+          "Powder Room",
+          "Dressing Room",
+          "Master Suite"
+        ],
+        "id": "B-2B-C.2",
+        "tower": "Tower B",
+        "_key": "B-2B-C.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-C.3",
+        "unitNumbers": [
+          "3305",
+          "3405",
+          "3505"
+        ],
+        "unitCount": 3,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1355.71,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 75.13,
+        "features": [
+          "Entrance Foyer",
+          "Kitchen with FR/DW space",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Master Suite"
+        ],
+        "id": "B-2B-C.3",
+        "tower": "Tower B",
+        "_key": "B-2B-C.3"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-D.1",
+        "unitNumbers": [
+          "2205",
+          "2305",
+          "2405",
+          "2505",
+          "2605",
+          "2705",
+          "2805"
+        ],
+        "unitCount": 7,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1328.27,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 59.09,
+        "features": [
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Master Dressing (1.90m x 3.15m)",
+          "Master Suite",
+          "Living & Dining"
+        ],
+        "id": "B-2B-D.1",
+        "tower": "Tower B",
+        "_key": "B-2B-D.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2B-D.2",
+        "unitNumbers": [
+          "2904",
+          "3004",
+          "3104"
+        ],
+        "unitCount": 3,
+        "bedrooms": 2,
+        "bathrooms": 2.5,
+        "area": 1333.43,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 64.26,
+        "features": [
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Master Suite",
+          "Open Kitchen"
+        ],
+        "id": "B-2B-D.2",
+        "tower": "Tower B",
+        "_key": "B-2B-D.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2BM-A.1",
+        "unitNumbers": [
+          "205",
+          "405",
+          "604",
+          "805",
+          "1205",
+          "1405",
+          "1605",
+          "1805"
+        ],
+        "unitCount": 8,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1443.87,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 148.43,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "1.40m wide balcony"
+        ],
+        "id": "B-2BM-A.1",
+        "tower": "Tower B",
+        "_key": "B-2BM-A.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2BM-A.2",
+        "unitNumbers": [
+          "305",
+          "505",
+          "704",
+          "1305",
+          "1505",
+          "1705",
+          "1905"
+        ],
+        "unitCount": 7,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1446.02,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 150.59,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "1.40m wide balcony"
+        ],
+        "id": "B-2BM-A.2",
+        "tower": "Tower B",
+        "_key": "B-2BM-A.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "B-2BM-A.3",
+        "unitNumbers": [
+          "105"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1549.36,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 253.92,
+        "features": [
+          "Large terrace/balcony (2.40m wide)",
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room"
+        ],
+        "id": "B-2BM-A.3",
+        "tower": "Tower B",
+        "_key": "B-2BM-A.3"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-A.1",
+        "unitNumbers": [
+          "204",
+          "404",
+          "603",
+          "804",
+          "1004",
+          "1204",
+          "1404",
+          "1604",
+          "1804"
+        ],
+        "unitCount": 9,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2152.56,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 169.1,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Large Dressing room",
+          "Laundry",
+          "Powder room",
+          "Double vanity in Master Bath"
+        ],
+        "id": "B-3B-A.1",
+        "tower": "Tower B",
+        "_key": "B-3B-A.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-A.2",
+        "unitNumbers": [
+          "304",
+          "504",
+          "703",
+          "904",
+          "1304",
+          "1504",
+          "1704",
+          "1904"
+        ],
+        "unitCount": 8,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2150.41,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 166.95,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Large Dressing room",
+          "Laundry",
+          "Powder room",
+          "Double vanity in Master Bath"
+        ],
+        "id": "B-3B-A.2",
+        "tower": "Tower B",
+        "_key": "B-3B-A.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-A.3",
+        "unitNumbers": [
+          "104"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2266.66,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (as per compass)",
+        "balconyArea": 283.2,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "Balcony (2.40m wide)",
+          "Entrance Foyer"
+        ],
+        "id": "B-3B-A.3",
+        "tower": "Tower B",
+        "_key": "B-3B-A.3"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-B.1",
+        "unitNumbers": [
+          "1104"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2697.33,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (as per compass)",
+        "balconyArea": 690.29,
+        "features": [
+          "Private Terrace (5.7m x 8.02m)",
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "Balcony",
+          "Entrance Foyer"
+        ],
+        "id": "B-3B-B.1",
+        "tower": "Tower B",
+        "_key": "B-3B-B.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-C.1",
+        "unitNumbers": [
+          "2203",
+          "2403",
+          "2603",
+          "2803"
+        ],
+        "unitCount": 4,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2168.28,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (as per compass)",
+        "balconyArea": 173.08,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "Two Balconies",
+          "Entrance Foyer"
+        ],
+        "id": "B-3B-C.1",
+        "tower": "Tower B",
+        "_key": "B-3B-C.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-C.2",
+        "unitNumbers": [
+          "2303",
+          "2503",
+          "2703"
+        ],
+        "unitCount": 3,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2128.02,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (as per compass)",
+        "balconyArea": 132.72,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "Two Balconies",
+          "Entrance Foyer"
+        ],
+        "id": "B-3B-C.2",
+        "tower": "Tower B",
+        "_key": "B-3B-C.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-D.1",
+        "unitNumbers": [
+          "3203",
+          "3403"
+        ],
+        "unitCount": 2,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2123.39,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (as per compass)",
+        "balconyArea": 129.17,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Dressing room",
+          "Laundry",
+          "Powder room",
+          "Two Balconies",
+          "Entrance Foyer"
+        ],
+        "id": "B-3B-D.1",
+        "tower": "Tower B",
+        "_key": "B-3B-D.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-D.2",
+        "unitNumbers": [
+          "3303",
+          "3503"
+        ],
+        "unitCount": 2,
+        "bedrooms": 3,
+        "bathrooms": 5,
+        "area": 2144.06,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass)",
+        "balconyArea": 149.73,
+        "features": [
+          "Maids Bedroom",
+          "Maids Bathroom",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Entrance Foyer",
+          "Dual Balconies"
+        ],
+        "id": "B-3B-D.2",
+        "tower": "Tower B",
+        "_key": "B-3B-D.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-E.1",
+        "unitNumbers": [
+          "3103"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 5,
+        "area": 2273.87,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass)",
+        "balconyArea": 189.55,
+        "features": [
+          "Maids Bedroom",
+          "Maids Bathroom",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Entrance Foyer",
+          "Dual Balconies"
+        ],
+        "id": "B-3B-E.1",
+        "tower": "Tower B",
+        "_key": "B-3B-E.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-F.1",
+        "unitNumbers": [
+          "2102"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 5,
+        "area": 2158.05,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass)",
+        "balconyArea": 167.38,
+        "features": [
+          "Maids Bedroom",
+          "Maids Bathroom",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Entrance Foyer",
+          "Single Wide Balcony"
+        ],
+        "id": "B-3B-F.1",
+        "tower": "Tower B",
+        "_key": "B-3B-F.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-G.1",
+        "unitNumbers": [
+          "3204",
+          "3404"
+        ],
+        "unitCount": 2,
+        "bedrooms": 3,
+        "bathrooms": 5,
+        "area": 2173.98,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass)",
+        "balconyArea": 145.53,
+        "features": [
+          "Maids Bedroom",
+          "Maids Bathroom",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Entrance Foyer",
+          "Balcony"
+        ],
+        "id": "B-3B-G.1",
+        "tower": "Tower B",
+        "_key": "B-3B-G.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "B-3B-G.2",
+        "unitNumbers": [
+          "3304",
+          "3504"
+        ],
+        "unitCount": 2,
+        "bedrooms": 3,
+        "bathrooms": 5,
+        "area": 2151.06,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass)",
+        "balconyArea": 122.6,
+        "features": [
+          "Maids Bedroom",
+          "Maids Bathroom",
+          "Laundry",
+          "Powder Room",
+          "Dressing Room",
+          "Entrance Foyer",
+          "Balcony"
+        ],
+        "id": "B-3B-G.2",
+        "tower": "Tower B",
+        "_key": "B-3B-G.2"
+      },
+      {
+        "category": "4BR",
+        "typeName": "B-4B-A.1",
+        "unitNumbers": [
+          "2204",
+          "2404",
+          "2604",
+          "2804"
+        ],
+        "unitCount": 4,
+        "bedrooms": 4,
+        "bathrooms": 4,
+        "area": 2771.7,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 259.41,
+        "features": [
+          "Maid's room",
+          "Maids bathroom",
+          "Laundry",
+          "Powder room",
+          "Dressing room",
+          "Living & Dining",
+          "Entrance Foyer"
+        ],
+        "id": "B-4B-A.1",
+        "tower": "Tower B",
+        "_key": "B-4B-A.1"
+      },
+      {
+        "category": "4BR",
+        "typeName": "B-4B-B.1",
+        "unitNumbers": [
+          "2304",
+          "2504",
+          "2704"
+        ],
+        "unitCount": 3,
+        "bedrooms": 4,
+        "bathrooms": 4,
+        "area": 2813.36,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 299.34,
+        "features": [
+          "Maid's room",
+          "Maids bathroom",
+          "Laundry",
+          "Powder room",
+          "Dressing room",
+          "Living & Dining",
+          "Entrance Foyer"
+        ],
+        "id": "B-4B-B.1",
+        "tower": "Tower B",
+        "_key": "B-4B-B.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "C-1B-A.1",
+        "unitNumbers": [
+          "102",
+          "302",
+          "502",
+          "702",
+          "902",
+          "1302",
+          "1502",
+          "1702",
+          "1902",
+          "2102",
+          "2302",
+          "2502",
+          "2702",
+          "2902",
+          "3102"
+        ],
+        "unitCount": 15,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area": 754.76,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass icon)",
+        "balconyArea": 70.61,
+        "features": [
+          "Master Bedroom",
+          "Laundry room",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-1B-A.1",
+        "tower": "Tower C",
+        "_key": "C-1B-A.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "C-1B-B.1",
+        "unitNumbers": [
+          "103",
+          "303",
+          "503",
+          "703",
+          "903",
+          "1303",
+          "1503",
+          "1703",
+          "1903",
+          "2103",
+          "2303",
+          "2503",
+          "2703",
+          "2903",
+          "3103"
+        ],
+        "unitCount": 15,
+        "bedrooms": 1,
+        "bathrooms": 1.5,
+        "area": 854.55,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass icon)",
+        "balconyArea": 71.47,
+        "features": [
+          "Master Bedroom",
+          "Master Bathroom",
+          "Powder Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-1B-B.1",
+        "tower": "Tower C",
+        "_key": "C-1B-B.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "C-1B-B.2",
+        "unitNumbers": [
+          "203",
+          "403",
+          "603",
+          "803",
+          "1003",
+          "1403",
+          "1603",
+          "1803",
+          "2003",
+          "2203",
+          "2403",
+          "2603",
+          "2803",
+          "3003",
+          "3203"
+        ],
+        "unitCount": 15,
+        "bedrooms": 1,
+        "bathrooms": 1.5,
+        "area": 873.06,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass icon)",
+        "balconyArea": 89.99,
+        "features": [
+          "Master Bedroom",
+          "Master Bathroom",
+          "Powder Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-1B-B.2",
+        "tower": "Tower C",
+        "_key": "C-1B-B.2"
+      },
+      {
+        "category": "1BR",
+        "typeName": "C-1B-C.1",
+        "unitNumbers": [
+          "101",
+          "301",
+          "501",
+          "701",
+          "901",
+          "1301",
+          "1501",
+          "1701",
+          "1901",
+          "2101",
+          "2301",
+          "2501",
+          "2701",
+          "2901",
+          "3101"
+        ],
+        "unitCount": 15,
+        "bedrooms": 1,
+        "bathrooms": 1.5,
+        "area": 875.75,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass icon)",
+        "balconyArea": 71.47,
+        "features": [
+          "Master Bedroom",
+          "Master Bathroom",
+          "Powder Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-1B-C.1",
+        "tower": "Tower C",
+        "_key": "C-1B-C.1"
+      },
+      {
+        "category": "1BR",
+        "typeName": "C-1B-C.2",
+        "unitNumbers": [
+          "201",
+          "401",
+          "601",
+          "801",
+          "1001",
+          "1401",
+          "1601",
+          "1801",
+          "2001",
+          "2201",
+          "2401",
+          "2601",
+          "2801",
+          "3001",
+          "3201"
+        ],
+        "unitCount": 15,
+        "bedrooms": 1,
+        "bathrooms": 1.5,
+        "area": 894.26,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North (as per compass icon)",
+        "balconyArea": 89.99,
+        "features": [
+          "Master Bedroom",
+          "Master Bathroom",
+          "Powder Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-1B-C.2",
+        "tower": "Tower C",
+        "_key": "C-1B-C.2"
+      },
+      {
+        "category": "1BR",
+        "typeName": "C-1B-D.1",
+        "unitNumbers": [
+          "202",
+          "402",
+          "602",
+          "802",
+          "1002",
+          "1402",
+          "1602",
+          "1802",
+          "2002",
+          "2202",
+          "2402",
+          "2602",
+          "2802",
+          "3002",
+          "3202"
+        ],
+        "unitCount": 15,
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area": 754.66,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 68.89,
+        "features": [
+          "Master Bedroom",
+          "Laundry room",
+          "Entrance Foyer",
+          "Kitchen",
+          "Living & Dining",
+          "Balcony"
+        ],
+        "id": "C-1B-D.1",
+        "tower": "Tower C",
+        "_key": "C-1B-D.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-A.1",
+        "unitNumbers": [
+          "107",
+          "207",
+          "307",
+          "607",
+          "707",
+          "807",
+          "907",
+          "1007",
+          "1307",
+          "1407",
+          "1507",
+          "1607",
+          "1707",
+          "1807",
+          "1907"
+        ],
+        "unitCount": 15,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1266.27,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 58.99,
+        "features": [
+          "Master Bedroom with Ensuite",
+          "Dressing Room",
+          "Second Bedroom",
+          "Powder Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Kitchen",
+          "Living & Dining",
+          "Balcony"
+        ],
+        "id": "C-2B-A.1",
+        "tower": "Tower C",
+        "_key": "C-2B-A.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-B.1",
+        "unitNumbers": [
+          "104",
+          "204",
+          "304",
+          "404",
+          "504",
+          "604",
+          "704",
+          "804",
+          "904",
+          "1004",
+          "1304",
+          "1404",
+          "1504",
+          "1604",
+          "1704",
+          "1804",
+          "1904"
+        ],
+        "unitCount": 17,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1330.31,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 58.99,
+        "features": [
+          "Master Bedroom with Ensuite",
+          "Dressing Room",
+          "Second Bedroom",
+          "Powder Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Kitchen",
+          "Living & Dining",
+          "Curved Balcony"
+        ],
+        "id": "C-2B-B.1",
+        "tower": "Tower C",
+        "_key": "C-2B-B.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-C.1",
+        "unitNumbers": [
+          "3106"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1962.8,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 962.83,
+        "features": [
+          "Master Bedroom with Ensuite",
+          "Dressing Room",
+          "Second Bedroom",
+          "Extensive Wrap-around Terrace",
+          "Laundry",
+          "Entrance Foyer",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-2B-C.1",
+        "tower": "Tower C",
+        "_key": "C-2B-C.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-D.1",
+        "unitNumbers": [
+          "3105"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1570.45,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 345.95,
+        "features": [
+          "Master Bedroom with Ensuite",
+          "Dressing Room",
+          "Second Bedroom",
+          "Powder Room",
+          "Large Balcony",
+          "Laundry",
+          "Entrance Foyer",
+          "Kitchen",
+          "Living & Dining"
+        ],
+        "id": "C-2B-D.1",
+        "tower": "Tower C",
+        "_key": "C-2B-D.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-E.1",
+        "unitNumbers": [
+          "1201"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1328.59,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 58.99,
+        "features": [
+          "Master Bedroom with Dressing",
+          "Master Bathroom",
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Balcony",
+          "Living & Dining"
+        ],
+        "id": "C-2B-E.1",
+        "tower": "Tower C",
+        "_key": "C-2B-E.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-F.1",
+        "unitNumbers": [
+          "3104",
+          "3204"
+        ],
+        "unitCount": 2,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1300.39,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 79.55,
+        "features": [
+          "Master Bedroom with Dressing",
+          "Master Bathroom",
+          "Entrance Foyer",
+          "Laundry",
+          "Powder Room",
+          "Balcony (1.40m wide)",
+          "Living & Dining"
+        ],
+        "id": "C-2B-F.1",
+        "tower": "Tower C",
+        "_key": "C-2B-F.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-G.1",
+        "unitNumbers": [
+          "2006",
+          "2106",
+          "2206",
+          "2306",
+          "2406",
+          "2506",
+          "2906",
+          "3006"
+        ],
+        "unitCount": 8,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1327.4,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 58.99,
+        "features": [
+          "Entrance Foyer (3.05m x 1.85m)",
+          "Master Bedroom with Dressing",
+          "Master Bathroom",
+          "Laundry Room",
+          "Powder Room",
+          "Balcony",
+          "Living & Dining"
+        ],
+        "id": "C-2B-G.1",
+        "tower": "Tower C",
+        "_key": "C-2B-G.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-H.1",
+        "unitNumbers": [
+          "1203"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1374.01,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 95.8,
+        "features": [
+          "Entrance Foyer",
+          "Master Bedroom with Dressing",
+          "Master Bathroom",
+          "Powder Room",
+          "Large Balcony",
+          "Living & Dining area (6.00m x 5.20m)"
+        ],
+        "id": "C-2B-H.1",
+        "tower": "Tower C",
+        "_key": "C-2B-H.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-I.1",
+        "unitNumbers": [
+          "3107",
+          "3207"
+        ],
+        "unitCount": 2,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1335.37,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by N arrow)",
+        "balconyArea": 60.17,
+        "features": [
+          "Entrance Foyer (4.25m x 1.85m)",
+          "Master Bedroom with Dressing",
+          "Master Bathroom",
+          "Laundry",
+          "Powder Room",
+          "Balcony",
+          "Living & Dining"
+        ],
+        "id": "C-2B-I.1",
+        "tower": "Tower C",
+        "_key": "C-2B-I.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-J.1",
+        "unitNumbers": [
+          "3206"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 1133.87,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 137.78,
+        "features": [
+          "Master Bedroom",
+          "Dressing Room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Master Bathroom"
+        ],
+        "id": "C-2B-J.1",
+        "tower": "Tower C",
+        "_key": "C-2B-J.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2B-K.1",
+        "unitNumbers": [
+          "3205"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 3,
+        "area": 1333.43,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 110.01,
+        "features": [
+          "Master Bedroom",
+          "Dressing Room",
+          "Laundry",
+          "Powder Room",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)",
+          "Master Bathroom"
+        ],
+        "id": "C-2B-K.1",
+        "tower": "Tower C",
+        "_key": "C-2B-K.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2BM-A.1",
+        "unitNumbers": [
+          "206",
+          "406",
+          "606",
+          "806",
+          "1006",
+          "1406",
+          "1606",
+          "1806"
+        ],
+        "unitCount": 8,
+        "bedrooms": 2,
+        "bathrooms": 4,
+        "area": 1443.65,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 148.22,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Master Bedroom",
+          "Dressing Room",
+          "Laundry",
+          "Powder Room",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "C-2BM-A.1",
+        "tower": "Tower C",
+        "_key": "C-2BM-A.1"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2BM-A.2",
+        "unitNumbers": [
+          "306",
+          "506",
+          "706",
+          "906",
+          "1306",
+          "1506",
+          "1706",
+          "1906"
+        ],
+        "unitCount": 8,
+        "bedrooms": 2,
+        "bathrooms": 4,
+        "area": 1445.81,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 150.37,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Master Bedroom",
+          "Dressing Room",
+          "Laundry",
+          "Powder Room",
+          "Entrance Foyer",
+          "Balcony (1.40m wide)"
+        ],
+        "id": "C-2BM-A.2",
+        "tower": "Tower C",
+        "_key": "C-2BM-A.2"
+      },
+      {
+        "category": "2BR",
+        "typeName": "C-2BM-A.3",
+        "unitNumbers": [
+          "106"
+        ],
+        "unitCount": 1,
+        "bedrooms": 2,
+        "bathrooms": 4,
+        "area": 1549.46,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 253.92,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Master Bedroom",
+          "Dressing Room",
+          "Laundry",
+          "Powder Room",
+          "Entrance Foyer",
+          "Balcony (2.40m wide)"
+        ],
+        "id": "C-2BM-A.3",
+        "tower": "Tower C",
+        "_key": "C-2BM-A.3"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-A.1",
+        "unitNumbers": [
+          "205",
+          "405",
+          "605",
+          "805",
+          "1005",
+          "1405",
+          "1605",
+          "1805"
+        ],
+        "unitCount": 8,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2153.43,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North",
+        "balconyArea": 168.78,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Powder room",
+          "Dressing room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony"
+        ],
+        "id": "C-3B-A.1",
+        "tower": "Tower C",
+        "_key": "C-3B-A.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-A.2",
+        "unitNumbers": [
+          "305",
+          "505",
+          "705",
+          "905",
+          "1305",
+          "1505",
+          "1705",
+          "1905"
+        ],
+        "unitCount": 8,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2151.27,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North",
+        "balconyArea": 166.63,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Powder room",
+          "Dressing room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony"
+        ],
+        "id": "C-3B-A.2",
+        "tower": "Tower C",
+        "_key": "C-3B-A.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-A.3",
+        "unitNumbers": [
+          "105"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2267.42,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North",
+        "balconyArea": 282.88,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Powder room",
+          "Dressing room",
+          "Laundry",
+          "Entrance Foyer",
+          "Large Balcony"
+        ],
+        "id": "C-3B-A.3",
+        "tower": "Tower C",
+        "_key": "C-3B-A.3"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-B.1",
+        "unitNumbers": [
+          "1202"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2156.87,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North",
+        "balconyArea": 166.63,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Powder room",
+          "Dressing room",
+          "Laundry",
+          "Entrance Foyer",
+          "Balcony"
+        ],
+        "id": "C-3B-B.1",
+        "tower": "Tower C",
+        "_key": "C-3B-B.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-C.1",
+        "unitNumbers": [
+          "2805"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 2189.81,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North",
+        "balconyArea": 160.81,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Powder room",
+          "Dressing room",
+          "Laundry",
+          "Entrance Foyer",
+          "Double Balcony"
+        ],
+        "id": "C-3B-C.1",
+        "tower": "Tower C",
+        "_key": "C-3B-C.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-C.2",
+        "unitNumbers": [
+          "2705"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2209.51,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 180.51,
+        "features": [
+          "Maid's room with en-suite bathroom",
+          "Master Bedroom with en-suite and dressing room",
+          "Laundry room",
+          "Powder room",
+          "Two balconies (1.40m wide)",
+          "Entrance Foyer"
+        ],
+        "id": "C-3B-C.2",
+        "tower": "Tower C",
+        "_key": "C-3B-C.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-D.1",
+        "unitNumbers": [
+          "2004",
+          "2204",
+          "2404",
+          "2604",
+          "2804",
+          "3004"
+        ],
+        "unitCount": 6,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2167.2,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 172.76,
+        "features": [
+          "Maid's room with en-suite bathroom",
+          "Master Bedroom with en-suite and dressing room",
+          "Laundry room",
+          "Powder room",
+          "Two balconies (1.40m wide)",
+          "Passage corridor",
+          "Entrance Foyer"
+        ],
+        "id": "C-3B-D.1",
+        "tower": "Tower C",
+        "_key": "C-3B-D.1"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-D.2",
+        "unitNumbers": [
+          "2104",
+          "2304",
+          "2504",
+          "2704",
+          "2904"
+        ],
+        "unitCount": 5,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2126.84,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 132.4,
+        "features": [
+          "Maid's room with en-suite bathroom",
+          "Master Bedroom with en-suite and dressing room",
+          "Laundry room",
+          "Powder room",
+          "Two balconies (1.40m wide)",
+          "Entrance Foyer"
+        ],
+        "id": "C-3B-D.2",
+        "tower": "Tower C",
+        "_key": "C-3B-D.2"
+      },
+      {
+        "category": "3BR",
+        "typeName": "C-3B-E.1",
+        "unitNumbers": [
+          "2605"
+        ],
+        "unitCount": 1,
+        "bedrooms": 3,
+        "bathrooms": 4,
+        "area": 2181.95,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 160.81,
+        "features": [
+          "Maid's room with en-suite bathroom",
+          "Master Bedroom with en-suite and dressing room",
+          "Laundry room",
+          "Powder room",
+          "Two balconies (1.40m wide)",
+          "Entrance Foyer"
+        ],
+        "id": "C-3B-E.1",
+        "tower": "Tower C",
+        "_key": "C-3B-E.1"
+      },
+      {
+        "category": "4BR",
+        "typeName": "C-4B-A.1",
+        "unitNumbers": [
+          "2005",
+          "2205",
+          "2405",
+          "3005"
+        ],
+        "unitCount": 4,
+        "bedrooms": 4,
+        "bathrooms": 5,
+        "area": 2771.49,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 258.98,
+        "features": [
+          "Maid's room with en-suite bathroom",
+          "Master Bedroom with en-suite and large dressing room",
+          "Laundry room",
+          "Powder room",
+          "Two balconies (1.40m deep)",
+          "Large Entrance Foyer",
+          "All bedrooms with nearby bathroom access"
+        ],
+        "id": "C-4B-A.1",
+        "tower": "Tower C",
+        "_key": "C-4B-A.1"
+      },
+      {
+        "category": "4BR",
+        "typeName": "C-4B-B.1",
+        "unitNumbers": [
+          "2105",
+          "2305",
+          "2505",
+          "2905"
+        ],
+        "unitCount": 4,
+        "bedrooms": 4,
+        "bathrooms": 6,
+        "area": 2812.93,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 298.81,
+        "features": [
+          "Maids bedroom",
+          "Maids bathroom",
+          "Laundry",
+          "Powder room",
+          "Dressing room",
+          "Entrance foyer",
+          "Two balconies",
+          "Kitchen",
+          "Living & Dining",
+          "Passage"
+        ],
+        "id": "C-4B-B.1",
+        "tower": "Tower C",
+        "_key": "C-4B-B.1"
+      },
+      {
+        "category": "Penthouse",
+        "typeName": "A-PH-A",
+        "unitNumbers": [
+          "3001"
+        ],
+        "unitCount": 1,
+        "bedrooms": 5,
+        "bathrooms": 7,
+        "area": 9398.93,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing (indicated by compass)",
+        "balconyArea": 4523.96,
+        "features": [
+          "Maid's room",
+          "Maid's bathroom",
+          "Laundry",
+          "Lounge",
+          "Storage",
+          "Multiple wrap-around balconies",
+          "Dressing room",
+          "Powder room"
+        ],
+        "id": "A-PH-A",
+        "_key": "A-PH-A"
+      },
+      {
+        "category": "Penthouse",
+        "typeName": "B-PH-A",
+        "unitNumbers": [
+          "3601"
+        ],
+        "unitCount": 1,
+        "bedrooms": 5,
+        "bathrooms": 5,
+        "area": 13026.47,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": "North-facing",
+        "balconyArea": 4529.88,
+        "features": [
+          "Duplex (Lower and Upper levels)",
+          "Private Pool",
+          "Private Terrace",
+          "Gym/Yoga Studio",
+          "Show Kitchen",
+          "BOH Kitchen",
+          "Maid's Bedroom",
+          "Maids bathroom",
+          "Laundry",
+          "Two Powder Rooms",
+          "Family Lounge",
+          "Outdoor Dining",
+          "Outdoor Pantry",
+          "Internal Lift"
+        ],
+        "id": "B-PH-A",
+        "_key": "B-PH-A"
+      },
+      {
+        "category": "Penthouse",
+        "typeName": "C-PH-A",
+        "unitNumbers": [
+          "3301"
+        ],
+        "unitCount": 1,
+        "bedrooms": 5,
+        "bathrooms": 8,
+        "area": 8753.53,
+        "areaUnit": "sqft",
+        "price": null,
+        "pricePerSqft": null,
+        "orientation": null,
+        "balconyArea": 3875,
+        "features": [
+          "Maids bedroom",
+          "Maids bathroom",
+          "Lounge",
+          "Storage",
+          "Laundry",
+          "Powder room",
+          "Dressing room",
+          "Multiple wrap-around balconies",
+          "Kitchen",
+          "Living & Dining",
+          "Master suite",
+          "Entrance passage"
+        ],
+        "id": "C-PH-A",
+        "_key": "C-PH-A"
+      }
+    ],
+    "paymentPlans": [],
+    "images": {
+      "projectImages": [],
+      "floorPlanImages": [
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+        "/api/langgraph-images/job_1768536342068_yz0np/page.5.png"
+      ],
+      "allImages": [
+        {
+          "pageNumber": 21,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 22,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 23,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 24,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 25,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 36,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 37,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 38,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 39,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 40,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 26,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 27,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 28,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 29,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 30,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 46,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 47,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 48,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 49,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 50,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 6,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 7,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 8,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 9,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 10,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 41,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 42,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 43,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 44,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 45,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 11,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 12,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 13,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 14,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 15,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 16,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 17,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 18,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 19,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 20,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 1,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 2,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 3,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 4,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 5,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 31,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 32,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 33,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 34,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 35,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 91,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 92,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 93,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 66,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 67,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 68,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 69,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 70,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 71,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 72,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 73,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 74,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 75,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 61,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 62,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 63,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 64,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 65,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 76,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 77,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 78,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 79,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 80,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 51,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 52,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 53,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 54,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 55,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 56,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 57,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 58,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 59,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 60,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 86,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 87,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 88,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 89,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 90,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 81,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.1.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 82,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.2.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 83,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.3.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 84,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.4.png",
+          "category": "floor_plan"
+        },
+        {
+          "pageNumber": 85,
+          "imagePath": "/api/langgraph-images/job_1768536342068_yz0np/page.5.png",
+          "category": "floor_plan"
+        }
+      ]
+    },
+    "minArea": 754.66,
+    "maxArea": 13026.47
+  },
+  "metadata": {
+    "pagesPerChunk": 5,
+    "batchSize": 10,
+    "batchDelay": 1000,
+    "errors": [],
+    "warnings": []
+  }
+}

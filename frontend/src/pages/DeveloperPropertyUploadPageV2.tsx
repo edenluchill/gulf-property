@@ -12,11 +12,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/card'
-import { Building2, CheckCircle, Sparkles, Loader2, Upload, FileText, X } from 'lucide-react'
+import { Building2, CheckCircle, Sparkles, Loader2, Upload, FileText, X, MapPin } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { UnitTypeCard } from '../components/developer-upload/UnitTypeCard'
+import LocationMapPickerModal from '../components/LocationMapPicker'
+import { API_ENDPOINTS } from '../lib/config'
 
 interface UnitType {
   id: string
@@ -48,12 +50,24 @@ interface FormData {
   address: string
   area: string
   completionDate: string
+  launchDate?: string
+  handoverDate?: string
+  constructionProgress?: string
   description: string
+  latitude?: number
+  longitude?: number
   amenities: string[]
   unitTypes: UnitType[]
   paymentPlan: any[]
   projectImages?: string[]
   floorPlanImages?: string[]
+  visualContent?: {
+    hasRenderings?: boolean
+    hasFloorPlans?: boolean
+    hasLocationMaps?: boolean
+    renderingDescriptions?: string[]
+    floorPlanDescriptions?: string[]
+  }
 }
 
 interface ProgressEvent {
@@ -73,6 +87,7 @@ export default function DeveloperPropertyUploadPageV2() {
   const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([])
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [showMapPicker, setShowMapPicker] = useState(false)
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -131,7 +146,7 @@ export default function DeveloperPropertyUploadPageV2() {
         formDataToSend.append('files', doc.file)
       })
 
-      const response = await fetch('http://localhost:3000/api/langgraph-progress/start', {
+      const response = await fetch(API_ENDPOINTS.langgraphProgressStart, {
         method: 'POST',
         body: formDataToSend,
       })
@@ -144,7 +159,7 @@ export default function DeveloperPropertyUploadPageV2() {
 
       const jobId = data.jobId
 
-      const eventSource = new EventSource(`http://localhost:3000/api/langgraph-progress/stream/${jobId}`)
+      const eventSource = new EventSource(API_ENDPOINTS.langgraphProgressStream(jobId))
       eventSourceRef.current = eventSource
 
       eventSource.onmessage = (event) => {
@@ -176,12 +191,16 @@ export default function DeveloperPropertyUploadPageV2() {
             address: buildingData.address || prev.address,
             area: buildingData.area || prev.area,
             completionDate: buildingData.completionDate || prev.completionDate,
+            launchDate: buildingData.launchDate || prev.launchDate,
+            handoverDate: buildingData.handoverDate || prev.handoverDate,
+            constructionProgress: buildingData.constructionProgress || prev.constructionProgress,
             description: buildingData.description || prev.description,
             amenities: buildingData.amenities || prev.amenities,
             unitTypes: buildingData.units || prev.unitTypes,
             paymentPlan: buildingData.paymentPlans?.[0]?.milestones || prev.paymentPlan,
             projectImages: buildingData.images?.projectImages || prev.projectImages,
             floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
+            visualContent: buildingData.visualContent || prev.visualContent,
           }))
         }
 
@@ -213,17 +232,62 @@ export default function DeveloperPropertyUploadPageV2() {
     e.preventDefault()
 
     try {
-      const response = await fetch('http://localhost:3000/api/developer/submit-property', {
+      // Transform formData to match backend API format
+      const submitData = {
+        projectName: formData.projectName,
+        developer: formData.developer,
+        address: formData.address,
+        area: formData.area,
+        description: formData.description,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        launchDate: formData.launchDate,
+        completionDate: formData.completionDate,
+        handoverDate: formData.handoverDate,
+        constructionProgress: formData.constructionProgress,
+        projectImages: formData.projectImages || [],
+        floorPlanImages: formData.floorPlanImages || [],
+        amenities: formData.amenities || [],
+        visualContent: formData.visualContent,
+        unitTypes: formData.unitTypes.map(unit => ({
+          name: unit.name,
+          typeName: unit.typeName,
+          category: unit.category,
+          tower: (unit as any).tower,
+          unitNumbers: unit.unitNumbers,
+          unitCount: unit.unitCount || 1,
+          bedrooms: unit.bedrooms,
+          bathrooms: unit.bathrooms,
+          area: unit.area,
+          balconyArea: unit.balconyArea,
+          price: unit.price,
+          pricePerSqft: unit.pricePerSqft,
+          orientation: unit.orientation,
+          features: unit.features,
+          floorPlanImage: unit.floorPlanImage,
+        })),
+        paymentPlan: formData.paymentPlan || [],
+      }
+
+      console.log('📤 Submitting project:', submitData)
+
+      const response = await fetch(API_ENDPOINTS.residentialProjectsSubmit, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       })
 
-      if (!response.ok) throw new Error('Failed to submit property')
+      const result = await response.json()
 
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to submit property')
+      }
+
+      console.log('✅ Project submitted successfully:', result.projectId)
       setSubmitted(true)
       setTimeout(() => { window.location.href = '/map' }, 3000)
     } catch (err) {
+      console.error('❌ Submit error:', err)
       setError(err instanceof Error ? err.message : 'Failed to submit')
     }
   }
@@ -236,11 +300,34 @@ export default function DeveloperPropertyUploadPageV2() {
     }
   }, [])
 
-  // Group units by category
+  // Group units by building prefix (A-, DSTH-, DS-V, DSTW, etc.)
   const groupedUnits = formData.unitTypes.reduce((acc, unit) => {
-    const category = unit.category || `${unit.bedrooms}BR`;
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(unit);
+    let buildingGroup = (unit as any).tower;
+    
+    // Frontend fallback: extract prefix from typeName
+    if (!buildingGroup && unit.typeName) {
+      // Try to extract prefix:
+      // 1. Letters before hyphen: "DSTH-M1" -> "DSTH", "A-101" -> "A"
+      // 2. All leading letters: "DSTW" -> "DSTW", "DS" -> "DS"
+      // 3. Letters before digits/parentheses: "DSTW5BR" -> "DSTW", "DSTH(4BR)" -> "DSTH"
+      const matchWithHyphen = unit.typeName.match(/^([A-Z]+)-/);
+      const matchLettersOnly = unit.typeName.match(/^([A-Z]+)$/);
+      const matchBeforeDigits = unit.typeName.match(/^([A-Z]+)[\d\(]/);
+      
+      if (matchWithHyphen) {
+        buildingGroup = matchWithHyphen[1];
+      } else if (matchLettersOnly) {
+        buildingGroup = matchLettersOnly[1];
+      } else if (matchBeforeDigits) {
+        buildingGroup = matchBeforeDigits[1];
+      }
+    }
+    
+    // Use prefix as group key, or "未分类" if no prefix found
+    const groupKey = buildingGroup || '未分类';
+    
+    if (!acc[groupKey]) acc[groupKey] = [];
+    acc[groupKey].push(unit);
     return acc;
   }, {} as Record<string, UnitType[]>);
 
@@ -408,6 +495,50 @@ export default function DeveloperPropertyUploadPageV2() {
                                 required
                               />
                             </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-sm">区域</Label>
+                                <Input
+                                  value={formData.area}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, area: e.target.value }))}
+                                  disabled={isProcessing}
+                                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                                  placeholder="例如: Dubai Marina"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm">交付日期</Label>
+                                <Input
+                                  value={formData.completionDate || ''}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, completionDate: e.target.value }))}
+                                  disabled={isProcessing}
+                                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                                  placeholder="2026-Q4 或 2026-12-31"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-sm">发布日期</Label>
+                                <Input
+                                  value={formData.launchDate || ''}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, launchDate: e.target.value }))}
+                                  disabled={isProcessing}
+                                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                                  placeholder="2025-01-01"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm">建设进度</Label>
+                                <Input
+                                  value={formData.constructionProgress || ''}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, constructionProgress: e.target.value }))}
+                                  disabled={isProcessing}
+                                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                                  placeholder="例如: 75% Complete"
+                                />
+                              </div>
+                            </div>
                             <div>
                               <Label className="text-sm">项目描述</Label>
                               <textarea
@@ -418,48 +549,147 @@ export default function DeveloperPropertyUploadPageV2() {
                                 className={`w-full rounded-md border px-3 py-2 text-sm ${isProcessing ? 'bg-amber-50 animate-pulse' : ''}`}
                               />
                             </div>
-                          </div>
 
-                          {/* Project Images Gallery */}
-                          {formData.projectImages && formData.projectImages.length > 0 ? (
+                            {/* Location Coordinates */}
                             <div className="space-y-3">
-                              <h3 className="font-semibold border-b pb-2 flex items-center gap-2">
-                                📸 项目图片 ({formData.projectImages.length})
-                              </h3>
-                              <div className="grid grid-cols-3 gap-3">
-                                {formData.projectImages.slice(0, 6).map((img, idx) => (
-                                  <div 
-                                    key={idx} 
-                                    className="aspect-video bg-gray-100 rounded-lg overflow-hidden border hover:border-amber-400 transition-all cursor-pointer group"
-                                    onClick={() => window.open(img, '_blank')}
-                                  >
-                                    <img 
-                                      src={img} 
-                                      alt={`Project ${idx + 1}`} 
-                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                      onError={(e) => {
-                                        console.error('Image load failed:', img.substring(0, 50));
-                                        e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
-                                      }}
-                                    />
+                              <Label className="text-sm font-semibold flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-amber-600" />
+                                地图位置坐标
+                              </Label>
+                              
+                              {formData.latitude && formData.longitude ? (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <span className="font-medium text-gray-700">纬度:</span>
+                                        <span className="font-mono font-bold text-green-700">
+                                          {formData.latitude.toFixed(6)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <span className="font-medium text-gray-700">经度:</span>
+                                        <span className="font-mono font-bold text-green-700">
+                                          {formData.longitude.toFixed(6)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setShowMapPicker(true)}
+                                      disabled={isProcessing}
+                                    >
+                                      <MapPin className="h-3 w-3 mr-1" />
+                                      重新选择
+                                    </Button>
                                   </div>
-                                ))}
-                              </div>
-                              {formData.projectImages.length > 6 && (
-                                <p className="text-xs text-gray-500 text-center">
-                                  +{formData.projectImages.length - 6} 张图片（点击查看大图）
-                                </p>
+                                </div>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="w-full border-dashed border-2 border-amber-300 hover:border-amber-500 hover:bg-amber-50"
+                                  onClick={() => setShowMapPicker(true)}
+                                  disabled={isProcessing}
+                                >
+                                  <MapPin className="mr-2 h-4 w-4 text-amber-600" />
+                                  点击地图选择项目位置
+                                </Button>
                               )}
                             </div>
-                          ) : (
-                            <div className="text-center py-4 bg-gray-50 rounded-lg border-2 border-dashed">
-                              <p className="text-sm text-gray-500">
-                                {isProcessing ? '🖼️ 正在提取图片...' : '暂无项目图片'}
-                              </p>
-                            </div>
-                          )}
+                          </div>
 
-                          {/* Unit Types - Grouped by Category */}
+                          {/* Visual Content Section */}
+                          <div className="space-y-3">
+                            <h3 className="font-semibold border-b pb-2 flex items-center gap-2">
+                              🖼️ 视觉内容
+                            </h3>
+
+                            {/* Extracted Images */}
+                            {formData.projectImages && formData.projectImages.length > 0 ? (
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-green-700">✅ 已提取 {formData.projectImages.length} 张图片</p>
+                                <div className="grid grid-cols-3 gap-3">
+                                  {formData.projectImages.slice(0, 6).map((img, idx) => (
+                                    <div 
+                                      key={idx} 
+                                      className="aspect-video bg-gray-100 rounded-lg overflow-hidden border hover:border-amber-400 transition-all cursor-pointer group"
+                                      onClick={() => window.open(img, '_blank')}
+                                    >
+                                      <img 
+                                        src={img} 
+                                        alt={`Project ${idx + 1}`} 
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                        crossOrigin="anonymous"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                          console.error('Image load failed:', img.substring(0, 50));
+                                          e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+                                        }}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                                {formData.projectImages.length > 6 && (
+                                  <p className="text-xs text-gray-500 text-center">
+                                    +{formData.projectImages.length - 6} 张图片（点击查看大图）
+                                  </p>
+                                )}
+                              </div>
+                            ) : formData.visualContent && (formData.visualContent.hasRenderings || formData.visualContent.hasFloorPlans) ? (
+                              <div className="space-y-3 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                <p className="text-sm font-medium text-blue-800">
+                                  ℹ️ AI 检测到 PDF 中包含以下视觉内容（无法直接提取）：
+                                </p>
+                                <div className="space-y-2 text-sm">
+                                  {formData.visualContent.hasRenderings && (
+                                    <div>
+                                      <p className="font-medium text-blue-700">📐 效果图渲染:</p>
+                                      {formData.visualContent.renderingDescriptions && formData.visualContent.renderingDescriptions.length > 0 ? (
+                                        <ul className="list-disc list-inside ml-2 text-gray-700 space-y-1">
+                                          {formData.visualContent.renderingDescriptions.map((desc, idx) => (
+                                            <li key={idx}>{desc}</li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <p className="ml-2 text-gray-600">已检测到项目效果图</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {formData.visualContent.hasFloorPlans && (
+                                    <div>
+                                      <p className="font-medium text-blue-700">🏠 户型平面图:</p>
+                                      {formData.visualContent.floorPlanDescriptions && formData.visualContent.floorPlanDescriptions.length > 0 ? (
+                                        <ul className="list-disc list-inside ml-2 text-gray-700 space-y-1">
+                                          {formData.visualContent.floorPlanDescriptions.map((desc, idx) => (
+                                            <li key={idx}>{desc}</li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <p className="ml-2 text-gray-600">已检测到户型平面图</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {formData.visualContent.hasLocationMaps && (
+                                    <div>
+                                      <p className="font-medium text-blue-700">🗺️ 位置地图:</p>
+                                      <p className="ml-2 text-gray-600">已检测到位置/区域地图</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center py-4 bg-gray-50 rounded-lg border-2 border-dashed">
+                                <p className="text-sm text-gray-500">
+                                  {isProcessing ? '🖼️ 正在分析视觉内容...' : '暂无图片或视觉内容'}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Unit Types - Grouped by Tower/Building */}
                           <div className="space-y-3">
                             <h3 className="font-semibold border-b pb-2">
                               户型列表 ({formData.unitTypes.length} 个)
@@ -472,34 +702,41 @@ export default function DeveloperPropertyUploadPageV2() {
                               </div>
                             )}
 
-                            {/* Group by category */}
-                            {Object.entries(groupedUnits).map(([category, units]) => (
-                              <div key={category} className="space-y-2">
-                                <div className="text-sm font-semibold text-amber-700 bg-amber-50 px-3 py-1 rounded">
-                                  {category} ({units.length} 种)
+                            {/* Group by prefix */}
+                            {Object.entries(groupedUnits).map(([groupKey, units]) => {
+                              const isUncategorized = groupKey === '未分类';
+                              return (
+                                <div key={groupKey} className="space-y-2">
+                                  <div className={`text-sm font-semibold px-4 py-2 rounded-lg ${
+                                    isUncategorized 
+                                      ? 'text-gray-700 bg-gray-100 border-l-4 border-gray-400' 
+                                      : 'text-blue-800 bg-blue-100 border-l-4 border-blue-500 text-base'
+                                  }`}>
+                                    {isUncategorized ? `📋 ${groupKey}` : `🏢 ${groupKey} 系列`} ({units.length} 种户型)
+                                  </div>
+                                  {units.map((unit, idx) => (
+                                    <UnitTypeCard
+                                      key={unit.id}
+                                      unit={unit}
+                                      index={idx}
+                                      isProcessing={isProcessing}
+                                      onChange={(field, value) => {
+                                        const globalIdx = formData.unitTypes.findIndex(u => u.id === unit.id);
+                                        const updated = [...formData.unitTypes];
+                                        updated[globalIdx] = { ...updated[globalIdx], [field]: value };
+                                        setFormData(prev => ({ ...prev, unitTypes: updated }));
+                                      }}
+                                      onRemove={() => {
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          unitTypes: prev.unitTypes.filter(u => u.id !== unit.id)
+                                        }));
+                                      }}
+                                    />
+                                  ))}
                                 </div>
-                                {units.map((unit, idx) => (
-                                  <UnitTypeCard
-                                    key={unit.id}
-                                    unit={unit}
-                                    index={idx}
-                                    isProcessing={isProcessing}
-                                    onChange={(field, value) => {
-                                      const globalIdx = formData.unitTypes.findIndex(u => u.id === unit.id);
-                                      const updated = [...formData.unitTypes];
-                                      updated[globalIdx] = { ...updated[globalIdx], [field]: value };
-                                      setFormData(prev => ({ ...prev, unitTypes: updated }));
-                                    }}
-                                    onRemove={() => {
-                                      setFormData(prev => ({
-                                        ...prev,
-                                        unitTypes: prev.unitTypes.filter(u => u.id !== unit.id)
-                                      }));
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
 
                           {/* Payment Plan */}
@@ -581,6 +818,20 @@ export default function DeveloperPropertyUploadPageV2() {
           )}
         </div>
       </div>
+
+      {/* Location Map Picker Modal */}
+      <LocationMapPickerModal
+        isOpen={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onConfirm={(lat, lng) => {
+          setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))
+        }}
+        initialPosition={
+          formData.latitude && formData.longitude
+            ? { lat: formData.latitude, lng: formData.longitude }
+            : undefined
+        }
+      />
     </div>
   )
 }

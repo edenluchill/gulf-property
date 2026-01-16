@@ -11,6 +11,7 @@
     "kill": "powershell -ExecutionPolicy Bypass -File ./kill-dev.ps1"
   },
   "dependencies": {
+    "@geoman-io/leaflet-geoman-free": "^2.16.0",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-select": "^2.0.0",
@@ -25,7 +26,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
-    "react-leaflet-cluster": "^4.0.0",
     "react-router-dom": "^6.22.0",
     "tailwind-merge": "^2.2.1"
   },

@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import MapViewClustered from '../components/MapViewClustered'
 import FilterDialog from '../components/FilterDialog'
 import ClusterDialog from '../components/ClusterDialog'
-import { PropertyFilters, OffPlanProperty } from '../types'
+import { PropertyFilters, OffPlanProperty, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
-import { Search, SlidersHorizontal } from 'lucide-react'
+import { Search, SlidersHorizontal, Layers } from 'lucide-react'
 import { formatPrice } from '../lib/utils'
-import { fetchPropertyClusters, fetchDevelopers, fetchAreas, fetchProjects, fetchPropertiesBatch } from '../lib/api'
+import { fetchPropertyClusters, fetchDevelopers, fetchAreas, fetchProjects, fetchPropertiesBatch, fetchDubaiAreas, fetchDubaiLandmarks } from '../lib/api'
 import { useDebounce } from '../hooks/useDebounce'
 
 export default function MapPage() {
@@ -21,6 +21,11 @@ export default function MapPage() {
   const [projects, setProjects] = useState<{ project_name: string; developer: string }[]>([])
   const [mapBounds, setMapBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null)
   const [mapZoom, setMapZoom] = useState<number>(11)
+  
+  // Dubai areas and landmarks state
+  const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
+  const [dubaiLandmarks, setDubaiLandmarks] = useState<DubaiLandmark[]>([])
+  const [showDubaiLayer, setShowDubaiLayer] = useState(false)
   
   // Cluster dialog state
   const [showClusterDialog, setShowClusterDialog] = useState(false)
@@ -81,6 +86,35 @@ export default function MapPage() {
         setProjects(sorted)
         localStorage.setItem('gulf_projects', JSON.stringify(sorted))
         localStorage.setItem('gulf_projects_timestamp', Date.now().toString())
+      })
+    }
+    
+    // Load Dubai areas and landmarks with cache
+    const cachedDubaiAreas = localStorage.getItem('gulf_dubai_areas')
+    const cachedDubaiAreasTimestamp = localStorage.getItem('gulf_dubai_areas_timestamp')
+    
+    if (cachedDubaiAreas && cachedDubaiAreasTimestamp && 
+        Date.now() - parseInt(cachedDubaiAreasTimestamp) < CACHE_DURATION) {
+      setDubaiAreas(JSON.parse(cachedDubaiAreas))
+    } else {
+      fetchDubaiAreas().then((data) => {
+        setDubaiAreas(data)
+        localStorage.setItem('gulf_dubai_areas', JSON.stringify(data))
+        localStorage.setItem('gulf_dubai_areas_timestamp', Date.now().toString())
+      })
+    }
+    
+    const cachedDubaiLandmarks = localStorage.getItem('gulf_dubai_landmarks')
+    const cachedDubaiLandmarksTimestamp = localStorage.getItem('gulf_dubai_landmarks_timestamp')
+    
+    if (cachedDubaiLandmarks && cachedDubaiLandmarksTimestamp && 
+        Date.now() - parseInt(cachedDubaiLandmarksTimestamp) < CACHE_DURATION) {
+      setDubaiLandmarks(JSON.parse(cachedDubaiLandmarks))
+    } else {
+      fetchDubaiLandmarks().then((data) => {
+        setDubaiLandmarks(data)
+        localStorage.setItem('gulf_dubai_landmarks', JSON.stringify(data))
+        localStorage.setItem('gulf_dubai_landmarks_timestamp', Date.now().toString())
       })
     }
   }, [])
@@ -227,6 +261,14 @@ export default function MapPage() {
                   </span>
                 )}
               </Button>
+              <Button 
+                variant={showDubaiLayer ? "default" : "outline"}
+                className="h-12 px-6"
+                onClick={() => setShowDubaiLayer(!showDubaiLayer)}
+              >
+                <Layers className="h-5 w-5 mr-2" />
+                Areas & Landmarks
+              </Button>
             </div>
 
             {/* Active Filters Summary */}
@@ -276,6 +318,9 @@ export default function MapPage() {
             clusters={clusters} 
             onBoundsChange={handleMapBoundsChange}
             onClusterClick={handleClusterClick}
+            dubaiAreas={dubaiAreas}
+            dubaiLandmarks={dubaiLandmarks}
+            showDubaiLayer={showDubaiLayer}
           />
           
           {/* Last Updated Badge - Floating on Map */}

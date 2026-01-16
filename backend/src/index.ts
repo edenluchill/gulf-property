@@ -8,10 +8,13 @@ import projectsRouter from './routes/projects'
 import propertiesRouter from './routes/properties'
 import submissionsRouter from './routes/submissions'
 import { createDeveloperRouter } from './routes/developer'
+import { createResidentialProjectsRouter } from './routes/residential-projects'
 import imagesRouter from './routes/images'
 import langgraphRouter from './routes/langgraph-processor'
 import langgraphProgressRouter from './routes/langgraph-progress'
 import langgraphValidateRouter from './routes/langgraph-validate'
+import langgraphImagesRouter from './routes/langgraph-images'
+import dubaiAreasLandmarksRouter from './routes/dubai-areas-landmarks'
 import pool from './db/pool'
 import { ensureUploadDir } from './services/image-storage-local'
 
@@ -44,7 +47,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter)
 
 // Health check
-app.get('/health', async (req: Request, res: Response) => {
+app.get('/health', async (_req: Request, res: Response) => {
   try {
     await pool.query('SELECT 1')
     res.json({
@@ -66,13 +69,16 @@ app.use('/api/projects', projectsRouter)
 app.use('/api/properties', propertiesRouter)  // New off-plan properties API with map search
 app.use('/api/submissions', submissionsRouter)
 app.use('/api/developer', createDeveloperRouter(pool))  // Developer property submission with AI PDF processing
+app.use('/api/residential-projects', createResidentialProjectsRouter(pool))  // New residential projects API
 app.use('/api/images', imagesRouter)  // Image serving
 app.use('/api/langgraph', langgraphRouter)  // LangGraph multi-agent PDF processor
 app.use('/api/langgraph-progress', langgraphProgressRouter)  // LangGraph with real-time progress
 app.use('/api/langgraph', langgraphValidateRouter)  // Result validation
+app.use('/api/langgraph-images', langgraphImagesRouter)  // LangGraph extracted images
+app.use('/api/dubai', dubaiAreasLandmarksRouter)  // Dubai areas and landmarks overlay
 
 // 404 handler
-app.use((req: Request, res: Response) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     error: 'Route not found'
@@ -80,7 +86,7 @@ app.use((req: Request, res: Response) => {
 })
 
 // Error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Error:', err)
   res.status(500).json({
     success: false,

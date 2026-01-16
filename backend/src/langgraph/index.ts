@@ -4,17 +4,12 @@
  * Main exports for the LangGraph-based PDF processing system
  */
 
-// Main executor
-export { executePdfWorkflow, testWorkflow } from './executor';
-export type { WorkflowConfig, WorkflowResult } from './executor';
-
-// Direct PDF executor (NEW! No canvas needed)
-export { executeDirectPdfWorkflow } from './executor-direct-pdf';
-export type { DirectPdfWorkflowConfig } from './executor-direct-pdf';
+// Main workflow executor
+export { executePdfWorkflow } from './workflow-executor';
+export type { WorkflowConfig, WorkflowResult } from './workflow-executor';
 
 // Graph builders
-export { buildWorkflow, buildSimplifiedWorkflow } from './graph';
-export { buildDirectPdfWorkflow } from './graph-direct-pdf';
+export { buildEnhancedWorkflow } from './graph-enhanced';
 
 // State types
 export type { State, GlobalState, PageResult } from './state';

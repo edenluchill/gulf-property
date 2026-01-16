@@ -38,7 +38,7 @@ interface UnitTypeCardProps {
   onRemove: () => void;
 }
 
-export function UnitTypeCard({ unit, index, isProcessing, onChange, onRemove }: UnitTypeCardProps) {
+export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTypeCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -54,16 +54,24 @@ export function UnitTypeCard({ unit, index, isProcessing, onChange, onRemove }: 
               <Home className="h-5 w-5 text-amber-600" />
             </div>
             <div className="flex-1">
-              <div className="font-semibold text-gray-900">
-                {unit.category || `${unit.bedrooms}BR`} {unit.typeName && `- ${unit.typeName}`}
+              <div className="font-semibold text-gray-900 flex items-center gap-2">
+                {/* Unit Type Name - Most Prominent */}
+                {unit.typeName ? (
+                  <>
+                    <span className="text-lg text-amber-700">{unit.typeName}</span>
+                    <span className="text-sm text-gray-500">({unit.category || `${unit.bedrooms}BR`})</span>
+                  </>
+                ) : (
+                  <span>{unit.category || unit.name || `${unit.bedrooms}BR`}</span>
+                )}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-600 mt-0.5">
                 {unit.area} sqft • {unit.bedrooms}BR • {unit.bathrooms}BA
                 {unit.price && ` • AED ${unit.price.toLocaleString()}`}
               </div>
               {unit.unitCount && (
-                <div className="text-xs text-amber-600 mt-1">
-                  {unit.unitCount} 单元可用
+                <div className="text-xs text-amber-600 mt-1 font-medium">
+                  📍 {unit.unitCount} 个单元
                 </div>
               )}
             </div>
@@ -113,7 +121,7 @@ export function UnitTypeCard({ unit, index, isProcessing, onChange, onRemove }: 
                       src={unit.floorPlanImage} 
                       alt={`${unit.category} floor plan`}
                       className="w-full h-full object-contain hover:object-scale-down cursor-zoom-in"
-                      onClick={(e) => {
+                      onClick={() => {
                         // Open in new tab for full view
                         window.open(unit.floorPlanImage, '_blank');
                       }}
@@ -124,24 +132,36 @@ export function UnitTypeCard({ unit, index, isProcessing, onChange, onRemove }: 
               )}
 
               {/* Basic Fields */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">名称</Label>
+                  <Label className="text-xs text-gray-600 font-semibold">户型名称 (Unit Type)</Label>
                   <Input
-                    value={unit.name}
-                    onChange={(e) => onChange('name', e.target.value)}
+                    value={unit.typeName || ''}
+                    onChange={(e) => onChange('typeName', e.target.value)}
                     disabled={isProcessing}
-                    size="sm"
+                    placeholder="例如: B-2BM-A.1, Type-A-1B-A.1"
+                    className="font-medium"
                   />
+                  <p className="text-xs text-gray-500">PDF 中的准确户型编号</p>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">类别</Label>
-                  <Input
-                    value={unit.category || ''}
-                    onChange={(e) => onChange('category', e.target.value)}
-                    disabled={isProcessing}
-                    placeholder="Studio/1BR/2BR..."
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-600">显示名称</Label>
+                    <Input
+                      value={unit.name}
+                      onChange={(e) => onChange('name', e.target.value)}
+                      disabled={isProcessing}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-600">类别</Label>
+                    <Input
+                      value={unit.category || ''}
+                      onChange={(e) => onChange('category', e.target.value)}
+                      disabled={isProcessing}
+                      placeholder="Studio/1BR/2BR..."
+                    />
+                  </div>
                 </div>
               </div>
 

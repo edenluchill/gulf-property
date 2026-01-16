@@ -8,7 +8,9 @@ import type { State } from './state';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { researchMarketContext, generateInvestmentAnalysis } from '../agents/market-intelligence.agent';
 import { generateMarketingContent } from '../agents/copywriter.agent';
-import { extractImagesFromPdf } from '../utils/pdf/image-extractor';
+import { pdfToImages } from '../utils/pdf/converter';
+import { extractPageAnalysis } from './processors/result-recorder';
+import { join } from 'path';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -36,26 +38,35 @@ Extract ALL information in structured JSON format:
   "developer": "Developer name",
   "address": "Full address",
   "area": "District/Area name",
-  "completionDate": "YYYY-MM-DD",
-  "launchDate": "YYYY-MM-DD",
+  "completionDate": "YYYY-MM-DD or YYYY-QX (e.g. 2025-Q4) or YYYY",
+  "launchDate": "YYYY-MM-DD or YYYY-QX or YYYY",
+  "handoverDate": "YYYY-MM-DD or YYYY-QX or YYYY (same as completion)",
+  "constructionProgress": "Percentage or status (e.g., 'Under Construction', '75% Complete', 'Ready to Move')",
   "description": "Detailed project description",
   "amenities": ["Pool", "Gym", "Parking", "..."],
+  "visualContent": {
+    "hasRenderings": true/false,
+    "hasFloorPlans": true/false,
+    "hasLocationMaps": true/false,
+    "renderingDescriptions": ["Description of rendering 1", "..."],
+    "floorPlanDescriptions": ["Description of floor plan 1", "..."]
+  },
   
   "units": [
     {
       "category": "Studio|1BR|2BR|3BR|4BR|5BR|Penthouse|Duplex",
-      "typeName": "Type A|Type B|Corner Unit|etc (如果有细分)",
+      "typeName": "EXACT Unit Type name from PDF (e.g., 'B-2BM-A.1', 'Type-A-1B-A.1', 'S1')",
       "unitNumbers": ["101", "201", "301"],  // Optional: 具体单元号
       "unitCount": 10,  // Optional: 此类型的单元数量
-      "bedrooms": 0,
-      "bathrooms": 1,
-      "area": 450,
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "area": 1295.44,
       "areaUnit": "sqft",
       "price": 950000,
-      "pricePerSqft": 2111,
+      "pricePerSqft": 733,
       "orientation": "North-facing",  // Optional
-      "balconyArea": 40,  // Optional
-      "features": ["Walk-in closet", "Built-in wardrobes"]  // Optional
+      "balconyArea": 148.43,  // Optional
+      "features": ["Maid's room", "Built-in wardrobes"]  // Optional
     }
   ],
   
@@ -78,29 +89,56 @@ Extract ALL information in structured JSON format:
 
 CRITICAL INSTRUCTIONS:
 
-1. UNIT GROUPING:
-   - Group units by CATEGORY (Studio, 1BR, 2BR, etc.)
-   - If there are variations within a category (Type A, Type B), list them separately
-   - Each category should have its own entry
-   - Example: If there are "1BR Type A" and "1BR Type B", create 2 entries with category="1BR" but different typeNames
+1. UNIT TYPE EXTRACTION (MOST IMPORTANT):
+   - Look for floor plan pages that show individual unit layouts
+   - Extract the EXACT Unit Type name as shown in the PDF
+   - Common patterns: "B-2BM-A.1", "Type A-1B-A.1", "S1", "1BR-A", etc.
+   - The Unit Type name is usually shown at the top of floor plan pages or in unit tables
+   - DO NOT create generic names like "1-Bedroom" or "2-Bedroom"
+   - DO NOT include "Overall" or "Summary" entries
+   - Each unit type must be a SPECIFIC, UNIQUE layout with its own floor plan
 
-2. UNIT DETAILS:
+2. FILTERING INVALID ENTRIES:
+   - SKIP any entries labeled "Overall", "Summary", "Total", or similar
+   - SKIP any entries without specific area or bedroom count
+   - ONLY extract actual unit types that customers can purchase
+   - Example of what to SKIP: "1BR - 1-Bedroom (Overall)" ❌
+   - Example of what to EXTRACT: "1BR - Type A-1B-A.1" ✅
+
+3. UNIT GROUPING:
+   - Group units by CATEGORY (Studio, 1BR, 2BR, etc.)
+   - Each unique typeName is a separate entry
+   - Example: "B-2BM-A.1" and "B-2BM-A.2" are TWO different entries
+
+4. UNIT DETAILS:
    - Extract unit numbers if mentioned (e.g., "Units 101-110")
    - Extract unit count if mentioned (e.g., "20 units available")
    - Extract all features mentioned for each unit type
    - Calculate price per sqft if both price and area are available
+   - Extract balcony area if shown separately
 
-3. THOROUGH EXTRACTION:
+5. DATES & PROGRESS:
+   - completionDate: Look for "Completion", "Handover", "Ready by", "Q1 2026", etc.
+   - launchDate: Look for "Launch Date", "Sales Started", etc.
+   - constructionProgress: Look for progress indicators, status updates
+
+6. VISUAL CONTENT:
+   - Carefully examine ALL images you see in the PDF
+   - Identify if there are project renderings, floor plans, location maps
+   - Describe what you see in each type of image
+   - This helps users understand what visuals are available even if we can't extract them
+
+7. THOROUGH EXTRACTION:
    - Check ALL pages carefully
    - Look for tables, charts, floor plan labels
    - Extract payment plans from any payment schedule pages
    - If multiple payment plans exist, extract all of them
 
-4. DATA QUALITY:
+8. DATA QUALITY:
    - Use null for missing optional fields
    - Ensure areas are in square feet (convert if needed)
    - Preserve exact names as they appear
-   - Be consistent with categories
+   - Be consistent with categories and typeNames
 
 Respond ONLY with valid JSON, no markdown.`;
 
@@ -152,12 +190,15 @@ Respond ONLY with valid JSON, no markdown.`;
       developer: extractedData.developer || '',
       address: extractedData.address || '',
       area: extractedData.area,
-      completionDate: extractedData.completionDate,
+      completionDate: extractedData.completionDate || extractedData.handoverDate,
       launchDate: extractedData.launchDate,
+      handoverDate: extractedData.handoverDate || extractedData.completionDate,
+      constructionProgress: extractedData.constructionProgress,
       description: extractedData.description || '',
       amenities: extractedData.amenities || [],
       units: extractedData.units || [],
       paymentPlans: extractedData.paymentPlans || [],
+      visualContent: extractedData.visualContent || {},
       minPrice: extractedData.minPrice,
       maxPrice: extractedData.maxPrice,
       minArea: extractedData.minArea,
@@ -165,24 +206,29 @@ Respond ONLY with valid JSON, no markdown.`;
     };
 
     console.log(`✓ Extracted: ${buildingData.units.length} unit types, ${buildingData.paymentPlans.length} payment plans`);
+    console.log(`   📅 Completion: ${buildingData.completionDate || 'Not specified'}`);
+    console.log(`   📅 Launch: ${buildingData.launchDate || 'Not specified'}`);
+    console.log(`   🏗️  Progress: ${buildingData.constructionProgress || 'Not specified'}`);
+
     
     // Group units by category for frontend display
     const groupedUnits = groupUnitsByCategory(buildingData.units);
-    console.log(`✓ Grouped into ${Object.keys(groupedUnits).length} categories`);
+    console.log(`   📊 Grouped into ${Object.keys(groupedUnits).length} categories`);
 
-    // Extract images from PDF
-    console.log('\n🖼️  Extracting images from PDF...');
-    const images = await extractImagesFromPdf(state.pdfBuffer!, state.outputDir);
+    // Convert PDF pages to images
+    console.log('\n🖼️  Converting PDF pages to images...');
+    const imagesDir = join(state.outputDir!, 'images');
+    const imagePaths = await pdfToImages(state.pdfBuffer!, imagesDir);
     
-    console.log(`   ✅ Extracted ${images.length} images`);
+    console.log(`   ✅ Converted ${imagePaths.length} pages to images`);
 
-    // For small images (<200KB), use base64. For large images, skip or compress
-    const smallImages = images.filter(img => img.size < 200 * 1024);
-    console.log(`   📦 ${smallImages.length} small images (will include in response)`);
-
-    // Classify images simply
-    const projectImages = smallImages.slice(0, 6).map(img => img.base64);
-    const floorPlanImages = smallImages.slice(6, 16).map(img => img.base64);
+    // Determine which are floor plans vs project images
+    // Heuristic: first few pages are usually project overview, rest are floor plans
+    const totalPages = imagePaths.length;
+    const projectImageCount = Math.min(3, Math.floor(totalPages * 0.1)); // First 10% or max 3
+    
+    const projectImages = imagePaths.slice(0, projectImageCount);
+    const floorPlanImages = imagePaths.slice(projectImageCount);
     
     console.log(`   🏢 Project images: ${projectImages.length}`);
     console.log(`   📐 Floor plan images: ${floorPlanImages.length}`);
@@ -191,9 +237,9 @@ Respond ONLY with valid JSON, no markdown.`;
       buildingData: {
         ...buildingData,
         images: {
-          projectImages,      // 项目效果图
-          floorPlanImages,    // 户型图
-          allImages: images.map(img => img.base64),  // 所有图片
+          projectImages,      // 项目效果图（文件路径）
+          floorPlanImages,    // 户型图（文件路径）
+          allImages: imagePaths,  // 所有图片路径
         },
       } as any, // Type assertion to bypass strict schema
       totalPages: 1,

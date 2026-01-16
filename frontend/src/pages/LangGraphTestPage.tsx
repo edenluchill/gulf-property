@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, FileText, CheckCircle, XCircle, Clock, TrendingUp, Home, Building2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, Clock, TrendingUp, Building2 } from 'lucide-react';
+import { API_ENDPOINTS } from '../lib/config';
 
 interface ProgressEvent {
   stage: string;
@@ -70,7 +71,7 @@ export default function LangGraphTestPage() {
       formData.append('file', file);
       formData.append('simplified', 'false');
 
-      const response = await fetch('http://localhost:3001/api/langgraph-progress/start', {
+      const response = await fetch(API_ENDPOINTS.langgraphProgressStart, {
         method: 'POST',
         body: formData,
       });
@@ -85,7 +86,7 @@ export default function LangGraphTestPage() {
       setJobId(newJobId);
 
       // Connect to SSE stream
-      const eventSource = new EventSource(`http://localhost:3001/api/langgraph-progress/stream/${newJobId}`);
+      const eventSource = new EventSource(API_ENDPOINTS.langgraphProgressStream(newJobId));
       eventSourceRef.current = eventSource;
 
       eventSource.onmessage = (event) => {

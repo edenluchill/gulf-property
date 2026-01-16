@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { X, DollarSign, Grid3x3, MapPin, Calendar, Activity, Building2, TrendingUp } from 'lucide-react'
+import { X, DollarSign, Grid3x3, MapPin, Calendar, Activity, Building2 } from 'lucide-react'
 import { PropertyFilters } from '../types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Slider } from './ui/slider'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 

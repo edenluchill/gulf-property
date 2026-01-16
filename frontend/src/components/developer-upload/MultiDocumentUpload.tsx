@@ -6,7 +6,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Upload, FileText, X, Plus } from 'lucide-react';
+import { FileText, X, Plus } from 'lucide-react';
 
 interface Document {
   id: string;

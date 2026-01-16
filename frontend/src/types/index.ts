@@ -171,3 +171,39 @@ export interface Filters {
     end: string
   }
 }
+
+// Dubai areas and landmarks
+export interface DubaiArea {
+  id: string
+  name: string
+  nameAr?: string
+  boundary: GeoJSON.Geometry  // GeoJSON Polygon
+  areaType?: string
+  wealthLevel?: string
+  culturalAttribute?: string
+  description?: string
+  descriptionAr?: string
+  color: string
+  opacity: number
+  displayOrder: number
+}
+
+export interface DubaiLandmark {
+  id: string
+  name: string
+  nameAr?: string
+  location: {
+    lat: number
+    lng: number
+  }
+  landmarkType: string
+  iconName: string
+  description?: string
+  descriptionAr?: string
+  yearBuilt?: number
+  websiteUrl?: string
+  imageUrl?: string
+  color: string
+  size: 'small' | 'medium' | 'large'
+  displayOrder: number
+}

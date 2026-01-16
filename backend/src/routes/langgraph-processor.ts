@@ -6,8 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { executePdfWorkflow } from '../langgraph/executor';
-import { executeDirectPdfWorkflow } from '../langgraph/executor-direct-pdf';
+import { executePdfWorkflow } from '../langgraph/workflow-executor';
 import { join } from 'path';
 
 const router = Router();
@@ -50,35 +49,33 @@ router.post(
 
       console.log(`\n📄 Received PDF: ${req.file.originalname} (${(req.file.size / 1024).toFixed(2)} KB)`);
 
-      const simplified = req.body.simplified === 'true' || req.body.simplified === true;
-      const useDirect = req.body.direct !== 'false'; // Default to true (direct processing)
+      // Generate job ID
+      const { generateJobId } = require('../utils/pdf/file-manager');
+      const jobId = generateJobId();
 
-      // Execute workflow - use direct processing by default (no canvas needed!)
-      const result = useDirect 
-        ? await executeDirectPdfWorkflow({
-            pdfBuffer: req.file.buffer,
-            outputBaseDir: join(process.cwd(), 'uploads', 'langgraph-output'),
-          })
-        : await executePdfWorkflow({
-            pdfBuffer: req.file.buffer,
-            outputBaseDir: join(process.cwd(), 'uploads', 'langgraph-output'),
-            simplified,
-          });
+      // Execute workflow with single PDF
+      const result = await executePdfWorkflow({
+        pdfBuffers: [req.file.buffer],
+        pdfNames: [req.file.originalname],
+        outputBaseDir: join(process.cwd(), 'uploads', 'langgraph-output'),
+        jobId,
+        pagesPerChunk: 5,
+        batchSize: 10,
+        batchDelay: 1000,
+      });
 
       // Return result
-      res.json({
+      return res.json({
         success: result.success,
         jobId: result.jobId,
         data: {
           building: result.buildingData,
-          market: result.marketContext,
-          analysis: result.analysisReport,
-          marketing: result.marketingContent,
         },
         metadata: {
           processingTime: result.processingTime,
           processingTimeSeconds: (result.processingTime / 1000).toFixed(2),
-          workflow: simplified ? 'simplified' : 'full',
+          totalChunks: result.totalChunks,
+          totalPages: result.totalPages,
         },
         errors: result.errors,
         warnings: result.warnings,
@@ -86,7 +83,7 @@ router.post(
     } catch (error) {
       console.error('Error in LangGraph PDF processing:', error);
       
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'PDF processing failed',
         details: String(error),

@@ -1,4 +1,4 @@
-import { Building2, Bed, Calendar, Home, TrendingUp } from 'lucide-react'
+import { Building2, Bed, Calendar, Home } from 'lucide-react'
 import { OffPlanProperty } from '../types'
 import { formatPrice } from '../lib/utils'
 

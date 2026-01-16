@@ -1,40 +1,14 @@
 /**
  * PDF to Image Conversion Utilities
  * 
+ * Uses pdf2pic (GraphicsMagick/ImageMagick based, actively maintained)
  * Converts PDF pages to high-resolution images for AI processing
- * 
- * Note: Requires pdf-img-convert which depends on canvas (native module).
- * If canvas is not available (Windows build issues), functions will throw descriptive errors.
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-
-// Lazy load pdf-img-convert to handle missing canvas gracefully
-let pdfImgConvert: any = null;
-let canvasError: Error | null = null;
-
-try {
-  pdfImgConvert = require('pdf-img-convert');
-} catch (error) {
-  canvasError = error as Error;
-  console.warn('⚠️ pdf-img-convert not available (canvas module missing)');
-  console.warn('   LangGraph PDF processing will not work until canvas is installed');
-  console.warn('   See LANGGRAPH_STATUS.md for installation instructions');
-}
-
-function checkPdfConverter() {
-  if (!pdfImgConvert) {
-    throw new Error(
-      'PDF converter not available. The canvas native module failed to build.\n' +
-      'This is a known issue on Windows. Solutions:\n' +
-      '1. Install Visual Studio Build Tools and rebuild canvas\n' +
-      '2. Use WSL (Windows Subsystem for Linux)\n' +
-      '3. Use Docker for development\n' +
-      'See: https://github.com/Automattic/node-canvas#compiling'
-    );
-  }
-}
+// @ts-ignore - pdf2pic has no type declarations
+import { fromBuffer } from 'pdf2pic';
 
 /**
  * Convert PDF to high-resolution images (300 DPI)
@@ -47,8 +21,6 @@ export async function pdfToImages(
   pdfBuffer: Buffer,
   outputDir: string
 ): Promise<string[]> {
-  checkPdfConverter();
-  
   try {
     // Ensure output directory exists
     if (!existsSync(outputDir)) {
@@ -57,24 +29,37 @@ export async function pdfToImages(
 
     console.log('Converting PDF to images at 300 DPI...');
 
-    // Convert PDF to PNG images at 300 DPI for high quality
-    const images = await pdfImgConvert(pdfBuffer, {
-      outputType: 'png',
-      width: 2480, // ~300 DPI for A4 width (8.27 inches)
-      height: 3508, // ~300 DPI for A4 height (11.69 inches)
-    }) as Uint8Array[];
+    const options = {
+      density: 300,
+      saveFilename: "page",
+      savePath: outputDir,
+      format: "png",
+      width: 2480,
+      height: 3508
+    };
 
-    console.log(`Converted ${images.length} pages`);
-
-    // Save images to disk
+    const convert = fromBuffer(pdfBuffer, options);
+    
+    // Convert all pages
     const imagePaths: string[] = [];
-    for (let i = 0; i < images.length; i++) {
-      const imagePath = join(outputDir, `page_${i + 1}.png`);
-      writeFileSync(imagePath, images[i]);
-      imagePaths.push(imagePath);
-      console.log(`Saved page ${i + 1} to ${imagePath}`);
+    let pageNum = 1;
+    
+    // pdf2pic returns null when no more pages
+    while (true) {
+      try {
+        const result = await convert(pageNum, { responseType: "image" });
+        if (!result || !result.path) break;
+        
+        imagePaths.push(result.path);
+        console.log(`Saved page ${pageNum} to ${result.path}`);
+        pageNum++;
+      } catch (e) {
+        // No more pages
+        break;
+      }
     }
 
+    console.log(`Converted ${imagePaths.length} pages`);
     return imagePaths;
   } catch (error) {
     console.error('Error converting PDF to images:', error);
@@ -94,24 +79,26 @@ export async function pdfPageToImage(
   pageNumber: number,
   outputPath: string
 ): Promise<string> {
-  checkPdfConverter();
-  
   try {
-    const images = await pdfImgConvert(pdfBuffer, {
-      outputType: 'png',
+    const outputDir = join(outputPath, '..');
+    const options = {
+      density: 300,
+      saveFilename: `page_${pageNumber}`,
+      savePath: outputDir,
+      format: "png",
       width: 2480,
-      height: 3508,
-      pagesToConvert: [pageNumber],
-    }) as Uint8Array[];
+      height: 3508
+    };
 
-    if (images.length === 0) {
+    const convert = fromBuffer(pdfBuffer, options);
+    const result = await convert(pageNumber, { responseType: "image" });
+    
+    if (!result || !result.path) {
       throw new Error(`Page ${pageNumber} not found`);
     }
 
-    writeFileSync(outputPath, images[0]);
-    console.log(`Saved page ${pageNumber} to ${outputPath}`);
-
-    return outputPath;
+    console.log(`Saved page ${pageNumber} to ${result.path}`);
+    return result.path;
   } catch (error) {
     console.error(`Error converting page ${pageNumber}:`, error);
     throw error;
@@ -120,18 +107,38 @@ export async function pdfPageToImage(
 
 /**
  * Get PDF page count
+ * Note: pdf2pic doesn't have a built-in page count method
+ * This is a workaround that tries to convert pages until it fails
  */
 export async function getPdfPageCount(pdfBuffer: Buffer): Promise<number> {
-  checkPdfConverter();
-  
   try {
-    // Convert with minimal quality to just get count
-    const images = await pdfImgConvert(pdfBuffer, {
-      outputType: 'png',
-      width: 100, // Small size just to count pages
-    }) as Uint8Array[];
+    const tmpDir = join(process.cwd(), 'uploads', 'tmp-count');
+    if (!existsSync(tmpDir)) {
+      mkdirSync(tmpDir, { recursive: true });
+    }
 
-    return images.length;
+    const options = {
+      density: 72, // Low quality for speed
+      saveFilename: "count",
+      savePath: tmpDir,
+      format: "png"
+    };
+
+    const convert = fromBuffer(pdfBuffer, options);
+    let count = 0;
+    
+    // Try converting pages until we fail
+    for (let i = 1; i <= 1000; i++) { // Max 1000 pages
+      try {
+        const result = await convert(i, { responseType: "image" });
+        if (!result || !result.path) break;
+        count = i;
+      } catch (e) {
+        break;
+      }
+    }
+
+    return count;
   } catch (error) {
     console.error('Error getting PDF page count:', error);
     throw error;

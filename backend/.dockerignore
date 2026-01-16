@@ -1,0 +1,52 @@
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# TypeScript
+dist
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Test
+test-*.ts
+*.test.ts
+*.spec.ts
+
+# Documentation
+*.md
+!README.md
+
+# Uploads (will be mounted as volume)
+uploads/*
+
+# Scripts
+*.ps1
+*.sh
+
+# Database
+db/*.json
+!db/pool.ts
+
+# Logs
+logs
+*.log

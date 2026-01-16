@@ -6,9 +6,10 @@
 
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { executeUnifiedChunkedWorkflow } from '../langgraph/executor-unified-chunked';
+import { executePdfWorkflow } from '../langgraph/workflow-executor';
 import { progressEmitter } from '../services/progress-emitter';
 import { generateJobId } from '../utils/pdf/file-manager';
+import { updateBuildingDataWithImageUrls } from '../langgraph/utils/image-url-helper';
 import { join } from 'path';
 
 const router = Router();
@@ -70,20 +71,28 @@ router.post(
         console.log(`   ${i + 1}. ${f.originalname} (${(f.size / 1024).toFixed(2)} KB)`);
       });
 
-      // Unified chunked processing - all PDFs → 5-page chunks → batch process
+      // Chunked processing - all PDFs → 5-page chunks → batch process
       (async () => {
         try {
-          // Execute unified workflow
-          const result = await executeUnifiedChunkedWorkflow({
+          // Execute workflow
+          const result = await executePdfWorkflow({
             pdfBuffers: files.map(f => f.buffer),
             pdfNames: files.map(f => f.originalname),
             outputBaseDir: join(process.cwd(), 'uploads', 'langgraph-output'),
             jobId,
-            pagesPerChunk: 5, // Fixed 5 pages per chunk
+            pagesPerChunk: 5,
+            batchSize: 10,
+            batchDelay: 1000,
           });
 
+          // Convert image paths to URLs before sending to frontend
+          const updatedResult = {
+            ...result,
+            buildingData: updateBuildingDataWithImageUrls(result.buildingData, jobId),
+          };
+
           // Send final completion
-          progressEmitter.complete(jobId, result);
+          progressEmitter.complete(jobId, updatedResult);
 
         } catch (error) {
           console.error(`Job ${jobId} failed:`, error);

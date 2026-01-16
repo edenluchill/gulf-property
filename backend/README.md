@@ -133,20 +133,37 @@ The database uses PostgreSQL with JSONB fields for flexible data structures:
 
 See `src/db/schema.sql` for complete schema.
 
-## Deployment to Hetzner
+## 🚀 Production Deployment
 
-1. Set up a Hetzner Cloud server with Ubuntu
-2. Install Node.js and PostgreSQL
-3. Clone the repository
-4. Set up environment variables
-5. Build the project: `npm run build`
-6. Use PM2 or similar to manage the process:
-```bash
-npm install -g pm2
-pm2 start dist/index.js --name gulf-property-api
-pm2 save
-pm2 startup
+For complete production deployment to Hetzner Cloud with Docker, load balancing, and auto-scaling:
+
+### Quick Deploy (15 minutes)
+```powershell
+cd backend
+.\hetzner-deploy.ps1
 ```
+
+**See:** [QUICK-DEPLOY.md](QUICK-DEPLOY.md) for fast deployment guide
+
+### Complete Documentation
+- **[README-DEPLOYMENT.md](README-DEPLOYMENT.md)** - 📚 Deployment overview and index
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - 📘 Detailed deployment guide
+- **[PRODUCTION-ENV-SETUP.md](PRODUCTION-ENV-SETUP.md)** - ⚙️ Environment configuration
+
+**Features:**
+- ✅ Automated Docker deployment
+- ✅ Load balancer with health checks
+- ✅ Multiple backend instances
+- ✅ SSL/HTTPS setup script
+- ✅ Zero-downtime updates
+- ✅ ~€35-65/month for full production setup
+
+**Infrastructure Created:**
+- 2x Backend servers (CPX21: 3 vCPU, 4GB RAM)
+- 1x Load balancer (traffic distribution)
+- Private network (secure communication)
+- Firewall (security rules)
+- Optional: Nginx for SSL termination
 
 ## Environment Variables
 

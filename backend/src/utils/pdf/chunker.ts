@@ -53,7 +53,7 @@ export async function splitPdfIntoChunks(
       }
       
       const copiedPages = await chunkPdf.copyPages(pdfDoc, pagesToCopy);
-      copiedPages.forEach(page => chunkPdf.addPage(page));
+      copiedPages.forEach((page: any) => chunkPdf.addPage(page));
 
       // Serialize chunk
       const chunkBytes = await chunkPdf.save();
