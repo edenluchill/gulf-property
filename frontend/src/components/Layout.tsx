@@ -1,5 +1,3 @@
-import { Link } from 'react-router-dom'
-import { Building2 } from 'lucide-react'
 import Header from './Header'
 import MobileNav from './MobileNav'
 
@@ -24,7 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <Building2 className="h-5 w-5 text-slate-400" />
-                <span className="text-lg font-semibold text-slate-200">Gulf Property</span>
+                <span className="text-lg font-semibold text-slate-200">Nextway</span>
               </div>
               <p className="text-sm text-slate-500 leading-relaxed">
                 Your trusted partner for Dubai's finest off-plan properties. 
@@ -48,7 +46,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="border-t border-slate-800/50 mt-10 pt-8 text-center text-xs text-slate-600 tracking-wide">
-            © 2026 Gulf Property. All rights reserved.
+            © 2026 Nextway. All rights reserved.
           </div>
         </div>
       </footer> */}

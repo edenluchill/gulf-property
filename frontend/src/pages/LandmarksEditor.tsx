@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaf
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Save, Trash2, Plus, RotateCcw, MapPin, X } from 'lucide-react'
+import { Save, Trash2, RotateCcw, MapPin, X } from 'lucide-react'
 import { DubaiLandmark } from '../types'
 import { fetchDubaiLandmarks, createDubaiLandmark, updateDubaiLandmark, deleteDubaiLandmark } from '../lib/api'
 import L from 'leaflet'

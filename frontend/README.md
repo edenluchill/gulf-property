@@ -1,6 +1,6 @@
-# Gulf Property Frontend
+# Nextway Frontend
 
-Modern, elegant frontend for Gulf Property - Dubai Off-Plan Properties Platform
+Modern, elegant frontend for Nextway - A New Way to Buy Off-Plan in Dubai
 
 ## Tech Stack
 

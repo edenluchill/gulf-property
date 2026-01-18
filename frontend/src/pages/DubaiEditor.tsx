@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs'
 import AreasEditorEnhanced from './AreasEditorEnhanced'
 import LandmarksEditor from './LandmarksEditor'
 import { MapPin, Layers } from 'lucide-react'

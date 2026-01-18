@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '../ui/carousel'
+import { Carousel, CarouselContent, CarouselItem } from '../ui/carousel'
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import { cn } from '../../lib/utils'
 

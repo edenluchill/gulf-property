@@ -1,4 +1,4 @@
-# Gulf Property Frontend - Production Deployment Script
+# Nextway Frontend - Production Deployment Script
 # 此脚本用于构建和部署前端到生产环境
 
 param(
@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "================================" -ForegroundColor Cyan
-Write-Host "Gulf Property Frontend Deployment" -ForegroundColor Cyan
+Write-Host "Nextway Frontend Deployment" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 

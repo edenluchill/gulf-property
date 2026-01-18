@@ -49,10 +49,10 @@ export default function Header() {
                 className="text-xl font-bold tracking-tight text-slate-900"
                 whileHover={{ scale: 1.02 }}
               >
-                Gulf Property
+                Nextway
               </motion.span>
-              <span className="text-[10px] text-amber-600 font-semibold tracking-[0.2em] uppercase -mt-0.5">
-                Dubai Off-Plan
+              <span className="text-[11px] text-amber-600 font-medium tracking-tight -mt-0.5">
+                A New Way to Buy Off-Plan in Dubai
               </span>
             </div>
           </Link>

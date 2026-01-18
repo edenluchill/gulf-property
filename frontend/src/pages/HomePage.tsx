@@ -176,7 +176,7 @@ export default function HomePage() {
             className="text-center mb-16"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-              Why Choose Gulf Property?
+              Why Choose Nextway?
             </h2>
             <p className="text-xl text-slate-600 max-w-2xl mx-auto">
               Your trusted partner for finding the perfect off-plan property in Dubai
