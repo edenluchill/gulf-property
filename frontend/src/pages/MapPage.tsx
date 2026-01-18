@@ -31,7 +31,7 @@ interface ResidentialProject {
   launch_date?: string
   completion_date?: string
   handover_date?: string
-  construction_progress?: string
+  construction_progress?: number  // Percentage: 0-100
   status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
   min_price?: number
   max_price?: number
@@ -60,14 +60,8 @@ interface ResidentialProject {
  * Convert ResidentialProject to OffPlanProperty format for component compatibility
  */
 function convertResidentialProjectToProperty(project: ResidentialProject): any {
-  // Calculate completion percent from construction_progress if available
-  let completionPercent = 0
-  if (project.construction_progress) {
-    const match = project.construction_progress.match(/(\d+)%/)
-    if (match) {
-      completionPercent = parseInt(match[1])
-    }
-  }
+  // construction_progress is now a direct number (0-100)
+  const completionPercent = project.construction_progress || 0
   
   // Normalize status to match old schema
   let normalizedStatus: 'upcoming' | 'under-construction' | 'completed' = 'upcoming'
@@ -133,7 +127,7 @@ export default function MapPage() {
   const [areas, setAreas] = useState<string[]>([])
   const [projects, setProjects] = useState<{ project_name: string; developer: string }[]>([])
   const [mapBounds, setMapBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null)
-  const [mapZoom, setMapZoom] = useState<number>(11)
+  const [mapZoom, setMapZoom] = useState<number>(12)
   
   // Dubai areas and landmarks state
   const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
@@ -261,7 +255,22 @@ export default function MapPage() {
       
       console.log('Fetched residential project clusters:', data.length, 'clusters')
       
-      setClusters(data)
+      // Transform backend data format to match MapViewClustered expectations
+      const transformedClusters = data.map((cluster: any) => ({
+        ...cluster,
+        count: parseInt(cluster.count), // Convert string to number
+        price_range: {
+          min: cluster.min_price,
+          max: cluster.max_price,
+          avg: cluster.avg_price
+        },
+        center: {
+          lat: cluster.lat,
+          lng: cluster.lng
+        }
+      }))
+      
+      setClusters(transformedClusters)
       setLastUpdated(new Date())
     }
     

@@ -93,11 +93,22 @@ export enum ImageCategory {
 }
 
 /**
+ * 图片URL变体（多尺寸）
+ */
+export interface ImageUrls {
+  original: string;    // 1920×1080 - Full quality for detail pages
+  large: string;       // 1280×720 - Desktop listings
+  medium: string;      // 800×450 - Tablet/cards
+  thumbnail: string;   // 400×225 - Mobile previews
+}
+
+/**
  * 图片元数据
  */
 export interface PageImage {
   imageId: string;              // 唯一ID
-  imagePath: string;            // R2 URL或本地路径
+  imagePath: string;            // R2 URL或本地路径（单个尺寸，向后兼容）
+  imageUrls?: ImageUrls;        // ⭐ 多尺寸URLs（如果可用）
   pageNumber: number;           // 所在页码
   
   // AI分类

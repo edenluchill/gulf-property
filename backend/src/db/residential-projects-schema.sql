@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS residential_projects (
     launch_date DATE,
     completion_date DATE,
     handover_date DATE,
-    construction_progress VARCHAR(100),  -- e.g., "75% Complete"
+    construction_progress NUMERIC(5, 2) CHECK (construction_progress >= 0 AND construction_progress <= 100),  -- Percentage: 0.00 to 100.00
     
     -- Project Status
     status VARCHAR(50) DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'under-construction', 'completed', 'handed-over')),
@@ -146,6 +146,10 @@ CREATE TABLE IF NOT EXISTS project_payment_plans (
     milestone_name VARCHAR(255) NOT NULL,  -- e.g., "Booking", "On Handover", "Construction Phase 1"
     percentage NUMERIC(5, 2) NOT NULL,  -- e.g., 10.00 for 10%
     milestone_date DATE,  -- Optional date for this milestone
+    
+    -- Payment Interval Information (for customer clarity)
+    interval_months INTEGER,  -- Months from previous milestone (0 for first milestone)
+    interval_description TEXT,  -- Text description (e.g., "3 months after booking", "On handover")
     
     -- Display Order
     display_order INTEGER DEFAULT 0,
@@ -458,7 +462,7 @@ COMMENT ON TABLE project_unit_types IS 'Detailed unit type information for each 
 COMMENT ON TABLE project_payment_plans IS 'Payment plan milestones for each project';
 
 COMMENT ON COLUMN residential_projects.location IS 'PostGIS geography point for geospatial queries';
-COMMENT ON COLUMN residential_projects.construction_progress IS 'Human-readable construction progress (e.g., "75% Complete")';
+COMMENT ON COLUMN residential_projects.construction_progress IS 'Construction progress as percentage (0.00 to 100.00)';
 COMMENT ON COLUMN residential_projects.project_images IS 'Array of URLs to project images extracted from PDF';
 COMMENT ON COLUMN residential_projects.floor_plan_images IS 'Array of URLs to floor plan images';
 

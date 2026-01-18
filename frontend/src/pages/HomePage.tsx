@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button'
 import { MapPin, Building2, TrendingUp, Shield, Search, Heart } from 'lucide-react'
 import { Card } from '../components/ui/card'
 import { useState, useEffect } from 'react'
-import { fetchStats } from '../lib/api'
+import { fetchResidentialDevelopers, fetchResidentialProjects } from '../lib/api'
 
 export default function HomePage() {
   const [stats, setStats] = useState({
@@ -14,14 +14,16 @@ export default function HomePage() {
   })
 
   useEffect(() => {
-    fetchStats().then((data) => {
-      if (data) {
-        setStats({
-          totalProjects: parseInt(data.total_properties.toString()),
-          totalUnits: 0, // Will calculate from properties if needed
-          developers: parseInt(data.total_developers.toString()),
-        })
-      }
+    // Fetch stats from residential projects API
+    Promise.all([
+      fetchResidentialDevelopers(),
+      fetchResidentialProjects()
+    ]).then(([developersData, projectsData]) => {
+      setStats({
+        totalProjects: projectsData.length,
+        totalUnits: projectsData.reduce((sum, p) => sum + (p.property_count || 0), 0),
+        developers: developersData.length,
+      })
     })
   }, [])
 

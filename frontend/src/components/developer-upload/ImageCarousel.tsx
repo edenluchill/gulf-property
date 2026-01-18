@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Carousel, CarouselContent, CarouselItem } from '../ui/carousel'
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { getImageUrl, getImageSrcSet } from '../../lib/image-utils'
 
 interface ImageCarouselProps {
   images: string[]
@@ -67,10 +68,13 @@ export function ImageCarousel({
                   style={{ maxHeight }}
                 >
                   <img
-                    src={img}
+                    src={getImageUrl(img, 'medium')}
+                    srcSet={getImageSrcSet(img)}
+                    sizes="(max-width: 640px) 400px, (max-width: 1024px) 800px, 1280px"
                     alt={`Image ${idx + 1}`}
                     className="w-full h-full object-contain hover:scale-105 transition-transform duration-300 cursor-pointer"
-                    onClick={() => window.open(img, '_blank')}
+                    loading="lazy"
+                    onClick={() => window.open(getImageUrl(img, 'original'), '_blank')}
                     onError={(e) => {
                       // Prevent infinite retry by setting to a data URL
                       if (e.currentTarget.src !== 'data:,') {
@@ -140,9 +144,12 @@ export function ImageCarousel({
               )}
             >
               <img
-                src={img}
+                src={getImageUrl(img, 'thumbnail')}
+                srcSet={`${getImageUrl(img, 'thumbnail')} 400w, ${getImageUrl(img, 'medium')} 800w`}
+                sizes="64px"
                 alt={`Thumbnail ${idx + 1}`}
                 className="w-full h-full object-cover"
+                loading="lazy"
                 onError={(e) => {
                   // Prevent infinite retry for thumbnails
                   if (e.currentTarget.src !== 'data:,') {

@@ -77,10 +77,12 @@ export class PageRegistry {
       // 1. 插入新页面
       let insertedCount = 0;
       newPages.forEach(page => {
-        // 检查是否已存在（避免重复）
-        const existingIndex = this.pages.findIndex(p => p.pageNumber === page.pageNumber);
+        // ⭐ 检查是否已存在（同时检查pageNumber和pdfSource，避免多PDF页码冲突）
+        const existingIndex = this.pages.findIndex(p => 
+          p.pageNumber === page.pageNumber && p.pdfSource === page.pdfSource
+        );
         if (existingIndex >= 0) {
-          console.warn(`⚠️  Page ${page.pageNumber} already exists, skipping`);
+          console.warn(`⚠️  Page ${page.pageNumber} from ${page.pdfSource} already exists, skipping`);
           return;
         }
         
@@ -94,8 +96,13 @@ export class PageRegistry {
         return;
       }
       
-      // 2. 排序（按页码）
-      this.pages.sort((a, b) => a.pageNumber - b.pageNumber);
+      // 2. 排序（先按pdfSource，再按页码，确保多PDF场景下顺序正确）
+      this.pages.sort((a, b) => {
+        if (a.pdfSource !== b.pdfSource) {
+          return a.pdfSource.localeCompare(b.pdfSource);
+        }
+        return a.pageNumber - b.pageNumber;
+      });
       
       // 3. 立即重新计算图片分配（现在是async）
       const startTime = Date.now();

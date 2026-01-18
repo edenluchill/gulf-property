@@ -23,7 +23,7 @@ export interface ProjectBasicInfo {
   completionDate?: string;
   handoverDate?: string;
   description?: string;
-  constructionProgress?: string;
+  constructionProgress?: number;  // Percentage: 0-100
 }
 
 /**
@@ -50,7 +50,7 @@ export async function extractProjectInfo(
             launchDate: { type: SchemaType.STRING },
             completionDate: { type: SchemaType.STRING },
             handoverDate: { type: SchemaType.STRING },
-            constructionProgress: { type: SchemaType.STRING },
+            constructionProgress: { type: SchemaType.NUMBER },  // Percentage only
             description: { type: SchemaType.STRING },
           },
         },
@@ -73,7 +73,7 @@ export async function extractProjectInfo(
   "launchDate": "2025-01-01",                // 发布日期
   "completionDate": "Q4 2026",               // 竣工日期
   "handoverDate": "June 2028",               // 交付日期
-  "constructionProgress": "75% Complete",    // 建设进度
+  "constructionProgress": 75,                // 建设进度（0-100的数字）
   "description": "A luxury residential development..."  // 项目描述
 }
 
@@ -103,7 +103,7 @@ export async function extractProjectInfo(
   "launchDate": "2025-01-01",
   "completionDate": "Q4 2026",
   "handoverDate": "June 2028",
-  "constructionProgress": "75% Complete",
+  "constructionProgress": 75,
   "description": "A landmark residential development in the heart of Dubai Design District..."
 }
 

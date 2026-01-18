@@ -41,7 +41,7 @@ Extract ALL information in structured JSON format:
   "completionDate": "YYYY-MM-DD or YYYY-QX (e.g. 2025-Q4) or YYYY",
   "launchDate": "YYYY-MM-DD or YYYY-QX or YYYY",
   "handoverDate": "YYYY-MM-DD or YYYY-QX or YYYY (same as completion)",
-  "constructionProgress": "Percentage or status (e.g., 'Under Construction', '75% Complete', 'Ready to Move')",
+  "constructionProgress": "NUMBER ONLY (0-100). Extract percentage if mentioned (e.g., '75% Complete' → 75). If 'Under Construction' without %, estimate based on context or use 50. If completed/ready, use 100.",
   "description": "Detailed project description",
   "amenities": ["Pool", "Gym", "Parking", "..."],
   "visualContent": {
@@ -73,8 +73,27 @@ Extract ALL information in structured JSON format:
   "paymentPlans": [
     {
       "milestones": [
-        {"milestone": "Down Payment", "percentage": 20, "date": "2025-01-01"},
-        {"milestone": "On Handover", "percentage": 80, "date": "2026-12-31"}
+        {
+          "milestone": "Down Payment", 
+          "percentage": 20, 
+          "date": "2025-01-01",
+          "intervalMonths": 0,
+          "intervalDescription": "At booking"
+        },
+        {
+          "milestone": "3 Months After Booking", 
+          "percentage": 10, 
+          "date": "2025-04-01",
+          "intervalMonths": 3,
+          "intervalDescription": "3 months after booking"
+        },
+        {
+          "milestone": "On Handover", 
+          "percentage": 70, 
+          "date": "2026-12-31",
+          "intervalMonths": 21,
+          "intervalDescription": "On handover"
+        }
       ],
       "totalPercentage": 100,
       "currency": "AED"
@@ -120,7 +139,7 @@ CRITICAL INSTRUCTIONS:
 5. DATES & PROGRESS:
    - completionDate: Look for "Completion", "Handover", "Ready by", "Q1 2026", etc.
    - launchDate: Look for "Launch Date", "Sales Started", etc.
-   - constructionProgress: Look for progress indicators, status updates
+   - constructionProgress: Extract NUMERIC percentage ONLY (0-100). If text like "75% Complete", extract 75. If "Under Construction", estimate 50. If "Ready to Move", use 100.
 
 6. VISUAL CONTENT:
    - Carefully examine ALL images you see in the PDF
@@ -128,13 +147,20 @@ CRITICAL INSTRUCTIONS:
    - Describe what you see in each type of image
    - This helps users understand what visuals are available even if we can't extract them
 
-7. THOROUGH EXTRACTION:
+7. PAYMENT PLAN INTERVALS (IMPORTANT):
+   - Extract or calculate intervalMonths (months from previous milestone)
+   - First milestone usually has intervalMonths: 0 (at booking)
+   - Look for phrases like "3 months after booking", "6 months later", "on handover"
+   - Extract intervalDescription as it appears in the PDF
+   - If only dates are given, calculate the interval in months
+
+8. THOROUGH EXTRACTION:
    - Check ALL pages carefully
    - Look for tables, charts, floor plan labels
    - Extract payment plans from any payment schedule pages
    - If multiple payment plans exist, extract all of them
 
-8. DATA QUALITY:
+9. DATA QUALITY:
    - Use null for missing optional fields
    - Ensure areas are in square feet (convert if needed)
    - Preserve exact names as they appear

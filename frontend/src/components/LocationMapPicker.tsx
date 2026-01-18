@@ -123,7 +123,7 @@ export default function LocationMapPickerModal({
         <div className="flex-1 relative">
           <MapContainer
             center={mapCenter}
-            zoom={12}
+            zoom={13}
             className="h-full w-full"
             scrollWheelZoom={true}
           >

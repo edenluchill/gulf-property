@@ -1,70 +1,72 @@
 import { useState, useEffect, useCallback } from 'react';
-import { OffPlanProperty, PropertyFilters, MapBounds } from '../types';
-import { fetchPropertiesForMap, fetchProperties, fetchPropertyById } from '../lib/api';
+import { OffPlanProperty } from '../types';
+import { fetchResidentialProjectById } from '../lib/api';
 
-/**
- * Hook for fetching properties for map view
- */
-export function useMapProperties(bounds?: MapBounds, filters?: Omit<PropertyFilters, 'bounds' | 'limit' | 'offset'>) {
-  const [properties, setProperties] = useState<OffPlanProperty[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadProperties = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchPropertiesForMap(bounds, filters);
-      setProperties(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load properties');
-      setProperties([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [bounds, filters]);
-
-  useEffect(() => {
-    loadProperties();
-  }, [loadProperties]);
-
-  return { properties, loading, error, refetch: loadProperties };
+// Convert residential project to OffPlanProperty format
+function convertResidentialProjectToProperty(result: any): OffPlanProperty | null {
+  if (!result || !result.project) return null
+  
+  const project = result.project
+  
+  // construction_progress is now a direct number (0-100)
+  const completionPercent = project.construction_progress || 0
+  
+  // Normalize status to match old schema
+  let normalizedStatus: 'upcoming' | 'under-construction' | 'completed' = 'upcoming'
+  if (project.status === 'under-construction') {
+    normalizedStatus = 'under-construction'
+  } else if (project.status === 'completed' || project.status === 'handed-over') {
+    normalizedStatus = 'completed'
+  }
+  
+  return {
+    id: project.id,
+    buildingId: undefined,
+    buildingName: project.project_name,
+    projectName: project.project_name,
+    buildingDescription: project.description,
+    developer: project.developer,
+    developerId: undefined,
+    developerLogoUrl: undefined,
+    location: {
+      lat: project.latitude || 0,
+      lng: project.longitude || 0,
+    },
+    areaName: project.area,
+    areaId: undefined,
+    dldLocationId: undefined,
+    minBedrooms: project.min_bedrooms || 0,
+    maxBedrooms: project.max_bedrooms || 0,
+    bedsDescription: project.min_bedrooms && project.max_bedrooms 
+      ? `${project.min_bedrooms}-${project.max_bedrooms} BR`
+      : undefined,
+    minSize: undefined,
+    maxSize: undefined,
+    startingPrice: project.starting_price,
+    medianPriceSqft: undefined,
+    medianPricePerUnit: project.starting_price,
+    medianRentPerUnit: undefined,
+    launchDate: project.launch_date,
+    completionDate: project.completion_date,
+    completionPercent: completionPercent,
+    status: normalizedStatus,
+    unitCount: project.total_units,
+    buildingUnitCount: project.total_units,
+    salesVolume: undefined,
+    propSalesVolume: undefined,
+    images: project.project_images || [],
+    logoUrl: undefined,
+    brochureUrl: project.brochure_url,
+    amenities: project.amenities || [],
+    displayAs: 'project',
+    verified: project.verified,
+    createdAt: project.created_at,
+    updatedAt: project.updated_at,
+  }
 }
 
 /**
- * Hook for fetching properties with pagination
- */
-export function useProperties(filters?: PropertyFilters) {
-  const [properties, setProperties] = useState<OffPlanProperty[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadProperties = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await fetchProperties(filters);
-      setProperties(result.properties);
-      setTotal(result.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load properties');
-      setProperties([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
-  useEffect(() => {
-    loadProperties();
-  }, [loadProperties]);
-
-  return { properties, total, loading, error, refetch: loadProperties };
-}
-
-/**
- * Hook for fetching a single property
+ * Hook for fetching a single property (using residential projects API)
  */
 export function useProperty(id?: string) {
   const [property, setProperty] = useState<OffPlanProperty | null>(null);
@@ -80,8 +82,9 @@ export function useProperty(id?: string) {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchPropertyById(id);
-      setProperty(data);
+      const result = await fetchResidentialProjectById(id);
+      const convertedProperty = convertResidentialProjectToProperty(result);
+      setProperty(convertedProperty);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load property');
       setProperty(null);

@@ -18,10 +18,11 @@ import { progressEmitter } from '../services/progress-emitter';
 import { splitAllPdfsIntoChunks } from './strategies/chunking';
 import { processChunksInBatches } from './processors/batch-processor';
 import { 
-  createEmptyAggregatedData, 
-  finalizeAggregatedData 
+  createEmptyAggregatedData
 } from './processors/data-aggregator';
 import { ResultRecorder } from './processors/result-recorder';
+import { calculatePdfHashes, shortHash } from '../utils/pdf/pdf-hash';
+import { checkPdfCache } from '../services/r2-storage';
 
 export interface WorkflowConfig {
   pdfBuffers: Buffer[];
@@ -74,6 +75,50 @@ export async function executePdfWorkflow(
 
   try {
     console.log(`⚙️ Workflow execution starting for job ${jobId}...`);
+    
+    // ============================================================
+    // STEP 0: Calculate PDF hashes and check cache
+    // ============================================================
+    console.log(`\n🔐 Calculating PDF hashes for cache lookup...`);
+    const pdfHashes = calculatePdfHashes(pdfBuffers, pdfNames);
+    
+    // Check if we have cached results for any PDFs
+    progressEmitter.emit(jobId, {
+      stage: 'ingestion',
+      message: '🔍 检查PDF缓存...',
+      progress: 2,
+      timestamp: Date.now(),
+    });
+    
+    const cacheResults = await Promise.all(
+      pdfHashes.map(async ({ hash, name }) => {
+        const cached = await checkPdfCache(hash);
+        if (cached) {
+          console.log(`   ✅ Cache HIT for "${name}" (${shortHash(hash)})`);
+        } else {
+          console.log(`   ⚠️  Cache MISS for "${name}" (${shortHash(hash)})`);
+        }
+        return { hash, name, cached };
+      })
+    );
+    
+    const allCached = cacheResults.every(r => r.cached !== null);
+    
+    if (allCached) {
+      console.log(`\n🎉 All PDFs found in cache! Skipping processing...`);
+      progressEmitter.emit(jobId, {
+        stage: 'ingestion',
+        message: '✅ 使用缓存数据（秒级返回）',
+        progress: 90,
+        timestamp: Date.now(),
+      });
+      
+      // TODO: Reconstruct buildingData from cached images
+      // For now, we still process but will reuse images
+      console.log(`   ℹ️  Note: Full cache reconstruction not yet implemented`);
+      console.log(`   ℹ️  Will process but reuse cached images`);
+    }
+    
     // Setup output directory
     const outputBaseDir = config.outputBaseDir || join(process.cwd(), 'uploads', 'langgraph-output');
     const outputStructure = createOutputStructure(outputBaseDir, jobId);
@@ -104,6 +149,7 @@ export async function executePdfWorkflow(
     const { chunks, totalChunks, totalPages } = await splitAllPdfsIntoChunks({
       pdfBuffers,
       pdfNames,
+      pdfHashes: pdfHashes.map(h => h.hash),  // ⭐ Pass PDF hashes for caching
       pagesPerChunk,
     });
 

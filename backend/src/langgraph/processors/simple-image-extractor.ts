@@ -7,23 +7,30 @@
  * UPDATED: Now uploads images to Cloudflare R2 instead of local storage
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { PdfChunk } from '../../utils/pdf/chunker';
 
 // Use unified PDF converter (supports pdf2pic)
 import { pdfToImages } from '../../utils/pdf/converter';
-import { uploadFileToR2Temp } from '../../services/r2-storage';
+import { uploadFileToR2TempWithVariants } from '../../services/r2-storage';
+
+export interface ImageWithVariants {
+  pageNumber: number;
+  category: 'floor_plan' | 'project' | 'other';
+  urls: {
+    original: string;    // 1920×1080 - Full quality
+    large: string;       // 1280×720 - Desktop
+    medium: string;      // 800×450 - Tablet
+    thumbnail: string;   // 400×225 - Mobile
+  };
+}
 
 export interface SimpleImageExtractionResult {
   success: boolean;
-  extractedImages: Array<{
-    pageNumber: number;
-    imagePath: string; // Now R2 URL instead of local path
-    category: 'floor_plan' | 'project' | 'other';
-  }>;
-  floorPlanImages: string[]; // R2 URLs
-  projectImages: string[]; // R2 URLs
+  extractedImages: ImageWithVariants[];
+  floorPlanImages: string[]; // R2 URLs (original size)
+  projectImages: string[]; // R2 URLs (original size)
 }
 
 /**
@@ -95,11 +102,11 @@ export async function extractImagesFromChunkSimple(
 
     console.log(`   ✓ Converted ${imagePaths.length} pages to images`);
 
-    const extractedImages: SimpleImageExtractionResult['extractedImages'] = [];
+    const extractedImages: ImageWithVariants[] = [];
     const floorPlanImages: string[] = [];
     const projectImages: string[] = [];
 
-    // Process each converted image and upload to R2
+    // Process each converted image and upload to R2 with multiple size variants
     for (let i = 0; i < imagePaths.length; i++) {
       const pageNumber = chunk.pageRange.start + i;
       const localImagePath = imagePaths[i];
@@ -107,32 +114,48 @@ export async function extractImagesFromChunkSimple(
       // Categorize image
       const category = hasUnits ? 'floor_plan' : 'project';
       
-      // Upload to R2 temp storage if jobId provided
-      let finalImagePath = localImagePath;
+      // Upload to R2 with multiple size variants
       if (jobId) {
         try {
-          const r2Url = await uploadFileToR2Temp(localImagePath, jobId);
-          finalImagePath = r2Url;
-          console.log(`   ✓ Page ${pageNumber} uploaded to R2: ${r2Url}`);
+          const imageUrls = await uploadFileToR2TempWithVariants(localImagePath, jobId);
+          
+          extractedImages.push({
+            pageNumber,
+            category,
+            urls: imageUrls,
+          });
+          
+          // Store original size URL for backward compatibility
+          if (category === 'floor_plan') {
+            floorPlanImages.push(imageUrls.original);
+          } else {
+            projectImages.push(imageUrls.original);
+          }
+          
+          console.log(`   ✓ Page ${pageNumber} (${category}): uploaded with ${Object.keys(imageUrls).length} size variants`);
         } catch (error) {
-          console.error(`   ✗ Failed to upload to R2, using local path:`, error);
-          // Fallback to local path if R2 upload fails
+          console.error(`   ✗ Failed to upload variants for page ${pageNumber}:`, error);
+          // Skip this image if upload fails
+        }
+      } else {
+        // Fallback: no variants, just use local path
+        extractedImages.push({
+          pageNumber,
+          category,
+          urls: {
+            original: localImagePath,
+            large: localImagePath,
+            medium: localImagePath,
+            thumbnail: localImagePath,
+          },
+        });
+        
+        if (category === 'floor_plan') {
+          floorPlanImages.push(localImagePath);
+        } else {
+          projectImages.push(localImagePath);
         }
       }
-      
-      extractedImages.push({
-        pageNumber,
-        imagePath: finalImagePath,
-        category,
-      });
-      
-      if (category === 'floor_plan') {
-        floorPlanImages.push(finalImagePath);
-      } else {
-        projectImages.push(finalImagePath);
-      }
-      
-      console.log(`   ✓ Page ${pageNumber}: ${category}`);
     }
 
     console.log(`\n📊 Extracted ${extractedImages.length} images (${floorPlanImages.length} floor plans, ${projectImages.length} project)`);

@@ -18,8 +18,8 @@ export interface PageToImageConfig {
   pdfBuffer: Buffer;
   pageNumbers: number[];  // Which pages to convert (1-indexed)
   outputDir: string;
-  width?: number;         // Image width (default: 1240, ~150 DPI)
-  height?: number;        // Image height (default: 1754, ~150 DPI)
+  width?: number;         // Image width (default: 1920, Full HD 16:9)
+  height?: number;        // Image height (default: 1080, Full HD 16:9)
   filenamePrefix?: string; // Optional prefix for unique filenames
 }
 
@@ -36,7 +36,7 @@ export interface PageImageResult {
 export async function convertPagesToImages(
   config: PageToImageConfig
 ): Promise<PageImageResult[]> {
-  const { pdfBuffer, pageNumbers, outputDir, width = 1240, height = 1754, filenamePrefix } = config;
+  const { pdfBuffer, pageNumbers, outputDir, width = 1920, height = 1080, filenamePrefix } = config;
   const results: PageImageResult[] = [];
 
   // Ensure output directory exists
@@ -142,13 +142,13 @@ export async function convertImportantPages(
   const timestamp = Date.now();
   const filenamePrefix = `p${firstPage}_to_${lastPage}_${timestamp}`;
 
-  // Convert pages
+  // Convert pages (landscape orientation for property brochures)
   const results = await convertPagesToImages({
     pdfBuffer,
     pageNumbers: importantPages,
     outputDir,
-    width: 1240,   // ~150 DPI
-    height: 1754,  // ~150 DPI
+    width: 1920,   // Full HD 16:9 (standard)
+    height: 1080,  // Full HD 16:9 (standard)
     filenamePrefix,
   });
 

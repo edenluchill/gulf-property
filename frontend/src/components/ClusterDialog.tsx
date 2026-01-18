@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, MapPin, Home, Building2, Bed, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { OffPlanProperty } from '../types'
 import { formatPrice } from '../lib/utils'
+import { getImageUrl, getImageSrcSet } from '../lib/image-utils'
 import { Link } from 'react-router-dom'
 import PropertyCard from './PropertyCard'
 
@@ -86,13 +87,16 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
             <>
               {/* Image Gallery - With padding and border */}
               <div className="p-6 pb-0">
-                <div className="relative w-full h-[380px] bg-gray-100 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                <div className="relative w-full h-[380px] bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
                   {images.length > 0 ? (
                     <>
                       <img
-                        src={images[currentImageIndex]}
+                        src={getImageUrl(images[currentImageIndex], 'large')}
+                        srcSet={getImageSrcSet(images[currentImageIndex])}
+                        sizes="(max-width: 640px) 400px, (max-width: 1024px) 800px, 1280px"
                         alt={selectedProperty.buildingName}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
+                        loading="lazy"
                       />
                     
                       {/* Image Counter */}
@@ -207,8 +211,8 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                   )}
                 </div>
 
-                {/* Progress Bar for Under Construction */}
-                {selectedProperty.status === 'under-construction' && selectedProperty.completionPercent !== undefined && selectedProperty.completionPercent > 0 && (
+                {/* Progress Bar - Show for upcoming and under-construction */}
+                {selectedProperty.status !== 'completed' && selectedProperty.completionPercent !== undefined && selectedProperty.completionPercent >= 0 && (
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-semibold text-slate-700">Construction Progress</span>

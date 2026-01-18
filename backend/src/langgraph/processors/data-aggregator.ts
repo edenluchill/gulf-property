@@ -26,7 +26,7 @@ export interface AggregatedBuildingData {
   completionDate: string;
   launchDate: string;
   handoverDate?: string;              // ⭐ 新增
-  constructionProgress?: string;      // ⭐ 新增
+  constructionProgress?: number;      // ⭐ Percentage: 0-100
   description: string;
   amenities: string[];
   units: any[];

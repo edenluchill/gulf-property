@@ -21,7 +21,7 @@ export interface ResidentialProject {
   launch_date?: string
   completion_date?: string
   handover_date?: string
-  construction_progress?: string
+  construction_progress?: number  // Percentage: 0-100
   
   // Status
   status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
@@ -119,6 +119,10 @@ export interface ProjectPaymentPlan {
   display_order: number
   description?: string
   
+  // Payment interval information
+  interval_months?: number  // Months from previous milestone
+  interval_description?: string  // Text description of interval
+  
   created_at: string
 }
 
@@ -142,7 +146,7 @@ export interface SubmitProjectRequest {
   launchDate?: string
   completionDate?: string
   handoverDate?: string
-  constructionProgress?: string
+  constructionProgress?: number  // Percentage: 0-100
   
   // Media
   projectImages?: string[]
@@ -201,6 +205,8 @@ export interface SubmitPaymentMilestone {
   milestone: string
   percentage: number
   date?: string
+  intervalMonths?: number  // Months from previous milestone (from AI or auto-calculated)
+  intervalDescription?: string  // Text description (from AI)
 }
 
 // ============================================================================

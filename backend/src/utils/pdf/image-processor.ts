@@ -175,3 +175,84 @@ export async function optimizeImage(
     throw error;
   }
 }
+
+/**
+ * Image size variant configuration
+ */
+export interface ImageVariant {
+  name: 'original' | 'large' | 'medium' | 'thumbnail';
+  width: number;
+  height: number;
+  quality: number;
+}
+
+export const IMAGE_VARIANTS: ImageVariant[] = [
+  { name: 'original', width: 1920, height: 1080, quality: 90 },   // Full HD - detail pages
+  { name: 'large', width: 1280, height: 720, quality: 85 },       // HD - desktop listings
+  { name: 'medium', width: 800, height: 450, quality: 80 },       // Tablet/cards
+  { name: 'thumbnail', width: 400, height: 225, quality: 75 },    // Mobile previews
+];
+
+/**
+ * Generate multiple size variants of an image
+ * Returns buffers for each variant (ready for R2 upload)
+ * 
+ * @param imagePath - Source image path
+ * @returns Map of variant name to Buffer
+ */
+export async function generateImageVariants(
+  imagePath: string
+): Promise<Map<string, Buffer>> {
+  const variants = new Map<string, Buffer>();
+
+  try {
+    console.log(`📐 Generating image variants for ${basename(imagePath)}...`);
+
+    for (const variant of IMAGE_VARIANTS) {
+      const buffer = await sharp(imagePath)
+        .resize(variant.width, variant.height, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: variant.quality, progressive: true })
+        .toBuffer();
+
+      variants.set(variant.name, buffer);
+      console.log(`   ✓ ${variant.name}: ${variant.width}×${variant.height} (${(buffer.length / 1024).toFixed(1)}KB)`);
+    }
+
+    console.log(`   ✅ Generated ${variants.size} variants`);
+    return variants;
+  } catch (error) {
+    console.error('Error generating image variants:', error);
+    throw error;
+  }
+}
+
+/**
+ * Generate variants from buffer (for in-memory processing)
+ */
+export async function generateImageVariantsFromBuffer(
+  buffer: Buffer
+): Promise<Map<string, Buffer>> {
+  const variants = new Map<string, Buffer>();
+
+  try {
+    for (const variant of IMAGE_VARIANTS) {
+      const resizedBuffer = await sharp(buffer)
+        .resize(variant.width, variant.height, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: variant.quality, progressive: true })
+        .toBuffer();
+
+      variants.set(variant.name, resizedBuffer);
+    }
+
+    return variants;
+  } catch (error) {
+    console.error('Error generating image variants from buffer:', error);
+    throw error;
+  }
+}

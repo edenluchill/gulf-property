@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { formatPrice, formatDate } from '../lib/utils'
+import { getImageUrl, getImageSrcSet } from '../lib/image-utils'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Button } from '../components/ui/button'
@@ -9,7 +10,6 @@ import {
   MapPin, 
   Calendar, 
   Building2, 
-  BedDouble, 
   ArrowLeft,
   TrendingUp,
   Activity
@@ -17,12 +17,77 @@ import {
 import { useState, useEffect } from 'react'
 import { isFavorite, addFavorite, removeFavorite } from '../lib/favorites'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
-import { fetchPropertyById } from '../lib/api'
+import { fetchResidentialProjectById } from '../lib/api'
 import { OffPlanProperty } from '../types'
+
+// Convert residential project to OffPlanProperty format
+function convertResidentialProjectToProperty(result: any): OffPlanProperty | null {
+  if (!result || !result.project) return null
+  
+  const project = result.project
+  
+  // construction_progress is now a direct number (0-100)
+  const completionPercent = project.construction_progress || 0
+  
+  // Normalize status to match old schema
+  let normalizedStatus: 'upcoming' | 'under-construction' | 'completed' = 'upcoming'
+  if (project.status === 'under-construction') {
+    normalizedStatus = 'under-construction'
+  } else if (project.status === 'completed' || project.status === 'handed-over') {
+    normalizedStatus = 'completed'
+  }
+  
+  return {
+    id: project.id,
+    buildingId: undefined,
+    buildingName: project.project_name,
+    projectName: project.project_name,
+    buildingDescription: project.description,
+    developer: project.developer,
+    developerId: undefined,
+    developerLogoUrl: undefined,
+    location: {
+      lat: project.latitude || 0,
+      lng: project.longitude || 0,
+    },
+    areaName: project.area,
+    areaId: undefined,
+    dldLocationId: undefined,
+    minBedrooms: project.min_bedrooms || 0,
+    maxBedrooms: project.max_bedrooms || 0,
+    bedsDescription: project.min_bedrooms && project.max_bedrooms 
+      ? `${project.min_bedrooms}-${project.max_bedrooms} BR`
+      : undefined,
+    minSize: undefined,
+    maxSize: undefined,
+    startingPrice: project.starting_price,
+    medianPriceSqft: undefined,
+    medianPricePerUnit: project.starting_price,
+    medianRentPerUnit: undefined,
+    launchDate: project.launch_date,
+    completionDate: project.completion_date,
+    completionPercent: completionPercent,
+    status: normalizedStatus,
+    unitCount: project.total_units,
+    buildingUnitCount: project.total_units,
+    salesVolume: undefined,
+    propSalesVolume: undefined,
+    images: project.project_images || [],
+    logoUrl: undefined,
+    brochureUrl: project.brochure_url,
+    amenities: project.amenities || [],
+    displayAs: 'project',
+    verified: project.verified,
+    createdAt: project.created_at,
+    updatedAt: project.updated_at,
+  }
+}
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [property, setProperty] = useState<OffPlanProperty | null>(null)
+  const [unitTypes, setUnitTypes] = useState<any[]>([])
+  const [paymentPlan, setPaymentPlan] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isFav, setIsFav] = useState(false)
@@ -30,11 +95,14 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (id) {
       setLoading(true)
-      fetchPropertyById(id).then((data) => {
-        setProperty(data)
+      fetchResidentialProjectById(id).then((result) => {
+        const convertedProperty = convertResidentialProjectToProperty(result)
+        setProperty(convertedProperty)
+        setUnitTypes(result?.unitTypes || [])
+        setPaymentPlan(result?.paymentPlan || [])
         setLoading(false)
-        if (data) {
-          setIsFav(isFavorite(data.id))
+        if (convertedProperty) {
+          setIsFav(isFavorite(convertedProperty.id))
         }
       })
     }
@@ -111,9 +179,12 @@ export default function ProjectDetailPage() {
               {property.images.length > 0 ? (
                 <>
                   <img
-                    src={property.images[currentImageIndex]}
+                    src={getImageUrl(property.images[currentImageIndex], 'large')}
+                    srcSet={getImageSrcSet(property.images[currentImageIndex])}
+                    sizes="(max-width: 1024px) 100vw, 50vw"
                     alt={property.buildingName}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                   {property.images.length > 1 && (
                     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
@@ -271,9 +342,10 @@ export default function ProjectDetailPage() {
 
           {/* Tabs Section */}
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="floorplans">Floor Plans</TabsTrigger>
+              <TabsTrigger value="units">Unit Types</TabsTrigger>
+              <TabsTrigger value="payment">Payment Plan</TabsTrigger>
               <TabsTrigger value="amenities">Amenities</TabsTrigger>
               <TabsTrigger value="location">Location</TabsTrigger>
             </TabsList>
@@ -326,58 +398,150 @@ export default function ProjectDetailPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="floorplans">
+            <TabsContent value="units">
               <Card>
                 <CardHeader>
-                  <CardTitle>Available Configurations</CardTitle>
+                  <CardTitle>Unit Types & Floor Plans ({unitTypes.length} configurations)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {property.bedsDescription ? (
-                    <div className="mb-6">
-                      <p className="text-slate-600">{property.bedsDescription}</p>
-                    </div>
-                  ) : null}
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Bedroom Range */}
-                    <div className="p-6 bg-slate-50 rounded-lg">
-                      <div className="flex items-center mb-4">
-                        <BedDouble className="h-6 w-6 text-primary mr-2" />
-                        <h3 className="font-semibold text-lg">Bedroom Options</h3>
-                      </div>
-                      <div className="text-3xl font-bold text-primary mb-2">
-                        {property.minBedrooms === property.maxBedrooms 
-                          ? `${property.minBedrooms} BR`
-                          : `${property.minBedrooms} - ${property.maxBedrooms} BR`}
-                      </div>
-                      <p className="text-sm text-slate-600">
-                        {property.minBedrooms === property.maxBedrooms 
-                          ? `${property.minBedrooms}-bedroom units available`
-                          : `From ${property.minBedrooms} to ${property.maxBedrooms} bedrooms`}
-                      </p>
-                    </div>
-
-                    {/* Size Range */}
-                    {property.minSize && property.maxSize && (
-                      <div className="p-6 bg-slate-50 rounded-lg">
-                        <div className="flex items-center mb-4">
-                          <Building2 className="h-6 w-6 text-primary mr-2" />
-                          <h3 className="font-semibold text-lg">Unit Sizes</h3>
+                  {unitTypes.length > 0 ? (
+                    <div className="space-y-4">
+                      {unitTypes.map((unit, index) => (
+                        <div key={unit.id || index} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
+                          <div className="flex flex-col md:flex-row gap-6">
+                            {/* Floor Plan Image */}
+                            {unit.floor_plan_image && (
+                              <div className="w-full md:w-1/3">
+                                <img 
+                                  src={unit.floor_plan_image}
+                                  alt={`${unit.unit_type_name} floor plan`}
+                                  className="w-full h-auto rounded-lg border"
+                                />
+                              </div>
+                            )}
+                            
+                            {/* Unit Details */}
+                            <div className="flex-1 space-y-4">
+                              <div>
+                                <h3 className="text-xl font-bold text-primary mb-1">{unit.unit_type_name}</h3>
+                                <div className="flex items-center gap-2 text-sm text-slate-600">
+                                  {unit.category && (
+                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">{unit.category}</span>
+                                  )}
+                                  {unit.tower && (
+                                    <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-full">{unit.tower}</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                  <div className="text-sm text-slate-600">Bedrooms</div>
+                                  <div className="text-lg font-semibold">{unit.bedrooms}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm text-slate-600">Bathrooms</div>
+                                  <div className="text-lg font-semibold">{unit.bathrooms}</div>
+                                </div>
+                                <div>
+                                  <div className="text-sm text-slate-600">Area (sq ft)</div>
+                                  <div className="text-lg font-semibold">{parseFloat(unit.area).toLocaleString()}</div>
+                                </div>
+                                {unit.balcony_area && (
+                                  <div>
+                                    <div className="text-sm text-slate-600">Balcony (sq ft)</div>
+                                    <div className="text-lg font-semibold">{parseFloat(unit.balcony_area).toLocaleString()}</div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {unit.price && (
+                                <div className="text-2xl font-bold text-primary">
+                                  {formatPrice(unit.price)}
+                                  {unit.price_per_sqft && (
+                                    <span className="text-sm text-slate-600 font-normal ml-2">
+                                      ({formatPrice(unit.price_per_sqft)}/sq ft)
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-3xl font-bold text-primary mb-2">
-                          {property.minSize === property.maxSize 
-                            ? property.minSize.toLocaleString()
-                            : `${property.minSize.toLocaleString()} - ${property.maxSize.toLocaleString()}`}
-                        </div>
-                        <p className="text-sm text-slate-600">Square feet</p>
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-600">
+                      <p>Unit type information will be available soon.</p>
+                      <Button className="mt-4">Request Unit Information</Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg text-center">
-                    <p className="text-slate-600 mb-3">Interested in specific floor plans?</p>
-                    <Button>Contact Developer for Floor Plans</Button>
-                  </div>
+            <TabsContent value="payment">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Plan</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {paymentPlan.length > 0 ? (
+                    <div className="space-y-4">
+                      {paymentPlan.map((milestone, index) => (
+                        <div key={milestone.id || index} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center justify-center w-10 h-10 bg-primary text-white rounded-full font-bold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-lg">{milestone.milestone_name}</div>
+                              {/* 优先显示间隔描述 */}
+                              {milestone.interval_description ? (
+                                <div className="text-sm text-slate-600 flex items-center gap-1">
+                                  <span>⏱️</span>
+                                  <span>{milestone.interval_description}</span>
+                                </div>
+                              ) : milestone.interval_months !== undefined && milestone.interval_months !== null ? (
+                                <div className="text-sm text-slate-600 flex items-center gap-1">
+                                  <span>⏱️</span>
+                                  <span>
+                                    {milestone.interval_months === 0 
+                                      ? 'At booking' 
+                                      : `${milestone.interval_months} month${milestone.interval_months !== 1 ? 's' : ''} later`
+                                    }
+                                  </span>
+                                </div>
+                              ) : milestone.milestone_date ? (
+                                <div className="text-sm text-slate-600">
+                                  Due: {formatDate(milestone.milestone_date)}
+                                </div>
+                              ) : null}
+                              {milestone.description && (
+                                <div className="text-sm text-slate-600 mt-1">{milestone.description}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-2xl font-bold text-primary">
+                            {parseFloat(milestone.percentage).toFixed(0)}%
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Total */}
+                      <div className="flex items-center justify-between p-4 bg-primary text-white rounded-lg font-bold">
+                        <div className="text-lg">Total</div>
+                        <div className="text-2xl">
+                          {paymentPlan.reduce((sum, m) => sum + parseFloat(m.percentage), 0).toFixed(0)}%
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-600">
+                      <p>Payment plan information will be available soon.</p>
+                      <Button className="mt-4">Request Payment Plan</Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

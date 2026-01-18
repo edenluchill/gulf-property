@@ -17,6 +17,7 @@ import { UnitTypeCard } from '../components/developer-upload/UnitTypeCard'
 import { DocumentUploadSection } from '../components/developer-upload/DocumentUploadSection'
 import { ProgressSection } from '../components/developer-upload/ProgressSection'
 import { ProjectBasicInfoSection } from '../components/developer-upload/ProjectBasicInfoSection'
+import { DateTimeProgressSection } from '../components/developer-upload/DateTimeProgressSection'
 import { VisualContentSection } from '../components/developer-upload/VisualContentSection'
 import { PaymentPlanSection } from '../components/developer-upload/PaymentPlanSection'
 import LocationMapPickerModal from '../components/LocationMapPicker'
@@ -56,7 +57,7 @@ interface FormData {
   completionDate: string
   launchDate?: string
   handoverDate?: string
-  constructionProgress?: string
+  constructionProgress?: number  // Percentage: 0-100
   description: string
   latitude?: number
   longitude?: number
@@ -93,6 +94,7 @@ export default function DeveloperPropertyUploadPageV2() {
   const [submitted, setSubmitted] = useState(false)
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -123,6 +125,21 @@ export default function DeveloperPropertyUploadPageV2() {
   // Remove document
   const handleRemoveDocument = (id: string) => {
     setDocuments(prev => prev.filter(d => d.id !== id))
+  }
+
+  // Validate and clean date format (must be YYYY-MM-DD or empty string)
+  const cleanDateFormat = (dateStr: string | undefined): string => {
+    if (!dateStr) return ''
+    
+    // Check if it's already a valid YYYY-MM-DD format
+    const validDatePattern = /^\d{4}-\d{2}-\d{2}$/
+    if (validDatePattern.test(dateStr)) {
+      return dateStr
+    }
+    
+    // If it's an incomplete date (e.g., "2030-06" or "2030-Q4"), return empty
+    console.warn(`⚠️ Invalid date format detected: "${dateStr}", clearing it`)
+    return ''
   }
 
   // Process all documents
@@ -191,24 +208,31 @@ export default function DeveloperPropertyUploadPageV2() {
             console.log('💰 Payment plans received:', buildingData.paymentPlans.length);
           }
           
-          setFormData(prev => ({
-            ...prev,
-            projectName: buildingData.name || prev.projectName,
-            developer: buildingData.developer || prev.developer,
-            address: buildingData.address || prev.address,
-            area: buildingData.area || prev.area,
-            completionDate: buildingData.completionDate || prev.completionDate,
-            launchDate: buildingData.launchDate || prev.launchDate,
-            handoverDate: buildingData.handoverDate || prev.handoverDate,
-            constructionProgress: buildingData.constructionProgress || prev.constructionProgress,
-            description: buildingData.description || prev.description,
-            amenities: buildingData.amenities || prev.amenities,
-            unitTypes: buildingData.units || prev.unitTypes,
-            paymentPlan: buildingData.paymentPlans?.[0]?.milestones || prev.paymentPlan,
-            projectImages: buildingData.images?.projectImages || prev.projectImages,
-            floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
-            visualContent: buildingData.visualContent || prev.visualContent,
-          }))
+          setFormData(prev => {
+            // Clean date formats before setting form data
+            const cleanedLaunchDate = cleanDateFormat(buildingData.launchDate || prev.launchDate)
+            const cleanedCompletionDate = cleanDateFormat(buildingData.completionDate || prev.completionDate)
+            const cleanedHandoverDate = cleanDateFormat(buildingData.handoverDate || prev.handoverDate)
+
+            return {
+              ...prev,
+              projectName: buildingData.name || prev.projectName,
+              developer: buildingData.developer || prev.developer,
+              address: buildingData.address || prev.address,
+              area: buildingData.area || prev.area,
+              completionDate: cleanedCompletionDate,
+              launchDate: cleanedLaunchDate,
+              handoverDate: cleanedHandoverDate,
+              constructionProgress: buildingData.constructionProgress || prev.constructionProgress,
+              description: buildingData.description || prev.description,
+              amenities: buildingData.amenities || prev.amenities,
+              unitTypes: buildingData.units || prev.unitTypes,
+              paymentPlan: buildingData.paymentPlans?.[0]?.milestones || prev.paymentPlan,
+              projectImages: buildingData.images?.projectImages || prev.projectImages,
+              floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
+              visualContent: buildingData.visualContent || prev.visualContent,
+            }
+          })
         }
 
         if (progressEvent.stage === 'complete') {
@@ -249,7 +273,7 @@ export default function DeveloperPropertyUploadPageV2() {
     e.preventDefault()
 
     // 防止意外提交：必须明确点击按钮
-    if (isProcessing) {
+    if (isProcessing || isSubmitting) {
       console.log('⚠️ Still processing, blocking submit')
       return
     }
@@ -269,7 +293,15 @@ export default function DeveloperPropertyUploadPageV2() {
       return
     }
 
+    setIsSubmitting(true)
+    setError(null)
+
     try {
+      // Clean date formats before submitting (convert empty strings to null for backend)
+      const cleanedLaunchDate = formData.launchDate || null
+      const cleanedCompletionDate = formData.completionDate || null
+      const cleanedHandoverDate = formData.handoverDate || null
+
       const submitData = {
         projectName: formData.projectName,
         developer: formData.developer,
@@ -278,9 +310,9 @@ export default function DeveloperPropertyUploadPageV2() {
         description: formData.description,
         latitude: formData.latitude,
         longitude: formData.longitude,
-        launchDate: formData.launchDate,
-        completionDate: formData.completionDate,
-        handoverDate: formData.handoverDate,
+        launchDate: cleanedLaunchDate,
+        completionDate: cleanedCompletionDate,
+        handoverDate: cleanedHandoverDate,
         constructionProgress: formData.constructionProgress,
         projectImages: formData.projectImages || [],
         floorPlanImages: formData.floorPlanImages || [],
@@ -323,11 +355,21 @@ export default function DeveloperPropertyUploadPageV2() {
       }
 
       console.log('✅ Project submitted successfully:', result.projectId)
+      
+      // Show success notification
+      alert('✅ 项目提交成功！\n即将跳转到地图页面...')
+      
       setSubmitted(true)
-      setTimeout(() => { window.location.href = '/map' }, 3000)
+      setTimeout(() => { window.location.href = '/map' }, 2000)
     } catch (err) {
       console.error('❌ Submit error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to submit')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit'
+      setError(errorMessage)
+      
+      // Show error notification to user
+      alert(`❌ 提交失败\n\n错误信息：${errorMessage}\n\n请检查数据后重试，或联系技术支持。`)
+      
+      setIsSubmitting(false)
     }
   }
 
@@ -344,12 +386,12 @@ export default function DeveloperPropertyUploadPageV2() {
     }
   }, [])
 
-  // Group units by building prefix
+  // Group units by building prefix (extracted from typeName)
   const groupedUnits = formData.unitTypes.reduce((acc, unit) => {
-    let buildingGroup = (unit as any).tower;
+    let buildingGroup = null;
     
-    // Frontend fallback: extract prefix from typeName
-    if (!buildingGroup && unit.typeName) {
+    // Extract prefix from typeName for consistent grouping
+    if (unit.typeName) {
       const matchWithHyphen = unit.typeName.match(/^([A-Z]+)-/);
       const matchLettersOnly = unit.typeName.match(/^([A-Z]+)$/);
       const matchBeforeDigits = unit.typeName.match(/^([A-Z]+)[\d\(]/);
@@ -473,6 +515,20 @@ export default function DeveloperPropertyUploadPageV2() {
                             onChange={handleFormChange}
                             onOpenMapPicker={() => setShowMapPicker(true)}
                           />
+
+                          {/* Date & Progress */}
+                          <div className="pt-6 border-t-2 border-gray-100">
+                            <DateTimeProgressSection
+                              formData={{
+                                launchDate: formData.launchDate,
+                                completionDate: formData.completionDate,
+                                handoverDate: formData.handoverDate,
+                                constructionProgress: formData.constructionProgress,
+                              }}
+                              isProcessing={isProcessing}
+                              onChange={handleFormChange}
+                            />
+                          </div>
 
                           {/* Visual Content */}
                           <VisualContentSection
@@ -648,12 +704,17 @@ export default function DeveloperPropertyUploadPageV2() {
                               type="submit"
                               size="lg"
                               className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-xl hover:shadow-2xl text-lg py-7 transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none disabled:opacity-50"
-                              disabled={isProcessing || !formData.projectName || !hasReviewed}
+                              disabled={isProcessing || isSubmitting || !formData.projectName || !hasReviewed}
                             >
-                              {isProcessing ? (
+                              {isSubmitting ? (
                                 <>
                                   <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                  <span className="text-lg">处理中，请稍候...</span>
+                                  <span className="text-lg">正在提交项目，请稍候...</span>
+                                </>
+                              ) : isProcessing ? (
+                                <>
+                                  <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                                  <span className="text-lg">AI 处理中，请稍候...</span>
                                 </>
                               ) : (
                                 <>
@@ -689,6 +750,37 @@ export default function DeveloperPropertyUploadPageV2() {
             : undefined
         }
       />
+
+      {/* Submitting Overlay */}
+      <AnimatePresence>
+        {isSubmitting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl p-12 max-w-md mx-4"
+            >
+              <div className="text-center">
+                <Loader2 className="h-20 w-20 mx-auto mb-6 animate-spin text-green-600" />
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">正在提交项目</h3>
+                <p className="text-gray-600 mb-2">正在保存项目数据到数据库...</p>
+                <p className="text-sm text-gray-500">这可能需要一分钟，请耐心等待</p>
+                <div className="mt-6 flex items-center justify-center gap-1">
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

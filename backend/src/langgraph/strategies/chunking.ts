@@ -4,6 +4,7 @@
  * Handles splitting of PDFs into manageable chunks:
  * - Split multiple PDFs into uniform chunks
  * - Tag chunks with source file information
+ * - Tag chunks with PDF hash for caching
  * - Calculate total pages and chunks
  */
 
@@ -11,11 +12,13 @@ import { splitPdfIntoChunks, type PdfChunk } from '../../utils/pdf/chunker';
 
 export interface PdfChunkWithSource extends PdfChunk {
   sourceFile: string;
+  pdfHash: string;  // SHA256 hash for cache key
 }
 
 export interface ChunkingConfig {
   pdfBuffers: Buffer[];
   pdfNames?: string[];
+  pdfHashes: string[];  // NEW: PDF hashes for caching
   pagesPerChunk?: number;
 }
 
@@ -29,12 +32,12 @@ export interface ChunkingResult {
  * Split all PDFs into uniform chunks
  * 
  * @param config - Chunking configuration
- * @returns Array of chunks with source file information
+ * @returns Array of chunks with source file information and PDF hash
  */
 export async function splitAllPdfsIntoChunks(
   config: ChunkingConfig
 ): Promise<ChunkingResult> {
-  const { pdfBuffers, pdfNames, pagesPerChunk = 5 } = config;
+  const { pdfBuffers, pdfNames, pdfHashes, pagesPerChunk = 5 } = config;
   
   const allChunks: PdfChunkWithSource[] = [];
 
@@ -42,18 +45,21 @@ export async function splitAllPdfsIntoChunks(
 
   for (let fileIdx = 0; fileIdx < pdfBuffers.length; fileIdx++) {
     const fileName = pdfNames?.[fileIdx] || `Document ${fileIdx + 1}`;
+    const pdfHash = pdfHashes[fileIdx];
     const sizeMB = (pdfBuffers[fileIdx].length / 1024 / 1024).toFixed(2);
 
     console.log(`📄 Splitting file ${fileIdx + 1}/${pdfBuffers.length}: ${fileName} (${sizeMB} MB)`);
+    console.log(`   Hash: ${pdfHash.substring(0, 12)}...`);
 
     // Split this PDF into chunks
     const chunks = await splitPdfIntoChunks(pdfBuffers[fileIdx], pagesPerChunk);
 
-    // Tag chunks with source file
+    // Tag chunks with source file and PDF hash
     chunks.forEach(chunk => {
       allChunks.push({
         ...chunk,
         sourceFile: fileName,
+        pdfHash,  // ⭐ Add PDF hash for cache key
       });
     });
 

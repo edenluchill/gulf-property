@@ -1,9 +1,11 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, Clock } from 'lucide-react'
 
 interface PaymentMilestone {
   milestone: string
   percentage: number
   date?: string
+  intervalMonths?: number
+  intervalDescription?: string
 }
 
 interface PaymentPlanSectionProps {
@@ -47,12 +49,28 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
                     {milestone.milestone || `阶段 ${idx + 1}`}
                   </span>
                 </div>
-                {milestone.date && (
+                {/* 优先显示间隔描述，否则显示日期 */}
+                {milestone.intervalDescription ? (
+                  <div className="text-sm text-gray-500 mt-2 ml-11 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>{milestone.intervalDescription}</span>
+                  </div>
+                ) : milestone.intervalMonths !== undefined && milestone.intervalMonths !== null ? (
+                  <div className="text-sm text-gray-500 mt-2 ml-11 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {milestone.intervalMonths === 0 
+                        ? 'At booking' 
+                        : `${milestone.intervalMonths} month${milestone.intervalMonths !== 1 ? 's' : ''} later`
+                      }
+                    </span>
+                  </div>
+                ) : milestone.date ? (
                   <div className="text-sm text-gray-500 mt-2 ml-11 flex items-center gap-2">
                     <span>📅</span>
                     <span>{milestone.date}</span>
                   </div>
-                )}
+                ) : null}
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-amber-600">

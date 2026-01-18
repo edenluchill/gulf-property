@@ -13,7 +13,7 @@ import { Button } from './ui/button'
 import { PropertyFilters } from '../types'
 import { formatPrice } from '../lib/utils'
 import { X } from 'lucide-react'
-import { fetchDevelopers, fetchAreas } from '../lib/api'
+import { fetchResidentialDevelopers, fetchResidentialAreas } from '../lib/api'
 
 interface FilterPanelProps {
   filters: PropertyFilters
@@ -27,11 +27,11 @@ export default function FilterPanel({ filters, onFiltersChange, onReset }: Filte
   const [areas, setAreas] = useState<string[]>([])
 
   useEffect(() => {
-    // Fetch developers and areas from API
-    fetchDevelopers().then((data) => {
+    // Fetch developers and areas from residential projects API
+    fetchResidentialDevelopers().then((data) => {
       setDevelopers(data.map(d => d.developer).sort())
     })
-    fetchAreas().then((data) => {
+    fetchResidentialAreas().then((data) => {
       setAreas(data.map(a => a.area_name).sort())
     })
   }, [])

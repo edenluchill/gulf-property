@@ -27,7 +27,7 @@ import { PageRegistry } from '../core/page-registry';
 import { AssignmentResult } from '../types/assignment-result';
 
 export interface BatchProcessingConfig {
-  chunks: Array<PdfChunk & { sourceFile: string }>;
+  chunks: Array<PdfChunk & { sourceFile: string; pdfHash: string }>;
   outputDir: string;
   jobId: string;
   batchSize?: number;
@@ -302,6 +302,37 @@ function convertAssignmentToAggregatedData(
   
   console.log(`   🏗️  Project info merged:`, Object.keys(projectInfo).join(', '));
   
+  // ⭐ 合并项目图片（智能分配 + 原始workflow）
+  const smartProjectImages = [
+    ...assignmentResult.projectImages.coverImages.map(img => img.imagePath),
+    ...assignmentResult.projectImages.renderingImages.map(img => img.imagePath),
+    ...assignmentResult.projectImages.aerialImages.map(img => img.imagePath),
+    ...assignmentResult.projectImages.locationMaps.map(img => img.imagePath),
+    ...assignmentResult.projectImages.masterPlanImages.map(img => img.imagePath),
+    ...assignmentResult.projectImages.amenityImages.map(img => img.imagePath),
+  ];
+  
+  // 合并原始数据中的项目图片
+  const originalProjectImages = originalData.images?.projectImages || [];
+  const allProjectImages = [...smartProjectImages, ...originalProjectImages];
+  
+  // 去重（按路径）
+  const uniqueProjectImages = Array.from(new Set(allProjectImages));
+  
+  console.log(`   🖼️  Project images merged: ${smartProjectImages.length} (smart) + ${originalProjectImages.length} (workflow) = ${uniqueProjectImages.length} (unique)`);
+  
+  // 合并所有图片
+  const smartAllImages = [
+    ...smartProjectImages,
+    ...assignmentResult.units.flatMap(u => u.allImages.map(img => img.imagePath)),
+  ];
+  
+  const originalAllImages = originalData.images?.allImages || [];
+  const mergedAllImages = [...smartAllImages, ...originalAllImages];
+  const uniqueAllImages = Array.from(new Set(mergedAllImages));
+  
+  console.log(`   🖼️  All images merged: ${smartAllImages.length} (smart) + ${originalAllImages.length} (workflow) = ${uniqueAllImages.length} (unique)`);
+  
   // 返回完整数据
   return {
     ...originalData,
@@ -310,26 +341,11 @@ function convertAssignmentToAggregatedData(
     paymentPlans: finalPaymentPlans,
     towerInfos: assignmentResult.towerInfos || [],  // ⭐ Tower信息
     images: {
-      projectImages: [
-        ...assignmentResult.projectImages.coverImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.renderingImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.aerialImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.locationMaps.map(img => img.imagePath),
-        ...assignmentResult.projectImages.masterPlanImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.amenityImages.map(img => img.imagePath),
-      ],
+      projectImages: uniqueProjectImages,  // ⭐ 合并后的项目图片
       floorPlanImages: assignmentResult.units.flatMap(u => 
         u.floorPlanImages.map(img => img.imagePath)
       ),
-      allImages: [
-        ...assignmentResult.projectImages.coverImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.renderingImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.aerialImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.locationMaps.map(img => img.imagePath),
-        ...assignmentResult.projectImages.masterPlanImages.map(img => img.imagePath),
-        ...assignmentResult.projectImages.amenityImages.map(img => img.imagePath),
-        ...assignmentResult.units.flatMap(u => u.allImages.map(img => img.imagePath)),
-      ],
+      allImages: uniqueAllImages,  // ⭐ 合并后的所有图片
     },
   };
 }

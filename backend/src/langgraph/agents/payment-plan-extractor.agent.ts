@@ -14,6 +14,8 @@ export interface PaymentMilestone {
   percentage: number;       // 付款百分比
   date?: string;            // 日期（如果有）
   description?: string;     // 描述
+  intervalMonths?: number;  // 距离上一个milestone的月数（AI提取或自动计算）
+  intervalDescription?: string;  // 间隔描述（如 "3个月后", "交房时"）
 }
 
 export interface PaymentPlan {
@@ -42,12 +44,12 @@ export async function extractPaymentPlan(
 
 ## 任务：提取结构化的付款计划
 
-从页面中提取所有付款阶段（milestones）和百分比。
+从页面中提取所有付款阶段（milestones）、百分比、日期和付款间隔。
 
 常见的付款阶段：
 - On Booking / Down Payment: 预定/首付
 - On Foundation: 地基完成
-- During Construction: 建设期间
+- During Construction: 建设期间（可能有多个分期）
 - On Completion: 竣工时
 - On Handover: 交付时
 - Post-Handover: 交付后
@@ -60,29 +62,49 @@ export async function extractPaymentPlan(
       "milestone": "On Booking",
       "percentage": 20,
       "date": "2025-01-01",
-      "description": "Down payment"
+      "description": "Down payment",
+      "intervalMonths": 0,
+      "intervalDescription": "At booking"
     },
     {
-      "milestone": "April 2026",
+      "milestone": "3 Months After Booking",
       "percentage": 10,
-      "date": "2026-04-01"
+      "date": "2025-04-01",
+      "intervalMonths": 3,
+      "intervalDescription": "3 months after booking"
     },
     {
       "milestone": "On Handover",
-      "percentage": 25,
-      "date": "June 2028"
+      "percentage": 70,
+      "date": "2028-06-01",
+      "intervalMonths": 38,
+      "intervalDescription": "On handover"
     }
   ],
   "totalPercentage": 100,
   "description": "Flexible payment plan over construction period"
 }
 
+## ⭐ 间隔信息提取重点
+
+1. **intervalMonths**: 从上一个milestone到这个milestone的月数
+   - 第一个milestone通常是0（预订时）
+   - 计算相邻milestone之间的时间差（月数）
+   - 如果PDF有明确标注"3个月后"、"6个月后"，使用该值
+
+2. **intervalDescription**: 间隔的文本描述
+   - 保留原文描述（如"3 months after booking", "On handover", "Upon completion"）
+   - 如果PDF有明确文字说明，使用原文
+   - 如果只有日期，计算后用"X months later"
+
 ## 注意事项
 
 1. 准确提取所有百分比（必须加起来接近100%）
 2. 提取日期信息（如果有）
 3. 阶段名称保持原文（英文）
-4. 如果是分期付款，按时间顺序排列
+4. 按时间顺序排列所有milestone
+5. 尽量提取或计算intervalMonths和intervalDescription
+6. 如果无法确定间隔，可以省略这两个字段
 
 只返回JSON，不要其他文字。`;
 

@@ -14,6 +14,23 @@ import {
 import { moveMultipleToR2Permanent, isR2TempUrl } from '../services/r2-storage'
 // import { moveImagesToPermanent, extractJobIdFromUrl, deleteTempJobFolder } from '../services/local-image-migration'
 
+/**
+ * Validate and clean date format for PostgreSQL (must be YYYY-MM-DD or null)
+ */
+function cleanDateFormat(dateStr: string | undefined | null): string | null {
+  if (!dateStr) return null
+  
+  // Check if it's already a valid YYYY-MM-DD format
+  const validDatePattern = /^\d{4}-\d{2}-\d{2}$/
+  if (validDatePattern.test(dateStr)) {
+    return dateStr
+  }
+  
+  // If it's an incomplete date (e.g., "2030-06" or "2030-Q4"), return null
+  console.warn(`⚠️ Invalid date format detected: "${dateStr}", skipping it`)
+  return null
+}
+
 export function createResidentialProjectsRouter(pool: Pool): Router {
   const router = Router()
 
@@ -30,11 +47,75 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         developer, project, area, status
       } = req.query
       
-      // Always return max 50 clusters for better map visibility
-      const clusterCount = 50
+      // Build filter conditions that will be applied to both data_count and clustered CTEs
+      const queryParams: any[] = []
+      let paramCount = 1
+      const filterConditions: string[] = []
       
-      let queryText = `
-        WITH clustered AS (
+      // Bounding box filter
+      if (minLng && minLat && maxLng && maxLat) {
+        filterConditions.push(`ST_Intersects(
+          location,
+          ST_MakeEnvelope($${paramCount}, $${paramCount + 1}, $${paramCount + 2}, $${paramCount + 3}, 4326)::geography
+        )`)
+        queryParams.push(minLng, minLat, maxLng, maxLat)
+        paramCount += 4
+      }
+      
+      // Apply filters
+      if (minPrice) {
+        filterConditions.push(`starting_price >= $${paramCount}`)
+        queryParams.push(minPrice)
+        paramCount++
+      }
+      if (maxPrice) {
+        filterConditions.push(`starting_price <= $${paramCount}`)
+        queryParams.push(maxPrice)
+        paramCount++
+      }
+      if (minBedrooms) {
+        filterConditions.push(`max_bedrooms >= $${paramCount}`)
+        queryParams.push(minBedrooms)
+        paramCount++
+      }
+      if (maxBedrooms) {
+        filterConditions.push(`min_bedrooms <= $${paramCount}`)
+        queryParams.push(maxBedrooms)
+        paramCount++
+      }
+      if (developer) {
+        filterConditions.push(`developer = $${paramCount}`)
+        queryParams.push(developer)
+        paramCount++
+      }
+      if (project) {
+        filterConditions.push(`project_name = $${paramCount}`)
+        queryParams.push(project)
+        paramCount++
+      }
+      if (area) {
+        filterConditions.push(`area = $${paramCount}`)
+        queryParams.push(area)
+        paramCount++
+      }
+      if (status) {
+        filterConditions.push(`status = $${paramCount}`)
+        queryParams.push(status)
+        paramCount++
+      }
+      
+      // Build WHERE clause with all conditions
+      const whereClause = filterConditions.length > 0 
+        ? `AND ${filterConditions.join(' AND ')}` 
+        : ''
+      
+      // Get zoom level and determine cluster count dynamically
+      const zoom = parseInt(req.query.zoom as string) || 11
+      const maxClusters = zoom >= 14 ? 100 : zoom >= 12 ? 50 : 30
+      
+      // OPTIMIZED: Single scan with window function for count
+      const queryText = `
+        WITH filtered_data AS (
           SELECT 
             id,
             project_name,
@@ -43,67 +124,27 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
             max_bedrooms,
             ST_Y(location::geometry) as latitude,
             ST_X(location::geometry) as longitude,
-            ST_ClusterKMeans(location::geometry, $1) OVER() as cluster_id
+            location::geometry as geom,
+            COUNT(*) OVER() as total_count
           FROM residential_projects
-          WHERE verified = true AND location IS NOT NULL
-      `
-      
-      const queryParams: any[] = [clusterCount]
-      let paramCount = 2
-      
-      // Bounding box filter
-      if (minLng && minLat && maxLng && maxLat) {
-        queryText += ` AND ST_Intersects(
-          location,
-          ST_MakeEnvelope($${paramCount}, $${paramCount + 1}, $${paramCount + 2}, $${paramCount + 3}, 4326)::geography
-        )`
-        queryParams.push(minLng, minLat, maxLng, maxLat)
-        paramCount += 4
-      }
-      
-      // Apply filters
-      if (minPrice) {
-        queryText += ` AND starting_price >= $${paramCount}`
-        queryParams.push(minPrice)
-        paramCount++
-      }
-      if (maxPrice) {
-        queryText += ` AND starting_price <= $${paramCount}`
-        queryParams.push(maxPrice)
-        paramCount++
-      }
-      if (minBedrooms) {
-        queryText += ` AND max_bedrooms >= $${paramCount}`
-        queryParams.push(minBedrooms)
-        paramCount++
-      }
-      if (maxBedrooms) {
-        queryText += ` AND min_bedrooms <= $${paramCount}`
-        queryParams.push(maxBedrooms)
-        paramCount++
-      }
-      if (developer) {
-        queryText += ` AND developer = $${paramCount}`
-        queryParams.push(developer)
-        paramCount++
-      }
-      if (project) {
-        queryText += ` AND project_name = $${paramCount}`
-        queryParams.push(project)
-        paramCount++
-      }
-      if (area) {
-        queryText += ` AND area = $${paramCount}`
-        queryParams.push(area)
-        paramCount++
-      }
-      if (status) {
-        queryText += ` AND status = $${paramCount}`
-        queryParams.push(status)
-        paramCount++
-      }
-      
-      queryText += `
+          WHERE verified = true 
+            AND location IS NOT NULL
+            ${whereClause}
+        ),
+        clustered AS (
+          SELECT 
+            id,
+            project_name,
+            starting_price,
+            min_bedrooms,
+            max_bedrooms,
+            latitude,
+            longitude,
+            ST_ClusterKMeans(
+              geom, 
+              LEAST(${maxClusters}, GREATEST(1, total_count::integer))::integer
+            ) OVER() as cluster_id
+          FROM filtered_data
         )
         SELECT 
           cluster_id,
@@ -247,13 +288,94 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       const limitedIds = ids.slice(0, 20)
       
       const result = await pool.query(`
-        SELECT * FROM residential_projects
+        SELECT 
+          id,
+          project_name,
+          developer,
+          address,
+          area,
+          description,
+          latitude,
+          longitude,
+          launch_date,
+          completion_date,
+          handover_date,
+          construction_progress,
+          status,
+          min_price,
+          max_price,
+          starting_price,
+          total_unit_types,
+          total_units,
+          min_bedrooms,
+          max_bedrooms,
+          project_images,
+          floor_plan_images,
+          brochure_url,
+          has_renderings,
+          has_floor_plans,
+          has_location_maps,
+          rendering_descriptions,
+          floor_plan_descriptions,
+          amenities,
+          verified,
+          featured,
+          views_count,
+          created_at,
+          updated_at
+        FROM residential_projects
         WHERE id = ANY($1)
       `, [limitedIds])
       
+      // Transform database rows to frontend format (snake_case to camelCase)
+      const transformedData = result.rows.map(row => {
+        return {
+          id: row.id,
+          buildingId: null,
+          buildingName: row.project_name,
+          projectName: row.project_name,
+          buildingDescription: row.description,
+          developer: row.developer,
+          developerId: null,
+          developerLogoUrl: null,
+          location: {
+            lat: row.latitude,
+            lng: row.longitude,
+          },
+          areaName: row.area,
+          areaId: null,
+          dldLocationId: null,
+          minBedrooms: row.min_bedrooms || 0,
+          maxBedrooms: row.max_bedrooms || 0,
+          bedsDescription: null,
+          minSize: null,
+          maxSize: null,
+          startingPrice: row.starting_price,
+          medianPriceSqft: null,
+          medianPricePerUnit: null,
+          medianRentPerUnit: null,
+          launchDate: row.launch_date,
+          completionDate: row.completion_date,
+          completionPercent: row.construction_progress || 0,  // Now a direct number (0-100)
+          status: row.status,
+          unitCount: row.total_units,
+          buildingUnitCount: row.total_units,
+          salesVolume: null,
+          propSalesVolume: null,
+          images: row.project_images || [],
+          logoUrl: null,
+          brochureUrl: row.brochure_url,
+          amenities: row.amenities || [],
+          displayAs: null,
+          verified: row.verified,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }
+      })
+      
       res.json({
         success: true,
-        data: result.rows,
+        data: transformedData,
       })
     } catch (error) {
       console.error('Error fetching projects batch:', error)
@@ -279,33 +401,53 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
 
       console.log('📝 Submitting residential project:', data.projectName)
 
-      // 0. Move images from temp to permanent local storage
-      let projectImages = data.projectImages || []
-      let floorPlanImages = data.floorPlanImages || []
+      // 0. Collect ALL temp images (project, floor plans, AND unit types) before moving
+      // This prevents duplicate moves when the same temp URL appears in multiple places
+      const allTempUrls = new Set<string>()
+      const projectImages = data.projectImages || []
+      const floorPlanImages = data.floorPlanImages || []
       
-      // Check if we have temp images (from R2 temporary storage)
-      const hasTempProjectImages = projectImages.some(url => isR2TempUrl(url))
-      const hasTempFloorPlanImages = floorPlanImages.some(url => isR2TempUrl(url))
+      // Collect project images
+      projectImages.forEach(url => {
+        if (isR2TempUrl(url)) allTempUrls.add(url)
+      })
       
-      if (hasTempProjectImages || hasTempFloorPlanImages) {
-        // Generate project ID for image storage (will use actual projectId after insertion)
+      // Collect floor plan images
+      floorPlanImages.forEach(url => {
+        if (isR2TempUrl(url)) allTempUrls.add(url)
+      })
+      
+      // Collect unit type floor plan images
+      if (data.unitTypes && Array.isArray(data.unitTypes)) {
+        data.unitTypes.forEach(unit => {
+          if (unit.floorPlanImage && isR2TempUrl(unit.floorPlanImage)) {
+            allTempUrls.add(unit.floorPlanImage)
+          }
+        })
+      }
+      
+      // Create URL mapping (temp -> permanent) for ALL images at once
+      const urlMapping = new Map<string, string>()
+      
+      if (allTempUrls.size > 0) {
         const tempProjectId = `project_${Date.now()}`
+        console.log(`🔄 Moving ${allTempUrls.size} unique temp images to R2 permanent storage...`)
         
-        console.log('🔄 Moving images from R2 temporary to permanent storage...')
+        const tempUrlArray = Array.from(allTempUrls)
+        const permanentUrls = await moveMultipleToR2Permanent(tempUrlArray, tempProjectId)
         
-        if (hasTempProjectImages) {
-          console.log(`   Moving ${projectImages.length} project images to R2 permanent...`)
-          projectImages = await moveMultipleToR2Permanent(projectImages, tempProjectId)
-        }
+        // Build mapping
+        tempUrlArray.forEach((tempUrl, index) => {
+          urlMapping.set(tempUrl, permanentUrls[index])
+        })
         
-        if (hasTempFloorPlanImages) {
-          console.log(`   Moving ${floorPlanImages.length} floor plan images to R2 permanent...`)
-          floorPlanImages = await moveMultipleToR2Permanent(floorPlanImages, tempProjectId)
-        }
-        
-        console.log('✅ Images moved to R2 permanent storage')
+        console.log('✅ All images moved to R2 permanent storage')
         console.log('   Temporary files will be auto-deleted by R2 cleanup script (24h)')
       }
+      
+      // Replace temp URLs with permanent URLs using the mapping
+      const finalProjectImages = projectImages.map(url => urlMapping.get(url) || url)
+      const finalFloorPlanImages = floorPlanImages.map(url => urlMapping.get(url) || url)
 
       // 1. Insert main project
       const projectResult = await client.query(`
@@ -347,8 +489,8 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.completionDate || null,
         data.handoverDate || null,
         data.constructionProgress || null,
-        projectImages, // Use migrated URLs
-        floorPlanImages, // Use migrated URLs
+        finalProjectImages, // Use migrated URLs
+        finalFloorPlanImages, // Use migrated URLs
         data.amenities || [],
         data.visualContent?.hasRenderings || false,
         data.visualContent?.hasFloorPlans || false,
@@ -369,13 +511,17 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         for (let i = 0; i < data.unitTypes.length; i++) {
           const unit = data.unitTypes[i]
           
-          // Move unit floor plan image if it's a temp R2 URL
-          let unitFloorPlanImage = unit.floorPlanImage
-          if (unitFloorPlanImage && isR2TempUrl(unitFloorPlanImage)) {
-            console.log(`   Moving floor plan for unit ${unit.name} to R2 permanent...`)
-            const migrated = await moveMultipleToR2Permanent([unitFloorPlanImage], projectId)
-            unitFloorPlanImage = migrated[0]
+          // Use the pre-migrated URL from our mapping (already moved earlier)
+          const unitFloorPlanImage = unit.floorPlanImage 
+            ? (urlMapping.get(unit.floorPlanImage) || unit.floorPlanImage)
+            : null
+          
+          // Build unit_images array: floor plan first, then any additional images
+          const unitImages: string[] = []
+          if (unitFloorPlanImage) {
+            unitImages.push(unitFloorPlanImage)
           }
+          // TODO: Add support for additional unit images from frontend if needed
           
           // Extract tower from typeName if not provided
           let tower = unit.tower
@@ -412,9 +558,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
               orientation,
               features,
               floor_plan_image,
+              unit_images,
               display_order
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
             )
           `, [
             projectId,
@@ -433,19 +580,50 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
             unit.pricePerSqft || null,
             unit.orientation || null,
             unit.features || [],
-            unitFloorPlanImage || null, // Use migrated URL
+            unitFloorPlanImage || null, // Use migrated URL (backwards compatibility)
+            unitImages, // Floor plan + additional images array
             i,  // display_order
           ])
         }
         console.log('✅ Unit types inserted')
       }
 
-      // 3. Insert payment plan
+      // 3. Insert payment plan with interval calculation
       if (data.paymentPlan && Array.isArray(data.paymentPlan) && data.paymentPlan.length > 0) {
         console.log(`💰 Inserting ${data.paymentPlan.length} payment milestones...`)
         
         for (let i = 0; i < data.paymentPlan.length; i++) {
           const milestone = data.paymentPlan[i]
+          
+          // Clean date format before inserting
+          const cleanedDate = cleanDateFormat(milestone.date)
+          
+          // Auto-calculate interval if not provided by AI
+          let intervalMonths = milestone.intervalMonths
+          let intervalDescription = milestone.intervalDescription
+          
+          if (intervalMonths === undefined && i > 0 && cleanedDate && data.paymentPlan[i - 1].date) {
+            // Calculate months between current and previous milestone
+            const prevDate = cleanDateFormat(data.paymentPlan[i - 1].date)
+            if (prevDate) {
+              const current = new Date(cleanedDate)
+              const previous = new Date(prevDate)
+              const monthsDiff = Math.round(
+                (current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+              )
+              intervalMonths = monthsDiff > 0 ? monthsDiff : undefined
+              
+              if (!intervalDescription && intervalMonths) {
+                intervalDescription = `${intervalMonths} month${intervalMonths !== 1 ? 's' : ''} later`
+              }
+            }
+          } else if (i === 0 && intervalMonths === undefined) {
+            // First milestone defaults to 0
+            intervalMonths = 0
+            if (!intervalDescription) {
+              intervalDescription = 'At booking'
+            }
+          }
           
           await client.query(`
             INSERT INTO project_payment_plans (
@@ -453,17 +631,21 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
               milestone_name,
               percentage,
               milestone_date,
+              interval_months,
+              interval_description,
               display_order
-            ) VALUES ($1, $2, $3, $4, $5)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
           `, [
             projectId,
             milestone.milestone,
             milestone.percentage,
-            milestone.date || null,
+            cleanedDate,
+            intervalMonths,
+            intervalDescription,
             i,
           ])
         }
-        console.log('✅ Payment plan inserted')
+        console.log('✅ Payment plan inserted with intervals')
       }
 
       await client.query('COMMIT')

@@ -9,10 +9,6 @@ interface ProjectBasicInfoSectionProps {
     developer: string
     address: string
     area: string
-    completionDate: string
-    launchDate?: string
-    handoverDate?: string
-    constructionProgress?: string
     description: string
     latitude?: number
     longitude?: number
@@ -74,52 +70,16 @@ export function ProjectBasicInfoSection({
         />
       </div>
 
-      {/* Area & Completion Date */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label className="text-sm">区域</Label>
-          <Input
-            value={formData.area}
-            onChange={(e) => onChange('area', e.target.value)}
-            disabled={isProcessing}
-            className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
-            placeholder="例如: Dubai Marina"
-          />
-        </div>
-        <div>
-          <Label className="text-sm">交付日期</Label>
-          <Input
-            value={formData.completionDate || ''}
-            onChange={(e) => onChange('completionDate', e.target.value)}
-            disabled={isProcessing}
-            className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
-            placeholder="2026-Q4 或 2026-12-31"
-          />
-        </div>
-      </div>
-
-      {/* Launch Date & Construction Progress */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label className="text-sm">发布日期</Label>
-          <Input
-            value={formData.launchDate || ''}
-            onChange={(e) => onChange('launchDate', e.target.value)}
-            disabled={isProcessing}
-            className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
-            placeholder="2025-01-01"
-          />
-        </div>
-        <div>
-          <Label className="text-sm">建设进度</Label>
-          <Input
-            value={formData.constructionProgress || ''}
-            onChange={(e) => onChange('constructionProgress', e.target.value)}
-            disabled={isProcessing}
-            className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
-            placeholder="例如: 75% Complete"
-          />
-        </div>
+      {/* Area */}
+      <div>
+        <Label className="text-sm">区域</Label>
+        <Input
+          value={formData.area}
+          onChange={(e) => onChange('area', e.target.value)}
+          disabled={isProcessing}
+          className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+          placeholder="例如: Dubai Marina"
+        />
       </div>
 
       {/* Description */}

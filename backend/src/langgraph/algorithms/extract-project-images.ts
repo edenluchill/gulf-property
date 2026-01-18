@@ -96,9 +96,15 @@ export function extractProjectImages(
 
 /**
  * 判断是否为项目级别图片
+ * 
+ * ⭐ 策略：宽松收集，避免遗漏项目图片
+ * - 明确的项目级别category
+ * - UNKNOWN也收集（可能是有价值的项目图片）
+ * - UNIT_EXTERIOR也收集（AI可能混淆项目外观和户型外观）
  */
 function isProjectLevelImage(category: ImageCategory): boolean {
   const projectCategories = [
+    // 项目图片
     ImageCategory.BUILDING_EXTERIOR,
     ImageCategory.BUILDING_AERIAL,
     ImageCategory.BUILDING_ENTRANCE,
@@ -106,12 +112,16 @@ function isProjectLevelImage(category: ImageCategory): boolean {
     ImageCategory.MASTER_PLAN,
     ImageCategory.LOGO,
     ImageCategory.DIAGRAM,
+    ImageCategory.ICON,  // ⭐ 添加：可能是项目图标
     // 配套设施也算项目级别
     ImageCategory.AMENITY_POOL,
     ImageCategory.AMENITY_GYM,
     ImageCategory.AMENITY_GARDEN,
     ImageCategory.AMENITY_LOUNGE,
     ImageCategory.AMENITY_OTHER,
+    // ⭐ 宽松策略：包含可能被误分类的category
+    ImageCategory.UNKNOWN,  // ⭐ 关键：很多项目图片可能被分类为UNKNOWN
+    ImageCategory.UNIT_EXTERIOR,  // ⭐ AI可能混淆项目外观和户型外观
   ];
   
   return projectCategories.includes(category);

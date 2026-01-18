@@ -1,6 +1,7 @@
 import { Building2, Bed, Calendar, Home } from 'lucide-react'
 import { OffPlanProperty } from '../types'
 import { formatPrice } from '../lib/utils'
+import { getImageUrl, getImageSrcSet } from '../lib/image-utils'
 
 interface PropertyCardProps {
   property: OffPlanProperty
@@ -26,13 +27,16 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
         }
       `}
     >
-      {/* Image Thumbnail - Compact */}
-      <div className="relative h-20 bg-gray-100 rounded-t-lg overflow-hidden">
+      {/* Image Thumbnail - More prominent */}
+      <div className="relative h-36 bg-white rounded-t-lg overflow-hidden">
         {property.images && property.images.length > 0 ? (
           <img
-            src={property.images[0]}
+            src={getImageUrl(property.images[0], 'thumbnail')}
+            srcSet={getImageSrcSet(property.images[0])}
+            sizes="(max-width: 640px) 400px, 800px"
             alt={property.buildingName}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -103,8 +107,8 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
           )}
         </div>
 
-        {/* Progress Bar - Compact with deep blue */}
-        {property.status === 'under-construction' && property.completionPercent !== undefined && property.completionPercent > 0 && (
+        {/* Progress Bar - Show for upcoming and under-construction */}
+        {property.status !== 'completed' && property.completionPercent !== undefined && property.completionPercent >= 0 && (
           <div className="mt-1">
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-[10px] text-slate-500">Progress</span>

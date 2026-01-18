@@ -37,13 +37,14 @@ export async function pdfToImages(
 
     // ⚡ PERFORMANCE: Reduced from 300 DPI to 150 DPI for 50% faster conversion
     // Still high quality for AI analysis, but much faster
+    // 🖼️ LANDSCAPE: Standard 16:9 ratio for modern displays (1920×1080 Full HD)
     const options = {
-      density: 150,  // Was: 300
+      density: 150,
       saveFilename: prefix,
       savePath: outputDir,
       format: "png",
-      width: 1240,   // Was: 2480 (half size)
-      height: 1754   // Was: 3508 (half size)
+      width: 1920,   // Full HD width (16:9)
+      height: 1080   // Full HD height (16:9)
     };
 
     const convert = fromBuffer(pdfBuffer, options);
@@ -90,12 +91,12 @@ export async function pdfPageToImage(
   try {
     const outputDir = join(outputPath, '..');
     const options = {
-      density: 300,
+      density: 150,
       saveFilename: `page_${pageNumber}`,
       savePath: outputDir,
       format: "png",
-      width: 2480,
-      height: 3508
+      width: 1920,   // 16:9 standard
+      height: 1080   // 16:9 standard
     };
 
     const convert = fromBuffer(pdfBuffer, options);
