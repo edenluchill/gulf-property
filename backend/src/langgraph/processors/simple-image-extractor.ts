@@ -33,12 +33,14 @@ export interface SimpleImageExtractionResult {
  * 
  * @param outputDir - Local temp directory for conversion (will be cleaned up)
  * @param jobId - Job ID for R2 temporary storage path
+ * @param chunkIndex - Chunk index for unique filename generation
  */
 export async function extractImagesFromChunkSimple(
   chunk: PdfChunk & { sourceFile: string },
   chunkData: any,
   outputDir: string,
-  jobId?: string
+  jobId?: string,
+  chunkIndex?: number
 ): Promise<SimpleImageExtractionResult> {
   
   console.log(`\n🔍 IMAGE EXTRACTION DEBUG:`);
@@ -76,8 +78,20 @@ export async function extractImagesFromChunkSimple(
       mkdirSync(imagesDir, { recursive: true });
     }
 
+    // Generate unique filename prefix to avoid race conditions in parallel processing
+    // Format: job_{jobId}_chunk_{chunkIndex}_pages_{start}-{end}_{random}
+    const randomSuffix = Math.random().toString(36).substring(2, 9);
+    const filenamePrefix = [
+      jobId ? `job_${jobId}` : `ts_${Date.now()}`,
+      chunkIndex !== undefined ? `chunk_${chunkIndex}` : null,
+      `pages_${chunk.pageRange.start}-${chunk.pageRange.end}`,
+      randomSuffix
+    ].filter(Boolean).join('_');
+
+    console.log(`   📝 Using filename prefix: ${filenamePrefix}`);
+
     // Convert ALL pages in this chunk to images using unified converter
-    const imagePaths = await pdfToImages(chunk.buffer, imagesDir);
+    const imagePaths = await pdfToImages(chunk.buffer, imagesDir, filenamePrefix);
 
     console.log(`   ✓ Converted ${imagePaths.length} pages to images`);
 

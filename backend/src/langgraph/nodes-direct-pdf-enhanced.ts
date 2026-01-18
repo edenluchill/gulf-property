@@ -215,12 +215,15 @@ Respond ONLY with valid JSON, no markdown.`;
     const groupedUnits = groupUnitsByCategory(buildingData.units);
     console.log(`   📊 Grouped into ${Object.keys(groupedUnits).length} categories`);
 
-    // Convert PDF pages to images
-    console.log('\n🖼️  Converting PDF pages to images...');
-    const imagesDir = join(state.outputDir!, 'images');
-    const imagePaths = await pdfToImages(state.pdfBuffer!, imagesDir);
+    // ⚡ PERFORMANCE FIX: Reuse images from state.pageImages instead of converting again
+    // Images are already converted in chunk-processor.ts, no need to convert twice!
+    const imagePaths = state.pageImages || [];
     
-    console.log(`   ✅ Converted ${imagePaths.length} pages to images`);
+    if (imagePaths.length === 0) {
+      console.log('   ⚠️  No page images found in state, skipping image assignment');
+    } else {
+      console.log(`   ✅ Reusing ${imagePaths.length} already converted images (avoiding duplicate conversion)`);
+    }
 
     // Determine which are floor plans vs project images
     // Heuristic: first few pages are usually project overview, rest are floor plans

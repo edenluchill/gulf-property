@@ -24,13 +24,26 @@ export class ProgressEmitter {
    * Register a new SSE client
    */
   registerClient(jobId: string, res: Response) {
+    console.log(`📡 Registering SSE client for job ${jobId}`);
+    
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering
+    
+    // ⭐ CRITICAL FIX: Disable Nagle's algorithm to send data immediately
+    // This prevents TCP from buffering small packets
+    const socket = (res as any).socket;
+    if (socket && typeof socket.setNoDelay === 'function') {
+      socket.setNoDelay(true);
+      console.log(`   ✅ TCP_NODELAY enabled for immediate SSE delivery`);
+    }
+    
+    res.flushHeaders(); // ⭐ Important: Send headers immediately
 
     this.clients.set(jobId, res);
+    console.log(`   Total active clients: ${this.clients.size}`);
 
     // Send initial connection message
     this.emit(jobId, {
@@ -42,6 +55,7 @@ export class ProgressEmitter {
 
     // Clean up on disconnect
     res.on('close', () => {
+      console.log(`🔌 Client disconnected for job ${jobId}`);
       this.clients.delete(jobId);
     });
   }
@@ -51,14 +65,22 @@ export class ProgressEmitter {
    */
   emit(jobId: string, event: ProgressEvent) {
     const client = this.clients.get(jobId);
-    if (!client) return;
+    if (!client) {
+      console.warn(`⚠️ No client found for job ${jobId}`);
+      return;
+    }
 
     try {
       // Format as SSE
       const data = JSON.stringify(event);
       client.write(`data: ${data}\n\n`);
+      
+      // ⭐ Data is sent immediately due to socket.setNoDelay(true) in registerClient
+      // No need to manually flush
+      
+      console.log(`📤 Sent event to ${jobId}: ${event.stage} (${event.progress}%)`);
     } catch (error) {
-      console.error('Error emitting progress:', error);
+      console.error(`❌ Error emitting progress for job ${jobId}:`, error);
       this.clients.delete(jobId);
     }
   }

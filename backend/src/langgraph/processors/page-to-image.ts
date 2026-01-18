@@ -7,7 +7,7 @@
  * Uses existing pdf-img-convert utility (no additional canvas setup needed!)
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { PageImageAnalysis, ImageInfo } from './image-analyzer';
 
@@ -20,6 +20,7 @@ export interface PageToImageConfig {
   outputDir: string;
   width?: number;         // Image width (default: 1240, ~150 DPI)
   height?: number;        // Image height (default: 1754, ~150 DPI)
+  filenamePrefix?: string; // Optional prefix for unique filenames
 }
 
 export interface PageImageResult {
@@ -35,7 +36,7 @@ export interface PageImageResult {
 export async function convertPagesToImages(
   config: PageToImageConfig
 ): Promise<PageImageResult[]> {
-  const { pdfBuffer, pageNumbers, outputDir, width = 1240, height = 1754 } = config;
+  const { pdfBuffer, pageNumbers, outputDir, width = 1240, height = 1754, filenamePrefix } = config;
   const results: PageImageResult[] = [];
 
   // Ensure output directory exists
@@ -44,13 +45,16 @@ export async function convertPagesToImages(
     mkdirSync(imagesDir, { recursive: true });
   }
 
+  // Generate unique prefix if not provided (using timestamp)
+  const prefix = filenamePrefix || `page_${Date.now()}`;
+
   console.log(`\n📸 Converting ${pageNumbers.length} pages to images (${width}x${height})...`);
 
   try {
     // Configure pdf2pic
     const options = {
       density: 150,
-      saveFilename: 'page',
+      saveFilename: prefix,
       savePath: imagesDir,
       format: 'png',
       width,
@@ -65,7 +69,9 @@ export async function convertPagesToImages(
         const result = await convert(pageNumber, { responseType: 'image' });
         
         if (result && result.path) {
-          console.log(`   ✓ Saved: page_${pageNumber}.png`);
+          // Extract just the filename from the path for logging
+          const filename = result.path.split(/[/\\]/).pop() || result.path;
+          console.log(`   ✓ Saved: ${filename} (PDF page ${pageNumber})`);
           results.push({
             pageNumber,
             imagePath: result.path,
@@ -129,6 +135,13 @@ export async function convertImportantPages(
 
   console.log(`\n📸 Found ${importantPages.length} pages with important images`);
 
+  // Generate unique filename prefix using actual page numbers to avoid collisions
+  // Format: p{firstPage}_to_{lastPage}_{timestamp}
+  const firstPage = Math.min(...importantPages);
+  const lastPage = Math.max(...importantPages);
+  const timestamp = Date.now();
+  const filenamePrefix = `p${firstPage}_to_${lastPage}_${timestamp}`;
+
   // Convert pages
   const results = await convertPagesToImages({
     pdfBuffer,
@@ -136,6 +149,7 @@ export async function convertImportantPages(
     outputDir,
     width: 1240,   // ~150 DPI
     height: 1754,  // ~150 DPI
+    filenamePrefix,
   });
 
   // Build map of page number → image path

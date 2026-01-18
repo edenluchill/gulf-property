@@ -1,24 +1,44 @@
 /**
  * Image URL Helper
  * 
- * Converts file system paths to accessible URLs for frontend
+ * Converts R2 image paths to accessible URLs for frontend
+ * ⚡ R2-ONLY: No legacy local file serving
  */
 
 /**
- * Convert local file path to API URL
+ * Convert image path to R2 public URL
  * 
- * @param imagePath - Local file path (e.g., "uploads/langgraph-output/job_123/images/page_71.png")
- * @param jobId - Job ID
- * @returns API URL (e.g., "/api/langgraph-images/job_123/page_71.png")
+ * @param imagePath - R2 URL or local path (will be converted to R2 URL)
+ * @param jobId - Job ID (used for R2 path construction if needed)
+ * @returns R2 public URL
  */
 export function convertImagePathToUrl(imagePath: string, jobId: string): string {
-  // Extract filename from path
+  // If already a full HTTPS URL (R2), return as-is
+  if (imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // ⚠️ If it's still a local path or http://, it means R2 upload failed
+  // This should not happen in production - log warning
+  if (imagePath.startsWith('http://') || imagePath.includes('\\') || imagePath.includes('C:')) {
+    console.warn(`⚠️ WARNING: Image path is not R2 URL: ${imagePath}`);
+    console.warn(`   This means R2 upload failed. Image will not be accessible.`);
+    
+    // Return a placeholder or empty string (don't fallback to local API)
+    return ''; // Frontend should handle empty image URLs gracefully
+  }
+  
+  // If it's a relative path, assume it needs R2_PUBLIC_URL prefix
+  const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+  if (!R2_PUBLIC_URL) {
+    console.error('❌ ERROR: R2_PUBLIC_URL is not configured!');
+    return '';
+  }
+  
+  // Extract filename and construct R2 URL
   const parts = imagePath.split(/[/\\]/);
   const filename = parts[parts.length - 1];
-  
-  // Build full URL (include backend URL for cross-origin access)
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  return `${backendUrl}/api/langgraph-images/${jobId}/${filename}`;
+  return `${R2_PUBLIC_URL}/temporary/${jobId}/images/${filename}`;
 }
 
 /**

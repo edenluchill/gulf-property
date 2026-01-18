@@ -151,7 +151,11 @@ export default function AreasEditorEnhanced() {
     const newArea: any = {
       id: `temp-${Date.now()}`,
       name: 'New District',
+      nameAr: '',
       boundary: geoJSON.geometry,
+      areaType: 'residential',
+      wealthLevel: 'mid-range',
+      culturalAttribute: 'family-oriented',
       description: '',
       color: '#3B82F6',
       opacity: 0.3,
@@ -159,7 +163,6 @@ export default function AreasEditorEnhanced() {
     }
     setAreas([...areas, newArea])
     setSelectedArea(newArea)
-    setFormData(newArea)
     setIsEditMode(true)
   }
 
@@ -218,9 +221,20 @@ export default function AreasEditorEnhanced() {
   }
 
   const handleBoundaryUpdate = (boundary: any) => {
-    setFormData({ ...formData, boundary })
+    const updatedFormData = { ...formData, boundary }
+    setFormData(updatedFormData)
     if (selectedArea) {
-      const updated = { ...selectedArea, boundary }
+      const updated = { ...selectedArea, ...updatedFormData }
+      setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
+      setSelectedArea(updated)
+    }
+  }
+
+  const handleFormChange = (field: string, value: any) => {
+    const updatedFormData = { ...formData, [field]: value }
+    setFormData(updatedFormData)
+    if (selectedArea) {
+      const updated = { ...selectedArea, ...updatedFormData }
       setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
       setSelectedArea(updated)
     }
@@ -312,33 +326,18 @@ export default function AreasEditorEnhanced() {
                 <Label>Name *</Label>
                 <Input
                   value={formData.name || ''}
-                  onChange={(e) => {
-                    const newData = { ...formData, name: e.target.value }
-                    setFormData(newData)
-                    if (selectedArea) {
-                      const updated = { ...selectedArea, ...newData }
-                      setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
-                      setSelectedArea(updated)
-                    }
-                  }}
+                  onChange={(e) => handleFormChange('name', e.target.value)}
                 />
               </div>
 
               <div>
                 <Label>Description</Label>
                 <textarea
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 text-sm"
                   rows={4}
                   value={formData.description || ''}
-                  onChange={(e) => {
-                    const newData = { ...formData, description: e.target.value }
-                    setFormData(newData)
-                    if (selectedArea) {
-                      const updated = { ...selectedArea, ...newData }
-                      setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
-                      setSelectedArea(updated)
-                    }
-                  }}
+                  onChange={(e) => handleFormChange('description', e.target.value)}
+                  placeholder="Describe this area..."
                 />
               </div>
 
@@ -348,28 +347,13 @@ export default function AreasEditorEnhanced() {
                   <input
                     type="color"
                     value={formData.color || '#3B82F6'}
-                    onChange={(e) => {
-                      const newData = { ...formData, color: e.target.value }
-                      setFormData(newData)
-                      if (selectedArea) {
-                        const updated = { ...selectedArea, ...newData }
-                        setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
-                        setSelectedArea(updated)
-                      }
-                    }}
-                    className="w-12 h-10 rounded cursor-pointer"
+                    onChange={(e) => handleFormChange('color', e.target.value)}
+                    className="w-12 h-10 rounded cursor-pointer border"
                   />
                   <Input
                     value={formData.color || ''}
-                    onChange={(e) => {
-                      const newData = { ...formData, color: e.target.value }
-                      setFormData(newData)
-                      if (selectedArea) {
-                        const updated = { ...selectedArea, ...newData }
-                        setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
-                        setSelectedArea(updated)
-                      }
-                    }}
+                    onChange={(e) => handleFormChange('color', e.target.value)}
+                    placeholder="#3B82F6"
                   />
                 </div>
               </div>
@@ -382,16 +366,8 @@ export default function AreasEditorEnhanced() {
                   max="1"
                   step="0.05"
                   value={formData.opacity || 0.3}
-                  onChange={(e) => {
-                    const newData = { ...formData, opacity: parseFloat(e.target.value) }
-                    setFormData(newData)
-                    if (selectedArea) {
-                      const updated = { ...selectedArea, ...newData }
-                      setAreas(areas.map(a => a.id === selectedArea.id ? updated : a))
-                      setSelectedArea(updated)
-                    }
-                  }}
-                  className="w-full"
+                  onChange={(e) => handleFormChange('opacity', parseFloat(e.target.value))}
+                  className="w-full accent-primary"
                 />
               </div>
 

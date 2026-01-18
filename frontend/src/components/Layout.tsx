@@ -18,7 +18,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <MobileNav />
 
       {/* Footer - Hidden on mobile, visible on desktop */}
-      <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">
+      {/* <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
@@ -51,7 +51,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             © 2026 Gulf Property. All rights reserved.
           </div>
         </div>
-      </footer>
+      </footer> */}
     </div>
   )
 }

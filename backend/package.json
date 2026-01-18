@@ -14,6 +14,7 @@
     "migrate:developer": "ts-node src/db/migrate-developer-submissions.ts",
     "import-data": "ts-node src/db/import-dubai-data.ts",
     "seed": "ts-node src/db/seed.ts",
+    "cleanup-temp": "ts-node cleanup-temp-folders.ts",
     "cleanup-r2": "ts-node cleanup-r2-temp-files.ts"
   },
   "keywords": [

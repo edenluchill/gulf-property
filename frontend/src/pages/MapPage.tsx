@@ -2,13 +2,126 @@ import { useState, useEffect, useCallback } from 'react'
 import MapViewClustered from '../components/MapViewClustered'
 import FilterDialog from '../components/FilterDialog'
 import ClusterDialog from '../components/ClusterDialog'
-import { PropertyFilters, OffPlanProperty, DubaiArea, DubaiLandmark } from '../types'
+import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
 import { Search, SlidersHorizontal, Layers } from 'lucide-react'
 import { formatPrice } from '../lib/utils'
-import { fetchPropertyClusters, fetchDevelopers, fetchAreas, fetchProjects, fetchPropertiesBatch, fetchDubaiAreas, fetchDubaiLandmarks } from '../lib/api'
+import { 
+  fetchResidentialProjectClusters, 
+  fetchResidentialDevelopers, 
+  fetchResidentialAreas, 
+  fetchResidentialProjects, 
+  fetchResidentialProjectsBatch, 
+  fetchDubaiAreas, 
+  fetchDubaiLandmarks 
+} from '../lib/api'
 import { useDebounce } from '../hooks/useDebounce'
+
+// Residential Project interface (matching backend schema)
+interface ResidentialProject {
+  id: string
+  project_name: string
+  developer: string
+  address: string
+  area: string
+  description?: string
+  latitude?: number
+  longitude?: number
+  launch_date?: string
+  completion_date?: string
+  handover_date?: string
+  construction_progress?: string
+  status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
+  min_price?: number
+  max_price?: number
+  starting_price?: number
+  total_unit_types: number
+  total_units: number
+  min_bedrooms?: number
+  max_bedrooms?: number
+  project_images: string[]
+  floor_plan_images: string[]
+  brochure_url?: string
+  has_renderings: boolean
+  has_floor_plans: boolean
+  has_location_maps: boolean
+  rendering_descriptions: string[]
+  floor_plan_descriptions: string[]
+  amenities: string[]
+  verified: boolean
+  featured: boolean
+  views_count: number
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Convert ResidentialProject to OffPlanProperty format for component compatibility
+ */
+function convertResidentialProjectToProperty(project: ResidentialProject): any {
+  // Calculate completion percent from construction_progress if available
+  let completionPercent = 0
+  if (project.construction_progress) {
+    const match = project.construction_progress.match(/(\d+)%/)
+    if (match) {
+      completionPercent = parseInt(match[1])
+    }
+  }
+  
+  // Normalize status to match old schema
+  let normalizedStatus: 'upcoming' | 'under-construction' | 'completed' = 'upcoming'
+  if (project.status === 'under-construction') {
+    normalizedStatus = 'under-construction'
+  } else if (project.status === 'completed' || project.status === 'handed-over') {
+    normalizedStatus = 'completed'
+  }
+  
+  return {
+    id: project.id,
+    buildingId: undefined,
+    buildingName: project.project_name,
+    projectName: project.project_name,
+    buildingDescription: project.description,
+    developer: project.developer,
+    developerId: undefined,
+    developerLogoUrl: undefined,
+    location: {
+      lat: project.latitude || 0,
+      lng: project.longitude || 0,
+    },
+    areaName: project.area,
+    areaId: undefined,
+    dldLocationId: undefined,
+    minBedrooms: project.min_bedrooms || 0,
+    maxBedrooms: project.max_bedrooms || 0,
+    bedsDescription: project.min_bedrooms && project.max_bedrooms 
+      ? `${project.min_bedrooms}-${project.max_bedrooms} BR`
+      : undefined,
+    minSize: undefined,
+    maxSize: undefined,
+    startingPrice: project.starting_price,
+    medianPriceSqft: undefined,
+    medianPricePerUnit: project.starting_price,
+    medianRentPerUnit: undefined,
+    launchDate: project.launch_date,
+    completionDate: project.completion_date,
+    completionPercent: completionPercent,
+    status: normalizedStatus,
+    unitCount: project.total_units,
+    buildingUnitCount: project.total_units,
+    salesVolume: undefined,
+    propSalesVolume: undefined,
+    images: project.project_images || [],
+    logoUrl: undefined,
+    brochureUrl: project.brochure_url,
+    amenities: project.amenities || [],
+    displayAs: 'project',
+    verified: project.verified,
+    createdAt: project.created_at,
+    updatedAt: project.updated_at,
+  }
+}
 
 export default function MapPage() {
   const [filters, setFilters] = useState<PropertyFilters>({})
@@ -27,9 +140,9 @@ export default function MapPage() {
   const [dubaiLandmarks, setDubaiLandmarks] = useState<DubaiLandmark[]>([])
   const [showDubaiLayer, setShowDubaiLayer] = useState(false)
   
-  // Cluster dialog state
+  // Cluster dialog state (using any[] to match old OffPlanProperty format after conversion)
   const [showClusterDialog, setShowClusterDialog] = useState(false)
-  const [selectedClusterProperties, setSelectedClusterProperties] = useState<OffPlanProperty[]>([])
+  const [selectedClusterProperties, setSelectedClusterProperties] = useState<any[]>([])
   const [clusterDialogPosition, setClusterDialogPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
   const [isLoadingClusterProperties, setIsLoadingClusterProperties] = useState(false)
 
@@ -41,51 +154,51 @@ export default function MapPage() {
   useEffect(() => {
     const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
     
-    // Load developers with cache
-    const cachedDevelopers = localStorage.getItem('gulf_developers')
-    const cachedDevTimestamp = localStorage.getItem('gulf_developers_timestamp')
+    // Load developers with cache (NEW RESIDENTIAL API)
+    const cachedDevelopers = localStorage.getItem('gulf_residential_developers')
+    const cachedDevTimestamp = localStorage.getItem('gulf_residential_developers_timestamp')
     
     if (cachedDevelopers && cachedDevTimestamp && 
         Date.now() - parseInt(cachedDevTimestamp) < CACHE_DURATION) {
       setDevelopers(JSON.parse(cachedDevelopers))
     } else {
-      fetchDevelopers().then((data) => {
+      fetchResidentialDevelopers().then((data) => {
         const sorted = data.map(d => d.developer).sort()
         setDevelopers(sorted)
-        localStorage.setItem('gulf_developers', JSON.stringify(sorted))
-        localStorage.setItem('gulf_developers_timestamp', Date.now().toString())
+        localStorage.setItem('gulf_residential_developers', JSON.stringify(sorted))
+        localStorage.setItem('gulf_residential_developers_timestamp', Date.now().toString())
       })
     }
     
-    // Load areas with cache
-    const cachedAreas = localStorage.getItem('gulf_areas')
-    const cachedAreasTimestamp = localStorage.getItem('gulf_areas_timestamp')
+    // Load areas with cache (NEW RESIDENTIAL API)
+    const cachedAreas = localStorage.getItem('gulf_residential_areas')
+    const cachedAreasTimestamp = localStorage.getItem('gulf_residential_areas_timestamp')
     
     if (cachedAreas && cachedAreasTimestamp && 
         Date.now() - parseInt(cachedAreasTimestamp) < CACHE_DURATION) {
       setAreas(JSON.parse(cachedAreas))
     } else {
-      fetchAreas().then((data) => {
+      fetchResidentialAreas().then((data) => {
         const sorted = data.map(a => a.area_name).sort()
         setAreas(sorted)
-        localStorage.setItem('gulf_areas', JSON.stringify(sorted))
-        localStorage.setItem('gulf_areas_timestamp', Date.now().toString())
+        localStorage.setItem('gulf_residential_areas', JSON.stringify(sorted))
+        localStorage.setItem('gulf_residential_areas_timestamp', Date.now().toString())
       })
     }
     
-    // Load projects with cache
-    const cachedProjects = localStorage.getItem('gulf_projects')
-    const cachedProjectsTimestamp = localStorage.getItem('gulf_projects_timestamp')
+    // Load projects with cache (NEW RESIDENTIAL API)
+    const cachedProjects = localStorage.getItem('gulf_residential_projects')
+    const cachedProjectsTimestamp = localStorage.getItem('gulf_residential_projects_timestamp')
     
     if (cachedProjects && cachedProjectsTimestamp && 
         Date.now() - parseInt(cachedProjectsTimestamp) < CACHE_DURATION) {
       setProjects(JSON.parse(cachedProjects))
     } else {
-      fetchProjects().then((data) => {
+      fetchResidentialProjects().then((data) => {
         const sorted = data.sort((a, b) => a.project_name.localeCompare(b.project_name))
         setProjects(sorted)
-        localStorage.setItem('gulf_projects', JSON.stringify(sorted))
-        localStorage.setItem('gulf_projects_timestamp', Date.now().toString())
+        localStorage.setItem('gulf_residential_projects', JSON.stringify(sorted))
+        localStorage.setItem('gulf_residential_projects_timestamp', Date.now().toString())
       })
     }
     
@@ -119,7 +232,7 @@ export default function MapPage() {
     }
   }, [])
 
-  // Load clusters based on debounced filters AND map bounds
+  // Load clusters based on debounced filters AND map bounds (NEW RESIDENTIAL API)
   useEffect(() => {
     // Only load if we have bounds (after map initializes)
     if (!debouncedMapBounds) return
@@ -133,28 +246,20 @@ export default function MapPage() {
         maxLat: debouncedMapBounds.maxLat,
       }
 
-      const data = await fetchPropertyClusters(mapZoom, bounds, {
+      const data = await fetchResidentialProjectClusters(mapZoom, bounds, {
         developer: debouncedFilters.developer,
         project: debouncedFilters.project,
         area: debouncedFilters.area,
         minPrice: debouncedFilters.minPrice,
         maxPrice: debouncedFilters.maxPrice,
-        minPriceSqft: debouncedFilters.minPriceSqft,
-        maxPriceSqft: debouncedFilters.maxPriceSqft,
         minBedrooms: debouncedFilters.minBedrooms,
         maxBedrooms: debouncedFilters.maxBedrooms,
         minSize: debouncedFilters.minSize,
         maxSize: debouncedFilters.maxSize,
-        launchDateStart: debouncedFilters.launchDateStart,
-        launchDateEnd: debouncedFilters.launchDateEnd,
-        completionDateStart: debouncedFilters.completionDateStart,
-        completionDateEnd: debouncedFilters.completionDateEnd,
-        minCompletionPercent: debouncedFilters.minCompletionPercent,
-        maxCompletionPercent: debouncedFilters.maxCompletionPercent,
         status: debouncedFilters.status,
       })
       
-      console.log('Fetched clusters:', data.length, 'clusters')
+      console.log('Fetched residential project clusters:', data.length, 'clusters')
       
       setClusters(data)
       setLastUpdated(new Date())
@@ -169,7 +274,7 @@ export default function MapPage() {
     setMapZoom(zoom)
   }, [])
 
-  // Handle cluster click to show properties in dialog (memoized)
+  // Handle cluster click to show properties in dialog (memoized) - NEW RESIDENTIAL API
   const handleClusterClick = useCallback(async (cluster: any) => {
     console.log('Cluster clicked:', cluster)
     
@@ -186,15 +291,18 @@ export default function MapPage() {
     setShowClusterDialog(true)
 
     try {
-      // Fetch full property details in background
-      const properties = await fetchPropertiesBatch(cluster.property_ids)
+      // Fetch full residential project details in background
+      const projects = await fetchResidentialProjectsBatch(cluster.property_ids)
       
-      console.log('Fetched properties:', properties)
+      console.log('Fetched residential projects:', projects)
       
-      setSelectedClusterProperties(properties)
+      // Convert residential projects to old property format for component compatibility
+      const convertedProperties = projects.map(convertResidentialProjectToProperty)
+      
+      setSelectedClusterProperties(convertedProperties)
       setIsLoadingClusterProperties(false)
     } catch (error) {
-      console.error('Error fetching cluster properties:', error)
+      console.error('Error fetching cluster projects:', error)
       setIsLoadingClusterProperties(false)
     }
   }, [])

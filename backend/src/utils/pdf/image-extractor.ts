@@ -141,7 +141,7 @@ export async function classifyExtractedImages(
   
   console.log(`\n🔍 Classifying ${images.length} images...`);
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
   for (const image of images) {
     try {

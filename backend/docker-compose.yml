@@ -21,6 +21,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      # Cloudflare R2 配置
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
     ports:
       - "${PORT:-3000}:3000"
     volumes:

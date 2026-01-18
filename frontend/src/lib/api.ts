@@ -527,3 +527,170 @@ export async function deleteDubaiLandmark(id: string): Promise<boolean> {
     return false;
   }
 }
+
+// ============================================================================
+// RESIDENTIAL PROJECTS API (NEW SCHEMA)
+// ============================================================================
+
+/**
+ * Fetch clustered residential projects from backend (server-side clustering)
+ * Returns optimized clusters with only IDs, max 50 clusters
+ */
+export async function fetchResidentialProjectClusters(
+  zoom: number,
+  bounds?: MapBounds,
+  filters?: Omit<PropertyFilters, 'bounds' | 'limit' | 'offset'>
+): Promise<any[]> {
+  const params = new URLSearchParams()
+  params.append('zoom', zoom.toString())
+
+  if (bounds) {
+    params.append('minLng', bounds.minLng.toString())
+    params.append('minLat', bounds.minLat.toString())
+    params.append('maxLng', bounds.maxLng.toString())
+    params.append('maxLat', bounds.maxLat.toString())
+  }
+
+  // Add all filters
+  if (filters) {
+    if (filters.developer) params.append('developer', filters.developer);
+    if (filters.project) params.append('project', filters.project);
+    if (filters.area) params.append('area', filters.area);
+    if (filters.minPrice) params.append('minPrice', filters.minPrice.toString());
+    if (filters.maxPrice) params.append('maxPrice', filters.maxPrice.toString());
+    if (filters.minBedrooms) params.append('minBedrooms', filters.minBedrooms.toString());
+    if (filters.maxBedrooms) params.append('maxBedrooms', filters.maxBedrooms.toString());
+    if (filters.minSize) params.append('minSize', filters.minSize.toString());
+    if (filters.maxSize) params.append('maxSize', filters.maxSize.toString());
+    if (filters.status) params.append('status', filters.status);
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/clusters?${params.toString()}`)
+    const result: ApiResponse<any[]> = await response.json()
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch project clusters')
+    }
+
+    return result.data
+  } catch (error) {
+    console.error('Error fetching residential project clusters:', error)
+    return []
+  }
+}
+
+/**
+ * Fetch multiple residential projects by IDs (batch fetch, max 20)
+ */
+export async function fetchResidentialProjectsBatch(ids: string[]): Promise<any[]> {
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ids: ids.slice(0, 20) }) // Max 20
+    });
+
+    const result: ApiResponse<any[]> = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch projects');
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Error fetching residential projects batch:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch residential projects developers list
+ */
+export async function fetchResidentialDevelopers(): Promise<{ developer: string }[]> {
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/meta/developers`);
+    const result: ApiResponse<{ developer: string }[]> = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch developers');
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Error fetching residential developers:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch residential projects areas list with statistics
+ */
+export async function fetchResidentialAreas(): Promise<{
+  area_name: string;
+  project_count: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
+}[]> {
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/meta/areas`);
+    const result: ApiResponse<any[]> = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch areas');
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Error fetching residential areas:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch residential projects list with statistics
+ */
+export async function fetchResidentialProjects(): Promise<{
+  project_name: string;
+  developer: string;
+  property_count: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
+}[]> {
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/meta/projects`);
+    const result: ApiResponse<any[]> = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch projects');
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Error fetching residential projects:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch single residential project by ID with full details
+ */
+export async function fetchResidentialProjectById(id: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/${id}`);
+    const result = await response.json();
+
+    if (!result.project) {
+      throw new Error('Project not found');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error fetching residential project:', error);
+    return null;
+  }
+}

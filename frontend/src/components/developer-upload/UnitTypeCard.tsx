@@ -11,6 +11,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ChevronDown, ChevronUp, Home, Maximize2, DollarSign, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ImageCarousel } from './ImageCarousel';
 
 interface UnitType {
   id: string;
@@ -22,12 +23,14 @@ interface UnitType {
   bedrooms: number;
   bathrooms: number;
   area: number;
+  suiteArea?: number;       // ⭐ 室内面积
+  balconyArea?: number;
   price?: number;
   pricePerSqft?: number;
   orientation?: string;
-  balconyArea?: number;
   features?: string[];
   floorPlanImage?: string;
+  floorPlanImages?: string[]; // Support multiple images
 }
 
 interface UnitTypeCardProps {
@@ -112,24 +115,24 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
             transition={{ duration: 0.3 }}
           >
             <div className="px-4 pb-4 pt-2 border-t space-y-4">
-              {/* Floor Plan Image (if available) */}
-              {unit.floorPlanImage && (
+              {/* Floor Plan Images with Carousel */}
+              {(unit.floorPlanImages && unit.floorPlanImages.length > 0) || unit.floorPlanImage ? (
                 <div className="space-y-2">
-                  <Label className="text-xs text-gray-600">户型图</Label>
-                  <div className="w-full h-64 bg-gray-100 rounded-lg overflow-hidden border">
-                    <img 
-                      src={unit.floorPlanImage} 
-                      alt={`${unit.category} floor plan`}
-                      className="w-full h-full object-contain hover:object-scale-down cursor-zoom-in"
-                      onClick={() => {
-                        // Open in new tab for full view
-                        window.open(unit.floorPlanImage, '_blank');
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 text-center">点击查看大图</p>
+                  <Label className="text-xs text-gray-600 font-semibold">
+                    户型图 
+                    {unit.floorPlanImages && unit.floorPlanImages.length > 1 && (
+                      <span className="text-amber-600 ml-1">({unit.floorPlanImages.length} 张)</span>
+                    )}
+                  </Label>
+                  <ImageCarousel 
+                    images={unit.floorPlanImages || (unit.floorPlanImage ? [unit.floorPlanImage] : [])}
+                    aspectRatio="square"
+                    showThumbnails={(unit.floorPlanImages && unit.floorPlanImages.length > 1) || false}
+                    maxHeight="280px"
+                  />
+                  <p className="text-xs text-gray-500 text-center">点击图片查看大图</p>
                 </div>
-              )}
+              ) : null}
 
               {/* Basic Fields */}
               <div className="space-y-3">
@@ -192,7 +195,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-600 flex items-center gap-1">
                     <Maximize2 className="h-3 w-3" />
-                    面积
+                    总面积
                   </Label>
                   <Input
                     type="number"
@@ -203,6 +206,38 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                   />
                 </div>
               </div>
+
+              {/* Area Details */}
+              {(unit.suiteArea || unit.balconyArea) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {unit.suiteArea && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-600">室内面积 (Suite)</Label>
+                      <Input
+                        type="number"
+                        value={unit.suiteArea || ''}
+                        onChange={(e) => onChange('suiteArea', parseFloat(e.target.value) || undefined)}
+                        disabled={isProcessing}
+                        placeholder="sqft"
+                        className="bg-blue-50"
+                      />
+                    </div>
+                  )}
+                  {unit.balconyArea && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-600">阳台面积 (Balcony)</Label>
+                      <Input
+                        type="number"
+                        value={unit.balconyArea || ''}
+                        onChange={(e) => onChange('balconyArea', parseFloat(e.target.value) || undefined)}
+                        disabled={isProcessing}
+                        placeholder="sqft"
+                        className="bg-green-50"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Price */}
               <div className="grid grid-cols-2 gap-3">

@@ -6,6 +6,11 @@
  * - Rate limiting between batches
  * - Progress tracking and updates
  * - Data aggregation during processing
+ * 
+ * NEW: Integrated with smart image assignment system
+ * - PageRegistry for incremental updates
+ * - Real-time image assignment
+ * - Multi-PDF support
  */
 
 import type { PdfChunk } from '../../utils/pdf/chunker';
@@ -18,6 +23,8 @@ import {
 } from './data-aggregator';
 import { extractPageAnalysis, type ChunkAnalysisResult } from './result-recorder';
 import { updateBuildingDataWithImageUrls } from '../utils/image-url-helper';
+import { PageRegistry } from '../core/page-registry';
+import { AssignmentResult } from '../types/assignment-result';
 
 export interface BatchProcessingConfig {
   chunks: Array<PdfChunk & { sourceFile: string }>;
@@ -36,6 +43,8 @@ export interface BatchProcessingResult {
 
 /**
  * Process all chunks in parallel batches with rate limiting
+ * 
+ * 使用智能图片分配系统
  */
 export async function processChunksInBatches(
   config: BatchProcessingConfig,
@@ -46,13 +55,26 @@ export async function processChunksInBatches(
     outputDir, 
     jobId, 
     batchSize = 10, 
-    batchDelay = 1000 
+    batchDelay = 1000,
   } = config;
 
   const totalChunks = chunks.length;
   const allErrors: string[] = [];
   const allWarnings: string[] = [];
   const chunkAnalyses: ChunkAnalysisResult[] = [];
+
+  // ============ 智能分配系统初始化 ============
+  console.log('\n🎯 Smart Image Assignment System\n');
+  
+  // 1. 重置Registry
+  PageRegistry.reset();
+  
+  // 2. 设置实时更新回调（传递aggregatedData引用）
+  PageRegistry.setUpdateCallback((assignmentResult: AssignmentResult) => {
+    // 每次重新计算后，发送SSE更新给前端
+    // 合并workflow数据（实时）
+    emitSmartAssignmentUpdate(jobId, assignmentResult, aggregatedData, chunks.length);
+  });
 
   // Split chunks into batches
   const batches: typeof chunks[] = [];
@@ -73,65 +95,72 @@ export async function processChunksInBatches(
     const batchPromises = batch.map(async (chunk, batchLocalIdx) => {
       const globalIdx = batchIdx * batchSize + batchLocalIdx;
 
-      // Process single chunk
-      const result = await processSingleChunk({
-        chunk,
-        chunkIndex: globalIdx,
-        totalChunks,
-        outputDir,
-        jobId, // Pass jobId for R2 temp storage
-      });
+      console.log(`   📄 Processing chunk ${globalIdx + 1}/${totalChunks}...`);
 
-      // Merge data immediately if successful
-      if (result.success && result.data) {
-        mergeChunkData(aggregatedData, result.data);
-
-        // Record detailed chunk analysis
-        const pages = extractPageAnalysis(
-          globalIdx,
-          chunk.sourceFile,
-          chunk.pageRange,
-          result.data
-        );
-
-        chunkAnalyses.push({
-          chunkIndex: globalIdx,
-          sourceFile: chunk.sourceFile,
-          pageRange: chunk.pageRange,
-          totalUnits: result.data.units?.length || 0,
-          totalPaymentPlans: result.data.paymentPlans?.length || 0,
-          pages,
-          images: {
-            projectImages: result.data.images?.projectImages || [],
-            floorPlanImages: result.data.images?.floorPlanImages || [],
-          },
-          processingTime: result.processingTime || 0,
-          errors: result.errors,
-        });
-
-        // Send progress update to frontend
-        emitChunkProgressUpdate({
-          jobId,
+      try {
+        // Process single chunk with smart assignment
+        const result = await processSingleChunk({
+          chunk,
           chunkIndex: globalIdx,
           totalChunks,
-          chunk,
-          aggregatedData,
+          outputDir,
+          jobId,
         });
-      }
 
-      return result;
+        console.log(`   ✅ Chunk ${globalIdx + 1} processed successfully`);
+        
+        return result;
+      } catch (chunkError) {
+        console.error(`   ❌ Chunk ${globalIdx + 1} failed:`, chunkError);
+        // Return error result instead of throwing
+        return {
+          success: false,
+          errors: [String(chunkError)],
+          warnings: [],
+          data: null,
+          pageMetadataList: [],
+        };
+      }
     });
 
     // Wait for all chunks in this batch to complete
-    const batchResults = await Promise.all(batchPromises);
+    let batchResults;
+    try {
+      batchResults = await Promise.all(batchPromises);
+    } catch (batchError) {
+      console.error(`❌ Batch ${batchIdx + 1} failed:`, batchError);
+      throw new Error(`Batch processing failed at batch ${batchIdx + 1}: ${batchError}`);
+    }
+
+    // Process results
+    for (const result of batchResults) {
+      try {
+        // ============ 1. 智能图片分配 ============
+        // 插入PageMetadata到Registry（触发图片分配）
+        if (result.success && result.pageMetadataList) {
+          await PageRegistry.insertPages(result.pageMetadataList);
+        }
+        
+        // ============ 2. 原有数据聚合 ============
+        // 保留单元详细信息（bedrooms, bathrooms, area, price等）
+        if (result.success && result.data) {
+          mergeChunkData(aggregatedData, result.data);
+        }
+        
+        // 收集错误
+        if (result.errors && result.errors.length > 0) {
+          allErrors.push(...result.errors);
+        }
+        if (result.warnings && result.warnings.length > 0) {
+          allWarnings.push(...result.warnings);
+        }
+      } catch (resultError) {
+        console.error(`❌ Error processing result:`, resultError);
+        allErrors.push(`Result processing error: ${resultError}`);
+      }
+    }
 
     console.log(`\n✅ Batch ${batchIdx + 1} complete!\n`);
-
-    // Collect errors and warnings
-    batchResults.forEach((result) => {
-      allErrors.push(...result.errors);
-      allWarnings.push(...result.warnings);
-    });
 
     // Delay between batches to respect rate limits
     if (batchIdx < batches.length - 1) {
@@ -140,8 +169,32 @@ export async function processChunksInBatches(
     }
   }
 
+  // ============ 获取最终结果 ============
+  console.log('\n📊 All chunks processed. Getting final assignment result...\n');
+  
+  let finalAssignmentResult;
+  let finalAggregatedData;
+  
+  try {
+    finalAssignmentResult = await PageRegistry.getFinalResult();
+    console.log(`   Units found: ${finalAssignmentResult.units.length}`);
+    console.log(`   Total pages processed: ${finalAssignmentResult.totalPages}`);
+    
+    // 转换为aggregatedData格式（向后兼容）
+    finalAggregatedData = convertAssignmentToAggregatedData(finalAssignmentResult, aggregatedData);
+  } catch (finalError) {
+    console.error(`❌ Error getting final result:`, finalError);
+    // Fallback to original aggregated data
+    finalAggregatedData = aggregatedData;
+    allErrors.push(`Final result error: ${finalError}`);
+  }
+
+  console.log(`\n✅ Batch processing complete!`);
+  console.log(`   Total errors: ${allErrors.length}`);
+  console.log(`   Total warnings: ${allWarnings.length}`);
+
   return {
-    aggregatedData,
+    aggregatedData: finalAggregatedData,
     allErrors,
     allWarnings,
     chunkAnalyses,
@@ -149,45 +202,189 @@ export async function processChunksInBatches(
 }
 
 /**
- * Emit progress update for a completed chunk
+ * 转换AssignmentResult为AggregatedBuildingData格式
+ * 
+ * 关键：合并两个数据源
+ * - PageRegistry: 图片分配（智能边界识别）
+ * - aggregatedData: 单元详细信息（bedrooms, bathrooms, area, price等）
  */
-function emitChunkProgressUpdate(params: {
-  jobId: string;
-  chunkIndex: number;
-  totalChunks: number;
-  chunk: PdfChunk & { sourceFile: string };
-  aggregatedData: AggregatedBuildingData;
-}): void {
-  const { jobId, chunkIndex, totalChunks, chunk, aggregatedData } = params;
+function convertAssignmentToAggregatedData(
+  assignmentResult: AssignmentResult,
+  originalData: AggregatedBuildingData
+): AggregatedBuildingData {
+  console.log('\n🔄 Merging smart assignment with unit details...');
+  console.log(`   Units from smart assignment: ${assignmentResult.units.length}`);
+  console.log(`   Units from workflow: ${originalData.units.length}`);
+  
+  // ============ 合并逻辑 ============
+  // 1. 以智能分配的户型为主（图片准确）
+  // 2. 从originalData中查找匹配的单元详情（bedrooms, area等）
+  // 3. 合并两者数据
+  
+  const mergedUnits = assignmentResult.units.map(smartUnit => {
+    // 在originalData中查找同名单元
+    const matchedUnit = originalData.units.find(u => {
+      const uName = (u.typeName || u.name || '').toLowerCase().trim();
+      const smartName = smartUnit.unitTypeName.toLowerCase().trim();
+      return uName === smartName || uName.includes(smartName) || smartName.includes(uName);
+    });
+    
+    if (matchedUnit) {
+      console.log(`   ✓ Matched "${smartUnit.unitTypeName}" with workflow data`);
+      
+      // 合并：智能分配的图片 + workflow的详细信息
+      return {
+        ...matchedUnit,  // ← 保留所有原有信息（bedrooms, area, price等）
+        id: smartUnit.unitTypeName,
+        name: smartUnit.unitTypeName,
+        typeName: smartUnit.unitTypeName,
+        // ⭐ 使用智能分配的图片
+        floorPlanImage: smartUnit.floorPlanImages[0]?.imagePath || matchedUnit.floorPlanImage,
+        floorPlanImages: smartUnit.floorPlanImages.map(img => img.imagePath),
+        renderingImages: smartUnit.renderingImages.map(img => img.imagePath),
+        interiorImages: smartUnit.interiorImages.map(img => img.imagePath),
+        balconyImages: smartUnit.balconyImages?.map(img => img.imagePath) || [],
+      };
+    } else {
+      console.warn(`   ⚠️  No workflow data for "${smartUnit.unitTypeName}", using AI specs only`);
+      
+      // 无匹配，从PageMetadata提取（可能不完整）
+      const anchorPages = PageRegistry.getAnchorPages().filter(
+        p => p.unitInfo?.unitTypeName === smartUnit.unitTypeName
+      );
+      const firstAnchor = anchorPages[0];
+      const specs = firstAnchor?.unitInfo?.specs;
+      
+      return {
+        id: smartUnit.unitTypeName,
+        name: smartUnit.unitTypeName,
+        typeName: smartUnit.unitTypeName,
+        category: firstAnchor?.unitInfo?.unitCategory || '',
+        tower: firstAnchor?.unitInfo?.tower,
+        bedrooms: specs?.bedrooms || 0,
+        bathrooms: specs?.bathrooms || 0,
+        area: specs?.area || 0,
+        suiteArea: specs?.suiteArea,        // ⭐ 室内面积
+        balconyArea: specs?.balconyArea,    // ⭐ 阳台面积
+        price: specs?.price,
+        pricePerSqft: specs?.pricePerSqft,  // ⭐ 单价
+        floorPlanImage: smartUnit.floorPlanImages[0]?.imagePath,
+        floorPlanImages: smartUnit.floorPlanImages.map(img => img.imagePath),
+        renderingImages: smartUnit.renderingImages.map(img => img.imagePath),
+        interiorImages: smartUnit.interiorImages.map(img => img.imagePath),
+        balconyImages: smartUnit.balconyImages?.map(img => img.imagePath) || [],
+      };
+    }
+  });
+  
+  console.log(`   ✅ Merged ${mergedUnits.length} units with complete information`);
+  
+  // 合并payment plans
+  const finalPaymentPlans = assignmentResult.paymentPlans && assignmentResult.paymentPlans.length > 0
+    ? assignmentResult.paymentPlans
+    : originalData.paymentPlans;
+  
+  console.log(`   💰 Payment plans: ${finalPaymentPlans?.length || 0}`);
+  
+  // ⭐ 合并项目基本信息（智能提取优先）
+  const projectInfo = assignmentResult.projectInfo || {};
+  const mergedBasicInfo = {
+    name: projectInfo.projectName || originalData.name,
+    developer: projectInfo.developer || originalData.developer,
+    address: projectInfo.address || originalData.address,
+    area: projectInfo.area || originalData.area,
+    launchDate: projectInfo.launchDate || originalData.launchDate,
+    completionDate: projectInfo.completionDate || originalData.completionDate,
+    handoverDate: projectInfo.handoverDate,
+    constructionProgress: projectInfo.constructionProgress,
+    description: projectInfo.description || originalData.description,
+  };
+  
+  console.log(`   🏗️  Project info merged:`, Object.keys(projectInfo).join(', '));
+  
+  // 返回完整数据
+  return {
+    ...originalData,
+    ...mergedBasicInfo,  // ⭐ 项目基本信息
+    units: mergedUnits,
+    paymentPlans: finalPaymentPlans,
+    towerInfos: assignmentResult.towerInfos || [],  // ⭐ Tower信息
+    images: {
+      projectImages: [
+        ...assignmentResult.projectImages.coverImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.renderingImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.aerialImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.locationMaps.map(img => img.imagePath),
+        ...assignmentResult.projectImages.masterPlanImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.amenityImages.map(img => img.imagePath),
+      ],
+      floorPlanImages: assignmentResult.units.flatMap(u => 
+        u.floorPlanImages.map(img => img.imagePath)
+      ),
+      allImages: [
+        ...assignmentResult.projectImages.coverImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.renderingImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.aerialImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.locationMaps.map(img => img.imagePath),
+        ...assignmentResult.projectImages.masterPlanImages.map(img => img.imagePath),
+        ...assignmentResult.projectImages.amenityImages.map(img => img.imagePath),
+        ...assignmentResult.units.flatMap(u => u.allImages.map(img => img.imagePath)),
+      ],
+    },
+  };
+}
 
-  // Calculate progress (10% reserved for initial chunking, 75% for processing, 15% for finalization)
-  const chunkProgress = 10 + ((chunkIndex + 1) / totalChunks) * 75;
+/**
+ * Emit progress update for smart assignment system
+ * 
+ * 实时更新时也合并workflow数据
+ */
+function emitSmartAssignmentUpdate(
+  jobId: string,
+  assignmentResult: AssignmentResult,
+  aggregatedData: AggregatedBuildingData,
+  totalChunks: number
+): void {
+  // 计算进度
+  const progress = 10 + (assignmentResult.totalPages / (totalChunks * 5)) * 75;
 
-  // Get deduplicated and sorted units
-  const sortedUnits = getDeduplicatedUnits(aggregatedData);
-
-  // Build data and convert image paths to URLs
-  const buildingData = updateBuildingDataWithImageUrls({
-    name: aggregatedData.name,
-    developer: aggregatedData.developer,
-    address: aggregatedData.address,
-    area: aggregatedData.area,
-    completionDate: aggregatedData.completionDate,
-    launchDate: aggregatedData.launchDate,
-    description: aggregatedData.description,
-    amenities: aggregatedData.amenities,
-    paymentPlans: aggregatedData.paymentPlans,
-    units: sortedUnits,
-    images: aggregatedData.images,
-  }, jobId);
+  // ⭐ 合并workflow数据（实时）
+  const mergedData = convertAssignmentToAggregatedData(assignmentResult, aggregatedData);
 
   progressEmitter.emit(jobId, {
     stage: 'mapping',
-    message: `✓ 块 ${chunkIndex + 1}/${totalChunks} (页 ${chunk.pageRange.start}-${chunk.pageRange.end}) - ${sortedUnits.length} 户型`,
-    progress: chunkProgress,
+    message: `✓ 已处理 ${assignmentResult.totalPages} 页，找到 ${assignmentResult.anchorPagesFound} 个户型`,
+    progress,
     data: {
-      buildingData,
+      buildingData: mergedData,  // ⭐ 发送合并后的完整数据
     },
     timestamp: Date.now(),
   });
 }
+
+/**
+ * 转换AssignmentResult为前端格式
+ */
+function convertAssignmentToLegacyFormat(result: AssignmentResult, jobId: string): any {
+  return {
+    units: result.units.map(unit => ({
+      id: unit.unitTypeName,
+      name: unit.unitTypeName,
+      typeName: unit.unitTypeName,
+      floorPlanImage: unit.floorPlanImages[0]?.imagePath,
+      floorPlanImages: unit.floorPlanImages.map(img => img.imagePath),
+      renderingImages: unit.renderingImages.map(img => img.imagePath),
+      interiorImages: unit.interiorImages.map(img => img.imagePath),
+      // TODO: 从现有workflow提取其他字段（area, bedrooms等）
+    })),
+    images: {
+      projectImages: [
+        ...result.projectImages.coverImages.map(img => img.imagePath),
+        ...result.projectImages.renderingImages.map(img => img.imagePath),
+        ...result.projectImages.aerialImages.map(img => img.imagePath),
+      ],
+      floorPlanImages: result.units.flatMap(u => u.floorPlanImages.map(img => img.imagePath)),
+    },
+  };
+}
+

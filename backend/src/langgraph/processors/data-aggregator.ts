@@ -25,10 +25,13 @@ export interface AggregatedBuildingData {
   area: string;
   completionDate: string;
   launchDate: string;
+  handoverDate?: string;              // ⭐ 新增
+  constructionProgress?: string;      // ⭐ 新增
   description: string;
   amenities: string[];
   units: any[];
   paymentPlans: any[];
+  towerInfos?: any[];                 // ⭐ 新增：Tower信息
   images: BuildingImages;
 }
 
@@ -181,6 +184,10 @@ export function finalizeAggregatedData(
   const sortedUnits = sortUnits(finalUnits);
   const finalPaymentPlans = deduplicatePaymentPlans(aggregated.paymentPlans);
 
+  // ⭐ CRITICAL: Match floor plan images to units (same as getDeduplicatedUnits)
+  const allImagesWithPage = aggregated.images.allImages || [];
+  const unitsWithImages = matchImagesToUnits(sortedUnits, allImagesWithPage);
+
   // Calculate min/max price and area
   const unitsWithPrice = finalUnits.filter(u => u.price);
   const unitsWithArea = finalUnits.filter(u => u.area);
@@ -194,7 +201,7 @@ export function finalizeAggregatedData(
     launchDate: aggregated.launchDate,
     description: aggregated.description,
     amenities: aggregated.amenities,
-    units: sortedUnits,
+    units: unitsWithImages,  // ⭐ Use units with matched images
     paymentPlans: finalPaymentPlans,
     images: aggregated.images,
     minPrice: unitsWithPrice.length > 0 

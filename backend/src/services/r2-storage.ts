@@ -2,23 +2,21 @@
  * Cloudflare R2 Storage Service
  * 
  * Handles image uploads to Cloudflare R2 (S3-compatible)
- * - Temporary storage: temp/{jobId}/images/* (deleted after 24h)
- * - Permanent storage: projects/{projectId}/images/* (permanent)
+ * - Temporary storage: temporary/{jobId}/images/* (deleted after 24h)
+ * - Permanent storage: permanent/{projectId}/images/* (permanent)
  */
 
 import { 
   S3Client, 
   PutObjectCommand, 
-  GetObjectCommand,
   CopyObjectCommand,
   DeleteObjectCommand,
-  ListObjectsV2Command,
-  HeadObjectCommand 
+  ListObjectsV2Command
 } from '@aws-sdk/client-s3';
 import { readFileSync } from 'fs';
 import { basename } from 'path';
 
-// Initialize R2 client
+// Initialize R2 client with increased timeouts
 const r2Client = new S3Client({
   region: 'auto',
   endpoint: process.env.R2_ENDPOINT,
@@ -26,6 +24,11 @@ const r2Client = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
   },
+  // ⚡ Increase timeouts to handle slow connections
+  requestHandler: {
+    connectionTimeout: 30000,  // 30 seconds (default: 1s)
+    requestTimeout: 60000,     // 60 seconds (default: 2s)
+  } as any,
 });
 
 const R2_BUCKET = process.env.R2_BUCKET_NAME || '';
@@ -45,7 +48,7 @@ export async function uploadToR2Temp(
   jobId: string,
   filename: string
 ): Promise<string> {
-  const key = `temp/${jobId}/images/${filename}`;
+  const key = `temporary/${jobId}/images/${filename}`;
   
   try {
     const command = new PutObjectCommand({
@@ -107,7 +110,7 @@ export async function moveToR2Permanent(
 
     // New permanent key
     const filename = basename(tempKey);
-    const permanentKey = `projects/${projectId}/images/${filename}`;
+    const permanentKey = `permanent/${projectId}/images/${filename}`;
 
     // Copy to permanent location
     await r2Client.send(new CopyObjectCommand({
@@ -166,7 +169,7 @@ export async function moveMultipleToR2Permanent(
  * Delete all temporary images for a job
  */
 export async function deleteR2TempJob(jobId: string): Promise<number> {
-  const prefix = `temp/${jobId}/`;
+  const prefix = `temporary/${jobId}/`;
   
   try {
     // List all objects with this prefix
@@ -207,7 +210,7 @@ export async function deleteR2TempJob(jobId: string): Promise<number> {
  * Should be run periodically (e.g., daily cron job)
  */
 export async function cleanupOldR2TempFiles(): Promise<number> {
-  const prefix = 'temp/';
+  const prefix = 'temporary/';
   const maxAge = 24 * 60 * 60 * 1000; // 24 hours
   
   try {
@@ -309,12 +312,12 @@ function extractKeyFromUrl(url: string): string | null {
  * Check if URL is a temporary R2 URL
  */
 export function isR2TempUrl(url: string): boolean {
-  return url.includes('/temp/') && url.includes(R2_PUBLIC_URL);
+  return url.includes('/temporary/') && url.includes(R2_PUBLIC_URL);
 }
 
 /**
  * Check if URL is a permanent R2 URL
  */
 export function isR2PermanentUrl(url: string): boolean {
-  return url.includes('/projects/') && url.includes(R2_PUBLIC_URL);
+  return url.includes('/permanent/') && url.includes(R2_PUBLIC_URL);
 }

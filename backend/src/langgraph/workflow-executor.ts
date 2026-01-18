@@ -65,12 +65,15 @@ export async function executePdfWorkflow(
   } = config;
 
   console.log(`\n${'='.repeat(70)}`);
-  console.log(`PDF PROCESSING WORKFLOW - Job ID: ${jobId}`);
-  console.log(`Files: ${pdfBuffers.length} | Pages per chunk: ${pagesPerChunk}`);
-  console.log(`Batch size: ${batchSize} | Batch delay: ${batchDelay}ms`);
+  console.log(`📋 PDF PROCESSING WORKFLOW STARTED`);
+  console.log(`   Job ID: ${jobId}`);
+  console.log(`   Files: ${pdfBuffers.length} | Pages per chunk: ${pagesPerChunk}`);
+  console.log(`   Batch size: ${batchSize} | Batch delay: ${batchDelay}ms`);
+  console.log(`   PDF sizes: ${pdfBuffers.map(b => `${(b.length / 1024).toFixed(2)} KB`).join(', ')}`);
   console.log(`${'='.repeat(70)}\n`);
 
   try {
+    console.log(`⚙️ Workflow execution starting for job ${jobId}...`);
     // Setup output directory
     const outputBaseDir = config.outputBaseDir || join(process.cwd(), 'uploads', 'langgraph-output');
     const outputStructure = createOutputStructure(outputBaseDir, jobId);
@@ -114,35 +117,57 @@ export async function executePdfWorkflow(
     // ============================================================
     // STEP 2: Process chunks in batches and aggregate data
     // ============================================================
+    console.log(`\n🔄 Starting batch processing of ${totalChunks} chunks...`);
+    
     const aggregatedData = createEmptyAggregatedData();
 
-    const { allErrors, allWarnings, chunkAnalyses } = await processChunksInBatches(
-      {
-        chunks,
-        outputDir: outputStructure.jobDir,
-        jobId,
-        batchSize,
-        batchDelay,
-      },
-      aggregatedData
-    );
+    let allErrors: string[] = [];
+    let allWarnings: string[] = [];
+    let chunkAnalyses: any[] = [];
+    let finalAggregatedData = aggregatedData;
+
+    try {
+      const batchResult = await processChunksInBatches(
+        {
+          chunks,
+          outputDir: outputStructure.jobDir,
+          jobId,
+          batchSize,
+          batchDelay,
+        },
+        aggregatedData
+      );
+      
+      allErrors = batchResult.allErrors;
+      allWarnings = batchResult.allWarnings;
+      chunkAnalyses = batchResult.chunkAnalyses;
+      finalAggregatedData = batchResult.aggregatedData;
+      
+      console.log(`✅ Batch processing completed successfully`);
+    } catch (batchError) {
+      console.error(`❌ Batch processing failed:`, batchError);
+      // Re-throw to be caught by outer try-catch
+      throw new Error(`Batch processing failed: ${batchError}`);
+    }
     
     // Record all chunk analyses
+    console.log(`📝 Recording ${chunkAnalyses.length} chunk analyses...`);
     chunkAnalyses.forEach(chunk => resultRecorder.recordChunk(chunk));
 
     // ============================================================
-    // STEP 3: Finalize and deduplicate aggregated data
+    // STEP 3: 最终数据已在PageRegistry中，直接使用
     // ============================================================
-    console.log(`\n📊 Processing complete. Finalizing data...`);
+    console.log(`\n📊 Processing complete. Using smart assignment result...`);
 
     progressEmitter.emit(jobId, {
       stage: 'reducing',
-      message: '📊 正在合并去重数据...',
-      progress: 90,
+      message: '✅ 智能分配完成',
+      progress: 95,
       timestamp: Date.now(),
     });
 
-    const finalData = finalizeAggregatedData(aggregatedData);
+    // ⭐ 使用智能分配系统的最终结果（已在batch-processor中转换）
+    const finalData = finalAggregatedData;
 
     // Log summary
     console.log(`\n📊 Final Summary:`);
@@ -183,14 +208,23 @@ export async function executePdfWorkflow(
     };
 
   } catch (error) {
-    console.error('❌ WORKFLOW FAILED:', error);
-    progressEmitter.error(jobId, String(error));
+    console.error('\n❌ WORKFLOW FAILED:', error);
+    console.error('   Stack trace:', (error as Error).stack);
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Try to emit error to client
+    try {
+      progressEmitter.error(jobId, errorMessage);
+    } catch (emitError) {
+      console.error('   Failed to emit error to client:', emitError);
+    }
 
     return {
       success: false,
       buildingData: {},
       processingTime: Date.now() - startTime,
-      errors: [String(error)],
+      errors: [errorMessage],
       warnings: [],
       jobId,
       totalChunks: 0,

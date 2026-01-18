@@ -22,10 +22,7 @@ export default function Header() {
   const isAdminPage = location.pathname.startsWith('/admin')
 
   return (
-    <motion.header
-      initial={{ y: -100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
+    <header
       className="bg-white/80 backdrop-blur-xl border-b border-slate-200/60 sticky top-0 z-40 shadow-sm relative"
     >
       <div className="container mx-auto px-4 py-4 relative">
@@ -203,6 +200,6 @@ export default function Header() {
           </motion.nav>
         )}
       </div>
-    </motion.header>
+    </header>
   )
 }

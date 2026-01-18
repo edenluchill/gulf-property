@@ -53,15 +53,16 @@ const uploadMultiple = multer({
 router.post(
   '/start',
   uploadMultiple.array('files', 5),  // Support up to 5 PDFs
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const files = req.files as Express.Multer.File[];
       
       if (!files || files.length === 0) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'No PDF files provided',
         });
+        return;
       }
 
       const jobId = generateJobId();
@@ -72,7 +73,26 @@ router.post(
       });
 
       // Chunked processing - all PDFs → 5-page chunks → batch process
+      console.log(`🚀 Starting async workflow for job ${jobId}...`);
+      
+      // Wait for SSE client to connect before starting heavy processing
+      const waitForClient = async (maxWaitMs: number = 3000) => {
+        const startWait = Date.now();
+        while (!progressEmitter.hasClient(jobId)) {
+          if (Date.now() - startWait > maxWaitMs) {
+            console.warn(`⚠️ SSE client not connected after ${maxWaitMs}ms, proceeding anyway...`);
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        console.log(`✅ SSE client connected for job ${jobId}, starting processing...`);
+      };
+
       (async () => {
+        await waitForClient();
+        
+        console.log(`⚡ Executing workflow for job ${jobId}`);
+        
         try {
           // Execute workflow
           const result = await executePdfWorkflow({
@@ -81,9 +101,11 @@ router.post(
             outputBaseDir: join(process.cwd(), 'uploads', 'langgraph-output'),
             jobId,
             pagesPerChunk: 5,
-            batchSize: 10,
-            batchDelay: 1000,
+            batchSize: 10,  // ⚡ BALANCED: Reduced to 10 to avoid R2 upload timeouts
+            batchDelay: 1000,  // ⚡ BALANCED: Increased to 1000ms for better R2 stability
           });
+
+          console.log(`✅ Workflow completed for job ${jobId}`);
 
           // Convert image paths to URLs before sending to frontend
           const updatedResult = {
@@ -95,7 +117,7 @@ router.post(
           progressEmitter.complete(jobId, updatedResult);
 
         } catch (error) {
-          console.error(`Job ${jobId} failed:`, error);
+          console.error(`❌ Job ${jobId} failed:`, error);
           progressEmitter.error(jobId, String(error));
         }
       })();
@@ -127,6 +149,10 @@ router.get('/stream/:jobId', (req: Request, res: Response) => {
   const { jobId } = req.params;
 
   console.log(`📡 SSE client connected for job ${jobId}`);
+  console.log(`   Request headers:`, {
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent']?.substring(0, 50),
+  });
 
   // Register client for progress updates
   progressEmitter.registerClient(jobId, res);
@@ -156,7 +182,7 @@ router.get('/status/:jobId', (req: Request, res: Response) => {
 /**
  * Merge results from multiple files (currently unused, kept for reference)
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/* Commented out to avoid unused function warning - can be re-enabled if needed
 function mergeAllResults(results: any[]): any {
   if (results.length === 0) return {};
   if (results.length === 1) return results[0].buildingData || {};
@@ -202,5 +228,6 @@ function mergeAllResults(results: any[]): any {
 
   return merged;
 }
+*/
 
 export default router;
