@@ -11,8 +11,7 @@ import {
   GetProjectResponse,
   ListProjectsResponse,
 } from '../types/residential-projects'
-import { moveMultipleToR2Permanent, isR2TempUrl } from '../services/r2-storage'
-// import { moveImagesToPermanent, extractJobIdFromUrl, deleteTempJobFolder } from '../services/local-image-migration'
+import { isR2PdfCacheUrl } from '../services/r2-storage'
 
 /**
  * Validate and clean date format for PostgreSQL (must be YYYY-MM-DD or null)
@@ -400,54 +399,38 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       const data: SubmitProjectRequest = req.body
 
       console.log('📝 Submitting residential project:', data.projectName)
+      console.log('📊 Data summary:')
+      console.log('   - Unit types:', data.unitTypes?.length || 0)
+      console.log('   - Payment plan milestones:', data.paymentPlan?.length || 0)
+      console.log('   - Project images:', data.projectImages?.length || 0)
+      console.log('   - Floor plan images:', data.floorPlanImages?.length || 0)
+      
+      // Debug: Log payment plan data if exists
+      if (data.paymentPlan && data.paymentPlan.length > 0) {
+        console.log('💰 Payment Plan Data:', JSON.stringify(data.paymentPlan, null, 2))
+      } else {
+        console.warn('⚠️  No payment plan data received from frontend!')
+      }
 
-      // 0. Collect ALL temp images (project, floor plans, AND unit types) before moving
-      // This prevents duplicate moves when the same temp URL appears in multiple places
-      const allTempUrls = new Set<string>()
+      // All images should already be in PDF cache (pdf-cache/{pdfHash}/images/*)
+      // No need to move anything - pdf-cache is permanent and deduplicated
       const projectImages = data.projectImages || []
       const floorPlanImages = data.floorPlanImages || []
       
-      // Collect project images
-      projectImages.forEach(url => {
-        if (isR2TempUrl(url)) allTempUrls.add(url)
-      })
-      
-      // Collect floor plan images
-      floorPlanImages.forEach(url => {
-        if (isR2TempUrl(url)) allTempUrls.add(url)
-      })
-      
-      // Collect unit type floor plan images
-      if (data.unitTypes && Array.isArray(data.unitTypes)) {
-        data.unitTypes.forEach(unit => {
-          if (unit.floorPlanImage && isR2TempUrl(unit.floorPlanImage)) {
-            allTempUrls.add(unit.floorPlanImage)
+      // Validate images are from PDF cache
+      const validateImages = (images: string[], type: string) => {
+        images.forEach((url, idx) => {
+          if (!isR2PdfCacheUrl(url)) {
+            console.warn(`⚠️ ${type} image ${idx + 1} is not from PDF cache: ${url.substring(0, 80)}...`)
           }
         })
       }
       
-      // Create URL mapping (temp -> permanent) for ALL images at once
-      const urlMapping = new Map<string, string>()
+      validateImages(projectImages, 'Project')
+      validateImages(floorPlanImages, 'Floor plan')
       
-      if (allTempUrls.size > 0) {
-        const tempProjectId = `project_${Date.now()}`
-        console.log(`🔄 Moving ${allTempUrls.size} unique temp images to R2 permanent storage...`)
-        
-        const tempUrlArray = Array.from(allTempUrls)
-        const permanentUrls = await moveMultipleToR2Permanent(tempUrlArray, tempProjectId)
-        
-        // Build mapping
-        tempUrlArray.forEach((tempUrl, index) => {
-          urlMapping.set(tempUrl, permanentUrls[index])
-        })
-        
-        console.log('✅ All images moved to R2 permanent storage')
-        console.log('   Temporary files will be auto-deleted by R2 cleanup script (24h)')
-      }
-      
-      // Replace temp URLs with permanent URLs using the mapping
-      const finalProjectImages = projectImages.map(url => urlMapping.get(url) || url)
-      const finalFloorPlanImages = floorPlanImages.map(url => urlMapping.get(url) || url)
+      const finalProjectImages = projectImages
+      const finalFloorPlanImages = floorPlanImages
 
       // 1. Insert main project
       const projectResult = await client.query(`
@@ -508,13 +491,65 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       if (data.unitTypes && Array.isArray(data.unitTypes) && data.unitTypes.length > 0) {
         console.log(`📦 Inserting ${data.unitTypes.length} unit types...`)
         
+        // Track invalid units for reporting
+        const invalidUnits: string[] = [];
+        const validUnits = [];
+        
+        // Validate and fix unit data before insertion
+        for (const unit of data.unitTypes) {
+          let isValid = true;
+          
+          // Validate area (must be > 0 per database constraint)
+          if (!unit.area || unit.area <= 0) {
+            console.error(`   ❌ Invalid area for unit "${unit.name || unit.typeName}": ${unit.area}`);
+            console.error(`   🔍 Reason: AI failed to extract unit details (likely misclassified page)`);
+            invalidUnits.push(unit.name || unit.typeName);
+            isValid = false;
+          }
+          
+          // Only validate other fields if area is valid
+          if (isValid) {
+            // Validate bathrooms (must be > 0 per database constraint)
+            if (!unit.bathrooms || unit.bathrooms <= 0) {
+              const bedrooms = unit.bedrooms || 0;
+              // Estimate bathrooms based on bedrooms
+              if (bedrooms === 0) {
+                unit.bathrooms = 1; // Studio
+              } else if (bedrooms === 1) {
+                unit.bathrooms = 1;
+              } else if (bedrooms === 2) {
+                unit.bathrooms = 2;
+              } else {
+                unit.bathrooms = Math.min(bedrooms, 3);
+              }
+              console.warn(`   ⚠️  Invalid bathrooms for unit "${unit.name || unit.typeName}", estimated ${unit.bathrooms} based on ${bedrooms} bedrooms`);
+            }
+            
+            // Validate bedrooms (must be >= 0 per database constraint)
+            if (unit.bedrooms < 0) {
+              console.warn(`   ⚠️  Invalid bedrooms (${unit.bedrooms}) for unit "${unit.name || unit.typeName}", setting to 0`);
+              unit.bedrooms = 0;
+            }
+            
+            validUnits.push(unit);
+          }
+        }
+        
+        // Report filtering results
+        if (invalidUnits.length > 0) {
+          console.warn(`\n⚠️  FILTERED OUT ${invalidUnits.length} INVALID UNIT(S):`);
+          invalidUnits.forEach(name => console.warn(`   - ${name} (area=0, AI extraction failed)`));
+          console.warn(`✅ Proceeding with ${validUnits.length} valid unit(s)\n`);
+        }
+        
+        // Update data.unitTypes to only include valid units
+        data.unitTypes = validUnits;
+        
         for (let i = 0; i < data.unitTypes.length; i++) {
           const unit = data.unitTypes[i]
           
-          // Use the pre-migrated URL from our mapping (already moved earlier)
-          const unitFloorPlanImage = unit.floorPlanImage 
-            ? (urlMapping.get(unit.floorPlanImage) || unit.floorPlanImage)
-            : null
+          // All images should already be in PDF cache
+          const unitFloorPlanImage = unit.floorPlanImage || null
           
           // Build unit_images array: floor plan first, then any additional images
           const unitImages: string[] = []
@@ -522,22 +557,6 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
             unitImages.push(unitFloorPlanImage)
           }
           // TODO: Add support for additional unit images from frontend if needed
-          
-          // Extract tower from typeName if not provided
-          let tower = unit.tower
-          if (!tower && unit.typeName) {
-            const matchWithHyphen = unit.typeName.match(/^([A-Z]+)-/)
-            const matchLettersOnly = unit.typeName.match(/^([A-Z]+)$/)
-            const matchBeforeDigits = unit.typeName.match(/^([A-Z]+)[\d(]/)
-            
-            if (matchWithHyphen) {
-              tower = matchWithHyphen[1]
-            } else if (matchLettersOnly) {
-              tower = matchLettersOnly[1]
-            } else if (matchBeforeDigits) {
-              tower = matchBeforeDigits[1]
-            }
-          }
 
           await client.query(`
             INSERT INTO project_unit_types (
@@ -545,7 +564,6 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
               unit_type_name,
               category,
               type_code,
-              tower,
               unit_numbers,
               unit_count,
               bedrooms,
@@ -557,6 +575,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
               price_per_sqft,
               orientation,
               features,
+              description,
               floor_plan_image,
               unit_images,
               display_order
@@ -568,18 +587,18 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
             unit.name || `Unit Type ${i + 1}`,
             unit.category || null,
             unit.typeName || null,
-            tower || null,
             unit.unitNumbers || [],
             unit.unitCount || 1,
             unit.bedrooms,
             unit.bathrooms,
             unit.area,
             unit.balconyArea || null,
-            null,  // built_up_area - can be calculated if needed
+            unit.suiteArea || null,  // ⭐ Use suiteArea from frontend (interior/built-up area)
             unit.price || null,
             unit.pricePerSqft || null,
             unit.orientation || null,
             unit.features || [],
+            unit.description || null,  // ⭐ AI-generated marketing description
             unitFloorPlanImage || null, // Use migrated URL (backwards compatibility)
             unitImages, // Floor plan + additional images array
             i,  // display_order

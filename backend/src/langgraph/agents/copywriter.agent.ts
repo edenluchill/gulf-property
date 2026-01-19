@@ -8,7 +8,8 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { MarketingContentSchema, type MarketingContent, type BuildingData } from '../schemas/property.schema';
+import { MarketingContentSchema, type MarketingContent, type BuildingData } from '../../schemas/property.schema';
+import { parseJsonResponse } from '../utils/json-parser';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -28,6 +29,9 @@ export async function generateMarketingContent(
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
+      generationConfig: {
+        responseMimeType: 'application/json',  // ⭐ Use JSON mode
+      },
     });
 
     // Prepare building details summary
@@ -83,41 +87,23 @@ Also provide:
 - Highlights: 5 key selling points (brief bullets)
 - Investment Highlights: 4-5 investment-specific points
 
-Respond with JSON only:
+Return JSON with this structure:
 {
   "xiaohongshu": "小红书 content here...",
   "twitter": "Tweet 1\\n\\nTweet 2\\n\\nTweet 3",
   "investorEmail": "Email content here...",
   "headline": "Your Dream Home in Dubai Awaits",
   "tagline": "Where luxury meets lifestyle",
-  "highlights": [
-    "Prime location with metro access",
-    "Flexible payment plans",
-    "World-class amenities",
-    "High ROI potential",
-    "Premium developer reputation"
-  ],
-  "investmentHighlights": [
-    "8% annual appreciation potential",
-    "High rental yields in prime area",
-    "Government-backed area development",
-    "Strong resale market"
-  ]
-}
-
-Respond ONLY with valid JSON.`;
+  "highlights": ["Prime location", "Flexible payment", "..."],
+  "investmentHighlights": ["8% appreciation", "High yields", "..."]
+}`;
 
     const result = await model.generateContent([prompt]);
     const response = await result.response;
     const text = response.text();
 
-    // Parse JSON
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || 
-                     text.match(/```\s*([\s\S]*?)\s*```/) ||
-                     [null, text];
-    
-    const jsonText = jsonMatch[1] || text;
-    const parsed = JSON.parse(jsonText.trim());
+    // Parse JSON (自动处理markdown code fences)
+    const parsed = parseJsonResponse(text);
 
     // Validate with Zod
     const validated = MarketingContentSchema.parse(parsed);

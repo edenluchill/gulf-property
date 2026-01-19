@@ -114,6 +114,7 @@ export interface PageImage {
   // AI分类
   category: ImageCategory;      // 图片类别
   confidence: number;           // 分类置信度 (0-1)
+  shouldUse?: boolean;          // ⭐ NEW: AI标记是否应该使用这张图片
   
   // 特征
   features: {
@@ -138,7 +139,6 @@ export interface UnitPageInfo {
   // 户型识别
   unitTypeName?: string;        // 户型名称（如 "DSTH-M1", "Type A"）
   unitCategory?: string;        // 户型分类（如 "4BR", "Studio"）
-  tower?: string;               // 所属楼栋（如 "Tower A"）
   
   // 详细信息
   hasDetailedSpecs: boolean;    // 是否有详细规格
@@ -151,6 +151,12 @@ export interface UnitPageInfo {
     price?: number;             // 价格 (AED)
     pricePerSqft?: number;      // 单价 (AED/sqft)
   };
+  
+  // 户型特征 (从平面图提取)
+  features?: string[];          // 特征列表（如 "Balcony", "Walk-in closet", "En-suite bathroom"）
+  
+  // 营销内容 (AI生成)
+  description?: string;         // 3-5句专业推销文案，描述布局优势、设计特点、适合人群
   
   // 平面图
   hasFloorPlan: boolean;        // 是否有平面图
@@ -211,6 +217,34 @@ export interface PageMetadata {
   
   // ============ 户型信息（如果是户型页）============
   unitInfo?: UnitPageInfo;      // 户型相关信息
+  
+  // ============ 配套设施信息（如果是amenities页）⭐ ============
+  amenitiesData?: {
+    amenities: string[];        // 提取的设施列表
+  };
+  
+  // ============ 项目信息（如果是project info页）⭐ ============
+  projectInfoData?: {
+    projectName?: string;
+    developer?: string;
+    address?: string;
+    area?: string;
+    launchDate?: string;
+    completionDate?: string;
+    handoverDate?: string;
+    constructionProgress?: number;
+    description?: string;
+  };
+  
+  // ============ 付款计划信息（如果是payment plan页）⭐ ============
+  paymentPlanData?: {
+    name?: string;
+    milestones: Array<{
+      milestone: string;
+      percentage: number;
+      stage?: string;
+    }>;
+  };
   
   // ============ 边界标记 ============
   boundaryMarkers: BoundaryMarkers;

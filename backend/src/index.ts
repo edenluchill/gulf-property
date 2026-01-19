@@ -9,33 +9,46 @@ import propertiesRouter from './routes/properties'
 import submissionsRouter from './routes/submissions'
 import { createDeveloperRouter } from './routes/developer'
 import { createResidentialProjectsRouter } from './routes/residential-projects'
-import imagesRouter from './routes/images'
-import permanentImagesRouter from './routes/permanent-images'
 import langgraphRouter from './routes/langgraph-processor'
 import langgraphProgressRouter from './routes/langgraph-progress'
 import langgraphValidateRouter from './routes/langgraph-validate'
-// import langgraphImagesRouter from './routes/langgraph-images' // ⚡ DEPRECATED: Using R2-only now
 import dubaiAreasLandmarksRouter from './routes/dubai-areas-landmarks'
+import uploadRouter from './routes/upload'
 import pool from './db/pool'
-// import { ensureUploadDir } from './services/image-storage-local' // DEPRECATED: Using R2 now
 
 dotenv.config()
 
 const app: Application = express()
 const PORT = process.env.PORT || 3000
 
-// DEPRECATED: Local upload directory - now using Cloudflare R2
-// ensureUploadDir().catch(console.error)
-
 // Middleware
 app.use(helmet())
+
+// CORS configuration - whitelisted origins
+const allowedOrigins = [
+  'https://gulf-property.com',
+  'https://www.gulf-property.com',
+  'http://localhost:5173',  // For local development
+  'http://localhost:5174',  // Alternative local port
+]
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true)
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   credentials: true
 }))
 app.use(morgan('dev'))
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+// Increase body size limit for large project submissions with many images
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 // Rate limiting
 const limiter = rateLimit({
@@ -71,13 +84,11 @@ app.use('/api/properties', propertiesRouter)  // New off-plan properties API wit
 app.use('/api/submissions', submissionsRouter)
 app.use('/api/developer', createDeveloperRouter(pool))  // Developer property submission with AI PDF processing
 app.use('/api/residential-projects', createResidentialProjectsRouter(pool))  // New residential projects API
-app.use('/api/images', imagesRouter)  // Image serving
-app.use('/api/images', permanentImagesRouter)  // Permanent images serving
 app.use('/api/langgraph', langgraphRouter)  // LangGraph multi-agent PDF processor
 app.use('/api/langgraph-progress', langgraphProgressRouter)  // LangGraph with real-time progress
 app.use('/api/langgraph', langgraphValidateRouter)  // Result validation
-// app.use('/api/langgraph-images', langgraphImagesRouter)  // ⚡ DEPRECATED: Using R2-only now
 app.use('/api/dubai', dubaiAreasLandmarksRouter)  // Dubai areas and landmarks overlay
+app.use('/api/upload', uploadRouter)  // File upload to R2
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
@@ -100,7 +111,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
-  console.log(`🌐 CORS enabled for: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`)
+  console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`)
 })
 
 // Graceful shutdown

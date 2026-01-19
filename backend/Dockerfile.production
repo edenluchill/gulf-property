@@ -43,13 +43,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy necessary runtime files
-COPY --from=builder /app/uploads ./uploads
-
-# Create upload directories and set permissions
-RUN mkdir -p /app/uploads/images && \
-    mkdir -p /app/uploads/langgraph-output && \
-    chown -R nodejs:nodejs /app
+# Set ownership (no local uploads needed - all images in R2)
+RUN chown -R nodejs:nodejs /app
 
 # Switch to non-root user
 USER nodejs

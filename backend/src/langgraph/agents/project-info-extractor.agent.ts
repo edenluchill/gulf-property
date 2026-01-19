@@ -9,8 +9,9 @@
  * - 项目描述
  */
 
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { readFileSync } from 'fs';
+import { parseJsonResponse } from '../utils/json-parser';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -35,30 +36,30 @@ export async function extractProjectInfo(
 ): Promise<ProjectBasicInfo> {
   
   try {
-    // 使用Structured Output模式
+    // ⭐ 简化：只使用 JSON mode（和其他 agents 一致，避免 schema 卡住）
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
       generationConfig: {
         responseMimeType: 'application/json',
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            projectName: { type: SchemaType.STRING },
-            developer: { type: SchemaType.STRING },
-            address: { type: SchemaType.STRING },
-            area: { type: SchemaType.STRING },
-            launchDate: { type: SchemaType.STRING },
-            completionDate: { type: SchemaType.STRING },
-            handoverDate: { type: SchemaType.STRING },
-            constructionProgress: { type: SchemaType.NUMBER },  // Percentage only
-            description: { type: SchemaType.STRING },
-          },
-        },
       },
     });
 
-    const imageBuffer = readFileSync(imagePath);
-    const imageBase64 = imageBuffer.toString('base64');
+    // ⭐ Support both local paths and R2 URLs
+    let imageBase64: string;
+    
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // Fetch from R2
+      const imageResponse = await fetch(imagePath);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image from R2: ${imageResponse.statusText}`);
+      }
+      const imageBuffer = await imageResponse.arrayBuffer();
+      imageBase64 = Buffer.from(imageBuffer).toString('base64');
+    } else {
+      // Read from local file
+      const imageBuffer = readFileSync(imagePath);
+      imageBase64 = imageBuffer.toString('base64');
+    }
 
     const prompt = `你是房地产项目信息提取专家。从这一页提取项目基本信息。
 
@@ -85,13 +86,28 @@ export async function extractProjectInfo(
 4. **日期格式**：
    - 可以是 "Q4 2026", "2026-12-31", "June 2028"
    - 保持原格式，不要转换
-5. **描述**：项目简介、定位、特色等
+5. **项目描述（非常重要！必须提取）**：
+   - 提取页面上**所有**关于项目的文字内容
+   - 包括：
+     * 大标题下方的副标题或标语
+     * 任何介绍性段落
+     * 营销口号和宣传语
+     * 项目特点列表（合并成段落）
+     * 位置优势、生活方式、周边环境描述
+     * 建筑风格、设计理念等
+   - **即使只有一两句话也必须提取**
+   - **优先提取任何描述性文字，不要返回空值**
+   - 合并所有相关文字，用句号或空格分隔
+   - 目标：至少50字以上的描述
+   - **示例**："The Edit at d3 is a landmark residential development in the heart of Dubai Design District, offering contemporary living spaces with world-class amenities and stunning views of the city skyline. Experience urban luxury living with cutting-edge design and premium facilities."
 
 ### 注意事项
 
-- 如果某个字段在页面上没有，返回null
+- **优先提取描述性文字段落**，不是标题或标语
+- 如果某个字段在页面上没有，不要包含该字段
 - 不要猜测或编造信息
 - 保持原始格式和语言（英文）
+- Description 应该是完整的段落，不是简单的一句话
 
 ## 返回JSON格式
 
@@ -122,8 +138,8 @@ export async function extractProjectInfo(
     const response = await result.response;
     const text = response.text();
 
-    // ⭐ 直接解析JSON（structured output）
-    const parsed = JSON.parse(text);
+    // ⭐ 解析JSON（自动处理markdown code fences）
+    const parsed = parseJsonResponse(text);
 
     console.log(`   ✓ Project info extracted from page ${pageNumber}:`, Object.keys(parsed).join(', '));
 
@@ -141,6 +157,7 @@ export async function extractProjectInfo(
  * 策略：
  * - 如果多页都有同一字段，选择最长/最详细的
  * - 合并所有非空字段
+ * - ⭐ 如果没有description，生成一个基本的
  */
 export function mergeProjectInfo(infos: ProjectBasicInfo[]): ProjectBasicInfo {
   const merged: ProjectBasicInfo = {};

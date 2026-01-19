@@ -9,7 +9,8 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { MarketContextSchema, type MarketContext } from '../schemas/property.schema';
+import { MarketContextSchema, type MarketContext } from '../../schemas/property.schema';
+import { parseJsonResponse } from '../utils/json-parser';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -31,6 +32,9 @@ export async function researchMarketContext(
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
+      generationConfig: {
+        responseMimeType: 'application/json',  // ⭐ Use JSON mode
+      },
     });
 
     const prompt = `You are a Dubai real estate market research expert.
@@ -62,55 +66,23 @@ Provide the following information (use your knowledge of Dubai real estate):
    - Upcoming infrastructure projects
    - Area development plans
 
-Respond with JSON only:
+Return JSON with this structure:
 {
-  "nearbyMetroStations": [
-    {
-      "name": "Business Bay Metro Station",
-      "distance": 800,
-      "walkingTime": 10
-    }
-  ],
-  "competitorProjects": [
-    {
-      "name": "Example Tower",
-      "developer": "Example Developer",
-      "avgPriceSqft": 1500,
-      "distance": 500
-    }
-  ],
-  "areaInsights": {
-    "averagePriceSqft": 1450,
-    "priceGrowthYoY": 8.5,
-    "demandLevel": "High",
-    "investmentGrade": "A"
-  },
-  "governmentPlans": [
-    "Dubai 2040 Urban Master Plan includes this area",
-    "New metro line extension planned"
-  ],
-  "sources": [
-    {
-      "title": "Source title",
-      "url": "https://example.com",
-      "snippet": "Brief description"
-    }
-  ]
+  "nearbyMetroStations": [{"name": "...", "distance": 800, "walkingTime": 10}],
+  "competitorProjects": [{"name": "...", "developer": "...", "avgPriceSqft": 1500, "distance": 500}],
+  "areaInsights": {"averagePriceSqft": 1450, "priceGrowthYoY": 8.5, "demandLevel": "High", "investmentGrade": "A"},
+  "governmentPlans": ["Dubai 2040 plan...", "New metro line..."],
+  "sources": [{"title": "...", "url": "...", "snippet": "..."}]
 }
 
-Provide realistic estimates based on Dubai market knowledge. Respond ONLY with valid JSON.`;
+Provide realistic estimates based on Dubai market knowledge.`;
 
     const result = await model.generateContent([prompt]);
     const response = await result.response;
     const text = response.text();
 
-    // Parse JSON
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || 
-                     text.match(/```\s*([\s\S]*?)\s*```/) ||
-                     [null, text];
-    
-    const jsonText = jsonMatch[1] || text;
-    const parsed = JSON.parse(jsonText.trim());
+    // Parse JSON (自动处理markdown code fences)
+    const parsed = parseJsonResponse(text);
 
     // Validate with Zod
     const validated = MarketContextSchema.parse(parsed);

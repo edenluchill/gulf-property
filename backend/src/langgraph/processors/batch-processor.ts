@@ -18,13 +18,12 @@ import { progressEmitter } from '../../services/progress-emitter';
 import { processSingleChunk } from './chunk-processor';
 import { 
   mergeChunkData, 
-  getDeduplicatedUnits,
   type AggregatedBuildingData 
 } from './data-aggregator';
-import { extractPageAnalysis, type ChunkAnalysisResult } from './result-recorder';
-import { updateBuildingDataWithImageUrls } from '../utils/image-url-helper';
+import { type ChunkAnalysisResult } from './result-recorder';
 import { PageRegistry } from '../core/page-registry';
 import { AssignmentResult } from '../types/assignment-result';
+import { generateProjectDescription, type ProjectSummary } from '../agents/project-description-generator.agent';
 
 export interface BatchProcessingConfig {
   chunks: Array<PdfChunk & { sourceFile: string; pdfHash: string }>;
@@ -170,7 +169,17 @@ export async function processChunksInBatches(
   }
 
   // ============ 获取最终结果 ============
-  console.log('\n📊 All chunks processed. Getting final assignment result...\n');
+  console.log('\n📊 All chunks processed. Aggregating project-level data...\n');
+  
+  // ⭐ 汇总项目数据（使用AI智能去重amenities）
+  try {
+    await PageRegistry.aggregateProjectData();
+  } catch (aggregateError) {
+    console.error(`❌ Error aggregating project data:`, aggregateError);
+    allErrors.push(`Project data aggregation error: ${aggregateError}`);
+  }
+  
+  console.log('\n📊 Getting final assignment result...\n');
   
   let finalAssignmentResult;
   let finalAggregatedData;
@@ -182,6 +191,58 @@ export async function processChunksInBatches(
     
     // 转换为aggregatedData格式（向后兼容）
     finalAggregatedData = convertAssignmentToAggregatedData(finalAssignmentResult, aggregatedData);
+    
+    // ============ ⭐ 总是生成智能项目描述 ============
+    // 即使PDF有描述，也重新生成：AI生成的更简洁、专业、统一
+    console.log('\n✨ Generating intelligent project description...');
+    
+    const originalDescription = finalAggregatedData.description;
+    if (originalDescription) {
+      console.log(`   📄 Original PDF description: ${originalDescription.length} chars (will be replaced)`);
+    }
+    
+    try {
+      const projectSummary: ProjectSummary = {
+        projectName: finalAggregatedData.name,
+        developer: finalAggregatedData.developer,
+        area: finalAggregatedData.area,
+        address: finalAggregatedData.address,
+        completionDate: finalAggregatedData.completionDate,
+        handoverDate: finalAggregatedData.handoverDate,
+        constructionProgress: finalAggregatedData.constructionProgress,
+        
+        // 单元统计
+        totalUnits: finalAggregatedData.units.length,
+        unitCategories: Array.from(new Set(
+          finalAggregatedData.units
+            .map((u: any) => u.category || deriveUnitCategory(u))
+            .filter((c: string) => c && c !== 'Unknown')
+        )),
+        
+        areaRange: calculateAreaRange(finalAggregatedData.units),
+        priceRange: calculatePriceRange(finalAggregatedData.units),
+        
+        // 配套设施
+        amenities: finalAggregatedData.amenities || [],
+        
+        // 付款计划
+        hasPaymentPlan: (finalAggregatedData.paymentPlans?.length || 0) > 0,
+        paymentPlanHighlight: extractPaymentPlanHighlight(finalAggregatedData.paymentPlans),
+      };
+      
+      const generatedDescription = await generateProjectDescription(projectSummary);
+      
+      if (generatedDescription && generatedDescription.length > 50) {
+        finalAggregatedData.description = generatedDescription;
+        console.log(`   ✅ Generated new description: ${generatedDescription.length} chars`);
+      } else if (originalDescription) {
+        console.log(`   ⚠️  Generation failed, keeping original description`);
+      }
+    } catch (descError) {
+      console.error(`   ⚠️  Failed to generate description:`, descError);
+      // 如果生成失败且没有原始描述，不影响主流程
+    }
+    
   } catch (finalError) {
     console.error(`❌ Error getting final result:`, finalError);
     // Fallback to original aggregated data
@@ -199,6 +260,124 @@ export async function processChunksInBatches(
     allWarnings,
     chunkAnalyses,
   };
+}
+
+/**
+ * 推导单元类别
+ */
+function deriveUnitCategory(unit: any): string {
+  if (unit.bedrooms === 0) return 'Studio';
+  if (unit.bedrooms === 1) return '1BR';
+  if (unit.bedrooms === 2) return '2BR';
+  if (unit.bedrooms === 3) return '3BR';
+  if (unit.bedrooms === 4) return '4BR';
+  if (unit.bedrooms >= 5) return '5BR+';
+  if (unit.typeName?.toLowerCase().includes('penthouse')) return 'Penthouse';
+  return 'Unknown';
+}
+
+/**
+ * 计算面积范围
+ */
+function calculateAreaRange(units: any[]): { min: number; max: number } | undefined {
+  const areas = units
+    .map((u: any) => u.area)
+    .filter((a: number) => a && a > 0);
+  
+  if (areas.length === 0) return undefined;
+  
+  return {
+    min: Math.min(...areas),
+    max: Math.max(...areas),
+  };
+}
+
+/**
+ * 计算价格范围
+ */
+function calculatePriceRange(units: any[]): { min: number; max: number } | undefined {
+  const prices = units
+    .map((u: any) => u.price)
+    .filter((p: number) => p && p > 0);
+  
+  if (prices.length === 0) return undefined;
+  
+  return {
+    min: Math.min(...prices),
+    max: Math.max(...prices),
+  };
+}
+
+/**
+ * 提取付款计划亮点
+ */
+function extractPaymentPlanHighlight(paymentPlans: any[]): string | undefined {
+  if (!paymentPlans || paymentPlans.length === 0) return undefined;
+  
+  // 尝试提取常见的付款计划比例
+  const firstPlan = paymentPlans[0];
+  
+  // 查找类似 "60/40" 或 "70/30" 的模式
+  if (firstPlan.name) {
+    const match = firstPlan.name.match(/(\d+)\/(\d+)/);
+    if (match) {
+      return `${match[1]}/${match[2]} payment plan`;
+    }
+  }
+  
+  // 检查milestones
+  if (firstPlan.milestones && firstPlan.milestones.length > 0) {
+    const duringConstruction = firstPlan.milestones
+      .filter((m: any) => m.stage?.toLowerCase().includes('construction'))
+      .reduce((sum: number, m: any) => sum + (m.percentage || 0), 0);
+    
+    const onHandover = 100 - duringConstruction;
+    
+    if (duringConstruction > 0 && onHandover > 0) {
+      return `${duringConstruction}/${onHandover} payment plan`;
+    }
+  }
+  
+  return 'Flexible payment plan available';
+}
+
+/**
+ * Derive building/tower name from unit type name
+ * 
+ * @param unitTypeName - Unit type name (e.g., "A-1B-A.1", "Tower-B-2BR", "Type S1")
+ * @returns Building name (e.g., "Tower A", "Building B", undefined for single building)
+ */
+function deriveBuildingName(unitTypeName: string): string | undefined {
+  if (!unitTypeName) return undefined;
+  
+  const name = unitTypeName.toUpperCase();
+  
+  // Pattern 1: "A-1B-A.1" → "Tower A"
+  const prefixMatch = name.match(/^([A-Z])-/);
+  if (prefixMatch) {
+    return `Tower ${prefixMatch[1]}`;
+  }
+  
+  // Pattern 2: "Tower-A-1BR" → "Tower A"
+  const towerMatch = name.match(/TOWER[-\s]*([A-Z])/);
+  if (towerMatch) {
+    return `Tower ${towerMatch[1]}`;
+  }
+  
+  // Pattern 3: "Building-1-2BR" → "Building 1"
+  const buildingMatch = name.match(/BUILDING[-\s]*(\d+)/);
+  if (buildingMatch) {
+    return `Building ${buildingMatch[1]}`;
+  }
+  
+  // Pattern 4: "B1-Studio" → "Tower B"
+  const shortMatch = name.match(/^([A-Z])(\d)/);
+  if (shortMatch) {
+    return `Tower ${shortMatch[1]}`;
+  }
+  
+  // No tower/building prefix found → single building project
+  return undefined;
 }
 
 /**
@@ -255,19 +434,53 @@ function convertAssignmentToAggregatedData(
       const firstAnchor = anchorPages[0];
       const specs = firstAnchor?.unitInfo?.specs;
       
+      // Estimate bathrooms if missing based on bedrooms
+      let bedrooms = specs?.bedrooms || 0;
+      let bathrooms = specs?.bathrooms || 0;
+      
+      // If bathrooms is 0 or invalid, estimate based on bedrooms
+      if (bathrooms <= 0) {
+        if (bedrooms === 0) {
+          bathrooms = 1; // Studio: typically 1 bathroom
+        } else if (bedrooms === 1) {
+          bathrooms = 1; // 1BR: typically 1 bathroom
+        } else if (bedrooms === 2) {
+          bathrooms = 2; // 2BR: typically 2 bathrooms
+        } else {
+          bathrooms = Math.min(bedrooms, 3); // 3+ BR: estimate, capped at 3
+        }
+        console.warn(`   ⚠️  Missing bathrooms for "${smartUnit.unitTypeName}", estimated ${bathrooms} based on ${bedrooms} bedrooms`);
+      }
+      
+      let area = specs?.area || 0;
+      const hasDetailedSpecs = firstAnchor?.unitInfo?.hasDetailedSpecs || false;
+      
+      // ⚠️ Warn if area is 0 (likely AI extraction failure or misclassification)
+      // Note: We cannot do async retry here since map() is not async
+      // The retry logic would need to be implemented at a higher level
+      if (area === 0) {
+        console.warn(`   ⚠️  [BATCH-PROCESSOR] Unit "${smartUnit.unitTypeName}" has area=0!`);
+        console.warn(`   📊 [BATCH-PROCESSOR] hasDetailedSpecs: ${hasDetailedSpecs}`);
+        console.warn(`   📊 [BATCH-PROCESSOR] specs:`, JSON.stringify(specs || {}));
+        console.warn(`   📊 [BATCH-PROCESSOR] firstAnchor page: ${firstAnchor?.pageNumber}, unitInfo:`, firstAnchor?.unitInfo ? 'exists' : 'missing');
+        console.warn(`   💡 [BATCH-PROCESSOR] This unit will be filtered out during submission.`);
+      }
+      
       return {
         id: smartUnit.unitTypeName,
         name: smartUnit.unitTypeName,
         typeName: smartUnit.unitTypeName,
         category: firstAnchor?.unitInfo?.unitCategory || '',
-        tower: firstAnchor?.unitInfo?.tower,
-        bedrooms: specs?.bedrooms || 0,
-        bathrooms: specs?.bathrooms || 0,
-        area: specs?.area || 0,
+        buildingName: deriveBuildingName(smartUnit.unitTypeName),  // ⭐ 从名称推断归属
+        bedrooms: bedrooms,
+        bathrooms: bathrooms,
+        area: area,  // May have been updated by retry logic
         suiteArea: specs?.suiteArea,        // ⭐ 室内面积
         balconyArea: specs?.balconyArea,    // ⭐ 阳台面积
         price: specs?.price,
         pricePerSqft: specs?.pricePerSqft,  // ⭐ 单价
+        features: firstAnchor?.unitInfo?.features || [],  // ⭐ 户型特征列表（从平面图提取）
+        description: firstAnchor?.unitInfo?.description,  // ⭐ AI生成的户型描述
         floorPlanImage: smartUnit.floorPlanImages[0]?.imagePath,
         floorPlanImages: smartUnit.floorPlanImages.map(img => img.imagePath),
         renderingImages: smartUnit.renderingImages.map(img => img.imagePath),
@@ -333,13 +546,21 @@ function convertAssignmentToAggregatedData(
   
   console.log(`   🖼️  All images merged: ${smartAllImages.length} (smart) + ${originalAllImages.length} (workflow) = ${uniqueAllImages.length} (unique)`);
   
+  // ⭐ 合并配套设施（智能提取 + 原始workflow）
+  const smartAmenities = assignmentResult.amenities || [];
+  const originalAmenities = originalData.amenities || [];
+  const mergedAmenities = [...smartAmenities, ...originalAmenities];
+  const uniqueAmenities = Array.from(new Set(mergedAmenities));
+  
+  console.log(`   🏊 Amenities merged: ${smartAmenities.length} (smart) + ${originalAmenities.length} (workflow) = ${uniqueAmenities.length} (unique)`);
+  
   // 返回完整数据
   return {
     ...originalData,
     ...mergedBasicInfo,  // ⭐ 项目基本信息
     units: mergedUnits,
     paymentPlans: finalPaymentPlans,
-    towerInfos: assignmentResult.towerInfos || [],  // ⭐ Tower信息
+    amenities: uniqueAmenities,  // ⭐ 合并后的配套设施
     images: {
       projectImages: uniqueProjectImages,  // ⭐ 合并后的项目图片
       floorPlanImages: assignmentResult.units.flatMap(u => 
@@ -369,38 +590,14 @@ function emitSmartAssignmentUpdate(
 
   progressEmitter.emit(jobId, {
     stage: 'mapping',
-    message: `✓ 已处理 ${assignmentResult.totalPages} 页，找到 ${assignmentResult.anchorPagesFound} 个户型`,
+    code: 'PROCESSING_PAGES',
+    message: `Processed ${assignmentResult.totalPages} pages, found ${assignmentResult.anchorPagesFound} unit types`,
     progress,
     data: {
       buildingData: mergedData,  // ⭐ 发送合并后的完整数据
+      totalPages: assignmentResult.totalPages,
+      anchorPagesFound: assignmentResult.anchorPagesFound,
     },
     timestamp: Date.now(),
   });
 }
-
-/**
- * 转换AssignmentResult为前端格式
- */
-function convertAssignmentToLegacyFormat(result: AssignmentResult, jobId: string): any {
-  return {
-    units: result.units.map(unit => ({
-      id: unit.unitTypeName,
-      name: unit.unitTypeName,
-      typeName: unit.unitTypeName,
-      floorPlanImage: unit.floorPlanImages[0]?.imagePath,
-      floorPlanImages: unit.floorPlanImages.map(img => img.imagePath),
-      renderingImages: unit.renderingImages.map(img => img.imagePath),
-      interiorImages: unit.interiorImages.map(img => img.imagePath),
-      // TODO: 从现有workflow提取其他字段（area, bedrooms等）
-    })),
-    images: {
-      projectImages: [
-        ...result.projectImages.coverImages.map(img => img.imagePath),
-        ...result.projectImages.renderingImages.map(img => img.imagePath),
-        ...result.projectImages.aerialImages.map(img => img.imagePath),
-      ],
-      floorPlanImages: result.units.flatMap(u => u.floorPlanImages.map(img => img.imagePath)),
-    },
-  };
-}
-

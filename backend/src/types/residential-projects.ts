@@ -70,7 +70,6 @@ export interface ProjectUnitType {
   unit_type_name: string
   category?: string
   type_code?: string
-  tower?: string
   
   // Unit Numbers
   unit_numbers: string[]
@@ -96,6 +95,9 @@ export interface ProjectUnitType {
   
   // Features
   features: string[]
+  
+  // Marketing Content (AI-generated)
+  description?: string  // 3-5 sentences describing layout, advantages, target audience
   
   // Media
   floor_plan_image?: string
@@ -175,7 +177,7 @@ export interface SubmitUnitType {
   name: string
   typeName?: string
   category?: string
-  tower?: string
+  buildingName?: string  // ⭐ Tower/Building归属 (e.g., "Tower A", "Building 1", undefined for single building)
   
   // Unit numbers
   unitNumbers?: string[]
@@ -187,6 +189,7 @@ export interface SubmitUnitType {
   
   // Size
   area: number
+  suiteArea?: number  // ⭐ Interior/Suite area (室内面积)
   balconyArea?: number
   
   // Pricing
@@ -196,6 +199,9 @@ export interface SubmitUnitType {
   // Details
   orientation?: string
   features?: string[]
+  
+  // Marketing Content (AI-generated)
+  description?: string  // 3-5 sentences describing layout, advantages, target audience
   
   // Media
   floorPlanImage?: string

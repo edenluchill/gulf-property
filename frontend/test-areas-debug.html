@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Dubai Areas</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { margin: 0; padding: 20px; font-family: sans-serif; }
+    #map { height: 600px; width: 100%; border: 2px solid #333; }
+    #debug { margin-bottom: 20px; padding: 10px; background: #f0f0f0; border-radius: 4px; }
+    .info { margin: 5px 0; }
+    .success { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Dubai Areas Debug Test</h1>
+  
+  <div id="debug">
+    <div class="info">API URL: <span id="api-url"></span></div>
+    <div class="info">Status: <span id="status">Loading...</span></div>
+    <div class="info">Areas Count: <span id="areas-count">-</span></div>
+    <div class="info">Areas Data: <pre id="areas-data" style="max-height: 200px; overflow: auto;"></pre></div>
+  </div>
+  
+  <div id="map"></div>
+  
+  <script>
+    const API_URL = 'http://localhost:3000/api/dubai/areas';
+    document.getElementById('api-url').textContent = API_URL;
+    
+    // Initialize map
+    const map = L.map('map').setView([25.0961, 55.1561], 11);
+    
+    // 使用 Carto 的英文地图瓦片
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap contributors © CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(map);
+    
+    // Fetch and display areas
+    fetch(API_URL)
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(areas => {
+        console.log('✅ Fetched areas:', areas);
+        
+        document.getElementById('status').textContent = 'Success!';
+        document.getElementById('status').className = 'success';
+        document.getElementById('areas-count').textContent = areas.length;
+        document.getElementById('areas-data').textContent = JSON.stringify(areas, null, 2);
+        
+        // Render areas on map
+        areas.forEach(area => {
+          if (!area.boundary || area.boundary.type !== 'Polygon') {
+            console.warn('⚠️ Area has no valid boundary:', area.name);
+            return;
+          }
+          
+          // Convert GeoJSON coordinates to Leaflet format
+          const coordinates = area.boundary.coordinates[0].map(([lng, lat]) => [lat, lng]);
+          
+          console.log(`Rendering ${area.name} with ${coordinates.length} points`, coordinates);
+          
+          const polygon = L.polygon(coordinates, {
+            color: area.color,
+            fillColor: area.color,
+            fillOpacity: area.opacity * 0.6,
+            weight: 3,
+            opacity: 0.8,
+            dashArray: '5, 10', // 虚线边框
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(map);
+          
+          // 添加鼠标悬停效果
+          polygon.on('mouseover', function() {
+            this.setStyle({
+              weight: 4,
+              fillOpacity: area.opacity * 1.2,
+              dashArray: '10, 5'
+            });
+          });
+          
+          polygon.on('mouseout', function() {
+            this.setStyle({
+              weight: 3,
+              fillOpacity: area.opacity * 0.6,
+              dashArray: '5, 10'
+            });
+          });
+          
+          polygon.bindPopup(`
+            <div style="padding: 8px;">
+              <h3 style="margin: 0 0 8px 0; font-weight: bold;">${area.name}</h3>
+              <p style="margin: 0; font-size: 12px; color: #666;">${area.description || 'No description'}</p>
+              <p style="margin: 4px 0 0 0; font-size: 11px;">
+                <strong>Type:</strong> ${area.areaType}<br>
+                <strong>Wealth:</strong> ${area.wealthLevel}
+              </p>
+            </div>
+          `);
+        });
+        
+        // Fit map to show all areas
+        if (areas.length > 0) {
+          const bounds = areas
+            .filter(a => a.boundary?.type === 'Polygon')
+            .flatMap(a => a.boundary.coordinates[0].map(([lng, lat]) => [lat, lng]));
+          
+          if (bounds.length > 0) {
+            map.fitBounds(bounds);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('❌ Error:', error);
+        document.getElementById('status').textContent = `Error: ${error.message}`;
+        document.getElementById('status').className = 'error';
+      });
+  </script>
+</body>
+</html>

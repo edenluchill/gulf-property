@@ -18,105 +18,6 @@ import {
 } from '../lib/api'
 import { useDebounce } from '../hooks/useDebounce'
 
-// Residential Project interface (matching backend schema)
-interface ResidentialProject {
-  id: string
-  project_name: string
-  developer: string
-  address: string
-  area: string
-  description?: string
-  latitude?: number
-  longitude?: number
-  launch_date?: string
-  completion_date?: string
-  handover_date?: string
-  construction_progress?: number  // Percentage: 0-100
-  status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
-  min_price?: number
-  max_price?: number
-  starting_price?: number
-  total_unit_types: number
-  total_units: number
-  min_bedrooms?: number
-  max_bedrooms?: number
-  project_images: string[]
-  floor_plan_images: string[]
-  brochure_url?: string
-  has_renderings: boolean
-  has_floor_plans: boolean
-  has_location_maps: boolean
-  rendering_descriptions: string[]
-  floor_plan_descriptions: string[]
-  amenities: string[]
-  verified: boolean
-  featured: boolean
-  views_count: number
-  created_at: string
-  updated_at: string
-}
-
-/**
- * Convert ResidentialProject to OffPlanProperty format for component compatibility
- */
-function convertResidentialProjectToProperty(project: ResidentialProject): any {
-  // construction_progress is now a direct number (0-100)
-  const completionPercent = project.construction_progress || 0
-  
-  // Normalize status to match old schema
-  let normalizedStatus: 'upcoming' | 'under-construction' | 'completed' = 'upcoming'
-  if (project.status === 'under-construction') {
-    normalizedStatus = 'under-construction'
-  } else if (project.status === 'completed' || project.status === 'handed-over') {
-    normalizedStatus = 'completed'
-  }
-  
-  return {
-    id: project.id,
-    buildingId: undefined,
-    buildingName: project.project_name,
-    projectName: project.project_name,
-    buildingDescription: project.description,
-    developer: project.developer,
-    developerId: undefined,
-    developerLogoUrl: undefined,
-    location: {
-      lat: project.latitude || 0,
-      lng: project.longitude || 0,
-    },
-    areaName: project.area,
-    areaId: undefined,
-    dldLocationId: undefined,
-    minBedrooms: project.min_bedrooms || 0,
-    maxBedrooms: project.max_bedrooms || 0,
-    bedsDescription: project.min_bedrooms && project.max_bedrooms 
-      ? `${project.min_bedrooms}-${project.max_bedrooms} BR`
-      : undefined,
-    minSize: undefined,
-    maxSize: undefined,
-    startingPrice: project.starting_price,
-    medianPriceSqft: undefined,
-    medianPricePerUnit: project.starting_price,
-    medianRentPerUnit: undefined,
-    launchDate: project.launch_date,
-    completionDate: project.completion_date,
-    completionPercent: completionPercent,
-    status: normalizedStatus,
-    unitCount: project.total_units,
-    buildingUnitCount: project.total_units,
-    salesVolume: undefined,
-    propSalesVolume: undefined,
-    images: project.project_images || [],
-    logoUrl: undefined,
-    brochureUrl: project.brochure_url,
-    amenities: project.amenities || [],
-    displayAs: 'project',
-    verified: project.verified,
-    createdAt: project.created_at,
-    updatedAt: project.updated_at,
-  }
-}
-
 export default function MapPage() {
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
@@ -132,7 +33,7 @@ export default function MapPage() {
   // Dubai areas and landmarks state
   const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
   const [dubaiLandmarks, setDubaiLandmarks] = useState<DubaiLandmark[]>([])
-  const [showDubaiLayer, setShowDubaiLayer] = useState(false)
+  const [showDubaiLayer, setShowDubaiLayer] = useState(true) // 默认显示区域
   
   // Cluster dialog state (using any[] to match old OffPlanProperty format after conversion)
   const [showClusterDialog, setShowClusterDialog] = useState(false)
@@ -202,9 +103,12 @@ export default function MapPage() {
     
     if (cachedDubaiAreas && cachedDubaiAreasTimestamp && 
         Date.now() - parseInt(cachedDubaiAreasTimestamp) < CACHE_DURATION) {
-      setDubaiAreas(JSON.parse(cachedDubaiAreas))
+      const areas = JSON.parse(cachedDubaiAreas)
+      console.log('✅ Loaded Dubai areas from cache:', areas.length, 'areas')
+      setDubaiAreas(areas)
     } else {
       fetchDubaiAreas().then((data) => {
+        console.log('✅ Fetched Dubai areas from API:', data.length, 'areas', data)
         setDubaiAreas(data)
         localStorage.setItem('gulf_dubai_areas', JSON.stringify(data))
         localStorage.setItem('gulf_dubai_areas_timestamp', Date.now().toString())
@@ -216,9 +120,12 @@ export default function MapPage() {
     
     if (cachedDubaiLandmarks && cachedDubaiLandmarksTimestamp && 
         Date.now() - parseInt(cachedDubaiLandmarksTimestamp) < CACHE_DURATION) {
-      setDubaiLandmarks(JSON.parse(cachedDubaiLandmarks))
+      const landmarks = JSON.parse(cachedDubaiLandmarks)
+      console.log('✅ Loaded Dubai landmarks from cache:', landmarks.length, 'landmarks')
+      setDubaiLandmarks(landmarks)
     } else {
       fetchDubaiLandmarks().then((data) => {
+        console.log('✅ Fetched Dubai landmarks from API:', data.length, 'landmarks', data)
         setDubaiLandmarks(data)
         localStorage.setItem('gulf_dubai_landmarks', JSON.stringify(data))
         localStorage.setItem('gulf_dubai_landmarks_timestamp', Date.now().toString())
@@ -305,10 +212,8 @@ export default function MapPage() {
       
       console.log('Fetched residential projects:', projects)
       
-      // Convert residential projects to old property format for component compatibility
-      const convertedProperties = projects.map(convertResidentialProjectToProperty)
-      
-      setSelectedClusterProperties(convertedProperties)
+      // Backend already returns data in the correct format (camelCase), no conversion needed!
+      setSelectedClusterProperties(projects)
       setIsLoadingClusterProperties(false)
     } catch (error) {
       console.error('Error fetching cluster projects:', error)
@@ -346,6 +251,14 @@ export default function MapPage() {
     filters.maxCompletionPercent !== undefined ||
     filters.status ||
     searchQuery
+
+  // 调试：显示当前状态
+  console.log('📊 MapPage render state:', {
+    dubaiAreasCount: dubaiAreas.length,
+    dubaiLandmarksCount: dubaiLandmarks.length,
+    showDubaiLayer,
+    clustersCount: clusters.length
+  })
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] bg-slate-50">

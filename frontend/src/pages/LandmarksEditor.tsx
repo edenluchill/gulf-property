@@ -332,7 +332,33 @@ export default function LandmarksEditor() {
                   type="url"
                   value={formData.websiteUrl || ''}
                   onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
+                  placeholder="https://example.com"
                 />
+              </div>
+
+              <div>
+                <Label>Image URL</Label>
+                <Input
+                  type="url"
+                  value={formData.imageUrl || ''}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/photo-xxx?w=400"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Recommended: Unsplash images (400x400px)
+                </p>
+                {formData.imageUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={formData.imageUrl} 
+                      alt="Preview" 
+                      className="w-full h-32 object-cover rounded border"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -415,9 +441,12 @@ export default function LandmarksEditor() {
           zoom={11}
           className="h-full w-full"
         >
+          {/* 使用英文地图瓦片 */}
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            subdomains="abcd"
+            maxZoom={20}
           />
           
           <MapClickHandler onMapClick={handleMapClick} />

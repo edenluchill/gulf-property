@@ -7,8 +7,8 @@
 
 import type { State } from './state';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { researchMarketContext, generateInvestmentAnalysis } from '../agents/market-intelligence.agent';
-import { generateMarketingContent } from '../agents/copywriter.agent';
+import { researchMarketContext, generateInvestmentAnalysis } from './agents/market-intelligence.agent';
+import { generateMarketingContent } from './agents/copywriter.agent';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 

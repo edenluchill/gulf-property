@@ -90,7 +90,6 @@ CREATE TABLE IF NOT EXISTS project_unit_types (
     unit_type_name VARCHAR(255) NOT NULL,  -- e.g., "Type A", "Studio Premium"
     category VARCHAR(100),  -- e.g., "Studio", "Apartment", "Penthouse"
     type_code VARCHAR(100),  -- e.g., "A-101", "DSTH-M1"
-    tower VARCHAR(100),  -- Building/Tower identifier (e.g., "DSTH", "A", "Tower 1")
     
     -- Unit Numbers
     unit_numbers TEXT[] DEFAULT '{}',  -- Specific unit numbers (e.g., ["101", "201", "301"])
@@ -116,6 +115,9 @@ CREATE TABLE IF NOT EXISTS project_unit_types (
     
     -- Features
     features TEXT[] DEFAULT '{}',  -- e.g., ["Balcony", "Maid's Room", "Study Room"]
+    
+    -- Marketing Content (AI-generated)
+    description TEXT,  -- 3-5 sentences describing layout advantages, design features, target audience
     
     -- Media
     floor_plan_image TEXT,  -- URL to floor plan image
@@ -222,9 +224,6 @@ CREATE INDEX IF NOT EXISTS idx_unit_types_price
     ON project_unit_types (price) 
     WHERE price IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_unit_types_tower 
-    ON project_unit_types (tower) 
-    WHERE tower IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_unit_types_category 
     ON project_unit_types (category);
@@ -466,6 +465,6 @@ COMMENT ON COLUMN residential_projects.construction_progress IS 'Construction pr
 COMMENT ON COLUMN residential_projects.project_images IS 'Array of URLs to project images extracted from PDF';
 COMMENT ON COLUMN residential_projects.floor_plan_images IS 'Array of URLs to floor plan images';
 
-COMMENT ON COLUMN project_unit_types.tower IS 'Building/Tower identifier extracted from unit type name (e.g., "DSTH", "A")';
 COMMENT ON COLUMN project_unit_types.unit_numbers IS 'Specific unit numbers for this type (e.g., ["101", "201", "301"])';
+COMMENT ON COLUMN project_unit_types.description IS 'AI-generated marketing description highlighting layout advantages, dimensions, design features, and target audience';
 COMMENT ON COLUMN project_unit_types.floor_plan_image IS 'URL to the floor plan image for this unit type';

@@ -49,8 +49,16 @@ export function extractProjectImages(
     ...projectTypeImages,
   ];
   
+  // ⭐ NEW: Filter out images marked as shouldUse: false
+  const usefulImages = allProjectImages.filter(img => img.shouldUse !== false);
+  const filteredCount = allProjectImages.length - usefulImages.length;
+  
+  if (filteredCount > 0) {
+    console.log(`   🗑️  Filtered out ${filteredCount} images marked as not useful`);
+  }
+  
   // 去重（按imageId）
-  const uniqueImages = deduplicateByImageId(allProjectImages);
+  const uniqueImages = deduplicateByImageId(usefulImages);
   
   console.log(`   Total unique project images: ${uniqueImages.length}`);
   

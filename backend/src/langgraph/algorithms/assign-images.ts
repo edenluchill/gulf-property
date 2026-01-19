@@ -6,7 +6,7 @@
  * - 纯代码逻辑，无需AI
  */
 
-import { PageMetadata, PageImage, ImageCategory } from '../types/page-metadata';
+import { PageMetadata, ImageCategory } from '../types/page-metadata';
 import { UnitBoundary, UnitImageAssignment } from '../types/assignment-result';
 
 /**
@@ -42,6 +42,8 @@ export function assignImagesByBoundaries(
     let totalImagesAssigned = 0;
     
     // 收集范围内所有图片
+    let filteredOutCount = 0;
+    
     pages.forEach(page => {
       // 检查页面是否在边界范围内
       if (page.pageNumber >= boundary.startPage && 
@@ -49,6 +51,12 @@ export function assignImagesByBoundaries(
         
         // 分配图片（基于AI标记的类别）
         page.images.forEach(img => {
+          // ⭐ NEW: Filter out images marked as shouldUse: false
+          if (img.shouldUse === false) {
+            filteredOutCount++;
+            return;  // Skip this image
+          }
+          
           totalImagesAssigned++;
           assignment.allImages.push(img);
           
@@ -81,36 +89,12 @@ export function assignImagesByBoundaries(
       }
     });
     
+    if (filteredOutCount > 0) {
+      console.log(`   🗑️  Filtered out ${filteredOutCount} images marked as not useful`);
+    }
+    
     console.log(`   ✓ ${boundary.unitTypeName}: ${totalImagesAssigned} images (${assignment.floorPlanImages.length} floor plans, ${assignment.renderingImages.length} renderings, ${assignment.interiorImages.length} interiors)`);
     
     return assignment;
   });
-}
-
-/**
- * 辅助函数：按类别分配图片
- */
-function assignImageByCategory(
-  image: PageImage,
-  assignment: UnitImageAssignment
-): void {
-  assignment.allImages.push(image);
-  
-  switch (image.category) {
-    case ImageCategory.FLOOR_PLAN:
-      assignment.floorPlanImages.push(image);
-      break;
-    case ImageCategory.UNIT_EXTERIOR:
-      assignment.renderingImages.push(image);
-      break;
-    case ImageCategory.UNIT_INTERIOR_LIVING:
-    case ImageCategory.UNIT_INTERIOR_BEDROOM:
-    case ImageCategory.UNIT_INTERIOR_KITCHEN:
-    case ImageCategory.UNIT_INTERIOR_BATHROOM:
-      assignment.interiorImages.push(image);
-      break;
-    case ImageCategory.UNIT_BALCONY:
-      assignment.balconyImages.push(image);
-      break;
-  }
 }

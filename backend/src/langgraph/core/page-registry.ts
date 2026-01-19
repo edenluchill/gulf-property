@@ -21,9 +21,7 @@ import { scanUnitBoundaries } from '../algorithms/scan-boundaries';
 import { assignImagesByBoundaries } from '../algorithms/assign-images';
 import { mergeSameNameUnits } from '../algorithms/merge-units';
 import { extractProjectImages } from '../algorithms/extract-project-images';
-import { extractPaymentPlans } from '../agents/payment-plan-extractor.agent';
-import { extractProjectInfo, mergeProjectInfo } from '../agents/project-info-extractor.agent';
-import { extractTowerInfos } from '../agents/tower-info-extractor.agent';
+import { mergeProjectInfo } from '../agents/project-info-extractor.agent';
 
 /**
  * PageRegistry - 全局单例
@@ -33,12 +31,21 @@ export class PageRegistry {
   private static isProcessing = false;  // 简单的处理标志
   private static onUpdateCallback?: (result: AssignmentResult) => void;
   
+  // ⭐ Performance optimization: Cache extracted results to avoid re-processing
+  private static extractedPaymentPlans?: any[];
+  private static extractedProjectInfo?: any;
+  private static extractedAmenities?: string[];
+  
   /**
    * 重置Registry（新任务开始时调用）
    */
   static reset(): void {
     this.pages = [];
     this.onUpdateCallback = undefined;
+    // ⭐ Reset caches
+    this.extractedPaymentPlans = undefined;
+    this.extractedProjectInfo = undefined;
+    this.extractedAmenities = undefined;
     console.log('🔄 PageRegistry reset');
   }
   
@@ -130,8 +137,10 @@ export class PageRegistry {
    * 
    * 每次插入新pages后自动调用
    * 即使图片页在anchor前完成，也能后续正确分配
+   * 
+   * ⭐ 现在是 async：调用专门的 extractors 提取详细信息
    */
-  private static recalculateAssignment(): AssignmentResult {
+  private static async recalculateAssignment(): Promise<AssignmentResult> {
     console.log('\n🔄 Recalculating image assignment...');
     
     const startTime = Date.now();
@@ -155,6 +164,8 @@ export class PageRegistry {
     const projectImages = extractProjectImages(this.pages, boundaries);
     console.log(`   ✓ Extracted project images`);
     
+    // ============ ⭐ AI提取已移到extractProjectData()，只在最后调用一次 ============
+    
     const processingTime = Date.now() - startTime;
     
     // 统计PDF数量
@@ -163,12 +174,67 @@ export class PageRegistry {
     return {
       units: mergedUnits,
       projectImages,
+      paymentPlans: this.extractedPaymentPlans,      // ⭐ 使用缓存的结果
+      projectInfo: this.extractedProjectInfo,        // ⭐ 使用缓存的结果
+      amenities: this.extractedAmenities,            // ⭐ 使用缓存的结果
       totalPages: this.pages.length,
       totalPdfs: uniquePdfs.size,
       anchorPagesFound: boundaries.length,
-      boundaries,  // 用于调试
+      boundaries,
       processingTime,
     };
+  }
+  
+  /**
+   * ⭐ 提取项目级别的数据（只在所有batches完成后调用一次）
+   * 
+   * 包括：
+   * - Payment Plans
+   * - Amenities  
+   * - Project Info
+   */
+  static async aggregateProjectData(): Promise<void> {
+    console.log('\n📊 Aggregating project-level data from analyzed pages...');
+    const startTime = Date.now();
+    
+    // 1. 汇总配套设施（使用AI智能去重）
+    if (!this.extractedAmenities) {
+      const amenitiesPages = this.pages.filter(p => p.amenitiesData && p.amenitiesData.amenities.length > 0);
+      const allAmenities = amenitiesPages.flatMap(p => p.amenitiesData!.amenities);
+      const totalCount = allAmenities.length;
+      
+      // ⭐ 使用AI进行智能去重和规范化
+      const { deduplicateAmenitiesWithAI } = await import('../agents/amenity-extractor.agent');
+      this.extractedAmenities = await deduplicateAmenitiesWithAI(allAmenities);
+      
+      console.log(`   🏊 Aggregated ${this.extractedAmenities.length} unique amenities from ${amenitiesPages.length} pages (${totalCount} total → ${this.extractedAmenities.length} after AI dedup)`);
+    }
+    
+    // 2. 汇总项目基本信息（从PageMetadata中读取，无AI调用）
+    if (!this.extractedProjectInfo) {
+      const projectInfoPages = this.pages.filter(p => p.projectInfoData);
+      if (projectInfoPages.length > 0) {
+        const infos = projectInfoPages.map(p => p.projectInfoData!);
+        this.extractedProjectInfo = mergeProjectInfo(infos);
+        console.log(`   🏗️  Aggregated project info from ${projectInfoPages.length} pages:`, Object.keys(this.extractedProjectInfo).join(', '));
+      }
+    }
+    
+    // 3. 汇总付款计划（从PageMetadata中读取，无AI调用）
+    if (!this.extractedPaymentPlans) {
+      const paymentPages = this.pages.filter(p => p.paymentPlanData);
+      if (paymentPages.length > 0) {
+        this.extractedPaymentPlans = paymentPages.map(p => p.paymentPlanData!);
+        console.log(`   💰 Aggregated ${this.extractedPaymentPlans.length} payment plans`);
+      }
+    }
+    
+    const processingTime = Date.now() - startTime;
+    
+    console.log(`\n✅ Project data aggregation complete in ${processingTime}ms (pure logic, no AI calls)`);
+    console.log(`   💰 Payment plans: ${this.extractedPaymentPlans?.length || 0}`);
+    console.log(`   🏊 Amenities: ${this.extractedAmenities?.length || 0}`);
+    console.log(`   🏗️  Project info: ${this.extractedProjectInfo ? Object.keys(this.extractedProjectInfo).join(', ') : 'none'}`);
   }
   
   /**
@@ -194,10 +260,28 @@ export class PageRegistry {
   
   /**
    * 获取项目信息页面
+   * 
+   * ⭐ OPTIMIZED: Expanded to include more page types for better description extraction
    */
   static getProjectInfoPages(): PageMetadata[] {
     return this.pages.filter(p => 
       p.pageType === PageType.PROJECT_COVER ||
+      p.pageType === PageType.PROJECT_OVERVIEW ||
+      p.pageType === PageType.PROJECT_SUMMARY ||
+      p.pageType === PageType.SECTION_TITLE ||      // ⭐ May contain intro text
+      p.pageType === PageType.PROJECT_RENDERING ||  // ⭐ Often has marketing text
+      p.pageType === PageType.PROJECT_AERIAL        // ⭐ May have project description
+    );
+  }
+  
+  /**
+   * 获取配套设施页面
+   */
+  static getAmenityPages(): PageMetadata[] {
+    return this.pages.filter(p => 
+      p.pageType === PageType.AMENITIES_LIST ||
+      p.pageType === PageType.AMENITIES_IMAGES ||
+      p.pageType === PageType.TOWER_CHARACTERISTICS ||
       p.pageType === PageType.PROJECT_OVERVIEW ||
       p.pageType === PageType.PROJECT_SUMMARY
     );

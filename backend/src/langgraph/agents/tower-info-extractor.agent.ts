@@ -8,8 +8,9 @@
  * - 相关图片
  */
 
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { readFileSync } from 'fs';
+import { parseJsonResponse } from '../utils/json-parser';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -34,42 +35,30 @@ export async function extractTowerInfo(
 ): Promise<TowerInfo | null> {
   
   try {
-    // 使用Structured Output模式
+    // ⭐ 简化：只使用 JSON mode（避免 schema 卡住）
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
       generationConfig: {
         responseMimeType: 'application/json',
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            towerName: { type: SchemaType.STRING },
-            height: { type: SchemaType.STRING },
-            floors: { type: SchemaType.NUMBER },
-            totalUnits: { type: SchemaType.NUMBER },
-            unitTypes: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-            },
-            indoorAmenities: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-            },
-            outdoorAmenities: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-            },
-            specialFeatures: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-            },
-          },
-          required: ['towerName'],
-        },
       },
     });
 
-    const imageBuffer = readFileSync(imagePath);
-    const imageBase64 = imageBuffer.toString('base64');
+    // ⭐ Support both local paths and R2 URLs
+    let imageBase64: string;
+    
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // Fetch from R2
+      const imageResponse = await fetch(imagePath);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image from R2: ${imageResponse.statusText}`);
+      }
+      const imageBuffer = await imageResponse.arrayBuffer();
+      imageBase64 = Buffer.from(imageBuffer).toString('base64');
+    } else {
+      // Read from local file
+      const imageBuffer = readFileSync(imagePath);
+      imageBase64 = imageBuffer.toString('base64');
+    }
 
     const prompt = `你是房地产Tower/Building信息提取专家。从这一页提取Tower信息。
 
@@ -155,8 +144,8 @@ export async function extractTowerInfo(
     const response = await result.response;
     const text = response.text();
 
-    // ⭐ 直接解析JSON（structured output）
-    const parsed = JSON.parse(text);
+    // ⭐ 解析JSON（自动处理markdown code fences）
+    const parsed = parseJsonResponse(text);
     
     if (!parsed || !parsed.towerName) {
       return null;

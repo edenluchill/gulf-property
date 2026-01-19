@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear Cache</title>
+</head>
+<body>
+  <h1>Clear Dubai Areas Cache</h1>
+  <button onclick="clearCache()">Clear Cache</button>
+  <div id="result"></div>
+  
+  <script>
+    function clearCache() {
+      // Clear all gulf property related cache
+      const keys = ['gulf_dubai_areas', 'gulf_dubai_areas_timestamp', 'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp'];
+      keys.forEach(key => localStorage.removeItem(key));
+      
+      document.getElementById('result').innerHTML = '<p style="color: green;">✅ Cache cleared! Reload the page to fetch fresh data.</p>';
+      
+      // Also show what was in cache
+      console.log('Cleared cache items:', keys);
+    }
+    
+    // Show current cache on load
+    window.onload = function() {
+      const areas = localStorage.getItem('gulf_dubai_areas');
+      const landmarks = localStorage.getItem('gulf_dubai_landmarks');
+      
+      console.log('Current cached areas:', areas ? JSON.parse(areas).length : 'none');
+      console.log('Current cached landmarks:', landmarks ? JSON.parse(landmarks).length : 'none');
+    }
+  </script>
+</body>
+</html>

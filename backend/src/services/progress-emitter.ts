@@ -9,7 +9,8 @@ import { Response } from 'express';
 
 export interface ProgressEvent {
   stage: 'starting' | 'ingestion' | 'mapping' | 'reducing' | 'insight' | 'complete' | 'error';
-  message: string;
+  code: string;  // Machine-readable code for i18n
+  message: string;  // English message for backend logs
   progress: number; // 0-100
   currentPage?: number;
   totalPages?: number;
@@ -48,6 +49,7 @@ export class ProgressEmitter {
     // Send initial connection message
     this.emit(jobId, {
       stage: 'starting',
+      code: 'CONNECTED',
       message: 'Connected to processing stream',
       progress: 0,
       timestamp: Date.now(),
@@ -91,6 +93,7 @@ export class ProgressEmitter {
   complete(jobId: string, finalData?: any) {
     this.emit(jobId, {
       stage: 'complete',
+      code: 'COMPLETE',
       message: 'Processing complete',
       progress: 100,
       data: finalData,
@@ -110,6 +113,7 @@ export class ProgressEmitter {
   error(jobId: string, errorMessage: string) {
     this.emit(jobId, {
       stage: 'error',
+      code: 'ERROR',
       message: errorMessage,
       progress: 0,
       timestamp: Date.now(),

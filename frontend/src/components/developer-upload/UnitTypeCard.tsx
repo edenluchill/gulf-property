@@ -29,6 +29,7 @@ interface UnitType {
   pricePerSqft?: number;
   orientation?: string;
   features?: string[];
+  description?: string;     // ⭐ 户型描述
   floorPlanImage?: string;
   floorPlanImages?: string[]; // Support multiple images
 }
@@ -165,6 +166,24 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                       placeholder="Studio/1BR/2BR..."
                     />
                   </div>
+                </div>
+                
+                {/* Description Field */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-600 font-semibold">户型描述</Label>
+                  <textarea
+                    value={unit.description || ''}
+                    onChange={(e) => onChange('description', e.target.value)}
+                    disabled={isProcessing}
+                    placeholder="AI 生成的户型描述，介绍布局、优势、目标人群等..."
+                    className="w-full min-h-[80px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-50 disabled:text-gray-500 resize-y"
+                    rows={3}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {unit.description 
+                      ? `${unit.description.length} 个字符` 
+                      : 'AI 会自动生成户型描述，您也可以手动编辑'}
+                  </p>
                 </div>
               </div>
 

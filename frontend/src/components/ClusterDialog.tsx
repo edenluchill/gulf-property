@@ -245,6 +245,31 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                   </div>
                 )}
 
+                {/* Description */}
+                {selectedProperty.buildingDescription && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">About</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{selectedProperty.buildingDescription}</p>
+                  </div>
+                )}
+
+                {/* Amenities */}
+                {selectedProperty.amenities && selectedProperty.amenities.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Amenities</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProperty.amenities.map((amenity, index) => (
+                        <span 
+                          key={index}
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
+                        >
+                          {amenity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* View Details Button */}
                 <Link 
                   to={`/project/${selectedProperty.id}`}

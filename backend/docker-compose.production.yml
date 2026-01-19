@@ -23,12 +23,17 @@ services:
       # API Configuration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CORS_ORIGIN=${CORS_ORIGIN}
+      # Cloudflare R2 Configuration (REQUIRED for image storage)
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
       - API_RATE_LIMIT_WINDOW_MS=${API_RATE_LIMIT_WINDOW_MS:-900000}
       - API_RATE_LIMIT_MAX_REQUESTS=${API_RATE_LIMIT_MAX_REQUESTS:-100}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      # Persistent uploads directory
-      - ./uploads:/app/uploads
+      # Logs only - all images stored in Cloudflare R2
       - ./logs:/var/log/gulf-property
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:${PORT:-3000}/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]

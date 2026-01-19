@@ -63,8 +63,8 @@ export interface AssignmentResult {
   units: UnitImageAssignment[];    // 户型分配结果
   projectImages: ProjectImages;    // 项目整体图片
   paymentPlans?: any[];            // 付款计划
-  projectInfo?: any;               // ⭐ 新增：项目基本信息
-  towerInfos?: any[];              // ⭐ 新增：Tower详细信息
+  projectInfo?: any;               // ⭐ 项目基本信息
+  amenities?: string[];            // ⭐ 配套设施列表
   
   // 统计信息
   totalPages: number;              // 总页数

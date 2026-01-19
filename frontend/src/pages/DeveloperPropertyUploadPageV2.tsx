@@ -20,6 +20,7 @@ import { ProjectBasicInfoSection } from '../components/developer-upload/ProjectB
 import { DateTimeProgressSection } from '../components/developer-upload/DateTimeProgressSection'
 import { VisualContentSection } from '../components/developer-upload/VisualContentSection'
 import { PaymentPlanSection } from '../components/developer-upload/PaymentPlanSection'
+import { AmenitiesSection } from '../components/developer-upload/AmenitiesSection'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS } from '../lib/config'
 
@@ -39,6 +40,7 @@ interface UnitType {
   pricePerSqft?: number
   orientation?: string
   features?: string[]
+  description?: string      // ⭐ 户型描述 (AI-generated or manual)
   floorPlanImage?: string
   floorPlanImages?: string[]
 }
@@ -206,6 +208,8 @@ export default function DeveloperPropertyUploadPageV2() {
           }
           if (buildingData.paymentPlans) {
             console.log('💰 Payment plans received:', buildingData.paymentPlans.length);
+            console.log('💰 First payment plan:', buildingData.paymentPlans[0]);
+            console.log('💰 Milestones:', buildingData.paymentPlans[0]?.milestones);
           }
           
           setFormData(prev => {
@@ -302,6 +306,11 @@ export default function DeveloperPropertyUploadPageV2() {
       const cleanedCompletionDate = formData.completionDate || null
       const cleanedHandoverDate = formData.handoverDate || null
 
+      console.log('🔍 FormData before submit:', {
+        paymentPlanLength: formData.paymentPlan?.length || 0,
+        paymentPlan: formData.paymentPlan,
+      })
+
       const submitData = {
         projectName: formData.projectName,
         developer: formData.developer,
@@ -322,7 +331,6 @@ export default function DeveloperPropertyUploadPageV2() {
           name: unit.name,
           typeName: unit.typeName,
           category: unit.category,
-          tower: (unit as any).tower,
           unitNumbers: unit.unitNumbers,
           unitCount: unit.unitCount || 1,
           bedrooms: unit.bedrooms,
@@ -334,6 +342,7 @@ export default function DeveloperPropertyUploadPageV2() {
           pricePerSqft: unit.pricePerSqft,
           orientation: unit.orientation,
           features: unit.features,
+          description: unit.description,      // ⭐ 户型描述
           floorPlanImage: unit.floorPlanImage,
           floorPlanImages: unit.floorPlanImages,
         })),
@@ -609,6 +618,12 @@ export default function DeveloperPropertyUploadPageV2() {
                             })}
                           </div>
 
+                          {/* Amenities */}
+                          <AmenitiesSection
+                            amenities={formData.amenities}
+                            isProcessing={isProcessing}
+                          />
+
                           {/* Payment Plan */}
                           <PaymentPlanSection
                             paymentPlan={formData.paymentPlan}
@@ -629,6 +644,42 @@ export default function DeveloperPropertyUploadPageV2() {
                                   </p>
                                 </div>
                               </div>
+                              
+                              {/* Invalid Units Warning */}
+                              {(() => {
+                                const invalidUnits = formData.unitTypes.filter(u => !u.area || u.area <= 0);
+                                if (invalidUnits.length > 0) {
+                                  return (
+                                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 space-y-3">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-2xl">⚠️</span>
+                                        <div>
+                                          <h4 className="font-bold text-red-900">
+                                            发现 {invalidUnits.length} 个无效户型
+                                          </h4>
+                                          <p className="text-sm text-red-700 mt-1">
+                                            以下户型缺少面积信息（AI 提取失败），提交时将被自动过滤
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="bg-white rounded-lg p-4 space-y-2">
+                                        {invalidUnits.map(unit => (
+                                          <div key={unit.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
+                                            <span className="font-medium text-gray-900">{unit.name || unit.typeName}</span>
+                                            <span className="text-red-600 text-xs bg-red-100 px-2 py-1 rounded">
+                                              面积 = 0 (提取失败)
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <p className="text-xs text-red-600">
+                                        💡 建议：您可以手动删除这些户型，或等待修复后重新上传 PDF
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                               
                               <div className="space-y-4">
                                 <div className={`flex items-start gap-4 p-5 rounded-xl shadow-md border-2 transition-all ${

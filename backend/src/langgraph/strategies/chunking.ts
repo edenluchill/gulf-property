@@ -9,16 +9,19 @@
  */
 
 import { splitPdfIntoChunks, type PdfChunk } from '../../utils/pdf/chunker';
+import type { PdfImageBatch } from '../utils/pdf-image-generator';
 
 export interface PdfChunkWithSource extends PdfChunk {
   sourceFile: string;
   pdfHash: string;  // SHA256 hash for cache key
+  imageBatch?: PdfImageBatch;  // ⭐ NEW: Pre-generated image URLs
 }
 
 export interface ChunkingConfig {
   pdfBuffers: Buffer[];
   pdfNames?: string[];
-  pdfHashes: string[];  // NEW: PDF hashes for caching
+  pdfHashes: string[];
+  imageBatches?: PdfImageBatch[];  // ⭐ NEW: Pre-generated images
   pagesPerChunk?: number;
 }
 
@@ -37,7 +40,7 @@ export interface ChunkingResult {
 export async function splitAllPdfsIntoChunks(
   config: ChunkingConfig
 ): Promise<ChunkingResult> {
-  const { pdfBuffers, pdfNames, pdfHashes, pagesPerChunk = 5 } = config;
+  const { pdfBuffers, pdfNames, pdfHashes, imageBatches, pagesPerChunk = 5 } = config;
   
   const allChunks: PdfChunkWithSource[] = [];
 
@@ -46,20 +49,25 @@ export async function splitAllPdfsIntoChunks(
   for (let fileIdx = 0; fileIdx < pdfBuffers.length; fileIdx++) {
     const fileName = pdfNames?.[fileIdx] || `Document ${fileIdx + 1}`;
     const pdfHash = pdfHashes[fileIdx];
+    const imageBatch = imageBatches?.[fileIdx];  // ⭐ Get pre-generated images
     const sizeMB = (pdfBuffers[fileIdx].length / 1024 / 1024).toFixed(2);
 
     console.log(`📄 Splitting file ${fileIdx + 1}/${pdfBuffers.length}: ${fileName} (${sizeMB} MB)`);
     console.log(`   Hash: ${pdfHash.substring(0, 12)}...`);
+    if (imageBatch) {
+      console.log(`   ✅ Using ${imageBatch.totalPages} pre-generated images`);
+    }
 
     // Split this PDF into chunks
     const chunks = await splitPdfIntoChunks(pdfBuffers[fileIdx], pagesPerChunk);
 
-    // Tag chunks with source file and PDF hash
+    // Tag chunks with source file, PDF hash, and image batch
     chunks.forEach(chunk => {
       allChunks.push({
         ...chunk,
         sourceFile: fileName,
-        pdfHash,  // ⭐ Add PDF hash for cache key
+        pdfHash,
+        imageBatch,  // ⭐ Attach pre-generated images
       });
     });
 

@@ -9,7 +9,6 @@ import multer from 'multer';
 import { executePdfWorkflow } from '../langgraph/workflow-executor';
 import { progressEmitter } from '../services/progress-emitter';
 import { generateJobId } from '../utils/pdf/file-manager';
-import { updateBuildingDataWithImageUrls } from '../langgraph/utils/image-url-helper';
 import { join } from 'path';
 
 const router = Router();
@@ -107,14 +106,9 @@ router.post(
 
           console.log(`✅ Workflow completed for job ${jobId}`);
 
-          // Convert image paths to URLs before sending to frontend
-          const updatedResult = {
-            ...result,
-            buildingData: updateBuildingDataWithImageUrls(result.buildingData, jobId),
-          };
-
+          // All images are already R2 URLs - no conversion needed
           // Send final completion
-          progressEmitter.complete(jobId, updatedResult);
+          progressEmitter.complete(jobId, result);
 
         } catch (error) {
           console.error(`❌ Job ${jobId} failed:`, error);

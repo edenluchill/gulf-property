@@ -23,6 +23,7 @@ import {
 import { ResultRecorder } from './processors/result-recorder';
 import { calculatePdfHashes, shortHash } from '../utils/pdf/pdf-hash';
 import { checkPdfCache } from '../services/r2-storage';
+import { generateAndUploadAllPdfImages, type PdfImageBatch } from './utils/pdf-image-generator';
 
 export interface WorkflowConfig {
   pdfBuffers: Buffer[];
@@ -61,8 +62,8 @@ export async function executePdfWorkflow(
     pdfBuffers, 
     pdfNames, 
     pagesPerChunk = 5,
-    batchSize = 10,
-    batchDelay = 1000,
+    batchSize = 20,  // ⭐ Increased from 10 to 20 for better parallelism
+    batchDelay = 500,  // ⭐ Reduced from 1000ms to 500ms (still safe for API rate limits)
   } = config;
 
   console.log(`\n${'='.repeat(70)}`);
@@ -85,7 +86,8 @@ export async function executePdfWorkflow(
     // Check if we have cached results for any PDFs
     progressEmitter.emit(jobId, {
       stage: 'ingestion',
-      message: '🔍 检查PDF缓存...',
+      code: 'CHECKING_CACHE',
+      message: 'Checking PDF cache...',
       progress: 2,
       timestamp: Date.now(),
     });
@@ -104,24 +106,108 @@ export async function executePdfWorkflow(
     
     const allCached = cacheResults.every(r => r.cached !== null);
     
-    if (allCached) {
-      console.log(`\n🎉 All PDFs found in cache! Skipping processing...`);
-      progressEmitter.emit(jobId, {
-        stage: 'ingestion',
-        message: '✅ 使用缓存数据（秒级返回）',
-        progress: 90,
-        timestamp: Date.now(),
-      });
-      
-      // TODO: Reconstruct buildingData from cached images
-      // For now, we still process but will reuse images
-      console.log(`   ℹ️  Note: Full cache reconstruction not yet implemented`);
-      console.log(`   ℹ️  Will process but reuse cached images`);
-    }
-    
     // Setup output directory
     const outputBaseDir = config.outputBaseDir || join(process.cwd(), 'uploads', 'langgraph-output');
     const outputStructure = createOutputStructure(outputBaseDir, jobId);
+    
+    // ============================================================
+    // STEP 0: Generate and upload ALL PDF images upfront (or reconstruct from cache)
+    // ============================================================
+    let imageBatches: PdfImageBatch[] = [];
+    
+    if (!allCached) {
+      console.log(`\n🖼️  Generating and uploading ALL PDF images upfront...`);
+      progressEmitter.emit(jobId, {
+        stage: 'ingestion',
+        code: 'GENERATING_IMAGES',
+        message: 'Generating all page images in batch...',
+        progress: 3,
+        timestamp: Date.now(),
+      });
+
+      const imageGenResult = await generateAndUploadAllPdfImages({
+        pdfBuffers,
+        pdfNames: pdfNames || pdfBuffers.map((_, i) => `Document ${i + 1}`),
+        pdfHashes: pdfHashes.map(h => h.hash),
+        tempDir: join(outputStructure.jobDir, 'temp_images'),
+        uploadConcurrency: 10,  // 10 concurrent uploads
+      });
+
+      imageBatches = imageGenResult.imageBatches;
+
+      console.log(`\n✅ All images generated and uploaded!`);
+      console.log(`   Total: ${imageGenResult.totalImages} images`);
+      console.log(`   Time: ${(imageGenResult.uploadTime / 1000).toFixed(2)}s`);
+      
+      progressEmitter.emit(jobId, {
+        stage: 'ingestion',
+        code: 'IMAGES_UPLOADED',
+        message: `${imageGenResult.totalImages} images uploaded to cloud storage`,
+        progress: 8,
+        timestamp: Date.now(),
+        data: { totalImages: imageGenResult.totalImages },
+      });
+    } else {
+      console.log(`\n🎉 All PDFs found in cache! Reconstructing image batches from cached URLs...`);
+      
+      // ⭐ Reconstruct imageBatches from cached URLs
+      imageBatches = cacheResults.map((result) => {
+        const cachedUrls = result.cached!;  // We know it's not null because allCached = true
+        
+        // Convert array of URLs to Map<pageNumber, ImageUrls>
+        const imageUrls = new Map<number, any>();
+        
+        // Group URLs by page number and variant
+        const urlsByPage = new Map<number, Partial<any>>();
+        
+        cachedUrls.forEach(url => {
+          // Extract page number from URL pattern: pdf-cache/{hash}/images/page_{pageNum}_{variant}.jpg
+          // or: pdf-cache/{hash}/images/page_{pageNum}.jpg (original)
+          const match = url.match(/page[._](\d+)(?:[._](large|medium|thumbnail))?\.jpg/);
+          if (match) {
+            const pageNum = parseInt(match[1]);
+            const variant = match[2] || 'original';
+            
+            if (!urlsByPage.has(pageNum)) {
+              urlsByPage.set(pageNum, {});
+            }
+            
+            urlsByPage.get(pageNum)![variant] = url;
+          }
+        });
+        
+        // Convert to final format
+        urlsByPage.forEach((variants, pageNum) => {
+          imageUrls.set(pageNum, {
+            original: variants.original || '',
+            large: variants.large || '',
+            medium: variants.medium || '',
+            thumbnail: variants.thumbnail || '',
+          });
+        });
+        
+        const batch: PdfImageBatch = {
+          pdfHash: result.hash,
+          pdfName: result.name,
+          totalPages: imageUrls.size,
+          imageUrls,
+        };
+        
+        console.log(`   ✅ Reconstructed ${imageUrls.size} images for "${result.name}"`);
+        return batch;
+      });
+      
+      const totalCachedImages = imageBatches.reduce((sum, batch) => sum + batch.totalPages, 0);
+      
+      progressEmitter.emit(jobId, {
+        stage: 'ingestion',
+        code: 'USING_CACHE',
+        message: `Using ${totalCachedImages} cached images (instant response)`,
+        progress: 8,
+        timestamp: Date.now(),
+        data: { totalImages: totalCachedImages },
+      });
+    }
 
     // Initialize result recorder for detailed analysis
     const resultRecorder = new ResultRecorder(
@@ -141,23 +227,28 @@ export async function executePdfWorkflow(
     // ============================================================
     progressEmitter.emit(jobId, {
       stage: 'ingestion',
-      message: `📦 正在将所有文档切分成 ${pagesPerChunk} 页小块...`,
-      progress: 5,
+      code: 'SPLITTING_CHUNKS',
+      message: `Splitting documents into ${pagesPerChunk}-page chunks...`,
+      progress: 9,
       timestamp: Date.now(),
+      data: { pagesPerChunk },
     });
 
     const { chunks, totalChunks, totalPages } = await splitAllPdfsIntoChunks({
       pdfBuffers,
       pdfNames,
-      pdfHashes: pdfHashes.map(h => h.hash),  // ⭐ Pass PDF hashes for caching
+      pdfHashes: pdfHashes.map(h => h.hash),
+      imageBatches,  // ⭐ NEW: Pass pre-generated image URLs
       pagesPerChunk,
     });
 
     progressEmitter.emit(jobId, {
       stage: 'ingestion',
-      message: `✅ 已切分成 ${totalChunks} 个小块，开始批量处理...`,
+      code: 'CHUNKS_READY',
+      message: `Split into ${totalChunks} chunks, starting AI analysis...`,
       progress: 10,
       timestamp: Date.now(),
+      data: { totalChunks },
     });
 
     // ============================================================
@@ -207,7 +298,8 @@ export async function executePdfWorkflow(
 
     progressEmitter.emit(jobId, {
       stage: 'reducing',
-      message: '✅ 智能分配完成',
+      code: 'ASSIGNMENT_COMPLETE',
+      message: 'Smart assignment complete',
       progress: 95,
       timestamp: Date.now(),
     });
