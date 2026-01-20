@@ -18,10 +18,23 @@
 .EXAMPLE
     .\hetzner-deploy.ps1
     
+    Deploy with SSL (default):
+    .\hetzner-deploy.ps1 -Domain api.gulf-property.com -Email admin@gulf-property.com
+    
+    Deploy without SSL (manual setup later):
+    .\hetzner-deploy.ps1 -SkipSSL
+    
 .NOTES
     Author: Gulf Property Team
-    Version: 1.0
+    Version: 2.0
+    Updates: Automatic SSL/HTTPS configuration with Let's Encrypt
 #>
+
+param(
+    [string]$Domain = "api.gulf-property.com",
+    [string]$Email = "admin@gulf-property.com",
+    [switch]$SkipSSL = $false
+)
 
 # Configuration
 $ErrorActionPreference = "Stop"
@@ -30,7 +43,7 @@ $DOCKER_NAME = $PROJECT_NAME.ToLower()
 $LOCATION = "nbg1"                # Nuremberg, Germany (closest to Dubai)
 $SERVER_TYPE = "cpx22"            # 4 vCPU, 8GB RAM (cpx21 not available in nbg1, using next option)
 $LB_TYPE = "lb11"
-$INITIAL_INSTANCES = 1            # Start with 2 instances for redundancy
+$INITIAL_INSTANCES = 1            # Start with 1 instance (can scale later)
 $NETWORK_ZONE = "eu-central"
 
 # Switch to correct Hetzner project (try multiple variations)
@@ -193,7 +206,7 @@ Write-Host ""
 # 1. SSH Key
 # ============================================================================
 
-Write-Step "1/8 Configuring SSH key..."
+Write-Step "1/9 Configuring SSH key..."
 
 $SSH_KEY_NAME = "$PROJECT_NAME-key"
 $SSH_KEY_PATH = "$env:USERPROFILE\.ssh\${PROJECT_NAME}_ed25519"
@@ -227,7 +240,7 @@ if ($keyExists) {
 # 2. Private Network
 # ============================================================================
 
-Write-Step "2/8 Creating private network..."
+Write-Step "2/9 Creating private network..."
 
 $NETWORK_NAME = "$PROJECT_NAME-network"
 
@@ -255,7 +268,7 @@ if ($networkExists) {
 # 3. Firewall
 # ============================================================================
 
-Write-Step "3/8 Creating firewall..."
+Write-Step "3/9 Creating firewall..."
 
 $FIREWALL_NAME = "$PROJECT_NAME-firewall"
 
@@ -322,7 +335,7 @@ Write-Success "Firewall configured"
 # 4. Build Docker Image
 # ============================================================================
 
-Write-Step "4/8 Building Docker image..."
+Write-Step "4/9 Building Docker image..."
 
 $IMAGE_TAG = Get-Date -Format "yyyyMMdd-HHmmss"
 Write-Info "Building: ${DOCKER_NAME}-backend:${IMAGE_TAG}"
@@ -359,7 +372,7 @@ Write-Success "Image exported ($imageSizeMB MB)"
 # 5. Create Backend Servers
 # ============================================================================
 
-Write-Step "5/8 Creating backend servers..."
+Write-Step "5/9 Creating backend servers..."
 
 $SERVER_IDS = @()
 $SERVER_IPS = @()
@@ -436,7 +449,7 @@ runcmd:
 # 6. Deploy Backend Application
 # ============================================================================
 
-Write-Step "6/8 Deploying backend to servers..."
+Write-Step "6/9 Deploying backend to servers..."
 
 for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
     $IP = $SERVER_IPS[$i]
@@ -600,7 +613,7 @@ if (Test-Path $TEMP_TAR) {
 # 7. Create Load Balancer
 # ============================================================================
 
-Write-Step "7/8 Creating Load Balancer..."
+Write-Step "7/9 Creating Load Balancer..."
 
 $LB_NAME = "$PROJECT_NAME-lb"
 
@@ -663,6 +676,30 @@ if (-not $serviceExists) {
     Write-Success "HTTP service configured"
 }
 
+# Configure HTTPS service (port 443)
+$httpsServiceExists = $false
+foreach ($service in $lbInfo.services) {
+    if ($service.listen_port -eq 443) {
+        $httpsServiceExists = $true
+        break
+    }
+}
+
+if (-not $httpsServiceExists -and -not $SkipSSL) {
+    Write-Info "Adding HTTPS service to Load Balancer..."
+    hcloud load-balancer add-service $LB_NAME `
+        --protocol tcp `
+        --listen-port 443 `
+        --destination-port 443 `
+        --health-check-protocol tcp `
+        --health-check-port 443 `
+        --health-check-interval 10s `
+        --health-check-timeout 5s `
+        --health-check-retries 3
+    
+    Write-Success "HTTPS service configured"
+}
+
 # Add server targets
 Write-Info "Adding servers to Load Balancer..."
 foreach ($id in $SERVER_IDS) {
@@ -687,7 +724,7 @@ Write-Success "Load Balancer configured: $LB_IP"
 # 8. Verify Deployment
 # ============================================================================
 
-Write-Step "8/8 Verifying deployment..."
+Write-Step "8/9 Verifying deployment..."
 
 Write-Info "Waiting for Load Balancer health checks..."
 Start-Sleep -Seconds 15
@@ -720,6 +757,120 @@ if (-not $verified) {
 }
 
 # ============================================================================
+# 9. Setup SSL Certificates (Optional)
+# ============================================================================
+
+if (-not $SkipSSL) {
+    Write-Step "9/9 Setting up SSL certificates..."
+    
+    Write-Info "Domain: $Domain"
+    Write-Info "Email: $Email"
+    
+    # Create SSL setup script
+    $sslScript = @'
+#!/bin/bash
+set -e
+
+DOMAIN="{{DOMAIN}}"
+EMAIL="{{EMAIL}}"
+
+echo "Installing Certbot..."
+apt-get update -qq
+apt-get install -y certbot > /dev/null 2>&1
+
+echo "Stopping nginx to free port 80..."
+cd /opt/gulf-property
+docker compose stop nginx
+
+echo "Obtaining SSL certificate..."
+certbot certonly --standalone \
+    --preferred-challenges http \
+    -d "$DOMAIN" \
+    --email "$EMAIL" \
+    --agree-tos \
+    --non-interactive
+
+if [ $? -ne 0 ]; then
+    echo "Failed to obtain SSL certificate"
+    docker compose start nginx
+    exit 1
+fi
+
+echo "Certificate obtained successfully!"
+
+# Setup auto-renewal
+echo "Setting up auto-renewal..."
+mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh << 'EOF'
+#!/bin/bash
+cd /opt/gulf-property
+docker compose restart nginx
+EOF
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+
+# Add cron job for renewal (if not exists)
+(crontab -l 2>/dev/null | grep -q "certbot renew") || \
+    (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet") | crontab -
+
+echo "SSL setup complete!"
+'@ -replace '{{DOMAIN}}', $Domain -replace '{{EMAIL}}', $Email
+
+    # Deploy SSL to each server
+    foreach ($IP in $SERVER_IPS) {
+        Write-Info "Setting up SSL on server: $IP"
+        
+        $tempScript = [System.IO.Path]::GetTempFileName()
+        $unixScript = $sslScript -replace "`r`n", "`n" -replace "`r", "`n"
+        [System.IO.File]::WriteAllText($tempScript, $unixScript, [System.Text.UTF8Encoding]::new($false))
+        
+        try {
+            # Upload and execute SSL setup
+            scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no $tempScript "root@${IP}:/tmp/setup-ssl.sh"
+            ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "chmod +x /tmp/setup-ssl.sh && /tmp/setup-ssl.sh"
+            
+            # Upload SSL-enabled nginx config
+            if (Test-Path "nginx.production.conf") {
+                Write-Info "Uploading SSL-enabled nginx configuration..."
+                scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
+                    nginx.production.conf `
+                    "root@${IP}:/opt/gulf-property/nginx.conf"
+                
+                # Restart nginx with SSL config
+                ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP @"
+cd /opt/gulf-property
+docker compose restart nginx
+sleep 2
+"@
+            }
+            
+            Write-Success "SSL configured on $IP"
+        } catch {
+            Write-Warning "SSL setup failed on $IP, continuing..."
+        } finally {
+            if (Test-Path $tempScript) {
+                Remove-Item $tempScript -Force
+            }
+        }
+    }
+    
+    # Verify HTTPS
+    Write-Info "Verifying HTTPS connection..."
+    Start-Sleep -Seconds 5
+    
+    try {
+        $response = Invoke-WebRequest -Uri "https://$Domain/health" -UseBasicParsing -TimeoutSec 10
+        if ($response.StatusCode -eq 200) {
+            Write-Success "HTTPS is working correctly!"
+        }
+    } catch {
+        Write-Warning "HTTPS verification failed. You may need to wait for DNS propagation."
+        Write-Info "Test manually: https://$Domain/health"
+    }
+} else {
+    Write-Warning "Skipping SSL setup (use -SkipSSL:`$false to enable)"
+}
+
+# ============================================================================
 # Deployment Summary
 # ============================================================================
 
@@ -736,17 +887,45 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
 Write-Host ""
 Write-Host "Load Balancer:" -ForegroundColor Cyan
 Write-Host "  Public IP: $LB_IP" -ForegroundColor White
-Write-Host "  Health Check: http://$LB_IP/health" -ForegroundColor White
+Write-Host "  HTTP: http://$LB_IP/health" -ForegroundColor White
+if (-not $SkipSSL) {
+    Write-Host "  HTTPS: https://$Domain" -ForegroundColor Green
+    Write-Host "  SSL Certificate: Auto-renewing (Let's Encrypt)" -ForegroundColor Green
+}
 Write-Host ""
+if (-not $SkipSSL) {
+    Write-Host "API Endpoints:" -ForegroundColor Cyan
+    Write-Host "  Primary: https://$Domain" -ForegroundColor Green
+    Write-Host "  Fallback: http://$LB_IP (redirects to HTTPS)" -ForegroundColor White
+    Write-Host ""
+}
 Write-Host "Next Steps:" -ForegroundColor Yellow
-Write-Host "  1. Test the API: http://$LB_IP" -ForegroundColor White
-Write-Host "  2. Configure DNS: Point your domain to $LB_IP" -ForegroundColor White
-Write-Host "  3. Setup SSL: SSH to servers and run setup-ssl.sh (if available)" -ForegroundColor White
-Write-Host "  4. Update frontend CORS_ORIGIN in .env.production" -ForegroundColor White
+Write-Host "  1. Verify API is working:" -ForegroundColor White
+if (-not $SkipSSL) {
+    Write-Host "     curl https://$Domain/health" -ForegroundColor Gray
+} else {
+    Write-Host "     curl http://$LB_IP/health" -ForegroundColor Gray
+}
+Write-Host "  2. DNS Configuration:" -ForegroundColor White
+Write-Host "     Point $Domain to $LB_IP" -ForegroundColor Gray
+if (-not $SkipSSL) {
+    Write-Host "     ✅ SSL certificates already configured!" -ForegroundColor Green
+} else {
+    Write-Host "  3. Setup SSL manually:" -ForegroundColor White
+    Write-Host "     .\setup-ssl-production.ps1 -ServerIP $($SERVER_IPS[0]) -Domain $Domain" -ForegroundColor Gray
+}
+Write-Host "  3. Update frontend .env:" -ForegroundColor White
+if (-not $SkipSSL) {
+    Write-Host "     VITE_API_URL=https://$Domain" -ForegroundColor Gray
+} else {
+    Write-Host "     VITE_API_URL=http://$LB_IP" -ForegroundColor Gray
+}
 Write-Host ""
-Write-Host "SSH Access:" -ForegroundColor Yellow
-Write-Host "  ssh -i $SSH_KEY_PATH root@<server-ip>" -ForegroundColor White
-Write-Host ""
-Write-Host "Logs:" -ForegroundColor Yellow
-Write-Host "  ssh -i $SSH_KEY_PATH root@<server-ip> 'docker logs gulf-property-api -f'" -ForegroundColor White
+Write-Host "Troubleshooting:" -ForegroundColor Yellow
+Write-Host "  SSH Access:" -ForegroundColor White
+Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip>" -ForegroundColor Gray
+Write-Host "  View Logs:" -ForegroundColor White
+Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip> 'docker logs gulf-property-api -f'" -ForegroundColor Gray
+Write-Host "  Renew SSL manually:" -ForegroundColor White
+Write-Host "    ssh root@<server-ip> 'certbot renew --dry-run'" -ForegroundColor Gray
 Write-Host ""

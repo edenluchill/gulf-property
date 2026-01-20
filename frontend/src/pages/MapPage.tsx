@@ -16,7 +16,6 @@ import {
   fetchDubaiAreas, 
   fetchDubaiLandmarks 
 } from '../lib/api'
-import { useDebounce } from '../hooks/useDebounce'
 
 export default function MapPage() {
   const [filters, setFilters] = useState<PropertyFilters>({})
@@ -40,10 +39,7 @@ export default function MapPage() {
   const [selectedClusterProperties, setSelectedClusterProperties] = useState<any[]>([])
   const [clusterDialogPosition, setClusterDialogPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
   const [isLoadingClusterProperties, setIsLoadingClusterProperties] = useState(false)
-
-  // Debounce filters and bounds to reduce API calls
-  const debouncedFilters = useDebounce(filters, 300)
-  const debouncedMapBounds = useDebounce(mapBounds, 500) // Longer delay for map movement to reduce frequent updates
+  const [isLoadingClusters, setIsLoadingClusters] = useState(false)
 
   // Load initial metadata (only once, with caching)
   useEffect(() => {
@@ -133,56 +129,87 @@ export default function MapPage() {
     }
   }, [])
 
-  // Load clusters based on debounced filters AND map bounds (NEW RESIDENTIAL API)
+  // Load clusters with manual debounce (NEW RESIDENTIAL API)
+  // Single timer resets on ANY change (filter/bounds/zoom)
   useEffect(() => {
     // Only load if we have bounds (after map initializes)
-    if (!debouncedMapBounds) return
+    if (!mapBounds) return
     
-    const loadClusters = async () => {
-      // Convert bounds to MapBounds type
-      const bounds = {
-        minLng: debouncedMapBounds.minLng,
-        minLat: debouncedMapBounds.minLat,
-        maxLng: debouncedMapBounds.maxLng,
-        maxLat: debouncedMapBounds.maxLat,
+    console.log('🔄 Debounce timer starting... (1500ms)')
+    
+    // Set up debounce timer - ANY change resets this timer
+    const timeoutId = setTimeout(() => {
+      // Skip if already loading
+      if (isLoadingClusters) {
+        console.log('⏭️ Skipping - already loading clusters')
+        return
       }
+      
+      const loadClusters = async () => {
+        setIsLoadingClusters(true)
+        try {
+          console.log('🚀 Timer expired - Fetching clusters...')
+          
+          // Convert bounds to MapBounds type
+          const bounds = {
+            minLng: mapBounds.minLng,
+            minLat: mapBounds.minLat,
+            maxLng: mapBounds.maxLng,
+            maxLat: mapBounds.maxLat,
+          }
 
-      const data = await fetchResidentialProjectClusters(mapZoom, bounds, {
-        developer: debouncedFilters.developer,
-        project: debouncedFilters.project,
-        area: debouncedFilters.area,
-        minPrice: debouncedFilters.minPrice,
-        maxPrice: debouncedFilters.maxPrice,
-        minBedrooms: debouncedFilters.minBedrooms,
-        maxBedrooms: debouncedFilters.maxBedrooms,
-        minSize: debouncedFilters.minSize,
-        maxSize: debouncedFilters.maxSize,
-        status: debouncedFilters.status,
-      })
-      
-      console.log('Fetched residential project clusters:', data.length, 'clusters')
-      
-      // Transform backend data format to match MapViewClustered expectations
-      const transformedClusters = data.map((cluster: any) => ({
-        ...cluster,
-        count: parseInt(cluster.count), // Convert string to number
-        price_range: {
-          min: cluster.min_price,
-          max: cluster.max_price,
-          avg: cluster.avg_price
-        },
-        center: {
-          lat: cluster.lat,
-          lng: cluster.lng
+          const data = await fetchResidentialProjectClusters(
+            mapZoom, 
+            bounds, 
+            {
+              developer: filters.developer,
+              project: filters.project,
+              area: filters.area,
+              minPrice: filters.minPrice,
+              maxPrice: filters.maxPrice,
+              minBedrooms: filters.minBedrooms,
+              maxBedrooms: filters.maxBedrooms,
+              minSize: filters.minSize,
+              maxSize: filters.maxSize,
+              status: filters.status,
+            }
+          )
+          
+          console.log('✅ Fetched residential project clusters:', data.length, 'clusters')
+          
+          // Transform backend data format to match MapViewClustered expectations
+          const transformedClusters = data.map((cluster: any) => ({
+            ...cluster,
+            count: parseInt(cluster.count), // Convert string to number
+            price_range: {
+              min: cluster.min_price,
+              max: cluster.max_price,
+              avg: cluster.avg_price
+            },
+            center: {
+              lat: cluster.lat,
+              lng: cluster.lng
+            }
+          }))
+          
+          setClusters(transformedClusters)
+          setLastUpdated(new Date())
+        } catch (error: any) {
+          console.error('❌ Error fetching clusters:', error)
+        } finally {
+          setIsLoadingClusters(false)
         }
-      }))
+      }
       
-      setClusters(transformedClusters)
-      setLastUpdated(new Date())
-    }
+      loadClusters()
+    }, 1500) // 1500ms debounce - longer delay to prevent too many requests
     
-    loadClusters()
-  }, [debouncedFilters, debouncedMapBounds, mapZoom])
+    // Cleanup: clear timeout if any dependency changes
+    return () => {
+      console.log('🚫 Debounce timer cancelled (params changed)')
+      clearTimeout(timeoutId)
+    }
+  }, [filters, mapBounds, mapZoom]) // Don't include isLoadingClusters - it would cause infinite loop!
 
   // Handle map bounds and zoom change (memoized to prevent unnecessary re-renders)
   const handleMapBoundsChange = useCallback((bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => {

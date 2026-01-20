@@ -9,11 +9,10 @@ import {
   fetchDubaiAreas,
   fetchDubaiLandmarks,
   createDubaiArea,
-  updateDubaiArea,
   deleteDubaiArea,
   createDubaiLandmark,
-  updateDubaiLandmark,
   deleteDubaiLandmark,
+  batchUpdateDubai,
 } from '../lib/api'
 import L from 'leaflet'
 import '@geoman-io/leaflet-geoman-free'
@@ -511,6 +510,50 @@ export default function UnifiedDubaiEditor() {
     }
   }, [selectedItem])
 
+  // Sync formData changes to areas/landmarks state (for real-time updates)
+  const handleFormDataChange = (updates: any) => {
+    const newFormData = { ...formData, ...updates }
+    setFormData(newFormData)
+
+    if (!selectedItem) return
+
+    if (selectedItem.type === 'area') {
+      const updatedAreas = areas.map((a) => 
+        a.id === selectedItem.item.id ? { ...a, ...updates } : a
+      )
+      setAreas(updatedAreas)
+      setSelectedItem({ type: 'area', item: { ...selectedItem.item, ...updates } })
+      
+      // Mark as modified if not a temp item
+      if (!selectedItem.item.id.startsWith('temp-')) {
+        const hasChanges = Object.keys(updates).some(key => {
+          const original = originalAreas.find(a => a.id === selectedItem.item.id)
+          return original && JSON.stringify(original[key as keyof DubaiArea]) !== JSON.stringify(updates[key])
+        })
+        if (hasChanges) {
+          setModifiedAreaIds(new Set(modifiedAreaIds).add(selectedItem.item.id))
+        }
+      }
+    } else if (selectedItem.type === 'landmark') {
+      const updatedLandmarks = landmarks.map((l) => 
+        l.id === selectedItem.item.id ? { ...l, ...updates } : l
+      )
+      setLandmarks(updatedLandmarks)
+      setSelectedItem({ type: 'landmark', item: { ...selectedItem.item, ...updates } })
+      
+      // Mark as modified if not a temp item
+      if (!selectedItem.item.id.startsWith('temp-')) {
+        const hasChanges = Object.keys(updates).some(key => {
+          const original = originalLandmarks.find(l => l.id === selectedItem.item.id)
+          return original && JSON.stringify(original[key as keyof DubaiLandmark]) !== JSON.stringify(updates[key])
+        })
+        if (hasChanges) {
+          setModifiedLandmarkIds(new Set(modifiedLandmarkIds).add(selectedItem.item.id))
+        }
+      }
+    }
+  }
+
   const loadData = async () => {
     const [areasData, landmarksData] = await Promise.all([
       fetchDubaiAreas(),
@@ -609,62 +652,12 @@ export default function UnifiedDubaiEditor() {
     }
   }
 
-  const handleSave = async () => {
-    if (!selectedItem) return
-
-    setIsSaving(true)
-    try {
-      if (selectedItem.type === 'area') {
-        const area = selectedItem.item
-        if (area.id.startsWith('temp-')) {
-          const created = await createDubaiArea(formData)
-          if (created) {
-            setAreas(areas.map((a) => (a.id === area.id ? created : a)))
-            setSelectedItem({ type: 'area', item: created })
-          }
-        } else {
-          const updated = await updateDubaiArea(area.id, formData)
-          if (updated) {
-            setAreas(areas.map((a) => (a.id === area.id ? updated : a)))
-            setSelectedItem({ type: 'area', item: updated })
-            // Remove from modified set
-            const newModified = new Set(modifiedAreaIds)
-            newModified.delete(area.id)
-            setModifiedAreaIds(newModified)
-          }
-        }
-        localStorage.removeItem('gulf_dubai_areas')
-      } else {
-        const landmark = selectedItem.item
-        if (landmark.id.startsWith('temp-')) {
-          const created = await createDubaiLandmark(formData)
-          if (created) {
-            setLandmarks(landmarks.map((l) => (l.id === landmark.id ? created : l)))
-            setSelectedItem({ type: 'landmark', item: created })
-          }
-        } else {
-          const updated = await updateDubaiLandmark(landmark.id, formData)
-          if (updated) {
-            setLandmarks(landmarks.map((l) => (l.id === landmark.id ? updated : l)))
-            setSelectedItem({ type: 'landmark', item: updated })
-            // Remove from modified set
-            const newModified = new Set(modifiedLandmarkIds)
-            newModified.delete(landmark.id)
-            setModifiedLandmarkIds(newModified)
-          }
-        }
-        localStorage.removeItem('gulf_dubai_landmarks')
-      }
-    } catch (error) {
-      console.error('Save error:', error)
-      alert('Failed to save')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   const handleSaveAll = async () => {
-    const totalChanges = modifiedAreaIds.size + modifiedLandmarkIds.size
+    // Include temp items (new items) in the count
+    const tempAreas = areas.filter(a => a.id.startsWith('temp-'))
+    const tempLandmarks = landmarks.filter(l => l.id.startsWith('temp-'))
+    const totalChanges = modifiedAreaIds.size + modifiedLandmarkIds.size + tempAreas.length + tempLandmarks.length
+    
     if (totalChanges === 0) {
       alert('No changes to save')
       return
@@ -674,33 +667,77 @@ export default function UnifiedDubaiEditor() {
 
     setIsSaving(true)
     try {
-      // Prepare modified areas
+      // Prepare modified areas (existing items that were changed)
       const modifiedAreas = areas.filter(a => modifiedAreaIds.has(a.id))
       
-      // Prepare modified landmarks
+      // Prepare modified landmarks (existing items that were changed)
       const modifiedLandmarks = landmarks.filter(l => modifiedLandmarkIds.has(l.id))
 
-      // Batch update API call
-      const response = await fetch('/api/dubai/batch-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Prepare new areas (temp items)
+      const newAreas = areas.filter(a => a.id.startsWith('temp-'))
+      
+      // Prepare new landmarks (temp items)
+      const newLandmarks = landmarks.filter(l => l.id.startsWith('temp-'))
+
+      // Create new items first
+      const createdAreas: DubaiArea[] = []
+      for (const area of newAreas) {
+        const created = await createDubaiArea(area)
+        if (created) createdAreas.push(created)
+      }
+
+      const createdLandmarks: DubaiLandmark[] = []
+      for (const landmark of newLandmarks) {
+        const created = await createDubaiLandmark(landmark)
+        if (created) createdLandmarks.push(created)
+      }
+
+      // Batch update existing modified items
+      if (modifiedAreas.length > 0 || modifiedLandmarks.length > 0) {
+        await batchUpdateDubai({
           areas: modifiedAreas,
           landmarks: modifiedLandmarks,
-        }),
+        })
+      }
+
+      // Update state: replace temp items with created ones, keep modified items
+      const updatedAreas = areas.map(a => {
+        if (a.id.startsWith('temp-')) {
+          const created = createdAreas.find(c => c.name === a.name)
+          return created || a
+        }
+        return a
       })
 
-      if (!response.ok) throw new Error('Batch update failed')
+      const updatedLandmarks = landmarks.map(l => {
+        if (l.id.startsWith('temp-')) {
+          const created = createdLandmarks.find(c => c.name === l.name)
+          return created || l
+        }
+        return l
+      })
 
-      await response.json()
+      setAreas(updatedAreas)
+      setLandmarks(updatedLandmarks)
       
       // Clear modified sets
       setModifiedAreaIds(new Set())
       setModifiedLandmarkIds(new Set())
       
       // Update original baseline to current state
-      setOriginalAreas(JSON.parse(JSON.stringify(areas)))
-      setOriginalLandmarks(JSON.parse(JSON.stringify(landmarks)))
+      setOriginalAreas(JSON.parse(JSON.stringify(updatedAreas)))
+      setOriginalLandmarks(JSON.parse(JSON.stringify(updatedLandmarks)))
+      
+      // Update selected item if it was a temp item
+      if (selectedItem) {
+        if (selectedItem.type === 'area' && selectedItem.item.id.startsWith('temp-')) {
+          const created = createdAreas.find(c => c.name === selectedItem.item.name)
+          if (created) setSelectedItem({ type: 'area', item: created })
+        } else if (selectedItem.type === 'landmark' && selectedItem.item.id.startsWith('temp-')) {
+          const created = createdLandmarks.find(c => c.name === selectedItem.item.name)
+          if (created) setSelectedItem({ type: 'landmark', item: created })
+        }
+      }
       
       // Clear cache
       localStorage.removeItem('gulf_dubai_areas')
@@ -769,7 +806,7 @@ export default function UnifiedDubaiEditor() {
       if (!response.ok) throw new Error('Upload failed')
 
       const { url } = await response.json()
-      setFormData({ ...formData, imageUrl: url })
+      handleFormDataChange({ imageUrl: url })
     } catch (error) {
       console.error('Upload error:', error)
       alert('Failed to upload image')
@@ -807,7 +844,7 @@ export default function UnifiedDubaiEditor() {
         </div>
 
         {/* Save All Button */}
-        {(modifiedAreaIds.size + modifiedLandmarkIds.size) > 0 && (
+        {(modifiedAreaIds.size + modifiedLandmarkIds.size + areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length) > 0 && (
           <Button
             onClick={handleSaveAll}
             disabled={isSaving}
@@ -815,7 +852,7 @@ export default function UnifiedDubaiEditor() {
             className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
           >
             <Save className="w-5 h-5 mr-2" />
-            {isSaving ? 'Saving...' : `Save All (${modifiedAreaIds.size + modifiedLandmarkIds.size})`}
+            {isSaving ? 'Saving...' : `Save All (${modifiedAreaIds.size + modifiedLandmarkIds.size + areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length})`}
           </Button>
         )}
       </div>
@@ -827,16 +864,20 @@ export default function UnifiedDubaiEditor() {
           <h2 className="font-bold text-lg mb-3">Dubai Map Editor</h2>
           
           {/* Draft indicator */}
-          {(modifiedAreaIds.size + modifiedLandmarkIds.size) > 0 && (
-            <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
-              <p className="font-semibold text-orange-900">
-                📝 {modifiedAreaIds.size + modifiedLandmarkIds.size} unsaved change(s)
-              </p>
-              <p className="text-orange-700 mt-1">
-                Click "Save All" to save your changes
-              </p>
-            </div>
-          )}
+          {(() => {
+            const tempCount = areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length
+            const totalChanges = modifiedAreaIds.size + modifiedLandmarkIds.size + tempCount
+            return totalChanges > 0 && (
+              <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+                <p className="font-semibold text-orange-900">
+                  📝 {totalChanges} unsaved change(s)
+                </p>
+                <p className="text-orange-700 mt-1">
+                  Click "Save All" to save your changes
+                </p>
+              </div>
+            )
+          })()}
           
           {/* Pro Tips */}
           <div className="p-2 bg-blue-50 rounded text-xs text-slate-700 space-y-1">
@@ -1056,7 +1097,7 @@ export default function UnifiedDubaiEditor() {
               <Label>Name *</Label>
               <Input
                 value={formData.name || ''}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => handleFormDataChange({ name: e.target.value })}
               />
             </div>
 
@@ -1080,7 +1121,7 @@ export default function UnifiedDubaiEditor() {
                           variant="destructive"
                           size="sm"
                           className="absolute top-2 right-2"
-                          onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                          onClick={() => handleFormDataChange({ imageUrl: '' })}
                         >
                           <X className="w-3 h-3" />
                         </Button>
@@ -1110,7 +1151,7 @@ export default function UnifiedDubaiEditor() {
                       type="url"
                       placeholder="Or paste image URL"
                       value={formData.imageUrl || ''}
-                      onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                      onChange={(e) => handleFormDataChange({ imageUrl: e.target.value })}
                     />
                   </div>
                 </div>
@@ -1120,7 +1161,7 @@ export default function UnifiedDubaiEditor() {
                   <select
                     className="w-full border rounded px-3 py-2"
                     value={formData.landmarkType || ''}
-                    onChange={(e) => setFormData({ ...formData, landmarkType: e.target.value })}
+                    onChange={(e) => handleFormDataChange({ landmarkType: e.target.value })}
                   >
                     <option value="tower">Tower</option>
                     <option value="mall">Mall</option>
@@ -1138,7 +1179,7 @@ export default function UnifiedDubaiEditor() {
                   <select
                     className="w-full border rounded px-3 py-2"
                     value={formData.size || 'medium'}
-                    onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+                    onChange={(e) => handleFormDataChange({ size: e.target.value })}
                   >
                     <option value="small">Small</option>
                     <option value="medium">Medium</option>
@@ -1158,7 +1199,7 @@ export default function UnifiedDubaiEditor() {
                     max="1"
                     step="0.05"
                     value={formData.opacity || 0.3}
-                    onChange={(e) => setFormData({ ...formData, opacity: parseFloat(e.target.value) })}
+                    onChange={(e) => handleFormDataChange({ opacity: parseFloat(e.target.value) })}
                     className="w-full"
                   />
                 </div>
@@ -1173,7 +1214,7 @@ export default function UnifiedDubaiEditor() {
                       type="number"
                       placeholder="e.g. 14"
                       value={formData.projectCounts || ''}
-                      onChange={(e) => setFormData({ ...formData, projectCounts: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => handleFormDataChange({ projectCounts: parseInt(e.target.value) || 0 })}
                     />
                   </div>
 
@@ -1183,7 +1224,7 @@ export default function UnifiedDubaiEditor() {
                       type="number"
                       placeholder="e.g. 850000"
                       value={formData.averagePrice || ''}
-                      onChange={(e) => setFormData({ ...formData, averagePrice: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => handleFormDataChange({ averagePrice: parseInt(e.target.value) || 0 })}
                     />
                   </div>
 
@@ -1194,7 +1235,7 @@ export default function UnifiedDubaiEditor() {
                       step="0.1"
                       placeholder="e.g. 11.2"
                       value={formData.capitalAppreciation || ''}
-                      onChange={(e) => setFormData({ ...formData, capitalAppreciation: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => handleFormDataChange({ capitalAppreciation: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
 
@@ -1205,7 +1246,7 @@ export default function UnifiedDubaiEditor() {
                       step="0.1"
                       placeholder="e.g. 7.8"
                       value={formData.rentalYield || ''}
-                      onChange={(e) => setFormData({ ...formData, rentalYield: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => handleFormDataChange({ rentalYield: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
 
@@ -1215,7 +1256,7 @@ export default function UnifiedDubaiEditor() {
                       type="number"
                       placeholder="e.g. 250"
                       value={formData.salesVolume || ''}
-                      onChange={(e) => setFormData({ ...formData, salesVolume: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => handleFormDataChange({ salesVolume: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                 </div>
@@ -1228,7 +1269,7 @@ export default function UnifiedDubaiEditor() {
                 className="w-full border rounded px-3 py-2"
                 rows={3}
                 value={formData.description || ''}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => handleFormDataChange({ description: e.target.value })}
               />
             </div>
 
@@ -1238,22 +1279,21 @@ export default function UnifiedDubaiEditor() {
                 <input
                   type="color"
                   value={formData.color || '#3B82F6'}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  onChange={(e) => handleFormDataChange({ color: e.target.value })}
                   className="w-12 h-10 rounded cursor-pointer"
                 />
                 <Input
                   value={formData.color || ''}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  onChange={(e) => handleFormDataChange({ color: e.target.value })}
                 />
               </div>
             </div>
           </div>
 
           <div className="p-4 border-t bg-slate-50 flex gap-2">
-            <Button onClick={handleSave} disabled={isSaving} className="flex-1">
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? 'Saving...' : 'Save'}
-            </Button>
+            <div className="flex-1 text-sm text-slate-600 flex items-center">
+              <span>💡 Changes auto-tracked. Click "Save All" to save.</span>
+            </div>
             <Button variant="destructive" onClick={handleDelete}>
               <Trash2 className="w-4 h-4" />
             </Button>

@@ -2,7 +2,6 @@ import express, { Application, Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
-import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
 import projectsRouter from './routes/projects'
 import propertiesRouter from './routes/properties'
@@ -51,15 +50,8 @@ app.use(morgan('dev'))
 app.use(express.json({ limit: '500mb' }))
 app.use(express.urlencoded({ extended: true, limit: '500mb' }))
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-})
-app.use('/api/', limiter)
+// Rate limiting disabled - No restrictions
+console.log('⚠️  Rate limiting disabled for all environments')
 
 // Health check
 app.get('/health', async (_req: Request, res: Response) => {

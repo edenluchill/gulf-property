@@ -11,14 +11,15 @@
 param(
     [string]$ServerIP = "",
     [string]$Domain = "api.gulf-property.com",
-    [string]$Email = ""
+    [string]$Email = "",
+    [switch]$SkipConfirm = $false
 )
 
 $ErrorActionPreference = "Stop"
 
 # Configuration
 $PROJECT_NAME = "GulfProperty"
-$SSH_KEY_PATH = "$env:USERPROFILE\.ssh\hetzner-$PROJECT_NAME"
+$SSH_KEY_PATH = "$env:USERPROFILE\.ssh\GulfProperty_ed25519"
 
 # Colors for output
 function Write-Info { Write-Host "[INFO] $args" -ForegroundColor Cyan }
@@ -62,10 +63,12 @@ Write-Host "  Domain: $Domain"
 Write-Host "  Email: $Email"
 Write-Host ""
 
-$confirm = Read-Host "Continue? (yes/no)"
-if ($confirm -ne "yes") {
-    Write-Host "Cancelled"
-    exit 0
+if (-not $SkipConfirm) {
+    $confirm = Read-Host "Continue? (yes/no)"
+    if ($confirm -ne "yes") {
+        Write-Host "Cancelled"
+        exit 0
+    }
 }
 
 # Create SSL setup script

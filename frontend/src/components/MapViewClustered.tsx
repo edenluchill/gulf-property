@@ -155,6 +155,54 @@ function MapController({ onBoundsChange }: MapControllerProps) {
   return null
 }
 
+// Memoized Cluster Marker component - only re-renders if cluster data changes
+interface ClusterMarkerProps {
+  cluster: any
+  onClusterClick?: (cluster: any) => void
+}
+
+const ClusterMarker = memo(({ cluster, onClusterClick }: ClusterMarkerProps) => {
+  // Cache icon creation - only recreate if cluster data actually changes
+  const icon = useMemo(() => createClusterIcon(cluster), [
+    cluster.count,
+    cluster.price_range?.min,
+    cluster.price_range?.max,
+  ])
+  
+  const position: [number, number] = useMemo(() => [
+    cluster.center.lat,
+    cluster.center.lng
+  ], [cluster.center.lat, cluster.center.lng])
+
+  return (
+    <Marker
+      position={position}
+      icon={icon}
+      eventHandlers={{
+        click: (e) => {
+          e.target.closePopup()
+          if (onClusterClick) {
+            onClusterClick(cluster)
+          }
+        }
+      }}
+    />
+  )
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if actual data changes
+  const prev = prevProps.cluster
+  const next = nextProps.cluster
+  
+  return (
+    prev.cluster_id === next.cluster_id &&
+    prev.count === next.count &&
+    prev.price_range?.min === next.price_range?.min &&
+    prev.price_range?.max === next.price_range?.max &&
+    prev.center.lat === next.center.lat &&
+    prev.center.lng === next.center.lng
+  )
+})
+
 function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas = [], dubaiLandmarks = [], showDubaiLayer = false }: MapViewClusteredProps) {
   // 调试信息
   console.log('🗺️ MapViewClustered render:', {
@@ -163,15 +211,6 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
     dubaiLandmarksCount: dubaiLandmarks.length,
     clustersCount: clusters.length
   })
-  
-  // Memoize cluster markers to prevent unnecessary re-renders
-  const clusterMarkers = useMemo(() => {
-    return clusters.map((cluster) => ({
-      cluster,
-      icon: createClusterIcon(cluster),
-      position: [cluster.center.lat, cluster.center.lng] as [number, number]
-    }))
-  }, [clusters])
 
   // 地标照片映射 - 优先使用数据库中的图片，否则使用默认图片
   const getImageForLandmark = (landmark: DubaiLandmark): string => {
@@ -375,37 +414,113 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
               },
             }}
           >
-            <Popup>
-              <div className="p-3 min-w-[200px]">
-                <div className="flex items-center gap-2 mb-2">
-                  <div 
-                    className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: area.color }}
-                  ></div>
-                  <h3 className="font-bold text-lg text-slate-900">{area.name}</h3>
+            <Popup maxWidth={480} autoPan={false}>
+              <div className="p-0 min-w-[440px] bg-white">
+                {/* Clean Header - No gradient, just subtle line */}
+                <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full" 
+                          style={{ backgroundColor: area.color }}
+                        ></div>
+                        <h3 className="font-bold text-2xl text-slate-900">{area.name}</h3>
+                      </div>
+                      {area.nameAr && (
+                        <p className="text-sm text-slate-500 font-arabic ml-4">
+                          {area.nameAr}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {area.description && (
+                    <p className="text-sm text-slate-600 mt-3 leading-relaxed">
+                      {area.description}
+                    </p>
+                  )}
                 </div>
                 
-                {area.description && (
-                  <p className="text-sm text-slate-600 mb-3 leading-relaxed">
-                    {area.description}
-                  </p>
-                )}
-                
-                <div className="flex flex-wrap gap-2">
-                  {area.areaType && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                      📍 {area.areaType}
-                    </span>
+                {/* Main content */}
+                <div className="px-6 py-5">
+                  {/* Market Statistics Grid - Clean, professional design */}
+                  {(area.projectCounts || area.averagePrice || area.salesVolume || area.capitalAppreciation || area.rentalYield) && (
+                    <div className="mb-5">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
+                        Market Statistics
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        {area.projectCounts !== undefined && area.projectCounts > 0 && (
+                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
+                            <div className="text-xs text-slate-500 font-medium mb-1.5">Projects</div>
+                            <div className="text-2xl font-bold text-slate-900">{area.projectCounts}</div>
+                          </div>
+                        )}
+                        
+                        {area.averagePrice && (
+                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
+                            <div className="text-xs text-slate-500 font-medium mb-1.5">Avg Price</div>
+                            <div className="text-2xl font-bold text-slate-900">
+                              {area.averagePrice >= 1000000 
+                                ? `${(area.averagePrice / 1000000).toFixed(1)}M` 
+                                : `${(area.averagePrice / 1000).toFixed(0)}K`}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">AED</div>
+                          </div>
+                        )}
+                        
+                        {area.salesVolume && (
+                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
+                            <div className="text-xs text-slate-500 font-medium mb-1.5">Sales Volume</div>
+                            <div className="text-2xl font-bold text-slate-900">
+                              {area.salesVolume >= 1000000 
+                                ? `${(area.salesVolume / 1000000).toFixed(1)}M` 
+                                : `${(area.salesVolume / 1000).toFixed(0)}K`}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {area.capitalAppreciation !== undefined && area.capitalAppreciation !== null && (
+                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
+                            <div className="text-xs text-slate-500 font-medium mb-1.5">Capital Growth</div>
+                            <div className={`text-2xl font-bold ${area.capitalAppreciation >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {area.capitalAppreciation >= 0 ? '+' : ''}{area.capitalAppreciation.toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+                        
+                        {area.rentalYield !== undefined && area.rentalYield !== null && (
+                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
+                            <div className="text-xs text-slate-500 font-medium mb-1.5">Rental Yield</div>
+                            <div className="text-2xl font-bold text-slate-900">
+                              {area.rentalYield.toFixed(1)}%
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                  {area.wealthLevel && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                      💎 {area.wealthLevel}
-                    </span>
-                  )}
-                  {area.culturalAttribute && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      🏛️ {area.culturalAttribute}
-                    </span>
+                  
+                  {/* Tags - Cleaner design */}
+                  {(area.areaType || area.wealthLevel || area.culturalAttribute) && (
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
+                      {area.areaType && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          {area.areaType}
+                        </span>
+                      )}
+                      {area.wealthLevel && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          {area.wealthLevel}
+                        </span>
+                      )}
+                      {area.culturalAttribute && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          {area.culturalAttribute}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -421,10 +536,10 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
           position={position}
           icon={icon}
         >
-          <Popup maxWidth={300}>
-            <div className="p-0 min-w-[280px]">
-              {/* 顶部大图 */}
-              <div className="w-full h-40 overflow-hidden rounded-t-lg">
+          <Popup maxWidth={400} autoPan={false}>
+            <div className="p-0 min-w-[380px] bg-white">
+              {/* 顶部大图 - 更大更有冲击力 */}
+              <div className="w-full h-56 overflow-hidden relative">
                 <img 
                   src={getImageForLandmark(landmark)}
                   alt={landmark.name}
@@ -432,34 +547,58 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
                   onError={(e) => {
                     // 如果图片加载失败，使用默认背景色
                     (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).parentElement!.style.background = landmark.color;
+                    (e.target as HTMLImageElement).parentElement!.style.background = `linear-gradient(135deg, ${landmark.color}40, ${landmark.color}80)`;
                   }}
                 />
+                
+                {/* 类型标签 - 简洁设计 */}
+                {landmark.landmarkType && (
+                  <div className="absolute top-4 right-4">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md bg-white/90 text-slate-700 border border-white/40 shadow-lg">
+                      {landmark.landmarkType}
+                    </span>
+                  </div>
+                )}
               </div>
               
               {/* 内容区域 */}
-              <div className="p-4">
-                <h3 className="font-bold text-xl text-slate-900 mb-2">{landmark.name}</h3>
-                
-                {landmark.landmarkType && (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium mb-3"
-                        style={{ 
-                          backgroundColor: `${landmark.color}20`,
-                          color: landmark.color 
-                        }}>
-                    {landmark.landmarkType}
-                  </span>
-                )}
+              <div className="p-6">
+                <div className="mb-4">
+                  <h3 className="font-bold text-2xl text-slate-900 mb-1">{landmark.name}</h3>
+                  {landmark.nameAr && (
+                    <p className="text-sm text-slate-500 font-arabic">{landmark.nameAr}</p>
+                  )}
+                </div>
                 
                 {landmark.description && (
-                  <p className="text-sm text-slate-600 mb-3 leading-relaxed">
+                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">
                     {landmark.description}
                   </p>
                 )}
                 
-                {landmark.yearBuilt && (
-                  <div className="text-xs text-slate-500 pt-3 border-t border-slate-200">
-                    Built in {landmark.yearBuilt}
+                {/* 元数据 - 更简洁的设计 */}
+                {(landmark.yearBuilt || landmark.websiteUrl) && (
+                  <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                    {landmark.yearBuilt && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="text-xs text-slate-500">Built</span>
+                        <span className="text-sm font-semibold text-slate-900">{landmark.yearBuilt}</span>
+                      </div>
+                    )}
+                    
+                    {landmark.websiteUrl && (
+                      <a 
+                        href={landmark.websiteUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-700"
+                      >
+                        <span>Visit Website</span>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -468,21 +607,12 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
         </Marker>
       ))}
       
-      {/* Render cluster markers */}
-      {clusterMarkers.map(({ cluster, icon, position }) => (
-        <Marker
+      {/* Render cluster markers - memoized to prevent unnecessary re-renders */}
+      {clusters.map((cluster) => (
+        <ClusterMarker
           key={cluster.cluster_id}
-          position={position}
-          icon={icon}
-          eventHandlers={{
-            click: (e) => {
-              // Prevent popup from opening
-              e.target.closePopup()
-              if (onClusterClick) {
-                onClusterClick(cluster)
-              }
-            }
-          }}
+          cluster={cluster}
+          onClusterClick={onClusterClick}
         />
       ))}
     </MapContainer>

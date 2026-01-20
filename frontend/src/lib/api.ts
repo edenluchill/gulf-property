@@ -154,6 +154,27 @@ export async function deleteDubaiLandmark(id: string): Promise<boolean> {
   }
 }
 
+/**
+ * Batch update Dubai areas and landmarks
+ */
+export async function batchUpdateDubai(data: {
+  areas: Partial<DubaiArea>[];
+  landmarks: Partial<DubaiLandmark>[];
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch(`${API_URL}/dubai/batch-update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Batch update failed');
+    return await response.json();
+  } catch (error) {
+    console.error('Error batch updating:', error);
+    throw error;
+  }
+}
+
 // ============================================================================
 // RESIDENTIAL PROJECTS API (NEW SCHEMA)
 // ============================================================================

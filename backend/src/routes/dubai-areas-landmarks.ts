@@ -709,4 +709,292 @@ router.delete('/landmarks/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/dubai/batch-update
+ * Batch update multiple areas and landmarks at once
+ * This is optimized for the editor to save multiple changes efficiently
+ */
+router.post('/batch-update', async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  
+  try {
+    const { areas = [], landmarks = [] } = req.body;
+    
+    if (!Array.isArray(areas) || !Array.isArray(landmarks)) {
+      return res.status(400).json({ error: 'Areas and landmarks must be arrays' });
+    }
+
+    // Start transaction
+    await client.query('BEGIN');
+
+    const updatedAreas = [];
+    const updatedLandmarks = [];
+
+    // Update all areas
+    for (const area of areas) {
+      const {
+        id,
+        name,
+        nameAr,
+        boundary,
+        description,
+        descriptionAr,
+        color,
+        opacity,
+        visible,
+        displayOrder,
+        projectCounts,
+        averagePrice,
+        salesVolume,
+        capitalAppreciation,
+        rentalYield,
+      } = area;
+
+      // Build dynamic update query
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramCount = 1;
+
+      if (name !== undefined) {
+        updates.push(`name = $${paramCount++}`);
+        values.push(name);
+      }
+      if (nameAr !== undefined) {
+        updates.push(`name_ar = $${paramCount++}`);
+        values.push(nameAr);
+      }
+      if (boundary !== undefined) {
+        updates.push(`boundary = ST_GeomFromGeoJSON($${paramCount++})::geography`);
+        values.push(JSON.stringify(boundary));
+      }
+      if (description !== undefined) {
+        updates.push(`description = $${paramCount++}`);
+        values.push(description);
+      }
+      if (descriptionAr !== undefined) {
+        updates.push(`description_ar = $${paramCount++}`);
+        values.push(descriptionAr);
+      }
+      if (color !== undefined) {
+        updates.push(`color = $${paramCount++}`);
+        values.push(color);
+      }
+      if (opacity !== undefined) {
+        updates.push(`opacity = $${paramCount++}`);
+        values.push(opacity);
+      }
+      if (visible !== undefined) {
+        updates.push(`visible = $${paramCount++}`);
+        values.push(visible);
+      }
+      if (displayOrder !== undefined) {
+        updates.push(`display_order = $${paramCount++}`);
+        values.push(displayOrder);
+      }
+      // Market statistics
+      if (projectCounts !== undefined) {
+        updates.push(`project_counts = $${paramCount++}`);
+        values.push(projectCounts);
+      }
+      if (averagePrice !== undefined) {
+        updates.push(`average_price = $${paramCount++}`);
+        values.push(averagePrice);
+      }
+      if (salesVolume !== undefined) {
+        updates.push(`sales_volume = $${paramCount++}`);
+        values.push(salesVolume);
+      }
+      if (capitalAppreciation !== undefined) {
+        updates.push(`capital_appreciation = $${paramCount++}`);
+        values.push(capitalAppreciation);
+      }
+      if (rentalYield !== undefined) {
+        updates.push(`rental_yield = $${paramCount++}`);
+        values.push(rentalYield);
+      }
+
+      if (updates.length > 0) {
+        values.push(id);
+        const result = await client.query(`
+          UPDATE dubai_areas 
+          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $${paramCount}
+          RETURNING id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
+                    description, description_ar,
+                    color, opacity, visible, display_order,
+                    project_counts, average_price, sales_volume, capital_appreciation, rental_yield,
+                    created_at, updated_at
+        `, values);
+
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          updatedAreas.push({
+            id: row.id,
+            name: row.name,
+            nameAr: row.name_ar,
+            boundary: row.boundary,
+            description: row.description,
+            descriptionAr: row.description_ar,
+            color: row.color,
+            opacity: parseFloat(row.opacity),
+            visible: row.visible,
+            displayOrder: row.display_order,
+            projectCounts: row.project_counts || 0,
+            averagePrice: row.average_price ? parseFloat(row.average_price) : null,
+            salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
+            capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
+            rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          });
+        }
+      }
+    }
+
+    // Update all landmarks
+    for (const landmark of landmarks) {
+      const {
+        id,
+        name,
+        nameAr,
+        location,
+        landmarkType,
+        iconName,
+        description,
+        descriptionAr,
+        yearBuilt,
+        websiteUrl,
+        imageUrl,
+        color,
+        size,
+        visible,
+        displayOrder,
+      } = landmark;
+
+      // Build dynamic update query
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramCount = 1;
+
+      if (name !== undefined) {
+        updates.push(`name = $${paramCount++}`);
+        values.push(name);
+      }
+      if (nameAr !== undefined) {
+        updates.push(`name_ar = $${paramCount++}`);
+        values.push(nameAr);
+      }
+      if (location !== undefined) {
+        updates.push(`location = ST_SetSRID(ST_MakePoint($${paramCount++}, $${paramCount++}), 4326)::geography`);
+        values.push(location.lng, location.lat);
+      }
+      if (landmarkType !== undefined) {
+        updates.push(`landmark_type = $${paramCount++}`);
+        values.push(landmarkType);
+      }
+      if (iconName !== undefined) {
+        updates.push(`icon_name = $${paramCount++}`);
+        values.push(iconName);
+      }
+      if (description !== undefined) {
+        updates.push(`description = $${paramCount++}`);
+        values.push(description);
+      }
+      if (descriptionAr !== undefined) {
+        updates.push(`description_ar = $${paramCount++}`);
+        values.push(descriptionAr);
+      }
+      if (yearBuilt !== undefined) {
+        updates.push(`year_built = $${paramCount++}`);
+        values.push(yearBuilt);
+      }
+      if (websiteUrl !== undefined) {
+        updates.push(`website_url = $${paramCount++}`);
+        values.push(websiteUrl);
+      }
+      if (imageUrl !== undefined) {
+        updates.push(`image_url = $${paramCount++}`);
+        values.push(imageUrl);
+      }
+      if (color !== undefined) {
+        updates.push(`color = $${paramCount++}`);
+        values.push(color);
+      }
+      if (size !== undefined) {
+        updates.push(`size = $${paramCount++}`);
+        values.push(size);
+      }
+      if (visible !== undefined) {
+        updates.push(`visible = $${paramCount++}`);
+        values.push(visible);
+      }
+      if (displayOrder !== undefined) {
+        updates.push(`display_order = $${paramCount++}`);
+        values.push(displayOrder);
+      }
+
+      if (updates.length > 0) {
+        values.push(id);
+        const result = await client.query(`
+          UPDATE dubai_landmarks 
+          SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $${paramCount}
+          RETURNING id, name, name_ar, ST_Y(location::geometry) as latitude,
+                    ST_X(location::geometry) as longitude, landmark_type, icon_name,
+                    description, description_ar, year_built, website_url, image_url,
+                    color, size, visible, display_order, created_at, updated_at
+        `, values);
+
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          updatedLandmarks.push({
+            id: row.id,
+            name: row.name,
+            nameAr: row.name_ar,
+            location: {
+              lat: parseFloat(row.latitude),
+              lng: parseFloat(row.longitude),
+            },
+            landmarkType: row.landmark_type,
+            iconName: row.icon_name,
+            description: row.description,
+            descriptionAr: row.description_ar,
+            yearBuilt: row.year_built,
+            websiteUrl: row.website_url,
+            imageUrl: row.image_url,
+            color: row.color,
+            size: row.size,
+            visible: row.visible,
+            displayOrder: row.display_order,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          });
+        }
+      }
+    }
+
+    // Commit transaction
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      updated: {
+        areas: updatedAreas,
+        landmarks: updatedLandmarks,
+      },
+      counts: {
+        areas: updatedAreas.length,
+        landmarks: updatedLandmarks.length,
+      },
+    });
+  } catch (error) {
+    // Rollback on error
+    await client.query('ROLLBACK');
+    console.error('Error in batch update:', error);
+    res.status(500).json({ error: 'Failed to batch update items' });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;

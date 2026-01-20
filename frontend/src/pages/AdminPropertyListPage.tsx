@@ -136,16 +136,20 @@ export default function AdminPropertyListPage() {
                 const statusText = project.status === 'completed' ? '已完工' : project.status === 'under_construction' ? '建设中' : '即将推出'
                 
                 return (
-                  <Card key={project.id} className="shadow-lg hover:shadow-xl transition-all overflow-hidden">
+                  <Card 
+                    key={project.id} 
+                    className="shadow-lg hover:shadow-xl transition-all overflow-hidden cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                    onClick={() => navigate(`/admin/property/edit/${project.id}`)}
+                  >
                     <CardContent className="p-0">
-                      <div className="flex items-start gap-0">
+                      <div className="flex items-stretch gap-0">
                         {/* Thumbnail */}
-                        <div className="w-64 h-48 flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+                        <div className="w-80 flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden flex items-center justify-center p-4">
                           {thumbnail ? (
                             <img 
                               src={thumbnail} 
                               alt={project.project_name}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none'
                                 e.currentTarget.parentElement!.innerHTML = `
@@ -180,31 +184,22 @@ export default function AdminPropertyListPage() {
 
                         {/* Content */}
                         <div className="flex-1 p-6">
-                          <div className="flex items-start justify-between gap-4 mb-4">
-                            <div className="flex-1">
-                              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                                {project.project_name}
-                              </h3>
-                              <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                                <span className="flex items-center gap-1">
-                                  <span className="font-semibold text-gray-700">开发商:</span>
-                                  {project.developer}
-                                </span>
-                                <span className="text-gray-300">|</span>
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-4 w-4" />
-                                  {project.area || '未设置'}
-                                </span>
-                              </div>
+                          <div className="mb-4">
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                              {project.project_name}
+                              <Edit className="h-5 w-5 text-blue-600 opacity-70" />
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                              <span className="flex items-center gap-1">
+                                <span className="font-semibold text-gray-700">开发商:</span>
+                                {project.developer}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                {project.area || '未设置'}
+                              </span>
                             </div>
-
-                            <Button
-                              onClick={() => navigate(`/admin/property/edit/${project.id}`)}
-                              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md"
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              编辑
-                            </Button>
                           </div>
 
                           {/* Info Grid */}
