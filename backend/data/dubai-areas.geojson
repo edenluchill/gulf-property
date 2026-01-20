@@ -1,0 +1,204 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Downtown Dubai",
+        "nameAr": "وسط مدينة دبي",
+        "description": "Heart of Dubai with Burj Khalifa and Dubai Mall",
+        "color": "#FFD700",
+        "opacity": 0.35,
+        "projectCounts": 15,
+        "averagePrice": 2450000,
+        "salesVolume": 36750000,
+        "capitalAppreciation": 8.5,
+        "rentalYield": 5.2
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.2692, 25.1912], [55.2824, 25.1912], [55.2845, 25.1985],
+          [55.2815, 25.2048], [55.2735, 25.2052], [55.2692, 25.2015], [55.2692, 25.1912]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Business Bay",
+        "nameAr": "الخليج التجاري",
+        "description": "Modern business district",
+        "color": "#FF6347",
+        "opacity": 0.35,
+        "projectCounts": 18,
+        "averagePrice": 1950000,
+        "salesVolume": 35100000,
+        "capitalAppreciation": 10.5,
+        "rentalYield": 7.5
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.2582, 25.1752], [55.2735, 25.1752], [55.2735, 25.1882],
+          [55.2692, 25.1912], [55.2692, 25.2015], [55.2625, 25.1952],
+          [55.2582, 25.1882], [55.2582, 25.1752]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Marina",
+        "nameAr": "مرسى دبي",
+        "description": "Upscale waterfront living",
+        "color": "#4169E1",
+        "opacity": 0.35,
+        "projectCounts": 23,
+        "averagePrice": 1850000,
+        "salesVolume": 42550000,
+        "capitalAppreciation": 7.8,
+        "rentalYield": 6.1
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.1280, 25.0682], [55.1485, 25.0682], [55.1485, 25.0862],
+          [55.1445, 25.0895], [55.1358, 25.0882], [55.1280, 25.0815], [55.1280, 25.0682]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jumeirah Beach Residence",
+        "nameAr": "شاطئ جميرا",
+        "description": "Beachfront towers",
+        "color": "#00CED1",
+        "opacity": 0.35,
+        "projectCounts": 12,
+        "averagePrice": 1650000,
+        "salesVolume": 19800000,
+        "capitalAppreciation": 7.2,
+        "rentalYield": 6.5
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.1252, 25.0752], [55.1345, 25.0752], [55.1345, 25.0825],
+          [55.1305, 25.0845], [55.1252, 25.0805], [55.1252, 25.0752]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Palm Jumeirah",
+        "nameAr": "نخلة جميرا",
+        "description": "Iconic palm-shaped island",
+        "color": "#32CD32",
+        "opacity": 0.35,
+        "projectCounts": 8,
+        "averagePrice": 5200000,
+        "salesVolume": 41600000,
+        "capitalAppreciation": 9.2,
+        "rentalYield": 4.8
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.1150, 25.1124], [55.1390, 25.1050], [55.1465, 25.1124],
+          [55.1525, 25.1240], [55.1390, 25.1290], [55.1150, 25.1240], [55.1150, 25.1124]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Hills Estate",
+        "nameAr": "دبي هيلز استيت",
+        "description": "Green community with golf course",
+        "color": "#90EE90",
+        "opacity": 0.35,
+        "projectCounts": 20,
+        "averagePrice": 1750000,
+        "salesVolume": 35000000,
+        "capitalAppreciation": 12.3,
+        "rentalYield": 5.8
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.2350, 25.0950], [55.2650, 25.0950], [55.2750, 25.1095],
+          [55.2650, 25.1250], [55.2450, 25.1250], [55.2350, 25.1095], [55.2350, 25.0950]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jumeirah Village Circle",
+        "nameAr": "دائرة قرية جميرا",
+        "description": "Affordable family community",
+        "color": "#FFA07A",
+        "opacity": 0.35,
+        "projectCounts": 25,
+        "averagePrice": 950000,
+        "salesVolume": 23750000,
+        "capitalAppreciation": 9.8,
+        "rentalYield": 7.2
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.2000, 25.0500], [55.2150, 25.0500], [55.2200, 25.0571],
+          [55.2150, 25.0650], [55.2000, 25.0650], [55.1950, 25.0571], [55.2000, 25.0500]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Arabian Ranches",
+        "nameAr": "المرابع العربية",
+        "description": "Golf course community with villas",
+        "color": "#F4A460",
+        "opacity": 0.35,
+        "projectCounts": 10,
+        "averagePrice": 3200000,
+        "salesVolume": 32000000,
+        "capitalAppreciation": 6.5,
+        "rentalYield": 5.5
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.2400, 25.0350], [55.2750, 25.0350], [55.2850, 25.0495],
+          [55.2750, 25.0640], [55.2500, 25.0640], [55.2400, 25.0495], [55.2400, 25.0350]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Dubai Silicon Oasis",
+        "nameAr": "واحة دبي للسيليكون",
+        "description": "Technology park with developments",
+        "color": "#20B2AA",
+        "opacity": 0.35,
+        "projectCounts": 14,
+        "averagePrice": 850000,
+        "salesVolume": 11900000,
+        "capitalAppreciation": 11.2,
+        "rentalYield": 7.8
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [55.3650, 25.1100], [55.3950, 25.1100], [55.4050, 25.1246],
+          [55.3950, 25.1400], [55.3750, 25.1400], [55.3650, 25.1246], [55.3650, 25.1100]
+        ]]
+      }
+    }
+  ]
+}

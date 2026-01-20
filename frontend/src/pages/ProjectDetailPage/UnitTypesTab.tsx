@@ -16,6 +16,8 @@ interface UnitType {
   price_per_sqft?: number
   floor_plan_image?: string
   category?: string
+  description?: string
+  features?: string[]
 }
 
 interface UnitTypesTabProps {

@@ -53,7 +53,7 @@ export function ImageGallery({
               srcSet={getImageSrcSet(images[currentImageIndex])}
               sizes="(max-width: 1024px) 100vw, 50vw"
               alt={buildingName}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               loading="lazy"
             />
             

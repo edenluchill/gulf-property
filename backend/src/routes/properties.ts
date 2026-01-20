@@ -216,7 +216,7 @@ router.get('/clusters', [
     
     const result = await pool.query(queryText, queryParams);
     
-    res.json({
+    return res.json({
       success: true,
       count: result.rows.length,
       zoom: Number(zoom),
@@ -241,7 +241,7 @@ router.get('/clusters', [
     });
   } catch (error) {
     console.error('Error fetching property clusters:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch property clusters',
     });
@@ -289,14 +289,14 @@ router.post('/batch', async (req: Request, res: Response) => {
       [limitedIds]
     );
     
-    res.json({
+    return res.json({
       success: true,
       count: result.rows.length,
       data: result.rows.map(dbRowToProperty)
     });
   } catch (error) {
     console.error('Error fetching properties batch:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch properties'
     });
@@ -473,14 +473,14 @@ router.get('/map', [
 
     const result = await pool.query(queryText, queryParams);
 
-    res.json({
+    return res.json({
       success: true,
       count: result.rows.length,
       data: result.rows.map(dbRowToProperty),
     });
   } catch (error) {
     console.error('Error fetching properties for map:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch properties',
     });
@@ -668,7 +668,7 @@ router.get('/', async (req: Request, res: Response) => {
     let countQuery = `SELECT COUNT(*) FROM off_plan_properties WHERE verified = true`;
     const countResult = await pool.query(countQuery);
 
-    res.json({
+    return res.json({
       success: true,
       count: result.rows.length,
       total: parseInt(countResult.rows[0].count),
@@ -676,7 +676,7 @@ router.get('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching properties:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch properties',
     });
@@ -687,7 +687,7 @@ router.get('/', async (req: Request, res: Response) => {
  * GET /api/properties/meta/developers
  * Get unique developers list (optimized with materialized view)
  */
-router.get('/meta/developers', async (req: Request, res: Response) => {
+router.get('/meta/developers', async (_req: Request, res: Response) => {
   try {
     // Try to use materialized view first, fallback to direct query
     let result;
@@ -724,7 +724,7 @@ router.get('/meta/developers', async (req: Request, res: Response) => {
  * GET /api/properties/meta/areas
  * Get unique areas with property counts (optimized with materialized view)
  */
-router.get('/meta/areas', async (req: Request, res: Response) => {
+router.get('/meta/areas', async (_req: Request, res: Response) => {
   try {
     // Try to use materialized view first, fallback to direct query
     let result;
@@ -772,7 +772,7 @@ router.get('/meta/areas', async (req: Request, res: Response) => {
  * GET /api/properties/meta/projects
  * Get unique projects with property counts (optimized with materialized view)
  */
-router.get('/meta/projects', async (req: Request, res: Response) => {
+router.get('/meta/projects', async (_req: Request, res: Response) => {
   try {
     // Try to use materialized view first, fallback to direct query
     let result;
@@ -824,7 +824,7 @@ router.get('/meta/projects', async (req: Request, res: Response) => {
  * GET /api/properties/meta/stats
  * Get overall statistics
  */
-router.get('/meta/stats', async (req: Request, res: Response) => {
+router.get('/meta/stats', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `SELECT 
@@ -892,13 +892,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: dbRowToProperty(result.rows[0]),
     });
   } catch (error) {
     console.error('Error fetching property:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch property',
     });

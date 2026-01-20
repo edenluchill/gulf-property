@@ -178,14 +178,21 @@ export interface DubaiArea {
   name: string
   nameAr?: string
   boundary: GeoJSON.Geometry  // GeoJSON Polygon
-  areaType?: string
-  wealthLevel?: string
-  culturalAttribute?: string
   description?: string
   descriptionAr?: string
   color: string
   opacity: number
   displayOrder: number
+  // Area attributes
+  areaType?: string
+  wealthLevel?: string
+  culturalAttribute?: string
+  // Market statistics
+  projectCounts?: number
+  averagePrice?: number
+  salesVolume?: number
+  capitalAppreciation?: number
+  rentalYield?: number
 }
 
 export interface DubaiLandmark {

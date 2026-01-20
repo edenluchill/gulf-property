@@ -1,7 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { body, query, validationResult } from 'express-validator'
 import pool from '../db/pool'
-import { ProjectFilters } from '../types'
 
 const router = Router()
 
@@ -13,7 +11,6 @@ router.get('/', async (req: Request, res: Response) => {
       district,
       minPrice,
       maxPrice,
-      completionDateStart,
       completionDateEnd,
       status
     } = req.query as any
@@ -97,13 +94,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       })
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: result.rows[0]
     })
   } catch (error) {
     console.error('Error fetching project:', error)
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch project'
     })
@@ -111,7 +108,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 })
 
 // Get unique developers
-router.get('/meta/developers', async (req: Request, res: Response) => {
+router.get('/meta/developers', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
       'SELECT DISTINCT developer FROM projects WHERE verified = true ORDER BY developer'
@@ -131,7 +128,7 @@ router.get('/meta/developers', async (req: Request, res: Response) => {
 })
 
 // Get unique districts
-router.get('/meta/districts', async (req: Request, res: Response) => {
+router.get('/meta/districts', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
       "SELECT DISTINCT location->>'district' as district FROM projects WHERE verified = true ORDER BY district"

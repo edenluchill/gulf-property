@@ -15,6 +15,7 @@ interface UnitType {
   floor_plan_image?: string
   category?: string
   description?: string
+  features?: string[]
 }
 
 interface UnitTypeDetailModalProps {
@@ -148,44 +149,20 @@ export function UnitTypeDetailModal({ unit, isOpen, onClose }: UnitTypeDetailMod
             </div>
           )}
 
-          {/* Additional Details */}
-          <div className="bg-slate-50 p-6 rounded-2xl">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Key Features</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3 p-4 bg-white rounded-lg">
-                <div className="w-2 h-2 bg-primary rounded-full"></div>
-                <div>
-                  <div className="font-semibold text-slate-900">Unit Type</div>
-                  <div className="text-sm text-slate-600">{unit.unit_type_name}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-white rounded-lg">
-                <div className="w-2 h-2 bg-primary rounded-full"></div>
-                <div>
-                  <div className="font-semibold text-slate-900">Configuration</div>
-                  <div className="text-sm text-slate-600">
-                    {unit.bedrooms} BR | {unit.bathrooms} BA
+          {/* Features */}
+          {unit.features && unit.features.length > 0 && (
+            <div className="bg-slate-50 p-6 rounded-2xl">
+              <h3 className="text-xl font-bold text-slate-900 mb-4">Features & Amenities</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {unit.features.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                    <span className="text-slate-700">{feature}</span>
                   </div>
-                </div>
-              </div>
-              {unit.price_per_sqft && (
-                <div className="flex items-center gap-3 p-4 bg-white rounded-lg">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  <div>
-                    <div className="font-semibold text-slate-900">Price per Sq Ft</div>
-                    <div className="text-sm text-slate-600">{formatPrice(unit.price_per_sqft)}</div>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-3 p-4 bg-white rounded-lg">
-                <div className="w-2 h-2 bg-primary rounded-full"></div>
-                <div>
-                  <div className="font-semibold text-slate-900">Total Living Space</div>
-                  <div className="text-sm text-slate-600">{totalArea.toLocaleString()} sq ft</div>
-                </div>
+                ))}
               </div>
             </div>
-          </div>
+          )}
           
           {/* CTA Buttons */}
           <div className="flex gap-4 pt-4">

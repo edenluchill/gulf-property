@@ -21,6 +21,7 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 
 type EditMode = 'idle' | 'placing-landmark' | 'drawing-area'
 type SelectedItem = { type: 'area'; item: DubaiArea } | { type: 'landmark'; item: DubaiLandmark } | null
+type ActiveTab = 'areas' | 'landmarks'
 
 // Geoman + Map Click Handler
 function MapController({
@@ -33,22 +34,27 @@ function MapController({
   onItemSelect,
   onAreaUpdate,
   onLandmarkDrag,
+  mapRef,
 }: any) {
   const map = useMap()
   const polygonLayersRef = useRef<Map<string, L.Polygon>>(new Map())
   const markerLayersRef = useRef<Map<string, L.Marker>>(new Map())
+  const labelLayersRef = useRef<Map<string, L.Marker>>(new Map())
 
-  // Initialize Geoman
+  // Store map reference
   useEffect(() => {
-    map.pm.addControls({
-      position: 'topleft',
-      drawCircle: false,
-      drawCircleMarker: false,
-      drawPolyline: false,
-      drawRectangle: false,
-      drawMarker: false,
-      drawText: false,
-      cutPolygon: false,
+    if (mapRef) {
+      mapRef.current = map
+    }
+  }, [map, mapRef])
+
+  // Initialize Geoman (no controls on map, will be in sidebar)
+  useEffect(() => {
+    // Global snap settings for perfect alignment
+    map.pm.setGlobalOptions({
+      snapDistance: 20,
+      snapMiddle: true,
+      snapSegment: true,
     })
 
     map.on('pm:create', (e: any) => {
@@ -65,17 +71,18 @@ function MapController({
     })
 
     return () => {
-      map.pm.removeControls()
       map.off('pm:create')
       map.off('click')
     }
   }, [map, editMode, onShapeCreate, onMapClick])
 
-  // Render areas as polygons (always editable)
+  // Render areas as polygons (editable + draggable + with center labels)
   useEffect(() => {
     // Clear old layers
     polygonLayersRef.current.forEach((layer) => map.removeLayer(layer))
     polygonLayersRef.current.clear()
+    labelLayersRef.current.forEach((label) => map.removeLayer(label))
+    labelLayersRef.current.clear()
 
     areas.forEach((area: DubaiArea) => {
       if (!area.boundary || area.boundary.type !== 'Polygon') return
@@ -89,22 +96,29 @@ function MapController({
       const polygon = L.polygon(coords, {
         color: isSelected ? '#000' : area.color,
         fillColor: area.color,
-        fillOpacity: area.opacity * 0.6,
-        weight: isSelected ? 4 : 3,
-        dashArray: '5, 10',
+        fillOpacity: area.opacity || 0.3,
+        weight: isSelected ? 4 : 2,
+        dashArray: isSelected ? undefined : '5, 10',
+        pmIgnore: false, // Allow Geoman to handle this layer
+        bubblingMouseEvents: isSelected ? true : false, // Allow events for selected polygon
       })
 
-      polygon.on('click', () => {
-        onItemSelect({ type: 'area', item: area })
-      })
+      // ⚠️ CRITICAL: Add to map FIRST before calling pm.enable()
+      polygon.addTo(map)
+      polygonLayersRef.current.set(area.id, polygon)
 
-      // Enable editing for selected area
+      // Enable editing ONLY for selected polygons (shows vertices)
       if (isSelected) {
         polygon.pm.enable({
           allowSelfIntersection: false,
           snapDistance: 20,
+          snapMiddle: true,
+          snapSegment: true,
+          draggable: false, // We use custom drag for all polygons
+          preventMarkerRemoval: true,
         })
 
+        // Handle vertex editing
         polygon.on('pm:edit', () => {
           const latlngs = polygon.getLatLngs()[0] as L.LatLng[]
           const geoJsonCoords = latlngs.map((ll: L.LatLng) => [ll.lng, ll.lat])
@@ -115,19 +129,163 @@ function MapController({
             coordinates: [geoJsonCoords],
           })
         })
+
+        // Disable map dragging when editing vertices
+        polygon.on('pm:markerdragstart', () => {
+          map.dragging.disable()
+        })
+
+        polygon.on('pm:markerdragend', () => {
+          map.dragging.enable()
+        })
       } else {
         polygon.pm.disable()
       }
 
-      polygon.addTo(map)
-      polygonLayersRef.current.set(area.id, polygon)
+      // ⭐ CUSTOM DRAG - Works for ALL polygons (selected or not)
+      let isDragging = false
+      let hasDragged = false
+      let startLatLng: L.LatLng | null = null
+      let startPoints: L.LatLng[] = []
+
+      polygon.on('mousedown', (e: any) => {
+        // Only drag if clicking on the polygon itself (not vertices)
+        if (!e.originalEvent.target.classList || 
+            !e.originalEvent.target.classList.contains('marker-icon')) {
+          isDragging = true
+          hasDragged = false
+          startLatLng = e.latlng
+          const latlngs = polygon.getLatLngs()
+          startPoints = Array.isArray(latlngs[0]) ? [...latlngs[0] as L.LatLng[]] : []
+          
+          // Hide editing vertices and label while dragging
+          if (isSelected) {
+            polygon.pm.disable()
+          }
+          const label = labelLayersRef.current.get(area.id)
+          if (label) {
+            label.setOpacity(0)
+          }
+          
+          map.dragging.disable()
+          L.DomEvent.stop(e)
+        }
+      })
+
+      map.on('mousemove', (e: any) => {
+        if (isDragging && startLatLng) {
+          hasDragged = true
+          const latDiff = e.latlng.lat - startLatLng.lat
+          const lngDiff = e.latlng.lng - startLatLng.lng
+          
+          const newPoints = startPoints.map((point: L.LatLng) => 
+            L.latLng(point.lat + latDiff, point.lng + lngDiff)
+          )
+          
+          polygon.setLatLngs(newPoints)
+        }
+      })
+
+      const endDrag = () => {
+        if (isDragging) {
+          isDragging = false
+          startLatLng = null
+          startPoints = []
+          
+          // If dragged, select the area and save
+          if (hasDragged) {
+            // Select this area if not already selected
+            if (!isSelected) {
+              onItemSelect({ type: 'area', item: area })
+            }
+            
+            const label = labelLayersRef.current.get(area.id)
+            if (label) {
+              label.setOpacity(1)
+              // Update label position to new center
+              const newCenter = polygon.getBounds().getCenter()
+              label.setLatLng(newCenter)
+            }
+            
+            const latlngs = polygon.getLatLngs()[0] as L.LatLng[]
+            const geoJsonCoords = latlngs.map((ll: L.LatLng) => [ll.lng, ll.lat])
+            geoJsonCoords.push(geoJsonCoords[0])
+
+            onAreaUpdate(area.id, {
+              type: 'Polygon',
+              coordinates: [geoJsonCoords],
+            })
+          } else {
+            // Just a click, not a drag - select the area
+            const label = labelLayersRef.current.get(area.id)
+            if (label) {
+              label.setOpacity(1)
+            }
+            if (!isSelected) {
+              onItemSelect({ type: 'area', item: area })
+            }
+          }
+          
+          map.dragging.enable()
+          hasDragged = false
+        }
+      }
+
+      map.on('mouseup', endDrag)
+      polygon.on('mouseup', endDrag)
+
+      // Add center label (properly centered)
+      const center = polygon.getBounds().getCenter()
+      // Estimate label width based on text length (rough calculation)
+      const estimatedWidth = area.name.length * 7 + 24
+      const labelIcon = L.divIcon({
+        html: `
+          <div style="
+            background: ${isSelected ? '#000' : area.color};
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            border: 2px solid white;
+            pointer-events: none;
+            text-align: center;
+          ">
+            ${area.name}
+          </div>
+        `,
+        className: 'area-label',
+        iconSize: [estimatedWidth, 24],
+        iconAnchor: [estimatedWidth / 2, 12], // Center horizontally and vertically
+      })
+
+      const labelMarker = L.marker(center, {
+        icon: labelIcon,
+        interactive: false,
+        keyboard: false,
+      })
+
+      labelMarker.addTo(map)
+      labelLayersRef.current.set(area.id, labelMarker)
     })
 
     return () => {
+      // Clean up map-level listeners
+      map.off('mousemove')
+      map.off('mouseup')
+      
       polygonLayersRef.current.forEach((layer) => {
+        layer.off('mousedown')
+        layer.off('mouseup')
         layer.off('click')
         layer.off('pm:edit')
-        layer.pm.disable()
+        layer.off('pm:markerdragstart')
+        layer.off('pm:markerdragend')
+        if (layer.pm) {
+          layer.pm.disable()
+        }
       })
     }
   }, [map, areas, selectedItem, onItemSelect, onAreaUpdate])
@@ -167,15 +325,33 @@ function MapController({
       const marker = L.marker([landmark.location.lat, landmark.location.lng], {
         icon,
         draggable: true,
+        bubblingMouseEvents: false, // Prevent events from bubbling to map
       })
 
-      marker.on('click', () => {
+      // Prevent marker mouse events from reaching the map
+      marker.on('mousedown', (e: any) => {
+        L.DomEvent.stop(e)
+      })
+
+      marker.on('mouseup', (e: any) => {
+        L.DomEvent.stop(e)
+      })
+
+      // Click to select (prevent map interaction)
+      marker.on('click', (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stop(e)
         onItemSelect({ type: 'landmark', item: landmark })
+      })
+
+      // Disable map dragging when dragging marker
+      marker.on('dragstart', () => {
+        map.dragging.disable()
       })
 
       marker.on('dragend', (e: any) => {
         const { lat, lng } = e.target.getLatLng()
         onLandmarkDrag(landmark.id, lat, lng)
+        map.dragging.enable()
       })
 
       marker.addTo(map)
@@ -184,7 +360,10 @@ function MapController({
 
     return () => {
       markerLayersRef.current.forEach((marker) => {
+        marker.off('mousedown')
+        marker.off('mouseup')
         marker.off('click')
+        marker.off('dragstart')
         marker.off('dragend')
       })
     }
@@ -200,7 +379,21 @@ export default function UnifiedDubaiEditor() {
   const [editMode, setEditMode] = useState<EditMode>('idle')
   const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('areas')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
+
+  // Track modified items (draft state)
+  const [modifiedAreaIds, setModifiedAreaIds] = useState<Set<string>>(new Set())
+  const [modifiedLandmarkIds, setModifiedLandmarkIds] = useState<Set<string>>(new Set())
+
+  // Store original data as baseline for comparison
+  const [originalAreas, setOriginalAreas] = useState<DubaiArea[]>([])
+  const [originalLandmarks, setOriginalLandmarks] = useState<DubaiLandmark[]>([])
+
+  // History for Undo/Redo
+  const [history, setHistory] = useState<Array<{ areas: DubaiArea[], landmarks: DubaiLandmark[] }>>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
 
   // Form data
   const [formData, setFormData] = useState<any>({})
@@ -208,6 +401,107 @@ export default function UnifiedDubaiEditor() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Initialize history when data is loaded
+  useEffect(() => {
+    if (areas.length > 0 || landmarks.length > 0) {
+      if (history.length === 0) {
+        setHistory([{ areas: [...areas], landmarks: [...landmarks] }])
+        setHistoryIndex(0)
+      }
+    }
+  }, [areas.length, landmarks.length])
+
+  // Compare current state with original to find modified items
+  const updateModifiedItems = (currentAreas: DubaiArea[], currentLandmarks: DubaiLandmark[]) => {
+    const modifiedAreas = new Set<string>()
+    const modifiedLandmarks = new Set<string>()
+
+    // Compare areas
+    currentAreas.forEach(area => {
+      if (!area.id.startsWith('temp-')) {
+        const original = originalAreas.find(a => a.id === area.id)
+        if (original && JSON.stringify(area.boundary) !== JSON.stringify(original.boundary)) {
+          modifiedAreas.add(area.id)
+        }
+      }
+    })
+
+    // Compare landmarks
+    currentLandmarks.forEach(landmark => {
+      if (!landmark.id.startsWith('temp-')) {
+        const original = originalLandmarks.find(l => l.id === landmark.id)
+        if (original && 
+            (landmark.location.lat !== original.location.lat || 
+             landmark.location.lng !== original.location.lng)) {
+          modifiedLandmarks.add(landmark.id)
+        }
+      }
+    })
+
+    setModifiedAreaIds(modifiedAreas)
+    setModifiedLandmarkIds(modifiedLandmarks)
+  }
+
+  // Save current state to history
+  const saveToHistory = () => {
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push({ 
+      areas: JSON.parse(JSON.stringify(areas)), 
+      landmarks: JSON.parse(JSON.stringify(landmarks)) 
+    })
+    // Limit history to 50 states
+    if (newHistory.length > 50) {
+      newHistory.shift()
+    } else {
+      setHistoryIndex(historyIndex + 1)
+    }
+    setHistory(newHistory)
+  }
+
+  // Undo
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1
+      const snapshot = history[newIndex]
+      setAreas([...snapshot.areas])
+      setLandmarks([...snapshot.landmarks])
+      setHistoryIndex(newIndex)
+      
+      // Update modified items by comparing with original
+      updateModifiedItems(snapshot.areas, snapshot.landmarks)
+    }
+  }
+
+  // Redo
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1
+      const snapshot = history[newIndex]
+      setAreas([...snapshot.areas])
+      setLandmarks([...snapshot.landmarks])
+      setHistoryIndex(newIndex)
+      
+      // Update modified items by comparing with original
+      updateModifiedItems(snapshot.areas, snapshot.landmarks)
+    }
+  }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+        e.preventDefault()
+        handleUndo()
+      } else if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key === 'z' || e.key === 'y')) {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [historyIndex, history])
 
   useEffect(() => {
     if (selectedItem) {
@@ -224,11 +518,23 @@ export default function UnifiedDubaiEditor() {
     ])
     setAreas(areasData)
     setLandmarks(landmarksData)
+    // Store original data for comparison
+    setOriginalAreas(JSON.parse(JSON.stringify(areasData)))
+    setOriginalLandmarks(JSON.parse(JSON.stringify(landmarksData)))
   }
 
   const handleAddArea = () => {
     setEditMode('drawing-area')
     setSelectedItem(null)
+    // Trigger Leaflet Geoman draw mode
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.pm.enableDraw('Polygon', {
+          snappable: true,
+          snapDistance: 20,
+        })
+      }
+    }, 100)
   }
 
   const handleAddLandmark = () => {
@@ -241,13 +547,17 @@ export default function UnifiedDubaiEditor() {
       id: `temp-area-${Date.now()}`,
       name: 'New Area',
       boundary: geoJSON.geometry,
-      areaType: 'residential',
+      description: '',
       color: '#3B82F6',
       opacity: 0.3,
     }
     setAreas([...areas, newArea])
     setSelectedItem({ type: 'area', item: newArea })
     setEditMode('idle')
+    // Disable draw mode
+    if (mapRef.current) {
+      mapRef.current.pm.disableDraw()
+    }
   }
 
   const handleMapClick = (lat: number, lng: number) => {
@@ -266,20 +576,36 @@ export default function UnifiedDubaiEditor() {
     setEditMode('idle')
   }
 
-  const handleAreaUpdate = (id: string, boundary: any) => {
+  const handleAreaUpdate = (id: string, boundary: any, shouldSaveHistory = true) => {
     const updated = areas.map((a) => (a.id === id ? { ...a, boundary } : a))
     setAreas(updated)
     if (selectedItem?.type === 'area' && selectedItem.item.id === id) {
       setSelectedItem({ type: 'area', item: { ...selectedItem.item, boundary } })
     }
+    // Mark as modified (draft state)
+    if (!id.startsWith('temp-')) {
+      setModifiedAreaIds(new Set(modifiedAreaIds).add(id))
+    }
+    // Save to history after state update
+    if (shouldSaveHistory) {
+      setTimeout(() => saveToHistory(), 0)
+    }
   }
 
-  const handleLandmarkDrag = (id: string, lat: number, lng: number) => {
+  const handleLandmarkDrag = (id: string, lat: number, lng: number, shouldSaveHistory = true) => {
     const updated = landmarks.map((l) => (l.id === id ? { ...l, location: { lat, lng } } : l))
     setLandmarks(updated)
     if (selectedItem?.type === 'landmark' && selectedItem.item.id === id) {
       setSelectedItem({ type: 'landmark', item: { ...selectedItem.item, location: { lat, lng } } })
       setFormData({ ...formData, location: { lat, lng } })
+    }
+    // Mark as modified (draft state)
+    if (!id.startsWith('temp-')) {
+      setModifiedLandmarkIds(new Set(modifiedLandmarkIds).add(id))
+    }
+    // Save to history after state update
+    if (shouldSaveHistory) {
+      setTimeout(() => saveToHistory(), 0)
     }
   }
 
@@ -301,6 +627,10 @@ export default function UnifiedDubaiEditor() {
           if (updated) {
             setAreas(areas.map((a) => (a.id === area.id ? updated : a)))
             setSelectedItem({ type: 'area', item: updated })
+            // Remove from modified set
+            const newModified = new Set(modifiedAreaIds)
+            newModified.delete(area.id)
+            setModifiedAreaIds(newModified)
           }
         }
         localStorage.removeItem('gulf_dubai_areas')
@@ -317,6 +647,10 @@ export default function UnifiedDubaiEditor() {
           if (updated) {
             setLandmarks(landmarks.map((l) => (l.id === landmark.id ? updated : l)))
             setSelectedItem({ type: 'landmark', item: updated })
+            // Remove from modified set
+            const newModified = new Set(modifiedLandmarkIds)
+            newModified.delete(landmark.id)
+            setModifiedLandmarkIds(newModified)
           }
         }
         localStorage.removeItem('gulf_dubai_landmarks')
@@ -324,6 +658,58 @@ export default function UnifiedDubaiEditor() {
     } catch (error) {
       console.error('Save error:', error)
       alert('Failed to save')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSaveAll = async () => {
+    const totalChanges = modifiedAreaIds.size + modifiedLandmarkIds.size
+    if (totalChanges === 0) {
+      alert('No changes to save')
+      return
+    }
+
+    if (!confirm(`Save ${totalChanges} change(s)?`)) return
+
+    setIsSaving(true)
+    try {
+      // Prepare modified areas
+      const modifiedAreas = areas.filter(a => modifiedAreaIds.has(a.id))
+      
+      // Prepare modified landmarks
+      const modifiedLandmarks = landmarks.filter(l => modifiedLandmarkIds.has(l.id))
+
+      // Batch update API call
+      const response = await fetch('/api/dubai/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          areas: modifiedAreas,
+          landmarks: modifiedLandmarks,
+        }),
+      })
+
+      if (!response.ok) throw new Error('Batch update failed')
+
+      await response.json()
+      
+      // Clear modified sets
+      setModifiedAreaIds(new Set())
+      setModifiedLandmarkIds(new Set())
+      
+      // Update original baseline to current state
+      setOriginalAreas(JSON.parse(JSON.stringify(areas)))
+      setOriginalLandmarks(JSON.parse(JSON.stringify(landmarks)))
+      
+      // Clear cache
+      localStorage.removeItem('gulf_dubai_areas')
+      localStorage.removeItem('gulf_dubai_landmarks')
+      
+      alert(`✅ Saved ${totalChanges} change(s) successfully!`)
+    } catch (error) {
+      console.error('Batch save error:', error)
+      alert('❌ Failed to save changes. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -394,90 +780,227 @@ export default function UnifiedDubaiEditor() {
 
   return (
     <div className="flex h-[calc(100vh-80px)]">
-      {/* Left Toolbar */}
-      <div className="w-80 bg-white border-r flex flex-col overflow-hidden">
-        {/* Tools Header */}
-        <div className="p-4 border-b bg-slate-50">
-          <h2 className="font-bold text-lg mb-3">Dubai Map Editor</h2>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleAddArea}
-              variant={editMode === 'drawing-area' ? 'default' : 'outline'}
-              className="flex-1"
-              size="sm"
-            >
-              <Layers className="w-4 h-4 mr-2" />
-              {editMode === 'drawing-area' ? 'Drawing...' : 'Add Area'}
-            </Button>
-            <Button
-              onClick={handleAddLandmark}
-              variant={editMode === 'placing-landmark' ? 'default' : 'outline'}
-              className="flex-1"
-              size="sm"
-            >
-              <MapPin className="w-4 h-4 mr-2" />
-              {editMode === 'placing-landmark' ? 'Click Map' : 'Add Pin'}
-            </Button>
-          </div>
-          {editMode !== 'idle' && (
-            <p className="text-xs text-blue-600 mt-2">
-              {editMode === 'drawing-area' && '🎨 Use tools on map to draw area'}
-              {editMode === 'placing-landmark' && '📍 Click map to place landmark'}
-            </p>
-          )}
+      {/* Global Action Buttons - Fixed Position */}
+      <div className="fixed top-20 right-6 z-50 flex gap-2">
+        {/* Undo/Redo Buttons */}
+        <div className="flex gap-1 bg-white rounded-lg shadow-lg p-1">
+          <Button
+            onClick={handleUndo}
+            disabled={historyIndex <= 0}
+            size="sm"
+            variant="ghost"
+            title="Undo (Ctrl+Z)"
+            className="hover:bg-slate-100"
+          >
+            <span className="text-lg">↶</span>
+          </Button>
+          <Button
+            onClick={handleRedo}
+            disabled={historyIndex >= history.length - 1}
+            size="sm"
+            variant="ghost"
+            title="Redo (Ctrl+Shift+Z)"
+            className="hover:bg-slate-100"
+          >
+            <span className="text-lg">↷</span>
+          </Button>
         </div>
 
-        {/* Items List */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-4">
-            {/* Areas */}
-            <div>
-              <h3 className="text-sm font-semibold text-slate-600 mb-2">Areas ({areas.length})</h3>
-              <div className="space-y-1">
-                {areas.map((area) => (
-                  <div
-                    key={area.id}
-                    onClick={() => setSelectedItem({ type: 'area', item: area })}
-                    className={`p-2 rounded cursor-pointer transition-all flex items-center gap-2 ${
-                      selectedItem?.type === 'area' && selectedItem.item.id === area.id
-                        ? 'bg-blue-50 border-blue-200 border'
-                        : 'hover:bg-slate-50 border border-transparent'
-                    }`}
-                  >
-                    <div className="w-3 h-3 rounded" style={{ background: area.color }} />
-                    <span className="text-sm flex-1">{area.name}</span>
-                    {area.id.startsWith('temp-') && (
-                      <span className="text-xs text-orange-600">New</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Save All Button */}
+        {(modifiedAreaIds.size + modifiedLandmarkIds.size) > 0 && (
+          <Button
+            onClick={handleSaveAll}
+            disabled={isSaving}
+            size="lg"
+            className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
+          >
+            <Save className="w-5 h-5 mr-2" />
+            {isSaving ? 'Saving...' : `Save All (${modifiedAreaIds.size + modifiedLandmarkIds.size})`}
+          </Button>
+        )}
+      </div>
 
-            {/* Landmarks */}
-            <div>
-              <h3 className="text-sm font-semibold text-slate-600 mb-2">Landmarks ({landmarks.length})</h3>
-              <div className="space-y-1">
-                {landmarks.map((landmark) => (
-                  <div
-                    key={landmark.id}
-                    onClick={() => setSelectedItem({ type: 'landmark', item: landmark })}
-                    className={`p-2 rounded cursor-pointer transition-all flex items-center gap-2 ${
-                      selectedItem?.type === 'landmark' && selectedItem.item.id === landmark.id
-                        ? 'bg-blue-50 border-blue-200 border'
-                        : 'hover:bg-slate-50 border border-transparent'
-                    }`}
-                  >
-                    <div className="w-3 h-3 rounded-full" style={{ background: landmark.color }} />
-                    <span className="text-sm flex-1">{landmark.name}</span>
-                    {landmark.id.startsWith('temp-') && (
-                      <span className="text-xs text-orange-600">New</span>
-                    )}
-                  </div>
-                ))}
-              </div>
+      {/* Left Toolbar */}
+      <div className="w-80 bg-white border-r flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="p-4 border-b bg-slate-50">
+          <h2 className="font-bold text-lg mb-3">Dubai Map Editor</h2>
+          
+          {/* Draft indicator */}
+          {(modifiedAreaIds.size + modifiedLandmarkIds.size) > 0 && (
+            <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+              <p className="font-semibold text-orange-900">
+                📝 {modifiedAreaIds.size + modifiedLandmarkIds.size} unsaved change(s)
+              </p>
+              <p className="text-orange-700 mt-1">
+                Click "Save All" to save your changes
+              </p>
             </div>
+          )}
+          
+          {/* Pro Tips */}
+          <div className="p-2 bg-blue-50 rounded text-xs text-slate-700 space-y-1">
+            <p className="font-semibold text-blue-900">✨ Quick Guide:</p>
+            <p>• Click to select, drag to move</p>
+            <p>• Hover edges to edit shape</p>
+            <p>• Vertices auto-snap perfectly</p>
           </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b">
+          <button
+            onClick={() => {
+              setActiveTab('areas')
+              setEditMode('idle')
+            }}
+            className={`flex-1 px-4 py-3 font-semibold text-sm transition-colors ${
+              activeTab === 'areas'
+                ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Layers className="w-4 h-4 inline mr-2" />
+            Areas ({areas.length})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('landmarks')
+              setEditMode('idle')
+            }}
+            className={`flex-1 px-4 py-3 font-semibold text-sm transition-colors ${
+              activeTab === 'landmarks'
+                ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <MapPin className="w-4 h-4 inline mr-2" />
+            Landmarks ({landmarks.length})
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          {activeTab === 'areas' && (
+            <>
+              {/* Area Tools */}
+              <div className="p-4 bg-slate-50 border-b space-y-2">
+                <Button
+                  onClick={handleAddArea}
+                  variant={editMode === 'drawing-area' ? 'default' : 'outline'}
+                  className="w-full"
+                  size="lg"
+                >
+                  <Layers className="w-5 h-5 mr-2" />
+                  {editMode === 'drawing-area' ? '🎨 Draw on Map...' : 'Add New Area'}
+                </Button>
+                
+                {editMode === 'drawing-area' && (
+                  <div className="p-3 bg-blue-50 rounded text-sm space-y-2">
+                    <p className="font-semibold text-blue-900">Drawing Mode Active:</p>
+                    <div className="space-y-1 text-xs text-slate-700">
+                      <p>✏️ Click map points to draw polygon</p>
+                      <p>🔗 Points auto-snap when close</p>
+                      <p>✅ Click first point to finish</p>
+                      <p>✂️ Use Cut tool for complex shapes</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Areas List */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-1">
+                  {areas.map((area) => (
+                    <div
+                      key={area.id}
+                      onClick={() => {
+                        setSelectedItem({ type: 'area', item: area })
+                        setEditMode('idle')
+                      }}
+                      className={`p-3 rounded cursor-pointer transition-all flex items-center gap-3 ${
+                        selectedItem?.type === 'area' && selectedItem.item.id === area.id
+                          ? 'bg-blue-50 border-blue-300 border-2 shadow-sm'
+                          : 'hover:bg-slate-50 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded" style={{ background: area.color }} />
+                      <span className="text-sm flex-1 font-medium">{area.name}</span>
+                      {area.id.startsWith('temp-') && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">New</span>
+                      )}
+                      {modifiedAreaIds.has(area.id) && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Draft</span>
+                      )}
+                    </div>
+                  ))}
+                  {areas.length === 0 && (
+                    <div className="text-center py-8 text-slate-400 text-sm">
+                      No areas yet. Click "Add New Area" to start.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'landmarks' && (
+            <>
+              {/* Landmark Tools */}
+              <div className="p-4 bg-slate-50 border-b space-y-2">
+                <Button
+                  onClick={handleAddLandmark}
+                  variant={editMode === 'placing-landmark' ? 'default' : 'outline'}
+                  className="w-full"
+                  size="lg"
+                >
+                  <MapPin className="w-5 h-5 mr-2" />
+                  {editMode === 'placing-landmark' ? '📍 Click Map...' : 'Add New Landmark'}
+                </Button>
+                
+                {editMode === 'placing-landmark' && (
+                  <div className="p-3 bg-blue-50 rounded text-sm space-y-2">
+                    <p className="font-semibold text-blue-900">Placement Mode Active:</p>
+                    <p className="text-xs text-slate-700">📍 Click anywhere on map to place landmark</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Landmarks List */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-1">
+                  {landmarks.map((landmark) => (
+                    <div
+                      key={landmark.id}
+                      onClick={() => {
+                        setSelectedItem({ type: 'landmark', item: landmark })
+                        setEditMode('idle')
+                      }}
+                      className={`p-3 rounded cursor-pointer transition-all flex items-center gap-3 ${
+                        selectedItem?.type === 'landmark' && selectedItem.item.id === landmark.id
+                          ? 'bg-blue-50 border-blue-300 border-2 shadow-sm'
+                          : 'hover:bg-slate-50 border-2 border-transparent'
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full" style={{ background: landmark.color }} />
+                      <span className="text-sm flex-1 font-medium">{landmark.name}</span>
+                      {landmark.id.startsWith('temp-') && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">New</span>
+                      )}
+                      {modifiedLandmarkIds.has(landmark.id) && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Draft</span>
+                      )}
+                    </div>
+                  ))}
+                  {landmarks.length === 0 && (
+                    <div className="text-center py-8 text-slate-400 text-sm">
+                      No landmarks yet. Click "Add New Landmark" to start.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -487,6 +1010,11 @@ export default function UnifiedDubaiEditor() {
           center={[25.0961, 55.1561]}
           zoom={11}
           className="h-full w-full"
+          doubleClickZoom={false}
+          zoomControl={true}
+          scrollWheelZoom={true}
+          dragging={true}
+          touchZoom={true}
         >
           <TileLayer
             attribution='&copy; OpenStreetMap contributors &copy; CARTO'
@@ -505,6 +1033,7 @@ export default function UnifiedDubaiEditor() {
             onItemSelect={setSelectedItem}
             onAreaUpdate={handleAreaUpdate}
             onLandmarkDrag={handleLandmarkDrag}
+            mapRef={mapRef}
           />
         </MapContainer>
       </div>
@@ -622,16 +1151,73 @@ export default function UnifiedDubaiEditor() {
             {selectedItem.type === 'area' && (
               <>
                 <div>
-                  <Label>Area Type</Label>
-                  <select
-                    className="w-full border rounded px-3 py-2"
-                    value={formData.areaType || ''}
-                    onChange={(e) => setFormData({ ...formData, areaType: e.target.value })}
-                  >
-                    <option value="residential">Residential</option>
-                    <option value="commercial">Commercial</option>
-                    <option value="mixed">Mixed</option>
-                  </select>
+                  <Label>Opacity: {((formData.opacity || 0.3) * 100).toFixed(0)}%</Label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={formData.opacity || 0.3}
+                    onChange={(e) => setFormData({ ...formData, opacity: parseFloat(e.target.value) })}
+                    className="w-full"
+                  />
+                </div>
+                
+                {/* Market Data - Editable */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-700">📊 Market Data</h4>
+                  
+                  <div>
+                    <Label>Projects Count</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 14"
+                      value={formData.projectCounts || ''}
+                      onChange={(e) => setFormData({ ...formData, projectCounts: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Average Price (AED)</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 850000"
+                      value={formData.averagePrice || ''}
+                      onChange={(e) => setFormData({ ...formData, averagePrice: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Capital Appreciation (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      placeholder="e.g. 11.2"
+                      value={formData.capitalAppreciation || ''}
+                      onChange={(e) => setFormData({ ...formData, capitalAppreciation: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Rental Yield (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      placeholder="e.g. 7.8"
+                      value={formData.rentalYield || ''}
+                      onChange={(e) => setFormData({ ...formData, rentalYield: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Sales Volume (Units/Year)</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 250"
+                      value={formData.salesVolume || ''}
+                      onChange={(e) => setFormData({ ...formData, salesVolume: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
                 </div>
               </>
             )}

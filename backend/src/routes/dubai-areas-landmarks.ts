@@ -17,14 +17,16 @@ router.get('/areas', async (_req: Request, res: Response) => {
         name,
         name_ar,
         ST_AsGeoJSON(boundary)::json as boundary,
-        area_type,
-        wealth_level,
-        cultural_attribute,
         description,
         description_ar,
         color,
         opacity,
-        display_order
+        display_order,
+        project_counts,
+        average_price,
+        sales_volume,
+        capital_appreciation,
+        rental_yield
       FROM dubai_areas
       WHERE visible = true
       ORDER BY display_order ASC, name ASC
@@ -35,14 +37,17 @@ router.get('/areas', async (_req: Request, res: Response) => {
       name: row.name,
       nameAr: row.name_ar,
       boundary: row.boundary, // GeoJSON format
-      areaType: row.area_type,
-      wealthLevel: row.wealth_level,
-      culturalAttribute: row.cultural_attribute,
       description: row.description,
       descriptionAr: row.description_ar,
       color: row.color,
       opacity: parseFloat(row.opacity),
       displayOrder: row.display_order,
+      // Market statistics
+      projectCounts: row.project_counts || 0,
+      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
+      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
+      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
+      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
     }));
 
     res.json(areas);
@@ -122,14 +127,16 @@ router.get('/areas/:id', async (req: Request, res: Response) => {
         name,
         name_ar,
         ST_AsGeoJSON(boundary)::json as boundary,
-        area_type,
-        wealth_level,
-        cultural_attribute,
         description,
         description_ar,
         color,
         opacity,
         display_order,
+        project_counts,
+        average_price,
+        sales_volume,
+        capital_appreciation,
+        rental_yield,
         created_at,
         updated_at
       FROM dubai_areas
@@ -146,14 +153,17 @@ router.get('/areas/:id', async (req: Request, res: Response) => {
       name: row.name,
       nameAr: row.name_ar,
       boundary: row.boundary,
-      areaType: row.area_type,
-      wealthLevel: row.wealth_level,
-      culturalAttribute: row.cultural_attribute,
       description: row.description,
       descriptionAr: row.description_ar,
       color: row.color,
       opacity: parseFloat(row.opacity),
       displayOrder: row.display_order,
+      // Market statistics
+      projectCounts: row.project_counts || 0,
+      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
+      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
+      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
+      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -250,9 +260,6 @@ router.post('/areas', [
       name,
       nameAr,
       boundary,
-      areaType,
-      wealthLevel,
-      culturalAttribute,
       description,
       descriptionAr,
       color = '#3B82F6',
@@ -263,15 +270,15 @@ router.post('/areas', [
     // Convert GeoJSON to PostGIS geometry
     const result = await pool.query(`
       INSERT INTO dubai_areas (
-        name, name_ar, boundary, area_type, wealth_level, cultural_attribute,
+        name, name_ar, boundary,
         description, description_ar, color, opacity, display_order
       ) VALUES (
-        $1, $2, ST_GeomFromGeoJSON($3)::geography, $4, $5, $6, $7, $8, $9, $10, $11
+        $1, $2, ST_GeomFromGeoJSON($3)::geography, $4, $5, $6, $7, $8
       )
       RETURNING id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
-                area_type, wealth_level, cultural_attribute, description, description_ar,
+                description, description_ar,
                 color, opacity, display_order, created_at, updated_at
-    `, [name, nameAr, JSON.stringify(boundary), areaType, wealthLevel, culturalAttribute,
+    `, [name, nameAr, JSON.stringify(boundary),
         description, descriptionAr, color, opacity, displayOrder]);
 
     const row = result.rows[0];
@@ -280,9 +287,6 @@ router.post('/areas', [
       name: row.name,
       nameAr: row.name_ar,
       boundary: row.boundary,
-      areaType: row.area_type,
-      wealthLevel: row.wealth_level,
-      culturalAttribute: row.cultural_attribute,
       description: row.description,
       descriptionAr: row.description_ar,
       color: row.color,
@@ -320,15 +324,17 @@ router.put('/areas/:id', [
       name,
       nameAr,
       boundary,
-      areaType,
-      wealthLevel,
-      culturalAttribute,
       description,
       descriptionAr,
       color,
       opacity,
       visible,
       displayOrder,
+      projectCounts,
+      averagePrice,
+      salesVolume,
+      capitalAppreciation,
+      rentalYield,
     } = req.body;
 
     // Build dynamic update query
@@ -347,18 +353,6 @@ router.put('/areas/:id', [
     if (boundary !== undefined) {
       updates.push(`boundary = ST_GeomFromGeoJSON($${paramCount++})::geography`);
       values.push(JSON.stringify(boundary));
-    }
-    if (areaType !== undefined) {
-      updates.push(`area_type = $${paramCount++}`);
-      values.push(areaType);
-    }
-    if (wealthLevel !== undefined) {
-      updates.push(`wealth_level = $${paramCount++}`);
-      values.push(wealthLevel);
-    }
-    if (culturalAttribute !== undefined) {
-      updates.push(`cultural_attribute = $${paramCount++}`);
-      values.push(culturalAttribute);
     }
     if (description !== undefined) {
       updates.push(`description = $${paramCount++}`);
@@ -384,6 +378,27 @@ router.put('/areas/:id', [
       updates.push(`display_order = $${paramCount++}`);
       values.push(displayOrder);
     }
+    // Market statistics
+    if (projectCounts !== undefined) {
+      updates.push(`project_counts = $${paramCount++}`);
+      values.push(projectCounts);
+    }
+    if (averagePrice !== undefined) {
+      updates.push(`average_price = $${paramCount++}`);
+      values.push(averagePrice);
+    }
+    if (salesVolume !== undefined) {
+      updates.push(`sales_volume = $${paramCount++}`);
+      values.push(salesVolume);
+    }
+    if (capitalAppreciation !== undefined) {
+      updates.push(`capital_appreciation = $${paramCount++}`);
+      values.push(capitalAppreciation);
+    }
+    if (rentalYield !== undefined) {
+      updates.push(`rental_yield = $${paramCount++}`);
+      values.push(rentalYield);
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -395,8 +410,10 @@ router.put('/areas/:id', [
       SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
       WHERE id = $${paramCount}
       RETURNING id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
-                area_type, wealth_level, cultural_attribute, description, description_ar,
-                color, opacity, visible, display_order, created_at, updated_at
+                description, description_ar,
+                color, opacity, visible, display_order,
+                project_counts, average_price, sales_volume, capital_appreciation, rental_yield,
+                created_at, updated_at
     `, values);
 
     if (result.rows.length === 0) {
@@ -409,15 +426,18 @@ router.put('/areas/:id', [
       name: row.name,
       nameAr: row.name_ar,
       boundary: row.boundary,
-      areaType: row.area_type,
-      wealthLevel: row.wealth_level,
-      culturalAttribute: row.cultural_attribute,
       description: row.description,
       descriptionAr: row.description_ar,
       color: row.color,
       opacity: parseFloat(row.opacity),
       visible: row.visible,
       displayOrder: row.display_order,
+      // Market statistics
+      projectCounts: row.project_counts || 0,
+      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
+      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
+      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
+      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
