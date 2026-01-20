@@ -46,9 +46,10 @@ app.use(cors({
   credentials: true
 }))
 app.use(morgan('dev'))
-// Increase body size limit for large project submissions with many images
-app.use(express.json({ limit: '50mb' }))
-app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+// Increase body size limit for large PDF uploads (up to 500MB)
+// Note: If using Cloudflare proxy, Free plan limits to 100MB
+app.use(express.json({ limit: '500mb' }))
+app.use(express.urlencoded({ extended: true, limit: '500mb' }))
 
 // Rate limiting
 const limiter = rateLimit({

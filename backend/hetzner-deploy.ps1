@@ -484,7 +484,14 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
         docker-compose.production.yml `
         "root@${IP}:/opt/gulf-property/docker-compose.yml"
     
-    if (Test-Path "nginx.conf") {
+    # Upload production nginx config with higher upload limits
+    if (Test-Path "nginx.production.conf") {
+        Write-Info "Uploading nginx.production.conf..."
+        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
+            nginx.production.conf `
+            "root@${IP}:/opt/gulf-property/nginx.conf"
+    } elseif (Test-Path "nginx.conf") {
+        Write-Warning "Using nginx.conf (nginx.production.conf not found)"
         scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
             nginx.conf `
             "root@${IP}:/opt/gulf-property/"

@@ -7,6 +7,8 @@ import DeveloperSubmitPage from './pages/DeveloperSubmitPage'
 import DeveloperPropertyUploadPageV2 from './pages/DeveloperPropertyUploadPageV2'
 import LangGraphTestPage from './pages/LangGraphTestPage'
 import DubaiEditor from './pages/DubaiEditor'
+import AdminPropertyListPage from './pages/AdminPropertyListPage'
+import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
 import Layout from './components/Layout'
 
 function App() {
@@ -21,6 +23,8 @@ function App() {
         <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/admin/dubai" element={<DubaiEditor />} />
+        <Route path="/admin/properties" element={<AdminPropertyListPage />} />
+        <Route path="/admin/property/edit/:id" element={<AdminPropertyEditPage />} />
       </Routes>
     </Layout>
   )

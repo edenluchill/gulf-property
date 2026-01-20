@@ -15,7 +15,7 @@ interface PaymentPlanSectionProps {
 
 export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSectionProps) {
   const hasPlan = paymentPlan && paymentPlan.length > 0
-  const total = hasPlan ? paymentPlan.reduce((sum, m) => sum + (m.percentage || 0), 0) : 0
+  const total = hasPlan ? paymentPlan.reduce((sum, m) => sum + (parseFloat(String(m.percentage)) || 0), 0) : 0
 
   return (
     <div className="space-y-4 pt-6 border-t-2 border-gray-100">
@@ -74,7 +74,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-amber-600">
-                  {milestone.percentage}%
+                  {parseFloat(String(milestone.percentage)) || 0}%
                 </div>
               </div>
             </div>
@@ -87,12 +87,12 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
               <span className="text-lg font-bold text-gray-900">总计</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className={`text-3xl font-bold ${total === 100 ? 'text-green-600' : 'text-red-600'}`}>
-                {total}%
+              <div className={`text-3xl font-bold ${Math.abs(total - 100) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                {total.toFixed(2)}%
               </div>
-              {total !== 100 && (
+              {Math.abs(total - 100) >= 0.01 && (
                 <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-100 text-red-600">
-                  {total > 100 ? '超出' : '不足'} {Math.abs(100 - total)}%
+                  {total > 100 ? '超出' : '不足'} {Math.abs(100 - total).toFixed(2)}%
                 </span>
               )}
             </div>

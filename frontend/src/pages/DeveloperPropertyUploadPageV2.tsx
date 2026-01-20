@@ -91,6 +91,8 @@ export default function DeveloperPropertyUploadPageV2() {
   const [hasStarted, setHasStarted] = useState(false)
   const [progress, setProgress] = useState(0)
   const [currentStage, setCurrentStage] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isUploading, setIsUploading] = useState(false)
   const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([])
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
@@ -149,9 +151,10 @@ export default function DeveloperPropertyUploadPageV2() {
     if (documents.length === 0) return
 
     setHasStarted(true)
-    setIsProcessing(true)
+    setIsUploading(true)
+    setUploadProgress(0)
     setProgress(0)
-    setCurrentStage('Starting...')
+    setCurrentStage('上传文件中...')
     setProgressEvents([])
     setError(null)
 
@@ -163,12 +166,43 @@ export default function DeveloperPropertyUploadPageV2() {
 
       console.log('📤 Sending files to backend...')
       
-      const response = await fetch(API_ENDPOINTS.langgraphProgressStart, {
-        method: 'POST',
-        body: formDataToSend,
+      // Use XMLHttpRequest to track upload progress
+      const data = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        
+        // Track upload progress
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100)
+            setUploadProgress(percentComplete)
+            setCurrentStage(`上传文件中... ${percentComplete}%`)
+            console.log(`📤 Upload progress: ${percentComplete}%`)
+          }
+        })
+        
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText)
+              setIsUploading(false)
+              setCurrentStage('文件上传完成，开始处理...')
+              resolve(response)
+            } catch (err) {
+              reject(new Error('Invalid response format'))
+            }
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`))
+          }
+        })
+        
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'))
+        })
+        
+        xhr.open('POST', API_ENDPOINTS.langgraphProgressStart)
+        xhr.send(formDataToSend)
       })
 
-      const data = await response.json()
       console.log('✅ Backend response:', data)
 
       if (!data.success) {
@@ -178,6 +212,9 @@ export default function DeveloperPropertyUploadPageV2() {
       const jobId = data.jobId
       console.log(`🆔 Job ID received: ${jobId}`)
 
+      setIsProcessing(true)
+      setCurrentStage('连接处理服务...')
+
       console.log('🔌 Connecting to SSE:', API_ENDPOINTS.langgraphProgressStream(jobId))
       
       const eventSource = new EventSource(API_ENDPOINTS.langgraphProgressStream(jobId))
@@ -185,6 +222,7 @@ export default function DeveloperPropertyUploadPageV2() {
 
       eventSource.onopen = () => {
         console.log('✅ SSE connection opened')
+        setCurrentStage('开始处理文档...')
       }
 
       eventSource.onmessage = (event) => {
@@ -242,6 +280,7 @@ export default function DeveloperPropertyUploadPageV2() {
         if (progressEvent.stage === 'complete') {
           console.log('✅ Processing complete!')
           setIsProcessing(false)
+          setIsUploading(false)
           setHasReviewed(false) // 重置review状态
           eventSource.close()
         }
@@ -250,6 +289,7 @@ export default function DeveloperPropertyUploadPageV2() {
           console.error('❌ Processing error:', progressEvent.message)
           setError(progressEvent.message)
           setIsProcessing(false)
+          setIsUploading(false)
           eventSource.close()
         }
       }
@@ -262,6 +302,7 @@ export default function DeveloperPropertyUploadPageV2() {
         if (eventSource.readyState === EventSource.CLOSED) {
           setError('Connection closed unexpectedly. Please try again.')
           setIsProcessing(false)
+          setIsUploading(false)
         } else {
           console.log('🔄 SSE reconnecting...')
         }
@@ -270,6 +311,7 @@ export default function DeveloperPropertyUploadPageV2() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process PDFs')
       setIsProcessing(false)
+      setIsUploading(false)
     }
   }
 
@@ -487,11 +529,12 @@ export default function DeveloperPropertyUploadPageV2() {
                 />
                 
                 <ProgressSection
-                  isProcessing={isProcessing}
-                  progress={progress}
+                  isProcessing={isProcessing || isUploading}
+                  progress={isUploading ? uploadProgress : progress}
                   currentStage={currentStage}
                   progressEvents={progressEvents}
                   error={error}
+                  isUploading={isUploading}
                 />
               </div>
 

@@ -33,12 +33,12 @@ const router = Router();
  * 
  * Start PDF processing and return job ID for SSE connection
  */
-// Update to support multiple files
+// Update to support multiple files and large PDFs
 const uploadMultiple = multer({
   storage: multer.memoryStorage(),
   limits: { 
-    fileSize: 100 * 1024 * 1024,  // 100MB per file
-    files: 5,  // Max 5 files
+    fileSize: 500 * 1024 * 1024,  // 500MB per file
+    files: 10,  // Max 10 files
   },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
@@ -51,7 +51,7 @@ const uploadMultiple = multer({
 
 router.post(
   '/start',
-  uploadMultiple.array('files', 5),  // Support up to 5 PDFs
+  uploadMultiple.array('files', 10),  // Support up to 10 PDFs
   async (req: Request, res: Response): Promise<void> => {
     try {
       const files = req.files as Express.Multer.File[];

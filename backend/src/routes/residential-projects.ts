@@ -8,7 +8,6 @@ import { Pool } from 'pg'
 import {
   SubmitProjectRequest,
   SubmitProjectResponse,
-  GetProjectResponse,
   ListProjectsResponse,
 } from '../types/residential-projects'
 import { isR2PdfCacheUrl } from '../services/r2-storage'
@@ -501,9 +500,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           
           // Validate area (must be > 0 per database constraint)
           if (!unit.area || unit.area <= 0) {
-            console.error(`   ❌ Invalid area for unit "${unit.name || unit.typeName}": ${unit.area}`);
+            const unitName = unit.name || unit.typeName || 'Unknown'
+            console.error(`   ❌ Invalid area for unit "${unitName}": ${unit.area}`);
             console.error(`   🔍 Reason: AI failed to extract unit details (likely misclassified page)`);
-            invalidUnits.push(unit.name || unit.typeName);
+            invalidUnits.push(unitName);
             isValid = false;
           }
           
@@ -708,7 +708,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       )
 
       if (projectResult.rows.length === 0) {
-        res.status(404).json({ error: 'Project not found' })
+        res.status(404).json({ success: false, error: 'Project not found' })
         return
       }
 
@@ -724,17 +724,341 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         [id]
       )
 
-      const response: GetProjectResponse = {
-        project: projectResult.rows[0],
-        unitTypes: unitTypesResult.rows,
-        paymentPlan: paymentPlanResult.rows,
-      }
+      const project = projectResult.rows[0]
+      const units = unitTypesResult.rows
 
-      res.json(response)
+      res.json({
+        success: true,
+        project: {
+          ...project,
+          units,
+          payment_plan: paymentPlanResult.rows,
+        },
+      })
     } catch (error) {
       console.error('Error fetching project:', error)
       res.status(500).json({
+        success: false,
         error: 'Failed to fetch project',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      })
+    }
+  })
+
+  // ============================================================================
+  // PUT /api/residential-projects/:id
+  // Update an existing residential project (full update of all fields)
+  // ============================================================================
+  router.put('/:id', async (req: Request, res: Response) => {
+    const client = await pool.connect()
+    
+    try {
+      await client.query('BEGIN')
+
+      const { id } = req.params
+      const data: SubmitProjectRequest = req.body
+
+      console.log('📝 Updating residential project ID:', id)
+      console.log('📊 Data summary:')
+      console.log('   - Unit types:', data.unitTypes?.length || 0)
+      console.log('   - Payment plan milestones:', data.paymentPlan?.length || 0)
+      console.log('   - Project images:', data.projectImages?.length || 0)
+      console.log('   - Floor plan images:', data.floorPlanImages?.length || 0)
+
+      // Check if project exists
+      const existingProject = await client.query(
+        'SELECT id FROM residential_projects WHERE id = $1',
+        [id]
+      )
+
+      if (existingProject.rows.length === 0) {
+        await client.query('ROLLBACK')
+        res.status(404).json({
+          success: false,
+          error: 'Project not found',
+        })
+        return
+      }
+
+      // Validate images
+      const projectImages = data.projectImages || []
+      const floorPlanImages = data.floorPlanImages || []
+      
+      const validateImages = (images: string[], type: string) => {
+        images.forEach((url, idx) => {
+          if (!isR2PdfCacheUrl(url)) {
+            console.warn(`⚠️ ${type} image ${idx + 1} is not from PDF cache: ${url.substring(0, 80)}...`)
+          }
+        })
+      }
+      
+      validateImages(projectImages, 'Project')
+      validateImages(floorPlanImages, 'Floor plan')
+
+      // 1. Update main project
+      await client.query(`
+        UPDATE residential_projects SET
+          project_name = $1,
+          developer = $2,
+          address = $3,
+          area = $4,
+          description = $5,
+          latitude = $6,
+          longitude = $7,
+          launch_date = $8,
+          completion_date = $9,
+          handover_date = $10,
+          construction_progress = $11,
+          project_images = $12,
+          floor_plan_images = $13,
+          amenities = $14,
+          has_renderings = $15,
+          has_floor_plans = $16,
+          has_location_maps = $17,
+          rendering_descriptions = $18,
+          floor_plan_descriptions = $19,
+          updated_at = NOW()
+        WHERE id = $20
+      `, [
+        data.projectName,
+        data.developer,
+        data.address,
+        data.area,
+        data.description || '',
+        data.latitude || null,
+        data.longitude || null,
+        data.launchDate || null,
+        data.completionDate || null,
+        data.handoverDate || null,
+        data.constructionProgress || null,
+        projectImages,
+        floorPlanImages,
+        data.amenities || [],
+        data.visualContent?.hasRenderings || false,
+        data.visualContent?.hasFloorPlans || false,
+        data.visualContent?.hasLocationMaps || false,
+        data.visualContent?.renderingDescriptions || [],
+        data.visualContent?.floorPlanDescriptions || [],
+        id,
+      ])
+
+      console.log('✅ Project main data updated')
+
+      // 2. Delete existing unit types and payment plans (cascading)
+      await client.query('DELETE FROM project_unit_types WHERE project_id = $1', [id])
+      await client.query('DELETE FROM project_payment_plans WHERE project_id = $1', [id])
+      console.log('✅ Existing unit types and payment plans deleted')
+
+      // 3. Insert new unit types
+      if (data.unitTypes && Array.isArray(data.unitTypes) && data.unitTypes.length > 0) {
+        console.log(`📦 Inserting ${data.unitTypes.length} unit types...`)
+        
+        // Validate and filter units
+        const invalidUnits: string[] = []
+        const validUnits = []
+        
+        for (const unit of data.unitTypes) {
+          let isValid = true
+          
+          if (!unit.area || unit.area <= 0) {
+            const unitName = unit.name || unit.typeName || 'Unknown'
+            console.error(`   ❌ Invalid area for unit "${unitName}": ${unit.area}`)
+            invalidUnits.push(unitName)
+            isValid = false
+          }
+          
+          if (isValid) {
+            // Validate bathrooms
+            if (!unit.bathrooms || unit.bathrooms <= 0) {
+              const bedrooms = unit.bedrooms || 0
+              if (bedrooms === 0) {
+                unit.bathrooms = 1
+              } else if (bedrooms === 1) {
+                unit.bathrooms = 1
+              } else if (bedrooms === 2) {
+                unit.bathrooms = 2
+              } else {
+                unit.bathrooms = Math.min(bedrooms, 3)
+              }
+              console.warn(`   ⚠️  Invalid bathrooms for unit "${unit.name || unit.typeName}", estimated ${unit.bathrooms}`)
+            }
+            
+            // Validate bedrooms
+            if (unit.bedrooms < 0) {
+              console.warn(`   ⚠️  Invalid bedrooms (${unit.bedrooms}), setting to 0`)
+              unit.bedrooms = 0
+            }
+            
+            validUnits.push(unit)
+          }
+        }
+        
+        if (invalidUnits.length > 0) {
+          console.warn(`\n⚠️  FILTERED OUT ${invalidUnits.length} INVALID UNIT(S)`)
+          console.warn(`✅ Proceeding with ${validUnits.length} valid unit(s)\n`)
+        }
+        
+        for (let i = 0; i < validUnits.length; i++) {
+          const unit = validUnits[i]
+          
+          const unitFloorPlanImage = unit.floorPlanImage || null
+          const unitImages: string[] = []
+          if (unitFloorPlanImage) {
+            unitImages.push(unitFloorPlanImage)
+          }
+
+          await client.query(`
+            INSERT INTO project_unit_types (
+              project_id,
+              unit_type_name,
+              category,
+              type_code,
+              unit_numbers,
+              unit_count,
+              bedrooms,
+              bathrooms,
+              area,
+              balcony_area,
+              built_up_area,
+              price,
+              price_per_sqft,
+              orientation,
+              features,
+              description,
+              floor_plan_image,
+              unit_images,
+              display_order
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+            )
+          `, [
+            id,
+            unit.name || `Unit Type ${i + 1}`,
+            unit.category || null,
+            unit.typeName || null,
+            unit.unitNumbers || [],
+            unit.unitCount || 1,
+            unit.bedrooms,
+            unit.bathrooms,
+            unit.area,
+            unit.balconyArea || null,
+            unit.suiteArea || null,
+            unit.price || null,
+            unit.pricePerSqft || null,
+            unit.orientation || null,
+            unit.features || [],
+            unit.description || null,
+            unitFloorPlanImage || null,
+            unitImages,
+            i,
+          ])
+        }
+        console.log('✅ Unit types inserted')
+      }
+
+      // 4. Insert new payment plan
+      if (data.paymentPlan && Array.isArray(data.paymentPlan) && data.paymentPlan.length > 0) {
+        console.log(`💰 Inserting ${data.paymentPlan.length} payment milestones...`)
+        
+        for (let i = 0; i < data.paymentPlan.length; i++) {
+          const milestone = data.paymentPlan[i]
+          
+          const cleanedDate = cleanDateFormat(milestone.date)
+          
+          let intervalMonths = milestone.intervalMonths
+          let intervalDescription = milestone.intervalDescription
+          
+          if (intervalMonths === undefined && i > 0 && cleanedDate && data.paymentPlan[i - 1].date) {
+            const prevDate = cleanDateFormat(data.paymentPlan[i - 1].date)
+            if (prevDate) {
+              const current = new Date(cleanedDate)
+              const previous = new Date(prevDate)
+              const monthsDiff = Math.round(
+                (current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+              )
+              intervalMonths = monthsDiff > 0 ? monthsDiff : undefined
+              
+              if (!intervalDescription && intervalMonths) {
+                intervalDescription = `${intervalMonths} month${intervalMonths !== 1 ? 's' : ''} later`
+              }
+            }
+          } else if (i === 0 && intervalMonths === undefined) {
+            intervalMonths = 0
+            if (!intervalDescription) {
+              intervalDescription = 'At booking'
+            }
+          }
+          
+          await client.query(`
+            INSERT INTO project_payment_plans (
+              project_id,
+              milestone_name,
+              percentage,
+              milestone_date,
+              interval_months,
+              interval_description,
+              display_order
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `, [
+            id,
+            milestone.milestone,
+            milestone.percentage,
+            cleanedDate,
+            intervalMonths,
+            intervalDescription,
+            i,
+          ])
+        }
+        console.log('✅ Payment plan inserted')
+      }
+
+      await client.query('COMMIT')
+      console.log('🎉 Project updated successfully')
+
+      res.json({
+        success: true,
+        message: 'Project updated successfully',
+        projectId: id,
+      })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      console.error('❌ Error updating project:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update project',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      })
+    } finally {
+      client.release()
+    }
+  })
+
+  // ============================================================================
+  // DELETE /api/residential-projects/:id
+  // Delete a project (cascades to unit types and payment plans)
+  // ============================================================================
+  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params
+
+      const result = await pool.query(
+        'DELETE FROM residential_projects WHERE id = $1 RETURNING id',
+        [id]
+      )
+
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'Project not found' })
+        return
+      }
+
+      res.json({
+        success: true,
+        message: 'Project deleted successfully',
+      })
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      res.status(500).json({
+        error: 'Failed to delete project',
         message: error instanceof Error ? error.message : 'Unknown error',
       })
     }
@@ -825,11 +1149,16 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       )
       const total = parseInt(countResult.rows[0].count)
 
-      // Get projects
+      // Get projects with unit count
       const projectsResult = await pool.query(
-        `SELECT * FROM residential_projects 
+        `SELECT 
+          rp.*,
+          COUNT(DISTINCT put.id) as unit_count
+         FROM residential_projects rp
+         LEFT JOIN project_unit_types put ON rp.id = put.project_id
          ${whereClause}
-         ORDER BY created_at DESC
+         GROUP BY rp.id
+         ORDER BY rp.created_at DESC
          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
         [...params, limitNum, offset]
       )
@@ -846,37 +1175,6 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       console.error('Error listing projects:', error)
       res.status(500).json({
         error: 'Failed to list projects',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      })
-    }
-  })
-
-  // ============================================================================
-  // DELETE /api/residential-projects/:id
-  // Delete a project (cascades to unit types and payment plans)
-  // ============================================================================
-  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { id } = req.params
-
-      const result = await pool.query(
-        'DELETE FROM residential_projects WHERE id = $1 RETURNING id',
-        [id]
-      )
-
-      if (result.rows.length === 0) {
-        res.status(404).json({ error: 'Project not found' })
-        return
-      }
-
-      res.json({
-        success: true,
-        message: 'Project deleted successfully',
-      })
-    } catch (error) {
-      console.error('Error deleting project:', error)
-      res.status(500).json({
-        error: 'Failed to delete project',
         message: error instanceof Error ? error.message : 'Unknown error',
       })
     }

@@ -24,6 +24,7 @@ export const API_ENDPOINTS = {
   residentialProjectsSubmit: `${API_BASE_URL}/api/residential-projects/submit`,
   residentialProjects: `${API_BASE_URL}/api/residential-projects`,
   residentialProject: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,
+  residentialProjectUpdate: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,
   
   // LangGraph
   langgraphProgressStart: `${API_BASE_URL}/api/langgraph-progress/start`,

@@ -16,14 +16,15 @@ export default function Header() {
   ]
 
   const adminItems = [
-    { path: '/admin/dubai', label: 'Dubai Map Editor' },
+    { path: '/admin/properties', label: '项目管理', icon: Building2 },
+    { path: '/admin/dubai', label: 'Dubai Map Editor', icon: MapPin },
   ]
 
   const isAdminPage = location.pathname.startsWith('/admin')
 
   return (
     <header
-      className="bg-white/80 backdrop-blur-xl border-b border-slate-200/60 sticky top-0 z-40 shadow-sm relative"
+      className="bg-white/80 backdrop-blur-xl border-b border-slate-200/60 sticky top-0 z-[1000] shadow-sm relative"
     >
       <div className="container mx-auto px-4 py-4 relative">
         <div className="flex items-center justify-between">
@@ -101,16 +102,17 @@ export default function Header() {
                 <span>Admin</span>
               </Button>
               
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                {adminItems.map(({ path, label }) => (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1001]">
+                {adminItems.map(({ path, label, icon: Icon }) => (
                   <Link
                     key={path}
                     to={path}
-                    className={`block px-4 py-2 text-sm hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl transition-colors ${
+                    className={`flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl transition-colors ${
                       location.pathname === path ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-700'
                     }`}
                   >
-                    {label}
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
                   </Link>
                 ))}
               </div>
@@ -175,7 +177,7 @@ export default function Header() {
               <div className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Admin
               </div>
-              {adminItems.map(({ path, label }, index) => (
+              {adminItems.map(({ path, label, icon: Icon }, index) => (
                 <motion.div
                   key={path}
                   initial={{ opacity: 0, x: -20 }}
@@ -191,7 +193,7 @@ export default function Header() {
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    <Settings className="h-5 w-5" />
+                    <Icon className="h-5 w-5" />
                     <span>{label}</span>
                   </Link>
                 </motion.div>
