@@ -4,21 +4,7 @@ import { Button } from '../../components/ui/button'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
 import { UnitTypeDetailModal } from './UnitTypeDetailModal'
-
-interface UnitType {
-  id: string
-  unit_type_name: string
-  bedrooms: number
-  bathrooms: number
-  area: string
-  balcony_area?: string
-  price?: number
-  price_per_sqft?: number
-  floor_plan_image?: string
-  category?: string
-  description?: string
-  features?: string[]
-}
+import { UnitType } from '../../types'
 
 interface UnitTypesTabProps {
   unitTypes: UnitType[]

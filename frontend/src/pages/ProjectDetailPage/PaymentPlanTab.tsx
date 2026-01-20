@@ -1,19 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../lib/utils'
-
-interface PaymentMilestone {
-  id: string
-  milestone_name: string
-  percentage: number
-  milestone_date?: string
-  interval_months?: number
-  interval_description?: string
-  description?: string
-}
+import { PaymentPlan } from '../../types'
 
 interface PaymentPlanTabProps {
-  paymentPlan: PaymentMilestone[]
+  paymentPlan: PaymentPlan[]
 }
 
 export function PaymentPlanTab({ paymentPlan }: PaymentPlanTabProps) {

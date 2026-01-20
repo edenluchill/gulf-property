@@ -2,21 +2,7 @@ import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog'
 import { formatPrice } from '../../lib/utils'
 import { X } from 'lucide-react'
 import { Button } from '../../components/ui/button'
-
-interface UnitType {
-  id: string
-  unit_type_name: string
-  bedrooms: number
-  bathrooms: number
-  area: string
-  balcony_area?: string
-  price?: number
-  price_per_sqft?: number
-  floor_plan_image?: string
-  category?: string
-  description?: string
-  features?: string[]
-}
+import { UnitType } from '../../types'
 
 interface UnitTypeDetailModalProps {
   unit: UnitType | null
@@ -110,7 +96,7 @@ export function UnitTypeDetailModal({ unit, isOpen, onClose }: UnitTypeDetailMod
               <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 p-6 rounded-xl border border-purple-200">
                 <div className="text-sm font-medium text-purple-800 mb-2">Bathrooms</div>
                 <div className="text-4xl font-bold text-purple-900">{unit.bathrooms}</div>
-                <div className="text-xs text-purple-700 mt-1">Bathroom{unit.bathrooms !== 1 ? 's' : ''}</div>
+                <div className="text-xs text-purple-700 mt-1">Bathroom{unit.bathrooms !== '1' ? 's' : ''}</div>
               </div>
               <div className="bg-gradient-to-br from-green-50 to-green-100/50 p-6 rounded-xl border border-green-200">
                 <div className="text-sm font-medium text-green-800 mb-2">Built-up Area</div>

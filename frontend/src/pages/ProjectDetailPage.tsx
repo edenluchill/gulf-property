@@ -6,7 +6,6 @@ import { ArrowLeft } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { isFavorite, addFavorite, removeFavorite } from '../lib/favorites'
 import { fetchResidentialProjectById } from '../lib/api'
-import { OffPlanProperty } from '../types'
 import { ImageGallery } from './ProjectDetailPage/ImageGallery'
 import { ProjectInfoCard } from './ProjectDetailPage/ProjectInfoCard'
 import { OverviewTab } from './ProjectDetailPage/OverviewTab'
@@ -15,74 +14,9 @@ import { PaymentPlanTab } from './ProjectDetailPage/PaymentPlanTab'
 import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
 import { LocationTab } from './ProjectDetailPage/LocationTab'
 
-// Convert residential project to OffPlanProperty format
-function convertResidentialProjectToProperty(result: any): OffPlanProperty | null {
-  if (!result || !result.project) return null
-  
-  const project = result.project
-  
-  // construction_progress is now a direct number (0-100)
-  const completionPercent = project.construction_progress || 0
-  
-  // Normalize status to match old schema
-  let normalizedStatus: 'upcoming' | 'under-construction' | 'completed' = 'upcoming'
-  if (project.status === 'under-construction') {
-    normalizedStatus = 'under-construction'
-  } else if (project.status === 'completed' || project.status === 'handed-over') {
-    normalizedStatus = 'completed'
-  }
-  
-  return {
-    id: project.id,
-    buildingId: undefined,
-    buildingName: project.project_name,
-    projectName: project.project_name,
-    buildingDescription: project.description,
-    developer: project.developer,
-    developerId: undefined,
-    developerLogoUrl: undefined,
-    location: {
-      lat: project.latitude || 0,
-      lng: project.longitude || 0,
-    },
-    areaName: project.area,
-    areaId: undefined,
-    dldLocationId: undefined,
-    minBedrooms: project.min_bedrooms || 0,
-    maxBedrooms: project.max_bedrooms || 0,
-    bedsDescription: project.min_bedrooms && project.max_bedrooms 
-      ? `${project.min_bedrooms}-${project.max_bedrooms} BR`
-      : undefined,
-    minSize: undefined,
-    maxSize: undefined,
-    startingPrice: project.starting_price,
-    medianPriceSqft: undefined,
-    medianPricePerUnit: project.starting_price,
-    medianRentPerUnit: undefined,
-    launchDate: project.launch_date,
-    completionDate: project.completion_date,
-    completionPercent: completionPercent,
-    status: normalizedStatus,
-    unitCount: project.total_units,
-    buildingUnitCount: project.total_units,
-    salesVolume: undefined,
-    propSalesVolume: undefined,
-    images: project.project_images || [],
-    logoUrl: undefined,
-    brochureUrl: project.brochure_url,
-    amenities: project.amenities || [],
-    displayAs: 'project',
-    verified: project.verified,
-    createdAt: project.created_at,
-    updatedAt: project.updated_at,
-  }
-}
-
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [property, setProperty] = useState<OffPlanProperty | null>(null)
-  const [unitTypes, setUnitTypes] = useState<any[]>([])
-  const [paymentPlan, setPaymentPlan] = useState<any[]>([])
+  const [project, setProject] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isFav, setIsFav] = useState(false)
@@ -90,26 +24,28 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (id) {
       setLoading(true)
-      fetchResidentialProjectById(id).then((result) => {
-        const convertedProperty = convertResidentialProjectToProperty(result)
-        setProperty(convertedProperty)
-        setUnitTypes(result?.unitTypes || [])
-        setPaymentPlan(result?.paymentPlan || [])
-        setLoading(false)
-        if (convertedProperty) {
-          setIsFav(isFavorite(convertedProperty.id))
-        }
-      })
+      fetchResidentialProjectById(id)
+        .then((result) => {
+          if (result?.success && result.project) {
+            setProject(result.project)
+            setIsFav(isFavorite(result.project.id))
+          }
+          setLoading(false)
+        })
+        .catch((error) => {
+          console.error('Error fetching project:', error)
+          setLoading(false)
+        })
     }
   }, [id])
 
   const handleToggleFavorite = () => {
-    if (!property) return
+    if (!project) return
     
     if (isFav) {
-      removeFavorite(property.id)
+      removeFavorite(project.id)
     } else {
-      addFavorite(property.id)
+      addFavorite(project.id)
     }
     setIsFav(!isFav)
   }
@@ -117,15 +53,15 @@ export default function ProjectDetailPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
-        <div className="text-xl">Loading property details...</div>
+        <div className="text-xl">Loading project details...</div>
       </div>
     )
   }
 
-  if (!property) {
+  if (!project) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
-        <h1 className="text-3xl font-bold mb-4">Property Not Found</h1>
+        <h1 className="text-3xl font-bold mb-4">Project Not Found</h1>
         <Link to="/map">
           <Button>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -159,13 +95,13 @@ export default function ProjectDetailPage() {
           {/* Image Gallery and Project Info */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <ImageGallery
-              images={property.images}
-              buildingName={property.buildingName}
+              images={project.project_images}
+              buildingName={project.project_name}
               currentImageIndex={currentImageIndex}
               onImageIndexChange={setCurrentImageIndex}
             />
             <ProjectInfoCard
-              property={property}
+              project={project}
               isFavorite={isFav}
               onToggleFavorite={handleToggleFavorite}
             />
@@ -182,26 +118,29 @@ export default function ProjectDetailPage() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              <OverviewTab property={property} />
+              <OverviewTab project={project} />
             </TabsContent>
 
             <TabsContent value="units">
-              <UnitTypesTab unitTypes={unitTypes} />
+              <UnitTypesTab unitTypes={project.units || []} />
             </TabsContent>
 
             <TabsContent value="payment">
-              <PaymentPlanTab paymentPlan={paymentPlan} />
+              <PaymentPlanTab paymentPlan={project.payment_plan || []} />
             </TabsContent>
 
             <TabsContent value="amenities">
-              <AmenitiesTab amenities={property.amenities} />
+              <AmenitiesTab amenities={project.amenities} />
             </TabsContent>
 
             <TabsContent value="location">
               <LocationTab
-                buildingName={property.buildingName}
-                areaName={property.areaName}
-                location={property.location}
+                buildingName={project.project_name}
+                areaName={project.area}
+                location={{
+                  lat: project.latitude,
+                  lng: project.longitude
+                }}
               />
             </TabsContent>
           </Tabs>

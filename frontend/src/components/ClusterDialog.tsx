@@ -258,7 +258,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                   <div className="mb-6">
                     <h3 className="text-sm font-semibold text-slate-700 mb-2">Amenities</h3>
                     <div className="flex flex-wrap gap-2">
-                      {selectedProperty.amenities.map((amenity, index) => (
+                      {selectedProperty.amenities.map((amenity: string, index: number) => (
                         <span 
                           key={index}
                           className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"

@@ -484,17 +484,19 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
         docker-compose.production.yml `
         "root@${IP}:/opt/gulf-property/docker-compose.yml"
     
-    # Upload production nginx config with higher upload limits
-    if (Test-Path "nginx.production.conf") {
-        Write-Info "Uploading nginx.production.conf..."
-        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-            nginx.production.conf `
-            "root@${IP}:/opt/gulf-property/nginx.conf"
-    } elseif (Test-Path "nginx.conf") {
-        Write-Warning "Using nginx.conf (nginx.production.conf not found)"
+    # Upload nginx config - prioritize nginx.conf for simplicity
+    if (Test-Path "nginx.conf") {
+        Write-Info "Uploading nginx.conf (HTTP-only, simple config)..."
         scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
             nginx.conf `
-            "root@${IP}:/opt/gulf-property/"
+            "root@${IP}:/opt/gulf-property/nginx.conf"
+    } elseif (Test-Path "nginx.production-no-ssl.conf") {
+        Write-Info "Uploading nginx.production-no-ssl.conf..."
+        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
+            nginx.production-no-ssl.conf `
+            "root@${IP}:/opt/gulf-property/nginx.conf"
+    } else {
+        Write-Warning "No nginx config found, nginx may not work correctly"
     }
     
     Write-Info "Starting backend services..."
