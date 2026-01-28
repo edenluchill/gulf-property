@@ -111,12 +111,12 @@ export default function ProjectDetailPage() {
 
           {/* Tabs Section */}
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="overview">{t('project:tabs.overview')}</TabsTrigger>
-              <TabsTrigger value="units">{t('project:tabs.unitTypes')}</TabsTrigger>
-              <TabsTrigger value="payment">{t('project:tabs.paymentPlan')}</TabsTrigger>
-              <TabsTrigger value="amenities">{t('project:tabs.amenities')}</TabsTrigger>
-              <TabsTrigger value="location">{t('project:tabs.location')}</TabsTrigger>
+            <TabsList className="w-full overflow-x-auto flex md:grid md:grid-cols-5 justify-start md:justify-center">
+              <TabsTrigger value="overview" className="flex-shrink-0">{t('project:tabs.overview')}</TabsTrigger>
+              <TabsTrigger value="units" className="flex-shrink-0">{t('project:tabs.unitTypes')}</TabsTrigger>
+              <TabsTrigger value="payment" className="flex-shrink-0">{t('project:tabs.paymentPlan')}</TabsTrigger>
+              <TabsTrigger value="amenities" className="flex-shrink-0">{t('project:tabs.amenities')}</TabsTrigger>
+              <TabsTrigger value="location" className="flex-shrink-0">{t('project:tabs.location')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">

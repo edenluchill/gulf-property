@@ -3,12 +3,12 @@ import MobileNav from './MobileNav'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950">
+    <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1 pb-20 md:pb-0">
+      <main className="flex-1">
         {children}
       </main>
 

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
 import { UnitTypeDetailModal } from './UnitTypeDetailModal'
+import { UnitTypeDetailSheet } from './UnitTypeDetailSheet'
 import { UnitType } from '../../types'
 import { useTranslation } from 'react-i18next'
 
@@ -42,6 +43,16 @@ export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(sortedGroupKeys))
   const [selectedUnit, setSelectedUnit] = useState<UnitType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const toggleGroup = (groupKey: string) => {
     const newExpanded = new Set(expandedGroups)
@@ -210,11 +221,23 @@ export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
         </CardContent>
       </Card>
 
-      <UnitTypeDetailModal 
-        unit={selectedUnit}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {/* Desktop: Modal */}
+      {!isMobile && (
+        <UnitTypeDetailModal 
+          unit={selectedUnit}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+
+      {/* Mobile: Bottom Sheet */}
+      {isMobile && (
+        <UnitTypeDetailSheet 
+          unit={selectedUnit}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
     </>
   )
 }

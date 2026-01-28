@@ -40,9 +40,9 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <CardTitle className="text-3xl">{project.project_name}</CardTitle>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[project.status]}`}>
+            <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
+              <CardTitle className="text-2xl md:text-3xl">{project.project_name}</CardTitle>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[project.status]} self-start`}>
                 {statusLabels[project.status]}
               </span>
             </div>
@@ -68,7 +68,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
         {/* Price Information */}
         <div>
           <div className="text-sm text-slate-600 mb-1">{t('common:price.startingPrice')}</div>
-          <div className="text-3xl font-bold text-primary">
+          <div className="text-2xl md:text-3xl font-bold text-primary">
             {project.starting_price ? formatPrice(project.starting_price) : t('common:price.priceOnApplication')}
           </div>
         </div>

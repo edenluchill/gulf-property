@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, Menu, MapPin, Heart, Briefcase, Settings } from 'lucide-react'
+import { Building2, MapPin, Heart, Briefcase, Settings } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
@@ -8,7 +8,6 @@ import LanguageSwitcher from './LanguageSwitcher'
 
 export default function Header() {
   const location = useLocation()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
   const { t } = useTranslation()
 
@@ -47,7 +46,7 @@ export default function Header() {
                 <Building2 className="h-6 w-6 text-white" />
               </motion.div>
             </motion.div>
-            
+
             <div className="flex flex-col">
               <motion.span
                 className="text-xl font-bold tracking-tight text-slate-900"
@@ -90,7 +89,7 @@ export default function Header() {
                 </Link>
               </motion.div>
             ))}
-            
+
             {/* Admin Dropdown */}
             <div className="relative group">
               <Button
@@ -104,7 +103,7 @@ export default function Header() {
                 <Settings className="h-4 w-4" />
                 <span>{t('nav.admin')}</span>
               </Button>
-              
+
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1001]">
                 {adminItems.map(({ path, label, icon: Icon }) => (
                   <Link
@@ -122,89 +121,7 @@ export default function Header() {
             </div>
             <LanguageSwitcher />
           </nav>
-
-          {/* Mobile Menu Button */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 rounded-xl backdrop-blur-sm"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              <motion.div
-                animate={{ rotate: mobileMenuOpen ? 90 : 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Menu className="h-6 w-6" />
-              </motion.div>
-            </Button>
-          </motion.div>
         </div>
-
-        {/* Mobile Dropdown Menu */}
-        {mobileMenuOpen && (
-          <motion.nav
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="md:hidden mt-4 pb-2 space-y-1 border-t border-slate-200/60 pt-4"
-          >
-            {navItems.map(({ path, label, icon: Icon }, index) => (
-              <motion.div
-                key={path}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Link
-                  to={path}
-                  className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                    location.pathname === path
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25 backdrop-blur-sm'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 backdrop-blur-sm'
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span>{label}</span>
-                </Link>
-              </motion.div>
-            ))}
-            
-            {/* Admin Section */}
-            <div className="pt-2 mt-2 border-t border-slate-200/60">
-              <div className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                {t('nav.admin')}
-              </div>
-              {adminItems.map(({ path, label, icon: Icon }, index) => (
-                <motion.div
-                  key={path}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: (navItems.length + index) * 0.1 }}
-                >
-                  <Link
-                    to={path}
-                    className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                      location.pathname === path
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                        : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80'
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span>{label}</span>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          </motion.nav>
-        )}
       </div>
     </header>
   )

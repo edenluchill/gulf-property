@@ -1,15 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import MapViewClustered from '../components/MapViewClustered'
 import { AreaMetric } from '../components/MapViewClustered'
 import FilterDialog from '../components/FilterDialog'
 import ClusterDialog from '../components/ClusterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
+import MobileBottomSheet from '../components/MobileBottomSheet'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
-import { Search, SlidersHorizontal, Layers, RefreshCw } from 'lucide-react'
+import { Search, SlidersHorizontal, Layers, RefreshCw, Building2, Bed, Calendar } from 'lucide-react'
 import { formatPrice } from '../lib/utils'
+import { getImageUrl } from '../lib/image-utils'
 import {
   fetchResidentialProjectClusters,
   fetchResidentialDevelopers,
@@ -73,6 +76,20 @@ export default function MapPage() {
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
   const [areaProjects, setAreaProjects] = useState<any[]>([])
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  // Mobile bottom sheet state
+  const [showClusterSheet, setShowClusterSheet] = useState(false)
+  const [showAreaSheet, setShowAreaSheet] = useState(false)
 
   // Load initial metadata (only once, with caching)
   useEffect(() => {
@@ -299,14 +316,19 @@ export default function MapPage() {
     }
   }, [])
 
-  // Handle cluster click to show properties in dialog
+  // Handle cluster click to show properties in dialog (or bottom sheet on mobile)
   const handleClusterClick = useCallback(async (cluster: any) => {
     if (!cluster.property_ids || cluster.property_ids.length === 0) return
 
     setSelectedClusterProperties([])
-    setClusterDialogPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
     setIsLoadingClusterProperties(true)
-    setShowClusterDialog(true)
+
+    if (isMobile) {
+      setShowClusterSheet(true)
+    } else {
+      setClusterDialogPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+      setShowClusterDialog(true)
+    }
 
     try {
       const projects = await fetchResidentialProjectsBatch(cluster.property_ids)
@@ -316,14 +338,19 @@ export default function MapPage() {
       console.error('Error fetching cluster projects:', error)
       setIsLoadingClusterProperties(false)
     }
-  }, [])
+  }, [isMobile])
 
-  // Handle area click to show area detail dialog with projects
+  // Handle area click to show area detail dialog (or bottom sheet on mobile)
   const handleAreaClick = useCallback(async (area: DubaiArea) => {
     setSelectedArea(area)
     setAreaProjects([])
     setIsLoadingAreaProjects(true)
-    setShowAreaDialog(true)
+
+    if (isMobile) {
+      setShowAreaSheet(true)
+    } else {
+      setShowAreaDialog(true)
+    }
 
     try {
       // Compute bounding box from polygon coordinates
@@ -369,7 +396,7 @@ export default function MapPage() {
     } finally {
       setIsLoadingAreaProjects(false)
     }
-  }, [])
+  }, [isMobile])
 
   const formatLastUpdated = (date: Date) => {
     const now = new Date()
@@ -402,10 +429,41 @@ export default function MapPage() {
     filters.status ||
     searchQuery
 
+  const formatValue = (value: number | undefined, type: 'price' | 'volume' | 'percent'): string => {
+    if (value === undefined || value === null) return '-'
+    if (type === 'percent') return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M AED`
+    if (value >= 1000) return `${(value / 1000).toFixed(0)}K AED`
+    return `${value} AED`
+  }
+
+  // Group area projects by developer for mobile bottom sheet
+  const areaDevelopers = useMemo(() => {
+    if (!areaProjects || areaProjects.length === 0) return []
+    const map = new Map<string, { name: string; logoUrl?: string; projectCount: number; projectNames: string[] }>()
+    for (const p of areaProjects) {
+      const dev = p.developer || 'Unknown'
+      if (!map.has(dev)) {
+        map.set(dev, { name: dev, logoUrl: p.developerLogoUrl, projectCount: 0, projectNames: [] })
+      }
+      const entry = map.get(dev)!
+      entry.projectCount++
+      if (entry.projectNames.length < 5) {
+        entry.projectNames.push(p.buildingName || p.projectName || '')
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.projectCount - a.projectCount)
+  }, [areaProjects])
+
+  // Cluster sheet title
+  const clusterSheetTitle = selectedClusterProperties.length > 0
+    ? selectedClusterProperties[0].buildingName || t('map:properties')
+    : t('map:properties')
+
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] bg-slate-50">
-      {/* Search and Filter Bar */}
-      <div className="bg-white shadow-sm z-10">
+    <div className="flex flex-col h-[calc(100dvh-64px-64px-14px)] md:h-[calc(100vh-80px)] bg-white">
+      {/* Search and Filter Bar — desktop only */}
+      <div className="hidden md:block bg-white shadow-sm z-10">
         <div className="px-6 py-4">
           <div className="flex flex-col gap-3">
             {/* Search Bar */}
@@ -493,8 +551,8 @@ export default function MapPage() {
       </div>
 
       {/* Map Section - Full Width */}
-      <div className="flex-1 p-6">
-        <div className="h-full rounded-xl overflow-hidden shadow-2xl border border-slate-200 relative">
+      <div className="flex-1 p-0 md:p-6">
+        <div className="h-full md:rounded-xl overflow-hidden md:shadow-2xl md:border md:border-slate-200 relative">
           <MapViewClustered
             clusters={clusters}
             onBoundsChange={handleMapBoundsChange}
@@ -506,8 +564,35 @@ export default function MapPage() {
             showDubaiLayer={showDubaiLayer}
           />
 
-          {/* Last Updated Badge - Floating on Map */}
-          <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-slate-200 z-[1000]">
+          {/* Floating mobile controls — search, filter, layers */}
+          <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/90 shadow-md rounded-full text-sm font-medium text-slate-700"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/90 shadow-md rounded-full text-sm font-medium text-slate-700"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              {hasActiveFilters && (
+                <span className="w-2 h-2 bg-primary rounded-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setShowDubaiLayer(!showDubaiLayer)}
+              className={`flex items-center gap-1.5 px-3 py-2 shadow-md rounded-full text-sm font-medium ${
+                showDubaiLayer ? 'bg-primary text-white' : 'bg-white/90 text-slate-700'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Last Updated Badge - Floating on Map, hidden on mobile */}
+          <div className="hidden md:flex absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-slate-200 z-[1000]">
             <div className="flex items-center gap-2 text-xs">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-slate-600">
@@ -550,7 +635,7 @@ export default function MapPage() {
         projects={projects}
       />
 
-      {/* Cluster Dialog */}
+      {/* Desktop: Cluster Dialog */}
       <ClusterDialog
         isOpen={showClusterDialog}
         onClose={() => setShowClusterDialog(false)}
@@ -559,7 +644,7 @@ export default function MapPage() {
         isLoading={isLoadingClusterProperties}
       />
 
-      {/* Area Detail Dialog */}
+      {/* Desktop: Area Detail Dialog */}
       <AreaDetailDialog
         isOpen={showAreaDialog}
         onClose={() => setShowAreaDialog(false)}
@@ -567,6 +652,185 @@ export default function MapPage() {
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}
       />
+
+      {/* Mobile: Cluster Bottom Sheet */}
+      <MobileBottomSheet
+        isOpen={showClusterSheet}
+        onClose={() => setShowClusterSheet(false)}
+        title={clusterSheetTitle}
+      >
+        {isLoadingClusterProperties ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {selectedClusterProperties.map((property) => (
+              <Link
+                key={property.id}
+                to={`/project/${property.id}`}
+                className="block p-4 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                onClick={() => setShowClusterSheet(false)}
+              >
+                <div className="flex gap-3">
+                  {/* Thumbnail */}
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                    {property.images && property.images.length > 0 ? (
+                      <img
+                        src={getImageUrl(property.images[0], 'thumbnail')}
+                        alt={property.buildingName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Building2 className="w-8 h-8 text-slate-300" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-sm text-slate-900 truncate">{property.buildingName}</h4>
+                    <p className="text-sm font-bold text-blue-700 mt-0.5">
+                      {property.startingPrice ? formatPrice(property.startingPrice) : t('common:price.priceOnApplication')}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">{property.developer}</p>
+
+                    {/* Beds + Completion date row */}
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                      {(property.minBedrooms !== undefined || property.maxBedrooms !== undefined) && (
+                        <span className="inline-flex items-center gap-1">
+                          <Bed className="w-3.5 h-3.5" />
+                          {property.minBedrooms === property.maxBedrooms
+                            ? (property.minBedrooms === 0 ? t('map:studio') : property.minBedrooms)
+                            : `${property.minBedrooms}-${property.maxBedrooms}`}
+                        </span>
+                      )}
+                      {property.completionDate && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {new Date(property.completionDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar — only for non-completed projects */}
+                {property.status !== 'completed' && property.completionPercent !== undefined && property.completionPercent >= 0 && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <div className="flex-1 bg-slate-200 rounded-full h-1.5">
+                      <div
+                        className="bg-blue-600 h-1.5 rounded-full"
+                        style={{ width: `${property.completionPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-blue-700 tabular-nums">{property.completionPercent}%</span>
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </MobileBottomSheet>
+
+      {/* Mobile: Area Bottom Sheet */}
+      <MobileBottomSheet
+        isOpen={showAreaSheet}
+        onClose={() => setShowAreaSheet(false)}
+        title={selectedArea?.name || ''}
+      >
+        {isLoadingAreaProjects ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600"></div>
+          </div>
+        ) : selectedArea ? (
+          <div className="p-4 space-y-5">
+            {/* Market Stats Grid */}
+            <div>
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                {t('map:areaDialog.marketStatistics')}
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                {selectedArea.projectCounts !== undefined && selectedArea.projectCounts > 0 && (
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.projects')}</div>
+                    <div className="text-lg font-bold text-slate-900">{selectedArea.projectCounts}</div>
+                  </div>
+                )}
+                {selectedArea.averagePrice !== undefined && selectedArea.averagePrice !== null && (
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.avgPrice')}</div>
+                    <div className="text-base font-bold text-slate-900">{formatValue(selectedArea.averagePrice, 'price')}</div>
+                  </div>
+                )}
+                {selectedArea.salesVolume !== undefined && selectedArea.salesVolume !== null && (
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.salesVolume')}</div>
+                    <div className="text-base font-bold text-slate-900">{formatValue(selectedArea.salesVolume, 'volume')}</div>
+                  </div>
+                )}
+                {selectedArea.capitalAppreciation !== undefined && selectedArea.capitalAppreciation !== null && (
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.capitalGrowth')}</div>
+                    <div className={`text-base font-bold ${selectedArea.capitalAppreciation >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {formatValue(selectedArea.capitalAppreciation, 'percent')}
+                    </div>
+                  </div>
+                )}
+                {selectedArea.rentalYield !== undefined && selectedArea.rentalYield !== null && (
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.rentalYield')}</div>
+                    <div className="text-base font-bold text-slate-900">{selectedArea.rentalYield.toFixed(1)}%</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Developer Cards */}
+            {areaDevelopers.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                  {t('map:areaDialog.developersInArea', { count: areaDevelopers.length })}
+                </h4>
+                <div className="space-y-2">
+                  {areaDevelopers.map((dev) => (
+                    <div key={dev.name} className="bg-white rounded-xl border border-slate-200 p-3">
+                      <div className="flex items-center gap-2.5">
+                        {dev.logoUrl ? (
+                          <img src={dev.logoUrl} alt={dev.name} className="w-8 h-8 object-contain rounded-lg border border-slate-100" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                            <Building2 className="w-4 h-4 text-slate-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm text-slate-800 truncate">{dev.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {t('map:areaDialog.projectCount', { count: dev.projectCount })}
+                          </div>
+                        </div>
+                      </div>
+                      {dev.projectNames.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {dev.projectNames.map((name, i) => (
+                            <span key={i} className="inline-block px-2 py-0.5 bg-slate-50 text-slate-600 rounded text-[11px] border border-slate-100 truncate max-w-[160px]">
+                              {name}
+                            </span>
+                          ))}
+                          {dev.projectCount > 5 && (
+                            <span className="inline-block px-2 py-0.5 text-slate-400 text-[11px]">+{dev.projectCount - 5}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </MobileBottomSheet>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo } from 'react'
+import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { DubaiArea, DubaiLandmark } from '../types'
@@ -149,6 +149,7 @@ function createClusterPinIcon(count: number, metricLabel: string, metricColor: s
         transform: translate(-50%, -50%);
         pointer-events: auto;
         cursor: pointer;
+        animation: areaFadeIn 0.3s ease-out;
       ">
         <div style="
           display: inline-flex;
@@ -429,6 +430,61 @@ const ClusterMarker = memo(({ cluster, onClusterClick }: ClusterMarkerProps) => 
   )
 })
 
+// Memoized polygon — prevents re-render when only cluster data changes
+const AreaPolygon = memo(function AreaPolygon({
+  area,
+  onAreaClick,
+}: {
+  area: DubaiArea
+  onAreaClick?: (area: DubaiArea) => void
+}) {
+  const coordinates = useMemo(() => {
+    if (area.boundary?.type !== 'Polygon') return []
+    return (area.boundary as any).coordinates[0].map(
+      ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+    )
+  }, [area.boundary])
+
+  const pathOptions = useMemo(() => ({
+    color: area.color,
+    fillColor: area.color,
+    fillOpacity: area.opacity * 0.6,
+    weight: 3,
+    opacity: 0.8,
+    dashArray: '5, 10',
+    lineCap: 'round' as const,
+    lineJoin: 'round' as const,
+  }), [area.color, area.opacity])
+
+  const eventHandlers = useMemo(() => ({
+    mouseover: (e: any) => {
+      e.target.setStyle({
+        weight: 4,
+        fillOpacity: area.opacity * 1.2,
+        dashArray: '10, 5',
+      })
+    },
+    mouseout: (e: any) => {
+      e.target.setStyle({
+        weight: 3,
+        fillOpacity: area.opacity * 0.6,
+        dashArray: '5, 10',
+      })
+    },
+    click: () => { if (onAreaClick) onAreaClick(area) },
+  }), [area, onAreaClick])
+
+  if (coordinates.length === 0) return null
+
+  return (
+    <Polygon
+      positions={coordinates}
+      pathOptions={pathOptions}
+      eventHandlers={eventHandlers}
+    />
+  )
+})
+
 // Area name — bare text that blends into the polygon block
 function createAreaNameIcon(area: DubaiArea): L.DivIcon {
   return L.divIcon({
@@ -441,6 +497,7 @@ function createAreaNameIcon(area: DubaiArea): L.DivIcon {
         pointer-events: none;
         white-space: nowrap;
         text-align: center;
+        animation: areaFadeIn 0.3s ease-out;
       ">
         <div style="
           font-size: 12px;
@@ -475,6 +532,7 @@ function createMetricPinIcon(area: DubaiArea, metric: AreaMetric): L.DivIcon | n
         transform: translateX(-50%);
         pointer-events: auto;
         cursor: pointer;
+        animation: areaFadeIn 0.3s ease-out;
       ">
         <div style="
           display: inline-flex;
@@ -516,11 +574,38 @@ function ZoomAwareAreaLabels({
 }) {
   const map = useMap()
   const [zoom, setZoom] = useState(map.getZoom())
+  const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Inject fade-in keyframes once (applied via inline style on inner div, NOT on Leaflet wrapper)
   useEffect(() => {
-    const onZoom = () => setZoom(map.getZoom())
-    map.on('zoomend', onZoom)
-    return () => { map.off('zoomend', onZoom) }
+    const id = 'area-fade-style'
+    if (!document.getElementById(id)) {
+      const style = document.createElement('style')
+      style.id = id
+      style.textContent = `@keyframes areaFadeIn { from { opacity: 0 } to { opacity: 1 } }`
+      document.head.appendChild(style)
+    }
+  }, [])
+
+  // Zoom tracking — cancel pending updates on zoomstart to avoid DOM changes during animation
+  useEffect(() => {
+    const onZoomStart = () => {
+      if (zoomTimerRef.current) {
+        clearTimeout(zoomTimerRef.current)
+        zoomTimerRef.current = null
+      }
+    }
+    const onZoomEnd = () => {
+      if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
+      zoomTimerRef.current = setTimeout(() => setZoom(map.getZoom()), 80)
+    }
+    map.on('zoomstart', onZoomStart)
+    map.on('zoomend', onZoomEnd)
+    return () => {
+      map.off('zoomstart', onZoomStart)
+      map.off('zoomend', onZoomEnd)
+      if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
+    }
   }, [map])
 
   // Pre-compute centroid + span once
@@ -539,29 +624,47 @@ function ZoomAwareAreaLabels({
       })
   }, [dubaiAreas])
 
+  // Cache icon instances — only recreated when source data changes, NOT on zoom
+  const nameIconCache = useMemo(() => {
+    const cache = new Map<string, L.DivIcon>()
+    for (const { area } of areaData) {
+      cache.set(area.id, createAreaNameIcon(area))
+    }
+    return cache
+  }, [areaData])
+
+  const metricIconCache = useMemo(() => {
+    const cache = new Map<string, L.DivIcon | null>()
+    if (areaMetric === 'none') return cache
+    for (const { area } of areaData) {
+      cache.set(area.id, createMetricPinIcon(area, areaMetric))
+    }
+    return cache
+  }, [areaData, areaMetric])
+
   const minSpan = getMinSpanForZoom(zoom)
   const mergeRadius = getMergeRadius(zoom)
   const isIndividualMode = mergeRadius <= 0 // zoom >= 13
 
-  // Names — always progressive by span
+  // Names — filter only, reuse cached icons (stable references prevent DOM thrashing)
   const visibleNames = useMemo(() => {
     return areaData
       .filter(({ span }) => span >= minSpan)
-      .map(({ area, centroid }) => ({ area, centroid, icon: createAreaNameIcon(area) }))
-  }, [areaData, minSpan])
+      .map(({ area, centroid }) => ({ area, centroid, icon: nameIconCache.get(area.id)! }))
+  }, [areaData, minSpan, nameIconCache])
 
-  // Individual metric pins — only at zoom >= 13
+  // Individual metric pins — filter only, reuse cached icons
   const individualPins = useMemo(() => {
     if (!isIndividualMode || areaMetric === 'none') return []
     return areaData
       .filter(({ span }) => span >= minSpan)
       .map(({ area, centroid }) => {
-        const icon = createMetricPinIcon(area, areaMetric)
+        const icon = metricIconCache.get(area.id)
         if (!icon) return null
         return { area, centroid, icon }
       })
       .filter(Boolean) as { area: DubaiArea; centroid: [number, number]; icon: L.DivIcon }[]
-  }, [areaData, areaMetric, isIndividualMode, minSpan])
+  }, [areaData, areaMetric, isIndividualMode, minSpan, metricIconCache])
 
   // Clustered metric pins — at zoom < 13 when metric selected
   const clusterPins = useMemo(() => {
@@ -622,13 +725,28 @@ function ZoomAwareLandmarks({
   getImageForLandmark: (l: DubaiLandmark) => string
   landmarkIcons: { landmark: DubaiLandmark; icon: L.DivIcon; position: [number, number] }[]
 }) {
-  const [zoom, setZoom] = useState(useMap().getZoom())
   const map = useMap()
+  const [zoom, setZoom] = useState(map.getZoom())
+  const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const onZoom = () => setZoom(map.getZoom())
-    map.on('zoomend', onZoom)
-    return () => { map.off('zoomend', onZoom) }
+    const onZoomStart = () => {
+      if (zoomTimerRef.current) {
+        clearTimeout(zoomTimerRef.current)
+        zoomTimerRef.current = null
+      }
+    }
+    const onZoomEnd = () => {
+      if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
+      zoomTimerRef.current = setTimeout(() => setZoom(map.getZoom()), 80)
+    }
+    map.on('zoomstart', onZoomStart)
+    map.on('zoomend', onZoomEnd)
+    return () => {
+      map.off('zoomstart', onZoomStart)
+      map.off('zoomend', onZoomEnd)
+      if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
+    }
   }, [map])
 
   // Progressive: large landmarks at zoom 11+, all at 12+, none below 11
@@ -854,57 +972,10 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, onAreaClic
       />
       <MapController clusters={clusters} onBoundsChange={onBoundsChange} />
 
-      {/* Render Dubai areas as polygons (if layer is enabled) */}
-      {showDubaiLayer && Array.isArray(dubaiAreas) && dubaiAreas.map((area) => {
-        // Convert GeoJSON coordinates to Leaflet format
-        const coordinates = area.boundary?.type === 'Polygon'
-          ? (area.boundary as any).coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng] as [number, number])
-          : []
-
-        if (coordinates.length === 0) {
-          return null
-        }
-
-        return (
-          <Polygon
-            key={area.id}
-            positions={coordinates}
-            pathOptions={{
-              color: area.color,
-              fillColor: area.color,
-              fillOpacity: area.opacity * 0.6,
-              weight: 3,
-              opacity: 0.8,
-              dashArray: '5, 10',
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-            eventHandlers={{
-              mouseover: (e) => {
-                const layer = e.target
-                layer.setStyle({
-                  weight: 4,
-                  fillOpacity: area.opacity * 1.2,
-                  dashArray: '10, 5',
-                })
-              },
-              mouseout: (e) => {
-                const layer = e.target
-                layer.setStyle({
-                  weight: 3,
-                  fillOpacity: area.opacity * 0.6,
-                  dashArray: '5, 10',
-                })
-              },
-              click: () => {
-                if (onAreaClick) {
-                  onAreaClick(area)
-                }
-              },
-            }}
-          />
-        )
-      })}
+      {/* Render Dubai areas as polygons (memoized — won't re-render on cluster data changes) */}
+      {showDubaiLayer && Array.isArray(dubaiAreas) && dubaiAreas.map((area) => (
+        <AreaPolygon key={area.id} area={area} onAreaClick={onAreaClick} />
+      ))}
 
       {/* Zoom-aware area name text + metric pins */}
       {showDubaiLayer && (
