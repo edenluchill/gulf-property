@@ -1,4 +1,5 @@
 import { Building2, Bed, Calendar, Home } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { OffPlanProperty } from '../types'
 import { formatPrice } from '../lib/utils'
 import { getImageUrl, getImageSrcSet } from '../lib/image-utils'
@@ -10,6 +11,8 @@ interface PropertyCardProps {
 }
 
 export default function PropertyCard({ property, isSelected, onClick }: PropertyCardProps) {
+  const { t } = useTranslation()
+
   // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -48,21 +51,21 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
         {property.status === 'under-construction' && (
           <div className="absolute top-2 left-2">
             <span className="px-2 py-0.5 bg-yellow-500 text-white text-xs font-semibold rounded">
-              Under Construction
+              {t('status.underConstruction')}
             </span>
           </div>
         )}
         {property.status === 'upcoming' && (
           <div className="absolute top-2 left-2">
             <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded">
-              Upcoming
+              {t('status.upcoming')}
             </span>
           </div>
         )}
         {property.status === 'completed' && (
           <div className="absolute top-2 left-2">
             <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-semibold rounded">
-              Completed
+              {t('status.completed')}
             </span>
           </div>
         )}
@@ -79,7 +82,7 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
         <div className="text-sm font-semibold text-blue-700">
           {property.startingPrice 
             ? formatPrice(property.startingPrice).replace('AED ', '').replace(' AED', '')
-            : 'POA'}
+            : t('price.poa')}
         </div>
 
         {/* Key Stats - Pill badges with deep blue tone */}
@@ -96,13 +99,13 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
           {property.minSize && (
             <div className="flex items-center gap-0.5 px-1.5 py-0.5 border border-slate-300 rounded-full text-[10px] text-slate-700">
               <Home className="w-3 h-3" />
-              <span>{property.minSize.toLocaleString()} ft²</span>
+              <span>{property.minSize.toLocaleString()} {t('units.sqft')}</span>
             </div>
           )}
 
           {property.unitCount && (
             <div className="flex items-center gap-0.5 px-1.5 py-0.5 border border-slate-300 rounded-full text-[10px] text-slate-700">
-              <span>{property.unitCount} units</span>
+              <span>{property.unitCount} {t('units.units')}</span>
             </div>
           )}
         </div>
@@ -111,7 +114,7 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
         {property.status !== 'completed' && property.completionPercent !== undefined && property.completionPercent >= 0 && (
           <div className="mt-1">
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[10px] text-slate-500">Progress</span>
+              <span className="text-[10px] text-slate-500">{t('progress.progress')}</span>
               <span className="text-[10px] font-semibold text-blue-700">{property.completionPercent}%</span>
             </div>
             <div className="w-full bg-slate-200 rounded-full h-1">
@@ -127,7 +130,7 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
         {property.completionDate && (
           <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-1">
             <Calendar className="w-3 h-3" />
-            <span>Completion {formatDate(property.completionDate)}</span>
+            <span>{t('dates.completion')} {formatDate(property.completionDate)}</span>
           </div>
         )}
       </div>

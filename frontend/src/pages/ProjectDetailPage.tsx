@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Button } from '../components/ui/button'
@@ -15,6 +16,7 @@ import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
 import { LocationTab } from './ProjectDetailPage/LocationTab'
 
 export default function ProjectDetailPage() {
+  const { t } = useTranslation(['project', 'common'])
   const { id } = useParams<{ id: string }>()
   const [project, setProject] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -53,7 +55,7 @@ export default function ProjectDetailPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
-        <div className="text-xl">Loading project details...</div>
+        <div className="text-xl">{t('project:loadingDetails')}</div>
       </div>
     )
   }
@@ -61,11 +63,11 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
-        <h1 className="text-3xl font-bold mb-4">Project Not Found</h1>
+        <h1 className="text-3xl font-bold mb-4">{t('project:notFound')}</h1>
         <Link to="/map">
           <Button>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Properties
+            {t('project:backToProperties')}
           </Button>
         </Link>
       </div>
@@ -80,7 +82,7 @@ export default function ProjectDetailPage() {
           <Link to="/map">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Properties
+              {t('project:backToProperties')}
             </Button>
           </Link>
         </div>
@@ -110,11 +112,11 @@ export default function ProjectDetailPage() {
           {/* Tabs Section */}
           <Tabs defaultValue="overview" className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="units">Unit Types</TabsTrigger>
-              <TabsTrigger value="payment">Payment Plan</TabsTrigger>
-              <TabsTrigger value="amenities">Amenities</TabsTrigger>
-              <TabsTrigger value="location">Location</TabsTrigger>
+              <TabsTrigger value="overview">{t('project:tabs.overview')}</TabsTrigger>
+              <TabsTrigger value="units">{t('project:tabs.unitTypes')}</TabsTrigger>
+              <TabsTrigger value="payment">{t('project:tabs.paymentPlan')}</TabsTrigger>
+              <TabsTrigger value="amenities">{t('project:tabs.amenities')}</TabsTrigger>
+              <TabsTrigger value="location">{t('project:tabs.location')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">

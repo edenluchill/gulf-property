@@ -1,0 +1,39 @@
+{
+  "title": "List Your Project",
+  "subtitle": "Are you a developer with an off-plan project in Dubai? Submit your project details and reach international buyers looking for premium properties.",
+  "success": {
+    "title": "Thank You!",
+    "received": "Your project submission has been received.",
+    "review": "Our team will review your submission and contact you within 2-3 business days."
+  },
+  "form": {
+    "projectInfo": "Project Information",
+    "projectInfoDesc": "Please provide detailed information about your off-plan project. All fields are required unless marked as optional.",
+    "projectDetails": "Project Details",
+    "projectName": "Project Name *",
+    "projectNamePlaceholder": "e.g., Marina Heights Tower",
+    "developerName": "Developer Name *",
+    "developerNamePlaceholder": "e.g., Emaar Properties",
+    "fullAddress": "Full Address *",
+    "fullAddressPlaceholder": "e.g., Dubai Marina, Dubai",
+    "district": "District *",
+    "districtPlaceholder": "e.g., Dubai Marina",
+    "pricing": "Pricing (AED)",
+    "minPrice": "Minimum Price *",
+    "maxPrice": "Maximum Price *",
+    "timeline": "Timeline",
+    "expectedCompletion": "Expected Completion Date *",
+    "contactInfo": "Contact Information",
+    "email": "Email Address *",
+    "emailPlaceholder": "contact@developer.com",
+    "phone": "Phone Number *",
+    "phonePlaceholder": "+971 4 XXX XXXX",
+    "projectDescription": "Project Description *",
+    "projectDescriptionPlaceholder": "Provide a detailed description of your project, including key features, amenities, and unique selling points...",
+    "additionalMaterials": "Additional Materials (Optional)",
+    "uploadPrompt": "Upload project images, floor plans, or brochures",
+    "dragDrop": "Drag and drop files here, or click to browse",
+    "submitBtn": "Submit Project for Review",
+    "submitDisclaimer": "By submitting this form, you agree to our terms and conditions. We will review your submission and contact you within 2-3 business days."
+  }
+}

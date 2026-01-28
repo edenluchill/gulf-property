@@ -1,0 +1,63 @@
+{
+  "loadingDetails": "Loading project details...",
+  "notFound": "Project Not Found",
+  "backToProperties": "Back to Properties",
+  "tabs": {
+    "overview": "Overview",
+    "unitTypes": "Unit Types",
+    "paymentPlan": "Payment Plan",
+    "amenities": "Amenities",
+    "location": "Location"
+  },
+  "overview": {
+    "aboutProject": "About This Project",
+    "defaultDescription": "{{name}} is a premium off-plan development by {{developer}} located in {{area}}, Dubai. This {{status}} project offers {{bedrooms}}-bedroom units.",
+    "defaultDescriptionRange": "{{name}} is a premium off-plan development by {{developer}} located in {{area}}, Dubai. This {{status}} project offers {{minBed}} to {{maxBed}}-bedroom units.",
+    "totalUnits": "Total Units",
+    "unitTypes": "Unit Types"
+  },
+  "unitTypesTab": {
+    "title": "Unit Types & Floor Plans",
+    "titleWithCount": "Unit Types & Floor Plans ({{count}} configurations)",
+    "emptyMessage": "Unit type information will be available soon.",
+    "group": "Group {{key}}",
+    "configuration_one": "{{count}} configuration",
+    "configuration_other": "{{count}} configurations",
+    "area": "Area",
+    "balcony": "Balcony"
+  },
+  "paymentPlanTab": {
+    "title": "Payment Plan",
+    "emptyMessage": "Payment plan information will be available soon.",
+    "atBooking": "At booking",
+    "monthsLater_one": "{{count}} month later",
+    "monthsLater_other": "{{count}} months later",
+    "due": "Due"
+  },
+  "amenitiesTab": {
+    "title": "Amenities & Facilities",
+    "emptyMessage": "Amenities information will be available soon."
+  },
+  "locationTab": {
+    "title": "Location",
+    "dubai": "Dubai"
+  },
+  "infoCard": {
+    "totalUnits": "Total Units"
+  },
+  "unitDetail": {
+    "startingPrice": "Starting Price",
+    "perSqft": "per sq ft",
+    "totalValue": "Total Value",
+    "floorPlan": "Floor Plan",
+    "unitSpecifications": "Unit Specifications",
+    "bedroom_one": "Bedroom",
+    "bedroom_other": "Bedrooms",
+    "bathroom_one": "Bathroom",
+    "bathroom_other": "Bathrooms",
+    "builtUpArea": "Built-up Area",
+    "balconyArea": "Balcony Area",
+    "totalArea": "Total Area",
+    "featuresAmenities": "Features & Amenities"
+  }
+}

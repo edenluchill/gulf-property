@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Button } from '../components/ui/button'
 import { MapPin, Building2, TrendingUp, Shield, Search, Heart } from 'lucide-react'
 import { Card } from '../components/ui/card'
@@ -7,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { fetchResidentialDevelopers, fetchResidentialProjects } from '../lib/api'
 
 export default function HomePage() {
+  const { t } = useTranslation(['home', 'common'])
   const [stats, setStats] = useState({
     totalProjects: 0,
     totalUnits: 0,
@@ -89,10 +91,10 @@ export default function HomePage() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight"
             >
-              Discover Dubai's Finest
+              {t('home:hero.title1')}
               <br />
               <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                Off-Plan Properties
+                {t('home:hero.title2')}
               </span>
             </motion.h1>
 
@@ -102,8 +104,7 @@ export default function HomePage() {
               transition={{ duration: 0.8, delay: 0.4 }}
               className="text-xl md:text-2xl text-slate-300 mb-12 max-w-3xl mx-auto"
             >
-              Explore premium developments from the world's leading developers. 
-              Make informed decisions with comprehensive project information and AI-powered insights.
+              {t('home:hero.subtitle')}
             </motion.p>
 
             <motion.div
@@ -115,13 +116,13 @@ export default function HomePage() {
               <Link to="/map">
                 <Button size="lg" className="text-lg px-8 py-6 bg-blue-600 hover:scale-110 hover:shadow-2xl transition-all duration-300">
                   <Search className="mr-2 h-5 w-5" />
-                  Explore Properties
+                  {t('home:hero.exploreBtn')}
                 </Button>
               </Link>
               <Link to="/developer/submit">
                 <Button size="lg" className="text-lg px-8 py-6 bg-white/20 text-white border-2 border-white/50 backdrop-blur-sm hover:scale-110 hover:shadow-2xl transition-all duration-300">
                   <Building2 className="mr-2 h-5 w-5" />
-                  For Developers
+                  {t('home:hero.developerBtn')}
                 </Button>
               </Link>
             </motion.div>
@@ -141,7 +142,7 @@ export default function HomePage() {
               className="text-center"
             >
               <div className="text-4xl font-bold text-slate-900 mb-2">{stats.totalProjects}</div>
-              <div className="text-slate-600">Active Projects</div>
+              <div className="text-slate-600">{t('home:stats.activeProjects')}</div>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -151,7 +152,7 @@ export default function HomePage() {
               className="text-center"
             >
               <div className="text-4xl font-bold text-slate-900 mb-2">{stats.totalProjects}+</div>
-              <div className="text-slate-600">Available Properties</div>
+              <div className="text-slate-600">{t('home:stats.availableProperties')}</div>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -161,7 +162,7 @@ export default function HomePage() {
               className="text-center"
             >
               <div className="text-4xl font-bold text-slate-900 mb-2">{stats.developers}</div>
-              <div className="text-slate-600">Trusted Developers</div>
+              <div className="text-slate-600">{t('home:stats.trustedDevelopers')}</div>
             </motion.div>
           </div>
         </div>
@@ -178,10 +179,10 @@ export default function HomePage() {
             className="text-center mb-16"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-              Why Choose Nextway?
+              {t('home:features.title')}
             </h2>
             <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-              Your trusted partner for finding the perfect off-plan property in Dubai
+              {t('home:features.subtitle')}
             </p>
           </motion.div>
 
@@ -196,9 +197,9 @@ export default function HomePage() {
                 <div className="bg-blue-100 rounded-full w-14 h-14 flex items-center justify-center mb-4">
                   <MapPin className="h-7 w-7 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-slate-900">Interactive Map</h3>
+                <h3 className="text-xl font-semibold mb-3 text-slate-900">{t('home:features.interactiveMap')}</h3>
                 <p className="text-slate-600">
-                  Explore properties on an interactive map with detailed location information and pricing
+                  {t('home:features.interactiveMapDesc')}
                 </p>
               </Card>
             </motion.div>
@@ -213,9 +214,9 @@ export default function HomePage() {
                 <div className="bg-green-100 rounded-full w-14 h-14 flex items-center justify-center mb-4">
                   <TrendingUp className="h-7 w-7 text-green-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-slate-900">Market Insights</h3>
+                <h3 className="text-xl font-semibold mb-3 text-slate-900">{t('home:features.marketInsights')}</h3>
                 <p className="text-slate-600">
-                  Get AI-powered insights and comprehensive project information to make informed decisions
+                  {t('home:features.marketInsightsDesc')}
                 </p>
               </Card>
             </motion.div>
@@ -230,9 +231,9 @@ export default function HomePage() {
                 <div className="bg-purple-100 rounded-full w-14 h-14 flex items-center justify-center mb-4">
                   <Shield className="h-7 w-7 text-purple-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-slate-900">Verified Listings</h3>
+                <h3 className="text-xl font-semibold mb-3 text-slate-900">{t('home:features.verifiedListings')}</h3>
                 <p className="text-slate-600">
-                  All properties are from verified developers, ensuring authenticity and reliability
+                  {t('home:features.verifiedListingsDesc')}
                 </p>
               </Card>
             </motion.div>
@@ -247,9 +248,9 @@ export default function HomePage() {
                 <div className="bg-rose-100 rounded-full w-14 h-14 flex items-center justify-center mb-4">
                   <Heart className="h-7 w-7 text-rose-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-slate-900">Save Favorites</h3>
+                <h3 className="text-xl font-semibold mb-3 text-slate-900">{t('home:features.saveFavorites')}</h3>
                 <p className="text-slate-600">
-                  Bookmark your favorite properties and compare them to find your perfect investment
+                  {t('home:features.saveFavoritesDesc')}
                 </p>
               </Card>
             </motion.div>
@@ -267,15 +268,15 @@ export default function HomePage() {
             transition={{ duration: 0.6 }}
           >
             <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Ready to Find Your Dream Property?
+              {t('home:cta.title')}
             </h2>
             <p className="text-xl mb-8 text-blue-100 max-w-2xl mx-auto">
-              Start exploring {stats.totalProjects} premium off-plan projects across Dubai today
+              {t('home:cta.subtitle', { count: stats.totalProjects })}
             </p>
             <Link to="/map">
               <Button size="lg" variant="secondary" className="text-lg px-8 py-6">
                 <MapPin className="mr-2 h-5 w-5" />
-                View Interactive Map
+                {t('common:buttons.viewInteractiveMap')}
               </Button>
             </Link>
           </motion.div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Label } from '../ui/label'
 import { Slider } from '../ui/slider'
 import { DatePicker } from '../ui/date-picker'
@@ -19,6 +20,8 @@ export function DateTimeProgressSection({
   isProcessing,
   onChange
 }: DateTimeProgressSectionProps) {
+  const { t } = useTranslation('upload')
+
   // Parse construction progress percentage
   const progressValue = formData.constructionProgress 
     ? formData.constructionProgress
@@ -41,8 +44,8 @@ export function DateTimeProgressSection({
       <div className="flex items-center gap-3 mb-4">
         <div className="h-10 w-1 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full"></div>
         <div>
-          <h3 className="text-xl font-bold text-gray-900">📅 日期与进度</h3>
-          <p className="text-sm text-gray-600">项目时间线和建设进度</p>
+          <h3 className="text-xl font-bold text-gray-900">{t('dateProgress.title')}</h3>
+          <p className="text-sm text-gray-600">{t('dateProgress.subtitle')}</p>
         </div>
       </div>
       
@@ -52,49 +55,49 @@ export function DateTimeProgressSection({
         <div className="space-y-2">
           <Label className="text-sm flex items-center gap-2">
             <Rocket className="h-4 w-4 text-blue-600" />
-            发布日期
+            {t('dateProgress.launchDate')}
           </Label>
           <DatePicker
             value={formData.launchDate || ''}
             onChange={(value) => onChange('launchDate', value)}
             disabled={isProcessing}
-            placeholder="选择发布日期"
+            placeholder={t('dateProgress.launchDatePlaceholder')}
             showPresets={true}
           />
-          <p className="text-xs text-gray-500">项目首次对外发布的日期</p>
+          <p className="text-xs text-gray-500">{t('dateProgress.launchDateHint')}</p>
         </div>
 
         {/* Completion Date */}
         <div className="space-y-2">
           <Label className="text-sm flex items-center gap-2">
             <Calendar className="h-4 w-4 text-green-600" />
-            完工日期 *
+            {t('dateProgress.completionDate')}
           </Label>
           <DatePicker
             value={formData.completionDate || ''}
             onChange={(value) => onChange('completionDate', value)}
             disabled={isProcessing}
-            placeholder="选择完工日期"
+            placeholder={t('dateProgress.completionDatePlaceholder')}
             required={true}
             showPresets={true}
           />
-          <p className="text-xs text-gray-500">建筑预计完工的日期</p>
+          <p className="text-xs text-gray-500">{t('dateProgress.completionDateHint')}</p>
         </div>
 
         {/* Handover Date */}
         <div className="space-y-2">
           <Label className="text-sm flex items-center gap-2">
             <Home className="h-4 w-4 text-purple-600" />
-            交付日期
+            {t('dateProgress.handoverDate')}
           </Label>
           <DatePicker
             value={formData.handoverDate || ''}
             onChange={(value) => onChange('handoverDate', value)}
             disabled={isProcessing}
-            placeholder="选择交付日期"
+            placeholder={t('dateProgress.handoverDatePlaceholder')}
             showPresets={true}
           />
-          <p className="text-xs text-gray-500">业主可以收楼的日期</p>
+          <p className="text-xs text-gray-500">{t('dateProgress.handoverDateHint')}</p>
         </div>
       </div>
 
@@ -102,7 +105,7 @@ export function DateTimeProgressSection({
       <div className="space-y-4 pt-4">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-semibold flex items-center gap-2">
-            🏗️ 建设进度
+            {t('dateProgress.constructionProgress')}
           </Label>
           <div className="flex items-center gap-2">
             <span className={`text-2xl font-bold ${
@@ -144,7 +147,7 @@ export function DateTimeProgressSection({
           {/* Progress Milestones */}
           <div className="flex justify-between text-xs text-gray-500 px-1">
             <span className={progressValue >= 0 ? 'font-semibold text-gray-700' : ''}>
-              开工
+              {t('dateProgress.groundBreaking')}
             </span>
             <span className={progressValue >= 25 ? 'font-semibold text-amber-700' : ''}>
               25%
@@ -156,20 +159,20 @@ export function DateTimeProgressSection({
               75%
             </span>
             <span className={progressValue === 100 ? 'font-semibold text-green-700' : ''}>
-              完工
+              {t('dateProgress.completion')}
             </span>
           </div>
 
           {/* Progress Status Description */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
             <p className="text-sm text-gray-700">
-              <span className="font-semibold">当前状态: </span>
-              {progressValue === 0 && '尚未开工'}
-              {progressValue > 0 && progressValue < 25 && '初期施工阶段'}
-              {progressValue >= 25 && progressValue < 50 && '基础建设阶段'}
-              {progressValue >= 50 && progressValue < 75 && '主体结构完成'}
-              {progressValue >= 75 && progressValue < 100 && '内部装修阶段'}
-              {progressValue === 100 && '✅ 已完工'}
+              <span className="font-semibold">{t('dateProgress.currentStatus')}</span>
+              {progressValue === 0 && t('dateProgress.notStarted')}
+              {progressValue > 0 && progressValue < 25 && t('dateProgress.earlyConstruction')}
+              {progressValue >= 25 && progressValue < 50 && t('dateProgress.foundation')}
+              {progressValue >= 50 && progressValue < 75 && t('dateProgress.structureComplete')}
+              {progressValue >= 75 && progressValue < 100 && t('dateProgress.interiorFitout')}
+              {progressValue === 100 && t('dateProgress.completed')}
             </p>
           </div>
         </div>

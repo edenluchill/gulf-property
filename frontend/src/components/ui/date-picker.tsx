@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 import { format, addYears } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
@@ -21,10 +22,12 @@ export function DatePicker({
   onChange,
   disabled = false,
   className,
-  placeholder = "选择日期",
+  placeholder,
   required = false,
   showPresets = true,
 }: DatePickerProps) {
+  const { t } = useTranslation('common')
+  const resolvedPlaceholder = placeholder || t('datePicker.selectDate')
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(value || '')
 
@@ -34,7 +37,7 @@ export function DatePicker({
   }, [value])
 
   const formatDisplayDate = (dateStr: string) => {
-    if (!dateStr) return placeholder
+    if (!dateStr) return resolvedPlaceholder
     try {
       const date = new Date(dateStr)
       return format(date, 'yyyy-MM-dd')
@@ -57,12 +60,12 @@ export function DatePicker({
   }
 
   const presets = [
-    { label: '📅 今天', years: 0 },
-    { label: '📆 1年后', years: 1 },
-    { label: '🗓️ 2年后', years: 2 },
-    { label: '📋 3年后', years: 3 },
-    { label: '🎯 5年后', years: 5 },
-    { label: '🚀 10年后', years: 10 },
+    { label: t('datePicker.today'), years: 0 },
+    { label: t('datePicker.inYears', { count: 1 }), years: 1 },
+    { label: t('datePicker.inYears', { count: 2 }), years: 2 },
+    { label: t('datePicker.inYears', { count: 3 }), years: 3 },
+    { label: t('datePicker.inYears', { count: 5 }), years: 5 },
+    { label: t('datePicker.inYears', { count: 10 }), years: 10 },
   ]
 
   return (
@@ -88,7 +91,7 @@ export function DatePicker({
           {/* Date Input */}
           <div>
             <label className="text-sm font-semibold text-gray-700 mb-2 block">
-              选择日期
+              {t('datePicker.selectDate')}
             </label>
             <Input
               type="date"
@@ -107,7 +110,7 @@ export function DatePicker({
             <>
               <div className="border-t pt-3">
                 <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                  快捷选择
+                  {t('datePicker.quickSelect')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {presets.map((preset) => (
@@ -135,7 +138,7 @@ export function DatePicker({
                     className="w-full text-red-600 hover:bg-red-50 hover:border-red-300"
                     type="button"
                   >
-                    清除日期
+                    {t('datePicker.clearDate')}
                   </Button>
                 </div>
               )}

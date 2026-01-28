@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { Button } from './ui/button'
@@ -51,6 +52,7 @@ export default function LocationMapPickerModal({
   onConfirm,
   initialPosition
 }: LocationMapPickerModalProps) {
+  const { t } = useTranslation('upload')
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number } | null>(
     initialPosition || null
   )
@@ -87,8 +89,8 @@ export default function LocationMapPickerModal({
           <div className="flex items-center gap-3">
             <MapPin className="h-6 w-6" />
             <div>
-              <h2 className="text-xl font-bold">选择项目位置</h2>
-              <p className="text-sm text-amber-100">点击地图上的任意位置来设置坐标</p>
+              <h2 className="text-xl font-bold">{t('locationPicker.title')}</h2>
+              <p className="text-sm text-amber-100">{t('locationPicker.subtitle')}</p>
             </div>
           </div>
           <button
@@ -104,13 +106,13 @@ export default function LocationMapPickerModal({
           <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">纬度 (Latitude):</span>
+                <span className="font-medium text-gray-700">{t('locationPicker.latitude')}</span>
                 <span className="font-mono font-bold text-blue-700">
                   {selectedPosition.lat.toFixed(6)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">经度 (Longitude):</span>
+                <span className="font-medium text-gray-700">{t('locationPicker.longitude')}</span>
                 <span className="font-mono font-bold text-blue-700">
                   {selectedPosition.lng.toFixed(6)}
                 </span>
@@ -146,7 +148,7 @@ export default function LocationMapPickerModal({
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-6 py-3 rounded-lg shadow-lg border border-amber-300 z-[1000] animate-pulse">
               <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-amber-600" />
-                点击地图选择项目位置
+                {t('locationPicker.clickToSelect')}
               </p>
             </div>
           )}
@@ -158,10 +160,10 @@ export default function LocationMapPickerModal({
             {selectedPosition ? (
               <span className="text-green-600 font-medium flex items-center gap-1">
                 <Check className="h-4 w-4" />
-                位置已选择
+                {t('locationPicker.locationSelected')}
               </span>
             ) : (
-              <span>请在地图上点击以选择位置</span>
+              <span>{t('locationPicker.pleaseClickMap')}</span>
             )}
           </div>
           <div className="flex gap-3">
@@ -170,7 +172,7 @@ export default function LocationMapPickerModal({
               onClick={onClose}
               className="px-6"
             >
-              取消
+              {t('locationPicker.cancel')}
             </Button>
             <Button
               onClick={handleConfirm}
@@ -178,7 +180,7 @@ export default function LocationMapPickerModal({
               className="bg-gradient-to-r from-green-600 to-emerald-600 px-6"
             >
               <Check className="mr-2 h-4 w-4" />
-              确认位置
+              {t('locationPicker.confirm')}
             </Button>
           </div>
         </div>

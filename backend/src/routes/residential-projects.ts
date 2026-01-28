@@ -216,7 +216,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           MIN(starting_price) as min_price,
           MAX(starting_price) as max_price
         FROM residential_projects
-        WHERE starting_price IS NOT NULL
+        WHERE area IS NOT NULL AND area != ''
         GROUP BY area
         ORDER BY project_count DESC
       `)

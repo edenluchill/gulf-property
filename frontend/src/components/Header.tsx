@@ -3,21 +3,24 @@ import { Building2, Menu, MapPin, Heart, Briefcase, Settings } from 'lucide-reac
 import { Button } from './ui/button'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
+import LanguageSwitcher from './LanguageSwitcher'
 
 export default function Header() {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
+  const { t } = useTranslation()
 
   const navItems = [
-    { path: '/map', label: 'Map Explore', icon: MapPin },
-    { path: '/favorites', label: 'Favorites', icon: Heart },
-    { path: '/developer/upload', label: 'For Developers', icon: Briefcase },
+    { path: '/map', label: t('nav.mapExplore'), icon: MapPin },
+    { path: '/favorites', label: t('nav.favorites'), icon: Heart },
+    { path: '/developer/upload', label: t('nav.forDevelopers'), icon: Briefcase },
   ]
 
   const adminItems = [
-    { path: '/admin/properties', label: '项目管理', icon: Building2 },
-    { path: '/admin/dubai', label: 'Dubai Map Editor', icon: MapPin },
+    { path: '/admin/properties', label: t('nav.projectManagement'), icon: Building2 },
+    { path: '/admin/dubai', label: t('nav.dubaiMapEditor'), icon: MapPin },
   ]
 
   const isAdminPage = location.pathname.startsWith('/admin')
@@ -50,10 +53,10 @@ export default function Header() {
                 className="text-xl font-bold tracking-tight text-slate-900"
                 whileHover={{ scale: 1.02 }}
               >
-                Nextway
+                {t('brand')}
               </motion.span>
               <span className="text-[11px] text-amber-600 font-medium tracking-tight -mt-0.5">
-                A New Way to Buy Off-Plan in Dubai
+                {t('tagline')}
               </span>
             </div>
           </Link>
@@ -99,7 +102,7 @@ export default function Header() {
                 }`}
               >
                 <Settings className="h-4 w-4" />
-                <span>Admin</span>
+                <span>{t('nav.admin')}</span>
               </Button>
               
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1001]">
@@ -117,6 +120,7 @@ export default function Header() {
                 ))}
               </div>
             </div>
+            <LanguageSwitcher />
           </nav>
 
           {/* Mobile Menu Button */}
@@ -175,7 +179,7 @@ export default function Header() {
             {/* Admin Section */}
             <div className="pt-2 mt-2 border-t border-slate-200/60">
               <div className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Admin
+                {t('nav.admin')}
               </div>
               {adminItems.map(({ path, label, icon: Icon }, index) => (
                 <motion.div

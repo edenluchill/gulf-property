@@ -1,0 +1,34 @@
+{
+  "searchPlaceholder": "Address, MLS Number, or anything!",
+  "filters": "Filters",
+  "areasAndLandmarks": "Areas & Landmarks",
+  "clusters": "Clusters",
+  "properties": "Properties",
+  "developer": "Developer",
+  "project": "Project",
+  "area": "Area",
+  "price": "Price",
+  "studio": "Studio",
+  "beds_one": "{{count}} Bed",
+  "beds_other": "{{count}}+ Beds",
+  "metric": {
+    "nameOnly": "Name Only",
+    "avgPrice": "Avg Price",
+    "capitalGrowth": "Growth",
+    "salesVolume": "Volume",
+    "rentalYield": "Yield"
+  },
+  "areaDialog": {
+    "marketStatistics": "Market Statistics",
+    "projects": "Projects",
+    "avgPrice": "Avg Price",
+    "salesVolume": "Sales Volume",
+    "capitalGrowth": "Capital Growth",
+    "rentalYield": "Rental Yield",
+    "developersInArea": "{{count}} Developers active in this area",
+    "loadingDevelopers": "Loading developers...",
+    "noDevelopers": "No developers found in this area",
+    "projectCount_one": "{{count}} project",
+    "projectCount_other": "{{count}} projects"
+  }
+}

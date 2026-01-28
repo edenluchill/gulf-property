@@ -1,0 +1,63 @@
+{
+  "loadingDetails": "加载项目详情...",
+  "notFound": "项目未找到",
+  "backToProperties": "返回项目列表",
+  "tabs": {
+    "overview": "概览",
+    "unitTypes": "户型",
+    "paymentPlan": "付款计划",
+    "amenities": "配套设施",
+    "location": "位置"
+  },
+  "overview": {
+    "aboutProject": "项目简介",
+    "defaultDescription": "{{name}} 是由 {{developer}} 开发的优质期房项目，位于迪拜{{area}}。该{{status}}项目提供 {{bedrooms}} 居室户型。",
+    "defaultDescriptionRange": "{{name}} 是由 {{developer}} 开发的优质期房项目，位于迪拜{{area}}。该{{status}}项目提供 {{minBed}} 至 {{maxBed}} 居室户型。",
+    "totalUnits": "总套数",
+    "unitTypes": "户型数"
+  },
+  "unitTypesTab": {
+    "title": "户型与平面图",
+    "titleWithCount": "户型与平面图 ({{count}} 种配置)",
+    "emptyMessage": "户型信息即将更新。",
+    "group": "{{key}} 组",
+    "configuration_one": "{{count}} 种配置",
+    "configuration_other": "{{count}} 种配置",
+    "area": "面积",
+    "balcony": "阳台"
+  },
+  "paymentPlanTab": {
+    "title": "付款计划",
+    "emptyMessage": "付款计划信息即将更新。",
+    "atBooking": "签约时",
+    "monthsLater_one": "{{count}} 个月后",
+    "monthsLater_other": "{{count}} 个月后",
+    "due": "到期日"
+  },
+  "amenitiesTab": {
+    "title": "配套设施",
+    "emptyMessage": "配套设施信息即将更新。"
+  },
+  "locationTab": {
+    "title": "位置",
+    "dubai": "迪拜"
+  },
+  "infoCard": {
+    "totalUnits": "总套数"
+  },
+  "unitDetail": {
+    "startingPrice": "起始价格",
+    "perSqft": "每平方英尺",
+    "totalValue": "总价",
+    "floorPlan": "平面图",
+    "unitSpecifications": "户型参数",
+    "bedroom_one": "卧室",
+    "bedroom_other": "卧室",
+    "bathroom_one": "卫生间",
+    "bathroom_other": "卫生间",
+    "builtUpArea": "建筑面积",
+    "balconyArea": "阳台面积",
+    "totalArea": "总面积",
+    "featuresAmenities": "特色与配套"
+  }
+}

@@ -20,6 +20,8 @@ export type ProgressCode =
   | 'COMPLETE'
   | 'ERROR';
 
+import i18n from '../i18n'
+
 export type LocaleCode = 'en' | 'zh-CN' | 'ar';
 
 // Define message templates with data interpolation
@@ -100,7 +102,7 @@ const PROGRESS_MESSAGES: ProgressMessages = {
 export function getProgressMessage(
   code: ProgressCode,
   data?: Record<string, any>,
-  locale: LocaleCode = 'zh-CN'
+  locale: LocaleCode = (i18n.language as LocaleCode) || 'zh-CN'
 ): string {
   const messageConfig = PROGRESS_MESSAGES[code];
   

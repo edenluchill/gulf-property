@@ -1,0 +1,30 @@
+{
+  "hero": {
+    "title1": "Discover Dubai's Finest",
+    "title2": "Off-Plan Properties",
+    "subtitle": "Explore premium developments from the world's leading developers. Make informed decisions with comprehensive project information and AI-powered insights.",
+    "exploreBtn": "Explore Properties",
+    "developerBtn": "For Developers"
+  },
+  "stats": {
+    "activeProjects": "Active Projects",
+    "availableProperties": "Available Properties",
+    "trustedDevelopers": "Trusted Developers"
+  },
+  "features": {
+    "title": "Why Choose Nextway?",
+    "subtitle": "Your trusted partner for finding the perfect off-plan property in Dubai",
+    "interactiveMap": "Interactive Map",
+    "interactiveMapDesc": "Explore properties on an interactive map with detailed location information and pricing",
+    "marketInsights": "Market Insights",
+    "marketInsightsDesc": "Get AI-powered insights and comprehensive project information to make informed decisions",
+    "verifiedListings": "Verified Listings",
+    "verifiedListingsDesc": "All properties are from verified developers, ensuring authenticity and reliability",
+    "saveFavorites": "Save Favorites",
+    "saveFavoritesDesc": "Bookmark your favorite properties and compare them to find your perfect investment"
+  },
+  "cta": {
+    "title": "Ready to Find Your Dream Property?",
+    "subtitle": "Start exploring {{count}} premium off-plan projects across Dubai today"
+  }
+}

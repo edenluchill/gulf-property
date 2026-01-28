@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, DollarSign, Grid3x3, MapPin, Calendar, Activity, Building2 } from 'lucide-react'
 import { PropertyFilters } from '../types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
@@ -24,6 +25,7 @@ export default function FilterDialog({
   areas,
   projects,
 }: FilterDialogProps) {
+  const { t } = useTranslation('filter')
   const [localFilters, setLocalFilters] = useState<PropertyFilters>(filters)
 
   // Update local filters when props change
@@ -56,20 +58,20 @@ export default function FilterDialog({
 
   // Price range presets
   const priceRanges = [
-    { label: 'Any Price', min: undefined, max: undefined },
-    { label: 'Up to 500K', min: undefined, max: 500000 },
-    { label: '500K - 1M', min: 500000, max: 1000000 },
-    { label: '1M - 2M', min: 1000000, max: 2000000 },
-    { label: '2M - 5M', min: 2000000, max: 5000000 },
-    { label: '5M - 10M', min: 5000000, max: 10000000 },
-    { label: '10M+', min: 10000000, max: undefined },
+    { key: 'price.anyPrice', label: t('price.anyPrice'), min: undefined, max: undefined },
+    { key: 'price.upTo500K', label: t('price.upTo500K'), min: undefined, max: 500000 },
+    { key: 'price.500K_1M', label: t('price.500K_1M'), min: 500000, max: 1000000 },
+    { key: 'price.1M_2M', label: t('price.1M_2M'), min: 1000000, max: 2000000 },
+    { key: 'price.2M_5M', label: t('price.2M_5M'), min: 2000000, max: 5000000 },
+    { key: 'price.5M_10M', label: t('price.5M_10M'), min: 5000000, max: 10000000 },
+    { key: 'price.10MPlus', label: t('price.10MPlus'), min: 10000000, max: undefined },
   ]
 
   const getCurrentPriceRange = () => {
     const range = priceRanges.find(
       r => r.min === localFilters.minPrice && r.max === localFilters.maxPrice
     )
-    return range?.label || 'Custom'
+    return range?.label || t('price.custom')
   }
 
   if (!isOpen) return null
@@ -90,7 +92,7 @@ export default function FilterDialog({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-primary/5 to-primary/10">
-            <h2 className="text-2xl font-bold text-slate-900">Filters</h2>
+            <h2 className="text-2xl font-bold text-slate-900">{t('title')}</h2>
             <button
               onClick={onClose}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/80 transition-colors"
@@ -106,13 +108,13 @@ export default function FilterDialog({
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <DollarSign className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-slate-900">Price</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">{t('price.title')}</h3>
                 </div>
                 
                 <div className="space-y-4">
                   {/* Price Range Preset */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Price Range</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('price.range')}</label>
                     <Select
                       value={getCurrentPriceRange()}
                       onValueChange={(value) => {
@@ -131,7 +133,7 @@ export default function FilterDialog({
                       </SelectTrigger>
                       <SelectContent>
                         {priceRanges.map((range) => (
-                          <SelectItem key={range.label} value={range.label}>
+                          <SelectItem key={range.key} value={range.label}>
                             {range.label}
                           </SelectItem>
                         ))}
@@ -142,20 +144,20 @@ export default function FilterDialog({
                   {/* Custom Price Inputs */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm text-slate-600 mb-1 block">Min Price (AED)</label>
+                      <label className="text-sm text-slate-600 mb-1 block">{t('price.minPrice')}</label>
                       <Input
                         type="number"
-                        placeholder="No Min"
+                        placeholder={t('price.noMin')}
                         value={localFilters.minPrice || ''}
                         onChange={(e) => updateFilter('minPrice', e.target.value ? parseInt(e.target.value) : undefined)}
                         className="w-full"
                       />
                     </div>
                     <div>
-                      <label className="text-sm text-slate-600 mb-1 block">Max Price (AED)</label>
+                      <label className="text-sm text-slate-600 mb-1 block">{t('price.maxPrice')}</label>
                       <Input
                         type="number"
-                        placeholder="No Max"
+                        placeholder={t('price.noMax')}
                         value={localFilters.maxPrice || ''}
                         onChange={(e) => updateFilter('maxPrice', e.target.value ? parseInt(e.target.value) : undefined)}
                         className="w-full"
@@ -165,17 +167,17 @@ export default function FilterDialog({
 
                   {/* Price Per Sqft */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Price per Sq.Ft (AED)</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('price.priceSqft')}</label>
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         type="number"
-                        placeholder="Min"
+                        placeholder={t('price.min')}
                         value={localFilters.minPriceSqft || ''}
                         onChange={(e) => updateFilter('minPriceSqft', e.target.value ? parseInt(e.target.value) : undefined)}
                       />
                       <Input
                         type="number"
-                        placeholder="Max"
+                        placeholder={t('price.max')}
                         value={localFilters.maxPriceSqft || ''}
                         onChange={(e) => updateFilter('maxPriceSqft', e.target.value ? parseInt(e.target.value) : undefined)}
                       />
@@ -188,33 +190,41 @@ export default function FilterDialog({
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Grid3x3 className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-slate-900">Size</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">{t('size.title')}</h3>
                 </div>
 
                 <div className="space-y-4">
                   {/* Bedrooms */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Bedrooms</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('size.bedrooms')}</label>
                     <div className="flex gap-2 flex-wrap">
-                      {['Any', 'Studio', '1', '2', '3', '4', '5+'].map((bed) => (
+                      {([
+                        { key: 'Any', label: t('size.any') },
+                        { key: 'Studio', label: t('size.studio') },
+                        { key: '1', label: '1' },
+                        { key: '2', label: '2' },
+                        { key: '3', label: '3' },
+                        { key: '4', label: '4' },
+                        { key: '5+', label: t('size.5plus') },
+                      ]).map((bed) => (
                         <button
-                          key={bed}
+                          key={bed.key}
                           onClick={() => {
-                            const value = bed === 'Any' ? undefined : 
-                                        bed === 'Studio' ? 0 :
-                                        bed === '5+' ? 5 : parseInt(bed)
+                            const value = bed.key === 'Any' ? undefined :
+                                        bed.key === 'Studio' ? 0 :
+                                        bed.key === '5+' ? 5 : parseInt(bed.key)
                             updateFilter('minBedrooms', value)
                           }}
                           className={`px-4 py-2 rounded-lg border transition-all ${
-                            (bed === 'Any' && localFilters.minBedrooms === undefined) ||
-                            (bed === 'Studio' && localFilters.minBedrooms === 0) ||
-                            (bed !== 'Any' && bed !== 'Studio' && bed !== '5+' && localFilters.minBedrooms === parseInt(bed)) ||
-                            (bed === '5+' && localFilters.minBedrooms === 5)
+                            (bed.key === 'Any' && localFilters.minBedrooms === undefined) ||
+                            (bed.key === 'Studio' && localFilters.minBedrooms === 0) ||
+                            (bed.key !== 'Any' && bed.key !== 'Studio' && bed.key !== '5+' && localFilters.minBedrooms === parseInt(bed.key)) ||
+                            (bed.key === '5+' && localFilters.minBedrooms === 5)
                               ? 'bg-primary text-white border-primary'
                               : 'bg-white text-slate-700 border-slate-300 hover:border-primary'
                           }`}
                         >
-                          {bed}
+                          {bed.label}
                         </button>
                       ))}
                     </div>
@@ -222,17 +232,17 @@ export default function FilterDialog({
 
                   {/* Property Size */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Property Size (Sq.Ft)</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('size.propertySize')}</label>
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         type="number"
-                        placeholder="Min Size"
+                        placeholder={t('size.minSize')}
                         value={localFilters.minSize || ''}
                         onChange={(e) => updateFilter('minSize', e.target.value ? parseInt(e.target.value) : undefined)}
                       />
                       <Input
                         type="number"
-                        placeholder="Max Size"
+                        placeholder={t('size.maxSize')}
                         value={localFilters.maxSize || ''}
                         onChange={(e) => updateFilter('maxSize', e.target.value ? parseInt(e.target.value) : undefined)}
                       />
@@ -245,22 +255,22 @@ export default function FilterDialog({
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <MapPin className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-slate-900">Location</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">{t('location.title')}</h3>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Developer */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Developer</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('location.developer')}</label>
                     <Select
                       value={localFilters.developer || 'all'}
                       onValueChange={(value) => updateFilter('developer', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="All Developers" />
+                        <SelectValue placeholder={t('location.allDevelopers')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Developers</SelectItem>
+                        <SelectItem value="all">{t('location.allDevelopers')}</SelectItem>
                         {developers.slice(0, 100).map((dev) => (
                           <SelectItem key={dev} value={dev}>
                             {dev}
@@ -272,16 +282,16 @@ export default function FilterDialog({
 
                   {/* Area */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Area</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('location.area')}</label>
                     <Select
                       value={localFilters.area || 'all'}
                       onValueChange={(value) => updateFilter('area', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="All Areas" />
+                        <SelectValue placeholder={t('location.allAreas')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Areas</SelectItem>
+                        <SelectItem value="all">{t('location.allAreas')}</SelectItem>
                         {areas.slice(0, 100).map((area) => (
                           <SelectItem key={area} value={area}>
                             {area}
@@ -293,16 +303,16 @@ export default function FilterDialog({
 
                   {/* Project */}
                   <div className="col-span-2">
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Project</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('location.project')}</label>
                     <Select
                       value={localFilters.project || 'all'}
                       onValueChange={(value) => updateFilter('project', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="All Projects" />
+                        <SelectValue placeholder={t('location.allProjects')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Projects</SelectItem>
+                        <SelectItem value="all">{t('location.allProjects')}</SelectItem>
                         {projects.slice(0, 100).map((proj) => (
                           <SelectItem key={proj.project_name} value={proj.project_name}>
                             {proj.project_name} ({proj.developer})
@@ -318,19 +328,19 @@ export default function FilterDialog({
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Activity className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-slate-900">Status & Progress</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">{t('statusProgress.title')}</h3>
                 </div>
 
                 <div className="space-y-4">
                   {/* Status */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Project Status</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('statusProgress.projectStatus')}</label>
                     <div className="flex gap-2">
                       {[
-                        { value: undefined, label: 'All' },
-                        { value: 'upcoming', label: 'Upcoming' },
-                        { value: 'under-construction', label: 'Under Construction' },
-                        { value: 'completed', label: 'Completed' },
+                        { value: undefined, label: t('statusProgress.all') },
+                        { value: 'upcoming', label: t('statusProgress.upcoming') },
+                        { value: 'under-construction', label: t('statusProgress.underConstruction') },
+                        { value: 'completed', label: t('statusProgress.completed') },
                       ].map((status) => (
                         <button
                           key={status.label}
@@ -349,11 +359,11 @@ export default function FilterDialog({
 
                   {/* Completion Percentage */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Completion Progress (%)</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('statusProgress.completionProgress')}</label>
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         type="number"
-                        placeholder="Min %"
+                        placeholder={t('statusProgress.minPercent')}
                         min="0"
                         max="100"
                         value={localFilters.minCompletionPercent ?? ''}
@@ -361,7 +371,7 @@ export default function FilterDialog({
                       />
                       <Input
                         type="number"
-                        placeholder="Max %"
+                        placeholder={t('statusProgress.maxPercent')}
                         min="0"
                         max="100"
                         value={localFilters.maxCompletionPercent ?? ''}
@@ -376,13 +386,13 @@ export default function FilterDialog({
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Calendar className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-slate-900">Dates</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">{t('dates.title')}</h3>
                 </div>
 
                 <div className="space-y-4">
                   {/* Launch Date */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Launch Date</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('dates.launchDate')}</label>
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         type="date"
@@ -399,7 +409,7 @@ export default function FilterDialog({
 
                   {/* Completion Date */}
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">Completion Date</label>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">{t('dates.completionDate')}</label>
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         type="date"
@@ -426,10 +436,10 @@ export default function FilterDialog({
               className="flex items-center gap-2"
             >
               <Building2 className="h-4 w-4" />
-              Clear All
+              {t('footer.clearAll')}
             </Button>
             <div className="text-sm text-slate-600">
-              Filters auto-apply as you change them
+              {t('footer.autoApply')}
             </div>
           </div>
         </div>

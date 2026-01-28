@@ -39,6 +39,7 @@ function MapController({
   const polygonLayersRef = useRef<Map<string, L.Polygon>>(new Map())
   const markerLayersRef = useRef<Map<string, L.Marker>>(new Map())
   const labelLayersRef = useRef<Map<string, L.Marker>>(new Map())
+  const labelSpansRef = useRef<Map<string, number>>(new Map())
 
   // Store map reference
   useEffect(() => {
@@ -82,6 +83,7 @@ function MapController({
     polygonLayersRef.current.clear()
     labelLayersRef.current.forEach((label) => map.removeLayer(label))
     labelLayersRef.current.clear()
+    labelSpansRef.current.clear()
 
     areas.forEach((area: DubaiArea) => {
       if (!area.boundary || area.boundary.type !== 'Polygon') return
@@ -268,6 +270,18 @@ function MapController({
 
       labelMarker.addTo(map)
       labelLayersRef.current.set(area.id, labelMarker)
+
+      // Compute polygon span for zoom-based visibility
+      let minLat = Infinity, maxLat = -Infinity, minLng2 = Infinity, maxLng2 = -Infinity
+      for (const [lat, lng] of coords) {
+        if (lat < minLat) minLat = lat
+        if (lat > maxLat) maxLat = lat
+        if (lng < minLng2) minLng2 = lng
+        if (lng > maxLng2) maxLng2 = lng
+      }
+      const dLat = maxLat - minLat
+      const dLng = maxLng2 - minLng2
+      labelSpansRef.current.set(area.id, Math.sqrt(dLat * dLat + dLng * dLng))
     })
 
     return () => {
@@ -288,6 +302,29 @@ function MapController({
       })
     }
   }, [map, areas, selectedItem, onItemSelect, onAreaUpdate])
+
+  // Progressive label visibility — larger areas stay visible at low zoom
+  useEffect(() => {
+    const getMinSpan = (zoom: number): number => {
+      if (zoom >= 14) return 0
+      if (zoom >= 13) return 0.005
+      if (zoom >= 12) return 0.012
+      if (zoom >= 11) return 0.025
+      return 0.045
+    }
+
+    const updateVisibility = () => {
+      const minSpan = getMinSpan(map.getZoom())
+      labelLayersRef.current.forEach((label, areaId) => {
+        const span = labelSpansRef.current.get(areaId) ?? 0
+        label.setOpacity(span >= minSpan ? 1 : 0)
+      })
+    }
+
+    updateVisibility()
+    map.on('zoomend', updateVisibility)
+    return () => { map.off('zoomend', updateVisibility) }
+  }, [map, areas])
 
   // Render landmarks as markers (always draggable)
   useEffect(() => {
@@ -739,9 +776,14 @@ export default function UnifiedDubaiEditor() {
         }
       }
       
-      // Clear cache
+      // Clear cache and update timestamps to trigger MapPage reload
       localStorage.removeItem('gulf_dubai_areas')
       localStorage.removeItem('gulf_dubai_landmarks')
+      localStorage.removeItem('gulf_dubai_areas_timestamp')
+      localStorage.removeItem('gulf_dubai_landmarks_timestamp')
+      
+      // Trigger custom event to notify MapPage immediately
+      window.dispatchEvent(new CustomEvent('dubaiDataUpdated'))
       
       alert(`✅ Saved ${totalChanges} change(s) successfully!`)
     } catch (error) {
@@ -766,6 +808,9 @@ export default function UnifiedDubaiEditor() {
           await deleteDubaiArea(area.id)
           setAreas(areas.filter((a) => a.id !== area.id))
           localStorage.removeItem('gulf_dubai_areas')
+          localStorage.removeItem('gulf_dubai_areas_timestamp')
+          // Notify MapPage of the deletion
+          window.dispatchEvent(new CustomEvent('dubaiDataUpdated'))
         }
       } else {
         const landmark = selectedItem.item
@@ -775,6 +820,9 @@ export default function UnifiedDubaiEditor() {
           await deleteDubaiLandmark(landmark.id)
           setLandmarks(landmarks.filter((l) => l.id !== landmark.id))
           localStorage.removeItem('gulf_dubai_landmarks')
+          localStorage.removeItem('gulf_dubai_landmarks_timestamp')
+          // Notify MapPage of the deletion
+          window.dispatchEvent(new CustomEvent('dubaiDataUpdated'))
         }
       }
       setSelectedItem(null)

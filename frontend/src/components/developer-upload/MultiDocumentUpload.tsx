@@ -4,6 +4,7 @@
  * Allows uploading multiple PDFs (main brochure + payment plan + floor plans)
  */
 
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { FileText, X, Plus } from 'lucide-react';
@@ -28,6 +29,7 @@ export function MultiDocumentUpload({
   onAddDocument,
   onRemoveDocument,
 }: MultiDocumentUploadProps) {
+  const { t } = useTranslation('upload');
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: Document['type']) => {
     const file = e.target.files?.[0];
     if (file && file.type === 'application/pdf') {
@@ -40,7 +42,7 @@ export function MultiDocumentUpload({
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="h-5 w-5 text-amber-600" />
-          文档上传（可上传多个）
+          {t('multiDocUpload.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -94,7 +96,7 @@ export function MultiDocumentUpload({
               >
                 <div>
                   <Plus className="h-4 w-4 mr-1" />
-                  主手册
+                  {t('multiDocUpload.mainBrochure')}
                 </div>
               </Button>
             </label>
@@ -120,7 +122,7 @@ export function MultiDocumentUpload({
               >
                 <div>
                   <Plus className="h-4 w-4 mr-1" />
-                  付款计划
+                  {t('multiDocUpload.paymentPlan')}
                 </div>
               </Button>
             </label>
@@ -146,7 +148,7 @@ export function MultiDocumentUpload({
               >
                 <div>
                   <Plus className="h-4 w-4 mr-1" />
-                  户型图
+                  {t('multiDocUpload.floorPlans')}
                 </div>
               </Button>
             </label>
@@ -172,7 +174,7 @@ export function MultiDocumentUpload({
               >
                 <div>
                   <Plus className="h-4 w-4 mr-1" />
-                  其他
+                  {t('multiDocUpload.other')}
                 </div>
               </Button>
             </label>
@@ -180,7 +182,7 @@ export function MultiDocumentUpload({
         </div>
 
         <p className="text-xs text-gray-500 text-center">
-          支持多个 PDF，AI 会合并分析所有文档
+          {t('multiDocUpload.supportInfo')}
         </p>
       </CardContent>
     </Card>

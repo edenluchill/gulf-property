@@ -1,0 +1,10 @@
+{
+  "title": "Your Favorites",
+  "subtitle": "Properties you've saved for later review. Keep track of your dream homes in Dubai.",
+  "empty": {
+    "title": "No favorites yet",
+    "message": "Start exploring properties and save your favorites for easy access later."
+  },
+  "count_one": "You have {{count}} property saved",
+  "count_other": "You have {{count}} properties saved"
+}

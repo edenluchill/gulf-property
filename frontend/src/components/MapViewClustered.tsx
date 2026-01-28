@@ -1,7 +1,231 @@
-import { useEffect, useMemo, memo } from 'react'
+import { useState, useEffect, useMemo, memo } from 'react'
 import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { DubaiArea, DubaiLandmark } from '../types'
+
+export type AreaMetric = 'none' | 'avgPrice' | 'capitalGrowth' | 'salesVolume' | 'rentalYield'
+
+// Compute centroid of a polygon (average of all points)
+function getCentroid(coords: [number, number][]): [number, number] {
+  let latSum = 0
+  let lngSum = 0
+  for (const [lat, lng] of coords) {
+    latSum += lat
+    lngSum += lng
+  }
+  return [latSum / coords.length, lngSum / coords.length]
+}
+
+// Bounding-box diagonal of a polygon in degrees — rough proxy for "size on screen"
+function getPolygonSpan(coords: [number, number][]): number {
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
+  for (const [lat, lng] of coords) {
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+  }
+  const dLat = maxLat - minLat
+  const dLng = maxLng - minLng
+  return Math.sqrt(dLat * dLat + dLng * dLng)
+}
+
+// Progressive threshold — more aggressive at low zoom
+function getMinSpanForZoom(zoom: number): number {
+  if (zoom >= 14) return 0
+  if (zoom >= 13) return 0.008
+  if (zoom >= 12) return 0.02
+  if (zoom >= 11) return 0.04
+  if (zoom >= 10) return 0.07
+  return 0.12 // zoom <= 9
+}
+
+// ── Area clustering for low zoom ──────────────────────────────────────────────
+
+interface AreaDataItem { area: DubaiArea; centroid: [number, number]; span: number }
+interface AreaClusterGroup {
+  items: AreaDataItem[]
+  centroid: [number, number]
+  bounds: L.LatLngBoundsLiteral
+}
+
+function getMergeRadius(zoom: number): number {
+  if (zoom >= 13) return 0   // no merging — individual mode
+  if (zoom >= 12) return 0.03
+  if (zoom >= 11) return 0.06
+  if (zoom >= 10) return 0.1
+  if (zoom >= 9) return 0.15
+  return 0.22
+}
+
+function clusterAreas(items: AreaDataItem[], radius: number): AreaClusterGroup[] {
+  if (radius <= 0) return items.map(it => ({
+    items: [it], centroid: it.centroid,
+    bounds: [it.centroid, it.centroid] as L.LatLngBoundsLiteral,
+  }))
+
+  const sorted = [...items].sort((a, b) => b.span - a.span) // largest first
+  const used = new Set<number>()
+  const groups: AreaClusterGroup[] = []
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (used.has(i)) continue
+    used.add(i)
+    const members = [sorted[i]]
+
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (used.has(j)) continue
+      const dLat = sorted[i].centroid[0] - sorted[j].centroid[0]
+      const dLng = sorted[i].centroid[1] - sorted[j].centroid[1]
+      if (Math.sqrt(dLat * dLat + dLng * dLng) <= radius) {
+        members.push(sorted[j])
+        used.add(j)
+      }
+    }
+
+    let sLat = 0, sLng = 0
+    let mnLat = Infinity, mxLat = -Infinity, mnLng = Infinity, mxLng = -Infinity
+    for (const m of members) {
+      sLat += m.centroid[0]; sLng += m.centroid[1]
+      if (m.centroid[0] < mnLat) mnLat = m.centroid[0]
+      if (m.centroid[0] > mxLat) mxLat = m.centroid[0]
+      if (m.centroid[1] < mnLng) mnLng = m.centroid[1]
+      if (m.centroid[1] > mxLng) mxLng = m.centroid[1]
+    }
+
+    groups.push({
+      items: members,
+      centroid: [sLat / members.length, sLng / members.length],
+      bounds: [[mnLat - 0.005, mnLng - 0.005], [mxLat + 0.005, mxLng + 0.005]],
+    })
+  }
+  return groups
+}
+
+// Aggregate a metric across a cluster
+function aggregateMetric(items: AreaDataItem[], metric: AreaMetric): { value: string; color: string } {
+  const areas = items.map(i => i.area)
+  const none = { value: '-', color: '#64748b' }
+
+  switch (metric) {
+    case 'avgPrice': {
+      const vals = areas.map(a => a.averagePrice).filter((v): v is number => v != null && v > 0)
+      if (!vals.length) return none
+      const avg = vals.reduce((s, v) => s + v, 0) / vals.length
+      return { value: formatMetricValue({ averagePrice: avg } as DubaiArea, 'avgPrice'), color: '#334155' }
+    }
+    case 'capitalGrowth': {
+      const vals = areas.map(a => a.capitalAppreciation).filter((v): v is number => v != null)
+      if (!vals.length) return none
+      const avg = vals.reduce((s, v) => s + v, 0) / vals.length
+      const color = avg >= 0 ? '#059669' : '#e11d48'
+      return { value: formatMetricValue({ capitalAppreciation: avg } as DubaiArea, 'capitalGrowth'), color }
+    }
+    case 'salesVolume': {
+      const vals = areas.map(a => a.salesVolume).filter((v): v is number => v != null && v > 0)
+      if (!vals.length) return none
+      const total = vals.reduce((s, v) => s + v, 0)
+      return { value: formatMetricValue({ salesVolume: total } as DubaiArea, 'salesVolume'), color: '#334155' }
+    }
+    case 'rentalYield': {
+      const vals = areas.map(a => a.rentalYield).filter((v): v is number => v != null && v > 0)
+      if (!vals.length) return none
+      const avg = vals.reduce((s, v) => s + v, 0) / vals.length
+      return { value: formatMetricValue({ rentalYield: avg } as DubaiArea, 'rentalYield'), color: '#334155' }
+    }
+    default: return none
+  }
+}
+
+// Cluster summary pin icon
+function createClusterPinIcon(count: number, metricLabel: string, metricColor: string): L.DivIcon {
+  const hasMetric = metricLabel && metricLabel !== '-'
+  return L.divIcon({
+    html: `
+      <div style="
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: auto;
+        cursor: pointer;
+      ">
+        <div style="
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          background: rgba(255,255,255,0.92);
+          backdrop-filter: blur(8px);
+          border-radius: 16px;
+          padding: 4px 10px;
+          white-space: nowrap;
+          border: 1px solid rgba(148,163,184,0.3);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+        ">
+          <span style="
+            font-size: 10px;
+            font-weight: 600;
+            color: #94a3b8;
+            line-height: 1;
+          ">${count} areas</span>
+          ${hasMetric ? `
+            <span style="width:1px;height:12px;background:#e2e8f0;flex-shrink:0;"></span>
+            <span style="
+              font-size: 11px;
+              font-weight: 700;
+              color: ${metricColor};
+              line-height: 1;
+              letter-spacing: -0.01em;
+            ">${metricLabel}</span>
+          ` : ''}
+        </div>
+      </div>
+    `,
+    className: 'area-cluster-badge',
+    iconSize: L.point(0, 0),
+    iconAnchor: [0, 0],
+  })
+}
+
+// Format metric value for display on labels
+function formatMetricValue(area: DubaiArea, metric: AreaMetric): string {
+  switch (metric) {
+    case 'avgPrice': {
+      const v = area.averagePrice
+      if (v === undefined || v === null) return '-'
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M AED`
+      if (v >= 1000) return `${(v / 1000).toFixed(0)}K AED`
+      return `${v} AED`
+    }
+    case 'capitalGrowth': {
+      const v = area.capitalAppreciation
+      if (v === undefined || v === null) return '-'
+      return `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+    }
+    case 'salesVolume': {
+      const v = area.salesVolume
+      if (v === undefined || v === null) return '-'
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`
+      if (v >= 1000) return `${(v / 1000).toFixed(0)}K`
+      return v.toString()
+    }
+    case 'rentalYield': {
+      const v = area.rentalYield
+      if (v === undefined || v === null) return '-'
+      return `${v.toFixed(1)}%`
+    }
+    default:
+      return ''
+  }
+}
+
+// Get color class for metric
+function getMetricColor(area: DubaiArea, metric: AreaMetric): string {
+  if (metric === 'capitalGrowth' && area.capitalAppreciation !== undefined && area.capitalAppreciation !== null) {
+    return area.capitalAppreciation >= 0 ? '#059669' : '#e11d48'
+  }
+  return '#334155'
+}
 
 // Helper function to format price in short form (K, M)
 const formatPriceShort = (price: number): string => {
@@ -18,8 +242,8 @@ const formatPriceShort = (price: number): string => {
 // Create custom cluster icon (blue-900 style) with animation
 const createClusterIcon = (cluster: any) => {
   const { count, price_range } = cluster
-  
-  const priceRange = price_range.min && price_range.max 
+
+  const priceRange = price_range.min && price_range.max
     ? `${formatPriceShort(price_range.min)} - ${formatPriceShort(price_range.max)}`
     : 'POA'
 
@@ -92,6 +316,8 @@ interface MapViewClusteredProps {
   clusters: any[]
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
   onClusterClick?: (cluster: any) => void
+  onAreaClick?: (area: DubaiArea) => void
+  areaMetric?: AreaMetric
   dubaiAreas?: DubaiArea[]
   dubaiLandmarks?: DubaiLandmark[]
   showDubaiLayer?: boolean
@@ -132,7 +358,7 @@ function MapController({ onBoundsChange }: MapControllerProps) {
 
     map.on('moveend', handleMoveEnd)
     map.on('zoomend', handleMoveEnd)
-    
+
     // Initial call after event listeners are set up
     setTimeout(() => {
       const bounds = map.getBounds()
@@ -144,7 +370,7 @@ function MapController({ onBoundsChange }: MapControllerProps) {
         maxLng: bounds.getEast(),
       }, zoom)
     }, 100)
-    
+
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
       map.off('moveend', handleMoveEnd)
@@ -168,7 +394,7 @@ const ClusterMarker = memo(({ cluster, onClusterClick }: ClusterMarkerProps) => 
     cluster.price_range?.min,
     cluster.price_range?.max,
   ])
-  
+
   const position: [number, number] = useMemo(() => [
     cluster.center.lat,
     cluster.center.lng
@@ -192,7 +418,7 @@ const ClusterMarker = memo(({ cluster, onClusterClick }: ClusterMarkerProps) => 
   // Custom comparison: only re-render if actual data changes
   const prev = prevProps.cluster
   const next = nextProps.cluster
-  
+
   return (
     prev.cluster_id === next.cluster_id &&
     prev.count === next.count &&
@@ -203,14 +429,276 @@ const ClusterMarker = memo(({ cluster, onClusterClick }: ClusterMarkerProps) => 
   )
 })
 
-function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas = [], dubaiLandmarks = [], showDubaiLayer = false }: MapViewClusteredProps) {
-  // 调试信息
-  console.log('🗺️ MapViewClustered render:', {
-    showDubaiLayer,
-    dubaiAreasCount: dubaiAreas.length,
-    dubaiLandmarksCount: dubaiLandmarks.length,
-    clustersCount: clusters.length
+// Area name — bare text that blends into the polygon block
+function createAreaNameIcon(area: DubaiArea): L.DivIcon {
+  return L.divIcon({
+    html: `
+      <div style="
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        white-space: nowrap;
+        text-align: center;
+      ">
+        <div style="
+          font-size: 12px;
+          font-weight: 600;
+          color: ${area.color};
+          opacity: 0.7;
+          text-shadow: 0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.5);
+          letter-spacing: 0.03em;
+          user-select: none;
+        ">${area.name}</div>
+      </div>
+    `,
+    className: 'area-name-icon',
+    iconSize: L.point(0, 0),
+    iconAnchor: [0, 0],
   })
+}
+
+// Metric pin — polished pin only shown when a metric is selected
+function createMetricPinIcon(area: DubaiArea, metric: AreaMetric): L.DivIcon | null {
+  const metricValue = formatMetricValue(area, metric)
+  if (!metricValue || metricValue === '-') return null
+
+  const metricColor = getMetricColor(area, metric)
+
+  return L.divIcon({
+    html: `
+      <div style="
+        position: absolute;
+        left: 50%;
+        top: 12px;
+        transform: translateX(-50%);
+        pointer-events: auto;
+        cursor: pointer;
+      ">
+        <div style="
+          display: inline-flex;
+          align-items: center;
+          background: rgba(255,255,255,0.92);
+          backdrop-filter: blur(8px);
+          border-radius: 16px;
+          padding: 4px 10px;
+          white-space: nowrap;
+          border: 1px solid rgba(148,163,184,0.3);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+        ">
+          <span style="
+            font-size: 11px;
+            font-weight: 700;
+            color: ${metricColor};
+            line-height: 1;
+            letter-spacing: -0.01em;
+          ">${metricValue}</span>
+        </div>
+      </div>
+    `,
+    className: 'area-metric-badge',
+    iconSize: L.point(0, 0),
+    iconAnchor: [0, 0],
+  })
+}
+
+// ── Zoom-aware area labels + clustered metric pins ────────────────────────────
+
+function ZoomAwareAreaLabels({
+  dubaiAreas,
+  areaMetric,
+  onAreaClick,
+}: {
+  dubaiAreas: DubaiArea[]
+  areaMetric: AreaMetric
+  onAreaClick?: (area: DubaiArea) => void
+}) {
+  const map = useMap()
+  const [zoom, setZoom] = useState(map.getZoom())
+
+  useEffect(() => {
+    const onZoom = () => setZoom(map.getZoom())
+    map.on('zoomend', onZoom)
+    return () => { map.off('zoomend', onZoom) }
+  }, [map])
+
+  // Pre-compute centroid + span once
+  const areaData = useMemo<AreaDataItem[]>(() => {
+    return dubaiAreas
+      .filter((area) => {
+        if (!area.boundary || (area.boundary as any).type !== 'Polygon') return false
+        const coords = (area.boundary as any).coordinates?.[0]
+        return coords && coords.length > 0
+      })
+      .map((area) => {
+        const coords: [number, number][] = (area.boundary as any).coordinates[0].map(
+          ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+        )
+        return { area, centroid: getCentroid(coords), span: getPolygonSpan(coords) }
+      })
+  }, [dubaiAreas])
+
+  const minSpan = getMinSpanForZoom(zoom)
+  const mergeRadius = getMergeRadius(zoom)
+  const isIndividualMode = mergeRadius <= 0 // zoom >= 13
+
+  // Names — always progressive by span
+  const visibleNames = useMemo(() => {
+    return areaData
+      .filter(({ span }) => span >= minSpan)
+      .map(({ area, centroid }) => ({ area, centroid, icon: createAreaNameIcon(area) }))
+  }, [areaData, minSpan])
+
+  // Individual metric pins — only at zoom >= 13
+  const individualPins = useMemo(() => {
+    if (!isIndividualMode || areaMetric === 'none') return []
+    return areaData
+      .filter(({ span }) => span >= minSpan)
+      .map(({ area, centroid }) => {
+        const icon = createMetricPinIcon(area, areaMetric)
+        if (!icon) return null
+        return { area, centroid, icon }
+      })
+      .filter(Boolean) as { area: DubaiArea; centroid: [number, number]; icon: L.DivIcon }[]
+  }, [areaData, areaMetric, isIndividualMode, minSpan])
+
+  // Clustered metric pins — at zoom < 13 when metric selected
+  const clusterPins = useMemo(() => {
+    if (isIndividualMode || areaMetric === 'none') return []
+    const groups = clusterAreas(areaData, mergeRadius)
+    return groups.map((group) => {
+      const { value, color } = aggregateMetric(group.items, areaMetric)
+      if (value === '-') return null
+      return {
+        key: group.items.map(i => i.area.id).join('-'),
+        centroid: group.centroid,
+        bounds: group.bounds,
+        icon: createClusterPinIcon(group.items.length, value, color),
+      }
+    }).filter(Boolean) as { key: string; centroid: [number, number]; bounds: L.LatLngBoundsLiteral; icon: L.DivIcon }[]
+  }, [areaData, areaMetric, isIndividualMode, mergeRadius])
+
+  return (
+    <>
+      {/* Area names — progressive by polygon size */}
+      {visibleNames.map(({ area, centroid, icon }) => (
+        <Marker key={`name-${area.id}`} position={centroid} icon={icon} interactive={false} />
+      ))}
+
+      {/* Individual metric pins — zoom >= 13 */}
+      {individualPins.map(({ area, centroid, icon }) => (
+        <Marker
+          key={`metric-${area.id}`}
+          position={centroid}
+          icon={icon}
+          zIndexOffset={1000}
+          eventHandlers={{ click: () => { if (onAreaClick) onAreaClick(area) } }}
+        />
+      ))}
+
+      {/* Clustered summary pins — zoom < 13 → click to zoom in */}
+      {clusterPins.map(({ key, centroid, bounds, icon }) => (
+        <Marker
+          key={`cluster-${key}`}
+          position={centroid}
+          icon={icon}
+          zIndexOffset={1000}
+          eventHandlers={{
+            click: () => { map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 }) },
+          }}
+        />
+      ))}
+    </>
+  )
+}
+
+// ── Zoom-aware landmarks — hide photo pins when zoomed out ────────────────────
+
+function ZoomAwareLandmarks({
+  getImageForLandmark,
+  landmarkIcons,
+}: {
+  getImageForLandmark: (l: DubaiLandmark) => string
+  landmarkIcons: { landmark: DubaiLandmark; icon: L.DivIcon; position: [number, number] }[]
+}) {
+  const [zoom, setZoom] = useState(useMap().getZoom())
+  const map = useMap()
+
+  useEffect(() => {
+    const onZoom = () => setZoom(map.getZoom())
+    map.on('zoomend', onZoom)
+    return () => { map.off('zoomend', onZoom) }
+  }, [map])
+
+  // Progressive: large landmarks at zoom 11+, all at 12+, none below 11
+  const visible = useMemo(() => {
+    if (zoom >= 12) return landmarkIcons
+    if (zoom >= 11) return landmarkIcons.filter(({ landmark }) => landmark.size === 'large')
+    return []
+  }, [landmarkIcons, zoom])
+
+  return (
+    <>
+      {visible.map(({ landmark, icon, position }) => (
+        <Marker key={landmark.id} position={position} icon={icon}>
+          <Popup maxWidth={400} autoPan={false}>
+            <div className="p-0 min-w-[380px] bg-white">
+              <div className="w-full h-56 overflow-hidden relative">
+                <img
+                  src={getImageForLandmark(landmark)}
+                  alt={landmark.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).parentElement!.style.background = `linear-gradient(135deg, ${landmark.color}40, ${landmark.color}80)`;
+                  }}
+                />
+                {landmark.landmarkType && (
+                  <div className="absolute top-4 right-4">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md bg-white/90 text-slate-700 border border-white/40 shadow-lg">
+                      {landmark.landmarkType}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="p-6">
+                <div className="mb-4">
+                  <h3 className="font-bold text-2xl text-slate-900 mb-1">{landmark.name}</h3>
+                  {landmark.nameAr && <p className="text-sm text-slate-500 font-arabic">{landmark.nameAr}</p>}
+                </div>
+                {landmark.description && (
+                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">{landmark.description}</p>
+                )}
+                {(landmark.yearBuilt || landmark.websiteUrl) && (
+                  <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                    {landmark.yearBuilt && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="text-xs text-slate-500">Built</span>
+                        <span className="text-sm font-semibold text-slate-900">{landmark.yearBuilt}</span>
+                      </div>
+                    )}
+                    {landmark.websiteUrl && (
+                      <a href={landmark.websiteUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-700">
+                        <span>Visit Website</span>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  )
+}
+
+function MapViewClustered({ clusters, onBoundsChange, onClusterClick, onAreaClick, areaMetric = 'none', dubaiAreas = [], dubaiLandmarks = [], showDubaiLayer = false }: MapViewClusteredProps) {
 
   // 地标照片映射 - 优先使用数据库中的图片，否则使用默认图片
   const getImageForLandmark = (landmark: DubaiLandmark): string => {
@@ -218,7 +706,7 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
     if (landmark.imageUrl) {
       return landmark.imageUrl
     }
-    
+
     // 2. 否则使用地标名称映射
     const landmarkImages: Record<string, string> = {
       'Burj Khalifa': 'https://images.unsplash.com/photo-1582672060674-bc2bd808a8b5?w=400&h=400&fit=crop',
@@ -230,11 +718,11 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
       'Gold Souk': 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=400&h=400&fit=crop',
       'Jumeirah Beach': 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=400&fit=crop',
     }
-    
+
     if (landmarkImages[landmark.name]) {
       return landmarkImages[landmark.name]
     }
-    
+
     // 3. 最后根据类型返回通用照片
     const typeImages: Record<string, string> = {
       'tower': 'https://images.unsplash.com/photo-1582672060674-bc2bd808a8b5?w=400&h=400&fit=crop',
@@ -246,7 +734,7 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
       'park': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=400&h=400&fit=crop',
       'default': 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400&h=400&fit=crop'
     }
-    
+
     return typeImages[landmark.landmarkType] || typeImages.default
   }
 
@@ -257,7 +745,7 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
       const sizeMap = { small: [70, 90], medium: [80, 100], large: [90, 110] }
       const size = sizeMap[landmark.size] || [80, 100]
       const imageUrl = getImageForLandmark(landmark)
-      
+
       return {
         landmark,
         icon: L.divIcon({
@@ -300,7 +788,7 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
                 border-radius: 50%;
                 filter: blur(4px);
               "></div>
-              
+
               <!-- Pin SVG - 正确的水滴方向（尖端朝下） -->
               <svg width="${size[0]}" height="${size[1]}" viewBox="0 0 80 100" style="filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));">
                 <defs>
@@ -308,35 +796,35 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
                   <clipPath id="pin-clip-${landmark.id}">
                     <circle cx="40" cy="35" r="28"/>
                   </clipPath>
-                  
+
                   <!-- 渐变边框 -->
                   <linearGradient id="pin-border-${landmark.id}" x1="0%" y1="0%" x2="0%" y2="100%">
                     <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
                     <stop offset="100%" style="stop-color:#e0e0e0;stop-opacity:1" />
                   </linearGradient>
                 </defs>
-                
+
                 <!-- 外部白色边框 -->
-                <path d="M40 95 L40 95 C40 95, 40 70, 40 70 C40 70, 20 70, 12 58 C4 46, 4 35, 12 23 C20 11, 32 5, 40 5 C48 5, 60 11, 68 23 C76 35, 76 46, 68 58 C60 70, 40 70, 40 70 Z" 
-                      fill="url(#pin-border-${landmark.id})" 
-                      stroke="#d0d0d0" 
+                <path d="M40 95 L40 95 C40 95, 40 70, 40 70 C40 70, 20 70, 12 58 C4 46, 4 35, 12 23 C20 11, 32 5, 40 5 C48 5, 60 11, 68 23 C76 35, 76 46, 68 58 C60 70, 40 70, 40 70 Z"
+                      fill="url(#pin-border-${landmark.id})"
+                      stroke="#d0d0d0"
                       stroke-width="1"/>
-                
+
                 <!-- 照片区域 -->
-                <image 
-                  href="${imageUrl}" 
-                  x="12" 
-                  y="7" 
-                  width="56" 
-                  height="56" 
+                <image
+                  href="${imageUrl}"
+                  x="12"
+                  y="7"
+                  width="56"
+                  height="56"
                   clip-path="url(#pin-clip-${landmark.id})"
                   preserveAspectRatio="xMidYMid slice"
                 />
-                
+
                 <!-- 内圈边框 -->
-                <circle cx="40" cy="35" r="28" 
-                        fill="none" 
-                        stroke="white" 
+                <circle cx="40" cy="35" r="28"
+                        fill="none"
+                        stroke="white"
                         stroke-width="3"
                         opacity="0.9"/>
               </svg>
@@ -365,21 +853,18 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
         maxZoom={20}
       />
       <MapController clusters={clusters} onBoundsChange={onBoundsChange} />
-      
-      {/* Render Dubai areas as polygons (if layer is enabled) - 现代化样式 */}
+
+      {/* Render Dubai areas as polygons (if layer is enabled) */}
       {showDubaiLayer && Array.isArray(dubaiAreas) && dubaiAreas.map((area) => {
         // Convert GeoJSON coordinates to Leaflet format
-        const coordinates = area.boundary?.type === 'Polygon' 
+        const coordinates = area.boundary?.type === 'Polygon'
           ? (area.boundary as any).coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng] as [number, number])
           : []
-        
+
         if (coordinates.length === 0) {
-          console.warn('⚠️ Area has no valid boundary:', area.name, area)
           return null
         }
-        
-        console.log('✅ Rendering area:', area.name, 'with', coordinates.length, 'points')
-        
+
         return (
           <Polygon
             key={area.id}
@@ -387,14 +872,13 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
             pathOptions={{
               color: area.color,
               fillColor: area.color,
-              fillOpacity: area.opacity * 0.6, // 稍微降低不透明度，更柔和
+              fillOpacity: area.opacity * 0.6,
               weight: 3,
               opacity: 0.8,
-              dashArray: '5, 10', // 虚线边框，更现代
+              dashArray: '5, 10',
               lineCap: 'round',
               lineJoin: 'round',
             }}
-            // 添加交互效果
             eventHandlers={{
               mouseover: (e) => {
                 const layer = e.target
@@ -412,201 +896,33 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, dubaiAreas
                   dashArray: '5, 10',
                 })
               },
+              click: () => {
+                if (onAreaClick) {
+                  onAreaClick(area)
+                }
+              },
             }}
-          >
-            <Popup maxWidth={480} autoPan={false}>
-              <div className="p-0 min-w-[440px] bg-white">
-                {/* Clean Header - No gradient, just subtle line */}
-                <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div 
-                          className="w-2.5 h-2.5 rounded-full" 
-                          style={{ backgroundColor: area.color }}
-                        ></div>
-                        <h3 className="font-bold text-2xl text-slate-900">{area.name}</h3>
-                      </div>
-                      {area.nameAr && (
-                        <p className="text-sm text-slate-500 font-arabic ml-4">
-                          {area.nameAr}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {area.description && (
-                    <p className="text-sm text-slate-600 mt-3 leading-relaxed">
-                      {area.description}
-                    </p>
-                  )}
-                </div>
-                
-                {/* Main content */}
-                <div className="px-6 py-5">
-                  {/* Market Statistics Grid - Clean, professional design */}
-                  {(area.projectCounts || area.averagePrice || area.salesVolume || area.capitalAppreciation || area.rentalYield) && (
-                    <div className="mb-5">
-                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
-                        Market Statistics
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        {area.projectCounts !== undefined && area.projectCounts > 0 && (
-                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
-                            <div className="text-xs text-slate-500 font-medium mb-1.5">Projects</div>
-                            <div className="text-2xl font-bold text-slate-900">{area.projectCounts}</div>
-                          </div>
-                        )}
-                        
-                        {area.averagePrice && (
-                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
-                            <div className="text-xs text-slate-500 font-medium mb-1.5">Avg Price</div>
-                            <div className="text-2xl font-bold text-slate-900">
-                              {area.averagePrice >= 1000000 
-                                ? `${(area.averagePrice / 1000000).toFixed(1)}M` 
-                                : `${(area.averagePrice / 1000).toFixed(0)}K`}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-0.5">AED</div>
-                          </div>
-                        )}
-                        
-                        {area.salesVolume && (
-                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
-                            <div className="text-xs text-slate-500 font-medium mb-1.5">Sales Volume</div>
-                            <div className="text-2xl font-bold text-slate-900">
-                              {area.salesVolume >= 1000000 
-                                ? `${(area.salesVolume / 1000000).toFixed(1)}M` 
-                                : `${(area.salesVolume / 1000).toFixed(0)}K`}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {area.capitalAppreciation !== undefined && area.capitalAppreciation !== null && (
-                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
-                            <div className="text-xs text-slate-500 font-medium mb-1.5">Capital Growth</div>
-                            <div className={`text-2xl font-bold ${area.capitalAppreciation >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {area.capitalAppreciation >= 0 ? '+' : ''}{area.capitalAppreciation.toFixed(1)}%
-                            </div>
-                          </div>
-                        )}
-                        
-                        {area.rentalYield !== undefined && area.rentalYield !== null && (
-                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-slate-300 transition-colors">
-                            <div className="text-xs text-slate-500 font-medium mb-1.5">Rental Yield</div>
-                            <div className="text-2xl font-bold text-slate-900">
-                              {area.rentalYield.toFixed(1)}%
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Tags - Cleaner design */}
-                  {(area.areaType || area.wealthLevel || area.culturalAttribute) && (
-                    <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
-                      {area.areaType && (
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          {area.areaType}
-                        </span>
-                      )}
-                      {area.wealthLevel && (
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          {area.wealthLevel}
-                        </span>
-                      )}
-                      {area.culturalAttribute && (
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          {area.culturalAttribute}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Popup>
-          </Polygon>
+          />
         )
       })}
 
-      {/* Render Dubai landmarks as markers (if layer is enabled) - 照片pin */}
-      {showDubaiLayer && landmarkIcons.map(({ landmark, icon, position }) => (
-        <Marker
-          key={landmark.id}
-          position={position}
-          icon={icon}
-        >
-          <Popup maxWidth={400} autoPan={false}>
-            <div className="p-0 min-w-[380px] bg-white">
-              {/* 顶部大图 - 更大更有冲击力 */}
-              <div className="w-full h-56 overflow-hidden relative">
-                <img 
-                  src={getImageForLandmark(landmark)}
-                  alt={landmark.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // 如果图片加载失败，使用默认背景色
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).parentElement!.style.background = `linear-gradient(135deg, ${landmark.color}40, ${landmark.color}80)`;
-                  }}
-                />
-                
-                {/* 类型标签 - 简洁设计 */}
-                {landmark.landmarkType && (
-                  <div className="absolute top-4 right-4">
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md bg-white/90 text-slate-700 border border-white/40 shadow-lg">
-                      {landmark.landmarkType}
-                    </span>
-                  </div>
-                )}
-              </div>
-              
-              {/* 内容区域 */}
-              <div className="p-6">
-                <div className="mb-4">
-                  <h3 className="font-bold text-2xl text-slate-900 mb-1">{landmark.name}</h3>
-                  {landmark.nameAr && (
-                    <p className="text-sm text-slate-500 font-arabic">{landmark.nameAr}</p>
-                  )}
-                </div>
-                
-                {landmark.description && (
-                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-                    {landmark.description}
-                  </p>
-                )}
-                
-                {/* 元数据 - 更简洁的设计 */}
-                {(landmark.yearBuilt || landmark.websiteUrl) && (
-                  <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
-                    {landmark.yearBuilt && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
-                        <span className="text-xs text-slate-500">Built</span>
-                        <span className="text-sm font-semibold text-slate-900">{landmark.yearBuilt}</span>
-                      </div>
-                    )}
-                    
-                    {landmark.websiteUrl && (
-                      <a 
-                        href={landmark.websiteUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-700"
-                      >
-                        <span>Visit Website</span>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-      
+      {/* Zoom-aware area name text + metric pins */}
+      {showDubaiLayer && (
+        <ZoomAwareAreaLabels
+          dubaiAreas={dubaiAreas}
+          areaMetric={areaMetric}
+          onAreaClick={onAreaClick}
+        />
+      )}
+
+      {/* Render Dubai landmarks as markers (zoom-aware) */}
+      {showDubaiLayer && (
+        <ZoomAwareLandmarks
+          getImageForLandmark={getImageForLandmark}
+          landmarkIcons={landmarkIcons}
+        />
+      )}
+
       {/* Render cluster markers - memoized to prevent unnecessary re-renders */}
       {clusters.map((cluster) => (
         <ClusterMarker

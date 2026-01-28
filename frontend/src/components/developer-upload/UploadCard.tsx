@@ -2,6 +2,7 @@
  * PDF Upload Card Component
  */
 
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Upload, FileText, Sparkles, Loader2, CheckCircle, XCircle, Clock } from 'lucide-react';
@@ -36,15 +37,16 @@ export function UploadCard({
   onFileDrop,
   onProcess,
 }: UploadCardProps) {
+  const { t } = useTranslation('upload');
   return (
     <Card className="sticky top-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <FileText className="h-5 w-5 text-amber-600" />
-          上传 PDF
+          {t('uploadCard.title')}
         </CardTitle>
         <CardDescription>
-          上传项目手册，AI 自动提取信息
+          {t('uploadCard.subtitle')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -71,10 +73,10 @@ export function UploadCard({
           <label htmlFor="pdf-upload-v2" className={isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}>
             <Upload className={`h-12 w-12 mx-auto mb-3 ${isProcessing ? 'text-gray-400' : 'text-amber-500'}`} />
             <p className="text-slate-700 mb-1 font-medium">
-              {pdfFile ? pdfFile.name : '点击或拖拽上传'}
+              {pdfFile ? pdfFile.name : t('uploadCard.clickOrDrag')}
             </p>
             <p className="text-xs text-slate-500">
-              {pdfFile ? `${(pdfFile.size / 1024 / 1024).toFixed(2)} MB` : '支持 PDF 文件，最大 50MB'}
+              {pdfFile ? `${(pdfFile.size / 1024 / 1024).toFixed(2)} MB` : t('uploadCard.supportInfo')}
             </p>
           </label>
         </div>
@@ -87,7 +89,7 @@ export function UploadCard({
             size="lg"
           >
             <Sparkles className="mr-2 h-5 w-5" />
-            AI 智能提取
+            {t('documentUpload.aiExtract')}
           </Button>
         )}
 
@@ -113,7 +115,7 @@ export function UploadCard({
 
             {/* Event Log */}
             <div className="bg-slate-50 rounded-lg p-3 max-h-64 overflow-y-auto">
-              <div className="text-xs font-semibold text-slate-600 mb-2">处理日志</div>
+              <div className="text-xs font-semibold text-slate-600 mb-2">{t('processing.processLog')}</div>
               <div className="space-y-1">
                 {progressEvents.slice(-6).map((event, idx) => (
                   <div key={idx} className="flex items-start gap-2 text-xs">
@@ -131,10 +133,10 @@ export function UploadCard({
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center gap-2 text-green-800">
               <CheckCircle className="h-5 w-5" />
-              <span className="font-semibold">提取完成！</span>
+              <span className="font-semibold">{t('processing.extractionComplete')}</span>
             </div>
             <p className="text-sm text-green-700 mt-1">
-              请检查右侧表单，编辑后提交
+              {t('processing.checkFormAndSubmit')}
             </p>
           </div>
         )}
@@ -144,7 +146,7 @@ export function UploadCard({
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center gap-2 text-red-800">
               <XCircle className="h-5 w-5" />
-              <span className="font-semibold">错误</span>
+              <span className="font-semibold">{t('processing.error')}</span>
             </div>
             <p className="text-sm text-red-700 mt-1">{error}</p>
           </div>

@@ -1,0 +1,39 @@
+{
+  "title": "提交您的项目",
+  "subtitle": "您是在迪拜有期房项目的开发商吗？提交项目详情，触达寻找优质物业的国际买家。",
+  "success": {
+    "title": "感谢您！",
+    "received": "您的项目已提交成功。",
+    "review": "我们的团队将审核您的提交，并在2-3个工作日内与您联系。"
+  },
+  "form": {
+    "projectInfo": "项目信息",
+    "projectInfoDesc": "请提供您期房项目的详细信息。除标注为可选外，所有字段均为必填。",
+    "projectDetails": "项目详情",
+    "projectName": "项目名称 *",
+    "projectNamePlaceholder": "例如：Marina Heights Tower",
+    "developerName": "开发商名称 *",
+    "developerNamePlaceholder": "例如：Emaar Properties",
+    "fullAddress": "详细地址 *",
+    "fullAddressPlaceholder": "例如：Dubai Marina, Dubai",
+    "district": "所在区域 *",
+    "districtPlaceholder": "例如：Dubai Marina",
+    "pricing": "定价 (AED)",
+    "minPrice": "最低价格 *",
+    "maxPrice": "最高价格 *",
+    "timeline": "时间线",
+    "expectedCompletion": "预计交付日期 *",
+    "contactInfo": "联系方式",
+    "email": "邮箱地址 *",
+    "emailPlaceholder": "contact@developer.com",
+    "phone": "电话号码 *",
+    "phonePlaceholder": "+971 4 XXX XXXX",
+    "projectDescription": "项目描述 *",
+    "projectDescriptionPlaceholder": "请提供项目的详细描述，包括主要特色、配套设施和独特卖点...",
+    "additionalMaterials": "补充材料（可选）",
+    "uploadPrompt": "上传项目图片、平面图或楼书",
+    "dragDrop": "拖拽文件到此处，或点击浏览",
+    "submitBtn": "提交项目审核",
+    "submitDisclaimer": "提交此表单即表示您同意我们的条款和条件。我们将审核您的提交并在2-3个工作日内与您联系。"
+  }
+}

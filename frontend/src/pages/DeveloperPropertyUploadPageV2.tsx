@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/card'
 import { Building2, CheckCircle, Loader2 } from 'lucide-react'
@@ -86,6 +87,7 @@ interface ProgressEvent {
 }
 
 export default function DeveloperPropertyUploadPageV2() {
+  const { t } = useTranslation('upload')
   const [documents, setDocuments] = useState<Document[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
@@ -120,7 +122,7 @@ export default function DeveloperPropertyUploadPageV2() {
       setDocuments(prev => [...prev, {
         id: Date.now().toString() + idx,
         file,
-        label: idx === 0 ? '主手册' : `文档 ${prev.length + idx + 1}`,
+        label: idx === 0 ? t('processing.mainBrochure') : t('processing.documentN', { n: prev.length + idx + 1 }),
       }])
     })
     setError(null)
@@ -154,7 +156,7 @@ export default function DeveloperPropertyUploadPageV2() {
     setIsUploading(true)
     setUploadProgress(0)
     setProgress(0)
-    setCurrentStage('上传文件中...')
+    setCurrentStage(t('processing.uploading'))
     setProgressEvents([])
     setError(null)
 
@@ -175,7 +177,7 @@ export default function DeveloperPropertyUploadPageV2() {
           if (e.lengthComputable) {
             const percentComplete = Math.round((e.loaded / e.total) * 100)
             setUploadProgress(percentComplete)
-            setCurrentStage(`上传文件中... ${percentComplete}%`)
+            setCurrentStage(t('processing.uploadingPercent', { percent: percentComplete }))
             console.log(`📤 Upload progress: ${percentComplete}%`)
           }
         })
@@ -185,7 +187,7 @@ export default function DeveloperPropertyUploadPageV2() {
             try {
               const response = JSON.parse(xhr.responseText)
               setIsUploading(false)
-              setCurrentStage('文件上传完成，开始处理...')
+              setCurrentStage(t('processing.uploadComplete'))
               resolve(response)
             } catch (err) {
               reject(new Error('Invalid response format'))
@@ -213,7 +215,7 @@ export default function DeveloperPropertyUploadPageV2() {
       console.log(`🆔 Job ID received: ${jobId}`)
 
       setIsProcessing(true)
-      setCurrentStage('连接处理服务...')
+      setCurrentStage(t('processing.connecting'))
 
       console.log('🔌 Connecting to SSE:', API_ENDPOINTS.langgraphProgressStream(jobId))
       
@@ -222,7 +224,7 @@ export default function DeveloperPropertyUploadPageV2() {
 
       eventSource.onopen = () => {
         console.log('✅ SSE connection opened')
-        setCurrentStage('开始处理文档...')
+        setCurrentStage(t('processing.startProcessing'))
       }
 
       eventSource.onmessage = (event) => {
@@ -326,12 +328,12 @@ export default function DeveloperPropertyUploadPageV2() {
 
     // 二次确认
     const confirmSubmit = window.confirm(
-      `确认提交项目吗？\n\n` +
-      `项目名称: ${formData.projectName}\n` +
-      `开发商: ${formData.developer}\n` +
-      `户型数量: ${formData.unitTypes.length}\n` +
-      `地图坐标: ${formData.latitude && formData.longitude ? '已设置' : '❌ 未设置'}\n\n` +
-      `请确认所有信息无误后点击"确定"。`
+      t('confirm.message', {
+        name: formData.projectName,
+        developer: formData.developer,
+        unitCount: formData.unitTypes.length,
+        coordStatus: formData.latitude && formData.longitude ? t('confirm.coordSet') : t('confirm.coordNotSet'),
+      })
     )
 
     if (!confirmSubmit) {
@@ -407,8 +409,17 @@ export default function DeveloperPropertyUploadPageV2() {
 
       console.log('✅ Project submitted successfully:', result.projectId)
       
+      // Clear metadata cache so MapPage will fetch fresh data
+      localStorage.removeItem('gulf_residential_developers')
+      localStorage.removeItem('gulf_residential_developers_timestamp')
+      localStorage.removeItem('gulf_residential_areas')
+      localStorage.removeItem('gulf_residential_areas_timestamp')
+      localStorage.removeItem('gulf_residential_projects')
+      localStorage.removeItem('gulf_residential_projects_timestamp')
+      console.log('🗑️ Cleared metadata cache to ensure fresh data on map')
+      
       // Show success notification
-      alert('✅ 项目提交成功！\n即将跳转到地图页面...')
+      alert(t('confirm.successAlert'))
       
       setSubmitted(true)
       setTimeout(() => { window.location.href = '/map' }, 2000)
@@ -418,7 +429,7 @@ export default function DeveloperPropertyUploadPageV2() {
       setError(errorMessage)
       
       // Show error notification to user
-      alert(`❌ 提交失败\n\n错误信息：${errorMessage}\n\n请检查数据后重试，或联系技术支持。`)
+      alert(t('confirm.failAlert', { error: errorMessage }))
       
       setIsSubmitting(false)
     }
@@ -456,7 +467,7 @@ export default function DeveloperPropertyUploadPageV2() {
       }
     }
     
-    const groupKey = buildingGroup || '未分类';
+    const groupKey = buildingGroup || 'Uncategorized';
     
     if (!acc[groupKey]) acc[groupKey] = [];
     acc[groupKey].push(unit);
@@ -474,9 +485,9 @@ export default function DeveloperPropertyUploadPageV2() {
                 <Building2 className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">智能 PDF 提取系统</h1>
+                <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
                 <p className="text-sm text-gray-700 mt-1">
-                  AI 驱动的房地产项目信息自动提取与结构化处理
+                  {t('subtitle')}
                 </p>
               </div>
             </div>
@@ -484,19 +495,19 @@ export default function DeveloperPropertyUploadPageV2() {
             {/* Process Flow Indicator */}
             <div className="flex items-center gap-3 text-sm mt-6">
               <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-amber-700">1️⃣ 上传 PDF</span>
+                <span className="font-semibold text-amber-700">{`1️⃣ ${t('steps.upload')}`}</span>
               </div>
               <div className="text-amber-400">→</div>
               <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-amber-700">2️⃣ AI 提取</span>
+                <span className="font-semibold text-amber-700">{`2️⃣ ${t('steps.extract')}`}</span>
               </div>
               <div className="text-amber-400">→</div>
               <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-amber-700">3️⃣ 审核数据</span>
+                <span className="font-semibold text-amber-700">{`3️⃣ ${t('steps.review')}`}</span>
               </div>
               <div className="text-amber-400">→</div>
               <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-green-700">4️⃣ 提交</span>
+                <span className="font-semibold text-green-700">{`4️⃣ ${t('steps.submit')}`}</span>
               </div>
             </div>
           </div>
@@ -510,8 +521,8 @@ export default function DeveloperPropertyUploadPageV2() {
               <Card className="text-center py-16 shadow-2xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
                 <CardContent>
                   <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold mb-2 text-gray-900">✅ 提交成功！</h2>
-                  <p className="text-gray-600">正在跳转到地图...</p>
+                  <h2 className="text-3xl font-bold mb-2 text-gray-900">{t('success.title')}</h2>
+                  <p className="text-gray-600">{t('success.redirecting')}</p>
                   <Loader2 className="h-6 w-6 mx-auto mt-4 animate-spin text-amber-600" />
                 </CardContent>
               </Card>
@@ -596,10 +607,10 @@ export default function DeveloperPropertyUploadPageV2() {
                               <div className="h-10 w-1 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
                               <div>
                                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                  🏠 户型列表
+                                  {t('unitTypesList')}
                                 </h3>
                                 <p className="text-sm text-gray-600">
-                                  共 {formData.unitTypes.length} 个户型
+                                  {t('totalUnitTypes', { count: formData.unitTypes.length })}
                                 </p>
                               </div>
                             </div>
@@ -607,14 +618,14 @@ export default function DeveloperPropertyUploadPageV2() {
                             {isProcessing && formData.unitTypes.length === 0 && (
                               <div className="text-center py-16 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border-2 border-dashed border-amber-300 shadow-inner">
                                 <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-amber-600" />
-                                <p className="text-base text-gray-700 font-semibold">AI 正在分析文档...</p>
-                                <p className="text-sm text-gray-500 mt-2">提取户型信息中</p>
+                                <p className="text-base text-gray-700 font-semibold">{t('aiAnalyzing')}</p>
+                                <p className="text-sm text-gray-500 mt-2">{t('extractingUnitTypes')}</p>
                               </div>
                             )}
 
                             {/* Grouped Units */}
                             {Object.entries(groupedUnits).map(([groupKey, units]) => {
-                              const isUncategorized = groupKey === '未分类';
+                              const isUncategorized = groupKey === 'Uncategorized';
                               return (
                                 <div key={groupKey} className="space-y-4">
                                   <div className={`px-5 py-4 rounded-xl shadow-md border-l-4 ${
@@ -626,10 +637,10 @@ export default function DeveloperPropertyUploadPageV2() {
                                       <span className="text-2xl">{isUncategorized ? '📋' : '🏢'}</span>
                                       <div>
                                         <div className={`font-bold ${isUncategorized ? 'text-gray-800' : 'text-blue-900'}`}>
-                                          {isUncategorized ? groupKey : `${groupKey} 系列`}
+                                          {isUncategorized ? t('uncategorized') : t('series', { key: groupKey })}
                                         </div>
                                         <div className="text-sm text-gray-600 mt-0.5">
-                                          {units.length} 种户型
+                                          {t('unitTypeCount', { count: units.length })}
                                         </div>
                                       </div>
                                     </div>
@@ -680,10 +691,10 @@ export default function DeveloperPropertyUploadPageV2() {
                                 <div className="h-10 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
                                 <div>
                                   <h3 className="font-bold text-blue-900 text-xl">
-                                    ✅ 提交前检查清单
+                                    {t('checklist.title')}
                                   </h3>
                                   <p className="text-sm text-blue-700 mt-1">
-                                    请仔细检查以下信息，确保准确无误
+                                    {t('checklist.subtitle')}
                                   </p>
                                 </div>
                               </div>
@@ -698,10 +709,10 @@ export default function DeveloperPropertyUploadPageV2() {
                                         <span className="text-2xl">⚠️</span>
                                         <div>
                                           <h4 className="font-bold text-red-900">
-                                            发现 {invalidUnits.length} 个无效户型
+                                            {t('checklist.invalidUnits.title', { count: invalidUnits.length })}
                                           </h4>
                                           <p className="text-sm text-red-700 mt-1">
-                                            以下户型缺少面积信息（AI 提取失败），提交时将被自动过滤
+                                            {t('checklist.invalidUnits.desc')}
                                           </p>
                                         </div>
                                       </div>
@@ -710,13 +721,13 @@ export default function DeveloperPropertyUploadPageV2() {
                                           <div key={unit.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
                                             <span className="font-medium text-gray-900">{unit.name || unit.typeName}</span>
                                             <span className="text-red-600 text-xs bg-red-100 px-2 py-1 rounded">
-                                              面积 = 0 (提取失败)
+                                              {t('checklist.invalidUnits.areaZero')}
                                             </span>
                                           </div>
                                         ))}
                                       </div>
                                       <p className="text-xs text-red-600">
-                                        💡 建议：您可以手动删除这些户型，或等待修复后重新上传 PDF
+                                        {t('checklist.invalidUnits.hint')}
                                       </p>
                                     </div>
                                   );
@@ -732,8 +743,8 @@ export default function DeveloperPropertyUploadPageV2() {
                                 }`}>
                                   <div className="text-3xl pt-1">{formData.projectName ? '✅' : '⚠️'}</div>
                                   <div className="flex-1">
-                                    <div className="font-bold text-gray-900 text-base mb-1">项目基本信息</div>
-                                    <div className="text-sm text-gray-600">请检查项目名称、开发商、地址等信息</div>
+                                    <div className="font-bold text-gray-900 text-base mb-1">{t('checklist.basicInfo')}</div>
+                                    <div className="text-sm text-gray-600">{t('checklist.basicInfoDesc')}</div>
                                   </div>
                                 </div>
 
@@ -745,12 +756,12 @@ export default function DeveloperPropertyUploadPageV2() {
                                   <div className="text-3xl pt-1">{formData.latitude && formData.longitude ? '✅' : '⚠️'}</div>
                                   <div className="flex-1">
                                     <div className="font-bold text-gray-900 text-base mb-1">
-                                      地图坐标 {formData.latitude && formData.longitude ? '(已设置)' : '(未设置)'}
+                                      {t('checklist.mapCoordinates')} {formData.latitude && formData.longitude ? t('checklist.mapSet') : t('checklist.mapNotSet')}
                                     </div>
                                     <div className="text-sm text-gray-600">
-                                      {formData.latitude && formData.longitude 
-                                        ? `纬度: ${formData.latitude.toFixed(6)}, 经度: ${formData.longitude.toFixed(6)}`
-                                        : '请点击"选择地图位置"设置项目坐标'
+                                      {formData.latitude && formData.longitude
+                                        ? t('checklist.latLng', { lat: formData.latitude.toFixed(6), lng: formData.longitude.toFixed(6) })
+                                        : t('checklist.mapSetHint')
                                       }
                                     </div>
                                   </div>
@@ -764,9 +775,9 @@ export default function DeveloperPropertyUploadPageV2() {
                                   <div className="text-3xl pt-1">{formData.unitTypes.length > 0 ? '✅' : '⚠️'}</div>
                                   <div className="flex-1">
                                     <div className="font-bold text-gray-900 text-base mb-1">
-                                      户型列表 ({formData.unitTypes.length} 个)
+                                      {t('checklist.unitTypes', { count: formData.unitTypes.length })}
                                     </div>
-                                    <div className="text-sm text-gray-600">请检查每个户型的面积、价格、图片等信息</div>
+                                    <div className="text-sm text-gray-600">{t('checklist.unitTypesDesc')}</div>
                                   </div>
                                 </div>
                               </div>
@@ -781,10 +792,10 @@ export default function DeveloperPropertyUploadPageV2() {
                                   />
                                   <div className="flex-1">
                                     <span className="font-bold text-gray-900 text-base block group-hover:text-blue-700 transition-colors">
-                                      我已仔细检查所有信息，确认无误
+                                      {t('checklist.confirmReview')}
                                     </span>
                                     <span className="text-sm text-gray-600 mt-1 block">
-                                      勾选此项后即可提交项目
+                                      {t('checklist.checkToSubmit')}
                                     </span>
                                   </div>
                                 </label>
@@ -803,18 +814,18 @@ export default function DeveloperPropertyUploadPageV2() {
                               {isSubmitting ? (
                                 <>
                                   <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                  <span className="text-lg">正在提交项目，请稍候...</span>
+                                  <span className="text-lg">{t('submitBtn.submitting')}</span>
                                 </>
                               ) : isProcessing ? (
                                 <>
                                   <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                  <span className="text-lg">AI 处理中，请稍候...</span>
+                                  <span className="text-lg">{t('submitBtn.aiProcessing')}</span>
                                 </>
                               ) : (
                                 <>
                                   <CheckCircle className="mr-2 h-6 w-6" />
                                   <span className="text-lg font-bold">
-                                    {hasReviewed ? '✅ 确认提交项目' : '⚠️ 请先完成检查清单'}
+                                    {hasReviewed ? t('submitBtn.confirmed') : t('submitBtn.pleaseCheck')}
                                   </span>
                                 </>
                               )}
@@ -862,9 +873,9 @@ export default function DeveloperPropertyUploadPageV2() {
             >
               <div className="text-center">
                 <Loader2 className="h-20 w-20 mx-auto mb-6 animate-spin text-green-600" />
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">正在提交项目</h3>
-                <p className="text-gray-600 mb-2">正在保存项目数据到数据库...</p>
-                <p className="text-sm text-gray-500">这可能需要一分钟，请耐心等待</p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">{t('overlay.submittingProject')}</h3>
+                <p className="text-gray-600 mb-2">{t('overlay.savingToDb')}</p>
+                <p className="text-sm text-gray-500">{t('overlay.pleaseWait')}</p>
                 <div className="mt-6 flex items-center justify-center gap-1">
                   <div className="h-2 w-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                   <div className="h-2 w-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>

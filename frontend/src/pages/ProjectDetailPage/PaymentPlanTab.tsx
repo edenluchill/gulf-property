@@ -2,22 +2,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../lib/utils'
 import { PaymentPlan } from '../../types'
+import { useTranslation } from 'react-i18next'
 
 interface PaymentPlanTabProps {
   paymentPlan: PaymentPlan[]
 }
 
 export function PaymentPlanTab({ paymentPlan }: PaymentPlanTabProps) {
+  const { t } = useTranslation(['project', 'common'])
+
   if (paymentPlan.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Payment Plan</CardTitle>
+          <CardTitle>{t('project:paymentPlanTab.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-slate-600">
-            <p>Payment plan information will be available soon.</p>
-            <Button className="mt-4">Request Payment Plan</Button>
+            <p>{t('project:paymentPlanTab.emptyMessage')}</p>
+            <Button className="mt-4">{t('common:buttons.requestPaymentPlan')}</Button>
           </div>
         </CardContent>
       </Card>
@@ -27,7 +30,7 @@ export function PaymentPlanTab({ paymentPlan }: PaymentPlanTabProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Payment Plan</CardTitle>
+        <CardTitle>{t('project:paymentPlanTab.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

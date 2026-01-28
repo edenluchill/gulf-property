@@ -1,0 +1,61 @@
+{
+  "title": "筛选条件",
+  "price": {
+    "title": "价格",
+    "range": "价格范围",
+    "minPrice": "最低价格 (AED)",
+    "maxPrice": "最高价格 (AED)",
+    "noMin": "不限最低",
+    "noMax": "不限最高",
+    "priceSqft": "每平方英尺价格 (AED)",
+    "min": "最低",
+    "max": "最高",
+    "anyPrice": "不限价格",
+    "upTo500K": "50万以下",
+    "500K_1M": "50万 - 100万",
+    "1M_2M": "100万 - 200万",
+    "2M_5M": "200万 - 500万",
+    "5M_10M": "500万 - 1000万",
+    "10MPlus": "1000万以上",
+    "custom": "自定义"
+  },
+  "size": {
+    "title": "面积",
+    "bedrooms": "卧室数量",
+    "any": "不限",
+    "studio": "开间",
+    "5plus": "5+",
+    "propertySize": "房屋面积 (平方英尺)",
+    "minSize": "最小面积",
+    "maxSize": "最大面积"
+  },
+  "location": {
+    "title": "位置",
+    "developer": "开发商",
+    "allDevelopers": "所有开发商",
+    "area": "区域",
+    "allAreas": "所有区域",
+    "project": "项目",
+    "allProjects": "所有项目"
+  },
+  "statusProgress": {
+    "title": "状态与进度",
+    "projectStatus": "项目状态",
+    "all": "全部",
+    "upcoming": "即将推出",
+    "underConstruction": "建设中",
+    "completed": "已完工",
+    "completionProgress": "完工进度 (%)",
+    "minPercent": "最低 %",
+    "maxPercent": "最高 %"
+  },
+  "dates": {
+    "title": "日期",
+    "launchDate": "开盘日期",
+    "completionDate": "交付日期"
+  },
+  "footer": {
+    "clearAll": "清除全部",
+    "autoApply": "筛选条件修改后自动生效"
+  }
+}

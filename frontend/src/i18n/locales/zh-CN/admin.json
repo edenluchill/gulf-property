@@ -1,0 +1,71 @@
+{
+  "list": {
+    "title": "项目管理",
+    "subtitle": "查看和编辑所有住宅项目",
+    "newProject": "新建项目",
+    "searchPlaceholder": "搜索项目名称、开发商、区域...",
+    "loading": "加载项目列表...",
+    "noMatch": "未找到匹配的项目",
+    "noProjects": "暂无项目",
+    "noImage": "无图片",
+    "noProjectImage": "无项目图片",
+    "developerLabel": "开发商:",
+    "notSet": "未设置",
+    "unitCount": "户型数量",
+    "unitSuffix": "个",
+    "priceRange": "价格范围",
+    "completionDateLabel": "完工日期",
+    "constructionProgress": "施工进度",
+    "addressNotSet": "地址未设置",
+    "createdAt": "创建时间",
+    "totalProjects": "共 {{count}} 个项目",
+    "searchResult": "(搜索: \"{{term}}\")"
+  },
+  "edit": {
+    "title": "编辑项目",
+    "subtitle": "修改项目信息并保存更新",
+    "loadingData": "加载项目数据...",
+    "loadFailed": "加载失败",
+    "backToList": "返回项目列表",
+    "updateSuccess": "更新成功！",
+    "redirecting": "正在返回项目列表...",
+    "unitTypesList": "户型列表",
+    "totalUnitTypes": "共 {{count}} 个户型",
+    "noUnitTypes": "暂无户型数据",
+    "uncategorized": "未分类",
+    "series": "{{key}} 系列",
+    "unitTypeCount": "{{count}} 种户型",
+    "checklist": {
+      "title": "更新前检查清单",
+      "subtitle": "请仔细检查以下信息，确保准确无误",
+      "basicInfo": "项目基本信息",
+      "basicInfoDesc": "请检查项目名称、开发商、地址等信息",
+      "mapCoordinates": "地图坐标",
+      "mapSet": "(已设置)",
+      "mapNotSet": "(未设置)",
+      "latLng": "纬度: {{lat}}, 经度: {{lng}}",
+      "mapSetHint": "请点击「选择地图位置」设置项目坐标",
+      "unitTypes": "户型列表 ({{count}} 个)",
+      "unitTypesDesc": "请检查每个户型的面积、价格、图片等信息",
+      "confirmReview": "我已仔细检查所有信息，确认无误",
+      "checkToUpdate": "勾选此项后即可更新项目"
+    },
+    "submitBtn": {
+      "updating": "正在更新项目，请稍候...",
+      "confirmed": "确认更新项目",
+      "pleaseCheck": "请先完成检查清单"
+    },
+    "overlay": {
+      "updatingProject": "正在更新项目",
+      "savingToDb": "正在保存更新到数据库...",
+      "pleaseWait": "这可能需要一分钟，请耐心等待"
+    },
+    "confirm": {
+      "message": "确认更新项目吗？\n\n项目名称: {{name}}\n开发商: {{developer}}\n户型数量: {{unitCount}}\n地图坐标: {{coordStatus}}\n\n所有字段将被完整更新。",
+      "coordSet": "已设置",
+      "coordNotSet": "❌ 未设置",
+      "successAlert": "✅ 项目更新成功！\n即将返回项目列表...",
+      "failAlert": "❌ 更新失败\n\n错误信息：{{error}}\n\n请检查数据后重试，或联系技术支持。"
+    }
+  }
+}

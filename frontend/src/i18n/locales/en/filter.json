@@ -1,0 +1,61 @@
+{
+  "title": "Filters",
+  "price": {
+    "title": "Price",
+    "range": "Price Range",
+    "minPrice": "Min Price (AED)",
+    "maxPrice": "Max Price (AED)",
+    "noMin": "No Min",
+    "noMax": "No Max",
+    "priceSqft": "Price per Sq.Ft (AED)",
+    "min": "Min",
+    "max": "Max",
+    "anyPrice": "Any Price",
+    "upTo500K": "Up to 500K",
+    "500K_1M": "500K - 1M",
+    "1M_2M": "1M - 2M",
+    "2M_5M": "2M - 5M",
+    "5M_10M": "5M - 10M",
+    "10MPlus": "10M+",
+    "custom": "Custom"
+  },
+  "size": {
+    "title": "Size",
+    "bedrooms": "Bedrooms",
+    "any": "Any",
+    "studio": "Studio",
+    "5plus": "5+",
+    "propertySize": "Property Size (Sq.Ft)",
+    "minSize": "Min Size",
+    "maxSize": "Max Size"
+  },
+  "location": {
+    "title": "Location",
+    "developer": "Developer",
+    "allDevelopers": "All Developers",
+    "area": "Area",
+    "allAreas": "All Areas",
+    "project": "Project",
+    "allProjects": "All Projects"
+  },
+  "statusProgress": {
+    "title": "Status & Progress",
+    "projectStatus": "Project Status",
+    "all": "All",
+    "upcoming": "Upcoming",
+    "underConstruction": "Under Construction",
+    "completed": "Completed",
+    "completionProgress": "Completion Progress (%)",
+    "minPercent": "Min %",
+    "maxPercent": "Max %"
+  },
+  "dates": {
+    "title": "Dates",
+    "launchDate": "Launch Date",
+    "completionDate": "Completion Date"
+  },
+  "footer": {
+    "clearAll": "Clear All",
+    "autoApply": "Filters auto-apply as you change them"
+  }
+}

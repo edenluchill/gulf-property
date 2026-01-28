@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 
 interface ProgressEvent {
@@ -25,6 +26,7 @@ export function ProgressSection({
   error,
   isUploading = false
 }: ProgressSectionProps) {
+  const { t } = useTranslation('upload')
   if (!isProcessing && !error && progress < 100) return null
 
   return (
@@ -88,7 +90,7 @@ export function ProgressSection({
       {!isProcessing && progress === 100 && !error && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 flex items-start gap-2">
           <span className="text-lg">✅</span>
-          <span className="font-medium">提取完成！请检查并编辑下方表单</span>
+          <span className="font-medium">{t('processing.extractComplete')}</span>
         </div>
       )}
     </div>

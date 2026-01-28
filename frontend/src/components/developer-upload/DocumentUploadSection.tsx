@@ -1,4 +1,5 @@
 import { Upload, FileText, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 
@@ -23,6 +24,7 @@ export function DocumentUploadSection({
   onRemoveDocument,
   onStartProcessing
 }: DocumentUploadSectionProps) {
+  const { t } = useTranslation('upload')
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     const pdfFiles = files.filter(f => f.type === 'application/pdf')
@@ -63,8 +65,8 @@ export function DocumentUploadSection({
           />
           <label htmlFor="pdf-upload" className="cursor-pointer block">
             <Upload className="h-12 w-12 mx-auto mb-3 text-amber-500" />
-            <p className="text-sm font-medium text-gray-900">点击上传 PDF（可多选）</p>
-            <p className="text-xs text-gray-500 mt-2">支持 Ctrl+点击 选择多个文件，每个最大 20MB</p>
+            <p className="text-sm font-medium text-gray-900">{t('documentUpload.clickToUpload')}</p>
+            <p className="text-xs text-gray-500 mt-2">{t('documentUpload.supportInfo')}</p>
           </label>
         </div>
 
@@ -76,7 +78,7 @@ export function DocumentUploadSection({
             size="lg"
           >
             <Upload className="mr-2 h-5 w-5" />
-            AI 智能提取 ({documents.length} 个文档)
+            {t('documentUpload.aiExtract')} ({documents.length})
           </Button>
         )}
       </CardContent>

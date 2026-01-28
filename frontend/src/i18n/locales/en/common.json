@@ -1,0 +1,85 @@
+{
+  "brand": "Nextway",
+  "tagline": "A New Way to Buy Off-Plan in Dubai",
+  "nav": {
+    "mapExplore": "Map Explore",
+    "favorites": "Favorites",
+    "forDevelopers": "For Developers",
+    "admin": "Admin",
+    "projectManagement": "Project Management",
+    "dubaiMapEditor": "Dubai Map Editor",
+    "explore": "Explore",
+    "submit": "Submit"
+  },
+  "status": {
+    "upcoming": "Upcoming",
+    "underConstruction": "Under Construction",
+    "completed": "Completed",
+    "handedOver": "Handed Over"
+  },
+  "buttons": {
+    "viewDetails": "View Details",
+    "backToProperties": "Back to Properties",
+    "browseProperties": "Browse Properties",
+    "browseMore": "Browse More Properties",
+    "requestInfo": "Request More Information",
+    "downloadBrochure": "Download Brochure",
+    "requestUnitInfo": "Request Unit Information",
+    "requestPaymentPlan": "Request Payment Plan",
+    "requestDetailedInfo": "Request Detailed Information",
+    "scheduleViewing": "Schedule Viewing",
+    "clearAll": "Clear All",
+    "viewFullDetails": "View Full Details",
+    "viewInteractiveMap": "View Interactive Map"
+  },
+  "units": {
+    "sqft": "sq ft",
+    "beds": "Beds",
+    "bedrooms": "Bedrooms",
+    "bathrooms": "Bathrooms",
+    "units": "units",
+    "pricePerSqft": "Price/sqft",
+    "size": "Size"
+  },
+  "dates": {
+    "justNow": "Just now",
+    "mAgo": "{{count}}m ago",
+    "hAgo": "{{count}}h ago",
+    "lastUpdated": "Last updated",
+    "launchDate": "Launch Date",
+    "completionDate": "Completion Date",
+    "launched": "Launched",
+    "expectedCompletion": "Expected Completion",
+    "completion": "Completion"
+  },
+  "price": {
+    "startingPrice": "Starting Price",
+    "priceOnRequest": "Price on Request",
+    "priceOnApplication": "Price on Application",
+    "poa": "POA"
+  },
+  "progress": {
+    "constructionProgress": "Construction Progress",
+    "progress": "Progress"
+  },
+  "datePicker": {
+    "selectDate": "Select date",
+    "quickSelect": "Quick Select",
+    "clearDate": "Clear date",
+    "today": "Today",
+    "inYears_one": "In {{count}} year",
+    "inYears_other": "In {{count}} years"
+  },
+  "loading": "Loading...",
+  "about": "About",
+  "amenities": "Amenities",
+  "coordinates": "Coordinates",
+  "description": "Description",
+  "total": "Total",
+  "verified": "Verified",
+  "clickToViewDetails": "Click to view full details →",
+  "selectPropertyToView": "Select a property to view details",
+  "propertiesNearby": "{{count}} properties nearby",
+  "loadingPropertyDetails": "Loading property details...",
+  "loadingProperties": "Loading properties..."
+}

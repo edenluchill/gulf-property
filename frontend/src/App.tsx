@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import HomePage from './pages/HomePage'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
@@ -12,6 +14,12 @@ import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
 import Layout from './components/Layout'
 
 function App() {
+  const { i18n } = useTranslation()
+
+  useEffect(() => {
+    document.documentElement.lang = i18n.language
+  }, [i18n.language])
+
   return (
     <Layout>
       <Routes>

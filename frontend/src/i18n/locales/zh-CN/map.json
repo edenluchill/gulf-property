@@ -1,0 +1,34 @@
+{
+  "searchPlaceholder": "搜索地址、MLS编号或任何关键词！",
+  "filters": "筛选",
+  "areasAndLandmarks": "区域与地标",
+  "clusters": "聚合",
+  "properties": "楼盘",
+  "developer": "开发商",
+  "project": "项目",
+  "area": "区域",
+  "price": "价格",
+  "studio": "开间",
+  "beds_one": "{{count}} 居室",
+  "beds_other": "{{count}}+ 居室",
+  "metric": {
+    "nameOnly": "仅名称",
+    "avgPrice": "均价",
+    "capitalGrowth": "增长",
+    "salesVolume": "成交量",
+    "rentalYield": "租金回报"
+  },
+  "areaDialog": {
+    "marketStatistics": "市场统计",
+    "projects": "项目数",
+    "avgPrice": "均价",
+    "salesVolume": "销售额",
+    "capitalGrowth": "资本增长",
+    "rentalYield": "租金收益率",
+    "developersInArea": "该区域共 {{count}} 个活跃开发商",
+    "loadingDevelopers": "正在加载开发商...",
+    "noDevelopers": "该区域暂无开发商",
+    "projectCount_one": "{{count}} 个项目",
+    "projectCount_other": "{{count}} 个项目"
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * Admin Property List Page - 管理员项目列表
- * 
+ *
  * Features:
  * - Display all residential projects
  * - Search and filter projects
@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -37,6 +38,7 @@ export default function AdminPropertyListPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const navigate = useNavigate()
+  const { t, i18n } = useTranslation(['admin', 'common'])
 
   useEffect(() => {
     fetchProjects()
@@ -47,7 +49,7 @@ export default function AdminPropertyListPage() {
       setLoading(true)
       const response = await fetch(API_ENDPOINTS.residentialProjects)
       const data = await response.json()
-      
+
       // Backend returns { projects, total, page, limit } without success field
       if (data.projects) {
         setProjects(data.projects)
@@ -65,6 +67,8 @@ export default function AdminPropertyListPage() {
     project.area?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
@@ -77,9 +81,9 @@ export default function AdminPropertyListPage() {
                   <Building2 className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">项目管理</h1>
+                  <h1 className="text-3xl font-bold text-gray-900">{t('list.title')}</h1>
                   <p className="text-sm text-gray-700 mt-1">
-                    查看和编辑所有住宅项目
+                    {t('list.subtitle')}
                   </p>
                 </div>
               </div>
@@ -87,7 +91,7 @@ export default function AdminPropertyListPage() {
                 onClick={() => navigate('/developer/upload')}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
               >
-                ➕ 新建项目
+                {t('list.newProject')}
               </Button>
             </div>
           </div>
@@ -103,7 +107,7 @@ export default function AdminPropertyListPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
                   type="text"
-                  placeholder="搜索项目名称、开发商、区域..."
+                  placeholder={t('list.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 text-base py-6"
@@ -116,14 +120,14 @@ export default function AdminPropertyListPage() {
           {loading ? (
             <div className="text-center py-16">
               <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-600" />
-              <p className="text-gray-600">加载项目列表...</p>
+              <p className="text-gray-600">{t('list.loading')}</p>
             </div>
           ) : filteredProjects.length === 0 ? (
             <Card className="shadow-lg">
               <CardContent className="py-16 text-center">
                 <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                 <p className="text-gray-600 text-lg">
-                  {searchTerm ? '未找到匹配的项目' : '暂无项目'}
+                  {searchTerm ? t('list.noMatch') : t('list.noProjects')}
                 </p>
               </CardContent>
             </Card>
@@ -133,11 +137,11 @@ export default function AdminPropertyListPage() {
                 const thumbnail = project.project_images?.[0]
                 const progress = project.construction_progress || 0
                 const statusColor = project.status === 'completed' ? 'green' : project.status === 'under_construction' ? 'blue' : 'yellow'
-                const statusText = project.status === 'completed' ? '已完工' : project.status === 'under_construction' ? '建设中' : '即将推出'
-                
+                const statusText = project.status === 'completed' ? t('common:status.completed') : project.status === 'under_construction' ? t('common:status.underConstruction') : t('common:status.upcoming')
+
                 return (
-                  <Card 
-                    key={project.id} 
+                  <Card
+                    key={project.id}
                     className="shadow-lg hover:shadow-xl transition-all overflow-hidden cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
                     onClick={() => navigate(`/admin/property/edit/${project.id}`)}
                   >
@@ -146,8 +150,8 @@ export default function AdminPropertyListPage() {
                         {/* Thumbnail */}
                         <div className="w-80 flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden flex items-center justify-center p-4">
                           {thumbnail ? (
-                            <img 
-                              src={thumbnail} 
+                            <img
+                              src={thumbnail}
                               alt={project.project_name}
                               className="w-full h-full object-contain"
                               onError={(e) => {
@@ -158,7 +162,7 @@ export default function AdminPropertyListPage() {
                                       <svg class="h-16 w-16 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                       </svg>
-                                      <p class="text-sm">无图片</p>
+                                      <p class="text-sm">${t('list.noImage')}</p>
                                     </div>
                                   </div>
                                 `
@@ -168,15 +172,15 @@ export default function AdminPropertyListPage() {
                             <div className="w-full h-full flex items-center justify-center">
                               <div className="text-gray-400 text-center">
                                 <Building2 className="h-16 w-16 mx-auto mb-2" />
-                                <p className="text-sm">无项目图片</p>
+                                <p className="text-sm">{t('list.noProjectImage')}</p>
                               </div>
                             </div>
                           )}
-                          
+
                           {/* Status Badge */}
                           <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold shadow-lg
-                            ${statusColor === 'green' ? 'bg-green-500 text-white' : 
-                              statusColor === 'blue' ? 'bg-blue-500 text-white' : 
+                            ${statusColor === 'green' ? 'bg-green-500 text-white' :
+                              statusColor === 'blue' ? 'bg-blue-500 text-white' :
                               'bg-yellow-500 text-white'}`}>
                             {statusText}
                           </div>
@@ -191,13 +195,13 @@ export default function AdminPropertyListPage() {
                             </h3>
                             <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
                               <span className="flex items-center gap-1">
-                                <span className="font-semibold text-gray-700">开发商:</span>
+                                <span className="font-semibold text-gray-700">{t('list.developerLabel')}</span>
                                 {project.developer}
                               </span>
                               <span className="text-gray-300">|</span>
                               <span className="flex items-center gap-1">
                                 <MapPin className="h-4 w-4" />
-                                {project.area || '未设置'}
+                                {project.area || t('list.notSet')}
                               </span>
                             </div>
                           </div>
@@ -205,14 +209,14 @@ export default function AdminPropertyListPage() {
                           {/* Info Grid */}
                           <div className="grid grid-cols-3 gap-4 mb-4">
                             <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <div className="text-xs text-gray-500 mb-1">户型数量</div>
+                              <div className="text-xs text-gray-500 mb-1">{t('list.unitCount')}</div>
                               <div className="text-xl font-bold text-gray-900">
-                                {project.unit_count || 0} <span className="text-sm font-normal text-gray-600">个</span>
+                                {project.unit_count || 0} <span className="text-sm font-normal text-gray-600">{t('list.unitSuffix')}</span>
                               </div>
                             </div>
-                            
+
                             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
-                              <div className="text-xs text-gray-600 mb-1">价格范围</div>
+                              <div className="text-xs text-gray-600 mb-1">{t('list.priceRange')}</div>
                               <div className="text-sm font-bold text-gray-900">
                                 {project.min_price && project.max_price ? (
                                   <>
@@ -227,17 +231,17 @@ export default function AdminPropertyListPage() {
                                     )}
                                   </>
                                 ) : (
-                                  <span className="text-gray-500">未设置</span>
+                                  <span className="text-gray-500">{t('list.notSet')}</span>
                                 )}
                               </div>
                             </div>
-                            
+
                             <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <div className="text-xs text-gray-500 mb-1">完工日期</div>
+                              <div className="text-xs text-gray-500 mb-1">{t('list.completionDateLabel')}</div>
                               <div className="text-sm font-semibold text-gray-900">
-                                {project.completion_date ? 
-                                  new Date(project.completion_date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' }) 
-                                  : '未设置'}
+                                {project.completion_date ?
+                                  new Date(project.completion_date).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long' })
+                                  : t('list.notSet')}
                               </div>
                             </div>
                           </div>
@@ -246,11 +250,11 @@ export default function AdminPropertyListPage() {
                           {progress > 0 && (
                             <div className="mb-3">
                               <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                                <span>施工进度</span>
+                                <span>{t('list.constructionProgress')}</span>
                                 <span className="font-semibold">{progress}%</span>
                               </div>
                               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div 
+                                <div
                                   className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
                                   style={{ width: `${progress}%` }}
                                 />
@@ -261,12 +265,12 @@ export default function AdminPropertyListPage() {
                           {/* Address */}
                           <div className="text-sm text-gray-600 flex items-start gap-2">
                             <span className="text-gray-400">📍</span>
-                            <span className="flex-1">{project.address || '地址未设置'}</span>
+                            <span className="flex-1">{project.address || t('list.addressNotSet')}</span>
                           </div>
 
                           {/* Footer */}
                           <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                            创建时间: {new Date(project.created_at).toLocaleString('zh-CN')}
+                            {t('list.createdAt')}: {new Date(project.created_at).toLocaleString(dateLocale)}
                           </div>
                         </div>
                       </div>
@@ -280,8 +284,8 @@ export default function AdminPropertyListPage() {
           {/* Results Count */}
           {!loading && filteredProjects.length > 0 && (
             <div className="mt-6 text-center text-sm text-gray-600">
-              共 {filteredProjects.length} 个项目
-              {searchTerm && ` (搜索: "${searchTerm}")`}
+              {t('list.totalProjects', { count: filteredProjects.length })}
+              {searchTerm && ` ${t('list.searchResult', { term: searchTerm })}`}
             </div>
           )}
         </div>

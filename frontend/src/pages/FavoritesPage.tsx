@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { getFavorites } from '../lib/favorites'
@@ -10,6 +11,7 @@ import { formatPrice, formatDate } from '../lib/utils'
 import { Project } from '../types'
 
 export default function FavoritesPage() {
+  const { t } = useTranslation(['favorites', 'common'])
   const [favoriteProjects, setFavoriteProjects] = useState<Project[]>([])
 
   useEffect(() => {
@@ -40,11 +42,11 @@ export default function FavoritesPage() {
           <div className="flex items-center space-x-3 mb-4">
             <Heart className="h-8 w-8 fill-current" />
             <h1 className="text-4xl md:text-5xl font-bold">
-              Your Favorites
+              {t('favorites:title')}
             </h1>
           </div>
           <p className="text-xl text-slate-300 max-w-3xl">
-            Properties you've saved for later review. Keep track of your dream homes in Dubai.
+            {t('favorites:subtitle')}
           </p>
         </div>
       </motion.div>
@@ -59,14 +61,14 @@ export default function FavoritesPage() {
           >
             <Heart className="h-24 w-24 text-slate-300 mx-auto mb-6" />
             <h2 className="text-2xl font-semibold text-slate-700 mb-4">
-              No favorites yet
+              {t('favorites:empty.title')}
             </h2>
             <p className="text-slate-600 mb-8">
-              Start exploring properties and save your favorites for easy access later.
+              {t('favorites:empty.message')}
             </p>
             <Link to="/">
               <Button size="lg">
-                Browse Properties
+                {t('common:buttons.browseProperties')}
               </Button>
             </Link>
           </motion.div>
@@ -109,19 +111,19 @@ export default function FavoritesPage() {
                         {formatPrice(project.price.min)}
                       </div>
                       <div className="text-sm text-slate-600">
-                        Starting price
+                        {t('common:price.startingPrice')}
                       </div>
                     </div>
                     
                     <div className="flex items-center text-sm text-slate-600">
                       <Calendar className="h-4 w-4 mr-1" />
-                      <span>Completion: {formatDate(project.completionDate)}</span>
+                      <span>{t('common:dates.completion')}: {formatDate(project.completionDate)}</span>
                     </div>
 
                     <div className="pt-4 border-t">
                       <Link to={`/project/${project.id}`}>
                         <Button className="w-full">
-                          View Details
+                          {t('common:buttons.viewDetails')}
                         </Button>
                       </Link>
                     </div>
@@ -135,11 +137,11 @@ export default function FavoritesPage() {
         {favoriteProjects.length > 0 && (
           <div className="mt-8 text-center">
             <p className="text-slate-600 mb-4">
-              You have {favoriteProjects.length} {favoriteProjects.length === 1 ? 'property' : 'properties'} saved
+              {t('favorites:count', { count: favoriteProjects.length })}
             </p>
             <Link to="/">
               <Button variant="outline">
-                Browse More Properties
+                {t('common:buttons.browseMore')}
               </Button>
             </Link>
           </div>

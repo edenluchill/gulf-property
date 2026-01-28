@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -43,6 +44,7 @@ interface UnitTypeCardProps {
 }
 
 export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTypeCardProps) {
+  const { t } = useTranslation('upload');
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -75,7 +77,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
               </div>
               {unit.unitCount && (
                 <div className="text-xs text-amber-600 mt-1 font-medium">
-                  📍 {unit.unitCount} 个单元
+                  📍 {t('unitTypeCard.unitCount', { count: unit.unitCount })}
                 </div>
               )}
             </div>
@@ -120,9 +122,9 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
               {(unit.floorPlanImages && unit.floorPlanImages.length > 0) || unit.floorPlanImage ? (
                 <div className="space-y-2">
                   <Label className="text-xs text-gray-600 font-semibold">
-                    户型图 
+                    {t('unitTypeCard.floorPlan')}
                     {unit.floorPlanImages && unit.floorPlanImages.length > 1 && (
-                      <span className="text-amber-600 ml-1">({unit.floorPlanImages.length} 张)</span>
+                      <span className="text-amber-600 ml-1">({t('unitTypeCard.imageCount', { count: unit.floorPlanImages.length })})</span>
                     )}
                   </Label>
                   <ImageCarousel 
@@ -131,26 +133,26 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                     showThumbnails={(unit.floorPlanImages && unit.floorPlanImages.length > 1) || false}
                     maxHeight="280px"
                   />
-                  <p className="text-xs text-gray-500 text-center">点击图片查看大图</p>
+                  <p className="text-xs text-gray-500 text-center">{t('imageCarousel.clickToEnlarge')}</p>
                 </div>
               ) : null}
 
               {/* Basic Fields */}
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600 font-semibold">户型名称 (Unit Type)</Label>
+                  <Label className="text-xs text-gray-600 font-semibold">{t('unitTypeCard.typeName')}</Label>
                   <Input
                     value={unit.typeName || ''}
                     onChange={(e) => onChange('typeName', e.target.value)}
                     disabled={isProcessing}
-                    placeholder="例如: B-2BM-A.1, Type-A-1B-A.1"
+                    placeholder={t('unitTypeCard.typeNamePlaceholder')}
                     className="font-medium"
                   />
-                  <p className="text-xs text-gray-500">PDF 中的准确户型编号</p>
+                  <p className="text-xs text-gray-500">{t('unitTypeCard.typeNameHint')}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs text-gray-600">显示名称</Label>
+                    <Label className="text-xs text-gray-600">{t('unitTypeCard.displayName')}</Label>
                     <Input
                       value={unit.name}
                       onChange={(e) => onChange('name', e.target.value)}
@@ -158,7 +160,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-gray-600">类别</Label>
+                    <Label className="text-xs text-gray-600">{t('unitTypeCard.category')}</Label>
                     <Input
                       value={unit.category || ''}
                       onChange={(e) => onChange('category', e.target.value)}
@@ -170,19 +172,19 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 
                 {/* Description Field */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600 font-semibold">户型描述</Label>
+                  <Label className="text-xs text-gray-600 font-semibold">{t('unitTypeCard.description')}</Label>
                   <textarea
                     value={unit.description || ''}
                     onChange={(e) => onChange('description', e.target.value)}
                     disabled={isProcessing}
-                    placeholder="AI 生成的户型描述，介绍布局、优势、目标人群等..."
+                    placeholder={t('unitTypeCard.descriptionPlaceholder')}
                     className="w-full min-h-[80px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-50 disabled:text-gray-500 resize-y"
                     rows={3}
                   />
                   <p className="text-xs text-gray-500">
-                    {unit.description 
-                      ? `${unit.description.length} 个字符` 
-                      : 'AI 会自动生成户型描述，您也可以手动编辑'}
+                    {unit.description
+                      ? t('unitTypeCard.charCount', { count: unit.description.length })
+                      : t('unitTypeCard.descriptionHint')}
                   </p>
                 </div>
               </div>
@@ -192,7 +194,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-600 flex items-center gap-1">
                     <Home className="h-3 w-3" />
-                    卧室
+                    {t('unitTypeCard.bedrooms')}
                   </Label>
                   <Input
                     type="number"
@@ -202,7 +204,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">浴室</Label>
+                  <Label className="text-xs text-gray-600">{t('unitTypeCard.bathrooms')}</Label>
                   <Input
                     type="number"
                     step="0.5"
@@ -214,7 +216,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-600 flex items-center gap-1">
                     <Maximize2 className="h-3 w-3" />
-                    总面积
+                    {t('unitTypeCard.totalArea')}
                   </Label>
                   <Input
                     type="number"
@@ -231,7 +233,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 <div className="grid grid-cols-2 gap-3">
                   {unit.suiteArea && (
                     <div className="space-y-1">
-                      <Label className="text-xs text-gray-600">室内面积 (Suite)</Label>
+                      <Label className="text-xs text-gray-600">{t('unitTypeCard.suiteArea')}</Label>
                       <Input
                         type="number"
                         value={unit.suiteArea || ''}
@@ -244,7 +246,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                   )}
                   {unit.balconyArea && (
                     <div className="space-y-1">
-                      <Label className="text-xs text-gray-600">阳台面积 (Balcony)</Label>
+                      <Label className="text-xs text-gray-600">{t('unitTypeCard.balconyArea')}</Label>
                       <Input
                         type="number"
                         value={unit.balconyArea || ''}
@@ -263,7 +265,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-600 flex items-center gap-1">
                     <DollarSign className="h-3 w-3" />
-                    价格 (AED)
+                    {t('unitTypeCard.price')}
                   </Label>
                   <Input
                     type="number"
@@ -273,7 +275,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">单价/sqft</Label>
+                  <Label className="text-xs text-gray-600">{t('unitTypeCard.pricePerSqft')}</Label>
                   <Input
                     type="number"
                     value={unit.pricePerSqft || (unit.price && unit.area ? Math.round(unit.price / unit.area) : '')}
@@ -286,7 +288,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
               {/* Optional Fields */}
               {(unit.unitNumbers && unit.unitNumbers.length > 0) && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">单元号</Label>
+                  <Label className="text-xs text-gray-600">{t('unitTypeCard.unitNumbers')}</Label>
                   <div className="flex flex-wrap gap-1">
                     {unit.unitNumbers.map((num, idx) => (
                       <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
@@ -299,7 +301,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
 
               {unit.unitCount && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">单元数量</Label>
+                  <Label className="text-xs text-gray-600">{t('unitTypeCard.unitQuantity')}</Label>
                   <Input
                     type="number"
                     value={unit.unitCount}
@@ -311,7 +313,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
 
               {unit.orientation && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">朝向</Label>
+                  <Label className="text-xs text-gray-600">{t('unitTypeCard.facing')}</Label>
                   <Input
                     value={unit.orientation}
                     onChange={(e) => onChange('orientation', e.target.value)}
@@ -322,7 +324,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
 
               {unit.features && unit.features.length > 0 && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-600">特色</Label>
+                  <Label className="text-xs text-gray-600">{t('unitTypeCard.features')}</Label>
                   <div className="flex flex-wrap gap-1">
                     {unit.features.map((feature, idx) => (
                       <span key={idx} className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">

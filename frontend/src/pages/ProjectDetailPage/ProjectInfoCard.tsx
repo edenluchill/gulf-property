@@ -1,15 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
-import { 
-  Heart, 
-  MapPin, 
-  Calendar, 
-  Building2, 
+import {
+  Heart,
+  MapPin,
+  Calendar,
+  Building2,
   TrendingUp,
   Activity
 } from 'lucide-react'
 import { formatPrice, formatDate } from '../../lib/utils'
 import { ResidentialProject } from '../../types'
+import { useTranslation } from 'react-i18next'
 
 interface ProjectInfoCardProps {
   project: ResidentialProject
@@ -24,14 +25,16 @@ const statusColors = {
   'handed-over': 'bg-green-100 text-green-800',
 }
 
-const statusLabels = {
-  'upcoming': 'Upcoming',
-  'under-construction': 'Under Construction',
-  'completed': 'Completed',
-  'handed-over': 'Handed Over',
-}
-
 export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: ProjectInfoCardProps) {
+  const { t } = useTranslation(['project', 'common'])
+
+  const statusLabels: Record<string, string> = {
+    'upcoming': t('common:status.upcoming'),
+    'under-construction': t('common:status.underConstruction'),
+    'completed': t('common:status.completed'),
+    'handed-over': t('common:status.handedOver'),
+  }
+
   return (
     <Card className="h-fit">
       <CardHeader>
@@ -64,16 +67,16 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
       <CardContent className="space-y-6">
         {/* Price Information */}
         <div>
-          <div className="text-sm text-slate-600 mb-1">Starting Price</div>
+          <div className="text-sm text-slate-600 mb-1">{t('common:price.startingPrice')}</div>
           <div className="text-3xl font-bold text-primary">
-            {project.starting_price ? formatPrice(project.starting_price) : 'Price on Request'}
+            {project.starting_price ? formatPrice(project.starting_price) : t('common:price.priceOnApplication')}
           </div>
         </div>
 
         {/* Property Details */}
         <div className="grid grid-cols-2 gap-4 pt-4 border-t">
           <div>
-            <div className="text-sm text-slate-600">Bedrooms</div>
+            <div className="text-sm text-slate-600">{t('common:units.bedrooms')}</div>
             <div className="font-semibold text-lg">
               {project.min_bedrooms === project.max_bedrooms 
                 ? `${project.min_bedrooms}` 
@@ -81,7 +84,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
             </div>
           </div>
           <div>
-            <div className="text-sm text-slate-600">Total Units</div>
+            <div className="text-sm text-slate-600">{t('project:infoCard.totalUnits')}</div>
             <div className="font-semibold text-lg">
               {project.total_units}
             </div>
@@ -94,7 +97,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center text-sm text-slate-600">
                 <Activity className="h-4 w-4 mr-1" />
-                <span>Construction Progress</span>
+                <span>{t('common:progress.constructionProgress')}</span>
               </div>
               <span className="font-semibold">{project.construction_progress}%</span>
             </div>
@@ -112,13 +115,13 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
           {project.launch_date && (
             <div className="flex items-center space-x-2 text-slate-600">
               <TrendingUp className="h-4 w-4" />
-              <span>Launched: {formatDate(project.launch_date)}</span>
+              <span>{t('common:dates.launchDate')}: {formatDate(project.launch_date)}</span>
             </div>
           )}
           {project.completion_date && (
             <div className="flex items-center space-x-2 text-slate-600">
               <Calendar className="h-4 w-4" />
-              <span>Expected Completion: {formatDate(project.completion_date)}</span>
+              <span>{t('common:dates.completionDate')}: {formatDate(project.completion_date)}</span>
             </div>
           )}
         </div>
@@ -126,7 +129,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
         {/* CTA Button */}
         <div className="pt-4 border-t">
           <Button className="w-full" size="lg">
-            Request More Information
+            {t('common:buttons.requestInfo')}
           </Button>
           {project.brochure_url && (
             <Button 
@@ -135,7 +138,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
               size="lg"
               onClick={() => window.open(project.brochure_url, '_blank')}
             >
-              Download Brochure
+              {t('common:buttons.downloadBrochure')}
             </Button>
           )}
         </div>

@@ -1,0 +1,71 @@
+{
+  "list": {
+    "title": "Project Management",
+    "subtitle": "View and edit all residential projects",
+    "newProject": "New Project",
+    "searchPlaceholder": "Search project name, developer, area...",
+    "loading": "Loading project list...",
+    "noMatch": "No matching projects found",
+    "noProjects": "No projects yet",
+    "noImage": "No image",
+    "noProjectImage": "No project image",
+    "developerLabel": "Developer:",
+    "notSet": "Not set",
+    "unitCount": "Unit Count",
+    "unitSuffix": "",
+    "priceRange": "Price Range",
+    "completionDateLabel": "Completion Date",
+    "constructionProgress": "Construction Progress",
+    "addressNotSet": "Address not set",
+    "createdAt": "Created at",
+    "totalProjects": "{{count}} projects total",
+    "searchResult": "(search: \"{{term}}\")"
+  },
+  "edit": {
+    "title": "Edit Project",
+    "subtitle": "Modify project information and save updates",
+    "loadingData": "Loading project data...",
+    "loadFailed": "Load Failed",
+    "backToList": "Back to project list",
+    "updateSuccess": "Update Successful!",
+    "redirecting": "Redirecting to project list...",
+    "unitTypesList": "Unit Types List",
+    "totalUnitTypes": "{{count}} unit types total",
+    "noUnitTypes": "No unit type data",
+    "uncategorized": "Uncategorized",
+    "series": "{{key}} Series",
+    "unitTypeCount": "{{count}} unit types",
+    "checklist": {
+      "title": "Pre-update Checklist",
+      "subtitle": "Please carefully review the following information to ensure accuracy",
+      "basicInfo": "Project Basic Information",
+      "basicInfoDesc": "Please check project name, developer, address, etc.",
+      "mapCoordinates": "Map Coordinates",
+      "mapSet": "(Set)",
+      "mapNotSet": "(Not set)",
+      "latLng": "Latitude: {{lat}}, Longitude: {{lng}}",
+      "mapSetHint": "Please click \"Select Map Location\" to set project coordinates",
+      "unitTypes": "Unit Types List ({{count}})",
+      "unitTypesDesc": "Please check area, price, images for each unit type",
+      "confirmReview": "I have carefully reviewed all information and confirm it is correct",
+      "checkToUpdate": "Check this box to update the project"
+    },
+    "submitBtn": {
+      "updating": "Updating project, please wait...",
+      "confirmed": "Confirm Update Project",
+      "pleaseCheck": "Please complete the checklist first"
+    },
+    "overlay": {
+      "updatingProject": "Updating Project",
+      "savingToDb": "Saving updates to database...",
+      "pleaseWait": "This may take a moment, please wait"
+    },
+    "confirm": {
+      "message": "Confirm updating project?\n\nProject Name: {{name}}\nDeveloper: {{developer}}\nUnit Types: {{unitCount}}\nMap Coordinates: {{coordStatus}}\n\nAll fields will be fully updated.",
+      "coordSet": "Set",
+      "coordNotSet": "Not set",
+      "successAlert": "Project updated successfully!\nRedirecting to project list...",
+      "failAlert": "Update failed\n\nError: {{error}}\n\nPlease check the data and try again."
+    }
+  }
+}

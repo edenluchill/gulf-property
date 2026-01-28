@@ -2,6 +2,7 @@
  * Property Form Component
  */
 
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -65,25 +66,26 @@ export function PropertyForm({
   onRemovePaymentItem,
   onSubmit,
 }: PropertyFormProps) {
+  const { t } = useTranslation('upload');
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Building2 className="h-6 w-6 text-amber-600" />
-          项目信息
+          {t('propertyForm.title')}
           {isProcessing && (
             <span className="ml-auto text-sm font-normal text-amber-600 flex items-center gap-1">
               <Sparkles className="h-4 w-4 animate-pulse" />
-              AI 正在填充...
+              {t('propertyForm.aiFilling')}
             </span>
           )}
         </CardTitle>
         <CardDescription>
-          {isProcessing 
-            ? 'AI 正在实时提取数据，请稍候...'
+          {isProcessing
+            ? t('propertyForm.aiExtracting')
             : progress === 100
-            ? '✅ 提取完成！请检查并编辑信息，然后提交'
-            : '上传 PDF 后，AI 会自动填充此表单'
+            ? t('propertyForm.extractDone')
+            : t('propertyForm.uploadHint')
           }
         </CardDescription>
       </CardHeader>
@@ -93,17 +95,17 @@ export function PropertyForm({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
               <Home className="h-5 w-5 text-amber-600" />
-              基本信息
+              {t('propertyForm.basicInfo')}
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="projectName">项目名称 *</Label>
+                <Label htmlFor="projectName">{t('propertyForm.projectName')}</Label>
                 <Input
                   id="projectName"
                   value={formData.projectName}
                   onChange={(e) => onInputChange('projectName', e.target.value)}
-                  placeholder="AI 提取中..."
+                  placeholder={t('propertyForm.aiExtractionPlaceholder')}
                   required
                   disabled={isProcessing}
                   className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
@@ -111,12 +113,12 @@ export function PropertyForm({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="developer">开发商 *</Label>
+                <Label htmlFor="developer">{t('propertyForm.developer')}</Label>
                 <Input
                   id="developer"
                   value={formData.developer}
                   onChange={(e) => onInputChange('developer', e.target.value)}
-                  placeholder="AI 提取中..."
+                  placeholder={t('propertyForm.aiExtractionPlaceholder')}
                   required
                   disabled={isProcessing}
                   className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
@@ -125,12 +127,12 @@ export function PropertyForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="address">地址 *</Label>
+              <Label htmlFor="address">{t('propertyForm.address')}</Label>
               <Input
                 id="address"
                 value={formData.address}
                 onChange={(e) => onInputChange('address', e.target.value)}
-                placeholder="AI 提取中..."
+                placeholder={t('propertyForm.aiExtractionPlaceholder')}
                 required
                 disabled={isProcessing}
                 className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
@@ -139,19 +141,19 @@ export function PropertyForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="area">区域</Label>
+                <Label htmlFor="area">{t('propertyForm.area')}</Label>
                 <Input
                   id="area"
                   value={formData.area}
                   onChange={(e) => onInputChange('area', e.target.value)}
-                  placeholder="例如：Business Bay"
+                  placeholder={t('propertyForm.areaPlaceholder')}
                   disabled={isProcessing}
                   className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="completionDate">交付日期</Label>
+                <Label htmlFor="completionDate">{t('propertyForm.completionDate')}</Label>
                 <Input
                   id="completionDate"
                   type="date"
@@ -164,12 +166,12 @@ export function PropertyForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">项目描述</Label>
+              <Label htmlFor="description">{t('propertyForm.description')}</Label>
               <textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => onInputChange('description', e.target.value)}
-                placeholder="AI 提取中..."
+                placeholder={t('propertyForm.aiExtractionPlaceholder')}
                 rows={3}
                 disabled={isProcessing}
                 className={`flex w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isProcessing ? 'bg-amber-50 animate-pulse' : 'bg-background'}`}
@@ -177,12 +179,12 @@ export function PropertyForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="amenities">设施配套（逗号分隔）</Label>
+              <Label htmlFor="amenities">{t('propertyForm.amenities')}</Label>
               <Input
                 id="amenities"
                 value={formData.amenities.join(', ')}
                 onChange={(e) => onAmenityChange(e.target.value)}
-                placeholder="AI 提取中..."
+                placeholder={t('propertyForm.aiExtractionPlaceholder')}
                 disabled={isProcessing}
                 className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
               />
@@ -194,10 +196,10 @@ export function PropertyForm({
             <div className="flex items-center justify-between border-b pb-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-amber-600" />
-                户型列表
+                {t('propertyForm.unitTypes')}
                 {formData.unitTypes.length > 0 && (
                   <span className="text-sm font-normal text-slate-500">
-                    ({formData.unitTypes.length} 个户型)
+                    {t('propertyForm.unitTypeCount', { count: formData.unitTypes.length })}
                   </span>
                 )}
               </h3>
@@ -208,7 +210,7 @@ export function PropertyForm({
                 variant="outline"
                 disabled={isProcessing}
               >
-                + 添加户型
+                {t('propertyForm.addUnitType')}
               </Button>
             </div>
 
@@ -217,10 +219,10 @@ export function PropertyForm({
                 {isProcessing ? (
                   <div className="text-slate-500">
                     <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin text-amber-600" />
-                    <p>AI 正在提取户型信息...</p>
+                    <p>{t('propertyForm.aiExtractingUnits')}</p>
                   </div>
                 ) : (
-                  <p className="text-slate-500">暂无户型信息</p>
+                  <p className="text-slate-500">{t('propertyForm.noUnitTypes')}</p>
                 )}
               </div>
             )}
@@ -229,7 +231,7 @@ export function PropertyForm({
               <Card key={unit.id} className={`p-4 ${isProcessing ? 'bg-amber-50 animate-pulse' : ''}`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="font-semibold">户型 {index + 1}</Label>
+                    <Label className="font-semibold">{t('propertyForm.unitN', { n: index + 1 })}</Label>
                     <Button
                       type="button"
                       onClick={() => onRemoveUnitType(index)}
@@ -244,28 +246,28 @@ export function PropertyForm({
 
                   <div className="grid grid-cols-2 gap-3">
                     <Input
-                      placeholder="名称"
+                      placeholder={t('propertyForm.namePlaceholder')}
                       value={unit.name}
                       onChange={(e) => onUnitTypeChange(index, 'name', e.target.value)}
                       disabled={isProcessing}
                     />
                     <Input
                       type="number"
-                      placeholder="卧室数"
+                      placeholder={t('propertyForm.bedroomsPlaceholder')}
                       value={unit.bedrooms || ''}
                       onChange={(e) => onUnitTypeChange(index, 'bedrooms', e.target.value ? parseInt(e.target.value) : 0)}
                       disabled={isProcessing}
                     />
                     <Input
                       type="number"
-                      placeholder="面积 (sqft)"
+                      placeholder={t('propertyForm.areaPlaceholderSqft')}
                       value={unit.area || ''}
                       onChange={(e) => onUnitTypeChange(index, 'area', e.target.value ? parseFloat(e.target.value) : 0)}
                       disabled={isProcessing}
                     />
                     <Input
                       type="number"
-                      placeholder="价格 (AED)"
+                      placeholder={t('propertyForm.pricePlaceholderAed')}
                       value={unit.price || ''}
                       onChange={(e) => onUnitTypeChange(index, 'price', e.target.value ? parseFloat(e.target.value) : undefined)}
                       disabled={isProcessing}
@@ -279,7 +281,7 @@ export function PropertyForm({
           {/* Payment Plan */}
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="text-lg font-semibold">付款计划</h3>
+              <h3 className="text-lg font-semibold">{t('propertyForm.paymentPlan')}</h3>
               <Button 
                 type="button" 
                 onClick={onAddPaymentItem} 
@@ -287,7 +289,7 @@ export function PropertyForm({
                 variant="outline"
                 disabled={isProcessing}
               >
-                + 添加阶段
+                {t('propertyForm.addStage')}
               </Button>
             </div>
 
@@ -296,10 +298,10 @@ export function PropertyForm({
                 {isProcessing ? (
                   <div className="text-slate-500">
                     <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin text-amber-600" />
-                    <p className="text-sm">AI 正在提取付款计划...</p>
+                    <p className="text-sm">{t('propertyForm.aiExtractingPayment')}</p>
                   </div>
                 ) : (
-                  <p className="text-slate-500 text-sm">暂无付款计划</p>
+                  <p className="text-slate-500 text-sm">{t('propertyForm.noPaymentPlan')}</p>
                 )}
               </div>
             )}
@@ -308,7 +310,7 @@ export function PropertyForm({
               <Card key={index} className={`p-4 ${isProcessing ? 'bg-amber-50 animate-pulse' : ''}`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="font-semibold">阶段 {index + 1}</Label>
+                    <Label className="font-semibold">{t('propertyForm.stageN', { n: index + 1 })}</Label>
                     <Button
                       type="button"
                       onClick={() => onRemovePaymentItem(index)}
@@ -323,7 +325,7 @@ export function PropertyForm({
 
                   <div className="grid grid-cols-3 gap-3">
                     <Input
-                      placeholder="里程碑"
+                      placeholder={t('propertyForm.milestonePlaceholder')}
                       value={item.milestone}
                       onChange={(e) => onPaymentPlanChange(index, 'milestone', e.target.value)}
                       className="col-span-2"
@@ -353,17 +355,17 @@ export function PropertyForm({
               {isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  处理中，请稍候...
+                  {t('propertyForm.processing')}
                 </>
               ) : (
                 <>
                   <CheckCircle className="mr-2 h-5 w-5" />
-                  提交项目
+                  {t('propertyForm.submitProject')}
                 </>
               )}
             </Button>
             <p className="text-xs text-slate-500 text-center mt-3">
-              提交后项目将立即显示在地图上
+              {t('propertyForm.submitHint')}
             </p>
           </div>
         </form>

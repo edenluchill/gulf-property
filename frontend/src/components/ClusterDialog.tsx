@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, MapPin, Home, Building2, Bed, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { OffPlanProperty } from '../types'
 import { formatPrice } from '../lib/utils'
@@ -15,6 +16,7 @@ interface ClusterDialogProps {
 }
 
 export default function ClusterDialog({ isOpen, onClose, properties, position, isLoading = false }: ClusterDialogProps) {
+  const { t } = useTranslation()
   const [selectedProperty, setSelectedProperty] = useState<OffPlanProperty | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
@@ -80,7 +82,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-                <p className="text-gray-600 text-lg">Loading property details...</p>
+                <p className="text-gray-600 text-lg">{t('loadingPropertyDetails')}</p>
               </div>
             </div>
           ) : selectedProperty ? (
@@ -139,9 +141,9 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
 
                 {/* Price - Secondary but prominent */}
                 <div className="text-2xl font-bold text-blue-700 mb-3">
-                  {selectedProperty.startingPrice 
+                  {selectedProperty.startingPrice
                     ? formatPrice(selectedProperty.startingPrice)
-                    : 'Price on Application'}
+                    : t('price.priceOnApplication')}
                 </div>
 
                 {/* Developer */}
@@ -173,7 +175,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                           : `${selectedProperty.minBedrooms}-${selectedProperty.maxBedrooms}`}
                       </div>
                     </div>
-                    <div className="text-xs text-slate-600">Bedrooms</div>
+                    <div className="text-xs text-slate-600">{t('units.bedrooms')}</div>
                   </div>
 
                   {selectedProperty.minSize && (
@@ -181,10 +183,10 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                       <div className="flex items-center gap-1.5 mb-1">
                         <Home className="w-4 h-4 text-slate-600" />
                         <div className="font-semibold text-sm text-slate-800">
-                          {selectedProperty.minSize.toLocaleString()} ft²
+                          {selectedProperty.minSize.toLocaleString()} {t('units.sqft')}
                         </div>
                       </div>
-                      <div className="text-xs text-slate-600">Size</div>
+                      <div className="text-xs text-slate-600">{t('units.size')}</div>
                     </div>
                   )}
 
@@ -195,7 +197,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                           {formatPrice(selectedProperty.medianPriceSqft).replace('AED ', '')}
                         </div>
                       </div>
-                      <div className="text-xs text-slate-600">Price/sqft</div>
+                      <div className="text-xs text-slate-600">{t('units.pricePerSqft')}</div>
                     </div>
                   )}
 
@@ -206,7 +208,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                           {selectedProperty.unitCount}
                         </div>
                       </div>
-                      <div className="text-xs text-slate-600">Units</div>
+                      <div className="text-xs text-slate-600">{t('units.units')}</div>
                     </div>
                   )}
                 </div>
@@ -215,7 +217,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                 {selectedProperty.status !== 'completed' && selectedProperty.completionPercent !== undefined && selectedProperty.completionPercent >= 0 && (
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-slate-700">Construction Progress</span>
+                      <span className="text-sm font-semibold text-slate-700">{t('progress.constructionProgress')}</span>
                       <span className="text-lg font-bold text-blue-700">{selectedProperty.completionPercent}%</span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-3">
@@ -232,13 +234,13 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     {selectedProperty.launchDate && (
                       <div>
-                        <div className="text-xs text-slate-500 mb-1">Launch Date</div>
+                        <div className="text-xs text-slate-500 mb-1">{t('dates.launchDate')}</div>
                         <div className="font-medium text-slate-800">{formatDate(selectedProperty.launchDate)}</div>
                       </div>
                     )}
                     {selectedProperty.completionDate && (
                       <div>
-                        <div className="text-xs text-slate-500 mb-1">Completion Date</div>
+                        <div className="text-xs text-slate-500 mb-1">{t('dates.completionDate')}</div>
                         <div className="font-medium text-slate-800">{formatDate(selectedProperty.completionDate)}</div>
                       </div>
                     )}
@@ -248,7 +250,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                 {/* Description */}
                 {selectedProperty.buildingDescription && (
                   <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2">About</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">{t('about')}</h3>
                     <p className="text-sm text-slate-600 leading-relaxed">{selectedProperty.buildingDescription}</p>
                   </div>
                 )}
@@ -256,7 +258,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                 {/* Amenities */}
                 {selectedProperty.amenities && selectedProperty.amenities.length > 0 && (
                   <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Amenities</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">{t('amenities')}</h3>
                     <div className="flex flex-wrap gap-2">
                       {selectedProperty.amenities.map((amenity: string, index: number) => (
                         <span 
@@ -275,7 +277,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                   to={`/project/${selectedProperty.id}`}
                   className="flex items-center justify-center gap-2 w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-lg transition-colors"
                 >
-                  View Full Details
+                  {t('buttons.viewFullDetails')}
                   <ExternalLink className="w-5 h-5" />
                 </Link>
               </div>
@@ -284,7 +286,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
             <div className="flex items-center justify-center h-full text-gray-400">
               <div className="text-center">
                 <Building2 className="h-20 w-20 mx-auto mb-4" />
-                <p>Select a property to view details</p>
+                <p>{t('selectPropertyToView')}</p>
               </div>
             </div>
           )}
@@ -296,7 +298,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
           <div className="p-3 border-b border-gray-200 bg-white">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">
-                {isLoading ? 'Loading...' : `${properties.length} properties nearby`}
+                {isLoading ? t('loading') : t('propertiesNearby', { count: properties.length })}
               </span>
             </div>
           </div>
@@ -307,7 +309,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
               <div className="flex items-center justify-center h-full">
                 <div className="text-center p-4">
                   <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600 mb-3"></div>
-                  <p className="text-sm text-gray-600">Loading properties...</p>
+                  <p className="text-sm text-gray-600">{t('loadingProperties')}</p>
                 </div>
               </div>
             ) : (

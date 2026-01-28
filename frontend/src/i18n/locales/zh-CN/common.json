@@ -1,0 +1,85 @@
+{
+  "brand": "Nextway",
+  "tagline": "迪拜期房购买新方式",
+  "nav": {
+    "mapExplore": "地图探索",
+    "favorites": "收藏夹",
+    "forDevelopers": "开发商入口",
+    "admin": "管理",
+    "projectManagement": "项目管理",
+    "dubaiMapEditor": "迪拜地图编辑",
+    "explore": "探索",
+    "submit": "提交"
+  },
+  "status": {
+    "upcoming": "即将推出",
+    "underConstruction": "建设中",
+    "completed": "已完工",
+    "handedOver": "已交付"
+  },
+  "buttons": {
+    "viewDetails": "查看详情",
+    "backToProperties": "返回楼盘列表",
+    "browseProperties": "浏览楼盘",
+    "browseMore": "浏览更多楼盘",
+    "requestInfo": "咨询更多信息",
+    "downloadBrochure": "下载楼书",
+    "requestUnitInfo": "咨询户型信息",
+    "requestPaymentPlan": "咨询付款计划",
+    "requestDetailedInfo": "咨询详细信息",
+    "scheduleViewing": "预约看房",
+    "clearAll": "清除全部",
+    "viewFullDetails": "查看完整详情",
+    "viewInteractiveMap": "查看交互地图"
+  },
+  "units": {
+    "sqft": "平方英尺",
+    "beds": "卧",
+    "bedrooms": "卧室",
+    "bathrooms": "卫生间",
+    "units": "套",
+    "pricePerSqft": "每平方英尺价格",
+    "size": "面积"
+  },
+  "dates": {
+    "justNow": "刚刚",
+    "mAgo": "{{count}}分钟前",
+    "hAgo": "{{count}}小时前",
+    "lastUpdated": "最近更新",
+    "launchDate": "开盘日期",
+    "completionDate": "交付日期",
+    "launched": "开盘时间",
+    "expectedCompletion": "预计交付",
+    "completion": "交付"
+  },
+  "price": {
+    "startingPrice": "起始价格",
+    "priceOnRequest": "价格待询",
+    "priceOnApplication": "价格待询",
+    "poa": "价格待询"
+  },
+  "progress": {
+    "constructionProgress": "施工进度",
+    "progress": "进度"
+  },
+  "datePicker": {
+    "selectDate": "选择日期",
+    "quickSelect": "快捷选择",
+    "clearDate": "清除日期",
+    "today": "今天",
+    "inYears_one": "{{count}}年后",
+    "inYears_other": "{{count}}年后"
+  },
+  "loading": "加载中...",
+  "about": "简介",
+  "amenities": "配套设施",
+  "coordinates": "坐标",
+  "description": "描述",
+  "total": "合计",
+  "verified": "已认证",
+  "clickToViewDetails": "点击查看完整详情 →",
+  "selectPropertyToView": "选择一个楼盘查看详情",
+  "propertiesNearby": "附近 {{count}} 个楼盘",
+  "loadingPropertyDetails": "加载楼盘详情...",
+  "loadingProperties": "加载楼盘列表..."
+}

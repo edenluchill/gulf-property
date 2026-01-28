@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
 import { UnitTypeDetailModal } from './UnitTypeDetailModal'
 import { UnitType } from '../../types'
+import { useTranslation } from 'react-i18next'
 
 interface UnitTypesTabProps {
   unitTypes: UnitType[]
@@ -33,6 +34,7 @@ function groupUnitTypes(unitTypes: UnitType[]): GroupedUnits {
 }
 
 export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
+  const { t } = useTranslation(['project', 'common'])
   const groupedUnits = groupUnitTypes(unitTypes)
   const sortedGroupKeys = Object.keys(groupedUnits).sort()
   
@@ -60,12 +62,12 @@ export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Unit Types & Floor Plans</CardTitle>
+          <CardTitle>{t('project:unitTypesTab.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-slate-600">
-            <p>Unit type information will be available soon.</p>
-            <Button className="mt-4">Request Unit Information</Button>
+            <p>{t('project:unitTypesTab.emptyMessage')}</p>
+            <Button className="mt-4">{t('common:buttons.requestUnitInfo')}</Button>
           </div>
         </CardContent>
       </Card>
@@ -76,7 +78,7 @@ export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Unit Types & Floor Plans ({unitTypes.length} configurations)</CardTitle>
+          <CardTitle>{t('project:unitTypesTab.title')} ({unitTypes.length} configurations)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -165,27 +167,27 @@ export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
                                 {/* Specs Grid */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                                   <div className="bg-slate-50 p-4 rounded-lg">
-                                    <div className="text-sm text-slate-600 mb-1">Bedrooms</div>
+                                    <div className="text-sm text-slate-600 mb-1">{t('common:units.beds')}</div>
                                     <div className="text-xl font-bold text-slate-900">{unit.bedrooms}</div>
                                   </div>
                                   <div className="bg-slate-50 p-4 rounded-lg">
-                                    <div className="text-sm text-slate-600 mb-1">Bathrooms</div>
+                                    <div className="text-sm text-slate-600 mb-1">{t('common:units.bathrooms')}</div>
                                     <div className="text-xl font-bold text-slate-900">{unit.bathrooms}</div>
                                   </div>
                                   <div className="bg-slate-50 p-4 rounded-lg">
-                                    <div className="text-sm text-slate-600 mb-1">Area</div>
+                                    <div className="text-sm text-slate-600 mb-1">{t('project:unitTypesTab.area')}</div>
                                     <div className="text-xl font-bold text-slate-900">
                                       {parseFloat(unit.area).toLocaleString()}
                                     </div>
-                                    <div className="text-xs text-slate-500">sq ft</div>
+                                    <div className="text-xs text-slate-500">{t('common:units.sqft')}</div>
                                   </div>
                                   {unit.balcony_area && (
                                     <div className="bg-slate-50 p-4 rounded-lg">
-                                      <div className="text-sm text-slate-600 mb-1">Balcony</div>
+                                      <div className="text-sm text-slate-600 mb-1">{t('project:unitTypesTab.balcony')}</div>
                                       <div className="text-xl font-bold text-slate-900">
                                         {parseFloat(unit.balcony_area).toLocaleString()}
                                       </div>
-                                      <div className="text-xs text-slate-500">sq ft</div>
+                                      <div className="text-xs text-slate-500">{t('common:units.sqft')}</div>
                                     </div>
                                   )}
                                 </div>

@@ -1,13 +1,15 @@
 import { Link, useLocation } from 'react-router-dom'
 import { MapPin, Heart, Briefcase } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export default function MobileNav() {
   const location = useLocation()
+  const { t } = useTranslation()
 
   const navItems = [
-    { path: '/map', label: 'Explore', icon: MapPin },
-    { path: '/favorites', label: 'Favorites', icon: Heart },
-    { path: '/developer/submit', label: 'Submit', icon: Briefcase },
+    { path: '/map', label: t('nav.explore'), icon: MapPin },
+    { path: '/favorites', label: t('nav.favorites'), icon: Heart },
+    { path: '/developer/submit', label: t('nav.submit'), icon: Briefcase },
   ]
 
   return (

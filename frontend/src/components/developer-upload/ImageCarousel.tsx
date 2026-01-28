@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Carousel, CarouselContent, CarouselItem } from '../ui/carousel'
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -19,6 +20,7 @@ export function ImageCarousel({
   showThumbnails = true,
   maxHeight = '300px'
 }: ImageCarouselProps) {
+  const { t } = useTranslation('upload')
   const [currentIndex, setCurrentIndex] = useState(0)
   const [api, setApi] = useState<any>()
 
@@ -34,7 +36,7 @@ export function ImageCarousel({
   if (!images || images.length === 0) {
     return (
       <div className="w-full aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-        <p className="text-sm text-gray-500">暂无图片</p>
+        <p className="text-sm text-gray-500">{t('imageCarousel.noImage')}</p>
       </div>
     )
   }
@@ -83,7 +85,7 @@ export function ImageCarousel({
                         e.currentTarget.className = 'hidden'
                         const parent = e.currentTarget.parentElement
                         if (parent && parent.children.length === 1) {
-                          parent.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-red-50 text-red-500 text-sm">图片加载失败</div>'
+                          parent.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-red-50 text-red-500 text-sm">${t('imageCarousel.imageLoadFailed')}</div>`
                         }
                       }
                     }}

@@ -1,4 +1,5 @@
 import { Loader2, Clock } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface PaymentMilestone {
   milestone: string
@@ -14,6 +15,7 @@ interface PaymentPlanSectionProps {
 }
 
 export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSectionProps) {
+  const { t } = useTranslation('upload')
   const hasPlan = paymentPlan && paymentPlan.length > 0
   const total = hasPlan ? paymentPlan.reduce((sum, m) => sum + (parseFloat(String(m.percentage)) || 0), 0) : 0
 
@@ -23,11 +25,11 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
         <div className="h-10 w-1 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
         <div>
           <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            💰 付款计划
+            {t('paymentPlan.title')}
           </h3>
           {hasPlan && (
             <p className="text-sm text-gray-600">
-              共 {paymentPlan.length} 个付款阶段
+              {t('paymentPlan.stageCount', { count: paymentPlan.length })}
             </p>
           )}
         </div>
@@ -46,7 +48,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
                     {idx + 1}
                   </span>
                   <span className="text-base">
-                    {milestone.milestone || `阶段 ${idx + 1}`}
+                    {milestone.milestone || `${t('paymentPlan.stage')} ${idx + 1}`}
                   </span>
                 </div>
                 {/* 优先显示间隔描述，否则显示日期 */}
@@ -84,7 +86,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
           <div className="flex items-center justify-between p-6 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 rounded-xl border-2 border-amber-400 shadow-lg mt-4">
             <div className="flex items-center gap-3">
               <span className="text-2xl">🎯</span>
-              <span className="text-lg font-bold text-gray-900">总计</span>
+              <span className="text-lg font-bold text-gray-900">{t('paymentPlan.total')}</span>
             </div>
             <div className="flex items-center gap-3">
               <div className={`text-3xl font-bold ${Math.abs(total - 100) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
@@ -92,7 +94,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
               </div>
               {Math.abs(total - 100) >= 0.01 && (
                 <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-100 text-red-600">
-                  {total > 100 ? '超出' : '不足'} {Math.abs(100 - total).toFixed(2)}%
+                  {total > 100 ? t('paymentPlan.exceeded') : t('paymentPlan.insufficient')} {Math.abs(100 - total).toFixed(2)}%
                 </span>
               )}
             </div>
@@ -103,10 +105,10 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
           {isProcessing ? (
             <div className="text-gray-600">
               <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-amber-600" />
-              <p className="font-medium">AI 正在提取付款计划...</p>
+              <p className="font-medium">{t('paymentPlan.aiExtracting')}</p>
             </div>
           ) : (
-            <p className="text-gray-500">暂无付款计划</p>
+            <p className="text-gray-500">{t('paymentPlan.noPlan')}</p>
           )}
         </div>
       )}

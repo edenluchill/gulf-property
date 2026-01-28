@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -7,6 +8,7 @@ import { Button } from '../components/ui/button'
 import { Building2, Upload, CheckCircle } from 'lucide-react'
 
 export default function DeveloperSubmitPage() {
+  const { t } = useTranslation('developer')
   const [submitted, setSubmitted] = useState(false)
   const [formData, setFormData] = useState({
     projectName: '',
@@ -64,12 +66,11 @@ export default function DeveloperSubmitPage() {
           <div className="flex items-center space-x-3 mb-4">
             <Building2 className="h-8 w-8" />
             <h1 className="text-4xl md:text-5xl font-bold">
-              List Your Project
+              {t('title')}
             </h1>
           </div>
           <p className="text-xl text-slate-300 max-w-3xl">
-            Are you a developer with an off-plan project in Dubai? Submit your project details 
-            and reach international buyers looking for premium properties.
+            {t('subtitle')}
           </p>
         </div>
       </motion.div>
@@ -86,13 +87,13 @@ export default function DeveloperSubmitPage() {
                 <CardContent>
                   <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-6" />
                   <h2 className="text-3xl font-bold text-slate-800 mb-4">
-                    Thank You!
+                    {t('success.title')}
                   </h2>
                   <p className="text-lg text-slate-600 mb-2">
-                    Your project submission has been received.
+                    {t('success.received')}
                   </p>
                   <p className="text-slate-600">
-                    Our team will review your submission and contact you within 2-3 business days.
+                    {t('success.review')}
                   </p>
                 </CardContent>
               </Card>
@@ -105,39 +106,38 @@ export default function DeveloperSubmitPage() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-2xl">Project Information</CardTitle>
+                  <CardTitle className="text-2xl">{t('form.projectInfo')}</CardTitle>
                   <CardDescription>
-                    Please provide detailed information about your off-plan project. 
-                    All fields are required unless marked as optional.
+                    {t('form.projectInfoDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Project Details */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Project Details</h3>
+                      <h3 className="text-lg font-semibold">{t('form.projectDetails')}</h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="projectName">Project Name *</Label>
+                          <Label htmlFor="projectName">{t('form.projectName')}</Label>
                           <Input
                             id="projectName"
                             name="projectName"
                             value={formData.projectName}
                             onChange={handleChange}
-                            placeholder="e.g., Marina Heights Tower"
+                            placeholder={t('form.projectNamePlaceholder')}
                             required
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="developerName">Developer Name *</Label>
+                          <Label htmlFor="developerName">{t('form.developerName')}</Label>
                           <Input
                             id="developerName"
                             name="developerName"
                             value={formData.developerName}
                             onChange={handleChange}
-                            placeholder="e.g., Emaar Properties"
+                            placeholder={t('form.developerNamePlaceholder')}
                             required
                           />
                         </div>
@@ -145,25 +145,25 @@ export default function DeveloperSubmitPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="location">Full Address *</Label>
+                          <Label htmlFor="location">{t('form.fullAddress')}</Label>
                           <Input
                             id="location"
                             name="location"
                             value={formData.location}
                             onChange={handleChange}
-                            placeholder="e.g., Dubai Marina, Dubai"
+                            placeholder={t('form.fullAddressPlaceholder')}
                             required
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="district">District *</Label>
+                          <Label htmlFor="district">{t('form.district')}</Label>
                           <Input
                             id="district"
                             name="district"
                             value={formData.district}
                             onChange={handleChange}
-                            placeholder="e.g., Dubai Marina"
+                            placeholder={t('form.districtPlaceholder')}
                             required
                           />
                         </div>
@@ -172,11 +172,11 @@ export default function DeveloperSubmitPage() {
 
                     {/* Pricing */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Pricing (AED)</h3>
+                      <h3 className="text-lg font-semibold">{t('form.pricing')}</h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="minPrice">Minimum Price *</Label>
+                          <Label htmlFor="minPrice">{t('form.minPrice')}</Label>
                           <Input
                             id="minPrice"
                             name="minPrice"
@@ -189,7 +189,7 @@ export default function DeveloperSubmitPage() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="maxPrice">Maximum Price *</Label>
+                          <Label htmlFor="maxPrice">{t('form.maxPrice')}</Label>
                           <Input
                             id="maxPrice"
                             name="maxPrice"
@@ -205,10 +205,10 @@ export default function DeveloperSubmitPage() {
 
                     {/* Timeline */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Timeline</h3>
+                      <h3 className="text-lg font-semibold">{t('form.timeline')}</h3>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="completionDate">Expected Completion Date *</Label>
+                        <Label htmlFor="completionDate">{t('form.expectedCompletion')}</Label>
                         <Input
                           id="completionDate"
                           name="completionDate"
@@ -222,31 +222,31 @@ export default function DeveloperSubmitPage() {
 
                     {/* Contact Information */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Contact Information</h3>
+                      <h3 className="text-lg font-semibold">{t('form.contactInfo')}</h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="contactEmail">Email Address *</Label>
+                          <Label htmlFor="contactEmail">{t('form.email')}</Label>
                           <Input
                             id="contactEmail"
                             name="contactEmail"
                             type="email"
                             value={formData.contactEmail}
                             onChange={handleChange}
-                            placeholder="contact@developer.com"
+                            placeholder={t('form.emailPlaceholder')}
                             required
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="contactPhone">Phone Number *</Label>
+                          <Label htmlFor="contactPhone">{t('form.phone')}</Label>
                           <Input
                             id="contactPhone"
                             name="contactPhone"
                             type="tel"
                             value={formData.contactPhone}
                             onChange={handleChange}
-                            placeholder="+971 4 XXX XXXX"
+                            placeholder={t('form.phonePlaceholder')}
                             required
                           />
                         </div>
@@ -255,13 +255,13 @@ export default function DeveloperSubmitPage() {
 
                     {/* Description */}
                     <div className="space-y-2">
-                      <Label htmlFor="description">Project Description *</Label>
+                      <Label htmlFor="description">{t('form.projectDescription')}</Label>
                       <textarea
                         id="description"
                         name="description"
                         value={formData.description}
                         onChange={handleChange}
-                        placeholder="Provide a detailed description of your project, including key features, amenities, and unique selling points..."
+                        placeholder={t('form.projectDescriptionPlaceholder')}
                         required
                         rows={6}
                         className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -270,14 +270,14 @@ export default function DeveloperSubmitPage() {
 
                     {/* File Upload Section */}
                     <div className="space-y-4 pt-4 border-t">
-                      <h3 className="text-lg font-semibold">Additional Materials (Optional)</h3>
+                      <h3 className="text-lg font-semibold">{t('form.additionalMaterials')}</h3>
                       <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-slate-400 transition-colors cursor-pointer">
                         <Upload className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                         <p className="text-slate-600 mb-2">
-                          Upload project images, floor plans, or brochures
+                          {t('form.uploadPrompt')}
                         </p>
                         <p className="text-sm text-slate-500">
-                          Drag and drop files here, or click to browse
+                          {t('form.dragDrop')}
                         </p>
                       </div>
                     </div>
@@ -285,11 +285,10 @@ export default function DeveloperSubmitPage() {
                     {/* Submit Button */}
                     <div className="pt-6">
                       <Button type="submit" size="lg" className="w-full">
-                        Submit Project for Review
+                        {t('form.submitBtn')}
                       </Button>
                       <p className="text-sm text-slate-600 text-center mt-4">
-                        By submitting this form, you agree to our terms and conditions. 
-                        We will review your submission and contact you within 2-3 business days.
+                        {t('form.submitDisclaimer')}
                       </p>
                     </div>
                   </form>

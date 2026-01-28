@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card } from '../ui/card'
 import { Building2, Dumbbell, Waves, Trees, Users, Car, Shield, Briefcase, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -42,6 +43,7 @@ function getAmenityIcon(amenity: string): React.ReactNode {
 }
 
 export function AmenitiesSection({ amenities, isProcessing }: Props) {
+  const { t } = useTranslation('upload')
   const [isExpanded, setIsExpanded] = useState(false)
   const INITIAL_DISPLAY_COUNT = 6 // 默认显示的配套设施数量
 
@@ -56,15 +58,15 @@ export function AmenitiesSection({ amenities, isProcessing }: Props) {
           <div className="h-10 w-1 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
           <div>
             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              🏊 配套设施
+              {t('amenities.title')}
             </h3>
-            <p className="text-sm text-gray-600">项目提供的设施和服务</p>
+            <p className="text-sm text-gray-600">{t('amenities.subtitle')}</p>
           </div>
         </div>
 
         <Card className="p-6 bg-gray-50 border-2 border-dashed border-gray-300">
           <p className="text-center text-gray-500">
-            未提取到配套设施信息
+            {t('amenities.noAmenities')}
           </p>
         </Card>
       </div>
@@ -84,10 +86,10 @@ export function AmenitiesSection({ amenities, isProcessing }: Props) {
         <div className="h-10 w-1 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
         <div>
           <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            🏊 配套设施
+            {t('amenities.title')}
           </h3>
           <p className="text-sm text-gray-600">
-            {amenities.length} 项设施
+            {t('amenities.itemCount', { count: amenities.length })}
           </p>
         </div>
       </div>
@@ -114,12 +116,12 @@ export function AmenitiesSection({ amenities, isProcessing }: Props) {
             >
               {isExpanded ? (
                 <>
-                  <span>收起</span>
+                  <span>{t('amenities.collapse')}</span>
                   <ChevronUp className="h-4 w-4" />
                 </>
               ) : (
                 <>
-                  <span>查看全部 ({amenities.length - INITIAL_DISPLAY_COUNT} 项更多)</span>
+                  <span>{t('amenities.viewAll')} ({t('amenities.moreItems', { count: amenities.length - INITIAL_DISPLAY_COUNT })})</span>
                   <ChevronDown className="h-4 w-4" />
                 </>
               )}
@@ -132,10 +134,10 @@ export function AmenitiesSection({ amenities, isProcessing }: Props) {
       {isExpanded && amenities.length >= 8 && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
           {[
-            { category: '运动健身', keywords: ['gym', 'fitness', 'pool', 'swimming', 'sports'], icon: '🏃' },
-            { category: '休闲娱乐', keywords: ['garden', 'park', 'playground', 'children', 'play'], icon: '🌳' },
-            { category: '安全保障', keywords: ['security', 'guard', '24/7', 'surveillance'], icon: '🛡️' },
-            { category: '便利设施', keywords: ['parking', 'elevator', 'lobby', 'reception'], icon: '🚗' },
+            { category: t('amenities.categories.sports'), keywords: ['gym', 'fitness', 'pool', 'swimming', 'sports'], icon: '🏃' },
+            { category: t('amenities.categories.leisure'), keywords: ['garden', 'park', 'playground', 'children', 'play'], icon: '🌳' },
+            { category: t('amenities.categories.security'), keywords: ['security', 'guard', '24/7', 'surveillance'], icon: '🛡️' },
+            { category: t('amenities.categories.convenience'), keywords: ['parking', 'elevator', 'lobby', 'reception'], icon: '🚗' },
           ].map(({ category, keywords, icon }) => {
             const matchedAmenities = amenities.filter(a => 
               keywords.some(kw => a.toLowerCase().includes(kw))

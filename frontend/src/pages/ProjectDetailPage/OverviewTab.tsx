@@ -1,17 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { ResidentialProject } from '../../types'
+import { useTranslation } from 'react-i18next'
 
 interface OverviewTabProps {
   project: ResidentialProject
 }
 
 export function OverviewTab({ project }: OverviewTabProps) {
+  const { t } = useTranslation(['project', 'common'])
+
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'upcoming': return 'upcoming'
-      case 'under-construction': return 'under construction'
-      case 'completed': return 'completed'
-      case 'handed-over': return 'handed over'
+      case 'upcoming': return t('common:status.upcoming')
+      case 'under-construction': return t('common:status.underConstruction')
+      case 'completed': return t('common:status.completed')
+      case 'handed-over': return t('common:status.handedOver')
       default: return status
     }
   }
@@ -19,7 +22,7 @@ export function OverviewTab({ project }: OverviewTabProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>About This Project</CardTitle>
+        <CardTitle>{t('project:overview.aboutProject')}</CardTitle>
       </CardHeader>
       <CardContent>
         {project.description ? (
@@ -38,11 +41,11 @@ export function OverviewTab({ project }: OverviewTabProps) {
         <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="p-4 bg-slate-50 rounded-lg">
             <div className="text-2xl font-bold text-primary">{project.total_units}</div>
-            <div className="text-sm text-slate-600">Total Units</div>
+            <div className="text-sm text-slate-600">{t('project:overview.totalUnits')}</div>
           </div>
           <div className="p-4 bg-slate-50 rounded-lg">
             <div className="text-2xl font-bold text-primary">{project.total_unit_types}</div>
-            <div className="text-sm text-slate-600">Unit Types</div>
+            <div className="text-sm text-slate-600">{t('project:overview.unitTypes')}</div>
           </div>
           {project.verified && (
             <div className="p-4 bg-slate-50 rounded-lg">

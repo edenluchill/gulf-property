@@ -1,0 +1,30 @@
+{
+  "hero": {
+    "title1": "发现迪拜优质",
+    "title2": "期房项目",
+    "subtitle": "探索来自全球顶级开发商的优质项目。通过全面的项目信息和AI智能分析做出明智的投资决策。",
+    "exploreBtn": "探索楼盘",
+    "developerBtn": "开发商入口"
+  },
+  "stats": {
+    "activeProjects": "在售项目",
+    "availableProperties": "可售楼盘",
+    "trustedDevelopers": "优质开发商"
+  },
+  "features": {
+    "title": "为什么选择 Nextway？",
+    "subtitle": "您在迪拜寻找理想期房的可靠合作伙伴",
+    "interactiveMap": "交互式地图",
+    "interactiveMapDesc": "在交互地图上浏览楼盘，查看详细位置信息和价格",
+    "marketInsights": "市场洞察",
+    "marketInsightsDesc": "获取AI驱动的市场分析和全面项目信息，助您做出明智决策",
+    "verifiedListings": "认证房源",
+    "verifiedListingsDesc": "所有楼盘均来自认证开发商，确保真实可靠",
+    "saveFavorites": "收藏楼盘",
+    "saveFavoritesDesc": "收藏心仪的楼盘并进行对比，找到最佳投资选择"
+  },
+  "cta": {
+    "title": "准备好找到理想的房产了吗？",
+    "subtitle": "立即开始探索迪拜 {{count}} 个优质期房项目"
+  }
+}
