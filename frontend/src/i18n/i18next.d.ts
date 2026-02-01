@@ -9,6 +9,7 @@ import favoritesEn from './locales/en/favorites.json'
 import developerEn from './locales/en/developer.json'
 import adminEn from './locales/en/admin.json'
 import uploadEn from './locales/en/upload.json'
+import authEn from './locales/en/auth.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -23,6 +24,7 @@ declare module 'i18next' {
       developer: typeof developerEn
       admin: typeof adminEn
       upload: typeof uploadEn
+      auth: typeof authEn
     }
   }
 }

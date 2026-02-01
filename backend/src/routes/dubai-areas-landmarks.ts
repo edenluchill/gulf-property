@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../db/pool';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -242,9 +243,9 @@ router.get('/landmarks/:id', async (req: Request, res: Response) => {
 
 /**
  * POST /api/dubai/areas
- * Create a new area
+ * Create a new area (requires authentication)
  */
-router.post('/areas', [
+router.post('/areas', requireAuth, [
   body('name').isString().notEmpty(),
   body('boundary').isObject(),
   body('color').optional().isString(),
@@ -305,9 +306,9 @@ router.post('/areas', [
 
 /**
  * PUT /api/dubai/areas/:id
- * Update an existing area
+ * Update an existing area (requires authentication)
  */
-router.put('/areas/:id', [
+router.put('/areas/:id', requireAuth, [
   body('name').optional().isString(),
   body('boundary').optional().isObject(),
   body('color').optional().isString(),
@@ -451,9 +452,9 @@ router.put('/areas/:id', [
 
 /**
  * DELETE /api/dubai/areas/:id
- * Delete an area
+ * Delete an area (requires authentication)
  */
-router.delete('/areas/:id', async (req: Request, res: Response) => {
+router.delete('/areas/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -474,9 +475,9 @@ router.delete('/areas/:id', async (req: Request, res: Response) => {
 
 /**
  * POST /api/dubai/landmarks
- * Create a new landmark
+ * Create a new landmark (requires authentication)
  */
-router.post('/landmarks', [
+router.post('/landmarks', requireAuth, [
   body('name').isString().notEmpty(),
   body('location').isObject(),
   body('landmarkType').isString().notEmpty(),
@@ -552,9 +553,9 @@ router.post('/landmarks', [
 
 /**
  * PUT /api/dubai/landmarks/:id
- * Update an existing landmark
+ * Update an existing landmark (requires authentication)
  */
-router.put('/landmarks/:id', async (req: Request, res: Response) => {
+router.put('/landmarks/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const {
@@ -688,9 +689,9 @@ router.put('/landmarks/:id', async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/dubai/landmarks/:id
- * Delete a landmark
+ * Delete a landmark (requires authentication)
  */
-router.delete('/landmarks/:id', async (req: Request, res: Response) => {
+router.delete('/landmarks/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -713,8 +714,9 @@ router.delete('/landmarks/:id', async (req: Request, res: Response) => {
  * POST /api/dubai/batch-update
  * Batch update multiple areas and landmarks at once
  * This is optimized for the editor to save multiple changes efficiently
+ * Requires authentication
  */
-router.post('/batch-update', async (req: Request, res: Response) => {
+router.post('/batch-update', requireAuth, async (req: Request, res: Response) => {
   const client = await pool.connect();
   
   try {

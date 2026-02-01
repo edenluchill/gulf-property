@@ -336,7 +336,7 @@ function MapController({ onBoundsChange }: MapControllerProps) {
   useEffect(() => {
     if (!onBoundsChange) return
 
-    let timeoutId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
 
     const handleMoveEnd = () => {
       // Clear any pending timeout

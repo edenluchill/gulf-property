@@ -1,8 +1,39 @@
 import { PropertyFilters, MapBounds, DubaiArea, DubaiLandmark } from '../types';
 import { API_BASE_URL } from './config';
+import { supabase } from './supabase';
 
 // 后端路由都在 /api/* 下，所以需要添加 /api 前缀
 const API_URL = `${API_BASE_URL}/api`;
+
+/**
+ * Get authorization headers for authenticated requests
+ */
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    };
+  }
+  return {
+    'Content-Type': 'application/json',
+  };
+}
+
+/**
+ * Authenticated fetch wrapper for write operations
+ */
+async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const headers = await getAuthHeaders();
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...headers,
+      ...options.headers,
+    },
+  });
+}
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -51,13 +82,12 @@ export async function fetchDubaiLandmarks(): Promise<DubaiLandmark[]> {
 }
 
 /**
- * Create a new Dubai area
+ * Create a new Dubai area (requires authentication)
  */
 export async function createDubaiArea(area: Partial<DubaiArea>): Promise<DubaiArea | null> {
   try {
-    const response = await fetch(`${API_URL}/dubai/areas`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/areas`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(area),
     });
     if (!response.ok) throw new Error('Failed to create area');
@@ -69,13 +99,12 @@ export async function createDubaiArea(area: Partial<DubaiArea>): Promise<DubaiAr
 }
 
 /**
- * Update a Dubai area
+ * Update a Dubai area (requires authentication)
  */
 export async function updateDubaiArea(id: string, area: Partial<DubaiArea>): Promise<DubaiArea | null> {
   try {
-    const response = await fetch(`${API_URL}/dubai/areas/${id}`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/areas/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(area),
     });
     if (!response.ok) throw new Error('Failed to update area');
@@ -87,11 +116,11 @@ export async function updateDubaiArea(id: string, area: Partial<DubaiArea>): Pro
 }
 
 /**
- * Delete a Dubai area
+ * Delete a Dubai area (requires authentication)
  */
 export async function deleteDubaiArea(id: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/dubai/areas/${id}`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/areas/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete area');
@@ -103,13 +132,12 @@ export async function deleteDubaiArea(id: string): Promise<boolean> {
 }
 
 /**
- * Create a new Dubai landmark
+ * Create a new Dubai landmark (requires authentication)
  */
 export async function createDubaiLandmark(landmark: Partial<DubaiLandmark>): Promise<DubaiLandmark | null> {
   try {
-    const response = await fetch(`${API_URL}/dubai/landmarks`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/landmarks`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(landmark),
     });
     if (!response.ok) throw new Error('Failed to create landmark');
@@ -121,13 +149,12 @@ export async function createDubaiLandmark(landmark: Partial<DubaiLandmark>): Pro
 }
 
 /**
- * Update a Dubai landmark
+ * Update a Dubai landmark (requires authentication)
  */
 export async function updateDubaiLandmark(id: string, landmark: Partial<DubaiLandmark>): Promise<DubaiLandmark | null> {
   try {
-    const response = await fetch(`${API_URL}/dubai/landmarks/${id}`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/landmarks/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(landmark),
     });
     if (!response.ok) throw new Error('Failed to update landmark');
@@ -139,11 +166,11 @@ export async function updateDubaiLandmark(id: string, landmark: Partial<DubaiLan
 }
 
 /**
- * Delete a Dubai landmark
+ * Delete a Dubai landmark (requires authentication)
  */
 export async function deleteDubaiLandmark(id: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/dubai/landmarks/${id}`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/landmarks/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete landmark');
@@ -155,16 +182,15 @@ export async function deleteDubaiLandmark(id: string): Promise<boolean> {
 }
 
 /**
- * Batch update Dubai areas and landmarks
+ * Batch update Dubai areas and landmarks (requires authentication)
  */
 export async function batchUpdateDubai(data: {
   areas: Partial<DubaiArea>[];
   landmarks: Partial<DubaiLandmark>[];
 }): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetch(`${API_URL}/dubai/batch-update`, {
+    const response = await authenticatedFetch(`${API_URL}/dubai/batch-update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Batch update failed');

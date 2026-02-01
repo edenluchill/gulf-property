@@ -12,6 +12,8 @@ import DubaiEditor from './pages/DubaiEditor'
 import AdminPropertyListPage from './pages/AdminPropertyListPage'
 import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
 import Layout from './components/Layout'
+import AuthCallback from './components/auth/AuthCallback'
+import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
   const { i18n } = useTranslation()
@@ -30,9 +32,31 @@ function App() {
         <Route path="/developer/submit" element={<DeveloperSubmitPage />} />
         <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
-        <Route path="/admin/dubai" element={<DubaiEditor />} />
-        <Route path="/admin/properties" element={<AdminPropertyListPage />} />
-        <Route path="/admin/property/edit/:id" element={<AdminPropertyEditPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route
+          path="/admin/dubai"
+          element={
+            <ProtectedRoute>
+              <DubaiEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/properties"
+          element={
+            <ProtectedRoute>
+              <AdminPropertyListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/property/edit/:id"
+          element={
+            <ProtectedRoute>
+              <AdminPropertyEditPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Layout>
   )

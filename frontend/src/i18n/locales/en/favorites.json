@@ -1,10 +1,32 @@
 {
-  "title": "Your Favorites",
+  "title": "My Favorites",
   "subtitle": "Properties you've saved for later review. Keep track of your dream homes in Dubai.",
   "empty": {
     "title": "No favorites yet",
-    "message": "Start exploring properties and save your favorites for easy access later."
+    "message": "Start exploring properties and save your favorites for easy access later.",
+    "drawer": {
+      "title": "No favorites yet",
+      "message": "Add properties and unit types to your favorites to see them here"
+    }
   },
+  "count": "You have {{count}} property saved",
   "count_one": "You have {{count}} property saved",
-  "count_other": "You have {{count}} properties saved"
+  "count_other": "You have {{count}} properties saved",
+  "drawer": {
+    "title": "My Favorites",
+    "close": "Close"
+  },
+  "project": {
+    "remove": "Remove from favorites",
+    "unitTypes": "{{count}} unit type(s) saved",
+    "unitTypes_one": "{{count}} unit type saved",
+    "unitTypes_other": "{{count}} unit types saved"
+  },
+  "unitType": {
+    "remove": "Remove unit type"
+  },
+  "actions": {
+    "compare": "Compare Properties",
+    "viewProject": "View Project"
+  }
 }

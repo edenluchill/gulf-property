@@ -11,6 +11,7 @@ import {
   ListProjectsResponse,
 } from '../types/residential-projects'
 import { isR2PdfCacheUrl } from '../services/r2-storage'
+import { requireAuth } from '../middleware/auth'
 
 /**
  * Validate and clean date format for PostgreSQL (must be YYYY-MM-DD or null)
@@ -388,8 +389,9 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   // ============================================================================
   // POST /api/residential-projects/submit
   // Submit a new residential project (from DeveloperPropertyUploadPageV2)
+  // Requires authentication
   // ============================================================================
-  router.post('/submit', async (req: Request, res: Response) => {
+  router.post('/submit', requireAuth, async (req: Request, res: Response) => {
     const client = await pool.connect()
     
     try {
@@ -748,8 +750,9 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   // ============================================================================
   // PUT /api/residential-projects/:id
   // Update an existing residential project (full update of all fields)
+  // Requires authentication
   // ============================================================================
-  router.put('/:id', async (req: Request, res: Response) => {
+  router.put('/:id', requireAuth, async (req: Request, res: Response) => {
     const client = await pool.connect()
     
     try {
@@ -1036,8 +1039,9 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   // ============================================================================
   // DELETE /api/residential-projects/:id
   // Delete a project (cascades to unit types and payment plans)
+  // Requires authentication
   // ============================================================================
-  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  router.delete('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params
 

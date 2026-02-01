@@ -1,0 +1,86 @@
+import { useTranslation } from 'react-i18next'
+import { Heart, X } from 'lucide-react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet'
+import { Button } from '../ui/button'
+import { useFavorites } from '../../contexts/FavoritesContext'
+import { FavoriteProjectCard } from './FavoriteProjectCard'
+
+export function FavoritesDrawer() {
+  const { t } = useTranslation('favorites')
+  const { favorites, isDrawerOpen, closeDrawer, projectCount } = useFavorites()
+
+  return (
+    <Sheet open={isDrawerOpen} onOpenChange={closeDrawer}>
+      <SheetContent side="right" className="w-[400px] max-w-[90vw]">
+        {/* Header */}
+        <SheetHeader className="flex flex-row items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-amber-100 p-2 rounded-lg">
+              <Heart className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <SheetTitle>{t('drawer.title')}</SheetTitle>
+              {projectCount > 0 && (
+                <p className="text-sm text-slate-500">
+                  {t('count', { count: projectCount })}
+                </p>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={closeDrawer}
+            className="h-8 w-8"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </SheetHeader>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto py-4">
+          {favorites.projects.length === 0 ? (
+            // Empty State
+            <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
+              <div className="bg-slate-100 rounded-full p-4 mb-4">
+                <Heart className="h-12 w-12 text-slate-300" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-700 mb-2">
+                {t('empty.drawer.title')}
+              </h3>
+              <p className="text-sm text-slate-500">
+                {t('empty.drawer.message')}
+              </p>
+            </div>
+          ) : (
+            // Projects List
+            <div className="space-y-3 px-1">
+              {favorites.projects.map((favorite) => (
+                <FavoriteProjectCard
+                  key={favorite.projectId}
+                  favorite={favorite}
+                  onClose={closeDrawer}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer - Compare Button (placeholder for Phase 3) */}
+        {favorites.projects.length >= 2 && (
+          <div className="border-t pt-4 mt-auto">
+            <Button
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+              disabled
+            >
+              {t('actions.compare')}
+            </Button>
+            <p className="text-xs text-slate-500 text-center mt-2">
+              Coming soon
+            </p>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}

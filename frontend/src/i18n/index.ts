@@ -11,6 +11,7 @@ import favoritesEn from './locales/en/favorites.json'
 import developerEn from './locales/en/developer.json'
 import adminEn from './locales/en/admin.json'
 import uploadEn from './locales/en/upload.json'
+import authEn from './locales/en/auth.json'
 
 import commonZh from './locales/zh-CN/common.json'
 import homeZh from './locales/zh-CN/home.json'
@@ -21,6 +22,7 @@ import favoritesZh from './locales/zh-CN/favorites.json'
 import developerZh from './locales/zh-CN/developer.json'
 import adminZh from './locales/zh-CN/admin.json'
 import uploadZh from './locales/zh-CN/upload.json'
+import authZh from './locales/zh-CN/auth.json'
 
 const resources = {
   en: {
@@ -33,6 +35,7 @@ const resources = {
     developer: developerEn,
     admin: adminEn,
     upload: uploadEn,
+    auth: authEn,
   },
   'zh-CN': {
     common: commonZh,
@@ -44,6 +47,7 @@ const resources = {
     developer: developerZh,
     admin: adminZh,
     upload: uploadZh,
+    auth: authZh,
   },
 }
 
@@ -54,7 +58,7 @@ i18n
     resources,
     fallbackLng: 'en',
     defaultNS: 'common',
-    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload'],
+    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth'],
     interpolation: {
       escapeValue: false,
     },

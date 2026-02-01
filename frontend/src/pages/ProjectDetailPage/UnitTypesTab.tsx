@@ -7,9 +7,11 @@ import { UnitTypeDetailModal } from './UnitTypeDetailModal'
 import { UnitTypeDetailSheet } from './UnitTypeDetailSheet'
 import { UnitType } from '../../types'
 import { useTranslation } from 'react-i18next'
+import { UnitTypeFavoriteButton } from '../../components/favorites'
 
 interface UnitTypesTabProps {
   unitTypes: UnitType[]
+  projectId?: string
 }
 
 interface GroupedUnits {
@@ -34,7 +36,7 @@ function groupUnitTypes(unitTypes: UnitType[]): GroupedUnits {
   }, {})
 }
 
-export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
+export function UnitTypesTab({ unitTypes, projectId }: UnitTypesTabProps) {
   const { t } = useTranslation(['project', 'common'])
   const groupedUnits = groupUnitTypes(unitTypes)
   const sortedGroupKeys = Object.keys(groupedUnits).sort()
@@ -161,18 +163,26 @@ export function UnitTypesTab({ unitTypes }: UnitTypesTabProps) {
                                       )}
                                     </div>
                                   </div>
-                                  {unit.price && (
-                                    <div className="text-right">
-                                      <div className="text-2xl font-bold text-primary">
-                                        {formatPrice(unit.price)}
-                                      </div>
-                                      {unit.price_per_sqft && (
-                                        <div className="text-sm text-slate-600 mt-1">
-                                          {formatPrice(unit.price_per_sqft)}/sq ft
+                                  <div className="flex items-start gap-3">
+                                    {unit.price && (
+                                      <div className="text-right">
+                                        <div className="text-2xl font-bold text-primary">
+                                          {formatPrice(unit.price)}
                                         </div>
-                                      )}
-                                    </div>
-                                  )}
+                                        {unit.price_per_sqft && (
+                                          <div className="text-sm text-slate-600 mt-1">
+                                            {formatPrice(unit.price_per_sqft)}/sq ft
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    {projectId && (
+                                      <UnitTypeFavoriteButton
+                                        projectId={projectId}
+                                        unitTypeId={unit.id}
+                                      />
+                                    )}
+                                  </div>
                                 </div>
                                 
                                 {/* Specs Grid */}

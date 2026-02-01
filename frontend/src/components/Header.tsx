@@ -1,19 +1,24 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Heart, Briefcase, Settings } from 'lucide-react'
+import { Building2, MapPin, Briefcase, Settings, LogIn } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher'
+import { useAuth } from '../contexts/AuthContext'
+import LoginDialog from './auth/LoginDialog'
+import UserMenu from './auth/UserMenu'
+import { FavoritesButton, FavoritesDrawer } from './favorites'
 
 export default function Header() {
   const location = useLocation()
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
+  const [loginOpen, setLoginOpen] = useState(false)
   const { t } = useTranslation()
+  const { user, loading } = useAuth()
 
   const navItems = [
     { path: '/map', label: t('nav.mapExplore'), icon: MapPin },
-    { path: '/favorites', label: t('nav.favorites'), icon: Heart },
     { path: '/developer/upload', label: t('nav.forDevelopers'), icon: Briefcase },
   ]
 
@@ -90,37 +95,64 @@ export default function Header() {
               </motion.div>
             ))}
 
-            {/* Admin Dropdown */}
-            <div className="relative group">
-              <Button
-                variant="ghost"
-                className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  isAdminPage
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-              >
-                <Settings className="h-4 w-4" />
-                <span>{t('nav.admin')}</span>
-              </Button>
+            {/* Admin Dropdown - Only show if logged in */}
+            {user && (
+              <div className="relative group">
+                <Button
+                  variant="ghost"
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                    isAdminPage
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>{t('nav.admin')}</span>
+                </Button>
 
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1001]">
-                {adminItems.map(({ path, label, icon: Icon }) => (
-                  <Link
-                    key={path}
-                    to={path}
-                    className={`flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl transition-colors ${
-                      location.pathname === path ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-700'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{label}</span>
-                  </Link>
-                ))}
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[1001]">
+                  {adminItems.map(({ path, label, icon: Icon }) => (
+                    <Link
+                      key={path}
+                      to={path}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl transition-colors ${
+                        location.pathname === path ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-700'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Favorites Button */}
+            <FavoritesButton />
+
             <LanguageSwitcher />
+
+            {/* Auth Section */}
+            {!loading && (
+              user ? (
+                <UserMenu />
+              ) : (
+                <Button
+                  onClick={() => setLoginOpen(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-all"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>{t('auth:login', 'Sign In')}</span>
+                </Button>
+              )
+            )}
           </nav>
+
+          {/* Login Dialog */}
+          <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
+
+          {/* Favorites Drawer */}
+          <FavoritesDrawer />
         </div>
       </div>
     </header>

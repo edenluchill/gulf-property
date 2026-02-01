@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Button } from '../components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { isFavorite, addFavorite, removeFavorite } from '../lib/favorites'
+import { useFavorites } from '../contexts/FavoritesContext'
 import { fetchResidentialProjectById } from '../lib/api'
 import { ImageGallery } from './ProjectDetailPage/ImageGallery'
 import { ProjectInfoCard } from './ProjectDetailPage/ProjectInfoCard'
@@ -21,7 +21,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isFav, setIsFav] = useState(false)
+  const { isProjectFavorite, toggleProjectFavorite } = useFavorites()
 
   useEffect(() => {
     if (id) {
@@ -30,7 +30,6 @@ export default function ProjectDetailPage() {
         .then((result) => {
           if (result?.success && result.project) {
             setProject(result.project)
-            setIsFav(isFavorite(result.project.id))
           }
           setLoading(false)
         })
@@ -43,14 +42,10 @@ export default function ProjectDetailPage() {
 
   const handleToggleFavorite = () => {
     if (!project) return
-    
-    if (isFav) {
-      removeFavorite(project.id)
-    } else {
-      addFavorite(project.id)
-    }
-    setIsFav(!isFav)
+    toggleProjectFavorite(project.id)
   }
+
+  const isFav = project ? isProjectFavorite(project.id) : false
 
   if (loading) {
     return (
@@ -124,7 +119,7 @@ export default function ProjectDetailPage() {
             </TabsContent>
 
             <TabsContent value="units">
-              <UnitTypesTab unitTypes={project.units || []} />
+              <UnitTypesTab unitTypes={project.units || []} projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="payment">
