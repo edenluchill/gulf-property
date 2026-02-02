@@ -46,7 +46,7 @@ export function FavoriteUnitList({ projectId, unitTypeIds, units, onClose }: Fav
 
     setLoading(true)
     // Fetch project details to get unit types
-    fetch(`/api/residential-projects/${projectId}`)
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/residential-projects/${projectId}`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.project?.units) {

@@ -846,7 +846,7 @@ export default function UnifiedDubaiEditor() {
       const formDataUpload = new FormData()
       formDataUpload.append('image', file)
 
-      const response = await fetch('/api/upload/landmark-image', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/upload/landmark-image`, {
         method: 'POST',
         body: formDataUpload,
       })

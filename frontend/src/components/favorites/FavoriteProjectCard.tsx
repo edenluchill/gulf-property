@@ -49,7 +49,7 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
   const fetchFromServer = async () => {
     setInitialLoading(true)
     try {
-      const res = await fetch(`/api/residential-projects/${favorite.projectId}`)
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/residential-projects/${favorite.projectId}`)
       const data = await res.json()
       if (data.success && data.project) {
         setProject(data.project)
@@ -67,7 +67,7 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
   const refreshFromServer = async () => {
     setIsRefreshing(true)
     try {
-      const res = await fetch(`/api/residential-projects/${favorite.projectId}`)
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/residential-projects/${favorite.projectId}`)
       const data = await res.json()
       if (data.success && data.project) {
         setProject(data.project)

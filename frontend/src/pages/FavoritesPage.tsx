@@ -41,7 +41,7 @@ export default function FavoritesPage() {
             // If cache is stale, refresh in background
             if (isCacheStale(cached.cachedAt)) {
               // Background refresh (don't await)
-              fetch(`/api/residential-projects/${fav.projectId}`)
+              fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/residential-projects/${fav.projectId}`)
                 .then(res => res.json())
                 .then(data => {
                   if (data.success && data.project) {
@@ -55,7 +55,7 @@ export default function FavoritesPage() {
           }
           
           // No cache, must fetch from server
-          const res = await fetch(`/api/residential-projects/${fav.projectId}`)
+          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/residential-projects/${fav.projectId}`)
           const data = await res.json()
           if (data.success && data.project) {
             // Cache the result
