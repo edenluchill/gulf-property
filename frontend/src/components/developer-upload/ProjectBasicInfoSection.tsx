@@ -66,7 +66,7 @@ export function ProjectBasicInfoSection({
             value={formData.projectName}
             onChange={(e) => onChange('projectName', e.target.value)}
             disabled={isProcessing}
-            className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+            className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
             required
           />
         </div>
@@ -76,7 +76,7 @@ export function ProjectBasicInfoSection({
             value={formData.developer}
             onChange={(e) => onChange('developer', e.target.value)}
             disabled={isProcessing}
-            className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+            className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
             required
           />
         </div>
@@ -89,7 +89,7 @@ export function ProjectBasicInfoSection({
           value={formData.address}
           onChange={(e) => onChange('address', e.target.value)}
           disabled={isProcessing}
-          className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+          className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
           required
         />
       </div>
@@ -102,7 +102,7 @@ export function ProjectBasicInfoSection({
           onValueChange={(value) => onChange('area', value)}
           disabled={isProcessing || isLoadingAreas}
         >
-          <SelectTrigger className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}>
+          <SelectTrigger className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}>
             <SelectValue placeholder={isLoadingAreas ? 'Loading areas...' : t('basicInfo.areaPlaceholder')} />
           </SelectTrigger>
           <SelectContent>
@@ -132,8 +132,8 @@ export function ProjectBasicInfoSection({
           onChange={(e) => onChange('description', e.target.value)}
           disabled={isProcessing}
           rows={3}
-          className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-            isProcessing ? 'bg-amber-50 animate-pulse' : ''
+          className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+            isProcessing ? 'bg-teal-50 animate-pulse' : ''
           }`}
           placeholder={t('basicInfo.descriptionPlaceholder')}
         />
@@ -142,7 +142,7 @@ export function ProjectBasicInfoSection({
       {/* Location Coordinates */}
       <div className="space-y-3">
         <Label className="text-sm font-semibold flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-amber-600" />
+          <MapPin className="h-4 w-4 text-teal-600" />
           {t('basicInfo.mapLocation')}
         </Label>
         
@@ -179,11 +179,11 @@ export function ProjectBasicInfoSection({
           <Button
             type="button"
             variant="outline"
-            className="w-full border-dashed border-2 border-amber-300 hover:border-amber-500 hover:bg-amber-50"
+            className="w-full border-dashed border-2 border-teal-300 hover:border-teal-500 hover:bg-teal-50"
             onClick={onOpenMapPicker}
             disabled={isProcessing}
           >
-            <MapPin className="mr-2 h-4 w-4 text-amber-600" />
+            <MapPin className="mr-2 h-4 w-4 text-teal-600" />
             {t('basicInfo.clickMapToSelect')}
           </Button>
         )}

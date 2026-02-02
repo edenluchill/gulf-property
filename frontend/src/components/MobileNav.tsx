@@ -31,13 +31,13 @@ export default function MobileNav() {
               className="flex flex-col items-center justify-center gap-0.5 relative"
             >
               {isActive && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-amber-500 rounded-full" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-teal-500 rounded-full" />
               )}
               <Icon className={`h-5 w-5 transition-colors ${
-                isActive ? 'text-amber-600' : 'text-slate-400'
+                isActive ? 'text-teal-600' : 'text-slate-400'
               }`} />
               <span className={`text-[10px] font-medium transition-colors ${
-                isActive ? 'text-amber-600' : 'text-slate-500'
+                isActive ? 'text-teal-600' : 'text-slate-500'
               }`}>
                 {label}
               </span>

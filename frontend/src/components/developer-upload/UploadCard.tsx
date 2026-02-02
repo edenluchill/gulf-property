@@ -42,7 +42,7 @@ export function UploadCard({
     <Card className="sticky top-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
-          <FileText className="h-5 w-5 text-amber-600" />
+          <FileText className="h-5 w-5 text-teal-600" />
           {t('uploadCard.title')}
         </CardTitle>
         <CardDescription>
@@ -58,7 +58,7 @@ export function UploadCard({
             border-2 border-dashed rounded-xl p-8 text-center transition-all
             ${isProcessing 
               ? 'border-gray-300 bg-gray-50 cursor-not-allowed' 
-              : 'border-amber-300 hover:border-amber-500 cursor-pointer bg-white hover:bg-amber-50'
+              : 'border-teal-300 hover:border-teal-500 cursor-pointer bg-white hover:bg-teal-50'
             }
           `}
         >
@@ -71,7 +71,7 @@ export function UploadCard({
             disabled={isProcessing}
           />
           <label htmlFor="pdf-upload-v2" className={isProcessing ? 'cursor-not-allowed' : 'cursor-pointer'}>
-            <Upload className={`h-12 w-12 mx-auto mb-3 ${isProcessing ? 'text-gray-400' : 'text-amber-500'}`} />
+            <Upload className={`h-12 w-12 mx-auto mb-3 ${isProcessing ? 'text-gray-400' : 'text-teal-500'}`} />
             <p className="text-slate-700 mb-1 font-medium">
               {pdfFile ? pdfFile.name : t('uploadCard.clickOrDrag')}
             </p>
@@ -85,7 +85,7 @@ export function UploadCard({
         {pdfFile && !isProcessing && progress === 0 && (
           <Button
             onClick={onProcess}
-            className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-lg"
+            className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 shadow-lg"
             size="lg"
           >
             <Sparkles className="mr-2 h-5 w-5" />
@@ -107,7 +107,7 @@ export function UploadCard({
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div
-                  className="bg-gradient-to-r from-amber-600 to-orange-600 h-2.5 rounded-full transition-all duration-500"
+                  className="bg-gradient-to-r from-teal-500 to-emerald-500 h-2.5 rounded-full transition-all duration-500"
                   style={{ width: `${progress}%` }}
                 />
               </div>

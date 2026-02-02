@@ -77,7 +77,7 @@ export function DatePicker({
           className={cn(
             "w-full justify-start text-left font-normal",
             !value && "text-gray-500",
-            disabled && "bg-amber-50 animate-pulse cursor-not-allowed",
+            disabled && "bg-teal-50 animate-pulse cursor-not-allowed",
             className
           )}
           type="button"

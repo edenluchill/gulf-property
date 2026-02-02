@@ -475,13 +475,13 @@ export default function DeveloperPropertyUploadPageV2() {
   }, {} as Record<string, UnitType[]>);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flex-1 bg-white">
       {/* Page Title Section */}
-      <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 border-b border-amber-200">
+      <div className="bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-100 border-b border-teal-200">
         <div className="container mx-auto px-6 py-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-xl">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-xl">
                 <Building2 className="h-8 w-8 text-white" />
               </div>
               <div>
@@ -494,19 +494,19 @@ export default function DeveloperPropertyUploadPageV2() {
             
             {/* Process Flow Indicator */}
             <div className="flex items-center gap-3 text-sm mt-6">
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-amber-700">{`1️⃣ ${t('steps.upload')}`}</span>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
+                <span className="font-semibold text-teal-700">{`1️⃣ ${t('steps.upload')}`}</span>
               </div>
-              <div className="text-amber-400">→</div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-amber-700">{`2️⃣ ${t('steps.extract')}`}</span>
+              <div className="text-teal-400">→</div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
+                <span className="font-semibold text-teal-700">{`2️⃣ ${t('steps.extract')}`}</span>
               </div>
-              <div className="text-amber-400">→</div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
-                <span className="font-semibold text-amber-700">{`3️⃣ ${t('steps.review')}`}</span>
+              <div className="text-teal-400">→</div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
+                <span className="font-semibold text-teal-700">{`3️⃣ ${t('steps.review')}`}</span>
               </div>
-              <div className="text-amber-400">→</div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-amber-200">
+              <div className="text-teal-400">→</div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
                 <span className="font-semibold text-green-700">{`4️⃣ ${t('steps.submit')}`}</span>
               </div>
             </div>
@@ -523,7 +523,7 @@ export default function DeveloperPropertyUploadPageV2() {
                   <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-4" />
                   <h2 className="text-3xl font-bold mb-2 text-gray-900">{t('success.title')}</h2>
                   <p className="text-gray-600">{t('success.redirecting')}</p>
-                  <Loader2 className="h-6 w-6 mx-auto mt-4 animate-spin text-amber-600" />
+                  <Loader2 className="h-6 w-6 mx-auto mt-4 animate-spin text-teal-600" />
                 </CardContent>
               </Card>
             </motion.div>
@@ -604,7 +604,7 @@ export default function DeveloperPropertyUploadPageV2() {
                           {/* Unit Types - Grouped by Tower/Building */}
                           <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                             <div className="flex items-center gap-3 mb-4">
-                              <div className="h-10 w-1 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
+                              <div className="h-10 w-1 bg-gradient-to-b from-teal-500 to-emerald-500 rounded-full"></div>
                               <div>
                                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                   {t('unitTypesList')}
@@ -616,8 +616,8 @@ export default function DeveloperPropertyUploadPageV2() {
                             </div>
 
                             {isProcessing && formData.unitTypes.length === 0 && (
-                              <div className="text-center py-16 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border-2 border-dashed border-amber-300 shadow-inner">
-                                <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-amber-600" />
+                              <div className="text-center py-16 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border-2 border-dashed border-teal-300 shadow-inner">
+                                <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-teal-600" />
                                 <p className="text-base text-gray-700 font-semibold">{t('aiAnalyzing')}</p>
                                 <p className="text-sm text-gray-500 mt-2">{t('extractingUnitTypes')}</p>
                               </div>

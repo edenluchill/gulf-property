@@ -15,8 +15,8 @@ export function FavoritesDrawer() {
         {/* Header */}
         <SheetHeader className="flex flex-row items-center justify-between border-b pb-4">
           <div className="flex items-center gap-3">
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <Heart className="h-5 w-5 text-amber-600" />
+            <div className="bg-teal-100 p-2 rounded-lg">
+              <Heart className="h-5 w-5 text-teal-600" />
             </div>
             <div>
               <SheetTitle>{t('drawer.title')}</SheetTitle>
@@ -70,7 +70,7 @@ export function FavoritesDrawer() {
         {favorites.projects.length >= 2 && (
           <div className="border-t pt-4 mt-auto">
             <Button
-              className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+              className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white"
               disabled
             >
               {t('actions.compare')}

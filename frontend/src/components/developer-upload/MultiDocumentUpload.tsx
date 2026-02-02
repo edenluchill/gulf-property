@@ -41,7 +41,7 @@ export function MultiDocumentUpload({
     <Card>
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <FileText className="h-5 w-5 text-amber-600" />
+          <FileText className="h-5 w-5 text-teal-600" />
           {t('multiDocUpload.title')}
         </CardTitle>
       </CardHeader>
@@ -50,9 +50,9 @@ export function MultiDocumentUpload({
         {documents.map((doc) => (
           <div
             key={doc.id}
-            className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200"
+            className="flex items-center gap-3 p-3 bg-teal-50 rounded-lg border border-teal-200"
           >
-            <FileText className="h-5 w-5 text-amber-600 flex-shrink-0" />
+            <FileText className="h-5 w-5 text-teal-600 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm text-gray-900 truncate">
                 {doc.file.name}

@@ -85,12 +85,12 @@ export default function LocationMapPickerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-[90vw] h-[85vh] max-w-5xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MapPin className="h-6 w-6" />
             <div>
               <h2 className="text-xl font-bold">{t('locationPicker.title')}</h2>
-              <p className="text-sm text-amber-100">{t('locationPicker.subtitle')}</p>
+              <p className="text-sm text-teal-100">{t('locationPicker.subtitle')}</p>
             </div>
           </div>
           <button
@@ -145,9 +145,9 @@ export default function LocationMapPickerModal({
 
           {/* Instructions Overlay */}
           {!selectedPosition && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-6 py-3 rounded-lg shadow-lg border border-amber-300 z-[1000] animate-pulse">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-6 py-3 rounded-lg shadow-lg border border-teal-300 z-[1000] animate-pulse">
               <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-amber-600" />
+                <MapPin className="h-4 w-4 text-teal-600" />
                 {t('locationPicker.clickToSelect')}
               </p>
             </div>

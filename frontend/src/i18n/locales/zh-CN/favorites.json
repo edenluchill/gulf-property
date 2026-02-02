@@ -23,10 +23,19 @@
     "unitTypes_other": "已收藏 {{count}} 个户型"
   },
   "unitType": {
-    "remove": "取消收藏户型"
+    "remove": "取消收藏户型",
+    "viewDetails": "查看详情",
+    "bedrooms": "卧室",
+    "bathrooms": "卫生间",
+    "area": "总面积",
+    "suiteArea": "室内面积",
+    "balconyArea": "阳台面积",
+    "orientation": "朝向",
+    "startingPrice": "起售价"
   },
   "actions": {
     "compare": "对比房产",
-    "viewProject": "查看楼盘"
+    "viewProject": "查看楼盘",
+    "viewInProject": "在楼盘中查看"
   }
 }

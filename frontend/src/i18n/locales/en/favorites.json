@@ -23,10 +23,19 @@
     "unitTypes_other": "{{count}} unit types saved"
   },
   "unitType": {
-    "remove": "Remove unit type"
+    "remove": "Remove unit type",
+    "viewDetails": "View details",
+    "bedrooms": "Bedrooms",
+    "bathrooms": "Bathrooms",
+    "area": "Total Area",
+    "suiteArea": "Suite Area",
+    "balconyArea": "Balcony Area",
+    "orientation": "Orientation",
+    "startingPrice": "Starting Price"
   },
   "actions": {
     "compare": "Compare Properties",
-    "viewProject": "View Project"
+    "viewProject": "View Project",
+    "viewInProject": "View in Project"
   }
 }

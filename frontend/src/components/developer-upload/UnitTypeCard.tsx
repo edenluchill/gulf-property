@@ -48,7 +48,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <Card className={`overflow-hidden ${isProcessing ? 'bg-amber-50 animate-pulse' : ''}`}>
+    <Card className={`overflow-hidden ${isProcessing ? 'bg-teal-50 animate-pulse' : ''}`}>
       {/* Compact Header */}
       <div 
         className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -56,15 +56,15 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 flex-1">
-            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-              <Home className="h-5 w-5 text-amber-600" />
+            <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
+              <Home className="h-5 w-5 text-teal-600" />
             </div>
             <div className="flex-1">
               <div className="font-semibold text-gray-900 flex items-center gap-2">
                 {/* Unit Type Name - Most Prominent */}
                 {unit.typeName ? (
                   <>
-                    <span className="text-lg text-amber-700">{unit.typeName}</span>
+                    <span className="text-lg text-teal-700">{unit.typeName}</span>
                     <span className="text-sm text-gray-500">({unit.category || `${unit.bedrooms}BR`})</span>
                   </>
                 ) : (
@@ -76,7 +76,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                 {unit.price && ` • AED ${unit.price.toLocaleString()}`}
               </div>
               {unit.unitCount && (
-                <div className="text-xs text-amber-600 mt-1 font-medium">
+                <div className="text-xs text-teal-600 mt-1 font-medium">
                   📍 {t('unitTypeCard.unitCount', { count: unit.unitCount })}
                 </div>
               )}
@@ -124,7 +124,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                   <Label className="text-xs text-gray-600 font-semibold">
                     {t('unitTypeCard.floorPlan')}
                     {unit.floorPlanImages && unit.floorPlanImages.length > 1 && (
-                      <span className="text-amber-600 ml-1">({t('unitTypeCard.imageCount', { count: unit.floorPlanImages.length })})</span>
+                      <span className="text-teal-600 ml-1">({t('unitTypeCard.imageCount', { count: unit.floorPlanImages.length })})</span>
                     )}
                   </Label>
                   <ImageCarousel 
@@ -178,7 +178,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                     onChange={(e) => onChange('description', e.target.value)}
                     disabled={isProcessing}
                     placeholder={t('unitTypeCard.descriptionPlaceholder')}
-                    className="w-full min-h-[80px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-50 disabled:text-gray-500 resize-y"
+                    className="w-full min-h-[80px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 disabled:bg-gray-50 disabled:text-gray-500 resize-y"
                     rows={3}
                   />
                   <p className="text-xs text-gray-500">

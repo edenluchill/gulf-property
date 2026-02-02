@@ -22,7 +22,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
   return (
     <div className="space-y-4 pt-6 border-t-2 border-gray-100">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-1 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
+        <div className="h-10 w-1 bg-gradient-to-b from-teal-500 to-emerald-500 rounded-full"></div>
         <div>
           <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             {t('paymentPlan.title')}
@@ -40,11 +40,11 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
           {paymentPlan.map((milestone, idx) => (
             <div 
               key={idx} 
-              className="flex items-center justify-between p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-amber-400 hover:shadow-md transition-all"
+              className="flex items-center justify-between p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:shadow-md transition-all"
             >
               <div className="flex-1">
                 <div className="font-semibold text-gray-900 flex items-center gap-3">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white text-sm font-bold shadow-md">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 text-white text-sm font-bold shadow-md">
                     {idx + 1}
                   </span>
                   <span className="text-base">
@@ -75,7 +75,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
                 ) : null}
               </div>
               <div className="text-right">
-                <div className="text-3xl font-bold text-amber-600">
+                <div className="text-3xl font-bold text-teal-600">
                   {parseFloat(String(milestone.percentage)) || 0}%
                 </div>
               </div>
@@ -83,7 +83,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
           ))}
           
           {/* Total Summary */}
-          <div className="flex items-center justify-between p-6 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 rounded-xl border-2 border-amber-400 shadow-lg mt-4">
+          <div className="flex items-center justify-between p-6 bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 rounded-xl border-2 border-teal-400 shadow-lg mt-4">
             <div className="flex items-center gap-3">
               <span className="text-2xl">🎯</span>
               <span className="text-lg font-bold text-gray-900">{t('paymentPlan.total')}</span>
@@ -104,7 +104,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
         <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
           {isProcessing ? (
             <div className="text-gray-600">
-              <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-amber-600" />
+              <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-teal-600" />
               <p className="font-medium">{t('paymentPlan.aiExtracting')}</p>
             </div>
           ) : (

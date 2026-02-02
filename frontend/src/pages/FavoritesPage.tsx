@@ -61,7 +61,7 @@ export default function FavoritesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex-1 bg-slate-50">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -84,7 +84,7 @@ export default function FavoritesPage() {
       <div className="container mx-auto px-4 py-8">
         {loading ? (
           <div className="text-center py-16">
-            <div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-4" />
+            <div className="animate-spin h-8 w-8 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4" />
             <p className="text-slate-600">{t('common:loading')}</p>
           </div>
         ) : favorites.projects.length === 0 ? (
@@ -236,7 +236,7 @@ export default function FavoritesPage() {
                                       {parseFloat(unit.area).toLocaleString()} sqft
                                     </span>
                                     {unit.price && (
-                                      <span className="text-amber-600 font-medium">
+                                      <span className="text-teal-600 font-medium">
                                         {formatPrice(unit.price)}
                                       </span>
                                     )}

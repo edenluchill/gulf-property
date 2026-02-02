@@ -151,7 +151,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t('emailPlaceholder')}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                       disabled={loading}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendCode()}
                     />
@@ -164,7 +164,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                   <Button
                     onClick={handleSendCode}
                     disabled={loading}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg font-medium transition-colors"
+                    className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white py-3 rounded-lg font-medium transition-colors"
                   >
                     {loading ? (
                       <>
@@ -192,7 +192,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                       value={code}
                       onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder={t('codePlaceholder')}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all text-center text-2xl tracking-widest"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-center text-2xl tracking-widest"
                       disabled={loading}
                       maxLength={6}
                       onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
@@ -206,7 +206,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                   <Button
                     onClick={handleVerifyCode}
                     disabled={loading || code.length < 6}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg font-medium transition-colors"
+                    className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white py-3 rounded-lg font-medium transition-colors"
                   >
                     {loading ? (
                       <>

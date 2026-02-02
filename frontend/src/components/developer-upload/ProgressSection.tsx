@@ -44,14 +44,14 @@ export function ProgressSection({
               )}
               {!isUploading && currentStage}
             </span>
-            <span className="text-amber-600 font-bold">{progress.toFixed(0)}%</span>
+            <span className="text-teal-600 font-bold">{progress.toFixed(0)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
             <div
               className={`h-3 rounded-full transition-all duration-300 ease-out relative overflow-hidden ${
                 isUploading 
                   ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-600' 
-                  : 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600'
+                  : 'bg-gradient-to-r from-teal-500 via-teal-600 to-emerald-600'
               }`}
               style={{ width: `${progress}%` }}
             >
@@ -69,7 +69,7 @@ export function ProgressSection({
             <div className="text-xs text-gray-600 max-h-32 overflow-y-auto space-y-1 bg-gray-50 rounded p-3 border">
               {progressEvents.slice(-5).map((e, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <Loader2 className="h-3 w-3 mt-0.5 flex-shrink-0 animate-spin text-amber-600" />
+                  <Loader2 className="h-3 w-3 mt-0.5 flex-shrink-0 animate-spin text-teal-600" />
                   <span>{e.message}</span>
                 </div>
               ))}

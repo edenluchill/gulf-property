@@ -35,7 +35,7 @@ export function DateTimeProgressSection({
   const getProgressColor = (progress: number) => {
     if (progress >= 80) return 'bg-green-500'
     if (progress >= 50) return 'bg-blue-500'
-    if (progress >= 25) return 'bg-amber-500'
+    if (progress >= 25) return 'bg-teal-500'
     return 'bg-red-500'
   }
 
@@ -111,7 +111,7 @@ export function DateTimeProgressSection({
             <span className={`text-2xl font-bold ${
               progressValue >= 80 ? 'text-green-600' : 
               progressValue >= 50 ? 'text-blue-600' : 
-              progressValue >= 25 ? 'text-amber-600' : 
+              progressValue >= 25 ? 'text-teal-600' : 
               'text-red-600'
             }`}>
               {progressValue}%
@@ -149,7 +149,7 @@ export function DateTimeProgressSection({
             <span className={progressValue >= 0 ? 'font-semibold text-gray-700' : ''}>
               {t('dateProgress.groundBreaking')}
             </span>
-            <span className={progressValue >= 25 ? 'font-semibold text-amber-700' : ''}>
+            <span className={progressValue >= 25 ? 'font-semibold text-teal-700' : ''}>
               25%
             </span>
             <span className={progressValue >= 50 ? 'font-semibold text-blue-700' : ''}>

@@ -30,7 +30,7 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div className="min-h-screen">
+    <div className="flex-1">
       {/* Hero Section */}
       <motion.section
         initial={{ opacity: 0, y: -20 }}

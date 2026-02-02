@@ -6,20 +6,20 @@ import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useAuth } from '../contexts/AuthContext'
-import LoginDialog from './auth/LoginDialog'
 import UserMenu from './auth/UserMenu'
-import { FavoritesButton, FavoritesDrawer } from './favorites'
+import { FavoritesButton } from './favorites'
 
 export default function Header() {
   const location = useLocation()
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
-  const [loginOpen, setLoginOpen] = useState(false)
   const { t } = useTranslation()
   const { user, loading } = useAuth()
 
+  // Base nav items visible to all users
   const navItems = [
     { path: '/map', label: t('nav.mapExplore'), icon: MapPin },
-    { path: '/developer/upload', label: t('nav.forDevelopers'), icon: Briefcase },
+    // Only show For Developers when logged in
+    ...(user ? [{ path: '/developer/upload', label: t('nav.forDevelopers'), icon: Briefcase }] : []),
   ]
 
   const adminItems = [
@@ -43,9 +43,9 @@ export default function Header() {
               transition={{ duration: 0.3 }}
             >
               <motion.div
-                className="relative bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 p-2.5 rounded-xl shadow-md"
+                className="relative bg-gradient-to-br from-teal-500 via-teal-600 to-teal-700 p-2.5 rounded-xl shadow-md"
                 whileHover={{
-                  boxShadow: "0 8px 20px rgba(251, 191, 36, 0.25)",
+                  boxShadow: "0 8px 20px rgba(20, 184, 166, 0.25)",
                 }}
               >
                 <Building2 className="h-6 w-6 text-white" />
@@ -59,7 +59,7 @@ export default function Header() {
               >
                 {t('brand')}
               </motion.span>
-              <span className="text-[11px] text-amber-600 font-medium tracking-tight -mt-0.5">
+              <span className="text-[11px] text-teal-600 font-medium tracking-tight -mt-0.5">
                 {t('tagline')}
               </span>
             </div>
@@ -80,7 +80,7 @@ export default function Header() {
                   onMouseLeave={() => setHoveredNav(null)}
                   className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 relative overflow-hidden ${
                     location.pathname === path
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25 backdrop-blur-sm'
+                      ? 'bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/25 backdrop-blur-sm'
                       : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 backdrop-blur-sm'
                   }`}
                 >
@@ -137,22 +137,16 @@ export default function Header() {
               user ? (
                 <UserMenu />
               ) : (
-                <Button
-                  onClick={() => setLoginOpen(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-all"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span>{t('auth:login', 'Sign In')}</span>
-                </Button>
+                <Link to="/login">
+                  <Button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl text-sm font-medium transition-all shadow-md">
+                    <LogIn className="h-4 w-4" />
+                    <span>{t('auth:login', 'Sign In')}</span>
+                  </Button>
+                </Link>
               )
             )}
           </nav>
 
-          {/* Login Dialog */}
-          <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
-
-          {/* Favorites Drawer */}
-          <FavoritesDrawer />
         </div>
       </div>
     </header>

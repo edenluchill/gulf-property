@@ -300,7 +300,7 @@ export default function AdminPropertyEditPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="flex-1 bg-white flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-16 w-16 mx-auto mb-4 animate-spin text-blue-600" />
           <p className="text-gray-600 text-lg">{t('edit.loadingData')}</p>
@@ -311,7 +311,7 @@ export default function AdminPropertyEditPage() {
 
   if (error && !formData.projectName) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="flex-1 bg-white flex items-center justify-center">
         <Card className="max-w-md mx-4 shadow-2xl border-2 border-red-200">
           <CardContent className="pt-6 text-center">
             <div className="text-6xl mb-4">❌</div>
@@ -327,7 +327,7 @@ export default function AdminPropertyEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flex-1 bg-white">
       {/* Page Title Section */}
       <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-b border-blue-200">
         <div className="container mx-auto px-6 py-8">

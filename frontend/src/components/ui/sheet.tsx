@@ -51,10 +51,10 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-[9999]">
+      {/* Backdrop - covers everything including maps */}
       <div
-        className="fixed inset-0 bg-black/50 animate-in fade-in"
+        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in"
         onClick={() => onOpenChange(false)}
       />
       {/* Content */}
@@ -81,7 +81,7 @@ export function SheetContent({ className = '', children, side = 'right' }: Sheet
   return (
     <div
       className={cn(
-        'fixed z-50 bg-white shadow-2xl flex flex-col',
+        'fixed z-[10000] bg-white shadow-2xl flex flex-col',
         sideClasses[side],
         slideAnimations[side],
         side === 'right' || side === 'left' ? 'w-[400px] max-w-[90vw]' : 'h-[400px] max-h-[90vh]',

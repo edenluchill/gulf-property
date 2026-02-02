@@ -1,19 +1,23 @@
 import Header from './Header'
 import MobileNav from './MobileNav'
+import { FavoritesDrawer } from './favorites'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-white overflow-x-hidden">
       {/* Header */}
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1">
+      <main className="flex-1 flex flex-col">
         {children}
       </main>
 
       {/* Mobile Bottom Navigation */}
       <MobileNav />
+
+      {/* Favorites Drawer - Global, not inside Header */}
+      <FavoritesDrawer />
 
       {/* Footer - Hidden on mobile, visible on desktop */}
       {/* <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">

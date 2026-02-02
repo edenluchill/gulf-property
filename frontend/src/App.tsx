@@ -14,6 +14,7 @@ import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
 import Layout from './components/Layout'
 import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import LoginPage from './pages/LoginPage'
 
 function App() {
   const { i18n } = useTranslation()
@@ -33,6 +34,7 @@ function App() {
         <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route
           path="/admin/dubai"
           element={

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronUp, Trash2, Building2, MapPin, ExternalLink, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2, Building2, MapPin, ExternalLink, RefreshCw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../ui/button'
 import { useFavorites } from '../../contexts/FavoritesContext'
@@ -9,6 +9,7 @@ import { FavoriteUnitList } from './FavoriteUnitList'
 import { ResidentialProject, UnitType } from '../../types'
 import { formatPrice } from '../../lib/utils'
 import { FavoriteProject } from '../../lib/favorites'
+import { getCachedProject, cacheProject, isCacheStale } from '../../lib/projectCache'
 
 interface FavoriteProjectCardProps {
   favorite: FavoriteProject
@@ -21,23 +22,65 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
   const [isExpanded, setIsExpanded] = useState(false)
   const [project, setProject] = useState<ResidentialProject | null>(null)
   const [units, setUnits] = useState<UnitType[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
 
   const hasUnitTypes = favorite.unitTypeIds.length > 0
 
   useEffect(() => {
-    setLoading(true)
-    fetch(`/api/residential-projects/${favorite.projectId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.project) {
-          setProject(data.project)
-          setUnits(data.project.units || [])
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    // First, try to load from cache for instant display
+    const cached = getCachedProject(favorite.projectId)
+
+    if (cached) {
+      setProject(cached.project)
+      setUnits(cached.units)
+      setInitialLoading(false)
+
+      // If cache is stale, refresh in background
+      if (isCacheStale(cached.cachedAt)) {
+        refreshFromServer()
+      }
+    } else {
+      // No cache, must fetch from server
+      fetchFromServer()
+    }
   }, [favorite.projectId])
+
+  const fetchFromServer = async () => {
+    setInitialLoading(true)
+    try {
+      const res = await fetch(`/api/residential-projects/${favorite.projectId}`)
+      const data = await res.json()
+      if (data.success && data.project) {
+        setProject(data.project)
+        setUnits(data.project.units || [])
+        // Cache the result
+        cacheProject(favorite.projectId, data.project, data.project.units || [])
+      }
+    } catch (e) {
+      console.error('Failed to fetch project:', e)
+    } finally {
+      setInitialLoading(false)
+    }
+  }
+
+  const refreshFromServer = async () => {
+    setIsRefreshing(true)
+    try {
+      const res = await fetch(`/api/residential-projects/${favorite.projectId}`)
+      const data = await res.json()
+      if (data.success && data.project) {
+        setProject(data.project)
+        setUnits(data.project.units || [])
+        // Update cache
+        cacheProject(favorite.projectId, data.project, data.project.units || [])
+      }
+    } catch (e) {
+      console.error('Failed to refresh project:', e)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -45,11 +88,17 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
     toggleProjectFavorite(favorite.projectId)
   }
 
-  if (loading) {
+  // Initial loading state - show skeleton
+  if (initialLoading) {
     return (
-      <div className="p-4 bg-white rounded-lg border border-slate-200">
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+      <div className="p-4 bg-white rounded-lg border border-slate-200 animate-pulse">
+        <div className="flex gap-3">
+          <div className="w-20 h-20 bg-slate-200 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-slate-200 rounded w-3/4" />
+            <div className="h-3 bg-slate-200 rounded w-1/2" />
+            <div className="h-3 bg-slate-200 rounded w-1/3" />
+          </div>
         </div>
       </div>
     )
@@ -79,15 +128,26 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
       <div className="p-4">
         <div className="flex gap-3">
           {/* Project Image */}
-          {project.project_images?.[0] && (
-            <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden">
+          <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden relative bg-slate-100">
+            {project.project_images?.[0] ? (
               <img
                 src={project.project_images[0]}
                 alt={project.project_name}
                 className="w-full h-full object-cover"
               />
-            </div>
-          )}
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Building2 className="h-8 w-8 text-slate-300" />
+              </div>
+            )}
+
+            {/* Refresh indicator - small spinning icon in corner */}
+            {isRefreshing && (
+              <div className="absolute top-1 right-1 bg-white/80 rounded-full p-0.5">
+                <RefreshCw className="h-3 w-3 text-teal-500 animate-spin" />
+              </div>
+            )}
+          </div>
 
           {/* Project Info */}
           <div className="flex-1 min-w-0">
@@ -103,7 +163,7 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
               <span className="truncate">{project.area}</span>
             </div>
             {project.starting_price && (
-              <div className="text-sm font-semibold text-amber-600 mt-1">
+              <div className="text-sm font-semibold text-teal-600 mt-1">
                 {formatPrice(project.starting_price)}
               </div>
             )}
@@ -124,7 +184,7 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-slate-400 hover:text-amber-600"
+                className="h-8 w-8 text-slate-400 hover:text-teal-600"
                 title={t('actions.viewProject')}
               >
                 <ExternalLink className="h-4 w-4" />
@@ -166,6 +226,7 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
                 projectId={favorite.projectId}
                 unitTypeIds={favorite.unitTypeIds}
                 units={units}
+                onClose={onClose}
               />
             </div>
           </motion.div>

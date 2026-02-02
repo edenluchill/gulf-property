@@ -70,7 +70,7 @@ export default function AdminPropertyListPage() {
   const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-b border-blue-200">
         <div className="container mx-auto px-6 py-8">

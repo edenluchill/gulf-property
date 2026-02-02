@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "async-lock": "^1.4.1",
-    "p-queue": "^9.1.0",
-    "pdf2pic": "^3.2.0"
-  }
-}

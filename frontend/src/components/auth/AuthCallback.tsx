@@ -50,7 +50,7 @@ export default function AuthCallback() {
           <p className="text-slate-600 mb-6">{error}</p>
           <button
             onClick={() => navigate('/', { replace: true })}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+            className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white px-8 py-3 rounded-lg font-medium transition-colors"
           >
             Return to Home
           </button>
@@ -62,7 +62,7 @@ export default function AuthCallback() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="text-center">
-        <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+        <Loader2 className="w-12 h-12 text-teal-500 animate-spin mx-auto mb-4" />
         <p className="text-slate-600">Completing sign in...</p>
       </div>
     </div>

@@ -20,8 +20,8 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center p-8 max-w-md">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
-            <Lock className="w-8 h-8 text-amber-600" />
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-teal-100 flex items-center justify-center">
+            <Lock className="w-8 h-8 text-teal-600" />
           </div>
           <h2 className="text-xl font-semibold text-slate-900 mb-2">
             Authentication Not Configured
@@ -38,7 +38,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
       </div>
     )
   }
@@ -49,8 +49,8 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
       <>
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center p-8 max-w-md">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
-              <Lock className="w-8 h-8 text-amber-600" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-teal-100 flex items-center justify-center">
+              <Lock className="w-8 h-8 text-teal-600" />
             </div>
             <h2 className="text-xl font-semibold text-slate-900 mb-2">
               {t('loginRequired')}
@@ -60,7 +60,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
             </p>
             <Button
               onClick={() => setShowLogin(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-lg font-medium"
+              className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white px-8 py-3 rounded-lg font-medium"
             >
               {t('login')}
             </Button>

@@ -71,10 +71,10 @@ export function PropertyForm({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-amber-600" />
+          <Building2 className="h-6 w-6 text-teal-600" />
           {t('propertyForm.title')}
           {isProcessing && (
-            <span className="ml-auto text-sm font-normal text-amber-600 flex items-center gap-1">
+            <span className="ml-auto text-sm font-normal text-teal-600 flex items-center gap-1">
               <Sparkles className="h-4 w-4 animate-pulse" />
               {t('propertyForm.aiFilling')}
             </span>
@@ -94,7 +94,7 @@ export function PropertyForm({
           {/* Basic Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-              <Home className="h-5 w-5 text-amber-600" />
+              <Home className="h-5 w-5 text-teal-600" />
               {t('propertyForm.basicInfo')}
             </h3>
             
@@ -108,7 +108,7 @@ export function PropertyForm({
                   placeholder={t('propertyForm.aiExtractionPlaceholder')}
                   required
                   disabled={isProcessing}
-                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                  className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
                 />
               </div>
 
@@ -121,7 +121,7 @@ export function PropertyForm({
                   placeholder={t('propertyForm.aiExtractionPlaceholder')}
                   required
                   disabled={isProcessing}
-                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                  className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
                 />
               </div>
             </div>
@@ -135,7 +135,7 @@ export function PropertyForm({
                 placeholder={t('propertyForm.aiExtractionPlaceholder')}
                 required
                 disabled={isProcessing}
-                className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
               />
             </div>
 
@@ -148,7 +148,7 @@ export function PropertyForm({
                   onChange={(e) => onInputChange('area', e.target.value)}
                   placeholder={t('propertyForm.areaPlaceholder')}
                   disabled={isProcessing}
-                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                  className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
                 />
               </div>
 
@@ -160,7 +160,7 @@ export function PropertyForm({
                   value={formData.completionDate}
                   onChange={(e) => onInputChange('completionDate', e.target.value)}
                   disabled={isProcessing}
-                  className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                  className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
                 />
               </div>
             </div>
@@ -174,7 +174,7 @@ export function PropertyForm({
                 placeholder={t('propertyForm.aiExtractionPlaceholder')}
                 rows={3}
                 disabled={isProcessing}
-                className={`flex w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isProcessing ? 'bg-amber-50 animate-pulse' : 'bg-background'}`}
+                className={`flex w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isProcessing ? 'bg-teal-50 animate-pulse' : 'bg-background'}`}
               />
             </div>
 
@@ -186,7 +186,7 @@ export function PropertyForm({
                 onChange={(e) => onAmenityChange(e.target.value)}
                 placeholder={t('propertyForm.aiExtractionPlaceholder')}
                 disabled={isProcessing}
-                className={isProcessing ? 'bg-amber-50 animate-pulse' : ''}
+                className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
               />
             </div>
           </div>
@@ -195,7 +195,7 @@ export function PropertyForm({
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-amber-600" />
+                <TrendingUp className="h-5 w-5 text-teal-600" />
                 {t('propertyForm.unitTypes')}
                 {formData.unitTypes.length > 0 && (
                   <span className="text-sm font-normal text-slate-500">
@@ -218,7 +218,7 @@ export function PropertyForm({
               <div className="text-center py-8 bg-slate-50 rounded-lg border-2 border-dashed">
                 {isProcessing ? (
                   <div className="text-slate-500">
-                    <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin text-amber-600" />
+                    <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin text-teal-600" />
                     <p>{t('propertyForm.aiExtractingUnits')}</p>
                   </div>
                 ) : (
@@ -228,7 +228,7 @@ export function PropertyForm({
             )}
 
             {formData.unitTypes.map((unit, index) => (
-              <Card key={unit.id} className={`p-4 ${isProcessing ? 'bg-amber-50 animate-pulse' : ''}`}>
+              <Card key={unit.id} className={`p-4 ${isProcessing ? 'bg-teal-50 animate-pulse' : ''}`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-2">
                     <Label className="font-semibold">{t('propertyForm.unitN', { n: index + 1 })}</Label>
@@ -297,7 +297,7 @@ export function PropertyForm({
               <div className="text-center py-6 bg-slate-50 rounded-lg border-2 border-dashed">
                 {isProcessing ? (
                   <div className="text-slate-500">
-                    <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin text-amber-600" />
+                    <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin text-teal-600" />
                     <p className="text-sm">{t('propertyForm.aiExtractingPayment')}</p>
                   </div>
                 ) : (
@@ -307,7 +307,7 @@ export function PropertyForm({
             )}
 
             {formData.paymentPlan.map((item, index) => (
-              <Card key={index} className={`p-4 ${isProcessing ? 'bg-amber-50 animate-pulse' : ''}`}>
+              <Card key={index} className={`p-4 ${isProcessing ? 'bg-teal-50 animate-pulse' : ''}`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-2">
                     <Label className="font-semibold">{t('propertyForm.stageN', { n: index + 1 })}</Label>

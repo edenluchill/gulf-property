@@ -141,8 +141,8 @@ export function ImageCarousel({
               className={cn(
                 "relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all",
                 currentIndex === idx 
-                  ? "border-amber-500 ring-2 ring-amber-200 scale-105" 
-                  : "border-gray-200 hover:border-amber-300 opacity-70 hover:opacity-100"
+                  ? "border-teal-500 ring-2 ring-teal-200 scale-105" 
+                  : "border-gray-200 hover:border-teal-300 opacity-70 hover:opacity-100"
               )}
             >
               <img
@@ -164,7 +164,7 @@ export function ImageCarousel({
               <div className={cn(
                 "absolute bottom-0 right-0 text-[10px] px-1 rounded-tl",
                 currentIndex === idx 
-                  ? "bg-amber-500 text-white" 
+                  ? "bg-teal-500 text-white" 
                   : "bg-black/50 text-white"
               )}>
                 {idx + 1}
