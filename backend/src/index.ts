@@ -8,6 +8,7 @@ import propertiesRouter from './routes/properties'
 import submissionsRouter from './routes/submissions'
 import { createDeveloperRouter } from './routes/developer'
 import { createResidentialProjectsRouter } from './routes/residential-projects'
+import { createCompareRouter } from './routes/compare'
 import langgraphRouter from './routes/langgraph-processor'
 import langgraphProgressRouter from './routes/langgraph-progress'
 import langgraphValidateRouter from './routes/langgraph-validate'
@@ -82,6 +83,7 @@ app.use('/api/langgraph-progress', langgraphProgressRouter)  // LangGraph with r
 app.use('/api/langgraph', langgraphValidateRouter)  // Result validation
 app.use('/api/dubai', dubaiAreasLandmarksRouter)  // Dubai areas and landmarks overlay
 app.use('/api/upload', uploadRouter)  // File upload to R2
+app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

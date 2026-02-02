@@ -37,5 +37,71 @@
     "compare": "对比房产",
     "viewProject": "查看楼盘",
     "viewInProject": "在楼盘中查看"
+  },
+  "compare": {
+    "title": "对比房产",
+    "selectItems": "选择2个房产或户型进行对比",
+    "startAnalysis": "开始AI分析",
+    "loginRequired": "登录后解锁AI智能分析",
+    "analyzing": "AI正在分析您的房产...",
+    "steps": {
+      "gathering": "收集房产数据",
+      "analyzing": "分析投资潜力",
+      "comparing": "对比生活因素",
+      "generating": "生成个性化报告"
+    }
+  },
+  "profile": {
+    "title": "告诉我们您的情况",
+    "subtitle": "帮助我们提供个性化建议",
+    "familyStatus": {
+      "label": "家庭状况",
+      "single": "单身",
+      "couple": "情侣/夫妻",
+      "familySmall": "小家庭 (1-2个孩子)",
+      "familyLarge": "大家庭 (3个以上孩子)"
+    },
+    "purpose": {
+      "label": "您的主要目标是什么?",
+      "investment": "投资",
+      "residence": "自住",
+      "work": "工作/商务",
+      "mixed": "综合用途"
+    },
+    "children": {
+      "label": "您有孩子吗?",
+      "ages": "孩子年龄 (用逗号分隔)"
+    },
+    "investment": {
+      "horizon": "投资周期",
+      "short": "短期 (<2年)",
+      "medium": "中期 (2-5年)",
+      "long": "长期 (5年以上)",
+      "risk": "风险偏好",
+      "conservative": "保守型",
+      "moderate": "稳健型",
+      "aggressive": "激进型"
+    },
+    "budget": {
+      "label": "预算范围 (AED)"
+    },
+    "workLocation": "工作地点 (选填)",
+    "schoolPreference": "学校距离很重要",
+    "save": "保存并继续"
+  },
+  "report": {
+    "title": "AI分析报告",
+    "summary": "概要",
+    "recommendation": "推荐",
+    "confidence": "置信度",
+    "reasons": "主要原因",
+    "dimensions": {
+      "investment": "投资价值",
+      "lifestyle": "生活适配",
+      "location": "位置评分",
+      "value": "性价比"
+    },
+    "advice": "个性化建议",
+    "download": "下载报告"
   }
 }

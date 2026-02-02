@@ -37,5 +37,71 @@
     "compare": "Compare Properties",
     "viewProject": "View Project",
     "viewInProject": "View in Project"
+  },
+  "compare": {
+    "title": "Compare Properties",
+    "selectItems": "Select 2 properties or unit types to compare",
+    "startAnalysis": "Start AI Analysis",
+    "loginRequired": "Login to unlock AI-powered analysis",
+    "analyzing": "AI is analyzing your properties...",
+    "steps": {
+      "gathering": "Gathering property data",
+      "analyzing": "Analyzing investment potential",
+      "comparing": "Comparing lifestyle factors",
+      "generating": "Generating personalized report"
+    }
+  },
+  "profile": {
+    "title": "Tell us about yourself",
+    "subtitle": "Help us provide personalized recommendations",
+    "familyStatus": {
+      "label": "Family Status",
+      "single": "Single",
+      "couple": "Couple",
+      "familySmall": "Small Family (1-2 children)",
+      "familyLarge": "Large Family (3+ children)"
+    },
+    "purpose": {
+      "label": "What's your primary goal?",
+      "investment": "Investment",
+      "residence": "Primary Residence",
+      "work": "Work/Business",
+      "mixed": "Mixed Use"
+    },
+    "children": {
+      "label": "Do you have children?",
+      "ages": "Children's ages (comma separated)"
+    },
+    "investment": {
+      "horizon": "Investment Horizon",
+      "short": "Short-term (<2 years)",
+      "medium": "Medium-term (2-5 years)",
+      "long": "Long-term (5+ years)",
+      "risk": "Risk Tolerance",
+      "conservative": "Conservative",
+      "moderate": "Moderate",
+      "aggressive": "Aggressive"
+    },
+    "budget": {
+      "label": "Budget Range (AED)"
+    },
+    "workLocation": "Work Location (optional)",
+    "schoolPreference": "School proximity is important",
+    "save": "Save & Continue"
+  },
+  "report": {
+    "title": "AI Analysis Report",
+    "summary": "Summary",
+    "recommendation": "Recommendation",
+    "confidence": "Confidence",
+    "reasons": "Key Reasons",
+    "dimensions": {
+      "investment": "Investment Value",
+      "lifestyle": "Lifestyle Fit",
+      "location": "Location Score",
+      "value": "Value for Money"
+    },
+    "advice": "Personalized Advice",
+    "download": "Download Report"
   }
 }
