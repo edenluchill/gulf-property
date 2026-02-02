@@ -64,6 +64,9 @@ interface ComparisonReport {
   personalizedAdvice: string
 }
 
+// Labels for properties (A, B, C, D)
+const PROPERTY_LABELS = ['A', 'B', 'C', 'D']
+
 /**
  * Analyze properties and generate comparison report
  */
@@ -87,6 +90,7 @@ export async function analyzeProperties(
     const prompt = buildAnalysisPrompt(properties, profile)
 
     console.log('Sending request to Gemini for property analysis...')
+    console.log(`Comparing ${properties.length} properties`)
 
     const result = await model.generateContent(prompt)
     const response = await result.response
@@ -106,6 +110,9 @@ export async function analyzeProperties(
       throw new Error('AI response was not valid JSON')
     }
 
+    // Generate default scores array based on property count
+    const defaultScores = properties.map(() => 50)
+
     // Build report from AI response
     const report: ComparisonReport = {
       id: `report_${Date.now()}`,
@@ -123,19 +130,19 @@ export async function analyzeProperties(
       },
       dimensions: {
         investment: {
-          scores: analysisData.dimensions?.investment?.scores || [50, 50],
+          scores: analysisData.dimensions?.investment?.scores || [...defaultScores],
           explanation: analysisData.dimensions?.investment?.explanation || ''
         },
         lifestyle: {
-          scores: analysisData.dimensions?.lifestyle?.scores || [50, 50],
+          scores: analysisData.dimensions?.lifestyle?.scores || [...defaultScores],
           explanation: analysisData.dimensions?.lifestyle?.explanation || ''
         },
         location: {
-          scores: analysisData.dimensions?.location?.scores || [50, 50],
+          scores: analysisData.dimensions?.location?.scores || [...defaultScores],
           explanation: analysisData.dimensions?.location?.explanation || ''
         },
         value: {
-          scores: analysisData.dimensions?.value?.scores || [50, 50],
+          scores: analysisData.dimensions?.value?.scores || [...defaultScores],
           explanation: analysisData.dimensions?.value?.explanation || ''
         }
       },
@@ -150,12 +157,47 @@ export async function analyzeProperties(
 }
 
 /**
+ * Build property description for prompt
+ */
+function buildPropertyDescription(prop: PropertyData, label: string): string {
+  return `## Property ${label}
+- Name: ${prop.unitTypeName || prop.projectName}
+- Project: ${prop.projectName}
+- Developer: ${prop.developer}
+- Location: ${prop.area}
+- Price: AED ${prop.price.toLocaleString()}
+- Size: ${prop.size > 0 ? prop.size + ' sqft' : 'Not specified'}
+${prop.pricePerSqft ? `- Price/sqft: AED ${prop.pricePerSqft.toLocaleString()}` : ''}
+- Bedrooms: ${prop.bedrooms === 0 ? 'Studio' : prop.bedrooms}
+- Status: ${prop.status}
+${prop.completionDate ? `- Completion: ${prop.completionDate}` : ''}
+${prop.constructionProgress ? `- Progress: ${prop.constructionProgress}%` : ''}
+- Amenities: ${prop.amenities.join(', ') || 'Not specified'}
+${prop.paymentPlan ? `- Payment Plan: ${prop.paymentPlan.downPayment}% down / ${prop.paymentPlan.duringConstruction}% during / ${prop.paymentPlan.onHandover}% on handover` : ''}`
+}
+
+/**
  * Build the analysis prompt for Gemini
  */
 function buildAnalysisPrompt(properties: PropertyData[], profile: UserProfile): string {
-  const [propA, propB] = properties
+  const propertyCount = properties.length
+  const labels = PROPERTY_LABELS.slice(0, propertyCount)
 
-  return `You are an expert Dubai real estate advisor. Analyze these two properties and provide a personalized comparison for the buyer.
+  // Build property descriptions
+  const propertyDescriptions = properties
+    .map((prop, idx) => buildPropertyDescription(prop, labels[idx]))
+    .join('\n\n')
+
+  // Build score example for JSON template
+  const scoreExample = labels.map(l => `score${l} (0-100)`).join(', ')
+
+  // Build winner ID options
+  const winnerIdOptions = properties.map((p, idx) => `"${p.id}" for ${labels[idx]}`).join(' or ')
+
+  // Build winner index options
+  const winnerIndexOptions = labels.map((l, idx) => `${idx} for Property ${l}`).join(', ')
+
+  return `You are an expert Dubai real estate advisor. Analyze these ${propertyCount} properties and provide a personalized comparison for the buyer.
 
 ## Buyer Profile
 - Family Status: ${profile.familyStatus}
@@ -167,35 +209,7 @@ ${profile.workLocation ? `- Work Location: ${profile.workLocation}` : ''}
 ${profile.schoolPreference ? '- School proximity is important' : ''}
 ${profile.budget ? `- Budget: AED ${profile.budget.min.toLocaleString()} - ${profile.budget.max.toLocaleString()}` : ''}
 
-## Property A
-- Name: ${propA.unitTypeName || propA.projectName}
-- Project: ${propA.projectName}
-- Developer: ${propA.developer}
-- Location: ${propA.area}
-- Price: AED ${propA.price.toLocaleString()}
-- Size: ${propA.size > 0 ? propA.size + ' sqft' : 'Not specified'}
-${propA.pricePerSqft ? `- Price/sqft: AED ${propA.pricePerSqft.toLocaleString()}` : ''}
-- Bedrooms: ${propA.bedrooms === 0 ? 'Studio' : propA.bedrooms}
-- Status: ${propA.status}
-${propA.completionDate ? `- Completion: ${propA.completionDate}` : ''}
-${propA.constructionProgress ? `- Progress: ${propA.constructionProgress}%` : ''}
-- Amenities: ${propA.amenities.join(', ') || 'Not specified'}
-${propA.paymentPlan ? `- Payment Plan: ${propA.paymentPlan.downPayment}% down / ${propA.paymentPlan.duringConstruction}% during / ${propA.paymentPlan.onHandover}% on handover` : ''}
-
-## Property B
-- Name: ${propB.unitTypeName || propB.projectName}
-- Project: ${propB.projectName}
-- Developer: ${propB.developer}
-- Location: ${propB.area}
-- Price: AED ${propB.price.toLocaleString()}
-- Size: ${propB.size > 0 ? propB.size + ' sqft' : 'Not specified'}
-${propB.pricePerSqft ? `- Price/sqft: AED ${propB.pricePerSqft.toLocaleString()}` : ''}
-- Bedrooms: ${propB.bedrooms === 0 ? 'Studio' : propB.bedrooms}
-- Status: ${propB.status}
-${propB.completionDate ? `- Completion: ${propB.completionDate}` : ''}
-${propB.constructionProgress ? `- Progress: ${propB.constructionProgress}%` : ''}
-- Amenities: ${propB.amenities.join(', ') || 'Not specified'}
-${propB.paymentPlan ? `- Payment Plan: ${propB.paymentPlan.downPayment}% down / ${propB.paymentPlan.duringConstruction}% during / ${propB.paymentPlan.onHandover}% on handover` : ''}
+${propertyDescriptions}
 
 ## Analysis Requirements
 
@@ -204,26 +218,26 @@ Based on the buyer's profile and the property details, provide a comprehensive c
 {
   "summary": "2-3 sentence overview of the comparison tailored to the buyer's needs",
   "recommendation": {
-    "winnerId": "${propA.id}",
+    "winnerId": "${properties[0].id}",
     "winnerIndex": 0,
     "confidence": "high|medium|low",
     "reasons": ["reason 1", "reason 2", "reason 3"]
   },
   "dimensions": {
     "investment": {
-      "scores": [scoreA (0-100), scoreB (0-100)],
+      "scores": [${scoreExample}],
       "explanation": "Brief explanation of investment potential comparison"
     },
     "lifestyle": {
-      "scores": [scoreA, scoreB],
+      "scores": [${scoreExample}],
       "explanation": "Brief explanation of lifestyle fit comparison"
     },
     "location": {
-      "scores": [scoreA, scoreB],
+      "scores": [${scoreExample}],
       "explanation": "Brief explanation of location comparison"
     },
     "value": {
-      "scores": [scoreA, scoreB],
+      "scores": [${scoreExample}],
       "explanation": "Brief explanation of value for money comparison"
     }
   },
@@ -238,8 +252,9 @@ Consider these factors:
 - Value scores should consider: price vs market average, payment plan flexibility, included amenities
 
 IMPORTANT:
-- winnerIndex should be 0 for Property A or 1 for Property B
-- winnerId should be "${propA.id}" for A or "${propB.id}" for B
+- winnerIndex should be ${winnerIndexOptions}
+- winnerId should be ${winnerIdOptions}
+- Each scores array must have exactly ${propertyCount} values (one for each property in order: ${labels.join(', ')})
 - Scores should be 0-100 with meaningful differences
 - Keep explanations concise (1-2 sentences each)
 
@@ -253,14 +268,27 @@ function generateMockReport(
   properties: PropertyData[],
   profile: UserProfile
 ): ComparisonReport {
-  const [propA, propB] = properties
+  // Calculate scores based on price (lower price = higher score)
+  const prices = properties.map(p => p.price)
+  const minPrice = Math.min(...prices)
+  const maxPrice = Math.max(...prices)
+  const priceRange = maxPrice - minPrice || 1
 
-  // Simple scoring based on price and purpose
-  const aScore = propA.price < propB.price ? 65 : 55
-  const bScore = propB.price < propA.price ? 65 : 55
+  // Score properties: lower price gets higher score
+  const baseScores = properties.map(p => {
+    const priceScore = 100 - ((p.price - minPrice) / priceRange) * 30
+    return Math.round(Math.max(40, Math.min(90, priceScore)))
+  })
 
-  const winnerIndex = aScore >= bScore ? 0 : 1
+  // Find winner (highest score)
+  const maxScore = Math.max(...baseScores)
+  const winnerIndex = baseScores.indexOf(maxScore)
   const winner = properties[winnerIndex]
+
+  // Generate dimension scores with some variation
+  const generateDimensionScores = (variation: number) => {
+    return baseScores.map(s => Math.max(30, Math.min(95, s + (Math.random() * variation * 2 - variation))))
+  }
 
   return {
     id: `mock_report_${Date.now()}`,
@@ -269,37 +297,37 @@ function generateMockReport(
       projectId: p.projectId,
       unitTypeId: p.unitTypeId
     })),
-    summary: `Based on your ${profile.purpose} goals and ${profile.familyStatus} status, we've analyzed both properties. ${winner.projectName} appears to be a better match for your requirements, offering competitive pricing and suitable amenities.`,
+    summary: `Based on your ${profile.purpose} goals and ${profile.familyStatus} status, we've analyzed ${properties.length} properties. ${winner.projectName} appears to be a strong match for your requirements, offering competitive pricing and suitable amenities in ${winner.area}.`,
     recommendation: {
       winnerId: winner.id,
       winnerIndex,
       confidence: 'medium',
       reasons: [
-        `Better value proposition for ${profile.purpose} purposes`,
-        `Location in ${winner.area} suits your preferences`,
-        `Developer ${winner.developer} has strong track record`
+        `Best value proposition for ${profile.purpose} purposes among the ${properties.length} options`,
+        `Location in ${winner.area} aligns well with your preferences`,
+        `Developer ${winner.developer} has a strong track record in Dubai`
       ]
     },
     dimensions: {
       investment: {
-        scores: [aScore, bScore],
-        explanation: `Both properties offer investment potential. ${winner.area} has shown consistent appreciation in recent years.`
+        scores: generateDimensionScores(10),
+        explanation: `Investment potential varies across the ${properties.length} properties. ${winner.area} has shown consistent appreciation in recent years.`
       },
       lifestyle: {
-        scores: [aScore - 5, bScore - 5],
-        explanation: `Amenities and community features are comparable. ${winner.projectName} offers slightly better lifestyle options.`
+        scores: generateDimensionScores(8),
+        explanation: `Each property offers different lifestyle amenities. ${winner.projectName} provides a well-balanced mix of community features.`
       },
       location: {
-        scores: [aScore + 5, bScore + 5],
-        explanation: `Both locations are desirable. Consider proximity to your ${profile.workLocation || 'work'} location.`
+        scores: generateDimensionScores(12),
+        explanation: `All locations are desirable areas in Dubai. Consider proximity to your ${profile.workLocation || 'work'} location when deciding.`
       },
       value: {
-        scores: [aScore, bScore],
-        explanation: `Price per sqft and payment plans are competitive. ${winner.projectName} offers better overall value.`
+        scores: generateDimensionScores(6),
+        explanation: `Value assessment considers price per sqft and payment plan flexibility. ${winner.projectName} offers competitive overall value.`
       }
     },
     personalizedAdvice: profile.purpose === 'investment'
-      ? `Given your ${profile.investmentHorizon || 'medium'}-term investment horizon and ${profile.riskTolerance || 'moderate'} risk tolerance, consider the payment plan flexibility when making your decision.`
-      : `As a ${profile.familyStatus} looking for ${profile.purpose}, prioritize the community amenities and ${profile.schoolPreference ? 'school proximity' : 'accessibility'} when making your final choice.`
+      ? `Given your ${profile.investmentHorizon || 'medium'}-term investment horizon and ${profile.riskTolerance || 'moderate'} risk tolerance, compare the payment plan flexibility across all ${properties.length} options before deciding.`
+      : `As a ${profile.familyStatus} looking for ${profile.purpose}, prioritize the community amenities and ${profile.schoolPreference ? 'school proximity' : 'accessibility'} when comparing these ${properties.length} properties.`
   }
 }

@@ -61,24 +61,43 @@ export function createCompareRouter(pool: Pool): Router {
 
       // Validate input
       if (!items || items.length < 2) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'At least 2 items required for comparison'
         })
+        return
+      }
+
+      if (items.length > 4) {
+        res.status(400).json({
+          success: false,
+          error: 'Maximum 4 items allowed for comparison'
+        })
+        return
       }
 
       if (!properties || properties.length < 2) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Property data required for comparison'
         })
+        return
+      }
+
+      if (properties.length > 4) {
+        res.status(400).json({
+          success: false,
+          error: 'Maximum 4 properties allowed for comparison'
+        })
+        return
       }
 
       if (!profile) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'User profile required for personalized analysis'
         })
+        return
       }
 
       console.log('Starting property comparison analysis...')

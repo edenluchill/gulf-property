@@ -7,6 +7,14 @@ interface AnalysisReportProps {
   properties: ComparisonPropertyData[]
 }
 
+// Color scheme for comparison items A, B, C, D
+const ITEM_COLORS = [
+  { bg: 'bg-teal-500', text: 'text-teal-600', label: 'A' },
+  { bg: 'bg-emerald-500', text: 'text-emerald-600', label: 'B' },
+  { bg: 'bg-blue-500', text: 'text-blue-600', label: 'C' },
+  { bg: 'bg-purple-500', text: 'text-purple-600', label: 'D' },
+]
+
 export function AnalysisReport({ report, properties }: AnalysisReportProps) {
   const { t } = useTranslation('favorites')
 
@@ -28,6 +36,7 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
   }
 
   const winner = getWinnerProperty()
+  const winnerColor = ITEM_COLORS[report.recommendation.winnerIndex] || ITEM_COLORS[0]
 
   const dimensionIcons = {
     investment: TrendingUp,
@@ -63,7 +72,7 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
       {/* Recommendation */}
       <div className="p-4 border-2 border-teal-200 bg-teal-50/50 rounded-lg">
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 relative">
             <div className="w-16 h-16 rounded-lg bg-white border overflow-hidden">
               {winner.imageUrl ? (
                 <img
@@ -76,6 +85,10 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
                   <Home className="h-6 w-6 text-slate-400" />
                 </div>
               )}
+            </div>
+            {/* Winner badge */}
+            <div className={`absolute -top-1 -left-1 w-5 h-5 rounded-full ${winnerColor.bg} text-white flex items-center justify-center text-xs font-bold shadow-lg`}>
+              {winnerColor.label}
             </div>
           </div>
           <div className="flex-1 min-w-0">
@@ -119,7 +132,7 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
         {dimensionKeys.map((dim) => {
           const Icon = dimensionIcons[dim]
           const data = report.dimensions[dim]
-          const [scoreA, scoreB] = data.scores
+          const scores = data.scores
 
           return (
             <div key={dim} className="p-3 border rounded-lg">
@@ -132,28 +145,27 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
                 </div>
               </div>
 
-              {/* Score Bars */}
+              {/* Score Bars - Dynamic for 2-4 properties */}
               <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-teal-600 w-4">A</span>
-                  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-teal-500 rounded-full transition-all"
-                      style={{ width: `${scoreA}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-slate-600 w-8">{scoreA}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-emerald-600 w-4">B</span>
-                  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all"
-                      style={{ width: `${scoreB}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-slate-600 w-8">{scoreB}</span>
-                </div>
+                {scores.map((score, idx) => {
+                  const color = ITEM_COLORS[idx]
+                  if (!color) return null
+
+                  return (
+                    <div key={idx} className="flex items-center gap-3">
+                      <span className={`text-xs ${color.text} w-4 font-semibold`}>
+                        {color.label}
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${color.bg} rounded-full transition-all`}
+                          style={{ width: `${score}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-slate-600 w-8">{score}</span>
+                    </div>
+                  )
+                })}
               </div>
 
               {/* Explanation */}
