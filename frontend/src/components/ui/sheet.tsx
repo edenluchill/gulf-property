@@ -6,6 +6,7 @@ interface SheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   children: React.ReactNode
+  modal?: boolean // If false, no backdrop and body scroll not blocked
 }
 
 interface SheetContentProps {
@@ -29,7 +30,7 @@ interface SheetCloseProps {
   onClick?: () => void
 }
 
-export function Sheet({ open, onOpenChange, children }: SheetProps) {
+export function Sheet({ open, onOpenChange, children, modal = true }: SheetProps) {
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -39,17 +40,28 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
 
     if (open) {
       document.addEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'hidden'
+      // Only block scroll for modal mode
+      if (modal) {
+        document.body.style.overflow = 'hidden'
+      }
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'unset'
+      if (modal) {
+        document.body.style.overflow = 'unset'
+      }
     }
-  }, [open, onOpenChange])
+  }, [open, onOpenChange, modal])
 
   if (!open) return null
 
+  // Non-modal mode: no backdrop, just the content
+  if (!modal) {
+    return <>{children}</>
+  }
+
+  // Modal mode: with backdrop
   return (
     <div className="fixed inset-0 z-[9999]">
       {/* Backdrop - covers everything including maps */}
