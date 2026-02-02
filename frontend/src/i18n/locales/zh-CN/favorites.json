@@ -36,14 +36,28 @@
   "actions": {
     "compare": "对比房产",
     "viewProject": "查看楼盘",
-    "viewInProject": "在楼盘中查看"
+    "viewInProject": "在楼盘中查看",
+    "loading": "加载中..."
   },
+  "unitTypes": "个户型",
   "compare": {
     "title": "对比房产",
     "selectItems": "选择2个房产或户型进行对比",
     "startAnalysis": "开始AI分析",
     "loginRequired": "登录后解锁AI智能分析",
     "analyzing": "AI正在分析您的房产...",
+    "subtitle": "正在对比 {{count}} 个户型",
+    "hint": "并排对比您收藏的户型",
+    "maxHint": "仅对比前 {{max}} 个户型",
+    "price": "价格",
+    "area": "面积",
+    "bedrooms": "卧室",
+    "bathrooms": "卫生间",
+    "location": "位置",
+    "completion": "预计交房",
+    "progress": "工程进度",
+    "developer": "开发商",
+    "upcoming": "即将公布",
     "steps": {
       "gathering": "收集房产数据",
       "analyzing": "分析投资潜力",

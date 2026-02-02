@@ -9,7 +9,7 @@ import { CompareModal } from '../compare/CompareModal'
 
 export function FavoritesDrawer() {
   const { t } = useTranslation('favorites')
-  const { favorites, isDrawerOpen, closeDrawer, projectCount } = useFavorites()
+  const { favorites, isDrawerOpen, closeDrawer, projectCount, unitTypeCount } = useFavorites()
   const [isCompareOpen, setIsCompareOpen] = useState(false)
 
   // Count total comparable items (projects + unit types)
@@ -28,8 +28,9 @@ export function FavoritesDrawer() {
 
   return (
     <>
-      <Sheet open={isDrawerOpen} onOpenChange={closeDrawer}>
-        <SheetContent side="right" className="w-[400px] max-w-[90vw]">
+      {/* Non-modal Sheet - allows interaction with compare modal */}
+      <Sheet open={isDrawerOpen} onOpenChange={closeDrawer} modal={false}>
+        <SheetContent side="right" className="w-[360px] max-w-[85vw] shadow-xl border-l">
           {/* Header */}
           <SheetHeader className="flex flex-row items-center justify-between border-b pb-4">
             <div className="flex items-center gap-3">
@@ -41,6 +42,11 @@ export function FavoritesDrawer() {
                 {projectCount > 0 && (
                   <p className="text-sm text-slate-500">
                     {t('count', { count: projectCount })}
+                    {unitTypeCount > 0 && (
+                      <span className="ml-1">
+                        ({unitTypeCount} {t('unitTypes', 'unit types')})
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
@@ -86,7 +92,7 @@ export function FavoritesDrawer() {
 
           {/* Footer - Compare Button */}
           {totalComparableItems >= 2 && (
-            <div className="border-t pt-4 mt-auto">
+            <div className="border-t pt-4 mt-auto px-1">
               <Button
                 onClick={handleOpenCompare}
                 className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white"

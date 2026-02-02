@@ -20,9 +20,13 @@ interface FavoritesContextValue {
   getProjectUnitTypeIds: (projectId: string) => string[]
   totalCount: number
   projectCount: number
+  unitTypeCount: number
   isDrawerOpen: boolean
   openDrawer: () => void
   closeDrawer: () => void
+  isCompareOpen: boolean
+  openCompare: () => void
+  closeCompare: () => void
 }
 
 const FavoritesContext = createContext<FavoritesContextValue | null>(null)
@@ -34,6 +38,7 @@ interface FavoritesProviderProps {
 export function FavoritesProvider({ children }: FavoritesProviderProps) {
   const [favorites, setFavorites] = useState<FavoritesData>(() => loadFavorites())
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isCompareOpen, setIsCompareOpen] = useState(false)
 
   // Listen for storage changes (cross-tab sync)
   useEffect(() => {
@@ -84,8 +89,13 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
 
   const projectCount = favorites.projects.length
 
+  const unitTypeCount = favorites.projects.reduce((sum, p) => sum + p.unitTypeIds.length, 0)
+
   const openDrawer = useCallback(() => setIsDrawerOpen(true), [])
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), [])
+
+  const openCompare = useCallback(() => setIsCompareOpen(true), [])
+  const closeCompare = useCallback(() => setIsCompareOpen(false), [])
 
   const value: FavoritesContextValue = {
     favorites,
@@ -96,9 +106,13 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
     getProjectUnitTypeIds,
     totalCount,
     projectCount,
+    unitTypeCount,
     isDrawerOpen,
     openDrawer,
     closeDrawer,
+    isCompareOpen,
+    openCompare,
+    closeCompare,
   }
 
   return (

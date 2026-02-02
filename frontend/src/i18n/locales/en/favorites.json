@@ -36,14 +36,28 @@
   "actions": {
     "compare": "Compare Properties",
     "viewProject": "View Project",
-    "viewInProject": "View in Project"
+    "viewInProject": "View in Project",
+    "loading": "Loading..."
   },
+  "unitTypes": "unit types",
   "compare": {
     "title": "Compare Properties",
     "selectItems": "Select 2 properties or unit types to compare",
     "startAnalysis": "Start AI Analysis",
     "loginRequired": "Login to unlock AI-powered analysis",
     "analyzing": "AI is analyzing your properties...",
+    "subtitle": "Comparing {{count}} unit types",
+    "hint": "Compare your saved unit types side by side",
+    "maxHint": "Only first {{max}} unit types will be compared",
+    "price": "Price",
+    "area": "Area",
+    "bedrooms": "Bedrooms",
+    "bathrooms": "Bathrooms",
+    "location": "Location",
+    "completion": "Completion",
+    "progress": "Progress",
+    "developer": "Developer",
+    "upcoming": "upcoming",
     "steps": {
       "gathering": "Gathering property data",
       "analyzing": "Analyzing investment potential",
