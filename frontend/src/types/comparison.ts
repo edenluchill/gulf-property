@@ -1,18 +1,21 @@
 // User Profile for personalized AI analysis
 export interface UserProfile {
+  // Free-form natural language description (preferred for simplicity)
+  freeformDescription?: string
+
   // Basic info
   name?: string
   age?: number
   nationality?: string
 
   // Family status
-  familyStatus: 'single' | 'couple' | 'family-small' | 'family-large'
+  familyStatus?: 'single' | 'couple' | 'family-small' | 'family-large'
   familySize?: number
   hasChildren?: boolean
   childrenAges?: string // e.g., "3, 7, 12"
 
   // Purchase purpose
-  purpose: 'investment' | 'residence' | 'work' | 'mixed'
+  purpose?: 'investment' | 'residence' | 'work' | 'mixed'
 
   // Investment preferences (if purpose includes investment)
   investmentHorizon?: 'short' | 'medium' | 'long' // <2yr, 2-5yr, >5yr
@@ -28,6 +31,10 @@ export interface UserProfile {
     min: number
     max: number
   }
+
+  // Preferences (legacy)
+  preferences?: string
+  timeline?: string
 
   // Timestamps
   createdAt: number

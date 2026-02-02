@@ -1,16 +1,15 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { Heart, X, Sparkles } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet'
 import { Button } from '../ui/button'
 import { useFavorites } from '../../contexts/FavoritesContext'
 import { FavoriteProjectCard } from './FavoriteProjectCard'
-import { CompareModal } from '../compare/CompareModal'
 
 export function FavoritesDrawer() {
   const { t } = useTranslation('favorites')
+  const navigate = useNavigate()
   const { favorites, isDrawerOpen, closeDrawer, projectCount, unitTypeCount } = useFavorites()
-  const [isCompareOpen, setIsCompareOpen] = useState(false)
 
   // Count total comparable items (projects + unit types)
   const totalComparableItems = favorites.projects.reduce(
@@ -19,11 +18,8 @@ export function FavoritesDrawer() {
   )
 
   const handleOpenCompare = () => {
-    setIsCompareOpen(true)
-  }
-
-  const handleCloseCompare = () => {
-    setIsCompareOpen(false)
+    closeDrawer()
+    navigate('/compare')
   }
 
   return (
@@ -107,9 +103,6 @@ export function FavoritesDrawer() {
           )}
         </SheetContent>
       </Sheet>
-
-      {/* Compare Modal */}
-      <CompareModal open={isCompareOpen} onClose={handleCloseCompare} />
     </>
   )
 }

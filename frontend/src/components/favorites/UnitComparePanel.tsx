@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Bed, Bath, Square, MapPin, Calendar, Building2, TrendingUp, Check, Minus } from 'lucide-react'

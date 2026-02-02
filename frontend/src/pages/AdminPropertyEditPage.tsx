@@ -22,6 +22,7 @@ import { PaymentPlanSection } from '../components/developer-upload/PaymentPlanSe
 import { AmenitiesSection } from '../components/developer-upload/AmenitiesSection'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS } from '../lib/config'
+import { useAuth } from '../contexts/AuthContext'
 
 interface UnitType {
   id: string
@@ -74,6 +75,7 @@ export default function AdminPropertyEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { t } = useTranslation('admin')
+  const { session } = useAuth()
   
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -96,17 +98,29 @@ export default function AdminPropertyEditPage() {
 
   // Load existing project data
   useEffect(() => {
-    if (id) {
+    if (id && session) {
       fetchProjectData(id)
     }
-  }, [id])
+  }, [id, session])
 
   const fetchProjectData = async (projectId: string) => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await fetch(API_ENDPOINTS.residentialProject(projectId))
+      // Prepare headers with authentication
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add Authorization header if session exists
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+      
+      const response = await fetch(API_ENDPOINTS.residentialProject(projectId), {
+        headers,
+      })
       const data = await response.json()
 
       console.log('📥 API Response:', data)
@@ -217,6 +231,7 @@ export default function AdminPropertyEditPage() {
         amenities: formData.amenities || [],
         visualContent: formData.visualContent,
         unitTypes: formData.unitTypes.map(unit => ({
+          id: unit.id, // Preserve original ID for UPSERT (keeps favorites working)
           name: unit.name,
           typeName: unit.typeName,
           category: unit.category,
@@ -240,9 +255,19 @@ export default function AdminPropertyEditPage() {
 
       console.log('📤 Updating project:', submitData)
 
+      // Prepare headers with authentication
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add Authorization header if session exists
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+
       const response = await fetch(API_ENDPOINTS.residentialProject(id!), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(submitData),
       })
 

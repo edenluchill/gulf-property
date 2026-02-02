@@ -53,10 +53,11 @@ export function createCompareRouter(pool: Pool): Router {
   // Analyze and compare properties using AI
   router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
     try {
-      const { items, properties, profile } = req.body as {
+      const { items, properties, profile, language } = req.body as {
         items: ComparisonItem[]
         properties: ComparisonPropertyData[]
         profile: UserProfile
+        language?: string // 'en' | 'zh-CN' etc.
       }
 
       // Validate input
@@ -102,13 +103,14 @@ export function createCompareRouter(pool: Pool): Router {
 
       console.log('Starting property comparison analysis...')
       console.log('Items:', items.length)
-      console.log('Profile purpose:', profile.purpose)
+      console.log('Profile purpose:', profile.purpose || '(freeform)')
+      console.log('Language:', language || 'en')
 
       // Fetch additional data from database if needed
       const enrichedProperties = await enrichPropertyData(pool, properties)
 
-      // Call AI analysis
-      const report = await analyzeProperties(enrichedProperties, profile)
+      // Call AI analysis with language preference
+      const report = await analyzeProperties(enrichedProperties, profile, language || 'en')
 
       res.json({
         success: true,
@@ -138,7 +140,7 @@ async function enrichPropertyData(
       // Try to get payment plan info
       const paymentResult = await pool.query(`
         SELECT milestone_name, percentage
-        FROM payment_plans
+        FROM project_payment_plans
         WHERE project_id = $1
         ORDER BY display_order
       `, [prop.projectId])

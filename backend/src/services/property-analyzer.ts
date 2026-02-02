@@ -8,8 +8,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 interface UserProfile {
-  familyStatus: string
-  purpose: string
+  // Free-form description (preferred)
+  freeformDescription?: string
+  // Structured fields (legacy)
+  familyStatus?: string
+  purpose?: string
   hasChildren?: boolean
   childrenAges?: string
   investmentHorizon?: string
@@ -72,22 +75,23 @@ const PROPERTY_LABELS = ['A', 'B', 'C', 'D']
  */
 export async function analyzeProperties(
   properties: PropertyData[],
-  profile: UserProfile
+  profile: UserProfile,
+  language: string = 'en'
 ): Promise<ComparisonReport> {
   const apiKey = process.env.GEMINI_API_KEY
 
   if (!apiKey) {
     console.warn('GEMINI_API_KEY not found, using mock analysis')
-    return generateMockReport(properties, profile)
+    return generateMockReport(properties, profile, language)
   }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-3-flash-preview',
     })
 
-    const prompt = buildAnalysisPrompt(properties, profile)
+    const prompt = buildAnalysisPrompt(properties, profile, language)
 
     console.log('Sending request to Gemini for property analysis...')
     console.log(`Comparing ${properties.length} properties`)
@@ -113,6 +117,12 @@ export async function analyzeProperties(
     // Generate default scores array based on property count
     const defaultScores = properties.map(() => 50)
 
+    // Helper to ensure scores are integers
+    const roundScores = (scores: number[] | undefined, defaultVal: number[]) => {
+      if (!scores || !Array.isArray(scores)) return defaultVal
+      return scores.map(s => Math.round(s))
+    }
+
     // Build report from AI response
     const report: ComparisonReport = {
       id: `report_${Date.now()}`,
@@ -130,19 +140,19 @@ export async function analyzeProperties(
       },
       dimensions: {
         investment: {
-          scores: analysisData.dimensions?.investment?.scores || [...defaultScores],
+          scores: roundScores(analysisData.dimensions?.investment?.scores, [...defaultScores]),
           explanation: analysisData.dimensions?.investment?.explanation || ''
         },
         lifestyle: {
-          scores: analysisData.dimensions?.lifestyle?.scores || [...defaultScores],
+          scores: roundScores(analysisData.dimensions?.lifestyle?.scores, [...defaultScores]),
           explanation: analysisData.dimensions?.lifestyle?.explanation || ''
         },
         location: {
-          scores: analysisData.dimensions?.location?.scores || [...defaultScores],
+          scores: roundScores(analysisData.dimensions?.location?.scores, [...defaultScores]),
           explanation: analysisData.dimensions?.location?.explanation || ''
         },
         value: {
-          scores: analysisData.dimensions?.value?.scores || [...defaultScores],
+          scores: roundScores(analysisData.dimensions?.value?.scores, [...defaultScores]),
           explanation: analysisData.dimensions?.value?.explanation || ''
         }
       },
@@ -152,7 +162,7 @@ export async function analyzeProperties(
     return report
   } catch (error) {
     console.error('Error analyzing properties with Gemini:', error)
-    return generateMockReport(properties, profile)
+    return generateMockReport(properties, profile, language)
   }
 }
 
@@ -179,9 +189,15 @@ ${prop.paymentPlan ? `- Payment Plan: ${prop.paymentPlan.downPayment}% down / ${
 /**
  * Build the analysis prompt for Gemini
  */
-function buildAnalysisPrompt(properties: PropertyData[], profile: UserProfile): string {
+function buildAnalysisPrompt(properties: PropertyData[], profile: UserProfile, language: string): string {
   const propertyCount = properties.length
   const labels = PROPERTY_LABELS.slice(0, propertyCount)
+
+  // Determine output language
+  const isChineseLang = language.startsWith('zh')
+  const outputLanguageInstruction = isChineseLang
+    ? `\n\n**IMPORTANT: Generate ALL text content (summary, reasons, explanations, personalizedAdvice) in Simplified Chinese (简体中文). Property names can remain in English.**`
+    : ''
 
   // Build property descriptions
   const propertyDescriptions = properties
@@ -189,7 +205,7 @@ function buildAnalysisPrompt(properties: PropertyData[], profile: UserProfile): 
     .join('\n\n')
 
   // Build score example for JSON template
-  const scoreExample = labels.map(l => `score${l} (0-100)`).join(', ')
+  const scoreArrayExample = labels.map(() => '85').join(', ')
 
   // Build winner ID options
   const winnerIdOptions = properties.map((p, idx) => `"${p.id}" for ${labels[idx]}`).join(' or ')
@@ -197,66 +213,75 @@ function buildAnalysisPrompt(properties: PropertyData[], profile: UserProfile): 
   // Build winner index options
   const winnerIndexOptions = labels.map((l, idx) => `${idx} for Property ${l}`).join(', ')
 
-  return `You are an expert Dubai real estate advisor. Analyze these ${propertyCount} properties and provide a personalized comparison for the buyer.
+  // Build buyer profile section - prefer freeform description
+  let buyerProfileSection: string
+  if (profile.freeformDescription) {
+    buyerProfileSection = `## Buyer Profile (User's Own Description)
+"${profile.freeformDescription}"
 
-## Buyer Profile
-- Family Status: ${profile.familyStatus}
-- Primary Purpose: ${profile.purpose}
-${profile.hasChildren ? `- Has Children (ages: ${profile.childrenAges || 'not specified'})` : '- No children'}
+Please extract their needs, preferences, budget constraints, family situation, and investment goals from this description.`
+  } else {
+    buyerProfileSection = `## Buyer Profile
+- Family Status: ${profile.familyStatus || 'Not specified'}
+- Primary Purpose: ${profile.purpose || 'Not specified'}
+${profile.hasChildren ? `- Has Children (ages: ${profile.childrenAges || 'not specified'})` : ''}
 ${profile.investmentHorizon ? `- Investment Horizon: ${profile.investmentHorizon}` : ''}
 ${profile.riskTolerance ? `- Risk Tolerance: ${profile.riskTolerance}` : ''}
 ${profile.workLocation ? `- Work Location: ${profile.workLocation}` : ''}
 ${profile.schoolPreference ? '- School proximity is important' : ''}
-${profile.budget ? `- Budget: AED ${profile.budget.min.toLocaleString()} - ${profile.budget.max.toLocaleString()}` : ''}
+${profile.budget ? `- Budget: AED ${profile.budget.min.toLocaleString()} - ${profile.budget.max.toLocaleString()}` : ''}`
+  }
+
+  return `You are an expert Dubai real estate advisor. Analyze these ${propertyCount} properties and provide a DATA-DRIVEN personalized comparison for the buyer.
+
+${buyerProfileSection}
 
 ${propertyDescriptions}
 
 ## Analysis Requirements
 
-Based on the buyer's profile and the property details, provide a comprehensive comparison in JSON format:
+Provide a comprehensive comparison with SPECIFIC DATA POINTS. Don't be generic - reference actual numbers from the properties.
 
 {
-  "summary": "2-3 sentence overview of the comparison tailored to the buyer's needs",
+  "summary": "2-3 sentences comparing the properties with SPECIFIC price/sqft/location data",
   "recommendation": {
     "winnerId": "${properties[0].id}",
     "winnerIndex": 0,
     "confidence": "high|medium|low",
-    "reasons": ["reason 1", "reason 2", "reason 3"]
+    "reasons": [
+      "Specific reason with data, e.g. 'Lowest price per sqft at AED X vs AED Y for B'",
+      "Another specific reason with numbers",
+      "Third reason with concrete comparison"
+    ]
   },
   "dimensions": {
     "investment": {
-      "scores": [${scoreExample}],
-      "explanation": "Brief explanation of investment potential comparison"
+      "scores": [${scoreArrayExample}],
+      "explanation": "Compare with SPECIFIC DATA: price/sqft, developer track record, area appreciation rates. E.g., 'A offers AED X/sqft vs B's AED Y/sqft. Developer X has delivered Y projects.'"
     },
     "lifestyle": {
-      "scores": [${scoreExample}],
-      "explanation": "Brief explanation of lifestyle fit comparison"
+      "scores": [${scoreArrayExample}],
+      "explanation": "Compare amenities COUNT and TYPES. E.g., 'A has pool, gym, park (3 amenities) vs B's pool, gym (2 amenities). A better for families.'"
     },
     "location": {
-      "scores": [${scoreExample}],
-      "explanation": "Brief explanation of location comparison"
+      "scores": [${scoreArrayExample}],
+      "explanation": "Compare locations with SPECIFIC factors. E.g., 'Dubai Design District is closer to Downtown than JVC. Better for work commute.'"
     },
     "value": {
-      "scores": [${scoreExample}],
-      "explanation": "Brief explanation of value for money comparison"
+      "scores": [${scoreArrayExample}],
+      "explanation": "Compare total value with NUMBERS. E.g., 'A: AED X total, Y sqft = Z/sqft. B: AED X total, Y sqft = Z/sqft. A is X% better value.'"
     }
   },
-  "personalizedAdvice": "Specific advice for this buyer based on their profile (2-3 sentences)"
+  "personalizedAdvice": "Specific advice based on the buyer's stated needs with concrete recommendations and numbers"
 }
 
-Consider these factors:
-- For INVESTMENT purpose: ROI potential, rental yields, capital appreciation, developer track record
-- For RESIDENCE purpose: Lifestyle amenities, community, proximity to work/schools
-- For WORK purpose: Business district accessibility, networking potential
-- Location scores should consider: accessibility, future development, area reputation
-- Value scores should consider: price vs market average, payment plan flexibility, included amenities
-
-IMPORTANT:
-- winnerIndex should be ${winnerIndexOptions}
-- winnerId should be ${winnerIdOptions}
-- Each scores array must have exactly ${propertyCount} values (one for each property in order: ${labels.join(', ')})
-- Scores should be 0-100 with meaningful differences
-- Keep explanations concise (1-2 sentences each)
+CRITICAL REQUIREMENTS:
+1. winnerIndex: ${winnerIndexOptions}
+2. winnerId: ${winnerIdOptions}
+3. scores array: EXACTLY ${propertyCount} INTEGER values (no decimals), order: ${labels.join(', ')}
+4. ALL scores must be INTEGERS between 0-100 (e.g., 85, 72, 91 - NOT 85.5 or 72.3)
+5. Explanations MUST include specific numbers from the property data
+6. Don't use generic phrases like "varies across properties" - use actual data${outputLanguageInstruction}
 
 Respond ONLY with valid JSON, no additional text.`
 }
@@ -266,8 +291,11 @@ Respond ONLY with valid JSON, no additional text.`
  */
 function generateMockReport(
   properties: PropertyData[],
-  profile: UserProfile
+  profile: UserProfile,
+  language: string = 'en'
 ): ComparisonReport {
+  const isChineseLang = language.startsWith('zh')
+
   // Calculate scores based on price (lower price = higher score)
   const prices = properties.map(p => p.price)
   const minPrice = Math.min(...prices)
@@ -285,9 +313,59 @@ function generateMockReport(
   const winnerIndex = baseScores.indexOf(maxScore)
   const winner = properties[winnerIndex]
 
-  // Generate dimension scores with some variation
+  // Generate dimension scores with some variation (always integers)
   const generateDimensionScores = (variation: number) => {
-    return baseScores.map(s => Math.max(30, Math.min(95, s + (Math.random() * variation * 2 - variation))))
+    return baseScores.map(s => Math.round(Math.max(30, Math.min(95, s + (Math.random() * variation * 2 - variation)))))
+  }
+
+  // Text content based on language
+  const purpose = profile.purpose || 'investment'
+  const familyStatus = profile.familyStatus || 'single'
+
+  if (isChineseLang) {
+    const purposeText = purpose === 'investment' ? '投资' : purpose === 'residence' ? '自住' : '综合用途'
+    const familyText = familyStatus === 'single' ? '单身' : familyStatus === 'couple' ? '情侣' : '家庭'
+
+    return {
+      id: `mock_report_${Date.now()}`,
+      createdAt: Date.now(),
+      items: properties.map(p => ({
+        projectId: p.projectId,
+        unitTypeId: p.unitTypeId
+      })),
+      summary: `根据您的${purposeText}目标和${familyText}状况，我们分析了${properties.length}个房产。${winner.projectName}似乎非常符合您的需求，在${winner.area}地区提供有竞争力的价格和合适的配套设施。`,
+      recommendation: {
+        winnerId: winner.id,
+        winnerIndex,
+        confidence: 'medium',
+        reasons: [
+          `在${properties.length}个选项中，${purposeText}性价比最佳`,
+          `${winner.area}的位置与您的偏好非常契合`,
+          `开发商${winner.developer}在迪拜有良好的业绩记录`
+        ]
+      },
+      dimensions: {
+        investment: {
+          scores: generateDimensionScores(10),
+          explanation: `${properties.length}个房产的投资潜力各有不同。${winner.area}近年来持续升值。`
+        },
+        lifestyle: {
+          scores: generateDimensionScores(8),
+          explanation: `每个房产都提供不同的生活配套。${winner.projectName}提供了均衡的社区设施组合。`
+        },
+        location: {
+          scores: generateDimensionScores(12),
+          explanation: `所有位置都是迪拜的理想区域。建议考虑与您${profile.workLocation || '工作地点'}的距离。`
+        },
+        value: {
+          scores: generateDimensionScores(6),
+          explanation: `综合考虑每平方尺价格和付款计划灵活性。${winner.projectName}提供有竞争力的整体价值。`
+        }
+      },
+      personalizedAdvice: purpose === 'investment'
+        ? `考虑到您的${profile.investmentHorizon === 'short' ? '短期' : profile.investmentHorizon === 'long' ? '长期' : '中期'}投资周期和${profile.riskTolerance === 'conservative' ? '保守' : profile.riskTolerance === 'aggressive' ? '激进' : '稳健'}的风险偏好，建议在做决定前比较所有${properties.length}个选项的付款计划灵活性。`
+        : `作为寻求${purposeText}的${familyText}，建议在比较这${properties.length}个房产时优先考虑社区配套和${profile.schoolPreference ? '学校距离' : '交通便利性'}。`
+    }
   }
 
   return {
@@ -297,13 +375,13 @@ function generateMockReport(
       projectId: p.projectId,
       unitTypeId: p.unitTypeId
     })),
-    summary: `Based on your ${profile.purpose} goals and ${profile.familyStatus} status, we've analyzed ${properties.length} properties. ${winner.projectName} appears to be a strong match for your requirements, offering competitive pricing and suitable amenities in ${winner.area}.`,
+    summary: `Based on your ${purpose} goals and ${familyStatus} status, we've analyzed ${properties.length} properties. ${winner.projectName} appears to be a strong match for your requirements, offering competitive pricing and suitable amenities in ${winner.area}.`,
     recommendation: {
       winnerId: winner.id,
       winnerIndex,
       confidence: 'medium',
       reasons: [
-        `Best value proposition for ${profile.purpose} purposes among the ${properties.length} options`,
+        `Best value proposition for ${purpose} purposes among the ${properties.length} options`,
         `Location in ${winner.area} aligns well with your preferences`,
         `Developer ${winner.developer} has a strong track record in Dubai`
       ]

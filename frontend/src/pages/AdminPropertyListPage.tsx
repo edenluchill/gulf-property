@@ -15,6 +15,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Building2, Edit, Search, Loader2, MapPin } from 'lucide-react'
 import { API_ENDPOINTS } from '../lib/config'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Project {
   id: number
@@ -39,15 +40,34 @@ export default function AdminPropertyListPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const navigate = useNavigate()
   const { t, i18n } = useTranslation(['admin', 'common'])
+  const { session } = useAuth()
 
   useEffect(() => {
     fetchProjects()
-  }, [])
+  }, [session])
 
   const fetchProjects = async () => {
     try {
       setLoading(true)
-      const response = await fetch(API_ENDPOINTS.residentialProjects)
+      
+      // Prepare headers with authentication
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add Authorization header if session exists
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+      
+      const response = await fetch(API_ENDPOINTS.residentialProjects, {
+        headers,
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const data = await response.json()
 
       // Backend returns { projects, total, page, limit } without success field

@@ -15,6 +15,7 @@ import Layout from './components/Layout'
 import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import ComparePage from './pages/ComparePage'
 
 function App() {
   const { i18n } = useTranslation()
@@ -30,6 +31,7 @@ function App() {
         <Route path="/map" element={<MapPage />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/compare" element={<ComparePage />} />
         <Route path="/developer/submit" element={<DeveloperSubmitPage />} />
         <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />

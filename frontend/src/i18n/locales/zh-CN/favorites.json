@@ -40,12 +40,29 @@
     "loading": "加载中..."
   },
   "unitTypes": "个户型",
+  "browse": "浏览房产",
+  "back": "返回对比",
+  "cancel": "取消",
+  "saving": "保存中...",
   "compare": {
     "title": "对比房产",
     "selectItems": "选择2个房产或户型进行对比",
+    "selectPrompt": "选择2-4个房产进行对比",
+    "selected": "已选择",
+    "clearAll": "清空全部",
+    "addMore": "继续添加",
+    "fromFavorites": "从收藏中选择",
+    "noFavorites": "暂无收藏。浏览房产添加收藏吧！",
     "startAnalysis": "开始AI分析",
-    "loginRequired": "登录后解锁AI智能分析",
-    "analyzing": "AI正在分析您的房产...",
+    "loginRequired": "登录后使用AI分析",
+    "analyzing": "分析中...",
+    "newComparison": "新建对比",
+    "yourProfile": "您的资料",
+    "profileHelps": "帮助AI提供个性化建议",
+    "editProfile": "编辑",
+    "addProfile": "添加您的资料，获取个性化分析",
+    "profilePlaceholder": "介绍一下您的情况，例如：\"我是4口之家，有2个孩子，预算约200万迪拉姆，想找投资+自住两用的房子，最好靠近好学校，偏好已交付或快交付的项目...\"",
+    "saveAndAnalyze": "保存并分析",
     "subtitle": "正在对比 {{count}} 个户型",
     "hint": "并排对比您收藏的户型",
     "maxHint": "仅对比前 {{max}} 个户型",
@@ -107,8 +124,11 @@
     "title": "AI分析报告",
     "summary": "概要",
     "recommendation": "推荐",
+    "recommended": "推荐",
     "confidence": "置信度",
     "reasons": "主要原因",
+    "ranking": "综合排名",
+    "overallScore": "综合分",
     "dimensions": {
       "investment": "投资价值",
       "lifestyle": "生活适配",
@@ -116,6 +136,7 @@
       "value": "性价比"
     },
     "advice": "个性化建议",
-    "download": "下载报告"
+    "download": "下载报告",
+    "detailedAnalysis": "详细分析"
   }
 }

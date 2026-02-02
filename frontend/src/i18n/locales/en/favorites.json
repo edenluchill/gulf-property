@@ -40,12 +40,29 @@
     "loading": "Loading..."
   },
   "unitTypes": "unit types",
+  "browse": "Browse Properties",
+  "back": "Back to Comparison",
+  "cancel": "Cancel",
+  "saving": "Saving...",
   "compare": {
     "title": "Compare Properties",
     "selectItems": "Select 2 properties or unit types to compare",
+    "selectPrompt": "Select 2-4 properties to compare",
+    "selected": "Selected",
+    "clearAll": "Clear all",
+    "addMore": "Add more",
+    "fromFavorites": "From your favorites",
+    "noFavorites": "No favorites yet. Browse properties to add some!",
     "startAnalysis": "Start AI Analysis",
-    "loginRequired": "Login to unlock AI-powered analysis",
-    "analyzing": "AI is analyzing your properties...",
+    "loginRequired": "Login to use AI Analysis",
+    "analyzing": "Analyzing...",
+    "newComparison": "New Comparison",
+    "yourProfile": "Your Profile",
+    "profileHelps": "Helps AI provide personalized recommendations",
+    "editProfile": "Edit",
+    "addProfile": "Add your profile for personalized analysis",
+    "profilePlaceholder": "Tell us about yourself, e.g., \"I'm a family of 4 with 2 kids, budget around 2M AED, looking for investment property near good schools, prefer ready or near completion...\"",
+    "saveAndAnalyze": "Save & Analyze",
     "subtitle": "Comparing {{count}} unit types",
     "hint": "Compare your saved unit types side by side",
     "maxHint": "Only first {{max}} unit types will be compared",
@@ -107,8 +124,11 @@
     "title": "AI Analysis Report",
     "summary": "Summary",
     "recommendation": "Recommendation",
+    "recommended": "Recommended",
     "confidence": "Confidence",
     "reasons": "Key Reasons",
+    "ranking": "Overall Ranking",
+    "overallScore": "Score",
     "dimensions": {
       "investment": "Investment Value",
       "lifestyle": "Lifestyle Fit",
@@ -116,6 +136,7 @@
       "value": "Value for Money"
     },
     "advice": "Personalized Advice",
-    "download": "Download Report"
+    "download": "Download Report",
+    "detailedAnalysis": "Detailed Analysis"
   }
 }

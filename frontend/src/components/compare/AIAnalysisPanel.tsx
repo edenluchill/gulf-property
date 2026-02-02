@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { ComparisonItem, ComparisonPropertyData, ComparisonReport, UserProfile } from '../../types/comparison'
@@ -18,18 +18,25 @@ export function AIAnalysisPanel({
   profile,
   onComplete,
 }: AIAnalysisPanelProps) {
-  const { t } = useTranslation('favorites')
+  const { t, i18n } = useTranslation('favorites')
 
   const [currentStep, setCurrentStep] = useState<AnalysisStep>('gathering')
   const [progress, setProgress] = useState(0)
   const [logs, setLogs] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Prevent duplicate API calls (React Strict Mode / HMR)
+  const hasStarted = useRef(false)
+
   const addLog = (message: string) => {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()} - ${message}`])
   }
 
   useEffect(() => {
+    // Prevent running twice in React Strict Mode
+    if (hasStarted.current) return
+    hasStarted.current = true
+
     const runAnalysis = async () => {
       try {
         // Step 1: Gathering data
@@ -60,6 +67,7 @@ export function AIAnalysisPanel({
             items,
             properties,
             profile,
+            language: i18n.language, // Pass user's language for AI response
           }),
         })
 
@@ -97,7 +105,7 @@ export function AIAnalysisPanel({
     }
 
     runAnalysis()
-  }, [items, properties, profile, onComplete, t])
+  }, []) // Empty dependency - run once on mount
 
   const steps: { key: AnalysisStep; label: string }[] = [
     { key: 'gathering', label: t('compare.steps.gathering') },

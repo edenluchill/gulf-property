@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Briefcase, Settings, LogIn } from 'lucide-react'
+import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
@@ -18,6 +18,7 @@ export default function Header() {
   // Base nav items visible to all users
   const navItems = [
     { path: '/map', label: t('nav.mapExplore'), icon: MapPin },
+    { path: '/compare', label: t('nav.compare', 'Compare'), icon: GitCompare },
     // Only show For Developers when logged in
     ...(user ? [{ path: '/developer/upload', label: t('nav.forDevelopers'), icon: Briefcase }] : []),
   ]

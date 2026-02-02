@@ -847,29 +847,29 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
 
       console.log('✅ Project main data updated')
 
-      // 2. Delete existing unit types and payment plans (cascading)
-      await client.query('DELETE FROM project_unit_types WHERE project_id = $1', [id])
+      // 2. Update unit types using UPSERT strategy (preserves IDs for favorites)
+      // Delete payment plans (these don't have external references)
       await client.query('DELETE FROM project_payment_plans WHERE project_id = $1', [id])
-      console.log('✅ Existing unit types and payment plans deleted')
+      console.log('✅ Payment plans deleted for re-insertion')
 
-      // 3. Insert new unit types
-      if (data.unitTypes && Array.isArray(data.unitTypes) && data.unitTypes.length > 0) {
-        console.log(`📦 Inserting ${data.unitTypes.length} unit types...`)
-        
+      // 3. Handle unit types with UPSERT (preserve IDs, update existing, insert new, delete removed)
+      if (data.unitTypes && Array.isArray(data.unitTypes)) {
+        console.log(`📦 Processing ${data.unitTypes.length} unit types with UPSERT...`)
+
         // Validate and filter units
         const invalidUnits: string[] = []
-        const validUnits = []
-        
+        const validUnits: any[] = []
+
         for (const unit of data.unitTypes) {
           let isValid = true
-          
+
           if (!unit.area || unit.area <= 0) {
             const unitName = unit.name || unit.typeName || 'Unknown'
             console.error(`   ❌ Invalid area for unit "${unitName}": ${unit.area}`)
             invalidUnits.push(unitName)
             isValid = false
           }
-          
+
           if (isValid) {
             // Validate bathrooms
             if (!unit.bathrooms || unit.bathrooms <= 0) {
@@ -885,78 +885,157 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
               }
               console.warn(`   ⚠️  Invalid bathrooms for unit "${unit.name || unit.typeName}", estimated ${unit.bathrooms}`)
             }
-            
+
             // Validate bedrooms
             if (unit.bedrooms < 0) {
               console.warn(`   ⚠️  Invalid bedrooms (${unit.bedrooms}), setting to 0`)
               unit.bedrooms = 0
             }
-            
+
             validUnits.push(unit)
           }
         }
-        
+
         if (invalidUnits.length > 0) {
           console.warn(`\n⚠️  FILTERED OUT ${invalidUnits.length} INVALID UNIT(S)`)
           console.warn(`✅ Proceeding with ${validUnits.length} valid unit(s)\n`)
         }
-        
+
+        // Get existing unit type IDs for this project
+        const existingUnitsResult = await client.query(
+          'SELECT id FROM project_unit_types WHERE project_id = $1',
+          [id]
+        )
+        const existingIds = new Set(existingUnitsResult.rows.map((r: any) => r.id))
+        const incomingIds = new Set(validUnits.filter(u => u.id).map(u => u.id))
+
+        // Delete unit types that are no longer in the incoming data
+        const idsToDelete = [...existingIds].filter(existingId => !incomingIds.has(existingId))
+        if (idsToDelete.length > 0) {
+          await client.query(
+            'DELETE FROM project_unit_types WHERE id = ANY($1)',
+            [idsToDelete]
+          )
+          console.log(`   🗑️  Deleted ${idsToDelete.length} removed unit types`)
+        }
+
+        // UPSERT each unit type
+        let updatedCount = 0
+        let insertedCount = 0
+
         for (let i = 0; i < validUnits.length; i++) {
           const unit = validUnits[i]
-          
+
           const unitFloorPlanImage = unit.floorPlanImage || null
           const unitImages: string[] = []
           if (unitFloorPlanImage) {
             unitImages.push(unitFloorPlanImage)
           }
 
-          await client.query(`
-            INSERT INTO project_unit_types (
-              project_id,
-              unit_type_name,
-              category,
-              type_code,
-              unit_numbers,
-              unit_count,
-              bedrooms,
-              bathrooms,
-              area,
-              balcony_area,
-              built_up_area,
-              price,
-              price_per_sqft,
-              orientation,
-              features,
-              description,
-              floor_plan_image,
-              unit_images,
-              display_order
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
-            )
-          `, [
-            id,
-            unit.name || `Unit Type ${i + 1}`,
-            unit.category || null,
-            unit.typeName || null,
-            unit.unitNumbers || [],
-            unit.unitCount || 1,
-            unit.bedrooms,
-            unit.bathrooms,
-            unit.area,
-            unit.balconyArea || null,
-            unit.suiteArea || null,
-            unit.price || null,
-            unit.pricePerSqft || null,
-            unit.orientation || null,
-            unit.features || [],
-            unit.description || null,
-            unitFloorPlanImage || null,
-            unitImages,
-            i,
-          ])
+          // Check if this unit has a valid existing ID
+          const hasExistingId = unit.id && existingIds.has(unit.id)
+
+          if (hasExistingId) {
+            // UPDATE existing unit type (preserves ID for favorites)
+            await client.query(`
+              UPDATE project_unit_types SET
+                unit_type_name = $1,
+                category = $2,
+                type_code = $3,
+                unit_numbers = $4,
+                unit_count = $5,
+                bedrooms = $6,
+                bathrooms = $7,
+                area = $8,
+                balcony_area = $9,
+                built_up_area = $10,
+                price = $11,
+                price_per_sqft = $12,
+                orientation = $13,
+                features = $14,
+                description = $15,
+                floor_plan_image = $16,
+                unit_images = $17,
+                display_order = $18,
+                updated_at = NOW()
+              WHERE id = $19
+            `, [
+              unit.name || `Unit Type ${i + 1}`,
+              unit.category || null,
+              unit.typeName || null,
+              unit.unitNumbers || [],
+              unit.unitCount || 1,
+              unit.bedrooms,
+              unit.bathrooms,
+              unit.area,
+              unit.balconyArea || null,
+              unit.suiteArea || null,
+              unit.price || null,
+              unit.pricePerSqft || null,
+              unit.orientation || null,
+              unit.features || [],
+              unit.description || null,
+              unitFloorPlanImage || null,
+              unitImages,
+              i,
+              unit.id,
+            ])
+            updatedCount++
+          } else {
+            // INSERT new unit type
+            await client.query(`
+              INSERT INTO project_unit_types (
+                project_id,
+                unit_type_name,
+                category,
+                type_code,
+                unit_numbers,
+                unit_count,
+                bedrooms,
+                bathrooms,
+                area,
+                balcony_area,
+                built_up_area,
+                price,
+                price_per_sqft,
+                orientation,
+                features,
+                description,
+                floor_plan_image,
+                unit_images,
+                display_order
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+              )
+            `, [
+              id,
+              unit.name || `Unit Type ${i + 1}`,
+              unit.category || null,
+              unit.typeName || null,
+              unit.unitNumbers || [],
+              unit.unitCount || 1,
+              unit.bedrooms,
+              unit.bathrooms,
+              unit.area,
+              unit.balconyArea || null,
+              unit.suiteArea || null,
+              unit.price || null,
+              unit.pricePerSqft || null,
+              unit.orientation || null,
+              unit.features || [],
+              unit.description || null,
+              unitFloorPlanImage || null,
+              unitImages,
+              i,
+            ])
+            insertedCount++
+          }
         }
-        console.log('✅ Unit types inserted')
+        console.log(`✅ Unit types processed: ${updatedCount} updated, ${insertedCount} inserted`)
+      } else {
+        // No unit types provided, delete all existing
+        await client.query('DELETE FROM project_unit_types WHERE project_id = $1', [id])
+        console.log('✅ All unit types deleted (none provided)')
       }
 
       // 4. Insert new payment plan

@@ -255,12 +255,6 @@ export function FavoriteUnitList({ projectId, unitTypeIds, units, onClose }: Fav
                       {parseFloat(selectedUnit.area).toLocaleString()} sqft
                     </div>
                   </div>
-                  {selectedUnit.suite_area && (
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
-                      <span className="text-slate-500 text-sm">{t('unitType.suiteArea', 'Suite Area')}</span>
-                      <span className="text-slate-700">{parseFloat(selectedUnit.suite_area).toLocaleString()} sqft</span>
-                    </div>
-                  )}
                   {selectedUnit.balcony_area && (
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-slate-500 text-sm">{t('unitType.balconyArea', 'Balcony Area')}</span>
@@ -287,7 +281,7 @@ export function FavoriteUnitList({ projectId, unitTypeIds, units, onClose }: Fav
                     </div>
                     {selectedUnit.price_per_sqft && (
                       <div className="text-sm text-teal-600/70 mt-1">
-                        AED {parseFloat(selectedUnit.price_per_sqft).toLocaleString()}/sqft
+                        AED {selectedUnit.price_per_sqft.toLocaleString()}/sqft
                       </div>
                     )}
                   </div>
