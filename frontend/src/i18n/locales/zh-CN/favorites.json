@@ -9,9 +9,10 @@
       "message": "将楼盘和户型添加到收藏夹，即可在此查看"
     }
   },
-  "count": "您已收藏 {{count}} 个楼盘",
-  "count_one": "您已收藏 {{count}} 个楼盘",
-  "count_other": "您已收藏 {{count}} 个楼盘",
+  "count": "{{count}} 个楼盘",
+  "count_one": "{{count}} 个楼盘",
+  "count_other": "{{count}} 个楼盘",
+  "units": "个户型",
   "drawer": {
     "title": "我的收藏",
     "close": "关闭"
@@ -20,7 +21,8 @@
     "remove": "取消收藏",
     "unitTypes": "已收藏 {{count}} 个户型",
     "unitTypes_one": "已收藏 {{count}} 个户型",
-    "unitTypes_other": "已收藏 {{count}} 个户型"
+    "unitTypes_other": "已收藏 {{count}} 个户型",
+    "noUnits": "未保存特定户型"
   },
   "unitType": {
     "remove": "取消收藏户型",
@@ -46,6 +48,7 @@
   "saving": "保存中...",
   "compare": {
     "title": "对比房产",
+    "ready": "可以开始对比了！",
     "selectItems": "选择2个房产或户型进行对比",
     "selectPrompt": "选择2-4个房产进行对比",
     "selected": "已选择",

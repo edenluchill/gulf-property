@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { Link, useNavigate } from 'react-router-dom'
 import { useFavorites } from '../contexts/FavoritesContext'
-import { Card, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
-import { Heart, MapPin, Calendar, Building2, ChevronDown, ChevronUp, Trash2, Bed, Square } from 'lucide-react'
-import { formatPrice, formatDate } from '../lib/utils'
+import { Heart, MapPin, Building2, Trash2, Bed, Square, GitCompare, ChevronRight } from 'lucide-react'
+import { formatPrice } from '../lib/utils'
 import { ResidentialProject, UnitType } from '../types'
 import { FavoriteProject } from '../lib/favorites'
+import { getCachedProject, cacheProject, isCacheStale } from '../lib/projectCache'
 
 interface ProjectWithDetails extends FavoriteProject {
   details?: ResidentialProject
@@ -17,19 +16,51 @@ interface ProjectWithDetails extends FavoriteProject {
 
 export default function FavoritesPage() {
   const { t } = useTranslation(['favorites', 'common'])
+  const navigate = useNavigate()
   const { favorites, toggleProjectFavorite, toggleUnitTypeFavorite } = useFavorites()
   const [projectsWithDetails, setProjectsWithDetails] = useState<ProjectWithDetails[]>([])
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchProjectDetails = async () => {
       setLoading(true)
+      
       const projectPromises = favorites.projects.map(async (fav) => {
         try {
+          // First, try to load from cache for instant display
+          const cached = getCachedProject(fav.projectId)
+          
+          if (cached) {
+            // Use cached data immediately
+            const result = {
+              ...fav,
+              details: cached.project,
+              units: cached.units
+            }
+            
+            // If cache is stale, refresh in background
+            if (isCacheStale(cached.cachedAt)) {
+              // Background refresh (don't await)
+              fetch(`/api/residential-projects/${fav.projectId}`)
+                .then(res => res.json())
+                .then(data => {
+                  if (data.success && data.project) {
+                    cacheProject(fav.projectId, data.project, data.project.units || [])
+                  }
+                })
+                .catch(e => console.warn('Background refresh failed:', fav.projectId, e))
+            }
+            
+            return result
+          }
+          
+          // No cache, must fetch from server
           const res = await fetch(`/api/residential-projects/${fav.projectId}`)
           const data = await res.json()
           if (data.success && data.project) {
+            // Cache the result
+            cacheProject(fav.projectId, data.project, data.project.units || [])
+            
             return {
               ...fav,
               details: data.project,
@@ -50,229 +81,220 @@ export default function FavoritesPage() {
     fetchProjectDetails()
   }, [favorites.projects])
 
-  const toggleExpand = (projectId: string) => {
-    const newExpanded = new Set(expandedProjects)
-    if (newExpanded.has(projectId)) {
-      newExpanded.delete(projectId)
-    } else {
-      newExpanded.add(projectId)
-    }
-    setExpandedProjects(newExpanded)
-  }
+  // Get all favorited unit types for comparison
+  const allUnitTypes = projectsWithDetails.flatMap(project =>
+    project.unitTypeIds.map(unitTypeId => {
+      const unit = project.units?.find(u => u.id === unitTypeId)
+      return {
+        projectId: project.projectId,
+        unitTypeId,
+        project: project.details,
+        unit,
+      }
+    })
+  )
 
   return (
-    <div className="flex-1 bg-slate-50">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="bg-gradient-to-r from-slate-900 to-slate-800 text-white py-16"
-      >
+    <div className="flex-1 bg-slate-50 pb-20 md:pb-8">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white py-8 md:py-12">
         <div className="container mx-auto px-4">
-          <div className="flex items-center space-x-3 mb-4">
-            <Heart className="h-8 w-8 fill-current" />
-            <h1 className="text-4xl md:text-5xl font-bold">
+          <div className="flex items-center gap-3 mb-2">
+            <Heart className="h-6 w-6 md:h-8 md:w-8 fill-current" />
+            <h1 className="text-2xl md:text-4xl font-bold">
               {t('favorites:title')}
             </h1>
           </div>
-          <p className="text-xl text-slate-300 max-w-3xl">
+          <p className="text-sm md:text-lg text-slate-300">
             {t('favorites:subtitle')}
           </p>
         </div>
-      </motion.div>
+      </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 md:py-8">
         {loading ? (
           <div className="text-center py-16">
             <div className="animate-spin h-8 w-8 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4" />
             <p className="text-slate-600">{t('common:loading')}</p>
           </div>
         ) : favorites.projects.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="text-center py-16"
-          >
-            <Heart className="h-24 w-24 text-slate-300 mx-auto mb-6" />
-            <h2 className="text-2xl font-semibold text-slate-700 mb-4">
+          <div className="text-center py-16">
+            <Heart className="h-20 w-20 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-slate-700 mb-2">
               {t('favorites:empty.title')}
             </h2>
-            <p className="text-slate-600 mb-8">
+            <p className="text-slate-500 mb-6">
               {t('favorites:empty.message')}
             </p>
             <Link to="/map">
-              <Button size="lg">
+              <Button>
                 {t('common:buttons.browseProperties')}
               </Button>
             </Link>
-          </motion.div>
+          </div>
         ) : (
           <div className="space-y-6">
-            {projectsWithDetails.map((project, index) => (
-              <motion.div
-                key={project.projectId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-              >
-                <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row">
+            {/* Compare Button - Show when 2+ items */}
+            {allUnitTypes.length >= 2 && (
+              <div className="bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl p-4 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">{t('favorites:compare.ready', 'Ready to Compare!')}</h3>
+                    <p className="text-sm text-white/80">
+                      {t('favorites:compare.count', { count: allUnitTypes.length })}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => navigate('/compare')}
+                    className="bg-white text-teal-600 hover:bg-white/90"
+                  >
+                    <GitCompare className="h-4 w-4 mr-2" />
+                    {t('nav.compare', 'Compare')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Favorites List - Card style for mobile */}
+            <div className="space-y-4">
+              {projectsWithDetails.map((project) => (
+                <div
+                  key={project.projectId}
+                  className="bg-white rounded-xl border overflow-hidden shadow-sm"
+                >
+                  {/* Project Header */}
+                  <div className="flex gap-3 p-3 border-b bg-slate-50/50">
                     {/* Project Image */}
-                    {project.details?.project_images?.[0] && (
-                      <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
+                    <div className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                      {project.details?.project_images?.[0] ? (
                         <img
                           src={project.details.project_images[0]}
                           alt={project.details.project_name}
                           className="w-full h-full object-cover"
                         />
-                      </div>
-                    )}
-
-                    {/* Project Info */}
-                    <div className="flex-1 p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <CardTitle className="text-xl mb-2">
-                            {project.details?.project_name || project.projectId}
-                          </CardTitle>
-                          {project.details && (
-                            <>
-                              <div className="flex items-center text-sm text-slate-600 mt-2">
-                                <Building2 className="h-4 w-4 mr-1" />
-                                <span>{project.details.developer}</span>
-                              </div>
-                              <div className="flex items-center text-sm text-slate-600 mt-1">
-                                <MapPin className="h-4 w-4 mr-1" />
-                                <span>{project.details.area}</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => toggleProjectFavorite(project.projectId)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {project.details && (
-                        <div className="flex flex-wrap items-center gap-4 mb-4">
-                          <div>
-                            <div className="text-2xl font-bold text-primary">
-                              {project.details.starting_price
-                                ? formatPrice(project.details.starting_price)
-                                : t('common:price.priceOnApplication')}
-                            </div>
-                            <div className="text-sm text-slate-600">
-                              {t('common:price.startingPrice')}
-                            </div>
-                          </div>
-                          {project.details.completion_date && (
-                            <div className="flex items-center text-sm text-slate-600">
-                              <Calendar className="h-4 w-4 mr-1" />
-                              <span>{t('common:dates.completion')}: {formatDate(project.details.completion_date)}</span>
-                            </div>
-                          )}
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Building2 className="h-6 w-6 text-slate-300" />
                         </div>
                       )}
+                    </div>
 
-                      <div className="flex items-center gap-4">
-                        <Link to={`/project/${project.projectId}`}>
-                          <Button>
-                            {t('common:buttons.viewDetails')}
-                          </Button>
-                        </Link>
+                    {/* Project Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-slate-800 truncate text-sm md:text-base">
+                        {project.details?.project_name || project.projectId}
+                      </h3>
+                      {project.details && (
+                        <>
+                          <p className="text-xs text-slate-500 truncate">
+                            {project.details.developer}
+                          </p>
+                          <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                            <MapPin className="h-3 w-3" />
+                            <span className="truncate">{project.details.area}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
 
-                        {project.unitTypeIds.length > 0 && (
-                          <Button
-                            variant="outline"
-                            onClick={() => toggleExpand(project.projectId)}
-                            className="flex items-center gap-2"
-                          >
-                            <span>{t('favorites:project.unitTypes', { count: project.unitTypeIds.length })}</span>
-                            {expandedProjects.has(project.projectId) ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                    {/* Actions */}
+                    <div className="flex items-start gap-1">
+                      <Link to={`/project/${project.projectId}`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-400 hover:text-red-500"
+                        onClick={() => toggleProjectFavorite(project.projectId)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
 
-                  {/* Expanded Unit Types */}
-                  {expandedProjects.has(project.projectId) && project.unitTypeIds.length > 0 && (
-                    <div className="border-t bg-slate-50 p-6">
-                      <h4 className="font-semibold text-slate-700 mb-4">
-                        {t('favorites:project.unitTypes', { count: project.unitTypeIds.length })}
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {project.unitTypeIds.map((unitTypeId) => {
-                          const unit = project.units?.find(u => u.id === unitTypeId)
-                          return (
-                            <div
-                              key={unitTypeId}
-                              className="bg-white rounded-lg p-4 border flex items-center justify-between"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-slate-900 truncate">
-                                  {unit?.unit_type_name || unitTypeId}
+                  {/* Unit Types */}
+                  {project.unitTypeIds.length > 0 && (
+                    <div className="divide-y">
+                      {project.unitTypeIds.map((unitTypeId) => {
+                        const unit = project.units?.find(u => u.id === unitTypeId)
+                        return (
+                          <div
+                            key={unitTypeId}
+                            className="flex items-center gap-3 p-3"
+                          >
+                            {/* Unit Floor Plan */}
+                            <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border">
+                              {unit?.floor_plan_image ? (
+                                <img
+                                  src={unit.floor_plan_image}
+                                  alt={unit.unit_type_name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Square className="h-4 w-4 text-slate-300" />
                                 </div>
-                                {unit && (
-                                  <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
-                                    <span className="flex items-center gap-1">
-                                      <Bed className="h-3 w-3" />
-                                      {unit.bedrooms}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Square className="h-3 w-3" />
-                                      {parseFloat(unit.area).toLocaleString()} sqft
-                                    </span>
-                                    {unit.price && (
-                                      <span className="text-teal-600 font-medium">
-                                        {formatPrice(unit.price)}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                              )}
+                            </div>
+
+                            {/* Unit Info */}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-slate-800 text-sm truncate">
+                                {unit?.unit_type_name || unitTypeId}
+                              </h4>
+                              {unit && (
+                                <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+                                  <span className="flex items-center gap-1">
+                                    <Bed className="h-3 w-3" />
+                                    {unit.bedrooms === 0 ? 'Studio' : `${unit.bedrooms}BR`}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Square className="h-3 w-3" />
+                                    {parseFloat(unit.area).toLocaleString()} sqft
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Price & Remove */}
+                            <div className="flex items-center gap-2">
+                              {unit?.price && (
+                                <span className="text-sm font-semibold text-teal-600">
+                                  {formatPrice(unit.price)}
+                                </span>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-slate-400 hover:text-red-500"
+                                className="h-7 w-7 text-slate-400 hover:text-red-500"
                                 onClick={() => toggleUnitTypeFavorite(project.projectId, unitTypeId)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                          )
-                        })}
-                      </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        )}
 
-        {favorites.projects.length > 0 && (
-          <div className="mt-8 text-center">
-            <p className="text-slate-600 mb-4">
-              {t('favorites:count', { count: favorites.projects.length })}
-            </p>
-            <Link to="/map">
-              <Button variant="outline">
-                {t('common:buttons.browseMore')}
-              </Button>
-            </Link>
+                  {/* No unit types message */}
+                  {project.unitTypeIds.length === 0 && (
+                    <div className="p-3 text-center text-sm text-slate-500">
+                      {t('favorites:project.noUnits', 'No specific unit types saved')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom Stats */}
+            <div className="text-center text-sm text-slate-500 pt-4">
+              {t('favorites:count', { count: favorites.projects.length })} · {allUnitTypes.length} {t('favorites:units', 'units')}
+            </div>
           </div>
         )}
       </div>

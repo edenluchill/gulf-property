@@ -503,7 +503,7 @@ export default function ComparePage() {
   }
 
   return (
-    <div className="h-[calc(100vh-73px)] flex flex-col bg-slate-50">
+    <div className="h-[calc(100vh-73px)] md:h-[calc(100vh-73px)] flex flex-col bg-slate-50 pb-16 md:pb-0">
       {/* Fixed Header */}
       <div className="bg-white border-b flex-shrink-0">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
@@ -616,17 +616,13 @@ export default function ComparePage() {
           {/* Step: Compare */}
           {step === 'compare' && (
             <div className="space-y-4">
-              {/* Property Cards Grid */}
-              <div className={`grid gap-4 ${
-                propertyData.length === 2 ? 'grid-cols-2' :
-                propertyData.length === 3 ? 'grid-cols-3' :
-                'grid-cols-2 md:grid-cols-4'
-              }`}>
+              {/* Property Cards Grid - Horizontal scroll on mobile */}
+              <div className="flex md:grid gap-3 overflow-x-auto pb-2 md:pb-0 md:overflow-visible snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 md:grid-cols-2 lg:grid-cols-4">
                 {propertyData.map((prop, idx) => {
                   const color = ITEM_COLORS[idx]
                   return (
-                    <div key={prop.id} className={`bg-white rounded-xl border overflow-hidden ${color.border}`}>
-                      <div className="h-32 bg-slate-100 relative">
+                    <div key={prop.id} className={`flex-shrink-0 w-36 md:w-auto snap-start bg-white rounded-xl border overflow-hidden ${color.border}`}>
+                      <div className="h-24 md:h-32 bg-slate-100 relative">
                         {prop.imageUrl ? (
                           <img src={prop.imageUrl} alt={prop.projectName} className="w-full h-full object-cover" />
                         ) : (
@@ -654,14 +650,14 @@ export default function ComparePage() {
                 })}
               </div>
 
-              {/* Comparison Table */}
-              <div className="bg-white rounded-xl border overflow-hidden">
-                <table className="w-full text-sm">
+              {/* Comparison Table - Horizontal scroll on mobile */}
+              <div className="bg-white rounded-xl border overflow-x-auto">
+                <table className="w-full text-sm min-w-[400px]">
                   <thead className="bg-slate-50 border-b">
                     <tr>
-                      <th className="px-4 py-2 text-left text-slate-600 font-medium w-1/5"></th>
+                      <th className="px-3 md:px-4 py-2 text-left text-slate-600 font-medium text-xs md:text-sm sticky left-0 bg-slate-50 z-10 w-20 md:w-auto"></th>
                       {propertyData.map((_, idx) => (
-                        <th key={idx} className={`px-4 py-2 text-center font-semibold ${ITEM_COLORS[idx].text}`}>
+                        <th key={idx} className={`px-2 md:px-4 py-2 text-center font-semibold text-xs md:text-sm ${ITEM_COLORS[idx].text}`}>
                           {ITEM_LABELS[idx]}
                         </th>
                       ))}
@@ -669,7 +665,7 @@ export default function ComparePage() {
                   </thead>
                   <tbody className="divide-y">
                     <tr>
-                      <td className="px-4 py-2 text-slate-600 font-medium">Price</td>
+                      <td className="px-3 md:px-4 py-2 text-slate-600 font-medium text-xs md:text-sm sticky left-0 bg-white z-10">Price</td>
                       {propertyData.map((prop, idx) => (
                         <td key={idx} className="px-4 py-2 text-center font-semibold text-slate-800">
                           {formatPrice(prop.price)}

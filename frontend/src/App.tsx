@@ -16,6 +16,7 @@ import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import ComparePage from './pages/ComparePage'
+import ProfilePage from './pages/ProfilePage'
 
 function App() {
   const { i18n } = useTranslation()
@@ -37,6 +38,7 @@ function App() {
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route
           path="/admin/dubai"
           element={

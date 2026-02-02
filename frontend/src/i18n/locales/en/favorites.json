@@ -9,9 +9,10 @@
       "message": "Add properties and unit types to your favorites to see them here"
     }
   },
-  "count": "You have {{count}} property saved",
-  "count_one": "You have {{count}} property saved",
-  "count_other": "You have {{count}} properties saved",
+  "count": "{{count}} properties",
+  "count_one": "{{count}} property",
+  "count_other": "{{count}} properties",
+  "units": "units",
   "drawer": {
     "title": "My Favorites",
     "close": "Close"
@@ -20,7 +21,8 @@
     "remove": "Remove from favorites",
     "unitTypes": "{{count}} unit type(s) saved",
     "unitTypes_one": "{{count}} unit type saved",
-    "unitTypes_other": "{{count}} unit types saved"
+    "unitTypes_other": "{{count}} unit types saved",
+    "noUnits": "No specific unit types saved"
   },
   "unitType": {
     "remove": "Remove unit type",
@@ -46,6 +48,8 @@
   "saving": "Saving...",
   "compare": {
     "title": "Compare Properties",
+    "ready": "Ready to Compare!",
+    "count": "You have {{count}} unit types saved",
     "selectItems": "Select 2 properties or unit types to compare",
     "selectPrompt": "Select 2-4 properties to compare",
     "selected": "Selected",

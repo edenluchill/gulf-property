@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare } from 'lucide-react'
+import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare, Globe } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
@@ -12,8 +12,15 @@ import { FavoritesButton } from './favorites'
 export default function Header() {
   const location = useLocation()
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, loading } = useAuth()
+
+  // Mobile language toggle
+  const toggleLanguage = () => {
+    const next = i18n.language?.startsWith('zh') ? 'en' : 'zh-CN'
+    i18n.changeLanguage(next)
+  }
+  const langLabel = i18n.language?.startsWith('zh') ? '中' : 'EN'
 
   // Base nav items visible to all users
   const navItems = [
@@ -60,11 +67,20 @@ export default function Header() {
               >
                 {t('brand')}
               </motion.span>
-              <span className="text-[11px] text-teal-600 font-medium tracking-tight -mt-0.5">
+              <span className="text-[11px] text-teal-600 font-medium tracking-tight -mt-0.5 hidden sm:block">
                 {t('tagline')}
               </span>
             </div>
           </Link>
+
+          {/* Mobile Language Toggle - Right side of header */}
+          <button
+            onClick={toggleLanguage}
+            className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            <Globe className="h-4 w-4 text-slate-500" />
+            <span className="text-xs font-medium text-slate-600">{langLabel}</span>
+          </button>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-2">
