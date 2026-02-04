@@ -246,7 +246,7 @@ export default function LoginPage() {
                 <Building2 className="h-6 w-6 text-white" />
               </motion.div>
               <div>
-                <span className="text-xl font-bold text-slate-800">Nextway</span>
+                <span className="text-xl font-bold text-slate-800">Pinzos</span>
                 <p className="text-slate-500 text-xs">{t('common:tagline', 'Dubai Property Investment')}</p>
               </div>
             </Link>
@@ -348,7 +348,7 @@ export default function LoginPage() {
                 <motion.div className="bg-gradient-to-br from-teal-500 to-emerald-600 p-2.5 rounded-xl">
                   <Building2 className="h-6 w-6 text-white" />
                 </motion.div>
-                <span className="text-xl font-bold text-slate-900">Nextway</span>
+                <span className="text-xl font-bold text-slate-900">Pinzos</span>
               </Link>
 
               {/* Back Button */}

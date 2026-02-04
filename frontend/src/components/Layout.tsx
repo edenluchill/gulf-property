@@ -26,7 +26,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <Building2 className="h-5 w-5 text-slate-400" />
-                <span className="text-lg font-semibold text-slate-200">Nextway</span>
+                <span className="text-lg font-semibold text-slate-200">Pinzos</span>
               </div>
               <p className="text-sm text-slate-500 leading-relaxed">
                 Your trusted partner for Dubai's finest off-plan properties. 
@@ -44,13 +44,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div>
               <h3 className="font-semibold text-slate-300 mb-4 text-sm tracking-wide uppercase">Contact</h3>
               <p className="text-sm text-slate-500 leading-relaxed">
-                Email: info@gulfproperty.com<br />
+                Email: info@pinzos.com<br />
                 Phone: +971 4 XXX XXXX
               </p>
             </div>
           </div>
           <div className="border-t border-slate-800/50 mt-10 pt-8 text-center text-xs text-slate-600 tracking-wide">
-            © 2026 Nextway. All rights reserved.
+            © 2026 Pinzos. All rights reserved.
           </div>
         </div>
       </footer> */}

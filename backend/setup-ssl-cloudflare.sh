@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Gulf Property - SSL Setup Script for Cloudflare + Let's Encrypt
+# Pinzos - SSL Setup Script for Cloudflare + Let's Encrypt
 # 在 Hetzner 服务器上运行此脚本以配置 SSL 证书
 
 set -e
@@ -11,7 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}Gulf Property - SSL Setup Script${NC}"
+echo -e "${GREEN}Pinzos - SSL Setup Script${NC}"
 echo "=================================="
 echo ""
 
@@ -22,7 +22,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 获取域名
-read -p "Enter your domain (e.g., api.gulf-property.com): " DOMAIN
+read -p "Enter your domain (e.g., api.pinzos.com): " DOMAIN
 
 if [ -z "$DOMAIN" ]; then
     echo -e "${RED}Domain cannot be empty${NC}"
@@ -71,7 +71,7 @@ fi
 echo ""
 echo -e "${YELLOW}[2/5] Stopping Nginx temporarily...${NC}"
 
-cd /opt/gulf-property
+cd /opt/pinzos
 
 # 停止 nginx 容器以释放端口 80
 docker compose stop nginx 2>/dev/null || true
@@ -248,7 +248,7 @@ echo -e "${YELLOW}Setting up automatic certificate renewal...${NC}"
 # 创建续期 hook
 cat > /etc/letsencrypt/renewal-hooks/post/reload-nginx.sh << 'EOF'
 #!/bin/bash
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose restart nginx
 EOF
 
@@ -280,6 +280,6 @@ echo ""
 echo "Certificate will auto-renew before expiry."
 echo ""
 echo "Logs:"
-echo "  docker logs gulf-property-nginx -f"
-echo "  docker logs gulf-property-api -f"
+echo "  docker logs pinzos-nginx -f"
+echo "  docker logs pinzos-api -f"
 echo ""

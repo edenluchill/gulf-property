@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Gulf Property PostgreSQL Database Deployment to Hetzner Cloud
+    Pinzos PostgreSQL Database Deployment to Hetzner Cloud
 
 .DESCRIPTION
     One-command deployment of production-ready PostgreSQL 16 with PostGIS
@@ -19,9 +19,9 @@
 
 $ErrorActionPreference = "Stop"
 
-$PROJECT_NAME = "gulf-property"
-$DB_NAME = "gulf_property"
-$DB_USER = "gulf_admin"
+$PROJECT_NAME = "pinzos"
+$DB_NAME = "pinzos"
+$DB_USER = "pinzos_admin"
 $LOCATION = "nbg1"               # Nuremberg, Germany
 $SERVER_TYPE = "cpx22"           # 2 vCPU, 4GB RAM, 80GB disk
 $NETWORK_ZONE = "eu-central"
@@ -413,7 +413,7 @@ Write-Success "Database is working!"
 Write-Step "Creating environment file..."
 
 $envContent = @"
-# Gulf Property Database Configuration
+# Pinzos Database Configuration
 # Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
 DB_HOST=$PUBLIC_IP
@@ -431,7 +431,7 @@ Write-Success "Saved to backend\.env.database"
 
 # Also save full credentials
 $credContent = @"
-Gulf Property Database Credentials
+Pinzos Database Credentials
 Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 ========================================
 

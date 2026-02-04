@@ -7,7 +7,7 @@
 
 import { ResidentialProject, UnitType } from '../types'
 
-const CACHE_KEY = 'gulf-property-project-cache'
+const CACHE_KEY = 'pinzos-project-cache'
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 interface CachedProject {

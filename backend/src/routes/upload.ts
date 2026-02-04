@@ -32,7 +32,7 @@ const r2Client = new S3Client({
   },
 });
 
-const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gulf-property';
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'pinzos';
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 
 /**

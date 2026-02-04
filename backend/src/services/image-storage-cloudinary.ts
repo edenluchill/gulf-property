@@ -51,7 +51,7 @@ export async function uploadImageCloudinary(
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder: `gulf-property/${category}`,
+        folder: `pinzos/${category}`,
         resource_type: 'image',
         format: 'webp', // Auto convert to WebP for better performance
         transformation: [

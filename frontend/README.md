@@ -1,6 +1,6 @@
-# Nextway Frontend
+# Pinzos Frontend
 
-Modern, elegant frontend for Nextway - A New Way to Buy Off-Plan in Dubai
+Modern, elegant frontend for Pinzos - A New Way to Buy Off-Plan in Dubai
 
 ## Tech Stack
 
@@ -129,7 +129,7 @@ wrangler login
 
 # Build and deploy
 npm run build
-wrangler pages deploy dist --project-name=gulf-property
+wrangler pages deploy dist --project-name=pinzos
 ```
 
 ### Environment Variables

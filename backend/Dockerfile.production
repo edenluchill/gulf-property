@@ -1,4 +1,4 @@
-# Production-optimized Dockerfile for Gulf Property Backend
+# Production-optimized Dockerfile for Pinzos Backend
 # Multi-stage build for smaller image size
 
 # ============================================================================

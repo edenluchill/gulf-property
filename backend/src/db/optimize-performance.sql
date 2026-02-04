@@ -1,4 +1,4 @@
--- Performance Optimization for Gulf Property Database
+-- Performance Optimization for Pinzos Database
 -- Run this to add additional indexes for faster queries
 
 -- ============================================================================

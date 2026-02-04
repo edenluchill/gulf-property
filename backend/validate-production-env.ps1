@@ -34,7 +34,7 @@ function Write-Warning-Custom {
 }
 
 Write-Host ""
-Write-Host "Gulf Property - Production Environment Validator" -ForegroundColor Cyan
+Write-Host "Pinzos - Production Environment Validator" -ForegroundColor Cyan
 Write-Host "=================================================" -ForegroundColor Cyan
 Write-Host ""
 

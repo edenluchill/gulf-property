@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Diagnose Gulf Property Backend Deployment Issues
+    Diagnose Pinzos Backend Deployment Issues
 #>
 
 param(
@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PROJECT_NAME = "GulfProperty"
+$PROJECT_NAME = "Pinzos"
 $SSH_KEY_PATH = "$env:USERPROFILE\.ssh\${PROJECT_NAME}_ed25519"
 
 function Write-Header {
@@ -26,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($ServerIP)) {
     Write-Host "No server IP provided, fetching from Hetzner..." -ForegroundColor Yellow
     
     # 尝试切换到正确的context
-    $contextNames = @($PROJECT_NAME, "gulf-property", "gulfproperty")
+    $contextNames = @($PROJECT_NAME, "pinzos", "Pinzos")
     foreach ($contextName in $contextNames) {
         $null = hcloud context use $contextName 2>$null
         if ($LASTEXITCODE -eq 0) { break }
@@ -80,7 +80,7 @@ ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$ServerIP 'docker stats --
 
 # 检查最近日志
 Write-Header "4. Recent Logs (Last 50 lines)"
-ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$ServerIP 'docker logs gulf-property-api --tail 50 2>&1'
+ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$ServerIP 'docker logs pinzos-api --tail 50 2>&1'
 
 # 检查健康状态
 Write-Header "5. Health Check"
@@ -110,7 +110,7 @@ docker network ls
 # 检查环境变量
 Write-Header "7. Environment Check"
 ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$ServerIP @'
-cd /opt/gulf-property
+cd /opt/pinzos
 if [ -f .env ]; then
     echo "✅ .env file exists"
     echo "Environment variables (excluding secrets):"
@@ -127,7 +127,7 @@ ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$ServerIP 'df -h'
 # 检查数据库连接
 Write-Header "9. Database Connectivity"
 ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$ServerIP @'
-cd /opt/gulf-property
+cd /opt/pinzos
 if [ -f .env ]; then
     DB_HOST=$(grep '^DB_HOST=' .env | cut -d '=' -f 2 | tr -d '\r')
     DB_PORT=$(grep '^DB_PORT=' .env | cut -d '=' -f 2 | tr -d '\r' || echo "5432")
@@ -147,11 +147,11 @@ Write-Host "Diagnosis Complete" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "To view live logs, run:" -ForegroundColor Yellow
-Write-Host "  ssh -i $SSH_KEY_PATH root@$ServerIP 'docker logs gulf-property-api -f'" -ForegroundColor White
+Write-Host "  ssh -i $SSH_KEY_PATH root@$ServerIP 'docker logs pinzos-api -f'" -ForegroundColor White
 Write-Host ""
 Write-Host "To restart the container:" -ForegroundColor Yellow
-Write-Host "  ssh -i $SSH_KEY_PATH root@$ServerIP 'cd /opt/gulf-property && docker compose restart'" -ForegroundColor White
+Write-Host "  ssh -i $SSH_KEY_PATH root@$ServerIP 'cd /opt/pinzos && docker compose restart'" -ForegroundColor White
 Write-Host ""
 Write-Host "To access the container:" -ForegroundColor Yellow
-Write-Host "  ssh -i $SSH_KEY_PATH root@$ServerIP 'docker exec -it gulf-property-api /bin/sh'" -ForegroundColor White
+Write-Host "  ssh -i $SSH_KEY_PATH root@$ServerIP 'docker exec -it pinzos-api /bin/sh'" -ForegroundColor White
 Write-Host ""

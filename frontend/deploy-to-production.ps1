@@ -1,4 +1,4 @@
-# Nextway Frontend - Production Deployment Script
+# Pinzos Frontend - Production Deployment Script
 # 此脚本用于构建和部署前端到生产环境
 
 param(
@@ -7,13 +7,13 @@ param(
     [string]$Platform = 'vercel',
     
     [Parameter(Mandatory=$false)]
-    [string]$ApiUrl = 'https://api.gulf-property.com'
+    [string]$ApiUrl = 'https://api.pinzos.com'
 )
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "================================" -ForegroundColor Cyan
-Write-Host "Nextway Frontend Deployment" -ForegroundColor Cyan
+Write-Host "Pinzos Frontend Deployment" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -105,7 +105,7 @@ switch ($Platform) {
             Write-Host "  1. Go to Vercel Dashboard: https://vercel.com/dashboard" -ForegroundColor White
             Write-Host "  2. Settings -> Environment Variables" -ForegroundColor White
             Write-Host "  3. Add: VITE_API_URL = $ApiUrl" -ForegroundColor White
-            Write-Host "  4. Settings -> Domains -> Add gulf-property.com" -ForegroundColor White
+            Write-Host "  4. Settings -> Domains -> Add pinzos.com" -ForegroundColor White
         } else {
             Write-Host "[FAIL] Vercel deployment failed" -ForegroundColor Red
             exit 1
@@ -122,7 +122,7 @@ switch ($Platform) {
         }
         
         Write-Host "[INFO] Deploying to Cloudflare Pages..." -ForegroundColor Blue
-        wrangler pages deploy dist --project-name=gulf-property
+        wrangler pages deploy dist --project-name=pinzos
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] Deployed to Cloudflare Pages" -ForegroundColor Green
@@ -131,7 +131,7 @@ switch ($Platform) {
             Write-Host "  1. Go to Cloudflare Pages Dashboard" -ForegroundColor White
             Write-Host "  2. Settings -> Environment variables" -ForegroundColor White
             Write-Host "  3. Add: VITE_API_URL = $ApiUrl" -ForegroundColor White
-            Write-Host "  4. Custom domains -> Add gulf-property.com" -ForegroundColor White
+            Write-Host "  4. Custom domains -> Add pinzos.com" -ForegroundColor White
         } else {
             Write-Host "[FAIL] Cloudflare deployment failed" -ForegroundColor Red
             exit 1
@@ -157,7 +157,7 @@ switch ($Platform) {
             Write-Host "  1. Go to Netlify Dashboard" -ForegroundColor White
             Write-Host "  2. Site settings -> Environment variables" -ForegroundColor White
             Write-Host "  3. Add: VITE_API_URL = $ApiUrl" -ForegroundColor White
-            Write-Host "  4. Domain settings -> Add gulf-property.com" -ForegroundColor White
+            Write-Host "  4. Domain settings -> Add pinzos.com" -ForegroundColor White
         } else {
             Write-Host "[FAIL] Netlify deployment failed" -ForegroundColor Red
             exit 1
@@ -184,7 +184,7 @@ Write-Host "Deployment Complete!" -ForegroundColor Green
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Testing checklist:" -ForegroundColor Yellow
-Write-Host "  [ ] Frontend loads at https://gulf-property.com" -ForegroundColor White
+Write-Host "  [ ] Frontend loads at https://pinzos.com" -ForegroundColor White
 Write-Host "  [ ] API requests go to $ApiUrl" -ForegroundColor White
 Write-Host "  [ ] Map displays correctly" -ForegroundColor White
 Write-Host "  [ ] Search functionality works" -ForegroundColor White

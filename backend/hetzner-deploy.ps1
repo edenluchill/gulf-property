@@ -2,16 +2,16 @@
 
 <#
 .SYNOPSIS
-    Hetzner Backend Deployment Script for Gulf Property
+    Hetzner Backend Deployment Script for Pinzos
     
 .DESCRIPTION
-    Deploy the Gulf Property backend API to Hetzner Cloud
+    Deploy the Pinzos backend API to Hetzner Cloud
     Database should be deployed separately (managed PostgreSQL or dedicated server)
     
     Prerequisites:
     1. Install hcloud CLI: https://github.com/hetznercloud/cli/releases
     2. Install Docker Desktop
-    3. Configure hcloud context: hcloud context create gulf-property
+    3. Configure hcloud context: hcloud context create pinzos
     4. Prepare .env.production file with production credentials
     5. Ensure PostgreSQL database is accessible
     
@@ -19,26 +19,26 @@
     .\hetzner-deploy.ps1
     
     Deploy with SSL (default):
-    .\hetzner-deploy.ps1 -Domain api.gulf-property.com -Email admin@gulf-property.com
+    .\hetzner-deploy.ps1 -Domain api.pinzos.com -Email admin@pinzos.com
     
     Deploy without SSL (manual setup later):
     .\hetzner-deploy.ps1 -SkipSSL
     
 .NOTES
-    Author: Gulf Property Team
+    Author: Pinzos Team
     Version: 2.0
     Updates: Automatic SSL/HTTPS configuration with Let's Encrypt
 #>
 
 param(
-    [string]$Domain = "api.gulf-property.com",
-    [string]$Email = "admin@gulf-property.com",
+    [string]$Domain = "api.pinzos.com",
+    [string]$Email = "admin@pinzos.com",
     [switch]$SkipSSL = $false
 )
 
 # Configuration
 $ErrorActionPreference = "Stop"
-$PROJECT_NAME = "GulfProperty"
+$PROJECT_NAME = "Pinzos"
 $DOCKER_NAME = $PROJECT_NAME.ToLower()
 $LOCATION = "nbg1"                # Nuremberg, Germany (closest to Dubai)
 $SERVER_TYPE = "cpx22"            # 4 vCPU, 8GB RAM (cpx21 not available in nbg1, using next option)
@@ -47,7 +47,7 @@ $INITIAL_INSTANCES = 1            # Start with 1 instance (can scale later)
 $NETWORK_ZONE = "eu-central"
 
 # Switch to correct Hetzner project (try multiple variations)
-$contextNames = @($PROJECT_NAME, "gulf-property", "gulfproperty", "Gulf-Property")
+$contextNames = @($PROJECT_NAME, "pinzos", "Pinzos")
 $contextFound = $false
 
 Write-Host "Searching for Hetzner project context..." -ForegroundColor Yellow
@@ -71,8 +71,8 @@ if (-not $contextFound) {
     hcloud context list
     Write-Host ""
     Write-Host "Please use one of these options:" -ForegroundColor Yellow
-    Write-Host "  1. Switch to existing: hcloud context use gulf-property" -ForegroundColor Cyan
-    Write-Host "  2. Create new: hcloud context create GulfProperty" -ForegroundColor Cyan
+    Write-Host "  1. Switch to existing: hcloud context use pinzos" -ForegroundColor Cyan
+    Write-Host "  2. Create new: hcloud context create Pinzos" -ForegroundColor Cyan
     Write-Host ""
     exit 1
 }
@@ -402,8 +402,8 @@ for ($i = 1; $i -le $INITIAL_INSTANCES; $i++) {
         $cloudInit = @'
 #cloud-config
 runcmd:
-  - mkdir -p /opt/gulf-property
-  - mkdir -p /var/log/gulf-property
+  - mkdir -p /opt/pinzos
+  - mkdir -p /var/log/pinzos
 '@
         
         $tempCloudInit = [System.IO.Path]::GetTempFileName()
@@ -480,7 +480,7 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
     
     # Create directories
     Write-Info "Creating directories..."
-    ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "mkdir -p /opt/gulf-property /var/log/gulf-property"
+    ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "mkdir -p /opt/pinzos /var/log/pinzos"
     
     Write-Info "Uploading Docker image (this will take several minutes)..."
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
@@ -491,23 +491,23 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
     Write-Info "Uploading configuration files..."
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
         $ENV_FILE `
-        "root@${IP}:/opt/gulf-property/.env"
+        "root@${IP}:/opt/pinzos/.env"
     
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
         docker-compose.production.yml `
-        "root@${IP}:/opt/gulf-property/docker-compose.yml"
+        "root@${IP}:/opt/pinzos/docker-compose.yml"
     
     # Upload nginx config - prioritize nginx.conf for simplicity
     if (Test-Path "nginx.conf") {
         Write-Info "Uploading nginx.conf (HTTP-only, simple config)..."
         scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
             nginx.conf `
-            "root@${IP}:/opt/gulf-property/nginx.conf"
+            "root@${IP}:/opt/pinzos/nginx.conf"
     } elseif (Test-Path "nginx.production-no-ssl.conf") {
         Write-Info "Uploading nginx.production-no-ssl.conf..."
         scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
             nginx.production-no-ssl.conf `
-            "root@${IP}:/opt/gulf-property/nginx.conf"
+            "root@${IP}:/opt/pinzos/nginx.conf"
     } else {
         Write-Warning "No nginx config found, nginx may not work correctly"
     }
@@ -518,7 +518,7 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
     $deployScript = @'
 #!/bin/bash
 set -e
-cd /opt/gulf-property
+cd /opt/pinzos
 
 # Install Docker
 if ! command -v docker >/dev/null 2>&1; then
@@ -574,7 +574,7 @@ done
 if [ $SUCCESS -eq 0 ]; then
     echo "❌ Health check failed!"
     docker ps
-    docker logs gulf-property-api --tail 100
+    docker logs pinzos-api --tail 100
     exit 1
 fi
 
@@ -779,7 +779,7 @@ apt-get update -qq
 apt-get install -y certbot > /dev/null 2>&1
 
 echo "Stopping nginx to free port 80..."
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose stop nginx
 
 echo "Obtaining SSL certificate..."
@@ -803,7 +803,7 @@ echo "Setting up auto-renewal..."
 mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh << 'EOF'
 #!/bin/bash
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose restart nginx
 EOF
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
@@ -833,11 +833,11 @@ echo "SSL setup complete!"
                 Write-Info "Uploading SSL-enabled nginx configuration..."
                 scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
                     nginx.production.conf `
-                    "root@${IP}:/opt/gulf-property/nginx.conf"
+                    "root@${IP}:/opt/pinzos/nginx.conf"
                 
                 # Restart nginx with SSL config
                 ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP @"
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose restart nginx
 sleep 2
 "@
@@ -876,7 +876,7 @@ sleep 2
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Success "Gulf Property Backend Deployment Complete!"
+Write-Success "Pinzos Backend Deployment Complete!"
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Backend Servers:" -ForegroundColor Cyan
@@ -925,7 +925,7 @@ Write-Host "Troubleshooting:" -ForegroundColor Yellow
 Write-Host "  SSH Access:" -ForegroundColor White
 Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip>" -ForegroundColor Gray
 Write-Host "  View Logs:" -ForegroundColor White
-Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip> 'docker logs gulf-property-api -f'" -ForegroundColor Gray
+Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip> 'docker logs pinzos-api -f'" -ForegroundColor Gray
 Write-Host "  Renew SSL manually:" -ForegroundColor White
 Write-Host "    ssh root@<server-ip> 'certbot renew --dry-run'" -ForegroundColor Gray
 Write-Host ""

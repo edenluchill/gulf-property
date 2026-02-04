@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# SSL Certificate Setup Script for Gulf Property Backend
+# SSL Certificate Setup Script for Pinzos Backend
 # Uses Let's Encrypt with Certbot
 #
 
@@ -13,7 +13,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}Gulf Property - SSL Setup${NC}"
+echo -e "${GREEN}Pinzos - SSL Setup${NC}"
 echo "=============================="
 echo ""
 
@@ -24,7 +24,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Get domain name
-read -p "Enter your domain name (e.g., api.gulfproperty.com): " DOMAIN
+read -p "Enter your domain name (e.g., api.pinzos.com): " DOMAIN
 if [ -z "$DOMAIN" ]; then
     echo -e "${RED}Domain name is required${NC}"
     exit 1
@@ -58,7 +58,7 @@ apt-get install -y certbot
 # Stop nginx temporarily
 echo ""
 echo -e "${YELLOW}Stopping nginx...${NC}"
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose stop nginx 2>/dev/null || true
 
 # Obtain certificate
@@ -118,7 +118,7 @@ echo -e "${YELLOW}Setting up auto-renewal...${NC}"
 # Create renewal hook
 cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh << 'EOF'
 #!/bin/bash
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose restart nginx
 EOF
 

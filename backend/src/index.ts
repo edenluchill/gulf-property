@@ -26,8 +26,8 @@ app.use(helmet())
 
 // CORS configuration - whitelisted origins
 const allowedOrigins = [
-  'https://gulf-property.com',
-  'https://www.gulf-property.com',
+  'https://pinzos.com',
+  'https://www.pinzos.com',
   'http://localhost:5173',  // For local development
   'http://localhost:5174',  // Alternative local port
 ]

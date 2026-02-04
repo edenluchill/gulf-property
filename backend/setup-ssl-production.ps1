@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Sets up SSL certificates for Gulf Property backend in production
+    Sets up SSL certificates for Pinzos backend in production
 .DESCRIPTION
     This script connects to the production server and sets up Let's Encrypt SSL certificates,
     then switches nginx to use the SSL-enabled configuration.
@@ -10,7 +10,7 @@
 
 param(
     [string]$ServerIP = "",
-    [string]$Domain = "api.gulf-property.com",
+    [string]$Domain = "api.pinzos.com",
     [string]$Email = "",
     [switch]$SkipConfirm = $false
 )
@@ -18,8 +18,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Configuration
-$PROJECT_NAME = "GulfProperty"
-$SSH_KEY_PATH = "$env:USERPROFILE\.ssh\GulfProperty_ed25519"
+$PROJECT_NAME = "Pinzos"
+$SSH_KEY_PATH = "$env:USERPROFILE\.ssh\Pinzos_ed25519"
 
 # Colors for output
 function Write-Info { Write-Host "[INFO] $args" -ForegroundColor Cyan }
@@ -29,7 +29,7 @@ function Write-Error { Write-Host "[FAIL] $args" -ForegroundColor Red }
 function Write-Step { Write-Host "`n[STEP] $args" -ForegroundColor Magenta }
 
 Write-Host "=====================================" -ForegroundColor Green
-Write-Host "Gulf Property - SSL Setup (Production)" -ForegroundColor Green
+Write-Host "Pinzos - SSL Setup (Production)" -ForegroundColor Green
 Write-Host "=====================================" -ForegroundColor Green
 Write-Host ""
 
@@ -86,7 +86,7 @@ apt-get update
 apt-get install -y certbot
 
 echo "Stopping nginx to free port 80..."
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose stop nginx
 
 echo "Obtaining SSL certificate..."
@@ -110,7 +110,7 @@ echo "Setting up auto-renewal..."
 mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh << 'EOF'
 #!/bin/bash
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose restart nginx
 EOF
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
@@ -154,12 +154,12 @@ rm /tmp/setup-ssl.sh
         Write-Info "Uploading nginx.production.conf (with SSL)..."
         scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
             nginx.production.conf `
-            "root@${ServerIP}:/opt/gulf-property/nginx.conf"
+            "root@${ServerIP}:/opt/pinzos/nginx.conf"
         
         # Restart nginx
         Write-Info "Restarting nginx with SSL configuration..."
         ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no "root@${ServerIP}" @"
-cd /opt/gulf-property
+cd /opt/pinzos
 docker compose restart nginx
 sleep 3
 docker compose ps

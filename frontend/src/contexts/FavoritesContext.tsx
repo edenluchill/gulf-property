@@ -43,7 +43,7 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
   // Listen for storage changes (cross-tab sync)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'gulf-property-favorites') {
+      if (e.key === 'pinzos-favorites') {
         setFavorites(loadFavorites())
       }
     }

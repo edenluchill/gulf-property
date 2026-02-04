@@ -8,9 +8,9 @@ services:
   # PostgreSQL Database (本地)
   postgres:
     image: postgres:15-alpine
-    container_name: gulf-property-db-local
+    container_name: pinzos-db-local
     environment:
-      POSTGRES_DB: ${DB_NAME:-gulf_property}
+      POSTGRES_DB: ${DB_NAME:-pinzos}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
@@ -23,20 +23,20 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - gulf-network
+      - pinzos-network
 
   # Backend API
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: gulf-property-api-local
+    container_name: pinzos-api-local
     environment:
       NODE_ENV: development
       PORT: ${PORT:-3000}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-gulf_property}
+      DB_NAME: ${DB_NAME:-pinzos}
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -55,7 +55,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - gulf-network
+      - pinzos-network
     restart: unless-stopped
 
 volumes:
@@ -63,5 +63,5 @@ volumes:
     driver: local
 
 networks:
-  gulf-network:
+  pinzos-network:
     driver: bridge

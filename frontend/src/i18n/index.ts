@@ -64,7 +64,7 @@ i18n
     },
     detection: {
       order: ['localStorage', 'navigator'],
-      lookupLocalStorage: 'gulf-property-lang',
+      lookupLocalStorage: 'pinzos-lang',
       caches: ['localStorage'],
     },
   })

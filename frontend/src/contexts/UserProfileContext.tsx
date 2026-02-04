@@ -34,7 +34,7 @@ export function UserProfileProvider({ children }: UserProfileProviderProps) {
   // Listen for storage changes (cross-tab sync)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'gulf-property-user-profile') {
+      if (e.key === 'pinzos-user-profile') {
         setProfile(loadUserProfile())
       }
     }

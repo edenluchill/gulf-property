@@ -11,7 +11,7 @@
 #>
 
 $ErrorActionPreference = "Stop"
-$PROJECT_NAME = "gulf-property"
+$PROJECT_NAME = "pinzos"
 
 Write-Host "⚠️  WARNING: This will delete ALL database infrastructure!" -ForegroundColor Yellow
 Write-Host ""

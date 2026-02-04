@@ -43,7 +43,7 @@ async function fetchDubaiSuburbs(): Promise<any[]> {
         limit: 1
       },
       headers: {
-        'User-Agent': 'GulfPropertyDubai/1.0'
+        'User-Agent': 'PinzosDubai/1.0'
       },
       timeout: 30000
     })

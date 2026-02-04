@@ -6,7 +6,22 @@
       "Bash(npx tsc:*)",
       "Bash(npx shadcn@latest add sheet)",
       "Bash(npm run build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(hcloud server:*)",
+      "Bash(ssh -i \"$env:USERPROFILE\\\\.ssh\\\\Pinzos_ed25519\" -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@46.224.149.244 \"echo ''SSH OK''\")",
+      "Bash(scp:*)",
+      "Bash(ssh -i /c/Users/lzp65/.ssh/Pinzos_ed25519 root@46.224.149.244 \"docker logs pinzos-nginx 2>&1 | tail -20\")",
+      "Bash(hcloud load-balancer:*)",
+      "Bash(curl:*)",
+      "Bash(hcloud firewall describe:*)",
+      "Bash(hcloud firewall add-rule:*)",
+      "Bash(ssh -i /c/Users/lzp65/.ssh/Pinzos_ed25519 root@46.224.149.244 \"ufw status 2>/dev/null || iptables -L INPUT -n | head -20\")",
+      "Bash(ssh -i /c/Users/lzp65/.ssh/gulf-property_db_ed25519 root@49.13.227.73 \"curl -s --connect-timeout 5 http://46.224.149.244:3000/health\")",
+      "Bash(nslookup:*)",
+      "Bash(host:*)",
+      "Bash(hcloud certificate create:*)",
+      "Bash(ssh:*)",
+      "Bash(MSYS_NO_PATHCONV=1 hcloud load-balancer add-service:*)"
     ]
   }
 }

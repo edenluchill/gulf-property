@@ -1,5 +1,5 @@
 -- Create database
--- CREATE DATABASE gulf_property;
+-- CREATE DATABASE pinzos;
 
 -- Enable PostGIS extension for geospatial queries (run as superuser if needed)
 CREATE EXTENSION IF NOT EXISTS postgis;

@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "[DOCKER] Testing Gulf Property Backend" -ForegroundColor Cyan
+Write-Host "[DOCKER] Testing Pinzos Backend" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -34,13 +34,13 @@ if (-not (Test-Path ".env")) {
 if ($Clean) {
     Write-Host "[INFO] Cleaning up..." -ForegroundColor Yellow
     docker-compose down -v
-    docker rmi gulf-property-api -f 2>$null
+    docker rmi pinzos-api -f 2>$null
     Write-Host "[OK] Cleanup complete" -ForegroundColor Green
     Write-Host ""
 }
 
 # Build if requested or if image doesn't exist
-$imageExists = docker images -q gulf-property-api
+$imageExists = docker images -q pinzos-api
 if ($Build -or -not $imageExists) {
     Write-Host "[INFO] Building Docker image..." -ForegroundColor Yellow
     Write-Host ""

@@ -72,7 +72,7 @@ try {
     Write-Host "`n📋 Alternative: Run migration via Docker container" -ForegroundColor Yellow
     Write-Host "   Copy and run this command:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "   docker exec -i gulf-property-api psql `"$dbUrl`" < $migrationScript" -ForegroundColor Cyan
+    Write-Host "   docker exec -i pinzos-api psql `"$dbUrl`" < $migrationScript" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   Or connect to PostgreSQL and run:" -ForegroundColor Yellow
     Write-Host "   ALTER TABLE project_payment_plans ADD COLUMN IF NOT EXISTS interval_months INTEGER;" -ForegroundColor Cyan

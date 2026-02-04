@@ -1,10 +1,10 @@
-# Gulf Property - Dubai Off-Plan Properties Platform
+# Pinzos - Dubai Off-Plan Properties Platform
 
 > A modern, elegant platform connecting international buyers with Dubai's premium off-plan properties.
 
 ## 🌟 Overview
 
-Gulf Property is a comprehensive real estate platform designed specifically for overseas buyers interested in Dubai's off-plan property market. The platform provides:
+Pinzos is a comprehensive real estate platform designed specifically for overseas buyers interested in Dubai's off-plan property market. The platform provides:
 
 - **Interactive Property Map** - Visualize all available properties on an interactive map
 - **Advanced Filtering** - Filter by developer, location, price, and completion date
@@ -58,8 +58,8 @@ cp .env.example .env
 # Edit .env with your database credentials
 
 # Create database and run schema
-psql -U postgres -c "CREATE DATABASE gulf_property;"
-psql -U postgres -d gulf_property -f src/db/schema.sql
+psql -U postgres -c "CREATE DATABASE pinzos;"
+psql -U postgres -d pinzos -f src/db/schema.sql
 
 # Start development server
 npm run dev
@@ -70,7 +70,7 @@ API available at `http://localhost:3001`
 ## 📁 Project Structure
 
 ```
-gulf-property/
+pinzos/
 ├── frontend/              # React frontend application
 │   ├── src/
 │   │   ├── components/   # Reusable UI components

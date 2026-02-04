@@ -1,4 +1,4 @@
-# Multi-stage build for Gulf Property Backend
+# Multi-stage build for Pinzos Backend
 # Optimized for PDF processing with canvas support
 
 # ============================================================================

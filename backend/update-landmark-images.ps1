@@ -14,14 +14,14 @@ if (-not $running) {
 # 执行SQL更新
 Write-Host "📝 Running SQL updates..." -ForegroundColor Yellow
 
-docker-compose exec -T db psql -U postgres -d gulf_property -f - < UPDATE-LANDMARKS-IMAGES.sql
+docker-compose exec -T db psql -U postgres -d pinzos -f - < UPDATE-LANDMARKS-IMAGES.sql
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Landmark images updated successfully!" -ForegroundColor Green
     
     # 显示统计
     Write-Host "`n📊 Statistics:" -ForegroundColor Cyan
-    docker-compose exec -T db psql -U postgres -d gulf_property -c "SELECT COUNT(*) as total_landmarks, COUNT(image_url) as landmarks_with_images FROM dubai_landmarks;"
+    docker-compose exec -T db psql -U postgres -d pinzos -c "SELECT COUNT(*) as total_landmarks, COUNT(image_url) as landmarks_with_images FROM dubai_landmarks;"
     
     # 清除前端缓存提示
     Write-Host "`n💡 Next steps:" -ForegroundColor Yellow

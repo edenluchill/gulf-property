@@ -27,7 +27,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$PROJECT_NAME = "gulf-property"
+$PROJECT_NAME = "pinzos"
 $SERVER_NAME = "$PROJECT_NAME-db"
 $SSH_KEY_PATH = "$env:USERPROFILE\.ssh\${PROJECT_NAME}_db_ed25519"
 $ENV_FILE = "backend\.env.database"
@@ -109,7 +109,7 @@ sudo -u postgres psql -d $DB_NAME -c "SELECT schemaname, tablename, pg_size_pret
     
     "backup" {
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-        $backupFileName = "gulf-property-backup-$timestamp.sql"
+        $backupFileName = "pinzos-backup-$timestamp.sql"
         
         Write-Info "Creating database backup..."
         

@@ -14,11 +14,11 @@ $ErrorActionPreference = "Stop"
 
 $DB_HOST = "49.13.227.73"
 $DB_PORT = "5432"
-$DB_NAME = "gulf_property"
-$DB_USER = "gulf_admin"
+$DB_NAME = "pinzos"
+$DB_USER = "pinzos_admin"
 $DB_PASSWORD = "aB246`$29"
 
-Write-Host "🔌 Testing Gulf Property Database Connection" -ForegroundColor Cyan
+Write-Host "🔌 Testing Pinzos Database Connection" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Connection Details:" -ForegroundColor Yellow
 Write-Host "  Host: $DB_HOST" -ForegroundColor White

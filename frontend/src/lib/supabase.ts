@@ -13,7 +13,7 @@ export const supabase = createClient(
   {
     auth: {
       persistSession: true,
-      storageKey: 'gulf-property-auth',
+      storageKey: 'pinzos-auth',
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },

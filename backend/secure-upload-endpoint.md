@@ -1,7 +1,7 @@
 # 保护 DNS-only 上传端点的安全措施
 
 ## 问题
-`upload.gulf-property.com` 使用 DNS only（不经过 Cloudflare），需要额外的安全保护。
+`upload.pinzos.com` 使用 DNS only（不经过 Cloudflare），需要额外的安全保护。
 
 ---
 
@@ -36,7 +36,7 @@ http {
     
     server {
         listen 443 ssl http2;
-        server_name api.gulf-property.com;
+        server_name api.pinzos.com;
         
         # 上传端点特殊限制
         location /api/langgraph-progress/start {
@@ -270,8 +270,8 @@ systemctl restart fail2ban
 
 **使用混合方案 + Level 2 保护：**
 
-1. `api.gulf-property.com` → Proxied（保护所有常规 API）
-2. `upload.gulf-property.com` → DNS only（仅上传）+ API Key + 速率限制
+1. `api.pinzos.com` → Proxied（保护所有常规 API）
+2. `upload.pinzos.com` → DNS only（仅上传）+ API Key + 速率限制
 
 **这样可以：**
 - ✅ 主 API 受 Cloudflare 全面保护

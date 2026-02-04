@@ -2,7 +2,7 @@
 # 测试上传速度和进度跟踪
 
 param(
-    [string]$ApiUrl = "https://api.gulf-property.com",
+    [string]$ApiUrl = "https://api.pinzos.com",
     [string]$TestFile = ""
 )
 

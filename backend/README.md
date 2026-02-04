@@ -1,6 +1,6 @@
-# Gulf Property Backend API
+# Pinzos Backend API
 
-Backend API for Gulf Property - Dubai Off-Plan Properties Platform
+Backend API for Pinzos - Dubai Off-Plan Properties Platform
 
 ## Tech Stack
 
@@ -35,7 +35,7 @@ cp .env.example .env
 # Database
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=gulf_property
+DB_NAME=pinzos
 DB_USER=gulf_admin
 DB_PASSWORD=your_password
 
@@ -51,13 +51,13 @@ Get your Gemini API key from: https://aistudio.google.com/app/apikey
 psql -U postgres
 
 # Create database
-CREATE DATABASE gulf_property;
+CREATE DATABASE pinzos;
 
 # Exit psql
 \q
 
 # Run schema
-psql -U postgres -d gulf_property -f src/db/schema.sql
+psql -U postgres -d pinzos -f src/db/schema.sql
 ```
 
 5. (Optional) Seed database with sample data:

@@ -2,7 +2,7 @@
 # PowerShell wrapper for temp folders cleanup script
 # Usage: ./cleanup-temp-folders.ps1
 
-Write-Host "🧹 Gulf Property - Temp Folders Cleanup" -ForegroundColor Cyan
+Write-Host "🧹 Pinzos - Temp Folders Cleanup" -ForegroundColor Cyan
 Write-Host ""
 
 # Run cleanup script

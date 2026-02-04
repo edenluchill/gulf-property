@@ -111,7 +111,7 @@ if ($checksFailed -eq 0) {
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Cyan
     Write-Host "1. Restart Nginx: docker-compose restart nginx" -ForegroundColor Gray
-    Write-Host "2. Test upload at: https://gulf-property.com/developer/upload" -ForegroundColor Gray
+    Write-Host "2. Test upload at: https://pinzos.com/developer/upload" -ForegroundColor Gray
     Write-Host "3. Check browser console for upload progress logs" -ForegroundColor Gray
     exit 0
 } else {

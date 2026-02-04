@@ -1,7 +1,7 @@
 {
-  "name": "gulf-property-backend",
+  "name": "pinzos-backend",
   "version": "1.0.0",
-  "description": "Backend API for Gulf Property Dubai off-plan properties platform",
+  "description": "Backend API for Pinzos Dubai off-plan properties platform",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",

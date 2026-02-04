@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'gulf-property-favorites'
+const STORAGE_KEY = 'pinzos-favorites'
 
 export interface FavoriteProject {
   projectId: string

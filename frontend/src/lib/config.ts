@@ -4,7 +4,7 @@
  */
 
 // API Base URL
-// 注意：虽然域名是 api.gulf-property.com，但后端路由都定义在 /api/* 下
+// 注意：虽然域名是 api.pinzos.com，但后端路由都定义在 /api/* 下
 //      所以生产环境仍然需要 /api 路径
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 

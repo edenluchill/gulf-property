@@ -2,7 +2,7 @@
 # PowerShell wrapper for R2 temp files cleanup script
 # Usage: ./cleanup-r2-temp-files.ps1
 
-Write-Host "🧹 Gulf Property - R2 Temp Files Cleanup" -ForegroundColor Cyan
+Write-Host "🧹 Pinzos - R2 Temp Files Cleanup" -ForegroundColor Cyan
 Write-Host ""
 
 # Check if .env exists

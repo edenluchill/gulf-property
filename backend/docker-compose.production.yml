@@ -1,4 +1,4 @@
-# Production Docker Compose for Gulf Property Backend
+# Production Docker Compose for Pinzos Backend
 # Database is external (managed PostgreSQL or separate server)
 
 version: '3.8'
@@ -6,8 +6,8 @@ version: '3.8'
 services:
   # Backend API service
   api:
-    image: gulfproperty-backend:latest
-    container_name: gulf-property-api
+    image: pinzos-backend:latest
+    container_name: pinzos-api
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
@@ -34,7 +34,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       # Logs only - all images stored in Cloudflare R2
-      - ./logs:/var/log/gulf-property
+      - ./logs:/var/log/pinzos
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:${PORT:-3000}/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
       interval: 30s
@@ -52,7 +52,7 @@ services:
   # Nginx reverse proxy (optional, for SSL termination)
   nginx:
     image: nginx:alpine
-    container_name: gulf-property-nginx
+    container_name: pinzos-nginx
     restart: unless-stopped
     ports:
       - "80:80"

@@ -6,7 +6,7 @@
 
 import { UserProfile } from '../types/comparison'
 
-const STORAGE_KEY = 'gulf-property-user-profile'
+const STORAGE_KEY = 'pinzos-user-profile'
 
 /**
  * Load user profile from localStorage
