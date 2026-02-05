@@ -3,37 +3,31 @@
 <#
 .SYNOPSIS
     Hetzner Backend Deployment Script for Pinzos
-    
+
 .DESCRIPTION
     Deploy the Pinzos backend API to Hetzner Cloud
     Database should be deployed separately (managed PostgreSQL or dedicated server)
-    
+    SSL is handled by Cloudflare — no Let's Encrypt needed
+
     Prerequisites:
     1. Install hcloud CLI: https://github.com/hetznercloud/cli/releases
     2. Install Docker Desktop
     3. Configure hcloud context: hcloud context create pinzos
     4. Prepare .env.production file with production credentials
     5. Ensure PostgreSQL database is accessible
-    
+    6. Configure Cloudflare DNS to point domain to Load Balancer IP
+
 .EXAMPLE
     .\hetzner-deploy.ps1
-    
-    Deploy with SSL (default):
-    .\hetzner-deploy.ps1 -Domain api.pinzos.com -Email admin@pinzos.com
-    
-    Deploy without SSL (manual setup later):
-    .\hetzner-deploy.ps1 -SkipSSL
-    
+
 .NOTES
     Author: Pinzos Team
-    Version: 2.0
-    Updates: Automatic SSL/HTTPS configuration with Let's Encrypt
+    Version: 3.0
+    Updates: Removed Let's Encrypt — SSL handled by Cloudflare
 #>
 
 param(
-    [string]$Domain = "api.pinzos.com",
-    [string]$Email = "admin@pinzos.com",
-    [switch]$SkipSSL = $false
+    [string]$Domain = "api.pinzos.com"
 )
 
 # Configuration
@@ -56,7 +50,7 @@ foreach ($contextName in $contextNames) {
     $ErrorActionPreference = "Continue"
     hcloud context use $contextName 2>$null
     $ErrorActionPreference = "Stop"
-    
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[OK] Using context: $contextName" -ForegroundColor Green
         $contextFound = $true
@@ -135,7 +129,7 @@ try {
     $dockerInfo = docker info 2>&1 | Out-String
     $dockerExitCode = $LASTEXITCODE
     $ErrorActionPreference = "Stop"
-    
+
     if ($dockerExitCode -ne 0) {
         Write-Error-Custom "Docker daemon is not responding"
         Write-Host "Please start Docker Desktop" -ForegroundColor Yellow
@@ -197,7 +191,7 @@ Write-Host "  Location: $LOCATION"
 Write-Host "  Server Type: $SERVER_TYPE"
 Write-Host "  Instances: $INITIAL_INSTANCES"
 Write-Host "  Load Balancer: $LB_TYPE"
-Write-Host "  Target Port: $APP_PORT"
+Write-Host "  SSL: Cloudflare (no origin cert needed)"
 Write-Host ""
 Write-Info "Starting deployment..."
 Write-Host ""
@@ -206,7 +200,7 @@ Write-Host ""
 # 1. SSH Key
 # ============================================================================
 
-Write-Step "1/9 Configuring SSH key..."
+Write-Step "1/7 Configuring SSH key..."
 
 $SSH_KEY_NAME = "$PROJECT_NAME-key"
 $SSH_KEY_PATH = "$env:USERPROFILE\.ssh\${PROJECT_NAME}_ed25519"
@@ -230,7 +224,7 @@ if ($keyExists) {
         ssh-keygen -t ed25519 -f $SSH_KEY_PATH -N '""' -C "hetzner-$PROJECT_NAME"
         Write-Success "SSH key generated"
     }
-    
+
     Write-Info "Uploading SSH key..."
     hcloud ssh-key create --name $SSH_KEY_NAME --public-key-from-file "${SSH_KEY_PATH}.pub"
     Write-Success "SSH key uploaded"
@@ -240,7 +234,7 @@ if ($keyExists) {
 # 2. Private Network
 # ============================================================================
 
-Write-Step "2/9 Creating private network..."
+Write-Step "2/7 Creating private network..."
 
 $NETWORK_NAME = "$PROJECT_NAME-network"
 
@@ -268,7 +262,7 @@ if ($networkExists) {
 # 3. Firewall
 # ============================================================================
 
-Write-Step "3/9 Creating firewall..."
+Write-Step "3/7 Creating firewall..."
 
 $FIREWALL_NAME = "$PROJECT_NAME-firewall"
 
@@ -307,12 +301,6 @@ $rulesJson = @"
   {
     "direction": "in",
     "protocol": "tcp",
-    "port": "443",
-    "source_ips": ["0.0.0.0/0", "::/0"]
-  },
-  {
-    "direction": "in",
-    "protocol": "tcp",
     "port": "$APP_PORT",
     "source_ips": ["10.0.0.0/16", "0.0.0.0/0"]
   },
@@ -335,7 +323,7 @@ Write-Success "Firewall configured"
 # 4. Build Docker Image
 # ============================================================================
 
-Write-Step "4/9 Building Docker image..."
+Write-Step "4/7 Building Docker image..."
 
 $IMAGE_TAG = Get-Date -Format "yyyyMMdd-HHmmss"
 Write-Info "Building: ${DOCKER_NAME}-backend:${IMAGE_TAG}"
@@ -372,14 +360,14 @@ Write-Success "Image exported ($imageSizeMB MB)"
 # 5. Create Backend Servers
 # ============================================================================
 
-Write-Step "5/9 Creating backend servers..."
+Write-Step "5/7 Creating backend servers..."
 
 $SERVER_IDS = @()
 $SERVER_IPS = @()
 
 for ($i = 1; $i -le $INITIAL_INSTANCES; $i++) {
     $SERVER_NAME = "$PROJECT_NAME-backend-$i"
-    
+
     $serverExists = $false
     try {
         $ErrorActionPreference = "Continue"
@@ -398,17 +386,17 @@ for ($i = 1; $i -le $INITIAL_INSTANCES; $i++) {
         $PUBLIC_IP = $serverInfo.public_net.ipv4.ip
     } else {
         Write-Info "Creating server $i/${INITIAL_INSTANCES}: $SERVER_NAME"
-        
+
         $cloudInit = @'
 #cloud-config
 runcmd:
   - mkdir -p /opt/pinzos
   - mkdir -p /var/log/pinzos
 '@
-        
+
         $tempCloudInit = [System.IO.Path]::GetTempFileName()
         $cloudInit | Out-File -FilePath $tempCloudInit -Encoding utf8
-        
+
         $serverJson = hcloud server create `
             --name $SERVER_NAME `
             --type $SERVER_TYPE `
@@ -421,26 +409,26 @@ runcmd:
             --label "role=backend" `
             --user-data-from-file $tempCloudInit `
             -o json
-        
+
         if ($LASTEXITCODE -ne 0) {
             Remove-Item $tempCloudInit
             Write-Error-Custom "Failed to create server"
             exit 1
         }
-        
+
         Remove-Item $tempCloudInit
-        
+
         $serverInfo = $serverJson | ConvertFrom-Json
         $SERVER_ID = $serverInfo.server.id
-        
+
         Write-Info "Waiting for server initialization..."
         Start-Sleep -Seconds 30
-        
+
         $serverInfo = hcloud server describe $SERVER_ID -o json | ConvertFrom-Json
         $PUBLIC_IP = $serverInfo.public_net.ipv4.ip
         Write-Success "Server created: $SERVER_NAME ($PUBLIC_IP)"
     }
-    
+
     $SERVER_IDS += $SERVER_ID
     $SERVER_IPS += $PUBLIC_IP
 }
@@ -449,25 +437,25 @@ runcmd:
 # 6. Deploy Backend Application
 # ============================================================================
 
-Write-Step "6/9 Deploying backend to servers..."
+Write-Step "6/7 Deploying backend to servers..."
 
 for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
     $IP = $SERVER_IPS[$i]
     $SERVER_NUM = $i + 1
-    
+
     Write-Info "Deploying to server ${SERVER_NUM}: $IP"
-    
+
     # Wait for SSH
     Write-Info "Waiting for SSH..."
     $retries = 0
     $maxRetries = 30
-    
+
     while ($retries -lt $maxRetries) {
         try {
             ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@$IP "echo ok" 2>$null
             if ($LASTEXITCODE -eq 0) { break }
         } catch {}
-        
+
         $retries++
         if ($retries -eq $maxRetries) {
             Write-Error-Custom "SSH timeout for $IP"
@@ -475,46 +463,45 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
         }
         Start-Sleep -Seconds 5
     }
-    
+
     Write-Success "SSH connection established"
-    
+
     # Create directories
     Write-Info "Creating directories..."
     ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "mkdir -p /opt/pinzos /var/log/pinzos"
-    
+
     Write-Info "Uploading Docker image (this will take several minutes)..."
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
         -o Compression=yes `
         $TEMP_TAR `
         "root@${IP}:/tmp/image.tar"
-    
+
     Write-Info "Uploading configuration files..."
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
         $ENV_FILE `
         "root@${IP}:/opt/pinzos/.env"
-    
+
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
         docker-compose.production.yml `
         "root@${IP}:/opt/pinzos/docker-compose.yml"
-    
-    # Upload nginx config - prioritize nginx.conf for simplicity
-    if (Test-Path "nginx.conf") {
-        Write-Info "Uploading nginx.conf (HTTP-only, simple config)..."
+
+    # Upload nginx config — production version for Cloudflare
+    if (Test-Path "nginx.production.conf") {
+        Write-Info "Uploading nginx.production.conf (Cloudflare SSL)..."
+        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
+            nginx.production.conf `
+            "root@${IP}:/opt/pinzos/nginx.conf"
+    } elseif (Test-Path "nginx.conf") {
+        Write-Info "Uploading nginx.conf (HTTP-only)..."
         scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
             nginx.conf `
-            "root@${IP}:/opt/pinzos/nginx.conf"
-    } elseif (Test-Path "nginx.production-no-ssl.conf") {
-        Write-Info "Uploading nginx.production-no-ssl.conf..."
-        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-            nginx.production-no-ssl.conf `
             "root@${IP}:/opt/pinzos/nginx.conf"
     } else {
         Write-Warning "No nginx config found, nginx may not work correctly"
     }
-    
+
     Write-Info "Starting backend services..."
-    
-    # 创建部署脚本文件（使用 Unix 换行符）
+
     $deployScript = @'
 #!/bin/bash
 set -e
@@ -525,7 +512,7 @@ if ! command -v docker >/dev/null 2>&1; then
     echo "Installing Docker..."
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker
-    echo "✅ Docker installed"
+    echo "Docker installed"
 fi
 
 # Load Docker image
@@ -533,15 +520,15 @@ if [ -f /tmp/image.tar ]; then
     echo "Loading Docker image..."
     docker load < /tmp/image.tar
     rm -f /tmp/image.tar
-    echo "✅ Image loaded"
+    echo "Image loaded"
 fi
 
 # Verify .env file
 if [ ! -f .env ]; then
-    echo "❌ ERROR: .env file not found!"
+    echo "ERROR: .env file not found!"
     exit 1
 fi
-echo "✅ Environment file found"
+echo "Environment file found"
 
 # Pull nginx if needed
 if grep -q "nginx:" docker-compose.yml 2>/dev/null; then
@@ -563,7 +550,7 @@ SUCCESS=0
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     if curl -s --max-time 2 "http://127.0.0.1:$HOST_PORT/health" | grep -q 'ok\|healthy' || \
        curl -s --max-time 2 "http://127.0.0.1/health" | grep -q 'ok\|healthy'; then
-        echo "✅ Backend is UP"
+        echo "Backend is UP"
         SUCCESS=1
         break
     fi
@@ -572,34 +559,31 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
 done
 
 if [ $SUCCESS -eq 0 ]; then
-    echo "❌ Health check failed!"
+    echo "Health check failed!"
     docker ps
     docker logs pinzos-api --tail 100
     exit 1
 fi
 
 echo ""
-echo "✅ Backend deployed successfully on this server"
+echo "Backend deployed successfully on this server"
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 '@
-    
-    # 保存脚本到临时文件，使用 Unix 换行符（LF）
+
     $tempScript = [System.IO.Path]::GetTempFileName()
-    # 移除 Windows 换行符并使用 Unix 换行符
     $unixScript = $deployScript -replace "`r`n", "`n" -replace "`r", "`n"
     [System.IO.File]::WriteAllText($tempScript, $unixScript, [System.Text.UTF8Encoding]::new($false))
-    
-    # 上传并执行脚本
+
     scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no $tempScript "root@${IP}:/tmp/deploy.sh"
     ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
     Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
     $exitCode = $LASTEXITCODE
-    
+
     if ($exitCode -ne 0) {
         Write-Error-Custom "Deployment failed on server $SERVER_NUM"
         exit 1
     }
-    
+
     Write-Success "Server $SERVER_NUM deployed successfully"
 }
 
@@ -613,7 +597,7 @@ if (Test-Path $TEMP_TAR) {
 # 7. Create Load Balancer
 # ============================================================================
 
-Write-Step "7/9 Creating Load Balancer..."
+Write-Step "7/7 Creating Load Balancer..."
 
 $LB_NAME = "$PROJECT_NAME-lb"
 
@@ -634,7 +618,7 @@ if ($lbExists) {
     $LB_IP = $lbInfo.public_net.ipv4.ip
 } else {
     Write-Info "Creating Load Balancer..."
-    
+
     $lbJson = hcloud load-balancer create `
         --name $LB_NAME `
         --type $LB_TYPE `
@@ -642,13 +626,13 @@ if ($lbExists) {
         --network $NETWORK_NAME `
         --label "app=$PROJECT_NAME" `
         -o json
-    
+
     $lbInfo = $lbJson | ConvertFrom-Json
     $LB_IP = $lbInfo.load_balancer.public_net.ipv4.ip
     Write-Success "Load Balancer created: $LB_IP"
 }
 
-# Configure HTTP service
+# Configure HTTP service (Cloudflare connects on port 80)
 Write-Info "Configuring Load Balancer service..."
 
 $lbInfo = hcloud load-balancer describe $LB_NAME -o json | ConvertFrom-Json
@@ -672,32 +656,8 @@ if (-not $serviceExists) {
         --health-check-interval 10s `
         --health-check-timeout 5s `
         --health-check-retries 3
-    
+
     Write-Success "HTTP service configured"
-}
-
-# Configure HTTPS service (port 443)
-$httpsServiceExists = $false
-foreach ($service in $lbInfo.services) {
-    if ($service.listen_port -eq 443) {
-        $httpsServiceExists = $true
-        break
-    }
-}
-
-if (-not $httpsServiceExists -and -not $SkipSSL) {
-    Write-Info "Adding HTTPS service to Load Balancer..."
-    hcloud load-balancer add-service $LB_NAME `
-        --protocol tcp `
-        --listen-port 443 `
-        --destination-port 443 `
-        --health-check-protocol tcp `
-        --health-check-port 443 `
-        --health-check-interval 10s `
-        --health-check-timeout 5s `
-        --health-check-retries 3
-    
-    Write-Success "HTTPS service configured"
 }
 
 # Add server targets
@@ -711,7 +671,7 @@ foreach ($id in $SERVER_IDS) {
             break
         }
     }
-    
+
     if (-not $targetExists) {
         hcloud load-balancer add-target $LB_NAME --server $id --use-private-ip
         Write-Success "Added server $id to Load Balancer"
@@ -720,12 +680,7 @@ foreach ($id in $SERVER_IDS) {
 
 Write-Success "Load Balancer configured: $LB_IP"
 
-# ============================================================================
-# 8. Verify Deployment
-# ============================================================================
-
-Write-Step "8/9 Verifying deployment..."
-
+# Verify deployment via LB
 Write-Info "Waiting for Load Balancer health checks..."
 Start-Sleep -Seconds 15
 
@@ -734,7 +689,7 @@ $maxRetries = 10
 
 for ($retry = 1; $retry -le $maxRetries; $retry++) {
     Write-Info "Verification attempt $retry/$maxRetries..."
-    
+
     try {
         $response = Invoke-WebRequest -Uri "http://$LB_IP/health" -UseBasicParsing -TimeoutSec 10
         if ($response.StatusCode -eq 200) {
@@ -745,7 +700,7 @@ for ($retry = 1; $retry -le $maxRetries; $retry++) {
     } catch {
         Write-Info "Waiting for services to be healthy..."
     }
-    
+
     if (-not $verified -and $retry -lt $maxRetries) {
         Start-Sleep -Seconds 10
     }
@@ -757,126 +712,12 @@ if (-not $verified) {
 }
 
 # ============================================================================
-# 9. Setup SSL Certificates (Optional)
-# ============================================================================
-
-if (-not $SkipSSL) {
-    Write-Step "9/9 Setting up SSL certificates..."
-    
-    Write-Info "Domain: $Domain"
-    Write-Info "Email: $Email"
-    
-    # Create SSL setup script
-    $sslScript = @'
-#!/bin/bash
-set -e
-
-DOMAIN="{{DOMAIN}}"
-EMAIL="{{EMAIL}}"
-
-echo "Installing Certbot..."
-apt-get update -qq
-apt-get install -y certbot > /dev/null 2>&1
-
-echo "Stopping nginx to free port 80..."
-cd /opt/pinzos
-docker compose stop nginx
-
-echo "Obtaining SSL certificate..."
-certbot certonly --standalone \
-    --preferred-challenges http \
-    -d "$DOMAIN" \
-    --email "$EMAIL" \
-    --agree-tos \
-    --non-interactive
-
-if [ $? -ne 0 ]; then
-    echo "Failed to obtain SSL certificate"
-    docker compose start nginx
-    exit 1
-fi
-
-echo "Certificate obtained successfully!"
-
-# Setup auto-renewal
-echo "Setting up auto-renewal..."
-mkdir -p /etc/letsencrypt/renewal-hooks/deploy
-cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh << 'EOF'
-#!/bin/bash
-cd /opt/pinzos
-docker compose restart nginx
-EOF
-chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
-
-# Add cron job for renewal (if not exists)
-(crontab -l 2>/dev/null | grep -q "certbot renew") || \
-    (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet") | crontab -
-
-echo "SSL setup complete!"
-'@ -replace '{{DOMAIN}}', $Domain -replace '{{EMAIL}}', $Email
-
-    # Deploy SSL to each server
-    foreach ($IP in $SERVER_IPS) {
-        Write-Info "Setting up SSL on server: $IP"
-        
-        $tempScript = [System.IO.Path]::GetTempFileName()
-        $unixScript = $sslScript -replace "`r`n", "`n" -replace "`r", "`n"
-        [System.IO.File]::WriteAllText($tempScript, $unixScript, [System.Text.UTF8Encoding]::new($false))
-        
-        try {
-            # Upload and execute SSL setup
-            scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no $tempScript "root@${IP}:/tmp/setup-ssl.sh"
-            ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "chmod +x /tmp/setup-ssl.sh && /tmp/setup-ssl.sh"
-            
-            # Upload SSL-enabled nginx config
-            if (Test-Path "nginx.production.conf") {
-                Write-Info "Uploading SSL-enabled nginx configuration..."
-                scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-                    nginx.production.conf `
-                    "root@${IP}:/opt/pinzos/nginx.conf"
-                
-                # Restart nginx with SSL config
-                ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP @"
-cd /opt/pinzos
-docker compose restart nginx
-sleep 2
-"@
-            }
-            
-            Write-Success "SSL configured on $IP"
-        } catch {
-            Write-Warning "SSL setup failed on $IP, continuing..."
-        } finally {
-            if (Test-Path $tempScript) {
-                Remove-Item $tempScript -Force
-            }
-        }
-    }
-    
-    # Verify HTTPS
-    Write-Info "Verifying HTTPS connection..."
-    Start-Sleep -Seconds 5
-    
-    try {
-        $response = Invoke-WebRequest -Uri "https://$Domain/health" -UseBasicParsing -TimeoutSec 10
-        if ($response.StatusCode -eq 200) {
-            Write-Success "HTTPS is working correctly!"
-        }
-    } catch {
-        Write-Warning "HTTPS verification failed. You may need to wait for DNS propagation."
-        Write-Info "Test manually: https://$Domain/health"
-    }
-} else {
-    Write-Warning "Skipping SSL setup (use -SkipSSL:`$false to enable)"
-}
-
-# ============================================================================
 # Deployment Summary
 # ============================================================================
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Success "Pinzos Backend Deployment Complete!"
+Write-Success "$PROJECT_NAME Backend Deployment Complete!"
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Backend Servers:" -ForegroundColor Cyan
@@ -887,45 +728,23 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
 Write-Host ""
 Write-Host "Load Balancer:" -ForegroundColor Cyan
 Write-Host "  Public IP: $LB_IP" -ForegroundColor White
-Write-Host "  HTTP: http://$LB_IP/health" -ForegroundColor White
-if (-not $SkipSSL) {
-    Write-Host "  HTTPS: https://$Domain" -ForegroundColor Green
-    Write-Host "  SSL Certificate: Auto-renewing (Let's Encrypt)" -ForegroundColor Green
-}
+Write-Host "  Health: http://$LB_IP/health" -ForegroundColor White
 Write-Host ""
-if (-not $SkipSSL) {
-    Write-Host "API Endpoints:" -ForegroundColor Cyan
-    Write-Host "  Primary: https://$Domain" -ForegroundColor Green
-    Write-Host "  Fallback: http://$LB_IP (redirects to HTTPS)" -ForegroundColor White
-    Write-Host ""
-}
+Write-Host "SSL: Cloudflare (Flexible mode)" -ForegroundColor Green
+Write-Host "  Endpoint: https://$Domain" -ForegroundColor Green
+Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Yellow
 Write-Host "  1. Verify API is working:" -ForegroundColor White
-if (-not $SkipSSL) {
-    Write-Host "     curl https://$Domain/health" -ForegroundColor Gray
-} else {
-    Write-Host "     curl http://$LB_IP/health" -ForegroundColor Gray
-}
-Write-Host "  2. DNS Configuration:" -ForegroundColor White
-Write-Host "     Point $Domain to $LB_IP" -ForegroundColor Gray
-if (-not $SkipSSL) {
-    Write-Host "     ✅ SSL certificates already configured!" -ForegroundColor Green
-} else {
-    Write-Host "  3. Setup SSL manually:" -ForegroundColor White
-    Write-Host "     .\setup-ssl-production.ps1 -ServerIP $($SERVER_IPS[0]) -Domain $Domain" -ForegroundColor Gray
-}
+Write-Host "     curl https://$Domain/health" -ForegroundColor Gray
+Write-Host "  2. Ensure Cloudflare DNS:" -ForegroundColor White
+Write-Host "     A record: $Domain -> $LB_IP (Proxied / orange cloud)" -ForegroundColor Gray
+Write-Host "     SSL mode: Flexible" -ForegroundColor Gray
 Write-Host "  3. Update frontend .env:" -ForegroundColor White
-if (-not $SkipSSL) {
-    Write-Host "     VITE_API_URL=https://$Domain" -ForegroundColor Gray
-} else {
-    Write-Host "     VITE_API_URL=http://$LB_IP" -ForegroundColor Gray
-}
+Write-Host "     VITE_API_URL=https://$Domain" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Troubleshooting:" -ForegroundColor Yellow
 Write-Host "  SSH Access:" -ForegroundColor White
 Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip>" -ForegroundColor Gray
 Write-Host "  View Logs:" -ForegroundColor White
 Write-Host "    ssh -i $SSH_KEY_PATH root@<server-ip> 'docker logs pinzos-api -f'" -ForegroundColor Gray
-Write-Host "  Renew SSL manually:" -ForegroundColor White
-Write-Host "    ssh root@<server-ip> 'certbot renew --dry-run'" -ForegroundColor Gray
 Write-Host ""
