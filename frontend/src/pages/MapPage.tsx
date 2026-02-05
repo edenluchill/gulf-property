@@ -31,7 +31,7 @@ const METRIC_OPTIONS: { value: AreaMetric; labelKey: string }[] = [
 ]
 
 export default function MapPage() {
-  const { t } = useTranslation(['map', 'common'])
+  const { t, i18n } = useTranslation(['map', 'common'])
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -63,7 +63,7 @@ export default function MapPage() {
     if (saved && ['avgPrice', 'capitalGrowth', 'salesVolume', 'rentalYield', 'none'].includes(saved)) {
       return saved as AreaMetric
     }
-    return 'capitalGrowth'
+    return 'none'
   })
   const handleMetricToggle = (value: AreaMetric) => {
     const next = areaMetric === value ? 'none' : value
@@ -739,6 +739,7 @@ export default function MapPage() {
         isOpen={showAreaSheet}
         onClose={() => setShowAreaSheet(false)}
         title={selectedArea?.name || ''}
+        subtitle={!i18n.language?.startsWith('en') ? selectedArea?.translations?.[i18n.language?.split('-')[0] ?? '']?.name : undefined}
       >
         {isLoadingAreaProjects ? (
           <div className="flex items-center justify-center py-16">

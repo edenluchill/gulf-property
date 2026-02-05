@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Building2 } from 'lucide-react'
+import { X, Building2, Sparkles } from 'lucide-react'
 import { DubaiArea } from '../types'
 
 interface DeveloperSummary {
@@ -19,7 +19,10 @@ interface AreaDetailDialogProps {
 }
 
 export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading }: AreaDetailDialogProps) {
-  const { t } = useTranslation(['map', 'common'])
+  const { t, i18n } = useTranslation(['map', 'common'])
+  const langKey = i18n.language?.split('-')[0] // 'zh-CN' → 'zh'
+  const tr = area?.translations?.[langKey ?? '']
+  const isTranslated = !!tr
 
   // Group projects by developer
   const developers: DeveloperSummary[] = useMemo(() => {
@@ -90,12 +93,17 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
               />
               <h2 className="font-bold text-2xl text-slate-900">{area.name}</h2>
             </div>
-            {area.nameAr && (
+            {isTranslated && tr?.name && (
+              <p className="text-sm text-slate-500 ml-[22px] mt-1">{tr.name}</p>
+            )}
+            {!isTranslated && area.nameAr && (
               <p className="text-sm text-slate-500 font-arabic ml-[22px] mt-1">{area.nameAr}</p>
             )}
-            {area.description && (
+            {(isTranslated && tr?.description) ? (
+              <p className="text-sm text-slate-600 mt-3 leading-relaxed">{tr.description}</p>
+            ) : area.description ? (
               <p className="text-sm text-slate-600 mt-3 leading-relaxed">{area.description}</p>
-            )}
+            ) : null}
           </div>
 
           {/* Market Statistics */}
@@ -167,6 +175,30 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
                   <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                     {area.culturalAttribute}
                   </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* AI Analysis Section */}
+          {(area.aiSummary || tr?.aiSummary || area.areaCategory) && (
+            <div className="px-6 pb-6">
+              <div className="pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-purple-500" />
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    AI Analysis
+                  </h4>
+                  {area.areaCategory && (
+                    <span className="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                      {area.areaCategory}
+                    </span>
+                  )}
+                </div>
+                {(tr?.aiSummary || area.aiSummary) && (
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {tr?.aiSummary || area.aiSummary}
+                  </p>
                 )}
               </div>
             </div>

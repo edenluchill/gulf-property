@@ -5,11 +5,12 @@ interface MobileBottomSheetProps {
   isOpen: boolean
   onClose: () => void
   title: string
+  subtitle?: string
   children: ReactNode
   height?: string // e.g., '60vh', '85vh', '90vh'
 }
 
-export default function MobileBottomSheet({ isOpen, onClose, title, children, height = '60vh' }: MobileBottomSheetProps) {
+export default function MobileBottomSheet({ isOpen, onClose, title, subtitle, children, height = '60vh' }: MobileBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
 
   // Prevent body scroll when open
@@ -47,7 +48,12 @@ export default function MobileBottomSheet({ isOpen, onClose, title, children, he
           {/* Drag handle */}
           <div className="w-10 h-1 rounded-full bg-slate-300 mb-3" />
           <div className="flex items-center justify-between w-full">
-            <h2 className="text-lg font-bold text-slate-900 truncate pr-4">{title}</h2>
+            <div className="min-w-0 flex-1 pr-4">
+              <h2 className="text-lg font-bold text-slate-900 truncate">{title}</h2>
+              {subtitle && (
+                <p className="text-sm text-slate-500 truncate">{subtitle}</p>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="p-1.5 rounded-full hover:bg-slate-100 transition-colors flex-shrink-0"

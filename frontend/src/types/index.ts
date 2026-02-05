@@ -156,6 +156,15 @@ export interface DubaiArea {
   salesVolume?: number
   capitalAppreciation?: number
   rentalYield?: number
+  // AI analysis fields
+  areaCategory?: string
+  investmentProfile?: string
+  rentalRestrictions?: string
+  growthPotential?: string
+  aiSummary?: string
+  // All non-English/non-Arabic translations in one JSONB object
+  // Structure: { zh: { name, description, aiSummary }, fr: { ... }, ... }
+  translations?: Record<string, { name?: string; description?: string; aiSummary?: string }>
 }
 
 export interface DubaiLandmark {

@@ -1,0 +1,6 @@
+ALTER TABLE dubai_areas
+ADD COLUMN IF NOT EXISTS area_category VARCHAR(50),
+ADD COLUMN IF NOT EXISTS investment_profile TEXT,
+ADD COLUMN IF NOT EXISTS rental_restrictions TEXT,
+ADD COLUMN IF NOT EXISTS growth_potential TEXT,
+ADD COLUMN IF NOT EXISTS ai_summary TEXT;

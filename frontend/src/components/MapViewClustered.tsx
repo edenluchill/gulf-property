@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { MapContainer, TileLayer, Marker, Polygon, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import { useTranslation } from 'react-i18next'
 import { DubaiArea, DubaiLandmark } from '../types'
 
 export type AreaMetric = 'none' | 'avgPrice' | 'capitalGrowth' | 'salesVolume' | 'rentalYield'
@@ -446,30 +447,17 @@ const AreaPolygon = memo(function AreaPolygon({
   }, [area.boundary])
 
   const pathOptions = useMemo(() => ({
-    color: area.color,
     fillColor: area.color,
-    fillOpacity: area.opacity * 0.6,
-    weight: 3,
-    opacity: 0.8,
-    dashArray: '5, 10',
-    lineCap: 'round' as const,
-    lineJoin: 'round' as const,
+    fillOpacity: area.opacity * 0.4,
+    weight: 0,
   }), [area.color, area.opacity])
 
   const eventHandlers = useMemo(() => ({
     mouseover: (e: any) => {
-      e.target.setStyle({
-        weight: 4,
-        fillOpacity: area.opacity * 1.2,
-        dashArray: '10, 5',
-      })
+      e.target.setStyle({ fillOpacity: area.opacity * 0.7 })
     },
     mouseout: (e: any) => {
-      e.target.setStyle({
-        weight: 3,
-        fillOpacity: area.opacity * 0.6,
-        dashArray: '5, 10',
-      })
+      e.target.setStyle({ fillOpacity: area.opacity * 0.4 })
     },
     click: () => { if (onAreaClick) onAreaClick(area) },
   }), [area, onAreaClick])
@@ -486,7 +474,25 @@ const AreaPolygon = memo(function AreaPolygon({
 })
 
 // Area name — bare text that blends into the polygon block
-function createAreaNameIcon(area: DubaiArea): L.DivIcon {
+function createAreaNameIcon(area: DubaiArea, locale?: string): L.DivIcon {
+  // 8-direction white halo for cartographic readability over colored polygons
+  const haloShadow = `-1px -1px 0 rgba(255,255,255,0.95), 1px -1px 0 rgba(255,255,255,0.95), -1px 1px 0 rgba(255,255,255,0.95), 1px 1px 0 rgba(255,255,255,0.95), 0 -1px 0 rgba(255,255,255,0.95), 0 1px 0 rgba(255,255,255,0.95), -1px 0 0 rgba(255,255,255,0.95), 1px 0 0 rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.6)`
+
+  // Look up translated name from translations JSONB (e.g. locale "zh-CN" → key "zh")
+  const langKey = locale?.split('-')[0]
+  const translatedName = langKey ? area.translations?.[langKey]?.name : undefined
+  const secondLine = translatedName
+    ? `<div style="
+        font-size: 11px;
+        font-weight: 600;
+        color: #475569;
+        opacity: 0.8;
+        line-height: 1.1;
+        text-shadow: ${haloShadow};
+        user-select: none;
+      ">${translatedName}</div>`
+    : ''
+
   return L.divIcon({
     html: `
       <div style="
@@ -502,12 +508,14 @@ function createAreaNameIcon(area: DubaiArea): L.DivIcon {
         <div style="
           font-size: 12px;
           font-weight: 600;
-          color: ${area.color};
-          opacity: 0.7;
-          text-shadow: 0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.5);
+          color: #334155;
+          opacity: 0.9;
+          line-height: 1.1;
+          text-shadow: ${haloShadow};
           letter-spacing: 0.03em;
           user-select: none;
         ">${area.name}</div>
+        ${secondLine}
       </div>
     `,
     className: 'area-name-icon',
@@ -561,6 +569,47 @@ function createMetricPinIcon(area: DubaiArea, metric: AreaMetric): L.DivIcon | n
   })
 }
 
+// ── Filter overlapping labels by projecting centroids to screen pixels ───────
+
+function filterOverlappingLabels(
+  items: { area: DubaiArea; centroid: [number, number]; span: number }[],
+  map: L.Map,
+  isBilingual: boolean,
+): { area: DubaiArea; centroid: [number, number]; span: number }[] {
+  // Sort by polygon span descending — larger areas get priority
+  const sorted = [...items].sort((a, b) => b.span - a.span)
+  const placed: { x: number; y: number }[] = []
+  const result: typeof sorted = []
+  const hThreshold = 80
+  const vThreshold = isBilingual ? 50 : 40
+
+  for (const item of sorted) {
+    const pt = map.latLngToContainerPoint(item.centroid)
+    let overlaps = false
+    for (const p of placed) {
+      if (Math.abs(pt.x - p.x) < hThreshold && Math.abs(pt.y - p.y) < vThreshold) {
+        overlaps = true
+        break
+      }
+    }
+    if (!overlaps) {
+      placed.push({ x: pt.x, y: pt.y })
+      result.push(item)
+    }
+  }
+  return result
+}
+
+// ── Set initial map bounds ──────────────────────────────────────────────────
+
+function SetInitialBounds() {
+  const map = useMap()
+  useEffect(() => {
+    map.fitBounds([[24.8318, 54.9337], [25.2176, 55.2894]])
+  }, [map])
+  return null
+}
+
 // ── Zoom-aware area labels + clustered metric pins ────────────────────────────
 
 function ZoomAwareAreaLabels({
@@ -573,7 +622,10 @@ function ZoomAwareAreaLabels({
   onAreaClick?: (area: DubaiArea) => void
 }) {
   const map = useMap()
+  const { i18n } = useTranslation()
+  const locale = i18n.language
   const [zoom, setZoom] = useState(map.getZoom())
+  const [mapBounds, setMapBounds] = useState(0) // counter to trigger recalc on pan
   const zoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Inject fade-in keyframes once (applied via inline style on inner div, NOT on Leaflet wrapper)
@@ -587,7 +639,7 @@ function ZoomAwareAreaLabels({
     }
   }, [])
 
-  // Zoom tracking — cancel pending updates on zoomstart to avoid DOM changes during animation
+  // Zoom + pan tracking — cancel pending updates on zoomstart to avoid DOM changes during animation
   useEffect(() => {
     const onZoomStart = () => {
       if (zoomTimerRef.current) {
@@ -597,13 +649,21 @@ function ZoomAwareAreaLabels({
     }
     const onZoomEnd = () => {
       if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
-      zoomTimerRef.current = setTimeout(() => setZoom(map.getZoom()), 80)
+      zoomTimerRef.current = setTimeout(() => {
+        setZoom(map.getZoom())
+        setMapBounds(c => c + 1)
+      }, 80)
+    }
+    const onMoveEnd = () => {
+      setMapBounds(c => c + 1)
     }
     map.on('zoomstart', onZoomStart)
     map.on('zoomend', onZoomEnd)
+    map.on('moveend', onMoveEnd)
     return () => {
       map.off('zoomstart', onZoomStart)
       map.off('zoomend', onZoomEnd)
+      map.off('moveend', onMoveEnd)
       if (zoomTimerRef.current) clearTimeout(zoomTimerRef.current)
     }
   }, [map])
@@ -624,14 +684,14 @@ function ZoomAwareAreaLabels({
       })
   }, [dubaiAreas])
 
-  // Cache icon instances — only recreated when source data changes, NOT on zoom
+  // Cache icon instances — recreated when source data or locale changes
   const nameIconCache = useMemo(() => {
     const cache = new Map<string, L.DivIcon>()
     for (const { area } of areaData) {
-      cache.set(area.id, createAreaNameIcon(area))
+      cache.set(area.id, createAreaNameIcon(area, locale))
     }
     return cache
-  }, [areaData])
+  }, [areaData, locale])
 
   const metricIconCache = useMemo(() => {
     const cache = new Map<string, L.DivIcon | null>()
@@ -646,12 +706,15 @@ function ZoomAwareAreaLabels({
   const mergeRadius = getMergeRadius(zoom)
   const isIndividualMode = mergeRadius <= 0 // zoom >= 13
 
-  // Names — filter only, reuse cached icons (stable references prevent DOM thrashing)
+  const isBilingual = !!locale && !locale.startsWith('en')
+
+  // Names — filter by span, then remove overlapping labels
   const visibleNames = useMemo(() => {
-    return areaData
-      .filter(({ span }) => span >= minSpan)
-      .map(({ area, centroid }) => ({ area, centroid, icon: nameIconCache.get(area.id)! }))
-  }, [areaData, minSpan, nameIconCache])
+    const candidates = areaData.filter(({ span }) => span >= minSpan)
+    const filtered = filterOverlappingLabels(candidates, map, !!isBilingual)
+    return filtered.map(({ area, centroid }) => ({ area, centroid, icon: nameIconCache.get(area.id)! }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaData, minSpan, nameIconCache, mapBounds, isBilingual])
 
   // Individual metric pins — filter only, reuse cached icons
   const individualPins = useMemo(() => {
@@ -959,14 +1022,15 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, onAreaClic
 
   return (
     <MapContainer
-      center={[25.0961, 55.1561]}
-      zoom={11}
+      center={[25.13, 55.14]}
+      zoom={12}
       className="h-full w-full rounded-lg overflow-hidden shadow-lg"
     >
+      <SetInitialBounds />
       {/* 使用 Carto 的英文地图瓦片 - 清晰现代的设计 */}
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
         subdomains="abcd"
         maxZoom={20}
       />

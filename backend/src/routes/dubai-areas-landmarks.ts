@@ -5,6 +5,44 @@ import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
+// Shared helper: map a dubai_areas row to API response shape
+function mapAreaRow(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    nameAr: row.name_ar,
+    boundary: row.boundary,
+    description: row.description,
+    descriptionAr: row.description_ar,
+    color: row.color,
+    opacity: parseFloat(row.opacity),
+    displayOrder: row.display_order,
+    visible: row.visible,
+    projectCounts: row.project_counts || 0,
+    averagePrice: row.average_price ? parseFloat(row.average_price) : null,
+    salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
+    capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
+    rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
+    areaCategory: row.area_category,
+    investmentProfile: row.investment_profile,
+    rentalRestrictions: row.rental_restrictions,
+    growthPotential: row.growth_potential,
+    aiSummary: row.ai_summary,
+    translations: row.translations || {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Standard SELECT columns for dubai_areas
+const AREA_SELECT = `
+  id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
+  description, description_ar, color, opacity, display_order, visible,
+  project_counts, average_price, sales_volume, capital_appreciation, rental_yield,
+  area_category, investment_profile, rental_restrictions, growth_potential, ai_summary,
+  translations, created_at, updated_at
+`;
+
 /**
  * GET /api/dubai/areas
  * Returns all Dubai areas (districts) with polygon boundaries
@@ -13,43 +51,13 @@ const router = Router();
 router.get('/areas', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT 
-        id,
-        name,
-        name_ar,
-        ST_AsGeoJSON(boundary)::json as boundary,
-        description,
-        description_ar,
-        color,
-        opacity,
-        display_order,
-        project_counts,
-        average_price,
-        sales_volume,
-        capital_appreciation,
-        rental_yield
+      SELECT ${AREA_SELECT}
       FROM dubai_areas
       WHERE visible = true
       ORDER BY display_order ASC, name ASC
     `);
 
-    const areas = result.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      nameAr: row.name_ar,
-      boundary: row.boundary, // GeoJSON format
-      description: row.description,
-      descriptionAr: row.description_ar,
-      color: row.color,
-      opacity: parseFloat(row.opacity),
-      displayOrder: row.display_order,
-      // Market statistics
-      projectCounts: row.project_counts || 0,
-      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
-      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
-      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
-      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
-    }));
+    const areas = result.rows.map(row => mapAreaRow(row));
 
     res.json(areas);
   } catch (error) {
@@ -123,23 +131,7 @@ router.get('/areas/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     
     const result = await pool.query(`
-      SELECT 
-        id,
-        name,
-        name_ar,
-        ST_AsGeoJSON(boundary)::json as boundary,
-        description,
-        description_ar,
-        color,
-        opacity,
-        display_order,
-        project_counts,
-        average_price,
-        sales_volume,
-        capital_appreciation,
-        rental_yield,
-        created_at,
-        updated_at
+      SELECT ${AREA_SELECT}
       FROM dubai_areas
       WHERE id = $1
     `, [id]);
@@ -148,26 +140,7 @@ router.get('/areas/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Area not found' });
     }
 
-    const row = result.rows[0];
-    const area = {
-      id: row.id,
-      name: row.name,
-      nameAr: row.name_ar,
-      boundary: row.boundary,
-      description: row.description,
-      descriptionAr: row.description_ar,
-      color: row.color,
-      opacity: parseFloat(row.opacity),
-      displayOrder: row.display_order,
-      // Market statistics
-      projectCounts: row.project_counts || 0,
-      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
-      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
-      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
-      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    const area = mapAreaRow(result.rows[0]);
 
     res.json(area);
   } catch (error) {
@@ -266,36 +239,33 @@ router.post('/areas', requireAuth, [
       color = '#3B82F6',
       opacity = 0.3,
       displayOrder = 0,
+      areaCategory,
+      investmentProfile,
+      rentalRestrictions,
+      growthPotential,
+      aiSummary,
+      translations = {},
     } = req.body;
 
     // Convert GeoJSON to PostGIS geometry
     const result = await pool.query(`
       INSERT INTO dubai_areas (
         name, name_ar, boundary,
-        description, description_ar, color, opacity, display_order
+        description, description_ar,
+        color, opacity, display_order,
+        area_category, investment_profile, rental_restrictions,
+        growth_potential, ai_summary, translations
       ) VALUES (
-        $1, $2, ST_GeomFromGeoJSON($3)::geography, $4, $5, $6, $7, $8
+        $1, $2, ST_GeomFromGeoJSON($3)::geography, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14
       )
-      RETURNING id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
-                description, description_ar,
-                color, opacity, display_order, created_at, updated_at
+      RETURNING ${AREA_SELECT}
     `, [name, nameAr, JSON.stringify(boundary),
-        description, descriptionAr, color, opacity, displayOrder]);
+        description, descriptionAr, color, opacity, displayOrder,
+        areaCategory, investmentProfile, rentalRestrictions,
+        growthPotential, aiSummary, JSON.stringify(translations)]);
 
-    const row = result.rows[0];
-    const newArea = {
-      id: row.id,
-      name: row.name,
-      nameAr: row.name_ar,
-      boundary: row.boundary,
-      description: row.description,
-      descriptionAr: row.description_ar,
-      color: row.color,
-      opacity: parseFloat(row.opacity),
-      displayOrder: row.display_order,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    const newArea = mapAreaRow(result.rows[0]);
 
     res.status(201).json(newArea);
   } catch (error) {
@@ -336,6 +306,12 @@ router.put('/areas/:id', requireAuth, [
       salesVolume,
       capitalAppreciation,
       rentalYield,
+      areaCategory,
+      investmentProfile,
+      rentalRestrictions,
+      growthPotential,
+      aiSummary,
+      translations,
     } = req.body;
 
     // Build dynamic update query
@@ -400,6 +376,31 @@ router.put('/areas/:id', requireAuth, [
       updates.push(`rental_yield = $${paramCount++}`);
       values.push(rentalYield);
     }
+    // AI analysis fields
+    if (areaCategory !== undefined) {
+      updates.push(`area_category = $${paramCount++}`);
+      values.push(areaCategory);
+    }
+    if (investmentProfile !== undefined) {
+      updates.push(`investment_profile = $${paramCount++}`);
+      values.push(investmentProfile);
+    }
+    if (rentalRestrictions !== undefined) {
+      updates.push(`rental_restrictions = $${paramCount++}`);
+      values.push(rentalRestrictions);
+    }
+    if (growthPotential !== undefined) {
+      updates.push(`growth_potential = $${paramCount++}`);
+      values.push(growthPotential);
+    }
+    if (aiSummary !== undefined) {
+      updates.push(`ai_summary = $${paramCount++}`);
+      values.push(aiSummary);
+    }
+    if (translations !== undefined) {
+      updates.push(`translations = $${paramCount++}`);
+      values.push(JSON.stringify(translations));
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -407,41 +408,17 @@ router.put('/areas/:id', requireAuth, [
 
     values.push(id);
     const result = await pool.query(`
-      UPDATE dubai_areas 
+      UPDATE dubai_areas
       SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
       WHERE id = $${paramCount}
-      RETURNING id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
-                description, description_ar,
-                color, opacity, visible, display_order,
-                project_counts, average_price, sales_volume, capital_appreciation, rental_yield,
-                created_at, updated_at
+      RETURNING ${AREA_SELECT}
     `, values);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Area not found' });
     }
 
-    const row = result.rows[0];
-    const updatedArea = {
-      id: row.id,
-      name: row.name,
-      nameAr: row.name_ar,
-      boundary: row.boundary,
-      description: row.description,
-      descriptionAr: row.description_ar,
-      color: row.color,
-      opacity: parseFloat(row.opacity),
-      visible: row.visible,
-      displayOrder: row.display_order,
-      // Market statistics
-      projectCounts: row.project_counts || 0,
-      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
-      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
-      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
-      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    const updatedArea = mapAreaRow(result.rows[0]);
 
     res.json(updatedArea);
   } catch (error) {
@@ -750,6 +727,12 @@ router.post('/batch-update', requireAuth, async (req: Request, res: Response) =>
         salesVolume,
         capitalAppreciation,
         rentalYield,
+        areaCategory,
+        investmentProfile,
+        rentalRestrictions,
+        growthPotential,
+        aiSummary,
+        translations,
       } = area;
 
       // Build dynamic update query
@@ -793,7 +776,6 @@ router.post('/batch-update', requireAuth, async (req: Request, res: Response) =>
         updates.push(`display_order = $${paramCount++}`);
         values.push(displayOrder);
       }
-      // Market statistics
       if (projectCounts !== undefined) {
         updates.push(`project_counts = $${paramCount++}`);
         values.push(projectCounts);
@@ -814,41 +796,42 @@ router.post('/batch-update', requireAuth, async (req: Request, res: Response) =>
         updates.push(`rental_yield = $${paramCount++}`);
         values.push(rentalYield);
       }
+      if (areaCategory !== undefined) {
+        updates.push(`area_category = $${paramCount++}`);
+        values.push(areaCategory);
+      }
+      if (investmentProfile !== undefined) {
+        updates.push(`investment_profile = $${paramCount++}`);
+        values.push(investmentProfile);
+      }
+      if (rentalRestrictions !== undefined) {
+        updates.push(`rental_restrictions = $${paramCount++}`);
+        values.push(rentalRestrictions);
+      }
+      if (growthPotential !== undefined) {
+        updates.push(`growth_potential = $${paramCount++}`);
+        values.push(growthPotential);
+      }
+      if (aiSummary !== undefined) {
+        updates.push(`ai_summary = $${paramCount++}`);
+        values.push(aiSummary);
+      }
+      if (translations !== undefined) {
+        updates.push(`translations = $${paramCount++}`);
+        values.push(JSON.stringify(translations));
+      }
 
       if (updates.length > 0) {
         values.push(id);
         const result = await client.query(`
-          UPDATE dubai_areas 
+          UPDATE dubai_areas
           SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
           WHERE id = $${paramCount}
-          RETURNING id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
-                    description, description_ar,
-                    color, opacity, visible, display_order,
-                    project_counts, average_price, sales_volume, capital_appreciation, rental_yield,
-                    created_at, updated_at
+          RETURNING ${AREA_SELECT}
         `, values);
 
         if (result.rows.length > 0) {
-          const row = result.rows[0];
-          updatedAreas.push({
-            id: row.id,
-            name: row.name,
-            nameAr: row.name_ar,
-            boundary: row.boundary,
-            description: row.description,
-            descriptionAr: row.description_ar,
-            color: row.color,
-            opacity: parseFloat(row.opacity),
-            visible: row.visible,
-            displayOrder: row.display_order,
-            projectCounts: row.project_counts || 0,
-            averagePrice: row.average_price ? parseFloat(row.average_price) : null,
-            salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
-            capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
-            rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
-            createdAt: row.created_at,
-            updatedAt: row.updated_at,
-          });
+          updatedAreas.push(mapAreaRow(result.rows[0]));
         }
       }
     }
