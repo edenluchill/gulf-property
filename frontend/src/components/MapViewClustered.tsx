@@ -605,7 +605,7 @@ function filterOverlappingLabels(
 function SetInitialBounds() {
   const map = useMap()
   useEffect(() => {
-    map.fitBounds([[24.8318, 54.9337], [25.2176, 55.2894]], { minZoom: 12 })
+    map.setView([25.019, 55.089], 11)
   }, [map])
   return null
 }
