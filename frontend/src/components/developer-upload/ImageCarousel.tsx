@@ -224,8 +224,8 @@ export function ImageCarousel({
                       }
                     }}
                   />
-                  {/* Zoom hint */}
-                  <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  {/* Zoom hint - pointer-events-none to allow clicks to pass through */}
+                  <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
                     <div className="bg-white rounded-full p-2 shadow-lg">
                       <ZoomIn className="h-5 w-5 text-gray-700" />
                     </div>
