@@ -17,13 +17,16 @@ import { createOutputStructure } from '../utils/pdf/file-manager';
 import { progressEmitter } from '../services/progress-emitter';
 import { splitAllPdfsIntoChunks } from './strategies/chunking';
 import { processChunksInBatches } from './processors/batch-processor';
-import { 
+import {
   createEmptyAggregatedData
 } from './processors/data-aggregator';
 import { ResultRecorder } from './processors/result-recorder';
 import { calculatePdfHashes, shortHash } from '../utils/pdf/pdf-hash';
 import { checkPdfCache } from '../services/r2-storage';
 import { generateAndUploadAllPdfImages, type PdfImageBatch } from './utils/pdf-image-generator';
+import { PageRegistryManager } from './core/page-registry';
+import { TaskAbortedError } from '../services/task-manager';
+import { startJobLogging, stopJobLogging } from '../utils/job-logger';
 
 export interface WorkflowConfig {
   pdfBuffers: Buffer[];
@@ -33,6 +36,7 @@ export interface WorkflowConfig {
   pagesPerChunk?: number;
   batchSize?: number;
   batchDelay?: number;
+  abortSignal?: AbortSignal; // For pause/cancel support
 }
 
 export interface WorkflowResult {
@@ -45,6 +49,7 @@ export interface WorkflowResult {
   totalChunks: number;
   totalPages: number;
   analysisReportPath?: string;  // Path to detailed JSON analysis report
+  aborted?: boolean; // Whether processing was aborted (paused/cancelled)
 }
 
 /**
@@ -57,14 +62,18 @@ export async function executePdfWorkflow(
   config: WorkflowConfig
 ): Promise<WorkflowResult> {
   const startTime = Date.now();
-  const { 
-    jobId, 
-    pdfBuffers, 
-    pdfNames, 
+  const {
+    jobId,
+    pdfBuffers,
+    pdfNames,
     pagesPerChunk = 5,
     batchSize = 20,  // ⭐ Increased from 10 to 20 for better parallelism
     batchDelay = 500,  // ⭐ Reduced from 1000ms to 500ms (still safe for API rate limits)
+    abortSignal,
   } = config;
+
+  // Start job logging (dev only)
+  startJobLogging(jobId);
 
   console.log(`\n${'='.repeat(70)}`);
   console.log(`📋 PDF PROCESSING WORKFLOW STARTED`);
@@ -92,18 +101,47 @@ export async function executePdfWorkflow(
       timestamp: Date.now(),
     });
     
+    // ⭐ 先获取每个PDF的页数，用于验证缓存完整性
+    const { getPdfPageCount } = await import('../utils/pdf/converter');
+    const pdfPageCounts = await Promise.all(
+      pdfBuffers.map(async (buffer) => {
+        try {
+          return await getPdfPageCount(buffer);
+        } catch {
+          return 0;
+        }
+      })
+    );
+
     const cacheResults = await Promise.all(
-      pdfHashes.map(async ({ hash, name }) => {
+      pdfHashes.map(async ({ hash, name }, index) => {
         const cached = await checkPdfCache(hash);
+        const expectedPages = pdfPageCounts[index];
+
         if (cached) {
-          console.log(`   ✅ Cache HIT for "${name}" (${shortHash(hash)})`);
+          // ⭐ 验证缓存完整性：检查是否有所有页面的图片
+          const uniquePages = new Set<number>();
+          cached.forEach(url => {
+            const match = url.match(/page[._](\d+)(?:[._](large|medium|thumbnail))?\.jpg/);
+            if (match) {
+              uniquePages.add(parseInt(match[1]));
+            }
+          });
+
+          if (uniquePages.size >= expectedPages) {
+            console.log(`   ✅ Cache HIT for "${name}" (${shortHash(hash)}) - ${uniquePages.size}/${expectedPages} pages`);
+            return { hash, name, cached };
+          } else {
+            console.log(`   ⚠️  Cache INCOMPLETE for "${name}" (${shortHash(hash)}) - only ${uniquePages.size}/${expectedPages} pages, regenerating...`);
+            return { hash, name, cached: null };  // 标记为需要重新生成
+          }
         } else {
           console.log(`   ⚠️  Cache MISS for "${name}" (${shortHash(hash)})`);
         }
         return { hash, name, cached };
       })
     );
-    
+
     const allCached = cacheResults.every(r => r.cached !== null);
     
     // Setup output directory
@@ -131,6 +169,36 @@ export async function executePdfWorkflow(
         pdfHashes: pdfHashes.map(h => h.hash),
         tempDir: join(outputStructure.jobDir, 'temp_images'),
         uploadConcurrency: 10,  // 10 concurrent uploads
+        // ⭐ Progress callback for fine-grained progress updates
+        onProgress: (progress) => {
+          // Calculate overall progress: 3% to 8% for image generation
+          // Phase weight: generating = 30%, uploading = 70%
+          const phaseWeight = progress.phase === 'generating' ? 0.3 : 0.7;
+          const pdfProgress = (progress.currentPdf - 1) / progress.totalPdfs;
+          const imageProgress = progress.totalImages > 0
+            ? progress.currentImage / progress.totalImages
+            : 0;
+
+          // Overall: 3 + (pdf_progress * 5) + (image_progress * phase_weight * 5 / totalPdfs)
+          const overallProgress = 3 + (pdfProgress * 5) + (imageProgress * phaseWeight * 5 / progress.totalPdfs);
+
+          progressEmitter.emit(jobId, {
+            stage: 'ingestion',
+            code: 'GENERATING_IMAGES',
+            message: progress.phase === 'generating'
+              ? `Converting PDF ${progress.currentPdf}/${progress.totalPdfs}: ${progress.pdfName || 'document'}`
+              : `Uploading images: ${progress.currentImage}/${progress.totalImages} (PDF ${progress.currentPdf}/${progress.totalPdfs})`,
+            progress: Math.min(Math.round(overallProgress), 8),
+            timestamp: Date.now(),
+            data: {
+              phase: progress.phase,
+              currentImage: progress.currentImage,
+              totalImages: progress.totalImages,
+              currentPdf: progress.currentPdf,
+              totalPdfs: progress.totalPdfs,
+            },
+          });
+        },
       });
 
       imageBatches = imageGenResult.imageBatches;
@@ -271,17 +339,34 @@ export async function executePdfWorkflow(
           jobId,
           batchSize,
           batchDelay,
+          abortSignal,
         },
         aggregatedData
       );
-      
+
       allErrors = batchResult.allErrors;
       allWarnings = batchResult.allWarnings;
       chunkAnalyses = batchResult.chunkAnalyses;
       finalAggregatedData = batchResult.aggregatedData;
-      
+
       console.log(`✅ Batch processing completed successfully`);
     } catch (batchError) {
+      // Handle abort (pause/cancel) gracefully
+      if (batchError instanceof TaskAbortedError) {
+        console.log(`⏸️  Workflow ${batchError.reason} for job ${jobId}`);
+        return {
+          success: false,
+          buildingData: {},
+          processingTime: Date.now() - startTime,
+          errors: [],
+          warnings: [],
+          jobId,
+          totalChunks,
+          totalPages,
+          aborted: true,
+        };
+      }
+
       console.error(`❌ Batch processing failed:`, batchError);
       // Re-throw to be caught by outer try-catch
       throw new Error(`Batch processing failed: ${batchError}`);
@@ -346,11 +431,27 @@ export async function executePdfWorkflow(
     };
 
   } catch (error) {
+    // Handle abort (pause/cancel) gracefully
+    if (error instanceof TaskAbortedError) {
+      console.log(`⏸️  Workflow ${error.reason} for job ${jobId}`);
+      return {
+        success: false,
+        buildingData: {},
+        processingTime: Date.now() - startTime,
+        errors: [],
+        warnings: [],
+        jobId,
+        totalChunks: 0,
+        totalPages: 0,
+        aborted: true,
+      };
+    }
+
     console.error('\n❌ WORKFLOW FAILED:', error);
     console.error('   Stack trace:', (error as Error).stack);
-    
+
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     // Try to emit error to client
     try {
       progressEmitter.error(jobId, errorMessage);
@@ -369,5 +470,13 @@ export async function executePdfWorkflow(
       totalPages: 0,
       analysisReportPath: undefined,
     };
+  } finally {
+    // Stop job logging (dev only) - always run
+    stopJobLogging(jobId);
+
+    // Cleanup PageRegistry for this job (unless aborted for resume)
+    if (!abortSignal?.aborted) {
+      PageRegistryManager.delete(jobId);
+    }
   }
 }

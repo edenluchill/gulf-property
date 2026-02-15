@@ -12,20 +12,14 @@ export type { WorkflowConfig, WorkflowResult } from './workflow-executor';
 export type { State, GlobalState, PageResult } from './state';
 export { StateAnnotation } from './state';
 
-// All agents
-// NOTE: These agents have been deprecated in favor of the direct PDF processing approach
-// export { classifyPage, classifyPages } from '../agents/visual-classifier.agent';
-// export { extractFloorPlanDetails, extractFloorPlans } from '../agents/floor-plan-auditor.agent';
-// export { extractPaymentPlan, extractPaymentPlans, mergePaymentPlans } from '../agents/financial-structurer.agent';
-export { researchMarketContext, generateInvestmentAnalysis } from './agents/market-intelligence.agent';
-export { generateMarketingContent } from './agents/copywriter.agent';
-// export {
-//   validateBuildingData,
-//   shouldRetry,
-//   aggregateBuildingData,
-//   calculateBuildingStats,
-//   mergeDuplicateUnits,
-// } from '../agents/manager.agent';
+// Active agents (used in PDF upload workflow)
+export { classifyPage } from './agents/page-classifier.agent';
+export { extractUnitDetails } from './agents/unit-detail-extractor.agent';
+export { extractAmenities } from './agents/amenity-extractor.agent';
+export { extractProjectInfo } from './agents/project-info-extractor.agent';
+export { extractPaymentPlan } from './agents/payment-plan-extractor.agent';
+export { extractPricing } from './agents/pricing-extractor.agent';
+export { generateProjectDescription } from './agents/project-description-generator.agent';
 
 // Utilities
 export { pdfToImages, pdfPageToImage, getPdfPageCount } from '../utils/pdf/converter';

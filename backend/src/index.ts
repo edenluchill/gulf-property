@@ -14,6 +14,8 @@ import langgraphProgressRouter from './routes/langgraph-progress'
 import langgraphValidateRouter from './routes/langgraph-validate'
 import dubaiAreasLandmarksRouter from './routes/dubai-areas-landmarks'
 import uploadRouter from './routes/upload'
+import tasksRouter from './routes/tasks'
+import adminTasksRouter from './routes/admin-tasks'
 import pool from './db/pool'
 
 dotenv.config()
@@ -84,6 +86,8 @@ app.use('/api/langgraph', langgraphValidateRouter)  // Result validation
 app.use('/api/dubai', dubaiAreasLandmarksRouter)  // Dubai areas and landmarks overlay
 app.use('/api/upload', uploadRouter)  // File upload to R2
 app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
+app.use('/api/tasks', tasksRouter)  // PDF processing task management
+app.use('/api/admin/tasks', adminTasksRouter)  // Admin task management
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

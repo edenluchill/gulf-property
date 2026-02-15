@@ -11,6 +11,8 @@ import LangGraphTestPage from './pages/LangGraphTestPage'
 import DubaiEditor from './pages/DubaiEditor'
 import AdminPropertyListPage from './pages/AdminPropertyListPage'
 import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
+import AdminTasksPage from './pages/AdminTasksPage'
+import AdminTaskReviewPage from './pages/AdminTaskReviewPage'
 import Layout from './components/Layout'
 import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -60,6 +62,22 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminPropertyEditPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tasks"
+          element={
+            <ProtectedRoute>
+              <AdminTasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tasks/:jobId/review"
+          element={
+            <ProtectedRoute>
+              <AdminTaskReviewPage />
             </ProtectedRoute>
           }
         />

@@ -245,7 +245,37 @@ export interface PageMetadata {
       stage?: string;
     }>;
   };
-  
+
+  // ============ 价格表数据（如果是pricing table页）⭐ ============
+  pricingData?: {
+    entries: Array<{
+      unitTypeName?: string;       // 具体户型名
+      unitCategory?: string;       // 分类 (1BR, 2BR, etc.)
+      building?: string;           // Building/Tower
+      price: number;               // 总价 (AED)
+      pricePerSqft?: number;       // 单价
+      area?: number;               // 面积
+      isStartingFrom?: boolean;    // 是否为起始价
+    }>;
+    pageBuilding?: string;         // 页面级Building上下文
+    confidence: number;
+    sourcePageNumber: number;
+  };
+
   // ============ 边界标记 ============
   boundaryMarkers: BoundaryMarkers;
+
+  // ============ 多户型来源信息（如果从多户型页面裁切）⭐ ============
+  multiUnitSource?: {
+    originalPageNumber: number;     // 原始页码
+    originalImageUrl: string;       // 原始整页图片URL
+    cropIndex: number;              // 裁切索引（0, 1, 2...）
+    totalCrops: number;             // 该页总共裁切数
+    bbox: {                         // 裁切边界框（百分比）
+      xPercent: number;
+      yPercent: number;
+      widthPercent: number;
+      heightPercent: number;
+    };
+  };
 }

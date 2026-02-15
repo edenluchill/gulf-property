@@ -1,284 +1,372 @@
 /**
- * 全局页面注册表
- * 
+ * Per-Job Page Registry
+ *
  * 核心机制：
- * 1. 增量插入（Node.js单线程，无需额外锁）
- * 2. 每次插入触发重新计算
- * 3. 实时发送更新给前端
- * 
+ * 1. 每个Job有独立的PageRegistry实例（支持并发）
+ * 2. 增量插入（Node.js单线程，无需额外锁）
+ * 3. 每次插入触发重新计算
+ * 4. 实时发送更新给前端
+ *
  * 支持多PDF场景：
  * - 自动合并同名户型
  * - 追溯图片来源
- * 
+ *
  * 注意：
  * - Node.js单线程，数组操作是原子的
  * - 不需要async-lock（除非回调中有长时间异步操作）
  */
 
 import { PageMetadata, PageType } from '../types/page-metadata';
-import { AssignmentResult, UnitBoundary } from '../types/assignment-result';
+import { AssignmentResult, UnitImageAssignment } from '../types/assignment-result';
 import { scanUnitBoundaries } from '../algorithms/scan-boundaries';
 import { assignImagesByBoundaries } from '../algorithms/assign-images';
 import { mergeSameNameUnits } from '../algorithms/merge-units';
 import { extractProjectImages } from '../algorithms/extract-project-images';
 import { mergeProjectInfo } from '../agents/project-info-extractor.agent';
+import { findPriceForUnit, inferCategoryFromUnitName } from '../utils/unit-name-matcher';
 
 /**
- * PageRegistry - 全局单例
+ * Pricing entry from pricing table pages
+ */
+export interface PricingEntry {
+  unitTypeName?: string;
+  unitCategory?: string;
+  building?: string;
+  price: number;
+  pricePerSqft?: number;
+  area?: number;
+  isStartingFrom?: boolean;
+  sourcePageNumber: number;
+}
+
+/**
+ * Serializable state for checkpoint/restore
+ */
+export interface PageRegistryState {
+  pages: PageMetadata[];
+  extractedPaymentPlans?: any[];
+  extractedProjectInfo?: any;
+  extractedAmenities?: string[];
+  extractedPricing?: PricingEntry[];
+  buildingContext?: Map<number, string>;  // pageNumber → building
+}
+
+/**
+ * PageRegistry - Per-job instance for page management
  */
 export class PageRegistry {
-  private static pages: PageMetadata[] = [];
-  private static isProcessing = false;  // 简单的处理标志
-  private static onUpdateCallback?: (result: AssignmentResult) => void;
-  
-  // ⭐ Performance optimization: Cache extracted results to avoid re-processing
-  private static extractedPaymentPlans?: any[];
-  private static extractedProjectInfo?: any;
-  private static extractedAmenities?: string[];
-  
+  private pages: PageMetadata[] = [];
+  private isProcessing = false;
+  private onUpdateCallback?: (result: AssignmentResult) => void;
+
+  // Performance optimization: Cache extracted results
+  private extractedPaymentPlans?: any[];
+  private extractedProjectInfo?: any;
+  private extractedAmenities?: string[];
+  private extractedPricing: PricingEntry[] = [];
+
+  // Building context tracking (for price mapping)
+  private buildingContext: Map<number, string> = new Map();  // pageNumber → building
+  private currentBuilding?: string;  // Current building as pages are processed
+
+  constructor(private jobId: string) {
+    console.log(`🔄 PageRegistry created for job ${jobId}`);
+  }
+
   /**
-   * 重置Registry（新任务开始时调用）
+   * 重置Registry
    */
-  static reset(): void {
+  reset(): void {
     this.pages = [];
     this.onUpdateCallback = undefined;
-    // ⭐ Reset caches
     this.extractedPaymentPlans = undefined;
     this.extractedProjectInfo = undefined;
     this.extractedAmenities = undefined;
-    console.log('🔄 PageRegistry reset');
+    this.extractedPricing = [];
+    this.buildingContext.clear();
+    this.currentBuilding = undefined;
+    console.log(`🔄 PageRegistry reset for job ${this.jobId}`);
   }
-  
+
   /**
    * 设置更新回调（用于实时通知前端）
    */
-  static setUpdateCallback(callback: (result: AssignmentResult) => void): void {
+  setUpdateCallback(callback: (result: AssignmentResult) => void): void {
     this.onUpdateCallback = callback;
-    console.log('✓ Update callback registered');
+    console.log(`✓ Update callback registered for job ${this.jobId}`);
   }
-  
+
   /**
    * 增量插入新页面
-   * 
-   * 关键：
-   * - 只插入新pages，不修改已有pages
-   * - 插入后立即触发重新计算
-   * - 顺序无关（Chunk 3可能先于Chunk 1完成）
-   * 
-   * 注意：
-   * - Node.js单线程，数组操作是原子的
-   * - 使用简单的处理标志避免重入
    */
-  static async insertPages(newPages: PageMetadata[]): Promise<void> {
-    // 简单的重入检查（可选）
+  async insertPages(newPages: PageMetadata[]): Promise<void> {
     if (this.isProcessing) {
-      console.warn('⚠️  Another insertion in progress, queuing...');
-      // 等待一小段时间后重试
+      console.warn(`⚠️  [${this.jobId}] Another insertion in progress, queuing...`);
       await new Promise(resolve => setTimeout(resolve, 10));
       return this.insertPages(newPages);
     }
-    
+
     this.isProcessing = true;
-    
+
     try {
-      // 1. 插入新页面
       let insertedCount = 0;
       newPages.forEach(page => {
-        // ⭐ 检查是否已存在（同时检查pageNumber和pdfSource，避免多PDF页码冲突）
-        const existingIndex = this.pages.findIndex(p => 
+        const existingIndex = this.pages.findIndex(p =>
           p.pageNumber === page.pageNumber && p.pdfSource === page.pdfSource
         );
         if (existingIndex >= 0) {
-          console.warn(`⚠️  Page ${page.pageNumber} from ${page.pdfSource} already exists, skipping`);
+          console.warn(`⚠️  [${this.jobId}] Page ${page.pageNumber} from ${page.pdfSource} already exists, skipping`);
           return;
         }
-        
+
         this.pages.push(page);
         insertedCount++;
-        console.log(`   ✓ Inserted page ${page.pageNumber} (${page.pageType}, ${page.pdfSource})`);
+        console.log(`   [${this.jobId}] ✓ Inserted page ${page.pageNumber} (${page.pageType}, ${page.pdfSource})`);
+
+        // Track building context from section titles
+        if (page.boundaryMarkers.isSectionStart && page.boundaryMarkers.startMarkerText) {
+          const buildingName = extractBuildingFromText(page.boundaryMarkers.startMarkerText);
+          if (buildingName) {
+            this.currentBuilding = buildingName;
+            console.log(`   [${this.jobId}] 🏢 Building context updated: ${buildingName}`);
+          }
+        }
+
+        // Track building context for this page
+        if (this.currentBuilding) {
+          this.buildingContext.set(page.pageNumber, this.currentBuilding);
+        }
+
+        // Extract pricing from pricing table pages
+        if (page.pricingData && page.pricingData.entries.length > 0) {
+          const building = page.pricingData.pageBuilding || this.currentBuilding;
+          for (const entry of page.pricingData.entries) {
+            this.extractedPricing.push({
+              ...entry,
+              building: entry.building || building,
+              sourcePageNumber: page.pageNumber,
+            });
+          }
+          console.log(`   [${this.jobId}] 💵 Added ${page.pricingData.entries.length} pricing entries`);
+        }
       });
-      
+
       if (insertedCount === 0) {
-        console.log('   ℹ️  No new pages inserted');
+        console.log(`   [${this.jobId}] ℹ️  No new pages inserted`);
         return;
       }
-      
-      // 2. 排序（先按pdfSource，再按页码，确保多PDF场景下顺序正确）
+
+      // Sort by PDF source then page number
       this.pages.sort((a, b) => {
         if (a.pdfSource !== b.pdfSource) {
           return a.pdfSource.localeCompare(b.pdfSource);
         }
         return a.pageNumber - b.pageNumber;
       });
-      
-      // 3. 立即重新计算图片分配（现在是async）
+
       const startTime = Date.now();
       const assignmentResult = await this.recalculateAssignment();
       const calcTime = Date.now() - startTime;
-      
-      console.log(`   📊 Recalculation completed in ${calcTime}ms`);
-      console.log(`   📄 Total pages: ${this.pages.length}`);
-      console.log(`   🏠 Units found: ${assignmentResult.units.length}`);
-      console.log(`   ⚓ Anchors: ${assignmentResult.anchorPagesFound}`);
-      console.log(`   💰 Payment plans: ${assignmentResult.paymentPlans?.length || 0}`);
-      
-      // 4. 实时通知前端（非阻塞）
+
+      console.log(`   [${this.jobId}] 📊 Recalculation completed in ${calcTime}ms`);
+      console.log(`   [${this.jobId}] 📄 Total pages: ${this.pages.length}`);
+      console.log(`   [${this.jobId}] 🏠 Units found: ${assignmentResult.units.length}`);
+      console.log(`   [${this.jobId}] ⚓ Anchors: ${assignmentResult.anchorPagesFound}`);
+
       if (this.onUpdateCallback) {
-        // 不等待回调完成，避免阻塞
         this.onUpdateCallback(assignmentResult);
       }
     } finally {
       this.isProcessing = false;
     }
   }
-  
+
   /**
    * 重新计算图片分配
-   * 
-   * 每次插入新pages后自动调用
-   * 即使图片页在anchor前完成，也能后续正确分配
-   * 
-   * ⭐ 现在是 async：调用专门的 extractors 提取详细信息
    */
-  private static async recalculateAssignment(): Promise<AssignmentResult> {
-    console.log('\n🔄 Recalculating image assignment...');
-    
+  private async recalculateAssignment(): Promise<AssignmentResult> {
+    console.log(`\n[${this.jobId}] 🔄 Recalculating image assignment...`);
+
     const startTime = Date.now();
-    
-    // 1. 边界扫描 → 识别每个户型的页面范围
+
     const boundaries = scanUnitBoundaries(this.pages);
-    console.log(`   ✓ Identified ${boundaries.length} unit boundaries`);
-    
-    // 2. 图片分配 → 范围内的图片归属该户型
+    console.log(`   [${this.jobId}] ✓ Identified ${boundaries.length} unit boundaries`);
+
     const assignments = assignImagesByBoundaries(this.pages, boundaries);
-    console.log(`   ✓ Assigned images to ${assignments.length} units`);
-    
-    // 3. ⭐ 同名合并 → 合并跨PDF的同名户型
+    console.log(`   [${this.jobId}] ✓ Assigned images to ${assignments.length} units`);
+
     const mergedUnits = mergeSameNameUnits(assignments);
     const mergedCount = assignments.length - mergedUnits.length;
     if (mergedCount > 0) {
-      console.log(`   ✓ Merged ${mergedCount} duplicate unit types (multi-PDF scenario)`);
+      console.log(`   [${this.jobId}] ✓ Merged ${mergedCount} duplicate unit types`);
     }
-    
-    // 4. 提取项目图片（不在任何户型边界内的图片）
+
+    // ⭐ Merge prices into units
+    const unitsWithPrices = this.mergePricesIntoUnits(mergedUnits);
+    const pricedCount = unitsWithPrices.filter(u => u.price).length;
+    if (pricedCount > 0) {
+      console.log(`   [${this.jobId}] 💵 Mapped prices to ${pricedCount}/${unitsWithPrices.length} units`);
+    }
+
     const projectImages = extractProjectImages(this.pages, boundaries);
-    console.log(`   ✓ Extracted project images`);
-    
-    // ============ ⭐ AI提取已移到extractProjectData()，只在最后调用一次 ============
-    
+    console.log(`   [${this.jobId}] ✓ Extracted project images`);
+
     const processingTime = Date.now() - startTime;
-    
-    // 统计PDF数量
     const uniquePdfs = new Set(this.pages.map(p => p.pdfSource));
-    
+
     return {
-      units: mergedUnits,
+      units: unitsWithPrices,
       projectImages,
-      paymentPlans: this.extractedPaymentPlans,      // ⭐ 使用缓存的结果
-      projectInfo: this.extractedProjectInfo,        // ⭐ 使用缓存的结果
-      amenities: this.extractedAmenities,            // ⭐ 使用缓存的结果
+      paymentPlans: this.extractedPaymentPlans,
+      projectInfo: this.extractedProjectInfo,
+      amenities: this.extractedAmenities,
+      pricing: this.extractedPricing.length > 0 ? this.extractedPricing : undefined,
       totalPages: this.pages.length,
       totalPdfs: uniquePdfs.size,
       anchorPagesFound: boundaries.length,
+      unitsWithPrices: pricedCount,
       boundaries,
       processingTime,
     };
   }
-  
+
   /**
-   * ⭐ 提取项目级别的数据（只在所有batches完成后调用一次）
-   * 
-   * 包括：
-   * - Payment Plans
-   * - Amenities  
-   * - Project Info
+   * Merge prices from pricing tables into unit assignments
    */
-  static async aggregateProjectData(): Promise<void> {
-    console.log('\n📊 Aggregating project-level data from analyzed pages...');
+  private mergePricesIntoUnits(units: UnitImageAssignment[]): UnitImageAssignment[] {
+    if (this.extractedPricing.length === 0) {
+      return units;
+    }
+
+    console.log(`   [${this.jobId}] 🔍 Matching ${this.extractedPricing.length} pricing entries to ${units.length} units...`);
+
+    // Debug: Show available pricing entries
+    const pricingByCategory = new Map<string, number>();
+    for (const entry of this.extractedPricing) {
+      const key = entry.unitCategory || entry.unitTypeName || 'unknown';
+      pricingByCategory.set(key, (pricingByCategory.get(key) || 0) + 1);
+    }
+    console.log(`   [${this.jobId}] 📊 Pricing categories: ${Array.from(pricingByCategory.entries()).map(([k, v]) => `${k}(${v})`).join(', ')}`);
+
+    let matchedCount = 0;
+    let unmatchedUnits: string[] = [];
+
+    const result = units.map(unit => {
+      // Get unit category (from metadata or inferred from name)
+      const unitCategory = unit.unitCategory || inferCategoryFromUnitName(unit.unitTypeName);
+
+      // Get building context for this unit (from first page in range)
+      const building = unit.building || (unit.pageRange ? this.buildingContext.get(unit.pageRange.start) : undefined);
+
+      // Debug: Show what we're trying to match
+      console.log(`   [${this.jobId}]   🔎 Matching "${unit.unitTypeName}" category=${unitCategory} building=${building || 'none'}`);
+
+      // Find matching price
+      const priceResult = findPriceForUnit(
+        unit.unitTypeName,
+        unitCategory,
+        building,
+        this.extractedPricing
+      );
+
+      if (priceResult) {
+        matchedCount++;
+        console.log(`   [${this.jobId}]   💰 ${unit.unitTypeName} (${unitCategory}) → ${priceResult.price.toLocaleString()} AED (${priceResult.matchType})`);
+
+        return {
+          ...unit,
+          unitCategory,
+          building,
+          price: priceResult.price,
+          pricePerSqft: priceResult.pricePerSqft,
+          priceMatchType: priceResult.matchType,
+          priceConfidence: priceResult.confidence,
+        };
+      }
+
+      unmatchedUnits.push(`${unit.unitTypeName}(${unitCategory || 'no-cat'})`);
+      return {
+        ...unit,
+        unitCategory,
+        building,
+      };
+    });
+
+    if (unmatchedUnits.length > 0) {
+      console.log(`   [${this.jobId}] ⚠️  Unmatched units: ${unmatchedUnits.join(', ')}`);
+    }
+    console.log(`   [${this.jobId}] ✅ Price matching complete: ${matchedCount}/${units.length} matched`);
+
+    return result;
+  }
+
+  /**
+   * 提取项目级别的数据
+   */
+  async aggregateProjectData(): Promise<void> {
+    console.log(`\n[${this.jobId}] 📊 Aggregating project-level data...`);
     const startTime = Date.now();
-    
-    // 1. 汇总配套设施（使用AI智能去重）
+
+    // Amenities
     if (!this.extractedAmenities) {
       const amenitiesPages = this.pages.filter(p => p.amenitiesData && p.amenitiesData.amenities.length > 0);
       const allAmenities = amenitiesPages.flatMap(p => p.amenitiesData!.amenities);
       const totalCount = allAmenities.length;
-      
-      // ⭐ 使用AI进行智能去重和规范化
+
       const { deduplicateAmenitiesWithAI } = await import('../agents/amenity-extractor.agent');
       this.extractedAmenities = await deduplicateAmenitiesWithAI(allAmenities);
-      
-      console.log(`   🏊 Aggregated ${this.extractedAmenities.length} unique amenities from ${amenitiesPages.length} pages (${totalCount} total → ${this.extractedAmenities.length} after AI dedup)`);
+
+      console.log(`   [${this.jobId}] 🏊 Aggregated ${this.extractedAmenities.length} amenities (${totalCount} → ${this.extractedAmenities.length})`);
     }
-    
-    // 2. 汇总项目基本信息（从PageMetadata中读取，无AI调用）
+
+    // Project info
     if (!this.extractedProjectInfo) {
       const projectInfoPages = this.pages.filter(p => p.projectInfoData);
       if (projectInfoPages.length > 0) {
         const infos = projectInfoPages.map(p => p.projectInfoData!);
         this.extractedProjectInfo = mergeProjectInfo(infos);
-        console.log(`   🏗️  Aggregated project info from ${projectInfoPages.length} pages:`, Object.keys(this.extractedProjectInfo).join(', '));
+        console.log(`   [${this.jobId}] 🏗️  Aggregated project info from ${projectInfoPages.length} pages`);
       }
     }
-    
-    // 3. 汇总付款计划（从PageMetadata中读取，无AI调用）
+
+    // Payment plans
     if (!this.extractedPaymentPlans) {
       const paymentPages = this.pages.filter(p => p.paymentPlanData);
       if (paymentPages.length > 0) {
         this.extractedPaymentPlans = paymentPages.map(p => p.paymentPlanData!);
-        console.log(`   💰 Aggregated ${this.extractedPaymentPlans.length} payment plans`);
+        console.log(`   [${this.jobId}] 💰 Aggregated ${this.extractedPaymentPlans.length} payment plans`);
       }
     }
-    
+
     const processingTime = Date.now() - startTime;
-    
-    console.log(`\n✅ Project data aggregation complete in ${processingTime}ms (pure logic, no AI calls)`);
-    console.log(`   💰 Payment plans: ${this.extractedPaymentPlans?.length || 0}`);
-    console.log(`   🏊 Amenities: ${this.extractedAmenities?.length || 0}`);
-    console.log(`   🏗️  Project info: ${this.extractedProjectInfo ? Object.keys(this.extractedProjectInfo).join(', ') : 'none'}`);
+    console.log(`\n[${this.jobId}] ✅ Aggregation complete in ${processingTime}ms`);
   }
-  
-  /**
-   * 获取所有页面（已排序）
-   */
-  static getAllPages(): PageMetadata[] {
-    return [...this.pages];  // 返回副本，避免外部修改
+
+  getAllPages(): PageMetadata[] {
+    return [...this.pages];
   }
-  
-  /**
-   * 获取锚点页面
-   */
-  static getAnchorPages(): PageMetadata[] {
+
+  getAnchorPages(): PageMetadata[] {
     return this.pages.filter(p => p.pageType === 'unit_anchor');
   }
-  
-  /**
-   * 获取Payment Plan页面
-   */
-  static getPaymentPlanPages(): PageMetadata[] {
+
+  getPaymentPlanPages(): PageMetadata[] {
     return this.pages.filter(p => p.pageType === PageType.PAYMENT_PLAN);
   }
-  
-  /**
-   * 获取项目信息页面
-   * 
-   * ⭐ OPTIMIZED: Expanded to include more page types for better description extraction
-   */
-  static getProjectInfoPages(): PageMetadata[] {
-    return this.pages.filter(p => 
+
+  getProjectInfoPages(): PageMetadata[] {
+    return this.pages.filter(p =>
       p.pageType === PageType.PROJECT_COVER ||
       p.pageType === PageType.PROJECT_OVERVIEW ||
       p.pageType === PageType.PROJECT_SUMMARY ||
-      p.pageType === PageType.SECTION_TITLE ||      // ⭐ May contain intro text
-      p.pageType === PageType.PROJECT_RENDERING ||  // ⭐ Often has marketing text
-      p.pageType === PageType.PROJECT_AERIAL        // ⭐ May have project description
+      p.pageType === PageType.SECTION_TITLE ||
+      p.pageType === PageType.PROJECT_RENDERING ||
+      p.pageType === PageType.PROJECT_AERIAL
     );
   }
-  
-  /**
-   * 获取配套设施页面
-   */
-  static getAmenityPages(): PageMetadata[] {
-    return this.pages.filter(p => 
+
+  getAmenityPages(): PageMetadata[] {
+    return this.pages.filter(p =>
       p.pageType === PageType.AMENITIES_LIST ||
       p.pageType === PageType.AMENITIES_IMAGES ||
       p.pageType === PageType.TOWER_CHARACTERISTICS ||
@@ -286,35 +374,23 @@ export class PageRegistry {
       p.pageType === PageType.PROJECT_SUMMARY
     );
   }
-  
-  /**
-   * 获取Tower特性页面
-   */
-  static getTowerCharacteristicsPages(): PageMetadata[] {
+
+  getTowerCharacteristicsPages(): PageMetadata[] {
     return this.pages.filter(p => p.pageType === PageType.TOWER_CHARACTERISTICS);
   }
-  
-  /**
-   * 按PDF源筛选
-   */
-  static getPagesByPdf(pdfSource: string): PageMetadata[] {
+
+  getPagesByPdf(pdfSource: string): PageMetadata[] {
     return this.pages.filter(p => p.pdfSource === pdfSource);
   }
-  
-  /**
-   * 获取最终结果
-   */
-  static async getFinalResult(): Promise<AssignmentResult> {
+
+  async getFinalResult(): Promise<AssignmentResult> {
     return await this.recalculateAssignment();
   }
-  
-  /**
-   * 获取统计信息
-   */
-  static getStats() {
+
+  getStats() {
     const pdfs = new Set(this.pages.map(p => p.pdfSource));
     const anchors = this.pages.filter(p => p.pageType === 'unit_anchor');
-    
+
     return {
       totalPages: this.pages.length,
       totalPdfs: pdfs.size,
@@ -322,8 +398,8 @@ export class PageRegistry {
       pageTypes: this.getPageTypeDistribution(),
     };
   }
-  
-  private static getPageTypeDistribution() {
+
+  private getPageTypeDistribution() {
     const distribution = new Map<string, number>();
     this.pages.forEach(page => {
       const count = distribution.get(page.pageType) || 0;
@@ -331,4 +407,180 @@ export class PageRegistry {
     });
     return Object.fromEntries(distribution);
   }
+
+  /**
+   * Export state for checkpoint
+   */
+  exportState(): PageRegistryState {
+    return {
+      pages: [...this.pages],
+      extractedPaymentPlans: this.extractedPaymentPlans,
+      extractedProjectInfo: this.extractedProjectInfo,
+      extractedAmenities: this.extractedAmenities,
+      extractedPricing: [...this.extractedPricing],
+      buildingContext: new Map(this.buildingContext),
+    };
+  }
+
+  /**
+   * Import state from checkpoint
+   */
+  importState(state: PageRegistryState): void {
+    this.pages = [...state.pages];
+    this.extractedPaymentPlans = state.extractedPaymentPlans;
+    this.extractedProjectInfo = state.extractedProjectInfo;
+    this.extractedAmenities = state.extractedAmenities;
+    this.extractedPricing = state.extractedPricing ? [...state.extractedPricing] : [];
+    this.buildingContext = state.buildingContext ? new Map(state.buildingContext) : new Map();
+    console.log(`[${this.jobId}] 📥 Imported state: ${this.pages.length} pages, ${this.extractedPricing.length} pricing entries`);
+  }
+
+  /**
+   * Get pricing entries
+   */
+  getPricingEntries(): PricingEntry[] {
+    return [...this.extractedPricing];
+  }
+
+  /**
+   * Get pricing table pages
+   */
+  getPricingTablePages(): PageMetadata[] {
+    return this.pages.filter(p => p.pageType === PageType.PRICING_TABLE);
+  }
+}
+
+/**
+ * PageRegistryManager - Manages per-job PageRegistry instances
+ */
+export class PageRegistryManager {
+  private static registries: Map<string, PageRegistry> = new Map();
+
+  /**
+   * Get or create a PageRegistry for a job
+   */
+  static get(jobId: string): PageRegistry {
+    let registry = this.registries.get(jobId);
+    if (!registry) {
+      registry = new PageRegistry(jobId);
+      this.registries.set(jobId, registry);
+    }
+    return registry;
+  }
+
+  /**
+   * Check if a registry exists for a job
+   */
+  static has(jobId: string): boolean {
+    return this.registries.has(jobId);
+  }
+
+  /**
+   * Delete a registry for a job (cleanup)
+   */
+  static delete(jobId: string): void {
+    const registry = this.registries.get(jobId);
+    if (registry) {
+      registry.reset();
+      this.registries.delete(jobId);
+      console.log(`🧹 PageRegistry deleted for job ${jobId}`);
+    }
+  }
+
+  /**
+   * Export state for a job (for checkpoint)
+   */
+  static exportState(jobId: string): PageRegistryState | null {
+    const registry = this.registries.get(jobId);
+    return registry ? registry.exportState() : null;
+  }
+
+  /**
+   * Import state for a job (for resume)
+   */
+  static importState(jobId: string, state: PageRegistryState): void {
+    const registry = this.get(jobId);
+    registry.importState(state);
+  }
+
+  /**
+   * Get all active job IDs
+   */
+  static getActiveJobs(): string[] {
+    return Array.from(this.registries.keys());
+  }
+
+  /**
+   * Clear all registries
+   */
+  static clear(): void {
+    for (const [, registry] of this.registries) {
+      registry.reset();
+    }
+    this.registries.clear();
+    console.log('🧹 All PageRegistries cleared');
+  }
+}
+
+// ============================================================
+// Helper Functions
+// ============================================================
+
+/**
+ * Extract building name from section title text
+ *
+ * Examples:
+ * - "TOWER A" → "Tower A"
+ * - "Crestlane 4" → "Crestlane 4"
+ * - "Building B Floor Plans" → "Building B"
+ * - "FLOOR PLANS" → null (not a building name)
+ */
+function extractBuildingFromText(text: string): string | null {
+  if (!text) return null;
+
+  const normalized = text.trim();
+
+  // Pattern: Tower X
+  const towerMatch = normalized.match(/tower\s*([a-z0-9]+)/i);
+  if (towerMatch) {
+    return `Tower ${towerMatch[1].toUpperCase()}`;
+  }
+
+  // Pattern: Building X
+  const buildingMatch = normalized.match(/building\s*([a-z0-9]+)/i);
+  if (buildingMatch) {
+    return `Building ${buildingMatch[1].toUpperCase()}`;
+  }
+
+  // Pattern: Name + Number (e.g., "Crestlane 4", "Marina Vista 2")
+  const nameNumberMatch = normalized.match(/^([a-z]+)\s*(\d+)$/i);
+  if (nameNumberMatch) {
+    return `${nameNumberMatch[1]} ${nameNumberMatch[2]}`;
+  }
+
+  // Pattern: Phase X
+  const phaseMatch = normalized.match(/phase\s*([a-z0-9]+)/i);
+  if (phaseMatch) {
+    return `Phase ${phaseMatch[1].toUpperCase()}`;
+  }
+
+  // Skip generic section titles
+  const genericTitles = [
+    'floor plans', 'floorplans', 'unit types', 'amenities',
+    'payment plan', 'location', 'features', 'overview', 'specifications',
+    'pricing', 'price', 'prices', 'price list', 'unit mix', 'availability'
+  ];
+  if (genericTitles.some(t => normalized.toLowerCase().includes(t))) {
+    return null;
+  }
+
+  // If it's a short capitalized title (likely a building name)
+  if (normalized.length <= 20 && /^[A-Z0-9\s]+$/.test(normalized)) {
+    // Title case it
+    return normalized.split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  return null;
 }

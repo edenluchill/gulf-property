@@ -37,18 +37,20 @@ export function assignImagesByBoundaries(
         start: boundary.startPage,
         end: boundary.endPage,
       },
+      sourcePages: [],  // ⭐ 追踪来源页码
     };
-    
+
     let totalImagesAssigned = 0;
-    
+
     // 收集范围内所有图片
     let filteredOutCount = 0;
-    
+    const sourcePagesSet = new Set<number>();  // ⭐ 用于去重
+
     pages.forEach(page => {
       // 检查页面是否在边界范围内
-      if (page.pageNumber >= boundary.startPage && 
+      if (page.pageNumber >= boundary.startPage &&
           page.pageNumber <= boundary.endPage) {
-        
+
         // 分配图片（基于AI标记的类别）
         page.images.forEach(img => {
           // ⭐ NEW: Filter out images marked as shouldUse: false
@@ -56,31 +58,32 @@ export function assignImagesByBoundaries(
             filteredOutCount++;
             return;  // Skip this image
           }
-          
+
           totalImagesAssigned++;
           assignment.allImages.push(img);
-          
+          sourcePagesSet.add(page.pageNumber);  // ⭐ 记录来源页码
+
           // 根据类别分配到不同组
           switch (img.category) {
             case ImageCategory.FLOOR_PLAN:
               assignment.floorPlanImages.push(img);
               break;
-            
+
             case ImageCategory.UNIT_EXTERIOR:
               assignment.renderingImages.push(img);
               break;
-            
+
             case ImageCategory.UNIT_INTERIOR_LIVING:
             case ImageCategory.UNIT_INTERIOR_BEDROOM:
             case ImageCategory.UNIT_INTERIOR_KITCHEN:
             case ImageCategory.UNIT_INTERIOR_BATHROOM:
               assignment.interiorImages.push(img);
               break;
-            
+
             case ImageCategory.UNIT_BALCONY:
               assignment.balconyImages.push(img);
               break;
-            
+
             // 其他类别暂不处理（可能是项目图片误入）
             default:
               console.warn(`   ⚠️  Unexpected image category in unit: ${img.category}`);
@@ -88,13 +91,16 @@ export function assignImagesByBoundaries(
         });
       }
     });
-    
+
+    // ⭐ 转换Set为排序后的数组
+    assignment.sourcePages = Array.from(sourcePagesSet).sort((a, b) => a - b);
+
     if (filteredOutCount > 0) {
       console.log(`   🗑️  Filtered out ${filteredOutCount} images marked as not useful`);
     }
-    
-    console.log(`   ✓ ${boundary.unitTypeName}: ${totalImagesAssigned} images (${assignment.floorPlanImages.length} floor plans, ${assignment.renderingImages.length} renderings, ${assignment.interiorImages.length} interiors)`);
-    
+
+    console.log(`   ✓ ${boundary.unitTypeName}: ${totalImagesAssigned} images (${assignment.floorPlanImages.length} floor plans, ${assignment.renderingImages.length} renderings, ${assignment.interiorImages.length} interiors) from pages [${assignment.sourcePages.join(', ')}]`);
+
     return assignment;
   });
 }

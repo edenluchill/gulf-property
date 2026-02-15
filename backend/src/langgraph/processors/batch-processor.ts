@@ -16,14 +16,15 @@
 import type { PdfChunk } from '../../utils/pdf/chunker';
 import { progressEmitter } from '../../services/progress-emitter';
 import { processSingleChunk } from './chunk-processor';
-import { 
-  mergeChunkData, 
-  type AggregatedBuildingData 
+import {
+  mergeChunkData,
+  type AggregatedBuildingData
 } from './data-aggregator';
 import { type ChunkAnalysisResult } from './result-recorder';
-import { PageRegistry } from '../core/page-registry';
+import { PageRegistry, PageRegistryManager } from '../core/page-registry';
 import { AssignmentResult } from '../types/assignment-result';
 import { generateProjectDescription, type ProjectSummary } from '../agents/project-description-generator.agent';
+import { taskManager, TaskAbortedError, CheckpointData } from '../../services/task-manager';
 
 export interface BatchProcessingConfig {
   chunks: Array<PdfChunk & { sourceFile: string; pdfHash: string }>;
@@ -31,6 +32,8 @@ export interface BatchProcessingConfig {
   jobId: string;
   batchSize?: number;
   batchDelay?: number; // ms
+  abortSignal?: AbortSignal; // For pause/cancel support
+  startFromChunk?: number; // For resume support
 }
 
 export interface BatchProcessingResult {
@@ -38,6 +41,8 @@ export interface BatchProcessingResult {
   allErrors: string[];
   allWarnings: string[];
   chunkAnalyses: ChunkAnalysisResult[];  // Detailed chunk analysis results
+  aborted?: boolean; // Whether processing was aborted (paused/cancelled)
+  processedChunks?: number; // Number of chunks processed before abort
 }
 
 /**
@@ -49,30 +54,38 @@ export async function processChunksInBatches(
   config: BatchProcessingConfig,
   aggregatedData: AggregatedBuildingData
 ): Promise<BatchProcessingResult> {
-  const { 
-    chunks, 
-    outputDir, 
-    jobId, 
-    batchSize = 10, 
+  const {
+    chunks,
+    outputDir,
+    jobId,
+    batchSize = 10,
     batchDelay = 1000,
+    abortSignal,
+    startFromChunk = 0,
   } = config;
 
   const totalChunks = chunks.length;
   const allErrors: string[] = [];
   const allWarnings: string[] = [];
   const chunkAnalyses: ChunkAnalysisResult[] = [];
+  let processedChunkCount = startFromChunk;
 
   // ============ 智能分配系统初始化 ============
   console.log('\n🎯 Smart Image Assignment System\n');
-  
-  // 1. 重置Registry
-  PageRegistry.reset();
-  
+
+  // 1. 获取per-job Registry（支持并发）
+  const pageRegistry = PageRegistryManager.get(jobId);
+
+  // 如果是新任务，重置Registry
+  if (startFromChunk === 0) {
+    pageRegistry.reset();
+  }
+
   // 2. 设置实时更新回调（传递aggregatedData引用）
-  PageRegistry.setUpdateCallback((assignmentResult: AssignmentResult) => {
+  pageRegistry.setUpdateCallback((assignmentResult: AssignmentResult) => {
     // 每次重新计算后，发送SSE更新给前端
     // 合并workflow数据（实时）
-    emitSmartAssignmentUpdate(jobId, assignmentResult, aggregatedData, chunks.length);
+    emitSmartAssignmentUpdate(jobId, assignmentResult, aggregatedData, chunks.length, pageRegistry);
   });
 
   // Split chunks into batches
@@ -81,11 +94,35 @@ export async function processChunksInBatches(
     batches.push(chunks.slice(i, i + batchSize));
   }
 
+  // Calculate starting batch based on startFromChunk
+  const startBatchIdx = Math.floor(startFromChunk / batchSize);
+
   console.log(`\n🚀 Processing in ${batches.length} parallel batches (${batchSize} chunks per batch)\n`);
+  if (startFromChunk > 0) {
+    console.log(`▶️  Resuming from chunk ${startFromChunk} (batch ${startBatchIdx + 1})\n`);
+  }
   console.log(`⏱️  Rate limit protection: ${batchDelay / 1000}s delay between batches\n`);
 
   // Process each batch
-  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+  for (let batchIdx = startBatchIdx; batchIdx < batches.length; batchIdx++) {
+    // Check for abort before starting each batch
+    if (abortSignal?.aborted) {
+      console.log(`\n⏸️  Processing aborted at batch ${batchIdx + 1}/${batches.length}`);
+
+      // Save checkpoint for resume
+      const checkpointData: CheckpointData = {
+        processedChunks: processedChunkCount,
+        aggregatedData,
+        pageRegistryState: pageRegistry.exportState(),
+        lastProcessedChunkIndex: processedChunkCount - 1,
+        timestamp: Date.now(),
+      };
+      await taskManager.saveCheckpoint(jobId, checkpointData);
+
+      const reason = taskManager.getAbortReason(jobId);
+      throw new TaskAbortedError(reason || 'cancelled');
+    }
+
     const batch = batches[batchIdx];
 
     console.log(`\n=== BATCH ${batchIdx + 1}/${batches.length} - Processing ${batch.length} chunks in PARALLEL ===\n`);
@@ -137,15 +174,15 @@ export async function processChunksInBatches(
         // ============ 1. 智能图片分配 ============
         // 插入PageMetadata到Registry（触发图片分配）
         if (result.success && result.pageMetadataList) {
-          await PageRegistry.insertPages(result.pageMetadataList);
+          await pageRegistry.insertPages(result.pageMetadataList);
         }
-        
+
         // ============ 2. 原有数据聚合 ============
         // 保留单元详细信息（bedrooms, bathrooms, area, price等）
         if (result.success && result.data) {
           mergeChunkData(aggregatedData, result.data);
         }
-        
+
         // 收集错误
         if (result.errors && result.errors.length > 0) {
           allErrors.push(...result.errors);
@@ -153,10 +190,24 @@ export async function processChunksInBatches(
         if (result.warnings && result.warnings.length > 0) {
           allWarnings.push(...result.warnings);
         }
+
+        processedChunkCount++;
       } catch (resultError) {
         console.error(`❌ Error processing result:`, resultError);
         allErrors.push(`Result processing error: ${resultError}`);
+        processedChunkCount++;
       }
+    }
+
+    // Update task progress in database
+    try {
+      await taskManager.updateStatus(jobId, 'processing', {
+        progress: Math.round((processedChunkCount / totalChunks) * 85) + 10,
+        currentStage: `Processing batch ${batchIdx + 1}/${batches.length}`,
+        processedChunks: processedChunkCount,
+      });
+    } catch {
+      // Ignore update errors
     }
 
     console.log(`\n✅ Batch ${batchIdx + 1} complete!\n`);
@@ -170,27 +221,27 @@ export async function processChunksInBatches(
 
   // ============ 获取最终结果 ============
   console.log('\n📊 All chunks processed. Aggregating project-level data...\n');
-  
+
   // ⭐ 汇总项目数据（使用AI智能去重amenities）
   try {
-    await PageRegistry.aggregateProjectData();
+    await pageRegistry.aggregateProjectData();
   } catch (aggregateError) {
     console.error(`❌ Error aggregating project data:`, aggregateError);
     allErrors.push(`Project data aggregation error: ${aggregateError}`);
   }
-  
+
   console.log('\n📊 Getting final assignment result...\n');
-  
+
   let finalAssignmentResult;
   let finalAggregatedData;
-  
+
   try {
-    finalAssignmentResult = await PageRegistry.getFinalResult();
+    finalAssignmentResult = await pageRegistry.getFinalResult();
     console.log(`   Units found: ${finalAssignmentResult.units.length}`);
     console.log(`   Total pages processed: ${finalAssignmentResult.totalPages}`);
     
     // 转换为aggregatedData格式（向后兼容）
-    finalAggregatedData = convertAssignmentToAggregatedData(finalAssignmentResult, aggregatedData);
+    finalAggregatedData = convertAssignmentToAggregatedData(finalAssignmentResult, aggregatedData, pageRegistry);
     
     // ============ ⭐ 总是生成智能项目描述 ============
     // 即使PDF有描述，也重新生成：AI生成的更简洁、专业、统一
@@ -259,6 +310,8 @@ export async function processChunksInBatches(
     allErrors,
     allWarnings,
     chunkAnalyses,
+    aborted: false,
+    processedChunks: processedChunkCount,
   };
 }
 
@@ -382,14 +435,15 @@ function deriveBuildingName(unitTypeName: string): string | undefined {
 
 /**
  * 转换AssignmentResult为AggregatedBuildingData格式
- * 
+ *
  * 关键：合并两个数据源
  * - PageRegistry: 图片分配（智能边界识别）
  * - aggregatedData: 单元详细信息（bedrooms, bathrooms, area, price等）
  */
 function convertAssignmentToAggregatedData(
   assignmentResult: AssignmentResult,
-  originalData: AggregatedBuildingData
+  originalData: AggregatedBuildingData,
+  pageRegistry: PageRegistry
 ): AggregatedBuildingData {
   console.log('\n🔄 Merging smart assignment with unit details...');
   console.log(`   Units from smart assignment: ${assignmentResult.units.length}`);
@@ -410,10 +464,18 @@ function convertAssignmentToAggregatedData(
     
     if (matchedUnit) {
       console.log(`   ✓ Matched "${smartUnit.unitTypeName}" with workflow data`);
-      
+
       // 合并：智能分配的图片 + workflow的详细信息
+      // ⭐ 优先使用smartUnit的价格（来自mergePricesIntoUnits）
+      const finalPrice = smartUnit.price ?? matchedUnit.price;
+      const finalPricePerSqft = smartUnit.pricePerSqft ?? matchedUnit.pricePerSqft;
+
+      if (smartUnit.price) {
+        console.log(`   💰 Using matched price for "${smartUnit.unitTypeName}": ${smartUnit.price} AED (${smartUnit.priceMatchType})`);
+      }
+
       return {
-        ...matchedUnit,  // ← 保留所有原有信息（bedrooms, area, price等）
+        ...matchedUnit,  // ← 保留所有原有信息（bedrooms, area等）
         id: smartUnit.unitTypeName,
         name: smartUnit.unitTypeName,
         typeName: smartUnit.unitTypeName,
@@ -423,12 +485,15 @@ function convertAssignmentToAggregatedData(
         renderingImages: smartUnit.renderingImages.map(img => img.imagePath),
         interiorImages: smartUnit.interiorImages.map(img => img.imagePath),
         balconyImages: smartUnit.balconyImages?.map(img => img.imagePath) || [],
+        // ⭐ 使用匹配到的价格（覆盖matchedUnit的null值）
+        price: finalPrice,
+        pricePerSqft: finalPricePerSqft,
       };
     } else {
       console.warn(`   ⚠️  No workflow data for "${smartUnit.unitTypeName}", using AI specs only`);
       
       // 无匹配，从PageMetadata提取（可能不完整）
-      const anchorPages = PageRegistry.getAnchorPages().filter(
+      const anchorPages = pageRegistry.getAnchorPages().filter(
         p => p.unitInfo?.unitTypeName === smartUnit.unitTypeName
       );
       const firstAnchor = anchorPages[0];
@@ -466,6 +531,14 @@ function convertAssignmentToAggregatedData(
         console.warn(`   💡 [BATCH-PROCESSOR] This unit will be filtered out during submission.`);
       }
       
+      // ⭐ 优先使用smartUnit的价格（来自mergePricesIntoUnits）
+      const finalPrice = smartUnit.price ?? specs?.price;
+      const finalPricePerSqft = smartUnit.pricePerSqft ?? specs?.pricePerSqft;
+
+      if (smartUnit.price) {
+        console.log(`   💰 Using matched price for "${smartUnit.unitTypeName}": ${smartUnit.price} AED (${smartUnit.priceMatchType})`);
+      }
+
       return {
         id: smartUnit.unitTypeName,
         name: smartUnit.unitTypeName,
@@ -477,8 +550,8 @@ function convertAssignmentToAggregatedData(
         area: area,  // May have been updated by retry logic
         suiteArea: specs?.suiteArea,        // ⭐ 室内面积
         balconyArea: specs?.balconyArea,    // ⭐ 阳台面积
-        price: specs?.price,
-        pricePerSqft: specs?.pricePerSqft,  // ⭐ 单价
+        price: finalPrice,                  // ⭐ 使用匹配到的价格
+        pricePerSqft: finalPricePerSqft,    // ⭐ 单价
         features: firstAnchor?.unitInfo?.features || [],  // ⭐ 户型特征列表（从平面图提取）
         description: firstAnchor?.unitInfo?.description,  // ⭐ AI生成的户型描述
         floorPlanImage: smartUnit.floorPlanImages[0]?.imagePath,
@@ -553,7 +626,13 @@ function convertAssignmentToAggregatedData(
   const uniqueAmenities = Array.from(new Set(mergedAmenities));
   
   console.log(`   🏊 Amenities merged: ${smartAmenities.length} (smart) + ${originalAmenities.length} (workflow) = ${uniqueAmenities.length} (unique)`);
-  
+
+  // ⭐ 提取原始价格数据（用于前端验证）
+  const extractedPricing = assignmentResult.pricing || [];
+  if (extractedPricing.length > 0) {
+    console.log(`   💰 Extracted pricing entries: ${extractedPricing.length}`);
+  }
+
   // 返回完整数据
   return {
     ...originalData,
@@ -563,30 +642,33 @@ function convertAssignmentToAggregatedData(
     amenities: uniqueAmenities,  // ⭐ 合并后的配套设施
     images: {
       projectImages: uniqueProjectImages,  // ⭐ 合并后的项目图片
-      floorPlanImages: assignmentResult.units.flatMap(u => 
+      floorPlanImages: assignmentResult.units.flatMap(u =>
         u.floorPlanImages.map(img => img.imagePath)
       ),
       allImages: uniqueAllImages,  // ⭐ 合并后的所有图片
     },
+    // ⭐ 原始价格数据（用于前端验证和调试）
+    extractedPricing: extractedPricing.length > 0 ? extractedPricing : undefined,
   };
 }
 
 /**
  * Emit progress update for smart assignment system
- * 
+ *
  * 实时更新时也合并workflow数据
  */
 function emitSmartAssignmentUpdate(
   jobId: string,
   assignmentResult: AssignmentResult,
   aggregatedData: AggregatedBuildingData,
-  totalChunks: number
+  totalChunks: number,
+  pageRegistry: PageRegistry
 ): void {
   // 计算进度
   const progress = 10 + (assignmentResult.totalPages / (totalChunks * 5)) * 75;
 
   // ⭐ 合并workflow数据（实时）
-  const mergedData = convertAssignmentToAggregatedData(assignmentResult, aggregatedData);
+  const mergedData = convertAssignmentToAggregatedData(assignmentResult, aggregatedData, pageRegistry);
 
   progressEmitter.emit(jobId, {
     stage: 'mapping',

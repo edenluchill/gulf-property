@@ -20,22 +20,39 @@ export function scanUnitBoundaries(pages: PageMetadata[]): UnitBoundary[] {
   if (pages.length === 0) {
     return [];
   }
-  
+
   const boundaries: UnitBoundary[] = [];
   let currentStart: number | null = null;
   let currentUnitName: string | null = null;
   let currentPdfSources: Set<string> = new Set();
-  
+  let currentSectionContext: string | null = null;  // ⭐ 追踪section上下文
+
   console.log('\n🔍 Scanning unit boundaries...');
-  
+
   pages.forEach((page, index) => {
     // ============ 场景1: 遇到新户型起始 ============
     if (page.boundaryMarkers.isUnitStart && page.unitInfo?.unitTypeName) {
-      const unitName = page.unitInfo.unitTypeName;
-      
-      // ⭐ 过滤通用名称（不是具体户型）
-      if (isGenericUnitName(unitName)) {
-        console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (not a specific unit type)`);
+      let unitName = page.unitInfo.unitTypeName;
+
+      // ⭐ 如果是通用名称（如"Type A"），尝试与section上下文组合
+      if (isGenericUnitName(unitName) && currentSectionContext) {
+        const combinedName = combineWithSectionContext(unitName, currentSectionContext);
+        if (combinedName) {
+          console.log(`   🔄 Combined "${unitName}" with section "${currentSectionContext}" → "${combinedName}"`);
+          unitName = combinedName;
+
+          // ⭐ 关键修复：同步更新 PageMetadata.unitInfo.unitTypeName
+          // 这样后续的 batch-processor 可以正确匹配名称
+          if (page.unitInfo) {
+            page.unitInfo.unitTypeName = combinedName;
+            console.log(`   📝 Updated page ${page.pageNumber} unitInfo.unitTypeName to "${combinedName}"`);
+          }
+        } else {
+          console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (no usable section context)`);
+          return;  // 跳过这个"户型"
+        }
+      } else if (isGenericUnitName(unitName)) {
+        console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (no section context)`);
         return;  // 跳过这个"户型"
       }
       
@@ -81,7 +98,10 @@ export function scanUnitBoundaries(pages: PageMetadata[]): UnitBoundary[] {
       currentStart = null;
       currentUnitName = null;
       currentPdfSources = new Set();
-      
+
+      // ⭐ 更新section上下文
+      currentSectionContext = page.boundaryMarkers.startMarkerText || null;
+
       console.log(`   📑 Section start: "${page.boundaryMarkers.startMarkerText || 'Unknown'}" at page ${page.pageNumber}`);
     }
     
@@ -198,8 +218,48 @@ function isGenericUnitName(unitName: string): boolean {
   if (unitName.length < 8 && !unitName.includes('-')) {
     return true;  // 过滤
   }
-  
+
   return false;  // 默认保留
+}
+
+/**
+ * 将通用户型名称与section上下文组合
+ *
+ * 例如：
+ * - section: "1-BEDROOM APARTMENTS", unit: "Type A" → "1-BEDROOM TYPE A"
+ * - section: "2-BEDROOM APARTMENTS", unit: "Type B" → "2-BEDROOM TYPE B"
+ * - section: "3-BEDROOM + MAID", unit: "Type C" → "3-BEDROOM + MAID TYPE C"
+ */
+function combineWithSectionContext(unitName: string, sectionContext: string): string | null {
+  if (!unitName || !sectionContext) return null;
+
+  // 提取section中的卧室信息
+  const sectionNormalized = sectionContext.toUpperCase();
+
+  // 匹配 "1-BEDROOM", "2-BEDROOM", "3-BEDROOM + MAID", "4-BEDROOM DUPLEXES" 等
+  const bedroomMatch = sectionNormalized.match(/(\d+-BEDROOM(?:\s*\+\s*MAID)?(?:\s+DUPLEXES?)?(?:\s+APARTMENTS?)?)/i);
+
+  if (bedroomMatch) {
+    // 提取核心卧室描述（去掉APARTMENTS等后缀）
+    let bedroomPart = bedroomMatch[1]
+      .replace(/\s+APARTMENTS?$/i, '')
+      .replace(/\s+DUPLEXES?$/i, '')
+      .trim();
+
+    // 组合: "1-BEDROOM" + "Type A" = "1-BEDROOM TYPE A"
+    const combinedName = `${bedroomPart} ${unitName.toUpperCase()}`;
+    return combinedName;
+  }
+
+  // 匹配 STUDIO, PENTHOUSE 等
+  if (sectionNormalized.includes('STUDIO')) {
+    return `STUDIO ${unitName.toUpperCase()}`;
+  }
+  if (sectionNormalized.includes('PENTHOUSE')) {
+    return `PENTHOUSE ${unitName.toUpperCase()}`;
+  }
+
+  return null;  // 无法组合
 }
 
 /**

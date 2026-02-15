@@ -1,11 +1,12 @@
 /**
  * Progress Emitter Service
- * 
+ *
  * Manages real-time progress updates for PDF processing workflow
  * using Server-Sent Events (SSE)
  */
 
 import { Response } from 'express';
+import { taskManager } from './task-manager';
 
 export interface ProgressEvent {
   stage: 'starting' | 'ingestion' | 'mapping' | 'reducing' | 'insight' | 'complete' | 'error';
@@ -76,15 +77,43 @@ export class ProgressEmitter {
       // Format as SSE
       const data = JSON.stringify(event);
       client.write(`data: ${data}\n\n`);
-      
+
       // ⭐ Data is sent immediately due to socket.setNoDelay(true) in registerClient
       // No need to manually flush
-      
+
       console.log(`📤 Sent event to ${jobId}: ${event.stage} (${event.progress}%)`);
+
+      // Also update database with progress (async, don't await)
+      this.updateTaskProgress(jobId, event).catch(err => {
+        console.warn(`⚠️ Failed to update task progress in DB:`, err);
+      });
     } catch (error) {
       console.error(`❌ Error emitting progress for job ${jobId}:`, error);
       this.clients.delete(jobId);
     }
+  }
+
+  /**
+   * Update task progress in database
+   */
+  private async updateTaskProgress(jobId: string, event: ProgressEvent) {
+    // Skip 'starting' and 'error' events - those are handled elsewhere
+    if (event.stage === 'starting' || event.stage === 'error' || event.stage === 'complete') {
+      return;
+    }
+
+    // Map stage to human-readable string
+    const stageLabels: Record<string, string> = {
+      ingestion: 'Extracting pages',
+      mapping: 'Analyzing pages',
+      reducing: 'Aggregating results',
+      insight: 'Generating insights',
+    };
+
+    await taskManager.updateStatus(jobId, 'processing', {
+      progress: event.progress,
+      currentStage: event.message || stageLabels[event.stage] || event.stage,
+    });
   }
 
   /**

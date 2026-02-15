@@ -18,6 +18,20 @@ export interface BuildingImages {
   allImages: string[];
 }
 
+/**
+ * Extracted pricing entry (for frontend verification)
+ */
+export interface ExtractedPricingEntry {
+  unitTypeName?: string;       // Specific unit name (if available)
+  unitCategory?: string;       // Category: Studio, 1BR, 2BR, etc.
+  building?: string;           // Building/Tower name
+  price: number;               // Total price (AED)
+  pricePerSqft?: number;       // Price per sqft
+  area?: number;               // Area in sqft
+  isStartingFrom?: boolean;    // "Starting from" flag
+  sourcePageNumber: number;    // Page number where this was extracted
+}
+
 export interface AggregatedBuildingData {
   name: string;
   developer: string;
@@ -33,6 +47,7 @@ export interface AggregatedBuildingData {
   paymentPlans: any[];
   towerInfos?: any[];                 // ⭐ 新增：Tower信息
   images: BuildingImages;
+  extractedPricing?: ExtractedPricingEntry[];  // ⭐ 原始价格数据（用于前端验证）
 }
 
 /**

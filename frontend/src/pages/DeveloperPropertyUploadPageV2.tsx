@@ -22,6 +22,7 @@ import { DateTimeProgressSection } from '../components/developer-upload/DateTime
 import { VisualContentSection } from '../components/developer-upload/VisualContentSection'
 import { PaymentPlanSection } from '../components/developer-upload/PaymentPlanSection'
 import { AmenitiesSection } from '../components/developer-upload/AmenitiesSection'
+import { ExtractedPricingSection } from '../components/developer-upload/ExtractedPricingSection'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS } from '../lib/config'
 
@@ -52,6 +53,17 @@ interface Document {
   label: string
 }
 
+interface ExtractedPricingEntry {
+  unitTypeName?: string
+  unitCategory?: string
+  building?: string
+  price: number
+  pricePerSqft?: number
+  area?: number
+  isStartingFrom?: boolean
+  sourcePageNumber: number
+}
+
 interface FormData {
   projectName: string
   developer: string
@@ -76,6 +88,7 @@ interface FormData {
     renderingDescriptions?: string[]
     floorPlanDescriptions?: string[]
   }
+  extractedPricing?: ExtractedPricingEntry[]
 }
 
 interface ProgressEvent {
@@ -101,6 +114,7 @@ export default function DeveloperPropertyUploadPageV2() {
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -212,6 +226,7 @@ export default function DeveloperPropertyUploadPageV2() {
       }
 
       const jobId = data.jobId
+      setCurrentJobId(jobId)
       console.log(`🆔 Job ID received: ${jobId}`)
 
       setIsProcessing(true)
@@ -275,6 +290,7 @@ export default function DeveloperPropertyUploadPageV2() {
               projectImages: buildingData.images?.projectImages || prev.projectImages,
               floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
               visualContent: buildingData.visualContent || prev.visualContent,
+              extractedPricing: buildingData.extractedPricing || prev.extractedPricing,
             }
           })
         }
@@ -546,6 +562,15 @@ export default function DeveloperPropertyUploadPageV2() {
                   progressEvents={progressEvents}
                   error={error}
                   isUploading={isUploading}
+                  jobId={currentJobId}
+                  onCancelled={() => {
+                    setIsProcessing(false)
+                    setIsUploading(false)
+                    setError('Task cancelled')
+                    if (eventSourceRef.current) {
+                      eventSourceRef.current.close()
+                    }
+                  }}
                 />
               </div>
 
@@ -681,6 +706,12 @@ export default function DeveloperPropertyUploadPageV2() {
                           {/* Payment Plan */}
                           <PaymentPlanSection
                             paymentPlan={formData.paymentPlan}
+                            isProcessing={isProcessing}
+                          />
+
+                          {/* Extracted Pricing (for verification) */}
+                          <ExtractedPricingSection
+                            pricing={formData.extractedPricing}
                             isProcessing={isProcessing}
                           />
 

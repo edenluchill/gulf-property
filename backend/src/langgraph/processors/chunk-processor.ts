@@ -82,15 +82,26 @@ export async function processSingleChunk(
         chunk.sourceFile,
         chunkIndex,
         jobId,
-        imageUrls  // ⭐ Pass all variant URLs
+        imageUrls,  // ⭐ Pass all variant URLs
+        chunk.pdfHash  // ⭐ Pass pdfHash for multi-unit cropping
       );
     });
     
     // ⭐ Wait for all pages to complete in parallel
     const pageResults = await Promise.all(pagePromises);
-    
-    // Filter out null results (pages with missing images)
-    const pageMetadataList = pageResults.filter(p => p !== null) as PageMetadata[];
+
+    // Filter out null results and flatten arrays (multi-unit pages return arrays)
+    const pageMetadataList: PageMetadata[] = [];
+    for (const result of pageResults) {
+      if (result === null) continue;
+      if (Array.isArray(result)) {
+        // Multi-unit page: flatten the array
+        pageMetadataList.push(...result);
+        console.log(`   🔀 Multi-unit page expanded: ${result.length} units added`);
+      } else {
+        pageMetadataList.push(result);
+      }
+    }
     
     console.log(`   ✅ AI analyzed ${pageMetadataList.length} pages in parallel`)
 

@@ -43,6 +43,7 @@ export function DocumentUploadSection({
               <div className="text-xs text-gray-500">{(doc.file.size / 1024 / 1024).toFixed(2)} MB</div>
             </div>
             <button
+              type="button"
               onClick={() => onRemoveDocument(doc.id)}
               disabled={isProcessing}
               className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"

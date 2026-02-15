@@ -1,6 +1,6 @@
 /**
  * LangGraph Progress API Routes
- * 
+ *
  * SSE endpoints for real-time progress updates
  */
 
@@ -10,6 +10,7 @@ import { executePdfWorkflow } from '../langgraph/workflow-executor';
 import { progressEmitter } from '../services/progress-emitter';
 import { generateJobId } from '../utils/pdf/file-manager';
 import { join } from 'path';
+import { taskManager } from '../services/task-manager';
 
 const router = Router();
 
@@ -55,7 +56,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const files = req.files as Express.Multer.File[];
-      
+
       if (!files || files.length === 0) {
         res.status(400).json({
           success: false,
@@ -66,14 +67,37 @@ router.post(
 
       const jobId = generateJobId();
 
+      // Get user info from request (optional - can be added via auth middleware later)
+      const userId = (req as any).user?.id || req.body.userId || 'anonymous';
+      const userEmail = (req as any).user?.email || req.body.userEmail;
+
       console.log(`\n📄 Starting job ${jobId}: ${files.length} document(s)`);
       files.forEach((f, i) => {
         console.log(`   ${i + 1}. ${f.originalname} (${(f.size / 1024).toFixed(2)} KB)`);
       });
 
+      // Create task record in database
+      try {
+        await taskManager.createTask({
+          jobId,
+          userId,
+          userEmail,
+          taskName: files.length === 1
+            ? files[0].originalname
+            : `${files.length} PDFs: ${files.map(f => f.originalname).join(', ').substring(0, 100)}`,
+          pdfCount: files.length,
+          pdfNames: files.map(f => f.originalname),
+        });
+        console.log(`📋 Task registered in database: ${jobId}`);
+      } catch (dbError: any) {
+        console.error(`❌ Failed to create task record:`, dbError.message || dbError);
+        console.error(`   Full error:`, dbError);
+        // Continue processing even if DB insert fails
+      }
+
       // Chunked processing - all PDFs → 5-page chunks → batch process
       console.log(`🚀 Starting async workflow for job ${jobId}...`);
-      
+
       // Wait for SSE client to connect before starting heavy processing
       const waitForClient = async (maxWaitMs: number = 3000) => {
         const startWait = Date.now();
@@ -89,9 +113,14 @@ router.post(
 
       (async () => {
         await waitForClient();
-        
+
         console.log(`⚡ Executing workflow for job ${jobId}`);
-        
+
+        // Update task status to processing
+        try {
+          await taskManager.updateStatus(jobId, 'processing', { currentStage: 'Starting workflow' });
+        } catch (e) { /* ignore */ }
+
         try {
           // Execute workflow
           const result = await executePdfWorkflow({
@@ -106,12 +135,44 @@ router.post(
 
           console.log(`✅ Workflow completed for job ${jobId}`);
 
+          // Mark task as completed with full result data
+          try {
+            await taskManager.completeTask(jobId, {
+              success: result.success,
+              totalPages: result.totalPages,
+              totalChunks: result.totalChunks,
+              processingTime: result.processingTime,
+              // Include rich data for admin review
+              summary: {
+                unitsCount: result.buildingData?.units?.length || 0,
+                paymentPlansCount: result.buildingData?.paymentPlans?.length || 0,
+                amenitiesCount: result.buildingData?.amenities?.length || 0,
+                projectImagesCount: result.buildingData?.images?.projectImages?.length || 0,
+                floorPlanImagesCount: result.buildingData?.images?.floorPlanImages?.length || 0,
+              },
+              // Full building data for review/edit
+              buildingData: result.buildingData,
+              errors: result.errors,
+              warnings: result.warnings,
+            });
+          } catch (e) {
+            console.warn(`⚠️ Failed to update task completion:`, e);
+          }
+
           // All images are already R2 URLs - no conversion needed
           // Send final completion
           progressEmitter.complete(jobId, result);
 
         } catch (error) {
           console.error(`❌ Job ${jobId} failed:`, error);
+
+          // Mark task as failed
+          try {
+            await taskManager.failTask(jobId, [String(error)]);
+          } catch (e) {
+            console.warn(`⚠️ Failed to update task failure:`, e);
+          }
+
           progressEmitter.error(jobId, String(error));
         }
       })();
@@ -124,7 +185,7 @@ router.post(
       });
     } catch (error) {
       console.error('Error starting PDF processing:', error);
-      
+
       res.status(500).json({
         success: false,
         error: 'Failed to start processing',

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare, Globe } from 'lucide-react'
+import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare, Globe, ClipboardList } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
@@ -33,6 +33,7 @@ export default function Header() {
   const adminItems = [
     { path: '/admin/properties', label: t('nav.projectManagement'), icon: Building2 },
     { path: '/admin/dubai', label: t('nav.dubaiMapEditor'), icon: MapPin },
+    { path: '/admin/tasks', label: t('nav.taskManagement', 'Task Management'), icon: ClipboardList },
   ]
 
   const isAdminPage = location.pathname.startsWith('/admin')

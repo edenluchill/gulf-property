@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pause, Play, X, Check } from 'lucide-react'
+import { useTaskStore } from '../../stores/taskStore'
 
 interface ProgressEvent {
   stage: string
@@ -16,6 +18,8 @@ interface ProgressSectionProps {
   progressEvents: ProgressEvent[]
   error: string | null
   isUploading?: boolean
+  jobId?: string | null
+  onCancelled?: () => void
 }
 
 export function ProgressSection({
@@ -24,25 +28,82 @@ export function ProgressSection({
   currentStage,
   progressEvents,
   error,
-  isUploading = false
+  isUploading = false,
+  jobId = null,
+  onCancelled,
 }: ProgressSectionProps) {
   const { t } = useTranslation('upload')
+  const [isPausing, setIsPausing] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+
+  const pauseTask = useTaskStore((state: any) => state.pauseTask)
+  const resumeTask = useTaskStore((state: any) => state.resumeTask)
+  const cancelTask = useTaskStore((state: any) => state.cancelTask)
+  const task = useTaskStore((state: any) => jobId ? state.getTask(jobId) : undefined)
+
+  const isPaused = task?.status === 'paused'
+
+  const handlePause = async () => {
+    if (!jobId) return
+    setIsPausing(true)
+    try {
+      await pauseTask(jobId)
+    } catch (err) {
+      console.error('Failed to pause task:', err)
+    } finally {
+      setIsPausing(false)
+    }
+  }
+
+  const handleResume = async () => {
+    if (!jobId) return
+    setIsPausing(true)
+    try {
+      await resumeTask(jobId)
+    } catch (err) {
+      console.error('Failed to resume task:', err)
+    } finally {
+      setIsPausing(false)
+    }
+  }
+
+  const handleCancel = async () => {
+    if (!jobId) return
+    if (!confirm('Are you sure you want to cancel this task?')) return
+
+    setIsCancelling(true)
+    try {
+      await cancelTask(jobId)
+      onCancelled?.()
+    } catch (err) {
+      console.error('Failed to cancel task:', err)
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
   if (!isProcessing && !error && progress < 100) return null
 
   return (
     <div className="space-y-3">
       {/* Progress Bar */}
-      {isProcessing && (
+      {(isProcessing || isPaused) && (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-700 font-medium">
-              {isUploading && (
+              {isPaused ? (
+                <span className="inline-flex items-center gap-1 text-orange-600">
+                  <Pause className="h-3 w-3" />
+                  Paused
+                </span>
+              ) : isUploading ? (
                 <span className="inline-flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   {currentStage}
                 </span>
+              ) : (
+                currentStage
               )}
-              {!isUploading && currentStage}
             </span>
             <span className="text-teal-600 font-bold">{progress.toFixed(0)}%</span>
           </div>
@@ -67,12 +128,68 @@ export function ProgressSection({
           {/* Recent Events */}
           {!isUploading && progressEvents.length > 0 && (
             <div className="text-xs text-gray-600 max-h-32 overflow-y-auto space-y-1 bg-gray-50 rounded p-3 border">
-              {progressEvents.slice(-5).map((e, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Loader2 className="h-3 w-3 mt-0.5 flex-shrink-0 animate-spin text-teal-600" />
-                  <span>{e.message}</span>
-                </div>
-              ))}
+              {progressEvents.slice(-5).map((e, i, arr) => {
+                // Last item is still in progress, others are completed
+                const isLastItem = i === arr.length - 1
+                return (
+                  <div key={i} className="flex items-start gap-2">
+                    {isLastItem ? (
+                      <Loader2 className="h-3 w-3 mt-0.5 flex-shrink-0 animate-spin text-teal-600" />
+                    ) : (
+                      <Check className="h-3 w-3 mt-0.5 flex-shrink-0 text-green-600" />
+                    )}
+                    <span className={isLastItem ? 'text-gray-700' : 'text-gray-500'}>{e.message}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Pause/Cancel Controls */}
+          {jobId && !isUploading && (
+            <div className="flex items-center gap-2 pt-2">
+              {isPaused ? (
+                <button
+                  type="button"
+                  onClick={handleResume}
+                  disabled={isPausing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isPausing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                  Resume
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePause}
+                  disabled={isPausing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isPausing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Pause className="h-4 w-4" />
+                  )}
+                  Pause
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={isCancelling}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isCancelling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+                Cancel
+              </button>
             </div>
           )}
         </div>

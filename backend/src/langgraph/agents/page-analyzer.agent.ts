@@ -1,18 +1,24 @@
 /**
  * 页面分析Agent（重构版）
- * 
+ *
  * ⭐ TWO-STAGE OPTIMIZATION:
  * 1. Phase 1: Lightweight classification (page-classifier)
  * 2. Phase 2: Conditional detailed extraction (unit-detail-extractor)
- * 
+ *
+ * ⭐ MULTI-UNIT SUPPORT:
+ * - Detects pages with multiple floor plans
+ * - Crops individual regions and uploads to R2
+ * - Extracts each unit separately
+ *
  * Benefits:
  * - 60-70% token reduction
  * - Faster processing for non-unit pages
  * - More focused extraction for unit pages
+ * - Accurate multi-unit extraction via cropping
  */
 
-import { 
-  PageMetadata, 
+import {
+  PageMetadata,
   PageType,
   ImageCategory,
   PageImage,
@@ -24,20 +30,28 @@ import { extractUnitDetails } from './unit-detail-extractor.agent';
 import { extractAmenities } from './amenity-extractor.agent';
 import { extractProjectInfo } from './project-info-extractor.agent';
 import { extractPaymentPlan } from './payment-plan-extractor.agent';
+import { extractPricing, PricingExtractionResult } from './pricing-extractor.agent';
 
 /**
  * 分析单页，返回完整的PageMetadata
- * 
+ *
  * ⭐ TWO-STAGE OPTIMIZATION:
  * 1. Lightweight classification (fast, cheap)
  * 2. Conditional detailed extraction (only when needed)
- * 
+ *
+ * ⭐ MULTI-UNIT SUPPORT:
+ * - Detects pages with multiple floor plans
+ * - Crops individual regions and uploads to R2
+ * - Extracts each unit separately
+ * - Returns array of PageMetadata (one per unit)
+ *
  * @param imageUrl - R2 image URL (for AI analysis via URL)
  * @param pageNumber - Global page number
  * @param pdfSource - PDF file name
  * @param chunkIndex - Chunk index
  * @param jobId - Job ID (optional)
  * @param imageUrls - All variant URLs (original, large, medium, thumbnail)
+ * @param pdfHash - PDF hash for R2 cache key (required for multi-unit cropping)
  */
 export async function analyzePageWithAI(
   imageUrl: string,
@@ -45,18 +59,20 @@ export async function analyzePageWithAI(
   pdfSource: string,
   chunkIndex: number,
   _jobId?: string,
-  imageUrls?: ImageUrls
+  imageUrls?: ImageUrls,
+  _pdfHash?: string  // 保留参数兼容性，但不再使用
 ): Promise<PageMetadata> {
-  
+
   try {
     // ============ Phase 1: Lightweight Classification ============
     const classification = await classifyPage(imageUrl, pageNumber);
-    
-    // ============ Phase 2: Conditional Detailed Extraction（根据pageType一次性提取）⭐ ============
+
+    // ============ Phase 2: Conditional Detailed Extraction ============
     let unitInfo: UnitPageInfo | undefined = undefined;
     let amenitiesData: { amenities: string[] } | undefined = undefined;
     let projectInfoData: any | undefined = undefined;
     let paymentPlanData: any | undefined = undefined;
+    let pricingData: PricingExtractionResult | undefined = undefined;
     
     // ⭐ 根据页面类型，条件提取详细信息（避免重复AI调用）
     const extractionPromises: Promise<any>[] = [];
@@ -145,7 +161,32 @@ export async function analyzePageWithAI(
           })
       );
     }
-    
+
+    // 5. Pricing table extraction ⭐
+    if (classification.pageType === PageType.PRICING_TABLE) {
+      // ⭐ 从当前页面的 section 上下文获取 building
+      const currentBuilding = extractBuildingFromClassification(classification);
+      if (currentBuilding) {
+        console.log(`   🏢 [PAGE-ANALYZER] Building context for pricing: ${currentBuilding}`);
+      }
+
+      extractionPromises.push(
+        extractPricing(imageUrl, pageNumber, currentBuilding)  // ⭐ 添加 currentBuilding 参数
+          .then((result: PricingExtractionResult) => {
+            if (result.entries.length > 0) {
+              pricingData = result;
+              console.log(`   💵 Extracted ${result.entries.length} pricing entries inline`);
+              if (result.pageBuilding) {
+                console.log(`   🏢 Pricing page building: ${result.pageBuilding}`);
+              }
+            }
+          })
+          .catch(() => {
+            console.warn(`   ⚠️  Failed to extract pricing from page ${pageNumber}`);
+          })
+      );
+    }
+
     // ⭐ 并行等待所有提取完成
     if (extractionPromises.length > 0) {
       await Promise.all(extractionPromises);
@@ -177,6 +218,7 @@ export async function analyzePageWithAI(
       amenitiesData,      // ⭐ 新增：直接包含提取的amenities
       projectInfoData,    // ⭐ 新增：直接包含提取的project info
       paymentPlanData,    // ⭐ 新增：直接包含提取的payment plan
+      pricingData,        // ⭐ 新增：价格表数据（用于后处理映射到户型）
       boundaryMarkers: {
         isSectionStart: classification.boundaryMarkers?.isSectionStart || false,
         isSectionEnd: false,
@@ -199,6 +241,53 @@ export async function analyzePageWithAI(
 // ============================================================
 // Helper Functions
 // ============================================================
+
+/**
+ * Extract building/tower context from classification result
+ *
+ * Looks for building indicators in:
+ * 1. boundaryMarkers.startMarkerText (e.g., "TOWER A", "Crestlane 4")
+ * 2. Section-style markers that indicate building context
+ */
+function extractBuildingFromClassification(classification: any): string | undefined {
+  // Check boundaryMarkers.startMarkerText
+  const markerText = classification.boundaryMarkers?.startMarkerText;
+  if (markerText) {
+    // Look for tower/building patterns
+    const upperText = markerText.toUpperCase();
+
+    // Pattern: "TOWER A", "TOWER B", "TOWER C"
+    const towerMatch = upperText.match(/TOWER\s*([A-Z]|\d+)/i);
+    if (towerMatch) {
+      return `Tower ${towerMatch[1]}`;
+    }
+
+    // Pattern: "BUILDING 1", "BUILDING A"
+    const buildingMatch = upperText.match(/BUILDING\s*([A-Z]|\d+)/i);
+    if (buildingMatch) {
+      return `Building ${buildingMatch[1]}`;
+    }
+
+    // Pattern: "CRESTLANE 4", "CRESTLANE 5" (specific project names)
+    const crestlaneMatch = upperText.match(/CRESTLANE\s*(\d+)/i);
+    if (crestlaneMatch) {
+      return `Crestlane ${crestlaneMatch[1]}`;
+    }
+
+    // Pattern: "PHASE 1", "PHASE 2"
+    const phaseMatch = upperText.match(/PHASE\s*(\d+)/i);
+    if (phaseMatch) {
+      return `Phase ${phaseMatch[1]}`;
+    }
+
+    // If the marker text itself looks like a building name (short, uppercase)
+    if (markerText.length < 20 && /^[A-Z0-9\s-]+$/.test(markerText.trim())) {
+      return markerText.trim();
+    }
+  }
+
+  return undefined;
+}
 
 /**
  * Derive unit category from unit type name

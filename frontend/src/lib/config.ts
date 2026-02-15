@@ -16,21 +16,39 @@ export const API_ENDPOINTS = {
   propertiesClusters: `${API_BASE_URL}/api/properties/clusters`,
   propertiesMap: `${API_BASE_URL}/api/properties/map`,
   propertiesMeta: `${API_BASE_URL}/api/properties/meta`,
-  
+
   // Developer submission (old)
   developerSubmit: `${API_BASE_URL}/api/developer/submit-property`,
-  
+
   // Residential Projects (new schema)
   residentialProjectsSubmit: `${API_BASE_URL}/api/residential-projects/submit`,
   residentialProjects: `${API_BASE_URL}/api/residential-projects`,
   residentialProject: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,
   residentialProjectUpdate: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,
-  
+
   // LangGraph
   langgraphProgressStart: `${API_BASE_URL}/api/langgraph-progress/start`,
   langgraphProgressStream: (jobId: string) => `${API_BASE_URL}/api/langgraph-progress/stream/${jobId}`,
   langgraphProgressStatus: (jobId: string) => `${API_BASE_URL}/api/langgraph-progress/status/${jobId}`,
-  
+
+  // Tasks (PDF processing task management)
+  tasksStart: `${API_BASE_URL}/api/tasks/start`,
+  tasks: `${API_BASE_URL}/api/tasks`,
+  task: (jobId: string) => `${API_BASE_URL}/api/tasks/${jobId}`,
+  taskStream: (jobId: string) => `${API_BASE_URL}/api/tasks/${jobId}/stream`,
+  taskPause: (jobId: string) => `${API_BASE_URL}/api/tasks/${jobId}/pause`,
+  taskResume: (jobId: string) => `${API_BASE_URL}/api/tasks/${jobId}/resume`,
+  taskCancel: (jobId: string) => `${API_BASE_URL}/api/tasks/${jobId}/cancel`,
+
+  // Admin Tasks
+  adminTasks: `${API_BASE_URL}/api/admin/tasks`,
+  adminTaskStats: `${API_BASE_URL}/api/admin/tasks/stats`,
+  adminTask: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}`,
+  adminTaskPause: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}/pause`,
+  adminTaskCancel: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}/cancel`,
+  adminTasksBatchCancel: `${API_BASE_URL}/api/admin/tasks/batch/cancel`,
+  adminTasksBatchDelete: `${API_BASE_URL}/api/admin/tasks/batch`,
+
   // Health check
   health: `${API_BASE_URL}/health`,
 } as const;

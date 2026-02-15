@@ -9,48 +9,40 @@ import { join } from 'path';
 
 /**
  * Create output directory structure for a PDF processing job
- * 
+ *
+ * Simplified structure - only keeps essential files:
+ * - analysis-report-{jobId}.json
+ * - analysis-summary-{jobId}.txt
+ * - temp_images/ (temporary, cleaned up after processing)
+ *
  * @param baseDir - Base output directory
  * @param jobId - Unique job identifier
- * @returns Object with paths to various output directories
+ * @returns Object with paths to output directories
  */
 export function createOutputStructure(baseDir: string, jobId: string) {
   const jobDir = join(baseDir, jobId);
-  const pagesDir = join(jobDir, 'pages');
-  const categorizedDir = join(jobDir, 'categorized');
-  const floorPlansDir = join(categorizedDir, 'floorplans');
-  const renderingsDir = join(categorizedDir, 'renderings');
-  const amenitiesDir = join(categorizedDir, 'amenities');
-  const mapsDir = join(categorizedDir, 'maps');
-  const coverDir = join(categorizedDir, 'cover');
+  const tempImagesDir = join(jobDir, 'temp_images');
 
-  // Create all directories
-  const dirs = [
-    jobDir,
-    pagesDir,
-    categorizedDir,
-    floorPlansDir,
-    renderingsDir,
-    amenitiesDir,
-    mapsDir,
-    coverDir,
-  ];
-
-  for (const dir of dirs) {
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+  // Create directories
+  if (!existsSync(jobDir)) {
+    mkdirSync(jobDir, { recursive: true });
+  }
+  if (!existsSync(tempImagesDir)) {
+    mkdirSync(tempImagesDir, { recursive: true });
   }
 
+  // Return paths (keep legacy names for backward compatibility)
   return {
     jobDir,
-    pagesDir,
-    categorizedDir,
-    floorPlansDir,
-    renderingsDir,
-    amenitiesDir,
-    mapsDir,
-    coverDir,
+    pagesDir: tempImagesDir,      // Legacy alias
+    tempImagesDir,
+    // Legacy paths (no longer created, but returned for backward compatibility)
+    categorizedDir: jobDir,
+    floorPlansDir: jobDir,
+    renderingsDir: jobDir,
+    amenitiesDir: jobDir,
+    mapsDir: jobDir,
+    coverDir: jobDir,
   };
 }
 

@@ -25,12 +25,25 @@ export interface PdfImageBatch {
   imageUrls: Map<number, ImageUrls>;  // pageNumber → URLs for all variants
 }
 
+/**
+ * Progress callback for image generation
+ */
+export interface ImageGenerationProgress {
+  currentImage: number;
+  totalImages: number;
+  currentPdf: number;
+  totalPdfs: number;
+  phase: 'generating' | 'uploading';
+  pdfName?: string;
+}
+
 export interface BatchGenerationConfig {
   pdfBuffers: Buffer[];
   pdfNames: string[];
   pdfHashes: string[];
   tempDir: string;
   uploadConcurrency?: number;  // Max concurrent R2 uploads
+  onProgress?: (progress: ImageGenerationProgress) => void;  // ⭐ Progress callback
 }
 
 export interface BatchGenerationResult {
@@ -53,12 +66,13 @@ export interface BatchGenerationResult {
 export async function generateAndUploadAllPdfImages(
   config: BatchGenerationConfig
 ): Promise<BatchGenerationResult> {
-  const { 
-    pdfBuffers, 
-    pdfNames, 
-    pdfHashes, 
+  const {
+    pdfBuffers,
+    pdfNames,
+    pdfHashes,
     tempDir,
-    uploadConcurrency = 10  // Default: 10 concurrent uploads
+    uploadConcurrency = 10,  // Default: 10 concurrent uploads
+    onProgress,  // ⭐ Progress callback
   } = config;
 
   const startTime = Date.now();
@@ -87,7 +101,19 @@ export async function generateAndUploadAllPdfImages(
 
     console.log(`   📸 Converting all pages to images...`);
     const imageStartTime = Date.now();
-    
+
+    // ⭐ Emit progress: generating phase start
+    if (onProgress) {
+      onProgress({
+        currentImage: 0,
+        totalImages: 0,  // Unknown until conversion completes
+        currentPdf: pdfIdx + 1,
+        totalPdfs: pdfBuffers.length,
+        phase: 'generating',
+        pdfName,
+      });
+    }
+
     const localImagePaths = await pdfToImages(
       pdfBuffer,
       pdfTempDir,
@@ -156,6 +182,18 @@ export async function generateAndUploadAllPdfImages(
       // Progress update
       const uploadedSoFar = Math.min(i + uploadConcurrency, localImagePaths.length);
       console.log(`   📊 Progress: ${uploadedSoFar}/${localImagePaths.length} images uploaded`);
+
+      // ⭐ Emit progress: uploading phase
+      if (onProgress) {
+        onProgress({
+          currentImage: uploadedSoFar,
+          totalImages: localImagePaths.length,
+          currentPdf: pdfIdx + 1,
+          totalPdfs: pdfBuffers.length,
+          phase: 'uploading',
+          pdfName,
+        });
+      }
     }
 
     const uploadTime = Date.now() - uploadStartTime;
