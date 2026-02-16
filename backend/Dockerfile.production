@@ -6,6 +6,19 @@
 # ============================================================================
 FROM node:20-alpine AS builder
 
+# Install build dependencies for native modules (canvas, etc.)
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    pkgconf \
+    cairo-dev \
+    pango-dev \
+    libjpeg-turbo-dev \
+    giflib-dev \
+    librsvg-dev \
+    pixman-dev
+
 WORKDIR /app
 
 # Copy package files
@@ -25,8 +38,18 @@ RUN npm run build
 # ============================================================================
 FROM node:20-alpine
 
-# Install GraphicsMagick for pdf2pic
-RUN apk add --no-cache graphicsmagick ghostscript
+# Install runtime dependencies
+# - GraphicsMagick + Ghostscript for pdf2pic
+# - Cairo + Pango for canvas
+RUN apk add --no-cache \
+    graphicsmagick \
+    ghostscript \
+    cairo \
+    pango \
+    libjpeg-turbo \
+    giflib \
+    librsvg \
+    pixman
 
 # Create app user
 RUN addgroup -g 1001 -S nodejs && \
