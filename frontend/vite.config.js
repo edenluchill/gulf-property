@@ -16,4 +16,13 @@ export default defineConfig({
             },
         },
     },
+    optimizeDeps: {
+        // Fix for maplibre-gl private class fields issue
+        esbuildOptions: {
+            target: 'es2022',
+        },
+    },
+    build: {
+        target: 'es2022',
+    },
 });

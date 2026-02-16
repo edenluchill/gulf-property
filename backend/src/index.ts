@@ -13,6 +13,7 @@ import langgraphRouter from './routes/langgraph-processor'
 import langgraphProgressRouter from './routes/langgraph-progress'
 import langgraphValidateRouter from './routes/langgraph-validate'
 import dubaiAreasLandmarksRouter from './routes/dubai-areas-landmarks'
+import dubaiPoisRouter from './routes/dubai-pois'
 import uploadRouter from './routes/upload'
 import tasksRouter from './routes/tasks'
 import adminTasksRouter from './routes/admin-tasks'
@@ -84,6 +85,7 @@ app.use('/api/langgraph', langgraphRouter)  // LangGraph multi-agent PDF process
 app.use('/api/langgraph-progress', langgraphProgressRouter)  // LangGraph with real-time progress
 app.use('/api/langgraph', langgraphValidateRouter)  // Result validation
 app.use('/api/dubai', dubaiAreasLandmarksRouter)  // Dubai areas and landmarks overlay
+app.use('/api/dubai-pois', dubaiPoisRouter)  // Dubai POIs (hospitals, schools, etc.)
 app.use('/api/upload', uploadRouter)  // File upload to R2
 app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
 app.use('/api/tasks', tasksRouter)  // PDF processing task management

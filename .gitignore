@@ -50,3 +50,8 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Data files (too large for git)
+backend/data/
+**/data/dubai-pulse/
+*.osm.pbf

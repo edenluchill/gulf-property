@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import MapViewClustered from '../components/MapViewClustered'
-import { AreaMetric } from '../components/MapViewClustered'
+import MapViewMapLibre from '../components/MapViewMapLibre'
+import { AreaMetric } from '../components/MapViewMapLibre'
 import FilterDialog from '../components/FilterDialog'
 import ClusterDialog from '../components/ClusterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
@@ -10,7 +10,12 @@ import MobileBottomSheet from '../components/MobileBottomSheet'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
-import { Search, SlidersHorizontal, Layers, RefreshCw, Building2, Bed, Calendar } from 'lucide-react'
+import {
+  Search, SlidersHorizontal, RefreshCw, Building2, Bed, Calendar, MapPin, X,
+  DollarSign, TrendingUp, BarChart3, Percent,
+  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation
+} from 'lucide-react'
+import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
 import { formatPrice } from '../lib/utils'
 import { getImageUrl } from '../lib/image-utils'
 import {
@@ -23,11 +28,11 @@ import {
   fetchDubaiLandmarks
 } from '../lib/api'
 
-const METRIC_OPTIONS: { value: AreaMetric; labelKey: string }[] = [
-  { value: 'avgPrice', labelKey: 'map:metric.avgPrice' },
-  { value: 'capitalGrowth', labelKey: 'map:metric.capitalGrowth' },
-  { value: 'salesVolume', labelKey: 'map:metric.salesVolume' },
-  { value: 'rentalYield', labelKey: 'map:metric.rentalYield' },
+const METRIC_OPTIONS = [
+  { value: 'avgPrice' as AreaMetric, labelKey: 'map:metric.avgPrice', Icon: DollarSign },
+  { value: 'capitalGrowth' as AreaMetric, labelKey: 'map:metric.capitalGrowth', Icon: TrendingUp },
+  { value: 'salesVolume' as AreaMetric, labelKey: 'map:metric.salesVolume', Icon: BarChart3 },
+  { value: 'rentalYield' as AreaMetric, labelKey: 'map:metric.rentalYield', Icon: Percent },
 ]
 
 export default function MapPage() {
@@ -46,7 +51,6 @@ export default function MapPage() {
   // Dubai areas and landmarks state
   const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
   const [dubaiLandmarks, setDubaiLandmarks] = useState<DubaiLandmark[]>([])
-  const [showDubaiLayer, setShowDubaiLayer] = useState(true)
   const [dubaiDataVersion, setDubaiDataVersion] = useState(0)
 
   // Cluster dialog state
@@ -71,11 +75,89 @@ export default function MapPage() {
     localStorage.setItem('map-area-metric', next)
   }
 
+  // POI state — persisted in localStorage (default: true)
+  const [showPois] = useState(() => {
+    const saved = localStorage.getItem('map-show-pois')
+    return saved === null ? true : saved === 'true'
+  })
+  const [showPoiPanel, setShowPoiPanel] = useState(false)
+  const [enabledPoiCategories, setEnabledPoiCategories] = useState<PoiCategory[]>(() => {
+    const saved = localStorage.getItem('map-poi-categories')
+    if (saved) {
+      try {
+        return JSON.parse(saved) as PoiCategory[]
+      } catch { /* ignore */ }
+    }
+    // Default: show education (school + university)
+    return ['school', 'university']
+  })
+
+  // Quick toggle groups (shown directly in the bar)
+  const QUICK_GROUPS = [
+    { id: 'healthcare', labelKey: 'map:poi.healthcare', color: '#0d9488', Icon: Cross },  // teal
+    { id: 'education', labelKey: 'map:poi.education', color: '#2563eb', Icon: GraduationCap },
+    { id: 'transport', labelKey: 'map:poi.transport', color: '#ea580c', Icon: TrainFront },
+  ] as const
+
+  const { pois } = useDubaiPois({
+    bounds: mapBounds || undefined,
+    enabledCategories: enabledPoiCategories,
+    enabled: showPois
+  })
+
+  // Get all category IDs for a group
+  const getCategoriesInGroup = useCallback((groupId: string): PoiCategory[] => {
+    return POI_CATEGORIES.filter(c => c.group === groupId).map(c => c.id)
+  }, [])
+
+  // Check if all categories in a group are enabled
+  const isGroupEnabled = useCallback((groupId: string): boolean => {
+    const groupCats = getCategoriesInGroup(groupId)
+    return groupCats.length > 0 && groupCats.every(cat => enabledPoiCategories.includes(cat))
+  }, [enabledPoiCategories, getCategoriesInGroup])
+
+  // Toggle all categories in a group
+  const togglePoiGroup = useCallback((groupId: string) => {
+    const groupCats = getCategoriesInGroup(groupId)
+    setEnabledPoiCategories(prev => {
+      const allEnabled = groupCats.every(cat => prev.includes(cat))
+      let next: PoiCategory[]
+      if (allEnabled) {
+        // Remove all group categories
+        next = prev.filter(c => !groupCats.includes(c))
+      } else {
+        // Add all group categories
+        next = [...new Set([...prev, ...groupCats])]
+      }
+      localStorage.setItem('map-poi-categories', JSON.stringify(next))
+      return next
+    })
+  }, [getCategoriesInGroup])
+
+  const togglePoiCategory = useCallback((category: PoiCategory) => {
+    setEnabledPoiCategories(prev => {
+      const next = prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+      localStorage.setItem('map-poi-categories', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const toggleAllPoiCategories = useCallback((enable: boolean) => {
+    const next = enable ? POI_CATEGORIES.map(c => c.id) : []
+    setEnabledPoiCategories(next)
+    localStorage.setItem('map-poi-categories', JSON.stringify(next))
+  }, [])
+
   // Area detail dialog state
   const [showAreaDialog, setShowAreaDialog] = useState(false)
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
   const [areaProjects, setAreaProjects] = useState<any[]>([])
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
+
+  // POI popup state
+  const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null)
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
@@ -492,14 +574,6 @@ export default function MapPage() {
                 )}
               </Button>
               <Button
-                variant={showDubaiLayer ? "default" : "outline"}
-                className="h-12 px-6"
-                onClick={() => setShowDubaiLayer(!showDubaiLayer)}
-              >
-                <Layers className="h-5 w-5 mr-2" />
-                {t('map:areasAndLandmarks')}
-              </Button>
-              <Button
                 variant="ghost"
                 className="h-12 px-4"
                 onClick={handleRefreshMetadata}
@@ -553,7 +627,7 @@ export default function MapPage() {
       {/* Map Section - Full Width */}
       <div className="flex-1 p-0 md:p-6">
         <div className="h-full md:rounded-xl overflow-hidden md:shadow-2xl md:border md:border-slate-200 relative">
-          <MapViewClustered
+          <MapViewMapLibre
             clusters={clusters}
             onBoundsChange={handleMapBoundsChange}
             onClusterClick={handleClusterClick}
@@ -561,34 +635,84 @@ export default function MapPage() {
             areaMetric={areaMetric}
             dubaiAreas={dubaiAreas}
             dubaiLandmarks={dubaiLandmarks}
-            showDubaiLayer={showDubaiLayer}
+            showDubaiLayer
+            pois={pois}
+            showPois={showPois}
+            onPoiClick={setSelectedPoi}
           />
 
-          {/* Floating mobile controls — search, filter, layers */}
+          {/* Mobile: Left side controls (search, filter) */}
           <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2 md:hidden">
             <button
               onClick={() => setShowFilters(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white/90 shadow-md rounded-full text-sm font-medium text-slate-700"
+              className="flex items-center justify-center w-10 h-10 bg-white shadow-md rounded-xl text-slate-700"
             >
-              <Search className="w-4 h-4" />
+              <Search className="w-5 h-5" />
             </button>
             <button
               onClick={() => setShowFilters(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white/90 shadow-md rounded-full text-sm font-medium text-slate-700"
+              className="relative flex items-center justify-center w-10 h-10 bg-white shadow-md rounded-xl text-slate-700"
             >
-              <SlidersHorizontal className="w-4 h-4" />
+              <SlidersHorizontal className="w-5 h-5" />
               {hasActiveFilters && (
-                <span className="w-2 h-2 bg-primary rounded-full" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-white" />
               )}
             </button>
-            <button
-              onClick={() => setShowDubaiLayer(!showDubaiLayer)}
-              className={`flex items-center gap-1.5 px-3 py-2 shadow-md rounded-full text-sm font-medium ${
-                showDubaiLayer ? 'bg-primary text-white' : 'bg-white/90 text-slate-700'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-            </button>
+          </div>
+
+          {/* Mobile: Right side controls (metrics + POI) */}
+          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 md:hidden">
+            {/* Metrics mini panel */}
+            <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+              <div className="flex">
+                {METRIC_OPTIONS.map((option, idx) => {
+                  const isActive = areaMetric === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => handleMetricToggle(option.value)}
+                      className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                        isActive ? 'bg-primary text-white' : 'text-slate-500'
+                      } ${idx > 0 ? 'border-l border-slate-100' : ''}`}
+                      title={t(option.labelKey as any)}
+                    >
+                      <option.Icon className="w-4 h-4" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* POI quick toggles */}
+            <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+              <div className="flex">
+                {QUICK_GROUPS.map((group, idx) => {
+                  const enabled = isGroupEnabled(group.id)
+                  return (
+                    <button
+                      key={group.id}
+                      onClick={() => togglePoiGroup(group.id)}
+                      className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                        idx > 0 ? 'border-l border-slate-100' : ''
+                      }`}
+                      style={enabled ? { backgroundColor: group.color, color: 'white' } : { color: '#64748b' }}
+                      title={t(group.labelKey as any)}
+                    >
+                      <group.Icon className="w-4 h-4" />
+                    </button>
+                  )
+                })}
+                <button
+                  onClick={() => setShowPoiPanel(true)}
+                  className={`flex items-center justify-center w-10 h-10 border-l border-slate-100 transition-colors ${
+                    showPoiPanel ? 'bg-slate-700 text-white' : 'text-slate-500'
+                  }`}
+                  title={t('map:poi.more')}
+                >
+                  <MapPin className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Last Updated Badge - Floating on Map, hidden on mobile */}
@@ -601,25 +725,147 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* Metric Toggle - Floating top-right, visible when areas layer is on */}
-          {showDubaiLayer && (
-            <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] p-1">
-              <div className="flex items-center gap-0.5">
-                {METRIC_OPTIONS.map((option) => (
+          {/* Floating Metric Panel - top-right */}
+          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
+            <div className="flex items-center gap-0.5 p-1">
+              {METRIC_OPTIONS.map((option) => {
+                const isActive = areaMetric === option.value
+                return (
                   <button
                     key={option.value}
                     onClick={() => handleMetricToggle(option.value)}
-                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                      areaMetric === option.value
+                    className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                      isActive
                         ? 'bg-primary text-white shadow-sm'
                         : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    {t(option.labelKey as any)}
+                    <option.Icon className="w-3.5 h-3.5" />
+                    <span>{t(option.labelKey as any)}</span>
                   </button>
-                ))}
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Floating POI Panel - below metrics */}
+          <div className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
+            <div className="flex items-center gap-1.5 p-1.5">
+              {QUICK_GROUPS.map(group => {
+                const enabled = isGroupEnabled(group.id)
+                return (
+                  <button
+                    key={group.id}
+                    onClick={() => togglePoiGroup(group.id)}
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                      enabled
+                        ? 'text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                    style={enabled ? { backgroundColor: group.color } : undefined}
+                  >
+                    <group.Icon className="w-3.5 h-3.5" />
+                    <span>{t(group.labelKey as any)}</span>
+                  </button>
+                )
+              })}
+              <div className="w-px h-4 bg-slate-200 mx-0.5" />
+              <button
+                onClick={() => setShowPoiPanel(!showPoiPanel)}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  showPoiPanel ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{t('map:poi.more')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* POI Full Panel - appears when "More" clicked */}
+          {showPoiPanel && (
+            <>
+              {/* Backdrop to close on outside click */}
+              <div
+                className="fixed inset-0 z-[1000]"
+                onClick={() => setShowPoiPanel(false)}
+              />
+              <div className="absolute top-4 left-4 md:top-28 md:right-4 md:left-auto bg-white rounded-xl shadow-xl border border-slate-200/80 z-[1001] w-[280px] max-h-[400px] overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm font-semibold text-slate-800">Points of Interest</span>
+                </div>
+                <button
+                  onClick={() => setShowPoiPanel(false)}
+                  className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Quick actions bar */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleAllPoiCategories(true)}
+                    className="text-xs px-2.5 py-1 rounded-full bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 font-medium transition-colors"
+                  >
+                    {t('map:poi.selectAll')}
+                  </button>
+                  <button
+                    onClick={() => toggleAllPoiCategories(false)}
+                    className="text-xs px-2.5 py-1 rounded-full bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 font-medium transition-colors"
+                  >
+                    {t('map:poi.clear')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Category list */}
+              <div className="overflow-y-auto max-h-[280px] p-3">
+                {POI_GROUPS.map(group => {
+                  const groupCategories = POI_CATEGORIES.filter(c => c.group === group.id)
+                  if (groupCategories.length === 0) return null
+
+                  return (
+                    <div key={group.id} className="mb-4 last:mb-0">
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                          {t(`map:poi.${group.id}` as any)}
+                        </div>
+                        <div className="flex-1 h-px bg-slate-100" />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {groupCategories.map(cat => {
+                          const isEnabled = enabledPoiCategories.includes(cat.id)
+                          return (
+                            <button
+                              key={cat.id}
+                              onClick={() => togglePoiCategory(cat.id)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                isEnabled
+                                  ? 'text-white shadow-sm ring-1 ring-white/20'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                              }`}
+                              style={isEnabled ? { backgroundColor: cat.color } : undefined}
+                            >
+                              <span
+                                className={`w-2.5 h-2.5 rounded-full ${isEnabled ? 'ring-1 ring-white/30' : ''}`}
+                                style={{ backgroundColor: isEnabled ? 'rgba(255,255,255,0.9)' : cat.color }}
+                              />
+                              <span>{cat.label}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -652,6 +898,208 @@ export default function MapPage() {
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}
       />
+
+      {/* POI Info Popup - Mobile: Bottom Sheet, Desktop: Centered Modal */}
+      {selectedPoi && (() => {
+        const catInfo = getCategoryInfo(selectedPoi.category)
+        const color = catInfo?.color || '#6b7280'
+
+        return (
+          <div className="fixed inset-0 z-[2000]" onClick={() => setSelectedPoi(null)}>
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+
+            {/* Mobile: Bottom Sheet */}
+            <div className="md:hidden absolute inset-x-0 bottom-0 animate-in slide-in-from-bottom duration-200">
+              <div
+                className="bg-white rounded-t-2xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle bar */}
+                <div className="flex justify-center pt-3 pb-2">
+                  <div className="w-10 h-1 bg-slate-300 rounded-full" />
+                </div>
+
+                {/* Icon + Category */}
+                <div className="flex items-center gap-3 px-5 pb-3">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
+                    style={{ backgroundColor: color }}
+                  >
+                    <MapPin className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
+                      style={{ backgroundColor: color }}
+                    >
+                      {catInfo?.label || selectedPoi.category}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="px-5 pb-4">
+                  <h3 className="text-xl font-bold text-slate-900 mb-1">
+                    {selectedPoi.name}
+                  </h3>
+                  {selectedPoi.name_ar && (
+                    <p className="text-base text-slate-500 mb-3" dir="rtl">
+                      {selectedPoi.name_ar}
+                    </p>
+                  )}
+                  {selectedPoi.address && (
+                    <p className="text-sm text-slate-600 mb-4">
+                      {selectedPoi.address}
+                    </p>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-3 gap-px bg-slate-200 border-t border-slate-200">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPoi.lat},${selectedPoi.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
+                  >
+                    <Navigation className="w-5 h-5 text-blue-600" />
+                    <span className="text-xs font-medium text-slate-700">Directions</span>
+                  </a>
+                  {selectedPoi.phone ? (
+                    <a
+                      href={`tel:${selectedPoi.phone}`}
+                      className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
+                    >
+                      <Phone className="w-5 h-5 text-green-600" />
+                      <span className="text-xs font-medium text-slate-700">Call</span>
+                    </a>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 py-4 bg-white opacity-40">
+                      <Phone className="w-5 h-5 text-slate-400" />
+                      <span className="text-xs font-medium text-slate-400">Call</span>
+                    </div>
+                  )}
+                  {selectedPoi.website ? (
+                    <a
+                      href={selectedPoi.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
+                    >
+                      <Globe className="w-5 h-5 text-purple-600" />
+                      <span className="text-xs font-medium text-slate-700">Website</span>
+                    </a>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 py-4 bg-white opacity-40">
+                      <Globe className="w-5 h-5 text-slate-400" />
+                      <span className="text-xs font-medium text-slate-400">Website</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Safe area padding for iOS */}
+                <div className="h-safe-area-inset-bottom bg-white" />
+              </div>
+            </div>
+
+            {/* Desktop: Centered Modal */}
+            <div className="hidden md:flex absolute inset-0 items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="relative p-5 pb-4">
+                  <button
+                    onClick={() => setSelectedPoi(null)}
+                    className="absolute top-3 right-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="w-14 h-14 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    >
+                      <MapPin className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0 pt-1">
+                      <span
+                        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white mb-2"
+                        style={{ backgroundColor: color }}
+                      >
+                        {catInfo?.label || selectedPoi.category}
+                      </span>
+                      <h3 className="text-xl font-bold text-slate-900 leading-tight">
+                        {selectedPoi.name}
+                      </h3>
+                      {selectedPoi.name_ar && (
+                        <p className="text-sm text-slate-500 mt-1" dir="rtl">
+                          {selectedPoi.name_ar}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Details */}
+                {(selectedPoi.address || selectedPoi.phone || selectedPoi.website) && (
+                  <div className="px-5 pb-4 space-y-3">
+                    {selectedPoi.address && (
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-4 h-4 mt-0.5 text-slate-400 flex-shrink-0" />
+                        <span className="text-sm text-slate-600">{selectedPoi.address}</span>
+                      </div>
+                    )}
+                    {selectedPoi.phone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <a href={`tel:${selectedPoi.phone}`} className="text-sm text-blue-600 hover:underline">
+                          {selectedPoi.phone}
+                        </a>
+                      </div>
+                    )}
+                    {selectedPoi.website && (
+                      <div className="flex items-center gap-3">
+                        <Globe className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <a
+                          href={selectedPoi.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline truncate"
+                        >
+                          {selectedPoi.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 p-5 pt-2 border-t border-slate-100">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPoi.lat},${selectedPoi.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    Get Directions
+                  </a>
+                  <button
+                    onClick={() => setSelectedPoi(null)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Mobile: Cluster Bottom Sheet */}
       <MobileBottomSheet
