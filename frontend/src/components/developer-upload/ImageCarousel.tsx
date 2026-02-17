@@ -56,7 +56,7 @@ function ImageLightbox({
 
       {/* Download button */}
       <a
-        href={getImageUrl(images[currentIndex], 'original')}
+        href={getImageUrl(images[currentIndex], 'large')}
         download
         target="_blank"
         rel="noopener noreferrer"
@@ -77,7 +77,7 @@ function ImageLightbox({
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={getImageUrl(images[currentIndex], 'original')}
+          src={getImageUrl(images[currentIndex], 'large')}
           alt={`Image ${currentIndex + 1}`}
           className="max-w-full max-h-[85vh] object-contain"
         />

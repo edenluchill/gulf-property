@@ -146,13 +146,21 @@ function fallbackFilterAmenities(amenities: string[]): string[] {
 
 /**
  * 从单页提取amenities（快速、轻量级）
+ *
+ * ⚡ OPTIMIZED: Added 15s timeout to prevent blocking
  */
 export async function extractAmenities(
   imageUrl: string,
   pageNumber: number
 ): Promise<string[]> {
-  
+  // ⚡ 15 second timeout to prevent blocking entire batch
+  const TIMEOUT_MS = 15000;
+
   try {
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
       generationConfig: {
@@ -160,12 +168,12 @@ export async function extractAmenities(
       },
     });
 
-    const prompt = `Extract VALUABLE amenities from this page. 
+    const prompt = `Extract VALUABLE amenities from this page.
 
 ✅ EXTRACT (valuable differentiating amenities):
 - Swimming Pool, Gym, Spa, Sauna
 - Sky Garden, Rooftop Terrace, Gardens
-- Kids' Play Area, Kids' Club  
+- Kids' Play Area, Kids' Club
 - BBQ Area, Picnic Area
 - Sports Court, Tennis Court, Padel Court
 - Cinema, Library, Arcade
@@ -189,14 +197,17 @@ Return JSON: {"amenities": ["Swimming Pool", "Gym", ...]}
 - NO duplicates
 - Return [] if none found`;
 
-    const imageResponse = await fetch(imageUrl);
+    // ⚡ Fetch with timeout
+    const imageResponse = await fetch(imageUrl, { signal: controller.signal });
     if (!imageResponse.ok) {
+      clearTimeout(timeoutId);
       throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
     }
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-    const result = await model.generateContent([
+    // ⚡ AI call with Promise.race for timeout
+    const aiPromise = model.generateContent([
       prompt,
       {
         inlineData: {
@@ -206,17 +217,28 @@ Return JSON: {"amenities": ["Swimming Pool", "Gym", ...]}
       },
     ]);
 
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('AI timeout')), TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([aiPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
+
     const response = await result.response;
     const text = response.text();
     const parsed = JSON.parse(text);
 
     const amenities: string[] = parsed.amenities || [];
     const unique = Array.from(new Set(amenities));
-    
+
     return unique;
 
-  } catch (error) {
-    console.error(`   ✗ Error extracting amenities from page ${pageNumber}:`, error);
+  } catch (error: any) {
+    if (error.name === 'AbortError' || error.message === 'AI timeout') {
+      console.warn(`   ⚠️  Amenity extraction timeout on page ${pageNumber} (skipped after ${TIMEOUT_MS / 1000}s)`);
+    } else {
+      console.error(`   ✗ Error extracting amenities from page ${pageNumber}:`, error);
+    }
     return [];
   }
 }

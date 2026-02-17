@@ -94,10 +94,13 @@ export enum ImageCategory {
 
 /**
  * 图片URL变体（多尺寸）
+ *
+ * ⚡ OPTIMIZED: Removed 'original' variant
+ * - 'large' (1280x720) is now the highest quality
+ * - 3 variants instead of 4 = 25% faster uploads
  */
 export interface ImageUrls {
-  original: string;    // 1920×1080 - Full quality for detail pages
-  large: string;       // 1280×720 - Desktop listings
+  large: string;       // 1280×720 - Detail pages & desktop
   medium: string;      // 800×450 - Tablet/cards
   thumbnail: string;   // 400×225 - Mobile previews
 }

@@ -230,24 +230,23 @@ export async function executePdfWorkflow(
         
         cachedUrls.forEach(url => {
           // Extract page number from URL pattern: pdf-cache/{hash}/images/page_{pageNum}_{variant}.jpg
-          // or: pdf-cache/{hash}/images/page_{pageNum}.jpg (original)
-          const match = url.match(/page[._](\d+)(?:[._](large|medium|thumbnail))?\.jpg/);
+          // ⚡ Only 3 variants now: large, medium, thumbnail (no 'original')
+          const match = url.match(/page[._](\d+)[._](large|medium|thumbnail)\.jpg/);
           if (match) {
             const pageNum = parseInt(match[1]);
-            const variant = match[2] || 'original';
-            
+            const variant = match[2];
+
             if (!urlsByPage.has(pageNum)) {
               urlsByPage.set(pageNum, {});
             }
-            
+
             urlsByPage.get(pageNum)![variant] = url;
           }
         });
-        
-        // Convert to final format
+
+        // Convert to final format (no 'original' variant)
         urlsByPage.forEach((variants, pageNum) => {
           imageUrls.set(pageNum, {
-            original: variants.original || '',
             large: variants.large || '',
             medium: variants.medium || '',
             thumbnail: variants.thumbnail || '',

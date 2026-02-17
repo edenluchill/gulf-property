@@ -29,12 +29,15 @@ export interface ProjectBasicInfo {
 
 /**
  * 从页面提取项目基本信息
+ *
+ * ⚡ OPTIMIZED: Added 20s timeout to prevent blocking
  */
 export async function extractProjectInfo(
   imagePath: string,
   pageNumber: number
 ): Promise<ProjectBasicInfo> {
-  
+  const TIMEOUT_MS = 20000; // 20 seconds
+
   try {
     // ⭐ 简化：只使用 JSON mode（和其他 agents 一致，避免 schema 卡住）
     const model = genAI.getGenerativeModel({
@@ -46,10 +49,15 @@ export async function extractProjectInfo(
 
     // ⭐ Support both local paths and R2 URLs
     let imageBase64: string;
-    
+
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      // Fetch from R2
-      const imageResponse = await fetch(imagePath);
+      // ⚡ Fetch from R2 with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+      const imageResponse = await fetch(imagePath, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (!imageResponse.ok) {
         throw new Error(`Failed to fetch image from R2: ${imageResponse.statusText}`);
       }
@@ -125,7 +133,8 @@ export async function extractProjectInfo(
 
 只返回JSON，如果某字段没有就不要包含该字段。`;
 
-    const result = await model.generateContent([
+    // ⚡ AI call with timeout
+    const aiPromise = model.generateContent([
       prompt,
       {
         inlineData: {
@@ -135,6 +144,11 @@ export async function extractProjectInfo(
       },
     ]);
 
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('AI timeout')), TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([aiPromise, timeoutPromise]);
     const response = await result.response;
     const text = response.text();
 
@@ -145,8 +159,12 @@ export async function extractProjectInfo(
 
     return parsed;
 
-  } catch (error) {
-    console.error(`   ✗ Error extracting project info from page ${pageNumber}:`, error);
+  } catch (error: any) {
+    if (error.name === 'AbortError' || error.message === 'AI timeout') {
+      console.warn(`   ⚠️  Project info extraction timeout on page ${pageNumber} (skipped)`);
+    } else {
+      console.error(`   ✗ Error extracting project info from page ${pageNumber}:`, error);
+    }
     return {};
   }
 }

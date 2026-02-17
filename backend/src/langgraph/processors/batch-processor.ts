@@ -1,18 +1,21 @@
 /**
  * Batch Processor Module
- * 
- * Handles batch processing of chunks with:
- * - Parallel processing within batches
- * - Rate limiting between batches
+ *
+ * ⚡ OPTIMIZED: Uses p-limit concurrency pool instead of fixed batches
+ * - Sliding window: as soon as one chunk completes, next one starts
+ * - No more waiting for slowest chunk in batch
+ * - Maintains max concurrency limit for API rate protection
+ *
+ * Features:
+ * - Parallel processing with concurrency pool
  * - Progress tracking and updates
  * - Data aggregation during processing
- * 
- * NEW: Integrated with smart image assignment system
  * - PageRegistry for incremental updates
  * - Real-time image assignment
  * - Multi-PDF support
  */
 
+import pLimit from 'p-limit';
 import type { PdfChunk } from '../../utils/pdf/chunker';
 import { progressEmitter } from '../../services/progress-emitter';
 import { processSingleChunk } from './chunk-processor';
@@ -30,8 +33,7 @@ export interface BatchProcessingConfig {
   chunks: Array<PdfChunk & { sourceFile: string; pdfHash: string }>;
   outputDir: string;
   jobId: string;
-  batchSize?: number;
-  batchDelay?: number; // ms
+  batchSize?: number;  // Max concurrent chunks (p-limit pool size)
   abortSignal?: AbortSignal; // For pause/cancel support
   startFromChunk?: number; // For resume support
 }
@@ -59,7 +61,7 @@ export async function processChunksInBatches(
     outputDir,
     jobId,
     batchSize = 10,
-    batchDelay = 1000,
+    // batchDelay removed - not needed with p-limit concurrency pool
     abortSignal,
     startFromChunk = 0,
   } = config;
@@ -88,26 +90,102 @@ export async function processChunksInBatches(
     emitSmartAssignmentUpdate(jobId, assignmentResult, aggregatedData, chunks.length, pageRegistry);
   });
 
-  // Split chunks into batches
-  const batches: typeof chunks[] = [];
-  for (let i = 0; i < chunks.length; i += batchSize) {
-    batches.push(chunks.slice(i, i + batchSize));
-  }
+  // ⚡ OPTIMIZED: Use p-limit concurrency pool instead of fixed batches
+  // This creates a "sliding window" - as soon as one chunk completes, next one starts
+  const concurrencyLimit = batchSize;  // Use batchSize as max concurrent chunks
+  const limit = pLimit(concurrencyLimit);
 
-  // Calculate starting batch based on startFromChunk
-  const startBatchIdx = Math.floor(startFromChunk / batchSize);
-
-  console.log(`\n🚀 Processing in ${batches.length} parallel batches (${batchSize} chunks per batch)\n`);
+  console.log(`\n🚀 Processing ${totalChunks} chunks with concurrency pool (max ${concurrencyLimit} parallel)\n`);
   if (startFromChunk > 0) {
-    console.log(`▶️  Resuming from chunk ${startFromChunk} (batch ${startBatchIdx + 1})\n`);
+    console.log(`▶️  Resuming from chunk ${startFromChunk}\n`);
   }
-  console.log(`⏱️  Rate limit protection: ${batchDelay / 1000}s delay between batches\n`);
+  console.log(`⚡ Sliding window mode: no waiting for slow chunks!\n`);
 
-  // Process each batch
-  for (let batchIdx = startBatchIdx; batchIdx < batches.length; batchIdx++) {
-    // Check for abort before starting each batch
-    if (abortSignal?.aborted) {
-      console.log(`\n⏸️  Processing aborted at batch ${batchIdx + 1}/${batches.length}`);
+  // Get chunks to process (skip already processed ones)
+  const chunksToProcess = chunks.slice(startFromChunk);
+
+  // ⚡ Process all chunks through the concurrency pool
+  const chunkPromises = chunksToProcess.map((chunk, localIdx) => {
+    const globalIdx = startFromChunk + localIdx;
+
+    // Use p-limit to control concurrency
+    return limit(async () => {
+      // Check for abort
+      if (abortSignal?.aborted) {
+        const reason = taskManager.getAbortReason(jobId);
+        throw new TaskAbortedError(reason || 'cancelled');
+      }
+
+      console.log(`   📄 Processing chunk ${globalIdx + 1}/${totalChunks}...`);
+
+      try {
+        // Process single chunk
+        const result = await processSingleChunk({
+          chunk,
+          chunkIndex: globalIdx,
+          totalChunks,
+          outputDir,
+          jobId,
+        });
+
+        console.log(`   ✅ Chunk ${globalIdx + 1} processed successfully`);
+
+        // ⚡ Process result immediately (not waiting for batch)
+        if (result.success && result.pageMetadataList) {
+          await pageRegistry.insertPages(result.pageMetadataList);
+        }
+        if (result.success && result.data) {
+          mergeChunkData(aggregatedData, result.data);
+        }
+        if (result.errors?.length) {
+          allErrors.push(...result.errors);
+        }
+        if (result.warnings?.length) {
+          allWarnings.push(...result.warnings);
+        }
+
+        processedChunkCount++;
+
+        // Update progress
+        try {
+          await taskManager.updateStatus(jobId, 'processing', {
+            progress: Math.round((processedChunkCount / totalChunks) * 85) + 10,
+            currentStage: `Processed ${processedChunkCount}/${totalChunks} chunks`,
+            processedChunks: processedChunkCount,
+          });
+        } catch {
+          // Ignore update errors
+        }
+
+        return result;
+      } catch (chunkError) {
+        if (chunkError instanceof TaskAbortedError) {
+          throw chunkError;  // Re-throw abort errors
+        }
+        console.error(`   ❌ Chunk ${globalIdx + 1} failed:`, chunkError);
+        processedChunkCount++;
+        allErrors.push(`Chunk ${globalIdx + 1} error: ${chunkError}`);
+        return {
+          success: false,
+          errors: [String(chunkError)],
+          warnings: [],
+          data: null,
+          pageMetadataList: [],
+        };
+      }
+    });
+  });
+
+  // ⚡ Use Promise.allSettled to not fail on single chunk errors
+  try {
+    const results = await Promise.allSettled(chunkPromises);
+
+    // Check for abort
+    const abortedResult = results.find(
+      r => r.status === 'rejected' && r.reason instanceof TaskAbortedError
+    );
+    if (abortedResult) {
+      console.log(`\n⏸️  Processing aborted`);
 
       // Save checkpoint for resume
       const checkpointData: CheckpointData = {
@@ -119,105 +197,23 @@ export async function processChunksInBatches(
       };
       await taskManager.saveCheckpoint(jobId, checkpointData);
 
-      const reason = taskManager.getAbortReason(jobId);
-      throw new TaskAbortedError(reason || 'cancelled');
+      throw (abortedResult as PromiseRejectedResult).reason;
     }
 
-    const batch = batches[batchIdx];
-
-    console.log(`\n=== BATCH ${batchIdx + 1}/${batches.length} - Processing ${batch.length} chunks in PARALLEL ===\n`);
-
-    // Process all chunks in this batch CONCURRENTLY
-    const batchPromises = batch.map(async (chunk, batchLocalIdx) => {
-      const globalIdx = batchIdx * batchSize + batchLocalIdx;
-
-      console.log(`   📄 Processing chunk ${globalIdx + 1}/${totalChunks}...`);
-
-      try {
-        // Process single chunk with smart assignment
-        const result = await processSingleChunk({
-          chunk,
-          chunkIndex: globalIdx,
-          totalChunks,
-          outputDir,
-          jobId,
-        });
-
-        console.log(`   ✅ Chunk ${globalIdx + 1} processed successfully`);
-        
-        return result;
-      } catch (chunkError) {
-        console.error(`   ❌ Chunk ${globalIdx + 1} failed:`, chunkError);
-        // Return error result instead of throwing
-        return {
-          success: false,
-          errors: [String(chunkError)],
-          warnings: [],
-          data: null,
-          pageMetadataList: [],
-        };
-      }
-    });
-
-    // Wait for all chunks in this batch to complete
-    let batchResults;
-    try {
-      batchResults = await Promise.all(batchPromises);
-    } catch (batchError) {
-      console.error(`❌ Batch ${batchIdx + 1} failed:`, batchError);
-      throw new Error(`Batch processing failed at batch ${batchIdx + 1}: ${batchError}`);
+    // Log any other rejections
+    const rejections = results.filter(r => r.status === 'rejected');
+    if (rejections.length > 0) {
+      console.warn(`   ⚠️  ${rejections.length} chunks failed but processing continues`);
     }
-
-    // Process results
-    for (const result of batchResults) {
-      try {
-        // ============ 1. 智能图片分配 ============
-        // 插入PageMetadata到Registry（触发图片分配）
-        if (result.success && result.pageMetadataList) {
-          await pageRegistry.insertPages(result.pageMetadataList);
-        }
-
-        // ============ 2. 原有数据聚合 ============
-        // 保留单元详细信息（bedrooms, bathrooms, area, price等）
-        if (result.success && result.data) {
-          mergeChunkData(aggregatedData, result.data);
-        }
-
-        // 收集错误
-        if (result.errors && result.errors.length > 0) {
-          allErrors.push(...result.errors);
-        }
-        if (result.warnings && result.warnings.length > 0) {
-          allWarnings.push(...result.warnings);
-        }
-
-        processedChunkCount++;
-      } catch (resultError) {
-        console.error(`❌ Error processing result:`, resultError);
-        allErrors.push(`Result processing error: ${resultError}`);
-        processedChunkCount++;
-      }
+  } catch (error) {
+    if (error instanceof TaskAbortedError) {
+      throw error;
     }
-
-    // Update task progress in database
-    try {
-      await taskManager.updateStatus(jobId, 'processing', {
-        progress: Math.round((processedChunkCount / totalChunks) * 85) + 10,
-        currentStage: `Processing batch ${batchIdx + 1}/${batches.length}`,
-        processedChunks: processedChunkCount,
-      });
-    } catch {
-      // Ignore update errors
-    }
-
-    console.log(`\n✅ Batch ${batchIdx + 1} complete!\n`);
-
-    // Delay between batches to respect rate limits
-    if (batchIdx < batches.length - 1) {
-      console.log(`\n⏸️  Waiting ${batchDelay / 1000}s before next batch (rate limit protection)...`);
-      await new Promise(resolve => setTimeout(resolve, batchDelay));
-    }
+    console.error(`❌ Chunk processing error:`, error);
+    throw error;
   }
+
+  console.log(`\n✅ All ${totalChunks} chunks processed!\n`);
 
   // ============ 获取最终结果 ============
   console.log('\n📊 All chunks processed. Aggregating project-level data...\n');
@@ -243,55 +239,59 @@ export async function processChunksInBatches(
     // 转换为aggregatedData格式（向后兼容）
     finalAggregatedData = convertAssignmentToAggregatedData(finalAssignmentResult, aggregatedData, pageRegistry);
     
-    // ============ ⭐ 总是生成智能项目描述 ============
-    // 即使PDF有描述，也重新生成：AI生成的更简洁、专业、统一
-    console.log('\n✨ Generating intelligent project description...');
-    
+    // ============ ⚡ 条件生成项目描述 ============
+    // 只在没有描述或描述太短时才生成，节省API调用
     const originalDescription = finalAggregatedData.description;
-    if (originalDescription) {
-      console.log(`   📄 Original PDF description: ${originalDescription.length} chars (will be replaced)`);
-    }
-    
-    try {
-      const projectSummary: ProjectSummary = {
-        projectName: finalAggregatedData.name,
-        developer: finalAggregatedData.developer,
-        area: finalAggregatedData.area,
-        address: finalAggregatedData.address,
-        completionDate: finalAggregatedData.completionDate,
-        handoverDate: finalAggregatedData.handoverDate,
-        constructionProgress: finalAggregatedData.constructionProgress,
-        
-        // 单元统计
-        totalUnits: finalAggregatedData.units.length,
-        unitCategories: Array.from(new Set(
-          finalAggregatedData.units
-            .map((u: any) => u.category || deriveUnitCategory(u))
-            .filter((c: string) => c && c !== 'Unknown')
-        )),
-        
-        areaRange: calculateAreaRange(finalAggregatedData.units),
-        priceRange: calculatePriceRange(finalAggregatedData.units),
-        
-        // 配套设施
-        amenities: finalAggregatedData.amenities || [],
-        
-        // 付款计划
-        hasPaymentPlan: (finalAggregatedData.paymentPlans?.length || 0) > 0,
-        paymentPlanHighlight: extractPaymentPlanHighlight(finalAggregatedData.paymentPlans),
-      };
-      
-      const generatedDescription = await generateProjectDescription(projectSummary);
-      
-      if (generatedDescription && generatedDescription.length > 50) {
-        finalAggregatedData.description = generatedDescription;
-        console.log(`   ✅ Generated new description: ${generatedDescription.length} chars`);
-      } else if (originalDescription) {
-        console.log(`   ⚠️  Generation failed, keeping original description`);
+    const needsDescription = !originalDescription || originalDescription.length < 100;
+
+    if (needsDescription) {
+      console.log('\n✨ Generating intelligent project description...');
+      if (originalDescription) {
+        console.log(`   📄 Original description too short: ${originalDescription.length} chars`);
       }
-    } catch (descError) {
-      console.error(`   ⚠️  Failed to generate description:`, descError);
-      // 如果生成失败且没有原始描述，不影响主流程
+
+      try {
+        const projectSummary: ProjectSummary = {
+          projectName: finalAggregatedData.name,
+          developer: finalAggregatedData.developer,
+          area: finalAggregatedData.area,
+          address: finalAggregatedData.address,
+          completionDate: finalAggregatedData.completionDate,
+          handoverDate: finalAggregatedData.handoverDate,
+          constructionProgress: finalAggregatedData.constructionProgress,
+
+          // 单元统计
+          totalUnits: finalAggregatedData.units.length,
+          unitCategories: Array.from(new Set(
+            finalAggregatedData.units
+              .map((u: any) => u.category || deriveUnitCategory(u))
+              .filter((c: string) => c && c !== 'Unknown')
+          )),
+
+          areaRange: calculateAreaRange(finalAggregatedData.units),
+          priceRange: calculatePriceRange(finalAggregatedData.units),
+
+          // 配套设施
+          amenities: finalAggregatedData.amenities || [],
+
+          // 付款计划
+          hasPaymentPlan: (finalAggregatedData.paymentPlans?.length || 0) > 0,
+          paymentPlanHighlight: extractPaymentPlanHighlight(finalAggregatedData.paymentPlans),
+        };
+
+        const generatedDescription = await generateProjectDescription(projectSummary);
+
+        if (generatedDescription && generatedDescription.length > 50) {
+          finalAggregatedData.description = generatedDescription;
+          console.log(`   ✅ Generated new description: ${generatedDescription.length} chars`);
+        } else if (originalDescription) {
+          console.log(`   ⚠️  Generation failed, keeping original description`);
+        }
+      } catch (descError) {
+        console.error(`   ⚠️  Failed to generate description:`, descError);
+      }
+    } else {
+      console.log(`\n⚡ Skipping description generation - existing description is sufficient (${originalDescription.length} chars)`);
     }
     
   } catch (finalError) {

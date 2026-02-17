@@ -1,8 +1,12 @@
+// ⚠️ CRITICAL: Load dotenv FIRST before any other imports
+// This ensures environment variables are available when modules initialize
+import dotenv from 'dotenv'
+dotenv.config()
+
 import express, { Application, Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
-import dotenv from 'dotenv'
 import { createResidentialProjectsRouter } from './routes/residential-projects'
 import { createCompareRouter } from './routes/compare'
 import langgraphRouter from './routes/langgraph-processor'
@@ -14,8 +18,6 @@ import uploadRouter from './routes/upload'
 import tasksRouter from './routes/tasks'
 import adminTasksRouter from './routes/admin-tasks'
 import pool from './db/pool'
-
-dotenv.config()
 
 const app: Application = express()
 const PORT = process.env.PORT || 3000

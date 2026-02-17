@@ -27,12 +27,15 @@ export interface PaymentPlan {
 
 /**
  * 从payment plan页面提取付款计划
+ *
+ * ⚡ OPTIMIZED: Added 20s timeout to prevent blocking
  */
 export async function extractPaymentPlan(
   imagePath: string,
   pageNumber: number
 ): Promise<PaymentPlan | null> {
-  
+  const TIMEOUT_MS = 20000; // 20 seconds
+
   try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
@@ -43,10 +46,15 @@ export async function extractPaymentPlan(
 
     // ⭐ Support both local paths and R2 URLs
     let imageBase64: string;
-    
+
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      // Fetch from R2
-      const imageResponse = await fetch(imagePath);
+      // Fetch from R2 with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+      const imageResponse = await fetch(imagePath, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (!imageResponse.ok) {
         throw new Error(`Failed to fetch image from R2: ${imageResponse.statusText}`);
       }
@@ -126,7 +134,8 @@ export async function extractPaymentPlan(
 
 只返回JSON，不要其他文字。`;
 
-    const result = await model.generateContent([
+    // ⚡ AI call with timeout
+    const aiPromise = model.generateContent([
       prompt,
       {
         inlineData: {
@@ -136,6 +145,11 @@ export async function extractPaymentPlan(
       },
     ]);
 
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('AI timeout')), TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([aiPromise, timeoutPromise]);
     const response = await result.response;
     const text = response.text();
 
@@ -150,8 +164,12 @@ export async function extractPaymentPlan(
       description: parsed.description,
     };
 
-  } catch (error) {
-    console.error(`   ✗ Error extracting payment plan from page ${pageNumber}:`, error);
+  } catch (error: any) {
+    if (error.name === 'AbortError' || error.message === 'AI timeout') {
+      console.warn(`   ⚠️  Payment plan extraction timeout on page ${pageNumber} (skipped)`);
+    } else {
+      console.error(`   ✗ Error extracting payment plan from page ${pageNumber}:`, error);
+    }
     return null;
   }
 }

@@ -229,16 +229,16 @@ export async function generateAndUploadAllPdfImages(
 
 /**
  * Get image URL for a specific page in a PDF
- * 
+ *
  * @param imageBatch - PDF image batch
  * @param pageNumber - Page number (1-indexed)
- * @param variant - Image size variant (default: 'original')
+ * @param variant - Image size variant (default: 'large')
  * @returns Image URL or null if not found
  */
 export function getImageUrl(
   imageBatch: PdfImageBatch,
   pageNumber: number,
-  variant: keyof ImageUrls = 'original'
+  variant: keyof ImageUrls = 'large'
 ): string | null {
   const urls = imageBatch.imageUrls.get(pageNumber);
   return urls?.[variant] || null;

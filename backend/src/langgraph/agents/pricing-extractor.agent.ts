@@ -57,12 +57,16 @@ export interface PricingExtractionResult {
 
 /**
  * 从价格表页面提取价格数据
+ *
+ * ⚡ OPTIMIZED: Added 20s timeout to prevent blocking
  */
 export async function extractPricing(
   imageUrl: string,
   pageNumber: number,
   currentBuilding?: string  // 从上下文传入的当前building
 ): Promise<PricingExtractionResult> {
+  const TIMEOUT_MS = 20000; // 20 seconds
+
   try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
@@ -73,15 +77,20 @@ export async function extractPricing(
 
     const prompt = createPricingPrompt(currentBuilding);
 
-    // Fetch image
-    const imageResponse = await fetch(imageUrl);
+    // ⚡ Fetch image with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    const imageResponse = await fetch(imageUrl, { signal: controller.signal });
     if (!imageResponse.ok) {
+      clearTimeout(timeoutId);
       throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
     }
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-    const result = await model.generateContent([
+    // ⚡ AI call with timeout
+    const aiPromise = model.generateContent([
       prompt,
       {
         inlineData: {
@@ -90,6 +99,13 @@ export async function extractPricing(
         },
       },
     ]);
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('AI timeout')), TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([aiPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
 
     const response = await result.response;
     const text = response.text();
@@ -118,8 +134,12 @@ export async function extractPricing(
       sourcePageNumber: pageNumber,
     };
 
-  } catch (error) {
-    console.error(`   ❌ [PRICING] Failed to extract pricing from page ${pageNumber}:`, error);
+  } catch (error: any) {
+    if (error.name === 'AbortError' || error.message === 'AI timeout') {
+      console.warn(`   ⚠️  [PRICING] Timeout on page ${pageNumber} (skipped)`);
+    } else {
+      console.error(`   ❌ [PRICING] Failed to extract pricing from page ${pageNumber}:`, error);
+    }
     return {
       entries: [],
       confidence: 0,

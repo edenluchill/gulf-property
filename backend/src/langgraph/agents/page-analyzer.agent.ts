@@ -111,8 +111,9 @@ export async function analyzePageWithAI(
     }
     
     // 2. Amenities extraction ⭐
-    if (classification.pageType === PageType.AMENITIES_LIST || 
-        classification.pageType === PageType.AMENITIES_IMAGES ||
+    // ⚡ OPTIMIZED: Skip AMENITIES_IMAGES - they're photos, not text lists
+    // Classifier already identified page type, no need to run text extraction
+    if (classification.pageType === PageType.AMENITIES_LIST ||
         classification.pageType === PageType.TOWER_CHARACTERISTICS) {
       extractionPromises.push(
         extractAmenities(imageUrl, pageNumber)

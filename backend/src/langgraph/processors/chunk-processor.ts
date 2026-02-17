@@ -77,7 +77,7 @@ export async function processSingleChunk(
 
       // AI analyzes using R2 URL (no local file needed!)
       return analyzePageWithAI(
-        imageUrls.original,  // ⭐ R2 URL (not local path)
+        imageUrls.large,  // ⭐ R2 URL - 'large' variant for AI analysis
         absolutePageNum,
         chunk.sourceFile,
         chunkIndex,

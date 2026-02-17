@@ -170,12 +170,10 @@ export async function uploadFileToPdfCacheWithVariants(
     
     // Upload each variant
     const urls: Partial<ImageUrls> = {};
-    
+
     for (const [variantName, buffer] of variants.entries()) {
-      // ⭐ Original doesn't need postfix, others do
-      const variantFilename = variantName === 'original' 
-        ? `${baseFilename}.jpg`
-        : `${baseFilename}_${variantName}.jpg`;
+      // ⚡ All variants now have postfix (no 'original')
+      const variantFilename = `${baseFilename}_${variantName}.jpg`;
       
       // Check if already exists (cache hit)
       const key = `pdf-cache/${pdfHash}/images/${variantFilename}`;
@@ -229,10 +227,13 @@ export async function uploadFileToPdfCacheWithVariants(
 
 /**
  * Image URL variants for responsive loading
+ *
+ * ⚡ OPTIMIZED: Removed 'original' variant
+ * - 'large' (1280x720) is sufficient for detail pages
+ * - 3 variants instead of 4 = 25% faster uploads
  */
 export interface ImageUrls {
-  original: string;    // 1920×1080 - Full quality for detail pages
-  large: string;       // 1280×720 - Desktop listings
+  large: string;       // 1280×720 - Detail pages & desktop
   medium: string;      // 800×450 - Tablet/cards
   thumbnail: string;   // 400×225 - Mobile previews
 }

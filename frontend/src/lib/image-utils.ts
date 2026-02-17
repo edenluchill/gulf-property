@@ -1,77 +1,80 @@
 /**
  * Image Utilities
- * 
+ *
  * Helper functions for responsive image loading
+ *
+ * ⚡ OPTIMIZED: Removed 'original' variant
+ * - 'large' (1280x720) is now the highest quality
+ * - 3 variants instead of 4 = faster loading
  */
 
 /**
  * Image size variants available
  */
-export type ImageSize = 'original' | 'large' | 'medium' | 'thumbnail';
+export type ImageSize = 'large' | 'medium' | 'thumbnail';
 
 /**
  * Get responsive image URL for different sizes
- * 
+ *
  * Backend stores images in format:
- * - filename_original.jpg (1920×1080) - Full quality
- * - filename_large.jpg (1280×720) - Desktop
- * - filename_medium.jpg (800×450) - Tablet
- * - filename_thumbnail.jpg (400×225) - Mobile
- * 
- * @param originalUrl - Original image URL
- * @param size - Desired size variant
+ * - filename_large.jpg (1280×720) - Detail pages & desktop
+ * - filename_medium.jpg (800×450) - Tablet/cards
+ * - filename_thumbnail.jpg (400×225) - Mobile previews
+ *
+ * @param imageUrl - Any image URL (any variant)
+ * @param size - Desired size variant (default: 'large')
  * @returns URL for the requested size
- * 
+ *
  * @example
  * ```ts
- * const url = "https://cdn.example.com/images/project_123_original.jpg"
- * getImageUrl(url, 'medium') // returns .../project_123_medium.jpg
- * getImageUrl(url, 'thumbnail') // returns .../project_123_thumbnail.jpg
+ * const url = "https://cdn.example.com/images/page_1_large.jpg"
+ * getImageUrl(url, 'medium') // returns .../page_1_medium.jpg
+ * getImageUrl(url, 'thumbnail') // returns .../page_1_thumbnail.jpg
  * ```
  */
-export function getImageUrl(originalUrl: string, size: ImageSize = 'original'): string {
-  if (!originalUrl) return '';
-  
-  // If already requesting original, or URL doesn't have _original suffix, return as-is
-  if (size === 'original' || !originalUrl.includes('_original.')) {
-    return originalUrl;
+export function getImageUrl(imageUrl: string, size: ImageSize = 'large'): string {
+  if (!imageUrl) return '';
+
+  // Replace any variant suffix with the requested size
+  // Handles: _large, _medium, _thumbnail, _original (legacy)
+  const variantPattern = /_(large|medium|thumbnail|original)\.(jpg|jpeg|png|webp)$/i;
+
+  if (variantPattern.test(imageUrl)) {
+    return imageUrl.replace(variantPattern, `_${size}.$2`);
   }
-  
-  // Replace _original with the requested size
-  return originalUrl.replace('_original.', `_${size}.`);
+
+  // URL doesn't have variant suffix, return as-is
+  return imageUrl;
 }
 
 /**
  * Get srcset string for responsive images
- * 
- * @param originalUrl - Original image URL
+ *
+ * @param imageUrl - Any image URL
  * @returns srcset string for <img> tag
- * 
+ *
  * @example
  * ```tsx
- * <img 
- *   src={getImageUrl(url, 'medium')} 
+ * <img
+ *   src={getImageUrl(url, 'medium')}
  *   srcSet={getImageSrcSet(url)}
  *   sizes="(max-width: 640px) 400px, (max-width: 1024px) 800px, 1280px"
  * />
  * ```
  */
-export function getImageSrcSet(originalUrl: string): string {
-  if (!originalUrl || !originalUrl.includes('_original.')) {
-    return originalUrl;
-  }
-  
+export function getImageSrcSet(imageUrl: string): string {
+  if (!imageUrl) return '';
+
   return [
-    `${getImageUrl(originalUrl, 'thumbnail')} 400w`,
-    `${getImageUrl(originalUrl, 'medium')} 800w`,
-    `${getImageUrl(originalUrl, 'large')} 1280w`,
-    `${getImageUrl(originalUrl, 'original')} 1920w`,
+    `${getImageUrl(imageUrl, 'thumbnail')} 400w`,
+    `${getImageUrl(imageUrl, 'medium')} 800w`,
+    `${getImageUrl(imageUrl, 'large')} 1280w`,
   ].join(', ');
 }
 
 /**
  * Preload critical images for faster page loads
- * 
+ *
  * @param urls - Array of image URLs to preload
  * @param size - Size variant to preload (default: 'medium')
  */
@@ -87,27 +90,26 @@ export function preloadImages(urls: string[], size: ImageSize = 'medium'): void 
 
 /**
  * Get optimal image size based on container width
- * 
+ *
  * @param containerWidth - Width of the container in pixels
  * @returns Optimal image size variant
  */
 export function getOptimalImageSize(containerWidth: number): ImageSize {
   if (containerWidth <= 400) return 'thumbnail';
   if (containerWidth <= 800) return 'medium';
-  if (containerWidth <= 1280) return 'large';
-  return 'original';
+  return 'large';
 }
 
 /**
  * Hook to get responsive image based on window width
  * Use with React components
  */
-export function useResponsiveImage(originalUrl: string): string {
+export function useResponsiveImage(imageUrl: string): string {
   // For SSR/initial render, default to medium
   if (typeof window === 'undefined') {
-    return getImageUrl(originalUrl, 'medium');
+    return getImageUrl(imageUrl, 'medium');
   }
-  
+
   const size = getOptimalImageSize(window.innerWidth);
-  return getImageUrl(originalUrl, size);
+  return getImageUrl(imageUrl, size);
 }
