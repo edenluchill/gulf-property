@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Button } from '../../components/ui/button'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
-import { UnitTypeDetailModal } from './UnitTypeDetailModal'
 import { UnitTypeDetailSheet } from './UnitTypeDetailSheet'
 import { UnitType } from '../../types'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +11,7 @@ import { UnitTypeFavoriteButton } from '../../components/favorites'
 interface UnitTypesTabProps {
   unitTypes: UnitType[]
   projectId?: string
+  onUnitSelect?: (unitId: string) => void
 }
 
 interface GroupedUnits {
@@ -36,16 +36,16 @@ function groupUnitTypes(unitTypes: UnitType[]): GroupedUnits {
   }, {})
 }
 
-export function UnitTypesTab({ unitTypes, projectId }: UnitTypesTabProps) {
+export function UnitTypesTab({ unitTypes, projectId, onUnitSelect }: UnitTypesTabProps) {
   const { t } = useTranslation(['project', 'common'])
   const groupedUnits = groupUnitTypes(unitTypes)
   const sortedGroupKeys = Object.keys(groupedUnits).sort()
-  
+
   // Initialize with all groups expanded by default
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(sortedGroupKeys))
   const [selectedUnit, setSelectedUnit] = useState<UnitType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  
+
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
 
@@ -67,6 +67,12 @@ export function UnitTypesTab({ unitTypes, projectId }: UnitTypesTabProps) {
   }
 
   const handleUnitClick = (unit: UnitType) => {
+    // Desktop: Use sub-page navigation if callback provided
+    if (onUnitSelect && !isMobile) {
+      onUnitSelect(unit.id)
+      return
+    }
+    // Mobile: Use bottom sheet
     setSelectedUnit(unit)
     setIsModalOpen(true)
   }
@@ -126,102 +132,75 @@ export function UnitTypesTab({ unitTypes, projectId }: UnitTypesTabProps) {
                     </div>
                   </button>
                   
-                  {/* Group Content */}
+                  {/* Group Content - Card Grid */}
                   {isExpanded && (
-                    <div className="p-6 space-y-4 bg-white">
-                      {units.map((unit) => (
-                        <div
-                          key={unit.id}
-                          onClick={() => handleUnitClick(unit)}
-                          className="border-2 rounded-xl p-6 hover:shadow-lg hover:border-primary/50 transition-all cursor-pointer bg-white"
-                        >
-                          <div className="flex flex-col lg:flex-row gap-6">
-                            {/* Floor Plan Image - Much Larger */}
+                    <div className="p-4 bg-white">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {units.map((unit) => (
+                          <div
+                            key={unit.id}
+                            onClick={() => handleUnitClick(unit)}
+                            className="border rounded-lg overflow-hidden hover:shadow-md hover:border-primary/50 transition-all cursor-pointer bg-white group"
+                          >
+                            {/* Floor Plan Image - Compact */}
                             {unit.floor_plan_image && (
-                              <div className="w-full lg:w-80 h-64 flex-shrink-0">
-                                <img 
+                              <div className="aspect-[4/3] bg-slate-50 overflow-hidden">
+                                <img
                                   src={unit.floor_plan_image}
                                   alt={`${unit.unit_type_name} floor plan`}
-                                  className="w-full h-full object-contain rounded-lg border-2 border-slate-200 bg-white"
+                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
                                 />
                               </div>
                             )}
-                            
-                            {/* Unit Info */}
-                            <div className="flex-1 flex flex-col justify-between">
-                              <div>
-                                <div className="flex items-start justify-between mb-3">
-                                  <div>
-                                    <h4 className="font-bold text-primary text-2xl mb-2">
-                                      {unit.unit_type_name}
-                                    </h4>
-                                    <div className="flex items-center gap-2">
-                                      {unit.category && (
-                                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                                          {unit.category}
-                                        </span>
-                                      )}
-                                    </div>
+
+                            {/* Unit Info - Compact */}
+                            <div className="p-3">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <h4 className="font-semibold text-slate-900 text-sm leading-tight">
+                                  {unit.unit_type_name}
+                                </h4>
+                                {projectId && (
+                                  <UnitTypeFavoriteButton
+                                    projectId={projectId}
+                                    unitTypeId={unit.id}
+                                    size="sm"
+                                  />
+                                )}
+                              </div>
+
+                              {/* Category Badge */}
+                              {unit.category && (
+                                <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium mb-2">
+                                  {unit.category}
+                                </span>
+                              )}
+
+                              {/* Quick Specs */}
+                              <div className="flex items-center gap-3 text-xs text-slate-600 mb-2">
+                                <span>{unit.bedrooms} {t('common:units.beds')}</span>
+                                <span className="text-slate-300">|</span>
+                                <span>{unit.bathrooms} {t('common:units.bathrooms')}</span>
+                                <span className="text-slate-300">|</span>
+                                <span>{parseFloat(unit.area).toLocaleString()} {t('common:units.sqft')}</span>
+                              </div>
+
+                              {/* Price */}
+                              {unit.price && (
+                                <div className="pt-2 border-t">
+                                  <div className="font-bold text-primary">
+                                    {formatPrice(unit.price)}
                                   </div>
-                                  <div className="flex items-start gap-3">
-                                    {unit.price && (
-                                      <div className="text-right">
-                                        <div className="text-2xl font-bold text-primary">
-                                          {formatPrice(unit.price)}
-                                        </div>
-                                        {unit.price_per_sqft && (
-                                          <div className="text-sm text-slate-600 mt-1">
-                                            {formatPrice(unit.price_per_sqft)}/sq ft
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                    {projectId && (
-                                      <UnitTypeFavoriteButton
-                                        projectId={projectId}
-                                        unitTypeId={unit.id}
-                                      />
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                {/* Specs Grid */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                                  <div className="bg-slate-50 p-4 rounded-lg">
-                                    <div className="text-sm text-slate-600 mb-1">{t('common:units.beds')}</div>
-                                    <div className="text-xl font-bold text-slate-900">{unit.bedrooms}</div>
-                                  </div>
-                                  <div className="bg-slate-50 p-4 rounded-lg">
-                                    <div className="text-sm text-slate-600 mb-1">{t('common:units.bathrooms')}</div>
-                                    <div className="text-xl font-bold text-slate-900">{unit.bathrooms}</div>
-                                  </div>
-                                  <div className="bg-slate-50 p-4 rounded-lg">
-                                    <div className="text-sm text-slate-600 mb-1">{t('project:unitTypesTab.area')}</div>
-                                    <div className="text-xl font-bold text-slate-900">
-                                      {parseFloat(unit.area).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-slate-500">{t('common:units.sqft')}</div>
-                                  </div>
-                                  {unit.balcony_area && (
-                                    <div className="bg-slate-50 p-4 rounded-lg">
-                                      <div className="text-sm text-slate-600 mb-1">{t('project:unitTypesTab.balcony')}</div>
-                                      <div className="text-xl font-bold text-slate-900">
-                                        {parseFloat(unit.balcony_area).toLocaleString()}
-                                      </div>
-                                      <div className="text-xs text-slate-500">{t('common:units.sqft')}</div>
+                                  {unit.price_per_sqft && (
+                                    <div className="text-xs text-slate-500">
+                                      {formatPrice(unit.price_per_sqft)}/{t('common:units.sqft')}
                                     </div>
                                   )}
                                 </div>
-                              </div>
-                              
-                              {/* Click hint */}
-                              <div className="mt-4 text-sm text-slate-500 italic">
-                                Click to view full details →
-                              </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -231,19 +210,11 @@ export function UnitTypesTab({ unitTypes, projectId }: UnitTypesTabProps) {
         </CardContent>
       </Card>
 
-      {/* Desktop: Modal */}
-      {!isMobile && (
-        <UnitTypeDetailModal 
-          unit={selectedUnit}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
-
-      {/* Mobile: Bottom Sheet */}
+      {/* Mobile: Bottom Sheet (Desktop uses sub-page now) */}
       {isMobile && (
-        <UnitTypeDetailSheet 
+        <UnitTypeDetailSheet
           unit={selectedUnit}
+          projectId={projectId}
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
         />

@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Quick script to test database connection and show data statistics
-    
+
 .EXAMPLE
     .\test-database.ps1
 #>
@@ -18,7 +18,7 @@ $DB_NAME = "pinzos"
 $DB_USER = "pinzos_admin"
 $DB_PASSWORD = "aB246`$29"
 
-Write-Host "🔌 Testing Pinzos Database Connection" -ForegroundColor Cyan
+Write-Host "Testing Pinzos Database Connection" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Connection Details:" -ForegroundColor Yellow
 Write-Host "  Host: $DB_HOST" -ForegroundColor White
@@ -35,77 +35,63 @@ Write-Host "Testing connection..." -ForegroundColor Blue
 try {
     $result = psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -c "SELECT 'Connected'" 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Connection successful!" -ForegroundColor Green
+        Write-Host "Connection successful!" -ForegroundColor Green
     } else {
-        Write-Host "❌ Connection failed!" -ForegroundColor Red
+        Write-Host "Connection failed!" -ForegroundColor Red
         Write-Host $result
         exit 1
     }
 } catch {
-    Write-Host "❌ psql not found. Please install PostgreSQL client tools." -ForegroundColor Red
+    Write-Host "psql not found. Please install PostgreSQL client tools." -ForegroundColor Red
     Write-Host "Or use pgAdmin with these connection details." -ForegroundColor Yellow
     exit 1
 }
 
 Write-Host ""
-Write-Host "📊 Database Statistics" -ForegroundColor Cyan
-Write-Host "─" * 60
+Write-Host "Database Statistics" -ForegroundColor Cyan
+Write-Host "-" * 60
 
 # Get table counts
 Write-Host ""
 Write-Host "Tables:" -ForegroundColor Yellow
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
-SELECT 
-  tablename as \"Table\",
-  n_live_tup as \"Rows\"
+SELECT
+  tablename as ""Table"",
+  n_live_tup as ""Rows""
 FROM pg_stat_user_tables
 WHERE schemaname = 'public'
 ORDER BY n_live_tup DESC;
 "
 
-# Get top areas
+# Get residential projects stats
 Write-Host ""
-Write-Host "Top 10 Areas:" -ForegroundColor Yellow
+Write-Host "Residential Projects by Developer:" -ForegroundColor Yellow
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
-SELECT 
-  area_name as \"Area\",
-  COUNT(*) as \"Properties\",
-  ROUND(AVG(starting_price)) as \"Avg Price\"
-FROM off_plan_properties
-WHERE starting_price IS NOT NULL
-GROUP BY area_name
+SELECT
+  developer_name as ""Developer"",
+  COUNT(*) as ""Projects""
+FROM residential_projects
+GROUP BY developer_name
 ORDER BY COUNT(*) DESC
 LIMIT 10;
 "
 
-# Get developer stats
+# Get residential projects stats
 Write-Host ""
-Write-Host "Top 10 Developers:" -ForegroundColor Yellow
+Write-Host "Residential Projects by Area:" -ForegroundColor Yellow
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
-SELECT 
-  developer as \"Developer\",
-  COUNT(*) as \"Projects\"
-FROM off_plan_properties
-GROUP BY developer
+SELECT
+  area as ""Area"",
+  COUNT(*) as ""Projects""
+FROM residential_projects
+WHERE area IS NOT NULL
+GROUP BY area
 ORDER BY COUNT(*) DESC
 LIMIT 10;
 "
 
-# Get price range
 Write-Host ""
-Write-Host "Price Statistics:" -ForegroundColor Yellow
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
-SELECT 
-  COUNT(*) as \"Total Properties\",
-  MIN(starting_price) as \"Min Price\",
-  ROUND(AVG(starting_price)) as \"Avg Price\",
-  MAX(starting_price) as \"Max Price\"
-FROM off_plan_properties
-WHERE starting_price IS NOT NULL;
-"
-
-Write-Host ""
-Write-Host "✅ Database test complete!" -ForegroundColor Green
+Write-Host "Database test complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Connection String for pgAdmin:" -ForegroundColor Yellow
 Write-Host "  Host: $DB_HOST" -ForegroundColor White

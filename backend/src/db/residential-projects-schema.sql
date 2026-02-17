@@ -58,7 +58,10 @@ CREATE TABLE IF NOT EXISTS residential_projects (
     
     -- Amenities
     amenities TEXT[] DEFAULT '{}',
-    
+
+    -- Payment Plan (stored as JSONB array)
+    payment_plan JSONB DEFAULT '[]'::jsonb,
+
     -- Metadata
     verified BOOLEAN DEFAULT false,
     featured BOOLEAN DEFAULT false,
@@ -137,36 +140,6 @@ CREATE TABLE IF NOT EXISTS project_unit_types (
 );
 
 -- ============================================================================
--- PAYMENT PLANS TABLE
--- Stores payment plan milestones for each project
--- ============================================================================
-CREATE TABLE IF NOT EXISTS project_payment_plans (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES residential_projects(id) ON DELETE CASCADE,
-    
-    -- Milestone Information
-    milestone_name VARCHAR(255) NOT NULL,  -- e.g., "Booking", "On Handover", "Construction Phase 1"
-    percentage NUMERIC(5, 2) NOT NULL,  -- e.g., 10.00 for 10%
-    milestone_date DATE,  -- Optional date for this milestone
-    
-    -- Payment Interval Information (for customer clarity)
-    interval_months INTEGER,  -- Months from previous milestone (0 for first milestone)
-    interval_description TEXT,  -- Text description (e.g., "3 months after booking", "On handover")
-    
-    -- Display Order
-    display_order INTEGER DEFAULT 0,
-    
-    -- Description
-    description TEXT,
-    
-    -- Timestamps
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Constraints
-    CONSTRAINT valid_percentage CHECK (percentage >= 0 AND percentage <= 100)
-);
-
--- ============================================================================
 -- INDEXES FOR PERFORMANCE
 -- ============================================================================
 
@@ -225,12 +198,8 @@ CREATE INDEX IF NOT EXISTS idx_unit_types_price
     WHERE price IS NOT NULL;
 
 
-CREATE INDEX IF NOT EXISTS idx_unit_types_category 
+CREATE INDEX IF NOT EXISTS idx_unit_types_category
     ON project_unit_types (category);
-
--- Payment Plans Index
-CREATE INDEX IF NOT EXISTS idx_payment_plans_project 
-    ON project_payment_plans (project_id, display_order);
 
 -- ============================================================================
 -- TRIGGERS
@@ -306,32 +275,28 @@ CREATE TRIGGER update_project_summary_on_unit_delete
 -- ============================================================================
 
 -- View: Complete project details with unit summary
+-- Note: payment_plan is already stored as JSONB in residential_projects
 CREATE OR REPLACE VIEW residential_projects_with_details AS
-SELECT 
+SELECT
     rp.*,
     COUNT(DISTINCT put.id) as unit_type_count,
     COALESCE(SUM(put.unit_count), 0) as total_unit_count,
-    jsonb_agg(
-        DISTINCT jsonb_build_object(
-            'id', put.id,
-            'name', put.unit_type_name,
-            'bedrooms', put.bedrooms,
-            'bathrooms', put.bathrooms,
-            'area', put.area,
-            'price', put.price,
-            'floor_plan_image', put.floor_plan_image
-        ) ORDER BY put.bedrooms, put.area
-    ) FILTER (WHERE put.id IS NOT NULL) as unit_types,
-    jsonb_agg(
-        DISTINCT jsonb_build_object(
-            'milestone', ppp.milestone_name,
-            'percentage', ppp.percentage,
-            'date', ppp.milestone_date
-        ) ORDER BY ppp.display_order
-    ) FILTER (WHERE ppp.id IS NOT NULL) as payment_plan
+    COALESCE(
+        jsonb_agg(
+            jsonb_build_object(
+                'id', put.id,
+                'name', put.unit_type_name,
+                'bedrooms', put.bedrooms,
+                'bathrooms', put.bathrooms,
+                'area', put.area,
+                'price', put.price,
+                'floor_plan_image', put.floor_plan_image
+            ) ORDER BY put.bedrooms, put.area
+        ) FILTER (WHERE put.id IS NOT NULL),
+        '[]'::jsonb
+    ) as unit_types
 FROM residential_projects rp
 LEFT JOIN project_unit_types put ON rp.id = put.project_id
-LEFT JOIN project_payment_plans ppp ON rp.id = ppp.project_id
 GROUP BY rp.id;
 
 -- View: Active projects (verified and not completed)
@@ -427,6 +392,7 @@ END;
 $$ language 'plpgsql';
 
 -- Function: Get project with all details (units + payment plan)
+-- Note: payment_plan is now stored as JSONB in the project row
 CREATE OR REPLACE FUNCTION get_project_details(project_uuid UUID)
 RETURNS JSON AS $$
 DECLARE
@@ -439,15 +405,11 @@ BEGIN
              FROM project_unit_types put WHERE put.project_id = project_uuid),
             '[]'::json
         ),
-        'paymentPlan', COALESCE(
-            (SELECT json_agg(row_to_json(ppp.*) ORDER BY ppp.display_order)
-             FROM project_payment_plans ppp WHERE ppp.project_id = project_uuid),
-            '[]'::json
-        )
+        'paymentPlan', COALESCE(rp.payment_plan, '[]'::jsonb)
     ) INTO result
     FROM residential_projects rp
     WHERE rp.id = project_uuid;
-    
+
     RETURN result;
 END;
 $$ language 'plpgsql';
@@ -458,7 +420,7 @@ $$ language 'plpgsql';
 
 COMMENT ON TABLE residential_projects IS 'Developer-submitted residential off-plan projects with AI-extracted data';
 COMMENT ON TABLE project_unit_types IS 'Detailed unit type information for each residential project';
-COMMENT ON TABLE project_payment_plans IS 'Payment plan milestones for each project';
+COMMENT ON COLUMN residential_projects.payment_plan IS 'Payment plan milestones stored as JSONB array';
 
 COMMENT ON COLUMN residential_projects.location IS 'PostGIS geography point for geospatial queries';
 COMMENT ON COLUMN residential_projects.construction_progress IS 'Construction progress as percentage (0.00 to 100.00)';

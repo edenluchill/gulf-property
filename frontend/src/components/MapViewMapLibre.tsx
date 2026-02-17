@@ -9,7 +9,7 @@ import Map, {
   Layer,
   MapRef
 } from 'react-map-gl/maplibre'
-import maplibregl, { type MapLayerMouseEvent } from 'maplibre-gl'
+import { type MapLayerMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
 import { createElement } from 'react'
@@ -349,7 +349,7 @@ function MapViewMapLibre({
   const [viewState, setViewState] = useState({
     longitude: 55.089,
     latitude: 25.019,
-    zoom: 11
+    zoom: 10.115216007819594
   })
 
   // Fly to location when flyToLocation changes
@@ -594,7 +594,6 @@ function MapViewMapLibre({
 
     const feature = e.features[0]
     const layerId = feature.layer?.id
-    const map = mapRef.current?.getMap()
 
     // Handle POI click
     if (layerId === 'poi-circles' && onPoiClick) {

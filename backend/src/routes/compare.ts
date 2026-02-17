@@ -137,35 +137,37 @@ async function enrichPropertyData(
 
   for (const prop of properties) {
     try {
-      // Try to get payment plan info
-      const paymentResult = await pool.query(`
-        SELECT milestone_name, percentage
-        FROM project_payment_plans
-        WHERE project_id = $1
-        ORDER BY display_order
+      // Get payment plan from residential_projects JSONB column
+      const projectResult = await pool.query(`
+        SELECT payment_plan
+        FROM residential_projects
+        WHERE id = $1
       `, [prop.projectId])
 
       let paymentPlan = prop.paymentPlan
 
-      if (paymentResult.rows.length > 0) {
-        let downPayment = 0
-        let duringConstruction = 0
-        let onHandover = 0
+      if (projectResult.rows.length > 0 && projectResult.rows[0].payment_plan) {
+        const milestones = projectResult.rows[0].payment_plan
+        if (Array.isArray(milestones) && milestones.length > 0) {
+          let downPayment = 0
+          let duringConstruction = 0
+          let onHandover = 0
 
-        for (const row of paymentResult.rows) {
-          const pct = parseFloat(row.percentage) || 0
-          const milestone = (row.milestone_name || '').toLowerCase()
+          for (const row of milestones) {
+            const pct = parseFloat(row.percentage) || 0
+            const milestone = (row.milestone || '').toLowerCase()
 
-          if (milestone.includes('down') || milestone.includes('booking')) {
-            downPayment += pct
-          } else if (milestone.includes('handover') || milestone.includes('completion')) {
-            onHandover += pct
-          } else {
-            duringConstruction += pct
+            if (milestone.includes('down') || milestone.includes('booking')) {
+              downPayment += pct
+            } else if (milestone.includes('handover') || milestone.includes('completion')) {
+              onHandover += pct
+            } else {
+              duringConstruction += pct
+            }
           }
-        }
 
-        paymentPlan = { downPayment, duringConstruction, onHandover }
+          paymentPlan = { downPayment, duringConstruction, onHandover }
+        }
       }
 
       enriched.push({

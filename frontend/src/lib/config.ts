@@ -10,17 +10,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:30
 
 // API Endpoints
 export const API_ENDPOINTS = {
-  // Properties
-  properties: `${API_BASE_URL}/api/properties`,
-  propertiesBatch: `${API_BASE_URL}/api/properties/batch`,
-  propertiesClusters: `${API_BASE_URL}/api/properties/clusters`,
-  propertiesMap: `${API_BASE_URL}/api/properties/map`,
-  propertiesMeta: `${API_BASE_URL}/api/properties/meta`,
-
-  // Developer submission (old)
-  developerSubmit: `${API_BASE_URL}/api/developer/submit-property`,
-
-  // Residential Projects (new schema)
+  // Residential Projects
   residentialProjectsSubmit: `${API_BASE_URL}/api/residential-projects/submit`,
   residentialProjects: `${API_BASE_URL}/api/residential-projects`,
   residentialProject: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,

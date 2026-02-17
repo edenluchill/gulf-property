@@ -338,7 +338,7 @@ Write-Step "Importing database schema..."
 # Check if application tables exist
 $checkScript = @"
 #!/bin/bash
-TABLE_EXISTS=`$(PGPASSWORD='$DB_PASSWORD' psql -h localhost -U $DB_USER -d $DB_NAME -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='off_plan_properties');" 2>/dev/null | xargs)
+TABLE_EXISTS=`$(PGPASSWORD='$DB_PASSWORD' psql -h localhost -U $DB_USER -d $DB_NAME -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='residential_projects');" 2>/dev/null | xargs)
 echo `$TABLE_EXISTS
 "@
 

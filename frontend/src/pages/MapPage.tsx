@@ -73,7 +73,6 @@ export default function MapPage() {
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [clusters, setClusters] = useState<any[]>([])
   const [developers, setDevelopers] = useState<string[]>([])
   const [areas, setAreas] = useState<string[]>([])
@@ -142,11 +141,6 @@ export default function MapPage() {
     enabledCategories: enabledPoiCategories,
     enabled: showPois
   })
-
-  // Get all category IDs for a group
-  const getCategoriesInGroup = useCallback((groupId: string): PoiCategory[] => {
-    return POI_CATEGORIES.filter(c => c.group === groupId).map(c => c.id)
-  }, [])
 
 
   const togglePoiCategory = useCallback((category: PoiCategory) => {
@@ -363,7 +357,6 @@ export default function MapPage() {
           }))
 
           setClusters(transformedClusters)
-          setLastUpdated(new Date())
         } catch (error: any) {
           console.error('Error fetching clusters:', error)
         } finally {
@@ -538,16 +531,6 @@ export default function MapPage() {
     setTimeout(() => setFlyToLocation(null), 2000)
   }, [])
 
-  const formatLastUpdated = (date: Date) => {
-    const now = new Date()
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-    if (diffInSeconds < 60) return t('common:dates.justNow')
-    if (diffInSeconds < 3600) return t('common:dates.mAgo', { count: Math.floor(diffInSeconds / 60) })
-    if (diffInSeconds < 86400) return t('common:dates.hAgo', { count: Math.floor(diffInSeconds / 3600) })
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  }
-
   const hasActiveFilters =
     filters.developer ||
     filters.project ||
@@ -601,7 +584,7 @@ export default function MapPage() {
     : t('map:properties')
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-64px-64px-14px)] md:h-[calc(100vh-80px)] bg-white">
+    <div className="flex flex-col h-full bg-white">
       {/* Search and Filter Bar — desktop only */}
       <div className="hidden md:block bg-white shadow-sm z-10">
         <div className="px-6 py-4">

@@ -59,5 +59,10 @@
     "balconyArea": "Balcony Area",
     "totalArea": "Total Area",
     "featuresAmenities": "Features & Amenities"
+  },
+  "unitSubPage": {
+    "backToProject": "Back to Project",
+    "configurations": "configurations",
+    "selectUnit": "Select a unit type to view details"
   }
 }

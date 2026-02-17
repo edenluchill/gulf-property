@@ -4,12 +4,12 @@ import { FavoritesDrawer } from './favorites'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-white overflow-x-hidden">
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <Header />
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
+      {/* Main Content - pb-16 on mobile for bottom nav */}
+      <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
         {children}
       </main>
 
@@ -38,7 +38,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <ul className="space-y-2.5 text-sm">
                 <li><Link to="/map" className="text-slate-500 hover:text-slate-300 transition-colors">Map Explore</Link></li>
                 <li><Link to="/favorites" className="text-slate-500 hover:text-slate-300 transition-colors">Favorites</Link></li>
-                <li><Link to="/developer/submit" className="text-slate-500 hover:text-slate-300 transition-colors">For Developers</Link></li>
+                <li><Link to="/developer/upload" className="text-slate-500 hover:text-slate-300 transition-colors">For Developers</Link></li>
               </ul>
             </div>
             <div>

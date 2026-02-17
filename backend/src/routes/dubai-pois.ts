@@ -198,7 +198,7 @@ router.post('/refresh-cache', async (_req: Request, res: Response) => {
 
     res.json({
       success: true,
-      count: cachedPois?.length || 0,
+      count: cachedPois ? (cachedPois as any[]).length : 0,
       timestamp: cacheTimestamp
     })
   } catch (error) {

@@ -119,7 +119,7 @@ export default function HomePage() {
                   {t('home:hero.exploreBtn')}
                 </Button>
               </Link>
-              <Link to="/developer/submit">
+              <Link to="/developer/upload">
                 <Button size="lg" className="text-lg px-8 py-6 bg-white/20 text-white border-2 border-white/50 backdrop-blur-sm hover:scale-110 hover:shadow-2xl transition-all duration-300">
                   <Building2 className="mr-2 h-5 w-5" />
                   {t('home:hero.developerBtn')}

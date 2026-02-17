@@ -1,7 +1,7 @@
 -- ============================================================================
 -- DUBAI POIs (Points of Interest)
 -- Stores hospitals, schools, metro stations, parks, etc.
--- Data source: Dubai Pulse (https://www.dubaipulse.gov.ae)
+-- Data source: OpenStreetMap via Overpass API
 -- ============================================================================
 
 -- POI categories enum
@@ -54,12 +54,11 @@ CREATE TABLE IF NOT EXISTS dubai_pois (
     website TEXT,
 
     -- Source reference (for deduplication and updates)
-    -- Format: 'source_id' e.g., 'dha_123', 'rta_metro_5', 'khda_456'
-    osm_id TEXT UNIQUE,        -- Legacy name, actually stores source_id
-    osm_type VARCHAR(20),      -- Legacy name, stores source type: 'dha', 'rta_metro', 'rta_bus', 'khda', 'dm_park'
+    osm_id TEXT UNIQUE,        -- OpenStreetMap node/way ID
+    osm_type VARCHAR(20),      -- OSM element type: 'node', 'way', 'relation'
 
     -- Metadata
-    data_source VARCHAR(50) DEFAULT 'dubai_pulse',
+    data_source VARCHAR(50) DEFAULT 'openstreetmap',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

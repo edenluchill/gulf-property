@@ -3,10 +3,6 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
-import projectsRouter from './routes/projects'
-import propertiesRouter from './routes/properties'
-import submissionsRouter from './routes/submissions'
-import { createDeveloperRouter } from './routes/developer'
 import { createResidentialProjectsRouter } from './routes/residential-projects'
 import { createCompareRouter } from './routes/compare'
 import langgraphRouter from './routes/langgraph-processor'
@@ -76,11 +72,7 @@ app.get('/health', async (_req: Request, res: Response) => {
 })
 
 // Routes
-app.use('/api/projects', projectsRouter)
-app.use('/api/properties', propertiesRouter)  // New off-plan properties API with map search
-app.use('/api/submissions', submissionsRouter)
-app.use('/api/developer', createDeveloperRouter(pool))  // Developer property submission with AI PDF processing
-app.use('/api/residential-projects', createResidentialProjectsRouter(pool))  // New residential projects API
+app.use('/api/residential-projects', createResidentialProjectsRouter(pool))  // Residential projects API
 app.use('/api/langgraph', langgraphRouter)  // LangGraph multi-agent PDF processor
 app.use('/api/langgraph-progress', langgraphProgressRouter)  // LangGraph with real-time progress
 app.use('/api/langgraph', langgraphValidateRouter)  // Result validation

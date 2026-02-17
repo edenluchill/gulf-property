@@ -18,16 +18,64 @@ import { requireAuth } from '../middleware/auth'
  */
 function cleanDateFormat(dateStr: string | undefined | null): string | null {
   if (!dateStr) return null
-  
+
   // Check if it's already a valid YYYY-MM-DD format
   const validDatePattern = /^\d{4}-\d{2}-\d{2}$/
   if (validDatePattern.test(dateStr)) {
     return dateStr
   }
-  
+
   // If it's an incomplete date (e.g., "2030-06" or "2030-Q4"), return null
   console.warn(`⚠️ Invalid date format detected: "${dateStr}", skipping it`)
   return null
+}
+
+/**
+ * Transform payment plan data to JSONB format
+ */
+function transformPaymentPlanToJson(paymentPlan: any[] | undefined): any[] {
+  if (!paymentPlan || !Array.isArray(paymentPlan) || paymentPlan.length === 0) {
+    return []
+  }
+
+  return paymentPlan.map((milestone, i) => {
+    const cleanedDate = cleanDateFormat(milestone.date)
+
+    // Auto-calculate interval if not provided
+    let intervalMonths = milestone.intervalMonths
+    let intervalDescription = milestone.intervalDescription
+
+    if (intervalMonths === undefined && i > 0 && cleanedDate && paymentPlan[i - 1].date) {
+      const prevDate = cleanDateFormat(paymentPlan[i - 1].date)
+      if (prevDate) {
+        const current = new Date(cleanedDate)
+        const previous = new Date(prevDate)
+        const monthsDiff = Math.round(
+          (current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+        )
+        intervalMonths = monthsDiff > 0 ? monthsDiff : undefined
+
+        if (!intervalDescription && intervalMonths) {
+          intervalDescription = `${intervalMonths} month${intervalMonths !== 1 ? 's' : ''} later`
+        }
+      }
+    } else if (i === 0 && intervalMonths === undefined) {
+      intervalMonths = 0
+      if (!intervalDescription) {
+        intervalDescription = 'At booking'
+      }
+    }
+
+    return {
+      milestone: milestone.milestone,
+      percentage: milestone.percentage,
+      date: cleanedDate,
+      intervalMonths,
+      intervalDescription,
+      description: milestone.description || null,
+      displayOrder: i,
+    }
+  })
 }
 
 export function createResidentialProjectsRouter(pool: Pool): Router {
@@ -433,7 +481,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       const finalProjectImages = projectImages
       const finalFloorPlanImages = floorPlanImages
 
-      // 1. Insert main project
+      // 1. Insert main project (including payment_plan as JSONB)
+      const paymentPlanJson = transformPaymentPlanToJson(data.paymentPlan)
+      console.log(`💰 Payment plan: ${paymentPlanJson.length} milestones`)
+
       const projectResult = await client.query(`
         INSERT INTO residential_projects (
           project_name,
@@ -456,9 +507,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           rendering_descriptions,
           floor_plan_descriptions,
           verified,
-          status
+          status,
+          payment_plan
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
         )
         RETURNING id
       `, [
@@ -473,8 +525,8 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.completionDate || null,
         data.handoverDate || null,
         data.constructionProgress || null,
-        finalProjectImages, // Use migrated URLs
-        finalFloorPlanImages, // Use migrated URLs
+        finalProjectImages,
+        finalFloorPlanImages,
         data.amenities || [],
         data.visualContent?.hasRenderings || false,
         data.visualContent?.hasFloorPlans || false,
@@ -483,6 +535,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.visualContent?.floorPlanDescriptions || [],
         true,  // Auto-verify for now (no approval workflow)
         'upcoming',  // Default status
+        JSON.stringify(paymentPlanJson),
       ])
 
       const projectId = projectResult.rows[0].id
@@ -609,65 +662,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         console.log('✅ Unit types inserted')
       }
 
-      // 3. Insert payment plan with interval calculation
-      if (data.paymentPlan && Array.isArray(data.paymentPlan) && data.paymentPlan.length > 0) {
-        console.log(`💰 Inserting ${data.paymentPlan.length} payment milestones...`)
-        
-        for (let i = 0; i < data.paymentPlan.length; i++) {
-          const milestone = data.paymentPlan[i]
-          
-          // Clean date format before inserting
-          const cleanedDate = cleanDateFormat(milestone.date)
-          
-          // Auto-calculate interval if not provided by AI
-          let intervalMonths = milestone.intervalMonths
-          let intervalDescription = milestone.intervalDescription
-          
-          if (intervalMonths === undefined && i > 0 && cleanedDate && data.paymentPlan[i - 1].date) {
-            // Calculate months between current and previous milestone
-            const prevDate = cleanDateFormat(data.paymentPlan[i - 1].date)
-            if (prevDate) {
-              const current = new Date(cleanedDate)
-              const previous = new Date(prevDate)
-              const monthsDiff = Math.round(
-                (current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-              )
-              intervalMonths = monthsDiff > 0 ? monthsDiff : undefined
-              
-              if (!intervalDescription && intervalMonths) {
-                intervalDescription = `${intervalMonths} month${intervalMonths !== 1 ? 's' : ''} later`
-              }
-            }
-          } else if (i === 0 && intervalMonths === undefined) {
-            // First milestone defaults to 0
-            intervalMonths = 0
-            if (!intervalDescription) {
-              intervalDescription = 'At booking'
-            }
-          }
-          
-          await client.query(`
-            INSERT INTO project_payment_plans (
-              project_id,
-              milestone_name,
-              percentage,
-              milestone_date,
-              interval_months,
-              interval_description,
-              display_order
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-          `, [
-            projectId,
-            milestone.milestone,
-            milestone.percentage,
-            cleanedDate,
-            intervalMonths,
-            intervalDescription,
-            i,
-          ])
-        }
-        console.log('✅ Payment plan inserted with intervals')
-      }
+      // Payment plan is already stored in the main project INSERT as JSONB
 
       await client.query('COMMIT')
       console.log('🎉 Transaction committed successfully')
@@ -720,21 +715,16 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         [id]
       )
 
-      // Get payment plan
-      const paymentPlanResult = await pool.query(
-        'SELECT * FROM project_payment_plans WHERE project_id = $1 ORDER BY display_order',
-        [id]
-      )
-
       const project = projectResult.rows[0]
       const units = unitTypesResult.rows
 
+      // payment_plan is already stored as JSONB in the project row
       res.json({
         success: true,
         project: {
           ...project,
           units,
-          payment_plan: paymentPlanResult.rows,
+          // payment_plan is already in project from the SELECT *
         },
       })
     } catch (error) {
@@ -798,7 +788,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       validateImages(projectImages, 'Project')
       validateImages(floorPlanImages, 'Floor plan')
 
-      // 1. Update main project
+      // 1. Update main project (including payment_plan as JSONB)
+      const paymentPlanJson = transformPaymentPlanToJson(data.paymentPlan)
+      console.log(`💰 Payment plan: ${paymentPlanJson.length} milestones`)
+
       await client.query(`
         UPDATE residential_projects SET
           project_name = $1,
@@ -820,8 +813,9 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           has_location_maps = $17,
           rendering_descriptions = $18,
           floor_plan_descriptions = $19,
+          payment_plan = $20,
           updated_at = NOW()
-        WHERE id = $20
+        WHERE id = $21
       `, [
         data.projectName,
         data.developer,
@@ -842,17 +836,13 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.visualContent?.hasLocationMaps || false,
         data.visualContent?.renderingDescriptions || [],
         data.visualContent?.floorPlanDescriptions || [],
+        JSON.stringify(paymentPlanJson),
         id,
       ])
 
-      console.log('✅ Project main data updated')
+      console.log('✅ Project main data updated (including payment plan)')
 
-      // 2. Update unit types using UPSERT strategy (preserves IDs for favorites)
-      // Delete payment plans (these don't have external references)
-      await client.query('DELETE FROM project_payment_plans WHERE project_id = $1', [id])
-      console.log('✅ Payment plans deleted for re-insertion')
-
-      // 3. Handle unit types with UPSERT (preserve IDs, update existing, insert new, delete removed)
+      // 2. Handle unit types with UPSERT (preserve IDs, update existing, insert new, delete removed)
       if (data.unitTypes && Array.isArray(data.unitTypes)) {
         console.log(`📦 Processing ${data.unitTypes.length} unit types with UPSERT...`)
 
@@ -1038,61 +1028,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         console.log('✅ All unit types deleted (none provided)')
       }
 
-      // 4. Insert new payment plan
-      if (data.paymentPlan && Array.isArray(data.paymentPlan) && data.paymentPlan.length > 0) {
-        console.log(`💰 Inserting ${data.paymentPlan.length} payment milestones...`)
-        
-        for (let i = 0; i < data.paymentPlan.length; i++) {
-          const milestone = data.paymentPlan[i]
-          
-          const cleanedDate = cleanDateFormat(milestone.date)
-          
-          let intervalMonths = milestone.intervalMonths
-          let intervalDescription = milestone.intervalDescription
-          
-          if (intervalMonths === undefined && i > 0 && cleanedDate && data.paymentPlan[i - 1].date) {
-            const prevDate = cleanDateFormat(data.paymentPlan[i - 1].date)
-            if (prevDate) {
-              const current = new Date(cleanedDate)
-              const previous = new Date(prevDate)
-              const monthsDiff = Math.round(
-                (current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-              )
-              intervalMonths = monthsDiff > 0 ? monthsDiff : undefined
-              
-              if (!intervalDescription && intervalMonths) {
-                intervalDescription = `${intervalMonths} month${intervalMonths !== 1 ? 's' : ''} later`
-              }
-            }
-          } else if (i === 0 && intervalMonths === undefined) {
-            intervalMonths = 0
-            if (!intervalDescription) {
-              intervalDescription = 'At booking'
-            }
-          }
-          
-          await client.query(`
-            INSERT INTO project_payment_plans (
-              project_id,
-              milestone_name,
-              percentage,
-              milestone_date,
-              interval_months,
-              interval_description,
-              display_order
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-          `, [
-            id,
-            milestone.milestone,
-            milestone.percentage,
-            cleanedDate,
-            intervalMonths,
-            intervalDescription,
-            i,
-          ])
-        }
-        console.log('✅ Payment plan inserted')
-      }
+      // Payment plan is already updated in the main UPDATE query as JSONB
 
       await client.query('COMMIT')
       console.log('🎉 Project updated successfully')

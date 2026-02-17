@@ -59,5 +59,10 @@
     "balconyArea": "阳台面积",
     "totalArea": "总面积",
     "featuresAmenities": "特色与配套"
+  },
+  "unitSubPage": {
+    "backToProject": "返回项目",
+    "configurations": "种配置",
+    "selectUnit": "选择户型查看详情"
   }
 }
