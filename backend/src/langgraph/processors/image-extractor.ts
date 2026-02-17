@@ -9,10 +9,10 @@
  */
 
 import type { PdfChunk } from '../../utils/pdf/chunker';
-import { 
-  classifyImageCategory, 
-  linkImagesToUnits, 
-  shouldSavePageAsImage,
+import {
+  classifyImageCategory,
+  linkImagesToUnits,
+  // shouldSavePageAsImage - reserved for future use
   type PageImageAnalysis,
   type ImageInfo,
   ImageCategory,
@@ -30,7 +30,7 @@ export interface ImageExtractionResult {
  * Extract and analyze images from chunk result
  */
 export function analyzeChunkImages(
-  chunkIndex: number,
+  _chunkIndex: number,
   pageRange: { start: number; end: number },
   chunkData: any,
   pageResults?: any[]

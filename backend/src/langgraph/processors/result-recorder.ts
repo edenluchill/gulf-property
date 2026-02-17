@@ -302,8 +302,9 @@ export function extractPageAnalysis(
   } else {
     // Fallback: estimate from chunk-level data
     const numPages = pageRange.end - pageRange.start + 1;
-    const unitsPerPage = chunkData.units ? Math.ceil(chunkData.units.length / numPages) : 0;
-    
+    // Note: unitsPerPage calculation available but not currently used
+    // const unitsPerPage = chunkData.units ? Math.ceil(chunkData.units.length / numPages) : 0;
+
     for (let i = 0; i < numPages; i++) {
       const pageNumber = pageRange.start + i;
       

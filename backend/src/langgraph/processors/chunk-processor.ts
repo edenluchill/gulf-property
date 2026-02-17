@@ -44,7 +44,7 @@ export interface ChunkProcessingResult {
 export async function processSingleChunk(
   config: ChunkProcessingConfig
 ): Promise<ChunkProcessingResult> {
-  const { chunk, chunkIndex, totalChunks, outputDir, jobId } = config;
+  const { chunk, chunkIndex, totalChunks, outputDir: _outputDir, jobId } = config;
   const startTime = Date.now();
 
   console.log(`   🚀 Chunk ${chunkIndex + 1}/${totalChunks}: 页 ${chunk.pageRange.start}-${chunk.pageRange.end}`);

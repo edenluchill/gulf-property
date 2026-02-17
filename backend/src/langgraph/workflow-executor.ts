@@ -34,8 +34,7 @@ export interface WorkflowConfig {
   outputBaseDir?: string;
   jobId: string;
   pagesPerChunk?: number;
-  batchSize?: number;
-  batchDelay?: number;
+  batchSize?: number;  // Max concurrent chunks (p-limit pool size)
   abortSignal?: AbortSignal; // For pause/cancel support
 }
 
@@ -67,8 +66,7 @@ export async function executePdfWorkflow(
     pdfBuffers,
     pdfNames,
     pagesPerChunk = 5,
-    batchSize = 20,  // ⭐ Increased from 10 to 20 for better parallelism
-    batchDelay = 500,  // ⭐ Reduced from 1000ms to 500ms (still safe for API rate limits)
+    batchSize = 20,  // ⭐ Max concurrent chunks (p-limit sliding window)
     abortSignal,
   } = config;
 
@@ -79,7 +77,7 @@ export async function executePdfWorkflow(
   console.log(`📋 PDF PROCESSING WORKFLOW STARTED`);
   console.log(`   Job ID: ${jobId}`);
   console.log(`   Files: ${pdfBuffers.length} | Pages per chunk: ${pagesPerChunk}`);
-  console.log(`   Batch size: ${batchSize} | Batch delay: ${batchDelay}ms`);
+  console.log(`   Concurrency: ${batchSize} (p-limit sliding window)`);
   console.log(`   PDF sizes: ${pdfBuffers.map(b => `${(b.length / 1024).toFixed(2)} KB`).join(', ')}`);
   console.log(`${'='.repeat(70)}\n`);
 
@@ -286,7 +284,6 @@ export async function executePdfWorkflow(
     resultRecorder.setMetadata({
       pagesPerChunk,
       batchSize,
-      batchDelay,
     });
 
     // ============================================================
@@ -337,7 +334,6 @@ export async function executePdfWorkflow(
           outputDir: outputStructure.jobDir,
           jobId,
           batchSize,
-          batchDelay,
           abortSignal,
         },
         aggregatedData

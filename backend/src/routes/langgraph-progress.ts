@@ -129,8 +129,7 @@ router.post(
             outputBaseDir: join(process.cwd(), 'uploads', 'langgraph-output'),
             jobId,
             pagesPerChunk: 5,
-            batchSize: 10,  // ⚡ BALANCED: Reduced to 10 to avoid R2 upload timeouts
-            batchDelay: 1000,  // ⚡ BALANCED: Increased to 1000ms for better R2 stability
+            batchSize: 10,  // ⚡ Max concurrent chunks (p-limit sliding window)
           });
 
           console.log(`✅ Workflow completed for job ${jobId}`);

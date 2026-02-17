@@ -61,7 +61,6 @@ router.post(
         jobId,
         pagesPerChunk: 5,
         batchSize: 10,
-        batchDelay: 1000,
       });
 
       // Return result

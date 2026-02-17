@@ -19,15 +19,16 @@ const router = Router();
  * Simple admin check middleware
  * In production, this should verify JWT claims or role-based access
  */
-function requireAdmin(req: Request, res: Response, next: Function) {
+function requireAdmin(req: Request, res: Response, next: Function): void {
   const userId = req.headers['x-user-id'] as string;
   const isAdmin = req.headers['x-admin'] === 'true' || userId === 'admin';
 
   if (!isAdmin) {
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       error: 'Admin access required',
     });
+    return;
   }
 
   next();

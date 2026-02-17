@@ -40,7 +40,7 @@ function configureCloudinary() {
  */
 export async function uploadImageCloudinary(
   imageBuffer: Buffer,
-  originalName: string,
+  _originalName: string,
   category: 'showcase' | 'floorplan' | 'amenity' = 'showcase'
 ): Promise<string> {
   

@@ -126,7 +126,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
 /**
  * Optional auth middleware - attaches user if token is valid, but doesn't require it
  */
-export async function optionalAuth(req: Request, res: Response, next: NextFunction) {
+export async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   if (!isSupabaseConfigured) {
     return next()
   }

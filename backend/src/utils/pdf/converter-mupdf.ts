@@ -89,7 +89,6 @@ export async function pdfToImagesMupdf(
 
         // ⭐ 尝试多种DPI级别（从低到高的尝试顺序）
         const dpiLevels = [scale, scale * 0.66, scale * 0.5, scale * 0.33];  // 100%, 66%, 50%, 33%
-        let converted = false;
 
         for (const currentScale of dpiLevels) {
           try {
@@ -112,7 +111,6 @@ export async function pdfToImagesMupdf(
 
             writeFileSync(outputPath, imageData);
             imagePaths.push(outputPath);
-            converted = true;
 
             if (currentScale !== scale) {
               console.log(`   ⚠️ Page ${pageNum + 1} converted at reduced quality (${Math.round(currentScale / scale * 100)}%)`);

@@ -31,7 +31,6 @@ async function testSmartAssignment() {
     jobId: testJobId,
     pagesPerChunk: 5,
     batchSize: 10,
-    batchDelay: 500,
   });
   
   console.log('\n' + '='.repeat(70));
