@@ -68,6 +68,31 @@ export async function fetchDubaiAreas(): Promise<DubaiArea[]> {
 }
 
 /**
+ * Search Dubai areas by name for map navigation
+ */
+export interface AreaSearchResult {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  centroid: { lat: number; lng: number };
+  transactionCount: number | null;
+  avgPriceSqm: number | null;
+}
+
+export async function searchDubaiAreas(query: string): Promise<AreaSearchResult[]> {
+  if (!query || query.length < 2) return [];
+
+  try {
+    const response = await fetch(`${API_URL}/dubai/areas/search?q=${encodeURIComponent(query)}`);
+    const results: AreaSearchResult[] = await response.json();
+    return results;
+  } catch (error) {
+    console.error('Error searching Dubai areas:', error);
+    return [];
+  }
+}
+
+/**
  * Fetch Dubai landmarks (points of interest)
  */
 export async function fetchDubaiLandmarks(): Promise<DubaiLandmark[]> {

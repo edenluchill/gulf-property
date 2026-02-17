@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import MapViewMapLibre from '../components/MapViewMapLibre'
@@ -13,7 +13,7 @@ import { Button } from '../components/ui/button'
 import {
   Search, SlidersHorizontal, RefreshCw, Building2, Bed, Calendar, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
-  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation
+  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
 import { formatPrice } from '../lib/utils'
@@ -25,15 +25,48 @@ import {
   fetchResidentialProjects,
   fetchResidentialProjectsBatch,
   fetchDubaiAreas,
-  fetchDubaiLandmarks
+  fetchDubaiLandmarks,
+  searchDubaiAreas,
+  AreaSearchResult
 } from '../lib/api'
 
 const METRIC_OPTIONS = [
-  { value: 'avgPrice' as AreaMetric, labelKey: 'map:metric.avgPrice', Icon: DollarSign },
+  { value: 'medianUnitPrice' as AreaMetric, labelKey: 'map:metric.medianUnitPrice', Icon: DollarSign },
+  { value: 'medianPriceSqft' as AreaMetric, labelKey: 'map:metric.medianPriceSqft', Icon: DollarSign },
   { value: 'capitalGrowth' as AreaMetric, labelKey: 'map:metric.capitalGrowth', Icon: TrendingUp },
-  { value: 'salesVolume' as AreaMetric, labelKey: 'map:metric.salesVolume', Icon: BarChart3 },
+  { value: 'transactionCount' as AreaMetric, labelKey: 'map:metric.transactionCount', Icon: BarChart3 },
   { value: 'rentalYield' as AreaMetric, labelKey: 'map:metric.rentalYield', Icon: Percent },
 ]
+
+// ============================================================================
+// MAP DATA VERSION - Increment this to force all clients to reload map data
+// Format: YYYYMMDD or any string. When changed, all cached data will be cleared.
+// ============================================================================
+const MAP_DATA_VERSION = '20260216-osm'
+
+// Clear all map-related cache if version changed
+function checkAndClearCache() {
+  const cachedVersion = localStorage.getItem('gulf_map_data_version')
+  if (cachedVersion !== MAP_DATA_VERSION) {
+    console.log(`[MapPage] Version changed: ${cachedVersion} → ${MAP_DATA_VERSION}, clearing cache...`)
+    // Clear all gulf_ prefixed cache items and POI cache
+    const keysToRemove = [
+      'gulf_residential_developers', 'gulf_residential_developers_timestamp',
+      'gulf_residential_areas', 'gulf_residential_areas_timestamp',
+      'gulf_residential_projects', 'gulf_residential_projects_timestamp',
+      'gulf_dubai_areas', 'gulf_dubai_areas_timestamp',
+      'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp',
+      'dubai_pois_cache',  // POI data from OSM
+    ]
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+    localStorage.setItem('gulf_map_data_version', MAP_DATA_VERSION)
+    return true // Cache was cleared
+  }
+  return false // Cache is valid
+}
+
+// Run on module load
+checkAndClearCache()
 
 export default function MapPage() {
   const { t, i18n } = useTranslation(['map', 'common'])
@@ -64,7 +97,11 @@ export default function MapPage() {
   // Area metric overlay state — persisted in localStorage
   const [areaMetric, setAreaMetric] = useState<AreaMetric>(() => {
     const saved = localStorage.getItem('map-area-metric')
-    if (saved && ['avgPrice', 'capitalGrowth', 'salesVolume', 'rentalYield', 'none'].includes(saved)) {
+    // Migrate old values
+    if (saved === 'salesVolume') return 'transactionCount'
+    if (saved === 'avgPrice' || saved === 'avgPriceSqft') return 'medianPriceSqft'
+    if (saved === 'medianPrice') return 'medianUnitPrice'
+    if (saved && ['medianUnitPrice', 'medianPriceSqft', 'capitalGrowth', 'transactionCount', 'rentalYield', 'none'].includes(saved)) {
       return saved as AreaMetric
     }
     return 'none'
@@ -88,15 +125,16 @@ export default function MapPage() {
         return JSON.parse(saved) as PoiCategory[]
       } catch { /* ignore */ }
     }
-    // Default: show education (school + university)
-    return ['school', 'university']
+    // Default: show school
+    return ['school']
   })
 
-  // Quick toggle groups (shown directly in the bar)
-  const QUICK_GROUPS = [
-    { id: 'healthcare', labelKey: 'map:poi.healthcare', color: '#0d9488', Icon: Cross },  // teal
-    { id: 'education', labelKey: 'map:poi.education', color: '#2563eb', Icon: GraduationCap },
-    { id: 'transport', labelKey: 'map:poi.transport', color: '#ea580c', Icon: TrainFront },
+  // Quick toggle buttons - single categories
+  const QUICK_BUTTONS = [
+    { id: 'hospital' as PoiCategory, labelKey: 'map:poi.categories.hospital', color: '#0d9488', Icon: Cross },
+    { id: 'school' as PoiCategory, labelKey: 'map:poi.categories.school', color: '#2563eb', Icon: GraduationCap },
+    { id: 'metro_station' as PoiCategory, labelKey: 'map:poi.categories.metro_station', color: '#ea580c', Icon: TrainFront },
+    { id: 'supermarket' as PoiCategory, labelKey: 'map:poi.categories.supermarket', color: '#db2777', Icon: ShoppingCart },
   ] as const
 
   const { pois } = useDubaiPois({
@@ -110,29 +148,6 @@ export default function MapPage() {
     return POI_CATEGORIES.filter(c => c.group === groupId).map(c => c.id)
   }, [])
 
-  // Check if all categories in a group are enabled
-  const isGroupEnabled = useCallback((groupId: string): boolean => {
-    const groupCats = getCategoriesInGroup(groupId)
-    return groupCats.length > 0 && groupCats.every(cat => enabledPoiCategories.includes(cat))
-  }, [enabledPoiCategories, getCategoriesInGroup])
-
-  // Toggle all categories in a group
-  const togglePoiGroup = useCallback((groupId: string) => {
-    const groupCats = getCategoriesInGroup(groupId)
-    setEnabledPoiCategories(prev => {
-      const allEnabled = groupCats.every(cat => prev.includes(cat))
-      let next: PoiCategory[]
-      if (allEnabled) {
-        // Remove all group categories
-        next = prev.filter(c => !groupCats.includes(c))
-      } else {
-        // Add all group categories
-        next = [...new Set([...prev, ...groupCats])]
-      }
-      localStorage.setItem('map-poi-categories', JSON.stringify(next))
-      return next
-    })
-  }, [getCategoriesInGroup])
 
   const togglePoiCategory = useCallback((category: PoiCategory) => {
     setEnabledPoiCategories(prev => {
@@ -156,6 +171,13 @@ export default function MapPage() {
   const [areaProjects, setAreaProjects] = useState<any[]>([])
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
 
+  // Area search state
+  const [areaSearchQuery, setAreaSearchQuery] = useState('')
+  const [areaSearchResults, setAreaSearchResults] = useState<AreaSearchResult[]>([])
+  const [showAreaSearchResults, setShowAreaSearchResults] = useState(false)
+  const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
+  const areaSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // POI popup state
   const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null)
 
@@ -172,6 +194,7 @@ export default function MapPage() {
   // Mobile bottom sheet state
   const [showClusterSheet, setShowClusterSheet] = useState(false)
   const [showAreaSheet, setShowAreaSheet] = useState(false)
+  const [showMobileSearch, setShowMobileSearch] = useState(false)
 
   // Load initial metadata (only once, with caching)
   useEffect(() => {
@@ -480,6 +503,41 @@ export default function MapPage() {
     }
   }, [isMobile])
 
+  // Handle area search with debounce
+  const handleAreaSearch = useCallback((query: string) => {
+    setAreaSearchQuery(query)
+
+    if (areaSearchTimeoutRef.current) {
+      clearTimeout(areaSearchTimeoutRef.current)
+    }
+
+    if (query.length < 2) {
+      setAreaSearchResults([])
+      setShowAreaSearchResults(false)
+      return
+    }
+
+    areaSearchTimeoutRef.current = setTimeout(async () => {
+      const results = await searchDubaiAreas(query)
+      setAreaSearchResults(results)
+      setShowAreaSearchResults(results.length > 0)
+    }, 300)
+  }, [])
+
+  // Handle area selection from search results
+  const handleAreaSelect = useCallback((area: AreaSearchResult) => {
+    setFlyToLocation({
+      lat: area.centroid.lat,
+      lng: area.centroid.lng,
+      zoom: 12
+    })
+    setAreaSearchQuery(area.name)
+    setShowAreaSearchResults(false)
+
+    // Clear flyTo after animation
+    setTimeout(() => setFlyToLocation(null), 2000)
+  }, [])
+
   const formatLastUpdated = (date: Date) => {
     const now = new Date()
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
@@ -639,16 +697,11 @@ export default function MapPage() {
             pois={pois}
             showPois={showPois}
             onPoiClick={setSelectedPoi}
+            flyToLocation={flyToLocation}
           />
 
-          {/* Mobile: Left side controls (search, filter) */}
-          <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2 md:hidden">
-            <button
-              onClick={() => setShowFilters(true)}
-              className="flex items-center justify-center w-10 h-10 bg-white shadow-md rounded-xl text-slate-700"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+          {/* Mobile: Top left - filter button */}
+          <div className="absolute top-3 left-3 z-[1000] md:hidden">
             <button
               onClick={() => setShowFilters(true)}
               className="relative flex items-center justify-center w-10 h-10 bg-white shadow-md rounded-xl text-slate-700"
@@ -660,69 +713,189 @@ export default function MapPage() {
             </button>
           </div>
 
-          {/* Mobile: Right side controls (metrics + POI) */}
-          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 md:hidden">
-            {/* Metrics mini panel */}
+          {/* Mobile: Right side controls (metrics + POI combined) */}
+          <div className="absolute top-3 right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
-              <div className="flex">
+              {/* Metrics row */}
+              <div className="flex border-b border-slate-100">
                 {METRIC_OPTIONS.map((option, idx) => {
                   const isActive = areaMetric === option.value
                   return (
                     <button
                       key={option.value}
                       onClick={() => handleMetricToggle(option.value)}
-                      className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                      className={`flex items-center justify-center w-8 h-8 transition-colors ${
                         isActive ? 'bg-primary text-white' : 'text-slate-500'
                       } ${idx > 0 ? 'border-l border-slate-100' : ''}`}
                       title={t(option.labelKey as any)}
                     >
-                      <option.Icon className="w-4 h-4" />
+                      <option.Icon className="w-3.5 h-3.5" />
                     </button>
                   )
                 })}
               </div>
-            </div>
-
-            {/* POI quick toggles */}
-            <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+              {/* POI row */}
               <div className="flex">
-                {QUICK_GROUPS.map((group, idx) => {
-                  const enabled = isGroupEnabled(group.id)
+                {QUICK_BUTTONS.map((btn, idx) => {
+                  const enabled = enabledPoiCategories.includes(btn.id)
                   return (
                     <button
-                      key={group.id}
-                      onClick={() => togglePoiGroup(group.id)}
-                      className={`flex items-center justify-center w-10 h-10 transition-colors ${
+                      key={btn.id}
+                      onClick={() => togglePoiCategory(btn.id)}
+                      className={`flex items-center justify-center w-8 h-8 transition-colors ${
                         idx > 0 ? 'border-l border-slate-100' : ''
                       }`}
-                      style={enabled ? { backgroundColor: group.color, color: 'white' } : { color: '#64748b' }}
-                      title={t(group.labelKey as any)}
+                      style={enabled ? { backgroundColor: btn.color, color: 'white' } : { color: '#64748b' }}
+                      title={t(btn.labelKey as any)}
                     >
-                      <group.Icon className="w-4 h-4" />
+                      <btn.Icon className="w-3.5 h-3.5" />
                     </button>
                   )
                 })}
                 <button
                   onClick={() => setShowPoiPanel(true)}
-                  className={`flex items-center justify-center w-10 h-10 border-l border-slate-100 transition-colors ${
+                  className={`flex items-center justify-center w-8 h-8 border-l border-slate-100 transition-colors ${
                     showPoiPanel ? 'bg-slate-700 text-white' : 'text-slate-500'
                   }`}
                   title={t('map:poi.more')}
                 >
-                  <MapPin className="w-4 h-4" />
+                  <MapPin className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Last Updated Badge - Floating on Map, hidden on mobile */}
-          <div className="hidden md:flex absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-slate-200 z-[1000]">
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-slate-600">
-                {t('common:dates.lastUpdated')}: <span className="font-medium text-slate-900">{formatLastUpdated(lastUpdated)}</span>
-              </span>
+          {/* Area Search - Floating on Map */}
+          <div className="absolute bottom-16 left-4 z-[1000] hidden md:block">
+            <div className="relative">
+              <div className="flex items-center bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+                <div className="flex items-center gap-1.5 pl-3 pr-2 text-slate-500">
+                  <Navigation className="w-4 h-4" />
+                  <span className="text-xs font-medium">{t('map:flyTo')}</span>
+                </div>
+                <div className="w-px h-5 bg-slate-200" />
+                <input
+                  type="text"
+                  value={areaSearchQuery}
+                  onChange={(e) => handleAreaSearch(e.target.value)}
+                  onFocus={() => areaSearchResults.length > 0 && setShowAreaSearchResults(true)}
+                  placeholder={t('map:searchArea')}
+                  className="w-48 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-slate-400"
+                />
+                {areaSearchQuery && (
+                  <button
+                    onClick={() => {
+                      setAreaSearchQuery('')
+                      setAreaSearchResults([])
+                      setShowAreaSearchResults(false)
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {showAreaSearchResults && areaSearchResults.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
+                  <div className="max-h-64 overflow-y-auto">
+                    {areaSearchResults.map((area) => (
+                      <button
+                        key={area.id}
+                        onClick={() => handleAreaSelect(area)}
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <MapPin className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-slate-900 truncate">{area.name}</div>
+                          {area.transactionCount && (
+                            <div className="text-xs text-slate-500">
+                              {area.transactionCount.toLocaleString()} transactions
+                              {area.avgPriceSqm && ` · ${Math.round(area.avgPriceSqm).toLocaleString()} AED/sqm`}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Mobile: Bottom-left fly-to button */}
+          <div className="absolute bottom-20 left-3 z-[1000] md:hidden">
+            {!showMobileSearch ? (
+              <button
+                onClick={() => setShowMobileSearch(true)}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-white shadow-lg rounded-full text-slate-700"
+              >
+                <Navigation className="w-4 h-4" />
+                <span className="text-sm font-medium">{t('map:flyTo')}</span>
+              </button>
+            ) : (
+              <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden w-72">
+                {/* Search input */}
+                <div className="flex items-center border-b border-slate-100">
+                  <MapPin className="w-4 h-4 text-slate-400 ml-3 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={areaSearchQuery}
+                    onChange={(e) => handleAreaSearch(e.target.value)}
+                    onFocus={() => areaSearchResults.length > 0 && setShowAreaSearchResults(true)}
+                    placeholder={t('map:searchArea')}
+                    className="flex-1 px-2 py-3 text-sm bg-transparent outline-none placeholder:text-slate-400"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      setShowMobileSearch(false)
+                      setAreaSearchQuery('')
+                      setAreaSearchResults([])
+                      setShowAreaSearchResults(false)
+                    }}
+                    className="p-3 text-slate-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                {/* Search results */}
+                {areaSearchResults.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto">
+                    {areaSearchResults.map((area) => (
+                      <button
+                        key={area.id}
+                        onClick={() => {
+                          handleAreaSelect(area)
+                          setShowMobileSearch(false)
+                        }}
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Navigation className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-slate-900 truncate text-sm">{area.name}</div>
+                          {area.transactionCount && (
+                            <div className="text-xs text-slate-500">
+                              {area.transactionCount.toLocaleString()} transactions
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {areaSearchQuery && areaSearchResults.length === 0 && (
+                  <div className="px-4 py-6 text-center text-sm text-slate-500">
+                    {t('common:noResults')}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Floating Metric Panel - top-right */}
@@ -751,21 +924,21 @@ export default function MapPage() {
           {/* Floating POI Panel - below metrics */}
           <div className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
             <div className="flex items-center gap-1.5 p-1.5">
-              {QUICK_GROUPS.map(group => {
-                const enabled = isGroupEnabled(group.id)
+              {QUICK_BUTTONS.map(btn => {
+                const enabled = enabledPoiCategories.includes(btn.id)
                 return (
                   <button
-                    key={group.id}
-                    onClick={() => togglePoiGroup(group.id)}
+                    key={btn.id}
+                    onClick={() => togglePoiCategory(btn.id)}
                     className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all ${
                       enabled
                         ? 'text-white shadow-sm'
                         : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                     }`}
-                    style={enabled ? { backgroundColor: group.color } : undefined}
+                    style={enabled ? { backgroundColor: btn.color } : undefined}
                   >
-                    <group.Icon className="w-3.5 h-3.5" />
-                    <span>{t(group.labelKey as any)}</span>
+                    <btn.Icon className="w-3.5 h-3.5" />
+                    <span>{t(btn.labelKey as any)}</span>
                   </button>
                 )
               })}
@@ -795,7 +968,7 @@ export default function MapPage() {
               <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-slate-500" />
-                  <span className="text-sm font-semibold text-slate-800">Points of Interest</span>
+                  <span className="text-sm font-semibold text-slate-800">{t('map:poi.title')}</span>
                 </div>
                 <button
                   onClick={() => setShowPoiPanel(false)}
@@ -833,7 +1006,7 @@ export default function MapPage() {
                     <div key={group.id} className="mb-4 last:mb-0">
                       <div className="flex items-center gap-2 mb-2 px-1">
                         <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                          {t(`map:poi.${group.id}` as any)}
+                          {t(`map:poi.groups.${group.id}` as any)}
                         </div>
                         <div className="flex-1 h-px bg-slate-100" />
                       </div>
@@ -855,7 +1028,7 @@ export default function MapPage() {
                                 className={`w-2.5 h-2.5 rounded-full ${isEnabled ? 'ring-1 ring-white/30' : ''}`}
                                 style={{ backgroundColor: isEnabled ? 'rgba(255,255,255,0.9)' : cat.color }}
                               />
-                              <span>{cat.label}</span>
+                              <span>{t(`map:poi.categories.${cat.id}` as any)}</span>
                             </button>
                           )
                         })}
@@ -1213,10 +1386,10 @@ export default function MapPage() {
                     <div className="text-base font-bold text-slate-900">{formatValue(selectedArea.averagePrice, 'price')}</div>
                   </div>
                 )}
-                {selectedArea.salesVolume !== undefined && selectedArea.salesVolume !== null && (
+                {selectedArea.transactionCount !== undefined && selectedArea.transactionCount !== null && (
                   <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.salesVolume')}</div>
-                    <div className="text-base font-bold text-slate-900">{formatValue(selectedArea.salesVolume, 'volume')}</div>
+                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.transactionCount')}</div>
+                    <div className="text-base font-bold text-slate-900">{selectedArea.transactionCount.toLocaleString()}</div>
                   </div>
                 )}
                 {selectedArea.capitalAppreciation !== undefined && selectedArea.capitalAppreciation !== null && (

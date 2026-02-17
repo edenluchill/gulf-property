@@ -47,22 +47,96 @@ const AREA_SELECT = `
  * GET /api/dubai/areas
  * Returns all Dubai areas (districts) with polygon boundaries
  * Frontend will render these as colored overlays on the map
+ * Metrics are calculated from real DLD transaction data
  */
 router.get('/areas', async (_req: Request, res: Response) => {
   try {
+    // Join with real-time metrics from DLD transactions
     const result = await pool.query(`
-      SELECT ${AREA_SELECT}
-      FROM dubai_areas
-      WHERE visible = true
-      ORDER BY display_order ASC, name ASC
+      SELECT
+        da.id, da.name, da.name_ar, ST_AsGeoJSON(da.boundary)::json as boundary,
+        da.description, da.description_ar, da.color, da.opacity, da.display_order, da.visible,
+        da.project_counts,
+        -- Use calculated metrics from DLD transactions, fallback to stored values
+        COALESCE(m.avg_price_sqm, da.average_price) as average_price,
+        m.median_price_sqm as median_price_sqm,
+        m.median_unit_price as median_unit_price,
+        COALESCE(m.sales_volume, da.sales_volume) as sales_volume,
+        COALESCE(m.capital_growth_pct, da.capital_appreciation) as capital_appreciation,
+        COALESCE(m.rental_yield_pct, da.rental_yield) as rental_yield,
+        m.transaction_count,
+        da.area_category, da.investment_profile, da.rental_restrictions, da.growth_potential, da.ai_summary,
+        da.translations, da.created_at, da.updated_at
+      FROM dubai_areas da
+      LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
+      WHERE da.visible = true
+      ORDER BY da.display_order ASC, da.name ASC
     `);
 
-    const areas = result.rows.map(row => mapAreaRow(row));
+    const areas = result.rows.map(row => ({
+      ...mapAreaRow(row),
+      transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
+      medianPriceSqm: row.median_price_sqm ? parseFloat(row.median_price_sqm) : null,
+      medianUnitPrice: row.median_unit_price ? parseFloat(row.median_unit_price) : null,
+    }));
 
     res.json(areas);
   } catch (error) {
     console.error('Error fetching Dubai areas:', error);
     res.status(500).json({ error: 'Failed to fetch Dubai areas' });
+  }
+});
+
+/**
+ * GET /api/dubai/areas/search
+ * Search areas by name for navigation feature
+ * Returns areas with centroid for map fly-to
+ */
+router.get('/areas/search', async (req: Request, res: Response) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || typeof q !== 'string' || q.length < 2) {
+      return res.json([]);
+    }
+
+    const searchTerm = `%${q.toLowerCase()}%`;
+
+    const result = await pool.query(`
+      SELECT
+        da.id,
+        da.name,
+        da.name_ar,
+        ST_X(ST_Centroid(da.boundary::geometry)) as lng,
+        ST_Y(ST_Centroid(da.boundary::geometry)) as lat,
+        m.transaction_count,
+        m.avg_price_sqm
+      FROM dubai_areas da
+      LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
+      WHERE da.visible = true
+        AND (LOWER(da.name) LIKE $1 OR LOWER(da.name_ar) LIKE $1)
+      ORDER BY
+        CASE WHEN LOWER(da.name) LIKE $2 THEN 0 ELSE 1 END,
+        m.transaction_count DESC NULLS LAST
+      LIMIT 10
+    `, [searchTerm, `${q.toLowerCase()}%`]);
+
+    const areas = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      nameAr: row.name_ar,
+      centroid: {
+        lat: parseFloat(row.lat),
+        lng: parseFloat(row.lng),
+      },
+      transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
+      avgPriceSqm: row.avg_price_sqm ? parseFloat(row.avg_price_sqm) : null,
+    }));
+
+    res.json(areas);
+  } catch (error) {
+    console.error('Error searching Dubai areas:', error);
+    res.status(500).json({ error: 'Failed to search Dubai areas' });
   }
 });
 

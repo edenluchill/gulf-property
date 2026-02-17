@@ -72,6 +72,7 @@
     "inYears_other": "In {{count}} years"
   },
   "loading": "Loading...",
+  "noResults": "No results found",
   "about": "About",
   "amenities": "Amenities",
   "coordinates": "Coordinates",

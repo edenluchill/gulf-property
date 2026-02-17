@@ -152,8 +152,11 @@ export interface DubaiArea {
   culturalAttribute?: string
   // Market statistics
   projectCounts?: number
-  averagePrice?: number
+  averagePrice?: number        // avg price per sqm
+  medianPriceSqm?: number      // median price per sqm
+  medianUnitPrice?: number     // median total unit price (AED)
   salesVolume?: number
+  transactionCount?: number
   capitalAppreciation?: number
   rentalYield?: number
   // AI analysis fields

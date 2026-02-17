@@ -2,20 +2,23 @@
  * MapLibre GL JS 地图组件 - 简洁高效版
  */
 
-import { useState, useRef, useMemo, useCallback, memo } from 'react'
+import { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
 import Map, {
   Marker,
   Source,
   Layer,
   MapRef
 } from 'react-map-gl/maplibre'
-import type { MapLayerMouseEvent } from 'maplibre-gl'
+import maplibregl, { type MapLayerMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import type { LucideIcon } from 'lucide-react'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  Cross, GraduationCap, TrainFront, ShoppingBag, Landmark,
-  Utensils, Hotel, TreePine, Building2, ShieldAlert, Fuel
+  Cross, GraduationCap, TrainFront, ShoppingBag, ShoppingCart,
+  Utensils, Coffee, Landmark, CreditCard, TreePine, Building2,
+  Hotel, Dumbbell, Umbrella, Film, Fuel, Church,
+  Shield, Flame, Mail, Flag, Pill, Stethoscope, School
 } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
@@ -23,65 +26,111 @@ import { Poi } from '../hooks/useDubaiPois'
 // 使用 CARTO 无标签风格 (area 自己有名字，不需要地图标签)
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json'
 
-// Group colors (unified per category group)
-const GROUP_COLORS: Record<string, string> = {
-  healthcare: '#0d9488',  // teal - hospital friendly
-  education: '#2563eb',   // blue
-  transport: '#ea580c',   // orange
-  shopping: '#db2777',    // pink
-  dining: '#d97706',      // amber
-  finance: '#059669',     // emerald
-  leisure: '#7c3aed',     // violet
-  services: '#475569',    // slate
+// Category-specific colors and icons
+const CATEGORY_CONFIG: Record<string, { color: string; Icon: typeof Cross }> = {
+  // Healthcare - teal
+  hospital: { color: '#0d9488', Icon: Cross },
+  clinic: { color: '#0d9488', Icon: Stethoscope },
+  pharmacy: { color: '#0d9488', Icon: Pill },
+  // Education - blue
+  school: { color: '#2563eb', Icon: School },
+  university: { color: '#2563eb', Icon: GraduationCap },
+  // Transport - orange
+  metro_station: { color: '#ea580c', Icon: TrainFront },
+  bus_station: { color: '#ea580c', Icon: TrainFront },
+  // Shopping - pink
+  mall: { color: '#db2777', Icon: ShoppingBag },
+  supermarket: { color: '#db2777', Icon: ShoppingCart },
+  // Dining - amber
+  restaurant: { color: '#d97706', Icon: Utensils },
+  cafe: { color: '#d97706', Icon: Coffee },
+  // Finance - emerald
+  bank: { color: '#059669', Icon: Landmark },
+  atm: { color: '#059669', Icon: CreditCard },
+  // Leisure - violet
+  hotel: { color: '#7c3aed', Icon: Hotel },
+  park: { color: '#16a34a', Icon: TreePine },
+  gym: { color: '#7c3aed', Icon: Dumbbell },
+  beach: { color: '#0ea5e9', Icon: Umbrella },
+  cinema: { color: '#7c3aed', Icon: Film },
+  // Services - various
+  gas_station: { color: '#475569', Icon: Fuel },
+  mosque: { color: '#475569', Icon: Church },
+  church: { color: '#475569', Icon: Church },
+  police: { color: '#1e40af', Icon: Shield },
+  fire_station: { color: '#dc2626', Icon: Flame },
+  post_office: { color: '#475569', Icon: Mail },
+  embassy: { color: '#475569', Icon: Flag },
 }
 
-// Map POI categories to icons and groups
-const POI_CONFIG: Record<string, { icon: LucideIcon; group: string }> = {
-  // Healthcare
-  hospital: { icon: Cross, group: 'healthcare' },
-  clinic: { icon: Cross, group: 'healthcare' },
-  pharmacy: { icon: Cross, group: 'healthcare' },
-  // Education
-  school: { icon: GraduationCap, group: 'education' },
-  university: { icon: GraduationCap, group: 'education' },
-  // Transport
-  metro_station: { icon: TrainFront, group: 'transport' },
-  bus_station: { icon: TrainFront, group: 'transport' },
-  // Shopping
-  mall: { icon: ShoppingBag, group: 'shopping' },
-  supermarket: { icon: ShoppingBag, group: 'shopping' },
-  // Dining
-  restaurant: { icon: Utensils, group: 'dining' },
-  cafe: { icon: Utensils, group: 'dining' },
-  // Finance
-  bank: { icon: Landmark, group: 'finance' },
-  atm: { icon: Landmark, group: 'finance' },
-  // Leisure
-  hotel: { icon: Hotel, group: 'leisure' },
-  park: { icon: TreePine, group: 'leisure' },
-  gym: { icon: TreePine, group: 'leisure' },
-  beach: { icon: TreePine, group: 'leisure' },
-  cinema: { icon: TreePine, group: 'leisure' },
-  // Services
-  gas_station: { icon: Fuel, group: 'services' },
-  mosque: { icon: Building2, group: 'services' },
-  church: { icon: Building2, group: 'services' },
-  police: { icon: ShieldAlert, group: 'services' },
-  fire_station: { icon: ShieldAlert, group: 'services' },
-  post_office: { icon: Building2, group: 'services' },
-  embassy: { icon: Building2, group: 'services' },
+// Generate POI icon using Lucide SVG + Canvas
+async function generatePoiIcon(color: string, Icon: typeof Cross, size = 64): Promise<ImageData> {
+  return new Promise((resolve) => {
+    const iconSize = size * 0.55  // Bigger icon inside circle
+    const offset = (size - iconSize) / 2
+
+    // Render Lucide icon to SVG string
+    const fullIconSvg = renderToStaticMarkup(
+      createElement(Icon, {
+        size: 24,  // Lucide native size
+        stroke: '#ffffff',
+        strokeWidth: 2.5,
+        fill: 'none'
+      })
+    )
+    // Extract the inner paths from the Lucide SVG (remove outer <svg> tags)
+    const innerContent = fullIconSvg
+      .replace(/<svg[^>]*>/, '')
+      .replace(/<\/svg>/, '')
+      // Ensure all paths have white stroke and no fill
+      .replace(/stroke="[^"]*"/g, 'stroke="#ffffff"')
+      .replace(/fill="[^"]*"/g, 'fill="none"')
+
+    // Create full SVG with circle background + icon
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2 - 2}" fill="${color}" stroke="#ffffff" stroke-width="3"/>
+      <g transform="translate(${offset}, ${offset})">
+        <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          ${innerContent}
+        </svg>
+      </g>
+    </svg>`
+
+    // Convert SVG to Image
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0)
+      resolve(ctx.getImageData(0, 0, size, size))
+    }
+    img.onerror = (e) => {
+      console.error('Failed to load POI icon:', e)
+      // Fallback: simple colored circle
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')!
+      ctx.beginPath()
+      ctx.arc(size/2, size/2, size/2 - 2, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 3
+      ctx.stroke()
+      resolve(ctx.getImageData(0, 0, size, size))
+    }
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
+  })
 }
 
-// Get icon and color for a POI category
-function getPoiIconConfig(category: string) {
-  const config = POI_CONFIG[category] || { icon: Building2, group: 'services' }
-  return {
-    Icon: config.icon,
-    color: GROUP_COLORS[config.group] || '#6b7280'
-  }
-}
+// Default config for unknown categories
+const DEFAULT_CATEGORY_CONFIG = { color: '#475569', Icon: Building2 }
 
-export type AreaMetric = 'none' | 'avgPrice' | 'capitalGrowth' | 'salesVolume' | 'rentalYield'
+
+export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield'
 
 // ============================================================================
 // Helper Functions
@@ -127,23 +176,31 @@ const formatPriceShort = (price: number): string => {
 // 格式化指标值
 function formatMetricValue(area: DubaiArea, metric: AreaMetric): string {
   switch (metric) {
-    case 'avgPrice': {
-      const v = area.averagePrice
+    case 'medianUnitPrice': {
+      // Total median unit price in AED
+      const v = area.medianUnitPrice
       if (v === undefined || v === null) return ''
-      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`
-      if (v >= 1000) return `${Math.round(v / 1000)}K`
-      return `${v}`
+      if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`
+      if (v >= 1000) return `$${Math.round(v / 1000)}K`
+      return `$${v}`
+    }
+    case 'medianPriceSqft': {
+      // medianPriceSqm converted to sqft (1 sqm = 10.764 sqft)
+      const v = area.medianPriceSqm
+      if (v === undefined || v === null) return ''
+      const pricePerSqft = v / 10.764
+      if (pricePerSqft >= 1000) return `$${(pricePerSqft / 1000).toFixed(1)}K`
+      return `$${Math.round(pricePerSqft)}`
     }
     case 'capitalGrowth': {
       const v = area.capitalAppreciation
       if (v === undefined || v === null) return ''
       return `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
     }
-    case 'salesVolume': {
-      const v = area.salesVolume
+    case 'transactionCount': {
+      const v = area.transactionCount
       if (v === undefined || v === null) return ''
-      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`
-      if (v >= 1000) return `${Math.round(v / 1000)}K`
+      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`
       return `${v}`
     }
     case 'rentalYield': {
@@ -159,18 +216,36 @@ function formatMetricValue(area: DubaiArea, metric: AreaMetric): string {
 // 获取指标的原始数值 (用于热力图计算)
 function getMetricRawValue(area: DubaiArea, metric: AreaMetric): number | null {
   switch (metric) {
-    case 'avgPrice': return area.averagePrice ?? null
+    case 'medianUnitPrice': return area.medianUnitPrice ?? null
+    case 'medianPriceSqft': {
+      const v = area.medianPriceSqm
+      return v !== undefined && v !== null ? v / 10.764 : null
+    }
     case 'capitalGrowth': return area.capitalAppreciation ?? null
-    case 'salesVolume': return area.salesVolume ?? null
+    case 'transactionCount': return area.transactionCount ?? null
     case 'rentalYield': return area.rentalYield ?? null
     default: return null
   }
 }
 
+// 计算分位数
+function calculatePercentiles(values: number[]): { p25: number; p50: number; p75: number } {
+  if (values.length === 0) return { p25: 0, p50: 0, p75: 0 }
+  const sorted = [...values].sort((a, b) => a - b)
+  const p25 = sorted[Math.floor(sorted.length * 0.25)]
+  const p50 = sorted[Math.floor(sorted.length * 0.50)]
+  const p75 = sorted[Math.floor(sorted.length * 0.75)]
+  return { p25, p50, p75 }
+}
+
 // 热力图颜色计算
 // capitalGrowth: 绿色=正增长, 红色=负增长
-// 其他指标: 绿色=高值, 黄色=中值, 红色=低值
-function getHeatmapColor(value: number | null, metric: AreaMetric, min: number, max: number): string {
+// 其他指标: 用分位数 P25/P50/P75 分割
+function getHeatmapColor(
+  value: number | null,
+  metric: AreaMetric,
+  percentiles: { p25: number; p50: number; p75: number }
+): string {
   if (value === null) return '#94a3b8' // 灰色表示无数据
 
   if (metric === 'capitalGrowth') {
@@ -183,17 +258,13 @@ function getHeatmapColor(value: number | null, metric: AreaMetric, min: number, 
     return '#dc2626'                        // 深红 (<-10%)
   }
 
-  // 其他指标: 用渐变色表示相对高低
-  const range = max - min
-  if (range === 0) return '#3b82f6'
+  // 其他指标: 用分位数分割
+  const { p25, p50, p75 } = percentiles
 
-  const normalized = (value - min) / range // 0-1
-
-  if (normalized >= 0.8) return '#059669'  // 深绿 (top 20%)
-  if (normalized >= 0.6) return '#10b981'  // 绿色
-  if (normalized >= 0.4) return '#fbbf24'  // 黄色
-  if (normalized >= 0.2) return '#f97316'  // 橙色
-  return '#ef4444'                          // 红色 (bottom 20%)
+  if (value >= p75) return '#059669'       // 深绿 (top 25%, > P75)
+  if (value >= p50) return '#10b981'       // 绿色 (P50-P75)
+  if (value >= p25) return '#fbbf24'       // 黄色 (P25-P50)
+  return '#ef4444'                          // 红色 (bottom 25%, < P25)
 }
 
 // ============================================================================
@@ -251,6 +322,7 @@ interface MapViewMapLibreProps {
   pois?: Poi[]
   showDubaiLayer?: boolean
   showPois?: boolean
+  flyToLocation?: { lat: number; lng: number; zoom?: number } | null
 }
 
 function MapViewMapLibre({
@@ -264,7 +336,8 @@ function MapViewMapLibre({
   dubaiLandmarks: _dubaiLandmarks = [],
   pois = [],
   showDubaiLayer = false,
-  showPois = false
+  showPois = false,
+  flyToLocation = null
 }: MapViewMapLibreProps) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -279,10 +352,35 @@ function MapViewMapLibre({
     zoom: 11
   })
 
+  // Fly to location when flyToLocation changes
+  useEffect(() => {
+    if (!flyToLocation || !mapRef.current || !mapLoaded) return
+
+    const map = mapRef.current.getMap()
+    if (!map) return
+
+    map.flyTo({
+      center: [flyToLocation.lng, flyToLocation.lat],
+      zoom: flyToLocation.zoom ?? 14,
+      duration: 1500,
+      essential: true
+    })
+  }, [flyToLocation, mapLoaded])
+
   // 地图加载完成后再渲染 layers
-  const handleMapLoad = useCallback(() => {
+  const handleMapLoad = useCallback(async () => {
     const map = mapRef.current?.getMap()
     if (!map) return
+
+    // Generate and load POI icons for each category (using Lucide SVGs)
+    const iconPromises = Object.entries(CATEGORY_CONFIG).map(async ([category, config]) => {
+      const iconName = `poi-${category}`
+      if (!map.hasImage(iconName)) {
+        const imageData = await generatePoiIcon(config.color, config.Icon, 48)
+        map.addImage(iconName, imageData, { pixelRatio: 2 })
+      }
+    })
+    await Promise.all(iconPromises)
 
     setMapLoaded(true)
 
@@ -323,16 +421,13 @@ function MapViewMapLibre({
   const areasGeoJson = useMemo(() => {
     if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded) return null
 
-    // 计算指标的 min/max 用于热力图
-    let minValue = Infinity, maxValue = -Infinity
+    // 计算分位数用于热力图
+    let percentiles = { p25: 0, p50: 0, p75: 0 }
     if (areaMetric !== 'none') {
-      for (const area of dubaiAreas) {
-        const v = getMetricRawValue(area, areaMetric)
-        if (v !== null) {
-          if (v < minValue) minValue = v
-          if (v > maxValue) maxValue = v
-        }
-      }
+      const values = dubaiAreas
+        .map(area => getMetricRawValue(area, areaMetric))
+        .filter((v): v is number => v !== null)
+      percentiles = calculatePercentiles(values)
     }
 
     const features = dubaiAreas
@@ -342,7 +437,7 @@ function MapViewMapLibre({
         let fillColor = area.color || '#3b82f6'
         if (areaMetric !== 'none') {
           const rawValue = getMetricRawValue(area, areaMetric)
-          fillColor = getHeatmapColor(rawValue, areaMetric, minValue, maxValue)
+          fillColor = getHeatmapColor(rawValue, areaMetric, percentiles)
         }
 
         return {
@@ -404,15 +499,11 @@ function MapViewMapLibre({
   const metricValuesGeoJson = useMemo(() => {
     if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded || areaMetric === 'none') return null
 
-    // 计算 min/max
-    let minValue = Infinity, maxValue = -Infinity
-    for (const area of dubaiAreas) {
-      const v = getMetricRawValue(area, areaMetric)
-      if (v !== null) {
-        if (v < minValue) minValue = v
-        if (v > maxValue) maxValue = v
-      }
-    }
+    // 计算分位数
+    const values = dubaiAreas
+      .map(area => getMetricRawValue(area, areaMetric))
+      .filter((v): v is number => v !== null)
+    const percentiles = calculatePercentiles(values)
 
     const features = dubaiAreas
       .filter(area => {
@@ -427,7 +518,7 @@ function MapViewMapLibre({
         const minZoom = getMinZoomForSpan(span)
         const metricValue = formatMetricValue(area, areaMetric)
         const rawValue = getMetricRawValue(area, areaMetric)
-        const metricColor = getHeatmapColor(rawValue, areaMetric, minValue, maxValue)
+        const metricColor = getHeatmapColor(rawValue, areaMetric, percentiles)
 
         return {
           type: 'Feature' as const,
@@ -444,21 +535,57 @@ function MapViewMapLibre({
     return { type: 'FeatureCollection' as const, features }
   }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric])
 
-  // Visible POIs (limited for performance)
-  const visiblePois = useMemo(() => {
-    if (!showPois || !pois.length || !mapLoaded) return []
-    // Limit to 200 POIs for performance with React Markers
-    return pois.slice(0, 200)
+  // POI GeoJSON for WebGL rendering (no limit needed - symbol layers are fast)
+  const poiGeoJson = useMemo(() => {
+    if (!showPois || !pois.length || !mapLoaded) {
+      return { type: 'FeatureCollection' as const, features: [] }
+    }
+
+    const features = pois.map(poi => {
+      const config = CATEGORY_CONFIG[poi.category] || DEFAULT_CATEGORY_CONFIG
+
+      return {
+        type: 'Feature' as const,
+        id: poi.id,
+        properties: {
+          id: poi.id,
+          name: poi.name,
+          category: poi.category,
+          color: config.color,
+          icon: `poi-${poi.category}`,  // e.g. "poi-hospital", "poi-police"
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [poi.lng, poi.lat]
+        }
+      }
+    })
+
+    return { type: 'FeatureCollection' as const, features }
   }, [pois, showPois, mapLoaded])
 
-  // Area hover handlers
+  // Hover handlers for areas and POIs
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+
     if (e.features?.length) {
-      setHoveredAreaId(e.features[0].properties?.id || null)
+      const layerId = e.features[0].layer?.id
+      // Change cursor for clickable layers
+      map.getCanvas().style.cursor = 'pointer'
+
+      if (layerId === 'area-fills') {
+        setHoveredAreaId(e.features[0].properties?.id || null)
+      }
+    } else {
+      map.getCanvas().style.cursor = ''
+      setHoveredAreaId(null)
     }
   }, [])
 
   const handleMouseLeave = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (map) map.getCanvas().style.cursor = ''
     setHoveredAreaId(null)
   }, [])
 
@@ -467,6 +594,15 @@ function MapViewMapLibre({
 
     const feature = e.features[0]
     const layerId = feature.layer?.id
+    const map = mapRef.current?.getMap()
+
+    // Handle POI click
+    if (layerId === 'poi-circles' && onPoiClick) {
+      const poiId = feature.properties?.id
+      const poi = pois.find(p => p.id === poiId)
+      if (poi) onPoiClick(poi)
+      return
+    }
 
     // Handle area click
     if (layerId === 'area-fills' && onAreaClick) {
@@ -487,7 +623,8 @@ function MapViewMapLibre({
         style={{ width: '100%', height: '100%' }}
         mapStyle={MAP_STYLE}
         interactiveLayerIds={mapLoaded ? [
-          ...(areasGeoJson ? ['area-fills'] : [])
+          ...(areasGeoJson ? ['area-fills'] : []),
+          ...(poiGeoJson.features.length ? ['poi-circles'] : [])
         ] : []}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
@@ -574,30 +711,31 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* POI Markers - React Markers with Lucide Icons */}
-        {visiblePois.map(poi => {
-          const { Icon, color } = getPoiIconConfig(poi.category)
-
-          return (
-            <Marker
-              key={poi.id}
-              longitude={poi.lng}
-              latitude={poi.lat}
-              anchor="center"
-              onClick={(e) => {
-                e.originalEvent.stopPropagation()
-                onPoiClick?.(poi)
+        {/* POI Icons - Symbol Layer */}
+        {mapLoaded && poiGeoJson.features.length > 0 && (
+          <Source
+            id="pois"
+            type="geojson"
+            data={poiGeoJson}
+          >
+            <Layer
+              id="poi-circles"
+              type="symbol"
+              layout={{
+                'icon-image': ['get', 'icon'],
+                'icon-size': [
+                  'interpolate', ['linear'], ['zoom'],
+                  10, 0.8,
+                  13, 1.0,
+                  16, 1.2,
+                  18, 1.4
+                ],
+                'icon-allow-overlap': false,
+                'icon-padding': 4
               }}
-            >
-              <div
-                className="flex items-center justify-center w-7 h-7 rounded-full shadow-md border-2 border-white cursor-pointer hover:scale-110 transition-transform"
-                style={{ backgroundColor: color }}
-              >
-                <Icon size={14} color="white" strokeWidth={2.5} />
-              </div>
-            </Marker>
-          )
-        })}
+            />
+          </Source>
+        )}
 
         {/* Cluster Markers */}
         {clusters.map(cluster => (

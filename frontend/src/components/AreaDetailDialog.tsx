@@ -128,11 +128,11 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
                 </div>
               )}
 
-              {area.salesVolume !== undefined && area.salesVolume !== null && (
+              {area.transactionCount !== undefined && area.transactionCount !== null && (
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                  <div className="text-xs text-slate-500 font-medium mb-1.5">{t('map:areaDialog.salesVolume')}</div>
+                  <div className="text-xs text-slate-500 font-medium mb-1.5">{t('map:areaDialog.transactionCount')}</div>
                   <div className="text-xl font-bold text-slate-900">
-                    {formatValue(area.salesVolume, 'volume')}
+                    {area.transactionCount.toLocaleString()}
                   </div>
                 </div>
               )}

@@ -16,6 +16,9 @@
     "migrate:developer": "ts-node src/db/migrate-developer-submissions.ts",
     "import:pois": "ts-node src/db/import-dubai-pulse-pois.ts",
     "import:analytics": "ts-node src/db/import-dubai-analytics.ts",
+    "import:dld-areas": "ts-node src/db/import-dld-areas.ts",
+    "import:rent-contracts": "ts-node src/db/import-dld-rent-contracts.ts",
+    "calculate:area-metrics": "ts-node -e \"require('./src/db/pool').default.query('SELECT calculate_area_rolling_metrics(CURRENT_DATE)').then(() => process.exit(0))\"",
     "seed": "ts-node src/db/seed.ts",
     "cleanup-temp": "ts-node cleanup-temp-folders.ts",
     "cleanup-r2": "ts-node cleanup-r2-temp-files.ts"
