@@ -491,7 +491,7 @@ export default function DeveloperPropertyUploadPageV2() {
   }, {} as Record<string, UnitType[]>);
 
   return (
-    <div className="flex-1 bg-white">
+    <div className="flex-1 bg-white overflow-auto">
       {/* Page Title Section */}
       <div className="bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-100 border-b border-teal-200">
         <div className="container mx-auto px-6 py-8">

@@ -95,7 +95,7 @@ export default function FavoritesPage() {
   )
 
   return (
-    <div className="flex-1 bg-slate-50 pb-20 md:pb-8">
+    <div className="flex-1 bg-slate-50 pb-20 md:pb-8 overflow-auto">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white py-8 md:py-12">
         <div className="container mx-auto px-4">

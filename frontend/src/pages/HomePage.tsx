@@ -30,7 +30,7 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 overflow-auto">
       {/* Hero Section */}
       <motion.section
         initial={{ opacity: 0, y: -20 }}
