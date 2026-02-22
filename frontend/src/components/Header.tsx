@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare, Globe, ClipboardList } from 'lucide-react'
 import { Button } from './ui/button'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher'
@@ -15,6 +15,42 @@ export default function Header() {
   const { t, i18n } = useTranslation()
   const { user, loading } = useAuth()
 
+  // Mobile scroll-to-hide state
+  const [mobileHidden, setMobileHidden] = useState(false)
+  const lastScrollY = useRef(0)
+  const ticking = useRef(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY
+          const scrollDelta = currentScrollY - lastScrollY.current
+
+          // Only trigger on significant scroll (> 5px)
+          if (Math.abs(scrollDelta) > 5) {
+            // Hide when scrolling down, show when scrolling up
+            // Also always show when near top (< 50px)
+            if (currentScrollY < 50) {
+              setMobileHidden(false)
+            } else if (scrollDelta > 0) {
+              setMobileHidden(true)  // Scrolling down
+            } else {
+              setMobileHidden(false) // Scrolling up
+            }
+          }
+
+          lastScrollY.current = currentScrollY
+          ticking.current = false
+        })
+        ticking.current = true
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   // Mobile language toggle
   const toggleLanguage = () => {
     const next = i18n.language?.startsWith('zh') ? 'en' : 'zh-CN'
@@ -24,7 +60,7 @@ export default function Header() {
 
   // Base nav items visible to all users
   const navItems = [
-    { path: '/map', label: t('nav.mapExplore'), icon: MapPin },
+    { path: '/', label: t('nav.mapExplore'), icon: MapPin },
     { path: '/compare', label: t('nav.compare', 'Compare'), icon: GitCompare },
     // Only show For Developers when logged in
     ...(user ? [{ path: '/developer/upload', label: t('nav.forDevelopers'), icon: Briefcase }] : []),
@@ -40,30 +76,33 @@ export default function Header() {
 
   return (
     <header
-      className="bg-white/80 backdrop-blur-xl border-b border-slate-200/60 sticky top-0 z-[1000] shadow-sm relative"
+      className={`bg-white/80 backdrop-blur-xl border-b border-slate-200/60 sticky top-0 z-[1000] shadow-sm relative transition-transform duration-300 ease-out ${
+        mobileHidden ? '-translate-y-full md:translate-y-0' : 'translate-y-0'
+      }`}
     >
-      <div className="container mx-auto px-4 py-4 relative">
+      {/* Mobile: py-2 (compact), Desktop: py-4 */}
+      <div className="container mx-auto px-4 py-2 md:py-4 relative">
         <div className="flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-3 group relative z-10">
+          {/* Logo - Compact on mobile */}
+          <Link to="/" className="flex items-center space-x-2 md:space-x-3 group relative z-10">
             <motion.div
               className="relative"
               whileHover={{ scale: 1.05 }}
               transition={{ duration: 0.3 }}
             >
               <motion.div
-                className="relative bg-gradient-to-br from-teal-500 via-teal-600 to-teal-700 p-2.5 rounded-xl shadow-md"
+                className="relative bg-gradient-to-br from-teal-500 via-teal-600 to-teal-700 p-1.5 md:p-2.5 rounded-lg md:rounded-xl shadow-md"
                 whileHover={{
                   boxShadow: "0 8px 20px rgba(20, 184, 166, 0.25)",
                 }}
               >
-                <Building2 className="h-6 w-6 text-white" />
+                <Building2 className="h-5 w-5 md:h-6 md:w-6 text-white" />
               </motion.div>
             </motion.div>
 
             <div className="flex flex-col">
               <motion.span
-                className="text-xl font-bold tracking-tight text-slate-900"
+                className="text-lg md:text-xl font-bold tracking-tight text-slate-900"
                 whileHover={{ scale: 1.02 }}
               >
                 {t('brand')}
@@ -74,12 +113,12 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* Mobile Language Toggle - Right side of header */}
+          {/* Mobile Language Toggle - Compact */}
           <button
             onClick={toggleLanguage}
-            className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+            className="md:hidden flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors"
           >
-            <Globe className="h-4 w-4 text-slate-500" />
+            <Globe className="h-3.5 w-3.5 text-slate-500" />
             <span className="text-xs font-medium text-slate-600">{langLabel}</span>
           </button>
 

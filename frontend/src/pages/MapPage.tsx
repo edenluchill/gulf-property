@@ -1,25 +1,22 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import MapViewMapLibre from '../components/MapViewMapLibre'
-import { AreaMetric } from '../components/MapViewMapLibre'
+import { useNavigate } from 'react-router-dom'
+import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
 import FilterDialog from '../components/FilterDialog'
-import ClusterDialog from '../components/ClusterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import MobileBottomSheet from '../components/MobileBottomSheet'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
 import {
-  Search, SlidersHorizontal, RefreshCw, Building2, Bed, Calendar, MapPin, X,
+  Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
 import { formatPrice } from '../lib/utils'
-import { getImageUrl } from '../lib/image-utils'
 import {
-  fetchResidentialProjectClusters,
+  fetchResidentialMapPins,
   fetchResidentialDevelopers,
   fetchResidentialAreas,
   fetchResidentialProjects,
@@ -27,7 +24,11 @@ import {
   fetchDubaiAreas,
   fetchDubaiLandmarks,
   searchDubaiAreas,
-  AreaSearchResult
+  fetchTransportGeoJSON,
+  AreaSearchResult,
+  TransportGeoJSON,
+  TransportCategory,
+  MapPinProject
 } from '../lib/api'
 
 const METRIC_OPTIONS = [
@@ -70,27 +71,23 @@ checkAndClearCache()
 
 export default function MapPage() {
   const { t, i18n } = useTranslation(['map', 'common'])
+  const navigate = useNavigate()
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [clusters, setClusters] = useState<any[]>([])
+  const [mapPins, setMapPins] = useState<MapPinProject[]>([])
   const [developers, setDevelopers] = useState<string[]>([])
   const [areas, setAreas] = useState<string[]>([])
   const [projects, setProjects] = useState<{ project_name: string; developer: string }[]>([])
   const [mapBounds, setMapBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null)
-  const [mapZoom, setMapZoom] = useState<number>(12)
 
   // Dubai areas and landmarks state
   const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
   const [dubaiLandmarks, setDubaiLandmarks] = useState<DubaiLandmark[]>([])
   const [dubaiDataVersion, setDubaiDataVersion] = useState(0)
 
-  // Cluster dialog state
-  const [showClusterDialog, setShowClusterDialog] = useState(false)
-  const [selectedClusterProperties, setSelectedClusterProperties] = useState<any[]>([])
-  const [clusterDialogPosition, setClusterDialogPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-  const [isLoadingClusterProperties, setIsLoadingClusterProperties] = useState(false)
-  const [isLoadingClusters, setIsLoadingClusters] = useState(false)
+  // Loading states
+  const [_isLoadingPins, setIsLoadingPins] = useState(false)
   const [isRefreshingMetadata, setIsRefreshingMetadata] = useState(false)
 
   // Area metric overlay state — persisted in localStorage
@@ -128,11 +125,26 @@ export default function MapPage() {
     return ['school']
   })
 
+  // Transport layer state - single toggle for all transit (Metro/Tram/Monorail)
+  const [showTransit, setShowTransit] = useState<boolean>(() => {
+    return localStorage.getItem('map-show-transit') === 'true'
+  })
+  const [transportGeoJSON, setTransportGeoJSON] = useState<TransportGeoJSON | null>(() => {
+    // Try to load from localStorage cache
+    const cached = localStorage.getItem('transport-geojson-cache')
+    if (cached) {
+      try {
+        return JSON.parse(cached) as TransportGeoJSON
+      } catch { /* ignore */ }
+    }
+    return null
+  })
+  const showTransport = showTransit
+
   // Quick toggle buttons - single categories
   const QUICK_BUTTONS = [
     { id: 'hospital' as PoiCategory, labelKey: 'map:poi.categories.hospital', color: '#0d9488', Icon: Cross },
     { id: 'school' as PoiCategory, labelKey: 'map:poi.categories.school', color: '#2563eb', Icon: GraduationCap },
-    { id: 'metro_station' as PoiCategory, labelKey: 'map:poi.categories.metro_station', color: '#ea580c', Icon: TrainFront },
     { id: 'supermarket' as PoiCategory, labelKey: 'map:poi.categories.supermarket', color: '#db2777', Icon: ShoppingCart },
   ] as const
 
@@ -159,6 +171,41 @@ export default function MapPage() {
     localStorage.setItem('map-poi-categories', JSON.stringify(next))
   }, [])
 
+  // Transit toggle - all Metro/Tram/Monorail
+  const toggleTransit = useCallback(() => {
+    setShowTransit(prev => {
+      const next = !prev
+      localStorage.setItem('map-show-transit', String(next))
+      return next
+    })
+  }, [])
+
+  // Fetch transport GeoJSON when transit is enabled (with localStorage cache)
+  useEffect(() => {
+    if (showTransit) {
+      // If already have cached data, don't re-fetch
+      if (transportGeoJSON) return
+
+      // Fetch all transport categories
+      const allCategories: TransportCategory[] = [
+        'metro_lines', 'metro_stations',
+        'tram_lines', 'tram_stations',
+        'monorail', 'monorail_stations'
+      ]
+      fetchTransportGeoJSON(allCategories).then(data => {
+        if (data) {
+          setTransportGeoJSON(data)
+          // Cache in localStorage
+          try {
+            localStorage.setItem('transport-geojson-cache', JSON.stringify(data))
+          } catch (e) {
+            console.warn('Failed to cache transport data:', e)
+          }
+        }
+      })
+    }
+  }, [showTransit, transportGeoJSON])
+
   // Area detail dialog state
   const [showAreaDialog, setShowAreaDialog] = useState(false)
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
@@ -175,6 +222,9 @@ export default function MapPage() {
   // POI popup state
   const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null)
 
+  // Transport station popup state
+  const [selectedStation, setSelectedStation] = useState<TransportStation | null>(null)
+
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
 
@@ -186,7 +236,6 @@ export default function MapPage() {
   }, [])
 
   // Mobile bottom sheet state
-  const [showClusterSheet, setShowClusterSheet] = useState(false)
   const [showAreaSheet, setShowAreaSheet] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
 
@@ -308,73 +357,60 @@ export default function MapPage() {
     }
   }, [])
 
-  // Load clusters with manual debounce
+  // Load map pins (all projects at once, no clustering)
   useEffect(() => {
-    if (!mapBounds) return
+    const loadMapPins = async () => {
+      setIsLoadingPins(true)
+      try {
+        const data = await fetchResidentialMapPins()
+        setMapPins(data)
+      } catch (error: any) {
+        console.error('Error fetching map pins:', error)
+      } finally {
+        setIsLoadingPins(false)
+      }
+    }
 
-    const timeoutId = setTimeout(() => {
-      if (isLoadingClusters) return
+    loadMapPins()
+  }, []) // Load once on mount
 
-      const loadClusters = async () => {
-        setIsLoadingClusters(true)
-        try {
-          const bounds = {
-            minLng: mapBounds.minLng,
-            minLat: mapBounds.minLat,
-            maxLng: mapBounds.maxLng,
-            maxLat: mapBounds.maxLat,
-          }
+  // Filter map pins based on current filters
+  const filteredMapPins = useMemo(() => {
+    if (!mapPins.length) return []
 
-          const data = await fetchResidentialProjectClusters(
-            mapZoom,
-            bounds,
-            {
-              developer: filters.developer,
-              project: filters.project,
-              area: filters.area,
-              minPrice: filters.minPrice,
-              maxPrice: filters.maxPrice,
-              minBedrooms: filters.minBedrooms,
-              maxBedrooms: filters.maxBedrooms,
-              minSize: filters.minSize,
-              maxSize: filters.maxSize,
-              status: filters.status,
-            }
-          )
+    return mapPins.filter(pin => {
+      // Developer filter
+      if (filters.developer && pin.developer !== filters.developer) return false
 
-          const transformedClusters = data.map((cluster: any) => ({
-            ...cluster,
-            count: parseInt(cluster.count),
-            price_range: {
-              min: cluster.min_price,
-              max: cluster.max_price,
-              avg: cluster.avg_price
-            },
-            center: {
-              lat: cluster.lat,
-              lng: cluster.lng
-            }
-          }))
+      // Area filter
+      if (filters.area && pin.area !== filters.area) return false
 
-          setClusters(transformedClusters)
-        } catch (error: any) {
-          console.error('Error fetching clusters:', error)
-        } finally {
-          setIsLoadingClusters(false)
-        }
+      // Price filters
+      if (filters.minPrice && (!pin.price || pin.price < filters.minPrice)) return false
+      if (filters.maxPrice && pin.price && pin.price > filters.maxPrice) return false
+
+      // Bedroom filters
+      if (filters.minBedrooms !== undefined && (!pin.maxBeds || pin.maxBeds < filters.minBedrooms)) return false
+      if (filters.maxBedrooms !== undefined && (!pin.minBeds || pin.minBeds > filters.maxBedrooms)) return false
+
+      // Status filter
+      if (filters.status && pin.status !== filters.status) return false
+
+      // Search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        const matchesName = pin.name.toLowerCase().includes(query)
+        const matchesDeveloper = pin.developer?.toLowerCase().includes(query)
+        const matchesArea = pin.area?.toLowerCase().includes(query)
+        if (!matchesName && !matchesDeveloper && !matchesArea) return false
       }
 
-      loadClusters()
-    }, 150)
+      return true
+    })
+  }, [mapPins, filters, searchQuery])
 
-    return () => {
-      clearTimeout(timeoutId)
-    }
-  }, [filters, mapBounds, mapZoom])
-
-  const handleMapBoundsChange = useCallback((bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => {
+  const handleMapBoundsChange = useCallback((bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, _zoom: number) => {
     setMapBounds(bounds)
-    setMapZoom(zoom)
   }, [])
 
   const handleRefreshMetadata = useCallback(async () => {
@@ -414,29 +450,10 @@ export default function MapPage() {
     }
   }, [])
 
-  // Handle cluster click to show properties in dialog (or bottom sheet on mobile)
-  const handleClusterClick = useCallback(async (cluster: any) => {
-    if (!cluster.property_ids || cluster.property_ids.length === 0) return
-
-    setSelectedClusterProperties([])
-    setIsLoadingClusterProperties(true)
-
-    if (isMobile) {
-      setShowClusterSheet(true)
-    } else {
-      setClusterDialogPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-      setShowClusterDialog(true)
-    }
-
-    try {
-      const projects = await fetchResidentialProjectsBatch(cluster.property_ids)
-      setSelectedClusterProperties(projects)
-      setIsLoadingClusterProperties(false)
-    } catch (error) {
-      console.error('Error fetching cluster projects:', error)
-      setIsLoadingClusterProperties(false)
-    }
-  }, [isMobile])
+  // Handle project pin click - navigate directly to project detail
+  const handleProjectClick = useCallback((project: MapPinProject) => {
+    navigate(`/project/${project.id}`)
+  }, [navigate])
 
   // Handle area click to show area detail dialog (or bottom sheet on mobile)
   const handleAreaClick = useCallback(async (area: DubaiArea) => {
@@ -451,50 +468,26 @@ export default function MapPage() {
     }
 
     try {
-      // Compute bounding box from polygon coordinates
-      const coords = (area.boundary as any)?.coordinates?.[0]
-      if (!coords || coords.length === 0) {
-        setIsLoadingAreaProjects(false)
-        return
-      }
+      // Filter map pins by area name to get projects in this area
+      const areaProjectIds = mapPins
+        .filter(pin => pin.area === area.name)
+        .map(pin => pin.id)
 
-      let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-      for (const [lng, lat] of coords) {
-        if (lng < minLng) minLng = lng
-        if (lat < minLat) minLat = lat
-        if (lng > maxLng) maxLng = lng
-        if (lat > maxLat) maxLat = lat
-      }
-
-      const areaBounds = { minLng, minLat, maxLng, maxLat }
-
-      // Fetch clusters at high zoom to get all individual projects in the area
-      const clusterData = await fetchResidentialProjectClusters(20, areaBounds, { area: area.name })
-
-      // Collect all property IDs
-      const allPropertyIds: string[] = []
-      for (const cluster of clusterData) {
-        if (cluster.property_ids) {
-          allPropertyIds.push(...cluster.property_ids)
-        }
-      }
-
-      if (allPropertyIds.length === 0) {
+      if (areaProjectIds.length === 0) {
         setAreaProjects([])
         setIsLoadingAreaProjects(false)
         return
       }
 
       // Fetch full project details (batch supports max 20)
-      const uniqueIds = [...new Set(allPropertyIds)]
-      const projectDetails = await fetchResidentialProjectsBatch(uniqueIds.slice(0, 20))
+      const projectDetails = await fetchResidentialProjectsBatch(areaProjectIds.slice(0, 20))
       setAreaProjects(projectDetails)
     } catch (error) {
       console.error('Error fetching area projects:', error)
     } finally {
       setIsLoadingAreaProjects(false)
     }
-  }, [isMobile])
+  }, [isMobile, mapPins])
 
   // Handle area search with debounce
   const handleAreaSearch = useCallback((query: string) => {
@@ -577,11 +570,6 @@ export default function MapPage() {
     }
     return Array.from(map.values()).sort((a, b) => b.projectCount - a.projectCount)
   }, [areaProjects])
-
-  // Cluster sheet title
-  const clusterSheetTitle = selectedClusterProperties.length > 0
-    ? selectedClusterProperties[0].buildingName || t('map:properties')
-    : t('map:properties')
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -669,9 +657,9 @@ export default function MapPage() {
       <div className="flex-1 p-0 md:p-6">
         <div className="h-full md:rounded-xl overflow-hidden md:shadow-2xl md:border md:border-slate-200 relative">
           <MapViewMapLibre
-            clusters={clusters}
+            projects={filteredMapPins}
             onBoundsChange={handleMapBoundsChange}
-            onClusterClick={handleClusterClick}
+            onProjectClick={handleProjectClick}
             onAreaClick={handleAreaClick}
             areaMetric={areaMetric}
             dubaiAreas={dubaiAreas}
@@ -680,7 +668,10 @@ export default function MapPage() {
             pois={pois}
             showPois={showPois}
             onPoiClick={setSelectedPoi}
+            onStationClick={setSelectedStation}
             flyToLocation={flyToLocation}
+            transportGeoJSON={transportGeoJSON}
+            showTransport={showTransport}
           />
 
           {/* Mobile: Top left - filter button */}
@@ -717,17 +708,25 @@ export default function MapPage() {
                   )
                 })}
               </div>
-              {/* POI row */}
+              {/* POI row with transit toggle */}
               <div className="flex">
-                {QUICK_BUTTONS.map((btn, idx) => {
+                {/* Single Transit toggle (Metro/Tram/Monorail) */}
+                <button
+                  onClick={toggleTransit}
+                  className="flex items-center justify-center w-8 h-8 transition-colors"
+                  style={showTransit ? { backgroundColor: '#0891b2', color: 'white' } : { color: '#64748b' }}
+                  title={t('map:transit')}
+                >
+                  <TrainFront className="w-3.5 h-3.5" />
+                </button>
+                <div className="w-px bg-slate-200" />
+                {QUICK_BUTTONS.map((btn) => {
                   const enabled = enabledPoiCategories.includes(btn.id)
                   return (
                     <button
                       key={btn.id}
                       onClick={() => togglePoiCategory(btn.id)}
-                      className={`flex items-center justify-center w-8 h-8 transition-colors ${
-                        idx > 0 ? 'border-l border-slate-100' : ''
-                      }`}
+                      className="flex items-center justify-center w-8 h-8 transition-colors border-l border-slate-100"
                       style={enabled ? { backgroundColor: btn.color, color: 'white' } : { color: '#64748b' }}
                       title={t(btn.labelKey as any)}
                     >
@@ -907,6 +906,20 @@ export default function MapPage() {
           {/* Floating POI Panel - below metrics */}
           <div className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
             <div className="flex items-center gap-1.5 p-1.5">
+              {/* Single Transit toggle */}
+              <button
+                onClick={toggleTransit}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                  showTransit
+                    ? 'text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+                style={showTransit ? { backgroundColor: '#0891b2' } : undefined}
+              >
+                <TrainFront className="w-3.5 h-3.5" />
+                <span>{t('map:transit')}</span>
+              </button>
+              <div className="w-px h-4 bg-slate-200 mx-0.5" />
               {QUICK_BUTTONS.map(btn => {
                 const enabled = enabledPoiCategories.includes(btn.id)
                 return (
@@ -1035,15 +1048,6 @@ export default function MapPage() {
         developers={developers}
         areas={areas}
         projects={projects}
-      />
-
-      {/* Desktop: Cluster Dialog */}
-      <ClusterDialog
-        isOpen={showClusterDialog}
-        onClose={() => setShowClusterDialog(false)}
-        properties={selectedClusterProperties}
-        position={clusterDialogPosition}
-        isLoading={isLoadingClusterProperties}
       />
 
       {/* Desktop: Area Detail Dialog */}
@@ -1257,86 +1261,151 @@ export default function MapPage() {
         )
       })()}
 
-      {/* Mobile: Cluster Bottom Sheet */}
-      <MobileBottomSheet
-        isOpen={showClusterSheet}
-        onClose={() => setShowClusterSheet(false)}
-        title={clusterSheetTitle}
-      >
-        {isLoadingClusterProperties ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600"></div>
+      {/* Transport Station Popup */}
+      {selectedStation && (
+        <div className="fixed inset-0 z-[2000]" onClick={() => setSelectedStation(null)}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+
+          {/* Mobile: Bottom Sheet */}
+          <div className="md:hidden absolute inset-x-0 bottom-0 animate-in slide-in-from-bottom duration-200">
+            <div
+              className="bg-white rounded-t-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Handle bar */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 bg-slate-300 rounded-full" />
+              </div>
+
+              {/* Icon + Category */}
+              <div className="flex items-center gap-3 px-5 pb-3">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
+                  style={{ backgroundColor: selectedStation.color }}
+                >
+                  <TrainFront className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
+                    style={{ backgroundColor: selectedStation.color }}
+                  >
+                    {selectedStation.category === 'metro_stations' ? 'Metro Station' :
+                     selectedStation.category === 'tram_stations' ? 'Tram Station' : 'Monorail Station'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="px-5 pb-4">
+                <h3 className="text-xl font-bold text-slate-900 mb-1">
+                  {selectedStation.name}
+                </h3>
+                {selectedStation.nameAr && (
+                  <p className="text-base text-slate-500 mb-3" dir="rtl">
+                    {selectedStation.nameAr}
+                  </p>
+                )}
+                {selectedStation.line && (
+                  <p className="text-sm text-slate-600">
+                    Line: {selectedStation.line}
+                  </p>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <div className="grid grid-cols-1 gap-px bg-slate-200 border-t border-slate-200">
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedStation.lat},${selectedStation.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
+                >
+                  <Navigation className="w-5 h-5 text-blue-600" />
+                  <span className="text-xs font-medium text-slate-700">Directions</span>
+                </a>
+              </div>
+
+              {/* Safe area padding for iOS */}
+              <div className="h-safe-area-inset-bottom bg-white" />
+            </div>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {selectedClusterProperties.map((property) => (
-              <Link
-                key={property.id}
-                to={`/project/${property.id}`}
-                className="block p-4 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-                onClick={() => setShowClusterSheet(false)}
-              >
-                <div className="flex gap-3">
-                  {/* Thumbnail */}
-                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                    {property.images && property.images.length > 0 ? (
-                      <img
-                        src={getImageUrl(property.images[0], 'thumbnail')}
-                        alt={property.buildingName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Building2 className="w-8 h-8 text-slate-300" />
-                      </div>
+
+          {/* Desktop: Centered Modal */}
+          <div className="hidden md:flex absolute inset-0 items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-sm animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="relative p-5 pb-4">
+                <button
+                  onClick={() => setSelectedStation(null)}
+                  className="absolute top-3 right-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-14 h-14 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
+                    style={{ backgroundColor: selectedStation.color }}
+                  >
+                    <TrainFront className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0 pt-1">
+                    <span
+                      className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white mb-2"
+                      style={{ backgroundColor: selectedStation.color }}
+                    >
+                      {selectedStation.category === 'metro_stations' ? 'Metro Station' :
+                       selectedStation.category === 'tram_stations' ? 'Tram Station' : 'Monorail Station'}
+                    </span>
+                    <h3 className="text-xl font-bold text-slate-900 leading-tight">
+                      {selectedStation.name}
+                    </h3>
+                    {selectedStation.nameAr && (
+                      <p className="text-sm text-slate-500 mt-1" dir="rtl">
+                        {selectedStation.nameAr}
+                      </p>
                     )}
                   </div>
+                </div>
+              </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-sm text-slate-900 truncate">{property.buildingName}</h4>
-                    <p className="text-sm font-bold text-blue-700 mt-0.5">
-                      {property.startingPrice ? formatPrice(property.startingPrice) : t('common:price.priceOnApplication')}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">{property.developer}</p>
-
-                    {/* Beds + Completion date row */}
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                      {(property.minBedrooms !== undefined || property.maxBedrooms !== undefined) && (
-                        <span className="inline-flex items-center gap-1">
-                          <Bed className="w-3.5 h-3.5" />
-                          {property.minBedrooms === property.maxBedrooms
-                            ? (property.minBedrooms === 0 ? t('map:studio') : property.minBedrooms)
-                            : `${property.minBedrooms}-${property.maxBedrooms}`}
-                        </span>
-                      )}
-                      {property.completionDate && (
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {new Date(property.completionDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                        </span>
-                      )}
-                    </div>
+              {/* Details */}
+              {selectedStation.line && (
+                <div className="px-5 pb-4">
+                  <div className="flex items-center gap-3">
+                    <TrainFront className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="text-sm text-slate-600">Line: {selectedStation.line}</span>
                   </div>
                 </div>
+              )}
 
-                {/* Progress bar — only for non-completed projects */}
-                {property.status !== 'completed' && property.completionPercent !== undefined && property.completionPercent >= 0 && (
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <div className="flex-1 bg-slate-200 rounded-full h-1.5">
-                      <div
-                        className="bg-blue-600 h-1.5 rounded-full"
-                        style={{ width: `${property.completionPercent}%` }}
-                      />
-                    </div>
-                    <span className="text-[11px] font-semibold text-blue-700 tabular-nums">{property.completionPercent}%</span>
-                  </div>
-                )}
-              </Link>
-            ))}
+              {/* Action Buttons */}
+              <div className="flex gap-3 p-5 pt-2 border-t border-slate-100">
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedStation.lat},${selectedStation.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Get Directions
+                </a>
+                <button
+                  onClick={() => setSelectedStation(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-      </MobileBottomSheet>
+        </div>
+      )}
 
       {/* Mobile: Area Bottom Sheet */}
       <MobileBottomSheet

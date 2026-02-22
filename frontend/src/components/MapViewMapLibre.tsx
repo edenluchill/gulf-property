@@ -18,10 +18,12 @@ import {
   Cross, GraduationCap, TrainFront, ShoppingBag, ShoppingCart,
   Utensils, Coffee, Landmark, CreditCard, TreePine, Building2,
   Hotel, Dumbbell, Umbrella, Film, Fuel, Church,
-  Shield, Flame, Mail, Flag, Pill, Stethoscope, School
+  Shield, Flame, Mail, Flag, Pill, Stethoscope, School,
+  TramFront, Cable
 } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
+import { TransportGeoJSON } from '../lib/api'
 
 // 使用 CARTO 无标签风格 (area 自己有名字，不需要地图标签)
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json'
@@ -35,9 +37,6 @@ const CATEGORY_CONFIG: Record<string, { color: string; Icon: typeof Cross }> = {
   // Education - blue
   school: { color: '#2563eb', Icon: School },
   university: { color: '#2563eb', Icon: GraduationCap },
-  // Transport - orange
-  metro_station: { color: '#ea580c', Icon: TrainFront },
-  bus_station: { color: '#ea580c', Icon: TrainFront },
   // Shopping - pink
   mall: { color: '#db2777', Icon: ShoppingBag },
   supermarket: { color: '#db2777', Icon: ShoppingCart },
@@ -61,6 +60,15 @@ const CATEGORY_CONFIG: Record<string, { color: string; Icon: typeof Cross }> = {
   fire_station: { color: '#dc2626', Icon: Flame },
   post_office: { color: '#475569', Icon: Mail },
   embassy: { color: '#475569', Icon: Flag },
+}
+
+// Transport line colors and icons (nicer colors than official RTA)
+const TRANSPORT_LINE_CONFIG: Record<string, { color: string; Icon: typeof Cross }> = {
+  red: { color: '#ef4444', Icon: TrainFront },       // Red Line - nice red
+  green: { color: '#22c55e', Icon: TrainFront },     // Green Line - nice green
+  blue: { color: '#3b82f6', Icon: TrainFront },      // Blue Line - nice blue (future)
+  tram: { color: '#f97316', Icon: TramFront },       // Tram - orange
+  palm_monorail: { color: '#a855f7', Icon: Cable },  // Palm Monorail - purple
 }
 
 // Generate POI icon using Lucide SVG + Canvas
@@ -128,7 +136,6 @@ async function generatePoiIcon(color: string, Icon: typeof Cross, size = 64): Pr
 
 // Default config for unknown categories
 const DEFAULT_CATEGORY_CONFIG = { color: '#475569', Icon: Building2 }
-
 
 export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield'
 
@@ -268,7 +275,147 @@ function getHeatmapColor(
 }
 
 // ============================================================================
-// Cluster Marker - 简洁版
+// Project Pin Marker - Premium teardrop style with thumbnail
+// ============================================================================
+
+import { MapPinProject } from '../lib/api'
+import { getImageUrl } from '../lib/image-utils'
+
+const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
+  // Truncate project name for display
+  const displayName = project.name.length > 18
+    ? project.name.substring(0, 16) + '...'
+    : project.name
+
+  return (
+    <Marker
+      longitude={project.lng}
+      latitude={project.lat}
+      anchor="bottom"
+      onClick={(e) => {
+        e.originalEvent.stopPropagation()
+        onClick?.(project)
+      }}
+    >
+      <div
+        className="cursor-pointer transition-all duration-200 hover:scale-110 hover:z-[100]"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
+        }}
+      >
+        {/* Project name label - ABOVE pin */}
+        <div
+          style={{
+            marginBottom: '4px',
+            background: 'rgba(15, 23, 42, 0.9)',
+            color: '#fff',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            fontSize: '11px',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            maxWidth: '120px',
+            textAlign: 'center',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          {displayName}
+        </div>
+
+        {/* Teardrop pin with image */}
+        <div
+          style={{
+            position: 'relative',
+            width: '46px',
+            height: '58px',
+          }}
+        >
+          {/* Teardrop shape SVG background - premium dark gradient */}
+          <svg
+            viewBox="0 0 46 58"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+            }}
+          >
+            <defs>
+              <linearGradient id={`pinGrad-${project.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#1e293b" />
+                <stop offset="50%" stopColor="#334155" />
+                <stop offset="100%" stopColor="#1e293b" />
+              </linearGradient>
+            </defs>
+            {/* Teardrop path */}
+            <path
+              d="M23 0C10.3 0 0 10.3 0 23c0 8.5 6.5 17 13 23.5 3.5 3.5 7 7 10 11.5 3-4.5 6.5-8 10-11.5 6.5-6.5 13-15 13-23.5C46 10.3 35.7 0 23 0z"
+              fill={`url(#pinGrad-${project.id})`}
+              stroke="rgba(255,255,255,0.3)"
+              strokeWidth="1.5"
+            />
+            {/* Inner highlight */}
+            <path
+              d="M23 3C12 3 3 12 3 23c0 7 5.5 14.5 11 20"
+              fill="none"
+              stroke="rgba(255,255,255,0.15)"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          {/* Circular image inside teardrop */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '7px',
+              left: '7px',
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              border: '2px solid rgba(255,255,255,0.8)',
+              background: '#1e293b',
+            }}
+          >
+            {project.image ? (
+              <img
+                src={getImageUrl(project.image, 'thumbnail')}
+                alt={project.name}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+                loading="lazy"
+              />
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                }}
+              >
+                <Building2 style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.7)' }} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Marker>
+  )
+})
+
+// ============================================================================
+// Cluster Marker - 简洁版 (Legacy, kept for compatibility)
 // ============================================================================
 
 const ClusterMarker = memo(({ cluster, onClick }: { cluster: any; onClick?: (c: any) => void }) => {
@@ -310,12 +457,29 @@ const ClusterMarker = memo(({ cluster, onClick }: { cluster: any; onClick?: (c: 
 // Main Component
 // ============================================================================
 
+// Transport station info for click handling
+export interface TransportStation {
+  id: string
+  name: string
+  nameAr?: string
+  category: 'metro_stations' | 'tram_stations' | 'monorail_stations'
+  color: string
+  lng: number
+  lat: number
+  line?: string
+  network?: string
+  operator?: string
+}
+
 interface MapViewMapLibreProps {
-  clusters: any[]
+  clusters?: any[]
+  projects?: MapPinProject[]
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
   onClusterClick?: (cluster: any) => void
+  onProjectClick?: (project: MapPinProject) => void
   onAreaClick?: (area: DubaiArea) => void
   onPoiClick?: (poi: Poi) => void
+  onStationClick?: (station: TransportStation) => void
   areaMetric?: AreaMetric
   dubaiAreas?: DubaiArea[]
   dubaiLandmarks?: DubaiLandmark[]
@@ -323,21 +487,28 @@ interface MapViewMapLibreProps {
   showDubaiLayer?: boolean
   showPois?: boolean
   flyToLocation?: { lat: number; lng: number; zoom?: number } | null
+  transportGeoJSON?: TransportGeoJSON | null
+  showTransport?: boolean
 }
 
 function MapViewMapLibre({
-  clusters,
+  clusters = [],
+  projects = [],
   onBoundsChange,
   onClusterClick,
+  onProjectClick,
   onAreaClick,
   onPoiClick,
+  onStationClick,
   areaMetric = 'none',
   dubaiAreas = [],
   dubaiLandmarks: _dubaiLandmarks = [],
   pois = [],
   showDubaiLayer = false,
   showPois = false,
-  flyToLocation = null
+  flyToLocation = null,
+  transportGeoJSON = null,
+  showTransport = false
 }: MapViewMapLibreProps) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -373,14 +544,24 @@ function MapViewMapLibre({
     if (!map) return
 
     // Generate and load POI icons for each category (using Lucide SVGs)
-    const iconPromises = Object.entries(CATEGORY_CONFIG).map(async ([category, config]) => {
+    const poiIconPromises = Object.entries(CATEGORY_CONFIG).map(async ([category, config]) => {
       const iconName = `poi-${category}`
       if (!map.hasImage(iconName)) {
         const imageData = await generatePoiIcon(config.color, config.Icon, 48)
         map.addImage(iconName, imageData, { pixelRatio: 2 })
       }
     })
-    await Promise.all(iconPromises)
+
+    // Generate and load transport station icons
+    const transportIconPromises = Object.entries(TRANSPORT_LINE_CONFIG).map(async ([line, config]) => {
+      const iconName = `station-${line}`
+      if (!map.hasImage(iconName)) {
+        const imageData = await generatePoiIcon(config.color, config.Icon, 48)
+        map.addImage(iconName, imageData, { pixelRatio: 2 })
+      }
+    })
+
+    await Promise.all([...poiIconPromises, ...transportIconPromises])
 
     setMapLoaded(true)
 
@@ -592,24 +773,51 @@ function MapViewMapLibre({
   const handleMapClick = useCallback((e: MapLayerMouseEvent) => {
     if (!e.features?.length) return
 
-    const feature = e.features[0]
-    const layerId = feature.layer?.id
+    // Prioritize: POI > Station > Area
+    // Find the most specific feature type
+    const poiFeature = e.features.find(f => f.layer?.id === 'poi-circles')
+    const stationFeature = e.features.find(f => f.layer?.id === 'transport-stations-bg')
+    const areaFeature = e.features.find(f => f.layer?.id === 'area-fills')
 
-    // Handle POI click
-    if (layerId === 'poi-circles' && onPoiClick) {
-      const poiId = feature.properties?.id
+    // Handle POI click (highest priority)
+    if (poiFeature && onPoiClick) {
+      const poiId = poiFeature.properties?.id
       const poi = pois.find(p => p.id === poiId)
-      if (poi) onPoiClick(poi)
-      return
+      if (poi) {
+        onPoiClick(poi)
+        return
+      }
     }
 
-    // Handle area click
-    if (layerId === 'area-fills' && onAreaClick) {
-      const areaId = feature.properties?.id
+    // Handle station click
+    if (stationFeature && onStationClick) {
+      const props = stationFeature.properties || {}
+      const coords = (stationFeature.geometry as any)?.coordinates
+      if (coords) {
+        const station: TransportStation = {
+          id: props.id || `station-${Date.now()}`,
+          name: props.name || 'Unknown Station',
+          nameAr: props.nameAr || undefined,
+          category: props.category as TransportStation['category'],
+          color: props.color || '#E31837',
+          lng: coords[0],
+          lat: coords[1],
+          line: props.line || undefined,
+          network: props.network || undefined,
+          operator: props.operator || undefined,
+        }
+        onStationClick(station)
+        return
+      }
+    }
+
+    // Handle area click (lowest priority)
+    if (areaFeature && onAreaClick) {
+      const areaId = areaFeature.properties?.id
       const area = dubaiAreas.find(a => a.id === areaId)
       if (area) onAreaClick(area)
     }
-  }, [dubaiAreas, pois, onAreaClick, onPoiClick])
+  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick])
 
   return (
     <div className="h-full w-full">
@@ -623,6 +831,7 @@ function MapViewMapLibre({
         mapStyle={MAP_STYLE}
         interactiveLayerIds={mapLoaded ? [
           ...(areasGeoJson ? ['area-fills'] : []),
+          ...(showTransport && transportGeoJSON ? ['transport-stations-bg'] : []),
           ...(poiGeoJson.features.length ? ['poi-circles'] : [])
         ] : []}
         onMouseMove={handleMouseMove}
@@ -648,8 +857,8 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* Area Labels - 区域名称 */}
-        {mapLoaded && areaLabelsGeoJson && (
+        {/* Area Labels - 区域名称 (only show when no metric selected) */}
+        {mapLoaded && areaLabelsGeoJson && areaMetric === 'none' && (
           <Source id="area-labels" type="geojson" data={areaLabelsGeoJson}>
             <Layer
               id="area-label-text"
@@ -665,9 +874,22 @@ function MapViewMapLibre({
                   14, 14
                 ],
                 'text-anchor': 'center',
-                'text-offset': areaMetric !== 'none' ? [0, -0.8] : [0, 0],  // 有指标时向上偏移
-                'text-allow-overlap': false,
-                'text-padding': 10,
+                // Gradual clustering: 11-13 with decreasing padding, 14+ show all
+                'text-allow-overlap': [
+                  'step',
+                  ['zoom'],
+                  false,  // zoom < 14: hide overlapping
+                  14, true   // zoom >= 14: show all
+                ],
+                'text-padding': [
+                  'step',
+                  ['zoom'],
+                  12,  // zoom < 11: large padding (tight clustering)
+                  11, 8,  // zoom 11: medium-large padding
+                  12, 4,  // zoom 12: medium padding
+                  13, 2,  // zoom 13: small padding (loose clustering)
+                  14, 0   // zoom >= 14: no padding
+                ],
                 'symbol-sort-key': ['get', 'minZoom']
               }}
               paint={{
@@ -696,9 +918,22 @@ function MapViewMapLibre({
                   14, 16
                 ],
                 'text-anchor': 'center',
-                'text-offset': [0, 0.8],  // 向下偏移，显示在名称下方
-                'text-allow-overlap': false,
-                'text-padding': 5,
+                // Gradual clustering: 11-13 with decreasing padding, 14+ show all
+                'text-allow-overlap': [
+                  'step',
+                  ['zoom'],
+                  false,  // zoom < 14: hide overlapping
+                  14, true   // zoom >= 14: show all
+                ],
+                'text-padding': [
+                  'step',
+                  ['zoom'],
+                  8,   // zoom < 11: large padding
+                  11, 5,  // zoom 11: medium-large padding
+                  12, 3,  // zoom 12: medium padding
+                  13, 1,  // zoom 13: small padding
+                  14, 0   // zoom >= 14: no padding
+                ],
                 'symbol-sort-key': ['get', 'minZoom']
               }}
               paint={{
@@ -707,6 +942,116 @@ function MapViewMapLibre({
                 'text-halo-width': 2.5
               }}
             />
+          </Source>
+        )}
+
+        {/* Transport Lines - Metro/Tram only */}
+        {mapLoaded && showTransport && transportGeoJSON && transportGeoJSON.features.length > 0 && (
+          <Source
+            id="transport-lines"
+            type="geojson"
+            data={transportGeoJSON}
+          >
+            {/* White casing for visibility */}
+            <Layer
+              id="transport-lines-casing"
+              type="line"
+              filter={['in', ['get', 'category'], ['literal', ['metro_lines', 'tram_lines', 'monorail']]]}
+              layout={{
+                'line-cap': 'butt',
+                'line-join': 'round'
+              }}
+              paint={{
+                'line-color': '#ffffff',
+                'line-width': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 4,
+                  12, 5,
+                  16, 6
+                ],
+                'line-opacity': 0.9
+              }}
+            />
+            {/* Main colored line - color based on line property */}
+            <Layer
+              id="transport-lines-main"
+              type="line"
+              filter={['in', ['get', 'category'], ['literal', ['metro_lines', 'tram_lines', 'monorail']]]}
+              layout={{
+                'line-cap': 'butt',
+                'line-join': 'round'
+              }}
+              paint={{
+                'line-color': [
+                  'match', ['get', 'line'],
+                  'red', '#ef4444',
+                  'green', '#22c55e',
+                  'blue', '#3b82f6',
+                  'tram', '#f97316',
+                  'palm_monorail', '#a855f7',
+                  '#6b7280'  // default gray
+                ],
+                'line-width': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 2,
+                  12, 3,
+                  16, 4
+                ],
+                'line-opacity': 1
+              }}
+            />
+
+            {/* Station icons - same size as POI icons */}
+            <Layer
+              id="transport-stations-bg"
+              type="symbol"
+              filter={['in', ['get', 'category'], ['literal', ['metro_stations', 'tram_stations', 'monorail_stations']]]}
+              layout={{
+                'icon-image': [
+                  'concat',
+                  'station-',
+                  ['get', 'line']
+                ],
+                'icon-size': [
+                  'interpolate', ['linear'], ['zoom'],
+                  10, 0.8,
+                  13, 1.0,
+                  16, 1.2,
+                  18, 1.4
+                ],
+                'icon-allow-overlap': true
+              }}
+            />
+
+            {/* Station labels - show at higher zoom */}
+            <Layer
+              id="transport-stations-labels"
+              type="symbol"
+              filter={['all',
+                ['in', ['get', 'category'], ['literal', ['metro_stations', 'tram_stations', 'monorail_stations']]],
+                ['>=', ['zoom'], 13]
+              ]}
+              layout={{
+                'text-field': ['get', 'name'],
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-size': [
+                  'interpolate', ['linear'], ['zoom'],
+                  13, 10,
+                  15, 12,
+                  17, 14
+                ],
+                'text-offset': [0, 1.5],
+                'text-anchor': 'top',
+                'text-allow-overlap': false,
+                'text-optional': true
+              }}
+              paint={{
+                'text-color': ['get', 'color'],
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 2
+              }}
+            />
+
           </Source>
         )}
 
@@ -729,19 +1074,42 @@ function MapViewMapLibre({
                   16, 1.2,
                   18, 1.4
                 ],
-                'icon-allow-overlap': false,
-                'icon-padding': 4
+                // Gradual clustering: 11-13 with decreasing padding, 14+ show all
+                'icon-allow-overlap': [
+                  'step',
+                  ['zoom'],
+                  false,  // zoom < 14: hide overlapping
+                  14, true   // zoom >= 14: show all
+                ],
+                'icon-padding': [
+                  'step',
+                  ['zoom'],
+                  6,   // zoom < 11: large padding
+                  11, 4,  // zoom 11: medium-large padding
+                  12, 2,  // zoom 12: medium padding
+                  13, 1,  // zoom 13: small padding
+                  14, 0   // zoom >= 14: no padding
+                ]
               }}
             />
           </Source>
         )}
 
-        {/* Cluster Markers */}
+        {/* Cluster Markers (legacy) */}
         {clusters.map(cluster => (
           <ClusterMarker
             key={cluster.cluster_id}
             cluster={cluster}
             onClick={onClusterClick}
+          />
+        ))}
+
+        {/* Project Pins - individual markers with thumbnail images */}
+        {projects.map(project => (
+          <ProjectPinMarker
+            key={project.id}
+            project={project}
+            onClick={onProjectClick}
           />
         ))}
       </Map>

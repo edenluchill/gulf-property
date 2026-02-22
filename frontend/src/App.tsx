@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import HomePage from './pages/HomePage'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import FavoritesPage from './pages/FavoritesPage'
@@ -29,7 +28,8 @@ function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        {/* MapPage is now the homepage */}
+        <Route path="/" element={<MapPage />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />

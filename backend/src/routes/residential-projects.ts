@@ -82,6 +82,58 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   const router = Router()
 
   // ============================================================================
+  // GET /api/residential-projects/map-pins
+  // Returns all projects as individual pins for map view (no clustering)
+  // Optimized for map display: minimal data, includes first image
+  // ============================================================================
+  router.get('/map-pins', async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          project_name,
+          developer,
+          area,
+          starting_price,
+          min_bedrooms,
+          max_bedrooms,
+          status,
+          latitude,
+          longitude,
+          project_images[1] as first_image
+        FROM residential_projects
+        WHERE verified = true
+          AND location IS NOT NULL
+        ORDER BY created_at DESC
+      `)
+
+      res.json({
+        success: true,
+        data: result.rows.map(row => ({
+          id: row.id,
+          name: row.project_name,
+          developer: row.developer,
+          area: row.area,
+          price: row.starting_price,
+          minBeds: row.min_bedrooms,
+          maxBeds: row.max_bedrooms,
+          status: row.status,
+          lat: row.latitude,
+          lng: row.longitude,
+          image: row.first_image || null
+        }))
+      })
+    } catch (error) {
+      console.error('Error fetching map pins:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch map pins',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      })
+    }
+  })
+
+  // ============================================================================
   // GET /api/residential-projects/clusters
   // Returns clustered projects for map view (server-side clustering with PostGIS)
   // ============================================================================

@@ -76,6 +76,34 @@
   animation: shimmer 2s infinite;
 }
 
+/* Smooth floating animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float {
+  animation: float 2s ease-in-out infinite;
+}
+
+/* Glow pulse animation */
+@keyframes glow {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
 /* Thin scrollbar for carousels and sections */
 .scrollbar-thin::-webkit-scrollbar {
   height: 6px;

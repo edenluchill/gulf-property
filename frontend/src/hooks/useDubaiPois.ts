@@ -11,7 +11,6 @@ import { API_BASE_URL } from '../lib/config'
 export type PoiCategory =
   | 'hospital' | 'clinic' | 'pharmacy'
   | 'school' | 'university'
-  | 'metro_station' | 'bus_station'
   | 'mall' | 'supermarket'
   | 'restaurant' | 'cafe'
   | 'bank' | 'atm' | 'gas_station'
@@ -64,10 +63,6 @@ export const POI_CATEGORIES: PoiCategoryInfo[] = [
   { id: 'school', label: 'School', labelAr: 'مدرسة', icon: '🏫', color: GROUP_COLORS.education, group: 'education' },
   { id: 'university', label: 'University', labelAr: 'جامعة', icon: '🎓', color: GROUP_COLORS.education, group: 'education' },
 
-  // Transport - orange
-  { id: 'metro_station', label: 'Metro', labelAr: 'مترو', icon: '🚇', color: GROUP_COLORS.transport, group: 'transport' },
-  { id: 'bus_station', label: 'Bus Stop', labelAr: 'محطة حافلات', icon: '🚌', color: GROUP_COLORS.transport, group: 'transport' },
-
   // Shopping - pink
   { id: 'mall', label: 'Mall', labelAr: 'مول', icon: '🛒', color: GROUP_COLORS.shopping, group: 'shopping' },
   { id: 'supermarket', label: 'Supermarket', labelAr: 'سوبرماركت', icon: '🛍️', color: GROUP_COLORS.shopping, group: 'shopping' },
@@ -101,7 +96,6 @@ export const POI_CATEGORIES: PoiCategoryInfo[] = [
 export const POI_GROUPS = [
   { id: 'healthcare', label: 'Healthcare', labelAr: 'الرعاية الصحية' },
   { id: 'education', label: 'Education', labelAr: 'التعليم' },
-  { id: 'transport', label: 'Transport', labelAr: 'المواصلات' },
   { id: 'shopping', label: 'Shopping', labelAr: 'التسوق' },
   { id: 'dining', label: 'Dining', labelAr: 'المطاعم' },
   { id: 'finance', label: 'Finance', labelAr: 'المالية' },

@@ -17,6 +17,7 @@ import dubaiPoisRouter from './routes/dubai-pois'
 import uploadRouter from './routes/upload'
 import tasksRouter from './routes/tasks'
 import adminTasksRouter from './routes/admin-tasks'
+import dubaiTransportRouter from './routes/dubai-transport'
 import pool from './db/pool'
 
 const app: Application = express()
@@ -84,6 +85,7 @@ app.use('/api/upload', uploadRouter)  // File upload to R2
 app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
 app.use('/api/tasks', tasksRouter)  // PDF processing task management
 app.use('/api/admin/tasks', adminTasksRouter)  // Admin task management
+app.use('/api/transport', dubaiTransportRouter)  // Dubai transport (Metro, Tram, future lines)
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

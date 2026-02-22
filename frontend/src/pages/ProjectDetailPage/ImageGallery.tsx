@@ -1,7 +1,7 @@
 import { Building2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getImageUrl, getImageSrcSet } from '../../lib/image-utils'
 import { Button } from '../../components/ui/button'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface ImageGalleryProps {
   images: string[]
@@ -10,13 +10,22 @@ interface ImageGalleryProps {
   onImageIndexChange: (index: number) => void
 }
 
-export function ImageGallery({ 
-  images, 
-  buildingName, 
-  currentImageIndex, 
-  onImageIndexChange 
+export function ImageGallery({
+  images,
+  buildingName,
+  currentImageIndex,
+  onImageIndexChange
 }: ImageGalleryProps) {
   const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+
+  // Listen for mobile/desktop changes
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   // Auto-scroll thumbnail into view when currentImageIndex changes
   useEffect(() => {
@@ -42,6 +51,43 @@ export function ImageGallery({
     onImageIndexChange(newIndex)
   }
 
+  // Mobile: Show all images vertically scrollable (original behavior)
+  // Parent component handles showing details
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        {images.length > 0 ? (
+          images.map((image, index) => (
+            <div
+              key={index}
+              className="relative w-full rounded-xl overflow-hidden bg-slate-100"
+            >
+              <img
+                src={getImageUrl(image, 'large')}
+                srcSet={getImageSrcSet(image)}
+                sizes="100vw"
+                alt={`${buildingName} - ${index + 1}`}
+                className="w-full h-auto object-contain"
+                loading={index < 2 ? 'eager' : 'lazy'}
+              />
+              {/* Image number badge */}
+              {images.length > 1 && (
+                <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-0.5 rounded-full text-xs font-medium">
+                  {index + 1} / {images.length}
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="w-full h-64 bg-slate-200 rounded-xl flex items-center justify-center">
+            <Building2 className="h-16 w-16 text-slate-400" />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Desktop: Original carousel behavior
   return (
     <div className="space-y-4">
       {/* Main Image */}
@@ -56,7 +102,7 @@ export function ImageGallery({
               className="w-full h-full object-contain"
               loading="lazy"
             />
-            
+
             {/* Navigation Arrows */}
             {images.length > 1 && (
               <>

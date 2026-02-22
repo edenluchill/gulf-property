@@ -279,6 +279,43 @@ export async function fetchResidentialProjectClusters(
 }
 
 /**
+ * Map pin data for displaying projects on the map
+ */
+export interface MapPinProject {
+  id: string
+  name: string
+  developer: string
+  area: string
+  price: number | null
+  minBeds: number | null
+  maxBeds: number | null
+  status: string
+  lat: number
+  lng: number
+  image: string | null
+}
+
+/**
+ * Fetch all residential projects as map pins (no clustering)
+ * Returns minimal data needed for map display with first image
+ */
+export async function fetchResidentialMapPins(): Promise<MapPinProject[]> {
+  try {
+    const response = await fetch(`${API_URL}/residential-projects/map-pins`)
+    const result: ApiResponse<MapPinProject[]> = await response.json()
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch map pins')
+    }
+
+    return result.data
+  } catch (error) {
+    console.error('Error fetching residential map pins:', error)
+    return []
+  }
+}
+
+/**
  * Fetch multiple residential projects by IDs (batch fetch, max 20)
  */
 export async function fetchResidentialProjectsBatch(ids: string[]): Promise<any[]> {
@@ -389,6 +426,70 @@ export async function fetchResidentialProjectById(id: string): Promise<any | nul
     return result;
   } catch (error) {
     console.error('Error fetching residential project:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// TRANSPORT API
+// ============================================================================
+
+export interface TransportGeoJSON {
+  type: 'FeatureCollection';
+  features: Array<{
+    type: 'Feature';
+    properties: {
+      id: string;
+      category: string;
+      name: string;
+      color: string;
+      [key: string]: any;
+    };
+    geometry: {
+      type: 'LineString' | 'MultiLineString' | 'Point';
+      coordinates: any;
+    };
+  }>;
+  metadata?: {
+    source: string;
+    category: string;
+    generatedAt: string;
+    totalFeatures: number;
+  };
+}
+
+export type TransportCategory =
+  | 'metro_lines'
+  | 'metro_stations'
+  | 'tram_lines'
+  | 'tram_stations'
+  | 'bus_routes'
+  | 'bus_stops'
+  | 'bicycle_tracks'
+  | 'rail_tracks'
+  | 'monorail'
+  | 'monorail_stations';
+
+/**
+ * Fetch Dubai transport data as GeoJSON
+ * @param categories - Optional array of categories to filter by
+ */
+export async function fetchTransportGeoJSON(categories?: TransportCategory[]): Promise<TransportGeoJSON | null> {
+  try {
+    let url = `${API_URL}/transport/geojson`;
+    if (categories && categories.length > 0) {
+      url += `?categories=${categories.join(',')}`;
+    }
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (!result.features) {
+      throw new Error('Invalid GeoJSON response');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error fetching transport GeoJSON:', error);
     return null;
   }
 }
