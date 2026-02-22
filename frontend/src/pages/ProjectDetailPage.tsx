@@ -333,17 +333,18 @@ export default function ProjectDetailPage() {
             {/* Large mist effect covering bottom 20% */}
             <AnimatePresence>
               {!showMobileInfo && (
-                <motion.button
+                <>
+                {/* White mist visual effect - non-clickable */}
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  onClick={() => setShowMobileInfo(true)}
-                  className="fixed left-0 right-0 bottom-0 z-50 flex flex-col items-center justify-end"
+                  className="fixed left-0 right-0 bottom-0 z-40 pointer-events-none"
                   style={{ height: '22vh', paddingBottom: '75px' }}
                 >
                   {/* Full-width white mist gradient - more square */}
                   <div
-                    className="absolute inset-0 pointer-events-none"
+                    className="absolute inset-0"
                     style={{
                       background: 'linear-gradient(to top, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0.5) 80%, transparent 100%)'
                     }}
@@ -351,15 +352,24 @@ export default function ProjectDetailPage() {
 
                   {/* Subtle animated glow - CSS animation */}
                   <div className="absolute bottom-16 left-4 right-4 h-20 bg-white/80 blur-2xl animate-glow" />
+                </motion.div>
 
-                  {/* Floating text + icon - CSS animation for smooth performance */}
-                  <div className="relative flex items-center gap-2 animate-float">
-                    <ChevronUp className="h-5 w-5 text-slate-500" />
-                    <span className="text-sm font-medium text-slate-500">
+                {/* Transparent clickable area - text only */}
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowMobileInfo(true)}
+                  className="fixed left-1/2 -translate-x-1/2 bottom-[75px] z-50 px-4 py-2"
+                >
+                  <div className="flex items-center gap-2 animate-float">
+                    <ChevronUp className="h-5 w-5 text-slate-600" />
+                    <span className="text-sm font-medium text-slate-600">
                       {t('project:moreDetails', 'More Details')}
                     </span>
                   </div>
                 </motion.button>
+                </>
               )}
             </AnimatePresence>
 

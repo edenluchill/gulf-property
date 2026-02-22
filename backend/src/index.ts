@@ -18,6 +18,7 @@ import uploadRouter from './routes/upload'
 import tasksRouter from './routes/tasks'
 import adminTasksRouter from './routes/admin-tasks'
 import dubaiTransportRouter from './routes/dubai-transport'
+import geocodeRouter from './routes/geocode'
 import pool from './db/pool'
 
 const app: Application = express()
@@ -86,6 +87,7 @@ app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
 app.use('/api/tasks', tasksRouter)  // PDF processing task management
 app.use('/api/admin/tasks', adminTasksRouter)  // Admin task management
 app.use('/api/transport', dubaiTransportRouter)  // Dubai transport (Metro, Tram, future lines)
+app.use('/api/geocode', geocodeRouter)  // Google Maps geocoding API proxy
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

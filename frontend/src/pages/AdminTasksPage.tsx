@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS, API_BASE_URL } from '../lib/config';
 import { TaskStatus } from '../stores/taskStore';
-import { CheckCircle, XCircle, Eye, Send, Home, Image, CreditCard, Trees, Edit } from 'lucide-react';
+import { XCircle, Home, Image, CreditCard, Trees } from 'lucide-react';
 
 // Task interface for admin view
 interface AdminTask {
@@ -77,8 +77,6 @@ export default function AdminTasksPage() {
     total: 0,
     hasMore: false,
   });
-  const [reviewingTask, setReviewingTask] = useState<AdminTask | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
@@ -283,40 +281,6 @@ export default function AdminTasksPage() {
     }
   };
 
-  // Submit task result as a new project
-  const submitTask = async (task: AdminTask) => {
-    if (!task.result_data?.buildingData) {
-      setError('No result data to submit');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/tasks/${task.job_id}/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to submit task');
-      }
-
-      const data = await response.json();
-      alert(`Project submitted successfully! ID: ${data.projectId}`);
-      setReviewingTask(null);
-      fetchTasks();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit task');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   // Get result summary from task
   const getResultSummary = (task: AdminTask) => {
     const result = task.result_data;
@@ -516,8 +480,15 @@ export default function AdminTasksPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div
-                          className="cursor-pointer"
-                          onClick={() => setExpandedTask(expandedTask === task.job_id ? null : task.job_id)}
+                          className="cursor-pointer hover:text-blue-600"
+                          onClick={() => {
+                            // Completed tasks go directly to review page
+                            if (task.status === 'completed' && task.result_data) {
+                              navigate(`/admin/tasks/${task.job_id}/review`);
+                            } else {
+                              setExpandedTask(expandedTask === task.job_id ? null : task.job_id);
+                            }
+                          }}
                         >
                           <div className="font-medium text-gray-900 truncate max-w-xs">
                             {task.task_name || task.job_id}
@@ -693,30 +664,9 @@ export default function AdminTasksPage() {
                                     </div>
                                   )}
 
-                                  {/* Action Buttons */}
-                                  <div className="flex gap-2 mt-4">
-                                    <button
-                                      onClick={() => setReviewingTask(task)}
-                                      className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      Quick Preview
-                                    </button>
-                                    <button
-                                      onClick={() => navigate(`/admin/tasks/${task.job_id}/review`)}
-                                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                      Edit & Review
-                                    </button>
-                                    <button
-                                      onClick={() => submitTask(task)}
-                                      disabled={submitting}
-                                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50"
-                                    >
-                                      <Send className="h-4 w-4" />
-                                      {submitting ? 'Submitting...' : 'Submit as Project'}
-                                    </button>
+                                  {/* Click hint */}
+                                  <div className="mt-4 text-sm text-gray-500">
+                                    Click task name to edit & review
                                   </div>
                                 </div>
                               );
@@ -766,193 +716,6 @@ export default function AdminTasksPage() {
             </div>
           )}
         </div>
-
-        {/* Review Modal */}
-        {reviewingTask && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">Review Task Results</h2>
-                  <p className="text-sm text-gray-500">{reviewingTask.task_name || reviewingTask.job_id}</p>
-                </div>
-                <button
-                  onClick={() => setReviewingTask(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <XCircle className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="flex-1 overflow-y-auto p-6">
-                {reviewingTask.result_data?.buildingData && (
-                  <div className="space-y-6">
-                    {/* Project Info */}
-                    {reviewingTask.result_data.buildingData.name && (
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <h3 className="font-medium mb-2">Project Information</h3>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500">Name:</span> {reviewingTask.result_data.buildingData.name}
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Developer:</span> {reviewingTask.result_data.buildingData.developer || '-'}
-                          </div>
-                          <div className="col-span-2">
-                            <span className="text-gray-500">Location:</span> {reviewingTask.result_data.buildingData.area || '-'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Units */}
-                    {reviewingTask.result_data.buildingData.units?.length > 0 && (
-                      <div>
-                        <h3 className="font-medium mb-2">Unit Types ({reviewingTask.result_data.buildingData.units.length})</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {reviewingTask.result_data.buildingData.units.map((unit: any, idx: number) => (
-                            <div key={idx} className="border rounded-lg p-3 bg-white">
-                              <div className="font-medium">{unit.typeName || unit.name || `Unit ${idx + 1}`}</div>
-                              <div className="text-sm text-gray-500 mt-1">
-                                {unit.bedrooms && <span>{unit.bedrooms} BR</span>}
-                                {unit.size && <span> | {unit.size} sqft</span>}
-                                {unit.price && <span> | AED {unit.price.toLocaleString()}</span>}
-                              </div>
-                              {unit.images?.length > 0 && (
-                                <div className="mt-2 flex gap-1 overflow-x-auto">
-                                  {unit.images.slice(0, 3).map((img: string, imgIdx: number) => (
-                                    <img
-                                      key={imgIdx}
-                                      src={img}
-                                      alt={`Unit ${idx + 1} - ${imgIdx + 1}`}
-                                      className="h-16 w-24 object-cover rounded"
-                                    />
-                                  ))}
-                                  {unit.images.length > 3 && (
-                                    <div className="h-16 w-24 bg-gray-100 rounded flex items-center justify-center text-sm text-gray-500">
-                                      +{unit.images.length - 3}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Project Images */}
-                    {reviewingTask.result_data.buildingData.images?.projectImages?.length > 0 && (
-                      <div>
-                        <h3 className="font-medium mb-2">Project Images ({reviewingTask.result_data.buildingData.images.projectImages.length})</h3>
-                        <div className="flex gap-2 overflow-x-auto pb-2">
-                          {reviewingTask.result_data.buildingData.images.projectImages.slice(0, 8).map((img: string, idx: number) => (
-                            <img
-                              key={idx}
-                              src={img}
-                              alt={`Project ${idx + 1}`}
-                              className="h-24 w-36 object-cover rounded-lg flex-shrink-0"
-                            />
-                          ))}
-                          {reviewingTask.result_data.buildingData.images.projectImages.length > 8 && (
-                            <div className="h-24 w-36 bg-gray-100 rounded-lg flex items-center justify-center text-sm text-gray-500 flex-shrink-0">
-                              +{reviewingTask.result_data.buildingData.images.projectImages.length - 8} more
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Amenities */}
-                    {reviewingTask.result_data.buildingData.amenities?.length > 0 && (
-                      <div>
-                        <h3 className="font-medium mb-2">Amenities ({reviewingTask.result_data.buildingData.amenities.length})</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {reviewingTask.result_data.buildingData.amenities.map((amenity: string, idx: number) => (
-                            <span key={idx} className="px-2 py-1 bg-teal-100 text-teal-800 rounded text-sm">
-                              {amenity}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Payment Plans */}
-                    {reviewingTask.result_data.buildingData.paymentPlans?.length > 0 && (
-                      <div>
-                        <h3 className="font-medium mb-2">Payment Plans ({reviewingTask.result_data.buildingData.paymentPlans.length})</h3>
-                        <div className="space-y-2">
-                          {reviewingTask.result_data.buildingData.paymentPlans.map((plan: any, idx: number) => (
-                            <div key={idx} className="border rounded-lg p-3 text-sm">
-                              <div className="font-medium">{plan.name || `Plan ${idx + 1}`}</div>
-                              {plan.milestones && (
-                                <div className="mt-1 text-gray-600">
-                                  {plan.milestones.map((m: any, mIdx: number) => (
-                                    <span key={mIdx}>
-                                      {m.percentage}% {m.description}
-                                      {mIdx < plan.milestones.length - 1 && ' → '}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Errors/Warnings */}
-                    {(reviewingTask.result_data.errors?.length > 0 || reviewingTask.result_data.warnings?.length > 0) && (
-                      <div>
-                        <h3 className="font-medium mb-2">Issues</h3>
-                        {reviewingTask.result_data.errors?.length > 0 && (
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
-                            <div className="text-red-800 font-medium text-sm mb-1">Errors</div>
-                            <ul className="text-red-700 text-sm list-disc list-inside">
-                              {reviewingTask.result_data.errors.map((err: string, idx: number) => (
-                                <li key={idx}>{err}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {reviewingTask.result_data.warnings?.length > 0 && (
-                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                            <div className="text-orange-800 font-medium text-sm mb-1">Warnings</div>
-                            <ul className="text-orange-700 text-sm list-disc list-inside">
-                              {reviewingTask.result_data.warnings.map((warn: string, idx: number) => (
-                                <li key={idx}>{warn}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-6 py-4 border-t flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setReviewingTask(null)}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => submitTask(reviewingTask)}
-                  disabled={submitting}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  {submitting ? 'Submitting...' : 'Approve & Submit'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

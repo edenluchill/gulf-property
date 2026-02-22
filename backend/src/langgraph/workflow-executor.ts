@@ -27,6 +27,7 @@ import { generateAndUploadAllPdfImages, type PdfImageBatch } from './utils/pdf-i
 import { PageRegistryManager } from './core/page-registry';
 import { TaskAbortedError } from '../services/task-manager';
 import { startJobLogging, stopJobLogging } from '../utils/job-logger';
+import { geocodeAddress } from '../services/geocoding';
 
 export interface WorkflowConfig {
   pdfBuffers: Buffer[];
@@ -386,6 +387,29 @@ export async function executePdfWorkflow(
 
     // ⭐ 使用智能分配系统的最终结果（已在batch-processor中转换）
     const finalData = finalAggregatedData;
+
+    // ============================================================
+    // STEP 3.5: Auto-geocode address to get coordinates
+    // ============================================================
+    if (finalData.address && !finalData.latitude && !finalData.longitude) {
+      console.log(`\n🌍 Auto-geocoding project address...`);
+      progressEmitter.emit(jobId, {
+        stage: 'reducing',
+        code: 'GEOCODING',
+        message: 'Getting project coordinates from address...',
+        progress: 96,
+        timestamp: Date.now(),
+      });
+
+      const coords = await geocodeAddress(finalData.address, finalData.name);
+      if (coords) {
+        finalData.latitude = coords.lat;
+        finalData.longitude = coords.lng;
+        console.log(`   ✓ Coordinates set: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+      } else {
+        console.log(`   ⚠️  Could not geocode address, coordinates not set`);
+      }
+    }
 
     // Log summary
     console.log(`\n📊 Final Summary:`);

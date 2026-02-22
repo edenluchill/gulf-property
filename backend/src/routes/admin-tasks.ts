@@ -98,6 +98,100 @@ router.get('/stats', async (_req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/admin/tasks/batch/cancel
+ * Cancel multiple tasks at once
+ * NOTE: Must be defined BEFORE /:jobId routes to avoid "batch" being matched as jobId
+ */
+router.post('/batch/cancel', async (req: Request, res: Response) => {
+  try {
+    const { jobIds } = req.body as { jobIds: string[] };
+
+    if (!jobIds || !Array.isArray(jobIds) || jobIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'jobIds array required',
+      });
+    }
+
+    const results: { jobId: string; success: boolean; error?: string }[] = [];
+
+    for (const jobId of jobIds) {
+      try {
+        await taskManager.cancelTask(jobId);
+        results.push({ jobId, success: true });
+      } catch (error) {
+        results.push({
+          jobId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+
+    res.json({
+      success: true,
+      message: `Cancelled ${successCount}/${jobIds.length} tasks`,
+      results,
+    });
+  } catch (error) {
+    console.error('Error batch cancelling tasks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel tasks',
+    });
+  }
+});
+
+/**
+ * DELETE /api/admin/tasks/batch
+ * Delete multiple tasks at once
+ * NOTE: Must be defined BEFORE /:jobId routes to avoid "batch" being matched as jobId
+ */
+router.delete('/batch', async (req: Request, res: Response) => {
+  try {
+    const { jobIds } = req.body as { jobIds: string[] };
+
+    if (!jobIds || !Array.isArray(jobIds) || jobIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'jobIds array required',
+      });
+    }
+
+    const results: { jobId: string; success: boolean; error?: string }[] = [];
+
+    for (const jobId of jobIds) {
+      try {
+        const deleted = await taskManager.deleteTask(jobId);
+        results.push({ jobId, success: deleted });
+      } catch (error) {
+        results.push({
+          jobId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+
+    res.json({
+      success: true,
+      message: `Deleted ${successCount}/${jobIds.length} tasks`,
+      results,
+    });
+  } catch (error) {
+    console.error('Error batch deleting tasks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete tasks',
+    });
+  }
+});
+
+/**
  * GET /api/admin/tasks/:jobId
  * Get detailed task information
  */
@@ -214,98 +308,6 @@ router.delete('/:jobId', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to delete task',
-    });
-  }
-});
-
-/**
- * POST /api/admin/tasks/batch/cancel
- * Cancel multiple tasks at once
- */
-router.post('/batch/cancel', async (req: Request, res: Response) => {
-  try {
-    const { jobIds } = req.body as { jobIds: string[] };
-
-    if (!jobIds || !Array.isArray(jobIds) || jobIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'jobIds array required',
-      });
-    }
-
-    const results: { jobId: string; success: boolean; error?: string }[] = [];
-
-    for (const jobId of jobIds) {
-      try {
-        await taskManager.cancelTask(jobId);
-        results.push({ jobId, success: true });
-      } catch (error) {
-        results.push({
-          jobId,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    }
-
-    const successCount = results.filter(r => r.success).length;
-
-    res.json({
-      success: true,
-      message: `Cancelled ${successCount}/${jobIds.length} tasks`,
-      results,
-    });
-  } catch (error) {
-    console.error('Error batch cancelling tasks:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to cancel tasks',
-    });
-  }
-});
-
-/**
- * DELETE /api/admin/tasks/batch
- * Delete multiple tasks at once
- */
-router.delete('/batch', async (req: Request, res: Response) => {
-  try {
-    const { jobIds } = req.body as { jobIds: string[] };
-
-    if (!jobIds || !Array.isArray(jobIds) || jobIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'jobIds array required',
-      });
-    }
-
-    const results: { jobId: string; success: boolean; error?: string }[] = [];
-
-    for (const jobId of jobIds) {
-      try {
-        const deleted = await taskManager.deleteTask(jobId);
-        results.push({ jobId, success: deleted });
-      } catch (error) {
-        results.push({
-          jobId,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    }
-
-    const successCount = results.filter(r => r.success).length;
-
-    res.json({
-      success: true,
-      message: `Deleted ${successCount}/${jobIds.length} tasks`,
-      results,
-    });
-  } catch (error) {
-    console.error('Error batch deleting tasks:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete tasks',
     });
   }
 });

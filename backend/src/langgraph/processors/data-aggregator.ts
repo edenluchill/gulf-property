@@ -48,6 +48,8 @@ export interface AggregatedBuildingData {
   towerInfos?: any[];                 // ⭐ 新增：Tower信息
   images: BuildingImages;
   extractedPricing?: ExtractedPricingEntry[];  // ⭐ 原始价格数据（用于前端验证）
+  latitude?: number;                  // ⭐ 自动从地址获取的纬度
+  longitude?: number;                 // ⭐ 自动从地址获取的经度
 }
 
 /**

@@ -53,33 +53,39 @@ export function extractBuildingGroupFromTypeName(typeName: string): string | und
 
 /**
  * Generate unique key for unit type
- * 
- * Strategy: Extract base name and normalize for deduplication
- * 
+ *
+ * Strategy: Extract base name + category for deduplication
+ *
+ * IMPORTANT: Include category (bedroom count) in the key!
+ * Units with the same name but different bedrooms are DIFFERENT unit types.
+ * Example: "Type A (1BR)" and "Type A (4BR)" should NOT be merged.
+ *
  * Normalization rules:
  * - Extract base name before parentheses: "DSTH-M1 (4 BR - MID UNIT)" → "DSTH-M1"
  * - Remove spaces around dashes: "DSTH - M1" → "DSTH-M1"
  * - Case-insensitive: "dsth-m1" → "DSTH-M1"
  * - Remove "Type" prefix
- * 
+ * - Append category (bedroom count) to differentiate variants
+ *
  * Examples:
- * - "DSTH-M1" → "DSTH-M1"
- * - "DSTH-M1 (4 BR - MID UNIT)" → "DSTH-M1"
- * - "DSTH - M1" → "DSTH-M1"
- * - "dsth-m1" → "DSTH-M1"
+ * - "DSTH-M1" (4BR) → "DSTH-M1__4BR"
+ * - "Type A" (1BR) → "A__1BR"
+ * - "Type A" (4BR) → "A__4BR"  (different key!)
  */
 export function generateUnitKey(unit: any): string {
   // Use typeName directly as the key (with minimal normalization)
   // Examples: "B-2BM-A.1", "Type-A-1B-A.1", "Studio-S1"
   let typeName = (unit.typeName || unit.name || '').trim();
-  
+
+  // Get category for differentiation
+  const category = unit.category || `${unit.bedrooms || 0}BR`;
+
   if (!typeName || typeName === 'default') {
     // Fallback: generate from category + area
-    const category = unit.category || `${unit.bedrooms || 0}BR`;
     const area = unit.area ? Math.round(unit.area) : 0;
     return `${category}_${area}sqft`;
   }
-  
+
   // Step 1: Extract base name (before parentheses)
   // "DSTH-M1 (4 BR - MID UNIT)" → "DSTH-M1"
   // "DSTH-E (5 BR-END UNIT) + MAID" → "DSTH-E"
@@ -87,7 +93,7 @@ export function generateUnitKey(unit: any): string {
   if (parenIndex > 0) {
     typeName = typeName.substring(0, parenIndex).trim();
   }
-  
+
   // Step 2: Normalize the base name
   const cleanName = typeName
     .replace(/^Type\s+/i, '')     // Remove leading "Type "
@@ -96,8 +102,10 @@ export function generateUnitKey(unit: any): string {
     .replace(/\s+/g, '-')         // Replace remaining spaces with dash
     .toUpperCase()                 // Normalize to uppercase for case-insensitive matching
     .trim();
-  
-  return cleanName;
+
+  // Step 3: Append category to differentiate same-named units with different bedrooms
+  // This prevents "Type A (1BR)" and "Type A (4BR)" from being merged
+  return `${cleanName}__${category}`;
 }
 
 /**
@@ -151,14 +159,29 @@ export function deduplicateUnits(units: any[]): any[] {
     
     if (!unitMap.has(key)) {
       // First occurrence - add with generated ID and building group info
+      // Ensure typeName includes category for clarity (e.g., "Type A" → "Type A (4BR)")
+      let displayTypeName = unit.typeName || unit.name || '';
+      const category = unit.category || `${unit.bedrooms || 0}BR`;
+
+      // If typeName doesn't already include bedroom info, append it
+      const lowerTypeName = displayTypeName.toLowerCase();
+      const hasBRInfo = lowerTypeName.includes('br') ||
+                        lowerTypeName.includes('bedroom') ||
+                        lowerTypeName.includes('studio');
+
+      if (!hasBRInfo && category) {
+        displayTypeName = `${displayTypeName} (${category})`.trim();
+      }
+
       unitMap.set(key, {
         ...unit,
         id: key,
+        typeName: displayTypeName, // Use enhanced typeName with category
         tower: buildingGroup || unit.tower, // Extract building group from typeName or keep existing
         _key: key, // Store key for debugging
       });
       const groupInfo = buildingGroup ? ` [${buildingGroup}]` : '';
-      console.log(`   ✓ New unit: ${unit.category} ${unit.typeName || unit.name} (${unit.area} sqft)${groupInfo} → Key: ${key}`);
+      console.log(`   ✓ New unit: ${category} ${displayTypeName} (${unit.area} sqft)${groupInfo} → Key: ${key}`);
     } else {
       console.log(`   ⚠ Duplicate found: ${unit.category} ${unit.typeName || unit.name} (${unit.area} sqft) → Merging...`);
       // Duplicate found - merge intelligently

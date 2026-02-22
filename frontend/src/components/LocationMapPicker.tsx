@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Button } from './ui/button'
 import { MapPin, X, Check } from 'lucide-react'
@@ -15,28 +15,33 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41]
 })
 
-interface LocationPickerProps {
+interface MapEventsProps {
   onLocationSelect: (lat: number, lng: number) => void
-  initialPosition?: { lat: number; lng: number }
 }
 
-function MapClickHandler({ onLocationSelect }: LocationPickerProps) {
-  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
-
+// Handle map click events
+function MapClickHandler({ onLocationSelect }: MapEventsProps) {
   useMapEvents({
     click(e) {
-      const newPosition = {
-        lat: e.latlng.lat,
-        lng: e.latlng.lng
-      }
-      setPosition(newPosition)
-      onLocationSelect(newPosition.lat, newPosition.lng)
+      onLocationSelect(e.latlng.lat, e.latlng.lng)
     },
   })
+  return null
+}
 
-  return position ? (
-    <Marker position={[position.lat, position.lng]} icon={customIcon} />
-  ) : null
+// Navigate map to position when it changes
+function MapNavigator({ position }: { position: { lat: number; lng: number } | null }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (position) {
+      map.flyTo([position.lat, position.lng], 15, {
+        duration: 1.5
+      })
+    }
+  }, [position, map])
+
+  return null
 }
 
 interface LocationMapPickerModalProps {
@@ -44,19 +49,22 @@ interface LocationMapPickerModalProps {
   onClose: () => void
   onConfirm: (lat: number, lng: number) => void
   initialPosition?: { lat: number; lng: number }
+  address?: string
 }
 
 export default function LocationMapPickerModal({
   isOpen,
   onClose,
   onConfirm,
-  initialPosition
+  initialPosition,
+  address
 }: LocationMapPickerModalProps) {
   const { t } = useTranslation('upload')
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number } | null>(
     initialPosition || null
   )
 
+  // Sync with initialPosition when it changes
   useEffect(() => {
     if (initialPosition) {
       setSelectedPosition(initialPosition)
@@ -76,10 +84,12 @@ export default function LocationMapPickerModal({
 
   if (!isOpen) return null
 
-  // Default center: Dubai
-  const mapCenter = initialPosition 
+  // Default center: Dubai, or initialPosition if available
+  const mapCenter = initialPosition
     ? [initialPosition.lat, initialPosition.lng] as [number, number]
     : [25.2048, 55.2708] as [number, number]
+
+  const initialZoom = initialPosition ? 15 : 11
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -101,23 +111,31 @@ export default function LocationMapPickerModal({
           </button>
         </div>
 
-        {/* Coordinates Display */}
-        {selectedPosition && (
+        {/* Address & Coordinates Display */}
+        {(address || selectedPosition) && (
           <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">{t('locationPicker.latitude')}</span>
-                <span className="font-mono font-bold text-blue-700">
-                  {selectedPosition.lat.toFixed(6)}
-                </span>
+            {address && (
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="h-4 w-4 text-teal-600" />
+                <span className="font-medium text-gray-900">{address}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">{t('locationPicker.longitude')}</span>
-                <span className="font-mono font-bold text-blue-700">
-                  {selectedPosition.lng.toFixed(6)}
-                </span>
+            )}
+            {selectedPosition && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">{t('locationPicker.latitude')}</span>
+                  <span className="font-mono font-bold text-blue-700">
+                    {selectedPosition.lat.toFixed(6)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">{t('locationPicker.longitude')}</span>
+                  <span className="font-mono font-bold text-blue-700">
+                    {selectedPosition.lng.toFixed(6)}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -125,7 +143,7 @@ export default function LocationMapPickerModal({
         <div className="flex-1 relative">
           <MapContainer
             center={mapCenter}
-            zoom={13}
+            zoom={initialZoom}
             className="h-full w-full"
             scrollWheelZoom={true}
           >
@@ -133,17 +151,23 @@ export default function LocationMapPickerModal({
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapClickHandler
-              onLocationSelect={handleLocationSelect}
-              initialPosition={initialPosition}
-            />
-            {/* Show initial position marker if exists */}
-            {initialPosition && !selectedPosition && (
-              <Marker position={[initialPosition.lat, initialPosition.lng]} icon={customIcon} />
+
+            {/* Handle map clicks */}
+            <MapClickHandler onLocationSelect={handleLocationSelect} />
+
+            {/* Navigate to position when selected */}
+            <MapNavigator position={selectedPosition} />
+
+            {/* Show marker at selected position */}
+            {selectedPosition && (
+              <Marker
+                position={[selectedPosition.lat, selectedPosition.lng]}
+                icon={customIcon}
+              />
             )}
           </MapContainer>
 
-          {/* Instructions Overlay */}
+          {/* Instructions Overlay - only show if no position selected */}
           {!selectedPosition && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-6 py-3 rounded-lg shadow-lg border border-teal-300 z-[1000] animate-pulse">
               <p className="text-sm font-medium text-gray-700 flex items-center gap-2">

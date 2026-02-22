@@ -117,7 +117,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="px-4 pb-4 pt-2 border-t space-y-4">
+            <div className="px-4 pb-4 pt-2 border-t space-y-4" onClick={(e) => e.stopPropagation()}>
               {/* Floor Plan Images with Carousel */}
               {(unit.floorPlanImages && unit.floorPlanImages.length > 0) || unit.floorPlanImage ? (
                 <div className="space-y-2">

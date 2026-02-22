@@ -171,52 +171,54 @@ export function isUnitRelatedPage(page: PageMetadata): boolean {
 
 /**
  * 判断是否为通用户型名称（应该被过滤）
- * 
+ *
  * 通用名称示例：
  * - "3-Bedroom", "4-Bedroom", "Penthouse"
  * - "Studio", "1BR", "2BR"
- * 
+ *
  * 具体户型示例（保留）：
  * - "B-1B-B.2", "C-3B-A.1", "A-2BM-A.1"
+ * - "Type A", "Type B", "Type 1A"  ← 这些是有效的户型名称，不应该过滤
  */
 function isGenericUnitName(unitName: string): boolean {
   if (!unitName) return true;
-  
+
   const normalized = unitName.toLowerCase().trim();
-  
+
+  // ⭐ 首先检查有效的户型命名格式（不应该过滤）
+  const validUnitPatterns = [
+    /^type\s*[a-z0-9]+$/i,            // "Type A", "Type B", "Type 1A", "Type 2B"
+    /^unit\s*type\s*[a-z0-9]+$/i,     // "Unit Type A", "Unit Type 1"
+    /^[A-Z]-\d+[A-Z]+-[A-Z]\.\d+$/i,  // B-1B-B.2, C-3B-A.1
+    /^[A-Z]-\d+[A-Z]+M-[A-Z]\.\d+$/i, // A-2BM-A.1, B-3BM-A.1
+    /^[A-Z]-PH-[A-Z]\.\d+$/i,         // A-PH-A.1
+    /^[A-Z]\d+$/i,                    // "A1", "B2", "C3" - common unit type codes
+    /^[A-Z]-[A-Z]$/i,                 // "A-A", "B-C" - simple unit codes
+  ];
+
+  // 如果匹配有效户型格式，保留（不过滤）
+  if (validUnitPatterns.some(pattern => pattern.test(unitName))) {
+    return false;
+  }
+
   // 通用名称模式（应该被过滤）
   const genericPatterns = [
     /^studio$/i,                    // "Studio"
     /^\d+-bedroom$/i,               // "1-Bedroom", "2-Bedroom", "3-Bedroom"
-    /^\d+br$/i,                     // "1BR", "2BR", "3BR"
+    /^\d+\s*br$/i,                  // "1BR", "2BR", "3BR", "1 BR"
     /^penthouse$/i,                 // "Penthouse"
     /^duplex$/i,                    // "Duplex"
     /^townhouse$/i,                 // "Townhouse"
     /^villa$/i,                     // "Villa"
     /^apartment$/i,                 // "Apartment"
+    /^one\s*bedroom$/i,             // "One Bedroom"
+    /^two\s*bedroom$/i,             // "Two Bedroom"
+    /^three\s*bedroom$/i,           // "Three Bedroom"
   ];
-  
+
   // 如果匹配任何通用模式，返回true（应该被过滤）
   if (genericPatterns.some(pattern => pattern.test(normalized))) {
     return true;
-  }
-  
-  // 具体户型模式（应该保留）
-  // 包含连字符和字母数字组合：B-1B-B.2, C-3B-A.1, A-2BM-A.1
-  const specificPatterns = [
-    /^[A-Z]-\d+[A-Z]+-[A-Z]\.\d+$/i,  // B-1B-B.2, C-3B-A.1
-    /^[A-Z]-\d+[A-Z]+M-[A-Z]\.\d+$/i, // A-2BM-A.1, B-3BM-A.1
-    /^[A-Z]-PH-[A-Z]\.\d+$/i,          // A-PH-A.1
-  ];
-  
-  // 如果匹配具体户型模式，返回false（不过滤）
-  if (specificPatterns.some(pattern => pattern.test(unitName))) {
-    return false;
-  }
-  
-  // 如果都不匹配，但名称很短（<8字符），可能是通用名称
-  if (unitName.length < 8 && !unitName.includes('-')) {
-    return true;  // 过滤
   }
 
   return false;  // 默认保留

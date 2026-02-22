@@ -21,12 +21,25 @@ export function assignImagesByBoundaries(
   pages: PageMetadata[],
   boundaries: UnitBoundary[]
 ): UnitImageAssignment[] {
-  
+
   console.log('\n🖼️  Assigning images to units...');
-  
+
   return boundaries.map(boundary => {
+    // ⭐ 从锚点页提取unitCategory（用于防止同名不同规格的户型被错误合并）
+    const anchorPage = pages.find(p =>
+      p.pageNumber === boundary.startPage &&
+      p.unitInfo?.unitTypeName
+    );
+
+    // 提取unitCategory：优先使用AI识别的category，否则从bedrooms推导
+    let unitCategory = anchorPage?.unitInfo?.unitCategory;
+    if (!unitCategory && anchorPage?.unitInfo?.specs?.bedrooms !== undefined) {
+      unitCategory = `${anchorPage.unitInfo.specs.bedrooms}BR`;
+    }
+
     const assignment: UnitImageAssignment = {
       unitTypeName: boundary.unitTypeName,
+      unitCategory,  // ⭐ 传递category用于merge检查
       floorPlanImages: [],
       renderingImages: [],
       interiorImages: [],

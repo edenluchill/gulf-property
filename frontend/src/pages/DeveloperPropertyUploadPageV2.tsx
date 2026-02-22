@@ -25,6 +25,7 @@ import { AmenitiesSection } from '../components/developer-upload/AmenitiesSectio
 import { ExtractedPricingSection } from '../components/developer-upload/ExtractedPricingSection'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS } from '../lib/config'
+import { useAuth } from '../contexts/AuthContext'
 
 interface UnitType {
   id: string
@@ -101,6 +102,7 @@ interface ProgressEvent {
 
 export default function DeveloperPropertyUploadPageV2() {
   const { t } = useTranslation('upload')
+  const { session } = useAuth()
   const [documents, setDocuments] = useState<Document[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
@@ -284,6 +286,8 @@ export default function DeveloperPropertyUploadPageV2() {
               handoverDate: cleanedHandoverDate,
               constructionProgress: buildingData.constructionProgress || prev.constructionProgress,
               description: buildingData.description || prev.description,
+              latitude: buildingData.latitude || prev.latitude,
+              longitude: buildingData.longitude || prev.longitude,
               amenities: buildingData.amenities || prev.amenities,
               unitTypes: buildingData.units || prev.unitTypes,
               paymentPlan: buildingData.paymentPlans?.[0]?.milestones || prev.paymentPlan,
@@ -411,9 +415,16 @@ export default function DeveloperPropertyUploadPageV2() {
 
       console.log('📤 Submitting project:', submitData)
 
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+
       const response = await fetch(API_ENDPOINTS.residentialProjectsSubmit, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(submitData),
       })
 
@@ -653,24 +664,23 @@ export default function DeveloperPropertyUploadPageV2() {
                               const isUncategorized = groupKey === 'Uncategorized';
                               return (
                                 <div key={groupKey} className="space-y-4">
-                                  <div className={`px-5 py-4 rounded-xl shadow-md border-l-4 ${
-                                    isUncategorized 
-                                      ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-400' 
-                                      : 'bg-gradient-to-r from-blue-50 via-blue-50 to-indigo-50 border-blue-500'
-                                  }`}>
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-2xl">{isUncategorized ? '📋' : '🏢'}</span>
-                                      <div>
-                                        <div className={`font-bold ${isUncategorized ? 'text-gray-800' : 'text-blue-900'}`}>
-                                          {isUncategorized ? t('uncategorized') : t('series', { key: groupKey })}
-                                        </div>
-                                        <div className="text-sm text-gray-600 mt-0.5">
-                                          {t('unitTypeCount', { count: units.length })}
+                                  {/* Only show group header for categorized units */}
+                                  {!isUncategorized && (
+                                    <div className="px-5 py-4 rounded-xl shadow-md border-l-4 bg-gradient-to-r from-blue-50 via-blue-50 to-indigo-50 border-blue-500">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-2xl">🏢</span>
+                                        <div>
+                                          <div className="font-bold text-blue-900">
+                                            {t('series', { key: groupKey })}
+                                          </div>
+                                          <div className="text-sm text-gray-600 mt-0.5">
+                                            {t('unitTypeCount', { count: units.length })}
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
-                                  </div>
-                                  <div className="space-y-3 pl-4">
+                                  )}
+                                  <div className={`space-y-3 ${!isUncategorized ? 'pl-4' : ''}`}>
                                     {units.map((unit, idx) => (
                                       <UnitTypeCard
                                         key={unit.id}
@@ -678,10 +688,13 @@ export default function DeveloperPropertyUploadPageV2() {
                                         index={idx}
                                         isProcessing={isProcessing}
                                         onChange={(field, value) => {
-                                          const globalIdx = formData.unitTypes.findIndex(u => u.id === unit.id);
-                                          const updated = [...formData.unitTypes];
-                                          updated[globalIdx] = { ...updated[globalIdx], [field]: value };
-                                          setFormData(prev => ({ ...prev, unitTypes: updated }));
+                                          setFormData(prev => {
+                                            const globalIdx = prev.unitTypes.findIndex(u => u.id === unit.id);
+                                            if (globalIdx === -1) return prev;
+                                            const updated = [...prev.unitTypes];
+                                            updated[globalIdx] = { ...updated[globalIdx], [field]: value };
+                                            return { ...prev, unitTypes: updated };
+                                          });
                                         }}
                                         onRemove={() => {
                                           setFormData(prev => ({
@@ -885,6 +898,7 @@ export default function DeveloperPropertyUploadPageV2() {
             ? { lat: formData.latitude, lng: formData.longitude }
             : undefined
         }
+        address={formData.address}
       />
 
       {/* Submitting Overlay */}

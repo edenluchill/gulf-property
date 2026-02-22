@@ -456,10 +456,19 @@ function convertAssignmentToAggregatedData(
   
   const mergedUnits = assignmentResult.units.map(smartUnit => {
     // 在originalData中查找同名单元
+    // ⚠️ FIX: Must also match by category to avoid "Type A (1BR)" being matched to "Type A (4BR)"
     const matchedUnit = originalData.units.find(u => {
       const uName = (u.typeName || u.name || '').toLowerCase().trim();
       const smartName = smartUnit.unitTypeName.toLowerCase().trim();
-      return uName === smartName || uName.includes(smartName) || smartName.includes(uName);
+      const nameMatches = uName === smartName || uName.includes(smartName) || smartName.includes(uName);
+
+      // If both have category, must match category too
+      // This prevents "Type A (1BR)" from matching with "Type A (2BR)" or "Type A (4BR)"
+      if (smartUnit.unitCategory && u.category) {
+        return nameMatches && u.category === smartUnit.unitCategory;
+      }
+
+      return nameMatches;
     });
     
     if (matchedUnit) {
@@ -491,13 +500,39 @@ function convertAssignmentToAggregatedData(
       };
     } else {
       console.warn(`   ⚠️  No workflow data for "${smartUnit.unitTypeName}", using AI specs only`);
-      
+
       // 无匹配，从PageMetadata提取（可能不完整）
-      const anchorPages = pageRegistry.getAnchorPages().filter(
-        p => p.unitInfo?.unitTypeName === smartUnit.unitTypeName
-      );
+      // ⚠️ FIX: Must also filter by category AND/OR pageRange to get correct specs
+      // This prevents "Type A (1BR)" page 35 from being used for "Type A (4BR)" page 39
+      const anchorPages = pageRegistry.getAnchorPages().filter(p => {
+        // First: must match unit name
+        if (p.unitInfo?.unitTypeName !== smartUnit.unitTypeName) {
+          return false;
+        }
+
+        // Strategy 1: Match by category if both are available
+        if (smartUnit.unitCategory && p.unitInfo?.unitCategory) {
+          return p.unitInfo.unitCategory === smartUnit.unitCategory;
+        }
+
+        // Strategy 2: Match by page range if category not available
+        // smartUnit.pageRange tells us which pages this unit came from
+        if (smartUnit.pageRange) {
+          return p.pageNumber >= smartUnit.pageRange.start &&
+                 p.pageNumber <= smartUnit.pageRange.end;
+        }
+
+        // Fallback: match by name only (may be incorrect for same-name units)
+        return true;
+      });
+
       const firstAnchor = anchorPages[0];
       const specs = firstAnchor?.unitInfo?.specs;
+
+      // Debug logging for troubleshooting
+      if (anchorPages.length > 1) {
+        console.warn(`   ⚠️  Multiple anchors found for "${smartUnit.unitTypeName}" (category=${smartUnit.unitCategory}, pageRange=${JSON.stringify(smartUnit.pageRange)}): ${anchorPages.map(p => `page ${p.pageNumber} (${p.unitInfo?.unitCategory})`).join(', ')}`);
+      }
       
       // Estimate bathrooms if missing based on bedrooms
       let bedrooms = specs?.bedrooms || 0;
