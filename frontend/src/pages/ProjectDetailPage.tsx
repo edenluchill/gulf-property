@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Button } from '../components/ui/button'
-import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed } from 'lucide-react'
+import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed, Copy, Check, Share2 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useFavorites } from '../contexts/FavoritesContext'
 import { fetchResidentialProjectById } from '../lib/api'
@@ -16,6 +16,7 @@ import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
 import { LocationTab } from './ProjectDetailPage/LocationTab'
 import { UnitTypesSubPage } from './ProjectDetailPage/UnitTypesSubPage'
 import { formatPrice } from '../lib/utils'
+import { generateProjectNotes } from '../lib/generateProjectNotes'
 
 export default function ProjectDetailPage() {
   const { t } = useTranslation(['project', 'common'])
@@ -95,6 +96,77 @@ export default function ProjectDetailPage() {
   // Mobile info sheet state
   const [showMobileInfo, setShowMobileInfo] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyNotes = async () => {
+    if (!project) return
+    // Get current language from i18next
+    const currentLang = document.documentElement.lang || localStorage.getItem('i18nextLng') || 'en'
+    const notesLang = currentLang.startsWith('zh') ? 'zh-CN' : 'en'
+    const projectUrl = `${window.location.origin}/project/${project.id}`
+
+    const notes = generateProjectNotes({
+      project,
+      units: project.units || [],
+      paymentPlan: project.payment_plan || [],
+      projectUrl
+    }, notesLang as 'en' | 'zh-CN')
+
+    try {
+      await navigator.clipboard.writeText(notes)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = notes
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!project) return
+    const projectUrl = `${window.location.origin}/project/${project.id}`
+    const shareData = {
+      title: project.project_name,
+      text: `${project.project_name} - ${project.developer} | ${project.area}`,
+      url: projectUrl
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData)
+      } catch (err) {
+        // User cancelled or share failed - ignore
+        console.log('Share cancelled or failed:', err)
+      }
+    } else {
+      // Fallback: copy URL to clipboard
+      try {
+        await navigator.clipboard.writeText(projectUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        // Last resort fallback
+        const textarea = document.createElement('textarea')
+        textarea.value = projectUrl
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
+    }
+  }
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -243,14 +315,32 @@ export default function ProjectDetailPage() {
                         </span>
                       </div>
                     </div>
-                    <Button
-                      variant={isFav ? "default" : "outline"}
-                      size="icon"
-                      className="h-9 w-9 flex-shrink-0"
-                      onClick={handleToggleFavorite}
-                    >
-                      <Heart className={`h-4 w-4 ${isFav ? 'fill-current' : ''}`} />
-                    </Button>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={handleShare}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={handleCopyNotes}
+                      >
+                        {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant={isFav ? "default" : "outline"}
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={handleToggleFavorite}
+                      >
+                        <Heart className={`h-4 w-4 ${isFav ? 'fill-current' : ''}`} />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -282,6 +372,8 @@ export default function ProjectDetailPage() {
                     />
                     <ProjectInfoCard
                       project={project}
+                      units={project.units}
+                      paymentPlan={project.payment_plan}
                       isFavorite={isFav}
                       onToggleFavorite={handleToggleFavorite}
                     />
@@ -520,7 +612,32 @@ export default function ProjectDetailPage() {
                       </div>
 
                       {/* Action buttons */}
-                      <div className="flex gap-3">
+                      <div className="flex gap-2 mb-3">
+                        <Button
+                          onClick={handleShare}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <Share2 className="h-4 w-4 mr-2" />
+                          {t('project:share', 'Share')}
+                        </Button>
+                        <Button
+                          onClick={handleCopyNotes}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="h-4 w-4 mr-2 text-green-600" />
+                              {t('project:copyNotes.copied')}
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-2" />
+                              {t('project:copyNotes.button')}
+                            </>
+                          )}
+                        </Button>
                         <Button
                           onClick={handleToggleFavorite}
                           variant={isFav ? "default" : "outline"}
@@ -529,16 +646,16 @@ export default function ProjectDetailPage() {
                           <Heart className={`h-4 w-4 mr-2 ${isFav ? 'fill-current' : ''}`} />
                           {isFav ? t('project:saved', 'Saved') : t('project:save', 'Save')}
                         </Button>
-                        <Button
-                          onClick={() => {
-                            setShowMobileInfo(false)
-                            handleTabChange('units')
-                          }}
-                          className="flex-1"
-                        >
-                          {t('project:viewUnits', 'View Units')}
-                        </Button>
                       </div>
+                      <Button
+                        onClick={() => {
+                          setShowMobileInfo(false)
+                          handleTabChange('units')
+                        }}
+                        className="w-full"
+                      >
+                        {t('project:viewUnits', 'View Units')}
+                      </Button>
                     </div>
                   </motion.div>
                 </>

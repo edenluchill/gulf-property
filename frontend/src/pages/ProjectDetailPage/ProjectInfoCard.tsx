@@ -6,14 +6,21 @@ import {
   Calendar,
   Building2,
   TrendingUp,
-  Activity
+  Activity,
+  Copy,
+  Check,
+  Share2
 } from 'lucide-react'
 import { formatPrice, formatDate } from '../../lib/utils'
-import { ResidentialProject } from '../../types'
+import { ResidentialProject, UnitType, PaymentPlan } from '../../types'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
+import { generateProjectNotes } from '../../lib/generateProjectNotes'
 
 interface ProjectInfoCardProps {
   project: ResidentialProject
+  units?: UnitType[]
+  paymentPlan?: PaymentPlan[]
   isFavorite: boolean
   onToggleFavorite: () => void
 }
@@ -26,8 +33,73 @@ const statusColors: Record<string, string> = {
   'sold-out': 'bg-red-100 text-red-800',
 }
 
-export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: ProjectInfoCardProps) {
-  const { t } = useTranslation(['project', 'common'])
+export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onToggleFavorite }: ProjectInfoCardProps) {
+  const { t, i18n } = useTranslation(['project', 'common'])
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyNotes = async () => {
+    const lang = i18n.language.startsWith('zh') ? 'zh-CN' : 'en'
+    const projectUrl = `${window.location.origin}/project/${project.id}`
+    const notes = generateProjectNotes({
+      project,
+      units: units || [],
+      paymentPlan: paymentPlan || [],
+      projectUrl
+    }, lang as 'en' | 'zh-CN')
+
+    try {
+      await navigator.clipboard.writeText(notes)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea')
+      textarea.value = notes
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleShare = async () => {
+    const projectUrl = `${window.location.origin}/project/${project.id}`
+    const shareData = {
+      title: project.project_name,
+      text: `${project.project_name} - ${project.developer} | ${project.area}`,
+      url: projectUrl
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData)
+      } catch (err) {
+        console.log('Share cancelled or failed:', err)
+      }
+    } else {
+      // Fallback: copy URL to clipboard
+      try {
+        await navigator.clipboard.writeText(projectUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        const textarea = document.createElement('textarea')
+        textarea.value = projectUrl
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
+    }
+  }
 
   const statusLabels: Record<string, string> = {
     'upcoming': t('common:status.upcoming'),
@@ -57,13 +129,31 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
               <span>{project.area}</span>
             </div>
           </div>
-          <Button
-            variant={isFavorite ? "default" : "outline"}
-            size="icon"
-            onClick={onToggleFavorite}
-          >
-            <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleShare}
+              title={t('project:share')}
+            >
+              <Share2 className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCopyNotes}
+              title={t('project:copyNotes.button')}
+            >
+              {copied ? <Check className="h-5 w-5 text-green-600" /> : <Copy className="h-5 w-5" />}
+            </Button>
+            <Button
+              variant={isFavorite ? "default" : "outline"}
+              size="icon"
+              onClick={onToggleFavorite}
+            >
+              <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -134,9 +224,9 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
             {t('common:buttons.requestInfo')}
           </Button>
           {project.brochure_url && (
-            <Button 
-              variant="outline" 
-              className="w-full mt-2" 
+            <Button
+              variant="outline"
+              className="w-full mt-2"
               size="lg"
               onClick={() => window.open(project.brochure_url, '_blank')}
             >

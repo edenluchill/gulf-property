@@ -64,5 +64,13 @@
     "backToProject": "Back to Project",
     "configurations": "configurations",
     "selectUnit": "Select a unit type to view details"
-  }
+  },
+  "copyNotes": {
+    "button": "Copy Notes",
+    "copied": "Copied!",
+    "copyFailed": "Copy failed"
+  },
+  "share": "Share",
+  "save": "Save",
+  "saved": "Saved"
 }

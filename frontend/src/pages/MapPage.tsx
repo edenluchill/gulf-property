@@ -674,18 +674,24 @@ export default function MapPage() {
             showTransport={showTransport}
           />
 
-          {/* Mobile: Top left - filter button */}
-          <div className="absolute top-3 left-3 z-[1000] md:hidden">
-            <button
-              onClick={() => setShowFilters(true)}
-              className="relative flex items-center justify-center w-10 h-10 bg-white shadow-md rounded-xl text-slate-700"
-            >
-              <SlidersHorizontal className="w-5 h-5" />
-              {hasActiveFilters && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-white" />
-              )}
-            </button>
-          </div>
+          {/* Mobile: Top left - Current metric indicator */}
+          {areaMetric !== 'none' && (
+            <div className="absolute top-3 left-3 z-[1000] md:hidden">
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white shadow-lg rounded-xl text-xs font-medium">
+                {(() => {
+                  const option = METRIC_OPTIONS.find(o => o.value === areaMetric)
+                  if (!option) return null
+                  const Icon = option.Icon
+                  return (
+                    <>
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{t(option.labelKey as any)}</span>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* Mobile: Right side controls (metrics + POI combined) */}
           <div className="absolute top-3 right-3 z-[1000] md:hidden">

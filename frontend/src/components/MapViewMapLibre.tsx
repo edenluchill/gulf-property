@@ -187,17 +187,17 @@ function formatMetricValue(area: DubaiArea, metric: AreaMetric): string {
       // Total median unit price in AED
       const v = area.medianUnitPrice
       if (v === undefined || v === null) return ''
-      if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`
-      if (v >= 1000) return `$${Math.round(v / 1000)}K`
-      return `$${v}`
+      if (v >= 1000000) return `AED ${(v / 1000000).toFixed(1)}M`
+      if (v >= 1000) return `AED ${Math.round(v / 1000)}K`
+      return `AED ${v}`
     }
     case 'medianPriceSqft': {
       // medianPriceSqm converted to sqft (1 sqm = 10.764 sqft)
       const v = area.medianPriceSqm
       if (v === undefined || v === null) return ''
       const pricePerSqft = v / 10.764
-      if (pricePerSqft >= 1000) return `$${(pricePerSqft / 1000).toFixed(1)}K`
-      return `$${Math.round(pricePerSqft)}`
+      if (pricePerSqft >= 1000) return `AED ${(pricePerSqft / 1000).toFixed(1)}K`
+      return `AED ${Math.round(pricePerSqft)}`
     }
     case 'capitalGrowth': {
       const v = area.capitalAppreciation
