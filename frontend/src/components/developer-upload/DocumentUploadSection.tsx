@@ -98,7 +98,7 @@ export function DocumentUploadSection({
           <label htmlFor="pdf-upload" className="cursor-pointer block">
             <Upload className="h-12 w-12 mx-auto mb-3 text-teal-500" />
             <p className="text-sm font-medium text-gray-900">{t('documentUpload.clickToUpload')}</p>
-            <p className="text-xs text-gray-500 mt-2">{t('documentUpload.supportInfo', { maxSize: MAX_FILE_SIZE_MB })}</p>
+            <p className="text-xs text-gray-500 mt-2">{t('documentUpload.supportInfo')}</p>
           </label>
         </div>
 
