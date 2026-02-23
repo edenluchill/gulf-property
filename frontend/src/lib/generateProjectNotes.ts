@@ -281,12 +281,9 @@ export function generateProjectNotes(data: ProjectData, lang: Language = 'en'): 
     lines.push(amenitiesLine)
   }
 
-  // DLD registration fee (fixed in Dubai)
-  lines.push('')
-  lines.push(isZh ? '📋 DLD注册费：4%' : '📋 DLD Fee: 4%')
-
   // Completion date
   if (project.completion_date) {
+    lines.push('')
     const date = new Date(project.completion_date)
     const dateStr = date.toLocaleDateString(isZh ? 'zh-CN' : 'en-US', {
       year: 'numeric',
