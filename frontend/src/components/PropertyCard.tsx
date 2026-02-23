@@ -48,6 +48,13 @@ export default function PropertyCard({ property, isSelected, onClick }: Property
         )}
         
         {/* Status Badge */}
+        {property.status === 'sold-out' && (
+          <div className="absolute top-2 left-2">
+            <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded shadow-sm">
+              {t('status.soldOut')}
+            </span>
+          </div>
+        )}
         {property.status === 'under-construction' && (
           <div className="absolute top-2 left-2">
             <span className="px-2 py-0.5 bg-yellow-500 text-white text-xs font-semibold rounded">

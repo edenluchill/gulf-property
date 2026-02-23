@@ -67,11 +67,15 @@ router.post(
 
       const jobId = generateJobId();
 
-      // Get user info from request (optional - can be added via auth middleware later)
-      const userId = (req as any).user?.id || req.body.userId || 'anonymous';
-      const userEmail = (req as any).user?.email || req.body.userEmail;
+      // Get user info from request headers or body
+      const userId = req.headers['x-user-id'] as string || (req as any).user?.id || req.body.userId || 'anonymous';
+      const userEmail = req.headers['x-user-email'] as string || (req as any).user?.email || req.body.userEmail;
 
-      console.log(`\n📄 Starting job ${jobId}: ${files.length} document(s)`);
+      // Calculate total file size
+      const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);
+
+      console.log(`\n📄 Starting job ${jobId}: ${files.length} document(s), ${(totalSizeBytes / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`   User: ${userId}${userEmail ? ` (${userEmail})` : ''}`);
       files.forEach((f, i) => {
         console.log(`   ${i + 1}. ${f.originalname} (${(f.size / 1024).toFixed(2)} KB)`);
       });
@@ -87,6 +91,7 @@ router.post(
             : `${files.length} PDFs: ${files.map(f => f.originalname).join(', ').substring(0, 100)}`,
           pdfCount: files.length,
           pdfNames: files.map(f => f.originalname),
+          totalSizeBytes,
         });
         console.log(`📋 Task registered in database: ${jobId}`);
       } catch (dbError: any) {

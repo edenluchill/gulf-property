@@ -121,7 +121,10 @@
     "foundation": "基础建设阶段",
     "structureComplete": "主体结构完成",
     "interiorFitout": "内部装修阶段",
-    "completed": "✅ 已完工"
+    "completed": "✅ 已完工",
+    "soldOut": "已售罄 (Sold Out)",
+    "soldOutHint": "勾选此项表示项目已售罄，将在地图和列表中显示售罄标签",
+    "disabled": "已禁用"
   },
   "visualContent": {
     "title": "视觉内容",
@@ -135,7 +138,10 @@
     "locationMapDetected": "已检测到位置/区域地图",
     "analyzingVisual": "正在分析视觉内容...",
     "extractingImages": "提取图片中",
-    "noImagesOrContent": "暂无图片或视觉内容"
+    "noImagesOrContent": "暂无图片或视觉内容",
+    "selectPrimaryImage": "选择主图 (地图Pin显示)",
+    "primaryImageHint": "点击选择一张图片作为地图上显示的缩略图，不选则默认使用第一张",
+    "default": "默认"
   },
   "amenities": {
     "title": "配套设施",

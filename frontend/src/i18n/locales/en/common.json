@@ -16,7 +16,8 @@
     "upcoming": "Upcoming",
     "underConstruction": "Under Construction",
     "completed": "Completed",
-    "handedOver": "Handed Over"
+    "handedOver": "Handed Over",
+    "soldOut": "Sold Out"
   },
   "buttons": {
     "viewDetails": "View Details",

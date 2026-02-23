@@ -12,7 +12,7 @@ export interface ResidentialProject {
   completion_date?: string
   handover_date?: string
   construction_progress: number | string
-  status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
+  status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
   min_price?: number
   max_price?: number
   starting_price?: number
@@ -219,7 +219,7 @@ export interface OffPlanProperty {
   launchDate?: string
   completionDate?: string
   completionPercent?: number
-  status: 'upcoming' | 'under-construction' | 'completed'
+  status: 'upcoming' | 'under-construction' | 'completed' | 'sold-out'
   unitCount?: number
   buildingUnitCount?: number
   salesVolume?: number

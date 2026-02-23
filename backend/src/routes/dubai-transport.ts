@@ -9,7 +9,6 @@ import { Router, Request, Response } from 'express';
 import {
   parseCategory,
   parseAllTransportData,
-  getCombinedGeoJSON,
   groupByLine,
   TransportCategory,
   TransportGeoJSON

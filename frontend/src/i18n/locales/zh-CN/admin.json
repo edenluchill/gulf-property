@@ -19,7 +19,12 @@
     "addressNotSet": "地址未设置",
     "createdAt": "创建时间",
     "totalProjects": "共 {{count}} 个项目",
-    "searchResult": "(搜索: \"{{term}}\")"
+    "searchResult": "(搜索: \"{{term}}\")",
+    "delete": "删除",
+    "deleteProject": "删除项目",
+    "deleteConfirm": "确定要删除项目 \"{{name}}\" 吗？\n\n此操作不可恢复，将同时删除所有户型和付款计划数据。",
+    "deleteSuccess": "项目 \"{{name}}\" 已删除",
+    "deleteFailed": "删除失败，请重试"
   },
   "edit": {
     "title": "编辑项目",

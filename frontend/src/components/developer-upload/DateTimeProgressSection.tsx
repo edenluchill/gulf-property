@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Label } from '../ui/label'
 import { Slider } from '../ui/slider'
 import { DatePicker } from '../ui/date-picker'
-import { Calendar, Rocket, Home } from 'lucide-react'
+import { Calendar, Rocket, Home, Ban } from 'lucide-react'
 
 interface DateTimeProgressSectionProps {
   formData: {
@@ -10,6 +10,7 @@ interface DateTimeProgressSectionProps {
     completionDate: string
     handoverDate?: string
     constructionProgress?: number
+    status?: string
   }
   isProcessing: boolean
   onChange: (field: string, value: string | number) => void
@@ -23,12 +24,30 @@ export function DateTimeProgressSection({
   const { t } = useTranslation('upload')
 
   // Parse construction progress percentage
-  const progressValue = formData.constructionProgress 
+  const progressValue = formData.constructionProgress
     ? formData.constructionProgress
     : 0
 
+  // Check if project is sold out
+  const isSoldOut = formData.status === 'sold-out'
+
   const handleProgressChange = (value: number[]) => {
     onChange('constructionProgress', `${value[0]}`)
+  }
+
+  const handleSoldOutToggle = (checked: boolean) => {
+    if (checked) {
+      onChange('status', 'sold-out')
+    } else {
+      // Reset to default status based on progress
+      if (progressValue === 100) {
+        onChange('status', 'completed')
+      } else if (progressValue > 0) {
+        onChange('status', 'under-construction')
+      } else {
+        onChange('status', 'upcoming')
+      }
+    }
   }
 
   // Get progress color based on completion
@@ -101,17 +120,49 @@ export function DateTimeProgressSection({
         </div>
       </div>
 
+      {/* Sold Out Toggle */}
+      <div className="pt-4">
+        <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+          isSoldOut
+            ? 'bg-red-50 border-red-300 shadow-md'
+            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+        }`}>
+          <input
+            type="checkbox"
+            checked={isSoldOut}
+            onChange={(e) => handleSoldOutToggle(e.target.checked)}
+            disabled={isProcessing}
+            className="w-5 h-5 rounded border-2 border-gray-300 text-red-600 focus:ring-2 focus:ring-red-500"
+          />
+          <Ban className={`h-5 w-5 ${isSoldOut ? 'text-red-600' : 'text-gray-400'}`} />
+          <div className="flex-1">
+            <span className={`font-semibold ${isSoldOut ? 'text-red-800' : 'text-gray-700'}`}>
+              {t('dateProgress.soldOut', '已售罄 (Sold Out)')}
+            </span>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {t('dateProgress.soldOutHint', '勾选此项表示项目已售罄，将在地图和列表中显示售罄标签')}
+            </p>
+          </div>
+          {isSoldOut && (
+            <span className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full">
+              SOLD OUT
+            </span>
+          )}
+        </label>
+      </div>
+
       {/* Construction Progress Slider */}
-      <div className="space-y-4 pt-4">
+      <div className={`space-y-4 pt-4 transition-opacity ${isSoldOut ? 'opacity-50 pointer-events-none' : ''}`}>
         <div className="flex items-center justify-between">
           <Label className="text-sm font-semibold flex items-center gap-2">
             {t('dateProgress.constructionProgress')}
+            {isSoldOut && <span className="text-xs text-gray-400 font-normal">({t('dateProgress.disabled', '已禁用')})</span>}
           </Label>
           <div className="flex items-center gap-2">
             <span className={`text-2xl font-bold ${
-              progressValue >= 80 ? 'text-green-600' : 
-              progressValue >= 50 ? 'text-blue-600' : 
-              progressValue >= 25 ? 'text-teal-600' : 
+              progressValue >= 80 ? 'text-green-600' :
+              progressValue >= 50 ? 'text-blue-600' :
+              progressValue >= 25 ? 'text-teal-600' :
               'text-red-600'
             }`}>
               {progressValue}%
@@ -126,8 +177,8 @@ export function DateTimeProgressSection({
             onValueChange={handleProgressChange}
             max={100}
             step={5}
-            disabled={isProcessing}
-            className="cursor-pointer"
+            disabled={isProcessing || isSoldOut}
+            className={isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer'}
           />
           
           {/* Progress Bar Visualization */}

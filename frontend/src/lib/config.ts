@@ -34,6 +34,7 @@ export const API_ENDPOINTS = {
   adminTasks: `${API_BASE_URL}/api/admin/tasks`,
   adminTaskStats: `${API_BASE_URL}/api/admin/tasks/stats`,
   adminTask: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}`,
+  adminTaskLogs: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}/logs`,
   adminTaskPause: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}/pause`,
   adminTaskCancel: (jobId: string) => `${API_BASE_URL}/api/admin/tasks/${jobId}/cancel`,
   adminTasksBatchCancel: `${API_BASE_URL}/api/admin/tasks/batch/cancel`,

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { ImageCarousel } from './ImageCarousel'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Star, Check } from 'lucide-react'
 
 interface VisualContent {
   hasRenderings?: boolean
@@ -15,13 +15,17 @@ interface VisualContentSectionProps {
   floorPlanImages?: string[]
   visualContent?: VisualContent
   isProcessing: boolean
+  primaryImage?: string
+  onPrimaryImageChange?: (imageUrl: string | undefined) => void
 }
 
 export function VisualContentSection({
   projectImages,
   floorPlanImages,
   visualContent,
-  isProcessing
+  isProcessing,
+  primaryImage,
+  onPrimaryImageChange,
 }: VisualContentSectionProps) {
   const { t } = useTranslation('upload')
 
@@ -51,12 +55,71 @@ export function VisualContentSection({
               {t('visualContent.projectImages')} ({t('visualContent.imageCount', { count: projectImages.length })})
             </p>
           </div>
-          <ImageCarousel 
-            images={projectImages} 
+          <ImageCarousel
+            images={projectImages}
             aspectRatio="video"
             showThumbnails={projectImages.length > 1}
             maxHeight="280px"
           />
+
+          {/* Primary Image Selection */}
+          {onPrimaryImageChange && projectImages.length > 0 && (
+            <div className="mt-4 p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Star className="h-5 w-5 text-amber-500" />
+                <span className="font-semibold text-amber-800">
+                  {t('visualContent.selectPrimaryImage', '选择主图 (地图Pin显示)')}
+                </span>
+              </div>
+              <p className="text-xs text-amber-700 mb-3">
+                {t('visualContent.primaryImageHint', '点击选择一张图片作为地图上显示的缩略图，不选则默认使用第一张')}
+              </p>
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                {projectImages.map((img, idx) => {
+                  const isSelected = primaryImage === img
+                  const isDefault = !primaryImage && idx === 0
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          onPrimaryImageChange(undefined) // Deselect
+                        } else {
+                          onPrimaryImageChange(img)
+                        }
+                      }}
+                      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
+                        isSelected
+                          ? 'border-amber-500 ring-2 ring-amber-300 shadow-lg'
+                          : isDefault
+                          ? 'border-gray-300 ring-1 ring-gray-200'
+                          : 'border-transparent hover:border-gray-300'
+                      }`}
+                    >
+                      <img
+                        src={img}
+                        alt={`Image ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      {isSelected && (
+                        <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
+                          <div className="bg-amber-500 rounded-full p-1">
+                            <Check className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
+                      )}
+                      {isDefault && !primaryImage && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-gray-800/70 text-white text-[10px] text-center py-0.5">
+                          {t('visualContent.default', '默认')}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

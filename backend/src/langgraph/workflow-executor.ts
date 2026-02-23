@@ -25,9 +25,21 @@ import { calculatePdfHashes, shortHash } from '../utils/pdf/pdf-hash';
 import { checkPdfCache } from '../services/r2-storage';
 import { generateAndUploadAllPdfImages, type PdfImageBatch } from './utils/pdf-image-generator';
 import { PageRegistryManager } from './core/page-registry';
-import { TaskAbortedError } from '../services/task-manager';
+import { TaskAbortedError, taskManager } from '../services/task-manager';
 import { startJobLogging, stopJobLogging } from '../utils/job-logger';
 import { geocodeAddress } from '../services/geocoding';
+
+// Helper function to log to database (non-blocking)
+async function logToDB(
+  jobId: string,
+  level: 'debug' | 'info' | 'warn' | 'error',
+  stage: string,
+  message: string,
+  data?: any
+): Promise<void> {
+  // Fire and forget - don't await to avoid blocking the workflow
+  taskManager.appendLog(jobId, level, stage, message, data).catch(() => {});
+}
 
 export interface WorkflowConfig {
   pdfBuffers: Buffer[];
@@ -81,6 +93,15 @@ export async function executePdfWorkflow(
   console.log(`   Concurrency: ${batchSize} (p-limit sliding window)`);
   console.log(`   PDF sizes: ${pdfBuffers.map(b => `${(b.length / 1024).toFixed(2)} KB`).join(', ')}`);
   console.log(`${'='.repeat(70)}\n`);
+
+  // Log workflow start to database
+  logToDB(jobId, 'info', 'workflow', 'PDF processing workflow started', {
+    fileCount: pdfBuffers.length,
+    pagesPerChunk,
+    batchSize,
+    pdfSizes: pdfBuffers.map(b => b.length),
+    pdfNames: pdfNames || [],
+  });
 
   try {
     console.log(`⚙️ Workflow execution starting for job ${jobId}...`);
@@ -205,6 +226,11 @@ export async function executePdfWorkflow(
       console.log(`\n✅ All images generated and uploaded!`);
       console.log(`   Total: ${imageGenResult.totalImages} images`);
       console.log(`   Time: ${(imageGenResult.uploadTime / 1000).toFixed(2)}s`);
+
+      logToDB(jobId, 'info', 'image-generation', 'All images generated and uploaded', {
+        totalImages: imageGenResult.totalImages,
+        uploadTimeMs: imageGenResult.uploadTime,
+      });
       
       progressEmitter.emit(jobId, {
         stage: 'ingestion',
@@ -307,13 +333,18 @@ export async function executePdfWorkflow(
       pagesPerChunk,
     });
 
+    // Update task with total pages and chunks
+    try {
+      await taskManager.updateTaskCounts(jobId, totalPages, totalChunks);
+    } catch (e) { /* ignore */ }
+
     progressEmitter.emit(jobId, {
       stage: 'ingestion',
       code: 'CHUNKS_READY',
-      message: `Split into ${totalChunks} chunks, starting AI analysis...`,
+      message: `Split into ${totalChunks} chunks (${totalPages} pages), starting AI analysis...`,
       progress: 10,
       timestamp: Date.now(),
-      data: { totalChunks },
+      data: { totalChunks, totalPages },
     });
 
     // ============================================================
@@ -437,6 +468,22 @@ export async function executePdfWorkflow(
     console.log(`Time: ${(processingTime / 1000).toFixed(2)}s | Chunks: ${totalChunks} | Pages: ${totalPages}`);
     console.log(`${'='.repeat(70)}\n`);
 
+    // Log completion to database
+    logToDB(jobId, 'info', 'workflow', 'Workflow completed successfully', {
+      processingTimeMs: processingTime,
+      totalChunks,
+      totalPages,
+      errorCount: allErrors.length,
+      warningCount: allWarnings.length,
+      summary: {
+        units: finalData.units?.length || 0,
+        paymentPlans: finalData.paymentPlans?.length || 0,
+        amenities: finalData.amenities?.length || 0,
+        projectImages: finalData.images?.projectImages?.length || 0,
+        floorPlanImages: finalData.images?.floorPlanImages?.length || 0,
+      },
+    });
+
     return {
       success: allErrors.length === 0,
       buildingData: finalData,
@@ -470,6 +517,14 @@ export async function executePdfWorkflow(
     console.error('   Stack trace:', (error as Error).stack);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    // Log error to database
+    logToDB(jobId, 'error', 'workflow', `Workflow failed: ${errorMessage}`, {
+      error: errorMessage,
+      stack: errorStack,
+      processingTimeMs: Date.now() - startTime,
+    });
 
     // Try to emit error to client
     try {

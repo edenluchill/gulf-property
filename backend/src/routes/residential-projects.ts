@@ -100,7 +100,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           status,
           latitude,
           longitude,
-          project_images[1] as first_image
+          COALESCE(primary_image, project_images[1]) as first_image
         FROM residential_projects
         WHERE verified = true
           AND location IS NOT NULL
@@ -552,6 +552,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           construction_progress,
           project_images,
           floor_plan_images,
+          primary_image,
           amenities,
           has_renderings,
           has_floor_plans,
@@ -562,7 +563,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           status,
           payment_plan
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
         )
         RETURNING id
       `, [
@@ -579,6 +580,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.constructionProgress || null,
         finalProjectImages,
         finalFloorPlanImages,
+        data.primaryImage || null,
         data.amenities || [],
         data.visualContent?.hasRenderings || false,
         data.visualContent?.hasFloorPlans || false,
@@ -586,7 +588,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.visualContent?.renderingDescriptions || [],
         data.visualContent?.floorPlanDescriptions || [],
         true,  // Auto-verify for now (no approval workflow)
-        'upcoming',  // Default status
+        data.status || 'upcoming',  // Support sold-out status
         JSON.stringify(paymentPlanJson),
       ])
 
@@ -859,15 +861,17 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           construction_progress = $11,
           project_images = $12,
           floor_plan_images = $13,
-          amenities = $14,
-          has_renderings = $15,
-          has_floor_plans = $16,
-          has_location_maps = $17,
-          rendering_descriptions = $18,
-          floor_plan_descriptions = $19,
-          payment_plan = $20,
+          primary_image = $14,
+          status = $15,
+          amenities = $16,
+          has_renderings = $17,
+          has_floor_plans = $18,
+          has_location_maps = $19,
+          rendering_descriptions = $20,
+          floor_plan_descriptions = $21,
+          payment_plan = $22,
           updated_at = NOW()
-        WHERE id = $21
+        WHERE id = $23
       `, [
         data.projectName,
         data.developer,
@@ -882,6 +886,8 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.constructionProgress || null,
         projectImages,
         floorPlanImages,
+        data.primaryImage || null,
+        data.status || 'upcoming',
         data.amenities || [],
         data.visualContent?.hasRenderings || false,
         data.visualContent?.hasFloorPlans || false,

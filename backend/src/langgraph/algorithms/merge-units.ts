@@ -49,7 +49,7 @@ export function mergeSameNameUnits(
   // 合并同名户型
   const merged: UnitImageAssignment[] = [];
 
-  grouped.forEach((group, groupKey) => {
+  grouped.forEach((group, _groupKey) => {
     // 从第一个assignment获取原始名称和category
     const firstUnit = group[0];
     const originalName = firstUnit.unitTypeName;

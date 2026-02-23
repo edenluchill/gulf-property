@@ -13,9 +13,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { API_ENDPOINTS, API_BASE_URL } from '../lib/config';
+import { API_ENDPOINTS } from '../lib/config';
 import { TaskStatus } from '../stores/taskStore';
-import { XCircle, Home, Image, CreditCard, Trees } from 'lucide-react';
+import { XCircle, Home, Image, CreditCard, Trees, FileText, X } from 'lucide-react';
 
 // Task interface for admin view
 interface AdminTask {
@@ -27,6 +27,7 @@ interface AdminTask {
   pdf_count: number;
   pdf_names: string[];
   total_pages: number | null;
+  total_size_bytes: number | null;
   status: TaskStatus;
   progress: number;
   current_stage: string | null;
@@ -49,6 +50,23 @@ interface TaskStats {
   completedToday: number;
   failedToday: number;
 }
+
+// Log entry interface
+interface LogEntry {
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  stage: string;
+  message: string;
+  data?: any;
+}
+
+// Log level colors
+const logLevelColors: Record<string, string> = {
+  debug: 'text-gray-500 bg-gray-50',
+  info: 'text-blue-700 bg-blue-50',
+  warn: 'text-yellow-700 bg-yellow-50',
+  error: 'text-red-700 bg-red-50',
+};
 
 // Status badge colors
 const statusColors: Record<TaskStatus, string> = {
@@ -77,6 +95,33 @@ export default function AdminTasksPage() {
     total: 0,
     hasMore: false,
   });
+
+  // Log viewer state
+  const [viewingLogs, setViewingLogs] = useState<string | null>(null); // jobId
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  // Fetch logs for a task
+  const fetchLogs = async (jobId: string) => {
+    setLogsLoading(true);
+    setViewingLogs(jobId);
+    try {
+      const response = await fetch(API_ENDPOINTS.adminTaskLogs(jobId), {
+        headers: {
+          'x-user-id': 'admin',
+          'x-admin': 'true',
+        },
+      });
+      if (!response.ok) throw new Error('Failed to fetch logs');
+      const data = await response.json();
+      setLogs(data.logs || []);
+    } catch (err) {
+      console.error('Failed to fetch logs:', err);
+      setLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
@@ -315,6 +360,14 @@ export default function AdminTasksPage() {
     return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
   };
 
+  // Format file size
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return null;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+
   return (
     <div className="flex-1 bg-gray-50 p-6 overflow-auto">
       <div className="max-w-7xl mx-auto">
@@ -494,7 +547,7 @@ export default function AdminTasksPage() {
                             {task.task_name || task.job_id}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {task.pdf_count} PDF(s) | {task.total_pages ?? '?'} pages
+                            {task.pdf_count} PDF(s){task.total_size_bytes ? ` | ${formatFileSize(task.total_size_bytes)}` : ''}{task.total_pages ? ` | ${task.total_pages} pages` : ''}
                           </div>
                         </div>
                       </td>
@@ -563,6 +616,13 @@ export default function AdminTasksPage() {
                               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
                           </button>
+                          <button
+                            onClick={() => fetchLogs(task.job_id)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="View Logs"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -578,6 +638,19 @@ export default function AdminTasksPage() {
                                 <div className="font-mono text-xs">{task.job_id}</div>
                               </div>
                               <div>
+                                <div className="text-gray-500">User</div>
+                                <div>{task.user_id}</div>
+                                {task.user_email && <div className="text-xs text-gray-400">{task.user_email}</div>}
+                              </div>
+                              <div>
+                                <div className="text-gray-500">File Size</div>
+                                <div>{formatFileSize(task.total_size_bytes) || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-500">Pages</div>
+                                <div>{task.total_pages ?? '-'}</div>
+                              </div>
+                              <div>
                                 <div className="text-gray-500">Created</div>
                                 <div>{formatDate(task.created_at)}</div>
                               </div>
@@ -591,11 +664,11 @@ export default function AdminTasksPage() {
                               </div>
                               <div>
                                 <div className="text-gray-500">Chunks</div>
-                                <div>{task.processed_chunks} / {task.total_chunks ?? '?'}</div>
+                                <div>{task.processed_chunks} / {task.total_chunks ?? '-'}</div>
                               </div>
-                              <div>
+                              <div className="col-span-2">
                                 <div className="text-gray-500">PDF Files</div>
-                                <div className="text-xs truncate max-w-xs">
+                                <div className="text-xs truncate max-w-md">
                                   {task.pdf_names.join(', ')}
                                 </div>
                               </div>
@@ -717,6 +790,90 @@ export default function AdminTasksPage() {
           )}
         </div>
       </div>
+
+      {/* Log Viewer Modal */}
+      {viewingLogs && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Processing Logs</h3>
+                <p className="text-sm text-gray-500 font-mono">{viewingLogs}</p>
+              </div>
+              <button
+                onClick={() => setViewingLogs(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Logs Content */}
+            <div className="flex-1 overflow-auto p-4 bg-gray-50">
+              {logsLoading ? (
+                <div className="text-center py-8 text-gray-500">Loading logs...</div>
+              ) : logs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No logs available for this task.
+                  <br />
+                  <span className="text-sm">Logs are recorded during processing.</span>
+                </div>
+              ) : (
+                <div className="space-y-2 font-mono text-sm">
+                  {logs.map((log, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-lg border ${logLevelColors[log.level] || 'bg-gray-50'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="text-xs text-gray-400 whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString()}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-semibold uppercase ${
+                          log.level === 'error' ? 'bg-red-200 text-red-800' :
+                          log.level === 'warn' ? 'bg-yellow-200 text-yellow-800' :
+                          log.level === 'info' ? 'bg-blue-200 text-blue-800' :
+                          'bg-gray-200 text-gray-700'
+                        }`}>
+                          {log.level}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                          {log.stage}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-gray-800">{log.message}</div>
+                      {log.data && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+                            View data
+                          </summary>
+                          <pre className="mt-2 p-2 bg-white rounded border text-xs overflow-x-auto">
+                            {JSON.stringify(log.data, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t bg-white flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                {logs.length} log entries
+              </span>
+              <button
+                onClick={() => setViewingLogs(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -74,6 +74,7 @@ interface FormData {
   launchDate?: string
   handoverDate?: string
   constructionProgress?: number  // Percentage: 0-100
+  status?: string  // 'upcoming' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
   description: string
   latitude?: number
   longitude?: number
@@ -82,6 +83,7 @@ interface FormData {
   paymentPlan: any[]
   projectImages?: string[]
   floorPlanImages?: string[]
+  primaryImage?: string  // User-selected featured image for map pin display
   visualContent?: {
     hasRenderings?: boolean
     hasFloorPlans?: boolean
@@ -218,6 +220,16 @@ export default function DeveloperPropertyUploadPageV2() {
         })
         
         xhr.open('POST', API_ENDPOINTS.langgraphProgressStart)
+        // Add user authentication headers
+        if (session?.access_token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+        }
+        if (session?.user?.id) {
+          xhr.setRequestHeader('x-user-id', session.user.id)
+        }
+        if (session?.user?.email) {
+          xhr.setRequestHeader('x-user-email', session.user.email)
+        }
         xhr.send(formDataToSend)
       })
 
@@ -387,8 +399,10 @@ export default function DeveloperPropertyUploadPageV2() {
         completionDate: cleanedCompletionDate,
         handoverDate: cleanedHandoverDate,
         constructionProgress: formData.constructionProgress,
+        status: formData.status || 'upcoming',
         projectImages: formData.projectImages || [],
         floorPlanImages: formData.floorPlanImages || [],
+        primaryImage: formData.primaryImage || null,
         amenities: formData.amenities || [],
         visualContent: formData.visualContent,
         unitTypes: formData.unitTypes.map(unit => ({
@@ -623,6 +637,7 @@ export default function DeveloperPropertyUploadPageV2() {
                                 completionDate: formData.completionDate,
                                 handoverDate: formData.handoverDate,
                                 constructionProgress: formData.constructionProgress,
+                                status: formData.status,
                               }}
                               isProcessing={isProcessing}
                               onChange={handleFormChange}
@@ -635,6 +650,8 @@ export default function DeveloperPropertyUploadPageV2() {
                             floorPlanImages={formData.floorPlanImages}
                             visualContent={formData.visualContent}
                             isProcessing={isProcessing}
+                            primaryImage={formData.primaryImage}
+                            onPrimaryImageChange={(img) => handleFormChange('primaryImage', img)}
                           />
 
                           {/* Unit Types - Grouped by Tower/Building */}

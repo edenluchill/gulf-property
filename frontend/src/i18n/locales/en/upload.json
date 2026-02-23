@@ -121,7 +121,10 @@
     "foundation": "Foundation phase",
     "structureComplete": "Main structure complete",
     "interiorFitout": "Interior fitout phase",
-    "completed": "Completed"
+    "completed": "Completed",
+    "soldOut": "Sold Out",
+    "soldOutHint": "Check this to mark the project as sold out. A sold-out badge will be shown on the map and listings.",
+    "disabled": "Disabled"
   },
   "visualContent": {
     "title": "Visual Content",
@@ -135,7 +138,10 @@
     "locationMapDetected": "Location/area map has been detected",
     "analyzingVisual": "Analyzing visual content...",
     "extractingImages": "Extracting images",
-    "noImagesOrContent": "No images or visual content"
+    "noImagesOrContent": "No images or visual content",
+    "selectPrimaryImage": "Select Primary Image (Map Pin Display)",
+    "primaryImageHint": "Click to select an image as the thumbnail shown on map pins. If not selected, the first image will be used by default.",
+    "default": "Default"
   },
   "amenities": {
     "title": "Amenities",

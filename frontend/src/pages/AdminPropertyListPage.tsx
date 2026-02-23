@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { Building2, Edit, Search, Loader2, MapPin } from 'lucide-react'
+import { Building2, Edit, Search, Loader2, MapPin, Trash2 } from 'lucide-react'
 import { API_ENDPOINTS } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -87,6 +87,45 @@ export default function AdminPropertyListPage() {
     project.area?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  const deleteProject = async (projectId: number, projectName: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent navigation to edit page
+
+    const confirmed = window.confirm(
+      t('list.deleteConfirm', { name: projectName }) ||
+      `确定要删除项目 "${projectName}" 吗？\n\n此操作不可恢复，将同时删除所有户型和付款计划数据。`
+    )
+
+    if (!confirmed) return
+
+    try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+
+      const response = await fetch(API_ENDPOINTS.residentialProject(projectId.toString()), {
+        method: 'DELETE',
+        headers,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete project')
+      }
+
+      // Remove from local state
+      setProjects(prev => prev.filter(p => p.id !== projectId))
+
+      // Show success message
+      alert(t('list.deleteSuccess', { name: projectName }) || `项目 "${projectName}" 已删除`)
+    } catch (error) {
+      console.error('❌ Failed to delete project:', error)
+      alert(t('list.deleteFailed') || '删除失败，请重试')
+    }
+  }
+
   const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
 
   return (
@@ -156,8 +195,9 @@ export default function AdminPropertyListPage() {
               {filteredProjects.map((project) => {
                 const thumbnail = project.project_images?.[0]
                 const progress = project.construction_progress || 0
-                const statusColor = project.status === 'completed' ? 'green' : project.status === 'under_construction' ? 'blue' : 'yellow'
-                const statusText = project.status === 'completed' ? t('common:status.completed') : project.status === 'under_construction' ? t('common:status.underConstruction') : t('common:status.upcoming')
+                const isSoldOut = project.status === 'sold-out'
+                const statusColor = isSoldOut ? 'red' : project.status === 'completed' ? 'green' : project.status === 'under-construction' ? 'blue' : 'yellow'
+                const statusText = isSoldOut ? t('common:status.soldOut') : project.status === 'completed' ? t('common:status.completed') : project.status === 'under-construction' ? t('common:status.underConstruction') : t('common:status.upcoming')
 
                 return (
                   <Card
@@ -199,7 +239,8 @@ export default function AdminPropertyListPage() {
 
                           {/* Status Badge */}
                           <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold shadow-lg
-                            ${statusColor === 'green' ? 'bg-green-500 text-white' :
+                            ${statusColor === 'red' ? 'bg-red-600 text-white' :
+                              statusColor === 'green' ? 'bg-green-500 text-white' :
                               statusColor === 'blue' ? 'bg-blue-500 text-white' :
                               'bg-yellow-500 text-white'}`}>
                             {statusText}
@@ -289,8 +330,18 @@ export default function AdminPropertyListPage() {
                           </div>
 
                           {/* Footer */}
-                          <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                            {t('list.createdAt')}: {new Date(project.created_at).toLocaleString(dateLocale)}
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-xs text-gray-500">
+                              {t('list.createdAt')}: {new Date(project.created_at).toLocaleString(dateLocale)}
+                            </span>
+                            <button
+                              onClick={(e) => deleteProject(project.id, project.project_name, e)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all"
+                              title={t('list.deleteProject') || '删除项目'}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              {t('list.delete') || '删除'}
+                            </button>
                           </div>
                         </div>
                       </div>

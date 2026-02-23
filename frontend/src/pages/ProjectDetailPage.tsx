@@ -223,7 +223,15 @@ export default function ProjectDetailPage() {
                 <div className="bg-white border-b py-3 px-4">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-3">
-                      <h1 className="text-base font-bold text-slate-900 truncate">{project.project_name}</h1>
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-base font-bold text-slate-900 truncate">{project.project_name}</h1>
+                        {/* Sold Out Badge */}
+                        {project.status === 'sold-out' && (
+                          <span className="flex-shrink-0 px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">
+                            {t('common:status.soldOut')}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
                         <span className="flex items-center gap-1 truncate">
                           <Building2 className="h-3 w-3 flex-shrink-0" />
@@ -404,7 +412,15 @@ export default function ProjectDetailPage() {
                       {/* Header with close */}
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                          <h2 className="text-xl font-bold text-slate-900">{project.project_name}</h2>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-xl font-bold text-slate-900">{project.project_name}</h2>
+                            {/* Sold Out Badge */}
+                            {project.status === 'sold-out' && (
+                              <span className="px-2.5 py-1 bg-red-600 text-white text-xs font-bold rounded-full shadow-sm">
+                                {t('common:status.soldOut')}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 text-slate-600 mt-1">
                             <Building2 className="h-4 w-4" />
                             <span className="text-sm">{project.developer}</span>
@@ -470,10 +486,24 @@ export default function ProjectDetailPage() {
 
                         {/* Status */}
                         {project.status && (
-                          <div className="bg-slate-50 rounded-xl p-3">
+                          <div className={`rounded-xl p-3 ${
+                            project.status === 'sold-out' ? 'bg-red-50' :
+                            project.status === 'completed' ? 'bg-green-50' :
+                            project.status === 'under-construction' ? 'bg-blue-50' :
+                            'bg-slate-50'
+                          }`}>
                             <div className="text-slate-500 text-sm">{t('project:status', 'Status')}</div>
-                            <div className="text-lg font-semibold text-slate-900 mt-1 capitalize">
-                              {project.status.replace('_', ' ')}
+                            <div className={`text-lg font-semibold mt-1 ${
+                              project.status === 'sold-out' ? 'text-red-700' :
+                              project.status === 'completed' ? 'text-green-700' :
+                              project.status === 'under-construction' ? 'text-blue-700' :
+                              'text-slate-900'
+                            }`}>
+                              {project.status === 'sold-out' ? t('common:status.soldOut') :
+                               project.status === 'completed' ? t('common:status.completed') :
+                               project.status === 'under-construction' ? t('common:status.underConstruction') :
+                               project.status === 'upcoming' ? t('common:status.upcoming') :
+                               project.status.replace('-', ' ')}
                             </div>
                           </div>
                         )}

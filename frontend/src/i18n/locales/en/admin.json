@@ -19,7 +19,12 @@
     "addressNotSet": "Address not set",
     "createdAt": "Created at",
     "totalProjects": "{{count}} projects total",
-    "searchResult": "(search: \"{{term}}\")"
+    "searchResult": "(search: \"{{term}}\")",
+    "delete": "Delete",
+    "deleteProject": "Delete Project",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?\n\nThis action cannot be undone. All unit types and payment plans will also be deleted.",
+    "deleteSuccess": "Project \"{{name}}\" has been deleted",
+    "deleteFailed": "Delete failed, please try again"
   },
   "edit": {
     "title": "Edit Project",

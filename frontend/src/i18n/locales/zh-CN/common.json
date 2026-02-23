@@ -16,7 +16,8 @@
     "upcoming": "即将推出",
     "underConstruction": "建设中",
     "completed": "已完工",
-    "handedOver": "已交付"
+    "handedOver": "已交付",
+    "soldOut": "已售罄"
   },
   "buttons": {
     "viewDetails": "查看详情",

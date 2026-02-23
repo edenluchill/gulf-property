@@ -18,11 +18,12 @@ interface ProjectInfoCardProps {
   onToggleFavorite: () => void
 }
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   'upcoming': 'bg-blue-100 text-blue-800',
   'under-construction': 'bg-yellow-100 text-yellow-800',
   'completed': 'bg-green-100 text-green-800',
   'handed-over': 'bg-green-100 text-green-800',
+  'sold-out': 'bg-red-100 text-red-800',
 }
 
 export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: ProjectInfoCardProps) {
@@ -33,6 +34,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
     'under-construction': t('common:status.underConstruction'),
     'completed': t('common:status.completed'),
     'handed-over': t('common:status.handedOver'),
+    'sold-out': t('common:status.soldOut'),
   }
 
   return (
@@ -91,8 +93,8 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
           </div>
         </div>
 
-        {/* Completion Progress */}
-        {project.construction_progress !== undefined && (
+        {/* Completion Progress - hide for sold-out projects */}
+        {project.construction_progress !== undefined && project.status !== 'sold-out' && (
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center text-sm text-slate-600">
@@ -102,7 +104,7 @@ export function ProjectInfoCard({ project, isFavorite, onToggleFavorite }: Proje
               <span className="font-semibold">{project.construction_progress}%</span>
             </div>
             <div className="w-full bg-slate-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-primary h-2 rounded-full transition-all"
                 style={{ width: `${project.construction_progress}%` }}
               />

@@ -313,6 +313,38 @@ router.delete('/:jobId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/admin/tasks/:jobId/logs
+ * Get processing logs for a task (for debugging)
+ */
+router.get('/:jobId/logs', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const { level, limit = '100', offset = '0' } = req.query;
+
+    const logs = await taskManager.getTaskLogs(jobId, {
+      level: level ? (level as string).split(',') as any[] : undefined,
+      limit: parseInt(limit as string),
+      offset: parseInt(offset as string),
+    });
+
+    const task = await taskManager.getTask(jobId);
+
+    res.json({
+      success: true,
+      logs,
+      debugSnapshot: task?.debug_snapshot || null,
+      totalLogs: task?.processing_logs?.length || 0,
+    });
+  } catch (error) {
+    console.error('Error fetching task logs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch task logs',
+    });
+  }
+});
+
+/**
  * POST /api/admin/tasks/:jobId/submit
  * Submit task results as a new developer property submission
  */

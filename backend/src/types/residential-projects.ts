@@ -40,6 +40,7 @@ export interface ResidentialProject {
   // Media
   project_images: string[]
   floor_plan_images: string[]
+  primary_image?: string  // User-selected featured image for map pin display
   brochure_url?: string
   
   // Visual Content Metadata
@@ -153,6 +154,11 @@ export interface SubmitProjectRequest {
   // Media
   projectImages?: string[]
   floorPlanImages?: string[]
+  primaryImage?: string  // User-selected featured image for map pin display
+
+  // Status
+  status?: 'upcoming' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
+
   amenities: string[]
   
   // Visual content metadata

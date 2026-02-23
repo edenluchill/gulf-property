@@ -106,6 +106,7 @@ export function PropertyEditorForm({
                   completionDate: formData.completionDate,
                   handoverDate: formData.handoverDate,
                   constructionProgress: formData.constructionProgress,
+                  status: formData.status,
                 }}
                 isProcessing={isProcessing}
                 onChange={handleFormChange}
@@ -118,6 +119,8 @@ export function PropertyEditorForm({
               floorPlanImages={formData.floorPlanImages}
               visualContent={formData.visualContent}
               isProcessing={isProcessing}
+              primaryImage={formData.primaryImage}
+              onPrimaryImageChange={(img) => handleFormChange('primaryImage', img)}
             />
 
             {/* Unit Types */}

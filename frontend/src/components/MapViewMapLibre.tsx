@@ -287,6 +287,8 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
     ? project.name.substring(0, 16) + '...'
     : project.name
 
+  const isSoldOut = project.status === 'sold-out'
+
   return (
     <Marker
       longitude={project.lng}
@@ -408,6 +410,29 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
               </div>
             )}
           </div>
+
+          {/* Sold Out badge - small red circle at top-right */}
+          {isSoldOut && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '2px',
+                right: '-2px',
+                background: '#dc2626',
+                color: '#fff',
+                fontSize: '7px',
+                fontWeight: 700,
+                padding: '2px 4px',
+                borderRadius: '4px',
+                border: '1.5px solid #fff',
+                lineHeight: 1,
+                letterSpacing: '0.02em',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }}
+            >
+              SOLD
+            </div>
+          )}
         </div>
       </div>
     </Marker>

@@ -32,6 +32,7 @@ export interface PropertyFormData {
   launchDate?: string
   handoverDate?: string
   constructionProgress?: number
+  status?: string  // 'upcoming' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
   description: string
   latitude?: number
   longitude?: number
@@ -40,6 +41,7 @@ export interface PropertyFormData {
   paymentPlan: any[]
   projectImages?: string[]
   floorPlanImages?: string[]
+  primaryImage?: string  // User-selected featured image for map pin display
   visualContent?: {
     hasRenderings?: boolean
     hasFloorPlans?: boolean

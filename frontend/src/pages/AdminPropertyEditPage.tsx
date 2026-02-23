@@ -74,6 +74,7 @@ export default function AdminPropertyEditPage() {
         launchDate: project.launch_date || '',
         handoverDate: project.handover_date || '',
         constructionProgress: project.construction_progress || 0,
+        status: project.status || 'upcoming',
         description: project.description || '',
         latitude: project.latitude,
         longitude: project.longitude,
@@ -110,6 +111,7 @@ export default function AdminPropertyEditPage() {
         })),
         projectImages: project.project_images || [],
         floorPlanImages: project.floor_plan_images || [],
+        primaryImage: project.primary_image || undefined,
         visualContent: project.visual_content,
       })
     } catch (err) {
@@ -155,8 +157,10 @@ export default function AdminPropertyEditPage() {
         completionDate: formData.completionDate || null,
         handoverDate: formData.handoverDate || null,
         constructionProgress: formData.constructionProgress,
+        status: formData.status || 'upcoming',
         projectImages: formData.projectImages || [],
         floorPlanImages: formData.floorPlanImages || [],
+        primaryImage: formData.primaryImage || null,
         amenities: formData.amenities || [],
         visualContent: formData.visualContent,
         unitTypes: formData.unitTypes.map(unit => ({

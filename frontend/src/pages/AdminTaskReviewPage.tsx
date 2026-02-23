@@ -148,8 +148,10 @@ export default function AdminTaskReviewPage() {
         completionDate: formData.completionDate || null,
         handoverDate: formData.handoverDate || null,
         constructionProgress: formData.constructionProgress,
+        status: formData.status || 'upcoming',
         projectImages: formData.projectImages || [],
         floorPlanImages: formData.floorPlanImages || [],
+        primaryImage: formData.primaryImage || null,
         amenities: formData.amenities || [],
         unitTypes: formData.unitTypes.map(unit => ({
           name: unit.name,

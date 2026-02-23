@@ -24,6 +24,28 @@ export interface CreateTaskParams {
   pdfNames?: string[];
   totalPages?: number;
   totalChunks?: number;
+  totalSizeBytes?: number;
+}
+
+// Log entry structure
+export interface TaskLogEntry {
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  stage: string;
+  message: string;
+  data?: any;
+}
+
+// Debug snapshot structure
+export interface DebugSnapshot {
+  lastUpdate: string;
+  currentState: any;
+  metrics: {
+    memoryUsage?: number;
+    processingTime?: number;
+    apiCalls?: number;
+    [key: string]: any;
+  };
 }
 
 // Task record from database
@@ -36,6 +58,7 @@ export interface TaskRecord {
   pdf_count: number;
   pdf_names: string[];
   total_pages: number | null;
+  total_size_bytes: number | null;
   status: TaskStatus;
   progress: number;
   current_stage: string | null;
@@ -45,6 +68,8 @@ export interface TaskRecord {
   processed_chunks: number;
   result_data: any | null;
   errors: string[];
+  processing_logs: TaskLogEntry[];
+  debug_snapshot: DebugSnapshot | null;
   started_at: Date | null;
   completed_at: Date | null;
   created_at: Date;
@@ -98,9 +123,9 @@ export class TaskManager {
     const query = `
       INSERT INTO pdf_processing_tasks (
         job_id, user_id, user_email, task_name,
-        pdf_count, pdf_names, total_pages, total_chunks,
+        pdf_count, pdf_names, total_pages, total_chunks, total_size_bytes,
         status, progress
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', 0)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', 0)
       RETURNING id, job_id
     `;
 
@@ -113,6 +138,7 @@ export class TaskManager {
       params.pdfNames || [],
       params.totalPages || null,
       params.totalChunks || null,
+      params.totalSizeBytes || null,
     ];
 
     await pool.query(query, values);
@@ -514,12 +540,160 @@ export class TaskManager {
   }
 
   /**
+   * Append a log entry to the task's processing_logs
+   * Logs are stored in the database for production debugging
+   */
+  async appendLog(
+    jobId: string,
+    level: TaskLogEntry['level'],
+    stage: string,
+    message: string,
+    data?: any
+  ): Promise<void> {
+    const logEntry: TaskLogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      stage,
+      message,
+      ...(data && { data }),
+    };
+
+    // Also log to console in development
+    const logPrefix = `[${jobId}][${stage}]`;
+    switch (level) {
+      case 'error':
+        console.error(`❌ ${logPrefix} ${message}`, data || '');
+        break;
+      case 'warn':
+        console.warn(`⚠️ ${logPrefix} ${message}`, data || '');
+        break;
+      case 'info':
+        console.log(`ℹ️ ${logPrefix} ${message}`, data || '');
+        break;
+      case 'debug':
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`🔍 ${logPrefix} ${message}`, data || '');
+        }
+        break;
+    }
+
+    // Append to database (keep last 500 entries to prevent bloat)
+    try {
+      await pool.query(`
+        UPDATE pdf_processing_tasks
+        SET processing_logs = (
+          SELECT jsonb_agg(elem)
+          FROM (
+            SELECT elem FROM jsonb_array_elements(
+              COALESCE(processing_logs, '[]'::jsonb) || $2::jsonb
+            ) AS elem
+            ORDER BY elem->>'timestamp' DESC
+            LIMIT 500
+          ) sub
+        ),
+        updated_at = CURRENT_TIMESTAMP
+        WHERE job_id = $1
+      `, [jobId, JSON.stringify([logEntry])]);
+    } catch (err) {
+      console.error(`Failed to append log for ${jobId}:`, err);
+    }
+  }
+
+  /**
+   * Batch append multiple log entries (more efficient for bulk logging)
+   */
+  async appendLogs(jobId: string, entries: TaskLogEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+
+    try {
+      await pool.query(`
+        UPDATE pdf_processing_tasks
+        SET processing_logs = (
+          SELECT jsonb_agg(elem)
+          FROM (
+            SELECT elem FROM jsonb_array_elements(
+              COALESCE(processing_logs, '[]'::jsonb) || $2::jsonb
+            ) AS elem
+            ORDER BY elem->>'timestamp' DESC
+            LIMIT 500
+          ) sub
+        ),
+        updated_at = CURRENT_TIMESTAMP
+        WHERE job_id = $1
+      `, [jobId, JSON.stringify(entries)]);
+    } catch (err) {
+      console.error(`Failed to append logs for ${jobId}:`, err);
+    }
+  }
+
+  /**
+   * Update the debug snapshot for a task
+   * Useful for capturing state at specific points for debugging
+   */
+  async updateDebugSnapshot(jobId: string, snapshot: Partial<DebugSnapshot>): Promise<void> {
+    const fullSnapshot: DebugSnapshot = {
+      lastUpdate: new Date().toISOString(),
+      currentState: snapshot.currentState || {},
+      metrics: snapshot.metrics || {},
+    };
+
+    try {
+      await pool.query(`
+        UPDATE pdf_processing_tasks
+        SET debug_snapshot = $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE job_id = $1
+      `, [jobId, JSON.stringify(fullSnapshot)]);
+    } catch (err) {
+      console.error(`Failed to update debug snapshot for ${jobId}:`, err);
+    }
+  }
+
+  /**
+   * Get logs for a task (for admin viewing)
+   */
+  async getTaskLogs(jobId: string, options?: {
+    level?: TaskLogEntry['level'][];
+    limit?: number;
+    offset?: number;
+  }): Promise<TaskLogEntry[]> {
+    const task = await this.getTask(jobId);
+    if (!task || !task.processing_logs) return [];
+
+    let logs = task.processing_logs;
+
+    // Filter by level if specified
+    if (options?.level && options.level.length > 0) {
+      logs = logs.filter(log => options.level!.includes(log.level));
+    }
+
+    // Apply pagination
+    const offset = options?.offset || 0;
+    const limit = options?.limit || 100;
+    return logs.slice(offset, offset + limit);
+  }
+
+  /**
    * Cleanup resources for a task
    */
   cleanup(jobId: string): void {
     this.activeAbortControllers.delete(jobId);
     this.abortReasons.delete(jobId);
     console.log(`🧹 Cleaned up resources for task ${jobId}`);
+  }
+
+  /**
+   * Update task counts (total_pages, total_chunks) after PDF analysis
+   */
+  async updateTaskCounts(jobId: string, totalPages: number, totalChunks: number): Promise<void> {
+    const query = `
+      UPDATE pdf_processing_tasks
+      SET total_pages = $2,
+          total_chunks = $3,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE job_id = $1
+    `;
+    await pool.query(query, [jobId, totalPages, totalChunks]);
   }
 
   /**
