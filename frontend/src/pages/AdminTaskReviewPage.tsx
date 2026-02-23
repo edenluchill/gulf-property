@@ -136,6 +136,14 @@ export default function AdminTaskReviewPage() {
     setError(null)
 
     try {
+      // Filter out hidden images before submitting
+      const visibleProjectImages = (formData.projectImages || []).filter(
+        img => !(formData.hiddenProjectImages || []).includes(img)
+      )
+      const visibleFloorPlanImages = (formData.floorPlanImages || []).filter(
+        img => !(formData.hiddenFloorPlanImages || []).includes(img)
+      )
+
       const submitData = {
         projectName: formData.projectName,
         developer: formData.developer,
@@ -149,8 +157,8 @@ export default function AdminTaskReviewPage() {
         handoverDate: formData.handoverDate || null,
         constructionProgress: formData.constructionProgress,
         status: formData.status || 'upcoming',
-        projectImages: formData.projectImages || [],
-        floorPlanImages: formData.floorPlanImages || [],
+        projectImages: visibleProjectImages,
+        floorPlanImages: visibleFloorPlanImages,
         primaryImage: formData.primaryImage || null,
         amenities: formData.amenities || [],
         unitTypes: formData.unitTypes.map(unit => ({

@@ -83,6 +83,8 @@ interface FormData {
   paymentPlan: any[]
   projectImages?: string[]
   floorPlanImages?: string[]
+  hiddenProjectImages?: string[]  // Images hidden by user (not deleted, can restore)
+  hiddenFloorPlanImages?: string[]  // Floor plan images hidden by user
   primaryImage?: string  // User-selected featured image for map pin display
   visualContent?: {
     hasRenderings?: boolean
@@ -387,6 +389,14 @@ export default function DeveloperPropertyUploadPageV2() {
         paymentPlan: formData.paymentPlan,
       })
 
+      // Filter out hidden images before submitting
+      const visibleProjectImages = (formData.projectImages || []).filter(
+        img => !(formData.hiddenProjectImages || []).includes(img)
+      )
+      const visibleFloorPlanImages = (formData.floorPlanImages || []).filter(
+        img => !(formData.hiddenFloorPlanImages || []).includes(img)
+      )
+
       const submitData = {
         projectName: formData.projectName,
         developer: formData.developer,
@@ -400,8 +410,8 @@ export default function DeveloperPropertyUploadPageV2() {
         handoverDate: cleanedHandoverDate,
         constructionProgress: formData.constructionProgress,
         status: formData.status || 'upcoming',
-        projectImages: formData.projectImages || [],
-        floorPlanImages: formData.floorPlanImages || [],
+        projectImages: visibleProjectImages,
+        floorPlanImages: visibleFloorPlanImages,
         primaryImage: formData.primaryImage || null,
         amenities: formData.amenities || [],
         visualContent: formData.visualContent,
@@ -644,14 +654,16 @@ export default function DeveloperPropertyUploadPageV2() {
                             />
                           </div>
 
-                          {/* Visual Content */}
+                          {/* Visual Content - Project images only, floor plans are in unit types */}
                           <VisualContentSection
                             projectImages={formData.projectImages}
-                            floorPlanImages={formData.floorPlanImages}
+                            hiddenProjectImages={formData.hiddenProjectImages}
                             visualContent={formData.visualContent}
                             isProcessing={isProcessing}
                             primaryImage={formData.primaryImage}
                             onPrimaryImageChange={(img) => handleFormChange('primaryImage', img)}
+                            onProjectImagesChange={(imgs) => handleFormChange('projectImages', imgs)}
+                            onHiddenProjectImagesChange={(hidden) => handleFormChange('hiddenProjectImages', hidden)}
                           />
 
                           {/* Unit Types - Grouped by Tower/Building */}

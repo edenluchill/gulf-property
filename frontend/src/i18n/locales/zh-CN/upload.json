@@ -130,6 +130,7 @@
     "title": "视觉内容",
     "subtitle": "项目图片和效果图",
     "projectImages": "项目图片",
+    "floorPlanImages": "户型图",
     "imageCount": "{{count}} 张",
     "aiDetectedContent": "AI 检测到 PDF 中包含以下视觉内容（无法直接提取）：",
     "renderImages": "效果图渲染",
@@ -141,7 +142,11 @@
     "noImagesOrContent": "暂无图片或视觉内容",
     "selectPrimaryImage": "选择主图 (地图Pin显示)",
     "primaryImageHint": "点击选择一张图片作为地图上显示的缩略图，不选则默认使用第一张",
-    "default": "默认"
+    "default": "默认",
+    "visible": "可见",
+    "hidden": "已隐藏",
+    "restoreAll": "全部恢复",
+    "dragHint": "拖拽调整顺序，点击眼睛图标隐藏/显示图片"
   },
   "amenities": {
     "title": "配套设施",
@@ -167,6 +172,9 @@
     "insufficient": "不足",
     "aiExtracting": "AI 正在提取付款计划...",
     "noPlan": "暂无付款计划"
+  },
+  "unitTypesSection": {
+    "dragHint": "拖拽左侧手柄调整户型顺序"
   },
   "unitTypeCard": {
     "unitCount": "{{count}} 个单元",

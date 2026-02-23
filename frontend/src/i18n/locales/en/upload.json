@@ -130,6 +130,7 @@
     "title": "Visual Content",
     "subtitle": "Project images and renderings",
     "projectImages": "Project Images",
+    "floorPlanImages": "Floor Plans",
     "imageCount": "{{count}} images",
     "aiDetectedContent": "AI detected the following visual content in the PDF (cannot be directly extracted):",
     "renderImages": "Render Images",
@@ -141,7 +142,11 @@
     "noImagesOrContent": "No images or visual content",
     "selectPrimaryImage": "Select Primary Image (Map Pin Display)",
     "primaryImageHint": "Click to select an image as the thumbnail shown on map pins. If not selected, the first image will be used by default.",
-    "default": "Default"
+    "default": "Default",
+    "visible": "visible",
+    "hidden": "hidden",
+    "restoreAll": "Restore All",
+    "dragHint": "Drag to reorder, click eye icon to hide/show images"
   },
   "amenities": {
     "title": "Amenities",
@@ -167,6 +172,9 @@
     "insufficient": "Insufficient",
     "aiExtracting": "AI is extracting payment plan...",
     "noPlan": "No payment plan"
+  },
+  "unitTypesSection": {
+    "dragHint": "Drag the handle on the left to reorder unit types"
   },
   "unitTypeCard": {
     "unitCount": "{{count}} units",

@@ -41,6 +41,8 @@ export interface PropertyFormData {
   paymentPlan: any[]
   projectImages?: string[]
   floorPlanImages?: string[]
+  hiddenProjectImages?: string[]  // Images hidden by user (not deleted, can restore)
+  hiddenFloorPlanImages?: string[]  // Floor plan images hidden by user
   primaryImage?: string  // User-selected featured image for map pin display
   visualContent?: {
     hasRenderings?: boolean

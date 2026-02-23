@@ -113,14 +113,16 @@ export function PropertyEditorForm({
               />
             </div>
 
-            {/* Visual Content */}
+            {/* Visual Content - Project images only, floor plans are in unit types */}
             <VisualContentSection
               projectImages={formData.projectImages}
-              floorPlanImages={formData.floorPlanImages}
+              hiddenProjectImages={formData.hiddenProjectImages}
               visualContent={formData.visualContent}
               isProcessing={isProcessing}
               primaryImage={formData.primaryImage}
               onPrimaryImageChange={(img) => handleFormChange('primaryImage', img)}
+              onProjectImagesChange={(imgs) => handleFormChange('projectImages', imgs)}
+              onHiddenProjectImagesChange={(hidden) => handleFormChange('hiddenProjectImages', hidden)}
             />
 
             {/* Unit Types */}

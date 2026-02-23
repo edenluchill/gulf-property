@@ -164,46 +164,55 @@ export default function FavoritesPage() {
                 >
                   {/* Project Header */}
                   <div className="flex gap-3 p-3 border-b bg-slate-50/50">
-                    {/* Project Image */}
-                    <div className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
-                      {project.details?.project_images?.[0] ? (
-                        <img
-                          src={project.details.project_images[0]}
-                          alt={project.details.project_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Building2 className="h-6 w-6 text-slate-300" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Project Info */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-slate-800 truncate text-sm md:text-base">
-                        {project.details?.project_name || project.projectId}
-                      </h3>
-                      {project.details && (
-                        <>
-                          <p className="text-xs text-slate-500 truncate">
-                            {project.details.developer}
-                          </p>
-                          <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
-                            <MapPin className="h-3 w-3" />
-                            <span className="truncate">{project.details.area}</span>
+                    {/* Clickable Project Area */}
+                    <div
+                      className="flex gap-3 flex-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => navigate(`/project/${project.projectId}`)}
+                    >
+                      {/* Project Image */}
+                      <div className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                        {project.details?.project_images?.[0] ? (
+                          <img
+                            src={project.details.project_images[0]}
+                            alt={project.details.project_name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Building2 className="h-6 w-6 text-slate-300" />
                           </div>
-                        </>
-                      )}
+                        )}
+                      </div>
+
+                      {/* Project Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-slate-800 truncate text-sm md:text-base">
+                          {project.details?.project_name || project.projectId}
+                        </h3>
+                        {project.details && (
+                          <>
+                            <p className="text-xs text-slate-500 truncate">
+                              {project.details.developer}
+                            </p>
+                            <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                              <MapPin className="h-3 w-3" />
+                              <span className="truncate">{project.details.area}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-start gap-1">
-                      <Link to={`/project/${project.projectId}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => navigate(`/project/${project.projectId}`)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -223,7 +232,8 @@ export default function FavoritesPage() {
                         return (
                           <div
                             key={unitTypeId}
-                            className="flex items-center gap-3 p-3"
+                            className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                            onClick={() => navigate(`/project/${project.projectId}?unit=${unitTypeId}`)}
                           >
                             {/* Unit Floor Plan */}
                             <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border">
@@ -270,7 +280,10 @@ export default function FavoritesPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-slate-400 hover:text-red-500"
-                                onClick={() => toggleUnitTypeFavorite(project.projectId, unitTypeId)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleUnitTypeFavorite(project.projectId, unitTypeId)
+                                }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
