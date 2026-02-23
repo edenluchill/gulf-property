@@ -67,28 +67,34 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
   }
 
   const handleShare = async () => {
+    const lang = i18n.language.startsWith('zh') ? 'zh-CN' : 'en'
     const projectUrl = `${window.location.origin}/project/${project.id}`
-    const shareData = {
-      title: project.project_name,
-      text: `${project.project_name} - ${project.developer} | ${project.area}`,
-      url: projectUrl
-    }
+
+    const notes = generateProjectNotes({
+      project,
+      units: units || [],
+      paymentPlan: paymentPlan || [],
+      projectUrl
+    }, lang as 'en' | 'zh-CN')
 
     if (navigator.share) {
       try {
-        await navigator.share(shareData)
+        // Try sharing with text (works well for WeChat, WhatsApp, etc.)
+        await navigator.share({
+          text: notes
+        })
       } catch (err) {
         console.log('Share cancelled or failed:', err)
       }
     } else {
-      // Fallback: copy URL to clipboard
+      // Fallback: copy notes to clipboard
       try {
-        await navigator.clipboard.writeText(projectUrl)
+        await navigator.clipboard.writeText(notes)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
       } catch {
         const textarea = document.createElement('textarea')
-        textarea.value = projectUrl
+        textarea.value = notes
         textarea.style.position = 'fixed'
         textarea.style.opacity = '0'
         document.body.appendChild(textarea)

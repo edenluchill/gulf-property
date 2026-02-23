@@ -106,8 +106,12 @@ export function generateProjectNotes(data: ProjectData, lang: Language = 'en'): 
 
   // Header with emoji border for WeChat
   lines.push(`🏗 ${project.project_name}`)
-  lines.push(`🏢 ${isZh ? '开发商' : 'Developer'}：${project.developer}`)
-  lines.push(`📍 ${project.area}`)
+  if (project.developer) {
+    lines.push(`🏢 ${isZh ? '开发商' : 'Developer'}：${project.developer}`)
+  }
+  if (project.area) {
+    lines.push(`📍 ${project.area}`)
+  }
   lines.push('')
 
   // Tower info (if multiple towers exist)
@@ -132,22 +136,18 @@ export function generateProjectNotes(data: ProjectData, lang: Language = 'en'): 
     lines.push('')
   }
 
-  // Price and area by bedroom type
+  // Price and area by bedroom type - only show bedrooms with price info
   const unitStats = getUnitStats(units)
   const sortedBedrooms = Array.from(unitStats.keys()).sort((a, b) => a - b)
+  const bedroomsWithPrice = sortedBedrooms.filter(b => unitStats.get(b)?.minPrice)
 
-  if (sortedBedrooms.length > 0) {
+  if (bedroomsWithPrice.length > 0) {
     lines.push(isZh ? '💰 项目起价与面积' : '💰 Starting Prices & Sizes')
 
-    for (const bedrooms of sortedBedrooms) {
+    for (const bedrooms of bedroomsWithPrice) {
       const stats = unitStats.get(bedrooms)!
       const label = getBedroomLabel(bedrooms, lang)
-
-      let line = `• ${label}`
-
-      if (stats.minPrice) {
-        line += `：${formatPriceShort(stats.minPrice, lang)}`
-      }
+      let line = `• ${label}：${formatPriceShort(stats.minPrice!, lang)}`
 
       if (stats.minArea) {
         line += isZh ? '｜' : ' | '
@@ -159,19 +159,25 @@ export function generateProjectNotes(data: ProjectData, lang: Language = 'en'): 
     lines.push('')
   }
 
-  // Payment plan
+  // Payment plan - only show if milestones have valid names
   if (paymentPlan && paymentPlan.length > 0) {
-    lines.push(isZh ? '📅 付款计划' : '📅 Payment Plan')
-
-    // Sort by display_order
     const sortedPlan = [...paymentPlan].sort((a, b) => a.display_order - b.display_order)
 
-    for (const milestone of sortedPlan) {
-      const name = milestone.milestone_name
-      const percentage = milestone.percentage.replace('%', '').trim()
-      lines.push(`• ${name}：${percentage}%`)
+    // Filter out milestones without valid names
+    const validMilestones = sortedPlan.filter(m => m.milestone_name && m.milestone_name !== 'undefined')
+
+    if (validMilestones.length > 0) {
+      lines.push(isZh ? '📅 付款计划' : '📅 Payment Plan')
+
+      for (const milestone of validMilestones) {
+        const name = milestone.milestone_name
+        const percentage = typeof milestone.percentage === 'string'
+          ? milestone.percentage.replace('%', '').trim()
+          : milestone.percentage
+        lines.push(`• ${name}：${percentage}%`)
+      }
+      lines.push('')
     }
-    lines.push('')
   }
 
   // Completion date

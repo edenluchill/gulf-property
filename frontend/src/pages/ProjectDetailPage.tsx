@@ -1,10 +1,11 @@
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Helmet } from 'react-helmet-async'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Button } from '../components/ui/button'
 import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed, Copy, Check, Share2 } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useFavorites } from '../contexts/FavoritesContext'
 import { fetchResidentialProjectById } from '../lib/api'
 import { ImageGallery } from './ProjectDetailPage/ImageGallery'
@@ -132,30 +133,36 @@ export default function ProjectDetailPage() {
 
   const handleShare = async () => {
     if (!project) return
+    const currentLang = document.documentElement.lang || localStorage.getItem('i18nextLng') || 'en'
+    const notesLang = currentLang.startsWith('zh') ? 'zh-CN' : 'en'
     const projectUrl = `${window.location.origin}/project/${project.id}`
-    const shareData = {
-      title: project.project_name,
-      text: `${project.project_name} - ${project.developer} | ${project.area}`,
-      url: projectUrl
-    }
+
+    const notes = generateProjectNotes({
+      project,
+      units: project.units || [],
+      paymentPlan: project.payment_plan || [],
+      projectUrl
+    }, notesLang as 'en' | 'zh-CN')
 
     if (navigator.share) {
       try {
-        await navigator.share(shareData)
+        // Try sharing with text (works well for WeChat, WhatsApp, etc.)
+        await navigator.share({
+          text: notes
+        })
       } catch (err) {
         // User cancelled or share failed - ignore
         console.log('Share cancelled or failed:', err)
       }
     } else {
-      // Fallback: copy URL to clipboard
+      // Fallback: copy notes to clipboard
       try {
-        await navigator.clipboard.writeText(projectUrl)
+        await navigator.clipboard.writeText(notes)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
       } catch {
-        // Last resort fallback
         const textarea = document.createElement('textarea')
-        textarea.value = projectUrl
+        textarea.value = notes
         textarea.style.position = 'fixed'
         textarea.style.opacity = '0'
         document.body.appendChild(textarea)
@@ -174,6 +181,20 @@ export default function ProjectDetailPage() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  // Generate OG meta data for social sharing
+  const ogData = useMemo(() => {
+    if (!project) return null
+
+    const title = `${project.project_name} | ${project.developer}`
+    const description = project.starting_price
+      ? `${project.area} - Starting from ${formatPrice(project.starting_price)}. ${project.min_bedrooms}-${project.max_bedrooms} BR units available.`
+      : `${project.area} - Premium off-plan development by ${project.developer}.`
+    const image = project.project_images?.[0] || '/og-image.jpg'
+    const url = `${window.location.origin}/project/${project.id}`
+
+    return { title, description, image, url }
+  }, [project])
 
   if (loading) {
     return (
@@ -260,7 +281,23 @@ export default function ProjectDetailPage() {
   )
 
   return (
-    <div ref={scrollContainerRef} className="flex-1 bg-slate-50 overflow-auto">
+    <>
+      {/* Dynamic OG meta tags for social sharing */}
+      {ogData && (
+        <Helmet>
+          <title>{ogData.title}</title>
+          <meta property="og:title" content={ogData.title} />
+          <meta property="og:description" content={ogData.description} />
+          <meta property="og:image" content={ogData.image} />
+          <meta property="og:url" content={ogData.url} />
+          <meta property="og:type" content="website" />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={ogData.title} />
+          <meta name="twitter:description" content={ogData.description} />
+          <meta name="twitter:image" content={ogData.image} />
+        </Helmet>
+      )}
+      <div ref={scrollContainerRef} className="flex-1 bg-slate-50 overflow-auto">
       {/* Tabs Container */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {/* Sticky TabsList */}
@@ -664,5 +701,6 @@ export default function ProjectDetailPage() {
           </>
         )}
     </div>
+    </>
   )
 }
