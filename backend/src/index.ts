@@ -31,6 +31,7 @@ app.use(helmet())
 const allowedOrigins = [
   'https://pinzos.com',
   'https://www.pinzos.com',
+  'https://upload.pinzos.com',  // Direct upload endpoint (bypasses Cloudflare)
   'http://localhost:5173',  // For local development
   'http://localhost:5174',  // Alternative local port
 ]
@@ -106,12 +107,17 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   })
 })
 
-// Start server
-app.listen(PORT, () => {
+// Start server with extended timeouts for large file uploads
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`)
 })
+
+// Extend timeouts for large file uploads (10 minutes)
+server.keepAliveTimeout = 600000 // 10 minutes
+server.headersTimeout = 610000   // Slightly longer than keepAliveTimeout
+server.timeout = 600000          // 10 minutes for request timeout
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

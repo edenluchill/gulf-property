@@ -73,8 +73,10 @@
   },
   "documentUpload": {
     "clickToUpload": "点击上传 PDF（可多选）",
-    "supportInfo": "支持 Ctrl+点击 选择多个文件，每个最大 20MB",
-    "aiExtract": "AI 智能提取"
+    "supportInfo": "支持 Ctrl+点击 选择多个文件",
+    "aiExtract": "AI 智能提取",
+    "largeFileWarningTitle": "检测到大文件",
+    "largeFileWarning": "{{files}} - 大文件（>100MB）上传可能需要较长时间。如上传失败，请尝试较小文件或联系技术支持。"
   },
   "multiDocUpload": {
     "title": "文档上传（可上传多个）",

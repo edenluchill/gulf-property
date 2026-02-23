@@ -8,6 +8,10 @@
 //      所以生产环境仍然需要 /api 路径
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Upload API URL - bypasses Cloudflare for large file uploads (>100MB)
+// Set VITE_UPLOAD_API_URL to a direct server URL (not proxied by Cloudflare)
+export const UPLOAD_API_URL = import.meta.env.VITE_UPLOAD_API_URL || API_BASE_URL;
+
 // API Endpoints
 export const API_ENDPOINTS = {
   // Residential Projects
@@ -16,8 +20,8 @@ export const API_ENDPOINTS = {
   residentialProject: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,
   residentialProjectUpdate: (id: string) => `${API_BASE_URL}/api/residential-projects/${id}`,
 
-  // LangGraph
-  langgraphProgressStart: `${API_BASE_URL}/api/langgraph-progress/start`,
+  // LangGraph - Use UPLOAD_API_URL for file uploads to bypass Cloudflare 100MB limit
+  langgraphProgressStart: `${UPLOAD_API_URL}/api/langgraph-progress/start`,
   langgraphProgressStream: (jobId: string) => `${API_BASE_URL}/api/langgraph-progress/stream/${jobId}`,
   langgraphProgressStatus: (jobId: string) => `${API_BASE_URL}/api/langgraph-progress/status/${jobId}`,
 

@@ -73,8 +73,10 @@
   },
   "documentUpload": {
     "clickToUpload": "Click to upload PDF (multi-select)",
-    "supportInfo": "Ctrl+click to select multiple files, max 20MB each",
-    "aiExtract": "AI Smart Extract"
+    "supportInfo": "Ctrl+click to select multiple files",
+    "aiExtract": "AI Smart Extract",
+    "largeFileWarningTitle": "Large file detected",
+    "largeFileWarning": "{{files}} - Large files (>100MB) may take longer to upload. If upload fails, try a smaller file or contact support."
   },
   "multiDocUpload": {
     "title": "Document Upload (multiple supported)",

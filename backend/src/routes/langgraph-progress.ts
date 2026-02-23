@@ -34,11 +34,11 @@ const router = Router();
  * 
  * Start PDF processing and return job ID for SSE connection
  */
-// Update to support multiple files and large PDFs
+// Update to support multiple files and large PDFs (up to 1GB each)
 const uploadMultiple = multer({
   storage: multer.memoryStorage(),
-  limits: { 
-    fileSize: 500 * 1024 * 1024,  // 500MB per file
+  limits: {
+    fileSize: 1024 * 1024 * 1024,  // 1GB per file
     files: 10,  // Max 10 files
   },
   fileFilter: (_req, file, cb) => {
@@ -104,7 +104,8 @@ router.post(
       console.log(`🚀 Starting async workflow for job ${jobId}...`);
 
       // Wait for SSE client to connect before starting heavy processing
-      const waitForClient = async (maxWaitMs: number = 3000) => {
+      // Extended to 15 seconds for large file uploads where client may be slower to establish SSE
+      const waitForClient = async (maxWaitMs: number = 15000) => {
         const startWait = Date.now();
         while (!progressEmitter.hasClient(jobId)) {
           if (Date.now() - startWait > maxWaitMs) {
