@@ -24,10 +24,9 @@ import {
   fetchDubaiAreas,
   fetchDubaiLandmarks,
   searchDubaiAreas,
-  fetchTransportGeoJSON,
+  fetchCustomRoutesGeoJSON,
   AreaSearchResult,
   TransportGeoJSON,
-  TransportCategory,
   MapPinProject
 } from '../lib/api'
 
@@ -43,7 +42,7 @@ const METRIC_OPTIONS = [
 // MAP DATA VERSION - Increment this to force all clients to reload map data
 // Format: YYYYMMDD or any string. When changed, all cached data will be cleared.
 // ============================================================================
-const MAP_DATA_VERSION = '20260216-osm'
+const MAP_DATA_VERSION = '20260227-custom-routes'
 
 // Clear all map-related cache if version changed
 function checkAndClearCache() {
@@ -58,6 +57,7 @@ function checkAndClearCache() {
       'gulf_dubai_areas', 'gulf_dubai_areas_timestamp',
       'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp',
       'dubai_pois_cache',  // POI data from OSM
+      'transport-geojson-cache',  // Custom routes data
     ]
     keysToRemove.forEach(key => localStorage.removeItem(key))
     localStorage.setItem('gulf_map_data_version', MAP_DATA_VERSION)
@@ -129,16 +129,8 @@ export default function MapPage() {
   const [showTransit, setShowTransit] = useState<boolean>(() => {
     return localStorage.getItem('map-show-transit') === 'true'
   })
-  const [transportGeoJSON, setTransportGeoJSON] = useState<TransportGeoJSON | null>(() => {
-    // Try to load from localStorage cache
-    const cached = localStorage.getItem('transport-geojson-cache')
-    if (cached) {
-      try {
-        return JSON.parse(cached) as TransportGeoJSON
-      } catch { /* ignore */ }
-    }
-    return null
-  })
+  // Custom routes - no localStorage cache, always fetch fresh
+  const [transportGeoJSON, setTransportGeoJSON] = useState<TransportGeoJSON | null>(null)
   const showTransport = showTransit
 
   // Quick toggle buttons - single categories
@@ -180,31 +172,17 @@ export default function MapPage() {
     })
   }, [])
 
-  // Fetch transport GeoJSON when transit is enabled (with localStorage cache)
+  // Fetch custom routes GeoJSON when transit is enabled (always fresh, no cache)
   useEffect(() => {
     if (showTransit) {
-      // If already have cached data, don't re-fetch
-      if (transportGeoJSON) return
-
-      // Fetch all transport categories
-      const allCategories: TransportCategory[] = [
-        'metro_lines', 'metro_stations',
-        'tram_lines', 'tram_stations',
-        'monorail', 'monorail_stations'
-      ]
-      fetchTransportGeoJSON(allCategories).then(data => {
+      // Always fetch fresh data when transit is shown
+      fetchCustomRoutesGeoJSON().then(data => {
         if (data) {
           setTransportGeoJSON(data)
-          // Cache in localStorage
-          try {
-            localStorage.setItem('transport-geojson-cache', JSON.stringify(data))
-          } catch (e) {
-            console.warn('Failed to cache transport data:', e)
-          }
         }
       })
     }
-  }, [showTransit, transportGeoJSON])
+  }, [showTransit])
 
   // Area detail dialog state
   const [showAreaDialog, setShowAreaDialog] = useState(false)
@@ -1432,12 +1410,6 @@ export default function MapPage() {
                 {t('map:areaDialog.marketStatistics')}
               </h4>
               <div className="grid grid-cols-2 gap-2">
-                {selectedArea.projectCounts !== undefined && selectedArea.projectCounts > 0 && (
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.projects')}</div>
-                    <div className="text-lg font-bold text-slate-900">{selectedArea.projectCounts}</div>
-                  </div>
-                )}
                 {selectedArea.averagePrice !== undefined && selectedArea.averagePrice !== null && (
                   <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
                     <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.avgPrice')}</div>

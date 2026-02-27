@@ -35,10 +35,15 @@ $ErrorActionPreference = "Stop"
 $PROJECT_NAME = "Pinzos"
 $DOCKER_NAME = $PROJECT_NAME.ToLower()
 $LOCATION = "nbg1"                # Nuremberg, Germany (closest to Dubai)
-$SERVER_TYPE = "cpx22"            # 4 vCPU, 8GB RAM (cpx21 not available in nbg1, using next option)
+# With worker architecture: main API handles requests, worker handles heavy PDF processing
+$SERVER_TYPE = "cpx22"            # 4 vCPU, 8GB RAM
 $LB_TYPE = "lb11"
 $INITIAL_INSTANCES = 1            # Start with 1 instance (can scale later)
 $NETWORK_ZONE = "eu-central"
+
+# GitHub Container Registry
+$GITHUB_USERNAME = "edenluchill"
+$GHCR_IMAGE = "ghcr.io/$GITHUB_USERNAME/pinzos-backend"
 
 # Switch to correct Hetzner project (try multiple variations)
 $contextNames = @($PROJECT_NAME, "pinzos", "Pinzos")
@@ -301,6 +306,12 @@ $rulesJson = @"
   {
     "direction": "in",
     "protocol": "tcp",
+    "port": "443",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "direction": "in",
+    "protocol": "tcp",
     "port": "$APP_PORT",
     "source_ips": ["10.0.0.0/16", "0.0.0.0/0"]
   },
@@ -320,18 +331,19 @@ Remove-Item $tempFile
 Write-Success "Firewall configured"
 
 # ============================================================================
-# 4. Build Docker Image
+# 4. Build and Push Docker Image
 # ============================================================================
 
-Write-Step "4/7 Building Docker image..."
+Write-Step "4/7 Building and pushing Docker image..."
 
 $IMAGE_TAG = Get-Date -Format "yyyyMMdd-HHmmss"
-Write-Info "Building: ${DOCKER_NAME}-backend:${IMAGE_TAG}"
+Write-Info "Building: ${GHCR_IMAGE}:${IMAGE_TAG}"
 
-# Build production-optimized image
-docker build --no-cache `
+# Build production-optimized image (using cache for faster builds)
+docker build `
     --build-arg NODE_ENV=production `
-    -t "${DOCKER_NAME}-backend:${IMAGE_TAG}" `
+    -t "${GHCR_IMAGE}:${IMAGE_TAG}" `
+    -t "${GHCR_IMAGE}:latest" `
     -f Dockerfile.production .
 
 if ($LASTEXITCODE -ne 0) {
@@ -339,22 +351,41 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-docker tag "${DOCKER_NAME}-backend:${IMAGE_TAG}" "${DOCKER_NAME}-backend:latest"
-
 Write-Success "Docker image built"
 
-# Save image
-Write-Info "Exporting image (this may take a few minutes)..."
-$TEMP_TAR = "$env:TEMP\${PROJECT_NAME}-backend-${IMAGE_TAG}.tar"
-docker save "${DOCKER_NAME}-backend:latest" -o $TEMP_TAR
-
-if (-not (Test-Path $TEMP_TAR)) {
-    Write-Error-Custom "Docker tar not found"
+# Login to GitHub Container Registry
+Write-Info "Logging in to GitHub Container Registry..."
+if (-not $env:GITHUB_TOKEN) {
+    Write-Error-Custom "GITHUB_TOKEN environment variable not set"
+    Write-Host ""
+    Write-Host "To set up GHCR access:" -ForegroundColor Yellow
+    Write-Host "  1. Go to: https://github.com/settings/tokens" -ForegroundColor White
+    Write-Host "  2. Create a token with 'write:packages' scope" -ForegroundColor White
+    Write-Host "  3. Run: `$env:GITHUB_TOKEN = 'your_token_here'" -ForegroundColor Cyan
+    Write-Host "  4. Then re-run this script" -ForegroundColor White
     exit 1
 }
 
-$imageSizeMB = [math]::Round((Get-Item $TEMP_TAR).Length / 1MB, 2)
-Write-Success "Image exported ($imageSizeMB MB)"
+$env:GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error-Custom "Failed to login to GHCR"
+    exit 1
+}
+
+Write-Success "Logged in to GHCR"
+
+# Push image to registry
+Write-Info "Pushing image to GHCR (only changed layers)..."
+docker push "${GHCR_IMAGE}:${IMAGE_TAG}"
+docker push "${GHCR_IMAGE}:latest"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error-Custom "Failed to push image"
+    exit 1
+}
+
+Write-Success "Image pushed to ${GHCR_IMAGE}:latest"
 
 # ============================================================================
 # 5. Create Backend Servers
@@ -446,63 +477,73 @@ for ($i = 0; $i -lt $SERVER_IPS.Count; $i++) {
     Write-Info "Deploying to server ${SERVER_NUM}: $IP"
 
     # Wait for SSH
-    Write-Info "Waiting for SSH..."
+    Write-Info "Waiting for SSH to become available..."
     $retries = 0
     $maxRetries = 30
 
     while ($retries -lt $maxRetries) {
-        try {
-            ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@$IP "echo ok" 2>$null
-            if ($LASTEXITCODE -eq 0) { break }
-        } catch {}
-
         $retries++
+        $ErrorActionPreference = "Continue"
+        $sshResult = ssh -n -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR root@$IP "echo connected" 2>&1 | Select-String -Pattern "^connected$"
+        $sshExitCode = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
+
+        if ($sshExitCode -eq 0 -and $sshResult) {
+            Write-Success "SSH ready after $retries attempt(s)"
+            break
+        }
+
         if ($retries -eq $maxRetries) {
-            Write-Error-Custom "SSH timeout for $IP"
+            Write-Error-Custom "SSH timeout after $maxRetries attempts for $IP"
             exit 1
         }
+        Write-Host "  Attempt $retries/$maxRetries - waiting 5s..." -ForegroundColor Gray
         Start-Sleep -Seconds 5
     }
 
-    Write-Success "SSH connection established"
-
     # Create directories
     Write-Info "Creating directories..."
-    ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "mkdir -p /opt/pinzos /var/log/pinzos"
-
-    Write-Info "Uploading Docker image (this will take several minutes)..."
-    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-        -o Compression=yes `
-        $TEMP_TAR `
-        "root@${IP}:/tmp/image.tar"
+    $ErrorActionPreference = "Continue"
+    ssh -n -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$IP "mkdir -p /opt/pinzos /var/log/pinzos" 2>&1 | Out-Null
+    $ErrorActionPreference = "Stop"
 
     Write-Info "Uploading configuration files..."
-    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-        $ENV_FILE `
-        "root@${IP}:/opt/pinzos/.env"
+    $ErrorActionPreference = "Continue"
 
-    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-        docker-compose.production.yml `
-        "root@${IP}:/opt/pinzos/docker-compose.yml"
+    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR `
+        $ENV_FILE "root@${IP}:/opt/pinzos/.env" 2>&1 | Out-Null
+
+    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR `
+        docker-compose.production.yml "root@${IP}:/opt/pinzos/docker-compose.yml" 2>&1 | Out-Null
 
     # Upload nginx config — production version for Cloudflare
     if (Test-Path "nginx.production.conf") {
         Write-Info "Uploading nginx.production.conf (Cloudflare SSL)..."
-        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-            nginx.production.conf `
-            "root@${IP}:/opt/pinzos/nginx.conf"
+        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR `
+            nginx.production.conf "root@${IP}:/opt/pinzos/nginx.conf" 2>&1 | Out-Null
     } elseif (Test-Path "nginx.conf") {
         Write-Info "Uploading nginx.conf (HTTP-only)..."
-        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no `
-            nginx.conf `
-            "root@${IP}:/opt/pinzos/nginx.conf"
+        scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR `
+            nginx.conf "root@${IP}:/opt/pinzos/nginx.conf" 2>&1 | Out-Null
     } else {
         Write-Warning "No nginx config found, nginx may not work correctly"
     }
 
+    $ErrorActionPreference = "Stop"
+    Write-Info "SSL: Auto-configured via Cloudflare DNS challenge"
+
     Write-Info "Starting backend services..."
 
-    $deployScript = @'
+    # Pass credentials to server
+    $ghcrToken = $env:GITHUB_TOKEN
+
+    # Read Cloudflare token from .env.production
+    $cfToken = ""
+    if ($envContent -match "CLOUDFLARE_API_TOKEN=(.+)") {
+        $cfToken = $matches[1].Trim()
+    }
+
+    $deployScript = @"
 #!/bin/bash
 set -e
 cd /opt/pinzos
@@ -515,13 +556,11 @@ if ! command -v docker >/dev/null 2>&1; then
     echo "Docker installed"
 fi
 
-# Load Docker image
-if [ -f /tmp/image.tar ]; then
-    echo "Loading Docker image..."
-    docker load < /tmp/image.tar
-    rm -f /tmp/image.tar
-    echo "Image loaded"
-fi
+# Login to GHCR and pull image
+echo "Pulling image from GHCR..."
+echo "$ghcrToken" | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+docker pull ${GHCR_IMAGE}:latest
+echo "Image pulled"
 
 # Verify .env file
 if [ ! -f .env ]; then
@@ -529,6 +568,37 @@ if [ ! -f .env ]; then
     exit 1
 fi
 echo "Environment file found"
+
+# Setup SSL certificate for upload-api.pinzos.com (bypasses Cloudflare for 500MB+ uploads)
+CERT_PATH="/etc/letsencrypt/live/upload-api.pinzos.com/fullchain.pem"
+if [ ! -f "`$CERT_PATH" ]; then
+    echo "Setting up SSL certificate..."
+
+    # Install certbot with Cloudflare plugin
+    apt-get update -qq
+    apt-get install -y -qq certbot python3-certbot-dns-cloudflare
+
+    # Create Cloudflare credentials
+    CF_TOKEN="$cfToken"
+    if [ -n "`$CF_TOKEN" ]; then
+        mkdir -p /root/.secrets
+        echo "dns_cloudflare_api_token = `$CF_TOKEN" > /root/.secrets/cloudflare.ini
+        chmod 600 /root/.secrets/cloudflare.ini
+
+        # Generate certificate using DNS challenge
+        certbot certonly --dns-cloudflare \
+            --dns-cloudflare-credentials /root/.secrets/cloudflare.ini \
+            -d upload-api.pinzos.com \
+            --non-interactive --agree-tos --email admin@pinzos.com
+
+        echo "SSL certificate generated"
+    else
+        echo "WARNING: CLOUDFLARE_API_TOKEN not set, skipping SSL setup"
+        echo "Add CLOUDFLARE_API_TOKEN to .env.production for automatic SSL"
+    fi
+else
+    echo "SSL certificate exists"
+fi
 
 # Pull nginx if needed
 if grep -q "nginx:" docker-compose.yml 2>/dev/null; then
@@ -538,27 +608,28 @@ fi
 
 # Start containers
 echo "Starting containers..."
-HOST_PORT=$(grep '^PORT=' .env | cut -d '=' -f 2 | tr -d '\r' || echo "3000")
-echo "Detected PORT: $HOST_PORT"
+HOST_PORT=`$(grep '^PORT=' .env | cut -d '=' -f 2 | tr -d '\r' || echo "3000")
+echo "Detected PORT: `$HOST_PORT"
 
+# Use docker compose v2 syntax (Docker plugin)
 docker compose down 2>/dev/null || true
-docker compose up -d --force-recreate --pull never --no-build
+docker compose up -d --force-recreate --no-build
 
 # Wait for health check
 echo "Verifying health..."
 SUCCESS=0
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-    if curl -s --max-time 2 "http://127.0.0.1:$HOST_PORT/health" | grep -q 'ok\|healthy' || \
+    if curl -s --max-time 2 "http://127.0.0.1:`$HOST_PORT/health" | grep -q 'ok\|healthy' || \
        curl -s --max-time 2 "http://127.0.0.1/health" | grep -q 'ok\|healthy'; then
         echo "Backend is UP"
         SUCCESS=1
         break
     fi
-    echo "Waiting... (attempt $i/15)"
+    echo "Waiting... (attempt `$i/15)"
     sleep 3
 done
 
-if [ $SUCCESS -eq 0 ]; then
+if [ `$SUCCESS -eq 0 ]; then
     echo "Health check failed!"
     docker ps
     docker logs pinzos-api --tail 100
@@ -568,16 +639,18 @@ fi
 echo ""
 echo "Backend deployed successfully on this server"
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-'@
+"@
 
     $tempScript = [System.IO.Path]::GetTempFileName()
     $unixScript = $deployScript -replace "`r`n", "`n" -replace "`r", "`n"
     [System.IO.File]::WriteAllText($tempScript, $unixScript, [System.Text.UTF8Encoding]::new($false))
 
-    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no $tempScript "root@${IP}:/tmp/deploy.sh"
-    ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$IP "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
-    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+    $ErrorActionPreference = "Continue"
+    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $tempScript "root@${IP}:/tmp/deploy.sh" 2>&1 | Out-Null
+    ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@$IP "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
     $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 
     if ($exitCode -ne 0) {
         Write-Error-Custom "Deployment failed on server $SERVER_NUM"
@@ -587,11 +660,6 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     Write-Success "Server $SERVER_NUM deployed successfully"
 }
 
-# Cleanup
-if (Test-Path $TEMP_TAR) {
-    Remove-Item $TEMP_TAR
-    Write-Info "Cleaned up temporary files"
-}
 
 # ============================================================================
 # 7. Create Load Balancer
@@ -658,6 +726,25 @@ if (-not $serviceExists) {
         --health-check-retries 3
 
     Write-Success "HTTP service configured"
+}
+
+# Add HTTPS (443) passthrough for direct uploads (bypassing Cloudflare)
+$httpsServiceExists = $false
+foreach ($service in $lbInfo.services) {
+    if ($service.listen_port -eq 443) {
+        $httpsServiceExists = $true
+        break
+    }
+}
+
+if (-not $httpsServiceExists) {
+    Write-Info "Adding HTTPS passthrough service for upload-api..."
+    hcloud load-balancer add-service $LB_NAME `
+        --protocol tcp `
+        --listen-port 443 `
+        --destination-port 443
+
+    Write-Success "HTTPS passthrough service configured (for upload-api.pinzos.com)"
 }
 
 # Add server targets
@@ -730,17 +817,21 @@ Write-Host "Load Balancer:" -ForegroundColor Cyan
 Write-Host "  Public IP: $LB_IP" -ForegroundColor White
 Write-Host "  Health: http://$LB_IP/health" -ForegroundColor White
 Write-Host ""
-Write-Host "SSL: Cloudflare (Flexible mode)" -ForegroundColor Green
-Write-Host "  Endpoint: https://$Domain" -ForegroundColor Green
+Write-Host "SSL Configuration:" -ForegroundColor Cyan
+Write-Host "  api.pinzos.com: Cloudflare Flexible (orange cloud)" -ForegroundColor Green
+Write-Host "  upload-api.pinzos.com: Direct HTTPS (gray cloud, DNS-only)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Yellow
 Write-Host "  1. Verify API is working:" -ForegroundColor White
 Write-Host "     curl https://$Domain/health" -ForegroundColor Gray
-Write-Host "  2. Ensure Cloudflare DNS:" -ForegroundColor White
+Write-Host "  2. Cloudflare DNS (2 records needed):" -ForegroundColor White
 Write-Host "     A record: $Domain -> $LB_IP (Proxied / orange cloud)" -ForegroundColor Gray
-Write-Host "     SSL mode: Flexible" -ForegroundColor Gray
-Write-Host "  3. Update frontend .env:" -ForegroundColor White
-Write-Host "     VITE_API_URL=https://$Domain" -ForegroundColor Gray
+Write-Host "     A record: upload-api.pinzos.com -> $LB_IP (DNS only / gray cloud)" -ForegroundColor Gray
+Write-Host "  3. If upload-api HTTPS not working, generate cert on server:" -ForegroundColor White
+Write-Host "     ssh root@<server-ip>" -ForegroundColor Gray
+Write-Host "     docker stop pinzos-nginx" -ForegroundColor Gray
+Write-Host "     certbot certonly --standalone -d upload-api.pinzos.com" -ForegroundColor Gray
+Write-Host "     docker start pinzos-nginx" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Troubleshooting:" -ForegroundColor Yellow
 Write-Host "  SSH Access:" -ForegroundColor White

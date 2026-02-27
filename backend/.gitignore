@@ -4,3 +4,8 @@ dist/
 *.log
 .DS_Store
 uploads/langgraph-output/
+
+# SSL certificates (sensitive - do not commit!)
+ssl/*.pem
+ssl/*.key
+ssl/*.crt

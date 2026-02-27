@@ -250,7 +250,7 @@ export default function ClusterDialog({ isOpen, onClose, properties, position, i
                 {/* Description */}
                 {selectedProperty.buildingDescription && (
                   <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2">{t('about')}</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">{t('description')}</h3>
                     <p className="text-sm text-slate-600 leading-relaxed">{selectedProperty.buildingDescription}</p>
                   </div>
                 )}

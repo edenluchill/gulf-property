@@ -19,7 +19,7 @@ import {
   Utensils, Coffee, Landmark, CreditCard, TreePine, Building2,
   Hotel, Dumbbell, Umbrella, Film, Fuel, Church,
   Shield, Flame, Mail, Flag, Pill, Stethoscope, School,
-  TramFront, Cable
+  TramFront, Cable, Bus, Ship, Circle
 } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
@@ -70,6 +70,17 @@ const TRANSPORT_LINE_CONFIG: Record<string, { color: string; Icon: typeof Cross 
   tram: { color: '#f97316', Icon: TramFront },       // Tram - orange
   palm_monorail: { color: '#a855f7', Icon: Cable },  // Palm Monorail - purple
 }
+
+// Route type icons for custom routes (uses route's color from GeoJSON)
+const ROUTE_TYPE_CONFIG: Record<string, { defaultColor: string; Icon: typeof Cross }> = {
+  metro: { defaultColor: '#ef4444', Icon: TrainFront },
+  tram: { defaultColor: '#f97316', Icon: TramFront },
+  bus: { defaultColor: '#22c55e', Icon: Bus },
+  monorail: { defaultColor: '#a855f7', Icon: Cable },
+  ferry: { defaultColor: '#0ea5e9', Icon: Ship },
+  custom: { defaultColor: '#6b7280', Icon: Circle },
+}
+
 
 // Generate POI icon using Lucide SVG + Canvas
 async function generatePoiIcon(color: string, Icon: typeof Cross, size = 64): Promise<ImageData> {
@@ -577,7 +588,7 @@ function MapViewMapLibre({
       }
     })
 
-    // Generate and load transport station icons
+    // Generate and load transport station icons (legacy)
     const transportIconPromises = Object.entries(TRANSPORT_LINE_CONFIG).map(async ([line, config]) => {
       const iconName = `station-${line}`
       if (!map.hasImage(iconName)) {
@@ -586,7 +597,16 @@ function MapViewMapLibre({
       }
     })
 
-    await Promise.all([...poiIconPromises, ...transportIconPromises])
+    // Generate route type icons for custom routes
+    const routeTypeIconPromises = Object.entries(ROUTE_TYPE_CONFIG).map(async ([type, config]) => {
+      const iconName = `station-${type}`
+      if (!map.hasImage(iconName)) {
+        const imageData = await generatePoiIcon(config.defaultColor, config.Icon, 48)
+        map.addImage(iconName, imageData, { pixelRatio: 2 })
+      }
+    })
+
+    await Promise.all([...poiIconPromises, ...transportIconPromises, ...routeTypeIconPromises])
 
     setMapLoaded(true)
 
@@ -1001,7 +1021,7 @@ function MapViewMapLibre({
                 'line-opacity': 0.9
               }}
             />
-            {/* Main colored line - color based on line property */}
+            {/* Main colored line - use color property from GeoJSON */}
             <Layer
               id="transport-lines-main"
               type="line"
@@ -1011,15 +1031,7 @@ function MapViewMapLibre({
                 'line-join': 'round'
               }}
               paint={{
-                'line-color': [
-                  'match', ['get', 'line'],
-                  'red', '#ef4444',
-                  'green', '#22c55e',
-                  'blue', '#3b82f6',
-                  'tram', '#f97316',
-                  'palm_monorail', '#a855f7',
-                  '#6b7280'  // default gray
-                ],
+                'line-color': ['coalesce', ['get', 'color'], '#6b7280'],
                 'line-width': [
                   'interpolate', ['linear'], ['zoom'],
                   8, 2,
@@ -1030,7 +1042,7 @@ function MapViewMapLibre({
               }}
             />
 
-            {/* Station icons - same size as POI icons */}
+            {/* Station icons - icon based on line/type property */}
             <Layer
               id="transport-stations-bg"
               type="symbol"

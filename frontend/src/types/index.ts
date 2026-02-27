@@ -150,8 +150,7 @@ export interface DubaiArea {
   areaType?: string
   wealthLevel?: string
   culturalAttribute?: string
-  // Market statistics
-  projectCounts?: number
+  // Market statistics (from DLD transactions, read-only)
   averagePrice?: number        // avg price per sqm
   medianPriceSqm?: number      // median price per sqm
   medianUnitPrice?: number     // median total unit price (AED)

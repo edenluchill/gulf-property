@@ -112,13 +112,6 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
               {t('map:areaDialog.marketStatistics')}
             </h4>
             <div className="grid grid-cols-2 gap-3">
-              {area.projectCounts !== undefined && area.projectCounts > 0 && (
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                  <div className="text-xs text-slate-500 font-medium mb-1.5">{t('map:areaDialog.projects')}</div>
-                  <div className="text-2xl font-bold text-slate-900">{area.projectCounts}</div>
-                </div>
-              )}
-
               {area.averagePrice !== undefined && area.averagePrice !== null && (
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                   <div className="text-xs text-slate-500 font-medium mb-1.5">{t('map:areaDialog.avgPrice')}</div>

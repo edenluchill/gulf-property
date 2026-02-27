@@ -493,3 +493,166 @@ export async function fetchTransportGeoJSON(categories?: TransportCategory[]): P
     return null;
   }
 }
+
+// ============================================================================
+// Custom Routes API (replaces hardcoded transport data)
+// ============================================================================
+
+export interface CustomRoute {
+  id: string;
+  name: string;
+  name_ar?: string;
+  description?: string;
+  color: string;
+  line_width: number;
+  route_type: string;
+  geometry: any;  // GeoJSON LineString
+  images?: string[];
+  display_order: number;
+  is_active: boolean;
+  stops?: CustomStop[];
+}
+
+export interface CustomStop {
+  id: string;
+  route_id: string;
+  name: string;
+  name_ar?: string;
+  description?: string;
+  color?: string;
+  location: { lat: number; lng: number };
+  position_on_route?: number;
+  images?: string[];
+  display_order: number;
+  is_active: boolean;
+}
+
+// Fetch all custom routes with stops
+export async function fetchCustomRoutes(): Promise<CustomRoute[]> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes`);
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching custom routes:', error);
+    return [];
+  }
+}
+
+// Fetch custom routes as GeoJSON (for map display)
+export async function fetchCustomRoutesGeoJSON(): Promise<TransportGeoJSON | null> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/geojson/all`);
+    const result = await response.json();
+    if (!result.features) {
+      throw new Error('Invalid GeoJSON response');
+    }
+    return result;
+  } catch (error) {
+    console.error('Error fetching custom routes GeoJSON:', error);
+    return null;
+  }
+}
+
+// Create a new route
+export async function createCustomRoute(route: Partial<CustomRoute>): Promise<CustomRoute | null> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(route),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating custom route:', error);
+    return null;
+  }
+}
+
+// Update a route
+export async function updateCustomRoute(id: string, updates: Partial<CustomRoute>): Promise<CustomRoute | null> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating custom route:', error);
+    return null;
+  }
+}
+
+// Delete a route
+export async function deleteCustomRoute(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/${id}`, {
+      method: 'DELETE',
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Error deleting custom route:', error);
+    return false;
+  }
+}
+
+// Create a stop
+export async function createCustomStop(routeId: string, stop: Partial<CustomStop>): Promise<CustomStop | null> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/${routeId}/stops`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stop),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating custom stop:', error);
+    return null;
+  }
+}
+
+// Update a stop
+export async function updateCustomStop(id: string, updates: Partial<CustomStop>): Promise<CustomStop | null> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/stops/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating custom stop:', error);
+    return null;
+  }
+}
+
+// Delete a stop
+export async function deleteCustomStop(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/stops/${id}`, {
+      method: 'DELETE',
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Error deleting custom stop:', error);
+    return false;
+  }
+}
+
+// Batch update stops (for repositioning after route edit)
+export async function batchUpdateStops(
+  routeId: string,
+  stops: Array<{ id: string; location: { lat: number; lng: number }; position_on_route?: number }>
+): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/custom-routes/${routeId}/stops/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stops }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Error batch updating stops:', error);
+    return false;
+  }
+}

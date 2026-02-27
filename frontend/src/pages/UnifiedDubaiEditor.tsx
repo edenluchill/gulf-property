@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Save, Trash2, MapPin, Layers, Upload, X } from 'lucide-react'
+import { Save, Trash2, MapPin, Layers, Upload, X, Route } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import {
   fetchDubaiAreas,
@@ -17,10 +17,11 @@ import {
 import L from 'leaflet'
 import '@geoman-io/leaflet-geoman-free'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
+import { RoutesMapController, RoutesSidebar, useRoutesEditor } from '../components/RoutesEditor'
 
 type EditMode = 'idle' | 'placing-landmark' | 'drawing-area'
 type SelectedItem = { type: 'area'; item: DubaiArea } | { type: 'landmark'; item: DubaiLandmark } | null
-type ActiveTab = 'areas' | 'landmarks'
+type ActiveTab = 'areas' | 'landmarks' | 'routes'
 
 // Geoman + Map Click Handler
 function MapController({
@@ -35,6 +36,7 @@ function MapController({
   onLandmarkDrag,
   mapRef,
   showLabels,
+  activeTab,
 }: any) {
   const map = useMap()
   const polygonLayersRef = useRef<Map<string, L.Polygon>>(new Map())
@@ -96,11 +98,10 @@ function MapController({
       const isSelected = selectedItem?.type === 'area' && selectedItem.item.id === area.id
 
       const polygon = L.polygon(coords, {
-        color: isSelected ? '#2563eb' : '#64748b',  // Blue when selected, slate otherwise
+        color: isSelected ? '#1e40af' : area.color,  // Blue when selected, area color otherwise
         fillColor: area.color,
-        fillOpacity: isSelected ? 0.35 : 0.2,  // More subtle fill
-        weight: isSelected ? 3 : 1.5,
-        dashArray: isSelected ? undefined : undefined,  // No dashes for cleaner look
+        fillOpacity: isSelected ? 0.5 : (area.opacity ?? 0.4),  // Match display map opacity
+        weight: isSelected ? 3 : 1,  // Thin border like display map
         pmIgnore: false, // Allow Geoman to handle this layer
         bubblingMouseEvents: isSelected ? true : false, // Allow events for selected polygon
       })
@@ -151,8 +152,11 @@ function MapController({
       let startPoints: L.LatLng[] = []
 
       polygon.on('mousedown', (e: any) => {
+        // Skip interaction when on Routes tab
+        if (activeTab === 'routes') return
+
         // Only drag if clicking on the polygon itself (not vertices)
-        if (!e.originalEvent.target.classList || 
+        if (!e.originalEvent.target.classList ||
             !e.originalEvent.target.classList.contains('marker-icon')) {
           isDragging = true
           hasDragged = false
@@ -236,18 +240,25 @@ function MapController({
       map.on('mouseup', endDrag)
       polygon.on('mouseup', endDrag)
 
-      // Add center label (cleaner style like display map)
+      // Add center label (matching display map style)
       const center = polygon.getBounds().getCenter()
-      // Estimate label width based on text length
-      const estimatedWidth = area.name.length * 6 + 16
+      // Get Chinese translation if available
+      const zhName = area.translations?.zh?.name || area.translations?.['zh-CN']?.name || ''
+      const displayText = zhName ? `${area.name}\n${zhName}` : area.name
+      const lineCount = zhName ? 2 : 1
+      // Estimate dimensions
+      const maxLineLen = Math.max(area.name.length, zhName.length)
+      const estimatedWidth = maxLineLen * 6 + 12
+      const estimatedHeight = lineCount * 14 + 4
+
       const labelIcon = L.divIcon({
         html: `
           <div style="
-            color: ${isSelected ? '#000' : '#334155'};
-            padding: 2px 6px;
-            font-size: 10px;
+            color: #334155;
+            font-size: 9px;
             font-weight: 600;
-            white-space: nowrap;
+            white-space: pre-line;
+            line-height: 1.3;
             pointer-events: none;
             text-align: center;
             text-shadow:
@@ -255,15 +266,14 @@ function MapController({
               1px -1px 0 #fff,
               -1px 1px 0 #fff,
               1px 1px 0 #fff,
-              0 0 3px #fff;
-            ${isSelected ? 'background: rgba(59, 130, 246, 0.15); border-radius: 3px;' : ''}
-          ">
-            ${area.name}
-          </div>
+              0 0 4px #fff,
+              0 0 4px #fff;
+            ${isSelected ? 'color: #1e40af; font-weight: 700;' : ''}
+          ">${displayText}</div>
         `,
         className: 'area-label-clean',
-        iconSize: [estimatedWidth, 18],
-        iconAnchor: [estimatedWidth / 2, 9],
+        iconSize: [estimatedWidth, estimatedHeight],
+        iconAnchor: [estimatedWidth / 2, estimatedHeight / 2],
       })
 
       const labelMarker = L.marker(center, {
@@ -307,7 +317,7 @@ function MapController({
         }
       })
     }
-  }, [map, areas, selectedItem, onItemSelect, onAreaUpdate])
+  }, [map, areas, selectedItem, onItemSelect, onAreaUpdate, activeTab])
 
   // Label visibility - controlled by showLabels toggle
   useEffect(() => {
@@ -357,7 +367,7 @@ function MapController({
 
       const marker = L.marker([landmark.location.lat, landmark.location.lng], {
         icon,
-        draggable: true,
+        draggable: activeTab !== 'routes',  // Disable drag when on Routes tab
         bubblingMouseEvents: false, // Prevent events from bubbling to map
       })
 
@@ -370,9 +380,10 @@ function MapController({
         L.DomEvent.stop(e)
       })
 
-      // Click to select (prevent map interaction)
+      // Click to select (prevent map interaction) - skip when on Routes tab
       marker.on('click', (e: L.LeafletMouseEvent) => {
         L.DomEvent.stop(e)
+        if (activeTab === 'routes') return
         onItemSelect({ type: 'landmark', item: landmark })
       })
 
@@ -400,7 +411,7 @@ function MapController({
         marker.off('dragend')
       })
     }
-  }, [map, landmarks, selectedItem, onItemSelect, onLandmarkDrag])
+  }, [map, landmarks, selectedItem, onItemSelect, onLandmarkDrag, activeTab])
 
   return null
 }
@@ -417,6 +428,9 @@ export default function UnifiedDubaiEditor() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mapRef = useRef<L.Map | null>(null)
 
+  // Routes editor state (custom routes and stops)
+  const routesEditor = useRoutesEditor()
+
   // Track modified items (draft state)
   const [modifiedAreaIds, setModifiedAreaIds] = useState<Set<string>>(new Set())
   const [modifiedLandmarkIds, setModifiedLandmarkIds] = useState<Set<string>>(new Set())
@@ -431,6 +445,7 @@ export default function UnifiedDubaiEditor() {
 
   // Form data
   const [formData, setFormData] = useState<any>({})
+  const [routeFormData, setRouteFormData] = useState<any>({})
 
   useEffect(() => {
     loadData()
@@ -545,6 +560,15 @@ export default function UnifiedDubaiEditor() {
     }
   }, [selectedItem])
 
+  // Sync routeFormData with routesEditor selection
+  useEffect(() => {
+    if (routesEditor.selectedItem) {
+      setRouteFormData(routesEditor.selectedItem.item)
+    } else {
+      setRouteFormData({})
+    }
+  }, [routesEditor.selectedItem])
+
   // Sync formData changes to areas/landmarks state (for real-time updates)
   const handleFormDataChange = (updates: any) => {
     const newFormData = { ...formData, ...updates }
@@ -587,6 +611,23 @@ export default function UnifiedDubaiEditor() {
         }
       }
     }
+  }
+
+  // Handle route/stop form data changes
+  const handleRouteFormDataChange = (updates: any) => {
+    const newFormData = { ...routeFormData, ...updates }
+    setRouteFormData(newFormData)
+  }
+
+  // Save route/stop changes
+  const handleSaveRouteForm = async () => {
+    if (!routesEditor.selectedItem) return
+    await routesEditor.handleSave(routeFormData)
+  }
+
+  // Delete route/stop
+  const handleDeleteRouteItem = async () => {
+    await routesEditor.handleDelete()
   }
 
   const loadData = async () => {
@@ -975,6 +1016,21 @@ export default function UnifiedDubaiEditor() {
             <MapPin className="w-4 h-4 inline mr-2" />
             Landmarks ({landmarks.length})
           </button>
+          <button
+            onClick={() => {
+              setActiveTab('routes')
+              setEditMode('idle')
+              setSelectedItem(null)
+            }}
+            className={`flex-1 px-4 py-3 font-semibold text-sm transition-colors ${
+              activeTab === 'routes'
+                ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Route className="w-4 h-4 inline mr-2" />
+            Routes
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -1099,6 +1155,17 @@ export default function UnifiedDubaiEditor() {
               </div>
             </>
           )}
+
+          {activeTab === 'routes' && (
+            <RoutesSidebar
+              routes={routesEditor.routes}
+              selectedItem={routesEditor.selectedItem}
+              editMode={routesEditor.editMode}
+              onAddRoute={routesEditor.handleAddRoute}
+              onAddStop={routesEditor.handleAddStop}
+              onItemSelect={routesEditor.setSelectedItem}
+            />
+          )}
         </div>
       </div>
 
@@ -1116,7 +1183,7 @@ export default function UnifiedDubaiEditor() {
         >
           <TileLayer
             attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
             subdomains="abcd"
             maxZoom={20}
           />
@@ -1133,33 +1200,115 @@ export default function UnifiedDubaiEditor() {
             onLandmarkDrag={handleLandmarkDrag}
             mapRef={mapRef}
             showLabels={showLabels}
+            activeTab={activeTab}
           />
+
+          {/* Routes Map Controller - only render when on routes tab */}
+          {activeTab === 'routes' && (
+            <RoutesMapController
+              routes={routesEditor.routes}
+              selectedItem={routesEditor.selectedItem}
+              editMode={routesEditor.editMode}
+              onRouteCreate={routesEditor.handleRouteCreate}
+              onRouteUpdate={routesEditor.handleRouteUpdate}
+              onStopCreate={routesEditor.handleStopCreate}
+              onStopUpdate={routesEditor.handleStopUpdate}
+              onItemSelect={routesEditor.setSelectedItem}
+            />
+          )}
         </MapContainer>
       </div>
 
       {/* Right Edit Panel */}
-      {selectedItem && (
+      {(selectedItem || routesEditor.selectedItem) && (
         <div className="w-96 bg-white border-l flex flex-col overflow-hidden">
           <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
             <h3 className="font-semibold">
-              {selectedItem.type === 'area' ? 'Edit Area' : 'Edit Landmark'}
+              {selectedItem?.type === 'area' ? 'Edit Area' :
+               selectedItem?.type === 'landmark' ? 'Edit Landmark' :
+               routesEditor.selectedItem?.type === 'route' ? 'Edit Route' :
+               routesEditor.selectedItem?.type === 'stop' ? 'Edit Stop' : 'Edit'}
             </h3>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedItem(null)}>
+            <Button variant="ghost" size="sm" onClick={() => {
+              setSelectedItem(null)
+              routesEditor.setSelectedItem(null)
+            }}>
               <X className="w-4 h-4" />
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Common Fields */}
-            <div>
-              <Label>Name *</Label>
-              <Input
-                value={formData.name || ''}
-                onChange={(e) => handleFormDataChange({ name: e.target.value })}
-              />
-            </div>
+            {/* Areas & Landmarks */}
+            {selectedItem && (
+              <>
+                <div>
+                  <Label>Name *</Label>
+                  <Input
+                    value={formData.name || ''}
+                    onChange={(e) => handleFormDataChange({ name: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
 
-            {selectedItem.type === 'landmark' && (
+            {/* Routes & Stops */}
+            {routesEditor.selectedItem && !selectedItem && (
+              <>
+                <div>
+                  <Label>Name *</Label>
+                  <Input
+                    value={routeFormData.name || ''}
+                    onChange={(e) => handleRouteFormDataChange({ name: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label>Color</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={routeFormData.color || '#3b82f6'}
+                      onChange={(e) => handleRouteFormDataChange({ color: e.target.value })}
+                      className="w-12 h-10 rounded cursor-pointer"
+                    />
+                    <Input
+                      value={routeFormData.color || ''}
+                      onChange={(e) => handleRouteFormDataChange({ color: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {routesEditor.selectedItem.type === 'route' && (
+                  <div>
+                    <Label>Route Type</Label>
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={routeFormData.route_type || 'metro'}
+                      onChange={(e) => handleRouteFormDataChange({ route_type: e.target.value })}
+                    >
+                      <option value="metro">Metro</option>
+                      <option value="tram">Tram</option>
+                      <option value="bus">Bus</option>
+                      <option value="monorail">Monorail</option>
+                      <option value="ferry">Ferry</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <Label>Description</Label>
+                  <textarea
+                    className="w-full border rounded px-3 py-2"
+                    rows={3}
+                    value={routeFormData.description || ''}
+                    onChange={(e) => handleRouteFormDataChange({ description: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedItem?.type === 'landmark' && (
               <>
                 {/* Image Upload/URL */}
                 <div>
@@ -1247,115 +1396,80 @@ export default function UnifiedDubaiEditor() {
               </>
             )}
 
-            {selectedItem.type === 'area' && (
+            {selectedItem?.type === 'area' && (
+              <div>
+                <Label>Opacity: {((formData.opacity || 0.3) * 100).toFixed(0)}%</Label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={formData.opacity || 0.3}
+                  onChange={(e) => handleFormDataChange({ opacity: parseFloat(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+            )}
+
+            {/* Area/Landmark Description & Color */}
+            {selectedItem && (
               <>
                 <div>
-                  <Label>Opacity: {((formData.opacity || 0.3) * 100).toFixed(0)}%</Label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={formData.opacity || 0.3}
-                    onChange={(e) => handleFormDataChange({ opacity: parseFloat(e.target.value) })}
-                    className="w-full"
+                  <Label>Description</Label>
+                  <textarea
+                    className="w-full border rounded px-3 py-2"
+                    rows={3}
+                    value={formData.description || ''}
+                    onChange={(e) => handleFormDataChange({ description: e.target.value })}
                   />
                 </div>
-                
-                {/* Market Data - Editable */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-700">📊 Market Data</h4>
-                  
-                  <div>
-                    <Label>Projects Count</Label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 14"
-                      value={formData.projectCounts || ''}
-                      onChange={(e) => handleFormDataChange({ projectCounts: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
 
-                  <div>
-                    <Label>Average Price (AED)</Label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 850000"
-                      value={formData.averagePrice || ''}
-                      onChange={(e) => handleFormDataChange({ averagePrice: parseInt(e.target.value) || 0 })}
+                <div>
+                  <Label>Color</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={formData.color || '#3B82F6'}
+                      onChange={(e) => handleFormDataChange({ color: e.target.value })}
+                      className="w-12 h-10 rounded cursor-pointer"
                     />
-                  </div>
-
-                  <div>
-                    <Label>Capital Appreciation (%)</Label>
                     <Input
-                      type="number"
-                      step="0.1"
-                      placeholder="e.g. 11.2"
-                      value={formData.capitalAppreciation || ''}
-                      onChange={(e) => handleFormDataChange({ capitalAppreciation: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Rental Yield (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      placeholder="e.g. 7.8"
-                      value={formData.rentalYield || ''}
-                      onChange={(e) => handleFormDataChange({ rentalYield: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Sales Volume (Units/Year)</Label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 250"
-                      value={formData.salesVolume || ''}
-                      onChange={(e) => handleFormDataChange({ salesVolume: parseInt(e.target.value) || 0 })}
+                      value={formData.color || ''}
+                      onChange={(e) => handleFormDataChange({ color: e.target.value })}
                     />
                   </div>
                 </div>
               </>
             )}
+          </div>
 
-            <div>
-              <Label>Description</Label>
-              <textarea
-                className="w-full border rounded px-3 py-2"
-                rows={3}
-                value={formData.description || ''}
-                onChange={(e) => handleFormDataChange({ description: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>Color</Label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={formData.color || '#3B82F6'}
-                  onChange={(e) => handleFormDataChange({ color: e.target.value })}
-                  className="w-12 h-10 rounded cursor-pointer"
-                />
-                <Input
-                  value={formData.color || ''}
-                  onChange={(e) => handleFormDataChange({ color: e.target.value })}
-                />
+          {/* Footer - different actions for areas/landmarks vs routes/stops */}
+          {selectedItem && (
+            <div className="p-4 border-t bg-slate-50 flex gap-2">
+              <div className="flex-1 text-sm text-slate-600 flex items-center">
+                <span>💡 Changes auto-tracked. Click "Save All" to save.</span>
               </div>
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
-          </div>
+          )}
 
-          <div className="p-4 border-t bg-slate-50 flex gap-2">
-            <div className="flex-1 text-sm text-slate-600 flex items-center">
-              <span>💡 Changes auto-tracked. Click "Save All" to save.</span>
+          {routesEditor.selectedItem && !selectedItem && (
+            <div className="p-4 border-t bg-slate-50 flex gap-2">
+              <Button
+                onClick={handleSaveRouteForm}
+                disabled={routesEditor.isSaving}
+                className="flex-1"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {routesEditor.isSaving ? 'Saving...' : 'Save'}
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteRouteItem}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -18,11 +18,6 @@ function mapAreaRow(row: any) {
     opacity: parseFloat(row.opacity),
     displayOrder: row.display_order,
     visible: row.visible,
-    projectCounts: row.project_counts || 0,
-    averagePrice: row.average_price ? parseFloat(row.average_price) : null,
-    salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
-    capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
-    rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
     areaCategory: row.area_category,
     investmentProfile: row.investment_profile,
     rentalRestrictions: row.rental_restrictions,
@@ -38,7 +33,6 @@ function mapAreaRow(row: any) {
 const AREA_SELECT = `
   id, name, name_ar, ST_AsGeoJSON(boundary)::json as boundary,
   description, description_ar, color, opacity, display_order, visible,
-  project_counts, average_price, sales_volume, capital_appreciation, rental_yield,
   area_category, investment_profile, rental_restrictions, growth_potential, ai_summary,
   translations, created_at, updated_at
 `;
@@ -56,14 +50,13 @@ router.get('/areas', async (_req: Request, res: Response) => {
       SELECT
         da.id, da.name, da.name_ar, ST_AsGeoJSON(da.boundary)::json as boundary,
         da.description, da.description_ar, da.color, da.opacity, da.display_order, da.visible,
-        da.project_counts,
-        -- Use calculated metrics from DLD transactions, fallback to stored values
-        COALESCE(m.avg_price_sqm, da.average_price) as average_price,
+        -- Metrics from DLD transactions
+        m.avg_price_sqm as average_price,
         m.median_price_sqm as median_price_sqm,
         m.median_unit_price as median_unit_price,
-        COALESCE(m.sales_volume, da.sales_volume) as sales_volume,
-        COALESCE(m.capital_growth_pct, da.capital_appreciation) as capital_appreciation,
-        COALESCE(m.rental_yield_pct, da.rental_yield) as rental_yield,
+        m.sales_volume as sales_volume,
+        m.capital_growth_pct as capital_appreciation,
+        m.rental_yield_pct as rental_yield,
         m.transaction_count,
         da.area_category, da.investment_profile, da.rental_restrictions, da.growth_potential, da.ai_summary,
         da.translations, da.created_at, da.updated_at
@@ -75,6 +68,11 @@ router.get('/areas', async (_req: Request, res: Response) => {
 
     const areas = result.rows.map(row => ({
       ...mapAreaRow(row),
+      // Metrics from DLD transactions (read-only, not stored in areas table)
+      averagePrice: row.average_price ? parseFloat(row.average_price) : null,
+      salesVolume: row.sales_volume ? parseFloat(row.sales_volume) : null,
+      capitalAppreciation: row.capital_appreciation ? parseFloat(row.capital_appreciation) : null,
+      rentalYield: row.rental_yield ? parseFloat(row.rental_yield) : null,
       transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
       medianPriceSqm: row.median_price_sqm ? parseFloat(row.median_price_sqm) : null,
       medianUnitPrice: row.median_unit_price ? parseFloat(row.median_unit_price) : null,
@@ -375,11 +373,6 @@ router.put('/areas/:id', requireAuth, [
       opacity,
       visible,
       displayOrder,
-      projectCounts,
-      averagePrice,
-      salesVolume,
-      capitalAppreciation,
-      rentalYield,
       areaCategory,
       investmentProfile,
       rentalRestrictions,
@@ -428,27 +421,6 @@ router.put('/areas/:id', requireAuth, [
     if (displayOrder !== undefined) {
       updates.push(`display_order = $${paramCount++}`);
       values.push(displayOrder);
-    }
-    // Market statistics
-    if (projectCounts !== undefined) {
-      updates.push(`project_counts = $${paramCount++}`);
-      values.push(projectCounts);
-    }
-    if (averagePrice !== undefined) {
-      updates.push(`average_price = $${paramCount++}`);
-      values.push(averagePrice);
-    }
-    if (salesVolume !== undefined) {
-      updates.push(`sales_volume = $${paramCount++}`);
-      values.push(salesVolume);
-    }
-    if (capitalAppreciation !== undefined) {
-      updates.push(`capital_appreciation = $${paramCount++}`);
-      values.push(capitalAppreciation);
-    }
-    if (rentalYield !== undefined) {
-      updates.push(`rental_yield = $${paramCount++}`);
-      values.push(rentalYield);
     }
     // AI analysis fields
     if (areaCategory !== undefined) {
@@ -796,11 +768,6 @@ router.post('/batch-update', requireAuth, async (req: Request, res: Response) =>
         opacity,
         visible,
         displayOrder,
-        projectCounts,
-        averagePrice,
-        salesVolume,
-        capitalAppreciation,
-        rentalYield,
         areaCategory,
         investmentProfile,
         rentalRestrictions,
@@ -849,26 +816,6 @@ router.post('/batch-update', requireAuth, async (req: Request, res: Response) =>
       if (displayOrder !== undefined) {
         updates.push(`display_order = $${paramCount++}`);
         values.push(displayOrder);
-      }
-      if (projectCounts !== undefined) {
-        updates.push(`project_counts = $${paramCount++}`);
-        values.push(projectCounts);
-      }
-      if (averagePrice !== undefined) {
-        updates.push(`average_price = $${paramCount++}`);
-        values.push(averagePrice);
-      }
-      if (salesVolume !== undefined) {
-        updates.push(`sales_volume = $${paramCount++}`);
-        values.push(salesVolume);
-      }
-      if (capitalAppreciation !== undefined) {
-        updates.push(`capital_appreciation = $${paramCount++}`);
-        values.push(capitalAppreciation);
-      }
-      if (rentalYield !== undefined) {
-        updates.push(`rental_yield = $${paramCount++}`);
-        values.push(rentalYield);
       }
       if (areaCategory !== undefined) {
         updates.push(`area_category = $${paramCount++}`);
