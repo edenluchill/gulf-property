@@ -10,7 +10,7 @@ import { persist } from 'zustand/middleware';
 import { API_BASE_URL } from '../lib/config';
 
 // Task status types
-export type TaskStatus = 'pending' | 'uploading' | 'processing' | 'paused' | 'completed' | 'failed' | 'cancelled';
+export type TaskStatus = 'pending' | 'uploading' | 'queued' | 'processing' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 // Task interface matching backend
 export interface Task {

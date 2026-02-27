@@ -1,0 +1,52 @@
+# Docker Compose for PDF Processing Worker
+# Runs on separate server from main API
+
+version: '3.8'
+
+services:
+  worker:
+    image: ghcr.io/edenluchill/pinzos-worker:latest
+    container_name: pinzos-worker
+    restart: unless-stopped
+    # No ports exposed - worker only polls DB
+    environment:
+      - NODE_ENV=production
+      # Database (same as main API)
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      # AI Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Cloudflare R2 Configuration
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+      # Worker settings
+      - WORKER_POLL_INTERVAL=${WORKER_POLL_INTERVAL:-3000}
+      - WORKER_MAX_CONCURRENT=${WORKER_MAX_CONCURRENT:-1}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # Temp directory for PDF processing
+      - worker-temp:/app/temp
+      - worker-uploads:/app/uploads
+    # Resource limits - use full server resources
+    deploy:
+      resources:
+        limits:
+          memory: 7G
+          cpus: '3.8'
+        reservations:
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  worker-temp:
+  worker-uploads:

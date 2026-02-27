@@ -220,3 +220,15 @@
 .cluster-popup .leaflet-popup-tip-container {
   display: none;
 }
+
+/* Ensure modals/sheets are always above MapLibre canvas */
+.maplibregl-map,
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  z-index: 0 !important;
+}
+
+/* Force sheet/modal to be on top of everything */
+[data-sheet-overlay] {
+  z-index: 999999 !important;
+}

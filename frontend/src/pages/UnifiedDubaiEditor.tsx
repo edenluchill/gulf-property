@@ -34,6 +34,7 @@ function MapController({
   onAreaUpdate,
   onLandmarkDrag,
   mapRef,
+  showLabels,
 }: any) {
   const map = useMap()
   const polygonLayersRef = useRef<Map<string, L.Polygon>>(new Map())
@@ -95,11 +96,11 @@ function MapController({
       const isSelected = selectedItem?.type === 'area' && selectedItem.item.id === area.id
 
       const polygon = L.polygon(coords, {
-        color: isSelected ? '#000' : area.color,
+        color: isSelected ? '#2563eb' : '#64748b',  // Blue when selected, slate otherwise
         fillColor: area.color,
-        fillOpacity: area.opacity || 0.3,
-        weight: isSelected ? 4 : 2,
-        dashArray: isSelected ? undefined : '5, 10',
+        fillOpacity: isSelected ? 0.35 : 0.2,  // More subtle fill
+        weight: isSelected ? 3 : 1.5,
+        dashArray: isSelected ? undefined : undefined,  // No dashes for cleaner look
         pmIgnore: false, // Allow Geoman to handle this layer
         bubblingMouseEvents: isSelected ? true : false, // Allow events for selected polygon
       })
@@ -235,31 +236,34 @@ function MapController({
       map.on('mouseup', endDrag)
       polygon.on('mouseup', endDrag)
 
-      // Add center label (properly centered)
+      // Add center label (cleaner style like display map)
       const center = polygon.getBounds().getCenter()
-      // Estimate label width based on text length (rough calculation)
-      const estimatedWidth = area.name.length * 7 + 24
+      // Estimate label width based on text length
+      const estimatedWidth = area.name.length * 6 + 16
       const labelIcon = L.divIcon({
         html: `
           <div style="
-            background: ${isSelected ? '#000' : area.color};
-            color: white;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-size: 12px;
+            color: ${isSelected ? '#000' : '#334155'};
+            padding: 2px 6px;
+            font-size: 10px;
             font-weight: 600;
             white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            border: 2px solid white;
             pointer-events: none;
             text-align: center;
+            text-shadow:
+              -1px -1px 0 #fff,
+              1px -1px 0 #fff,
+              -1px 1px 0 #fff,
+              1px 1px 0 #fff,
+              0 0 3px #fff;
+            ${isSelected ? 'background: rgba(59, 130, 246, 0.15); border-radius: 3px;' : ''}
           ">
             ${area.name}
           </div>
         `,
-        className: 'area-label',
-        iconSize: [estimatedWidth, 24],
-        iconAnchor: [estimatedWidth / 2, 12], // Center horizontally and vertically
+        className: 'area-label-clean',
+        iconSize: [estimatedWidth, 18],
+        iconAnchor: [estimatedWidth / 2, 9],
       })
 
       const labelMarker = L.marker(center, {
@@ -268,7 +272,9 @@ function MapController({
         keyboard: false,
       })
 
-      labelMarker.addTo(map)
+      if (showLabels) {
+        labelMarker.addTo(map)
+      }
       labelLayersRef.current.set(area.id, labelMarker)
 
       // Compute polygon span for zoom-based visibility
@@ -303,28 +309,19 @@ function MapController({
     }
   }, [map, areas, selectedItem, onItemSelect, onAreaUpdate])
 
-  // Progressive label visibility — larger areas stay visible at low zoom
+  // Label visibility - controlled by showLabels toggle
   useEffect(() => {
-    const getMinSpan = (zoom: number): number => {
-      if (zoom >= 14) return 0
-      if (zoom >= 13) return 0.005
-      if (zoom >= 12) return 0.012
-      if (zoom >= 11) return 0.025
-      return 0.045
-    }
-
-    const updateVisibility = () => {
-      const minSpan = getMinSpan(map.getZoom())
-      labelLayersRef.current.forEach((label, areaId) => {
-        const span = labelSpansRef.current.get(areaId) ?? 0
-        label.setOpacity(span >= minSpan ? 1 : 0)
-      })
-    }
-
-    updateVisibility()
-    map.on('zoomend', updateVisibility)
-    return () => { map.off('zoomend', updateVisibility) }
-  }, [map, areas])
+    labelLayersRef.current.forEach((label) => {
+      if (showLabels) {
+        if (!map.hasLayer(label)) {
+          label.addTo(map)
+        }
+        label.setOpacity(1)
+      } else {
+        label.setOpacity(0)
+      }
+    })
+  }, [map, showLabels, areas])
 
   // Render landmarks as markers (always draggable)
   useEffect(() => {
@@ -416,6 +413,7 @@ export default function UnifiedDubaiEditor() {
   const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [activeTab, setActiveTab] = useState<ActiveTab>('areas')
+  const [showLabels, setShowLabels] = useState(true)  // Toggle for labels
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mapRef = useRef<L.Map | null>(null)
 
@@ -934,6 +932,17 @@ export default function UnifiedDubaiEditor() {
             <p>• Hover edges to edit shape</p>
             <p>• Vertices auto-snap perfectly</p>
           </div>
+
+          {/* Show/Hide Labels Toggle */}
+          <label className="flex items-center gap-2 mt-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showLabels}
+              onChange={(e) => setShowLabels(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-slate-700">Show area labels</span>
+          </label>
         </div>
 
         {/* Tabs */}
@@ -1123,6 +1132,7 @@ export default function UnifiedDubaiEditor() {
             onAreaUpdate={handleAreaUpdate}
             onLandmarkDrag={handleLandmarkDrag}
             mapRef={mapRef}
+            showLabels={showLabels}
           />
         </MapContainer>
       </div>

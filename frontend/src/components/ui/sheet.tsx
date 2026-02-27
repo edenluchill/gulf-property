@@ -61,9 +61,13 @@ export function Sheet({ open, onOpenChange, children, modal = true }: SheetProps
     return <>{children}</>
   }
 
-  // Modal mode: with backdrop
+  // Modal mode: with backdrop - use inline style to ensure highest z-index
   return (
-    <div className="fixed inset-0 z-[9999]">
+    <div
+      className="fixed inset-0"
+      style={{ zIndex: 2147483647 }}
+      data-sheet-overlay
+    >
       {/* Backdrop - covers everything including maps */}
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in"
@@ -93,12 +97,13 @@ export function SheetContent({ className = '', children, side = 'right' }: Sheet
   return (
     <div
       className={cn(
-        'fixed z-[10000] bg-white shadow-2xl flex flex-col',
+        'fixed bg-white shadow-2xl flex flex-col',
         sideClasses[side],
         slideAnimations[side],
         side === 'right' || side === 'left' ? 'w-[400px] max-w-[90vw]' : 'h-[400px] max-h-[90vh]',
         className
       )}
+      style={{ zIndex: 2147483647 }}
       onClick={(e) => e.stopPropagation()}
     >
       {children}

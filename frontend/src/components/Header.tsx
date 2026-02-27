@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare, Globe, ClipboardList } from 'lucide-react'
+import { Building2, MapPin, Briefcase, Settings, LogIn, GitCompare, Globe, ClipboardList, HelpCircle } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
@@ -8,12 +8,16 @@ import LanguageSwitcher from './LanguageSwitcher'
 import { useAuth } from '../contexts/AuthContext'
 import UserMenu from './auth/UserMenu'
 import { FavoritesButton } from './favorites'
+import AboutSheet from './AboutSheet'
 
 export default function Header() {
   const location = useLocation()
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
   const { t, i18n } = useTranslation()
   const { user, loading } = useAuth()
+
+  // About sheet state
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   // Mobile scroll-to-hide state
   const [mobileHidden, setMobileHidden] = useState(false)
@@ -107,13 +111,27 @@ export default function Header() {
               >
                 {t('brand')}
               </motion.span>
-              <span className="text-[11px] text-teal-600 font-medium tracking-tight -mt-0.5 hidden sm:block">
-                {t('tagline')}
-              </span>
+              {/* Subtitle with info icon - visible on all screens */}
+              <div className="flex items-center gap-1 -mt-0.5">
+                <span className="text-[9px] md:text-[11px] text-teal-600 font-medium tracking-tight">
+                  {t('tagline')}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setAboutOpen(true)
+                  }}
+                  className="flex items-center justify-center w-3.5 h-3.5 md:w-4 md:h-4 rounded-full bg-teal-100 hover:bg-teal-200 transition-colors"
+                  aria-label="Learn more"
+                >
+                  <HelpCircle className="h-2.5 w-2.5 md:h-3 md:w-3 text-teal-600" />
+                </button>
+              </div>
             </div>
           </Link>
 
-          {/* Mobile Language Toggle - Compact */}
+          {/* Mobile Language Toggle */}
           <button
             onClick={toggleLanguage}
             className="md:hidden flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors"
@@ -206,6 +224,9 @@ export default function Header() {
 
         </div>
       </div>
+
+      {/* About Sheet */}
+      <AboutSheet open={aboutOpen} onOpenChange={setAboutOpen} />
     </header>
   )
 }

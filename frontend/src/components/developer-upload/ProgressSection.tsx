@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Pause, Play, X, Check } from 'lucide-react'
+import { Loader2, Pause, Play, X, Check, Clock } from 'lucide-react'
 import { useTaskStore } from '../../stores/taskStore'
 
 interface ProgressEvent {
   stage: string
+  code?: string
   message: string
   progress: number
-  data?: any
+  data?: {
+    queuePosition?: number
+    processing?: number
+    maxConcurrent?: number
+    [key: string]: any
+  }
   timestamp: number
 }
 
@@ -42,6 +48,10 @@ export function ProgressSection({
   const task = useTaskStore((state: any) => jobId ? state.getTask(jobId) : undefined)
 
   const isPaused = task?.status === 'paused'
+  const isQueued = task?.status === 'queued' || currentStage === 'queued'
+
+  // Get queue position from latest event
+  const queueInfo = progressEvents.find(e => e.stage === 'queued')?.data
 
   const handlePause = async () => {
     if (!jobId) return
@@ -86,8 +96,30 @@ export function ProgressSection({
 
   return (
     <div className="space-y-3">
+      {/* Queue Status Banner */}
+      {isQueued && queueInfo && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <Clock className="h-6 w-6 text-amber-500 animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">排队等待中...</p>
+              <p className="text-amber-600 mt-1">
+                前面还有 <span className="font-bold">{queueInfo.queuePosition}</span> 个任务
+                {queueInfo.processing !== undefined && (
+                  <span className="text-amber-500 ml-2">
+                    (正在处理 {queueInfo.processing}/{queueInfo.maxConcurrent})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Progress Bar */}
-      {(isProcessing || isPaused) && (
+      {(isProcessing || isPaused) && !isQueued && (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-700 font-medium">

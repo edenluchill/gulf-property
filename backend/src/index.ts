@@ -20,6 +20,7 @@ import adminTasksRouter from './routes/admin-tasks'
 import dubaiTransportRouter from './routes/dubai-transport'
 import geocodeRouter from './routes/geocode'
 import pool from './db/pool'
+import { taskManager } from './services/task-manager'
 
 const app: Application = express()
 const PORT = process.env.PORT || 3000
@@ -108,10 +109,13 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 })
 
 // Start server with extended timeouts for large file uploads
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`)
+
+  // Recover any tasks that were interrupted by server restart
+  await taskManager.recoverInterruptedTasks()
 })
 
 // Extend timeouts for large file uploads (10 minutes)

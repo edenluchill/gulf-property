@@ -164,14 +164,14 @@ function getPolygonSpan(coords: [number, number][]): number {
 }
 
 // 根据 span 计算该 area 应该在什么 zoom 级别开始显示
-// 这样一旦显示，zoom in 时就不会消失
+// 优化：更早显示小区域标签，减少 zoom 门槛
 function getMinZoomForSpan(span: number): number {
-  if (span >= 0.15) return 8    // 超大区域
-  if (span >= 0.08) return 9    // 大区域
-  if (span >= 0.04) return 10   // 中等区域
-  if (span >= 0.02) return 11   // 小区域
-  if (span >= 0.01) return 12   // 更小区域
-  return 13                      // 最小区域
+  if (span >= 0.15) return 7    // 超大区域 - 更早显示
+  if (span >= 0.08) return 8    // 大区域
+  if (span >= 0.04) return 9    // 中等区域
+  if (span >= 0.02) return 10   // 小区域
+  if (span >= 0.01) return 11   // 更小区域
+  return 12                      // 最小区域 - 从 13 降到 12
 }
 
 const formatPriceShort = (price: number): string => {
@@ -894,33 +894,35 @@ function MapViewMapLibre({
                 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
-                  8, 10,
-                  12, 12,
-                  14, 14
+                  8, 8,    // 更小的字体
+                  10, 9,
+                  12, 10,
+                  14, 11,
+                  16, 12
                 ],
                 'text-anchor': 'center',
-                // Gradual clustering: 11-13 with decreasing padding, 14+ show all
+                // 更宽松的防叠：zoom 12+ 显示所有
                 'text-allow-overlap': [
                   'step',
                   ['zoom'],
-                  false,  // zoom < 14: hide overlapping
-                  14, true   // zoom >= 14: show all
+                  false,  // zoom < 12: hide overlapping
+                  12, true   // zoom >= 12: show all labels
                 ],
+                // 更小的 padding，允许更紧密的标签
                 'text-padding': [
                   'step',
                   ['zoom'],
-                  12,  // zoom < 11: large padding (tight clustering)
-                  11, 8,  // zoom 11: medium-large padding
-                  12, 4,  // zoom 12: medium padding
-                  13, 2,  // zoom 13: small padding (loose clustering)
-                  14, 0   // zoom >= 14: no padding
+                  4,   // zoom < 10: small padding
+                  10, 2,  // zoom 10: smaller padding
+                  11, 1,  // zoom 11: minimal padding
+                  12, 0   // zoom >= 12: no padding
                 ],
                 'symbol-sort-key': ['get', 'minZoom']
               }}
               paint={{
                 'text-color': '#334155',
                 'text-halo-color': '#ffffff',
-                'text-halo-width': 2
+                'text-halo-width': 1.5  // 稍微减少 halo 宽度
               }}
             />
           </Source>
@@ -938,33 +940,35 @@ function MapViewMapLibre({
                 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
-                  8, 12,
-                  12, 14,
-                  14, 16
+                  8, 9,    // 更小的字体
+                  10, 10,
+                  12, 11,
+                  14, 12,
+                  16, 13
                 ],
                 'text-anchor': 'center',
-                // Gradual clustering: 11-13 with decreasing padding, 14+ show all
+                // 更宽松的防叠：zoom 12+ 显示所有
                 'text-allow-overlap': [
                   'step',
                   ['zoom'],
-                  false,  // zoom < 14: hide overlapping
-                  14, true   // zoom >= 14: show all
+                  false,  // zoom < 12: hide overlapping
+                  12, true   // zoom >= 12: show all
                 ],
+                // 更小的 padding
                 'text-padding': [
                   'step',
                   ['zoom'],
-                  8,   // zoom < 11: large padding
-                  11, 5,  // zoom 11: medium-large padding
-                  12, 3,  // zoom 12: medium padding
-                  13, 1,  // zoom 13: small padding
-                  14, 0   // zoom >= 14: no padding
+                  3,   // zoom < 10: small padding
+                  10, 2,  // zoom 10: smaller padding
+                  11, 1,  // zoom 11: minimal padding
+                  12, 0   // zoom >= 12: no padding
                 ],
                 'symbol-sort-key': ['get', 'minZoom']
               }}
               paint={{
                 'text-color': ['get', 'metricColor'],
                 'text-halo-color': '#ffffff',
-                'text-halo-width': 2.5
+                'text-halo-width': 2
               }}
             />
           </Source>

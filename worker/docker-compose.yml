@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  worker:
+    image: ghcr.io/edenluchill/pinzos-worker:latest
+    container_name: pinzos-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - WORKER_POLL_INTERVAL=3000
+      - WORKER_MAX_CONCURRENT=1
+    volumes:
+      - worker-temp:/app/temp
+      - worker-uploads:/app/uploads
+    deploy:
+      resources:
+        limits:
+          cpus: '3.5'
+          memory: 7G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+volumes:
+  worker-temp:
+  worker-uploads:

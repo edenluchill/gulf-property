@@ -84,5 +84,37 @@
   "selectPropertyToView": "选择一个楼盘查看详情",
   "propertiesNearby": "附近 {{count}} 个楼盘",
   "loadingPropertyDetails": "加载楼盘详情...",
-  "loadingProperties": "加载楼盘列表..."
+  "loadingProperties": "加载楼盘列表...",
+  "about": {
+    "title": "关于 Pinzos",
+    "subtitle": "迪拜期房购买新方式",
+    "hero": "地图找房，一眼看价值",
+    "startExploring": "开始探索",
+    "features": {
+      "mapExplore": {
+        "title": "交互式地图",
+        "desc": "在地图上浏览所有期房项目，查看精确位置、周边配套和社区分析。"
+      },
+      "aiInsights": {
+        "title": "AI 智能分析",
+        "desc": "AI 自动解析项目楼书，分析价格趋势和投资潜力，帮你快速决策。"
+      },
+      "marketData": {
+        "title": "真实市场数据",
+        "desc": "查看历史成交数据、价格走势、租金回报率和各区域资本增值情况。"
+      },
+      "verifiedProjects": {
+        "title": "认证开发商项目",
+        "desc": "所有项目均来自认证开发商，轻松对比付款计划、户型和交付日期。"
+      },
+      "favorites": {
+        "title": "收藏与对比",
+        "desc": "收藏心仪楼盘，多项目并排对比，找到最适合的投资选择。"
+      },
+      "trusted": {
+        "title": "可信赖的平台",
+        "desc": "我们与开发商直接合作，确保信息准确、及时更新。"
+      }
+    }
+  }
 }

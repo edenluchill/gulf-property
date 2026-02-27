@@ -84,5 +84,37 @@
   "selectPropertyToView": "Select a property to view details",
   "propertiesNearby": "{{count}} properties nearby",
   "loadingPropertyDetails": "Loading property details...",
-  "loadingProperties": "Loading properties..."
+  "loadingProperties": "Loading properties...",
+  "about": {
+    "title": "About Pinzos",
+    "subtitle": "A new way to discover off-plan property in Dubai",
+    "hero": "Pin Projects on the Map. See Value.",
+    "startExploring": "Start Exploring",
+    "features": {
+      "mapExplore": {
+        "title": "Interactive Map",
+        "desc": "Browse all off-plan projects on an interactive map. See exact locations, nearby amenities, and neighborhood insights."
+      },
+      "aiInsights": {
+        "title": "AI-Powered Insights",
+        "desc": "Get instant analysis of project brochures, pricing trends, and investment potential powered by AI."
+      },
+      "marketData": {
+        "title": "Real Market Data",
+        "desc": "View historical transaction data, price trends, rental yields, and capital appreciation by area."
+      },
+      "verifiedProjects": {
+        "title": "Verified Projects",
+        "desc": "All listings are from verified developers. Compare payment plans, unit types, and completion dates."
+      },
+      "favorites": {
+        "title": "Save & Compare",
+        "desc": "Bookmark your favorite properties and compare them side-by-side to find the perfect investment."
+      },
+      "trusted": {
+        "title": "Trusted Platform",
+        "desc": "We work directly with developers to bring you accurate, up-to-date information."
+      }
+    }
+  }
 }

@@ -6,14 +6,27 @@ version: '3.8'
 services:
   # Backend API service
   api:
-    image: pinzos-backend:latest
+    image: ghcr.io/edenluchill/pinzos-backend:latest
     container_name: pinzos-api
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
+    # Resource limits for cpx11 (2GB RAM)
+    # With worker architecture, API is lightweight - no PDF processing
+    deploy:
+      resources:
+        limits:
+          memory: 1500M
+          cpus: '1.8'
+        reservations:
+          memory: 512M
     environment:
       - NODE_ENV=production
       - PORT=${PORT:-3000}
+      # Worker mode: upload PDFs to R2, let worker process them
+      - USE_WORKER_MODE=${USE_WORKER_MODE:-true}
+      # Smaller heap since we don't process PDFs on API server
+      - NODE_OPTIONS=--max-old-space-size=1024
       # Database (external PostgreSQL)
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT:-5432}
@@ -59,6 +72,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # Let's Encrypt certificates for upload-api.pinzos.com
     depends_on:
       - api
     networks:

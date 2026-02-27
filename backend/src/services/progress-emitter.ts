@@ -9,7 +9,7 @@ import { Response } from 'express';
 import { taskManager } from './task-manager';
 
 export interface ProgressEvent {
-  stage: 'starting' | 'ingestion' | 'mapping' | 'reducing' | 'insight' | 'complete' | 'error';
+  stage: 'starting' | 'queued' | 'ingestion' | 'mapping' | 'reducing' | 'insight' | 'complete' | 'error';
   code: string;  // Machine-readable code for i18n
   message: string;  // English message for backend logs
   progress: number; // 0-100
@@ -97,8 +97,12 @@ export class ProgressEmitter {
    * Update task progress in database
    */
   private async updateTaskProgress(jobId: string, event: ProgressEvent) {
-    // Skip 'starting' and 'error' events - those are handled elsewhere
-    if (event.stage === 'starting' || event.stage === 'error' || event.stage === 'complete') {
+    // Skip events that shouldn't trigger status updates:
+    // - 'starting': just SSE connection
+    // - 'queued': task is waiting for worker, don't change status
+    // - 'error': handled by failTask()
+    // - 'complete': handled by completeTask()
+    if (event.stage === 'starting' || event.stage === 'queued' || event.stage === 'error' || event.stage === 'complete') {
       return;
     }
 
