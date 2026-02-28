@@ -228,12 +228,9 @@ export async function uploadFileToPdfCacheWithVariants(
 
 /**
  * Image URL variants for responsive loading
- *
- * ⚡ OPTIMIZED: Removed 'original' variant
- * - 'large' (1280x720) is sufficient for detail pages
- * - 3 variants instead of 4 = 25% faster uploads
  */
 export interface ImageUrls {
+  original: string;    // 2560×1440 - Lightbox & fullscreen
   large: string;       // 1280×720 - Detail pages & desktop
   medium: string;      // 800×450 - Tablet/cards
   thumbnail: string;   // 400×225 - Mobile previews

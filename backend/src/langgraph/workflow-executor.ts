@@ -315,9 +315,10 @@ export async function executePdfWorkflow(
           }
         });
 
-        // Convert to final format (no 'original' variant)
+        // Convert to final format with all variants
         urlsByPage.forEach((variants, pageNum) => {
           imageUrls.set(pageNum, {
+            original: variants.original || variants.large || '',  // Fallback to large if original missing
             large: variants.large || '',
             medium: variants.medium || '',
             thumbnail: variants.thumbnail || '',

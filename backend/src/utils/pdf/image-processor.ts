@@ -179,18 +179,20 @@ export async function optimizeImage(
 /**
  * Image size variant configuration
  *
- * ⚡ OPTIMIZED: Removed 'original' variant to reduce upload time by 25%
- * - 'large' (1280x720) is sufficient for detail pages
- * - 3 variants instead of 4 = faster processing
+ * - 'original': Full resolution for lightbox/fullscreen viewing
+ * - 'large': 1280x720 for detail pages & desktop
+ * - 'medium': 800x450 for tablet/cards
+ * - 'thumbnail': 400x225 for mobile previews
  */
 export interface ImageVariant {
-  name: 'large' | 'medium' | 'thumbnail';
+  name: 'original' | 'large' | 'medium' | 'thumbnail';
   width: number;
   height: number;
   quality: number;
 }
 
 export const IMAGE_VARIANTS: ImageVariant[] = [
+  { name: 'original', width: 2560, height: 1440, quality: 90 },   // 2K - lightbox & fullscreen
   { name: 'large', width: 1280, height: 720, quality: 85 },       // HD - detail pages & desktop
   { name: 'medium', width: 800, height: 450, quality: 80 },       // Tablet/cards
   { name: 'thumbnail', width: 400, height: 225, quality: 75 },    // Mobile previews

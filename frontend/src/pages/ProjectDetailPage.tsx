@@ -9,15 +9,26 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useFavorites } from '../contexts/FavoritesContext'
 import { fetchResidentialProjectById } from '../lib/api'
 import { ImageGallery } from './ProjectDetailPage/ImageGallery'
-import { ProjectInfoCard } from './ProjectDetailPage/ProjectInfoCard'
 import { OverviewTab } from './ProjectDetailPage/OverviewTab'
 import { UnitTypesTab } from './ProjectDetailPage/UnitTypesTab'
 import { PaymentPlanTab } from './ProjectDetailPage/PaymentPlanTab'
 import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
 import { LocationTab } from './ProjectDetailPage/LocationTab'
 import { UnitTypesSubPage } from './ProjectDetailPage/UnitTypesSubPage'
+import { DesktopHeroGallery } from './ProjectDetailPage/DesktopHeroGallery'
+import { TabletScrollGallery } from './ProjectDetailPage/TabletScrollGallery'
+import { CollapsibleDetails } from './ProjectDetailPage/CollapsibleDetails'
 import { formatPrice } from '../lib/utils'
 import { generateProjectNotes } from '../lib/generateProjectNotes'
+
+type DeviceType = 'mobile' | 'tablet' | 'desktop'
+
+function getDeviceType(): DeviceType {
+  const width = window.innerWidth
+  if (width < 768) return 'mobile'
+  if (width < 1024) return 'tablet'
+  return 'desktop'
+}
 
 export default function ProjectDetailPage() {
   const { t } = useTranslation(['project', 'common'])
@@ -96,7 +107,9 @@ export default function ProjectDetailPage() {
 
   // Mobile info sheet state
   const [showMobileInfo, setShowMobileInfo] = useState(false)
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  const [deviceType, setDeviceType] = useState<DeviceType>(getDeviceType)
+  const isMobile = deviceType === 'mobile'
+  const isTablet = deviceType === 'tablet'
   const [copied, setCopied] = useState(false)
 
   const handleCopyNotes = async () => {
@@ -176,10 +189,11 @@ export default function ProjectDetailPage() {
   }
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+    const handleResize = () => {
+      setDeviceType(getDeviceType())
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   // Generate OG meta data for social sharing
@@ -218,8 +232,8 @@ export default function ProjectDetailPage() {
     )
   }
 
-  // Desktop: Unit detail sub-page view
-  if (isUnitDetailView && !window.matchMedia('(max-width: 767px)').matches) {
+  // Desktop/Tablet: Unit detail sub-page view
+  if (isUnitDetailView && !isMobile) {
     return (
       <UnitTypesSubPage
         unitTypes={project.units || []}
@@ -391,35 +405,191 @@ export default function ProjectDetailPage() {
                   />
                 </div>
               </>
-            ) : (
-              /* Desktop: Full content with gallery and info card */
-              <div className="container mx-auto px-4 py-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                >
-                  {/* Image Gallery and Project Info */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-                    <ImageGallery
-                      images={project.project_images}
-                      buildingName={project.project_name}
-                      currentImageIndex={currentImageIndex}
-                      onImageIndexChange={setCurrentImageIndex}
-                    />
-                    <ProjectInfoCard
-                      project={project}
-                      units={project.units}
-                      paymentPlan={project.payment_plan}
-                      isFavorite={isFav}
-                      onToggleFavorite={handleToggleFavorite}
-                    />
+            ) : isTablet ? (
+              /* Tablet: Scroll-based gallery with floating info */
+              <>
+                {/* Tablet compact header with actions */}
+                <div className="bg-white border-b py-3 px-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-lg font-bold text-slate-900 truncate">{project.project_name}</h1>
+                        {project.status === 'sold-out' && (
+                          <span className="flex-shrink-0 px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">
+                            {t('common:status.soldOut')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Building2 className="h-4 w-4 flex-shrink-0" />
+                          {project.developer}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-4 w-4 flex-shrink-0" />
+                          {project.area}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={handleShare}
+                      >
+                        <Share2 className="h-5 w-5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={handleCopyNotes}
+                      >
+                        {copied ? <Check className="h-5 w-5 text-green-600" /> : <Copy className="h-5 w-5" />}
+                      </Button>
+                      <Button
+                        variant={isFav ? "default" : "outline"}
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={handleToggleFavorite}
+                      >
+                        <Heart className={`h-5 w-5 ${isFav ? 'fill-current' : ''}`} />
+                      </Button>
+                    </div>
                   </div>
+                </div>
 
-                  {/* Overview Content */}
-                  <OverviewTab project={project} />
-                </motion.div>
-              </div>
+                {/* Tablet scroll gallery */}
+                <TabletScrollGallery
+                  images={project.project_images}
+                  projectName={project.project_name}
+                  minBedrooms={project.min_bedrooms}
+                  maxBedrooms={project.max_bedrooms}
+                  startingPrice={project.starting_price}
+                  completionDate={project.completion_date}
+                />
+
+                {/* Tablet info section */}
+                <div className="px-4 pb-8">
+                  <CollapsibleDetails
+                    project={project}
+                    paymentPlan={project.payment_plan}
+                    amenities={project.amenities}
+                  />
+                </div>
+              </>
+            ) : (
+              /* Desktop: Immersive Hero + Grid layout */
+              <>
+                {/* Desktop compact header with project info and actions */}
+                <div className="bg-white border-b py-4">
+                  <div className="container mx-auto px-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {/* Thumbnail */}
+                        {project.project_images?.[0] && (
+                          <img
+                            src={project.project_images[0]}
+                            alt={project.project_name}
+                            className="w-14 h-14 object-cover rounded-lg"
+                          />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold text-slate-900">{project.project_name}</h1>
+                            {project.status === 'sold-out' && (
+                              <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">
+                                {t('common:status.soldOut')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-slate-600 mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Building2 className="h-4 w-4" />
+                              {project.developer}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-4 w-4" />
+                              {project.area}
+                            </span>
+                            {project.starting_price && (
+                              <span className="font-semibold text-primary">
+                                {formatPrice(project.starting_price)}+
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleShare}
+                        >
+                          <Share2 className="h-4 w-4 mr-2" />
+                          {t('project:share', 'Share')}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCopyNotes}
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="h-4 w-4 mr-2 text-green-600" />
+                              {t('project:copyNotes.copied')}
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-2" />
+                              {t('project:copyNotes.button')}
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant={isFav ? "default" : "outline"}
+                          size="sm"
+                          onClick={handleToggleFavorite}
+                        >
+                          <Heart className={`h-4 w-4 mr-2 ${isFav ? 'fill-current' : ''}`} />
+                          {isFav ? t('project:saved', 'Saved') : t('project:save', 'Save')}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hero Gallery */}
+                <div className="container mx-auto px-4 py-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <DesktopHeroGallery
+                      images={project.project_images}
+                      projectName={project.project_name}
+                      minBedrooms={project.min_bedrooms}
+                      maxBedrooms={project.max_bedrooms}
+                      startingPrice={project.starting_price}
+                      completionDate={project.completion_date}
+                    />
+
+                    {/* Collapsible Details */}
+                    <CollapsibleDetails
+                      project={project}
+                      paymentPlan={project.payment_plan}
+                      amenities={project.amenities}
+                    />
+
+                    {/* Overview Content (additional content below collapsible) */}
+                    <div className="mt-8">
+                      <OverviewTab project={project} />
+                    </div>
+                  </motion.div>
+                </div>
+              </>
             )}
           </TabsContent>
 

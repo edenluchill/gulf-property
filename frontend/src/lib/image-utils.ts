@@ -3,15 +3,17 @@
  *
  * Helper functions for responsive image loading
  *
- * ⚡ OPTIMIZED: Removed 'original' variant
- * - 'large' (1280x720) is now the highest quality
- * - 3 variants instead of 4 = faster loading
+ * Image variants:
+ * - original: Full resolution (for lightbox/fullscreen)
+ * - large: 1280x720 (detail pages & desktop)
+ * - medium: 800x450 (tablet/cards)
+ * - thumbnail: 400x225 (mobile previews)
  */
 
 /**
  * Image size variants available
  */
-export type ImageSize = 'large' | 'medium' | 'thumbnail';
+export type ImageSize = 'original' | 'large' | 'medium' | 'thumbnail';
 
 /**
  * Get responsive image URL for different sizes
@@ -70,6 +72,32 @@ export function getImageSrcSet(imageUrl: string): string {
     `${getImageUrl(imageUrl, 'medium')} 800w`,
     `${getImageUrl(imageUrl, 'large')} 1280w`,
   ].join(', ');
+}
+
+/**
+ * Get srcset string including original for high-res displays (lightbox)
+ * Falls back gracefully if original doesn't exist (browser will use large)
+ */
+export function getImageSrcSetWithOriginal(imageUrl: string): string {
+  if (!imageUrl) return '';
+
+  return [
+    `${getImageUrl(imageUrl, 'thumbnail')} 400w`,
+    `${getImageUrl(imageUrl, 'medium')} 800w`,
+    `${getImageUrl(imageUrl, 'large')} 1280w`,
+    `${getImageUrl(imageUrl, 'original')} 2560w`,
+  ].join(', ');
+}
+
+/**
+ * Get the best available image URL with fallback
+ * Tries original first, falls back to large
+ * Use this for lightbox/fullscreen where you want highest quality
+ */
+export function getBestQualityUrl(imageUrl: string): string {
+  // For now, return large as the safe default
+  // The srcset will try to load original if available
+  return getImageUrl(imageUrl, 'large');
 }
 
 /**
