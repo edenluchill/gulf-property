@@ -54,6 +54,8 @@ export default function UserMenu() {
           <img
             src={avatarUrl}
             alt=""
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
             className="w-8 h-8 rounded-full object-cover border-2 border-teal-500/20"
             onError={handleAvatarError}
           />
@@ -83,6 +85,8 @@ export default function UserMenu() {
                   <img
                     src={avatarUrl}
                     alt=""
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
                     className="w-10 h-10 rounded-full object-cover border-2 border-teal-500/20"
                     onError={handleAvatarError}
                   />

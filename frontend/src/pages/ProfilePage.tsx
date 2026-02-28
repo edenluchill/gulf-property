@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,6 +9,12 @@ export default function ProfilePage() {
   const { t } = useTranslation(['auth', 'common'])
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
+  const [avatarError, setAvatarError] = useState(false)
+
+  // Reset avatar error when user changes
+  useEffect(() => {
+    setAvatarError(false)
+  }, [user?.user_metadata?.avatar_url])
 
   const handleSignOut = async () => {
     await signOut()
@@ -40,10 +47,13 @@ export default function ProfilePage() {
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-4">
             {/* Avatar */}
-            {user.user_metadata?.avatar_url ? (
+            {user.user_metadata?.avatar_url && !avatarError ? (
               <img
                 src={user.user_metadata.avatar_url}
                 alt="Avatar"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={() => setAvatarError(true)}
                 className="w-16 h-16 md:w-20 md:h-20 rounded-full ring-4 ring-white/20"
               />
             ) : (

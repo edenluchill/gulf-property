@@ -8,8 +8,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Header */}
       <Header />
 
-      {/* Main Content - pb-16 on mobile for bottom nav */}
-      <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
+      {/* Main Content - pb-16 on mobile, pb-20 on tablet for bottom nav */}
+      <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-20 xl:pb-0">
         {children}
       </main>
 

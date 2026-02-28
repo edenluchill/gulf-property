@@ -11,6 +11,62 @@ interface ImageLightboxProps {
   buildingName?: string
 }
 
+// Custom hook for momentum/inertia scrolling
+function useMomentumScroll(ref: React.RefObject<HTMLDivElement>) {
+  const velocity = useRef(0)
+  const animationFrame = useRef<number>()
+  const isAnimating = useRef(false)
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const animate = () => {
+      if (!element) return
+
+      // Apply velocity
+      element.scrollTop += velocity.current
+
+      // Apply friction (0.92 = smooth deceleration)
+      velocity.current *= 0.92
+
+      // Continue animation if velocity is significant
+      if (Math.abs(velocity.current) > 0.5) {
+        animationFrame.current = requestAnimationFrame(animate)
+      } else {
+        velocity.current = 0
+        isAnimating.current = false
+      }
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+
+      // Add wheel delta to velocity with momentum
+      // Higher multiplier = more responsive, lower = smoother
+      velocity.current += e.deltaY * 0.8
+
+      // Clamp max velocity
+      velocity.current = Math.max(-100, Math.min(100, velocity.current))
+
+      // Start animation if not already running
+      if (!isAnimating.current) {
+        isAnimating.current = true
+        animate()
+      }
+    }
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      element.removeEventListener('wheel', handleWheel)
+      if (animationFrame.current) {
+        cancelAnimationFrame(animationFrame.current)
+      }
+    }
+  }, [ref])
+}
+
 export function ImageLightbox({
   images,
   initialIndex,
@@ -25,6 +81,9 @@ export function ImageLightbox({
   const mainScrollRef = useRef<HTMLDivElement>(null)
   const imageRefs = useRef<(HTMLDivElement | null)[]>([])
   const isScrollingToImage = useRef(false)
+
+  // Apply momentum scrolling to main area
+  useMomentumScroll(mainScrollRef)
 
   // For drag/swipe gestures (mobile)
   const x = useMotionValue(0)
@@ -107,14 +166,43 @@ export function ImageLightbox({
     const imageEl = imageRefs.current[index]
     if (imageEl && mainScrollRef.current) {
       isScrollingToImage.current = true
-      imageEl.scrollIntoView({
-        behavior: smooth ? 'smooth' : 'auto',
-        block: 'center'
-      })
-      // Reset flag after scroll completes
-      setTimeout(() => {
-        isScrollingToImage.current = false
-      }, smooth ? 500 : 50)
+
+      const container = mainScrollRef.current
+      const containerRect = container.getBoundingClientRect()
+      const imageRect = imageEl.getBoundingClientRect()
+
+      const targetScroll = container.scrollTop + imageRect.top - containerRect.top - (containerRect.height - imageRect.height) / 2
+
+      if (smooth) {
+        // Smooth scroll with easing
+        const startScroll = container.scrollTop
+        const distance = targetScroll - startScroll
+        const duration = 400
+        const startTime = performance.now()
+
+        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3)
+
+        const animateScroll = (currentTime: number) => {
+          const elapsed = currentTime - startTime
+          const progress = Math.min(elapsed / duration, 1)
+          const easedProgress = easeOutCubic(progress)
+
+          container.scrollTop = startScroll + distance * easedProgress
+
+          if (progress < 1) {
+            requestAnimationFrame(animateScroll)
+          } else {
+            isScrollingToImage.current = false
+          }
+        }
+
+        requestAnimationFrame(animateScroll)
+      } else {
+        container.scrollTop = targetScroll
+        setTimeout(() => {
+          isScrollingToImage.current = false
+        }, 50)
+      }
     }
   }, [])
 
@@ -219,12 +307,7 @@ export function ImageLightbox({
           {/* Scrollable thumbnail list */}
           <div
             ref={thumbnailListRef}
-            className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-2"
-            style={{
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            }}
+            className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-2 scrollbar-hide"
           >
             {images.map((image, index) => (
               <button
@@ -295,26 +378,22 @@ export function ImageLightbox({
         {/* Scrollable main image area with momentum scrolling */}
         <div
           ref={mainScrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden"
-          style={{
-            WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth',
-            overscrollBehavior: 'contain',
-          }}
+          className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide"
+          style={{ cursor: 'grab' }}
         >
-          <div className="flex flex-col items-center gap-6 px-8 py-20">
+          <div className="flex flex-col items-center gap-8 px-8 py-20">
             {images.map((image, index) => (
               <div
                 key={index}
                 ref={el => imageRefs.current[index] = el}
-                className={`relative w-full max-w-5xl transition-all duration-300 ${
+                className={`relative w-full max-w-5xl transition-all duration-500 ease-out ${
                   index === currentIndex
-                    ? 'opacity-100'
-                    : 'opacity-50'
+                    ? 'opacity-100 scale-100'
+                    : 'opacity-40 scale-[0.96]'
                 }`}
               >
                 {/* Image container */}
-                <div className="relative rounded-xl overflow-hidden bg-white/5 shadow-2xl">
+                <div className="relative rounded-2xl overflow-hidden bg-white/5 shadow-2xl">
                   {/* Loading skeleton */}
                   {!imageLoaded[index] && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/5 min-h-[300px]">
@@ -331,6 +410,7 @@ export function ImageLightbox({
                       imageLoaded[index] ? 'opacity-100' : 'opacity-0'
                     }`}
                     loading={index < 3 ? 'eager' : 'lazy'}
+                    draggable={false}
                     onLoad={() => handleImageLoad(index)}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
@@ -341,23 +421,32 @@ export function ImageLightbox({
                   />
 
                   {/* Image number overlay */}
-                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium">
+                  <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full backdrop-blur-sm text-sm font-medium transition-all ${
+                    index === currentIndex
+                      ? 'bg-teal-500/80 text-white'
+                      : 'bg-black/50 text-white/70'
+                  }`}>
                     {index + 1} / {images.length}
                   </div>
                 </div>
               </div>
             ))}
+
+            {/* Bottom padding for last image to center properly */}
+            <div className="h-[30vh]" />
           </div>
         </div>
 
-        {/* Scroll indicator */}
+        {/* Scroll hint */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/30 text-xs bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/40 text-xs bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2"
         >
-          Scroll to browse · ESC to close
+          <span>Scroll to browse</span>
+          <span className="text-white/20">·</span>
+          <span>ESC to close</span>
         </motion.div>
 
         {/* Navigation arrows on sides */}
@@ -365,13 +454,13 @@ export function ImageLightbox({
           <>
             <button
               onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-white/20 text-white transition-all hover:scale-110"
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-white/20 text-white/60 hover:text-white transition-all hover:scale-110"
             >
               <ChevronUp className="h-5 w-5" />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-white/20 text-white transition-all hover:scale-110"
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-white/20 text-white/60 hover:text-white transition-all hover:scale-110"
             >
               <ChevronDown className="h-5 w-5" />
             </button>
@@ -479,14 +568,7 @@ export function ImageLightbox({
           transition={{ delay: 0.2, duration: 0.3 }}
           className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-black/80 to-transparent"
         >
-          <div
-            className="flex justify-center gap-2 overflow-x-auto pb-2 px-4"
-            style={{
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            }}
-          >
+          <div className="flex justify-center gap-2 overflow-x-auto pb-2 px-4 scrollbar-hide">
             {images.map((image, index) => (
               <button
                 key={index}
