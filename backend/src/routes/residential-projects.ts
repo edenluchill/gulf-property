@@ -95,11 +95,14 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           developer,
           area,
           starting_price,
+          min_price,
+          max_price,
           min_bedrooms,
           max_bedrooms,
           status,
           latitude,
           longitude,
+          completion_date,
           COALESCE(primary_image, project_images[1]) as first_image
         FROM residential_projects
         WHERE verified = true
@@ -114,13 +117,15 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           name: row.project_name,
           developer: row.developer,
           area: row.area,
-          price: row.starting_price,
+          minPrice: row.min_price ? parseFloat(row.min_price) : (row.starting_price ? parseFloat(row.starting_price) : null),
+          maxPrice: row.max_price ? parseFloat(row.max_price) : null,
           minBeds: row.min_bedrooms,
           maxBeds: row.max_bedrooms,
           status: row.status,
           lat: row.latitude,
           lng: row.longitude,
-          image: row.first_image || null
+          image: row.first_image || null,
+          completionDate: row.completion_date || null
         }))
       })
     } catch (error) {

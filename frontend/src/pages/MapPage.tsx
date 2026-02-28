@@ -363,9 +363,9 @@ export default function MapPage() {
       // Area filter
       if (filters.area && pin.area !== filters.area) return false
 
-      // Price filters
-      if (filters.minPrice && (!pin.price || pin.price < filters.minPrice)) return false
-      if (filters.maxPrice && pin.price && pin.price > filters.maxPrice) return false
+      // Price filters (use minPrice for filtering)
+      if (filters.minPrice && (!pin.minPrice || pin.minPrice < filters.minPrice)) return false
+      if (filters.maxPrice && pin.minPrice && pin.minPrice > filters.maxPrice) return false
 
       // Bedroom filters
       if (filters.minBedrooms !== undefined && (!pin.maxBeds || pin.maxBeds < filters.minBedrooms)) return false

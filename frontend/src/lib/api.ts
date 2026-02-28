@@ -286,13 +286,15 @@ export interface MapPinProject {
   name: string
   developer: string
   area: string
-  price: number | null
+  minPrice: number | null
+  maxPrice: number | null
   minBeds: number | null
   maxBeds: number | null
   status: string
   lat: number
   lng: number
   image: string | null
+  completionDate: string | null
 }
 
 /**

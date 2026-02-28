@@ -315,3 +315,34 @@
   transform: translateY(-4px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
+
+/* Dark scrollbar for lightbox/dark backgrounds */
+.scrollbar-thin.scrollbar-thumb-white\/20::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin.scrollbar-thumb-white\/20::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.scrollbar-thin.scrollbar-thumb-white\/20::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.scrollbar-thin.scrollbar-thumb-white\/20:hover::-webkit-scrollbar-thumb,
+.scrollbar-thin.hover\:scrollbar-thumb-white\/40:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Firefox dark scrollbar support */
+.scrollbar-thin.scrollbar-track-transparent {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.scrollbar-thin.scrollbar-track-transparent:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+}

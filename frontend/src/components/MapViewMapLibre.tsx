@@ -293,12 +293,56 @@ import { MapPinProject } from '../lib/api'
 import { getImageUrl } from '../lib/image-utils'
 
 const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
-  // Truncate project name for display
-  const displayName = project.name.length > 18
-    ? project.name.substring(0, 16) + '...'
-    : project.name
+  const [isHovered, setIsHovered] = useState(false)
+  const [showBelow, setShowBelow] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const isSoldOut = project.status === 'sold-out'
+
+  // Format price range
+  const priceText = useMemo(() => {
+    if (project.minPrice && project.maxPrice) {
+      return `${formatPriceShort(project.minPrice)} - ${formatPriceShort(project.maxPrice)}`
+    } else if (project.minPrice) {
+      return `From ${formatPriceShort(project.minPrice)}`
+    }
+    return null
+  }, [project.minPrice, project.maxPrice])
+
+  // Format bedroom range
+  const bedText = project.minBeds !== null && project.maxBeds !== null
+    ? project.minBeds === project.maxBeds
+      ? `${project.minBeds} BR`
+      : `${project.minBeds}-${project.maxBeds} BR`
+    : project.minBeds !== null
+      ? `${project.minBeds}+ BR`
+      : null
+
+  // Format completion date (e.g., "2029-12-27T08:00:00.000Z" -> "Q4 2029")
+  const completionText = useMemo(() => {
+    if (!project.completionDate) return null
+    try {
+      const date = new Date(project.completionDate)
+      const quarter = Math.ceil((date.getMonth() + 1) / 3)
+      return `Q${quarter} ${date.getFullYear()}`
+    } catch {
+      return null
+    }
+  }, [project.completionDate])
+
+  // Check if marker is near top of viewport
+  const handleMouseEnter = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      // If marker is within 200px of viewport top, show tooltip below
+      setShowBelow(rect.top < 200)
+    }
+    setIsHovered(true)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false)
+  }, [])
 
   return (
     <Marker
@@ -311,7 +355,10 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
       }}
     >
       <div
+        ref={containerRef}
         className="cursor-pointer transition-all duration-200 hover:scale-110 hover:z-[100]"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -319,23 +366,82 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
           filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
         }}
       >
-        {/* Project name label - ABOVE pin */}
+        {/* Hover tooltip - rich info card, smart positioning */}
         <div
           style={{
-            marginBottom: '4px',
-            background: 'rgba(15, 23, 42, 0.9)',
-            color: '#fff',
-            borderRadius: '6px',
-            padding: '3px 8px',
-            fontSize: '11px',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            maxWidth: '120px',
-            textAlign: 'center',
-            backdropFilter: 'blur(4px)',
+            position: 'absolute',
+            left: '50%',
+            ...(showBelow ? {
+              top: '100%',
+              marginTop: '12px',
+            } : {
+              bottom: '100%',
+              marginBottom: '12px',
+            }),
+            transform: 'translateX(-50%)',
+            background: '#fff',
+            borderRadius: '12px',
+            padding: '0',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+            pointerEvents: 'none',
+            minWidth: '180px',
+            maxWidth: '220px',
+            overflow: 'hidden',
+            opacity: isHovered ? 1 : 0,
+            visibility: isHovered ? 'visible' : 'hidden',
+            transition: 'opacity 0.15s ease',
+            zIndex: 9999,
           }}
         >
-          {displayName}
+          {/* Mini image */}
+          {project.image && (
+            <div style={{ width: '100%', height: '80px', overflow: 'hidden' }}>
+              <img
+                src={getImageUrl(project.image, 'thumbnail')}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            </div>
+          )}
+          {/* Info */}
+          <div style={{ padding: '10px 12px' }}>
+            {/* Project name - full, no truncate */}
+            <div style={{
+              fontSize: '13px',
+              fontWeight: 700,
+              color: '#0f172a',
+              lineHeight: 1.3,
+              marginBottom: '6px',
+            }}>
+              {project.name}
+            </div>
+            {/* Price - prominent */}
+            {priceText && (
+              <div style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#0d9488',
+                marginBottom: '4px',
+              }}>
+                AED {priceText}
+              </div>
+            )}
+            {/* Details row */}
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              fontSize: '11px',
+              color: '#64748b',
+            }}>
+              {bedText && <span>{bedText}</span>}
+              {completionText && <span>{completionText}</span>}
+            </div>
+          </div>
         </div>
 
         {/* Teardrop pin with image */}
