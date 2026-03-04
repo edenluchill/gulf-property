@@ -20,6 +20,12 @@ import adminTasksRouter from './routes/admin-tasks'
 import dubaiTransportRouter from './routes/dubai-transport'
 import customRoutesRouter from './routes/custom-routes'
 import geocodeRouter from './routes/geocode'
+import voiceChatRouter, { initVoiceChatWebSocket } from './routes/voice-chat'
+import voiceTokenRouter from './routes/voice-token'
+import voiceToolsRouter from './routes/voice-tools'
+import voiceDebugRouter from './routes/voice-debug'
+import aiProjectsRouter from './routes/ai-projects'
+import aiAreasRouter from './routes/ai-areas'
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 
@@ -92,6 +98,12 @@ app.use('/api/admin/tasks', adminTasksRouter)  // Admin task management
 app.use('/api/transport', dubaiTransportRouter)  // Dubai transport (Metro, Tram, future lines)
 app.use('/api/custom-routes', customRoutesRouter)  // Custom routes and stops (replaces transport)
 app.use('/api/geocode', geocodeRouter)  // Google Maps geocoding API proxy
+app.use('/api/voice-chat', voiceChatRouter)  // Voice chat health check (legacy)
+app.use('/api/voice', voiceTokenRouter)  // Ephemeral token generation
+app.use('/api/voice/tools', voiceToolsRouter)  // Tool execution
+app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
+app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
+app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
@@ -115,6 +127,9 @@ const server = app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`)
+
+  // Initialize WebSocket server for voice chat
+  initVoiceChatWebSocket(server)
 
   // Recover any tasks that were interrupted by server restart
   await taskManager.recoverInterruptedTasks()

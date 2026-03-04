@@ -17,6 +17,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import ComparePage from './pages/ComparePage'
 import ProfilePage from './pages/ProfilePage'
+import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 
 function App() {
   const { i18n } = useTranslation()
@@ -26,6 +27,7 @@ function App() {
   }, [i18n.language])
 
   return (
+    <VoiceAssistantProvider>
     <Layout>
       <Routes>
         {/* MapPage is now the homepage */}
@@ -81,6 +83,7 @@ function App() {
         />
       </Routes>
     </Layout>
+    </VoiceAssistantProvider>
   )
 }
 

@@ -1,0 +1,1 @@
+export { VoiceAssistantButton } from './VoiceAssistantButton'

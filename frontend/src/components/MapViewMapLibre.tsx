@@ -628,7 +628,7 @@ interface MapViewMapLibreProps {
   pois?: Poi[]
   showDubaiLayer?: boolean
   showPois?: boolean
-  flyToLocation?: { lat: number; lng: number; zoom?: number } | null
+  flyToLocation?: { lat: number; lng: number; zoom?: number; bounds?: [[number, number], [number, number]] } | null
   transportGeoJSON?: TransportGeoJSON | null
   showTransport?: boolean
 }
@@ -665,19 +665,29 @@ function MapViewMapLibre({
     zoom: 10.115216007819594
   })
 
-  // Fly to location when flyToLocation changes
+  // Fly to location or fitBounds when flyToLocation changes
   useEffect(() => {
     if (!flyToLocation || !mapRef.current || !mapLoaded) return
 
     const map = mapRef.current.getMap()
     if (!map) return
 
-    map.flyTo({
-      center: [flyToLocation.lng, flyToLocation.lat],
-      zoom: flyToLocation.zoom ?? 14,
-      duration: 1500,
-      essential: true
-    })
+    if (flyToLocation.bounds) {
+      // fitBounds for multi-point results
+      map.fitBounds(flyToLocation.bounds, {
+        padding: { top: 80, bottom: 120, left: 40, right: 80 },
+        maxZoom: 13,
+        duration: 2000
+      })
+    } else {
+      map.flyTo({
+        center: [flyToLocation.lng, flyToLocation.lat],
+        zoom: flyToLocation.zoom ?? 11,
+        duration: 2000,
+        curve: 1.8,
+        essential: true
+      })
+    }
   }, [flyToLocation, mapLoaded])
 
   // 地图加载完成后再渲染 layers
@@ -685,31 +695,36 @@ function MapViewMapLibre({
     const map = mapRef.current?.getMap()
     if (!map) return
 
+    // Helper to safely add image (handles race conditions)
+    const safeAddImage = (name: string, data: ImageData) => {
+      try {
+        if (!map.hasImage(name)) {
+          map.addImage(name, data, { pixelRatio: 2 })
+        }
+      } catch {
+        // Image already exists (race condition), ignore
+      }
+    }
+
     // Generate and load POI icons for each category (using Lucide SVGs)
     const poiIconPromises = Object.entries(CATEGORY_CONFIG).map(async ([category, config]) => {
       const iconName = `poi-${category}`
-      if (!map.hasImage(iconName)) {
-        const imageData = await generatePoiIcon(config.color, config.Icon, 48)
-        map.addImage(iconName, imageData, { pixelRatio: 2 })
-      }
+      const imageData = await generatePoiIcon(config.color, config.Icon, 48)
+      safeAddImage(iconName, imageData)
     })
 
     // Generate and load transport station icons (legacy)
     const transportIconPromises = Object.entries(TRANSPORT_LINE_CONFIG).map(async ([line, config]) => {
       const iconName = `station-${line}`
-      if (!map.hasImage(iconName)) {
-        const imageData = await generatePoiIcon(config.color, config.Icon, 48)
-        map.addImage(iconName, imageData, { pixelRatio: 2 })
-      }
+      const imageData = await generatePoiIcon(config.color, config.Icon, 48)
+      safeAddImage(iconName, imageData)
     })
 
     // Generate route type icons for custom routes
     const routeTypeIconPromises = Object.entries(ROUTE_TYPE_CONFIG).map(async ([type, config]) => {
       const iconName = `station-${type}`
-      if (!map.hasImage(iconName)) {
-        const imageData = await generatePoiIcon(config.defaultColor, config.Icon, 48)
-        map.addImage(iconName, imageData, { pixelRatio: 2 })
-      }
+      const imageData = await generatePoiIcon(config.defaultColor, config.Icon, 48)
+      safeAddImage(iconName, imageData)
     })
 
     await Promise.all([...poiIconPromises, ...transportIconPromises, ...routeTypeIconPromises])

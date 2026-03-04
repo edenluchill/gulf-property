@@ -631,13 +631,13 @@ export default function ProjectDetailPage() {
             <AnimatePresence>
               {!showMobileInfo && (
                 <>
-                {/* White mist visual effect - non-clickable, compact */}
+                {/* White mist visual effect - non-clickable, above mobile nav */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed left-0 right-0 bottom-0 z-40 pointer-events-none"
-                  style={{ height: '10vh', paddingBottom: '32px' }}
+                  className={`fixed left-0 right-0 z-40 pointer-events-none ${isMobile ? 'bottom-16' : 'bottom-20'}`}
+                  style={{ height: '10vh' }}
                 >
                   {/* Compact white mist gradient */}
                   <div
@@ -648,16 +648,16 @@ export default function ProjectDetailPage() {
                   />
 
                   {/* Subtle glow - smaller */}
-                  <div className="absolute bottom-8 left-4 right-4 h-10 bg-white/60 blur-xl animate-glow" />
+                  <div className="absolute bottom-4 left-4 right-4 h-10 bg-white/60 blur-xl animate-glow" />
                 </motion.div>
 
-                {/* Transparent clickable area - text only */}
+                {/* Transparent clickable area - text only, above mobile nav */}
                 <motion.button
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setShowMobileInfo(true)}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-[32px] z-50 px-3 py-1.5"
+                  className={`fixed left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 ${isMobile ? 'bottom-[72px]' : 'bottom-[88px]'}`}
                 >
                   <div className="flex items-center gap-2 animate-float">
                     <ChevronUp className="h-5 w-5 text-slate-600" />

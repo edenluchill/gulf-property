@@ -1,6 +1,7 @@
 import Header from './Header'
 import MobileNav from './MobileNav'
 import { FavoritesDrawer } from './favorites'
+import { VoiceAssistantButton } from './voice-assistant'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Favorites Drawer - Global, not inside Header */}
       <FavoritesDrawer />
+
+      {/* Voice Assistant - Global, works on all pages */}
+      <VoiceAssistantButton />
 
       {/* Footer - Hidden on mobile, visible on desktop */}
       {/* <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
@@ -14,18 +14,15 @@ import {
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
+import { MapAction } from '../hooks/voice-assistant'
+import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
 import {
   fetchResidentialMapPins,
-  fetchResidentialDevelopers,
-  fetchResidentialAreas,
-  fetchResidentialProjects,
   fetchResidentialProjectsBatch,
   fetchDubaiAreas,
   fetchDubaiLandmarks,
-  searchDubaiAreas,
   fetchCustomRoutesGeoJSON,
-  AreaSearchResult,
   TransportGeoJSON,
   MapPinProject
 } from '../lib/api'
@@ -72,14 +69,28 @@ checkAndClearCache()
 export default function MapPage() {
   const { t, i18n } = useTranslation(['map', 'common'])
   const navigate = useNavigate()
+  const voiceContext = useVoiceAssistantContext()
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [mapPins, setMapPins] = useState<MapPinProject[]>([])
-  const [developers, setDevelopers] = useState<string[]>([])
-  const [areas, setAreas] = useState<string[]>([])
-  const [projects, setProjects] = useState<{ project_name: string; developer: string }[]>([])
   const [mapBounds, setMapBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null)
+
+  // Derive filter lists from mapPins (no extra API calls needed)
+  const developers = useMemo(() =>
+    [...new Set(mapPins.map(p => p.developer).filter(Boolean))].sort(),
+    [mapPins]
+  )
+  const areas = useMemo(() =>
+    [...new Set(mapPins.map(p => p.area).filter(Boolean))].sort(),
+    [mapPins]
+  )
+  const projects = useMemo(() =>
+    mapPins
+      .map(p => ({ project_name: p.name, developer: p.developer }))
+      .sort((a, b) => a.project_name.localeCompare(b.project_name)),
+    [mapPins]
+  )
 
   // Dubai areas and landmarks state
   const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
@@ -190,18 +201,82 @@ export default function MapPage() {
   const [areaProjects, setAreaProjects] = useState<any[]>([])
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
 
-  // Area search state
-  const [areaSearchQuery, setAreaSearchQuery] = useState('')
-  const [areaSearchResults, setAreaSearchResults] = useState<AreaSearchResult[]>([])
-  const [showAreaSearchResults, setShowAreaSearchResults] = useState(false)
-  const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
-  const areaSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number; bounds?: [[number, number], [number, number]] } | null>(null)
 
   // POI popup state
   const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null)
 
   // Transport station popup state
   const [selectedStation, setSelectedStation] = useState<TransportStation | null>(null)
+
+  // Voice assistant map action handler
+  const handleVoiceMapAction = useCallback((action: MapAction) => {
+    console.log('[MapPage] Voice assistant map action:', action)
+
+    switch (action.type) {
+      case 'fly_to':
+        if (action.lat && action.lng) {
+          setFlyToLocation({ lat: action.lat, lng: action.lng, zoom: action.zoom || 14 })
+        }
+        break
+
+      case 'highlight_projects':
+        if (action.bounds) {
+          // Multi-project: fitBounds to show all projects
+          setFlyToLocation({
+            lat: (action.bounds.sw[1] + action.bounds.ne[1]) / 2,
+            lng: (action.bounds.sw[0] + action.bounds.ne[0]) / 2,
+            bounds: [action.bounds.sw, action.bounds.ne]
+          })
+        } else if (action.lat && action.lng) {
+          setFlyToLocation({ lat: action.lat, lng: action.lng, zoom: action.zoom || 11 })
+        }
+        break
+
+      case 'show_pois':
+        if (action.category) {
+          // Enable the POI category
+          setEnabledPoiCategories(prev => {
+            if (!prev.includes(action.category as PoiCategory)) {
+              return [...prev, action.category as PoiCategory]
+            }
+            return prev
+          })
+        }
+        break
+
+      case 'toggle_transport':
+        setShowTransit(action.show ?? true)
+        break
+
+      case 'show_area_info':
+        // Show rental yield choropleth overlay + fly to area
+        setAreaMetric('rentalYield')
+        if (action.lat && action.lng) {
+          setFlyToLocation({ lat: action.lat, lng: action.lng, zoom: action.zoom || 12 })
+        }
+        break
+
+      case 'navigate':
+        if (action.path) {
+          navigate(action.path)
+        }
+        break
+
+      case 'reset':
+        setFilters({})
+        setEnabledPoiCategories([])
+        setShowTransit(false)
+        setFlyToLocation({ lat: 25.2048, lng: 55.2708, zoom: 11 }) // Default Dubai center
+        break
+    }
+  }, [navigate])
+
+  // Register voice map action handler with global context
+  useEffect(() => {
+    voiceContext.registerMapActionHandler(handleVoiceMapAction)
+    return () => voiceContext.unregisterMapActionHandler()
+  }, [voiceContext, handleVoiceMapAction])
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
@@ -215,57 +290,10 @@ export default function MapPage() {
 
   // Mobile bottom sheet state
   const [showAreaSheet, setShowAreaSheet] = useState(false)
-  const [showMobileSearch, setShowMobileSearch] = useState(false)
 
-  // Load initial metadata (only once, with caching)
+  // Load Dubai areas & landmarks (only once, with caching)
   useEffect(() => {
     const DUBAI_CACHE_DURATION = 24 * 60 * 60 * 1000
-    const METADATA_CACHE_DURATION = 5 * 60 * 1000
-
-    const cachedDevelopers = localStorage.getItem('gulf_residential_developers')
-    const cachedDevTimestamp = localStorage.getItem('gulf_residential_developers_timestamp')
-
-    if (cachedDevelopers && cachedDevTimestamp &&
-        Date.now() - parseInt(cachedDevTimestamp) < METADATA_CACHE_DURATION) {
-      setDevelopers(JSON.parse(cachedDevelopers))
-    } else {
-      fetchResidentialDevelopers().then((data) => {
-        const sorted = data.map(d => d.developer).sort()
-        setDevelopers(sorted)
-        localStorage.setItem('gulf_residential_developers', JSON.stringify(sorted))
-        localStorage.setItem('gulf_residential_developers_timestamp', Date.now().toString())
-      })
-    }
-
-    const cachedAreas = localStorage.getItem('gulf_residential_areas')
-    const cachedAreasTimestamp = localStorage.getItem('gulf_residential_areas_timestamp')
-
-    if (cachedAreas && cachedAreasTimestamp &&
-        Date.now() - parseInt(cachedAreasTimestamp) < METADATA_CACHE_DURATION) {
-      setAreas(JSON.parse(cachedAreas))
-    } else {
-      fetchResidentialAreas().then((data) => {
-        const sorted = data.map(a => a.area_name).sort()
-        setAreas(sorted)
-        localStorage.setItem('gulf_residential_areas', JSON.stringify(sorted))
-        localStorage.setItem('gulf_residential_areas_timestamp', Date.now().toString())
-      })
-    }
-
-    const cachedProjects = localStorage.getItem('gulf_residential_projects')
-    const cachedProjectsTimestamp = localStorage.getItem('gulf_residential_projects_timestamp')
-
-    if (cachedProjects && cachedProjectsTimestamp &&
-        Date.now() - parseInt(cachedProjectsTimestamp) < METADATA_CACHE_DURATION) {
-      setProjects(JSON.parse(cachedProjects))
-    } else {
-      fetchResidentialProjects().then((data) => {
-        const sorted = data.sort((a, b) => a.project_name.localeCompare(b.project_name))
-        setProjects(sorted)
-        localStorage.setItem('gulf_residential_projects', JSON.stringify(sorted))
-        localStorage.setItem('gulf_residential_projects_timestamp', Date.now().toString())
-      })
-    }
 
     const cachedDubaiAreas = localStorage.getItem('gulf_dubai_areas')
     const cachedDubaiAreasTimestamp = localStorage.getItem('gulf_dubai_areas_timestamp')
@@ -394,33 +422,8 @@ export default function MapPage() {
   const handleRefreshMetadata = useCallback(async () => {
     setIsRefreshingMetadata(true)
     try {
-      localStorage.removeItem('gulf_residential_developers')
-      localStorage.removeItem('gulf_residential_developers_timestamp')
-      localStorage.removeItem('gulf_residential_areas')
-      localStorage.removeItem('gulf_residential_areas_timestamp')
-      localStorage.removeItem('gulf_residential_projects')
-      localStorage.removeItem('gulf_residential_projects_timestamp')
-
-      const [developersData, areasData, projectsData] = await Promise.all([
-        fetchResidentialDevelopers(),
-        fetchResidentialAreas(),
-        fetchResidentialProjects(),
-      ])
-
-      const sortedDevelopers = developersData.map(d => d.developer).sort()
-      const sortedAreas = areasData.map(a => a.area_name).sort()
-      const sortedProjects = projectsData.sort((a, b) => a.project_name.localeCompare(b.project_name))
-
-      setDevelopers(sortedDevelopers)
-      setAreas(sortedAreas)
-      setProjects(sortedProjects)
-
-      localStorage.setItem('gulf_residential_developers', JSON.stringify(sortedDevelopers))
-      localStorage.setItem('gulf_residential_developers_timestamp', Date.now().toString())
-      localStorage.setItem('gulf_residential_areas', JSON.stringify(sortedAreas))
-      localStorage.setItem('gulf_residential_areas_timestamp', Date.now().toString())
-      localStorage.setItem('gulf_residential_projects', JSON.stringify(sortedProjects))
-      localStorage.setItem('gulf_residential_projects_timestamp', Date.now().toString())
+      const data = await fetchResidentialMapPins()
+      setMapPins(data)
     } catch (error) {
       console.error('Error refreshing metadata:', error)
     } finally {
@@ -467,40 +470,6 @@ export default function MapPage() {
     }
   }, [isMobile, mapPins])
 
-  // Handle area search with debounce
-  const handleAreaSearch = useCallback((query: string) => {
-    setAreaSearchQuery(query)
-
-    if (areaSearchTimeoutRef.current) {
-      clearTimeout(areaSearchTimeoutRef.current)
-    }
-
-    if (query.length < 2) {
-      setAreaSearchResults([])
-      setShowAreaSearchResults(false)
-      return
-    }
-
-    areaSearchTimeoutRef.current = setTimeout(async () => {
-      const results = await searchDubaiAreas(query)
-      setAreaSearchResults(results)
-      setShowAreaSearchResults(results.length > 0)
-    }, 300)
-  }, [])
-
-  // Handle area selection from search results
-  const handleAreaSelect = useCallback((area: AreaSearchResult) => {
-    setFlyToLocation({
-      lat: area.centroid.lat,
-      lng: area.centroid.lng,
-      zoom: 12
-    })
-    setAreaSearchQuery(area.name)
-    setShowAreaSearchResults(false)
-
-    // Clear flyTo after animation
-    setTimeout(() => setFlyToLocation(null), 2000)
-  }, [])
 
   const hasActiveFilters =
     filters.developer ||
@@ -731,138 +700,7 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* Area Search - Floating on Map */}
-          <div className="absolute bottom-16 left-4 z-[1000] hidden md:block">
-            <div className="relative">
-              <div className="flex items-center bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 overflow-hidden">
-                <div className="flex items-center gap-1.5 pl-3 pr-2 text-slate-500">
-                  <Navigation className="w-4 h-4" />
-                  <span className="text-xs font-medium">{t('map:flyTo')}</span>
-                </div>
-                <div className="w-px h-5 bg-slate-200" />
-                <input
-                  type="text"
-                  value={areaSearchQuery}
-                  onChange={(e) => handleAreaSearch(e.target.value)}
-                  onFocus={() => areaSearchResults.length > 0 && setShowAreaSearchResults(true)}
-                  placeholder={t('map:searchArea')}
-                  className="w-48 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-slate-400"
-                />
-                {areaSearchQuery && (
-                  <button
-                    onClick={() => {
-                      setAreaSearchQuery('')
-                      setAreaSearchResults([])
-                      setShowAreaSearchResults(false)
-                    }}
-                    className="p-2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Search Results Dropdown */}
-              {showAreaSearchResults && areaSearchResults.length > 0 && (
-                <div className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
-                  <div className="max-h-64 overflow-y-auto">
-                    {areaSearchResults.map((area) => (
-                      <button
-                        key={area.id}
-                        onClick={() => handleAreaSelect(area)}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <MapPin className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-slate-900 truncate">{area.name}</div>
-                          {area.transactionCount && (
-                            <div className="text-xs text-slate-500">
-                              {area.transactionCount.toLocaleString()} transactions
-                              {area.avgPriceSqm && ` · ${Math.round(area.avgPriceSqm).toLocaleString()} AED/sqm`}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Mobile: Bottom-left fly-to button */}
-          <div className="absolute bottom-20 left-3 z-[1000] md:hidden">
-            {!showMobileSearch ? (
-              <button
-                onClick={() => setShowMobileSearch(true)}
-                className="flex items-center gap-1.5 px-3 py-2.5 bg-white shadow-lg rounded-full text-slate-700"
-              >
-                <Navigation className="w-4 h-4" />
-                <span className="text-sm font-medium">{t('map:flyTo')}</span>
-              </button>
-            ) : (
-              <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden w-72">
-                {/* Search input */}
-                <div className="flex items-center border-b border-slate-100">
-                  <MapPin className="w-4 h-4 text-slate-400 ml-3 flex-shrink-0" />
-                  <input
-                    type="text"
-                    value={areaSearchQuery}
-                    onChange={(e) => handleAreaSearch(e.target.value)}
-                    onFocus={() => areaSearchResults.length > 0 && setShowAreaSearchResults(true)}
-                    placeholder={t('map:searchArea')}
-                    className="flex-1 px-2 py-3 text-sm bg-transparent outline-none placeholder:text-slate-400"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => {
-                      setShowMobileSearch(false)
-                      setAreaSearchQuery('')
-                      setAreaSearchResults([])
-                      setShowAreaSearchResults(false)
-                    }}
-                    className="p-3 text-slate-400"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                {/* Search results */}
-                {areaSearchResults.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto">
-                    {areaSearchResults.map((area) => (
-                      <button
-                        key={area.id}
-                        onClick={() => {
-                          handleAreaSelect(area)
-                          setShowMobileSearch(false)
-                        }}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Navigation className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-slate-900 truncate text-sm">{area.name}</div>
-                          {area.transactionCount && (
-                            <div className="text-xs text-slate-500">
-                              {area.transactionCount.toLocaleString()} transactions
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {areaSearchQuery && areaSearchResults.length === 0 && (
-                  <div className="px-4 py-6 text-center text-sm text-slate-500">
-                    {t('common:noResults')}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Area fly-to removed — now controlled by AI voice assistant */}
 
           {/* Floating Metric Panel - top-right */}
           <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">

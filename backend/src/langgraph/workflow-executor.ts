@@ -36,7 +36,6 @@ const MEMORY_CRITICAL_MB = 4500;  // Abort job when heap exceeds this
 function checkMemory(jobId: string, stage: string): { ok: boolean; heapUsedMB: number } {
   const usage = process.memoryUsage();
   const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
-  const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024);
   const rssMB = Math.round(usage.rss / 1024 / 1024);
 
   if (heapUsedMB > MEMORY_THRESHOLD_MB) {

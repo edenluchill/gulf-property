@@ -9,7 +9,7 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'pinzos',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD,
-  max: 20,
+  max: 50,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 })
@@ -20,7 +20,7 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client', err)
-  process.exit(-1)
+  // Graceful: log but don't crash — pool will reconnect automatically
 })
 
 export default pool

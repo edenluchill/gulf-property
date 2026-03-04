@@ -1,0 +1,828 @@
+/**
+ * Voice Assistant Context
+ *
+ * Phase-based voice assistant with transient bubble UI:
+ * - Single-tap: idle → connect + auto-mic (VAD mode)
+ * - Single-tap again: deactivate everything
+ * - Gemini handles VAD turn detection (always-on mic)
+ * - Latest assistant message shown as transient bubble (auto-fade 8s)
+ * - 200ms throttled bubble updates for transcription fragments
+ * - Auto-reconnect with exponential backoff (3 attempts)
+ */
+
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  ReactNode
+} from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { GoogleGenAI, Modality, LiveServerMessage, Type } from '@google/genai'
+import {
+  VoicePhase,
+  BubbleContent,
+  MapAction,
+  MessageAttachment
+} from '../hooks/voice-assistant/types'
+import { AudioRecorder, AudioPlayer } from '../hooks/voice-assistant/audioUtils'
+import { voiceDebugLogger } from '../hooks/voice-assistant/debugLogger'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
+const BUBBLE_FLUSH_MS = 200
+const AUTO_RECONNECT_MAX = 3
+const AUTO_RECONNECT_BASE_MS = 1000
+
+// Tool definitions
+const voiceTools = [
+  {
+    functionDeclarations: [
+      {
+        name: 'search_projects',
+        description: 'Search for properties/projects in Dubai. Use when user asks to find, search, or look for properties, apartments, villas, or real estate. Returns list of matching projects.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area: { type: Type.STRING, description: 'Dubai area name like "Dubai Marina", "Downtown", "JVC", "Business Bay"' },
+            min_price: { type: Type.NUMBER, description: 'Minimum budget in AED (e.g., 1000000 for 1 million)' },
+            max_price: { type: Type.NUMBER, description: 'Maximum budget in AED (e.g., 3000000 for 3 million)' },
+            bedrooms: { type: Type.NUMBER, description: 'Number of bedrooms: 0=studio, 1, 2, 3, etc.' },
+            developer: { type: Type.STRING, description: 'Developer name like "Emaar", "DAMAC", "Sobha"' }
+          }
+        }
+      },
+      {
+        name: 'fly_to_area',
+        description: 'Navigate/zoom the map to show a specific Dubai area. Use when user says "show me", "go to", "zoom to" an area.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area_name: { type: Type.STRING, description: 'Area name to navigate to' }
+          },
+          required: ['area_name']
+        }
+      },
+      {
+        name: 'get_area_info',
+        description: 'Get market data and statistics about a Dubai area: rental yield, price trends, transaction volume. Use when user asks about an area\'s investment potential or market performance.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area_name: { type: Type.STRING, description: 'Area name to get info about' }
+          },
+          required: ['area_name']
+        }
+      },
+      {
+        name: 'show_nearby_pois',
+        description: 'Show nearby amenities on the map: schools, hospitals, malls, metro stations, restaurants. Use when user asks about facilities near a location.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            category: {
+              type: Type.STRING,
+              description: 'Category: "school", "hospital", "mall", "metro_station", "restaurant", "supermarket", "gym", "park"'
+            }
+          },
+          required: ['category']
+        }
+      },
+      {
+        name: 'navigate_to_project',
+        description: 'Navigate to a project: fly to it on map, show unit types and investment analysis, then open detail page. Use when user wants details, floor plans, investment analysis, or more info about a specific project.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            project_id: { type: Type.STRING, description: 'The project ID to navigate to (from search results)' },
+            project_name: { type: Type.STRING, description: 'The project name (for confirmation)' }
+          },
+          required: ['project_id']
+        }
+      }
+    ]
+  }
+]
+
+interface VoiceAssistantContextType {
+  // Phase-based state
+  phase: VoicePhase
+  latestBubble: BubbleContent | null
+  toolStatus: string | null
+
+  // Actions
+  activate: () => Promise<void>
+  deactivate: () => void
+
+  // Map action handler registration (for MapPage)
+  registerMapActionHandler: (handler: (action: MapAction) => void) => void
+  unregisterMapActionHandler: () => void
+
+  // Navigate to project
+  navigateToProject: (projectId: string) => void
+}
+
+const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null)
+
+export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { i18n } = useTranslation()
+
+  // Phase-based state
+  const [phase, setPhase] = useState<VoicePhase>('idle')
+  const [latestBubble, setLatestBubble] = useState<BubbleContent | null>(null)
+  const [toolStatus, setToolStatus] = useState<string | null>(null)
+
+  // Refs
+  const sessionRef = useRef<any>(null)
+  const connectingRef = useRef(false)
+  const recorderRef = useRef<AudioRecorder | null>(null)
+  const playerRef = useRef<AudioPlayer | null>(null)
+  const mapActionHandlerRef = useRef<((action: MapAction) => void) | null>(null)
+  const pendingActionRef = useRef<MapAction | null>(null)
+  const systemInstructionRef = useRef<string>('')
+  const startRecordingRef = useRef<(() => Promise<void>) | null>(null)
+
+  // Bubble accumulation: collect fragments, flush at most every 200ms
+  const assistantTextAccumRef = useRef<string>('')
+  const pendingAttachmentRef = useRef<MessageAttachment | null>(null)
+  const stickyAttachmentRef = useRef<MessageAttachment | null>(null) // persists across turns
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastFlushRef = useRef<number>(0)
+
+  // Auto-reconnect
+  const reconnectAttemptsRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intentionalDisconnectRef = useRef(false)
+
+  const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en'
+
+  // Tool display names
+  const getToolDisplayName = useCallback((toolName: string): string => {
+    const names: Record<string, string> = {
+      'search_projects': currentLanguage === 'zh' ? '搜索项目中...' : 'Searching projects...',
+      'fly_to_area': currentLanguage === 'zh' ? '定位区域中...' : 'Locating area...',
+      'get_area_info': currentLanguage === 'zh' ? '获取区域信息...' : 'Getting area info...',
+      'compare_areas': currentLanguage === 'zh' ? '对比区域中...' : 'Comparing areas...',
+      'show_nearby_pois': currentLanguage === 'zh' ? '显示周边设施...' : 'Showing nearby places...',
+      'navigate_to_project': currentLanguage === 'zh' ? '打开项目详情...' : 'Opening project...',
+      'reset_map': currentLanguage === 'zh' ? '重置地图...' : 'Resetting map...'
+    }
+    return names[toolName] || (currentLanguage === 'zh' ? '处理中...' : 'Processing...')
+  }, [currentLanguage])
+
+  // Flush accumulated assistant text to bubble
+  const flushBubble = useCallback(() => {
+    const text = assistantTextAccumRef.current.trim()
+    // Use pending attachment, or carry forward the sticky one from previous turns
+    const attachment = pendingAttachmentRef.current || stickyAttachmentRef.current
+    if (!text && !attachment) return
+    // Update sticky ref whenever we have a new pending attachment
+    if (pendingAttachmentRef.current) {
+      stickyAttachmentRef.current = pendingAttachmentRef.current
+    }
+    setLatestBubble({
+      text,
+      attachment: attachment || undefined,
+      timestamp: Date.now()
+    })
+    lastFlushRef.current = Date.now()
+    flushTimerRef.current = null
+  }, [])
+
+  // Throttled bubble update: accumulate text, flush at most every 200ms
+  const scheduleBubbleFlush = useCallback(() => {
+    const elapsed = Date.now() - lastFlushRef.current
+    if (elapsed >= BUBBLE_FLUSH_MS) {
+      flushBubble()
+    } else if (!flushTimerRef.current) {
+      flushTimerRef.current = setTimeout(flushBubble, BUBBLE_FLUSH_MS - elapsed)
+    }
+  }, [flushBubble])
+
+  // Handle map action
+  const handleMapAction = useCallback((action: MapAction) => {
+    console.log('[VoiceContext] Map action:', action, 'path:', location.pathname)
+
+    if (action.type === 'navigate' && action.path) {
+      navigate(action.path)
+      return
+    }
+
+    if ((location.pathname === '/' || location.pathname === '/map') && mapActionHandlerRef.current) {
+      mapActionHandlerRef.current(action)
+      return
+    }
+
+    if (['fly_to', 'highlight_projects', 'show_pois', 'toggle_transport', 'show_area_info', 'highlight_areas', 'reset'].includes(action.type)) {
+      pendingActionRef.current = action
+      navigate('/')
+    }
+  }, [location.pathname, navigate])
+
+  // Register/unregister map action handler
+  const registerMapActionHandler = useCallback((handler: (action: MapAction) => void) => {
+    mapActionHandlerRef.current = handler
+    if (pendingActionRef.current) {
+      handler(pendingActionRef.current)
+      pendingActionRef.current = null
+    }
+  }, [])
+
+  const unregisterMapActionHandler = useCallback(() => {
+    mapActionHandlerRef.current = null
+  }, [])
+
+  // Navigate to project
+  const navigateToProject = useCallback((projectId: string) => {
+    navigate(`/project/${projectId}`)
+  }, [navigate])
+
+  // Execute tool
+  const executeTool = useCallback(async (toolName: string, params: any, callId: string) => {
+    voiceDebugLogger.logToolCallStart(callId, toolName, params)
+    setPhase('processing')
+    setToolStatus(getToolDisplayName(toolName))
+    // Clear sticky attachment when new tool call starts — new results will replace
+    stickyAttachmentRef.current = null
+
+    try {
+      const response = await fetch(`${API_BASE}/api/voice/tools/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolName, params })
+      })
+      const data = await response.json()
+
+      if (data.mapAction) {
+        handleMapAction(data.mapAction)
+      }
+
+      // Create attachment from tool result
+      if (data.result) {
+        if (toolName === 'search_projects' && data.result.projects?.length > 0) {
+          pendingAttachmentRef.current = {
+            type: 'projects',
+            projects: data.result.projects.map((p: any) => ({
+              id: p.id,
+              name: p.project_name,
+              developer: p.developer,
+              area: p.area,
+              minPrice: p.min_price ? parseFloat(p.min_price) : undefined,
+              maxPrice: p.max_price ? parseFloat(p.max_price) : undefined,
+              image: p.primary_image,
+              status: p.status,
+              rentalYield: p.rental_yield_pct,
+              priceGrowth: p.price_growth_pct,
+              unitTypes: (p.unit_types_in_budget || []).map((u: any) => ({
+                category: u.category,
+                bedrooms: u.bedrooms,
+                minPrice: u.min_price,
+                maxPrice: u.max_price,
+                minAreaSqft: u.min_area_sqft,
+                sampleFloorPlan: u.sample_floor_plan
+              }))
+            }))
+          }
+        } else if (toolName === 'navigate_to_project' && data.result?.projectId) {
+          // Show project with unit types + investment chart
+          pendingAttachmentRef.current = {
+            type: 'projects',
+            projects: [{
+              id: data.result.projectId,
+              name: data.result.projectName,
+              developer: data.result.developer,
+              area: data.result.area || '',
+              minPrice: data.result.minPrice ? parseFloat(data.result.minPrice) : undefined,
+              maxPrice: data.result.maxPrice ? parseFloat(data.result.maxPrice) : undefined,
+              image: data.result.image,
+              status: data.result.status,
+              unitTypes: (data.result.unitTypes || []).map((u: any) => ({
+                category: u.category,
+                bedrooms: u.bedrooms,
+                minPrice: u.price,
+                maxPrice: u.price,
+                minAreaSqft: u.area_sqft
+              }))
+            }],
+            investment: data.result.investment_5yr ? {
+              projectName: data.result.projectName,
+              purchasePrice: data.result.investment_5yr.purchase_price,
+              rentalIncome5yr: data.result.investment_5yr.rental_income_5yr,
+              appreciation5yr: data.result.investment_5yr.appreciation_5yr,
+              totalProfit5yr: data.result.investment_5yr.total_profit_5yr,
+              annualizedReturnPct: data.result.investment_5yr.annualized_return_pct,
+              growthPct: data.result.investment_5yr.area_growth_pct || 0
+            } : undefined
+          }
+          // Auto-navigate to project detail page after map fly animation
+          setTimeout(() => {
+            handleMapAction({ type: 'navigate', path: `/project/${data.result.projectId}` })
+          }, 2500)
+        } else if (toolName === 'get_area_info') {
+          if (data.result.metrics) {
+            // Area has direct metrics
+            pendingAttachmentRef.current = {
+              type: 'area_info',
+              areaInfo: {
+                name: data.result.metrics.area_name || params.area_name,
+                rentalYield: data.result.metrics.rental_yield_pct,
+                priceGrowth: data.result.metrics.price_growth_pct,
+                transactionCount: data.result.metrics.sales_transaction_count,
+                medianPrice: data.result.metrics.median_price_sqm
+              }
+            }
+          } else if (data.result.nearby_benchmarks?.length > 0) {
+            // No direct metrics — use best nearby benchmark as reference
+            const best = data.result.nearby_benchmarks[0]
+            pendingAttachmentRef.current = {
+              type: 'area_info',
+              areaInfo: {
+                name: `${data.result.area?.name || params.area_name} (≈${best.name})`,
+                rentalYield: best.rental_yield_pct ? parseFloat(best.rental_yield_pct) : undefined,
+                priceGrowth: best.price_growth_pct ? parseFloat(best.price_growth_pct) : undefined,
+                transactionCount: best.sales_transaction_count,
+                medianPrice: best.median_price_sqm ? parseFloat(best.median_price_sqm) : undefined
+              }
+            }
+          }
+        } else if (toolName === 'compare_areas' && data.result.area1 && data.result.area2) {
+          pendingAttachmentRef.current = {
+            type: 'comparison',
+            comparison: {
+              area1: {
+                name: data.result.area1.area_name,
+                rentalYield: data.result.area1.rental_yield_pct,
+                priceGrowth: data.result.area1.price_growth_pct,
+                transactionCount: data.result.area1.sales_transaction_count
+              },
+              area2: {
+                name: data.result.area2.area_name,
+                rentalYield: data.result.area2.rental_yield_pct,
+                priceGrowth: data.result.area2.price_growth_pct,
+                transactionCount: data.result.area2.sales_transaction_count
+              }
+            }
+          }
+        }
+      }
+
+      voiceDebugLogger.logToolCallEnd(callId, data.result)
+      // Don't clear toolStatus here — keep thinking bubble visible
+      // until first assistant text arrives (cleared in handleMessage)
+      return data
+    } catch (err) {
+      console.error('[Voice] Tool execution error:', err)
+      voiceDebugLogger.logToolCallEnd(callId, null, String(err))
+      setToolStatus(null) // Clear on error only
+      return { success: false, error: 'Tool execution failed' }
+    }
+  }, [getToolDisplayName, handleMapAction])
+
+  // Handle Gemini messages
+  const handleMessage = useCallback(async (message: LiveServerMessage) => {
+    if (message.serverContent) {
+      const content = message.serverContent
+
+      // Interruption
+      if (content.interrupted) {
+        voiceDebugLogger.logInterruption()
+        playerRef.current?.stop()
+        setPhase('listening')
+        return
+      }
+
+      // Input transcription (user speech) — no bubble, just log
+      if (content.inputTranscription) {
+        const text = typeof content.inputTranscription === 'string'
+          ? content.inputTranscription
+          : (content.inputTranscription as any).text
+        if (text) {
+          voiceDebugLogger.logUserMessage(text)
+        }
+      }
+
+      // Output transcription (assistant speech) — accumulate + throttled flush
+      if (content.outputTranscription) {
+        let text = typeof content.outputTranscription === 'string'
+          ? content.outputTranscription
+          : (content.outputTranscription as any).text
+        if (text) {
+          // Strip control characters (e.g. <ctrl46>) that Gemini sometimes outputs
+          text = text.replace(/<ctrl\d+>/gi, '').replace(/[\x00-\x1F\x7F]/g, '')
+          if (text.trim()) {
+            // Clear thinking bubble once real response arrives
+            setToolStatus(null)
+            assistantTextAccumRef.current += text
+            voiceDebugLogger.logAssistantMessage(text)
+            scheduleBubbleFlush()
+          }
+        }
+      }
+
+      // Audio output
+      if (content.modelTurn?.parts) {
+        for (const part of content.modelTurn.parts) {
+          if (part.inlineData?.data && typeof part.inlineData.data === 'string') {
+            setPhase('speaking')
+            voiceDebugLogger.logAudioChunkReceived()
+            playerRef.current?.play(part.inlineData.data)
+          }
+        }
+      }
+
+      // Turn complete
+      if (content.turnComplete) {
+        // Final flush of any remaining text
+        if (assistantTextAccumRef.current.trim() || pendingAttachmentRef.current) {
+          flushBubble()
+        }
+        assistantTextAccumRef.current = ''
+        pendingAttachmentRef.current = null
+        setToolStatus(null) // Safety: clear thinking bubble
+        setPhase('listening')
+        voiceDebugLogger.finalizeAssistantMessage()
+        voiceDebugLogger.log('TURN_COMPLETE')
+      }
+    }
+
+    // Tool calls
+    if (message.toolCall?.functionCalls) {
+      voiceDebugLogger.log('TOOL_CALLS_RECEIVED', {
+        count: message.toolCall.functionCalls.length
+      })
+
+      const functionResponses: Array<{
+        id: string
+        name: string
+        response: { output: string }
+      }> = []
+
+      for (const fc of message.toolCall.functionCalls) {
+        if (!fc.name) continue
+        const callId = fc.id || `tool_${Date.now()}_${Math.random().toString(36).slice(2)}`
+        console.log('[Voice] Tool call:', fc.name, 'id:', callId, 'args:', fc.args)
+
+        try {
+          const result = await executeTool(fc.name, fc.args || {}, callId)
+
+          let detailedOutput = result.summary || 'Action completed.'
+
+          if (fc.name === 'search_projects' && result.result?.projects?.length > 0) {
+            const projectList = result.result.projects.slice(0, 6).map((p: any, i: number) => {
+              let info = `${i + 1}. "${p.project_name}" [ID: ${p.id}] [STATUS: ${p.status || 'unknown'}] in ${p.area || 'Dubai'}`
+              if (p.status === 'sold-out') info += ` ⚠️SOLD-OUT(已售罄,不可购买)`
+              if (p.rental_yield_pct) info += ` yield: ${parseFloat(p.rental_yield_pct).toFixed(1)}%`
+              if (p.payback_years) info += ` payback: ${parseFloat(p.payback_years).toFixed(0)}yr`
+              if (p.investment_5yr) {
+                const inv = p.investment_5yr
+                info += ` 5yr_profit: ${inv.total_profit_5yr} (${inv.annualized_return_pct}%/yr)`
+              }
+              // Unit types in budget
+              if (p.unit_types_in_budget?.length > 0) {
+                const units = p.unit_types_in_budget.map((u: any) =>
+                  `${u.category}(${Math.round(u.min_area_sqft)}sqft,AED${(u.min_price/1000000).toFixed(2)}M)`
+                ).join(', ')
+                info += ` UNITS_IN_BUDGET: ${units}`
+              }
+              if (p.nearest_metro) {
+                info += ` METRO: ${p.nearest_metro.name}(${(p.nearest_metro.distance_m/1000).toFixed(1)}km)`
+              }
+              return info
+            }).join('\n')
+            detailedOutput = `${result.summary}\n\nPROJECT LIST (use these IDs for navigation):\n${projectList}`
+          }
+
+          if (fc.name === 'navigate_to_project' && result.result?.unitTypes?.length > 0) {
+            const unitList = result.result.unitTypes.map((u: any) =>
+              `${u.category}: ${Math.round(u.area_sqft)}sqft, AED${(u.price/1000000).toFixed(2)}M, ${u.bedrooms}bed/${u.bathrooms}bath`
+            ).join('\n')
+            detailedOutput += `\n\nAVAILABLE UNIT TYPES:\n${unitList}\n\nTell the customer which unit types fit their needs and budget.`
+          }
+
+          if (fc.name === 'navigate_to_project' && result.result?.investment_5yr) {
+            const inv = result.result.investment_5yr
+            detailedOutput += `\n\n5YR INVESTMENT (unit price AED${(inv.purchase_price/1000000).toFixed(2)}M): rental=${Math.round(inv.rental_income_5yr/10000)}万, appreciation=${Math.round(inv.appreciation_5yr/10000)}万, total_profit=${Math.round(inv.total_profit_5yr/10000)}万, annualized=${inv.annualized_return_pct}%/yr. An investment chart is displayed. Explain the breakdown to the customer.`
+          }
+
+          if (fc.name === 'navigate_to_project' && result.result?.nearbyPOIs?.length > 0) {
+            const pois = result.result.nearbyPOIs.map((p: any) =>
+              `[${p.category}] ${p.name}(${(p.distance_m/1000).toFixed(1)}km)`
+            ).join(', ')
+            detailedOutput += `\n\nNEARBY AMENITIES: ${pois}. Tell customer about nearby facilities — metro for transport, hospitals for healthcare, schools for families, malls for lifestyle.`
+          }
+
+          if (fc.name === 'navigate_to_project' && result.result?.nearbyLandmarks?.length > 0) {
+            const landmarks = result.result.nearbyLandmarks.map((l: any) =>
+              `${l.name}(${l.landmark_type}, ${(l.distance_m/1000).toFixed(1)}km)`
+            ).join(', ')
+            detailedOutput += `\n\nNEARBY LANDMARKS: ${landmarks}. Mention key landmarks to help customer understand the location.`
+          }
+
+          if (fc.name === 'navigate_to_project' && (result.result?.areaYieldPct || result.result?.areaGrowthPct)) {
+            detailedOutput += `\n\nAREA METRICS: yield=${result.result.areaYieldPct?.toFixed(1) || 'N/A'}%, growth=${result.result.areaGrowthPct?.toFixed(1) || 'N/A'}%. Mention the area's investment performance.`
+          }
+
+          if (fc.name === 'get_area_info') {
+            if (result.result?.metrics) {
+              const m = result.result.metrics
+              const yieldPct = m.rental_yield_pct ? parseFloat(m.rental_yield_pct).toFixed(1) : 'N/A'
+              const growthPct = m.price_growth_pct ? parseFloat(m.price_growth_pct).toFixed(1) : 'N/A'
+              detailedOutput = `${result.summary}\n\nMETRICS: rental_yield=${yieldPct}%, price_growth=${growthPct}%, transactions=${m.sales_transaction_count || 'N/A'}`
+            }
+            if (result.result?.nearby_benchmarks?.length > 0) {
+              const benchmarks = result.result.nearby_benchmarks.map((b: any) =>
+                `${b.name}: yield=${parseFloat(b.rental_yield_pct).toFixed(1)}%, growth=${parseFloat(b.price_growth_pct).toFixed(1)}%`
+              ).join('; ')
+              detailedOutput += `\n\nNEARBY BENCHMARKS: ${benchmarks}`
+            }
+            if (result.result?.investment_5yr) {
+              const inv = result.result.investment_5yr
+              detailedOutput += `\n\n5YR INVESTMENT: rental_income=${inv.rental_income_5yr}, appreciation=${inv.appreciation_5yr}, total_profit=${inv.total_profit_5yr}, annualized=${inv.annualized_return_pct}%`
+            }
+          }
+
+          functionResponses.push({
+            id: callId,
+            name: fc.name,
+            response: { output: detailedOutput }
+          })
+        } catch (toolError) {
+          console.error('[Voice] Tool execution failed:', toolError)
+          functionResponses.push({
+            id: callId,
+            name: fc.name,
+            response: { output: 'Tool execution failed. Please try again.' }
+          })
+        }
+      }
+
+      if (sessionRef.current?.sendToolResponse && functionResponses.length > 0) {
+        voiceDebugLogger.log('SENDING_TOOL_RESPONSE', { count: functionResponses.length })
+        try {
+          sessionRef.current.sendToolResponse({ functionResponses })
+          voiceDebugLogger.log('TOOL_RESPONSE_SENT')
+        } catch (err) {
+          voiceDebugLogger.logError('TOOL_RESPONSE_ERROR', String(err))
+          console.error('[Voice] Tool response error:', err)
+        }
+      }
+    }
+  }, [executeTool, scheduleBubbleFlush, flushBubble])
+
+  // Initialize audio player
+  useEffect(() => {
+    const initAudio = () => {
+      if (!playerRef.current) {
+        playerRef.current = new AudioPlayer((speaking) => {
+          // Only transition to listening when audio finishes and we're in speaking phase
+          if (!speaking) {
+            setPhase(prev => prev === 'speaking' ? 'listening' : prev)
+          }
+        })
+        playerRef.current.prewarm?.()
+      }
+    }
+
+    const handler = () => {
+      initAudio()
+      document.removeEventListener('click', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+
+    document.addEventListener('click', handler)
+    document.addEventListener('touchstart', handler)
+    initAudio()
+
+    return () => {
+      document.removeEventListener('click', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [])
+
+  // Start recording helper
+  const startRecording = useCallback(async () => {
+    if (!sessionRef.current || recorderRef.current) return
+
+    try {
+      voiceDebugLogger.logRecordingStart()
+      recorderRef.current = new AudioRecorder()
+      await recorderRef.current.start((base64) => {
+        if (sessionRef.current?.sendRealtimeInput) {
+          voiceDebugLogger.logAudioChunkSent()
+          sessionRef.current.sendRealtimeInput({
+            audio: {
+              data: base64,
+              mimeType: 'audio/pcm;rate=16000'
+            }
+          })
+        }
+      })
+      setPhase('listening')
+    } catch (e) {
+      voiceDebugLogger.logError('MICROPHONE_ERROR', String(e))
+      setPhase('error')
+      setTimeout(() => setPhase('idle'), 3000)
+    }
+  }, [])
+
+  // Store ref for delayed call after connect
+  useEffect(() => {
+    startRecordingRef.current = startRecording
+  }, [startRecording])
+
+  // Activate: connect + auto-start mic
+  const activate = useCallback(async () => {
+    if (sessionRef.current || connectingRef.current) {
+      console.log('[Voice] Already connected or connecting, skipping')
+      return
+    }
+
+    connectingRef.current = true
+    intentionalDisconnectRef.current = false
+    reconnectAttemptsRef.current = 0
+    voiceDebugLogger.startSession()
+    setPhase('connecting')
+
+    try {
+      const tokenFetchStart = Date.now()
+      voiceDebugLogger.log('TOKEN_FETCH_START', { language: currentLanguage })
+
+      const tokenResponse = await fetch(`${API_BASE}/api/voice/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: currentLanguage })
+      })
+      const tokenData = await tokenResponse.json()
+
+      if (!tokenData.token) {
+        throw new Error('Failed to get token')
+      }
+
+      voiceDebugLogger.logTokenFetch(tokenFetchStart)
+      systemInstructionRef.current = tokenData.systemInstruction
+
+      const connectStart = Date.now()
+      voiceDebugLogger.log('WEBSOCKET_CONNECT_START')
+
+      const ai = new GoogleGenAI({
+        apiKey: tokenData.token,
+        httpOptions: { apiVersion: 'v1alpha' }
+      })
+
+      const session = await ai.live.connect({
+        model: GEMINI_MODEL,
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Aoede' }
+            }
+          },
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+          systemInstruction: {
+            parts: [{ text: systemInstructionRef.current }]
+          },
+          tools: voiceTools as any
+        },
+        callbacks: {
+          onopen: () => {
+            console.log('[Voice] Connected!')
+            connectingRef.current = false
+            reconnectAttemptsRef.current = 0
+            voiceDebugLogger.logConnected(connectStart)
+
+            voiceDebugLogger.log('AUTO_START_RECORDING')
+            setTimeout(() => {
+              startRecordingRef.current?.()
+            }, 100)
+          },
+          onmessage: handleMessage,
+          onerror: (e) => {
+            console.error('[Voice] Error:', e)
+            connectingRef.current = false
+            voiceDebugLogger.logError('CONNECTION_ERROR', String(e))
+            setPhase('error')
+            setTimeout(() => setPhase('idle'), 3000)
+          },
+          onclose: () => {
+            console.log('[Voice] Connection closed')
+            voiceDebugLogger.log('CONNECTION_CLOSED')
+
+            if (recorderRef.current) {
+              recorderRef.current.stop()
+              recorderRef.current = null
+            }
+
+            connectingRef.current = false
+            sessionRef.current = null
+            voiceDebugLogger.endSession()
+
+            // Auto-reconnect if not intentional
+            if (!intentionalDisconnectRef.current &&
+                reconnectAttemptsRef.current < AUTO_RECONNECT_MAX) {
+              const attempt = reconnectAttemptsRef.current
+              const delayMs = AUTO_RECONNECT_BASE_MS * Math.pow(2, attempt)
+              console.log(`[Voice] Auto-reconnect attempt ${attempt + 1}/${AUTO_RECONNECT_MAX} in ${delayMs}ms`)
+              reconnectAttemptsRef.current = attempt + 1
+              setPhase('connecting')
+              reconnectTimerRef.current = setTimeout(() => {
+                reconnectTimerRef.current = null
+                activate()
+              }, delayMs)
+            } else {
+              setPhase('idle')
+            }
+          }
+        }
+      })
+
+      sessionRef.current = session
+    } catch (err) {
+      console.error('[Voice] Connect error:', err)
+      connectingRef.current = false
+      voiceDebugLogger.logError('CONNECT_ERROR', String(err))
+
+      // Auto-reconnect on connect failure too
+      if (!intentionalDisconnectRef.current &&
+          reconnectAttemptsRef.current < AUTO_RECONNECT_MAX) {
+        const attempt = reconnectAttemptsRef.current
+        const delayMs = AUTO_RECONNECT_BASE_MS * Math.pow(2, attempt)
+        reconnectAttemptsRef.current = attempt + 1
+        setPhase('connecting')
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null
+          activate()
+        }, delayMs)
+      } else {
+        setPhase('error')
+        setTimeout(() => setPhase('idle'), 3000)
+        voiceDebugLogger.endSession()
+      }
+    }
+  }, [currentLanguage, handleMessage])
+
+  // Deactivate: full cleanup
+  const deactivate = useCallback(() => {
+    intentionalDisconnectRef.current = true
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    recorderRef.current?.stop()
+    recorderRef.current = null
+    playerRef.current?.stop()
+    sessionRef.current?.close?.()
+    sessionRef.current = null
+    connectingRef.current = false
+    assistantTextAccumRef.current = ''
+    pendingAttachmentRef.current = null
+    stickyAttachmentRef.current = null
+    reconnectAttemptsRef.current = 0
+    setPhase('idle')
+    setLatestBubble(null)
+    setToolStatus(null)
+    voiceDebugLogger.endSession()
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      recorderRef.current?.stop()
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+    }
+  }, [])
+
+  return (
+    <VoiceAssistantContext.Provider value={{
+      phase,
+      latestBubble,
+      toolStatus,
+      activate,
+      deactivate,
+      registerMapActionHandler,
+      unregisterMapActionHandler,
+      navigateToProject
+    }}>
+      {children}
+    </VoiceAssistantContext.Provider>
+  )
+}
+
+export function useVoiceAssistantContext() {
+  const context = useContext(VoiceAssistantContext)
+  if (!context) {
+    throw new Error('useVoiceAssistantContext must be used within VoiceAssistantProvider')
+  }
+  return context
+}
