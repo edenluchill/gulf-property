@@ -9,8 +9,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Header */}
       <Header />
 
-      {/* Main Content - pb-16 on mobile, pb-20 on tablet for bottom nav */}
-      <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-20 xl:pb-0">
+      {/* Main Content - pb-16 on mobile, pb-20 on tablet for bottom nav.
+          min-h-0 + overflow-y-auto: 地图页 h-full 刚好填满不滚动；
+          成交/区域分析等超屏内容页可正常纵向滚动 */}
+      <main className="flex-1 flex flex-col min-h-0 overflow-y-auto pb-16 md:pb-20 xl:pb-0">
         {children}
       </main>
 
