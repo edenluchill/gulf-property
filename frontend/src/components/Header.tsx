@@ -13,7 +13,7 @@ import AboutSheet from './AboutSheet'
 // 单一「午夜」主题：深空蓝玻璃 + 低调激光折射扫光
 const theme = {
   dark: true,
-  header: 'bg-[#0B1220]/85 border-white/10 shadow-[0_8px_30px_-12px_rgba(20,184,166,0.35)]',
+  header: 'bg-[#0B1220]/72 supports-[backdrop-filter]:bg-[#0B1220]/60 border-white/[0.06] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_1px_0_0_rgba(0,0,0,0.45)]',
   idleText: 'text-slate-300 hover:text-white',
   logoText: 'text-white',
   tagline: 'text-teal-300',
@@ -110,46 +110,31 @@ export default function Header() {
 
   return (
     <header
-      className={`${theme.header} backdrop-blur-2xl border-b sticky top-0 z-[1000] relative transition-[transform,background-color] duration-300 ease-out ${
+      className={`${theme.header} backdrop-blur-xl backdrop-saturate-150 border-b sticky top-0 z-[1000] relative transition-transform duration-300 ease-out ${
         mobileHidden ? '-translate-y-full xl:translate-y-0' : 'translate-y-0'
       }`}
     >
-      {/* 午夜背景：静态柔光 + 低调激光折射扫光 + 极淡投资走势纹理 */}
+      {/* 高级静态材质层（无循环动光）：极淡光晕 + 颗粒噪点 + 渐隐分隔线 */}
       <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* 静态柔光底，沉稳不晃 */}
-        <div className="absolute -top-24 left-1/3 h-56 w-[34rem] -translate-x-1/2 rounded-full bg-teal-500/10 blur-3xl" />
-        <div className="absolute -top-20 right-1/4 h-48 w-[24rem] rounded-full bg-indigo-500/10 blur-3xl" />
-
-        {/* 光子弹：细小弹头 + 拖尾，每几秒极速射出，沿不规则折线向下折射后消失 */}
-        <motion.div
-          className="absolute h-[2px] w-28"
+        {/* 顶部贴边的一抹品牌光晕，≤6%，无边无动 */}
+        <div
+          className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(90deg, transparent 0%, rgba(45,212,191,0.05) 40%, rgba(94,234,212,0.4) 80%, rgba(186,230,253,0.9) 95%, rgba(255,255,255,1) 100%)',
-            borderRadius: '9999px',
-            filter: 'drop-shadow(0 0 5px rgba(94,234,212,0.85))'
+              'radial-gradient(120% 140% at 50% -25%, rgba(45,212,191,0.06), transparent 60%)'
           }}
-          initial={{ left: '-8rem', top: '24%', rotate: 0, opacity: 0 }}
-          animate={{
-            // 不规则向下折射的折线轨迹
-            left: ['-8rem', '10%', '24%', '42%', '60%', '78%', '104%'],
-            top: ['22%', '26%', '44%', '38%', '64%', '60%', '92%'],
-            rotate: [-2, 4, 14, 6, 18, 10, 24],
-            opacity: [0, 1, 1, 1, 1, 0.85, 0]
+        />
+        {/* 细颗粒噪点：消除渐变色带、增加材质感（dark UI 用低透明度） */}
+        <div
+          className="absolute inset-0 opacity-[0.035] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+            backgroundSize: '120px 120px'
           }}
-          transition={{
-            duration: 0.8,
-            repeat: Infinity,
-            repeatDelay: 4,
-            ease: 'easeIn'
-          }}
-        >
-          {/* 弹头光点（小） */}
-          <span
-            className="absolute right-0 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-white"
-            style={{ boxShadow: '0 0 7px 2px rgba(94,234,212,0.9), 0 0 15px 4px rgba(45,212,191,0.4)' }}
-          />
-        </motion.div>
+        />
+        {/* 底部渐隐 hairline：两端淡出，不是硬线 */}
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       </div>
 
       {/* Mobile/Tablet: py-2 (compact), Desktop: py-4 */}
@@ -275,18 +260,6 @@ export default function Header() {
 
         </div>
       </div>
-
-      {/* 底部流光，AI 高级感 */}
-      <motion.div
-        className="pointer-events-none absolute bottom-0 left-0 right-0 h-px"
-        style={{
-          background: 'linear-gradient(90deg, transparent, rgba(20,184,166,0.55), rgba(16,185,129,0.35), transparent)',
-          backgroundSize: '50% 100%',
-          backgroundRepeat: 'no-repeat'
-        }}
-        animate={{ backgroundPositionX: ['-50%', '150%'] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
-      />
 
       {/* About Sheet */}
       <AboutSheet open={aboutOpen} onOpenChange={setAboutOpen} />
