@@ -17,7 +17,7 @@ const theme = {
   header: 'bg-[#FBFCFE]/82 supports-[backdrop-filter]:bg-[#FBFCFE]/66 border-slate-900/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.85),0_1px_2px_0_rgba(15,23,42,0.04),0_10px_28px_-18px_rgba(15,23,42,0.18)]',
   idleText: 'text-slate-500 hover:text-slate-900',
   logoText: 'text-slate-900',
-  tagline: 'text-teal-600',
+  tagline: 'text-slate-500',
   divider: 'bg-slate-200',
   primaryGrad: 'from-teal-500 to-emerald-500 shadow-teal-500/20',
   accentGrad: 'from-amber-500 to-orange-500 shadow-amber-500/20',
@@ -129,19 +129,35 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* Logo - Compact on mobile/tablet */}
           <Link to="/" className="flex items-center space-x-2 xl:space-x-3 group relative z-10">
+            {/* 定制 mark：地图 Pin（呼应 "Pin"zos / 选址）内嵌上升数据柱（AI 分析 / 资本增值），
+                最高柱金色 = 迪拜贵气 + 峰值收益。裸 mark，无通用圆角方块 */}
             <motion.div
               className="relative"
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.3 }}
+              whileHover={{ scale: 1.06, rotate: -3 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 18 }}
             >
-              <motion.div
-                className="relative bg-gradient-to-br from-teal-500 via-teal-600 to-teal-700 p-1.5 xl:p-2.5 rounded-lg xl:rounded-xl shadow-md"
-                whileHover={{
-                  boxShadow: "0 8px 20px rgba(20, 184, 166, 0.25)",
-                }}
+              <svg
+                viewBox="0 0 32 42"
+                className="h-8 w-8 xl:h-9 xl:w-9"
+                style={{ filter: 'drop-shadow(0 3px 6px rgba(13,148,136,0.28))' }}
+                aria-hidden
               >
-                <Building2 className="h-5 w-5 xl:h-6 xl:w-6 text-white" />
-              </motion.div>
+                <defs>
+                  <linearGradient id="pinzosPin" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#2dd4bf" />
+                    <stop offset="55%" stopColor="#0d9488" />
+                    <stop offset="100%" stopColor="#0f766e" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M16 1 C7.7 1 1 7.7 1 16 C1 26 16 41 16 41 C16 41 31 26 31 16 C31 7.7 24.3 1 16 1 Z"
+                  fill="url(#pinzosPin)"
+                />
+                {/* 上升数据柱 */}
+                <rect x="8.4" y="15.5" width="3.4" height="6.7" rx="1.1" fill="#ffffff" fillOpacity="0.9" />
+                <rect x="13.9" y="12" width="3.4" height="10.2" rx="1.1" fill="#ffffff" fillOpacity="0.9" />
+                <rect x="19.4" y="8.4" width="3.4" height="13.8" rx="1.1" fill="#fbbf24" />
+              </svg>
             </motion.div>
 
             <div className="flex flex-col">
