@@ -54,6 +54,7 @@ export default function TransactionsPage() {
   const [area, setArea] = useState('')
   const [rooms, setRooms] = useState('')
   const [type, setType] = useState<SaleType>('all')
+  const [year, setYear] = useState('')  // '' = 不限(默认按最新)
   const [summary, setSummary] = useState<TxSummary | null>(null)
   const [rows, setRows] = useState<TxRow[]>([])
   const [page, setPage] = useState(0)
@@ -63,8 +64,10 @@ export default function TransactionsPage() {
   const query = useMemo(() => ({
     area: area || undefined,
     rooms: rooms || undefined,
-    type: type === 'all' ? undefined : type
-  }), [area, rooms, type])
+    type: type === 'all' ? undefined : type,
+    from: year ? `${year}-01-01` : undefined,
+    to: year ? `${year}-12-31` : undefined
+  }), [area, rooms, type, year])
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
 
@@ -113,6 +116,19 @@ export default function TransactionsPage() {
           >
             <option value="">全部户型</option>
             {filters.rooms.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-500">
+          年份
+          <select
+            value={year}
+            onChange={e => setYear(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+          >
+            <option value="">不限（最新优先）</option>
+            {['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'].map(y => (
+              <option key={y} value={y}>{y} 年</option>
+            ))}
           </select>
         </label>
         <div className="flex flex-col gap-1 text-xs text-slate-500">
