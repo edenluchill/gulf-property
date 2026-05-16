@@ -14,7 +14,7 @@ import AboutSheet from './AboutSheet'
 const theme = {
   dark: false,
   // 近白微磨砂 + 冷灰 hairline + 极淡柔影(悬浮感，非发光) + 顶部内高光
-  header: 'bg-white/80 supports-[backdrop-filter]:bg-white/65 border-slate-900/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.7),0_1px_2px_0_rgba(15,23,42,0.04),0_8px_24px_-16px_rgba(15,23,42,0.16)]',
+  header: 'bg-[#FBFCFE]/82 supports-[backdrop-filter]:bg-[#FBFCFE]/66 border-slate-900/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.85),0_1px_2px_0_rgba(15,23,42,0.04),0_10px_28px_-18px_rgba(15,23,42,0.18)]',
   idleText: 'text-slate-500 hover:text-slate-900',
   logoText: 'text-slate-900',
   tagline: 'text-teal-600',
@@ -146,7 +146,13 @@ export default function Header() {
 
             <div className="flex flex-col">
               <motion.span
-                className={`text-lg xl:text-xl font-bold tracking-tight transition-colors ${theme.logoText}`}
+                className={`text-xl xl:text-2xl leading-none transition-colors ${theme.logoText}`}
+                style={{
+                  fontFamily: '"Fraunces", Georgia, serif',
+                  fontOpticalSizing: 'auto',
+                  fontWeight: 600,
+                  letterSpacing: '-0.015em'
+                }}
                 whileHover={{ scale: 1.02 }}
               >
                 {t('brand')}
