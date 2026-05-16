@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { ResidentialProject } from '../../types'
 import { useTranslation } from 'react-i18next'
+import { PriceCheckModule } from './PriceCheckModule'
 
 interface OverviewTabProps {
   project: ResidentialProject
@@ -20,6 +21,7 @@ export function OverviewTab({ project }: OverviewTabProps) {
   }
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle>{t('project:overview.aboutProject')}</CardTitle>
@@ -56,5 +58,8 @@ export function OverviewTab({ project }: OverviewTabProps) {
         </div>
       </CardContent>
     </Card>
+
+      <PriceCheckModule projectId={project.id} />
+    </div>
   )
 }

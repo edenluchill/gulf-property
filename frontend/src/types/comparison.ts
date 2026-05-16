@@ -36,6 +36,15 @@ export interface UserProfile {
   preferences?: string
   timeline?: string
 
+  // 经纪人模式（自助开通的免费早鸟试用；正式订阅上线后启用计费）
+  agent?: {
+    activatedAt: number
+    name?: string
+    agency?: string
+    rera?: string
+    phone?: string
+  }
+
   // Timestamps
   createdAt: number
   updatedAt: number

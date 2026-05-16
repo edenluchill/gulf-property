@@ -17,6 +17,10 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import ComparePage from './pages/ComparePage'
 import ProfilePage from './pages/ProfilePage'
+import TransactionsPage from './pages/TransactionsPage'
+import AreaInsightsPage from './pages/AreaInsightsPage'
+import BuyingReportPage from './pages/BuyingReportPage'
+import AgentPortalPage from './pages/AgentPortalPage'
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 
 function App() {
@@ -36,6 +40,10 @@ function App() {
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />
+        <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/areas" element={<AreaInsightsPage />} />
+        <Route path="/report" element={<BuyingReportPage />} />
+        <Route path="/agent" element={<AgentPortalPage />} />
         <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />

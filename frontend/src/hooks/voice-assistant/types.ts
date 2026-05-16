@@ -71,7 +71,8 @@ export interface BubbleContent {
 
 export interface MapAction {
   type: 'fly_to' | 'highlight_projects' | 'show_pois' | 'toggle_transport' |
-        'show_area_info' | 'highlight_areas' | 'navigate' | 'add_favorite' | 'reset'
+        'show_area_info' | 'highlight_areas' | 'navigate' | 'add_favorite' | 'reset' |
+        'measure_distance'
   projectIds?: string[]
   lat?: number
   lng?: number
@@ -84,4 +85,8 @@ export interface MapAction {
   show?: boolean
   path?: string
   projectId?: string
+  points?: [number, number][]
+  distanceKm?: number
+  fromName?: string
+  toName?: string
 }

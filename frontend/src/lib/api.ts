@@ -658,3 +658,134 @@ export async function batchUpdateStops(
     return false;
   }
 }
+// ---- 成交真相层：价格体检 ----
+export interface PriceCheckResult {
+  matched: boolean;
+  reason?: string;
+  projectArea?: string | null;
+  summary?: string;
+  areaName?: string;
+  sampleCount?: number;
+  confidence?: 'ok' | 'low';
+  dataThrough?: string | null;
+  windowMonths?: number;
+  currency?: string;
+  unit?: string;
+  area?: { min: number; p25: number; median: number; p75: number; max: number };
+  project?: { pricePerSqm: number | null; source: string | null };
+  premiumPct?: number | null;
+  verdict?: { level: string; label: string; explanation: string };
+  methodology?: string;
+}
+
+export async function fetchPriceCheck(projectId: string): Promise<PriceCheckResult | null> {
+  try {
+    const res = await fetch(`${API_URL}/market/price-check?projectId=${encodeURIComponent(projectId)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching price check:', error);
+    return null;
+  }
+}
+
+// ---- 成交查询（功能 B）----
+export interface TxFilters { areas: { name: string; count: number }[]; rooms: string[] }
+export interface TxSummary {
+  count: number;
+  pricePerSqm: { min: number; p25: number; median: number; p75: number; max: number; avg: number } | null;
+  medianUnitPrice: number | null;
+  avgSizeSqm: number | null;
+  totalVolume: number | null;
+  trend: { month: string; count: number; medianPps: number }[];
+  note: string;
+}
+export interface TxRow {
+  date: string | null; area: string; building: string; rooms: string;
+  sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
+  saleType: 'offplan' | 'ready';
+}
+function txQuery(p: Record<string, string | undefined>): string {
+  const qs = new URLSearchParams();
+  Object.entries(p).forEach(([k, v]) => { if (v) qs.set(k, v); });
+  return qs.toString();
+}
+export async function fetchTxFilters(): Promise<TxFilters> {
+  try {
+    const r = await fetch(`${API_URL}/market/transactions/filters`);
+    if (!r.ok) return { areas: [], rooms: [] };
+    return await r.json();
+  } catch { return { areas: [], rooms: [] }; }
+}
+export async function fetchTxSummary(p: Record<string, string | undefined>): Promise<TxSummary | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/transactions/summary?${txQuery(p)}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+export async function fetchTxList(p: Record<string, string | undefined>): Promise<{ rows: TxRow[]; limit: number; offset: number }> {
+  try {
+    const r = await fetch(`${API_URL}/market/transactions/list?${txQuery(p)}`);
+    if (!r.ok) return { rows: [], limit: 25, offset: 0 };
+    return await r.json();
+  } catch { return { rows: [], limit: 25, offset: 0 }; }
+}
+
+// ---- 区域分级（功能 C）----
+export interface AreaClass {
+  id: string; name: string; tag: string; label: string; reasons: string[];
+  metrics: {
+    transactionCount: number | null; capitalGrowthPct: number | null;
+    rentalYieldPct: number | null; medianUnitPrice: number | null; medianPriceSqm: number | null;
+  };
+  perspective: { invest: string; live: string };
+}
+export interface AreaClassResp {
+  thresholds: { volume_high: number; volume_low: number; growth_high_pct: number };
+  methodology: string; count: number; areas: AreaClass[];
+}
+export async function fetchAreaClassification(): Promise<AreaClassResp | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/area-classification`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+export async function fetchAreaCompare(a: string, b: string): Promise<{ matched: boolean; a?: AreaClass; b?: AreaClass; summary: string } | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/area-compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+// ---- AI 买房决策报告（功能 E）----
+export interface Proj5yr {
+  purchase_price: number; rental_income_5yr: number; appreciation_5yr: number;
+  total_profit_5yr: number; annualized_return_pct: number;
+}
+export interface BuyingRec {
+  area: string; tag: string; label: string; why: string[];
+  perspective: { invest: string; live: string };
+  metrics: { transactionCount: number | null; capitalGrowthPct: number | null; rentalYieldPct: number | null; medianUnitPrice: number | null };
+  assumedPrice: number; paybackYears: number | null; dataQualityNote: string | null;
+  projection: { horizonYears: number; conservative: Proj5yr | null; neutral: Proj5yr | null; optimistic: Proj5yr | null };
+  matchingProjects: { id: string; developer: string; status: string; minPrice: number | null; maxPrice: number | null }[];
+}
+export interface BuyingReport {
+  goal: string; goalLabel: string; budgetMax: number | null; bedrooms: string | null;
+  horizonYears: number; generatedAt: string; recommendations: BuyingRec[];
+  assumptions: string[]; disclaimer: string;
+}
+export async function generateBuyingReport(body: {
+  goal: string; budgetMax?: number; bedrooms?: string; horizonYears?: number;
+}): Promise<BuyingReport | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/buying-report`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}

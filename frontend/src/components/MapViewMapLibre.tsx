@@ -9,7 +9,7 @@ import Map, {
   Layer,
   MapRef
 } from 'react-map-gl/maplibre'
-import { type MapLayerMouseEvent } from 'maplibre-gl'
+import { type MapLayerMouseEvent, type Map as MaplibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
 import { createElement } from 'react'
@@ -19,14 +19,50 @@ import {
   Utensils, Coffee, Landmark, CreditCard, TreePine, Building2,
   Hotel, Dumbbell, Umbrella, Film, Fuel, Church,
   Shield, Flame, Mail, Flag, Pill, Stethoscope, School,
-  TramFront, Cable, Bus, Ship, Circle
+  TramFront, Cable, Bus, Ship, Circle, Globe, Ruler
 } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { TransportGeoJSON } from '../lib/api'
 
-// 使用 CARTO 无标签风格 (area 自己有名字，不需要地图标签)
-const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json'
+// CARTO 无标签风格：选中指标时用，画热力图干净不被街道名干扰
+const MAP_STYLE_CLEAN = 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json'
+// CARTO 带标签风格：未选指标时用，显示街道/地名等细节方便探索
+const MAP_STYLE_LABELED = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+
+// 卫星底图风格：Esri World Imagery 栅格瓦片。
+// glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
+const SATELLITE_STYLE = {
+  version: 8 as const,
+  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+  sources: {
+    'satellite-tiles': {
+      type: 'raster' as const,
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
+    }
+  },
+  layers: [
+    { id: 'sat-bg', type: 'background' as const, paint: { 'background-color': '#0b1722' } },
+    { id: 'satellite', type: 'raster' as const, source: 'satellite-tiles' }
+  ]
+}
+
+type BaseMap = 'vector' | 'satellite'
+
+// 两点间球面距离（km），用于地图测距工具
+function haversineKm(a: { lng: number; lat: number }, b: { lng: number; lat: number }): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
 
 // Category-specific colors and icons
 const CATEGORY_CONFIG: Record<string, { color: string; Icon: typeof Cross }> = {
@@ -596,6 +632,61 @@ const ClusterMarker = memo(({ cluster, onClick }: { cluster: any; onClick?: (c: 
 })
 
 // ============================================================================
+// Landmark Marker - Circle with image thumbnail or type icon
+// ============================================================================
+
+const LandmarkMarker = memo(({ landmark, onClick }: {
+  landmark: DubaiLandmark
+  onClick?: (lm: DubaiLandmark) => void
+}) => {
+  const pinSize = landmark.size === 'large' ? 52 : landmark.size === 'small' ? 36 : 44
+
+  return (
+    <Marker
+      longitude={landmark.location.lng}
+      latitude={landmark.location.lat}
+      anchor="center"
+      onClick={(e) => {
+        e.originalEvent.stopPropagation()
+        onClick?.(landmark)
+      }}
+    >
+      <div
+        className="cursor-pointer transition-transform duration-150 hover:scale-110"
+        style={{
+          width: pinSize,
+          height: pinSize,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          border: '2.5px solid #fff',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.12)',
+          background: landmark.imageUrl ? '#f1f5f9' : '#334155',
+        }}
+      >
+        {landmark.imageUrl ? (
+          <img
+            src={landmark.imageUrl}
+            alt={landmark.name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            loading="lazy"
+          />
+        ) : (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Building2 style={{ width: pinSize * 0.45, height: pinSize * 0.45, color: 'rgba(255,255,255,0.8)' }} />
+          </div>
+        )}
+      </div>
+    </Marker>
+  )
+})
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -622,6 +713,7 @@ interface MapViewMapLibreProps {
   onAreaClick?: (area: DubaiArea) => void
   onPoiClick?: (poi: Poi) => void
   onStationClick?: (station: TransportStation) => void
+  onLandmarkClick?: (landmark: DubaiLandmark) => void
   areaMetric?: AreaMetric
   dubaiAreas?: DubaiArea[]
   dubaiLandmarks?: DubaiLandmark[]
@@ -631,6 +723,8 @@ interface MapViewMapLibreProps {
   flyToLocation?: { lat: number; lng: number; zoom?: number; bounds?: [[number, number], [number, number]] } | null
   transportGeoJSON?: TransportGeoJSON | null
   showTransport?: boolean
+  /** 由语音助手触发的测距：传入点序列即进入测距模式并画线 */
+  voiceMeasure?: { points: [number, number][] } | null
 }
 
 function MapViewMapLibre({
@@ -642,19 +736,88 @@ function MapViewMapLibre({
   onAreaClick,
   onPoiClick,
   onStationClick,
+  onLandmarkClick,
   areaMetric = 'none',
   dubaiAreas = [],
-  dubaiLandmarks: _dubaiLandmarks = [],
+  dubaiLandmarks = [],
   pois = [],
   showDubaiLayer = false,
   showPois = false,
   flyToLocation = null,
   transportGeoJSON = null,
-  showTransport = false
+  showTransport = false,
+  voiceMeasure = null
 }: MapViewMapLibreProps) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [baseMap, setBaseMap] = useState<BaseMap>('vector')
+  const [measureMode, setMeasureMode] = useState(false)
+  const [measurePoints, setMeasurePoints] = useState<{ lng: number; lat: number }[]>([])
+
+  const measureTotalKm = useMemo(() => {
+    let sum = 0
+    for (let i = 1; i < measurePoints.length; i++) {
+      sum += haversineKm(measurePoints[i - 1], measurePoints[i])
+    }
+    return sum
+  }, [measurePoints])
+
+  const measureGeoJson = useMemo(() => {
+    const coords = measurePoints.map(p => [p.lng, p.lat])
+    return {
+      line: {
+        type: 'FeatureCollection' as const,
+        features: coords.length >= 2
+          ? [{ type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: coords } }]
+          : []
+      },
+      points: {
+        type: 'FeatureCollection' as const,
+        features: coords.map((c, i) => ({
+          type: 'Feature' as const,
+          properties: { idx: i },
+          geometry: { type: 'Point' as const, coordinates: c }
+        }))
+      }
+    }
+  }, [measurePoints])
+
+  const exitMeasure = useCallback(() => {
+    setMeasureMode(false)
+    setMeasurePoints([])
+  }, [])
+
+  // 测距模式：Esc 退出并清空
+  useEffect(() => {
+    if (!measureMode) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') exitMeasure() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [measureMode, exitMeasure])
+
+  // 测距模式：地图光标改为十字
+  useEffect(() => {
+    const canvas = mapRef.current?.getMap()?.getCanvas()
+    if (canvas) canvas.style.cursor = measureMode ? 'crosshair' : ''
+  }, [measureMode, mapLoaded])
+
+  // 语音助手触发测距：进入测距模式、落点、自动缩放到这些点
+  useEffect(() => {
+    if (!voiceMeasure || !voiceMeasure.points?.length) return
+    const pts = voiceMeasure.points.map(([lng, lat]) => ({ lng, lat }))
+    setMeasureMode(true)
+    setMeasurePoints(pts)
+    const map = mapRef.current?.getMap()
+    if (map && mapLoaded && pts.length >= 2) {
+      const lngs = pts.map(p => p.lng)
+      const lats = pts.map(p => p.lat)
+      map.fitBounds(
+        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: 120, maxZoom: 13, duration: 1500 }
+      )
+    }
+  }, [voiceMeasure, mapLoaded])
   const [hoveredAreaId, setHoveredAreaId] = useState<string | null>(null)
   const boundsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -691,11 +854,9 @@ function MapViewMapLibre({
   }, [flyToLocation, mapLoaded])
 
   // 地图加载完成后再渲染 layers
-  const handleMapLoad = useCallback(async () => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-
-    // Helper to safely add image (handles race conditions)
+  // 生成并注入自定义图标（POI / 交通站点 / 路线）。
+  // 切换底图会清空 style 内的自定义 image，故需在 style.load 时重新注入。
+  const addCustomIcons = useCallback(async (map: MaplibreMap) => {
     const safeAddImage = (name: string, data: ImageData) => {
       try {
         if (!map.hasImage(name)) {
@@ -706,28 +867,30 @@ function MapViewMapLibre({
       }
     }
 
-    // Generate and load POI icons for each category (using Lucide SVGs)
     const poiIconPromises = Object.entries(CATEGORY_CONFIG).map(async ([category, config]) => {
-      const iconName = `poi-${category}`
       const imageData = await generatePoiIcon(config.color, config.Icon, 48)
-      safeAddImage(iconName, imageData)
+      safeAddImage(`poi-${category}`, imageData)
     })
-
-    // Generate and load transport station icons (legacy)
     const transportIconPromises = Object.entries(TRANSPORT_LINE_CONFIG).map(async ([line, config]) => {
-      const iconName = `station-${line}`
       const imageData = await generatePoiIcon(config.color, config.Icon, 48)
-      safeAddImage(iconName, imageData)
+      safeAddImage(`station-${line}`, imageData)
     })
-
-    // Generate route type icons for custom routes
     const routeTypeIconPromises = Object.entries(ROUTE_TYPE_CONFIG).map(async ([type, config]) => {
-      const iconName = `station-${type}`
       const imageData = await generatePoiIcon(config.defaultColor, config.Icon, 48)
-      safeAddImage(iconName, imageData)
+      safeAddImage(`station-${type}`, imageData)
     })
 
     await Promise.all([...poiIconPromises, ...transportIconPromises, ...routeTypeIconPromises])
+  }, [])
+
+  const handleMapLoad = useCallback(async () => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+
+    await addCustomIcons(map)
+
+    // 底图切换后 style 重建，重新注入自定义图标
+    map.on('style.load', () => { addCustomIcons(map) })
 
     setMapLoaded(true)
 
@@ -937,10 +1100,15 @@ function MapViewMapLibre({
   }, [])
 
   const handleMapClick = useCallback((e: MapLayerMouseEvent) => {
+    // 测距模式：每次点击落一个点，不触发区域/POI 选择
+    if (measureMode) {
+      setMeasurePoints(prev => [...prev, { lng: e.lngLat.lng, lat: e.lngLat.lat }])
+      return
+    }
+
     if (!e.features?.length) return
 
     // Prioritize: POI > Station > Area
-    // Find the most specific feature type
     const poiFeature = e.features.find(f => f.layer?.id === 'poi-circles')
     const stationFeature = e.features.find(f => f.layer?.id === 'transport-stations-bg')
     const areaFeature = e.features.find(f => f.layer?.id === 'area-fills')
@@ -983,7 +1151,7 @@ function MapViewMapLibre({
       const area = dubaiAreas.find(a => a.id === areaId)
       if (area) onAreaClick(area)
     }
-  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick])
+  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode])
 
   return (
     <div className="h-full w-full">
@@ -994,7 +1162,11 @@ function MapViewMapLibre({
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
         style={{ width: '100%', height: '100%' }}
-        mapStyle={MAP_STYLE}
+        mapStyle={
+          baseMap === 'satellite'
+            ? SATELLITE_STYLE
+            : (areaMetric === 'none' ? MAP_STYLE_LABELED : MAP_STYLE_CLEAN)
+        }
         interactiveLayerIds={mapLoaded ? [
           ...(areasGeoJson ? ['area-fills'] : []),
           ...(showTransport && transportGeoJSON ? ['transport-stations-bg'] : []),
@@ -1023,8 +1195,8 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* Area Labels - 区域名称 (only show when no metric selected) */}
-        {mapLoaded && areaLabelsGeoJson && areaMetric === 'none' && (
+        {/* Area Labels - 区域名称 (始终显示；选指标时名称上移，数值在下方) */}
+        {mapLoaded && areaLabelsGeoJson && (
           <Source id="area-labels" type="geojson" data={areaLabelsGeoJson}>
             <Layer
               id="area-label-text"
@@ -1042,6 +1214,8 @@ function MapViewMapLibre({
                   16, 12
                 ],
                 'text-anchor': 'center',
+                // 选了指标时，区域名上移，给下方的指标值留位置
+                'text-offset': areaMetric === 'none' ? [0, 0] : [0, -0.8],
                 // 更宽松的防叠：zoom 12+ 显示所有
                 'text-allow-overlap': [
                   'step',
@@ -1088,6 +1262,8 @@ function MapViewMapLibre({
                   16, 13
                 ],
                 'text-anchor': 'center',
+                // 指标值显示在区域名下方
+                'text-offset': [0, 0.9],
                 // 更宽松的防叠：zoom 12+ 显示所有
                 'text-allow-overlap': [
                   'step',
@@ -1257,6 +1433,15 @@ function MapViewMapLibre({
           </Source>
         )}
 
+        {/* Landmark Markers — individual markers with image thumbnails */}
+        {dubaiLandmarks.map(lm => (
+          <LandmarkMarker
+            key={lm.id}
+            landmark={lm}
+            onClick={onLandmarkClick}
+          />
+        ))}
+
         {/* Cluster Markers (legacy) */}
         {clusters.map(cluster => (
           <ClusterMarker
@@ -1274,7 +1459,85 @@ function MapViewMapLibre({
             onClick={onProjectClick}
           />
         ))}
+
+        {/* 测距：连线 + 顶点 */}
+        {mapLoaded && measurePoints.length > 0 && (
+          <>
+            <Source id="measure-line" type="geojson" data={measureGeoJson.line}>
+              <Layer
+                id="measure-line-layer"
+                type="line"
+                paint={{ 'line-color': '#2563eb', 'line-width': 3, 'line-dasharray': [2, 1] }}
+              />
+            </Source>
+            <Source id="measure-points" type="geojson" data={measureGeoJson.points}>
+              <Layer
+                id="measure-points-layer"
+                type="circle"
+                paint={{
+                  'circle-radius': 5,
+                  'circle-color': '#2563eb',
+                  'circle-stroke-color': '#ffffff',
+                  'circle-stroke-width': 2
+                }}
+              />
+            </Source>
+          </>
+        )}
       </Map>
+
+      {/* 底图切换：干净/卫星，放右上角（在指标条与 POI 按钮下方，避免重叠） */}
+      <button
+        type="button"
+        onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : 'vector'))}
+        className="absolute top-28 right-4 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-lg ring-1 ring-slate-200 backdrop-blur transition hover:bg-white"
+        title={baseMap === 'vector' ? '切换到卫星地图' : '切换回地图'}
+        aria-label="切换底图"
+      >
+        <Globe size={15} className={baseMap === 'satellite' ? 'text-emerald-600' : 'text-slate-500'} />
+        {baseMap === 'vector' ? '卫星' : '地图'}
+      </button>
+
+      {/* 测距工具按钮 */}
+      <button
+        type="button"
+        onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
+        className={`absolute top-40 right-4 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+          measureMode
+            ? 'bg-blue-600 text-white ring-blue-700 hover:bg-blue-700'
+            : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
+        }`}
+        title={measureMode ? '退出测距 (Esc)' : '测量两点距离'}
+        aria-label="测距工具"
+      >
+        <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
+        {measureMode ? '退出' : '测距'}
+      </button>
+
+      {/* 测距距离面板 */}
+      {measureMode && (
+        <div className="absolute top-52 right-4 z-[1000] w-44 rounded-lg bg-white/95 px-3 py-2.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          <div className="font-semibold text-slate-800">
+            {measurePoints.length < 2
+              ? '点击地图开始测距'
+              : measureTotalKm < 1
+                ? `${Math.round(measureTotalKm * 1000)} 米`
+                : `${measureTotalKm.toFixed(2)} 公里`}
+          </div>
+          <div className="mt-0.5 text-[11px] text-slate-500">
+            {measurePoints.length} 个点 · 点击继续，Esc 退出
+          </div>
+          {measurePoints.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMeasurePoints([])}
+              className="mt-1.5 text-[11px] font-medium text-blue-600 hover:underline"
+            >
+              清除重测
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,0 +1,614 @@
+/**
+ * Market analytics — 成交真相层 (Transaction Truth)
+ *
+ * GET /api/market/price-check?projectId=<uuid>
+ *   把项目单价 vs 同区近 12 个月真实成交分布做对比，给中性可解释的"价格体检"。
+ *   数据：dld_transactions（经 dld_areas 桥接到 dubai_areas），与 get_dubai_area_metrics 同源。
+ *   注意：数据为定期快照（非实时），响应内含数据时间窗口供前端如实标注。
+ */
+import { Router, Request, Response } from 'express'
+import pool from '../db/pool'
+import { findAreaByName } from '../services/area-matcher'
+import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
+
+const router = Router()
+
+const SQFT_PER_SQM = 10.7639
+
+function verdictFor(premiumPct: number, sampleCount: number) {
+  if (sampleCount < 30) {
+    return {
+      level: 'insufficient' as const,
+      label: '样本不足',
+      explanation: '该区域近 12 个月可比成交样本不足，暂不给出价格判断，仅供参考。'
+    }
+  }
+  if (premiumPct > 25) {
+    return {
+      level: 'high' as const,
+      label: '显著高于区域成交中位数',
+      explanation: `本项目单价相对同区近 12 个月成交中位数高约 ${premiumPct.toFixed(0)}%。新盘相对二手存在溢价较常见，建议结合付款计划、交付时间与楼层/景观综合判断。`
+    }
+  }
+  if (premiumPct > 10) {
+    return {
+      level: 'above' as const,
+      label: '高于区域成交中位数',
+      explanation: `本项目单价相对同区近 12 个月成交中位数高约 ${premiumPct.toFixed(0)}%，可能反映新房、楼层、景观或付款计划的资金时间价值。`
+    }
+  }
+  if (premiumPct < -10) {
+    return {
+      level: 'below' as const,
+      label: '低于区域成交中位数',
+      explanation: `本项目单价相对同区近 12 个月成交中位数低约 ${Math.abs(premiumPct).toFixed(0)}%，可能反映户型、楼龄或具体单元差异。`
+    }
+  }
+  return {
+    level: 'inline' as const,
+    label: '与区域成交中位数基本一致',
+    explanation: '本项目单价与同区近 12 个月成交中位数基本处于同一水平。'
+  }
+}
+
+router.get('/price-check', async (req: Request, res: Response) => {
+  try {
+    const projectId = String(req.query.projectId || '').trim()
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId is required' })
+    }
+
+    // 1) 项目信息 + 单价（来自户型 price_per_sqft 中位数，换算为 AED/sqm）
+    const projRes = await pool.query(
+      `SELECT rp.id, rp.area, rp.developer, rp.status, rp.min_price, rp.max_price, rp.starting_price,
+              pm.median_pps
+         FROM residential_projects rp
+         LEFT JOIN (
+           SELECT project_id, percentile_cont(0.5) WITHIN GROUP (ORDER BY price_per_sqft) AS median_pps
+             FROM project_unit_types
+            WHERE price_per_sqft IS NOT NULL AND price_per_sqft > 0
+            GROUP BY project_id
+         ) pm ON pm.project_id = rp.id
+        WHERE rp.id = $1`,
+      [projectId]
+    )
+    if (projRes.rowCount === 0) {
+      return res.status(404).json({ error: 'project not found' })
+    }
+    const project = projRes.rows[0]
+    const projectPricePerSqm = project.median_pps
+      ? Number(project.median_pps) * SQFT_PER_SQM
+      : null
+
+    // 2) 匹配区域
+    const area = project.area ? await findAreaByName(pool, project.area) : null
+    if (!area) {
+      return res.json({
+        matched: false,
+        reason: 'area_unmatched',
+        projectArea: project.area || null,
+        summary: '暂未能把该项目匹配到有成交数据的区域，无法做价格体检。'
+      })
+    }
+
+    // 3) 同区近 12 个月真实成交分布（剔除极端值；Unit/Villa 住宅销售）
+    const distRes = await pool.query(
+      `WITH bounds AS (SELECT MAX(instance_date) AS max_d FROM dld_transactions),
+       tx AS (
+         SELECT dt.meter_sale_price AS pps
+           FROM dld_transactions dt
+           JOIN dld_areas dla ON dla.area_id = dt.area_id
+           CROSS JOIN bounds b
+          WHERE dla.dubai_area_id = $1
+            AND dt.trans_group = 'Sales'
+            AND dt.property_usage = 'Residential'
+            AND dt.property_type IN ('Unit', 'Villa')
+            AND dt.meter_sale_price BETWEEN 1000 AND 250000
+            AND dt.instance_date >= (b.max_d - INTERVAL '12 months')
+       )
+       SELECT COUNT(*)::int AS n,
+              percentile_cont(0.05) WITHIN GROUP (ORDER BY pps) AS p05,
+              percentile_cont(0.25) WITHIN GROUP (ORDER BY pps) AS p25,
+              percentile_cont(0.50) WITHIN GROUP (ORDER BY pps) AS p50,
+              percentile_cont(0.75) WITHIN GROUP (ORDER BY pps) AS p75,
+              percentile_cont(0.95) WITHIN GROUP (ORDER BY pps) AS p95,
+              (SELECT max_d FROM bounds) AS data_through
+         FROM tx`,
+      [area.id]
+    )
+    const d = distRes.rows[0]
+    const sampleCount = d?.n || 0
+
+    if (sampleCount === 0) {
+      return res.json({
+        matched: true,
+        areaName: area.name,
+        sampleCount: 0,
+        summary: `${area.name} 近 12 个月暂无可比住宅成交，无法做价格体检。`
+      })
+    }
+
+    const median = Number(d.p50)
+    const premiumPct =
+      projectPricePerSqm != null && median > 0
+        ? ((projectPricePerSqm - median) / median) * 100
+        : null
+
+    const verdict =
+      premiumPct == null
+        ? {
+            level: 'no_project_price' as const,
+            label: '缺少项目单价',
+            explanation: '该项目未录入可用的户型单价（AED/sqft），仅展示区域成交区间供参考。'
+          }
+        : verdictFor(premiumPct, sampleCount)
+
+    const dataThrough: Date = d.data_through
+    return res.json({
+      matched: true,
+      areaName: area.name,
+      projectArea: project.area,
+      sampleCount,
+      confidence: sampleCount >= 30 ? 'ok' : 'low',
+      dataThrough: dataThrough ? dataThrough.toISOString().slice(0, 10) : null,
+      windowMonths: 12,
+      currency: 'AED',
+      unit: 'per_sqm',
+      area: {
+        min: Math.round(Number(d.p05)),
+        p25: Math.round(Number(d.p25)),
+        median: Math.round(median),
+        p75: Math.round(Number(d.p75)),
+        max: Math.round(Number(d.p95))
+      },
+      project: {
+        pricePerSqm: projectPricePerSqm ? Math.round(projectPricePerSqm) : null,
+        source: projectPricePerSqm ? 'unit_types_median' : null
+      },
+      premiumPct: premiumPct != null ? Number(premiumPct.toFixed(1)) : null,
+      verdict,
+      methodology:
+        '区域基准 = 该区近 12 个月 DLD 住宅销售（Unit/Villa）每平方米成交价分布，' +
+        '已剔除最高/最低 5% 极端值，取中位数。项目单价 = 各户型 price_per_sqft 中位数换算 AED/sqm。' +
+        '数据为 DLD 定期快照（非实时），二手登记通常滞后 4–8 周。'
+    })
+  } catch (err) {
+    console.error('[market/price-check] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// 成交查询（功能 B）—— 直接面向 dld_transactions 的多维聚合
+// ---------------------------------------------------------------------------
+
+const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R']
+
+/** 构造公共 WHERE（住宅销售、剔除极端值），返回 { clause, params } */
+function buildTxFilter(q: any): { clause: string; params: any[] } {
+  const params: any[] = []
+  const parts: string[] = [
+    `dt.trans_group = 'Sales'`,
+    `dt.property_usage = 'Residential'`,
+    `dt.property_type IN ('Unit','Villa')`,
+    `dt.meter_sale_price BETWEEN 1000 AND 250000`,
+    `dt.procedure_area > 0`
+  ]
+  if (q.area) {
+    params.push(`%${String(q.area).trim()}%`)
+    parts.push(`dt.area_name ILIKE $${params.length}`)
+  }
+  if (q.rooms && ROOM_OPTIONS.includes(q.rooms)) {
+    params.push(q.rooms)
+    parts.push(`dt.rooms = $${params.length}`)
+  }
+  if (q.type === 'offplan') {
+    parts.push(`dt.procedure_name = 'Sell - Pre registration'`)
+  } else if (q.type === 'ready') {
+    parts.push(`dt.procedure_name = 'Sell'`)
+  }
+  if (q.from) {
+    params.push(q.from)
+    parts.push(`dt.instance_date >= $${params.length}`)
+  }
+  if (q.to) {
+    params.push(q.to)
+    parts.push(`dt.instance_date <= $${params.length}`)
+  }
+  return { clause: parts.join(' AND '), params }
+}
+
+/** GET /transactions/filters — 下拉选项（区域、户型） */
+router.get('/transactions/filters', async (_req: Request, res: Response) => {
+  try {
+    const areas = await pool.query(
+      `SELECT dt.area_name AS name, COUNT(*)::int AS count
+         FROM dld_transactions dt
+        WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
+          AND dt.area_name IS NOT NULL AND dt.area_name <> ''
+        GROUP BY dt.area_name
+       HAVING COUNT(*) >= 50
+        ORDER BY count DESC`
+    )
+    res.json({ areas: areas.rows, rooms: ROOM_OPTIONS })
+  } catch (err) {
+    console.error('[market/transactions/filters] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/** GET /transactions/summary — 聚合指标 + 月度趋势 */
+router.get('/transactions/summary', async (req: Request, res: Response) => {
+  try {
+    const { clause, params } = buildTxFilter(req.query)
+    const stats = await pool.query(
+      `SELECT COUNT(*)::int AS n,
+              percentile_cont(0.05) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p05,
+              percentile_cont(0.25) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p25,
+              percentile_cont(0.50) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps,
+              percentile_cont(0.75) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p75,
+              percentile_cont(0.95) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p95,
+              AVG(dt.meter_sale_price) AS avg_pps,
+              percentile_cont(0.50) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_price,
+              AVG(dt.procedure_area) AS avg_size_sqm,
+              SUM(dt.actual_worth) AS total_volume
+         FROM dld_transactions dt
+        WHERE ${clause}`,
+      params
+    )
+    const trend = await pool.query(
+      `SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
+              COUNT(*)::int AS count,
+              round(percentile_cont(0.50) WITHIN GROUP (ORDER BY dt.meter_sale_price)) AS median_pps
+         FROM dld_transactions dt
+        WHERE ${clause}
+          AND dt.instance_date >= (SELECT MAX(instance_date) FROM dld_transactions) - INTERVAL '24 months'
+        GROUP BY 1 ORDER BY 1`,
+      params
+    )
+    const s = stats.rows[0]
+    res.json({
+      count: s.n,
+      pricePerSqm: s.n ? {
+        min: Math.round(Number(s.p05)), p25: Math.round(Number(s.p25)),
+        median: Math.round(Number(s.median_pps)), p75: Math.round(Number(s.p75)),
+        max: Math.round(Number(s.p95)), avg: Math.round(Number(s.avg_pps))
+      } : null,
+      medianUnitPrice: s.median_price ? Math.round(Number(s.median_price)) : null,
+      avgSizeSqm: s.avg_size_sqm ? Math.round(Number(s.avg_size_sqm)) : null,
+      totalVolume: s.total_volume ? Math.round(Number(s.total_volume)) : null,
+      trend: trend.rows.map(r => ({ month: r.month, count: r.count, medianPps: Number(r.median_pps) })),
+      note: 'DLD 住宅销售（Unit/Villa），已剔除最高/最低 5% 极端值。数据为定期快照，非实时。'
+    })
+  } catch (err) {
+    console.error('[market/transactions/summary] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/** GET /transactions/list — 分页明细 */
+router.get('/transactions/list', async (req: Request, res: Response) => {
+  try {
+    const { clause, params } = buildTxFilter(req.query)
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '25'), 10) || 25, 1), 100)
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0)
+    const rows = await pool.query(
+      `SELECT dt.instance_date AS date, dt.area_name, dt.building_name, dt.project_name,
+              dt.rooms, dt.procedure_area AS size_sqm, dt.actual_worth AS price,
+              round(dt.meter_sale_price) AS price_per_sqm,
+              CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
+         FROM dld_transactions dt
+        WHERE ${clause}
+        ORDER BY dt.instance_date DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
+    )
+    res.json({
+      rows: rows.rows.map(r => ({
+        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+        area: r.area_name,
+        building: r.building_name || r.project_name || '—',
+        rooms: r.rooms || '—',
+        sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+        price: r.price ? Math.round(Number(r.price)) : null,
+        pricePerSqm: r.price_per_sqm ? Number(r.price_per_sqm) : null,
+        saleType: r.sale_type
+      })),
+      limit,
+      offset
+    })
+  } catch (err) {
+    console.error('[market/transactions/list] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// 区域分级判断（功能 C）—— 基于 get_dubai_area_metrics 的相对分位规则
+// 方法论透明：阈值用全区域分位数（相对而非武断绝对值），reasons 可追溯
+// ---------------------------------------------------------------------------
+
+interface AreaMetricRow {
+  id: string; name: string;
+  transaction_count: number | null;
+  capital_growth_pct: number | null;
+  rental_yield_pct: number | null;
+  median_unit_price: number | null;
+  median_price_sqm: number | null;
+}
+
+function quantile(sorted: number[], q: number): number {
+  if (!sorted.length) return 0
+  const pos = (sorted.length - 1) * q
+  const base = Math.floor(pos)
+  const rest = pos - base
+  return sorted[base + 1] !== undefined
+    ? sorted[base] + rest * (sorted[base + 1] - sorted[base])
+    : sorted[base]
+}
+
+function classifyAreas(rows: AreaMetricRow[]) {
+  const withData = rows.filter(r => r.transaction_count != null && r.capital_growth_pct != null)
+  const vols = withData.map(r => Number(r.transaction_count)).sort((a, b) => a - b)
+  const grows = withData.map(r => Number(r.capital_growth_pct)).sort((a, b) => a - b)
+  const volHi = quantile(vols, 0.66)
+  const volLo = quantile(vols, 0.33)
+  const growHi = quantile(grows, 0.66)
+
+  const thresholds = {
+    volume_high: Math.round(volHi),
+    volume_low: Math.round(volLo),
+    growth_high_pct: Number(growHi.toFixed(1))
+  }
+
+  const classified = rows.map(r => {
+    const vol = r.transaction_count == null ? null : Number(r.transaction_count)
+    const grow = r.capital_growth_pct == null ? null : Number(r.capital_growth_pct)
+    let tag = 'stable'
+    let label = '平稳区'
+    const reasons: string[] = []
+
+    if (vol == null || grow == null) {
+      tag = 'insufficient'; label = '数据不足'
+      reasons.push('该区域成交样本不足，暂不分级。')
+    } else if (vol >= volHi && grow >= growHi) {
+      tag = 'growth'; label = '增长区'
+      reasons.push(`成交活跃（${vol} 笔，处于全市前 1/3）`)
+      reasons.push(`价格同比增长 ${grow.toFixed(1)}%（全市前 1/3）`)
+    } else if (vol >= volHi && grow < 0) {
+      tag = 'supply_pressure'; label = '供应压力区'
+      reasons.push(`成交量大（${vol} 笔）但价格同比 ${grow.toFixed(1)}%（走弱）`)
+      reasons.push('放量下跌通常提示供应充裕、议价空间较大')
+    } else if (vol >= volHi) {
+      tag = 'mature'; label = '成熟区'
+      reasons.push(`成交活跃且流动性好（${vol} 笔，全市前 1/3）`)
+      reasons.push(`价格增长温和（${grow.toFixed(1)}%），市场较成熟`)
+    } else if (vol <= volLo) {
+      tag = 'future'; label = '未来/新兴区'
+      reasons.push(`成交量较低（${vol} 笔，全市后 1/3）`)
+      reasons.push('早期/新兴区域，数据样本少、不确定性更高')
+    } else {
+      reasons.push(`成交量与价格增长均处中位（${vol} 笔，${grow.toFixed(1)}%）`)
+    }
+
+    return {
+      id: r.id,
+      name: r.name,
+      tag,
+      label,
+      reasons,
+      metrics: {
+        transactionCount: vol,
+        capitalGrowthPct: grow,
+        rentalYieldPct: r.rental_yield_pct != null ? Number(r.rental_yield_pct) : null,
+        medianUnitPrice: r.median_unit_price != null ? Number(r.median_unit_price) : null,
+        medianPriceSqm: r.median_price_sqm != null ? Number(r.median_price_sqm) : null
+      },
+      perspective: {
+        invest: tag === 'growth' ? '价格动能强，偏增值型投资可关注，但需注意是否已高位。'
+          : tag === 'supply_pressure' ? '投资角度风险偏高（放量走弱）；但议价空间大，逢低布局者可留意。'
+          : tag === 'mature' ? '流动性好、波动小，适合稳健收租型投资。'
+          : tag === 'future' ? '高风险高潜在回报，押注未来兑现，需长期持有。'
+          : '走势平稳，投资回报预期中性。',
+        live: tag === 'supply_pressure' ? '自住角度反而是机会：选择多、价格有谈判余地。'
+          : tag === 'mature' ? '配套成熟、转手容易，适合自住。'
+          : tag === 'future' ? '新区配套可能未完善，自住需评估生活便利度。'
+          : '自住体验取决于具体项目与配套。'
+      }
+    }
+  })
+
+  return { thresholds, areas: classified }
+}
+
+async function loadAreaMetricRows(): Promise<AreaMetricRow[]> {
+  const r = await pool.query(
+    `SELECT id, name, transaction_count, capital_growth_pct,
+            rental_yield_pct, median_unit_price, median_price_sqm
+       FROM get_dubai_area_metrics()`
+  )
+  return r.rows
+}
+
+/** GET /area-classification — 全部区域分级（可选 ?name= 单区） */
+router.get('/area-classification', async (req: Request, res: Response) => {
+  try {
+    const rows = await loadAreaMetricRows()
+    const { thresholds, areas } = classifyAreas(rows)
+    const name = String(req.query.name || '').trim().toLowerCase()
+    const result = name
+      ? areas.filter(a => a.name.toLowerCase().includes(name))
+      : areas
+    res.json({
+      thresholds,
+      methodology:
+        '分级基于 DLD 成交：成交量与价格同比增长按全市分位数（前/后 1/3）相对划分，' +
+        '而非武断绝对阈值。数据为定期快照，非实时。标签仅供参考，不构成投资建议。',
+      count: result.length,
+      areas: result.sort((a, b) => (b.metrics.transactionCount || 0) - (a.metrics.transactionCount || 0))
+    })
+  } catch (err) {
+    console.error('[market/area-classification] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/** GET /area-compare?a=&b= — 两区并排（按 id 或名称） */
+router.get('/area-compare', async (req: Request, res: Response) => {
+  try {
+    const aKey = String(req.query.a || '').trim().toLowerCase()
+    const bKey = String(req.query.b || '').trim().toLowerCase()
+    if (!aKey || !bKey) return res.status(400).json({ error: 'a and b are required' })
+
+    const rows = await loadAreaMetricRows()
+    const { areas } = classifyAreas(rows)
+    const pick = (k: string) =>
+      areas.find(a => a.id.toLowerCase() === k) ||
+      areas.find(a => a.name.toLowerCase() === k) ||
+      areas.find(a => a.name.toLowerCase().includes(k))
+
+    const A = pick(aKey)
+    const B = pick(bKey)
+    if (!A || !B) {
+      return res.json({ matched: false, summary: '未能匹配到两个区域，请检查名称。' })
+    }
+
+    const yA = A.metrics.rentalYieldPct ?? 0
+    const yB = B.metrics.rentalYieldPct ?? 0
+    const gA = A.metrics.capitalGrowthPct ?? 0
+    const gB = B.metrics.capitalGrowthPct ?? 0
+    const summary =
+      `${A.name}（${A.label}）vs ${B.name}（${B.label}）：` +
+      `租金回报 ${yA.toFixed(1)}% vs ${yB.toFixed(1)}%，` +
+      `价格增长 ${gA.toFixed(1)}% vs ${gB.toFixed(1)}%。` +
+      `收租角度 ${yA >= yB ? A.name : B.name} 占优，` +
+      `增值角度 ${gA >= gB ? A.name : B.name} 占优。`
+
+    res.json({ matched: true, a: A, b: B, summary })
+  } catch (err) {
+    console.error('[market/area-compare] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// AI 买房决策报告（功能 E）—— 复用分级(C) + 投资测算
+// 预测给区间(保守/中性/乐观)+ 明确免责，绝不给单一"稳赚"数字
+// ---------------------------------------------------------------------------
+
+type Goal = 'invest_growth' | 'invest_rent' | 'invest_both' | 'self_use' | 'self_invest'
+
+const GOAL_LABEL: Record<Goal, string> = {
+  invest_growth: '投资 · 资本增值优先',
+  invest_rent: '投资 · 租金收益优先',
+  invest_both: '投资 · 增值与收租兼顾',
+  self_use: '自住',
+  self_invest: '自住兼投资'
+}
+
+router.post('/buying-report', async (req: Request, res: Response) => {
+  try {
+    const goal: Goal = (req.body?.goal || 'invest_both')
+    const budgetMax = Number(req.body?.budgetMax) || null
+    const bedrooms = req.body?.bedrooms ? String(req.body.bedrooms) : null
+    const horizon = Math.min(Math.max(Number(req.body?.horizonYears) || 5, 3), 10)
+    if (!GOAL_LABEL[goal]) return res.status(400).json({ error: 'invalid goal' })
+
+    const rows = await loadAreaMetricRows()
+    const { areas } = classifyAreas(rows)
+
+    // 只从流动性足够的区域推荐：低样本区指标(尤其增长率)不可靠，
+    // 直接用会产生荒谬预测、损害信任。
+    let pool0 = areas.filter(a =>
+      (a.metrics.transactionCount ?? 0) >= 200 &&
+      (a.metrics.rentalYieldPct != null || a.metrics.capitalGrowthPct != null)
+    )
+    if (budgetMax) {
+      pool0 = pool0.filter(a => a.metrics.medianUnitPrice == null || a.metrics.medianUnitPrice <= budgetMax)
+    }
+
+    const score = (a: typeof pool0[number]) => {
+      const y = a.metrics.rentalYieldPct ?? 0
+      const g = a.metrics.capitalGrowthPct ?? 0
+      const matureBonus = a.tag === 'mature' ? 1 : 0
+      switch (goal) {
+        case 'invest_growth': return g
+        case 'invest_rent': return y
+        case 'invest_both': return y * 1.2 + g
+        case 'self_use': return matureBonus * 100 - (a.metrics.medianUnitPrice ?? 0) / 1e6
+        case 'self_invest': return matureBonus * 50 + g + y
+      }
+    }
+    const top = [...pool0].sort((x, y) => score(y) - score(x)).slice(0, 3)
+
+    const recommendations = await Promise.all(top.map(async a => {
+      const price = a.metrics.medianUnitPrice ||
+        (budgetMax ? Math.min(budgetMax, 1_500_000) : 1_500_000)
+      // 清洗：钳制到可辩护区间，杜绝低样本垃圾值导致的"稳赚"假象
+      const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
+      const rawGrowth = a.metrics.capitalGrowthPct ?? 0
+      const rawYield = a.metrics.rentalYieldPct ?? 0
+      const yieldPct = clamp(rawYield, 0, 11)
+      const gNeutral = clamp(rawGrowth, -8, 15)
+      const growthClamped = Math.abs(rawGrowth - gNeutral) > 0.1 || Math.abs(rawYield - yieldPct) > 0.1
+      // 区间：保守 / 中性 / 乐观，三档均钳制
+      const scen = (gp: number) => calculateInvestment5yr(price, yieldPct, gp)
+      const projects = await pool.query(
+        `SELECT id, developer, status, min_price, max_price, starting_price
+           FROM residential_projects
+          WHERE area ILIKE $1 ${budgetMax ? 'AND (min_price IS NULL OR min_price <= $2)' : ''}
+          LIMIT 5`,
+        budgetMax ? [`%${a.name}%`, budgetMax] : [`%${a.name}%`]
+      )
+      return {
+        area: a.name,
+        tag: a.tag,
+        label: a.label,
+        why: a.reasons,
+        perspective: a.perspective,
+        metrics: a.metrics,
+        assumedPrice: price,
+        paybackYears: calculatePaybackYears(yieldPct),
+        dataQualityNote: growthClamped
+          ? '该区原始增长/收益率为低样本极值，已钳制到可辩护区间后再测算。'
+          : null,
+        projection: {
+          horizonYears: 5,
+          conservative: scen(clamp(gNeutral * 0.4, 0, 5)),
+          neutral: scen(gNeutral),
+          optimistic: scen(clamp(gNeutral * 1.3, gNeutral, 18))
+        },
+        matchingProjects: projects.rows.map(p => ({
+          id: p.id, developer: p.developer, status: p.status,
+          minPrice: p.min_price ? Number(p.min_price) : null,
+          maxPrice: p.max_price ? Number(p.max_price) : null
+        }))
+      }
+    }))
+
+    res.json({
+      goal,
+      goalLabel: GOAL_LABEL[goal],
+      budgetMax,
+      bedrooms,
+      horizonYears: horizon,
+      generatedAt: new Date().toISOString().slice(0, 10),
+      recommendations,
+      assumptions: [
+        '价格基准为该区 DLD 成交中位总价（无则按预算估算）。',
+        '收益率/增长率取该区近 12 个月 DLD 成交推导值。',
+        '5 年预测三档：保守=历史增长×0.4(封顶6%)、中性=历史增长、乐观=×1.3。',
+        '租金按当前收益率简单线性估算，未计空置、服务费、交易税费。'
+      ],
+      disclaimer:
+        '本报告基于 Dubai Land Department 历史成交数据的结构化测算，仅供决策参考，' +
+        '不构成投资建议或收益保证。房地产价格受政策、供需、宏观等多因素影响，' +
+        '实际结果可能与预测区间存在显著差异。数据为定期快照，非实时。'
+    })
+  } catch (err) {
+    console.error('[market/buying-report] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+export default router

@@ -26,6 +26,7 @@ import voiceToolsRouter from './routes/voice-tools'
 import voiceDebugRouter from './routes/voice-debug'
 import aiProjectsRouter from './routes/ai-projects'
 import aiAreasRouter from './routes/ai-areas'
+import marketRouter from './routes/market'
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 
@@ -104,6 +105,7 @@ app.use('/api/voice/tools', voiceToolsRouter)  // Tool execution
 app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
 app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
+app.use('/api/market', marketRouter)  // 成交真相层：价格体检等
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

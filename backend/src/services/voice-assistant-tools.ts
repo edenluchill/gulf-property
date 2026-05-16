@@ -202,10 +202,40 @@ export const voiceAssistantTools = [
           },
           required: ['project_id']
         }
+      },
+      {
+        name: 'measure_distance',
+        description: 'Measure the straight-line distance between two places on the map (areas, landmarks, or projects). Draws the line on the map and tells the distance in km.',
+        parameters: {
+          type: 'object',
+          properties: {
+            from: {
+              type: 'string',
+              description: 'Start place name, e.g. an area or landmark like "Dubai Marina" or "Burj Khalifa"'
+            },
+            to: {
+              type: 'string',
+              description: 'End place name, e.g. "Downtown Dubai", "Dubai International Airport"'
+            }
+          },
+          required: ['from', 'to']
+        }
       }
     ]
   }
 ]
+
+// 两点球面距离（km）
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
 
 // Map tool name to execution function
 export async function executeTool(
@@ -391,6 +421,38 @@ export async function executeTool(
         summary: 'Map reset to default view.',
         mapAction: {
           type: 'reset'
+        }
+      }
+    }
+
+    case 'measure_distance': {
+      const resolve = async (q: string) => {
+        const d = await apiFetch<{ area: { name: string; lat: number; lng: number } | null }>(
+          `/api/ai/areas/match?q=${encodeURIComponent(q)}`
+        )
+        return d.area
+      }
+      const [a, b] = await Promise.all([resolve(params.from), resolve(params.to)])
+
+      if (!a || !b) {
+        const missing = !a ? params.from : params.to
+        return {
+          result: null,
+          summary: `I couldn't locate "${missing}" on the map, so I can't measure that distance yet.`
+        }
+      }
+
+      const km = haversineKm(a, b)
+      const dist = km < 1 ? `${Math.round(km * 1000)} meters` : `${km.toFixed(1)} km`
+      return {
+        result: { from: a.name, to: b.name, distance_km: Number(km.toFixed(2)) },
+        summary: `${a.name} to ${b.name} is about ${dist} in a straight line.`,
+        mapAction: {
+          type: 'measure_distance',
+          points: [[a.lng, a.lat], [b.lng, b.lat]],
+          distanceKm: Number(km.toFixed(2)),
+          fromName: a.name,
+          toName: b.name
         }
       }
     }

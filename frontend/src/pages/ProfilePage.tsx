@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/button'
-import { User, LogOut, Heart, Settings, ChevronRight, Mail } from 'lucide-react'
+import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase } from 'lucide-react'
 
 export default function ProfilePage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -28,6 +28,11 @@ export default function ProfilePage() {
   }
 
   const menuItems = [
+    {
+      icon: Briefcase,
+      label: t('auth:profile.agentPortal', '经纪人工作台'),
+      path: '/agent',
+    },
     {
       icon: Heart,
       label: t('common:nav.favorites'),

@@ -39,7 +39,7 @@ const METRIC_OPTIONS = [
 // MAP DATA VERSION - Increment this to force all clients to reload map data
 // Format: YYYYMMDD or any string. When changed, all cached data will be cleared.
 // ============================================================================
-const MAP_DATA_VERSION = '20260227-custom-routes'
+const MAP_DATA_VERSION = '20260515-area-metrics-refresh'
 
 // Clear all map-related cache if version changed
 function checkAndClearCache() {
@@ -209,6 +209,12 @@ export default function MapPage() {
   // Transport station popup state
   const [selectedStation, setSelectedStation] = useState<TransportStation | null>(null)
 
+  // Landmark popup state
+  const [selectedLandmark, setSelectedLandmark] = useState<DubaiLandmark | null>(null)
+
+  // Voice-triggered distance measurement
+  const [voiceMeasure, setVoiceMeasure] = useState<{ points: [number, number][] } | null>(null)
+
   // Voice assistant map action handler
   const handleVoiceMapAction = useCallback((action: MapAction) => {
     console.log('[MapPage] Voice assistant map action:', action)
@@ -254,6 +260,13 @@ export default function MapPage() {
         setAreaMetric('rentalYield')
         if (action.lat && action.lng) {
           setFlyToLocation({ lat: action.lat, lng: action.lng, zoom: action.zoom || 12 })
+        }
+        break
+
+      case 'measure_distance':
+        if (action.points && action.points.length >= 2) {
+          // 新引用确保每次调用都触发 MapView 的 effect
+          setVoiceMeasure({ points: action.points.map(p => [p[0], p[1]] as [number, number]) })
         }
         break
 
@@ -616,9 +629,11 @@ export default function MapPage() {
             showPois={showPois}
             onPoiClick={setSelectedPoi}
             onStationClick={setSelectedStation}
+            onLandmarkClick={setSelectedLandmark}
             flyToLocation={flyToLocation}
             transportGeoJSON={transportGeoJSON}
             showTransport={showTransport}
+            voiceMeasure={voiceMeasure}
           />
 
           {/* Mobile: Top left - Current metric indicator */}
@@ -1223,6 +1238,169 @@ export default function MapPage() {
                 >
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Landmark Popup */}
+      {selectedLandmark && (
+        <div className="fixed inset-0 z-[2000]" onClick={() => setSelectedLandmark(null)}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+
+          {/* Mobile: Bottom Sheet */}
+          <div className="md:hidden absolute inset-x-0 bottom-0 animate-in slide-in-from-bottom duration-200">
+            <div
+              className="bg-white rounded-t-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Handle bar */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 bg-slate-300 rounded-full" />
+              </div>
+
+              {/* Image */}
+              {selectedLandmark.imageUrl && (
+                <div className="mx-5 mb-3 rounded-xl overflow-hidden">
+                  <img
+                    src={selectedLandmark.imageUrl}
+                    alt={selectedLandmark.name}
+                    className="w-full h-44 object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="px-5 pb-4">
+                <h3 className="text-xl font-bold text-slate-900 mb-1">
+                  {selectedLandmark.name}
+                </h3>
+                {selectedLandmark.nameAr && (
+                  <p className="text-base text-slate-500 mb-2" dir="rtl">
+                    {selectedLandmark.nameAr}
+                  </p>
+                )}
+                {selectedLandmark.description && (
+                  <p className="text-sm text-slate-600 mb-3">
+                    {selectedLandmark.description}
+                  </p>
+                )}
+                {selectedLandmark.yearBuilt && (
+                  <p className="text-xs text-slate-400">Built {selectedLandmark.yearBuilt}</p>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-px bg-slate-200 border-t border-slate-200">
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedLandmark.location.lat},${selectedLandmark.location.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
+                >
+                  <Navigation className="w-5 h-5 text-blue-600" />
+                  <span className="text-xs font-medium text-slate-700">Directions</span>
+                </a>
+                {selectedLandmark.websiteUrl ? (
+                  <a
+                    href={selectedLandmark.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
+                  >
+                    <Globe className="w-5 h-5 text-purple-600" />
+                    <span className="text-xs font-medium text-slate-700">Website</span>
+                  </a>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 py-4 bg-white opacity-40">
+                    <Globe className="w-5 h-5 text-slate-400" />
+                    <span className="text-xs font-medium text-slate-400">Website</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="h-safe-area-inset-bottom bg-white" />
+            </div>
+          </div>
+
+          {/* Desktop: Centered Modal */}
+          <div className="hidden md:flex absolute inset-0 items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Image */}
+              {selectedLandmark.imageUrl && (
+                <img
+                  src={selectedLandmark.imageUrl}
+                  alt={selectedLandmark.name}
+                  className="w-full h-52 object-cover"
+                />
+              )}
+
+              {/* Header */}
+              <div className="relative p-5 pb-3">
+                <button
+                  onClick={() => setSelectedLandmark(null)}
+                  className="absolute top-3 right-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <h3 className="text-xl font-bold text-slate-900 leading-tight pr-10">
+                  {selectedLandmark.name}
+                </h3>
+                {selectedLandmark.nameAr && (
+                  <p className="text-sm text-slate-500 mt-1" dir="rtl">
+                    {selectedLandmark.nameAr}
+                  </p>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="px-5 pb-4 space-y-2">
+                {selectedLandmark.description && (
+                  <p className="text-sm text-slate-600">
+                    {selectedLandmark.description}
+                  </p>
+                )}
+                {selectedLandmark.yearBuilt && (
+                  <p className="text-xs text-slate-400">Built {selectedLandmark.yearBuilt}</p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 p-5 pt-2 border-t border-slate-100">
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedLandmark.location.lat},${selectedLandmark.location.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Get Directions
+                </a>
+                {selectedLandmark.websiteUrl && (
+                  <a
+                    href={selectedLandmark.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Globe className="w-4 h-4" />
+                    Website
+                  </a>
+                )}
+                {!selectedLandmark.websiteUrl && (
+                  <button
+                    onClick={() => setSelectedLandmark(null)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                )}
               </div>
             </div>
           </div>
