@@ -366,7 +366,9 @@ if (-not $env:GITHUB_TOKEN) {
     exit 1
 }
 
-$env:GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+# NOTE: Windows PowerShell 管道喂 --password-stdin 会给 token 追加换行符导致
+# "denied: denied"。改用 -p 直传(token 已在 env，deploy 场景可接受 insecure 提示)。
+docker login ghcr.io -u $GITHUB_USERNAME -p $env:GITHUB_TOKEN
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error-Custom "Failed to login to GHCR"
