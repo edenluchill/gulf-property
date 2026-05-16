@@ -10,17 +10,18 @@ import UserMenu from './auth/UserMenu'
 import { FavoritesButton } from './favorites'
 import AboutSheet from './AboutSheet'
 
-// 单一「午夜」主题：深空蓝玻璃 + 低调激光折射扫光
+// 精致浅色主题：与亮色 app 统一。质感来自克制 + 真实层级，不是发光特效
 const theme = {
-  dark: true,
-  header: 'bg-[#0B1220]/72 supports-[backdrop-filter]:bg-[#0B1220]/60 border-white/[0.06] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_1px_0_0_rgba(0,0,0,0.45)]',
-  idleText: 'text-slate-300 hover:text-white',
-  logoText: 'text-white',
-  tagline: 'text-teal-300',
-  divider: 'bg-white/15',
-  primaryGrad: 'from-teal-500 to-emerald-500 shadow-teal-500/30',
-  accentGrad: 'from-amber-400 to-yellow-500 shadow-amber-400/30',
-  panel: 'border-white/10 bg-[#0B1220]/95 text-slate-200'
+  dark: false,
+  // 近白微磨砂 + 冷灰 hairline + 极淡柔影(悬浮感，非发光) + 顶部内高光
+  header: 'bg-white/80 supports-[backdrop-filter]:bg-white/65 border-slate-900/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.7),0_1px_2px_0_rgba(15,23,42,0.04),0_8px_24px_-16px_rgba(15,23,42,0.16)]',
+  idleText: 'text-slate-500 hover:text-slate-900',
+  logoText: 'text-slate-900',
+  tagline: 'text-teal-600',
+  divider: 'bg-slate-200',
+  primaryGrad: 'from-teal-500 to-emerald-500 shadow-teal-500/20',
+  accentGrad: 'from-amber-500 to-orange-500 shadow-amber-500/20',
+  panel: 'border-slate-200/80 bg-white/95 text-slate-700'
 }
 
 export default function Header() {
@@ -114,27 +115,13 @@ export default function Header() {
         mobileHidden ? '-translate-y-full xl:translate-y-0' : 'translate-y-0'
       }`}
     >
-      {/* 高级静态材质层（无循环动光）：极淡光晕 + 颗粒噪点 + 渐隐分隔线 */}
+      {/* 浅色质感层：极淡顶部高光 + 渐隐冷灰 hairline（克制，不发光） */}
       <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* 顶部贴边的一抹品牌光晕，≤6%，无边无动 */}
         <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(120% 140% at 50% -25%, rgba(45,212,191,0.06), transparent 60%)'
-          }}
+          className="absolute inset-x-0 top-0 h-2/3"
+          style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.65), transparent)' }}
         />
-        {/* 细颗粒噪点：消除渐变色带、增加材质感（dark UI 用低透明度） */}
-        <div
-          className="absolute inset-0 opacity-[0.035] mix-blend-overlay"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-            backgroundSize: '120px 120px'
-          }}
-        />
-        {/* 底部渐隐 hairline：两端淡出，不是硬线 */}
-        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-slate-900/[0.08] to-transparent" />
       </div>
 
       {/* Mobile/Tablet: py-2 (compact), Desktop: py-4 */}
@@ -234,17 +221,14 @@ export default function Header() {
 
             <span className={`mx-1 h-5 w-px ${theme.divider}`} />
 
-            {/* 深色 header 下强制浅色，保证图标/文字对比 */}
-            <div className="flex items-center gap-1.5 [&_svg]:!text-slate-200 [&_span]:!text-slate-200 [&_a]:!text-slate-200 [&_button]:hover:!bg-white/10">
+            <div className="flex items-center gap-1.5">
               <FavoritesButton />
               <LanguageSwitcher />
             </div>
 
             {!loading && (
               user ? (
-                <div className="[&_svg]:!text-slate-200">
-                  <UserMenu />
-                </div>
+                <UserMenu />
               ) : (
                 <Link to="/login">
                   <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
