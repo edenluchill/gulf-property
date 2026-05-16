@@ -82,6 +82,7 @@ export default function AreaInsightsPage() {
   if (!data) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">暂无区域分级数据。</div>
 
   return (
+    <div className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <h1 className="text-2xl font-bold text-slate-800">区域分级判断</h1>
       <p className="mt-1 text-sm text-slate-500">
@@ -134,6 +135,7 @@ export default function AreaInsightsPage() {
       </div>
 
       <p className="mt-5 text-xs text-slate-400">{data.methodology}</p>
+    </div>
     </div>
   )
 }

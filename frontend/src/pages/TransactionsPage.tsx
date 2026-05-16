@@ -82,6 +82,7 @@ export default function TransactionsPage() {
   const pps = summary?.pricePerSqm
 
   return (
+    <div className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <h1 className="text-2xl font-bold text-slate-800">成交记录查询</h1>
       <p className="mt-1 text-sm text-slate-500">
@@ -210,6 +211,7 @@ export default function TransactionsPage() {
       ) : (
         <div className="mt-6 text-sm text-slate-400">该筛选条件下暂无成交数据。</div>
       )}
+    </div>
     </div>
   )
 }

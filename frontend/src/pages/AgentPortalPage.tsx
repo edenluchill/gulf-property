@@ -38,6 +38,7 @@ export default function AgentPortalPage() {
   // 未开通：介绍 + 开通入口
   if (!agent) {
     return (
+      <div className="flex-1 overflow-auto pb-20 md:pb-8">
       <div className="container mx-auto max-w-3xl px-4 py-10">
         <h1 className="text-2xl font-bold text-slate-800">经纪人工作台</h1>
         <p className="mt-2 text-sm text-slate-600">
@@ -69,6 +70,7 @@ export default function AgentPortalPage() {
           </button>
         </div>
       </div>
+      </div>
     )
   }
 
@@ -81,6 +83,7 @@ export default function AgentPortalPage() {
   ]
 
   return (
+    <div className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">经纪人工作台</h1>
@@ -126,6 +129,7 @@ export default function AgentPortalPage() {
           </Link>
         ))}
       </div>
+    </div>
     </div>
   )
 }

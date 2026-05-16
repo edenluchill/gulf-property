@@ -72,6 +72,7 @@ export default function BuyingReportPage() {
   }
 
   return (
+    <div className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto max-w-5xl px-4 py-6">
       <h1 className="text-2xl font-bold text-slate-800">AI 买房决策报告</h1>
       <p className="mt-1 text-sm text-slate-500">
@@ -213,6 +214,7 @@ export default function BuyingReportPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   )
 }
