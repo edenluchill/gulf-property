@@ -1,0 +1,29 @@
+{
+  "mapExplore": "Map Explore",
+  "explore": "Explore",
+  "analysis": "Analysis",
+  "admin": "Admin",
+  "agentPortal": "Agents",
+  "profile": "Me",
+  "transactions": "Transactions",
+  "areaInsights": "Area Insights",
+  "buyingReport": "AI Report",
+  "compare": "Compare",
+  "favorites": "Favorites",
+  "uploadBrochure": "Upload Brochure",
+  "projectManagement": "Project Management",
+  "dubaiMapEditor": "Map Editor",
+  "taskManagement": "Task Management",
+  "learnMore": "Learn more",
+  "desc": {
+    "transactions": "Multi-dimensional DLD real transaction search",
+    "areaInsights": "Area grading and two-area comparison",
+    "buyingReport": "AI home-buying decision report",
+    "compare": "Side-by-side project comparison",
+    "favorites": "Projects I have saved",
+    "uploadBrochure": "Auto-extract project info from PDF brochures",
+    "projectManagement": "View and edit all projects",
+    "dubaiMapEditor": "Edit Dubai map routes",
+    "taskManagement": "View upload task status"
+  }
+}

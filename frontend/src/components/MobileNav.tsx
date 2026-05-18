@@ -8,7 +8,7 @@ import { Sheet, SheetContent } from './ui/sheet'
 export default function MobileNav() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t } = useTranslation(['common', 'nav', 'auth'])
   const { user } = useAuth()
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [analysisSheetOpen, setAnalysisSheetOpen] = useState(false)
@@ -21,10 +21,10 @@ export default function MobileNav() {
 
   // Admin menu items
   const adminItems = [
-    { path: '/developer/upload', label: t('nav.uploadBrochure', '上传楼书'), icon: Upload, description: t('nav.uploadBrochureDesc', '上传PDF楼书自动提取项目信息') },
-    { path: '/admin/properties', label: t('nav.projectManagement', '项目管理'), icon: Building2, description: t('nav.projectManagementDesc', '查看和编辑所有项目') },
-    { path: '/admin/dubai', label: t('nav.dubaiMapEditor', '地图编辑'), icon: MapPinned, description: t('nav.dubaiMapEditorDesc', '编辑迪拜地图路线') },
-    { path: '/admin/tasks', label: t('nav.taskManagement', '任务管理'), icon: ClipboardList, description: t('nav.taskManagementDesc', '查看上传任务状态') },
+    { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, description: t('nav:desc.uploadBrochure') },
+    { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, description: t('nav:desc.projectManagement') },
+    { path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, description: t('nav:desc.dubaiMapEditor') },
+    { path: '/admin/tasks', label: t('nav:taskManagement'), icon: ClipboardList, description: t('nav:desc.taskManagement') },
   ]
 
   // Check if current path is admin-related
@@ -32,24 +32,24 @@ export default function MobileNav() {
 
   // 分析与工具组（对齐桌面"分析"下拉 + 收藏）
   const analysisItems = [
-    { path: '/transactions', label: t('nav.transactions', '成交记录'), icon: TrendingUp, description: t('nav.transactionsDesc', 'DLD 真实成交多维查询') },
-    { path: '/areas', label: t('nav.areaInsights', '区域分析'), icon: MapPinned, description: t('nav.areaInsightsDesc', '区域分级与两区对比') },
-    { path: '/report', label: t('nav.buyingReport', 'AI报告'), icon: ClipboardList, description: t('nav.buyingReportDesc', 'AI 买房决策报告') },
-    { path: '/compare', label: t('nav.compare', '对比'), icon: GitCompare, description: t('nav.compareDesc', '项目并排对比') },
-    { path: '/favorites', label: t('nav.favorites', '收藏'), icon: Heart, description: t('nav.favoritesDesc', '我收藏的项目') },
+    { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp, description: t('nav:desc.transactions') },
+    { path: '/areas', label: t('nav:areaInsights'), icon: MapPinned, description: t('nav:desc.areaInsights') },
+    { path: '/report', label: t('nav:buyingReport'), icon: ClipboardList, description: t('nav:desc.buyingReport') },
+    { path: '/compare', label: t('nav:compare'), icon: GitCompare, description: t('nav:desc.compare') },
+    { path: '/favorites', label: t('nav:favorites'), icon: Heart, description: t('nav:desc.favorites') },
   ]
   const isAnalysisActive = analysisItems.some(i => location.pathname === i.path)
 
   // Build nav items - 5 items for logged in users, 4 for guests
   const navItems = [
-    { path: '/map', label: t('nav.explore'), icon: MapPin },
-    { path: 'analysis-menu', label: t('nav.analysis', '分析'), icon: LineChart, isAnalysisTrigger: true },
-    { path: '/agent', label: t('nav.agentPortal', '经纪人'), icon: Briefcase },
+    { path: '/map', label: t('nav:explore'), icon: MapPin },
+    { path: 'analysis-menu', label: t('nav:analysis'), icon: LineChart, isAnalysisTrigger: true },
+    { path: '/agent', label: t('nav:agentPortal'), icon: Briefcase },
     // Admin - only for logged in users
-    ...(user ? [{ path: 'admin-menu', label: t('nav.admin', 'Admin'), icon: Settings, isAdminTrigger: true }] : []),
+    ...(user ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
     // Login/Profile based on auth status
     user
-      ? { path: '/profile', label: t('nav.profile', 'Me'), icon: User }
+      ? { path: '/profile', label: t('nav:profile'), icon: User }
       : { path: '/login', label: t('auth:login', 'Login'), icon: LogIn },
   ]
 
@@ -161,7 +161,7 @@ export default function MobileNav() {
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 pb-4 border-b border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-900">{t('nav.admin', '管理')}</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t('nav:admin')}</h2>
             <button
               onClick={() => setAdminSheetOpen(false)}
               className="p-2 -mr-2 rounded-full hover:bg-slate-100 transition-colors"
@@ -215,7 +215,7 @@ export default function MobileNav() {
           </div>
 
           <div className="flex items-center justify-between px-5 pb-4 border-b border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-900">{t('nav.analysis', '分析')}</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t('nav:analysis')}</h2>
             <button
               onClick={() => setAnalysisSheetOpen(false)}
               className="p-2 -mr-2 rounded-full hover:bg-slate-100 transition-colors"

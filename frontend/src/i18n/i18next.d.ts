@@ -14,6 +14,9 @@ import transactionsEn from './locales/en/transactions.json'
 import reportEn from './locales/en/report.json'
 import insightsEn from './locales/en/insights.json'
 import agentEn from './locales/en/agent.json'
+import navEn from './locales/en/nav.json'
+import editorEn from './locales/en/editor.json'
+import componentsEn from './locales/en/components.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -33,6 +36,9 @@ declare module 'i18next' {
       report: typeof reportEn
       insights: typeof insightsEn
       agent: typeof agentEn
+      nav: typeof navEn
+      editor: typeof editorEn
+      components: typeof componentsEn
     }
   }
 }

@@ -1,0 +1,31 @@
+{
+  "voice": {
+    "tool": {
+      "search": "搜索",
+      "locate": "定位",
+      "area": "区域",
+      "compare": "对比",
+      "project": "项目"
+    },
+    "status": {
+      "thinking": "思考中",
+      "listening": "聆听中",
+      "speaking": "说话中",
+      "connecting": "连接中"
+    },
+    "metric": {
+      "yield": "回报",
+      "growth": "增长",
+      "txns": "交易",
+      "pricePerSqm": "均价"
+    },
+    "chart": {
+      "projection": "5年收益预测",
+      "perYear": "/年",
+      "yearLabel": "{{n}}年",
+      "rent": "租金",
+      "growth": "增值"
+    },
+    "moreProjects": "+{{count}} 个项目"
+  }
+}

@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Save, Trash2, MapPin, Layers, Upload, X, Route } from 'lucide-react'
+import { Save, Trash2, MapPin, Layers, Upload, X, Route, ArrowLeft } from 'lucide-react'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { DubaiArea, DubaiLandmark } from '../types'
 import {
   fetchDubaiAreas,
@@ -23,6 +26,70 @@ type EditMode = 'idle' | 'placing-landmark' | 'drawing-area'
 type SelectedItem = { type: 'area'; item: DubaiArea } | { type: 'landmark'; item: DubaiLandmark } | null
 type ActiveTab = 'areas' | 'landmarks' | 'routes'
 
+// Create landmark icon: image thumbnail or neutral icon, white border + shadow
+function createLandmarkIcon(landmark: DubaiLandmark, isSelected: boolean): L.DivIcon {
+  const size = isSelected ? 52 : 44
+  const borderW = isSelected ? 3 : 2.5
+  const borderColor = isSelected ? '#1e40af' : '#fff'
+  const shadow = isSelected
+    ? 'box-shadow:0 0 0 3px rgba(30,64,175,0.35),0 1px 4px rgba(0,0,0,0.25),0 4px 12px rgba(0,0,0,0.12);'
+    : 'box-shadow:0 1px 4px rgba(0,0,0,0.25),0 4px 12px rgba(0,0,0,0.12);'
+
+  if (landmark.imageUrl) {
+    const html = `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;border:${borderW}px solid ${borderColor};${shadow}background:#f1f5f9;">
+      <img src="${landmark.imageUrl}" style="width:100%;height:100%;object-fit:cover;" />
+    </div>`
+    return L.divIcon({
+      html,
+      className: 'landmark-marker-icon',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    })
+  }
+
+  // No image: dark slate circle + white MapPin icon
+  const iconSvg = renderToStaticMarkup(
+    createElement(MapPin, { size: Math.round(size * 0.45), stroke: 'rgba(255,255,255,0.8)', strokeWidth: 2.5, fill: 'none' })
+  )
+  const html = `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;border:${borderW}px solid ${borderColor};${shadow}background:#334155;display:flex;align-items:center;justify-content:center;">
+    ${iconSvg}
+  </div>`
+
+  return L.divIcon({
+    html,
+    className: 'landmark-marker-icon',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+// Build landmark popup HTML
+function buildLandmarkPopupHtml(
+  landmark: DubaiLandmark,
+  labels: { built: (year: number) => string; website: string }
+): string {
+  const imgHtml = landmark.imageUrl
+    ? `<img src="${landmark.imageUrl}" style="width:100%;height:160px;object-fit:cover;" />`
+    : ''
+  const yearHtml = landmark.yearBuilt ? `<span>${labels.built(landmark.yearBuilt)}</span>` : ''
+  const linkHtml = landmark.websiteUrl
+    ? `<a href="${landmark.websiteUrl}" target="_blank" rel="noopener noreferrer" style="color:#3b82f6;">${labels.website} &rarr;</a>`
+    : ''
+  const metaHtml = (yearHtml || linkHtml)
+    ? `<div style="display:flex;gap:8px;margin-top:8px;font-size:12px;color:#6b7280;">${yearHtml}${linkHtml}</div>`
+    : ''
+
+  return `<div style="width:288px;overflow:hidden;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+    ${imgHtml}
+    <div style="padding:12px;">
+      <div style="font-weight:700;font-size:16px;">${landmark.name}</div>
+      ${landmark.nameAr ? `<div style="font-size:13px;color:#6b7280;" dir="rtl">${landmark.nameAr}</div>` : ''}
+      ${landmark.description ? `<div style="font-size:13px;color:#4b5563;margin-top:4px;">${landmark.description}</div>` : ''}
+      ${metaHtml}
+    </div>
+  </div>`
+}
+
 // Geoman + Map Click Handler
 function MapController({
   editMode,
@@ -38,6 +105,7 @@ function MapController({
   showLabels,
   activeTab,
 }: any) {
+  const { t } = useTranslation('editor')
   const map = useMap()
   const polygonLayersRef = useRef<Map<string, L.Polygon>>(new Map())
   const markerLayersRef = useRef<Map<string, L.Marker>>(new Map())
@@ -333,7 +401,7 @@ function MapController({
     })
   }, [map, showLabels, areas])
 
-  // Render landmarks as markers (always draggable)
+  // Render landmarks as markers with type-specific icons and rich popups
   useEffect(() => {
     // Clear old markers
     markerLayersRef.current.forEach((marker) => map.removeLayer(marker))
@@ -342,33 +410,23 @@ function MapController({
     landmarks.forEach((landmark: DubaiLandmark) => {
       const isSelected = selectedItem?.type === 'landmark' && selectedItem.item.id === landmark.id
 
-      const icon = L.divIcon({
-        html: `
-          <div style="
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: ${landmark.color};
-            border: ${isSelected ? '4px solid #000' : '3px solid #fff'};
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: move;
-          ">
-            <svg style="width: 20px; height: 20px; color: white;" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-            </svg>
-          </div>
-        `,
-        iconSize: [40, 40],
-        iconAnchor: [20, 40],
-      })
+      const icon = createLandmarkIcon(landmark, isSelected)
 
       const marker = L.marker([landmark.location.lat, landmark.location.lng], {
         icon,
-        draggable: activeTab !== 'routes',  // Disable drag when on Routes tab
-        bubblingMouseEvents: false, // Prevent events from bubbling to map
+        draggable: activeTab !== 'routes',
+        bubblingMouseEvents: false,
+      })
+
+      // Bind rich popup
+      marker.bindPopup(buildLandmarkPopupHtml(landmark, {
+        built: (year: number) => t('unified.popupBuilt', { year }),
+        website: t('unified.popupWebsite'),
+      }), {
+        maxWidth: 300,
+        minWidth: 200,
+        className: 'landmark-popup',
+        closeButton: true,
       })
 
       // Prevent marker mouse events from reaching the map
@@ -380,11 +438,12 @@ function MapController({
         L.DomEvent.stop(e)
       })
 
-      // Click to select (prevent map interaction) - skip when on Routes tab
+      // Click to select + open popup (skip when on Routes tab)
       marker.on('click', (e: L.LeafletMouseEvent) => {
         L.DomEvent.stop(e)
         if (activeTab === 'routes') return
         onItemSelect({ type: 'landmark', item: landmark })
+        marker.openPopup()
       })
 
       // Disable map dragging when dragging marker
@@ -417,6 +476,7 @@ function MapController({
 }
 
 export default function UnifiedDubaiEditor() {
+  const { t } = useTranslation('editor')
   const [areas, setAreas] = useState<DubaiArea[]>([])
   const [landmarks, setLandmarks] = useState<DubaiLandmark[]>([])
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null)
@@ -735,11 +795,11 @@ export default function UnifiedDubaiEditor() {
     const totalChanges = modifiedAreaIds.size + modifiedLandmarkIds.size + tempAreas.length + tempLandmarks.length
     
     if (totalChanges === 0) {
-      alert('No changes to save')
+      alert(t('unified.alertNoChanges'))
       return
     }
 
-    if (!confirm(`Save ${totalChanges} change(s)?`)) return
+    if (!confirm(t('unified.confirmSave', { count: totalChanges }))) return
 
     setIsSaving(true)
     try {
@@ -824,10 +884,10 @@ export default function UnifiedDubaiEditor() {
       // Trigger custom event to notify MapPage immediately
       window.dispatchEvent(new CustomEvent('dubaiDataUpdated'))
       
-      alert(`✅ Saved ${totalChanges} change(s) successfully!`)
+      alert(t('unified.alertSaved', { count: totalChanges }))
     } catch (error) {
       console.error('Batch save error:', error)
-      alert('❌ Failed to save changes. Please try again.')
+      alert(t('unified.alertSaveFailed'))
     } finally {
       setIsSaving(false)
     }
@@ -836,7 +896,7 @@ export default function UnifiedDubaiEditor() {
   const handleDelete = async () => {
     if (!selectedItem) return
 
-    if (!confirm(`Delete "${selectedItem.item.name}"?`)) return
+    if (!confirm(t('common.deleteConfirm', { name: selectedItem.item.name }))) return
 
     try {
       if (selectedItem.type === 'area') {
@@ -867,7 +927,7 @@ export default function UnifiedDubaiEditor() {
       setSelectedItem(null)
     } catch (error) {
       console.error('Delete error:', error)
-      alert('Failed to delete')
+      alert(t('unified.alertDeleteFailed'))
     }
   }
 
@@ -876,7 +936,7 @@ export default function UnifiedDubaiEditor() {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file')
+      alert(t('unified.alertSelectImage'))
       return
     }
 
@@ -896,16 +956,23 @@ export default function UnifiedDubaiEditor() {
       handleFormDataChange({ imageUrl: url })
     } catch (error) {
       console.error('Upload error:', error)
-      alert('Failed to upload image')
+      alert(t('unified.alertUploadFailed'))
     } finally {
       setIsUploading(false)
     }
   }
 
+  const hasSelection = !!(selectedItem || routesEditor.selectedItem)
+  const closeSelection = () => { setSelectedItem(null); routesEditor.setSelectedItem(null) }
+  const editTitle = selectedItem?.type === 'area' ? t('unified.editTitleArea') :
+    selectedItem?.type === 'landmark' ? t('unified.editTitleLandmark') :
+    routesEditor.selectedItem?.type === 'route' ? t('unified.editTitleRoute') :
+    routesEditor.selectedItem?.type === 'stop' ? t('unified.editTitleStop') : t('unified.editTitleDefault')
+
   return (
-    <div className="flex h-[calc(100vh-80px)]">
+    <div className="flex h-full">
       {/* Global Action Buttons - Fixed Position */}
-      <div className="fixed top-20 right-6 z-50 flex gap-2">
+      <div className="fixed top-20 right-4 xl:right-6 z-50 flex gap-2">
         {/* Undo/Redo Buttons */}
         <div className="flex gap-1 bg-white rounded-lg shadow-lg p-1">
           <Button
@@ -913,7 +980,7 @@ export default function UnifiedDubaiEditor() {
             disabled={historyIndex <= 0}
             size="sm"
             variant="ghost"
-            title="Undo (Ctrl+Z)"
+            title={t('unified.undo')}
             className="hover:bg-slate-100"
           >
             <span className="text-lg">↶</span>
@@ -923,7 +990,7 @@ export default function UnifiedDubaiEditor() {
             disabled={historyIndex >= history.length - 1}
             size="sm"
             variant="ghost"
-            title="Redo (Ctrl+Shift+Z)"
+            title={t('unified.redo')}
             className="hover:bg-slate-100"
           >
             <span className="text-lg">↷</span>
@@ -939,17 +1006,17 @@ export default function UnifiedDubaiEditor() {
             className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
           >
             <Save className="w-5 h-5 mr-2" />
-            {isSaving ? 'Saving...' : `Save All (${modifiedAreaIds.size + modifiedLandmarkIds.size + areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length})`}
+            {isSaving ? t('common.saving') : t('unified.saveAll', { count: modifiedAreaIds.size + modifiedLandmarkIds.size + areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length })}
           </Button>
         )}
       </div>
 
-      {/* Left Toolbar */}
-      <div className="w-80 bg-white border-r flex flex-col overflow-hidden">
+      {/* Left Toolbar — hidden on tablet when editing (edit panel takes its place) */}
+      <div className={`w-64 xl:w-80 bg-white border-r flex-col overflow-hidden ${hasSelection ? 'hidden xl:flex' : 'flex'}`}>
         {/* Header */}
-        <div className="p-4 border-b bg-slate-50">
-          <h2 className="font-bold text-lg mb-3">Dubai Map Editor</h2>
-          
+        <div className="p-3 xl:p-4 border-b bg-slate-50">
+          <h2 className="font-bold text-lg mb-3">{t('unified.title')}</h2>
+
           {/* Draft indicator */}
           {(() => {
             const tempCount = areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length
@@ -957,21 +1024,21 @@ export default function UnifiedDubaiEditor() {
             return totalChanges > 0 && (
               <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
                 <p className="font-semibold text-orange-900">
-                  📝 {totalChanges} unsaved change(s)
+                  {t('unified.unsavedChanges', { count: totalChanges })}
                 </p>
                 <p className="text-orange-700 mt-1">
-                  Click "Save All" to save your changes
+                  {t('unified.clickSaveAll')}
                 </p>
               </div>
             )
           })()}
-          
+
           {/* Pro Tips */}
-          <div className="p-2 bg-blue-50 rounded text-xs text-slate-700 space-y-1">
-            <p className="font-semibold text-blue-900">✨ Quick Guide:</p>
-            <p>• Click to select, drag to move</p>
-            <p>• Hover edges to edit shape</p>
-            <p>• Vertices auto-snap perfectly</p>
+          <div className="p-2 bg-blue-50 rounded text-xs text-slate-700 space-y-1 hidden xl:block">
+            <p className="font-semibold text-blue-900">{t('unified.quickGuide')}</p>
+            <p>{t('unified.guide1')}</p>
+            <p>{t('unified.guide2')}</p>
+            <p>{t('unified.guide3')}</p>
           </div>
 
           {/* Show/Hide Labels Toggle */}
@@ -982,7 +1049,7 @@ export default function UnifiedDubaiEditor() {
               onChange={(e) => setShowLabels(e.target.checked)}
               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
-            <span className="text-sm text-slate-700">Show area labels</span>
+            <span className="text-sm text-slate-700">{t('unified.showAreaLabels')}</span>
           </label>
         </div>
 
@@ -1000,7 +1067,7 @@ export default function UnifiedDubaiEditor() {
             }`}
           >
             <Layers className="w-4 h-4 inline mr-2" />
-            Areas ({areas.length})
+            {t('unified.tabAreas', { count: areas.length })}
           </button>
           <button
             onClick={() => {
@@ -1014,7 +1081,7 @@ export default function UnifiedDubaiEditor() {
             }`}
           >
             <MapPin className="w-4 h-4 inline mr-2" />
-            Landmarks ({landmarks.length})
+            {t('unified.tabLandmarks', { count: landmarks.length })}
           </button>
           <button
             onClick={() => {
@@ -1029,7 +1096,7 @@ export default function UnifiedDubaiEditor() {
             }`}
           >
             <Route className="w-4 h-4 inline mr-2" />
-            Routes
+            {t('unified.tabRoutes')}
           </button>
         </div>
 
@@ -1046,17 +1113,17 @@ export default function UnifiedDubaiEditor() {
                   size="lg"
                 >
                   <Layers className="w-5 h-5 mr-2" />
-                  {editMode === 'drawing-area' ? '🎨 Draw on Map...' : 'Add New Area'}
+                  {editMode === 'drawing-area' ? t('unified.drawOnMap') : t('unified.addNewArea')}
                 </Button>
-                
+
                 {editMode === 'drawing-area' && (
                   <div className="p-3 bg-blue-50 rounded text-sm space-y-2">
-                    <p className="font-semibold text-blue-900">Drawing Mode Active:</p>
+                    <p className="font-semibold text-blue-900">{t('unified.drawingModeActive')}</p>
                     <div className="space-y-1 text-xs text-slate-700">
-                      <p>✏️ Click map points to draw polygon</p>
-                      <p>🔗 Points auto-snap when close</p>
-                      <p>✅ Click first point to finish</p>
-                      <p>✂️ Use Cut tool for complex shapes</p>
+                      <p>{t('unified.drawStep1')}</p>
+                      <p>{t('unified.drawStep2')}</p>
+                      <p>{t('unified.drawStep3')}</p>
+                      <p>{t('unified.drawStep4')}</p>
                     </div>
                   </div>
                 )}
@@ -1081,16 +1148,16 @@ export default function UnifiedDubaiEditor() {
                       <div className="w-4 h-4 rounded" style={{ background: area.color }} />
                       <span className="text-sm flex-1 font-medium">{area.name}</span>
                       {area.id.startsWith('temp-') && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">New</span>
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">{t('unified.newBadge')}</span>
                       )}
                       {modifiedAreaIds.has(area.id) && (
-                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Draft</span>
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">{t('unified.draftBadge')}</span>
                       )}
                     </div>
                   ))}
                   {areas.length === 0 && (
                     <div className="text-center py-8 text-slate-400 text-sm">
-                      No areas yet. Click "Add New Area" to start.
+                      {t('unified.noAreas')}
                     </div>
                   )}
                 </div>
@@ -1109,13 +1176,13 @@ export default function UnifiedDubaiEditor() {
                   size="lg"
                 >
                   <MapPin className="w-5 h-5 mr-2" />
-                  {editMode === 'placing-landmark' ? '📍 Click Map...' : 'Add New Landmark'}
+                  {editMode === 'placing-landmark' ? t('unified.clickMap') : t('unified.addNewLandmark')}
                 </Button>
-                
+
                 {editMode === 'placing-landmark' && (
                   <div className="p-3 bg-blue-50 rounded text-sm space-y-2">
-                    <p className="font-semibold text-blue-900">Placement Mode Active:</p>
-                    <p className="text-xs text-slate-700">📍 Click anywhere on map to place landmark</p>
+                    <p className="font-semibold text-blue-900">{t('unified.placementModeActive')}</p>
+                    <p className="text-xs text-slate-700">{t('unified.placeStep')}</p>
                   </div>
                 )}
               </div>
@@ -1139,16 +1206,16 @@ export default function UnifiedDubaiEditor() {
                       <div className="w-4 h-4 rounded-full" style={{ background: landmark.color }} />
                       <span className="text-sm flex-1 font-medium">{landmark.name}</span>
                       {landmark.id.startsWith('temp-') && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">New</span>
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">{t('unified.newBadge')}</span>
                       )}
                       {modifiedLandmarkIds.has(landmark.id) && (
-                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Draft</span>
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">{t('unified.draftBadge')}</span>
                       )}
                     </div>
                   ))}
                   {landmarks.length === 0 && (
                     <div className="text-center py-8 text-slate-400 text-sm">
-                      No landmarks yet. Click "Add New Landmark" to start.
+                      {t('unified.noLandmarks')}
                     </div>
                   )}
                 </div>
@@ -1168,6 +1235,295 @@ export default function UnifiedDubaiEditor() {
           )}
         </div>
       </div>
+
+      {/* Edit Panel — tablet: replaces left panel (order-first), desktop: right column (order-last) */}
+      {hasSelection && (
+        <div className="w-64 xl:w-96 bg-white border-r xl:border-r-0 xl:border-l flex flex-col overflow-hidden order-first xl:order-last">
+          {/* Header — back arrow on tablet, X on desktop */}
+          <div className="p-3 xl:p-4 border-b bg-slate-50 flex items-center gap-2">
+            <button
+              onClick={closeSelection}
+              className="xl:hidden p-1 -ml-1 hover:bg-slate-200 rounded-md transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </button>
+            <h3 className="font-semibold flex-1">{editTitle}</h3>
+            <Button variant="ghost" size="sm" onClick={closeSelection} className="hidden xl:flex">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 xl:p-4 space-y-4">
+            {/* Areas & Landmarks */}
+            {selectedItem && (
+              <>
+                <div>
+                  <Label>{t('common.nameRequired')}</Label>
+                  <Input
+                    value={formData.name || ''}
+                    onChange={(e) => handleFormDataChange({ name: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Routes & Stops */}
+            {routesEditor.selectedItem && !selectedItem && (
+              <>
+                <div>
+                  <Label>{t('common.nameRequired')}</Label>
+                  <Input
+                    value={routeFormData.name || ''}
+                    onChange={(e) => handleRouteFormDataChange({ name: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label>{t('common.color')}</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={routeFormData.color || '#3b82f6'}
+                      onChange={(e) => handleRouteFormDataChange({ color: e.target.value })}
+                      className="w-12 h-10 rounded cursor-pointer"
+                    />
+                    <Input
+                      value={routeFormData.color || ''}
+                      onChange={(e) => handleRouteFormDataChange({ color: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {routesEditor.selectedItem.type === 'route' && (
+                  <>
+                    <div>
+                      <Label>{t('unified.routeType')}</Label>
+                      <select
+                        className="w-full border rounded px-3 py-2"
+                        value={routeFormData.route_type || 'metro'}
+                        onChange={(e) => handleRouteFormDataChange({ route_type: e.target.value })}
+                      >
+                        <option value="metro">{t('unified.routeKind.metro')}</option>
+                        <option value="tram">{t('unified.routeKind.tram')}</option>
+                        <option value="bus">{t('unified.routeKind.bus')}</option>
+                        <option value="monorail">{t('unified.routeKind.monorail')}</option>
+                        <option value="ferry">{t('unified.routeKind.ferry')}</option>
+                        <option value="custom">{t('unified.routeKind.custom')}</option>
+                      </select>
+                    </div>
+
+                    {/* Add Stop — creates at midpoint, drag to position */}
+                    <Button
+                      onClick={routesEditor.handleAddStop}
+                      variant="outline"
+                      className="w-full"
+                      size="sm"
+                    >
+                      <MapPin className="w-4 h-4 mr-2" />
+                      {t('unified.addStop')}
+                    </Button>
+                  </>
+                )}
+
+                <div>
+                  <Label>{t('common.description')}</Label>
+                  <textarea
+                    className="w-full border rounded px-3 py-2"
+                    rows={3}
+                    value={routeFormData.description || ''}
+                    onChange={(e) => handleRouteFormDataChange({ description: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedItem?.type === 'landmark' && (
+              <>
+                {/* Image Upload/URL */}
+                <div>
+                  <Label>{t('unified.photo')}</Label>
+                  <div className="space-y-2">
+                    {formData.imageUrl && (
+                      <div className="relative">
+                        <img
+                          src={formData.imageUrl}
+                          alt={t('common.imagePreview')}
+                          className="w-full h-40 object-cover rounded border"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => handleFormDataChange({ imageUrl: '' })}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {isUploading ? t('unified.uploading') : t('unified.upload')}
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                      />
+                    </div>
+
+                    <Input
+                      type="url"
+                      placeholder={t('unified.pasteImageUrl')}
+                      value={formData.imageUrl || ''}
+                      onChange={(e) => handleFormDataChange({ imageUrl: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>{t('unified.typeLabel')}</Label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={formData.landmarkType || ''}
+                    onChange={(e) => handleFormDataChange({ landmarkType: e.target.value })}
+                  >
+                    <option value="tower">{t('landmarks.kind.tower')}</option>
+                    <option value="mall">{t('landmarks.kind.mall')}</option>
+                    <option value="hotel">{t('landmarks.kind.hotel')}</option>
+                    <option value="attraction">{t('landmarks.kind.attraction')}</option>
+                    <option value="beach">{t('landmarks.kind.beach')}</option>
+                    <option value="park">{t('landmarks.kind.park')}</option>
+                    <option value="mosque">{t('landmarks.kind.mosque')}</option>
+                    <option value="restaurant">{t('landmarks.kind.restaurant')}</option>
+                    <option value="airport">{t('landmarks.kind.airport')}</option>
+                    <option value="museum">{t('landmarks.kind.museum')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label>{t('unified.sizeLabel')}</Label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={formData.size || 'medium'}
+                    onChange={(e) => handleFormDataChange({ size: e.target.value })}
+                  >
+                    <option value="small">{t('landmarks.sizeOption.small')}</option>
+                    <option value="medium">{t('landmarks.sizeOption.medium')}</option>
+                    <option value="large">{t('landmarks.sizeOption.large')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label>{t('landmarks.yearBuilt')}</Label>
+                  <Input
+                    type="number"
+                    placeholder={t('unified.yearBuiltPlaceholder')}
+                    value={formData.yearBuilt || ''}
+                    onChange={(e) => handleFormDataChange({ yearBuilt: e.target.value ? parseInt(e.target.value) : undefined })}
+                  />
+                </div>
+
+                <div>
+                  <Label>{t('landmarks.websiteUrl')}</Label>
+                  <Input
+                    type="url"
+                    placeholder="https://..."
+                    value={formData.websiteUrl || ''}
+                    onChange={(e) => handleFormDataChange({ websiteUrl: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedItem?.type === 'area' && (
+              <div>
+                <Label>{t('common.opacity', { value: `${((formData.opacity || 0.3) * 100).toFixed(0)}%` })}</Label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={formData.opacity || 0.3}
+                  onChange={(e) => handleFormDataChange({ opacity: parseFloat(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+            )}
+
+            {/* Area/Landmark Description & Color */}
+            {selectedItem && (
+              <>
+                <div>
+                  <Label>{t('common.description')}</Label>
+                  <textarea
+                    className="w-full border rounded px-3 py-2"
+                    rows={3}
+                    value={formData.description || ''}
+                    onChange={(e) => handleFormDataChange({ description: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label>{t('common.color')}</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={formData.color || '#3B82F6'}
+                      onChange={(e) => handleFormDataChange({ color: e.target.value })}
+                      className="w-12 h-10 rounded cursor-pointer"
+                    />
+                    <Input
+                      value={formData.color || ''}
+                      onChange={(e) => handleFormDataChange({ color: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Footer - different actions for areas/landmarks vs routes/stops */}
+          {selectedItem && (
+            <div className="p-3 xl:p-4 border-t bg-slate-50 flex gap-2">
+              <div className="flex-1 text-xs xl:text-sm text-slate-600 flex items-center">
+                <span>{t('unified.autoTracked')}</span>
+              </div>
+              <Button variant="destructive" size="sm" onClick={handleDelete}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
+          {routesEditor.selectedItem && !selectedItem && (
+            <div className="p-3 xl:p-4 border-t bg-slate-50 flex gap-2">
+              <Button
+                onClick={handleSaveRouteForm}
+                disabled={routesEditor.isSaving}
+                className="flex-1"
+                size="sm"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {routesEditor.isSaving ? t('common.saving') : t('common.save')}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDeleteRouteItem}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Map */}
       <div className="flex-1 relative">
@@ -1211,267 +1567,12 @@ export default function UnifiedDubaiEditor() {
               editMode={routesEditor.editMode}
               onRouteCreate={routesEditor.handleRouteCreate}
               onRouteUpdate={routesEditor.handleRouteUpdate}
-              onStopCreate={routesEditor.handleStopCreate}
               onStopUpdate={routesEditor.handleStopUpdate}
               onItemSelect={routesEditor.setSelectedItem}
             />
           )}
         </MapContainer>
       </div>
-
-      {/* Right Edit Panel */}
-      {(selectedItem || routesEditor.selectedItem) && (
-        <div className="w-96 bg-white border-l flex flex-col overflow-hidden">
-          <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-            <h3 className="font-semibold">
-              {selectedItem?.type === 'area' ? 'Edit Area' :
-               selectedItem?.type === 'landmark' ? 'Edit Landmark' :
-               routesEditor.selectedItem?.type === 'route' ? 'Edit Route' :
-               routesEditor.selectedItem?.type === 'stop' ? 'Edit Stop' : 'Edit'}
-            </h3>
-            <Button variant="ghost" size="sm" onClick={() => {
-              setSelectedItem(null)
-              routesEditor.setSelectedItem(null)
-            }}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Areas & Landmarks */}
-            {selectedItem && (
-              <>
-                <div>
-                  <Label>Name *</Label>
-                  <Input
-                    value={formData.name || ''}
-                    onChange={(e) => handleFormDataChange({ name: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Routes & Stops */}
-            {routesEditor.selectedItem && !selectedItem && (
-              <>
-                <div>
-                  <Label>Name *</Label>
-                  <Input
-                    value={routeFormData.name || ''}
-                    onChange={(e) => handleRouteFormDataChange({ name: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <Label>Color</Label>
-                  <div className="flex gap-2">
-                    <input
-                      type="color"
-                      value={routeFormData.color || '#3b82f6'}
-                      onChange={(e) => handleRouteFormDataChange({ color: e.target.value })}
-                      className="w-12 h-10 rounded cursor-pointer"
-                    />
-                    <Input
-                      value={routeFormData.color || ''}
-                      onChange={(e) => handleRouteFormDataChange({ color: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {routesEditor.selectedItem.type === 'route' && (
-                  <div>
-                    <Label>Route Type</Label>
-                    <select
-                      className="w-full border rounded px-3 py-2"
-                      value={routeFormData.route_type || 'metro'}
-                      onChange={(e) => handleRouteFormDataChange({ route_type: e.target.value })}
-                    >
-                      <option value="metro">Metro</option>
-                      <option value="tram">Tram</option>
-                      <option value="bus">Bus</option>
-                      <option value="monorail">Monorail</option>
-                      <option value="ferry">Ferry</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <Label>Description</Label>
-                  <textarea
-                    className="w-full border rounded px-3 py-2"
-                    rows={3}
-                    value={routeFormData.description || ''}
-                    onChange={(e) => handleRouteFormDataChange({ description: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-
-            {selectedItem?.type === 'landmark' && (
-              <>
-                {/* Image Upload/URL */}
-                <div>
-                  <Label>Photo</Label>
-                  <div className="space-y-2">
-                    {formData.imageUrl && (
-                      <div className="relative">
-                        <img
-                          src={formData.imageUrl}
-                          alt="Preview"
-                          className="w-full h-40 object-cover rounded border"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none'
-                          }}
-                        />
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-2 right-2"
-                          onClick={() => handleFormDataChange({ imageUrl: '' })}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        {isUploading ? 'Uploading...' : 'Upload'}
-                      </Button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                      />
-                    </div>
-
-                    <Input
-                      type="url"
-                      placeholder="Or paste image URL"
-                      value={formData.imageUrl || ''}
-                      onChange={(e) => handleFormDataChange({ imageUrl: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Type</Label>
-                  <select
-                    className="w-full border rounded px-3 py-2"
-                    value={formData.landmarkType || ''}
-                    onChange={(e) => handleFormDataChange({ landmarkType: e.target.value })}
-                  >
-                    <option value="tower">Tower</option>
-                    <option value="mall">Mall</option>
-                    <option value="hotel">Hotel</option>
-                    <option value="attraction">Attraction</option>
-                    <option value="beach">Beach</option>
-                    <option value="park">Park</option>
-                    <option value="airport">Airport</option>
-                    <option value="museum">Museum</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label>Size</Label>
-                  <select
-                    className="w-full border rounded px-3 py-2"
-                    value={formData.size || 'medium'}
-                    onChange={(e) => handleFormDataChange({ size: e.target.value })}
-                  >
-                    <option value="small">Small</option>
-                    <option value="medium">Medium</option>
-                    <option value="large">Large</option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            {selectedItem?.type === 'area' && (
-              <div>
-                <Label>Opacity: {((formData.opacity || 0.3) * 100).toFixed(0)}%</Label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={formData.opacity || 0.3}
-                  onChange={(e) => handleFormDataChange({ opacity: parseFloat(e.target.value) })}
-                  className="w-full"
-                />
-              </div>
-            )}
-
-            {/* Area/Landmark Description & Color */}
-            {selectedItem && (
-              <>
-                <div>
-                  <Label>Description</Label>
-                  <textarea
-                    className="w-full border rounded px-3 py-2"
-                    rows={3}
-                    value={formData.description || ''}
-                    onChange={(e) => handleFormDataChange({ description: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <Label>Color</Label>
-                  <div className="flex gap-2">
-                    <input
-                      type="color"
-                      value={formData.color || '#3B82F6'}
-                      onChange={(e) => handleFormDataChange({ color: e.target.value })}
-                      className="w-12 h-10 rounded cursor-pointer"
-                    />
-                    <Input
-                      value={formData.color || ''}
-                      onChange={(e) => handleFormDataChange({ color: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Footer - different actions for areas/landmarks vs routes/stops */}
-          {selectedItem && (
-            <div className="p-4 border-t bg-slate-50 flex gap-2">
-              <div className="flex-1 text-sm text-slate-600 flex items-center">
-                <span>💡 Changes auto-tracked. Click "Save All" to save.</span>
-              </div>
-              <Button variant="destructive" onClick={handleDelete}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-
-          {routesEditor.selectedItem && !selectedItem && (
-            <div className="p-4 border-t bg-slate-50 flex gap-2">
-              <Button
-                onClick={handleSaveRouteForm}
-                disabled={routesEditor.isSaving}
-                className="flex-1"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {routesEditor.isSaving ? 'Saving...' : 'Save'}
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteRouteItem}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

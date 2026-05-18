@@ -26,7 +26,7 @@ const theme = {
 
 export default function Header() {
   const location = useLocation()
-  const { t, i18n } = useTranslation()
+  const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
   const { user, loading } = useAuth()
 
   // About sheet state
@@ -91,17 +91,17 @@ export default function Header() {
 
   // 分组导航：地图(主) · 分析(下拉) · 经纪人 · 管理(下拉)
   const analysisItems = [
-    { path: '/transactions', label: t('nav.transactions', '成交记录'), icon: TrendingUp, desc: 'DLD 真实成交多维查询' },
-    { path: '/areas', label: t('nav.areaInsights', '区域分析'), icon: MapPinned, desc: '区域分级与两区对比' },
-    { path: '/report', label: t('nav.buyingReport', 'AI报告'), icon: ClipboardList, desc: 'AI 买房决策报告' },
-    { path: '/compare', label: t('nav.compare', '对比'), icon: GitCompare, desc: '项目并排对比' },
+    { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp, desc: t('nav:desc.transactions') },
+    { path: '/areas', label: t('nav:areaInsights'), icon: MapPinned, desc: t('nav:desc.areaInsights') },
+    { path: '/report', label: t('nav:buyingReport'), icon: ClipboardList, desc: t('nav:desc.buyingReport') },
+    { path: '/compare', label: t('nav:compare'), icon: GitCompare, desc: t('nav:desc.compare') },
   ]
 
   const adminItems = [
-    { path: '/developer/upload', label: t('nav.uploadBrochure', '上传楼书'), icon: Upload, desc: '' },
-    { path: '/admin/properties', label: t('nav.projectManagement'), icon: Building2, desc: '' },
-    { path: '/admin/dubai', label: t('nav.dubaiMapEditor'), icon: MapPinned, desc: '' },
-    { path: '/admin/tasks', label: t('nav.taskManagement', 'Task Management'), icon: ClipboardList, desc: '' },
+    { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, desc: '' },
+    { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, desc: '' },
+    { path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, desc: '' },
+    { path: '/admin/tasks', label: t('nav:taskManagement'), icon: ClipboardList, desc: '' },
   ]
 
   const isAdminPage = location.pathname.startsWith('/admin') || location.pathname.startsWith('/developer')
@@ -185,7 +185,7 @@ export default function Header() {
                     setAboutOpen(true)
                   }}
                   className="flex items-center justify-center w-3.5 h-3.5 xl:w-4 xl:h-4 rounded-full bg-teal-100 hover:bg-teal-200 transition-colors"
-                  aria-label="Learn more"
+                  aria-label={t('nav:learnMore')}
                 >
                   <HelpCircle className="h-2.5 w-2.5 xl:h-3 xl:w-3 text-teal-600" />
                 </button>
@@ -205,12 +205,12 @@ export default function Header() {
           {/* Desktop Navigation — 分组 + 流畅动效 */}
           <nav ref={navRef} className="hidden xl:flex items-center gap-1.5">
             {/* 地图探索（主入口） */}
-            <NavPill to="/" active={isMapActive} icon={MapPin} label={t('nav.mapExplore')}
+            <NavPill to="/" active={isMapActive} icon={MapPin} label={t('nav:mapExplore')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {/* 分析（下拉） */}
             <DropdownNav
-              label={t('nav.analysis', '分析')}
+              label={t('nav:analysis')}
               icon={LineChart}
               active={isAnalysisActive}
               open={openMenu === 'analysis'}
@@ -221,14 +221,14 @@ export default function Header() {
             />
 
             {/* 经纪人（专属入口，强调色） */}
-            <NavPill to="/agent" active={isAgentActive} icon={Briefcase} label={t('nav.agentPortal', '经纪人')} accent
+            <NavPill to="/agent" active={isAgentActive} icon={Briefcase} label={t('nav:agentPortal')} accent
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {user && (
               <>
                 <span className={`mx-1 h-5 w-px ${theme.divider}`} />
                 <DropdownNav
-                  label={t('nav.admin')}
+                  label={t('nav:admin')}
                   icon={Settings}
                   active={isAdminPage}
                   open={openMenu === 'admin'}

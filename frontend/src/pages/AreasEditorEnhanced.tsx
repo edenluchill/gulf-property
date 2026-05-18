@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -122,6 +123,7 @@ function EditablePolygon({ area, isSelected, onClick, onUpdate, isEditMode }: an
 }
 
 export default function AreasEditorEnhanced() {
+  const { t } = useTranslation('editor')
   const [areas, setAreas] = useState<DubaiArea[]>([])
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -150,7 +152,7 @@ export default function AreasEditorEnhanced() {
   const handleShapeCreate = (geoJSON: any) => {
     const newArea: any = {
       id: `temp-${Date.now()}`,
-      name: 'New District',
+      name: t('common.newDistrict'),
       nameAr: '',
       boundary: geoJSON.geometry,
       areaType: 'residential',
@@ -188,7 +190,7 @@ export default function AreasEditorEnhanced() {
       }
     } catch (error) {
       console.error('Error saving area:', error)
-      alert('Failed to save area')
+      alert(t('common.failedToSaveArea'))
     } finally {
       setIsSaving(false)
     }
@@ -197,7 +199,7 @@ export default function AreasEditorEnhanced() {
   const handleDelete = async () => {
     if (!selectedArea) return
     
-    if (!confirm(`Delete "${selectedArea.name}"?`)) return
+    if (!confirm(t('common.deleteConfirm', { name: selectedArea.name }))) return
     
     if (selectedArea.id.startsWith('temp-')) {
       setAreas(areas.filter(a => a.id !== selectedArea.id))
@@ -213,7 +215,7 @@ export default function AreasEditorEnhanced() {
   }
 
   const handleReset = () => {
-    if (!confirm('Reset all changes?')) return
+    if (!confirm(t('common.resetConfirm'))) return
     setAreas(JSON.parse(JSON.stringify(originalAreas)))
     setSelectedArea(null)
     setIsEditMode(false)
@@ -248,25 +250,25 @@ export default function AreasEditorEnhanced() {
           <div className="flex gap-2 mb-3">
             <Button onClick={handleReset} variant="outline" className="flex-1">
               <RotateCcw className="w-4 h-4 mr-2" />
-              Reset All
+              {t('common.resetAll')}
             </Button>
           </div>
           <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
-            <p className="font-medium mb-1">🎨 Drawing Tools</p>
-            <p className="text-xs">• Click the polygon tool in map</p>
-            <p className="text-xs">• Click to add points</p>
-            <p className="text-xs">• Double-click to finish</p>
-            <p className="text-xs mt-2 font-medium">✏️ Editing</p>
-            <p className="text-xs">• Select area and enable Edit</p>
-            <p className="text-xs">• Drag vertices to adjust</p>
-            <p className="text-xs">• Click midpoints to add</p>
-            <p className="text-xs">• Click vertices to delete</p>
+            <p className="font-medium mb-1">{t('areas.drawingTools')}</p>
+            <p className="text-xs">{t('areas.drawTip1')}</p>
+            <p className="text-xs">{t('areas.drawTip2')}</p>
+            <p className="text-xs">{t('areas.drawTip3')}</p>
+            <p className="text-xs mt-2 font-medium">{t('areas.editingTitle')}</p>
+            <p className="text-xs">{t('areas.editTip1')}</p>
+            <p className="text-xs">{t('areas.editTip2')}</p>
+            <p className="text-xs">{t('areas.editTip3')}</p>
+            <p className="text-xs">{t('areas.editTip4')}</p>
           </div>
         </div>
 
         {/* Areas List */}
         <div className="p-4">
-          <h3 className="font-semibold mb-2">Areas ({areas.length})</h3>
+          <h3 className="font-semibold mb-2">{t('areas.listTitle', { count: areas.length })}</h3>
           <div className="space-y-2">
             {areas.map((area) => (
               <div
@@ -287,7 +289,7 @@ export default function AreasEditorEnhanced() {
                   <span className="font-medium">{area.name}</span>
                 </div>
                 {area.id.startsWith('temp-') && (
-                  <span className="text-xs text-orange-600">Unsaved</span>
+                  <span className="text-xs text-orange-600">{t('common.unsaved')}</span>
                 )}
               </div>
             ))}
@@ -298,7 +300,7 @@ export default function AreasEditorEnhanced() {
         {selectedArea && (
           <div className="p-4 border-t bg-gray-50">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Edit Area</h3>
+              <h3 className="font-semibold">{t('areas.editArea')}</h3>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -306,7 +308,7 @@ export default function AreasEditorEnhanced() {
                   onClick={() => setIsEditMode(!isEditMode)}
                 >
                   <Edit className="w-3 h-3 mr-1" />
-                  {isEditMode ? 'Editing' : 'Edit Shape'}
+                  {isEditMode ? t('common.editing') : t('common.editShape')}
                 </Button>
                 <Button
                   size="sm"
@@ -323,7 +325,7 @@ export default function AreasEditorEnhanced() {
 
             <div className="space-y-3">
               <div>
-                <Label>Name *</Label>
+                <Label>{t('common.nameRequired')}</Label>
                 <Input
                   value={formData.name || ''}
                   onChange={(e) => handleFormChange('name', e.target.value)}
@@ -331,18 +333,18 @@ export default function AreasEditorEnhanced() {
               </div>
 
               <div>
-                <Label>Description</Label>
+                <Label>{t('common.description')}</Label>
                 <textarea
                   className="w-full border rounded px-3 py-2 text-sm"
                   rows={4}
                   value={formData.description || ''}
                   onChange={(e) => handleFormChange('description', e.target.value)}
-                  placeholder="Describe this area..."
+                  placeholder={t('areas.descriptionPlaceholder')}
                 />
               </div>
 
               <div>
-                <Label>Color</Label>
+                <Label>{t('common.color')}</Label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -359,7 +361,7 @@ export default function AreasEditorEnhanced() {
               </div>
 
               <div>
-                <Label>Opacity: {(formData.opacity || 0.3).toFixed(2)}</Label>
+                <Label>{t('common.opacity', { value: (formData.opacity || 0.3).toFixed(2) })}</Label>
                 <input
                   type="range"
                   min="0"
@@ -374,7 +376,7 @@ export default function AreasEditorEnhanced() {
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSave} disabled={isSaving} className="flex-1">
                   <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? 'Saving...' : 'Save'}
+                  {isSaving ? t('common.saving') : t('common.save')}
                 </Button>
                 <Button variant="destructive" onClick={handleDelete}>
                   <Trash2 className="w-4 h-4" />

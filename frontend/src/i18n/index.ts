@@ -16,6 +16,9 @@ import transactionsEn from './locales/en/transactions.json'
 import reportEn from './locales/en/report.json'
 import insightsEn from './locales/en/insights.json'
 import agentEn from './locales/en/agent.json'
+import navEn from './locales/en/nav.json'
+import editorEn from './locales/en/editor.json'
+import componentsEn from './locales/en/components.json'
 
 import commonZh from './locales/zh-CN/common.json'
 import homeZh from './locales/zh-CN/home.json'
@@ -31,6 +34,9 @@ import transactionsZh from './locales/zh-CN/transactions.json'
 import reportZh from './locales/zh-CN/report.json'
 import insightsZh from './locales/zh-CN/insights.json'
 import agentZh from './locales/zh-CN/agent.json'
+import navZh from './locales/zh-CN/nav.json'
+import editorZh from './locales/zh-CN/editor.json'
+import componentsZh from './locales/zh-CN/components.json'
 
 const resources = {
   en: {
@@ -48,6 +54,9 @@ const resources = {
     report: reportEn,
     insights: insightsEn,
     agent: agentEn,
+    nav: navEn,
+    editor: editorEn,
+    components: componentsEn,
   },
   'zh-CN': {
     common: commonZh,
@@ -64,6 +73,9 @@ const resources = {
     report: reportZh,
     insights: insightsZh,
     agent: agentZh,
+    nav: navZh,
+    editor: editorZh,
+    components: componentsZh,
   },
 }
 
@@ -74,7 +86,7 @@ i18n
     resources,
     fallbackLng: 'en',
     defaultNS: 'common',
-    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent'],
+    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components'],
     interpolation: {
       escapeValue: false,
     },

@@ -4,6 +4,7 @@
  * - 移动端:单个「筛选」按钮 → 底部抽屉(bottom sheet),大按钮、可滚、不与右侧控件抢位。
  */
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, X, SlidersHorizontal, Wallet, BedDouble, Hammer, Building2, Check } from 'lucide-react'
 import { PropertyFilters } from '../types'
 
@@ -26,32 +27,43 @@ interface Props {
   developers: string[]
 }
 
-const PRICE_RANGES: { label: string; min?: number; max?: number }[] = [
-  { label: '不限' },
-  { label: '≤ 50万', max: 500000 },
-  { label: '50–100万', min: 500000, max: 1000000 },
-  { label: '100–200万', min: 1000000, max: 2000000 },
-  { label: '200–500万', min: 2000000, max: 5000000 },
-  { label: '500–1000万', min: 5000000, max: 10000000 },
-  { label: '1000万+', min: 10000000 },
+type PriceKey = 'price0' | 'price1' | 'price2' | 'price3' | 'price4' | 'price5' | 'price6'
+type StatusKey = 'any' | 'statusUnderConstruction' | 'statusUpcoming' | 'statusCompleted'
+
+const PRICE_RANGES: { key: PriceKey; min?: number; max?: number }[] = [
+  { key: 'price0' },
+  { key: 'price1', max: 500000 },
+  { key: 'price2', min: 500000, max: 1000000 },
+  { key: 'price3', min: 1000000, max: 2000000 },
+  { key: 'price4', min: 2000000, max: 5000000 },
+  { key: 'price5', min: 5000000, max: 10000000 },
+  { key: 'price6', min: 10000000 },
 ]
-const BEDS = [
-  { label: '不限', v: undefined as number | undefined },
-  { label: 'Studio', v: 0 }, { label: '1+', v: 1 }, { label: '2+', v: 2 },
-  { label: '3+', v: 3 }, { label: '4+', v: 4 },
+const BEDS: { key: string; v: number | undefined }[] = [
+  { key: 'any', v: undefined },
+  { key: 'studio', v: 0 }, { key: '1', v: 1 }, { key: '2', v: 2 },
+  { key: '3', v: 3 }, { key: '4', v: 4 },
 ]
-const STATUS: { label: string; v?: PropertyFilters['status'] }[] = [
-  { label: '不限', v: undefined },
-  { label: '在建', v: 'under-construction' },
-  { label: '待开盘', v: 'upcoming' },
-  { label: '已完工', v: 'completed' },
+const STATUS: { key: StatusKey; v?: PropertyFilters['status'] }[] = [
+  { key: 'any', v: undefined },
+  { key: 'statusUnderConstruction', v: 'under-construction' },
+  { key: 'statusUpcoming', v: 'upcoming' },
+  { key: 'statusCompleted', v: 'completed' },
 ]
 
 export default function MapFilterChips({ filters, setFilters, developers }: Props) {
+  const { t } = useTranslation('filter')
   const [open, setOpen] = useState<string | null>(null)   // 桌面 popover
   const [sheet, setSheet] = useState(false)                // 移动端抽屉
   const [devQuery, setDevQuery] = useState('')
   const ref = useRef<HTMLDivElement | null>(null)
+
+  const priceText = (key: PriceKey) => t(`chips.${key}`)
+  const bedText = (b: { key: string; v: number | undefined }) =>
+    b.v === undefined ? t('chips.any')
+      : b.v === 0 ? t('chips.studio')
+      : t('chips.bedsPlus', { n: b.v })
+  const statusText = (key: StatusKey) => t(`chips.${key}`)
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -63,11 +75,14 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
 
   const priceLabel = (() => {
     const r = PRICE_RANGES.find(r => r.min === filters.minPrice && r.max === filters.maxPrice)
-    return r && r.label !== '不限' ? r.label : null
+    return r && r.key !== 'price0' ? priceText(r.key) : null
   })()
   const bedLabel = filters.minBedrooms === undefined ? null
-    : (filters.minBedrooms === 0 ? 'Studio' : `${filters.minBedrooms}+`)
-  const statusLabel = STATUS.find(s => s.v === filters.status && s.v)?.label || null
+    : (filters.minBedrooms === 0 ? t('chips.studio') : t('chips.bedsPlus', { n: filters.minBedrooms }))
+  const statusLabel = (() => {
+    const s = STATUS.find(s => s.v === filters.status && s.v)
+    return s ? statusText(s.key) : null
+  })()
   const devLabel = filters.developer || null
   const activeCount = [priceLabel, bedLabel, statusLabel, devLabel].filter(Boolean).length
   const anyActive = activeCount > 0
@@ -141,58 +156,58 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       {/* ===== 桌面:内联 chips ===== */}
       <div className="hidden md:flex flex-wrap items-center gap-1.5">
         <div className="relative shrink-0">
-          <Chip id="price" base="价格" active={priceLabel} />
+          <Chip id="price" base={t('chips.price')} active={priceLabel} />
           {open === 'price' && (
             <Pop>
               {PRICE_RANGES.map(r => (
-                <Opt key={r.label}
+                <Opt key={r.key}
                   sel={r.min === filters.minPrice && r.max === filters.maxPrice}
                   on={() => setFilters(f => ({ ...f, minPrice: r.min, maxPrice: r.max }))}>
-                  {r.label}
+                  {priceText(r.key)}
                 </Opt>
               ))}
             </Pop>
           )}
         </div>
         <div className="relative shrink-0">
-          <Chip id="beds" base="卧室" active={bedLabel} />
+          <Chip id="beds" base={t('chips.beds')} active={bedLabel} />
           {open === 'beds' && (
             <Pop>
               {BEDS.map(b => (
-                <Opt key={b.label} sel={filters.minBedrooms === b.v}
+                <Opt key={b.key} sel={filters.minBedrooms === b.v}
                   on={() => setFilters(f => ({ ...f, minBedrooms: b.v }))}>
-                  {b.label}
+                  {bedText(b)}
                 </Opt>
               ))}
             </Pop>
           )}
         </div>
         <div className="relative shrink-0">
-          <Chip id="status" base="状态" active={statusLabel} />
+          <Chip id="status" base={t('chips.status')} active={statusLabel} />
           {open === 'status' && (
             <Pop>
               {STATUS.map(s => (
-                <Opt key={s.label} sel={filters.status === s.v && !!s.v}
+                <Opt key={s.key} sel={filters.status === s.v && !!s.v}
                   on={() => setFilters(f => ({ ...f, status: s.v }))}>
-                  {s.label}
+                  {statusText(s.key)}
                 </Opt>
               ))}
             </Pop>
           )}
         </div>
         <div className="relative shrink-0">
-          <Chip id="dev" base="开发商" active={devLabel} />
+          <Chip id="dev" base={t('chips.developer')} active={devLabel} />
           {open === 'dev' && (
             <div className="absolute left-0 top-9 z-[1001] w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
               <input
                 autoFocus value={devQuery} onChange={e => setDevQuery(e.target.value)}
-                placeholder="搜索开发商…"
+                placeholder={t('chips.searchDeveloper')}
                 className="w-full border-b border-slate-100 bg-transparent px-3 py-2 text-xs focus:outline-none"
               />
               <div className="max-h-56 overflow-y-auto p-1">
                 <Opt sel={!filters.developer}
                   on={() => { setFilters(f => ({ ...f, developer: undefined })); setDevQuery('') }}>
-                  不限
+                  {t('chips.any')}
                 </Opt>
                 {developers
                   .filter(d => d.toLowerCase().includes(devQuery.toLowerCase()))
@@ -212,7 +227,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
             onClick={clearAll}
             className="flex shrink-0 items-center gap-1 rounded-full bg-white/85 px-2.5 py-1.5 text-xs text-slate-500 ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700"
           >
-            <X className="h-3 w-3" /> 清除
+            <X className="h-3 w-3" /> {t('chips.clear')}
           </button>
         )}
       </div>
@@ -225,7 +240,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
         }`}
       >
         <SlidersHorizontal className="h-4 w-4" />
-        筛选
+        {t('chips.filter')}
         {anyActive && (
           <span className="ml-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-primary">
             {activeCount}
@@ -240,28 +255,28 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
           <div className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-3xl bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-3 shadow-2xl">
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">筛选房源</h3>
+              <h3 className="text-base font-semibold text-slate-900">{t('chips.filterListings')}</h3>
               <button onClick={() => setSheet(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="space-y-6">
-              <Section icon={Wallet} title="价格" hint="AED">
+              <Section icon={Wallet} title={t('chips.price')} hint={t('chips.aed')}>
                 <div className="flex flex-wrap gap-2">
                   {PRICE_RANGES.map(r => (
-                    <SheetRow key={r.label} label={r.label}
-                      isDefault={r.label === '不限'}
+                    <SheetRow key={r.key} label={priceText(r.key)}
+                      isDefault={r.key === 'price0'}
                       sel={r.min === filters.minPrice && r.max === filters.maxPrice}
                       on={() => setFilters(f => ({ ...f, minPrice: r.min, maxPrice: r.max }))} />
                   ))}
                 </div>
               </Section>
 
-              <Section icon={BedDouble} title="卧室">
+              <Section icon={BedDouble} title={t('chips.beds')}>
                 <div className="flex flex-wrap gap-2">
                   {BEDS.map(b => (
-                    <SheetRow key={b.label} label={b.label}
+                    <SheetRow key={b.key} label={bedText(b)}
                       isDefault={b.v === undefined}
                       sel={filters.minBedrooms === b.v}
                       on={() => setFilters(f => ({ ...f, minBedrooms: b.v }))} />
@@ -269,10 +284,10 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                 </div>
               </Section>
 
-              <Section icon={Hammer} title="状态" hint="建设进度">
+              <Section icon={Hammer} title={t('chips.status')} hint={t('chips.constructionProgress')}>
                 <div className="flex flex-wrap gap-2">
                   {STATUS.map(s => (
-                    <SheetRow key={s.label} label={s.label}
+                    <SheetRow key={s.key} label={statusText(s.key)}
                       isDefault={!s.v}
                       sel={s.v ? filters.status === s.v : !filters.status}
                       on={() => setFilters(f => ({ ...f, status: s.v }))} />
@@ -280,12 +295,12 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                 </div>
               </Section>
 
-              <Section icon={Building2} title="开发商"
-                hint={filters.developer ? `已选:${filters.developer}` : undefined}>
+              <Section icon={Building2} title={t('chips.developer')}
+                hint={filters.developer ? t('chips.selected', { name: filters.developer }) : undefined}>
                 <div className="relative mb-2">
                   <input
                     value={devQuery} onChange={e => setDevQuery(e.target.value)}
-                    placeholder="搜索开发商…"
+                    placeholder={t('chips.searchDeveloper')}
                     className="w-full rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -300,7 +315,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                       <X className="h-4 w-4" />
                     </span>
                     <span className={`flex-1 ${!filters.developer ? 'font-semibold text-primary' : 'text-slate-700'}`}>
-                      不限(全部开发商)
+                      {t('chips.anyAllDevelopers')}
                     </span>
                   </button>
                   {developers
@@ -335,13 +350,13 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                 disabled={!anyActive}
                 className="flex-1 rounded-2xl bg-slate-100 py-3 text-sm font-medium text-slate-600 disabled:opacity-40"
               >
-                清除全部
+                {t('chips.clearAll')}
               </button>
               <button
                 onClick={() => setSheet(false)}
                 className="flex-[2] rounded-2xl bg-primary py-3 text-sm font-semibold text-white"
               >
-                查看结果
+                {t('chips.viewResults')}
               </button>
             </div>
           </div>

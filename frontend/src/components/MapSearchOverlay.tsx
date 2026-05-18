@@ -6,6 +6,7 @@
  * - Filters / 刷新 按钮内嵌
  */
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search, RefreshCw, X, MapPin, Building2, Briefcase } from 'lucide-react'
 import { searchDubaiAreas, AreaSearchResult } from '../lib/api'
 import { PropertyFilters } from '../types'
@@ -33,6 +34,7 @@ export default function MapSearchOverlay({
   searchQuery, setSearchQuery, onFly, onRefresh, isRefreshing,
   developers, projects, applyFilter, filters, setFilters
 }: Props) {
+  const { t } = useTranslation('filter')
   const [suggestions, setSuggestions] = useState<Sugg[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -89,7 +91,11 @@ export default function MapSearchOverlay({
   const ICON = {
     area: MapPin, developer: Briefcase, project: Building2
   }
-  const TAG = { area: '区域', developer: '开发商', project: '项目' }
+  const TAG = {
+    area: t('chips.tagArea'),
+    developer: t('chips.tagDeveloper'),
+    project: t('chips.tagProject'),
+  }
 
   return (
     <div
@@ -104,14 +110,14 @@ export default function MapSearchOverlay({
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onFocus={() => suggestions.length && setOpen(true)}
-            placeholder="搜索区域 / 项目 / 关键词"
+            placeholder={t('chips.searchPlaceholder')}
             className="w-full rounded-xl bg-transparent py-2 pl-9 pr-7 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
           />
           {searchQuery && (
             <button
               onClick={() => { setSearchQuery(''); setSuggestions([]); setOpen(false) }}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              aria-label="清除"
+              aria-label={t('chips.clear')}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -120,7 +126,7 @@ export default function MapSearchOverlay({
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          title="刷新筛选数据"
+          title={t('chips.refresh')}
           className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 transition-colors"
         >
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -134,7 +140,7 @@ export default function MapSearchOverlay({
       {open && (loading || suggestions.length > 0) && (
         <div className="overflow-hidden rounded-2xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
           {loading && suggestions.length === 0 && (
-            <div className="px-4 py-3 text-xs text-slate-400">搜索中…</div>
+            <div className="px-4 py-3 text-xs text-slate-400">{t('chips.searching')}</div>
           )}
           {suggestions.map((s, i) => {
             const Ico = ICON[s.kind]

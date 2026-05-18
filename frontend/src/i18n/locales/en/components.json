@@ -1,0 +1,31 @@
+{
+  "voice": {
+    "tool": {
+      "search": "Search",
+      "locate": "Locate",
+      "area": "Area",
+      "compare": "Compare",
+      "project": "Project"
+    },
+    "status": {
+      "thinking": "Thinking",
+      "listening": "Listening",
+      "speaking": "Speaking",
+      "connecting": "..."
+    },
+    "metric": {
+      "yield": "Yield",
+      "growth": "Growth",
+      "txns": "Txns",
+      "pricePerSqm": "$/sqm"
+    },
+    "chart": {
+      "projection": "5-Year Projection",
+      "perYear": "/yr",
+      "yearLabel": "Y{{n}}",
+      "rent": "Rent",
+      "growth": "Growth"
+    },
+    "moreProjects": "+{{count}} more"
+  }
+}

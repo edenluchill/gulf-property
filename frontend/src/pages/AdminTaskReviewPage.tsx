@@ -32,8 +32,7 @@ interface TaskData {
 export default function AdminTaskReviewPage() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
-  const { t: _t } = useTranslation('upload')
-  void _t // suppress unused warning
+  const { t } = useTranslation('admin')
   const { session } = useAuth()
 
   const [loading, setLoading] = useState(true)
@@ -101,7 +100,7 @@ export default function AdminTaskReviewPage() {
 
   // Delete task
   const handleDelete = async () => {
-    if (!confirm('Delete this task? This cannot be undone.')) return
+    if (!confirm(t('review.deleteConfirm'))) return
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}`, {
@@ -127,7 +126,7 @@ export default function AdminTaskReviewPage() {
     if (isSubmitting) return
 
     const confirmSubmit = window.confirm(
-      `Submit "${formData.projectName}" with ${formData.unitTypes.length} unit types?`
+      t('review.submitConfirm', { name: formData.projectName, count: formData.unitTypes.length })
     )
 
     if (!confirmSubmit) return
@@ -232,10 +231,10 @@ export default function AdminTaskReviewPage() {
         <div className="max-w-4xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-red-800 mb-2">Failed to Load Task</h2>
+            <h2 className="text-xl font-bold text-red-800 mb-2">{t('review.failedToLoadTask')}</h2>
             <p className="text-red-600">{error}</p>
             <Button onClick={() => navigate('/admin/tasks')} className="mt-4">
-              Back to Tasks
+              {t('review.backToTasks')}
             </Button>
           </div>
         </div>
@@ -257,7 +256,7 @@ export default function AdminTaskReviewPage() {
                   className="flex items-center gap-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to Tasks
+                  {t('review.backToTasks')}
                 </Button>
                 <div className="h-8 w-px bg-gray-300" />
                 <div className="flex items-center gap-3">
@@ -265,7 +264,7 @@ export default function AdminTaskReviewPage() {
                     <Building2 className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">Review & Edit Task</h1>
+                    <h1 className="text-xl font-bold text-gray-900">{t('review.title')}</h1>
                     <p className="text-sm text-gray-600">{task?.job_id}</p>
                   </div>
                 </div>
@@ -276,7 +275,7 @@ export default function AdminTaskReviewPage() {
                 className="flex items-center gap-2"
               >
                 <Trash2 className="h-4 w-4" />
-                Delete Task
+                {t('review.deleteTask')}
               </Button>
             </div>
           </div>
@@ -287,8 +286,8 @@ export default function AdminTaskReviewPage() {
         <div className="max-w-7xl mx-auto">
           {submitted ? (
             <SuccessCard
-              title="Project Submitted!"
-              subtitle="Redirecting to task list..."
+              title={t('review.projectSubmitted')}
+              subtitle={t('review.redirecting')}
             />
           ) : (
             <PropertyEditorForm
@@ -301,9 +300,9 @@ export default function AdminTaskReviewPage() {
               showMapPicker={showMapPicker}
               setShowMapPicker={setShowMapPicker}
               error={error}
-              submitButtonTextConfirmed="Submit as Project"
-              overlayTitle="Submitting Project"
-              overlaySubtitle="Saving to database..."
+              submitButtonTextConfirmed={t('review.submitAsProject')}
+              overlayTitle={t('review.submittingProject')}
+              overlaySubtitle={t('review.savingToDb')}
               overlayAccentColor="green"
             />
           )}

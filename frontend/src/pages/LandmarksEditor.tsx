@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -10,7 +11,7 @@ import L from 'leaflet'
 
 // Default template for new landmarks
 const DEFAULT_LANDMARK: Partial<DubaiLandmark> = {
-  name: 'New Landmark',
+  name: '',
   nameAr: '',
   location: { lat: 25.1972, lng: 55.2744 },
   landmarkType: 'attraction',
@@ -98,6 +99,7 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
 }
 
 export default function LandmarksEditor() {
+  const { t } = useTranslation('editor')
   const [landmarks, setLandmarks] = useState<DubaiLandmark[]>([])
   const [selectedLandmark, setSelectedLandmark] = useState<DubaiLandmark | null>(null)
   const [isPlacingMode, setIsPlacingMode] = useState(false)
@@ -126,7 +128,7 @@ export default function LandmarksEditor() {
   const handleAddNew = () => {
     setIsPlacingMode(true)
     setSelectedLandmark(null)
-    setFormData(DEFAULT_LANDMARK)
+    setFormData({ ...DEFAULT_LANDMARK, name: t('common.newLandmark') })
   }
 
   const handleMapClick = (lat: number, lng: number) => {
@@ -134,6 +136,7 @@ export default function LandmarksEditor() {
 
     const newLandmark: any = {
       ...DEFAULT_LANDMARK,
+      name: t('common.newLandmark'),
       id: `temp-${Date.now()}`,
       location: { lat, lng },
     }
@@ -176,7 +179,7 @@ export default function LandmarksEditor() {
       }
     } catch (error) {
       console.error('Error saving landmark:', error)
-      alert('Failed to save landmark')
+      alert(t('common.failedToSaveLandmark'))
     } finally {
       setIsSaving(false)
     }
@@ -185,7 +188,7 @@ export default function LandmarksEditor() {
   const handleDelete = async () => {
     if (!selectedLandmark) return
     
-    if (!confirm(`Delete "${selectedLandmark.name}"?`)) return
+    if (!confirm(t('common.deleteConfirm', { name: selectedLandmark.name }))) return
     
     if (selectedLandmark.id.startsWith('temp-')) {
       setLandmarks(landmarks.filter(l => l.id !== selectedLandmark.id))
@@ -201,7 +204,7 @@ export default function LandmarksEditor() {
   }
 
   const handleReset = () => {
-    if (!confirm('Reset all changes?')) return
+    if (!confirm(t('common.resetConfirm'))) return
     setLandmarks(JSON.parse(JSON.stringify(originalLandmarks)))
     setSelectedLandmark(null)
     setIsPlacingMode(false)
@@ -220,23 +223,23 @@ export default function LandmarksEditor() {
               variant={isPlacingMode ? "default" : "outline"}
             >
               <MapPin className="w-4 h-4 mr-2" />
-              {isPlacingMode ? 'Click map to place' : 'Add Landmark'}
+              {isPlacingMode ? t('landmarks.clickMapToPlace') : t('landmarks.addLandmark')}
             </Button>
             <Button variant="outline" onClick={handleReset}>
               <RotateCcw className="w-4 h-4 mr-2" />
-              Reset
+              {t('common.reset')}
             </Button>
           </div>
           {isPlacingMode && (
             <p className="text-sm text-blue-600 mt-2">
-              Click anywhere on the map to place the landmark
+              {t('landmarks.placeHint')}
             </p>
           )}
         </div>
 
         {/* Landmarks List */}
         <div className="p-4">
-          <h3 className="font-semibold mb-2">Landmarks ({landmarks.length})</h3>
+          <h3 className="font-semibold mb-2">{t('landmarks.listTitle', { count: landmarks.length })}</h3>
           <div className="space-y-2">
             {landmarks.map((landmark) => (
               <div
@@ -258,7 +261,7 @@ export default function LandmarksEditor() {
                 </div>
                 <span className="text-xs text-gray-500">{landmark.landmarkType}</span>
                 {landmark.id.startsWith('temp-') && (
-                  <span className="text-xs text-orange-600 ml-2">Unsaved</span>
+                  <span className="text-xs text-orange-600 ml-2">{t('common.unsaved')}</span>
                 )}
               </div>
             ))}
@@ -269,7 +272,7 @@ export default function LandmarksEditor() {
         {selectedLandmark && (
           <div className="p-4 border-t bg-gray-50">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Edit Landmark</h3>
+              <h3 className="font-semibold">{t('landmarks.editLandmark')}</h3>
               <Button
                 size="sm"
                 variant="ghost"
@@ -281,7 +284,7 @@ export default function LandmarksEditor() {
 
             <div className="space-y-3">
               <div>
-                <Label>Name *</Label>
+                <Label>{t('common.nameRequired')}</Label>
                 <Input
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -289,26 +292,26 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Type *</Label>
+                <Label>{t('landmarks.type')}</Label>
                 <select
                   className="w-full border rounded px-3 py-2"
                   value={formData.landmarkType || ''}
                   onChange={(e) => setFormData({ ...formData, landmarkType: e.target.value })}
                 >
-                  <option value="tower">Tower</option>
-                  <option value="mall">Mall</option>
-                  <option value="hotel">Hotel</option>
-                  <option value="attraction">Attraction</option>
-                  <option value="beach">Beach</option>
-                  <option value="park">Park</option>
-                  <option value="airport">Airport</option>
-                  <option value="museum">Museum</option>
-                  <option value="entertainment">Entertainment</option>
+                  <option value="tower">{t('landmarks.kind.tower')}</option>
+                  <option value="mall">{t('landmarks.kind.mall')}</option>
+                  <option value="hotel">{t('landmarks.kind.hotel')}</option>
+                  <option value="attraction">{t('landmarks.kind.attraction')}</option>
+                  <option value="beach">{t('landmarks.kind.beach')}</option>
+                  <option value="park">{t('landmarks.kind.park')}</option>
+                  <option value="airport">{t('landmarks.kind.airport')}</option>
+                  <option value="museum">{t('landmarks.kind.museum')}</option>
+                  <option value="entertainment">{t('landmarks.kind.entertainment')}</option>
                 </select>
               </div>
 
               <div>
-                <Label>Description</Label>
+                <Label>{t('common.description')}</Label>
                 <textarea
                   className="w-full border rounded px-3 py-2"
                   rows={3}
@@ -318,7 +321,7 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Year Built</Label>
+                <Label>{t('landmarks.yearBuilt')}</Label>
                 <Input
                   type="number"
                   value={formData.yearBuilt || ''}
@@ -327,7 +330,7 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Website URL</Label>
+                <Label>{t('landmarks.websiteUrl')}</Label>
                 <Input
                   type="url"
                   value={formData.websiteUrl || ''}
@@ -337,7 +340,7 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Image URL</Label>
+                <Label>{t('landmarks.imageUrl')}</Label>
                 <Input
                   type="url"
                   value={formData.imageUrl || ''}
@@ -345,13 +348,13 @@ export default function LandmarksEditor() {
                   placeholder="https://images.unsplash.com/photo-xxx?w=400"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Recommended: Unsplash images (400x400px)
+                  {t('landmarks.imageRecommendation')}
                 </p>
                 {formData.imageUrl && (
                   <div className="mt-2">
-                    <img 
-                      src={formData.imageUrl} 
-                      alt="Preview" 
+                    <img
+                      src={formData.imageUrl}
+                      alt={t('common.imagePreview')}
                       className="w-full h-32 object-cover rounded border"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none'
@@ -362,7 +365,7 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Location</Label>
+                <Label>{t('landmarks.location')}</Label>
                 <div className="flex gap-2">
                   <Input
                     type="number"
@@ -388,7 +391,7 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Color</Label>
+                <Label>{t('common.color')}</Label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -404,22 +407,22 @@ export default function LandmarksEditor() {
               </div>
 
               <div>
-                <Label>Size</Label>
+                <Label>{t('landmarks.size')}</Label>
                 <select
                   className="w-full border rounded px-3 py-2"
                   value={formData.size || 'medium'}
                   onChange={(e) => setFormData({ ...formData, size: e.target.value as any })}
                 >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
+                  <option value="small">{t('landmarks.sizeOption.small')}</option>
+                  <option value="medium">{t('landmarks.sizeOption.medium')}</option>
+                  <option value="large">{t('landmarks.sizeOption.large')}</option>
                 </select>
               </div>
 
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSave} disabled={isSaving} className="flex-1">
                   <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? 'Saving...' : 'Save'}
+                  {isSaving ? t('common.saving') : t('common.save')}
                 </Button>
                 <Button variant="destructive" onClick={handleDelete}>
                   <Trash2 className="w-4 h-4" />
@@ -427,7 +430,7 @@ export default function LandmarksEditor() {
               </div>
 
               <p className="text-xs text-blue-600 mt-2">
-                💡 Drag the marker on the map to adjust position
+                {t('landmarks.markerHint')}
               </p>
             </div>
           </div>

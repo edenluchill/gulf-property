@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Label } from './ui/label'
 import {
@@ -22,6 +23,7 @@ interface FilterPanelProps {
 }
 
 export default function FilterPanel({ filters, onFiltersChange, onReset }: FilterPanelProps) {
+  const { t } = useTranslation('filter')
   const [priceRange, setPriceRange] = useState([0, 30000000])
   const [developers, setDevelopers] = useState<string[]>([])
   const [areas, setAreas] = useState<string[]>([])
@@ -63,7 +65,7 @@ export default function FilterPanel({ filters, onFiltersChange, onReset }: Filte
     <Card className="h-full shadow-lg border-slate-200">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Filters</CardTitle>
+          <CardTitle>{t('title')}</CardTitle>
           {hasActiveFilters && (
             <Button
               variant="ghost"
@@ -72,7 +74,7 @@ export default function FilterPanel({ filters, onFiltersChange, onReset }: Filte
               className="text-slate-600 hover:text-slate-900"
             >
               <X className="h-4 w-4 mr-1" />
-              Clear All
+              {t('footer.clearAll')}
             </Button>
           )}
         </div>

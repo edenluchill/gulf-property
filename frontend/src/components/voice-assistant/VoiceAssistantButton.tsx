@@ -12,6 +12,7 @@ import { useCallback } from 'react'
 import { Loader2, MapPin, Building2, ExternalLink, Search, Globe, BarChart3, Compass } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useVoiceAssistantContext } from '../../contexts/VoiceAssistantContext'
 import { VoicePhase, ProjectCard, AreaInfoCard, BubbleContent, Investment5yr } from '../../hooks/voice-assistant/types'
 import { cn } from '../../lib/utils'
@@ -208,7 +209,7 @@ function CompactProjectCard({ project, onNavigate }: { project: ProjectCard; onN
 
 // ─── Compact Area Info Card ───
 
-function CompactAreaCard({ areaInfo, language }: { areaInfo: AreaInfoCard; language: string }) {
+function CompactAreaCard({ areaInfo, t }: { areaInfo: AreaInfoCard; t: TFunction<'components'> }) {
   return (
     <div className="rounded-xl bg-gradient-to-br from-slate-50/80 to-blue-50/60 p-2.5">
       <div className="flex items-center gap-1.5 mb-1.5">
@@ -218,13 +219,13 @@ function CompactAreaCard({ areaInfo, language }: { areaInfo: AreaInfoCard; langu
       <div className="grid grid-cols-2 gap-1.5 text-[10px]">
         {areaInfo.rentalYield != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
-            <span className="text-gray-400">{language === 'zh' ? '回报' : 'Yield'}</span>
+            <span className="text-gray-400">{t('voice.metric.yield')}</span>
             <span className="ml-1 font-semibold text-emerald-600">{parseFloat(String(areaInfo.rentalYield)).toFixed(1)}%</span>
           </div>
         )}
         {areaInfo.priceGrowth != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
-            <span className="text-gray-400">{language === 'zh' ? '增长' : 'Growth'}</span>
+            <span className="text-gray-400">{t('voice.metric.growth')}</span>
             <span className={cn('ml-1 font-semibold', parseFloat(String(areaInfo.priceGrowth)) >= 0 ? 'text-emerald-600' : 'text-red-500')}>
               {parseFloat(String(areaInfo.priceGrowth)) >= 0 ? '+' : ''}{parseFloat(String(areaInfo.priceGrowth)).toFixed(1)}%
             </span>
@@ -232,13 +233,13 @@ function CompactAreaCard({ areaInfo, language }: { areaInfo: AreaInfoCard; langu
         )}
         {areaInfo.transactionCount != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
-            <span className="text-gray-400">{language === 'zh' ? '交易' : 'Txns'}</span>
+            <span className="text-gray-400">{t('voice.metric.txns')}</span>
             <span className="ml-1 font-semibold text-gray-700">{Number(areaInfo.transactionCount).toLocaleString()}</span>
           </div>
         )}
         {areaInfo.medianPrice != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
-            <span className="text-gray-400">{language === 'zh' ? '均价' : '$/sqm'}</span>
+            <span className="text-gray-400">{t('voice.metric.pricePerSqm')}</span>
             <span className="ml-1 font-semibold text-gray-700">{Number(areaInfo.medianPrice).toLocaleString()}</span>
           </div>
         )}
@@ -249,7 +250,7 @@ function CompactAreaCard({ areaInfo, language }: { areaInfo: AreaInfoCard; langu
 
 // ─── 5-Year Investment Chart (pure SVG) ───
 
-function InvestmentChart({ inv, language }: { inv: Investment5yr; language: string }) {
+function InvestmentChart({ inv, t }: { inv: Investment5yr; t: TFunction<'components'> }) {
   const price = inv.purchasePrice
   const growth = inv.growthPct / 100
   const annualRent = inv.rentalIncome5yr / 5
@@ -285,10 +286,10 @@ function InvestmentChart({ inv, language }: { inv: Investment5yr; language: stri
     <div className="rounded-xl bg-gradient-to-br from-emerald-50/80 to-blue-50/60 p-2.5">
       <div className="flex items-center justify-between mb-1">
         <span className="text-[10px] font-medium text-gray-500">
-          {language === 'zh' ? '5年收益预测' : '5-Year Projection'}
+          {t('voice.chart.projection')}
         </span>
         <span className="text-[10px] font-bold text-emerald-600">
-          +{formatM(totalReturn)} ({inv.annualizedReturnPct}%{language === 'zh' ? '/年' : '/yr'})
+          +{formatM(totalReturn)} ({inv.annualizedReturnPct}%{t('voice.chart.perYear')})
         </span>
       </div>
 
@@ -319,7 +320,7 @@ function InvestmentChart({ inv, language }: { inv: Investment5yr; language: stri
         {[0, 1, 2, 3, 4, 5].map(yr => (
           <text key={yr} x={x(yr)} y={H - 2} textAnchor="middle"
             className="text-[8px] fill-gray-400" style={{ fontSize: 8 }}>
-            {language === 'zh' ? `${yr}年` : `Y${yr}`}
+            {t('voice.chart.yearLabel', { n: yr })}
           </text>
         ))}
 
@@ -338,13 +339,13 @@ function InvestmentChart({ inv, language }: { inv: Investment5yr; language: stri
         {inv.rentalIncome5yr > 0 && (
           <div className="flex items-center gap-1 text-[9px] text-gray-500">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-            {language === 'zh' ? '租金' : 'Rent'} {formatM(inv.rentalIncome5yr)}
+            {t('voice.chart.rent')} {formatM(inv.rentalIncome5yr)}
           </div>
         )}
         {inv.appreciation5yr > 0 && (
           <div className="flex items-center gap-1 text-[9px] text-gray-500">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            {language === 'zh' ? '增值' : 'Growth'} {formatM(inv.appreciation5yr)}
+            {t('voice.chart.growth')} {formatM(inv.appreciation5yr)}
           </div>
         )}
       </div>
@@ -357,11 +358,11 @@ function InvestmentChart({ inv, language }: { inv: Investment5yr; language: stri
 function LunaBubble({
   bubble,
   onNavigateProject,
-  language
+  t
 }: {
   bubble: BubbleContent
   onNavigateProject: (id: string) => void
-  language: string
+  t: TFunction<'components'>
 }) {
   return (
     <motion.div
@@ -388,34 +389,34 @@ function LunaBubble({
             ))}
             {bubble.attachment.projects.length > 2 && (
               <p className="text-center text-[10px] text-gray-400 pt-0.5">
-                {language === 'zh' ? `+${bubble.attachment.projects.length - 2} 个项目` : `+${bubble.attachment.projects.length - 2} more`}
+                {t('voice.moreProjects', { count: bubble.attachment.projects.length - 2 })}
               </p>
             )}
             {bubble.attachment.projects.length === 1 && bubble.attachment.investment && (
-              <InvestmentChart inv={bubble.attachment.investment} language={language} />
+              <InvestmentChart inv={bubble.attachment.investment} t={t} />
             )}
           </div>
         )}
 
         {/* Area info */}
         {bubble.attachment?.type === 'area_info' && bubble.attachment.areaInfo && (
-          <div className="mt-2"><CompactAreaCard areaInfo={bubble.attachment.areaInfo} language={language} /></div>
+          <div className="mt-2"><CompactAreaCard areaInfo={bubble.attachment.areaInfo} t={t} /></div>
         )}
 
         {/* Comparison */}
         {bubble.attachment?.type === 'comparison' && bubble.attachment.comparison && (
           <div className="space-y-1.5 mt-2">
-            <CompactAreaCard areaInfo={bubble.attachment.comparison.area1} language={language} />
+            <CompactAreaCard areaInfo={bubble.attachment.comparison.area1} t={t} />
             <div className="flex items-center justify-center">
               <span className="text-[10px] font-medium text-gray-300 tracking-wider">VS</span>
             </div>
-            <CompactAreaCard areaInfo={bubble.attachment.comparison.area2} language={language} />
+            <CompactAreaCard areaInfo={bubble.attachment.comparison.area2} t={t} />
           </div>
         )}
 
         {/* Investment chart */}
         {bubble.attachment?.type === 'investment' && bubble.attachment.investment && (
-          <div className="mt-2"><InvestmentChart inv={bubble.attachment.investment} language={language} /></div>
+          <div className="mt-2"><InvestmentChart inv={bubble.attachment.investment} t={t} /></div>
         )}
       </div>
     </motion.div>
@@ -424,13 +425,13 @@ function LunaBubble({
 
 // ─── Status text ───
 
-function getStatusText(phase: VoicePhase, language: string, toolStatus: string | null): string | null {
-  if (toolStatus) return language === 'zh' ? '思考中' : 'Thinking'
+function getStatusText(phase: VoicePhase, t: TFunction<'components'>, toolStatus: string | null): string | null {
+  if (toolStatus) return t('voice.status.thinking')
   switch (phase) {
-    case 'listening': return language === 'zh' ? '聆听中' : 'Listening'
-    case 'speaking': return language === 'zh' ? '说话中' : 'Speaking'
-    case 'connecting': return language === 'zh' ? '连接中' : '...'
-    case 'processing': return language === 'zh' ? '思考中' : 'Thinking'
+    case 'listening': return t('voice.status.listening')
+    case 'speaking': return t('voice.status.speaking')
+    case 'connecting': return t('voice.status.connecting')
+    case 'processing': return t('voice.status.thinking')
     default: return null
   }
 }
@@ -438,7 +439,7 @@ function getStatusText(phase: VoicePhase, language: string, toolStatus: string |
 // ─── Main Export ───
 
 export function VoiceAssistantButton({ className }: { className?: string }) {
-  const { i18n } = useTranslation()
+  const { t } = useTranslation('components')
   const {
     phase,
     latestBubble,
@@ -448,7 +449,6 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     navigateToProject
   } = useVoiceAssistantContext()
 
-  const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en'
   const isActive = phase !== 'idle' && phase !== 'error'
 
   const handleTap = useCallback(() => {
@@ -459,7 +459,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     }
   }, [phase, activate, deactivate])
 
-  const statusText = getStatusText(phase, currentLanguage, toolStatus)
+  const statusText = getStatusText(phase, t, toolStatus)
 
   // Show thinking bubble during tool calls, response bubble otherwise
   const showThinkingBubble = !!toolStatus
@@ -482,7 +482,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             <LunaBubble
               bubble={latestBubble}
               onNavigateProject={navigateToProject}
-              language={currentLanguage}
+              t={t}
             />
           </div>
         )}

@@ -81,7 +81,7 @@ const statusColors: Record<TaskStatus, string> = {
 };
 
 export default function AdminTasksPage() {
-  useTranslation(); // Available for future i18n
+  const { t } = useTranslation('admin');
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<AdminTask[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
@@ -215,7 +215,7 @@ export default function AdminTasksPage() {
   // Cancel selected tasks
   const cancelSelectedTasks = async () => {
     if (selectedTasks.size === 0) return;
-    if (!confirm(`Cancel ${selectedTasks.size} task(s)?`)) return;
+    if (!confirm(t('tasks.confirmCancelSelected', { count: selectedTasks.size }))) return;
 
     try {
       const response = await fetch(API_ENDPOINTS.adminTasksBatchCancel, {
@@ -241,7 +241,7 @@ export default function AdminTasksPage() {
   // Delete selected tasks
   const deleteSelectedTasks = async () => {
     if (selectedTasks.size === 0) return;
-    if (!confirm(`Delete ${selectedTasks.size} task(s)? This cannot be undone.`)) return;
+    if (!confirm(t('tasks.confirmDeleteSelected', { count: selectedTasks.size }))) return;
 
     try {
       const response = await fetch(API_ENDPOINTS.adminTasksBatchDelete, {
@@ -285,7 +285,7 @@ export default function AdminTasksPage() {
 
   // Cancel a single task
   const cancelTask = async (jobId: string) => {
-    if (!confirm('Cancel this task?')) return;
+    if (!confirm(t('tasks.confirmCancelOne'))) return;
 
     try {
       const response = await fetch(API_ENDPOINTS.adminTaskCancel(jobId), {
@@ -307,7 +307,7 @@ export default function AdminTasksPage() {
 
   // Delete a single task
   const deleteTask = async (jobId: string) => {
-    if (!confirm('Delete this task? This cannot be undone.')) return;
+    if (!confirm(t('tasks.confirmDeleteOne'))) return;
 
     try {
       const response = await fetch(API_ENDPOINTS.adminTask(jobId), {
@@ -374,31 +374,31 @@ export default function AdminTasksPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Task Management</h1>
-          <p className="text-gray-600">Manage PDF processing tasks</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('tasks.title')}</h1>
+          <p className="text-gray-600">{t('tasks.subtitle')}</p>
         </div>
 
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-500">Total</div>
+              <div className="text-sm text-gray-500">{t('tasks.statTotal')}</div>
               <div className="text-2xl font-bold">{stats.total}</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-500">Active</div>
+              <div className="text-sm text-gray-500">{t('tasks.statActive')}</div>
               <div className="text-2xl font-bold text-yellow-600">{stats.activeCount}</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-500">Processing</div>
+              <div className="text-sm text-gray-500">{t('tasks.statProcessing')}</div>
               <div className="text-2xl font-bold text-blue-600">{stats.byStatus.processing}</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-500">Completed Today</div>
+              <div className="text-sm text-gray-500">{t('tasks.statCompletedToday')}</div>
               <div className="text-2xl font-bold text-green-600">{stats.completedToday}</div>
             </div>
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="text-sm text-gray-500">Failed Today</div>
+              <div className="text-sm text-gray-500">{t('tasks.statFailedToday')}</div>
               <div className="text-2xl font-bold text-red-600">{stats.failedToday}</div>
             </div>
           </div>
@@ -409,7 +409,7 @@ export default function AdminTasksPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Status Filter */}
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Status:</label>
+              <label className="text-sm text-gray-600">{t('tasks.statusLabel')}</label>
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -418,12 +418,12 @@ export default function AdminTasksPage() {
                 }}
                 className="border rounded px-3 py-1.5 text-sm"
               >
-                <option value="all">All</option>
-                <option value="processing">Processing</option>
-                <option value="paused">Paused</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="all">{t('tasks.status.all')}</option>
+                <option value="processing">{t('tasks.status.processing')}</option>
+                <option value="paused">{t('tasks.status.paused')}</option>
+                <option value="completed">{t('tasks.status.completed')}</option>
+                <option value="failed">{t('tasks.status.failed')}</option>
+                <option value="cancelled">{t('tasks.status.cancelled')}</option>
               </select>
             </div>
 
@@ -432,19 +432,19 @@ export default function AdminTasksPage() {
               {selectedTasks.size > 0 && (
                 <>
                   <span className="text-sm text-gray-600">
-                    {selectedTasks.size} selected
+                    {t('tasks.selectedCount', { count: selectedTasks.size })}
                   </span>
                   <button
                     onClick={cancelSelectedTasks}
                     className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded text-sm hover:bg-orange-200"
                   >
-                    Cancel Selected
+                    {t('tasks.cancelSelected')}
                   </button>
                   <button
                     onClick={deleteSelectedTasks}
                     className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
                   >
-                    Delete Selected
+                    {t('tasks.deleteSelected')}
                   </button>
                 </>
               )}
@@ -452,7 +452,7 @@ export default function AdminTasksPage() {
                 onClick={fetchTasks}
                 className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
               >
-                Refresh
+                {t('tasks.refresh')}
               </button>
             </div>
           </div>
@@ -485,22 +485,22 @@ export default function AdminTasksPage() {
                   />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Task
+                  {t('tasks.colTask')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Status
+                  {t('tasks.colStatus')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Progress
+                  {t('tasks.colProgress')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  User
+                  {t('tasks.colUser')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Duration
+                  {t('tasks.colDuration')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Actions
+                  {t('tasks.colActions')}
                 </th>
               </tr>
             </thead>
@@ -508,13 +508,13 @@ export default function AdminTasksPage() {
               {loading && tasks.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    Loading...
+                    {t('tasks.loading')}
                   </td>
                 </tr>
               ) : tasks.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    No tasks found
+                    {t('tasks.noTasks')}
                   </td>
                 </tr>
               ) : (
@@ -548,13 +548,13 @@ export default function AdminTasksPage() {
                             {task.task_name || task.job_id}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {task.pdf_count} PDF(s){task.total_size_bytes ? ` | ${formatFileSize(task.total_size_bytes)}` : ''}{task.total_pages ? ` | ${task.total_pages} pages` : ''}
+                            {t('tasks.pdfCount', { count: task.pdf_count })}{task.total_size_bytes ? ` | ${formatFileSize(task.total_size_bytes)}` : ''}{task.total_pages ? ` | ${t('tasks.pagesSuffix', { count: task.total_pages })}` : ''}
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[task.status]}`}>
-                          {task.status}
+                          {t(`tasks.status.${task.status}`)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -590,7 +590,7 @@ export default function AdminTasksPage() {
                             <button
                               onClick={() => pauseTask(task.job_id)}
                               className="p-1 text-orange-600 hover:bg-orange-50 rounded"
-                              title="Pause"
+                              title={t('tasks.pause')}
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -601,7 +601,7 @@ export default function AdminTasksPage() {
                             <button
                               onClick={() => cancelTask(task.job_id)}
                               className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              title="Cancel"
+                              title={t('tasks.cancel')}
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -611,7 +611,7 @@ export default function AdminTasksPage() {
                           <button
                             onClick={() => deleteTask(task.job_id)}
                             className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                            title="Delete"
+                            title={t('tasks.delete')}
                           >
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -620,7 +620,7 @@ export default function AdminTasksPage() {
                           <button
                             onClick={() => fetchLogs(task.job_id)}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            title="View Logs"
+                            title={t('tasks.viewLogs')}
                           >
                             <FileText className="w-4 h-4" />
                           </button>
@@ -635,40 +635,40 @@ export default function AdminTasksPage() {
                             {/* Basic Info */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                               <div>
-                                <div className="text-gray-500">Job ID</div>
+                                <div className="text-gray-500">{t('tasks.jobId')}</div>
                                 <div className="font-mono text-xs">{task.job_id}</div>
                               </div>
                               <div>
-                                <div className="text-gray-500">User</div>
+                                <div className="text-gray-500">{t('tasks.user')}</div>
                                 <div>{task.user_id}</div>
                                 {task.user_email && <div className="text-xs text-gray-400">{task.user_email}</div>}
                               </div>
                               <div>
-                                <div className="text-gray-500">File Size</div>
+                                <div className="text-gray-500">{t('tasks.fileSize')}</div>
                                 <div>{formatFileSize(task.total_size_bytes) || '-'}</div>
                               </div>
                               <div>
-                                <div className="text-gray-500">Pages</div>
+                                <div className="text-gray-500">{t('tasks.pages')}</div>
                                 <div>{task.total_pages ?? '-'}</div>
                               </div>
                               <div>
-                                <div className="text-gray-500">Created</div>
+                                <div className="text-gray-500">{t('tasks.created')}</div>
                                 <div>{formatDate(task.created_at)}</div>
                               </div>
                               <div>
-                                <div className="text-gray-500">Started</div>
+                                <div className="text-gray-500">{t('tasks.started')}</div>
                                 <div>{formatDate(task.started_at)}</div>
                               </div>
                               <div>
-                                <div className="text-gray-500">Completed</div>
+                                <div className="text-gray-500">{t('tasks.completed')}</div>
                                 <div>{formatDate(task.completed_at)}</div>
                               </div>
                               <div>
-                                <div className="text-gray-500">Chunks</div>
+                                <div className="text-gray-500">{t('tasks.chunks')}</div>
                                 <div>{task.processed_chunks} / {task.total_chunks ?? '-'}</div>
                               </div>
                               <div className="col-span-2">
-                                <div className="text-gray-500">PDF Files</div>
+                                <div className="text-gray-500">{t('tasks.pdfFiles')}</div>
                                 <div className="text-xs truncate max-w-md">
                                   {task.pdf_names.join(', ')}
                                 </div>
@@ -681,41 +681,41 @@ export default function AdminTasksPage() {
                               if (!summary) return null;
                               return (
                                 <div className="border-t pt-4">
-                                  <div className="text-sm font-medium text-gray-700 mb-3">Extraction Results</div>
+                                  <div className="text-sm font-medium text-gray-700 mb-3">{t('tasks.extractionResults')}</div>
                                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                     <div className="flex items-center gap-2 bg-white rounded-lg p-3 border">
                                       <Home className="h-5 w-5 text-blue-500" />
                                       <div>
                                         <div className="text-lg font-bold">{summary.units}</div>
-                                        <div className="text-xs text-gray-500">Unit Types</div>
+                                        <div className="text-xs text-gray-500">{t('tasks.unitTypes')}</div>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 bg-white rounded-lg p-3 border">
                                       <Image className="h-5 w-5 text-green-500" />
                                       <div>
                                         <div className="text-lg font-bold">{summary.projectImages}</div>
-                                        <div className="text-xs text-gray-500">Project Images</div>
+                                        <div className="text-xs text-gray-500">{t('tasks.projectImages')}</div>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 bg-white rounded-lg p-3 border">
                                       <Image className="h-5 w-5 text-purple-500" />
                                       <div>
                                         <div className="text-lg font-bold">{summary.floorPlanImages}</div>
-                                        <div className="text-xs text-gray-500">Floor Plans</div>
+                                        <div className="text-xs text-gray-500">{t('tasks.floorPlans')}</div>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 bg-white rounded-lg p-3 border">
                                       <CreditCard className="h-5 w-5 text-orange-500" />
                                       <div>
                                         <div className="text-lg font-bold">{summary.paymentPlans}</div>
-                                        <div className="text-xs text-gray-500">Payment Plans</div>
+                                        <div className="text-xs text-gray-500">{t('tasks.paymentPlans')}</div>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 bg-white rounded-lg p-3 border">
                                       <Trees className="h-5 w-5 text-teal-500" />
                                       <div>
                                         <div className="text-lg font-bold">{summary.amenities}</div>
-                                        <div className="text-xs text-gray-500">Amenities</div>
+                                        <div className="text-xs text-gray-500">{t('tasks.amenities')}</div>
                                       </div>
                                     </div>
                                   </div>
@@ -726,13 +726,13 @@ export default function AdminTasksPage() {
                                       {summary.errors > 0 && (
                                         <div className="flex items-center gap-1 text-red-600 text-sm">
                                           <XCircle className="h-4 w-4" />
-                                          {summary.errors} error(s)
+                                          {t('tasks.errorsCount', { count: summary.errors })}
                                         </div>
                                       )}
                                       {summary.warnings > 0 && (
                                         <div className="flex items-center gap-1 text-orange-600 text-sm">
                                           <XCircle className="h-4 w-4" />
-                                          {summary.warnings} warning(s)
+                                          {t('tasks.warningsCount', { count: summary.warnings })}
                                         </div>
                                       )}
                                     </div>
@@ -740,7 +740,7 @@ export default function AdminTasksPage() {
 
                                   {/* Click hint */}
                                   <div className="mt-4 text-sm text-gray-500">
-                                    Click task name to edit & review
+                                    {t('tasks.clickToReview')}
                                   </div>
                                 </div>
                               );
@@ -749,7 +749,7 @@ export default function AdminTasksPage() {
                             {/* Errors */}
                             {task.errors.length > 0 && (
                               <div className="border-t pt-4">
-                                <div className="text-gray-500 text-sm">Errors</div>
+                                <div className="text-gray-500 text-sm">{t('tasks.errors')}</div>
                                 <div className="text-red-600 text-xs mt-1">
                                   {task.errors.join('; ')}
                                 </div>
@@ -769,7 +769,7 @@ export default function AdminTasksPage() {
           {pagination.total > pagination.limit && (
             <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-between">
               <div className="text-sm text-gray-500">
-                Showing {pagination.offset + 1} to {Math.min(pagination.offset + pagination.limit, pagination.total)} of {pagination.total}
+                {t('tasks.showing', { from: pagination.offset + 1, to: Math.min(pagination.offset + pagination.limit, pagination.total), total: pagination.total })}
               </div>
               <div className="flex gap-2">
                 <button
@@ -777,14 +777,14 @@ export default function AdminTasksPage() {
                   disabled={pagination.offset === 0}
                   className="px-3 py-1 border rounded text-sm disabled:opacity-50"
                 >
-                  Previous
+                  {t('tasks.previous')}
                 </button>
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, offset: prev.offset + prev.limit }))}
                   disabled={!pagination.hasMore}
                   className="px-3 py-1 border rounded text-sm disabled:opacity-50"
                 >
-                  Next
+                  {t('tasks.next')}
                 </button>
               </div>
             </div>
@@ -799,7 +799,7 @@ export default function AdminTasksPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Processing Logs</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{t('tasks.processingLogs')}</h3>
                 <p className="text-sm text-gray-500 font-mono">{viewingLogs}</p>
               </div>
               <button
@@ -813,12 +813,12 @@ export default function AdminTasksPage() {
             {/* Logs Content */}
             <div className="flex-1 overflow-auto p-4 bg-gray-50">
               {logsLoading ? (
-                <div className="text-center py-8 text-gray-500">Loading logs...</div>
+                <div className="text-center py-8 text-gray-500">{t('tasks.loadingLogs')}</div>
               ) : logs.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  No logs available for this task.
+                  {t('tasks.noLogs')}
                   <br />
-                  <span className="text-sm">Logs are recorded during processing.</span>
+                  <span className="text-sm">{t('tasks.logsRecorded')}</span>
                 </div>
               ) : (
                 <div className="space-y-2 font-mono text-sm">
@@ -847,7 +847,7 @@ export default function AdminTasksPage() {
                       {log.data && (
                         <details className="mt-2">
                           <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
-                            View data
+                            {t('tasks.viewData')}
                           </summary>
                           <pre className="mt-2 p-2 bg-white rounded border text-xs overflow-x-auto">
                             {JSON.stringify(log.data, null, 2)}
@@ -863,13 +863,13 @@ export default function AdminTasksPage() {
             {/* Footer */}
             <div className="p-4 border-t bg-white flex items-center justify-between">
               <span className="text-sm text-gray-500">
-                {logs.length} log entries
+                {t('tasks.logEntries', { count: logs.length })}
               </span>
               <button
                 onClick={() => setViewingLogs(null)}
                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium"
               >
-                Close
+                {t('tasks.close')}
               </button>
             </div>
           </div>

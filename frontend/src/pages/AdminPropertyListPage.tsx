@@ -90,10 +90,7 @@ export default function AdminPropertyListPage() {
   const deleteProject = async (projectId: number, projectName: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent navigation to edit page
 
-    const confirmed = window.confirm(
-      t('list.deleteConfirm', { name: projectName }) ||
-      `确定要删除项目 "${projectName}" 吗？\n\n此操作不可恢复，将同时删除所有户型和付款计划数据。`
-    )
+    const confirmed = window.confirm(t('list.deleteConfirm', { name: projectName }))
 
     if (!confirmed) return
 
@@ -119,10 +116,10 @@ export default function AdminPropertyListPage() {
       setProjects(prev => prev.filter(p => p.id !== projectId))
 
       // Show success message
-      alert(t('list.deleteSuccess', { name: projectName }) || `项目 "${projectName}" 已删除`)
+      alert(t('list.deleteSuccess', { name: projectName }))
     } catch (error) {
       console.error('❌ Failed to delete project:', error)
-      alert(t('list.deleteFailed') || '删除失败，请重试')
+      alert(t('list.deleteFailed'))
     }
   }
 
@@ -337,10 +334,10 @@ export default function AdminPropertyListPage() {
                             <button
                               onClick={(e) => deleteProject(project.id, project.project_name, e)}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all"
-                              title={t('list.deleteProject') || '删除项目'}
+                              title={t('list.deleteProject')}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                              {t('list.delete') || '删除'}
+                              {t('list.delete')}
                             </button>
                           </div>
                         </div>

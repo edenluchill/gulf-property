@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapContainer, TileLayer, Polygon, Marker, Popup, useMapEvents } from 'react-leaflet'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -10,7 +11,7 @@ import L from 'leaflet'
 
 // Default template for new areas
 const DEFAULT_AREA: Partial<DubaiArea> = {
-  name: 'New District',
+  name: '',
   nameAr: '',
   boundary: {
     type: 'Polygon',
@@ -137,6 +138,7 @@ function EditablePolygon({ area, isSelected, onClick, onUpdate, isEditMode }: Ed
 }
 
 export default function AreasEditor() {
+  const { t } = useTranslation('editor')
   const [areas, setAreas] = useState<DubaiArea[]>([])
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -163,7 +165,7 @@ export default function AreasEditor() {
   }
 
   const handleAddNew = () => {
-    const newArea: any = { ...DEFAULT_AREA, id: `temp-${Date.now()}` }
+    const newArea: any = { ...DEFAULT_AREA, name: t('common.newDistrict'), id: `temp-${Date.now()}` }
     setAreas([...areas, newArea])
     setSelectedArea(newArea)
     setIsEditMode(true)
@@ -195,7 +197,7 @@ export default function AreasEditor() {
       }
     } catch (error) {
       console.error('Error saving area:', error)
-      alert('Failed to save area')
+      alert(t('common.failedToSaveArea'))
     } finally {
       setIsSaving(false)
     }
@@ -204,7 +206,7 @@ export default function AreasEditor() {
   const handleDelete = async () => {
     if (!selectedArea) return
     
-    if (!confirm(`Delete "${selectedArea.name}"?`)) return
+    if (!confirm(t('common.deleteConfirm', { name: selectedArea.name }))) return
     
     if (selectedArea.id.startsWith('temp-')) {
       // Just remove from local state
@@ -222,7 +224,7 @@ export default function AreasEditor() {
   }
 
   const handleReset = () => {
-    if (!confirm('Reset all changes? This will reload from the database.')) return
+    if (!confirm(t('common.resetConfirmReload'))) return
     setAreas(JSON.parse(JSON.stringify(originalAreas)))
     setSelectedArea(null)
     setIsEditMode(false)
@@ -246,18 +248,18 @@ export default function AreasEditor() {
           <div className="flex gap-2">
             <Button onClick={handleAddNew} className="flex-1">
               <Plus className="w-4 h-4 mr-2" />
-              Add Area
+              {t('areas.addArea')}
             </Button>
             <Button variant="outline" onClick={handleReset}>
               <RotateCcw className="w-4 h-4 mr-2" />
-              Reset
+              {t('common.reset')}
             </Button>
           </div>
         </div>
 
         {/* Areas List */}
         <div className="p-4">
-          <h3 className="font-semibold mb-2">Areas ({areas.length})</h3>
+          <h3 className="font-semibold mb-2">{t('areas.listTitle', { count: areas.length })}</h3>
           <div className="space-y-2">
             {areas.map((area) => (
               <div
@@ -275,7 +277,7 @@ export default function AreasEditor() {
                   <span className="font-medium">{area.name}</span>
                 </div>
                 {area.id.startsWith('temp-') && (
-                  <span className="text-xs text-orange-600">Unsaved</span>
+                  <span className="text-xs text-orange-600">{t('common.unsaved')}</span>
                 )}
               </div>
             ))}
@@ -286,7 +288,7 @@ export default function AreasEditor() {
         {selectedArea && (
           <div className="p-4 border-t bg-gray-50">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Edit Area</h3>
+              <h3 className="font-semibold">{t('areas.editArea')}</h3>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -294,7 +296,7 @@ export default function AreasEditor() {
                   onClick={() => setIsEditMode(!isEditMode)}
                 >
                   <Edit className="w-3 h-3 mr-1" />
-                  {isEditMode ? 'View' : 'Edit'}
+                  {isEditMode ? t('common.view') : t('common.edit')}
                 </Button>
                 <Button
                   size="sm"
@@ -308,7 +310,7 @@ export default function AreasEditor() {
 
             <div className="space-y-3">
               <div>
-                <Label>Name</Label>
+                <Label>{t('common.name')}</Label>
                 <Input
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -316,44 +318,44 @@ export default function AreasEditor() {
               </div>
 
               <div>
-                <Label>Area Type</Label>
+                <Label>{t('areas.areaType')}</Label>
                 <select
                   className="w-full border rounded px-3 py-2"
                   value={formData.areaType || ''}
                   onChange={(e) => setFormData({ ...formData, areaType: e.target.value })}
                 >
-                  <option value="residential">Residential</option>
-                  <option value="commercial">Commercial</option>
-                  <option value="mixed">Mixed</option>
-                  <option value="freehold">Freehold</option>
+                  <option value="residential">{t('areas.type.residential')}</option>
+                  <option value="commercial">{t('areas.type.commercial')}</option>
+                  <option value="mixed">{t('areas.type.mixed')}</option>
+                  <option value="freehold">{t('areas.type.freehold')}</option>
                 </select>
               </div>
 
               <div>
-                <Label>Wealth Level</Label>
+                <Label>{t('areas.wealthLevel')}</Label>
                 <select
                   className="w-full border rounded px-3 py-2"
                   value={formData.wealthLevel || ''}
                   onChange={(e) => setFormData({ ...formData, wealthLevel: e.target.value })}
                 >
-                  <option value="luxury">Luxury</option>
-                  <option value="premium">Premium</option>
-                  <option value="mid-range">Mid-Range</option>
-                  <option value="affordable">Affordable</option>
+                  <option value="luxury">{t('areas.wealth.luxury')}</option>
+                  <option value="premium">{t('areas.wealth.premium')}</option>
+                  <option value="mid-range">{t('areas.wealth.midRange')}</option>
+                  <option value="affordable">{t('areas.wealth.affordable')}</option>
                 </select>
               </div>
 
               <div>
-                <Label>Cultural Attribute</Label>
+                <Label>{t('areas.culturalAttribute')}</Label>
                 <Input
                   value={formData.culturalAttribute || ''}
                   onChange={(e) => setFormData({ ...formData, culturalAttribute: e.target.value })}
-                  placeholder="e.g., family-oriented, business-hub"
+                  placeholder={t('areas.culturalPlaceholder')}
                 />
               </div>
 
               <div>
-                <Label>Description</Label>
+                <Label>{t('common.description')}</Label>
                 <textarea
                   className="w-full border rounded px-3 py-2"
                   rows={3}
@@ -363,7 +365,7 @@ export default function AreasEditor() {
               </div>
 
               <div>
-                <Label>Color</Label>
+                <Label>{t('common.color')}</Label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -379,7 +381,7 @@ export default function AreasEditor() {
               </div>
 
               <div>
-                <Label>Opacity: {formData.opacity || 0.3}</Label>
+                <Label>{t('common.opacity', { value: formData.opacity || 0.3 })}</Label>
                 <input
                   type="range"
                   min="0"
@@ -394,7 +396,7 @@ export default function AreasEditor() {
               <div className="flex gap-2 pt-4">
                 <Button onClick={handleSave} disabled={isSaving} className="flex-1">
                   <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? 'Saving...' : 'Save'}
+                  {isSaving ? t('common.saving') : t('common.save')}
                 </Button>
                 <Button variant="destructive" onClick={handleDelete}>
                   <Trash2 className="w-4 h-4" />
@@ -403,7 +405,7 @@ export default function AreasEditor() {
 
               {isEditMode && (
                 <p className="text-xs text-blue-600 mt-2">
-                  💡 Drag the white circles to adjust polygon vertices
+                  {t('areas.vertexHint')}
                 </p>
               )}
             </div>
