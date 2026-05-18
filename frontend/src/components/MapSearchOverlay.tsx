@@ -6,21 +6,22 @@
  * - Filters / 刷新 按钮内嵌
  */
 import { useEffect, useRef, useState } from 'react'
-import { Search, SlidersHorizontal, RefreshCw, X, MapPin, Building2, Briefcase } from 'lucide-react'
+import { Search, RefreshCw, X, MapPin, Building2, Briefcase } from 'lucide-react'
 import { searchDubaiAreas, AreaSearchResult } from '../lib/api'
+import { PropertyFilters } from '../types'
+import MapFilterChips from './MapFilterChips'
 
 interface Props {
   searchQuery: string
   setSearchQuery: (v: string) => void
   onFly: (lat: number, lng: number) => void
-  onToggleFilters: () => void
-  hasActiveFilters: boolean
   onRefresh: () => void
   isRefreshing: boolean
-  filtersLabel: string
   developers: string[]
   projects: { project_name: string; developer: string }[]
   applyFilter: (patch: { developer?: string; project?: string }) => void
+  filters: PropertyFilters
+  setFilters: (updater: (f: PropertyFilters) => PropertyFilters) => void
 }
 
 type Sugg =
@@ -29,9 +30,8 @@ type Sugg =
   | { kind: 'project'; label: string; developer: string }
 
 export default function MapSearchOverlay({
-  searchQuery, setSearchQuery, onFly, onToggleFilters,
-  hasActiveFilters, onRefresh, isRefreshing, filtersLabel,
-  developers, projects, applyFilter
+  searchQuery, setSearchQuery, onFly, onRefresh, isRefreshing,
+  developers, projects, applyFilter, filters, setFilters
 }: Props) {
   const [suggestions, setSuggestions] = useState<Sugg[]>([])
   const [open, setOpen] = useState(false)
@@ -118,16 +118,6 @@ export default function MapSearchOverlay({
           )}
         </div>
         <button
-          onClick={onToggleFilters}
-          className="relative flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          {filtersLabel}
-          {hasActiveFilters && (
-            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-white" />
-          )}
-        </button>
-        <button
           onClick={onRefresh}
           disabled={isRefreshing}
           title="刷新筛选数据"
@@ -136,6 +126,9 @@ export default function MapSearchOverlay({
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {/* 内联筛选 chips */}
+      <MapFilterChips filters={filters} setFilters={setFilters} developers={developers} />
 
       {/* autocomplete 下拉 */}
       {open && (loading || suggestions.length > 0) && (

@@ -665,14 +665,13 @@ export default function MapPage() {
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             onFly={(lat, lng) => setFlyToLocation({ lat, lng, zoom: 12 })}
-            onToggleFilters={() => setShowFilters(s => !s)}
-            hasActiveFilters={!!hasActiveFilters}
             onRefresh={handleRefreshMetadata}
             isRefreshing={isRefreshingMetadata}
-            filtersLabel={t('map:filters')}
             developers={developers}
             projects={projects}
             applyFilter={(patch) => setFilters(f => ({ ...f, ...patch }))}
+            filters={filters}
+            setFilters={setFilters}
           />
 
           {/* Mobile: Top left - Current metric indicator */}
