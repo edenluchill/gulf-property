@@ -780,13 +780,21 @@ function MapViewMapLibre({
 
   const measureGeoJson = useMemo(() => {
     const coords = measurePoints.map(p => [p.lng, p.lat])
+    const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`)
+    // 逐段:每相邻两点一条 LineString,带该段距离标签 → 地图上直接显示数字
+    const segments = {
+      type: 'FeatureCollection' as const,
+      features: measurePoints.slice(1).map((p, i) => {
+        const a = measurePoints[i]
+        return {
+          type: 'Feature' as const,
+          properties: { label: fmt(haversineKm(a, p)) },
+          geometry: { type: 'LineString' as const, coordinates: [[a.lng, a.lat], [p.lng, p.lat]] }
+        }
+      })
+    }
     return {
-      line: {
-        type: 'FeatureCollection' as const,
-        features: coords.length >= 2
-          ? [{ type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: coords } }]
-          : []
-      },
+      segments,
       points: {
         type: 'FeatureCollection' as const,
         features: coords.map((c, i) => ({
@@ -1514,11 +1522,24 @@ function MapViewMapLibre({
         {/* 测距：连线 + 顶点 */}
         {mapLoaded && measurePoints.length > 0 && (
           <>
-            <Source id="measure-line" type="geojson" data={measureGeoJson.line}>
+            <Source id="measure-line" type="geojson" data={measureGeoJson.segments}>
               <Layer
                 id="measure-line-layer"
                 type="line"
                 paint={{ 'line-color': '#2563eb', 'line-width': 3, 'line-dasharray': [2, 1] }}
+              />
+              <Layer
+                id="measure-seg-label"
+                type="symbol"
+                layout={{
+                  'symbol-placement': 'line-center',
+                  'text-field': ['get', 'label'],
+                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-size': 13,
+                  'text-allow-overlap': true,
+                  'text-ignore-placement': true
+                }}
+                paint={{ 'text-color': '#1d4ed8', 'text-halo-color': '#ffffff', 'text-halo-width': 2.5 }}
               />
             </Source>
             <Source id="measure-points" type="geojson" data={measureGeoJson.points}>

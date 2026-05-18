@@ -205,20 +205,24 @@ export const voiceAssistantTools = [
       },
       {
         name: 'measure_distance',
-        description: 'Measure the straight-line distance between two places on the map (areas, landmarks, or projects). Draws the line on the map and tells the distance in km.',
+        description: 'Draw distance measurements ON the map between places (areas, landmarks, projects). Each segment shows its distance label directly on the map line. Use "places" for a multi-stop path (e.g. ["Marina","Mall of Emirates","Airport"]) — every leg gets its own distance drawn. Use from/to for a simple two-point measure.',
         parameters: {
           type: 'object',
           properties: {
+            places: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Ordered list of 2+ place names to chain into a measured path. Each consecutive leg is drawn with its distance on the map. Preferred for "from A to B to C".'
+            },
             from: {
               type: 'string',
-              description: 'Start place name, e.g. an area or landmark like "Dubai Marina" or "Burj Khalifa"'
+              description: 'Start place name (use when only two points). E.g. "Dubai Marina"'
             },
             to: {
               type: 'string',
-              description: 'End place name, e.g. "Downtown Dubai", "Dubai International Airport"'
+              description: 'End place name (use when only two points). E.g. "Downtown Dubai"'
             }
-          },
-          required: ['from', 'to']
+          }
         }
       },
       {
@@ -446,27 +450,48 @@ export async function executeTool(
         )
         return d.area
       }
-      const [a, b] = await Promise.all([resolve(params.from), resolve(params.to)])
+      // 支持多点路径(places)或两点(from/to)
+      const names: string[] = Array.isArray(params.places) && params.places.length >= 2
+        ? params.places
+        : [params.from, params.to].filter(Boolean)
 
-      if (!a || !b) {
-        const missing = !a ? params.from : params.to
-        return {
-          result: null,
-          summary: `I couldn't locate "${missing}" on the map, so I can't measure that distance yet.`
-        }
+      if (names.length < 2) {
+        return { result: null, summary: '我需要至少两个地点才能在地图上画出距离。' }
       }
 
-      const km = haversineKm(a, b)
-      const dist = km < 1 ? `${Math.round(km * 1000)} meters` : `${km.toFixed(1)} km`
+      const resolved = await Promise.all(names.map(resolve))
+      const missingIdx = resolved.findIndex(r => !r)
+      if (missingIdx >= 0) {
+        return {
+          result: null,
+          summary: `我在地图上没找到 "${names[missingIdx]}",换个地点名我再帮你测。`
+        }
+      }
+      const pts = resolved as { name: string; lat: number; lng: number }[]
+
+      const legs = pts.slice(1).map((p, i) => {
+        const km = haversineKm(pts[i], p)
+        return { from: pts[i].name, to: p.name, km: Number(km.toFixed(2)) }
+      })
+      const totalKm = legs.reduce((s, l) => s + l.km, 0)
+      const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} 米` : `${km.toFixed(1)} 公里`)
+      const legText = legs.map(l => `${l.from}→${l.to} ${fmt(l.km)}`).join(',')
+      const summary = legs.length === 1
+        ? `${legs[0].from} 到 ${legs[0].to} 直线约 ${fmt(legs[0].km)}。`
+        : `路径已画在地图上:${legText};合计约 ${fmt(totalKm)}。`
+
       return {
-        result: { from: a.name, to: b.name, distance_km: Number(km.toFixed(2)) },
-        summary: `${a.name} to ${b.name} is about ${dist} in a straight line.`,
+        result: {
+          legs: legs.map(l => ({ from: l.from, to: l.to, distance_km: l.km })),
+          total_km: Number(totalKm.toFixed(2))
+        },
+        summary,
         mapAction: {
           type: 'measure_distance',
-          points: [[a.lng, a.lat], [b.lng, b.lat]],
-          distanceKm: Number(km.toFixed(2)),
-          fromName: a.name,
-          toName: b.name
+          points: pts.map(p => [p.lng, p.lat]),
+          distanceKm: Number(totalKm.toFixed(2)),
+          fromName: pts[0].name,
+          toName: pts[pts.length - 1].name
         }
       }
     }
