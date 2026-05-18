@@ -94,7 +94,7 @@ export default function MapSearchOverlay({
   return (
     <div
       ref={boxRef}
-      className="absolute top-4 left-4 z-[1000] hidden md:flex flex-col gap-2 w-[380px]"
+      className="absolute z-[1001] flex flex-col gap-2 top-3 left-2 right-2 md:top-4 md:left-4 md:right-auto md:w-[380px]"
     >
       <div className="flex items-center gap-2 rounded-2xl bg-white/85 px-2 py-2 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
         <div className="relative flex-1">

@@ -87,9 +87,12 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
   )
 
   return (
-    <div ref={ref} className="flex flex-wrap items-center gap-1.5">
+    <div
+      ref={ref}
+      className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {/* 价格 */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <Chip id="price" base="价格" active={priceLabel} />
         {open === 'price' && (
           <Pop>
@@ -105,7 +108,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       </div>
 
       {/* 卧室 */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <Chip id="beds" base="卧室" active={bedLabel} />
         {open === 'beds' && (
           <Pop>
@@ -120,7 +123,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       </div>
 
       {/* 状态 */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <Chip id="status" base="状态" active={statusLabel} />
         {open === 'status' && (
           <Pop>
@@ -135,7 +138,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       </div>
 
       {/* 开发商(可搜索) */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <Chip id="dev" base="开发商" active={devLabel} />
         {open === 'dev' && (
           <div className="absolute left-0 top-9 z-[1001] w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
@@ -169,7 +172,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
             ...f, minPrice: undefined, maxPrice: undefined,
             minBedrooms: undefined, status: undefined, developer: undefined
           }))}
-          className="flex items-center gap-1 rounded-full bg-white/85 px-2.5 py-1.5 text-xs text-slate-500 ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700"
+          className="flex shrink-0 items-center gap-1 rounded-full bg-white/85 px-2.5 py-1.5 text-xs text-slate-500 ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700"
         >
           <X className="h-3 w-3" /> 清除
         </button>
