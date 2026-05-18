@@ -751,7 +751,16 @@ function MapViewMapLibre({
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [baseMap, setBaseMap] = useState<BaseMap>('vector')
+  const [baseMap, setBaseMapState] = useState<BaseMap>(
+    () => ((localStorage.getItem('map-base') as BaseMap) || 'satellite')
+  )
+  const setBaseMap = (v: BaseMap | ((p: BaseMap) => BaseMap)) => {
+    setBaseMapState(prev => {
+      const next = typeof v === 'function' ? (v as (p: BaseMap) => BaseMap)(prev) : v
+      try { localStorage.setItem('map-base', next) } catch { /* ignore */ }
+      return next
+    })
+  }
   const [measureMode, setMeasureMode] = useState(false)
   const [measurePoints, setMeasurePoints] = useState<{ lng: number; lat: number }[]>([])
 
