@@ -1500,7 +1500,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : 'vector'))}
-        className="absolute top-28 right-4 z-[1000] hidden md:flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-lg ring-1 ring-slate-200 backdrop-blur transition hover:bg-white"
+        className="absolute top-28 right-4 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-lg ring-1 ring-slate-200 backdrop-blur transition hover:bg-white"
         title={baseMap === 'vector' ? '切换到卫星地图' : '切换回地图'}
         aria-label="切换底图"
       >
@@ -1512,7 +1512,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-        className={`absolute top-40 right-4 z-[1000] hidden md:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-40 right-4 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           measureMode
             ? 'bg-blue-600 text-white ring-blue-700 hover:bg-blue-700'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
