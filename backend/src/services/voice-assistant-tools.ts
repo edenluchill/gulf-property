@@ -205,22 +205,22 @@ export const voiceAssistantTools = [
       },
       {
         name: 'measure_distance',
-        description: 'Draw distance measurements ON the map between places (areas, landmarks, projects). Each segment shows its distance label directly on the map line. Use "places" for a multi-stop path (e.g. ["Marina","Mall of Emirates","Airport"]) — every leg gets its own distance drawn. Use from/to for a simple two-point measure.',
+        description: 'Draw distances ON the map as spokes radiating from ONE center place to several destinations — each line labeled with its distance. The FIRST item in "places" is the center; every other item gets its own line+distance from that center. Great for "how far is <project/area> from the metro, the mall, the airport, the beach". Use from/to for a simple two-point measure (from = center).',
         parameters: {
           type: 'object',
           properties: {
             places: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Ordered list of 2+ place names to chain into a measured path. Each consecutive leg is drawn with its distance on the map. Preferred for "from A to B to C".'
+              description: 'First element = the CENTER/anchor place; remaining elements = destinations measured from it. e.g. ["Emaar Beachfront","Dubai Mall","DXB Airport","JBR Beach"] draws 3 distance lines out from Emaar Beachfront.'
             },
             from: {
               type: 'string',
-              description: 'Start place name (use when only two points). E.g. "Dubai Marina"'
+              description: 'Center place name (use for a simple two-point measure). E.g. "Dubai Marina"'
             },
             to: {
               type: 'string',
-              description: 'End place name (use when only two points). E.g. "Downtown Dubai"'
+              description: 'Single destination (use for a simple two-point measure). E.g. "Downtown Dubai"'
             }
           }
         }
@@ -469,29 +469,28 @@ export async function executeTool(
       }
       const pts = resolved as { name: string; lat: number; lng: number }[]
 
-      const legs = pts.slice(1).map((p, i) => {
-        const km = haversineKm(pts[i], p)
-        return { from: pts[i].name, to: p.name, km: Number(km.toFixed(2)) }
-      })
-      const totalKm = legs.reduce((s, l) => s + l.km, 0)
+      // 放射:第一个地点=中心,其余每个各自到中心一条线
+      const hub = pts[0]
+      const spokes = pts.slice(1).map(p => ({
+        to: p.name, km: Number(haversineKm(hub, p).toFixed(2))
+      }))
       const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} 米` : `${km.toFixed(1)} 公里`)
-      const legText = legs.map(l => `${l.from}→${l.to} ${fmt(l.km)}`).join(',')
-      const summary = legs.length === 1
-        ? `${legs[0].from} 到 ${legs[0].to} 直线约 ${fmt(legs[0].km)}。`
-        : `路径已画在地图上:${legText};合计约 ${fmt(totalKm)}。`
+      const spokeText = spokes.map(s => `到${s.to} ${fmt(s.km)}`).join(',')
+      const summary = spokes.length === 1
+        ? `${hub.name} 到 ${spokes[0].to} 直线约 ${fmt(spokes[0].km)}。`
+        : `已在地图上从 ${hub.name} 画出到各地点的距离:${spokeText}。`
 
       return {
         result: {
-          legs: legs.map(l => ({ from: l.from, to: l.to, distance_km: l.km })),
-          total_km: Number(totalKm.toFixed(2))
+          center: hub.name,
+          distances: spokes.map(s => ({ to: s.to, distance_km: s.km }))
         },
         summary,
         mapAction: {
           type: 'measure_distance',
           points: pts.map(p => [p.lng, p.lat]),
-          distanceKm: Number(totalKm.toFixed(2)),
-          fromName: pts[0].name,
-          toName: pts[pts.length - 1].name
+          fromName: hub.name,
+          toName: spokes.map(s => s.to).join(', ')
         }
       }
     }

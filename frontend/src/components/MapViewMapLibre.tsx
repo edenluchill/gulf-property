@@ -770,37 +770,37 @@ function MapViewMapLibre({
   const [measureMode, setMeasureMode] = useState(false)
   const [measurePoints, setMeasurePoints] = useState<{ lng: number; lat: number }[]>([])
 
-  const measureTotalKm = useMemo(() => {
-    let sum = 0
-    for (let i = 1; i < measurePoints.length; i++) {
-      sum += haversineKm(measurePoints[i - 1], measurePoints[i])
-    }
-    return sum
+  // 放射模式:第 0 个点=中心,其余每点到中心各一段
+  const measureSpokeKms = useMemo(() => {
+    if (measurePoints.length < 2) return [] as number[]
+    const hub = measurePoints[0]
+    return measurePoints.slice(1).map(p => haversineKm(hub, p))
   }, [measurePoints])
 
   const measureGeoJson = useMemo(() => {
-    const coords = measurePoints.map(p => [p.lng, p.lat])
     const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`)
-    // 逐段:每相邻两点一条 LineString,带该段距离标签 → 地图上直接显示数字
+    if (measurePoints.length === 0) {
+      const empty = { type: 'FeatureCollection' as const, features: [] }
+      return { segments: empty, points: empty }
+    }
+    const hub = measurePoints[0]
+    // 中心 → 每个目标点,各一条带距离标签的 LineString(放射状)
     const segments = {
       type: 'FeatureCollection' as const,
-      features: measurePoints.slice(1).map((p, i) => {
-        const a = measurePoints[i]
-        return {
-          type: 'Feature' as const,
-          properties: { label: fmt(haversineKm(a, p)) },
-          geometry: { type: 'LineString' as const, coordinates: [[a.lng, a.lat], [p.lng, p.lat]] }
-        }
-      })
+      features: measurePoints.slice(1).map(p => ({
+        type: 'Feature' as const,
+        properties: { label: fmt(haversineKm(hub, p)) },
+        geometry: { type: 'LineString' as const, coordinates: [[hub.lng, hub.lat], [p.lng, p.lat]] }
+      }))
     }
     return {
       segments,
       points: {
         type: 'FeatureCollection' as const,
-        features: coords.map((c, i) => ({
+        features: measurePoints.map((p, i) => ({
           type: 'Feature' as const,
-          properties: { idx: i },
-          geometry: { type: 'Point' as const, coordinates: c }
+          properties: { kind: i === 0 ? 'hub' : 'spoke' },
+          geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] }
         }))
       }
     }
@@ -1547,8 +1547,8 @@ function MapViewMapLibre({
                 id="measure-points-layer"
                 type="circle"
                 paint={{
-                  'circle-radius': 5,
-                  'circle-color': '#2563eb',
+                  'circle-radius': ['case', ['==', ['get', 'kind'], 'hub'], 8, 5],
+                  'circle-color': ['case', ['==', ['get', 'kind'], 'hub'], '#dc2626', '#2563eb'],
                   'circle-stroke-color': '#ffffff',
                   'circle-stroke-width': 2
                 }}
@@ -1635,26 +1635,23 @@ function MapViewMapLibre({
         {measureMode ? '退出' : '测距'}
       </button>
 
-      {/* 测距距离面板 */}
+      {/* 测距状态条(极简,距离已画在地图线上) */}
       {measureMode && (
-        <div className="absolute top-52 right-4 z-[1000] w-44 rounded-lg bg-white/95 px-3 py-2.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
-          <div className="font-semibold text-slate-800">
-            {measurePoints.length < 2
-              ? '点击地图开始测距'
-              : measureTotalKm < 1
-                ? `${Math.round(measureTotalKm * 1000)} 米`
-                : `${measureTotalKm.toFixed(2)} 公里`}
-          </div>
-          <div className="mt-0.5 text-[11px] text-slate-500">
-            {measurePoints.length} 个点 · 点击继续，Esc 退出
-          </div>
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          <span className="font-medium text-slate-700">
+            {measurePoints.length === 0
+              ? '点地图设中心点'
+              : measurePoints.length === 1
+                ? '已设中心 · 点击添加地点'
+                : `中心 + ${measureSpokeKms.length} 个地点`}
+          </span>
           {measurePoints.length > 0 && (
             <button
               type="button"
               onClick={() => setMeasurePoints([])}
-              className="mt-1.5 text-[11px] font-medium text-blue-600 hover:underline"
+              className="font-semibold text-blue-600"
             >
-              清除重测
+              清除
             </button>
           )}
         </div>
