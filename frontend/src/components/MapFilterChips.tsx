@@ -89,7 +89,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
   return (
     <div
       ref={ref}
-      className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:flex-wrap md:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex flex-wrap items-center gap-1.5 max-w-[calc(100vw-1.5rem)] md:max-w-none"
     >
       {/* 价格 */}
       <div className="relative shrink-0">

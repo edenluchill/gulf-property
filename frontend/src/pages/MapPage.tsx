@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
-import MapSearchOverlay from '../components/MapSearchOverlay'
+import MapFilterChips from '../components/MapFilterChips'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import MobileBottomSheet from '../components/MobileBottomSheet'
@@ -660,23 +660,18 @@ export default function MapPage() {
             voiceMeasure={voiceMeasure}
           />
 
-          {/* 浮在地图上的搜索胶囊（替代旧白条） */}
-          <MapSearchOverlay
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            onFly={(lat, lng) => setFlyToLocation({ lat, lng, zoom: 12 })}
-            onRefresh={handleRefreshMetadata}
-            isRefreshing={isRefreshingMetadata}
-            developers={developers}
-            projects={projects}
-            applyFilter={(patch) => setFilters(f => ({ ...f, ...patch }))}
-            filters={filters}
-            setFilters={setFilters}
-          />
+          {/* 只留筛选 pills（搜索 bar 已移除），浮在地图左上 */}
+          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002]">
+            <MapFilterChips
+              filters={filters}
+              setFilters={setFilters}
+              developers={developers}
+            />
+          </div>
 
-          {/* Mobile: Top left - Current metric indicator (下移给顶部搜索条让位) */}
+          {/* Mobile: Top left - Current metric indicator (在 filter pills 下方) */}
           {areaMetric !== 'none' && (
-            <div className="absolute top-[132px] left-3 z-[1000] md:hidden">
+            <div className="absolute top-14 left-3 z-[1000] md:hidden">
               <div className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white shadow-lg rounded-xl text-xs font-medium">
                 {(() => {
                   const option = METRIC_OPTIONS.find(o => o.value === areaMetric)
@@ -694,7 +689,7 @@ export default function MapPage() {
           )}
 
           {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
-          <div className="absolute top-[132px] right-3 z-[1000] md:hidden">
+          <div className="absolute top-3 right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
               {/* Metrics row */}
               <div className="flex border-b border-slate-100">
