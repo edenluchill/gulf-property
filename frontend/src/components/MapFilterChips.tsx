@@ -4,8 +4,21 @@
  * - 移动端:单个「筛选」按钮 → 底部抽屉(bottom sheet),大按钮、可滚、不与右侧控件抢位。
  */
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, X, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, X, SlidersHorizontal, Wallet, BedDouble, Hammer, Building2, Check } from 'lucide-react'
 import { PropertyFilters } from '../types'
+
+// 按开发商名生成稳定的彩色头像配色（让长列表一眼可区分）
+const AVATAR_PALETTE = [
+  'bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700',
+  'bg-emerald-100 text-emerald-700', 'bg-sky-100 text-sky-700',
+  'bg-violet-100 text-violet-700', 'bg-fuchsia-100 text-fuchsia-700',
+  'bg-teal-100 text-teal-700', 'bg-orange-100 text-orange-700',
+]
+const avatarColor = (name: string) => {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length]
+}
 
 interface Props {
   filters: PropertyFilters
@@ -94,16 +107,33 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
     </button>
   )
 
-  // ---- 移动端抽屉里的选项排 ----
-  const SheetRow = ({ label, sel, on }: { label: string; sel: boolean; on: () => void }) => (
+  // ---- 移动端抽屉构件 ----
+  // 选项排:真选项选中→实心 primary;"不限"=重置,选中时只做淡描边(不抢视线)
+  const SheetRow = ({ label, sel, isDefault, on }: { label: string; sel: boolean; isDefault?: boolean; on: () => void }) => (
     <button
       onClick={on}
       className={`rounded-full px-4 py-2 text-sm font-medium ring-1 transition-colors ${
-        sel ? 'bg-primary text-white ring-primary' : 'bg-slate-50 text-slate-700 ring-slate-200'
+        sel && !isDefault ? 'bg-primary text-white ring-primary shadow-sm'
+          : sel && isDefault ? 'bg-primary/5 text-primary ring-primary/30'
+          : 'bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100'
       }`}
     >
       {label}
     </button>
+  )
+  const Section = ({ icon: Icon, title, hint, children }: {
+    icon: typeof Wallet; title: string; hint?: string; children: React.ReactNode
+  }) => (
+    <section>
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="text-sm font-semibold text-slate-900">{title}</span>
+        {hint && <span className="text-xs text-slate-400">{hint}</span>}
+      </div>
+      {children}
+    </section>
   )
 
   return (
@@ -216,71 +246,87 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
               </button>
             </div>
 
-            <div className="space-y-5">
-              <section>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">价格</p>
+            <div className="space-y-6">
+              <Section icon={Wallet} title="价格" hint="AED">
                 <div className="flex flex-wrap gap-2">
                   {PRICE_RANGES.map(r => (
                     <SheetRow key={r.label} label={r.label}
+                      isDefault={r.label === '不限'}
                       sel={r.min === filters.minPrice && r.max === filters.maxPrice}
                       on={() => setFilters(f => ({ ...f, minPrice: r.min, maxPrice: r.max }))} />
                   ))}
                 </div>
-              </section>
+              </Section>
 
-              <section>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">卧室</p>
+              <Section icon={BedDouble} title="卧室">
                 <div className="flex flex-wrap gap-2">
                   {BEDS.map(b => (
                     <SheetRow key={b.label} label={b.label}
+                      isDefault={b.v === undefined}
                       sel={filters.minBedrooms === b.v}
                       on={() => setFilters(f => ({ ...f, minBedrooms: b.v }))} />
                   ))}
                 </div>
-              </section>
+              </Section>
 
-              <section>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">状态</p>
+              <Section icon={Hammer} title="状态" hint="建设进度">
                 <div className="flex flex-wrap gap-2">
                   {STATUS.map(s => (
                     <SheetRow key={s.label} label={s.label}
-                      sel={filters.status === s.v && !!s.v ? true : (!s.v && !filters.status)}
+                      isDefault={!s.v}
+                      sel={s.v ? filters.status === s.v : !filters.status}
                       on={() => setFilters(f => ({ ...f, status: s.v }))} />
                   ))}
                 </div>
-              </section>
+              </Section>
 
-              <section>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">开发商</p>
-                <input
-                  value={devQuery} onChange={e => setDevQuery(e.target.value)}
-                  placeholder="搜索开发商…"
-                  className="mb-2 w-full rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-primary"
-                />
-                <div className="max-h-44 space-y-1 overflow-y-auto">
+              <Section icon={Building2} title="开发商"
+                hint={filters.developer ? `已选:${filters.developer}` : undefined}>
+                <div className="relative mb-2">
+                  <input
+                    value={devQuery} onChange={e => setDevQuery(e.target.value)}
+                    placeholder="搜索开发商…"
+                    className="w-full rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="max-h-52 space-y-1 overflow-y-auto pr-0.5">
                   <button
                     onClick={() => { setFilters(f => ({ ...f, developer: undefined })); setDevQuery('') }}
-                    className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm ${
-                      !filters.developer ? 'bg-primary/10 font-medium text-primary' : 'text-slate-700 hover:bg-slate-50'
+                    className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-sm transition-colors ${
+                      !filters.developer ? 'bg-primary/5 ring-1 ring-primary/30' : 'hover:bg-slate-50'
                     }`}
                   >
-                    不限
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                      <X className="h-4 w-4" />
+                    </span>
+                    <span className={`flex-1 ${!filters.developer ? 'font-semibold text-primary' : 'text-slate-700'}`}>
+                      不限(全部开发商)
+                    </span>
                   </button>
                   {developers
                     .filter(d => d.toLowerCase().includes(devQuery.toLowerCase()))
-                    .slice(0, 50)
-                    .map(d => (
-                      <button key={d}
-                        onClick={() => setFilters(f => ({ ...f, developer: d }))}
-                        className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm ${
-                          filters.developer === d ? 'bg-primary/10 font-medium text-primary' : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {d}
-                      </button>
-                    ))}
+                    .slice(0, 60)
+                    .map(d => {
+                      const on = filters.developer === d
+                      return (
+                        <button key={d}
+                          onClick={() => setFilters(f => ({ ...f, developer: d }))}
+                          className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-sm transition-colors ${
+                            on ? 'bg-primary/5 ring-1 ring-primary/30' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarColor(d)}`}>
+                            {d.trim().charAt(0).toUpperCase()}
+                          </span>
+                          <span className={`flex-1 truncate ${on ? 'font-semibold text-primary' : 'text-slate-700'}`}>
+                            {d}
+                          </span>
+                          {on && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                        </button>
+                      )
+                    })}
                 </div>
-              </section>
+              </Section>
             </div>
 
             <div className="mt-6 flex gap-3">
