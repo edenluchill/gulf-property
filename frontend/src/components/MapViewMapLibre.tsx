@@ -1170,6 +1170,7 @@ function MapViewMapLibre({
         onMove={evt => setViewState(evt.viewState)}
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
+        attributionControl={{ compact: true }}
         style={{ width: '100%', height: '100%' }}
         mapStyle={
           baseMap === 'satellite'
