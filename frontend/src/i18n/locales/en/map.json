@@ -48,6 +48,19 @@
       "embassy": "Embassy"
     }
   },
+  "close": "Close",
+  "directions": "Get Directions",
+  "directionsShort": "Directions",
+  "call": "Call",
+  "website": "Website",
+  "line": "Line: {{line}}",
+  "built": "Built {{year}}",
+  "refreshMetadata": "Refresh filter lists (developers, areas, projects)",
+  "station": {
+    "metro": "Metro Station",
+    "tram": "Tram Station",
+    "monorail": "Monorail Station"
+  },
   "clusters": "Clusters",
   "properties": "Properties",
   "developer": "Developer",

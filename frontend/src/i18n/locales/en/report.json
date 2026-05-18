@@ -1,0 +1,50 @@
+{
+  "title": "AI Property Decision Report",
+  "description": "Tell us your goal and budget, and we'll generate structured recommendations with a 5-year range forecast based on real DLD transactions.",
+  "goals": {
+    "invest_growth": "Investment · Capital appreciation focused",
+    "invest_rent": "Investment · Rental yield focused",
+    "invest_both": "Investment · Balanced appreciation & yield",
+    "self_use": "Owner-occupier",
+    "self_invest": "Owner-occupier & investment"
+  },
+  "form": {
+    "goal": "Goal",
+    "budgetMax": "Maximum budget (AED, optional)",
+    "budgetPlaceholder": "e.g. 2000000",
+    "generating": "Generating…",
+    "generate": "Generate report"
+  },
+  "brand": {
+    "collapse": "Hide agent branding",
+    "expandSet": "Agent branding (set)",
+    "expandOptional": "Agent branding (optional)",
+    "name": "Name",
+    "agency": "Agency",
+    "rera": "RERA / BRN No.",
+    "phone": "Phone",
+    "hint": "Once filled in, your printed / exported PDF report will carry your signature at the top. Information is stored only in this browser.",
+    "reraLabel": "RERA/BRN: {{value}}",
+    "poweredBy": "Powered by Pinzos · DLD data"
+  },
+  "result": {
+    "goal": "Goal:",
+    "budget": " · Budget ≤ {{value}} AED",
+    "generatedAt": " · Generated on {{date}}",
+    "print": "Print / Export PDF",
+    "noRecommendations": "No areas meeting the liquidity requirements under these conditions. Try relaxing your budget or goal.",
+    "referencePrice": "Reference price {{price}} AED · Payback ~{{years}} years",
+    "matchingProjects": "Matching projects on platform: {{count}} ({{developers}})",
+    "investPerspective": "Investment view:",
+    "livePerspective": "Owner-occupier view:",
+    "assumptionsTitle": "Assumptions & Disclaimer"
+  },
+  "scenario": {
+    "conservative": "Conservative",
+    "neutral": "Neutral",
+    "optimistic": "Optimistic",
+    "perYear": " /yr",
+    "totalReturn": "5-year total return ≈ {{value}} AED",
+    "rentalAndAppreciation": "Rental {{rental}} · Appreciation {{appreciation}}"
+  }
+}

@@ -618,7 +618,7 @@ export default function MapPage() {
                 className="h-12 px-4"
                 onClick={handleRefreshMetadata}
                 disabled={isRefreshingMetadata}
-                title="Refresh filter lists (developers, areas, projects)"
+                title={t('map:refreshMetadata')}
               >
                 <RefreshCw className={`h-5 w-5 ${isRefreshingMetadata ? 'animate-spin' : ''}`} />
               </Button>
@@ -1022,7 +1022,7 @@ export default function MapPage() {
                     className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                   >
                     <Navigation className="w-5 h-5 text-blue-600" />
-                    <span className="text-xs font-medium text-slate-700">Directions</span>
+                    <span className="text-xs font-medium text-slate-700">{t('map:directionsShort')}</span>
                   </a>
                   {selectedPoi.phone ? (
                     <a
@@ -1030,12 +1030,12 @@ export default function MapPage() {
                       className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                     >
                       <Phone className="w-5 h-5 text-green-600" />
-                      <span className="text-xs font-medium text-slate-700">Call</span>
+                      <span className="text-xs font-medium text-slate-700">{t('map:call')}</span>
                     </a>
                   ) : (
                     <div className="flex flex-col items-center gap-1.5 py-4 bg-white opacity-40">
                       <Phone className="w-5 h-5 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-400">Call</span>
+                      <span className="text-xs font-medium text-slate-400">{t('map:call')}</span>
                     </div>
                   )}
                   {selectedPoi.website ? (
@@ -1046,12 +1046,12 @@ export default function MapPage() {
                       className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                     >
                       <Globe className="w-5 h-5 text-purple-600" />
-                      <span className="text-xs font-medium text-slate-700">Website</span>
+                      <span className="text-xs font-medium text-slate-700">{t('map:website')}</span>
                     </a>
                   ) : (
                     <div className="flex flex-col items-center gap-1.5 py-4 bg-white opacity-40">
                       <Globe className="w-5 h-5 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-400">Website</span>
+                      <span className="text-xs font-medium text-slate-400">{t('map:website')}</span>
                     </div>
                   )}
                 </div>
@@ -1144,13 +1144,13 @@ export default function MapPage() {
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors"
                   >
                     <Navigation className="w-4 h-4" />
-                    Get Directions
+                    {t('map:directions')}
                   </a>
                   <button
                     onClick={() => setSelectedPoi(null)}
                     className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors"
                   >
-                    Close
+                    {t('map:close')}
                   </button>
                 </div>
               </div>
@@ -1189,8 +1189,8 @@ export default function MapPage() {
                     className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
                     style={{ backgroundColor: selectedStation.color }}
                   >
-                    {selectedStation.category === 'metro_stations' ? 'Metro Station' :
-                     selectedStation.category === 'tram_stations' ? 'Tram Station' : 'Monorail Station'}
+                    {selectedStation.category === 'metro_stations' ? t('map:station.metro') :
+                     selectedStation.category === 'tram_stations' ? t('map:station.tram') : t('map:station.monorail')}
                   </span>
                 </div>
               </div>
@@ -1207,7 +1207,7 @@ export default function MapPage() {
                 )}
                 {selectedStation.line && (
                   <p className="text-sm text-slate-600">
-                    Line: {selectedStation.line}
+                    {t('map:line', { line: selectedStation.line })}
                   </p>
                 )}
               </div>
@@ -1221,7 +1221,7 @@ export default function MapPage() {
                   className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                 >
                   <Navigation className="w-5 h-5 text-blue-600" />
-                  <span className="text-xs font-medium text-slate-700">Directions</span>
+                  <span className="text-xs font-medium text-slate-700">{t('map:directionsShort')}</span>
                 </a>
               </div>
 
@@ -1257,8 +1257,8 @@ export default function MapPage() {
                       className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white mb-2"
                       style={{ backgroundColor: selectedStation.color }}
                     >
-                      {selectedStation.category === 'metro_stations' ? 'Metro Station' :
-                       selectedStation.category === 'tram_stations' ? 'Tram Station' : 'Monorail Station'}
+                      {selectedStation.category === 'metro_stations' ? t('map:station.metro') :
+                       selectedStation.category === 'tram_stations' ? t('map:station.tram') : t('map:station.monorail')}
                     </span>
                     <h3 className="text-xl font-bold text-slate-900 leading-tight">
                       {selectedStation.name}
@@ -1277,7 +1277,7 @@ export default function MapPage() {
                 <div className="px-5 pb-4">
                   <div className="flex items-center gap-3">
                     <TrainFront className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <span className="text-sm text-slate-600">Line: {selectedStation.line}</span>
+                    <span className="text-sm text-slate-600">{t('map:line', { line: selectedStation.line })}</span>
                   </div>
                 </div>
               )}
@@ -1291,13 +1291,13 @@ export default function MapPage() {
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors"
                 >
                   <Navigation className="w-4 h-4" />
-                  Get Directions
+                  {t('map:directions')}
                 </a>
                 <button
                   onClick={() => setSelectedStation(null)}
                   className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors"
                 >
-                  Close
+                  {t('map:close')}
                 </button>
               </div>
             </div>
@@ -1349,7 +1349,7 @@ export default function MapPage() {
                   </p>
                 )}
                 {selectedLandmark.yearBuilt && (
-                  <p className="text-xs text-slate-400">Built {selectedLandmark.yearBuilt}</p>
+                  <p className="text-xs text-slate-400">{t('map:built', { year: selectedLandmark.yearBuilt })}</p>
                 )}
               </div>
 
@@ -1362,7 +1362,7 @@ export default function MapPage() {
                   className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                 >
                   <Navigation className="w-5 h-5 text-blue-600" />
-                  <span className="text-xs font-medium text-slate-700">Directions</span>
+                  <span className="text-xs font-medium text-slate-700">{t('map:directionsShort')}</span>
                 </a>
                 {selectedLandmark.websiteUrl ? (
                   <a
@@ -1372,12 +1372,12 @@ export default function MapPage() {
                     className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                   >
                     <Globe className="w-5 h-5 text-purple-600" />
-                    <span className="text-xs font-medium text-slate-700">Website</span>
+                    <span className="text-xs font-medium text-slate-700">{t('map:website')}</span>
                   </a>
                 ) : (
                   <div className="flex flex-col items-center gap-1.5 py-4 bg-white opacity-40">
                     <Globe className="w-5 h-5 text-slate-400" />
-                    <span className="text-xs font-medium text-slate-400">Website</span>
+                    <span className="text-xs font-medium text-slate-400">{t('map:website')}</span>
                   </div>
                 )}
               </div>
@@ -1428,7 +1428,7 @@ export default function MapPage() {
                   </p>
                 )}
                 {selectedLandmark.yearBuilt && (
-                  <p className="text-xs text-slate-400">Built {selectedLandmark.yearBuilt}</p>
+                  <p className="text-xs text-slate-400">{t('map:built', { year: selectedLandmark.yearBuilt })}</p>
                 )}
               </div>
 
@@ -1441,7 +1441,7 @@ export default function MapPage() {
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors"
                 >
                   <Navigation className="w-4 h-4" />
-                  Get Directions
+                  {t('map:directions')}
                 </a>
                 {selectedLandmark.websiteUrl && (
                   <a
@@ -1451,7 +1451,7 @@ export default function MapPage() {
                     className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors flex items-center gap-2"
                   >
                     <Globe className="w-4 h-4" />
-                    Website
+                    {t('map:website')}
                   </a>
                 )}
                 {!selectedLandmark.websiteUrl && (
@@ -1459,7 +1459,7 @@ export default function MapPage() {
                     onClick={() => setSelectedLandmark(null)}
                     className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors"
                   >
-                    Close
+                    {t('map:close')}
                   </button>
                 )}
               </div>

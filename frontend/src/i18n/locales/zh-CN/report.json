@@ -1,0 +1,50 @@
+{
+  "title": "AI 买房决策报告",
+  "description": "告诉我你的目标与预算，基于 DLD 真实成交生成结构化建议与 5 年区间预测。",
+  "goals": {
+    "invest_growth": "投资 · 资本增值优先",
+    "invest_rent": "投资 · 租金收益优先",
+    "invest_both": "投资 · 增值与收租兼顾",
+    "self_use": "自住",
+    "self_invest": "自住兼投资"
+  },
+  "form": {
+    "goal": "目标",
+    "budgetMax": "预算上限 (AED，可留空)",
+    "budgetPlaceholder": "例如 2000000",
+    "generating": "生成中…",
+    "generate": "生成报告"
+  },
+  "brand": {
+    "collapse": "收起经纪人品牌",
+    "expandSet": "经纪人品牌（已设置）",
+    "expandOptional": "经纪人品牌（可选）",
+    "name": "姓名",
+    "agency": "机构",
+    "rera": "RERA / BRN 号",
+    "phone": "联系电话",
+    "hint": "填写后，打印 / 导出 PDF 的报告顶部会带你的署名。信息仅保存在本机浏览器。",
+    "reraLabel": "RERA/BRN: {{value}}",
+    "poweredBy": "Powered by Pinzos · DLD 数据"
+  },
+  "result": {
+    "goal": "目标：",
+    "budget": " · 预算 ≤ {{value}} AED",
+    "generatedAt": " · 生成于 {{date}}",
+    "print": "打印 / 导出 PDF",
+    "noRecommendations": "该条件下暂无满足流动性要求的区域，建议放宽预算或目标。",
+    "referencePrice": "参考价 {{price}} AED · 回本约 {{years}} 年",
+    "matchingProjects": "平台在售匹配项目：{{count}} 个（{{developers}}）",
+    "investPerspective": "投资视角：",
+    "livePerspective": "自住视角：",
+    "assumptionsTitle": "假设与免责声明"
+  },
+  "scenario": {
+    "conservative": "保守",
+    "neutral": "中性",
+    "optimistic": "乐观",
+    "perYear": " /年",
+    "totalReturn": "5年总收益 ≈ {{value}} AED",
+    "rentalAndAppreciation": "租金 {{rental}} · 增值 {{appreciation}}"
+  }
+}

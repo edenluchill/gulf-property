@@ -48,6 +48,19 @@
       "embassy": "大使馆"
     }
   },
+  "close": "关闭",
+  "directions": "导航前往",
+  "directionsShort": "导航",
+  "call": "电话",
+  "website": "网站",
+  "line": "线路：{{line}}",
+  "built": "建于 {{year}}",
+  "refreshMetadata": "刷新筛选列表（开发商、区域、项目）",
+  "station": {
+    "metro": "地铁站",
+    "tram": "有轨电车站",
+    "monorail": "单轨列车站"
+  },
   "clusters": "聚合",
   "properties": "楼盘",
   "developer": "开发商",

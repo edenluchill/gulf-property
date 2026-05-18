@@ -3,6 +3,7 @@
  * 方法论透明，标签可展开看依据；中性措辞 + 投资/自住双视角
  */
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { fetchAreaClassification, fetchAreaCompare, AreaClass, AreaClassResp } from '../lib/api'
 
 const TAG_STYLE: Record<string, string> = {
@@ -19,6 +20,7 @@ function fmt(n: number | null | undefined) {
 }
 
 function AreaCard({ a }: { a: AreaClass }) {
+  const { t } = useTranslation('insights')
   const [open, setOpen] = useState(false)
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -29,12 +31,12 @@ function AreaCard({ a }: { a: AreaClass }) {
         </span>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-        <div><div className="text-slate-400">成交</div><div className="font-semibold text-slate-700">{fmt(a.metrics.transactionCount)}</div></div>
-        <div><div className="text-slate-400">价格增长</div><div className="font-semibold text-slate-700">{a.metrics.capitalGrowthPct != null ? `${a.metrics.capitalGrowthPct}%` : '—'}</div></div>
-        <div><div className="text-slate-400">租金回报</div><div className="font-semibold text-slate-700">{a.metrics.rentalYieldPct != null ? `${a.metrics.rentalYieldPct}%` : '—'}</div></div>
+        <div><div className="text-slate-400">{t('metrics.transactions')}</div><div className="font-semibold text-slate-700">{fmt(a.metrics.transactionCount)}</div></div>
+        <div><div className="text-slate-400">{t('metrics.priceGrowth')}</div><div className="font-semibold text-slate-700">{a.metrics.capitalGrowthPct != null ? `${a.metrics.capitalGrowthPct}%` : '—'}</div></div>
+        <div><div className="text-slate-400">{t('metrics.rentalYield')}</div><div className="font-semibold text-slate-700">{a.metrics.rentalYieldPct != null ? `${a.metrics.rentalYieldPct}%` : '—'}</div></div>
       </div>
       <button onClick={() => setOpen(o => !o)} className="mt-3 text-xs font-medium text-primary hover:underline">
-        {open ? '收起' : '为什么?'}
+        {open ? t('card.collapse') : t('card.why')}
       </button>
       {open && (
         <div className="mt-2 space-y-2 text-xs text-slate-600">
@@ -42,8 +44,8 @@ function AreaCard({ a }: { a: AreaClass }) {
             {a.reasons.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
           <div className="rounded-lg bg-slate-50 p-2 leading-relaxed">
-            <div><span className="font-medium text-slate-700">投资视角：</span>{a.perspective.invest}</div>
-            <div className="mt-1"><span className="font-medium text-slate-700">自住视角：</span>{a.perspective.live}</div>
+            <div><span className="font-medium text-slate-700">{t('card.investPerspective')}</span>{a.perspective.invest}</div>
+            <div className="mt-1"><span className="font-medium text-slate-700">{t('card.livePerspective')}</span>{a.perspective.live}</div>
           </div>
         </div>
       )}
@@ -52,6 +54,7 @@ function AreaCard({ a }: { a: AreaClass }) {
 }
 
 export default function AreaInsightsPage() {
+  const { t } = useTranslation(['insights', 'common'])
   const [data, setData] = useState<AreaClassResp | null>(null)
   const [loading, setLoading] = useState(true)
   const [tagFilter, setTagFilter] = useState('all')
@@ -78,32 +81,32 @@ export default function AreaInsightsPage() {
     if (cmpA && cmpB) fetchAreaCompare(cmpA, cmpB).then(setCmp)
   }
 
-  if (loading) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">正在分析区域…</div>
-  if (!data) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">暂无区域分级数据。</div>
+  if (loading) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">{t('loading')}</div>
+  if (!data) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">{t('empty')}</div>
 
   return (
     <div className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <h1 className="text-2xl font-bold text-slate-800">区域分级判断</h1>
+      <h1 className="text-2xl font-bold text-slate-800">{t('title')}</h1>
       <p className="mt-1 text-sm text-slate-500">
-        基于 DLD 真实成交，把区域分为成熟 / 增长 / 未来 / 供应压力等。标签按全市分位数相对划分，可点开看依据。
+        {t('description')}
       </p>
 
       {/* 两区对比 */}
       <div className="mt-5 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <div className="text-sm font-medium text-slate-700">两区对比</div>
+        <div className="text-sm font-medium text-slate-700">{t('compare.title')}</div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <select value={cmpA} onChange={e => setCmpA(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="">区域 A</option>
+            <option value="">{t('compare.areaA')}</option>
             {data.areas.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
           </select>
           <span className="text-slate-400">vs</span>
           <select value={cmpB} onChange={e => setCmpB(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <option value="">区域 B</option>
+            <option value="">{t('compare.areaB')}</option>
             {data.areas.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
           </select>
           <button onClick={runCompare} disabled={!cmpA || !cmpB}
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-white disabled:opacity-40">对比</button>
+            className="rounded-lg bg-primary px-4 py-2 text-sm text-white disabled:opacity-40">{t('compare.button')}</button>
         </div>
         {cmp && (cmp.matched && cmp.a && cmp.b ? (
           <div className="mt-3">
@@ -120,12 +123,12 @@ export default function AreaInsightsPage() {
       <div className="mt-6 flex flex-wrap gap-2">
         <button onClick={() => setTagFilter('all')}
           className={`rounded-full px-3 py-1 text-xs ring-1 ${tagFilter === 'all' ? 'bg-primary text-white ring-primary' : 'bg-white text-slate-600 ring-slate-200'}`}>
-          全部（{data.count}）
+          {t('filter.all', { count: data.count })}
         </button>
         {tags.map(([tag, label]) => (
           <button key={tag} onClick={() => setTagFilter(tag)}
             className={`rounded-full px-3 py-1 text-xs ring-1 ${tagFilter === tag ? 'bg-primary text-white ring-primary' : 'bg-white text-slate-600 ring-slate-200'}`}>
-            {label}（{data.areas.filter(a => a.tag === tag).length}）
+            {t('filter.tag', { label, count: data.areas.filter(a => a.tag === tag).length })}
           </button>
         ))}
       </div>

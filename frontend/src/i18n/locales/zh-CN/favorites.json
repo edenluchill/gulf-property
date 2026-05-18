@@ -49,6 +49,7 @@
   "compare": {
     "title": "对比房产",
     "ready": "可以开始对比了！",
+    "count": "您已保存 {{count}} 个户型",
     "selectItems": "选择2个房产或户型进行对比",
     "selectPrompt": "选择2-4个房产进行对比",
     "selected": "已选择",

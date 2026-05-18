@@ -1,0 +1,37 @@
+{
+  "title": "Agent Workspace",
+  "intro": "Use real transaction data from the Dubai Land Department to generate professional, your-branded analysis reports for clients, and let the data speak in front of them.",
+  "features": {
+    "dldTitle": "DLD Data Backing",
+    "dldDesc": "Transaction truth, price health checks and area classification — all based on official records",
+    "brandedTitle": "Branded Client Reports",
+    "brandedDesc": "Reports carry your name / agency / RERA in the header — export as PDF for clients",
+    "toolsTitle": "Area Decision Tools",
+    "toolsDesc": "Area comparison and AI buying reports help clients decide quickly"
+  },
+  "trial": {
+    "title": "Free Early-Bird Trial",
+    "desc": "Activate now to use all agent features for free. The paid subscription (Individual: early-bird 199 / standard 299 AED per month and up) will start once the payment channel goes live. You will be notified separately — no automatic charges.",
+    "activate": "Become an agent · Start free trial"
+  },
+  "active": {
+    "exit": "Exit agent mode",
+    "status": "✅ On free early-bird trial · Active for {{days}} days · The paid subscription (199/299 AED per month and up) starts once the payment channel goes live; not billed currently.",
+    "brandTitle": "My Branding (used in report headers)",
+    "name": "Name",
+    "agency": "Agency",
+    "rera": "RERA / BRN No.",
+    "phone": "Phone",
+    "saved": "Saved",
+    "save": "Save branding",
+    "brandHint": "Information is stored only in this browser; once saved, exporting a PDF on the AI report page will include your signature header."
+  },
+  "tools": {
+    "reportLabel": "AI Property Decision Report",
+    "reportDesc": "Questionnaire → recommendations + range forecast, exported with your branding",
+    "transactionsLabel": "Transaction Records",
+    "transactionsDesc": "Multi-dimensional search across 1.47M real DLD transactions",
+    "areasLabel": "Area Classification & Comparison",
+    "areasDesc": "Mature / growth / future area assessment, two-area comparison"
+  }
+}

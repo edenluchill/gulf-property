@@ -10,6 +10,10 @@ import developerEn from './locales/en/developer.json'
 import adminEn from './locales/en/admin.json'
 import uploadEn from './locales/en/upload.json'
 import authEn from './locales/en/auth.json'
+import transactionsEn from './locales/en/transactions.json'
+import reportEn from './locales/en/report.json'
+import insightsEn from './locales/en/insights.json'
+import agentEn from './locales/en/agent.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -25,6 +29,10 @@ declare module 'i18next' {
       admin: typeof adminEn
       upload: typeof uploadEn
       auth: typeof authEn
+      transactions: typeof transactionsEn
+      report: typeof reportEn
+      insights: typeof insightsEn
+      agent: typeof agentEn
     }
   }
 }

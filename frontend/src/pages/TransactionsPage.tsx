@@ -3,6 +3,7 @@
  * 多维筛选 → 聚合指标 + 月度趋势 + 明细分页
  */
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   fetchTxFilters, fetchTxSummary, fetchTxList,
   TxFilters, TxSummary, TxRow
@@ -50,6 +51,7 @@ function TrendChart({ trend }: { trend: TxSummary['trend'] }) {
 }
 
 export default function TransactionsPage() {
+  const { t } = useTranslation(['transactions', 'common'])
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   const [area, setArea] = useState('')
   const [rooms, setRooms] = useState('')
@@ -87,52 +89,52 @@ export default function TransactionsPage() {
   return (
     <div className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <h1 className="text-2xl font-bold text-slate-800">成交记录查询</h1>
+      <h1 className="text-2xl font-bold text-slate-800">{t('title')}</h1>
       <p className="mt-1 text-sm text-slate-500">
-        基于 Dubai Land Department 真实住宅成交数据（定期快照，非实时；二手登记通常滞后 4–8 周）。
+        {t('description')}
       </p>
 
       {/* 筛选 */}
       <div className="mt-5 flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <label className="flex flex-col gap-1 text-xs text-slate-500">
-          区域
+          {t('filter.area')}
           <select
             value={area}
             onChange={e => setArea(e.target.value)}
             className="min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
           >
-            <option value="">全部区域</option>
+            <option value="">{t('filter.allAreas')}</option>
             {filters.areas.map(a => (
-              <option key={a.name} value={a.name}>{a.name}（{a.count}）</option>
+              <option key={a.name} value={a.name}>{t('filter.areaOption', { name: a.name, count: a.count })}</option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-500">
-          户型
+          {t('filter.rooms')}
           <select
             value={rooms}
             onChange={e => setRooms(e.target.value)}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
           >
-            <option value="">全部户型</option>
+            <option value="">{t('filter.allRooms')}</option>
             {filters.rooms.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-500">
-          年份
+          {t('filter.year')}
           <select
             value={year}
             onChange={e => setYear(e.target.value)}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
           >
-            <option value="">不限（最新优先）</option>
+            <option value="">{t('filter.anyYear')}</option>
             {['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'].map(y => (
-              <option key={y} value={y}>{y} 年</option>
+              <option key={y} value={y}>{t('filter.yearLabel', { year: y })}</option>
             ))}
           </select>
         </label>
         <div className="flex flex-col gap-1 text-xs text-slate-500">
-          类型
+          {t('filter.type')}
           <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">
             {(['all', 'ready', 'offplan'] as SaleType[]).map(tp => (
               <button
@@ -140,7 +142,7 @@ export default function TransactionsPage() {
                 onClick={() => setType(tp)}
                 className={`px-3 py-2 ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               >
-                {tp === 'all' ? '全部' : tp === 'ready' ? '现房/二手' : '期房'}
+                {t(`saleType.${tp}`)}
               </button>
             ))}
           </div>
@@ -149,25 +151,30 @@ export default function TransactionsPage() {
 
       {/* 指标卡 */}
       {loading ? (
-        <div className="mt-6 text-sm text-slate-400">正在统计…</div>
+        <div className="mt-6 text-sm text-slate-400">{t('loading')}</div>
       ) : summary && summary.count > 0 ? (
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Kpi label="成交笔数" value={fmt(summary.count)} />
-            <Kpi label="中位单价 (AED/m²)" value={fmt(pps?.median)} />
-            <Kpi label="中位总价 (AED)" value={fmt(summary.medianUnitPrice)} />
-            <Kpi label="平均面积 (m²)" value={fmt(summary.avgSizeSqm)} />
+            <Kpi label={t('kpi.count')} value={fmt(summary.count)} />
+            <Kpi label={t('kpi.medianPps')} value={fmt(pps?.median)} />
+            <Kpi label={t('kpi.medianTotal')} value={fmt(summary.medianUnitPrice)} />
+            <Kpi label={t('kpi.avgSize')} value={fmt(summary.avgSizeSqm)} />
           </div>
           {pps && (
             <div className="mt-2 text-xs text-slate-500">
-              单价区间：{fmt(pps.min)} – <span className="text-slate-700 font-medium">{fmt(pps.median)}</span> – {fmt(pps.max)} AED/m²
-              （p25 {fmt(pps.p25)} · p75 {fmt(pps.p75)}）
+              {t('ppsRange', {
+                min: fmt(pps.min),
+                median: fmt(pps.median),
+                max: fmt(pps.max),
+                p25: fmt(pps.p25),
+                p75: fmt(pps.p75)
+              })}
             </div>
           )}
 
           {/* 趋势 */}
           <div className="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-2 text-sm font-medium text-slate-700">近 24 个月趋势（柱=成交量，线=中位单价）</div>
+            <div className="mb-2 text-sm font-medium text-slate-700">{t('trend.title')}</div>
             <TrendChart trend={summary.trend} />
           </div>
 
@@ -176,14 +183,14 @@ export default function TransactionsPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">日期</th>
-                  <th className="px-3 py-2">区域</th>
-                  <th className="px-3 py-2">楼盘/楼栋</th>
-                  <th className="px-3 py-2">户型</th>
-                  <th className="px-3 py-2 text-right">面积 m²</th>
-                  <th className="px-3 py-2 text-right">总价 AED</th>
-                  <th className="px-3 py-2 text-right">单价 /m²</th>
-                  <th className="px-3 py-2">类型</th>
+                  <th className="px-3 py-2">{t('table.date')}</th>
+                  <th className="px-3 py-2">{t('table.area')}</th>
+                  <th className="px-3 py-2">{t('table.building')}</th>
+                  <th className="px-3 py-2">{t('table.rooms')}</th>
+                  <th className="px-3 py-2 text-right">{t('table.size')}</th>
+                  <th className="px-3 py-2 text-right">{t('table.price')}</th>
+                  <th className="px-3 py-2 text-right">{t('table.pps')}</th>
+                  <th className="px-3 py-2">{t('table.type')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,7 +205,7 @@ export default function TransactionsPage() {
                     <td className="px-3 py-2 text-right">{fmt(r.pricePerSqm)}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${r.saleType === 'offplan' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                        {r.saleType === 'offplan' ? '期房' : '现房'}
+                        {r.saleType === 'offplan' ? t('saleType.offplan') : t('saleType.readyShort')}
                       </span>
                     </td>
                   </tr>
@@ -206,18 +213,18 @@ export default function TransactionsPage() {
               </tbody>
             </table>
             <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
-              <span>第 {page + 1} 页</span>
+              <span>{t('pagination.page', { page: page + 1 })}</span>
               <div className="flex gap-2">
                 <button
                   disabled={page === 0}
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
-                >上一页</button>
+                >{t('pagination.prev')}</button>
                 <button
                   disabled={rows.length < limit}
                   onClick={() => setPage(p => p + 1)}
                   className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
-                >下一页</button>
+                >{t('pagination.next')}</button>
               </div>
             </div>
           </div>
@@ -225,7 +232,7 @@ export default function TransactionsPage() {
           <p className="mt-3 text-xs text-slate-400">{summary.note}</p>
         </>
       ) : (
-        <div className="mt-6 text-sm text-slate-400">该筛选条件下暂无成交数据。</div>
+        <div className="mt-6 text-sm text-slate-400">{t('empty')}</div>
       )}
     </div>
     </div>

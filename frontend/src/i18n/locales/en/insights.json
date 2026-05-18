@@ -1,0 +1,27 @@
+{
+  "title": "Area Classification",
+  "description": "Based on real DLD transactions, areas are classified as mature / growth / future / supply pressure. Tags are assigned relative to citywide percentiles — expand to see the rationale.",
+  "metrics": {
+    "transactions": "Sales",
+    "priceGrowth": "Price Growth",
+    "rentalYield": "Rental Yield"
+  },
+  "card": {
+    "why": "Why?",
+    "collapse": "Collapse",
+    "investPerspective": "Investment view:",
+    "livePerspective": "Owner-occupier view:"
+  },
+  "loading": "Analyzing areas…",
+  "empty": "No area classification data available.",
+  "compare": {
+    "title": "Compare Two Areas",
+    "areaA": "Area A",
+    "areaB": "Area B",
+    "button": "Compare"
+  },
+  "filter": {
+    "all": "All ({{count}})",
+    "tag": "{{label}} ({{count}})"
+  }
+}

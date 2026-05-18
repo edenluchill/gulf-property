@@ -1,0 +1,48 @@
+{
+  "title": "成交记录查询",
+  "description": "基于 Dubai Land Department 真实住宅成交数据（定期快照，非实时；二手登记通常滞后 4–8 周）。",
+  "filter": {
+    "area": "区域",
+    "rooms": "户型",
+    "year": "年份",
+    "type": "类型",
+    "allAreas": "全部区域",
+    "allRooms": "全部户型",
+    "anyYear": "不限（最新优先）",
+    "areaOption": "{{name}}（{{count}}）",
+    "yearLabel": "{{year}} 年"
+  },
+  "saleType": {
+    "all": "全部",
+    "ready": "现房/二手",
+    "offplan": "期房",
+    "readyShort": "现房"
+  },
+  "loading": "正在统计…",
+  "kpi": {
+    "count": "成交笔数",
+    "medianPps": "中位单价 (AED/m²)",
+    "medianTotal": "中位总价 (AED)",
+    "avgSize": "平均面积 (m²)"
+  },
+  "ppsRange": "单价区间：{{min}} – {{median}} – {{max}} AED/m²（p25 {{p25}} · p75 {{p75}}）",
+  "trend": {
+    "title": "近 24 个月趋势（柱=成交量，线=中位单价）"
+  },
+  "table": {
+    "date": "日期",
+    "area": "区域",
+    "building": "楼盘/楼栋",
+    "rooms": "户型",
+    "size": "面积 m²",
+    "price": "总价 AED",
+    "pps": "单价 /m²",
+    "type": "类型"
+  },
+  "pagination": {
+    "page": "第 {{page}} 页",
+    "prev": "上一页",
+    "next": "下一页"
+  },
+  "empty": "该筛选条件下暂无成交数据。"
+}

@@ -1,0 +1,48 @@
+{
+  "title": "Transaction Records",
+  "description": "Based on real residential transaction data from the Dubai Land Department (periodic snapshots, not real-time; resale registrations are typically delayed by 4–8 weeks).",
+  "filter": {
+    "area": "Area",
+    "rooms": "Bedrooms",
+    "year": "Year",
+    "type": "Type",
+    "allAreas": "All areas",
+    "allRooms": "All bedrooms",
+    "anyYear": "Any (latest first)",
+    "areaOption": "{{name}} ({{count}})",
+    "yearLabel": "{{year}}"
+  },
+  "saleType": {
+    "all": "All",
+    "ready": "Ready / Resale",
+    "offplan": "Off-plan",
+    "readyShort": "Ready"
+  },
+  "loading": "Calculating…",
+  "kpi": {
+    "count": "Transactions",
+    "medianPps": "Median Price (AED/m²)",
+    "medianTotal": "Median Total Price (AED)",
+    "avgSize": "Average Size (m²)"
+  },
+  "ppsRange": "Price range: {{min}} – {{median}} – {{max}} AED/m² (p25 {{p25}} · p75 {{p75}})",
+  "trend": {
+    "title": "Last 24 months trend (bars = volume, line = median price)"
+  },
+  "table": {
+    "date": "Date",
+    "area": "Area",
+    "building": "Project / Building",
+    "rooms": "Bedrooms",
+    "size": "Size m²",
+    "price": "Total AED",
+    "pps": "Price /m²",
+    "type": "Type"
+  },
+  "pagination": {
+    "page": "Page {{page}}",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "empty": "No transaction data available for the selected filters."
+}

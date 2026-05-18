@@ -1,0 +1,27 @@
+{
+  "title": "区域分级判断",
+  "description": "基于 DLD 真实成交，把区域分为成熟 / 增长 / 未来 / 供应压力等。标签按全市分位数相对划分，可点开看依据。",
+  "metrics": {
+    "transactions": "成交",
+    "priceGrowth": "价格增长",
+    "rentalYield": "租金回报"
+  },
+  "card": {
+    "why": "为什么?",
+    "collapse": "收起",
+    "investPerspective": "投资视角：",
+    "livePerspective": "自住视角："
+  },
+  "loading": "正在分析区域…",
+  "empty": "暂无区域分级数据。",
+  "compare": {
+    "title": "两区对比",
+    "areaA": "区域 A",
+    "areaB": "区域 B",
+    "button": "对比"
+  },
+  "filter": {
+    "all": "全部（{{count}}）",
+    "tag": "{{label}}（{{count}}）"
+  }
+}
