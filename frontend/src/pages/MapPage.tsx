@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
+import MapSearchOverlay from '../components/MapSearchOverlay'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import MobileBottomSheet from '../components/MobileBottomSheet'
@@ -556,8 +557,8 @@ export default function MapPage() {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Search and Filter Bar — desktop only */}
-      <div className="hidden md:block bg-white shadow-sm z-10">
+      {/* 旧白条已停用——搜索改为浮在地图上的 MapSearchOverlay */}
+      <div className="hidden" aria-hidden>
         <div className="px-6 py-4">
           <div className="flex flex-col gap-3">
             {/* Search Bar */}
@@ -657,6 +658,18 @@ export default function MapPage() {
             transportGeoJSON={transportGeoJSON}
             showTransport={showTransport}
             voiceMeasure={voiceMeasure}
+          />
+
+          {/* 浮在地图上的搜索胶囊（替代旧白条） */}
+          <MapSearchOverlay
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onFly={(lat, lng) => setFlyToLocation({ lat, lng, zoom: 12 })}
+            onToggleFilters={() => setShowFilters(s => !s)}
+            hasActiveFilters={!!hasActiveFilters}
+            onRefresh={handleRefreshMetadata}
+            isRefreshing={isRefreshingMetadata}
+            filtersLabel={t('map:filters')}
           />
 
           {/* Mobile: Top left - Current metric indicator */}
