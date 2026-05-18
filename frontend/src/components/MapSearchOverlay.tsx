@@ -6,7 +6,7 @@
  * - Filters / 刷新 按钮内嵌
  */
 import { useEffect, useRef, useState } from 'react'
-import { Search, SlidersHorizontal, RefreshCw, X, MapPin } from 'lucide-react'
+import { Search, SlidersHorizontal, RefreshCw, X, MapPin, Building2, Briefcase } from 'lucide-react'
 import { searchDubaiAreas, AreaSearchResult } from '../lib/api'
 
 interface Props {
@@ -18,32 +18,51 @@ interface Props {
   onRefresh: () => void
   isRefreshing: boolean
   filtersLabel: string
+  developers: string[]
+  projects: { project_name: string; developer: string }[]
+  applyFilter: (patch: { developer?: string; project?: string }) => void
 }
+
+type Sugg =
+  | { kind: 'area'; label: string; area: AreaSearchResult }
+  | { kind: 'developer'; label: string }
+  | { kind: 'project'; label: string; developer: string }
 
 export default function MapSearchOverlay({
   searchQuery, setSearchQuery, onFly, onToggleFilters,
-  hasActiveFilters, onRefresh, isRefreshing, filtersLabel
+  hasActiveFilters, onRefresh, isRefreshing, filtersLabel,
+  developers, projects, applyFilter
 }: Props) {
-  const [suggestions, setSuggestions] = useState<AreaSearchResult[]>([])
+  const [suggestions, setSuggestions] = useState<Sugg[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const boxRef = useRef<HTMLDivElement | null>(null)
   const tRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 防抖区域搜索
+  // 防抖：区域(API) + 开发商/项目(客户端已加载数据) 合并建议
   useEffect(() => {
     if (tRef.current) clearTimeout(tRef.current)
     const q = searchQuery.trim()
     if (q.length < 2) { setSuggestions([]); return }
+    const ql = q.toLowerCase()
     setLoading(true)
     tRef.current = setTimeout(async () => {
-      const res = await searchDubaiAreas(q)
-      setSuggestions(res.slice(0, 6))
+      const areas = await searchDubaiAreas(q)
+      const devs = developers
+        .filter(d => d.toLowerCase().includes(ql)).slice(0, 4)
+      const projs = projects
+        .filter(p => p.project_name.toLowerCase().includes(ql)).slice(0, 5)
+      const merged: Sugg[] = [
+        ...areas.slice(0, 5).map(a => ({ kind: 'area' as const, label: a.name, area: a })),
+        ...devs.map(d => ({ kind: 'developer' as const, label: d })),
+        ...projs.map(p => ({ kind: 'project' as const, label: p.project_name, developer: p.developer })),
+      ]
+      setSuggestions(merged)
       setLoading(false)
       setOpen(true)
     }, 250)
     return () => { if (tRef.current) clearTimeout(tRef.current) }
-  }, [searchQuery])
+  }, [searchQuery, developers, projects])
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -54,11 +73,23 @@ export default function MapSearchOverlay({
     return () => window.removeEventListener('mousedown', onDown)
   }, [])
 
-  const pick = (s: AreaSearchResult) => {
-    if (s.centroid) onFly(s.centroid.lat, s.centroid.lng)
-    setSearchQuery(s.name)
+  const pick = (s: Sugg) => {
+    if (s.kind === 'area') {
+      if (s.area.centroid) onFly(s.area.centroid.lat, s.area.centroid.lng)
+      setSearchQuery(s.area.name)
+    } else if (s.kind === 'developer') {
+      applyFilter({ developer: s.label })
+      setSearchQuery('')
+    } else {
+      applyFilter({ project: s.label })
+      setSearchQuery('')
+    }
     setOpen(false)
   }
+  const ICON = {
+    area: MapPin, developer: Briefcase, project: Building2
+  }
+  const TAG = { area: '区域', developer: '开发商', project: '项目' }
 
   return (
     <div
@@ -112,23 +143,24 @@ export default function MapSearchOverlay({
           {loading && suggestions.length === 0 && (
             <div className="px-4 py-3 text-xs text-slate-400">搜索中…</div>
           )}
-          {suggestions.map(s => (
-            <button
-              key={s.id}
-              onClick={() => pick(s)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-slate-50 transition-colors"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                <MapPin className="h-4 w-4" />
-              </span>
-              <span className="flex-1 truncate text-slate-800">{s.name}</span>
-              {s.avgPriceSqm != null && (
-                <span className="text-[11px] text-slate-400">
-                  {Math.round(s.avgPriceSqm).toLocaleString()} /m²
+          {suggestions.map((s, i) => {
+            const Ico = ICON[s.kind]
+            return (
+              <button
+                key={`${s.kind}-${s.label}-${i}`}
+                onClick={() => pick(s)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-slate-50 transition-colors"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <Ico className="h-4 w-4" />
                 </span>
-              )}
-            </button>
-          ))}
+                <span className="flex-1 truncate text-slate-800">{s.label}</span>
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                  {TAG[s.kind]}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

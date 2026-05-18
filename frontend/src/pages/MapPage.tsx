@@ -670,6 +670,9 @@ export default function MapPage() {
             onRefresh={handleRefreshMetadata}
             isRefreshing={isRefreshingMetadata}
             filtersLabel={t('map:filters')}
+            developers={developers}
+            projects={projects}
+            applyFilter={(patch) => setFilters(f => ({ ...f, ...patch }))}
           />
 
           {/* Mobile: Top left - Current metric indicator */}
