@@ -17,7 +17,7 @@
 import pool from './pool'
 import * as fs from 'fs'
 import { parse } from 'csv-parse'
-import { findAreaByName } from '../services/area-matcher'
+import { buildAreaResolver } from './area-resolver'
 
 function parseDate(s: string): string | null {
   if (!s) return null
@@ -34,39 +34,8 @@ function norm(s: string): string {
   return (s || '').toString().trim()
 }
 
-// AREA_EN → dld_areas.area_id 解析（带缓存）
-const areaCache = new Map<string, number | null>()
-async function resolveAreaId(areaEn: string): Promise<number | null> {
-  const key = areaEn.trim().toUpperCase()
-  if (!key) return null
-  if (areaCache.has(key)) return areaCache.get(key)!
-
-  // 1) 精确(忽略大小写/空白)
-  let r = await pool.query(
-    `SELECT area_id FROM dld_areas WHERE UPPER(TRIM(area_name)) = $1 LIMIT 1`, [key])
-  if (r.rowCount) { areaCache.set(key, r.rows[0].area_id); return r.rows[0].area_id }
-
-  // 2) 去非字母数字后再精确
-  r = await pool.query(
-    `SELECT area_id FROM dld_areas
-      WHERE regexp_replace(UPPER(area_name),'[^A-Z0-9]','','g') = regexp_replace($1,'[^A-Z0-9]','','g')
-      LIMIT 1`, [key])
-  if (r.rowCount) { areaCache.set(key, r.rows[0].area_id); return r.rows[0].area_id }
-
-  // 3) area-matcher 模糊 → dubai_areas → 桥接回 dld_areas.area_id
-  try {
-    const da = await findAreaByName(pool, areaEn)
-    if (da && da.id) {
-      const b = await pool.query(
-        `SELECT area_id FROM dld_areas WHERE dubai_area_id = $1 AND area_id IS NOT NULL LIMIT 1`,
-        [da.id])
-      if (b.rowCount) { areaCache.set(key, b.rows[0].area_id); return b.rows[0].area_id }
-    }
-  } catch { /* ignore matcher errors */ }
-
-  areaCache.set(key, null)
-  return null
-}
+// AREA_EN → dld_areas.area_id 解析：用共享 resolver（精确/归一/别名/模糊级联）
+const resolveAreaId = buildAreaResolver(pool)
 
 async function main() {
   const csvPath = process.argv[2]
@@ -141,14 +110,16 @@ async function main() {
   // 2) 解析 area_id（缓存，仅 distinct 次 DB 调用）
   let matched = 0
   const unresolved: string[] = []
+  const areaIdMap = new Map<string, number | null>()
   for (const a of distinctAreas) {
     const id = await resolveAreaId(a)
+    areaIdMap.set(a, id)
     if (id != null) matched++; else unresolved.push(a)
   }
   // 回填每行 area_id（rows[i][7] 当前是 areaEn 占位）
   for (const r of rows) {
     const a = (r[7] || '').toString().toUpperCase()
-    r[7] = a ? (areaCache.get(a) ?? null) : null
+    r[7] = a ? (areaIdMap.get(a) ?? null) : null
   }
   const cov = distinctAreas.size ? Math.round(matched / distinctAreas.size * 100) : 0
   console.log(`  区域匹配覆盖: ${matched}/${distinctAreas.size} (${cov}%)`)
