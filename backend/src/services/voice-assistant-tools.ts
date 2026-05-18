@@ -220,6 +220,20 @@ export const voiceAssistantTools = [
           },
           required: ['from', 'to']
         }
+      },
+      {
+        name: 'analyze_area_amenities',
+        description: 'Analyze how convenient a Dubai area is by measuring straight-line distance from the area to its NEAREST hospital, school, shopping mall, metro station and supermarket. Draws labeled distance spokes on the map and returns a 0-100 convenience score with a tier. Use this whenever the customer asks how good/convenient/livable a location is, whether amenities are close, or "how far is the nearest school/hospital/metro".',
+        parameters: {
+          type: 'object',
+          properties: {
+            area_name: {
+              type: 'string',
+              description: 'The Dubai area to analyze, e.g. "Dubai Marina", "JVC", "Business Bay"'
+            }
+          },
+          required: ['area_name']
+        }
       }
     ]
   }
@@ -453,6 +467,80 @@ export async function executeTool(
           distanceKm: Number(km.toFixed(2)),
           fromName: a.name,
           toName: b.name
+        }
+      }
+    }
+
+    case 'analyze_area_amenities': {
+      const d = await apiFetch<{ area: { name: string; lat: number; lng: number } | null }>(
+        `/api/ai/areas/match?q=${encodeURIComponent(params.area_name)}`
+      )
+      const area = d.area
+      if (!area) {
+        return {
+          result: null,
+          summary: `我在地图上没找到 "${params.area_name}" 这个区域，换个区域名我再帮你看周边配套。`
+        }
+      }
+
+      // 每类配套：中文名 + 评分参数（理想距离内满分，到 zero 公里降为 0）+ 权重
+      const SPECS = [
+        { cat: 'hospital',      zh: '医院', emoji: '🏥', ideal: 2,   zero: 10, weight: 0.20 },
+        { cat: 'school',        zh: '学校', emoji: '🏫', ideal: 1.5, zero: 6,  weight: 0.20 },
+        { cat: 'mall',          zh: '商场', emoji: '🛍️', ideal: 3,   zero: 8,  weight: 0.20 },
+        { cat: 'metro_station', zh: '地铁', emoji: '🚇', ideal: 1.5, zero: 5,  weight: 0.25 },
+        { cat: 'supermarket',   zh: '超市', emoji: '🛒', ideal: 1,   zero: 4,  weight: 0.15 },
+      ] as const
+
+      const near = await apiFetch<{ pois: { name: string; category: string; lat: number; lng: number; distance_meters: number }[] }>(
+        `/api/dubai-pois/near?lat=${area.lat}&lng=${area.lng}&radius=10000&categories=${SPECS.map(s => s.cat).join(',')}`
+      )
+      const pois = near.pois || []
+
+      const spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[] = []
+      let score = 0
+      for (const s of SPECS) {
+        const hit = pois.filter(p => p.category === s.cat)
+          .sort((a, b) => a.distance_meters - b.distance_meters)[0]
+        if (!hit) continue
+        const km = hit.distance_meters / 1000
+        const sub = Math.max(0, Math.min(1, (s.zero - km) / (s.zero - s.ideal)))
+        score += s.weight * sub
+        spokes.push({
+          category: s.cat, label: s.zh, emoji: s.emoji, name: hit.name,
+          lng: hit.lng, lat: hit.lat, distanceKm: Number(km.toFixed(2))
+        })
+      }
+
+      if (spokes.length === 0) {
+        return {
+          result: { area: area.name, score: 0, amenities: [] },
+          summary: `${area.name} 周边 10 公里内暂时没有收录到医院/学校/商场/地铁/超市的数据，配套信息有限。`
+        }
+      }
+
+      const score100 = Math.round(score * 100)
+      const tier = score100 >= 75 ? '优秀'
+        : score100 >= 55 ? '良好'
+        : score100 >= 35 ? '一般'
+        : '偏远'
+      const list = spokes.map(s => `${s.label} ${s.distanceKm}km`).join('、')
+
+      return {
+        result: {
+          area: area.name,
+          convenience_score: score100,
+          tier,
+          amenities: spokes.map(s => ({ type: s.label, name: s.name, distance_km: s.distanceKm }))
+        },
+        summary: `${area.name} 生活便利度 ${score100}/100（${tier}）。最近：${list}。`,
+        mapAction: {
+          type: 'amenity_spokes',
+          center: [area.lng, area.lat],
+          centerName: area.name,
+          score: score100,
+          tier,
+          spokes
         }
       }
     }

@@ -238,6 +238,10 @@ export default function MapPage() {
 
   // Voice-triggered distance measurement
   const [voiceMeasure, setVoiceMeasure] = useState<{ points: [number, number][] } | null>(null)
+  const [voiceAmenities, setVoiceAmenities] = useState<{
+    center: [number, number]; centerName: string; score: number; tier: string
+    spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
+  } | null>(null)
 
   // Voice assistant map action handler
   const handleVoiceMapAction = useCallback((action: MapAction) => {
@@ -294,6 +298,27 @@ export default function MapPage() {
         }
         break
 
+      case 'amenity_spokes':
+        if (action.center && action.spokes && action.spokes.length) {
+          setVoiceMeasure(null) // 与手动测距互斥
+          setVoiceAmenities({
+            center: action.center,
+            centerName: action.centerName || '',
+            score: action.score ?? 0,
+            tier: action.tier || '',
+            spokes: action.spokes,
+          })
+          // 自动取景：覆盖中心点 + 所有配套点
+          const lngs = [action.center[0], ...action.spokes.map(s => s.lng)]
+          const lats = [action.center[1], ...action.spokes.map(s => s.lat)]
+          setFlyToLocation({
+            lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+            lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+            bounds: [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+          })
+        }
+        break
+
       case 'navigate':
         if (action.path) {
           navigate(action.path)
@@ -304,6 +329,8 @@ export default function MapPage() {
         setFilters({})
         setEnabledPoiCategories([])
         setShowTransit(false)
+        setVoiceAmenities(null)
+        setVoiceMeasure(null)
         setFlyToLocation({ lat: 25.2048, lng: 55.2708, zoom: 11 }) // Default Dubai center
         break
     }
@@ -658,6 +685,7 @@ export default function MapPage() {
             transportGeoJSON={transportGeoJSON}
             showTransport={showTransport}
             voiceMeasure={voiceMeasure}
+            voiceAmenities={voiceAmenities}
           />
 
           {/* 只留筛选 pills（搜索 bar 已移除），浮在地图左上 */}

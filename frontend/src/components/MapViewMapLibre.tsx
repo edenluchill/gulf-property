@@ -19,7 +19,7 @@ import {
   Utensils, Coffee, Landmark, CreditCard, TreePine, Building2,
   Hotel, Dumbbell, Umbrella, Film, Fuel, Church,
   Shield, Flame, Mail, Flag, Pill, Stethoscope, School,
-  TramFront, Cable, Bus, Ship, Circle, Globe, Ruler
+  TramFront, Cable, Bus, Ship, Circle, Globe, Ruler, X
 } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
@@ -725,6 +725,11 @@ interface MapViewMapLibreProps {
   showTransport?: boolean
   /** 由语音助手触发的测距：传入点序列即进入测距模式并画线 */
   voiceMeasure?: { points: [number, number][] } | null
+  /** 由语音助手触发的「区域配套放射图」：从区域中心向最近配套画连线+距离 */
+  voiceAmenities?: {
+    center: [number, number]; centerName: string; score: number; tier: string
+    spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
+  } | null
 }
 
 function MapViewMapLibre({
@@ -746,7 +751,8 @@ function MapViewMapLibre({
   flyToLocation = null,
   transportGeoJSON = null,
   showTransport = false,
-  voiceMeasure = null
+  voiceMeasure = null,
+  voiceAmenities = null
 }: MapViewMapLibreProps) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -827,6 +833,41 @@ function MapViewMapLibre({
       )
     }
   }, [voiceMeasure, mapLoaded])
+
+  // 语音助手「配套放射图」：每来一份新数据就重新显示面板
+  const [amenityClosed, setAmenityClosed] = useState(false)
+  useEffect(() => { setAmenityClosed(false) }, [voiceAmenities])
+  const amenityGeoJson = useMemo(() => {
+    if (!voiceAmenities) return { lines: null, points: null }
+    const [clng, clat] = voiceAmenities.center
+    return {
+      lines: {
+        type: 'FeatureCollection' as const,
+        features: voiceAmenities.spokes.map(s => ({
+          type: 'Feature' as const,
+          properties: { label: `${s.label} ${s.distanceKm}km` },
+          geometry: { type: 'LineString' as const, coordinates: [[clng, clat], [s.lng, s.lat]] }
+        }))
+      },
+      points: {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            properties: { kind: 'center', label: voiceAmenities.centerName },
+            geometry: { type: 'Point' as const, coordinates: [clng, clat] }
+          },
+          ...voiceAmenities.spokes.map(s => ({
+            type: 'Feature' as const,
+            properties: { kind: 'amenity', label: `${s.label} ${s.distanceKm}km` },
+            geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] }
+          }))
+        ]
+      }
+    }
+  }, [voiceAmenities])
+  const showAmenities = !!voiceAmenities && !amenityClosed
+
   const [hoveredAreaId, setHoveredAreaId] = useState<string | null>(null)
   const boundsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1494,6 +1535,55 @@ function MapViewMapLibre({
             </Source>
           </>
         )}
+
+        {/* 语音助手：区域配套放射图（中心→最近 医院/学校/商场/地铁/超市） */}
+        {mapLoaded && showAmenities && amenityGeoJson.lines && amenityGeoJson.points && (
+          <>
+            <Source id="amenity-lines" type="geojson" data={amenityGeoJson.lines}>
+              <Layer
+                id="amenity-lines-layer"
+                type="line"
+                paint={{ 'line-color': '#f59e0b', 'line-width': 2.5, 'line-dasharray': [2, 1.5] }}
+              />
+              <Layer
+                id="amenity-lines-label"
+                type="symbol"
+                layout={{
+                  'symbol-placement': 'line-center',
+                  'text-field': ['get', 'label'],
+                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-size': 12
+                }}
+                paint={{ 'text-color': '#b45309', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
+              />
+            </Source>
+            <Source id="amenity-points" type="geojson" data={amenityGeoJson.points}>
+              <Layer
+                id="amenity-points-layer"
+                type="circle"
+                paint={{
+                  'circle-radius': ['case', ['==', ['get', 'kind'], 'center'], 8, 5],
+                  'circle-color': ['case', ['==', ['get', 'kind'], 'center'], '#059669', '#f59e0b'],
+                  'circle-stroke-color': '#ffffff',
+                  'circle-stroke-width': 2
+                }}
+              />
+              <Layer
+                id="amenity-center-label"
+                type="symbol"
+                filter={['==', ['get', 'kind'], 'center']}
+                layout={{
+                  'text-field': ['get', 'label'],
+                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-size': 13,
+                  'text-offset': [0, 1.4],
+                  'text-anchor': 'top'
+                }}
+                paint={{ 'text-color': '#065f46', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
+              />
+            </Source>
+          </>
+        )}
       </Map>
 
       {/* 底图切换：干净/卫星，放右上角（在指标条与 POI 按钮下方，避免重叠） */}
@@ -1546,6 +1636,43 @@ function MapViewMapLibre({
               清除重测
             </button>
           )}
+        </div>
+      )}
+
+      {/* 语音助手：配套便利度评分面板 */}
+      {showAmenities && voiceAmenities && (
+        <div className="absolute left-3 bottom-24 md:bottom-6 z-[1000] w-[256px] rounded-2xl bg-white/95 p-3.5 shadow-xl ring-1 ring-slate-200 backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setAmenityClosed(true)}
+            className="absolute right-2 top-2 rounded-full p-1 text-slate-400 hover:bg-slate-100"
+            aria-label="关闭"
+          >
+            <X size={14} />
+          </button>
+          <div className="text-xs font-medium text-slate-500">{voiceAmenities.centerName} · 生活便利度</div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className={`text-3xl font-bold ${
+              voiceAmenities.tier === '优秀' ? 'text-emerald-600'
+                : voiceAmenities.tier === '良好' ? 'text-sky-600'
+                : voiceAmenities.tier === '一般' ? 'text-amber-600' : 'text-slate-500'
+            }`}>{voiceAmenities.score}</span>
+            <span className="text-sm text-slate-400">/100</span>
+            <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
+              voiceAmenities.tier === '优秀' ? 'bg-emerald-50 text-emerald-700'
+                : voiceAmenities.tier === '良好' ? 'bg-sky-50 text-sky-700'
+                : voiceAmenities.tier === '一般' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
+            }`}>{voiceAmenities.tier}</span>
+          </div>
+          <div className="mt-2.5 space-y-1.5">
+            {voiceAmenities.spokes.map(s => (
+              <div key={s.category} className="flex items-center gap-2 text-xs">
+                <span className="w-4 text-center">{s.emoji}</span>
+                <span className="text-slate-600">{s.label}</span>
+                <span className="ml-auto truncate font-medium text-slate-800" title={s.name}>{s.distanceKm} km</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

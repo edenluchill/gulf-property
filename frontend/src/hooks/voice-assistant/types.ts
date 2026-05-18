@@ -72,7 +72,7 @@ export interface BubbleContent {
 export interface MapAction {
   type: 'fly_to' | 'highlight_projects' | 'show_pois' | 'toggle_transport' |
         'show_area_info' | 'highlight_areas' | 'navigate' | 'add_favorite' | 'reset' |
-        'measure_distance'
+        'measure_distance' | 'amenity_spokes'
   projectIds?: string[]
   lat?: number
   lng?: number
@@ -89,4 +89,10 @@ export interface MapAction {
   distanceKm?: number
   fromName?: string
   toName?: string
+  // amenity_spokes
+  center?: [number, number]
+  centerName?: string
+  score?: number
+  tier?: string
+  spokes?: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
 }
