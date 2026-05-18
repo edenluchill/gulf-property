@@ -23,6 +23,7 @@ import {
   fetchDubaiAreas,
   fetchDubaiLandmarks,
   fetchCustomRoutesGeoJSON,
+  fetchDataVersion,
   TransportGeoJSON,
   MapPinProject
 } from '../lib/api'
@@ -39,28 +40,33 @@ const METRIC_OPTIONS = [
 // MAP DATA VERSION - Increment this to force all clients to reload map data
 // Format: YYYYMMDD or any string. When changed, all cached data will be cleared.
 // ============================================================================
-const MAP_DATA_VERSION = '20260515-area-metrics-refresh'
+// 手动版本：代码/数据「形状」变化时 bump（schema 改字段等）
+const MAP_DATA_VERSION = '20260517-dld-opendata-refresh'
 
-// Clear all map-related cache if version changed
+// 所有需随数据失效的客户端缓存键
+const GULF_CACHE_KEYS = [
+  'gulf_residential_developers', 'gulf_residential_developers_timestamp',
+  'gulf_residential_areas', 'gulf_residential_areas_timestamp',
+  'gulf_residential_projects', 'gulf_residential_projects_timestamp',
+  'gulf_dubai_areas', 'gulf_dubai_areas_timestamp',
+  'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp',
+  'dubai_pois_cache',
+  'transport-geojson-cache',
+]
+function clearGulfCache() {
+  GULF_CACHE_KEYS.forEach(key => localStorage.removeItem(key))
+}
+
+// 手动常量检查（代码/形状变化）——模块加载时同步执行
 function checkAndClearCache() {
   const cachedVersion = localStorage.getItem('gulf_map_data_version')
   if (cachedVersion !== MAP_DATA_VERSION) {
-    console.log(`[MapPage] Version changed: ${cachedVersion} → ${MAP_DATA_VERSION}, clearing cache...`)
-    // Clear all gulf_ prefixed cache items and POI cache
-    const keysToRemove = [
-      'gulf_residential_developers', 'gulf_residential_developers_timestamp',
-      'gulf_residential_areas', 'gulf_residential_areas_timestamp',
-      'gulf_residential_projects', 'gulf_residential_projects_timestamp',
-      'gulf_dubai_areas', 'gulf_dubai_areas_timestamp',
-      'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp',
-      'dubai_pois_cache',  // POI data from OSM
-      'transport-geojson-cache',  // Custom routes data
-    ]
-    keysToRemove.forEach(key => localStorage.removeItem(key))
+    console.log(`[MapPage] code version ${cachedVersion} → ${MAP_DATA_VERSION}, clearing cache`)
+    clearGulfCache()
     localStorage.setItem('gulf_map_data_version', MAP_DATA_VERSION)
-    return true // Cache was cleared
+    return true
   }
-  return false // Cache is valid
+  return false
 }
 
 // Run on module load
@@ -96,6 +102,23 @@ export default function MapPage() {
   const [dubaiAreas, setDubaiAreas] = useState<DubaiArea[]>([])
   const [dubaiLandmarks, setDubaiLandmarks] = useState<DubaiLandmark[]>([])
   const [dubaiDataVersion, setDubaiDataVersion] = useState(0)
+
+  // 服务端数据版本自动失效：每次后端数据导入(指纹变化)→ 自动清缓存+重拉。
+  // 无需每次手动 bump MAP_DATA_VERSION。失败则不动缓存(避免误清)。
+  useEffect(() => {
+    let alive = true
+    fetchDataVersion().then(v => {
+      if (!alive || !v || v === 'unknown') return
+      const stored = localStorage.getItem('gulf_server_data_version')
+      if (stored !== v) {
+        console.log(`[MapPage] server data version ${stored} → ${v}, clearing cache`)
+        clearGulfCache()
+        localStorage.setItem('gulf_server_data_version', v)
+        setDubaiDataVersion(x => x + 1)  // 触发既有 fetch effect 重拉
+      }
+    })
+    return () => { alive = false }
+  }, [])
 
   // Loading states
   const [_isLoadingPins, setIsLoadingPins] = useState(false)

@@ -789,3 +789,13 @@ export async function generateBuyingReport(body: {
     return await r.json();
   } catch { return null; }
 }
+
+// ---- 数据版本指纹（客户端缓存自动失效）----
+export async function fetchDataVersion(): Promise<string | null> {
+  try {
+    const r = await fetch(`${API_URL}/meta/data-version`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d?.version ?? null;
+  } catch { return null; }
+}

@@ -15,7 +15,7 @@ async function main() {
         INSERT INTO dubai_area_yearly_metrics (
             dubai_area_id, year,
             avg_price_sqm, median_price_sqm, total_sales_volume,
-            sales_transaction_count, avg_sale_size_sqm,
+            sales_transaction_count, avg_sale_size_sqm, median_unit_price,
             avg_rent_sqm, median_rent_sqm, total_rent_volume,
             rental_contract_count, avg_rental_size_sqm,
             rental_yield_pct, yoy_price_growth_pct
@@ -28,6 +28,7 @@ async function main() {
             SUM(dt.actual_worth),
             COUNT(dt.id)::INTEGER,
             AVG(dt.procedure_area),
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dt.actual_worth),
             rent.avg_rent,
             rent.median_rent,
             rent.total_rent,
@@ -70,6 +71,7 @@ async function main() {
             total_sales_volume = EXCLUDED.total_sales_volume,
             sales_transaction_count = EXCLUDED.sales_transaction_count,
             avg_sale_size_sqm = EXCLUDED.avg_sale_size_sqm,
+            median_unit_price = EXCLUDED.median_unit_price,
             avg_rent_sqm = EXCLUDED.avg_rent_sqm,
             median_rent_sqm = EXCLUDED.median_rent_sqm,
             total_rent_volume = EXCLUDED.total_rent_volume,
@@ -111,7 +113,7 @@ async function main() {
         INSERT INTO dubai_area_rolling_metrics (
             dubai_area_id, period_end_month,
             avg_price_sqm, median_price_sqm, total_sales_volume,
-            sales_transaction_count, avg_sale_size_sqm,
+            sales_transaction_count, avg_sale_size_sqm, median_unit_price,
             avg_rent_sqm, median_rent_sqm, total_rent_volume,
             rental_contract_count, avg_rental_size_sqm,
             rental_yield_pct, price_growth_pct, rent_growth_pct,
@@ -125,6 +127,7 @@ async function main() {
             curr.total_volume,
             curr.txn_count,
             curr.avg_size,
+            curr.median_unit_price,
             rent.avg_rent,
             rent.median_rent,
             rent.total_rent,
@@ -164,7 +167,8 @@ async function main() {
                 PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) as median_price,
                 SUM(dt.actual_worth) as total_volume,
                 COUNT(*)::INTEGER as txn_count,
-                AVG(dt.procedure_area) as avg_size
+                AVG(dt.procedure_area) as avg_size,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) as median_unit_price
             FROM dld_transactions dt
             JOIN dld_areas dla ON dla.area_id = dt.area_id
             WHERE dla.dubai_area_id = da.id
@@ -217,6 +221,7 @@ async function main() {
             median_price_sqm = EXCLUDED.median_price_sqm,
             total_sales_volume = EXCLUDED.total_sales_volume,
             sales_transaction_count = EXCLUDED.sales_transaction_count,
+            median_unit_price = EXCLUDED.median_unit_price,
             avg_rent_sqm = EXCLUDED.avg_rent_sqm,
             rental_yield_pct = EXCLUDED.rental_yield_pct,
             price_growth_pct = EXCLUDED.price_growth_pct,
