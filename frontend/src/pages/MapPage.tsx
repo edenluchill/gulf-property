@@ -676,7 +676,7 @@ export default function MapPage() {
 
           {/* Mobile: Top left - Current metric indicator (下移给顶部搜索条让位) */}
           {areaMetric !== 'none' && (
-            <div className="absolute top-[104px] left-3 z-[1000] md:hidden">
+            <div className="absolute top-[132px] left-3 z-[1000] md:hidden">
               <div className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white shadow-lg rounded-xl text-xs font-medium">
                 {(() => {
                   const option = METRIC_OPTIONS.find(o => o.value === areaMetric)
@@ -694,7 +694,7 @@ export default function MapPage() {
           )}
 
           {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
-          <div className="absolute top-[104px] right-3 z-[1000] md:hidden">
+          <div className="absolute top-[132px] right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
               {/* Metrics row */}
               <div className="flex border-b border-slate-100">
