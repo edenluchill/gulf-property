@@ -105,10 +105,11 @@ export default function TransactionsPage() {
         {t('description')}
       </p>
 
-      {/* 移动端:筛选折叠开关(显示当前筛选摘要,不丢功能) */}
+      {/* 筛选(单一连贯卡片:移动端头部=折叠开关,桌面端头部隐藏) */}
+      <div className="mt-3 md:mt-5 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
       <button
         onClick={() => setFiltersOpen(o => !o)}
-        className="mt-3 flex w-full items-center gap-2 rounded-xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 md:hidden"
+        className="flex w-full items-center gap-2 px-4 py-3 text-left md:hidden"
       >
         <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" />
         <span className="flex-1 truncate text-sm font-medium text-slate-700">{filterSummary}</span>
@@ -116,8 +117,7 @@ export default function TransactionsPage() {
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* 筛选 */}
-      <div className={`mt-3 md:mt-5 ${filtersOpen ? 'flex' : 'hidden'} md:flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200`}>
+      <div className={`${filtersOpen ? 'flex' : 'hidden'} md:flex flex-wrap items-end gap-3 border-t border-slate-100 px-4 pb-4 pt-3 md:border-t-0 md:p-4`}>
         <label className="flex flex-col gap-1 text-xs text-slate-500">
           {t('filter.area')}
           <select
@@ -169,6 +169,15 @@ export default function TransactionsPage() {
             ))}
           </div>
         </div>
+
+        {/* 移动端:选完一键收起看数据 */}
+        <button
+          onClick={() => setFiltersOpen(false)}
+          className="mt-1 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-white md:hidden"
+        >
+          {t('filter.apply')}
+        </button>
+      </div>
       </div>
 
       {/* 指标卡 */}

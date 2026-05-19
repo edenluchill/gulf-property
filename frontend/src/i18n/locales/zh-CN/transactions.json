@@ -12,7 +12,8 @@
     "areaOption": "{{name}}（{{count}}）",
     "yearLabel": "{{year}} 年",
     "toggle": "筛选",
-    "summaryAll": "全部成交"
+    "summaryAll": "全部成交",
+    "apply": "查看结果"
   },
   "saleType": {
     "all": "全部",

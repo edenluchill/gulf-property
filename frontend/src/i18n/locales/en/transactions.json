@@ -12,7 +12,8 @@
     "areaOption": "{{name}} ({{count}})",
     "yearLabel": "{{year}}",
     "toggle": "Filters",
-    "summaryAll": "All records"
+    "summaryAll": "All records",
+    "apply": "View results"
   },
   "saleType": {
     "all": "All",
