@@ -6,10 +6,11 @@
  * - RoutesSidebar: Renders in sidebar, handles UI
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { useMap } from 'react-leaflet'
 import { Button } from './ui/button'
-import { Route, Circle } from 'lucide-react'
+import { Route, Circle, TrainFront, TramFront, Bus, Cable, Ship } from 'lucide-react'
 import {
   CustomRoute,
   CustomStop,
@@ -24,7 +25,72 @@ import {
 } from '../lib/api'
 import L from 'leaflet'
 
-export type RoutesEditMode = 'idle' | 'drawing-route' | 'adding-stop'
+export type RoutesEditMode = 'idle' | 'drawing-route'
+
+// Route type → icon config (matches MapPage)
+const ROUTE_TYPE_ICONS: Record<string, { Icon: any }> = {
+  metro: { Icon: TrainFront },
+  tram: { Icon: TramFront },
+  bus: { Icon: Bus },
+  monorail: { Icon: Cable },
+  ferry: { Icon: Ship },
+  custom: { Icon: Circle },
+}
+
+// SVG path cache to avoid re-rendering on every icon creation
+const svgPathCache = new Map<string, string>()
+function getIconSvgPaths(routeType: string): string {
+  if (svgPathCache.has(routeType)) return svgPathCache.get(routeType)!
+  const { Icon } = ROUTE_TYPE_ICONS[routeType] || ROUTE_TYPE_ICONS.custom
+  const fullSvg = renderToStaticMarkup(
+    createElement(Icon, { size: 24, stroke: '#ffffff', strokeWidth: 2.5, fill: 'none' })
+  )
+  const paths = fullSvg
+    .replace(/<svg[^>]*>/, '').replace(/<\/svg>/, '')
+    .replace(/stroke="[^"]*"/g, 'stroke="#ffffff"')
+    .replace(/fill="[^"]*"/g, 'fill="none"')
+  svgPathCache.set(routeType, paths)
+  return paths
+}
+
+// Create stop icon matching MapPage style (colored circle + transport icon)
+// Scales with zoom: base sizes at zoom 11, grows up to 1.6x at zoom 18
+function createStopIcon(
+  routeType: string, color: string, isSelected: boolean, isDragging: boolean, zoom = 11,
+): L.DivIcon {
+  const scale = Math.min(1.6, Math.max(0.8, 0.6 + zoom * 0.06))
+  const baseSize = isDragging ? 44 : isSelected ? 38 : 30
+  const size = Math.round(baseSize * scale)
+  const paths = getIconSvgPaths(routeType)
+  const iconSize = size * 0.55
+  const offset = (size - iconSize) / 2
+  const border = isDragging
+    ? 'stroke="#2563eb" stroke-width="3.5"'
+    : isSelected
+      ? 'stroke="#1e40af" stroke-width="3"'
+      : 'stroke="#ffffff" stroke-width="2.5"'
+  const shadow = isDragging
+    ? 'filter:drop-shadow(0 0 8px rgba(37,99,235,0.7))'
+    : isSelected
+      ? 'filter:drop-shadow(0 0 4px rgba(30,64,175,0.5))'
+      : ''
+
+  const html = `<div style="width:${size}px;height:${size}px;${shadow}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}" fill="${color}" ${border}/>
+      <g transform="translate(${offset},${offset})">
+        <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>
+      </g>
+    </svg>
+  </div>`
+
+  return L.divIcon({
+    html,
+    className: 'stop-marker-icon',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
 export type RoutesSelectedItem =
   | { type: 'route'; item: CustomRoute }
   | { type: 'stop'; item: CustomStop; route: CustomRoute }
@@ -134,7 +200,6 @@ interface RoutesMapControllerProps {
   editMode: RoutesEditMode
   onRouteCreate: (geometry: any) => void
   onRouteUpdate: (id: string, geometry: any) => void
-  onStopCreate: (routeId: string, location: { lat: number; lng: number }, position: number) => void
   onStopUpdate: (stopId: string, location: { lat: number; lng: number }, position: number) => void
   onItemSelect: (item: RoutesSelectedItem) => void
 }
@@ -145,13 +210,22 @@ export function RoutesMapController({
   editMode,
   onRouteCreate,
   onRouteUpdate,
-  onStopCreate,
   onStopUpdate,
   onItemSelect,
 }: RoutesMapControllerProps) {
   const map = useMap()
   const routeLayersRef = useRef<Map<string, L.Polyline>>(new Map())
   const stopMarkersRef = useRef<Map<string, L.Marker>>(new Map())
+  // Metadata per stop marker so update effect can refresh icons without recreating
+  const markerMetaRef = useRef<Map<string, { routeType: string; color: string; routeId: string }>>(new Map())
+  const [zoom, setZoom] = useState(map.getZoom())
+
+  // Track zoom for icon scaling
+  useEffect(() => {
+    const onZoom = () => setZoom(map.getZoom())
+    map.on('zoomend', onZoom)
+    return () => { map.off('zoomend', onZoom) }
+  }, [map])
 
   // Initialize Geoman
   useEffect(() => {
@@ -184,13 +258,17 @@ export function RoutesMapController({
     }
   }, [map, editMode])
 
-  // Render routes and stops
+  // ── Structural effect: create/destroy layers when route DATA changes ──
+  // Does NOT depend on selectedItem or zoom — those are handled by the update effect below.
   useEffect(() => {
     // Clear old layers
     routeLayersRef.current.forEach((layer) => map.removeLayer(layer))
     routeLayersRef.current.clear()
     stopMarkersRef.current.forEach((marker) => map.removeLayer(marker))
     stopMarkersRef.current.clear()
+    markerMetaRef.current.clear()
+
+    const currentZoom = map.getZoom()
 
     routes.forEach((route) => {
       if (!route.geometry || route.geometry.type !== 'LineString') return
@@ -199,71 +277,41 @@ export function RoutesMapController({
         ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
       )
 
-      const isSelected = selectedItem?.type === 'route' && selectedItem.item.id === route.id
-      const isParentOfSelectedStop = selectedItem?.type === 'stop' && selectedItem.route.id === route.id
-
-      // Draw route line with white casing for visibility
-      const casing = L.polyline(coords, {
-        color: '#ffffff',
-        weight: (isSelected || isParentOfSelectedStop ? 8 : 6),
-        opacity: 0.9,
-      })
+      // Draw route line with white casing (neutral weight — update effect adjusts)
+      const casing = L.polyline(coords, { color: '#ffffff', weight: 6, opacity: 0.9 })
       casing.addTo(map)
 
       const polyline = L.polyline(coords, {
         color: route.color || '#3b82f6',
-        weight: isSelected || isParentOfSelectedStop ? 5 : 3,
+        weight: 3,
         opacity: 1,
       })
 
       polyline.on('click', (e: L.LeafletMouseEvent) => {
         L.DomEvent.stop(e)
-        if (editMode === 'adding-stop' && (isSelected || isParentOfSelectedStop)) {
-          const closest = closestPointOnLine(e.latlng, route.geometry.coordinates)
-          onStopCreate(route.id, { lat: closest.lat, lng: closest.lng }, closest.position)
-        } else {
-          onItemSelect({ type: 'route', item: route })
-        }
+        onItemSelect({ type: 'route', item: route })
+      })
+
+      // pm:edit handler — always registered, only fires when pm is enabled
+      polyline.on('pm:edit', () => {
+        const latlngs = polyline.getLatLngs() as L.LatLng[]
+        const newCoords = latlngs.map((ll) => [ll.lng, ll.lat])
+        onRouteUpdate(route.id, { type: 'LineString', coordinates: newCoords })
       })
 
       polyline.addTo(map)
       routeLayersRef.current.set(route.id, polyline)
       routeLayersRef.current.set(route.id + '-casing', casing as any)
 
-      // Enable editing if selected
-      if (isSelected) {
-        polyline.pm.enable({ allowSelfIntersection: true })
-        polyline.on('pm:edit', () => {
-          const latlngs = polyline.getLatLngs() as L.LatLng[]
-          const newCoords = latlngs.map((ll) => [ll.lng, ll.lat])
-          onRouteUpdate(route.id, { type: 'LineString', coordinates: newCoords })
-        })
-      }
+      // Create stop markers (neutral state — update effect applies selection/zoom styling)
+      const routeType = route.route_type || 'custom'
 
-      // Draw stops
       route.stops?.forEach((stop) => {
-        const isStopSelected = selectedItem?.type === 'stop' && selectedItem.item.id === stop.id
-
-        const icon = L.divIcon({
-          html: `
-            <div style="
-              width: ${isStopSelected ? 26 : 22}px;
-              height: ${isStopSelected ? 26 : 22}px;
-              border-radius: 50%;
-              background: ${stop.color || route.color || '#3b82f6'};
-              border: 3px solid white;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-              ${isStopSelected ? 'border-color: #1e40af; border-width: 4px;' : ''}
-            "></div>
-          `,
-          className: 'stop-marker',
-          iconSize: [isStopSelected ? 26 : 22, isStopSelected ? 26 : 22],
-          iconAnchor: [isStopSelected ? 13 : 11, isStopSelected ? 13 : 11],
-        })
+        const stopColor = stop.color || route.color || '#3b82f6'
 
         const marker = L.marker([stop.location.lat, stop.location.lng], {
-          icon,
-          draggable: isSelected || isParentOfSelectedStop,
+          icon: createStopIcon(routeType, stopColor, false, false, currentZoom),
+          draggable: false, // update effect enables when route is selected
         })
 
         marker.on('click', (e: L.LeafletMouseEvent) => {
@@ -271,27 +319,23 @@ export function RoutesMapController({
           onItemSelect({ type: 'stop', item: stop, route })
         })
 
-        // Snap to line while dragging
-        if (isSelected || isParentOfSelectedStop) {
-          marker.on('drag', (e: any) => {
-            const closest = closestPointOnLine(e.target.getLatLng(), route.geometry.coordinates)
-            e.target.setLatLng([closest.lat, closest.lng])
-          })
-
-          marker.on('dragend', (e: any) => {
-            const latlng = e.target.getLatLng()
-            const closest = closestPointOnLine(latlng, route.geometry.coordinates)
-            onStopUpdate(stop.id, { lat: closest.lat, lng: closest.lng }, closest.position)
-          })
-        }
+        // Drag handlers — always registered; only fire when dragging is enabled.
+        // IMPORTANT: NEVER call setIcon() during drag — it replaces the DOM element
+        // that L.Draggable is bound to, instantly killing the drag.
+        marker.on('dragend', (e: any) => {
+          const latlng = e.target.getLatLng()
+          const closest = closestPointOnLine(latlng, route.geometry.coordinates)
+          marker.setLatLng([closest.lat, closest.lng])
+          onStopUpdate(stop.id, { lat: closest.lat, lng: closest.lng }, closest.position)
+        })
 
         marker.addTo(map)
         stopMarkersRef.current.set(stop.id, marker)
+        markerMetaRef.current.set(stop.id, { routeType, color: stopColor, routeId: route.id })
       })
     })
 
     return () => {
-      // IMPORTANT: Remove layers from map when cleaning up
       routeLayersRef.current.forEach((layer) => {
         layer.off('click')
         layer.off('pm:edit')
@@ -302,13 +346,57 @@ export function RoutesMapController({
 
       stopMarkersRef.current.forEach((marker) => {
         marker.off('click')
-        marker.off('drag')
         marker.off('dragend')
         map.removeLayer(marker)
       })
       stopMarkersRef.current.clear()
+      markerMetaRef.current.clear()
     }
-  }, [map, routes, selectedItem, editMode, onItemSelect, onStopCreate, onRouteUpdate, onStopUpdate])
+  }, [map, routes, editMode, onItemSelect, onRouteUpdate, onStopUpdate])
+
+  // ── Lightweight update effect: selection + zoom changes ──
+  // Updates icons, line weights, drag state, and pm editing WITHOUT recreating DOM elements.
+  useEffect(() => {
+    routes.forEach((route) => {
+      const isRouteSelected = selectedItem?.type === 'route' && selectedItem.item.id === route.id
+      const isParent = selectedItem?.type === 'stop' && selectedItem.route.id === route.id
+      const active = isRouteSelected || isParent
+
+      // Update route line weight
+      const polyline = routeLayersRef.current.get(route.id)
+      const casing = routeLayersRef.current.get(route.id + '-casing')
+      if (polyline) polyline.setStyle({ weight: active ? 5 : 3 })
+      if (casing) (casing as any).setStyle({ weight: active ? 8 : 6 })
+
+      // Enable/disable polyline editing
+      if (polyline) {
+        if (isRouteSelected) {
+          (polyline as any).pm.enable({ allowSelfIntersection: true })
+        } else {
+          (polyline as any).pm.disable()
+        }
+      }
+
+      // Update stop marker icons + drag state
+      route.stops?.forEach((stop) => {
+        const marker = stopMarkersRef.current.get(stop.id)
+        const meta = markerMetaRef.current.get(stop.id)
+        if (!marker || !meta) return
+
+        const isStopSelected = selectedItem?.type === 'stop' && selectedItem.item.id === stop.id
+        marker.setIcon(createStopIcon(meta.routeType, meta.color, isStopSelected, false, zoom))
+
+        // setIcon() replaces the DOM element, which breaks L.Draggable's binding.
+        // Must disable+enable to re-bind to the new DOM element.
+        if (active) {
+          marker.dragging?.disable()
+          marker.dragging?.enable()
+        } else {
+          marker.dragging?.disable()
+        }
+      })
+    })
+  }, [selectedItem, zoom, routes])
 
   return null
 }
@@ -357,12 +445,12 @@ export function RoutesSidebar({
         {selectedRoute && (
           <Button
             onClick={onAddStop}
-            variant={editMode === 'adding-stop' ? 'default' : 'outline'}
+            variant="outline"
             className="w-full"
             size="sm"
           >
             <Circle className="w-4 h-4 mr-2" />
-            {editMode === 'adding-stop' ? '📍 Click Route...' : 'Add Stop'}
+            Add Stop
           </Button>
         )}
 
@@ -502,31 +590,27 @@ export function useRoutesEditor() {
     })
   }, [])
 
-  const handleAddStop = () => {
-    if (selectedItem?.type === 'route' || selectedItem?.type === 'stop') {
-      setEditMode('adding-stop')
-    }
-  }
+  const handleAddStop = async () => {
+    const route = selectedItem?.type === 'route'
+      ? selectedItem.item
+      : selectedItem?.type === 'stop'
+        ? selectedItem.route
+        : null
+    if (!route?.geometry?.coordinates) return
 
-  const handleStopCreate = async (routeId: string, location: { lat: number; lng: number }, position: number) => {
+    // Create stop at route midpoint — user can drag to reposition
+    const midpoint = pointAtPosition(route.geometry.coordinates, 0.5)
     const newStop: Partial<CustomStop> = {
       name: 'New Stop',
-      location,
-      position_on_route: position,
+      location: midpoint,
+      position_on_route: 0.5,
     }
-    const created = await createCustomStop(routeId, newStop)
+    const created = await createCustomStop(route.id, newStop)
     if (created) {
-      setRoutes((prev) =>
-        prev.map((r) =>
-          r.id === routeId ? { ...r, stops: [...(r.stops || []), created] } : r
-        )
-      )
-      const route = routes.find((r) => r.id === routeId)
-      if (route) {
-        setSelectedItem({ type: 'stop', item: created, route: { ...route, stops: [...(route.stops || []), created] } })
-      }
+      const updatedRoute = { ...route, stops: [...(route.stops || []), created] }
+      setRoutes((prev) => prev.map((r) => r.id === route.id ? updatedRoute : r))
+      setSelectedItem({ type: 'stop', item: created, route: updatedRoute })
     }
-    setEditMode('idle')
   }
 
   const handleStopUpdate = useCallback(async (stopId: string, location: { lat: number; lng: number }, position: number) => {
@@ -616,7 +700,6 @@ export function useRoutesEditor() {
     handleRouteCreate,
     handleRouteUpdate,
     handleAddStop,
-    handleStopCreate,
     handleStopUpdate,
     handleSave,
     handleDelete,
