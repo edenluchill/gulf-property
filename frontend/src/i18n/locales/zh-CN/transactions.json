@@ -10,7 +10,9 @@
     "allRooms": "全部户型",
     "anyYear": "不限（最新优先）",
     "areaOption": "{{name}}（{{count}}）",
-    "yearLabel": "{{year}} 年"
+    "yearLabel": "{{year}} 年",
+    "toggle": "筛选",
+    "summaryAll": "全部成交"
   },
   "saleType": {
     "all": "全部",

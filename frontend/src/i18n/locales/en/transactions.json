@@ -10,7 +10,9 @@
     "allRooms": "All bedrooms",
     "anyYear": "Any (latest first)",
     "areaOption": "{{name}} ({{count}})",
-    "yearLabel": "{{year}}"
+    "yearLabel": "{{year}}",
+    "toggle": "Filters",
+    "summaryAll": "All records"
   },
   "saleType": {
     "all": "All",

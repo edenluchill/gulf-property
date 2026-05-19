@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import {
   fetchTxFilters, fetchTxSummary, fetchTxList,
   TxFilters, TxSummary, TxRow
@@ -57,6 +58,7 @@ export default function TransactionsPage() {
   const [rooms, setRooms] = useState('')
   const [type, setType] = useState<SaleType>('all')
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
+  const [filtersOpen, setFiltersOpen] = useState(false)  // 移动端筛选折叠
   const [summary, setSummary] = useState<TxSummary | null>(null)
   const [rows, setRows] = useState<TxRow[]>([])
   const [page, setPage] = useState(0)
@@ -86,16 +88,36 @@ export default function TransactionsPage() {
 
   const pps = summary?.pricePerSqm
 
+  // 移动端筛选摘要(让折叠态也能看出当前筛选)
+  const filterParts = [
+    area || null,
+    rooms || null,
+    year ? t('filter.yearLabel', { year }) : null,
+    type !== 'all' ? t(`saleType.${type}`) : null,
+  ].filter(Boolean) as string[]
+  const filterSummary = filterParts.length ? filterParts.join(' · ') : t('filter.summaryAll')
+
   return (
     <div className="flex-1 overflow-auto pb-20 md:pb-8">
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <h1 className="text-2xl font-bold text-slate-800">{t('title')}</h1>
-      <p className="mt-1 text-sm text-slate-500">
+    <div className="container mx-auto px-4 py-3 md:py-6 max-w-6xl">
+      <h1 className="text-xl md:text-2xl font-bold text-slate-800">{t('title')}</h1>
+      <p className="mt-1 hidden md:block text-sm text-slate-500">
         {t('description')}
       </p>
 
+      {/* 移动端:筛选折叠开关(显示当前筛选摘要,不丢功能) */}
+      <button
+        onClick={() => setFiltersOpen(o => !o)}
+        className="mt-3 flex w-full items-center gap-2 rounded-xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 md:hidden"
+      >
+        <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" />
+        <span className="flex-1 truncate text-sm font-medium text-slate-700">{filterSummary}</span>
+        <span className="shrink-0 text-xs text-slate-400">{t('filter.toggle')}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+      </button>
+
       {/* 筛选 */}
-      <div className="mt-5 flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <div className={`mt-3 md:mt-5 ${filtersOpen ? 'flex' : 'hidden'} md:flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200`}>
         <label className="flex flex-col gap-1 text-xs text-slate-500">
           {t('filter.area')}
           <select
