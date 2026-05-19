@@ -117,13 +117,13 @@ export default function TransactionsPage() {
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className={`${filtersOpen ? 'flex' : 'hidden'} md:flex flex-wrap items-end gap-3 border-t border-slate-100 px-4 pb-4 pt-3 md:border-t-0 md:p-4`}>
-        <label className="flex flex-col gap-1 text-xs text-slate-500">
+      <div className={`${filtersOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row md:flex-wrap items-stretch md:items-end gap-3 border-t border-slate-100 px-4 pb-4 pt-3 md:border-t-0 md:p-4`}>
+        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.area')}
           <select
             value={area}
             onChange={e => setArea(e.target.value)}
-            className="min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="w-full md:min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
           >
             <option value="">{t('filter.allAreas')}</option>
             {filters.areas.map(a => (
@@ -131,23 +131,23 @@ export default function TransactionsPage() {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-slate-500">
+        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.rooms')}
           <select
             value={rooms}
             onChange={e => setRooms(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="w-full md:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
           >
             <option value="">{t('filter.allRooms')}</option>
             {filters.rooms.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-slate-500">
+        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.year')}
           <select
             value={year}
             onChange={e => setYear(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="w-full md:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
           >
             <option value="">{t('filter.anyYear')}</option>
             {['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'].map(y => (
@@ -155,14 +155,14 @@ export default function TransactionsPage() {
             ))}
           </select>
         </label>
-        <div className="flex flex-col gap-1 text-xs text-slate-500">
+        <div className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.type')}
-          <div className="flex overflow-hidden rounded-lg border border-slate-300 text-sm">
+          <div className="flex w-full md:w-auto overflow-hidden rounded-lg border border-slate-300 text-sm">
             {(['all', 'ready', 'offplan'] as SaleType[]).map(tp => (
               <button
                 key={tp}
                 onClick={() => setType(tp)}
-                className={`px-3 py-2 ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                className={`flex-1 md:flex-none px-3 py-2 ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               >
                 {t(`saleType.${tp}`)}
               </button>
