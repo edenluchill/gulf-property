@@ -17,6 +17,7 @@ import { TimelineEngine, EngineSnapshot } from './engine/TimelineEngine'
 import type { MapTourHandle } from './map/mapTourHandle'
 import type { WatchPayload, PropertySnapshot, AmenityPayload } from './types'
 import { fetchAmenity } from './amenities'
+import { createTelemetry, type TourTelemetry } from './telemetry'
 import { useTourMode } from './TourModeContext'
 import './luna-tour.css'
 
@@ -131,6 +132,51 @@ export default function TourOverlay({
     }
   }, [data])
 
+  // ---- telemetry observers (decoupled: watch snapshot, never touch the engine) ----
+  // resolve project_id + beat kind for an act segment, for behaviour events
+  const resolveSeg = (segmentKey: string, actIndex: number) => {
+    if (!data || actIndex < 0) return { projectId: null as string | null, kind: undefined as string | undefined }
+    const act = data.script.acts[actIndex]
+    if (!act) return { projectId: null as string | null, kind: undefined as string | undefined }
+    const beat = act.beats.find((bb) => `a${actIndex}-${bb.id}` === segmentKey)
+    return { projectId: act.property_id, kind: beat?.kind }
+  }
+
+  // open (once the session is loaded)
+  const openedRef = useRef(false)
+  useEffect(() => {
+    if (data && !openedRef.current) {
+      openedRef.current = true
+      tel.track('open')
+    }
+  }, [data, tel])
+
+  // per-beat dwell + chart_view (fires as the playback crosses beats)
+  const lastSegRef = useRef<{ key: string; projectId: string | null; enterTs: number } | null>(null)
+  useEffect(() => {
+    const key = snap?.segmentKey
+    if (!key) return
+    const now = performance.now()
+    const prev = lastSegRef.current
+    if (prev && prev.key !== key && prev.projectId) {
+      tel.track('property_dwell', { project_id: prev.projectId, dwell_ms: now - prev.enterTs })
+    }
+    if (!prev || prev.key !== key) {
+      const { projectId, kind } = resolveSeg(key, snap?.actIndex ?? -1)
+      lastSegRef.current = { key, projectId, enterTs: now }
+      if (kind === 'numbers' && projectId) tel.track('chart_view', { project_id: projectId })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap?.segmentKey])
+
+  // tour_complete (once, on reaching the end)
+  const prevStateRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const st = snap?.state
+    if (st === 'ended' && prevStateRef.current !== 'ended') tel.track('tour_complete')
+    prevStateRef.current = st
+  }, [snap?.state, tel])
+
   const clearMapFeatures = () => {
     onMeasure?.(null)
     onAmenities?.(null)
@@ -173,6 +219,7 @@ export default function TourOverlay({
     })
     engineRef.current = engine
     engine.start()
+    tel.track('tour_play')
   }
 
   const handleTapStage = () => {
@@ -190,7 +237,12 @@ export default function TourOverlay({
     vibrate([10, 30, 10])
     setFavorites((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+        tel.track('feedback', { project_id: id, reaction: 'love' })
+      }
       return next
     })
   }
@@ -202,6 +254,7 @@ export default function TourOverlay({
     const likedNames = data.properties.filter((p) => favorites.has(pidOf(p))).map((p) => p.snapshot.name)
     const liked = likedNames.length ? `我最喜欢 ${likedNames[0]}，` : ''
     const prefill = `${data.agent.name} 你好，我看完了 Luna 的导览，${liked}想约时间看房。`
+    tel.track('cta_whatsapp')
     if (wa) window.open(`https://wa.me/${wa}?text=${encodeURIComponent(prefill)}`, '_blank')
     else if (data.agent.phone) window.open(`tel:${data.agent.phone}`)
   }
@@ -333,7 +386,14 @@ export default function TourOverlay({
         </button>
       )}
       {state === 'ended' && (
-        <button className="lt-bigbtn" style={{ pointerEvents: 'auto' }} onClick={() => engineRef.current?.replay()}>
+        <button
+          className="lt-bigbtn"
+          style={{ pointerEvents: 'auto' }}
+          onClick={() => {
+            tel.track('tour_replay')
+            engineRef.current?.replay()
+          }}
+        >
           <span className="circle">↻</span>
           <span className="label">再看一遍</span>
         </button>
