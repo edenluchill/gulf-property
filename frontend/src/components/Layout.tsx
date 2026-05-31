@@ -2,8 +2,20 @@ import Header from './Header'
 import MobileNav from './MobileNav'
 import { FavoritesDrawer } from './favorites'
 import { VoiceAssistantButton } from './voice-assistant'
+import { useTourMode } from '../luna-tour/TourModeContext'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  // Luna Tour: hide all app chrome when a shared tour/demo is playing full-screen.
+  const { active: tourMode } = useTourMode()
+
+  if (tourMode) {
+    return (
+      <div className="h-screen flex flex-col bg-black overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
+      </div>
+    )
+  }
+
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Header */}

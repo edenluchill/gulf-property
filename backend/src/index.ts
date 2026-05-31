@@ -28,6 +28,7 @@ import aiProjectsRouter from './routes/ai-projects'
 import aiAreasRouter from './routes/ai-areas'
 import marketRouter from './routes/market'
 import metaRouter from './routes/meta'
+import lunaPublicRouter from './luna-tour/public-router'  // Luna Tour (isolated; delete line + luna-tour/ to remove)
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 
@@ -108,6 +109,7 @@ app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/market', marketRouter)  // 成交真相层：价格体检等
 app.use('/api/meta', metaRouter)  // 数据版本指纹（客户端缓存自动失效）
+app.use('/api/luna', lunaPublicRouter)  // Luna Tour public watch (isolated)
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

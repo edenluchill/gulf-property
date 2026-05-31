@@ -2,7 +2,7 @@
  * MapLibre GL JS 地图组件 - 简洁高效版
  */
 
-import { useState, useRef, useMemo, useCallback, memo, useEffect } from 'react'
+import { useState, useRef, useMemo, useCallback, memo, useEffect, forwardRef, useImperativeHandle } from 'react'
 import Map, {
   Marker,
   Source,
@@ -24,11 +24,17 @@ import {
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { TransportGeoJSON } from '../lib/api'
+// Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
+// the import + useImperativeHandle below + luna-tour/ to remove.
+import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
 
 // CARTO 无标签风格：选中指标时用，画热力图干净不被街道名干扰
 const MAP_STYLE_CLEAN = 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json'
 // CARTO 带标签风格：未选指标时用，显示街道/地名等细节方便探索
 const MAP_STYLE_LABELED = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+// CARTO 夜景风格：电影沉浸底图（与 Luna Tour demo 同款 dark-matter）。
+// 数据图层（热力/POI/区域/交通）叠加其上不变；只是底图变深色。
+const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 
 // 卫星底图风格：Esri World Imagery 栅格瓦片。
 // glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
@@ -50,7 +56,7 @@ const SATELLITE_STYLE = {
   ]
 }
 
-type BaseMap = 'vector' | 'satellite'
+type BaseMap = 'vector' | 'satellite' | 'dark'
 
 // 两点间球面距离（km），用于地图测距工具
 function haversineKm(a: { lng: number; lat: number }, b: { lng: number; lat: number }): number {
@@ -723,13 +729,21 @@ interface MapViewMapLibreProps {
   flyToLocation?: { lat: number; lng: number; zoom?: number; bounds?: [[number, number], [number, number]] } | null
   transportGeoJSON?: TransportGeoJSON | null
   showTransport?: boolean
-  /** 由语音助手触发的测距：传入点序列即进入测距模式并画线 */
-  voiceMeasure?: { points: [number, number][] } | null
+  /** 由语音助手/导览触发的测距：传入点序列即进入测距模式并画线。
+   *  noFit=true 时不自动缩放（导览用，避免抢电影运镜的镜头）。 */
+  voiceMeasure?: { points: [number, number][]; noFit?: boolean } | null
   /** 由语音助手触发的「区域配套放射图」：从区域中心向最近配套画连线+距离 */
   voiceAmenities?: {
     center: [number, number]; centerName: string; score: number; tier: string
     spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
   } | null
+  /** Luna Tour: hide all map UI controls (basemap/3D/measure buttons, panels)
+   *  so the tour plays full-screen immersive. The map canvas + pins stay. */
+  chromeless?: boolean
+  /** Luna Tour: make the map UNCONTROLLED so the imperative cinematic camera
+   *  (flyTo/orbit/setBearing) runs smoothly — the controlled viewState would
+   *  otherwise lag a frame behind and fight it (teleport/jitter). */
+  tourActive?: boolean
 }
 
 function MapViewMapLibre({
@@ -752,8 +766,10 @@ function MapViewMapLibre({
   transportGeoJSON = null,
   showTransport = false,
   voiceMeasure = null,
-  voiceAmenities = null
-}: MapViewMapLibreProps) {
+  voiceAmenities = null,
+  chromeless = false,
+  tourActive = false
+}: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -825,14 +841,19 @@ function MapViewMapLibre({
     if (canvas) canvas.style.cursor = measureMode ? 'crosshair' : ''
   }, [measureMode, mapLoaded])
 
-  // 语音助手触发测距：进入测距模式、落点、自动缩放到这些点
+  // 语音助手/导览触发测距：进入测距模式、落点、(可选)自动缩放到这些点
   useEffect(() => {
-    if (!voiceMeasure || !voiceMeasure.points?.length) return
+    if (!voiceMeasure || !voiceMeasure.points?.length) {
+      // 清空：退出测距模式并移除连线（导览结束/语音清除时调用）
+      setMeasureMode(false)
+      setMeasurePoints([])
+      return
+    }
     const pts = voiceMeasure.points.map(([lng, lat]) => ({ lng, lat }))
     setMeasureMode(true)
     setMeasurePoints(pts)
     const map = mapRef.current?.getMap()
-    if (map && mapLoaded && pts.length >= 2) {
+    if (map && mapLoaded && pts.length >= 2 && !voiceMeasure.noFit) {
       const lngs = pts.map(p => p.lng)
       const lats = pts.map(p => p.lat)
       map.fitBounds(
@@ -883,8 +904,39 @@ function MapViewMapLibre({
   const [viewState, setViewState] = useState({
     longitude: 55.089,
     latitude: 25.019,
-    zoom: 10.115216007819594
+    zoom: 10.115216007819594,
+    pitch: 0,
+    bearing: 0
   })
+
+  // 3D 倾斜视角：独立于底图(地图/卫星/夜景都可用)。开启后相机俯角看,
+  // 配合电影 flyTo 俯冲。pitchedRef 供 flyTo effect 读取(避免把 pitched 放进
+  // effect deps 而触发重复飞行)。
+  const CINEMATIC_PITCH = 60
+  const [pitched, setPitched] = useState(false)
+  const pitchedRef = useRef(false)
+  const toggle3D = () => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const next = !pitched
+    setPitched(next)
+    pitchedRef.current = next
+    map.easeTo({ pitch: next ? CINEMATIC_PITCH : 0, duration: 700, essential: true })
+  }
+
+  // Expose a cinematic handle so the Luna Tour engine can drive THIS map
+  // (camera + lt- overlays). Stable across renders; closes over mapRef.
+  useImperativeHandle(
+    ref,
+    () =>
+      createMapTourHandle({
+        getMap: () => mapRef.current?.getMap(),
+        accent: '#00E0B8',
+        darkStyle: MAP_STYLE_DARK,
+        defaultStyle: MAP_STYLE_LABELED,
+      }),
+    []
+  )
 
   // Fly to location or fitBounds when flyToLocation changes
   useEffect(() => {
@@ -901,11 +953,14 @@ function MapViewMapLibre({
         duration: 2000
       })
     } else {
+      // 3D 开启时来一段带俯角的电影俯冲;平视时维持原行为
+      const dive = pitchedRef.current
       map.flyTo({
         center: [flyToLocation.lng, flyToLocation.lat],
         zoom: flyToLocation.zoom ?? 11,
-        duration: 2000,
-        curve: 1.8,
+        pitch: dive ? CINEMATIC_PITCH : 0,
+        duration: dive ? 2400 : 2000,
+        curve: dive ? 2.0 : 1.8,
         essential: true
       })
     }
@@ -1215,8 +1270,8 @@ function MapViewMapLibre({
     <div className="h-full w-full">
       <Map
         ref={mapRef}
-        {...viewState}
-        onMove={evt => setViewState(evt.viewState)}
+        {...(tourActive ? { initialViewState: viewState } : viewState)}
+        onMove={evt => { if (!tourActive) setViewState(evt.viewState) }}
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
         attributionControl={false}
@@ -1224,6 +1279,8 @@ function MapViewMapLibre({
         mapStyle={
           baseMap === 'satellite'
             ? SATELLITE_STYLE
+            : baseMap === 'dark'
+            ? MAP_STYLE_DARK
             : (areaMetric === 'none' ? MAP_STYLE_LABELED : MAP_STYLE_CLEAN)
         }
         interactiveLayerIds={mapLoaded ? [
@@ -1235,7 +1292,8 @@ function MapViewMapLibre({
         onMouseLeave={handleMouseLeave}
         onClick={handleMapClick}
       >
-        {/* Area Polygons */}
+        {/* Area Polygons — always shown (soft default colours give customers
+            orientation via area names; the tour toggles a metric to reveal value) */}
         {mapLoaded && areasGeoJson && (
           <Source id="areas" type="geojson" data={areasGeoJson}>
             <Layer
@@ -1247,7 +1305,7 @@ function MapViewMapLibre({
                   'case',
                   ['==', ['get', 'id'], hoveredAreaId],
                   ['*', ['get', 'opacity'], 0.7],  // hover: opacity * 0.7
-                  ['*', ['get', 'opacity'], 0.4]   // normal: opacity * 0.4 (和之前一样淡)
+                  ['*', ['get', 'opacity'], 0.4]   // normal: soft (matches production)
                 ]
               }}
             />
@@ -1607,16 +1665,49 @@ function MapViewMapLibre({
         )}
       </Map>
 
-      {/* 底图切换：干净/卫星，放右上角（在指标条与 POI 按钮下方，避免重叠） */}
+      {!chromeless && (<>
+      {/* 底图切换：地图 → 卫星 → 夜景 循环，放右上角（在指标条与 POI 按钮下方，避免重叠） */}
       <button
         type="button"
-        onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : 'vector'))}
-        className="absolute top-28 right-4 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium text-slate-700 shadow-lg ring-1 ring-slate-200 backdrop-blur transition hover:bg-white"
-        title={baseMap === 'vector' ? '切换到卫星地图' : '切换回地图'}
+        onClick={() =>
+          setBaseMap(prev =>
+            prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'
+          )
+        }
+        className={`absolute top-28 right-4 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+          baseMap === 'dark'
+            ? 'bg-slate-900/90 text-slate-100 ring-slate-700 hover:bg-slate-900'
+            : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
+        }`}
+        title="切换底图：地图 / 卫星 / 夜景"
         aria-label="切换底图"
       >
-        <Globe size={15} className={baseMap === 'satellite' ? 'text-emerald-600' : 'text-slate-500'} />
-        {baseMap === 'vector' ? '卫星' : '地图'}
+        <Globe
+          size={15}
+          className={
+            baseMap === 'satellite'
+              ? 'text-emerald-600'
+              : baseMap === 'dark'
+              ? 'text-emerald-400'
+              : 'text-slate-500'
+          }
+        />
+        {baseMap === 'vector' ? '地图' : baseMap === 'satellite' ? '卫星' : '夜景'}
+      </button>
+
+      {/* 3D 倾斜：独立于底图，地图/卫星/夜景都可用 */}
+      <button
+        type="button"
+        onClick={toggle3D}
+        className={`absolute top-28 right-24 z-[1000] flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
+          pitched
+            ? 'bg-emerald-500 text-white ring-emerald-400 hover:bg-emerald-500'
+            : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
+        }`}
+        title={pitched ? '切回平视 (2D)' : '3D 倾斜视角'}
+        aria-label="切换 3D 倾斜视角"
+      >
+        3D
       </button>
 
       {/* 测距工具按钮 */}
@@ -1693,8 +1784,9 @@ function MapViewMapLibre({
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }
 
-export default memo(MapViewMapLibre)
+export default memo(forwardRef<MapTourHandle, MapViewMapLibreProps>(MapViewMapLibre))

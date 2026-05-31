@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
+import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
+import TourOverlay from '../luna-tour/TourOverlay'  // Luna Tour (isolated)
+import { useTourMode } from '../luna-tour/TourModeContext'  // Luna Tour (isolated)
 import MapFilterChips from '../components/MapFilterChips'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
@@ -77,6 +80,24 @@ export default function MapPage() {
   const { t, i18n } = useTranslation(['map', 'common'])
   const navigate = useNavigate()
   const voiceContext = useVoiceAssistantContext()
+  // Luna Tour: run a shared session ON this map. Supports both /v/:code and the
+  // cleaner homepage form  /?toursession=xxx  (user preference).
+  const { code: pathCode } = useParams<{ code?: string }>()
+  const [searchParams] = useSearchParams()
+  const tourCode = pathCode || searchParams.get('toursession') || undefined
+  const tourMapRef = useRef<MapTourHandle>(null)
+  const { toolsRevealed } = useTourMode()
+
+  // Entering a tour → clean map (the tour toggles the area-value heatmap itself);
+  // leaving → restore the user's saved metric. Never persists the tour's choice.
+  useEffect(() => {
+    if (tourCode) {
+      setAreaMetric('none')
+    } else {
+      const saved = localStorage.getItem('map-area-metric') as AreaMetric | null
+      if (saved) setAreaMetric(saved)
+    }
+  }, [tourCode])
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -237,7 +258,7 @@ export default function MapPage() {
   const [selectedLandmark, setSelectedLandmark] = useState<DubaiLandmark | null>(null)
 
   // Voice-triggered distance measurement
-  const [voiceMeasure, setVoiceMeasure] = useState<{ points: [number, number][] } | null>(null)
+  const [voiceMeasure, setVoiceMeasure] = useState<{ points: [number, number][]; noFit?: boolean } | null>(null)
   const [voiceAmenities, setVoiceAmenities] = useState<{
     center: [number, number]; centerName: string; score: number; tier: string
     spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
@@ -664,10 +685,13 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Map Section - Full Width */}
-      <div className="flex-1 p-0 md:p-6">
-        <div className="h-full md:rounded-xl overflow-hidden md:shadow-2xl md:border md:border-slate-200 relative">
+      {/* Map Section - Full Width, edge-to-edge (no card padding, demo/tour friendly) */}
+      <div className="flex-1 p-0">
+        <div className="h-full overflow-hidden relative">
           <MapViewMapLibre
+            ref={tourMapRef}
+            chromeless={!!tourCode && !toolsRevealed}
+            tourActive={!!tourCode}
             projects={filteredMapPins}
             onBoundsChange={handleMapBoundsChange}
             onProjectClick={handleProjectClick}
@@ -688,7 +712,20 @@ export default function MapPage() {
             voiceAmenities={voiceAmenities}
           />
 
+          {/* Luna Tour: shared session plays over this map; hides search UI below */}
+          {tourCode && (
+            <TourOverlay
+              code={tourCode}
+              mapRef={tourMapRef}
+              onMeasure={(pts) => setVoiceMeasure(pts ? { points: pts, noFit: true } : null)}
+              onAmenities={(p) => setVoiceAmenities(p)}
+              onTransit={(on) => setShowTransit(on)}
+              onAreaMetric={(m) => setAreaMetric((m as AreaMetric) ?? 'none')}
+            />
+          )}
+
           {/* 只留筛选 pills（搜索 bar 已移除），浮在地图左上 */}
+          {(!tourCode || toolsRevealed) && (
           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002]">
             <MapFilterChips
               filters={filters}
@@ -696,7 +733,10 @@ export default function MapPage() {
               developers={developers}
             />
           </div>
+          )}
 
+          {/* Luna Tour: hide search controls while playing; reveal them on pause */}
+          {(!tourCode || toolsRevealed) && (<>
           {/* Mobile: Top left - Current metric indicator (在 filter pills 下方) */}
           {areaMetric !== 'none' && (
             <div className="absolute top-14 left-3 z-[1000] md:hidden">
@@ -848,6 +888,7 @@ export default function MapPage() {
               </button>
             </div>
           </div>
+          </>)}
 
           {/* POI Full Panel - appears when "More" clicked */}
           {showPoiPanel && (

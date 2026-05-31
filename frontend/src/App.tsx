@@ -22,6 +22,7 @@ import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
 import AgentPortalPage from './pages/AgentPortalPage'
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
+import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
 
 function App() {
   const { i18n } = useTranslation()
@@ -31,9 +32,12 @@ function App() {
   }, [i18n.language])
 
   return (
+    <TourModeProvider>
     <VoiceAssistantProvider>
     <Layout>
       <Routes>
+        {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
+        <Route path="/v/:code" element={<MapPage />} />
         {/* MapPage is now the homepage */}
         <Route path="/" element={<MapPage />} />
         <Route path="/map" element={<MapPage />} />
@@ -92,6 +96,7 @@ function App() {
       </Routes>
     </Layout>
     </VoiceAssistantProvider>
+    </TourModeProvider>
   )
 }
 
