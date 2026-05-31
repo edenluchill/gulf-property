@@ -60,6 +60,11 @@ export default function TourOverlay({
   const [snap, setSnap] = useState<EngineSnapshot | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
 
+  // Telemetry (FULLY DECOUPLED, fail-safe — see telemetry.ts). Lazy, stable.
+  const telRef = useRef<TourTelemetry | null>(null)
+  if (!telRef.current) telRef.current = createTelemetry(code)
+  const tel = telRef.current
+
   // enter/exit tour mode (hides app chrome via Layout)
   useEffect(() => {
     enter(code)
