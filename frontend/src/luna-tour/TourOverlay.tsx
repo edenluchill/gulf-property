@@ -149,6 +149,17 @@ export default function TourOverlay({
     }
   }, [data])
 
+  // Show the tour's own base pins (search pins are hidden in tour mode for perf).
+  // Just a few markers → negligible per-frame cost vs. hundreds of search pins.
+  useEffect(() => {
+    if (!data || !mapRef.current) return
+    const pins = data.properties
+      .filter((p) => Array.isArray(p.snapshot.coords))
+      .map((p) => ({ id: pidOf(p), coord: p.snapshot.coords as [number, number] }))
+    mapRef.current.setBasePins(pins)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
   // ---- telemetry observers (decoupled: watch snapshot, never touch the engine) ----
   // resolve project_id + beat kind for an act segment, for behaviour events
   const resolveSeg = (segmentKey: string, actIndex: number) => {

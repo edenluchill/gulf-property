@@ -45,6 +45,8 @@ export interface MapTourHandle {
   highlightPins(ids: string[]): void
   /** pulse a single focus ring at a coord (current property). null clears it. */
   pulseAt(coord: LngLat | null): void
+  /** show the tour's own base pins (just a few, cheap) since search pins are hidden */
+  setBasePins(pins: { id: string; coord: LngLat }[]): void
   clearOverlays(): void
   setStyle(style: 'dark' | 'default'): void
   resize(): void
@@ -75,6 +77,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   const labelMarkers: Marker[] = []
   const highlightMarkers = new Map<string, Marker>()
   let pulseMarker: Marker | null = null
+  let basePins: Marker[] = []
 
   const cancelRaf = () => {
     if (rafId) {
@@ -313,6 +316,20 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     pulseMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(map)
   }
 
+  function setBasePins(pins: { id: string; coord: LngLat }[]) {
+    basePins.forEach((m) => m.remove())
+    basePins = []
+    const map = getMap()
+    if (!map) return
+    for (const p of pins) {
+      const el = document.createElement('div')
+      el.className = 'lt-pin'
+      el.innerHTML = `<span class="lt-pin-dot"></span><span class="lt-pin-ring"></span>`
+      el.style.setProperty('--lt-accent', accent)
+      basePins.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(p.coord).addTo(map))
+    }
+  }
+
   function addLabelPin(map: MaplibreMap, at: LngLat, label: string) {
     const el = document.createElement('div')
     el.className = 'lt-dist-label'
@@ -362,6 +379,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     showAmenitySpokes,
     highlightPins,
     pulseAt,
+    setBasePins,
     clearOverlays,
     setStyle,
     resize,

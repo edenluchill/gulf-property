@@ -32,6 +32,9 @@ import {
   MapPinProject
 } from '../lib/api'
 
+// Stable empty array so tour mode passes the same reference each render (no churn).
+const EMPTY_PINS: never[] = []
+
 const METRIC_OPTIONS = [
   { value: 'medianUnitPrice' as AreaMetric, labelKey: 'map:metric.medianUnitPrice', Icon: DollarSign },
   { value: 'medianPriceSqft' as AreaMetric, labelKey: 'map:metric.medianPriceSqft', Icon: DollarSign },
@@ -692,8 +695,10 @@ export default function MapPage() {
             ref={tourMapRef}
             chromeless={!!tourCode && !toolsRevealed}
             tourActive={!!tourCode}
-            projects={filteredMapPins}
-            onBoundsChange={handleMapBoundsChange}
+            projects={tourCode ? EMPTY_PINS : filteredMapPins}
+            // No bounds-driven re-fetch during a tour: the cinematic camera moves
+            // constantly; reacting to it would re-render the whole map each frame.
+            onBoundsChange={tourCode ? undefined : handleMapBoundsChange}
             onProjectClick={handleProjectClick}
             onAreaClick={handleAreaClick}
             areaMetric={areaMetric}

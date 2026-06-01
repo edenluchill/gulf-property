@@ -1552,32 +1552,23 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* Landmark Markers — individual markers with image thumbnails */}
-        {dubaiLandmarks.map(lm => (
-          <LandmarkMarker
-            key={lm.id}
-            landmark={lm}
-            onClick={onLandmarkClick}
-          />
-        ))}
-
-        {/* Cluster Markers (legacy) */}
-        {clusters.map(cluster => (
-          <ClusterMarker
-            key={cluster.cluster_id}
-            cluster={cluster}
-            onClick={onClusterClick}
-          />
-        ))}
-
-        {/* Project Pins - individual markers with thumbnail images */}
-        {projects.map(project => (
-          <ProjectPinMarker
-            key={project.id}
-            project={project}
-            onClick={onProjectClick}
-          />
-        ))}
+        {/* DOM markers (landmarks / clusters / project pins) — HIDDEN during a
+            tour: maplibre re-positions every DOM marker on each camera frame, so
+            hundreds of them stutter the cinematic flyTo. The tour draws its own
+            focus pins via the map handle instead. (Perf rule, see luna-tour spec.) */}
+        {!tourActive && (
+          <>
+            {dubaiLandmarks.map(lm => (
+              <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
+            ))}
+            {clusters.map(cluster => (
+              <ClusterMarker key={cluster.cluster_id} cluster={cluster} onClick={onClusterClick} />
+            ))}
+            {projects.map(project => (
+              <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
+            ))}
+          </>
+        )}
 
         {/* 测距：连线 + 顶点 */}
         {mapLoaded && measurePoints.length > 0 && (
