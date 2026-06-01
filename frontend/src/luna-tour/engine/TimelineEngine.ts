@@ -169,10 +169,18 @@ export class TimelineEngine {
     if (this.state === 'ended') return this.replay()
     if (this.paused) {
       this.paused = false
-      this.map.drift(false)
-      this.audio.resume()
       this.setState(this.computeState(this.curIndex))
       this.beatClockStart = performance.now() - this.beatElapsed
+      // re-speak the current beat's narration from the start (we hard-stopped it
+      // on pause; resuming a half-spoken TTS utterance is unreliable across
+      // browsers and was causing "still talking after pause").
+      const seg = this.segments[this.curIndex]
+      if (seg && !this.narrationDone) {
+        this.audio.play(seg.beat.narration, seg.beat.audio_url, () => {
+          this.narrationDone = true
+          this.checkBeatDone()
+        })
+      }
       this.startClock()
       this.emit()
     } else if (!this.started) {
@@ -185,8 +193,12 @@ export class TimelineEngine {
     this.paused = true
     this.stopClock()
     this.beatElapsed = performance.now() - this.beatClockStart
-    this.audio.pause()
-    this.map.drift(true)
+    // Hard-stop audio (cancels the TTS queue) — pause() alone leaves queued
+    // speech that resumes later and "talks after pause".
+    this.audio.stop()
+    // Camera stays STILL while paused. The old slow drift was a per-frame
+    // setBearing that stuttered. A frozen frame is calmer and never janks.
+    this.map.drift(false)
     this.setState('paused')
     this.emit()
   }

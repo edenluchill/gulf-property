@@ -17,7 +17,7 @@ import { TimelineEngine, EngineSnapshot } from './engine/TimelineEngine'
 import type { MapTourHandle } from './map/mapTourHandle'
 import type { WatchPayload, PropertySnapshot, AmenityPayload } from './types'
 import { fetchAmenity } from './amenities'
-import { createTelemetry, type TourTelemetry } from './telemetry'
+import { useTourTelemetry } from './useTourTelemetry'
 import { useTourLive } from './useTourLive'
 import { useTourMode } from './TourModeContext'
 import './luna-tour.css'
@@ -72,11 +72,6 @@ export default function TourOverlay({
   // explore-on-pause: which property the customer tapped to inspect (project_id)
   const [exploreId, setExploreId] = useState<string | null>(null)
 
-  // Telemetry (FULLY DECOUPLED, fail-safe — see telemetry.ts). Lazy, stable.
-  const telRef = useRef<TourTelemetry | null>(null)
-  if (!telRef.current) telRef.current = createTelemetry(code)
-  const tel = telRef.current
-
   // Live Q&A (§4.6): connects to Gemini Live when the customer asks. Self-contained.
   const live = useTourLive(() => mapRef.current)
 
@@ -122,6 +117,9 @@ export default function TourOverlay({
     (data?.session.theme?.accent as string) ||
     (data?.agent.brand?.accent as string) ||
     '#00E0B8'
+
+  // Telemetry — decoupled hook (observes snapshot, never touches the engine).
+  const tel = useTourTelemetry(code, data, snap)
 
   // The TourScript references properties by their residential project_id (that's
   // what the seed fed the AI), NOT the session-property row id. Key everything by
@@ -183,51 +181,6 @@ export default function TourOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
-  // ---- telemetry observers (decoupled: watch snapshot, never touch the engine) ----
-  // resolve project_id + beat kind for an act segment, for behaviour events
-  const resolveSeg = (segmentKey: string, actIndex: number) => {
-    if (!data || actIndex < 0) return { projectId: null as string | null, kind: undefined as string | undefined }
-    const act = data.script.acts[actIndex]
-    if (!act) return { projectId: null as string | null, kind: undefined as string | undefined }
-    const beat = act.beats.find((bb) => `a${actIndex}-${bb.id}` === segmentKey)
-    return { projectId: act.property_id, kind: beat?.kind }
-  }
-
-  // open (once the session is loaded)
-  const openedRef = useRef(false)
-  useEffect(() => {
-    if (data && !openedRef.current) {
-      openedRef.current = true
-      tel.track('open')
-    }
-  }, [data, tel])
-
-  // per-beat dwell + chart_view (fires as the playback crosses beats)
-  const lastSegRef = useRef<{ key: string; projectId: string | null; enterTs: number } | null>(null)
-  useEffect(() => {
-    const key = snap?.segmentKey
-    if (!key) return
-    const now = performance.now()
-    const prev = lastSegRef.current
-    if (prev && prev.key !== key && prev.projectId) {
-      tel.track('property_dwell', { project_id: prev.projectId, dwell_ms: now - prev.enterTs })
-    }
-    if (!prev || prev.key !== key) {
-      const { projectId, kind } = resolveSeg(key, snap?.actIndex ?? -1)
-      lastSegRef.current = { key, projectId, enterTs: now }
-      if (kind === 'numbers' && projectId) tel.track('chart_view', { project_id: projectId })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap?.segmentKey])
-
-  // tour_complete (once, on reaching the end)
-  const prevStateRef = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    const st = snap?.state
-    if (st === 'ended' && prevStateRef.current !== 'ended') tel.track('tour_complete')
-    prevStateRef.current = st
-  }, [snap?.state, tel])
-
   const clearMapFeatures = () => {
     onMeasure?.(null)
     onAmenities?.(null)
@@ -253,9 +206,8 @@ export default function TourOverlay({
     navigate('/')
   }
 
-  const handleStart = () => {
+  const startEngine = (startMuted: boolean) => {
     if (!data || !mapRef.current || engineRef.current) return
-    vibrate(20)
     const engine = new TimelineEngine({
       script: data.script,
       properties: propertyMap,
@@ -270,8 +222,37 @@ export default function TourOverlay({
       },
     })
     engineRef.current = engine
+    if (startMuted) engine.toggleMute() // muted → browsers allow autoplay
     engine.start()
     tel.track('tour_play')
+  }
+
+  // Zero-click reveal: as soon as the session + map are ready, the tour starts
+  // automatically (muted, so browser autoplay policy is satisfied) — no big
+  // "开始" button. A one-tap "开启声音" hint unmutes. (§1 "进来就动".)
+  const autoStartedRef = useRef(false)
+  useEffect(() => {
+    if (!data) return
+    let alive = true
+    const tryStart = () => {
+      if (!alive || autoStartedRef.current) return
+      if (mapRef.current) {
+        autoStartedRef.current = true
+        startEngine(true)
+      } else {
+        setTimeout(tryStart, 120) // map ref not attached yet; retry briefly
+      }
+    }
+    tryStart()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
+  const handleUnmute = () => {
+    vibrate(12)
+    engineRef.current?.toggleMute() // unmute; re-speaks current beat on next play tick
   }
 
   const handleTapStage = () => {
@@ -529,11 +510,11 @@ export default function TourOverlay({
         </div>
       )}
 
-      {/* big play / replay */}
-      {!started && (
-        <button className="lt-bigbtn" style={{ pointerEvents: 'auto' }} onClick={handleStart}>
-          <span className="circle">▶</span>
-          <span className="label">为{data!.session.client_name || '你'}私人定制 · 点击开始</span>
+      {/* Zero-click: the tour auto-starts muted. A subtle one-tap unmute hint
+          replaces the old big "开始" button — no full-screen gate. */}
+      {started && snap?.muted && state !== 'ended' && (
+        <button className="lt-unmute-hint" style={{ pointerEvents: 'auto' }} onClick={handleUnmute}>
+          🔊 开启声音
         </button>
       )}
       {state === 'ended' && (
