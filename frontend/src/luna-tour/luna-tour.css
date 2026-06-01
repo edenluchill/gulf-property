@@ -329,6 +329,46 @@
   animation: lt-fade-up 0.4s ease-out;
 }
 
+/* explore-on-pause: tappable property strip */
+.lt-explore-strip {
+  position: absolute; bottom: 150px; left: 0; right: 0;
+  z-index: 7; pointer-events: auto;
+  display: flex; gap: 10px; padding: 0 16px;
+  overflow-x: auto; justify-content: center;
+  animation: lt-fade-up 0.4s ease-out;
+}
+.lt-explore-chip {
+  flex: 0 0 auto; width: 116px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: rgba(10, 14, 24, 0.9); color: #fff;
+  border: 1px solid rgba(255,255,255,0.14); border-radius: 12px;
+  padding: 8px; cursor: pointer; text-align: left;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.lt-explore-chip:hover { transform: translateY(-3px); border-color: var(--lt-accent); }
+.lt-explore-chip img { width: 100%; height: 64px; object-fit: cover; border-radius: 8px; }
+.lt-explore-name { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.lt-explore-price { font-size: 12px; color: var(--lt-accent); font-weight: 700; }
+
+/* explore-on-pause: single property card */
+.lt-explore-card {
+  position: absolute; left: 20px; top: 92px; width: 300px; max-width: 42vw;
+  z-index: 7; pointer-events: auto;
+  background: linear-gradient(135deg, rgba(10,14,24,0.95), rgba(10,14,24,0.82));
+  border: 1px solid rgba(255,255,255,0.14); border-radius: 18px;
+  padding: 16px 18px; backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  animation: lt-slide-left 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+.lt-explore-back {
+  background: none; border: none; color: var(--lt-accent);
+  font-size: 13px; cursor: pointer; padding: 0 0 8px; pointer-events: auto;
+}
+@media (max-width: 640px) {
+  .lt-explore-card { left: 14px; right: 14px; top: auto; bottom: 230px; width: auto; max-width: none; }
+  .lt-explore-strip { justify-content: flex-start; }
+}
+
 /* play / replay big button */
 .lt-bigbtn {
   position: absolute; inset: 0; z-index: 8;

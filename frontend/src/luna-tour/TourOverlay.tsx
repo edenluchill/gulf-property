@@ -21,6 +21,12 @@ import { createTelemetry, type TourTelemetry } from './telemetry'
 import { useTourMode } from './TourModeContext'
 import './luna-tour.css'
 
+function formatAedShort(n: number): string {
+  if (n >= 1_000_000) return `AED ${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 1000) return `AED ${(n / 1000).toFixed(0)}K`
+  return `AED ${n}`
+}
+
 function vibrate(ms: number | number[]) {
   try {
     navigator.vibrate?.(ms)
@@ -59,6 +65,8 @@ export default function TourOverlay({
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [snap, setSnap] = useState<EngineSnapshot | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  // explore-on-pause: which property the customer tapped to inspect (project_id)
+  const [exploreId, setExploreId] = useState<string | null>(null)
 
   // Telemetry (FULLY DECOUPLED, fail-safe — see telemetry.ts). Lazy, stable.
   const telRef = useRef<TourTelemetry | null>(null)
@@ -264,6 +272,21 @@ export default function TourOverlay({
     else if (data.agent.phone) window.open(`tel:${data.agent.phone}`)
   }
 
+  // explore: tap a property while paused → fly there + show its card + record view
+  const handleExplore = (projectId: string) => {
+    const snapJson = propertyMap.get(projectId)
+    if (!snapJson || !Array.isArray(snapJson.coords)) return
+    vibrate(10)
+    setExploreId(projectId)
+    mapRef.current?.flyTo({ center: snapJson.coords, zoom: 15, pitch: 55, duration: 1800 })
+    mapRef.current?.pulseAt(snapJson.coords)
+    tel.track('property_view', { project_id: projectId })
+  }
+  // leaving pause clears the explore card
+  useEffect(() => {
+    if (!isPaused) setExploreId(null)
+  }, [isPaused])
+
   const seekToAct = (actIndex: number) => {
     const eng = engineRef.current
     if (!eng) return
@@ -378,9 +401,56 @@ export default function TourOverlay({
         </button>
       )}
 
-      {/* ask hint */}
-      {(state === 'asking' || state === 'paused') && (
-        <div className="lt-ask-hint">想问什么?(语音提问即将上线) · 点继续看下一个</div>
+      {/* paused: explore strip — tap a home to inspect it yourself */}
+      {(state === 'asking' || state === 'paused') && !exploreId && (
+        <>
+          <div className="lt-ask-hint">想自己看看?点下面任意一套 · 或点继续</div>
+          <div className="lt-explore-strip">
+            {data!.properties.map((p) => {
+              const pid = p.project_id ?? p.id
+              const s = p.snapshot
+              return (
+                <button key={pid} className="lt-explore-chip" onClick={() => handleExplore(pid)}>
+                  {s.image && <img src={s.image} alt={s.name} />}
+                  <span className="lt-explore-name">{s.name}</span>
+                  {s.min_price != null && (
+                    <span className="lt-explore-price">{formatAedShort(s.min_price)}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {/* paused: a single property's info card the customer pulled up */}
+      {(state === 'asking' || state === 'paused') && exploreId && propertyMap.get(exploreId) && (
+        <div className="lt-explore-card">
+          <button className="lt-explore-back" onClick={() => setExploreId(null)}>← 返回</button>
+          {(() => {
+            const s = propertyMap.get(exploreId)!
+            const metro = s.distances?.find((d) => d.label.includes('地铁'))
+            return (
+              <>
+                {s.image && <div className="lt-card-img"><img src={s.image} alt={s.name} /></div>}
+                {s.area && <div className="lt-card-area">📍 {s.area}</div>}
+                <div className="lt-card-name">{s.name}</div>
+                {s.developer && <div className="lt-card-dev">{s.developer}</div>}
+                {s.min_price != null && (
+                  <div className="lt-card-price">{formatAedShort(s.min_price)}<span className="lt-card-price-unit"> 起</span></div>
+                )}
+                <div className="lt-card-stats">
+                  {s.amenity_score != null && (
+                    <div className="lt-card-stat"><b style={{ color: accent }}>{s.amenity_score}</b><span>便利度{s.amenity_tier ? ` · ${s.amenity_tier}` : ''}</span></div>
+                  )}
+                  {metro && (
+                    <div className="lt-card-stat"><b style={{ color: accent }}>{metro.distance_km}km</b><span>🚇 最近地铁</span></div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
+        </div>
       )}
 
       {/* big play / replay */}

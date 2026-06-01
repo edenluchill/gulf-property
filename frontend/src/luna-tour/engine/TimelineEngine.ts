@@ -131,11 +131,28 @@ export class TimelineEngine {
     this.build()
   }
 
+  /**
+   * Minimum ms needed to actually SPEAK a narration, so a beat isn't cut off
+   * mid-sentence (the #1 glitch with browser TTS). Rough but safe: CJL chars are
+   * slower than latin words. Adds a small tail so the next beat doesn't clip the
+   * last word. Used to extend (never shrink) the authored beat duration.
+   */
+  private speakMs(text: string): number {
+    if (!text) return 0
+    const cjk = (text.match(/[一-鿿぀-ヿ]/g) || []).length
+    const latinWords = (text.replace(/[一-鿿぀-ヿ]/g, ' ').match(/\b\w+\b/g) || []).length
+    // ~4.2 CJK chars/sec, ~2.6 latin words/sec, + 700ms breathing tail.
+    return Math.round((cjk / 4.2 + latinWords / 2.6) * 1000) + 700
+  }
+
   // ---- build flat timeline ----
   private build() {
     const segs: Segment[] = []
     let t = 0
     const push = (beat: Segment['beat'], actIndex: number, propertyId?: string) => {
+      // Ensure the beat lasts at least long enough to finish its narration.
+      const need = this.speakMs(beat.narration)
+      if (need > beat.duration_ms) beat.duration_ms = need
       segs.push({ key: segKey(beat, actIndex), beat, start_ms: t, actIndex, propertyId })
       t += beat.duration_ms
     }

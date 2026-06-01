@@ -1352,9 +1352,11 @@ function MapViewMapLibre({
                 'symbol-sort-key': ['get', 'minZoom']
               }}
               paint={{
-                'text-color': '#334155',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 1.5  // 稍微减少 halo 宽度
+                // Dark basemaps (satellite/dark) → light text + dark halo so the
+                // area name stays readable; light vector → original dark-on-white.
+                'text-color': (baseMap === 'satellite' || baseMap === 'dark') ? '#ffffff' : '#334155',
+                'text-halo-color': (baseMap === 'satellite' || baseMap === 'dark') ? 'rgba(0,0,0,0.85)' : '#ffffff',
+                'text-halo-width': 2
               }}
             />
           </Source>

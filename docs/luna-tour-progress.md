@@ -76,23 +76,31 @@
 - [ ] 订阅 Stripe + 配额门(lt_usage_counters 计量,plan limits)。
 - [ ] 多语言(EN/ZH/RU/AR)+ 经纪行模板库/白标。
 
-## 📌 待跟进 Backlog(2026-05-31 用户验收后记录,demo 体验已 OK)
+## 📌 待跟进 Backlog
 
-### 🔴 已知瑕疵(优先修)
-- **音频经常没说完 / 旁白和动作对不上**:现在用浏览器 `speechSynthesis`,时间轴以「脚本 beat 时长」为准、音频只叠加不阻塞 → TTS 语速/时长和 beat 不匹配,导致旁白被下一段打断(没说完),或和运镜/overlay 不同步。
-  - 根治方向(= Phase 3 预生成音频):Gemini TTS 预生成每段 mp3(voice=Aoede),**用真实音频时长回填 beat duration_ms**(或回放时以音频 `ended` 事件驱动推进),让三轨真正同步。
-  - 临时缓解(可先做):① 进入新 beat 前 `speechSynthesis.cancel()` 已做,但可考虑「音频未播完则不提前切下一 beat」的软等待;② 让 generator 产出的 beat 时长更贴近旁白字数(按字数估时)。
+### ✅ 已完成(2026-05-31 第二批快赢)
+- **音频「说得完」(缓解版)**:`TimelineEngine.speakMs()` 按旁白字数(CJK ~4.2字/s + latin ~2.6词/s + 700ms 尾)估算念完时长,`build()` 里把 beat 时长**扩展到 ≥ 念完时长**(只增不减,cue 相对 at_ms 不受影响)→ 旁白不再被下一段打断。**根治仍是 Phase 3 预生成音频**(真实时长回填 + ended 驱动)。
+- **区域名描边**:`area-label-text` 在 satellite/dark 底图上改 白字 + 黑 halo(width 2),夜景/卫星上清晰可读。
+- **暂停时点楼盘 explore**:`TourOverlay` 暂停态显示房源缩略图 strip → 点一套 → 飞过去 + pin 高亮 + 弹信息卡(图/价/便利度/地铁)→ 记 `property_view` 遥测。「返回」回 strip,继续观看自动清。
+- **参数化生成入口**:`session-builder.ts`(`createSession()`/`ensureAgent()` 复用真实POI/距离/ROI/AI脚本+持久化)+ `create-session.ts` CLI:
+  ```
+  npx ts-node src/luna-tour/create-session.ts <shareCode> <id1,id2,...> ["Title"]
+  ```
+  → 为**任意房源**生成 `/?toursession=<shareCode>`。`seed-demo-session.ts` 也重构为调它(消除重复逻辑)。
 
-### 🟡 Phase 2 创作闭环(用户明确想要,后面跟进)
-- **经纪怎么生成**:选客户 → 选 2-3 套房 → 一句话(可选)→【生成导览】→ 后端跑 `generateTourScript` + 真实配套/距离 + seed 那套 → 存 session。先做一个**参数化生成入口**(CLI 或简单后台页),再做完整 Dashboard。
-- **生成后自己看时怎么编辑**:故事板预览(幕/beat 列表)——改旁白文字、重排、重生成某一幕、换语气;改完只重生成该段(音频)。需要 `lt_tour_scripts` 的 script-edit 接口 + 编辑 UI。
-- **客户暂停时怎么自己玩**(已留 `toolsRevealed` 钩子,暂停露出真实地图工具):
-  - 能**弹出自己想 explore 的东西**:暂停时让客户点地图/楼盘 → 弹卡片、查附近、切指标(复用主地图已有能力,现在暂停已能操作工具,需补「点楼盘弹信息卡」「探索面板」)。
-  - 能**问 AI 做别的事**(= 切 Live,Phase 1):按住 Luna 说话 → Gemini Live(注入当前房源+已讲内容,同 voice=Aoede)→ 实时驱动地图(复用 voice-tools)→ 回放衔接。当前 UI 已留位(asking 态),Live 连接未接。
+### 🟡 Phase 2 创作闭环(剩余,大工程,需单独排期)
+- **经纪 Dashboard + 故事板编辑器**:选客户/选房 UI、一键生成(现已有 `createSession` 后端能力)、幕/beat 预览、改旁白/重排/重生成某段、发布+WhatsApp 分享。需 `lt_tour_scripts` script-edit 接口 + 大量前端。
+- **AI 代配(一句话→config)**:客户档案 + 一句话 → AI 产出 config 片段(三层合并)。
+
+### 🔴 切 Live 问答(Phase 1,大且涉及 Gemini Live 计费,做前需确认)
+- 按住 Luna 说话 → Gemini Live(注入当前房源+已讲内容,同 voice=Aoede)→ 实时驱动地图(复用 voice-tools)→ 回放衔接。当前 UI 已留位(asking 态)。**计入 `usage_counters.live_minutes`**。
+
+### 🔵 Phase 3 根治音频
+- Gemini TTS 预生成每 beat mp3(voice=Aoede)+ R2 上传 + `lt_audio_assets` 状态 + 用真实时长回填 beat / ended 事件驱动推进。
 
 ### 🟢 其他小优化
-- 「展示区域价值」现在绑定在「数字」beat 自动触发(`medianUnitPrice`)。若要 AI 在脚本里逐 beat 精确指定(哪一刻/用哪个指标),需给 TourScript 加 overlay 类型 + 重新生成。
-- 区域名在夜景/卫星上若对比度不够,可给标签加描边。
+- 「展示区域价值」现在绑定「数字」beat 自动触发(`medianUnitPrice`)。若要 AI 逐 beat 精确指定(哪一刻/哪指标),需给 TourScript 加 overlay 类型 + 重新生成。
+- 经纪行为分析面板(遥测数据已在流入):单 session 时间线 + lead_score 排序 + 「正在看」SSE 提醒。
 
 ## 全程纪律
 - 每阶段:前后端 `npx tsc --noEmit` + 本地跑通 + 关键路径手测。
