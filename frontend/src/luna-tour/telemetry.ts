@@ -19,6 +19,7 @@ export type TourEvent =
   | 'cta_whatsapp'
   | 'feedback'
   | 'property_view'
+  | 'ask'
 
 interface TrackData {
   project_id?: string | null

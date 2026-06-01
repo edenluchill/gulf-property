@@ -18,6 +18,7 @@ import type { MapTourHandle } from './map/mapTourHandle'
 import type { WatchPayload, PropertySnapshot, AmenityPayload } from './types'
 import { fetchAmenity } from './amenities'
 import { createTelemetry, type TourTelemetry } from './telemetry'
+import { useTourLive } from './useTourLive'
 import { useTourMode } from './TourModeContext'
 import './luna-tour.css'
 
@@ -72,6 +73,9 @@ export default function TourOverlay({
   const telRef = useRef<TourTelemetry | null>(null)
   if (!telRef.current) telRef.current = createTelemetry(code)
   const tel = telRef.current
+
+  // Live Q&A (§4.6): connects to Gemini Live when the customer asks. Self-contained.
+  const live = useTourLive(() => mapRef.current)
 
   // enter/exit tour mode (hides app chrome via Layout)
   useEffect(() => {
@@ -197,12 +201,13 @@ export default function TourOverlay({
     onAreaMetric?.(null)
   }
 
-  // dispose engine on unmount (also clears the real map features)
+  // dispose engine on unmount (also clears the real map features + Live)
   useEffect(() => {
     return () => {
       engineRef.current?.dispose()
       engineRef.current = null
       clearMapFeatures()
+      live.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -244,7 +249,25 @@ export default function TourOverlay({
       vibrate(12)
     }
   }
-  const handleResume = () => engineRef.current?.play()
+  const handleResume = () => {
+    live.disconnect()
+    engineRef.current?.play()
+  }
+
+  // start Live Q&A: connect Gemini Live with the current property + what's been said
+  const askLuna = () => {
+    if (!data) return
+    vibrate(12)
+    const seg = data.properties.find((p) => pidOf(p) === exploreId)?.snapshot
+    const focused =
+      seg ?? (snap?.actIndex != null && snap.actIndex >= 0 ? data.properties[snap.actIndex]?.snapshot : undefined)
+    live.connect({
+      shareCode: code,
+      propertyName: focused?.name,
+      propertyArea: focused?.area,
+    })
+    tel.track('ask')
+  }
 
   const handleFavorite = (id: string) => {
     vibrate([10, 30, 10])
@@ -401,8 +424,26 @@ export default function TourOverlay({
         </button>
       )}
 
+      {/* paused: ask Luna (Live Q&A) */}
+      {(state === 'asking' || state === 'paused') && (
+        <button
+          className={`lt-ask-luna ${live.phase !== 'idle' ? 'live' : ''}`}
+          onClick={live.phase === 'idle' || live.phase === 'error' ? askLuna : live.disconnect}
+        >
+          <span className="orb" />
+          {live.phase === 'idle' && '🎙 问问 Luna'}
+          {live.phase === 'connecting' && '连接中…'}
+          {live.phase === 'listening' && '在听… (说话即可) · 点结束'}
+          {live.phase === 'speaking' && 'Luna 正在回答…'}
+          {live.phase === 'error' && '重试'}
+        </button>
+      )}
+      {live.lastReply && (state === 'asking' || state === 'paused') && (
+        <div className="lt-live-caption">{live.lastReply}</div>
+      )}
+
       {/* paused: explore strip — tap a home to inspect it yourself */}
-      {(state === 'asking' || state === 'paused') && !exploreId && (
+      {(state === 'asking' || state === 'paused') && !exploreId && live.phase === 'idle' && (
         <>
           <div className="lt-ask-hint">想自己看看?点下面任意一套 · 或点继续</div>
           <div className="lt-explore-strip">

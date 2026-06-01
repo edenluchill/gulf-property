@@ -14,9 +14,12 @@
  */
 import { Router, Request, Response } from 'express'
 import { createHash } from 'crypto'
+import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
 
 const router = Router()
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
 // ---------------------------------------------------------------------------
 // Telemetry (see docs/luna-tour-telemetry-spec.md). FULLY DECOUPLED: best-effort,
@@ -196,6 +199,87 @@ router.get('/public/v/:code', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] public watch error:', err)
     res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Live Q&A token (§4.6). Issues an ephemeral Gemini Live token + a system
+// instruction PARAMETERIZED with the agent identity, the property currently in
+// view, and what's been narrated so far — so Luna answers in-context with the
+// same voice (Aoede). Reuses the exact Live mechanism as the main voice
+// assistant; only the system instruction is tour-specific. Best-effort; usage
+// minutes are metered client-side via /event (ask) + can roll up to
+// usage_counters later. Delete with the rest of luna-tour to remove.
+// ---------------------------------------------------------------------------
+
+function buildTourSystemInstruction(opts: {
+  agentName?: string
+  language?: string
+  propertyName?: string
+  propertyArea?: string
+  spokenSoFar?: string
+}): string {
+  const lang =
+    opts.language === 'en'
+      ? 'Respond in English, concise and natural.'
+      : opts.language === 'ar'
+      ? 'أجب بالعربية، بإيجاز وبشكل طبيعي.'
+      : '用中文回复，简洁自然。'
+  const agent = opts.agentName || 'David'
+  const prop = opts.propertyName
+    ? `客户当前正在看的房源:「${opts.propertyName}」${opts.propertyArea ? `(${opts.propertyArea})` : ''}。`
+    : ''
+  const said = opts.spokenSoFar ? `导览里已经讲过:${opts.spokenSoFar.slice(0, 500)}。避免重复。` : ''
+  return `你是 Luna,迪拜房产经纪 ${agent} 的 AI 助手,正在一段为客户定制的看房导览里实时回答客户的提问。
+${prop}
+${said}
+${lang}
+要求:
+- 你就是导览里那个声音的延续,语气温柔、专业、像真人,不要像客服。
+- 客户问到位置/距离/配套/价格/投资时,优先调用地图工具把答案画在地图上(measure_distance / amenity_spokes / fly_to / toggle_transport 等),边说边展示。
+- 只基于真实数据回答;不要承诺或保证回报率/升值;不要说「抱歉/对不起/无法」,而是正面引导。
+- 回答简短,结束后可以问客户「还想看下一个吗?」`
+}
+
+router.post('/public/v/:code/live-token', async (req: Request, res: Response) => {
+  try {
+    if (!GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' })
+    const code = String(req.params.code || '').trim()
+    const b = (req.body || {}) as Record<string, unknown>
+
+    // resolve session for agent identity + language (only public-safe fields)
+    const sres = await pool.query(
+      `SELECT s.title, a.display_name AS agent_name,
+              (SELECT language FROM lt_tour_scripts WHERE session_id = s.id ORDER BY (language='zh') DESC LIMIT 1) AS language
+         FROM lt_demo_sessions s JOIN lt_agents a ON a.id = s.agent_id
+        WHERE s.share_code = $1 AND s.is_published = true LIMIT 1`,
+      [code]
+    )
+    if (sres.rowCount === 0) return res.status(404).json({ error: 'not found' })
+    const row = sres.rows[0]
+
+    const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY })
+    const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    const newSessionExpireTime = new Date(Date.now() + 2 * 60 * 1000).toISOString()
+    const token = await client.authTokens.create({
+      config: { uses: 1, expireTime, newSessionExpireTime, httpOptions: { apiVersion: 'v1alpha' } },
+    })
+
+    res.json({
+      token: token.name,
+      expiresAt: expireTime,
+      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      systemInstruction: buildTourSystemInstruction({
+        agentName: row.agent_name,
+        language: row.language || 'zh',
+        propertyName: typeof b.property_name === 'string' ? b.property_name : undefined,
+        propertyArea: typeof b.property_area === 'string' ? b.property_area : undefined,
+        spokenSoFar: typeof b.spoken_so_far === 'string' ? b.spoken_so_far : undefined,
+      }),
+    })
+  } catch (err) {
+    console.error('[luna] live-token error:', err)
+    res.status(500).json({ error: 'Failed to generate live token' })
   }
 })
 

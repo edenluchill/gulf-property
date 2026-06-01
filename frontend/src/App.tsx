@@ -23,6 +23,7 @@ import BuyingReportPage from './pages/BuyingReportPage'
 import AgentPortalPage from './pages/AgentPortalPage'
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
+import AgentDashboard from './luna-tour/pages/AgentDashboard'  // Luna Tour agent MVP (isolated)
 
 function App() {
   const { i18n } = useTranslation()
@@ -38,6 +39,8 @@ function App() {
       <Routes>
         {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
         <Route path="/v/:code" element={<MapPage />} />
+        {/* Luna Tour agent dashboard (MVP, isolated) */}
+        <Route path="/luna/agent" element={<AgentDashboard />} />
         {/* MapPage is now the homepage */}
         <Route path="/" element={<MapPage />} />
         <Route path="/map" element={<MapPage />} />

@@ -88,12 +88,19 @@
   ```
   → 为**任意房源**生成 `/?toursession=<shareCode>`。`seed-demo-session.ts` 也重构为调它(消除重复逻辑)。
 
-### 🟡 Phase 2 创作闭环(剩余,大工程,需单独排期)
-- **经纪 Dashboard + 故事板编辑器**:选客户/选房 UI、一键生成(现已有 `createSession` 后端能力)、幕/beat 预览、改旁白/重排/重生成某段、发布+WhatsApp 分享。需 `lt_tour_scripts` script-edit 接口 + 大量前端。
-- **AI 代配(一句话→config)**:客户档案 + 一句话 → AI 产出 config 片段(三层合并)。
+### ✅ 已完成(2026-05-31/06-01 第三批)
+- **事件驱动引擎(根治台词被切)**:`TimelineEngine` 重写为序列器,beat 只在「旁白真念完(onend)+ 相机真飞完(Promise)+ 最短停留」全满足才切。语言/TTS/语速无关。已 mock 测核心不变量。
+- **经纪行为分析面板**:`agent-router.ts` `GET /sessions`(session+engagement rollup+lead_score)、`GET /sessions/:id/events`(行为时间线)。前端 `pages/AgentDashboard.tsx`(路由 `/luna/agent`):导览列表+打开/完看/联系/❤️/停留/热度 + 单 session 行为流。已实测通。
+- **最小经纪 Dashboard + 一键生成**:Dashboard 顶部表单(分享码+楼盘ID+标题+一句话)→ `POST /sessions/create` → 包 `createSession` → 返回 `watch_url`。**已端到端实测**:create→读取→公开端点可播。无登录(用 demo agent),真 auth 待 Phase 1。
+- **AI 代配(一句话→config)**:`auto-config.ts` `draftConfig()`——客户档案+一句话 → Gemini 结构化输出(language/narrative_focus/target_seconds/tone),**护栏+禁词强制覆盖**(合规底线不被绕过)。已实测:「香港投资客重回报」→ investment/zh/165s。
+- **切 Live 问答(代码完成,待真机测)**:
+  - 后端 `POST /api/luna/public/v/:code/live-token`:参数化 system instruction(经纪身份+当前房源+已讲内容),复用现有 ephemeral token 机制,同 voice=Aoede。
+  - 前端 `useTourLive.ts` hook:复用 `AudioRecorder/AudioPlayer` + `/api/voice/tools/execute`,mapAction 路由到 **tour map handle**(画在导览地图上)。`TourOverlay` 暂停态加「🎙问问 Luna」按钮 + Live 状态 + 字幕。
+  - ⚠️ **需真机(麦克风+Gemini Live 计费)验证**:无头环境测不了实际语音连接。tsc+build 通过。Live 用量目前用 `ask` 遥测事件计数,真正分钟数计入 `usage_counters` 待补。
 
-### 🔴 切 Live 问答(Phase 1,大且涉及 Gemini Live 计费,做前需确认)
-- 按住 Luna 说话 → Gemini Live(注入当前房源+已讲内容,同 voice=Aoede)→ 实时驱动地图(复用 voice-tools)→ 回放衔接。当前 UI 已留位(asking 态)。**计入 `usage_counters.live_minutes`**。
+### 🟡 Phase 2 创作闭环(剩余)
+- **故事板编辑器**:幕/beat 预览、改旁白/重排/重生成某段、发布。需 `lt_tour_scripts` script-edit 接口 + 编辑 UI(MVP Dashboard 已能「整体生成」,缺「逐段编辑」)。
+- **经纪真登录/CRM**:现 Dashboard 无 auth(demo agent);需 `requireAgent` + 客户 CRM。
 
 ### 🔵 Phase 3 根治音频
 - Gemini TTS 预生成每 beat mp3(voice=Aoede)+ R2 上传 + `lt_audio_assets` 状态 + 用真实时长回填 beat / ended 事件驱动推进。
