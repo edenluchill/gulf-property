@@ -89,7 +89,8 @@ router.post('/public/v/:code/event', async (req: Request, res: Response) => {
       `INSERT INTO lt_engagement_events
          (session_id, visitor_id, event_type, project_id, dwell_ms, payload, ua, ip_hash)
        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)`,
-      [sessionId, visitorId, eventType, projectId, dwellMs, payload, ua || null, ipHash]
+      // payload column is NOT NULL DEFAULT '{}' — pass '{}' when we have none.
+      [sessionId, visitorId, eventType, projectId, dwellMs, payload ?? '{}', ua || null, ipHash]
     )
 
     if (eventType === 'feedback') {
