@@ -45,8 +45,6 @@ export interface MapTourHandle {
   highlightPins(ids: string[]): void
   /** pulse a single focus ring at a coord (current property). null clears it. */
   pulseAt(coord: LngLat | null): void
-  /** show the tour's own base pins (just a few, cheap) since search pins are hidden */
-  setBasePins(pins: { id: string; coord: LngLat }[]): void
   clearOverlays(): void
   setStyle(style: 'dark' | 'default'): void
   resize(): void
@@ -77,7 +75,6 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   const labelMarkers: Marker[] = []
   const highlightMarkers = new Map<string, Marker>()
   let pulseMarker: Marker | null = null
-  let basePins: Marker[] = []
 
   const cancelRaf = () => {
     if (rafId) {
@@ -148,20 +145,27 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     const map = getMap()
     if (!map) return Promise.resolve()
     cancelRaf()
+    // A flyover whose from≈to (the AI sometimes emits this for an arrival beat)
+    // is not a travel shot — don't burn the full duration flying in place. Settle
+    // in quickly so the orbit that follows starts almost immediately.
+    const from = o.from ?? map.getCenter().toArray() as LngLat
+    const dist = Math.hypot(o.to[0] - from[0], o.to[1] - from[1])
+    const isInPlace = dist < 0.002 // ~200m
+    const dur = isInPlace ? Math.min(o.duration, 1200) : o.duration
     return new Promise((resolve) => {
       const done = () => resolve()
       map.once('moveend', done)
       map.flyTo({
         center: o.to,
-        zoom: 13.5,
+        zoom: 15,
         pitch: 55,
-        duration: o.duration,
-        curve: 2.0,
+        duration: dur,
+        curve: isInPlace ? 1.2 : 2.0,
         speed: 1.2,
         easing: EASINGS.easeInOut,
         essential: true,
       })
-      window.setTimeout(done, o.duration + 400)
+      window.setTimeout(done, dur + 400)
     })
   }
 
@@ -316,20 +320,6 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     pulseMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(map)
   }
 
-  function setBasePins(pins: { id: string; coord: LngLat }[]) {
-    basePins.forEach((m) => m.remove())
-    basePins = []
-    const map = getMap()
-    if (!map) return
-    for (const p of pins) {
-      const el = document.createElement('div')
-      el.className = 'lt-pin'
-      el.innerHTML = `<span class="lt-pin-dot"></span><span class="lt-pin-ring"></span>`
-      el.style.setProperty('--lt-accent', accent)
-      basePins.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(p.coord).addTo(map))
-    }
-  }
-
   function addLabelPin(map: MaplibreMap, at: LngLat, label: string) {
     const el = document.createElement('div')
     el.className = 'lt-dist-label'
@@ -379,7 +369,6 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     showAmenitySpokes,
     highlightPins,
     pulseAt,
-    setBasePins,
     clearOverlays,
     setStyle,
     resize,

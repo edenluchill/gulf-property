@@ -48,6 +48,7 @@ export default function TourOverlay({
   onAmenities,
   onTransit,
   onAreaMetric,
+  onPins,
 }: {
   code: string
   mapRef: React.RefObject<MapTourHandle | null>
@@ -59,6 +60,8 @@ export default function TourOverlay({
   onTransit?: (on: boolean) => void
   /** toggle the host map's area-value heatmap (null = hide) */
   onAreaMetric?: (metric: string | null) => void
+  /** report the tour's properties so the main map renders only these native pins */
+  onPins?: (pins: import('../lib/api').MapPinProject[]) => void
 }) {
   const navigate = useNavigate()
   const { enter, exit, setToolsRevealed } = useTourMode()
@@ -149,14 +152,34 @@ export default function TourOverlay({
     }
   }, [data])
 
-  // Show the tour's own base pins (search pins are hidden in tour mode for perf).
-  // Just a few markers → negligible per-frame cost vs. hundreds of search pins.
+  // Report the tour's properties up to MapPage so the main map renders ONLY these
+  // (native, clickable pins → details work) instead of the whole search-result
+  // marker sea (which also stutters the camera). See perf rules R2.
   useEffect(() => {
-    if (!data || !mapRef.current) return
+    if (!data) return
     const pins = data.properties
       .filter((p) => Array.isArray(p.snapshot.coords))
-      .map((p) => ({ id: pidOf(p), coord: p.snapshot.coords as [number, number] }))
-    mapRef.current.setBasePins(pins)
+      .map((p) => {
+        const s = p.snapshot
+        const c = s.coords as [number, number]
+        return {
+          id: pidOf(p),
+          name: s.name,
+          developer: s.developer ?? '',
+          area: s.area ?? '',
+          minPrice: s.min_price ?? null,
+          maxPrice: s.max_price ?? null,
+          minBeds: null,
+          maxBeds: null,
+          status: s.status ?? '',
+          lat: c[1],
+          lng: c[0],
+          image: s.image ?? null,
+          completionDate: null,
+        }
+      })
+    onPins?.(pins)
+    return () => onPins?.([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
@@ -366,8 +389,9 @@ export default function TourOverlay({
         ✕
       </button>
 
-      {/* stage tap (pause/ask) */}
-      {started && state !== 'ended' && (
+      {/* stage tap = tap anywhere to PAUSE — only while actively playing. Removed
+          when paused/asking so the explore strip / cards underneath are clickable. */}
+      {started && (state === 'playing' || state === 'reveal' || state === 'outro') && (
         <button
           aria-label="点按暂停提问"
           onClick={handleTapStage}

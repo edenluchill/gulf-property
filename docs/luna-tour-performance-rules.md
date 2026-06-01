@@ -15,7 +15,7 @@ tour 的电影运镜靠地图自己的 rAF **每帧移动相机**。卡顿 = 主
 
 | 根因 | 修法 |
 |---|---|
-| 几百个搜索 pin DOM marker | `MapViewMapLibre` 中 landmark/cluster/projectPin 三类 DOM marker 用 `{!tourActive && ...}` 隐藏;tour 改用 `mapTourHandle.setBasePins()` 只画**自己的 3 个** pin(可忽略)。 |
+| 几百个搜索 pin DOM marker | tour 时 landmark/cluster DOM marker 用 `{!tourActive && ...}` 隐藏;**project pin 仍渲染但 `projects` 只传 tour 的 2-3 个楼盘**(TourOverlay 经 `onPins` 上报给 MapPage)→ 既只剩几个 marker(不卡)、又是**原生可点 pin**(点击走现有 details)。⚠️ 早期试过 `setBasePins` 自画 DOM marker——不可点、看不到 details,已废弃。 |
 | 相机动 → bounds setState → 重渲染 | tour 时 `onBoundsChange={undefined}`,且 `projects={EMPTY_PINS}`(稳定引用)。 |
 | 引擎每帧 `setSnap` → 重渲染 overlay | `maybeEmit()` 节流:仅状态/段/overlay/mute 变化时推,否则 ≤ ~12fps。 |
 | 受控 viewState 与命令式相机打架(抖动) | tour 时 `tourActive` 让地图**非受控**(`initialViewState`,onMove 不回写)。 |

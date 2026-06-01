@@ -1322,6 +1322,10 @@ function MapViewMapLibre({
               layout={{
                 'text-field': ['get', 'displayName'],
                 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                // Keep labels flat-on-screen + upright no matter the bearing/pitch,
+                // so the cinematic orbit doesn't tilt or rotate the area names.
+                'text-rotation-alignment': 'viewport',
+                'text-pitch-alignment': 'viewport',
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
                   8, 8,    // 更小的字体
@@ -1372,6 +1376,8 @@ function MapViewMapLibre({
               layout={{
                 'text-field': ['get', 'metricValue'],
                 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-rotation-alignment': 'viewport',
+                'text-pitch-alignment': 'viewport',
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
                   8, 9,    // 更小的字体
@@ -1552,23 +1558,19 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* DOM markers (landmarks / clusters / project pins) — HIDDEN during a
-            tour: maplibre re-positions every DOM marker on each camera frame, so
-            hundreds of them stutter the cinematic flyTo. The tour draws its own
-            focus pins via the map handle instead. (Perf rule, see luna-tour spec.) */}
-        {!tourActive && (
-          <>
-            {dubaiLandmarks.map(lm => (
-              <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
-            ))}
-            {clusters.map(cluster => (
-              <ClusterMarker key={cluster.cluster_id} cluster={cluster} onClick={onClusterClick} />
-            ))}
-            {projects.map(project => (
-              <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
-            ))}
-          </>
-        )}
+        {/* Landmarks + clusters — HIDDEN during a tour (maplibre re-positions every
+            DOM marker each camera frame; hundreds stutter the flyTo). Project pins
+            stay, but in tour mode `projects` is only the 2-3 tour properties, so
+            it's cheap AND they're clickable (details work). Perf rule R2. */}
+        {!tourActive && dubaiLandmarks.map(lm => (
+          <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
+        ))}
+        {!tourActive && clusters.map(cluster => (
+          <ClusterMarker key={cluster.cluster_id} cluster={cluster} onClick={onClusterClick} />
+        ))}
+        {projects.map(project => (
+          <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
+        ))}
 
         {/* 测距：连线 + 顶点 */}
         {mapLoaded && measurePoints.length > 0 && (

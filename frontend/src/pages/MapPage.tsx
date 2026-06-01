@@ -32,9 +32,6 @@ import {
   MapPinProject
 } from '../lib/api'
 
-// Stable empty array so tour mode passes the same reference each render (no churn).
-const EMPTY_PINS: never[] = []
-
 const METRIC_OPTIONS = [
   { value: 'medianUnitPrice' as AreaMetric, labelKey: 'map:metric.medianUnitPrice', Icon: DollarSign },
   { value: 'medianPriceSqft' as AreaMetric, labelKey: 'map:metric.medianPriceSqft', Icon: DollarSign },
@@ -90,6 +87,9 @@ export default function MapPage() {
   const tourCode = pathCode || searchParams.get('toursession') || undefined
   const tourMapRef = useRef<MapTourHandle>(null)
   const { toolsRevealed } = useTourMode()
+  // Tour mode: the overlay reports its 2-3 properties; the main map renders ONLY
+  // these as native (clickable) pins — not the whole search-result marker sea.
+  const [tourPins, setTourPins] = useState<MapPinProject[]>([])
 
   // Entering a tour → clean map (the tour toggles the area-value heatmap itself);
   // leaving → restore the user's saved metric. Never persists the tour's choice.
@@ -695,7 +695,9 @@ export default function MapPage() {
             ref={tourMapRef}
             chromeless={!!tourCode && !toolsRevealed}
             tourActive={!!tourCode}
-            projects={tourCode ? EMPTY_PINS : filteredMapPins}
+            // Tour: render ONLY the tour's 2-3 native pins (clickable, with details);
+            // not the whole search-result marker sea (which stutters the camera).
+            projects={tourCode ? tourPins : filteredMapPins}
             // No bounds-driven re-fetch during a tour: the cinematic camera moves
             // constantly; reacting to it would re-render the whole map each frame.
             onBoundsChange={tourCode ? undefined : handleMapBoundsChange}
@@ -726,6 +728,7 @@ export default function MapPage() {
               onAmenities={(p) => setVoiceAmenities(p)}
               onTransit={(on) => setShowTransit(on)}
               onAreaMetric={(m) => setAreaMetric((m as AreaMetric) ?? 'none')}
+              onPins={setTourPins}
             />
           )}
 
