@@ -12,7 +12,7 @@
  * removes exactly what it added. Delete the luna-tour directory to remove.
  */
 import maplibregl, { Map as MaplibreMap, Marker } from 'maplibre-gl'
-import type { Camera, LngLat } from '../types'
+import type { LngLat } from '../types'
 
 export interface DistanceLineOpts {
   from: LngLat
@@ -27,6 +27,7 @@ export interface AmenitySpokesOpts {
 }
 
 export interface MapTourHandle {
+  /** smooth fly (used by explore-tap + Live answers, NOT the cinematic track) */
   flyTo(o: {
     center?: LngLat
     zoom?: number
@@ -35,11 +36,8 @@ export interface MapTourHandle {
     duration?: number
     easing?: string
   }): Promise<void>
-  orbit(o: { center: LngLat; degrees: number; duration: number }): Promise<void>
-  flyover(o: { from?: LngLat; to: LngLat; duration: number }): Promise<void>
-  executeCamera(cam: Camera, prevCenter?: LngLat): Promise<void>
+  /** instant set — the engine's single-clock camera track calls this every frame */
   jumpTo(o: { center?: LngLat; zoom?: number; pitch?: number; bearing?: number }): void
-  drift(on: boolean): void
   drawDistanceLine(o: DistanceLineOpts): void
   showAmenitySpokes(o: AmenitySpokesOpts): void
   highlightPins(ids: string[]): void
@@ -70,7 +68,6 @@ const EASINGS: Record<string, (t: number) => number> = {
 export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   const { getMap, accent } = deps
   let rafId: number | null = null
-  let driftRafId: number | null = null
   const overlayLayerIds: string[] = []
   const labelMarkers: Marker[] = []
   const highlightMarkers = new Map<string, Marker>()
@@ -111,80 +108,11 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     })
   }
 
-  function orbit(o: { center: LngLat; degrees: number; duration: number }): Promise<void> {
-    const map = getMap()
-    if (!map) return Promise.resolve()
-    cancelRaf()
-    return new Promise((resolve) => {
-      const startCenter = map.getCenter()
-      const tgt = { lng: o.center[0], lat: o.center[1] }
-      const startBearing = map.getBearing()
-      const startT = performance.now()
-      const tick = (now: number) => {
-        const p = Math.min(1, (now - startT) / o.duration)
-        // ease the centre into place over the first 40% so an orbit that starts
-        // a beat doesn't TELEPORT to the property — it glides in, then rotates.
-        const cp = EASINGS.easeInOut(Math.min(1, p / 0.4))
-        map.setCenter({
-          lng: startCenter.lng + (tgt.lng - startCenter.lng) * cp,
-          lat: startCenter.lat + (tgt.lat - startCenter.lat) * cp,
-        })
-        map.setBearing(startBearing + o.degrees * EASINGS.easeInOut(p))
-        if (p < 1) {
-          rafId = requestAnimationFrame(tick)
-        } else {
-          rafId = null
-          resolve()
-        }
-      }
-      rafId = requestAnimationFrame(tick)
-    })
-  }
-
-  function flyover(o: { from?: LngLat; to: LngLat; duration: number }): Promise<void> {
-    const map = getMap()
-    if (!map) return Promise.resolve()
-    cancelRaf()
-    // A flyover whose from≈to (the AI sometimes emits this for an arrival beat)
-    // is not a travel shot — don't burn the full duration flying in place. Settle
-    // in quickly so the orbit that follows starts almost immediately.
-    const from = o.from ?? map.getCenter().toArray() as LngLat
-    const dist = Math.hypot(o.to[0] - from[0], o.to[1] - from[1])
-    const isInPlace = dist < 0.002 // ~200m
-    const dur = isInPlace ? Math.min(o.duration, 1200) : o.duration
-    return new Promise((resolve) => {
-      const done = () => resolve()
-      map.once('moveend', done)
-      map.flyTo({
-        center: o.to,
-        zoom: 15,
-        pitch: 55,
-        duration: dur,
-        curve: isInPlace ? 1.2 : 2.0,
-        speed: 1.2,
-        easing: EASINGS.easeInOut,
-        essential: true,
-      })
-      window.setTimeout(done, dur + 400)
-    })
-  }
-
-  function executeCamera(cam: Camera, prevCenter?: LngLat): Promise<void> {
-    if ('type' in cam && cam.type === 'orbit') {
-      return orbit({ center: cam.center, degrees: cam.degrees, duration: cam.duration_ms })
-    }
-    if ('type' in cam && cam.type === 'flyover') {
-      return flyover({ from: cam.from ?? prevCenter, to: cam.to, duration: cam.duration_ms })
-    }
-    return flyTo({
-      center: cam.center,
-      zoom: cam.zoom,
-      pitch: cam.pitch,
-      bearing: cam.bearing,
-      duration: cam.duration_ms,
-      easing: cam.easing,
-    })
-  }
+  // NOTE: the cinematic camera (orbit/flyover/keyframes) is no longer driven here.
+  // It's compiled into a pure track (engine/cameraTrack.ts) that the engine's
+  // single clock samples every frame via jumpTo() — so pause freezes the camera
+  // in lock-step with audio + overlays. This handle only exposes flyTo (explore /
+  // Live answers) + jumpTo (the per-frame track apply).
 
   function jumpTo(o: { center?: LngLat; zoom?: number; pitch?: number; bearing?: number }) {
     const map = getMap()
@@ -196,23 +124,6 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       pitch: o.pitch ?? map.getPitch(),
       bearing: o.bearing ?? map.getBearing(),
     })
-  }
-
-  function drift(on: boolean) {
-    const map = getMap()
-    if (!map) return
-    if (driftRafId) {
-      cancelAnimationFrame(driftRafId)
-      driftRafId = null
-    }
-    if (!on) return
-    const tick = () => {
-      const m = getMap()
-      if (!m) return
-      m.setBearing(m.getBearing() + 0.04)
-      driftRafId = requestAnimationFrame(tick)
-    }
-    driftRafId = requestAnimationFrame(tick)
   }
 
   function drawDistanceLine(o: DistanceLineOpts) {
@@ -360,11 +271,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
 
   return {
     flyTo,
-    orbit,
-    flyover,
-    executeCamera,
     jumpTo,
-    drift,
     drawDistanceLine,
     showAmenitySpokes,
     highlightPins,

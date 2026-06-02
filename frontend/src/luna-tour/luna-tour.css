@@ -329,16 +329,47 @@
   animation: lt-fade-up 0.4s ease-out;
 }
 
-/* zero-click autostart: subtle unmute hint (replaces the old big 开始 button) */
-.lt-unmute-hint {
-  position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
-  z-index: 8; pointer-events: auto;
-  background: rgba(5, 7, 13, 0.7); color: #fff;
-  border: 1px solid var(--lt-accent); border-radius: 999px;
-  padding: 8px 16px; font-size: 14px; cursor: pointer;
-  backdrop-filter: blur(8px);
-  animation: lt-fade-up 0.5s ease-out;
+/* ---- greeting (click-to-start cover) ---- */
+.lt-greet {
+  position: absolute; inset: 0; z-index: 12; pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(120% 90% at 50% 40%, rgba(8,12,22,0.72), rgba(3,5,10,0.94));
+  backdrop-filter: blur(6px);
+  animation: lt-greet-in 0.6s ease-out;
 }
+.lt-greet-glow {
+  position: absolute; width: 460px; height: 460px; border-radius: 50%;
+  background: radial-gradient(circle, var(--lt-accent), transparent 62%);
+  opacity: 0.18; filter: blur(30px); animation: lt-breathe 4s ease-in-out infinite;
+}
+.lt-greet-inner {
+  position: relative; text-align: center; padding: 28px; max-width: 440px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.lt-greet-orb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--lt-accent); box-shadow: 0 0 26px var(--lt-accent);
+  animation: lt-breathe 2.4s ease-in-out infinite; margin-bottom: 6px;
+}
+.lt-greet-agent { display: flex; align-items: center; gap: 10px; }
+.lt-greet-agent img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--lt-accent); }
+.lt-greet-agent-name { font-size: 15px; font-weight: 700; text-align: left; }
+.lt-greet-agent-title { font-size: 12px; opacity: 0.7; text-align: left; }
+.lt-greet-title { font-size: clamp(30px, 9vw, 46px); font-weight: 800; margin: 8px 0 0; letter-spacing: -0.02em; }
+.lt-greet-sub { font-size: 15px; opacity: 0.82; margin: 0; line-height: 1.5; }
+.lt-greet-btn {
+  margin-top: 10px;
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--lt-accent); color: #04201b;
+  border: none; border-radius: 999px; padding: 15px 34px;
+  font-size: 18px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 10px 40px rgba(0,224,184,0.45);
+  transition: transform 0.2s;
+}
+.lt-greet-btn:hover { transform: scale(1.04); }
+.lt-greet-btn-icon { font-size: 15px; }
+.lt-greet-hint { font-size: 12px; opacity: 0.55; margin-top: 4px; }
+@keyframes lt-greet-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* ask Luna (Live Q&A) button */
 .lt-ask-luna {
@@ -440,17 +471,33 @@
 
 /* ---- mobile (portrait phones): side card → bottom card, tighter chrome ---- */
 @media (max-width: 640px) {
+  /* MOBILE: cards live at the TOP so the centre of the screen (the map / orbit)
+     stays clear. Less detail than desktop — name + price + one or two stats. */
   .lt-ov-card {
-    left: 14px; right: 14px; top: auto; bottom: 150px;
-    width: auto; max-width: none;
-    animation: lt-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    left: 10px; right: 10px; top: 64px; bottom: auto;
+    width: auto; max-width: none; padding: 12px 14px;
+    animation: lt-slide-down 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .lt-card-name { font-size: 20px; }
-  .lt-card-price { font-size: 22px; }
-  .lt-ov-roi { bottom: 92px; padding: 16px; }
-  .lt-ov-title { top: 24%; }
-  .lt-ov-title h1 { font-size: 30px; }
-  .lt-agent-badge { padding: 5px 12px 5px 5px; }
-  .lt-agent-badge img { width: 30px; height: 30px; }
-  .lt-ov-cta { bottom: 40px; }
+  .lt-card-img { height: 110px; margin: -12px -14px 10px; }
+  .lt-card-name { font-size: 18px; }
+  .lt-card-price { font-size: 20px; }
+  .lt-card-stats { gap: 12px; margin-top: 10px; }
+
+  .lt-ov-roi {
+    left: 10px; right: 10px; top: 64px; bottom: auto;
+    transform: none; width: auto; max-width: none; padding: 14px;
+    animation: lt-slide-down 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .lt-growth-svg { max-height: 110px; }
+
+  .lt-ov-title { top: 18%; }
+  .lt-ov-title h1 { font-size: 28px; }
+  .lt-agent-badge { padding: 4px 11px 4px 4px; }
+  .lt-agent-badge img { width: 28px; height: 28px; }
+  .lt-ov-cta { bottom: 36px; }
+
+  /* greeting tighter on phones */
+  .lt-greet-title { font-size: 30px; }
+  .lt-greet-btn { padding: 14px 28px; font-size: 17px; }
 }
+@keyframes lt-slide-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }

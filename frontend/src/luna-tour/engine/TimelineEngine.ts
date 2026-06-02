@@ -23,6 +23,7 @@ import type {
   AmenityPayload,
 } from '../types'
 import { AudioTrack } from './audioTrack'
+import { compileCameraTrack, finalState, type CameraTrack, type CameraState } from './cameraTrack'
 
 export type EngineState =
   | 'loading'
@@ -59,12 +60,13 @@ const MAX_BEAT_MS = 60000
 const STICKY_OVERLAYS = new Set(['progress_dots', 'cta', 'favorite_picker'])
 const MAP_OVERLAYS = new Set(['distance_line', 'amenity_spokes', 'highlight_all_pins'])
 
+/** Overlay cue scheduled within a beat. Camera is NOT a cue anymore — it's the
+ *  sampled cameraTrack. */
 interface IntraCue {
   at_ms: number
   fired: boolean
-  kind: 'camera' | 'overlay'
-  camera?: Camera
-  overlay?: Overlay
+  kind: 'overlay'
+  overlay: Overlay
 }
 
 export interface TourMapFeatureSink {
@@ -105,16 +107,19 @@ export class TimelineEngine {
   private curIndex = -1
   private activeOverlays: RenderOverlay[] = []
 
-  // --- current-beat machinery ---
+  // --- current-beat machinery (ALL driven by one clock = beatElapsed) ---
   private raf: number | null = null
   private beatCues: IntraCue[] = []
   private beatElapsed = 0
   private beatClockStart = 0
+  // single-clock camera: a pure track the clock samples every frame → jumpTo.
+  // No second rAF anywhere. Pause = clock frozen = camera frozen, in lock-step
+  // with audio + overlays.
+  private camTrack: CameraTrack | null = null
+  private camEntry: CameraState | null = null // where the camera is now (chains beats)
   // gates
   private narrationDone = false
   private minTimeDone = false
-  private pendingCameraCues = 0 // camera cues not yet dispatched
-  private runningCameras = 0 // camera promises in flight
   private resolveBeat: (() => void) | null = null
   private backstop: number | null = null
 
@@ -191,14 +196,11 @@ export class TimelineEngine {
   pause() {
     if (this.state === 'ended') return
     this.paused = true
+    // Freeze the ONE clock → camera stops sampling, overlays freeze, all together.
     this.stopClock()
     this.beatElapsed = performance.now() - this.beatClockStart
-    // Hard-stop audio (cancels the TTS queue) — pause() alone leaves queued
-    // speech that resumes later and "talks after pause".
+    // Hard-stop audio (cancels TTS queue) so nothing "talks after pause".
     this.audio.stop()
-    // Camera stays STILL while paused. The old slow drift was a per-frame
-    // setBearing that stuttered. A frozen frame is calmer and never janks.
-    this.map.drift(false)
     this.setState('paused')
     this.emit()
   }
@@ -223,13 +225,13 @@ export class TimelineEngine {
   seekToSegment(index: number) {
     const i = Math.max(0, Math.min(index, this.segments.length - 1))
     this.paused = false
-    this.map.drift(false)
+    this.camEntry = null // re-establish camera from the new beat
     void this.playFrom(i, true)
   }
 
   replay() {
     this.paused = false
-    this.map.drift(false)
+    this.camEntry = null
     void this.playFrom(0)
   }
 
@@ -264,22 +266,22 @@ export class TimelineEngine {
       this.curIndex = i
       this.setState(this.computeState(i))
 
-      // inter-act flyover before this beat (real travel; awaited)
+      // Compose this beat's camera = optional inter-act flyover (prepended) + the
+      // beat's own cues, all on ONE track sampled by the beat clock. No separate
+      // awaited camera animation → nothing can run while the clock is paused.
       const pre = this.preCamera[i]
-      if (pre && !(skipFirstPreCamera && i === startIndex)) {
-        await this.runCamera(pre, this.focusOf(seg))
-        await this.waitWhilePaused()
-        if (this.disposed) return
-      }
+      const cues: Camera[] = []
+      if (pre && !(skipFirstPreCamera && i === startIndex)) cues.push(pre)
+      cues.push(...seg.beat.camera)
 
-      await this.playBeat(seg)
+      await this.playBeat(seg, cues)
       if (this.disposed) return
     }
     this.finishToEnded()
   }
 
-  /** Resolves only when narration + cameras + min-time are all really done. */
-  private playBeat(seg: Segment): Promise<void> {
+  /** Resolves only when narration done AND camera track done AND min-time. */
+  private playBeat(seg: Segment, cameraCues: Camera[]): Promise<void> {
     return new Promise<void>((resolve) => {
       this.resolveBeat = resolve
 
@@ -289,17 +291,19 @@ export class TimelineEngine {
       this.applyBeatFeatures(seg)
       this.map.pulseAt(this.focusOf(seg) ?? null)
 
+      // compile the camera track for this beat (single clock samples it)
+      this.camTrack = compileCameraTrack(cameraCues, this.camEntry)
+      // snap to its initial state instantly so the first frame is correct
+      if (this.camTrack.initial) this.map.jumpTo(this.camTrack.initial)
+
       // gates
       this.narrationDone = false
       this.minTimeDone = false
-      this.pendingCameraCues = seg.beat.camera.length
-      this.runningCameras = 0
 
-      // build intra-beat cues
-      this.beatCues = [
-        ...seg.beat.camera.map((cam) => ({ at_ms: cam.at_ms, fired: false, kind: 'camera' as const, camera: cam })),
-        ...seg.beat.overlays.map((ov) => ({ at_ms: ov.at_ms, fired: false, kind: 'overlay' as const, overlay: ov })),
-      ].sort((a, b) => a.at_ms - b.at_ms)
+      // overlay cues only (camera is now the track, not cues)
+      this.beatCues = seg.beat.overlays
+        .map((ov) => ({ at_ms: ov.at_ms, fired: false, kind: 'overlay' as const, overlay: ov }))
+        .sort((a, b) => a.at_ms - b.at_ms)
 
       // narration (event-driven; muted/empty resolves immediately)
       this.audio.play(seg.beat.narration, seg.beat.audio_url, () => {
@@ -307,7 +311,7 @@ export class TimelineEngine {
         this.checkBeatDone()
       })
 
-      // start the pausable clock (fires cues, tracks min-time + camera completion)
+      // start the single pausable clock
       this.beatElapsed = 0
       this.beatClockStart = performance.now()
       this.startClock()
@@ -316,8 +320,6 @@ export class TimelineEngine {
       this.backstop = window.setTimeout(() => {
         this.narrationDone = true
         this.minTimeDone = true
-        this.pendingCameraCues = 0
-        this.runningCameras = 0
         this.checkBeatDone()
       }, MAX_BEAT_MS)
     })
@@ -330,6 +332,12 @@ export class TimelineEngine {
     const tick = () => {
       if (this.disposed || this.paused) return
       this.beatElapsed = performance.now() - this.beatClockStart
+      // 1) camera — sample the track at the SAME clock and apply instantly.
+      if (this.camTrack) {
+        const cs = this.camTrack.sampleAt(this.beatElapsed)
+        if (cs) this.map.jumpTo(cs)
+      }
+      // 2) overlay cues at their at_ms
       for (const c of this.beatCues) {
         if (!c.fired && c.at_ms <= this.beatElapsed) {
           c.fired = true
@@ -337,8 +345,13 @@ export class TimelineEngine {
         }
       }
       this.expireOverlays(this.beatElapsed, seg)
+      // 3) gates: min-time + camera-track finished (its full duration elapsed)
       if (!this.minTimeDone && this.beatElapsed >= MIN_BEAT_MS) {
         this.minTimeDone = true
+        this.checkBeatDone()
+      }
+      if (this.camTrack && this.beatElapsed >= this.camTrack.duration) {
+        // camera track exhausted — contributes to "beat done" via checkBeatDone
         this.checkBeatDone()
       }
       this.maybeEmit()
@@ -355,8 +368,10 @@ export class TimelineEngine {
   }
 
   private checkBeatDone() {
-    const camerasDone = this.pendingCameraCues === 0 && this.runningCameras === 0
-    if (this.narrationDone && this.minTimeDone && camerasDone && this.resolveBeat) {
+    const cameraDone = !this.camTrack || this.beatElapsed >= this.camTrack.duration
+    if (this.narrationDone && this.minTimeDone && cameraDone && this.resolveBeat) {
+      // chain the next beat's camera entry from where this one ended
+      if (this.camTrack) this.camEntry = finalState(this.camTrack) ?? this.camEntry
       const r = this.resolveBeat
       this.abortBeat(true)
       r()
@@ -374,36 +389,8 @@ export class TimelineEngine {
     this.resolveBeat = null
   }
 
-  private waitWhilePaused(): Promise<void> {
-    if (!this.paused) return Promise.resolve()
-    return new Promise((res) => {
-      const check = () => {
-        if (this.disposed || !this.paused) res()
-        else setTimeout(check, 80)
-      }
-      check()
-    })
-  }
-
-  // ---- camera ----
-  private async runCamera(cam: Camera, focus?: LngLat): Promise<void> {
-    this.runningCameras++
-    try {
-      await this.map.executeCamera(cam, focus)
-    } catch {
-      /* ignore */
-    } finally {
-      this.runningCameras = Math.max(0, this.runningCameras - 1)
-      this.checkBeatDone()
-    }
-  }
-
+  // ---- overlay cue dispatch (camera is the sampled track, not a cue) ----
   private dispatchCue(c: IntraCue, seg: Segment) {
-    if (c.kind === 'camera' && c.camera) {
-      this.pendingCameraCues = Math.max(0, this.pendingCameraCues - 1)
-      void this.runCamera(c.camera, this.focusOf(seg))
-      return
-    }
     if (c.kind === 'overlay' && c.overlay) {
       const ov = c.overlay
       if (MAP_OVERLAYS.has(ov.type)) this.dispatchMapOverlay(ov, this.focusOf(seg))

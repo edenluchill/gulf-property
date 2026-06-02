@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../lib/config'
 import OverlayLayer from './overlays/OverlayLayer'
+import GreetingScreen from './overlays/GreetingScreen'
 import { TimelineEngine, EngineSnapshot } from './engine/TimelineEngine'
 import type { MapTourHandle } from './map/mapTourHandle'
 import type { WatchPayload, PropertySnapshot, AmenityPayload } from './types'
@@ -206,7 +207,7 @@ export default function TourOverlay({
     navigate('/')
   }
 
-  const startEngine = (startMuted: boolean) => {
+  const startEngine = () => {
     if (!data || !mapRef.current || engineRef.current) return
     const engine = new TimelineEngine({
       script: data.script,
@@ -222,37 +223,15 @@ export default function TourOverlay({
       },
     })
     engineRef.current = engine
-    if (startMuted) engine.toggleMute() // muted → browsers allow autoplay
     engine.start()
     tel.track('tour_play')
   }
 
-  // Zero-click reveal: as soon as the session + map are ready, the tour starts
-  // automatically (muted, so browser autoplay policy is satisfied) — no big
-  // "开始" button. A one-tap "开启声音" hint unmutes. (§1 "进来就动".)
-  const autoStartedRef = useRef(false)
-  useEffect(() => {
-    if (!data) return
-    let alive = true
-    const tryStart = () => {
-      if (!alive || autoStartedRef.current) return
-      if (mapRef.current) {
-        autoStartedRef.current = true
-        startEngine(true)
-      } else {
-        setTimeout(tryStart, 120) // map ref not attached yet; retry briefly
-      }
-    }
-    tryStart()
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data])
-
-  const handleUnmute = () => {
-    vibrate(12)
-    engineRef.current?.toggleMute() // unmute; re-speaks current beat on next play tick
+  // Click-to-start: the "开始" gesture is what unlocks audio/TTS in the browser,
+  // so we start with sound ON from a real user tap. (Not autoplay-as-video.)
+  const handleStart = () => {
+    vibrate(20)
+    startEngine()
   }
 
   const handleTapStage = () => {
@@ -510,12 +489,17 @@ export default function TourOverlay({
         </div>
       )}
 
-      {/* Zero-click: the tour auto-starts muted. A subtle one-tap unmute hint
-          replaces the old big "开始" button — no full-screen gate. */}
-      {started && snap?.muted && state !== 'ended' && (
-        <button className="lt-unmute-hint" style={{ pointerEvents: 'auto' }} onClick={handleUnmute}>
-          🔊 开启声音
-        </button>
+      {/* Beautiful click-to-start greeting (the tap unlocks audio). */}
+      {!started && data && (
+        <GreetingScreen
+          agentName={data.agent.name}
+          agentPhoto={data.agent.photo_url ?? undefined}
+          agentTitle={(data.agent.brand?.title as string) || '认证顾问'}
+          clientName={data.session.client_name ?? undefined}
+          propertyCount={data.properties.length}
+          accent={accent}
+          onStart={handleStart}
+        />
       )}
       {state === 'ended' && (
         <button
