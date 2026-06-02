@@ -1,5 +1,16 @@
 # Luna Tour — 进度与待办(下次 pick up 从这里开始)
 
+> 更新:2026-06-01(经纪台多页重构 + AI 选房报告/匹配;前后端 tsc + vite build 全绿、端点真实 200)
+>
+> ## 2026-06-01 本次 pick up(经纪台 hub 重构,已验证)
+> - **路由重构**:旧单页 `AgentDashboard`/`AgentPortalPage` 删除,改为 `/agent` hub(`AgentLayout` 左侧栏 + 嵌套路由):`index=AgentOverview` 概览、`tour=AgentTours` 生成导览、`report=AgentReport` 选房报告。新增 `/agent/join`(`AgentJoin` onboarding,翻转 localStorage `profile.agent`)。旧 `/luna/agent[/*]` → `Navigate /agent`。
+> - **网关**:`AgentLayout` 读 `profile.agent`,非经纪 → `/agent/join`。Header/MobileNav 入口按是否经纪切「经纪台 agentHub / 成为经纪 becomeAgent」(en+zh-CN nav.json 已加词条)。
+> - **后端新端点**(`agent-router.ts`):`GET /projects/search`(选房 picker)、`POST /match`(`auto-match.ts` AI 选房+理由)、`POST /report`(`auto-report.ts` AI 选房+5年ROI+场景)、`GET /sessions/:id/script` + `PATCH /sessions/:id`(故事板逐段编辑)、`sessions/create` 的 share_code/title 改为可省略(自动生成唯一码 + 按客户名生成标题)。
+> - **本次修复**:① `TourOverlay.tsx` 删未用 `progress`/`total`(build 报错 TS6133,进度条已改分段式);② `AgentOverview` 两处 `Link` 旧路径 `/luna/agent/tour` → `/agent/tour`(否则被 `/luna/agent/*` 重定向吃掉 subpath 跳错到概览)。
+> - **冒烟实测(backend dev :3000)**:`/public/v/demo` 200;`/agent/sessions` 返真实数据(含新格式标题「为 卢先生 精选的 2 个家」);`/projects/search` 正常(注意本库 area 多为空、无 "marina" 命中属数据非 bug);`/report` 端到端跑通真 AI + 真 ROI 投影 + 中文 summary 自然,UTF-8 输入回显正确(`陈先生`/`香港投资客重回报`)。
+> - **待真机**:`/match` `/report` 麦克风无关但 `/match` 未单测(逻辑同 report);切 Live 问答仍需真机麦克风+计费验证(见 Phase 1)。
+>
+> ---
 > 更新:2026-05-30(Phase 0 心脏切片代码全部完成,前后端 tsc/build 通过、endpoint 真实 200)
 > **下次 pick up**:① 真机开 `/v/demo` 做 go/no-go(`backend: npm run dev` + `frontend: npm run dev`);② 通过后进 Phase 1(切 Live + 公开链路鉴权)。
 > 用户核心要求:**全部做、做到完成**;**数据库用现有 Postgres(backend/.env 的 DB_*),不用 Supabase 存储**;
@@ -98,12 +109,62 @@
   - 前端 `useTourLive.ts` hook:复用 `AudioRecorder/AudioPlayer` + `/api/voice/tools/execute`,mapAction 路由到 **tour map handle**(画在导览地图上)。`TourOverlay` 暂停态加「🎙问问 Luna」按钮 + Live 状态 + 字幕。
   - ⚠️ **需真机(麦克风+Gemini Live 计费)验证**:无头环境测不了实际语音连接。tsc+build 通过。Live 用量目前用 `ask` 遥测事件计数,真正分钟数计入 `usage_counters` 待补。
 
+### ✅ 相机与音频同步(2026-06-02,真机反馈后修)
+- **真机报的 4 个问题**:① 不围着 property 转、镜头经常停;② 话说完镜头还在 zoom 几秒;③ 介绍跟动作没配齐时间;④ 切下一个房子是「闪现」没 flyto。
+- **根因**(看 demo 真实脚本数据坐实):相机轨时长用脚本写死的 `at_ms/duration_ms`,与真实 WAV 时长无关 → 相机短于音频则跑完静止、长于音频则话说完还在动;`sampleAt` 在段间/末尾 hold 静止 → 冻结;转场 flyover 与 beat 自带 in-place flyover 都 `at_ms=0` 撞车被遮蔽 → 飞行从不被采样 → 闪现;life/numbers 是单静态 keyframe → 不转。
+- **修法**:
+  - `cameraTrack.ts` 重写为 **顺序无缝**(忽略 `at_ms` 布局,cues 背靠背)→ 消除间隙冻结 + 撞车遮蔽(flyto 不再被吃);**静态 keyframe 注入 ambient orbit(24°)** → 永不冻结;**丢弃 no-op flyover**(目标≈当前位置,按运行中 cur 判定,非脚本 from)。
+  - `TimelineEngine.ts` 加 `camScale` **时间缩放**:拿到真实音频时长后 `camScale = audioMs / track.duration`,采样 `sampleAt(beatElapsed/camScale)`,`cameraDone` 在 `beatElapsed >= track.duration*camScale`(=音频时长)→ **相机运动正好铺满整段旁白,说完同步到位转场**。
+  - 兜底同理音频感知(见上)。前端 tsc + vite build 全绿。
+- **headless 验证**(tsx 跑 cameraTrack 不变量,6/6 通过):flyTo 中途在 A↔B 之间(不闪现)、按时到 B、orbit 期间 bearing 旋转、每 100ms 位移 0.008°(平滑无跳变)、静态 keyframe bearing 0→24°(持续动)。**仍需真机肉眼确认手感**(camScale 与音频同步只在浏览器真音频下完整体现)。
+
+### ✅ Pin 抖动 + 字幕 + 转场(2026-06-02 第二轮真机反馈)
+- **Pin 抖动/zoom 后超小**:根因=导览房源 pin 是主地图 DOM `<Marker>`(`ProjectPinMarker`)+ 焦点环 `pulseAt` 也是 DOM marker → 每帧 `jumpTo` 运镜下 DOM 重投影有亚帧延迟 → 抖;CSS 固定尺寸 → 不随 zoom 放大。**修法**:`mapTourHandle` 新增 `setPropertyPins()` 用 **GL 图层**(glow+dot circle,`circle-radius` 按 zoom interpolate)画房源 pin;`pulseAt` 重写为 GL `lt-focus-ring`(rAF 脉冲);`highlightPins` 改 no-op(GL 层已显示全部)。`TourOverlay` 导览时 `onPins([])` 不再发 DOM pin,改 `setPropertyPins`(explore 用缩略图 strip,不依赖地图 pin 点击)。GL 同帧渲染 → **零抖动 + 随 zoom 缩放**。
+- **字幕(可开关)**:`EngineSnapshot` 加 `narration`;`TourOverlay` 加 `.lt-subtitle` 字幕条(播放时显示当前旁白,satellite 上黑底+阴影可读)+ 右上 `CC` 开关(localStorage `lt-subtitles` 持久化,默认开)。
+- **转场跳**:主因即上面的 DOM pin/pulse 抖动(GL 化后大幅改善);相机本身顺序无缝+时间缩放已保证连续(camEntry 链式 finalState 衔接)。
+- 前端 tsc + vite build 全绿。**纯前端,无需重生成音频**。**仍需真机确认手感**(GL pin 大小/脉冲速度、字幕位置可再微调:pin radius interpolate 在 `mapTourHandle.setPropertyPins`,字幕样式 `.lt-subtitle`)。
+
+### ✅ Pin 找回 + 控制条重做(2026-06-02 第三轮真机反馈)
+- **Pin 不见了**(上一轮 GL 化的 regression):`setPropertyPins` 只在 `[data]` effect 调一次,此时 `mapRef` 可能未就绪 → 没画。**修**:在 `startEngine`(mapRef 保证非空)补调 `setPropertyPins`;并把 pin 调大调亮(accent 实心点+白描边,glow zoom9→14/zoom16→50,dot zoom9→6/zoom16→16),satellite 上醒目、随 zoom 放大、GL 同帧零抖动。
+- **控制条重做**(用户拍板):① 发现顶部 `lt-segbar` **根本无 CSS=隐形死代码**,用户看到的「3 点」其实是底部 `lt-ov-dots`。② 顶部换成**章节条 `.lt-chapters`**:每个房子一段,带序号+房子名,done/active 高亮,点击 `seekToAct` 飞过去回看(直观知道在第几个家、可跳)。③ **删底部 3 点**(`lt-ov-dots` 不再渲染)。④ **删 Luna 暂停按钮**(`lt-luna`),改:点屏幕任意处暂停(stage-tap 已有)+ 暂停态显示 `.lt-resume`「继续观看」按钮(暂停态地图可自由平移探索,故 resume 用按钮不用全屏 tap,避免冲突)。
+- 前端 tsc + vite build 全绿。纯前端。
+- **遗留/可选**:地图上 "New Stop X" 橙色 marker 是主地图 transit 图层的占位命名(life beat `onTransit` 打开的),命名像 debug,导览时偏乱——是否导览时隐藏/改名待定。
+
+### ✅ 缩略图 pin(2026-06-02 第四轮)
+- **GL 圆点 pin 用户还是看不清**(淹没在主地图 POI 圆圈里),且要带缩略图。**R2 缩略图无 CORS 头** → 没法画进 WebGL canvas 图标。
+- **改用原生 `maplibregl.Marker`**(关键:之前抖的是 **react-map-gl `<Marker>`**,走 React 重渲染跟不上 60fps 运镜;**原生 maplibre marker 由地图 render 循环同步定位,不经 React → 不抖**,`<img>` 显示缩略图也不需要 CORS)。`mapTourHandle.setPropertyPins` 重写为原生 marker:**缩略图卡片(58px,accent 描边)+ 可选名字 pill + 小箭头 stem**,anchor=bottom 指向坐标。persist across beats,`setPropertyPins([])` 清除。GL 焦点环(pulseAt)保留作当前房源强调。
+- 前端 tsc + vite build 全绿。demo 三房源均有缩略图。
+
+### ✅ 3 点/开场/转场(2026-06-02 第五轮)
+- **3 个点还在**:不是 `lt-ov-dots`(已删),是 `progress_dots` **overlay**(`OverlayLayer.tsx`)。章节条已替代 → 该 case 直接 `return null`。
+- **开场绕迪拜旋转 + 浅 blur**:`TourOverlay` 加 effect——未开始(`!snap`)时 rAF 让镜头绕房源中心慢转(zoom 10.2/pitch 55/bearing+0.05),开始即停。`lt-greet` 遮罩从 `0.72→0.94`+blur6 减淡到 `0.42→0.66`+blur3(浅 blur,旋转的迪拜透出来),标题加 text-shadow 保可读。
+- **转场突兀/flicking**:① `cameraTrack` flyover 改**拉远弧线**(sin 曲线 mid-flight zoom 拉到 `min(zoom)-pull`,pull 随距离;远距离不再低空快速平移=减少卫星瓦片闪烁+不突兀)+ **距离自适应时长**(远的更长不赶)。② 修 bug:之前"原地 flyover"被当 no-op 丢弃 → arrival 不 zoom-in 停在远景;改为「移动 OR 变焦」才保留,纯推近(in-place zoom)也保留 → arrival 正确推近。
+- 前端 tsc + vite build 全绿。纯前端。
+
+### ✅ Pin 彻底不抖(2026-06-02 第六轮,GL symbol)
+- **原生 maplibre marker 仍抖**:确认任何 DOM 标记在每帧 jumpTo 运镜下都有亚帧延迟 → 唯一不抖=画进 WebGL。卡点是 R2 缩略图无 CORS。
+- **解法**:后端 `public-router` 加 **CORS 图片代理** `GET /api/luna/public/img?u=<R2 url>`(校验只代理 `pub-*.r2.dev`,加 `Access-Control-Allow-Origin:*` + cache)。前端 `mapTourHandle.setPropertyPins` 重写为 **GL symbol 图层**:把「缩略图卡片+名字+stem」用 canvas 合成 → `map.addImage` → symbol layer(`icon-anchor:bottom`,`icon-size` 随 zoom 插值)。图片经代理加载(canvas 不被污染)。**GL 同帧渲染 = 绝对不抖**,且随 zoom 缩放、带缩略图+名字。已实测代理 200 + ACAO。
+- 前后端 tsc + 前端 build 全绿。**注意:后端新端点(img 代理等)需手动 `hetzner-deploy.ps1` 部署;前端 push 自动 deploy。**
+
 ### 🟡 Phase 2 创作闭环(剩余)
 - **故事板编辑器**:幕/beat 预览、改旁白/重排/重生成某段、发布。需 `lt_tour_scripts` script-edit 接口 + 编辑 UI(MVP Dashboard 已能「整体生成」,缺「逐段编辑」)。
 - **经纪真登录/CRM**:现 Dashboard 无 auth(demo agent);需 `requireAgent` + 客户 CRM。
 
-### 🔵 Phase 3 根治音频
-- Gemini TTS 预生成每 beat mp3(voice=Aoede)+ R2 上传 + `lt_audio_assets` 状态 + 用真实时长回填 beat / ended 事件驱动推进。
+### ✅ Phase 3 根治音频(2026-06-01 完成,主旁白改用 Gemini 语音)
+- **目标**:主导览旁白从「浏览器系统 TTS 兜底」改成 **Gemini TTS 预生成(voice=Aoede)**,与切 Live 问答**统一一种声音**。
+- **新文件**(全隔离在 `backend/src/luna-tour/`):
+  - `tts.ts`:`synthesizeSpeech(text,{voice})` → Gemini TTS(模型 fallback,默认 `gemini-3.1-flash-tts-preview`,可 `LUNA_TTS_MODEL` 覆盖)→ 返回 **WAV Buffer**(`pcmToWav` 给 raw PCM 24k/16bit/mono 包 44 字节头,浏览器 `<audio>` 可放)。
+  - `audio-pipeline.ts`:`generateSessionAudio(sessionId,{force,concurrency})` → 遍历 intro/各 act beats/outro → **合成+上传 R2 整体重试**(`withRetry` 3 次退避)→ 写回 `beat.audio_url` 到存储 script + upsert `lt_audio_assets`(ready/failed)。并发默认 2(本地连 R2/Gemini 抖动,降并发+重试治 ECONNRESET/超时)。失败不抛(缺音频的 beat 前端按段回退系统 TTS)。
+  - `regen-audio.ts` CLI:`npx ts-node src/luna-tour/regen-audio.ts <shareCode|sessionId> [--force]` 给已有 session 补/重建音频。
+- **改现有文件(最小)**:
+  - `services/r2-storage.ts`:加导出 `uploadBufferToR2(key,buffer,contentType)`(通用公共上传,可复用)。
+  - `session-builder.ts`:createSession 持久化 script 后调 `generateSessionAudio`(COMMIT 之后,try/catch 不阻塞建库)。
+  - 前端 `engine/audioTrack.ts`:`play()` 加 `onMeta(durationMs)`(`loadedmetadata` 回传真实时长)。
+  - 前端 `engine/TimelineEngine.ts`:**音频感知兜底**——`armBackstop()`,拿到真实音频时长后把 backstop 设为 `max(60s, clipLen+5s)`,**只延长不缩短**,从结构上保证「兜底永不在台词说完前触发」(消除超长台词被切的理论缺口)。
+- **「说完才转场」保证(用户命脉关切)**:`playFrom` 是顺序 `await playBeat()`;`playBeat` 只在 `checkBeatDone()`(`narrationDone && minTimeDone && cameraDone`)resolve;`narrationDone`(非静音、有音频)只在 WAV `ended`(真说完)置位。运镜/overlay 按各自 beat 时钟独立触发,不依赖音频。**结构性保证 + 实测**:demo 最长台词 30.2s «« 60s 兜底。
+- **实测(demo session)**:11/11 beat 全部 ready,公开端点 script 每个 beat 带 `audio_url`;WAV 公网 200 `audio/wav`(单段 0.6–1.4MB,13–30s)。前后端 tsc + vite build 全绿。
+- **遗留**:① WAV 体积偏大(整段 tour ~8MB),后续可换 mp3(需编码依赖);② 本地→R2 网络抖动需重试,生产(Hetzner)网络更稳;③ 预加载下一段音频可减少切拍瞬间的网络延迟(非阻塞,体验优化)。
+- 遥测真实分钟数计入 `usage_counters` 仍待补(Live 用量目前用 `ask` 事件计数)。
 
 ### 🟢 其他小优化
 - 「展示区域价值」现在绑定「数字」beat 自动触发(`medianUnitPrice`)。若要 AI 逐 beat 精确指定(哪一刻/哪指标),需给 TourScript 加 overlay 类型 + 重新生成。

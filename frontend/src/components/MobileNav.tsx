@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { MapPin, Heart, GitCompare, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, LineChart, TrendingUp, Briefcase } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
+import { useUserProfile } from '../contexts/UserProfileContext'
 import { Sheet, SheetContent } from './ui/sheet'
 
 export default function MobileNav() {
@@ -10,6 +11,8 @@ export default function MobileNav() {
   const navigate = useNavigate()
   const { t } = useTranslation(['common', 'nav', 'auth'])
   const { user } = useAuth()
+  const { profile } = useUserProfile()
+  const isAgent = !!profile?.agent
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [analysisSheetOpen, setAnalysisSheetOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
@@ -44,7 +47,9 @@ export default function MobileNav() {
   const navItems = [
     { path: '/map', label: t('nav:explore'), icon: MapPin },
     { path: 'analysis-menu', label: t('nav:analysis'), icon: LineChart, isAnalysisTrigger: true },
-    { path: '/agent', label: t('nav:agentPortal'), icon: Briefcase },
+    isAgent
+      ? { path: '/agent', label: t('nav:agentHub'), icon: Briefcase }
+      : { path: '/agent/join', label: t('nav:becomeAgent'), icon: Briefcase },
     // Admin - only for logged in users
     ...(user ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
     // Login/Profile based on auth status

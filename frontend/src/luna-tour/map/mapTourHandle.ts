@@ -13,6 +13,7 @@
  */
 import maplibregl, { Map as MaplibreMap, Marker } from 'maplibre-gl'
 import type { LngLat } from '../types'
+import { API_BASE_URL } from '../../lib/config'
 
 export interface DistanceLineOpts {
   from: LngLat
@@ -41,6 +42,11 @@ export interface MapTourHandle {
   drawDistanceLine(o: DistanceLineOpts): void
   showAmenitySpokes(o: AmenitySpokesOpts): void
   highlightPins(ids: string[]): void
+  /** Draw the tour's property pins as native maplibre markers (thumbnail card +
+   *  optional name). Native markers are repositioned by the map's own render loop
+   *  (NOT React) → no jitter under the cinematic camera. Pass [] to clear.
+   *  Persists across beats (not a per-beat overlay). */
+  setPropertyPins(pins: { id: string; coord: LngLat; label?: string; image?: string | null }[]): void
   /** pulse a single focus ring at a coord (current property). null clears it. */
   pulseAt(coord: LngLat | null): void
   clearOverlays(): void
@@ -72,6 +78,26 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   const labelMarkers: Marker[] = []
   const highlightMarkers = new Map<string, Marker>()
   let pulseMarker: Marker | null = null
+  // GL focus ring (replaces the DOM pulse marker — DOM markers jitter under the
+  // per-frame jumpTo camera). rAF drives its expanding-ring pulse.
+  let pulseRaf: number | null = null
+  const FOCUS_SRC = 'lt-focus'
+  const PROP_SRC = 'lt-props'
+  const PROP_LAYER = 'lt-props-sym'
+
+  const stopPulse = () => {
+    if (pulseRaf) {
+      cancelAnimationFrame(pulseRaf)
+      pulseRaf = null
+    }
+  }
+  const removeFocus = () => {
+    stopPulse()
+    const map = getMap()
+    if (!map) return
+    if (map.getLayer('lt-focus-ring')) map.removeLayer('lt-focus-ring')
+    if (map.getSource(FOCUS_SRC)) map.removeSource(FOCUS_SRC)
+  }
 
   const cancelRaf = () => {
     if (rafId) {
@@ -191,44 +217,112 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     labelMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(o.center).addTo(map))
   }
 
-  function highlightPins(ids: string[]) {
-    const map = getMap()
-    if (!map) return
-    // remove rings no longer requested
-    highlightMarkers.forEach((m, id) => {
-      if (!ids.includes(id)) {
-        m.remove()
-        highlightMarkers.delete(id)
-      }
-    })
-    // add new ones
-    for (const id of ids) {
-      if (highlightMarkers.has(id)) continue
-      const coord = deps.getCoordById?.(id)
-      if (!coord) continue
-      const el = document.createElement('div')
-      el.className = 'lt-pin lt-pin-hot'
-      el.innerHTML = `<span class="lt-pin-dot"></span><span class="lt-pin-ring"></span>`
-      el.style.setProperty('--lt-accent', accent)
-      highlightMarkers.set(
-        id,
-        new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(map)
-      )
-    }
+  // No-op: all tour pins are already drawn as a non-jittering GL layer via
+  // setPropertyPins(). (Kept for API/overlay compatibility — the old DOM-marker
+  // version jittered under the per-frame camera.)
+  function highlightPins(_ids: string[]) {
+    /* intentionally empty — see setPropertyPins */
   }
 
+  /**
+   * GL focus ring at the current property. A circle layer (renders in the same
+   * GL frame as the camera → zero jitter) with an rAF-driven expanding pulse.
+   */
   function pulseAt(coord: LngLat | null) {
-    if (pulseMarker) {
-      pulseMarker.remove()
-      pulseMarker = null
-    }
     const map = getMap()
+    removeFocus()
     if (!map || !coord) return
-    const el = document.createElement('div')
-    el.className = 'lt-pin lt-pin-hot lt-focus'
-    el.innerHTML = `<span class="lt-pin-dot"></span><span class="lt-pin-ring"></span>`
-    el.style.setProperty('--lt-accent', accent)
-    pulseMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(map)
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => pulseAt(coord))
+      return
+    }
+    map.addSource(FOCUS_SRC, {
+      type: 'geojson',
+      data: { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: coord } },
+    })
+    map.addLayer({
+      id: 'lt-focus-ring',
+      type: 'circle',
+      source: FOCUS_SRC,
+      paint: {
+        'circle-radius': 12,
+        'circle-color': accent,
+        'circle-opacity': 0.18,
+        'circle-stroke-color': accent,
+        'circle-stroke-width': 2.5,
+        'circle-stroke-opacity': 0.9,
+      },
+    })
+    const start = performance.now()
+    const tick = () => {
+      const m = getMap()
+      if (!m || !m.getLayer('lt-focus-ring')) {
+        pulseRaf = null
+        return
+      }
+      const t = ((performance.now() - start) % 1700) / 1700
+      m.setPaintProperty('lt-focus-ring', 'circle-radius', 10 + t * 30)
+      m.setPaintProperty('lt-focus-ring', 'circle-stroke-opacity', 0.9 * (1 - t))
+      pulseRaf = requestAnimationFrame(tick)
+    }
+    pulseRaf = requestAnimationFrame(tick)
+  }
+
+  /**
+   * Tour property pins as a GL SYMBOL layer. The pin (thumbnail card + optional
+   * name + stem) is pre-composed into a canvas image and added via map.addImage,
+   * then drawn by a symbol layer — so it renders in the SAME GL frame as the
+   * camera and CANNOT jitter (DOM markers, native or react, always lag the
+   * per-frame jumpTo). Thumbnails load through the CORS image proxy so the canvas
+   * isn't tainted. Persists across beats; clearOverlays does NOT remove it.
+   */
+  async function setPropertyPins(pins: { id: string; coord: LngLat; label?: string; image?: string | null }[]) {
+    const map = getMap()
+    if (!map) return
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => void setPropertyPins(pins))
+      return
+    }
+    if (!pins.length) {
+      if (map.getLayer(PROP_LAYER)) map.removeLayer(PROP_LAYER)
+      if (map.getSource(PROP_SRC)) map.removeSource(PROP_SRC)
+      return
+    }
+    // build a canvas icon per pin (async: thumbnails load via the proxy)
+    await Promise.all(
+      pins.map(async (p) => {
+        const iconId = `lt-pin-${p.id}`
+        if (map.hasImage(iconId)) return
+        const icon = await buildPinIcon(p.label, p.image ?? null, accent)
+        if (icon && !map.hasImage(iconId)) map.addImage(iconId, icon, { pixelRatio: 2 })
+      })
+    )
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: pins.map((p) => ({
+        type: 'Feature',
+        properties: { icon: `lt-pin-${p.id}` },
+        geometry: { type: 'Point', coordinates: p.coord },
+      })),
+    }
+    const src = map.getSource(PROP_SRC) as maplibregl.GeoJSONSource | undefined
+    if (src) {
+      src.setData(fc)
+      return
+    }
+    map.addSource(PROP_SRC, { type: 'geojson', data: fc })
+    map.addLayer({
+      id: PROP_LAYER,
+      type: 'symbol',
+      source: PROP_SRC,
+      layout: {
+        'icon-image': ['get', 'icon'],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.55, 14, 0.9, 17, 1.1],
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    })
   }
 
   function addLabelPin(map: MaplibreMap, at: LngLat, label: string) {
@@ -256,6 +350,9 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       pulseMarker.remove()
       pulseMarker = null
     }
+    removeFocus()
+    // NOTE: property pins (PROP_SRC) persist across beats — cleared via
+    // setPropertyPins([]) on tour teardown, not here (this runs every beat).
   }
 
   function setStyle(style: 'dark' | 'default') {
@@ -275,11 +372,140 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     drawDistanceLine,
     showAmenitySpokes,
     highlightPins,
+    setPropertyPins,
     pulseAt,
     clearOverlays,
     setStyle,
     resize,
   }
+}
+
+function loadImg(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+/** Compose a property pin (thumbnail card + optional name + stem) into ImageData
+ *  for map.addImage. Thumbnails load through the CORS proxy so canvas isn't tainted. */
+async function buildPinIcon(
+  label: string | undefined,
+  imageUrl: string | null,
+  accent: string
+): Promise<ImageData | null> {
+  if (typeof document === 'undefined') return null
+  const proxied = imageUrl ? `${API_BASE_URL}/api/luna/public/img?u=${encodeURIComponent(imageUrl)}` : null
+  const img = proxied ? await loadImg(proxied) : null
+
+  const S = 2 // supersample → addImage pixelRatio 2
+  const FONT = '700 13px -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
+  const card = 60
+  const border = 3
+  const stemH = 9
+  const gap = 5
+  const nameH = label ? 22 : 0
+
+  const measure = document.createElement('canvas').getContext('2d')
+  if (!measure) return null
+  measure.font = FONT
+  let name = label ?? ''
+  if (name.length > 16) name = name.slice(0, 15) + '…'
+  const namePillW = label ? Math.ceil(measure.measureText(name).width) + 18 : 0
+
+  const W = Math.max(card, namePillW)
+  const H = nameH + (label ? gap : 0) + card + stemH
+  const cardY = nameH + (label ? gap : 0)
+  const cx = W / 2
+  const cardX = cx - card / 2
+
+  const cnv = document.createElement('canvas')
+  cnv.width = Math.ceil(W * S)
+  cnv.height = Math.ceil(H * S)
+  const ctx = cnv.getContext('2d')
+  if (!ctx) return null
+  ctx.scale(S, S)
+
+  // name pill
+  if (label) {
+    ctx.fillStyle = 'rgba(5,7,13,0.82)'
+    roundRect(ctx, cx - namePillW / 2, 0, namePillW, nameH, 8)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = FONT
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(name, cx, nameH / 2 + 1)
+  }
+
+  // card shadow + base
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur = 10
+  ctx.shadowOffsetY = 4
+  ctx.fillStyle = '#0b0e16'
+  roundRect(ctx, cardX, cardY, card, card, 13)
+  ctx.fill()
+  ctx.restore()
+
+  // thumbnail (cover) or placeholder
+  ctx.save()
+  roundRect(ctx, cardX, cardY, card, card, 13)
+  ctx.clip()
+  if (img && img.width && img.height) {
+    const ar = img.width / img.height
+    let dw = card,
+      dh = card,
+      dx = cardX,
+      dy = cardY
+    if (ar > 1) {
+      dw = card * ar
+      dx = cardX - (dw - card) / 2
+    } else {
+      dh = card / ar
+      dy = cardY - (dh - card) / 2
+    }
+    ctx.drawImage(img, dx, dy, dw, dh)
+  } else {
+    ctx.fillStyle = '#11151f'
+    ctx.fillRect(cardX, cardY, card, card)
+    ctx.fillStyle = '#9fb3c8'
+    ctx.font = '26px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('🏢', cx, cardY + card / 2)
+  }
+  ctx.restore()
+
+  // accent border
+  ctx.strokeStyle = accent
+  ctx.lineWidth = border
+  roundRect(ctx, cardX + border / 2, cardY + border / 2, card - border, card - border, 12)
+  ctx.stroke()
+
+  // stem
+  ctx.fillStyle = accent
+  ctx.beginPath()
+  ctx.moveTo(cx - 6, cardY + card - 1)
+  ctx.lineTo(cx + 6, cardY + card - 1)
+  ctx.lineTo(cx, cardY + card + stemH)
+  ctx.closePath()
+  ctx.fill()
+
+  return ctx.getImageData(0, 0, cnv.width, cnv.height)
 }
 
 function hashStr(s: string): number {

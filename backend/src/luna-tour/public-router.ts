@@ -283,4 +283,29 @@ router.post('/public/v/:code/live-token', async (req: Request, res: Response) =>
   }
 })
 
+/**
+ * Image proxy with CORS — lets the tour map load property thumbnails as WebGL
+ * textures (R2 public URLs don't send Access-Control-Allow-Origin, so a browser
+ * canvas/GL can't use them directly). Only proxies the known R2 public host.
+ *   GET /api/luna/public/img?u=<encoded R2 url>
+ */
+router.get('/public/img', async (req: Request, res: Response) => {
+  try {
+    const url = String(req.query.u || '')
+    if (!/^https:\/\/pub-[a-z0-9]+\.r2\.dev\/[^\s]+$/i.test(url)) {
+      return res.status(400).json({ error: 'invalid image url' })
+    }
+    const upstream = await fetch(url)
+    if (!upstream.ok) return res.status(upstream.status).end()
+    const buf = Buffer.from(await upstream.arrayBuffer())
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Cache-Control', 'public, max-age=86400')
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg')
+    res.send(buf)
+  } catch (err) {
+    console.error('[luna] img proxy error:', err)
+    res.status(502).end()
+  }
+})
+
 export default router

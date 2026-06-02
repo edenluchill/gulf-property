@@ -72,6 +72,24 @@ export default function TourOverlay({
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   // explore-on-pause: which property the customer tapped to inspect (project_id)
   const [exploreId, setExploreId] = useState<string | null>(null)
+  // subtitles (narration captions) — on by default, persisted, toggleable
+  const [subtitlesOn, setSubtitlesOn] = useState(() => {
+    try {
+      return localStorage.getItem('lt-subtitles') !== 'off'
+    } catch {
+      return true
+    }
+  })
+  const toggleSubtitles = () =>
+    setSubtitlesOn((v) => {
+      const next = !v
+      try {
+        localStorage.setItem('lt-subtitles', next ? 'on' : 'off')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
 
   // Live Q&A (§4.6): connects to Gemini Live when the customer asks. Self-contained.
   const live = useTourLive(() => mapRef.current)
@@ -151,36 +169,56 @@ export default function TourOverlay({
     }
   }, [data])
 
-  // Report the tour's properties up to MapPage so the main map renders ONLY these
-  // (native, clickable pins → details work) instead of the whole search-result
-  // marker sea (which also stutters the camera). See perf rules R2.
+  // Draw the tour's property pins as a GL LAYER (scales with zoom, renders in the
+  // GL frame → no jitter under the per-frame cinematic camera), and SUPPRESS the
+  // host map's DOM teardrop markers (which jittered + never scaled). Explore on
+  // pause uses the thumbnail strip below, not map-pin taps. See perf rules R2.
   useEffect(() => {
     if (!data) return
-    const pins = data.properties
+    onPins?.([]) // no react-map-gl DOM markers during the tour
+    const glPins = data.properties
       .filter((p) => Array.isArray(p.snapshot.coords))
-      .map((p) => {
-        const s = p.snapshot
-        const c = s.coords as [number, number]
-        return {
-          id: pidOf(p),
-          name: s.name,
-          developer: s.developer ?? '',
-          area: s.area ?? '',
-          minPrice: s.min_price ?? null,
-          maxPrice: s.max_price ?? null,
-          minBeds: null,
-          maxBeds: null,
-          status: s.status ?? '',
-          lat: c[1],
-          lng: c[0],
-          image: s.image ?? null,
-          completionDate: null,
-        }
-      })
-    onPins?.(pins)
-    return () => onPins?.([])
+      .map((p) => ({
+        id: pidOf(p),
+        coord: p.snapshot.coords as [number, number],
+        label: p.snapshot.name,
+        image: p.snapshot.image ?? null,
+      }))
+    mapRef.current?.setPropertyPins(glPins)
+    return () => {
+      onPins?.([])
+      mapRef.current?.setPropertyPins([])
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
+
+  // Before the tour starts, slowly orbit over Dubai (centred on the picked homes)
+  // behind the lightly-blurred greeting so the cover feels alive. Stops on start.
+  useEffect(() => {
+    if (snap || !data) return // snap becomes non-null once the engine starts
+    const coords = data.properties
+      .map((p) => p.snapshot.coords)
+      .filter((c): c is [number, number] => Array.isArray(c))
+    const center: [number, number] = coords.length
+      ? [
+          coords.reduce((s, c) => s + c[0], 0) / coords.length,
+          coords.reduce((s, c) => s + c[1], 0) / coords.length,
+        ]
+      : [55.2, 25.12]
+    let bearing = 0
+    let raf = 0
+    const tick = () => {
+      const map = mapRef.current
+      if (map) {
+        bearing = (bearing + 0.05) % 360
+        map.jumpTo({ center, zoom: 10.2, pitch: 55, bearing })
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap, data])
 
   const clearMapFeatures = () => {
     onMeasure?.(null)
@@ -223,6 +261,17 @@ export default function TourOverlay({
       },
     })
     engineRef.current = engine
+    // (re)draw the GL property pins now that the map handle is guaranteed ready
+    // (the [data] effect may have run before mapRef was set).
+    const glPins = data.properties
+      .filter((p) => Array.isArray(p.snapshot.coords))
+      .map((p) => ({
+        id: pidOf(p),
+        coord: p.snapshot.coords as [number, number],
+        label: p.snapshot.name,
+        image: p.snapshot.image ?? null,
+      }))
+    mapRef.current.setPropertyPins(glPins)
     engine.start()
     tel.track('tour_play')
   }
@@ -337,8 +386,6 @@ export default function TourOverlay({
 
   const state = snap?.state ?? 'idle'
   const started = !!snap
-  const total = snap?.total_ms ?? data!.script.total_ms
-  const progress = total ? Math.min(100, ((snap?.elapsed_ms ?? 0) / total) * 100) : 0
 
   return (
     <div className="lt-tour-host" style={{ ['--lt-accent' as string]: accent }}>
@@ -372,10 +419,33 @@ export default function TourOverlay({
         />
       )}
 
-      {/* top progress */}
-      <div className="lt-topline" style={{ pointerEvents: 'none' }}>
-        <div className="lt-topline-fill" style={{ width: `${progress}%` }} />
-      </div>
+      {/* top CHAPTER bar — one chapter per home, labeled with its name. Tap to fly
+          back/forward to that home. Replaces the abstract dot rows. */}
+      {started && (snap?.actCount ?? 0) > 0 && state !== 'ended' && (
+        <div className="lt-chapters">
+          {Array.from({ length: snap?.actCount ?? 0 }).map((_, i) => {
+            const cur = snap?.actIndex ?? -1
+            const cls = i < cur ? 'done' : i === cur ? 'active' : ''
+            const pid = data?.script.acts[i]?.property_id
+            const name = (pid && propertyMap.get(pid)?.name) || `第 ${i + 1} 个家`
+            return (
+              <button
+                key={i}
+                className={`lt-chapter ${cls}`}
+                onClick={() => seekToAct(i)}
+                title={name}
+              >
+                <span className="lt-chapter-bar">
+                  <span className="lt-chapter-fill" />
+                </span>
+                <span className="lt-chapter-name">
+                  {i + 1}. {name}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* agent badge */}
       <div className="lt-agent-badge">
@@ -393,29 +463,31 @@ export default function TourOverlay({
         </button>
       )}
 
-      {/* act dots (jump homes) */}
-      {started && state !== 'ended' && (
-        <div className="lt-ov-dots" style={{ zIndex: 7, pointerEvents: 'auto' }}>
-          {Array.from({ length: snap?.actCount ?? 0 }).map((_, i) => (
-            <span
-              key={i}
-              className={i <= (snap?.actIndex ?? -1) ? 'on' : ''}
-              onClick={() => seekToAct(i)}
-              style={{ cursor: 'pointer' }}
-            />
-          ))}
+      {/* subtitles toggle (sits left of mute) */}
+      {started && (
+        <button
+          className={`lt-cc ${subtitlesOn ? 'on' : ''}`}
+          onClick={toggleSubtitles}
+          aria-label={subtitlesOn ? '关闭字幕' : '开启字幕'}
+          title={subtitlesOn ? '关闭字幕' : '开启字幕'}
+        >
+          CC
+        </button>
+      )}
+
+      {/* subtitle track — current narration while Luna is speaking */}
+      {started && subtitlesOn && snap?.narration && (state === 'playing' || state === 'reveal' || state === 'outro') && (
+        <div className="lt-subtitle" aria-live="polite">
+          <span>{snap.narration}</span>
         </div>
       )}
 
-      {/* Luna pill */}
-      {started && state !== 'ended' && (
-        <button
-          className={`lt-luna ${state === 'asking' || state === 'paused' ? 'big' : ''}`}
-          style={{ pointerEvents: 'auto' }}
-          onClick={state === 'playing' || state === 'reveal' || state === 'outro' ? handleTapStage : handleResume}
-        >
+      {/* resume — replaces the old Luna pill. Tap the stage (anywhere) to pause;
+          this button continues. Only shown while paused/asking. */}
+      {(state === 'asking' || state === 'paused') && (
+        <button className="lt-resume" style={{ pointerEvents: 'auto' }} onClick={handleResume}>
           <span className="orb" />
-          <span>{state === 'asking' || state === 'paused' ? '继续观看' : 'Luna'}</span>
+          <span>继续观看</span>
         </button>
       )}
 

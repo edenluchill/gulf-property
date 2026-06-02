@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
@@ -20,10 +20,13 @@ import ProfilePage from './pages/ProfilePage'
 import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
-import AgentPortalPage from './pages/AgentPortalPage'
+import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
-import AgentDashboard from './luna-tour/pages/AgentDashboard'  // Luna Tour agent MVP (isolated)
+import AgentLayout from './luna-tour/pages/AgentLayout'  // Luna Tour agent dashboard (isolated)
+import AgentOverview from './luna-tour/pages/AgentOverview'  // Luna Tour agent MVP (isolated)
+import AgentTours from './luna-tour/pages/AgentTours'  // Luna Tour agent MVP (isolated)
+import AgentReport from './luna-tour/pages/AgentReport'  // Luna Tour agent MVP (isolated)
 
 function App() {
   const { i18n } = useTranslation()
@@ -39,8 +42,17 @@ function App() {
       <Routes>
         {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
         <Route path="/v/:code" element={<MapPage />} />
-        {/* Luna Tour agent dashboard (MVP, isolated) */}
-        <Route path="/luna/agent" element={<AgentDashboard />} />
+        {/* Agent hub — sidebar tabs + nested routes (gated to agent accounts) */}
+        <Route path="/agent" element={<AgentLayout />}>
+          <Route index element={<AgentOverview />} />
+          <Route path="tour" element={<AgentTours />} />
+          <Route path="report" element={<AgentReport />} />
+        </Route>
+        {/* Become-an-agent onboarding (no sidebar; flips the account to agent) */}
+        <Route path="/agent/join" element={<AgentJoin />} />
+        {/* Legacy Luna paths → new agent hub */}
+        <Route path="/luna/agent" element={<Navigate to="/agent" replace />} />
+        <Route path="/luna/agent/*" element={<Navigate to="/agent" replace />} />
         {/* MapPage is now the homepage */}
         <Route path="/" element={<MapPage />} />
         <Route path="/map" element={<MapPage />} />
@@ -50,7 +62,6 @@ function App() {
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/areas" element={<AreaInsightsPage />} />
         <Route path="/report" element={<BuyingReportPage />} />
-        <Route path="/agent" element={<AgentPortalPage />} />
         <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />

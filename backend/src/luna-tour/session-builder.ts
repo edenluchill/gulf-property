@@ -18,6 +18,7 @@ import {
   calculatePaybackYears,
 } from '../services/investment-calculator'
 import { generateTourScript } from './tour-generator'
+import { generateSessionAudio } from './audio-pipeline'
 import { TourInput, TourProperty, TourConfig } from './tour-script.types'
 
 const PLACEHOLDER_YIELD_PCT = 6.5
@@ -233,6 +234,20 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       [sessionId, script.language, script.voice, JSON.stringify(script), script.total_ms]
     )
     await client.query('COMMIT')
+
+    // Pre-generate narration audio (one voice = Aoede) so the watch page plays
+    // real Gemini speech, not the browser TTS fallback. Non-fatal: a failure
+    // just leaves audio_url empty and the client falls back per-beat. Done after
+    // COMMIT so a TTS hiccup can never roll back a valid session.
+    try {
+      const audio = await generateSessionAudio(sessionId)
+      console.log(
+        `[luna] audio for ${input.shareCode}: ${audio.ready}/${audio.total} ready` +
+          (audio.failed ? `, ${audio.failed} failed` : '')
+      )
+    } catch (err) {
+      console.warn('[luna] audio pre-generation skipped:', err instanceof Error ? err.message : err)
+    }
 
     return { sessionId, shareCode: input.shareCode, totalMs: script.total_ms, acts: script.acts.length, warnings }
   } catch (err) {

@@ -50,12 +50,17 @@ export interface EngineSnapshot {
   actCount: number
   overlays: RenderOverlay[]
   muted: boolean
+  /** current beat's narration text (for the optional subtitle track) */
+  narration: string
 }
 
 /** Min visual dwell so a near-silent beat doesn't flash by (ms). */
 const MIN_BEAT_MS = 1500
-/** Safety backstop: never wait longer than this for one beat (ms). */
+/** Safety backstop FLOOR: pre-metadata / no-audio cap for one beat (ms). */
 const MAX_BEAT_MS = 60000
+/** Once real audio length is known, backstop = clipLen + this pad, floored at
+ * MAX_BEAT_MS. Guarantees the backstop can NEVER fire before a line finishes. */
+const AUDIO_BACKSTOP_PAD_MS = 5000
 
 const STICKY_OVERLAYS = new Set(['progress_dots', 'cta', 'favorite_picker'])
 const MAP_OVERLAYS = new Set(['distance_line', 'amenity_spokes', 'highlight_all_pins'])
@@ -117,6 +122,9 @@ export class TimelineEngine {
   // with audio + overlays.
   private camTrack: CameraTrack | null = null
   private camEntry: CameraState | null = null // where the camera is now (chains beats)
+  // Time-warp factor: camera track is stretched so its motion runs for exactly
+  // the narration (audio) length. 1 until the real audio duration is known.
+  private camScale = 1
   // gates
   private narrationDone = false
   private minTimeDone = false
@@ -293,6 +301,7 @@ export class TimelineEngine {
 
       // compile the camera track for this beat (single clock samples it)
       this.camTrack = compileCameraTrack(cameraCues, this.camEntry)
+      this.camScale = 1 // until audio length is known (set in onMeta below)
       // snap to its initial state instantly so the first frame is correct
       if (this.camTrack.initial) this.map.jumpTo(this.camTrack.initial)
 
@@ -305,24 +314,46 @@ export class TimelineEngine {
         .map((ov) => ({ at_ms: ov.at_ms, fired: false, kind: 'overlay' as const, overlay: ov }))
         .sort((a, b) => a.at_ms - b.at_ms)
 
-      // narration (event-driven; muted/empty resolves immediately)
-      this.audio.play(seg.beat.narration, seg.beat.audio_url, () => {
-        this.narrationDone = true
-        this.checkBeatDone()
-      })
+      // narration (event-driven; muted/empty resolves immediately). The beat
+      // ONLY advances once this fires (audio `ended`) — never on a guessed time.
+      // When the real clip length loads, EXTEND the backstop past it so the
+      // safety net can never cut a sentence; it only ever bounds a stall.
+      this.audio.play(
+        seg.beat.narration,
+        seg.beat.audio_url,
+        () => {
+          this.narrationDone = true
+          this.checkBeatDone()
+        },
+        (durationMs) => {
+          // Real narration length known → (1) extend the safety backstop past it
+          // so it can never cut a line, and (2) time-warp the camera so its
+          // motion spans exactly the narration (no early stop, no overrun).
+          this.armBackstop(Math.max(MAX_BEAT_MS, durationMs + AUDIO_BACKSTOP_PAD_MS))
+          if (this.camTrack && this.camTrack.duration > 0) {
+            this.camScale = Math.max(0.05, durationMs / this.camTrack.duration)
+          }
+        }
+      )
 
       // start the single pausable clock
       this.beatElapsed = 0
       this.beatClockStart = performance.now()
       this.startClock()
 
-      // safety backstop
-      this.backstop = window.setTimeout(() => {
-        this.narrationDone = true
-        this.minTimeDone = true
-        this.checkBeatDone()
-      }, MAX_BEAT_MS)
+      // safety backstop (pre-metadata floor; extended once clip length is known)
+      this.armBackstop(MAX_BEAT_MS)
     })
+  }
+
+  /** (Re)arm the single safety backstop for the current beat. */
+  private armBackstop(ms: number) {
+    if (this.backstop) clearTimeout(this.backstop)
+    this.backstop = window.setTimeout(() => {
+      this.narrationDone = true
+      this.minTimeDone = true
+      this.checkBeatDone()
+    }, ms)
   }
 
   private startClock() {
@@ -332,9 +363,9 @@ export class TimelineEngine {
     const tick = () => {
       if (this.disposed || this.paused) return
       this.beatElapsed = performance.now() - this.beatClockStart
-      // 1) camera — sample the track at the SAME clock and apply instantly.
+      // 1) camera — sample the (time-warped) track at the SAME clock and apply.
       if (this.camTrack) {
-        const cs = this.camTrack.sampleAt(this.beatElapsed)
+        const cs = this.camTrack.sampleAt(this.beatElapsed / this.camScale)
         if (cs) this.map.jumpTo(cs)
       }
       // 2) overlay cues at their at_ms
@@ -350,7 +381,7 @@ export class TimelineEngine {
         this.minTimeDone = true
         this.checkBeatDone()
       }
-      if (this.camTrack && this.beatElapsed >= this.camTrack.duration) {
+      if (this.camTrack && this.beatElapsed >= this.camTrack.duration * this.camScale) {
         // camera track exhausted — contributes to "beat done" via checkBeatDone
         this.checkBeatDone()
       }
@@ -368,7 +399,7 @@ export class TimelineEngine {
   }
 
   private checkBeatDone() {
-    const cameraDone = !this.camTrack || this.beatElapsed >= this.camTrack.duration
+    const cameraDone = !this.camTrack || this.beatElapsed >= this.camTrack.duration * this.camScale
     if (this.narrationDone && this.minTimeDone && cameraDone && this.resolveBeat) {
       // chain the next beat's camera entry from where this one ended
       if (this.camTrack) this.camEntry = finalState(this.camTrack) ?? this.camEntry
@@ -503,6 +534,7 @@ export class TimelineEngine {
       actCount: this.script.acts.length,
       overlays: [...this.activeOverlays],
       muted: this.muted,
+      narration: seg?.beat.narration ?? '',
     })
   }
 }

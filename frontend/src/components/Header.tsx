@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useAuth } from '../contexts/AuthContext'
+import { useUserProfile } from '../contexts/UserProfileContext'
 import UserMenu from './auth/UserMenu'
 import { FavoritesButton } from './favorites'
 import AboutSheet from './AboutSheet'
@@ -28,6 +29,8 @@ export default function Header() {
   const location = useLocation()
   const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
   const { user, loading } = useAuth()
+  const { profile } = useUserProfile()
+  const isAgent = !!profile?.agent
 
   // About sheet state
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -107,7 +110,7 @@ export default function Header() {
   const isAdminPage = location.pathname.startsWith('/admin') || location.pathname.startsWith('/developer')
   const isAnalysisActive = analysisItems.some(i => location.pathname === i.path)
   const isMapActive = location.pathname === '/' || location.pathname === '/map'
-  const isAgentActive = location.pathname === '/agent'
+  const isAgentActive = location.pathname.startsWith('/agent')
 
   return (
     <header
@@ -220,8 +223,9 @@ export default function Header() {
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} panel={theme.panel} dark={theme.dark}
             />
 
-            {/* 经纪人（专属入口，强调色） */}
-            <NavPill to="/agent" active={isAgentActive} icon={Briefcase} label={t('nav:agentPortal')} accent
+            {/* 经纪人入口：已开通 → 经纪台；未开通 → 成为经纪（强调色） */}
+            <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
+              label={isAgent ? t('nav:agentHub') : t('nav:becomeAgent')} accent
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {user && (

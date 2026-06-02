@@ -80,13 +80,9 @@ function OverlayItem({
       )
 
     case 'progress_dots':
-      return (
-        <div className="lt-ov lt-ov-dots">
-          {Array.from({ length: overlay.total }).map((_, i) => (
-            <span key={i} className={i <= overlay.active ? 'on' : ''} />
-          ))}
-        </div>
-      )
+      // Superseded by the top chapter bar (lt-chapters) — render nothing so we
+      // don't show a second, redundant progress indicator.
+      return null
 
     case 'property_card': {
       const p = properties.get(overlay.property_id)

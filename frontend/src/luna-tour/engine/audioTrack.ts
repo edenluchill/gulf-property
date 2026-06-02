@@ -55,7 +55,12 @@ export class AudioTrack {
    * muted / no audio available). Best-effort — any failure resolves via onDone so
    * the tour never stalls.
    */
-  play(narration: string, audioUrl: string | undefined, onDone: () => void) {
+  play(
+    narration: string,
+    audioUrl: string | undefined,
+    onDone: () => void,
+    onMeta?: (durationMs: number) => void
+  ) {
     this.stop()
     this.doneCb = onDone
     if (this.muted) {
@@ -65,6 +70,11 @@ export class AudioTrack {
     if (audioUrl && /^https?:\/\//.test(audioUrl)) {
       const a = new Audio(audioUrl)
       this.audioEl = a
+      // Report the real clip length so the engine can size its safety backstop
+      // to the actual narration (so it never fires before the line finishes).
+      a.onloadedmetadata = () => {
+        if (onMeta && Number.isFinite(a.duration) && a.duration > 0) onMeta(a.duration * 1000)
+      }
       a.onended = () => this.fireDone()
       a.onerror = () => this.speak(narration)
       a.play().catch(() => this.speak(narration))

@@ -357,3 +357,24 @@ export async function downloadFromR2(keyOrUrl: string): Promise<Buffer> {
 
   return Buffer.concat(chunks);
 }
+
+/**
+ * Generic public upload: put any buffer at `key` and return its public URL.
+ * Reusable for non-PDF assets (e.g. Luna Tour pre-generated narration audio).
+ */
+export async function uploadBufferToR2(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: 'public, max-age=31536000, immutable',
+    })
+  );
+  return `${R2_PUBLIC_URL}/${key}`;
+}
