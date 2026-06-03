@@ -103,27 +103,42 @@ export class AudioTrack {
     }
   }
 
-  pause() {
-    this.audioEl?.pause()
+  /**
+   * Pause playback so the engine can resume it IN PLACE (single-clock contract).
+   * - An mp3/wav element mid-clip → pause it; `onended` + doneCb stay armed, so
+   *   resume continues to a REAL finish and the engine clock/camera stay in
+   *   lock-step (no desync, no frozen camera).
+   * - TTS (or an already-ended element) → cancel it and drop the done callback;
+   *   the engine re-speaks from the start on resume.
+   * Returns true iff playback is resumable in place (an mp3/wav was paused).
+   */
+  pausePlayback(): boolean {
+    if (this.audioEl && !this.audioEl.ended) {
+      this.audioEl.pause()
+      return true
+    }
+    this.doneCb = null
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
-        window.speechSynthesis.pause()
+        window.speechSynthesis.cancel()
       } catch {
         /* ignore */
       }
     }
+    return false
   }
 
-  resume() {
-    if (this.muted) return
-    this.audioEl?.play().catch(() => {})
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.resume()
-      } catch {
-        /* ignore */
-      }
+  /**
+   * Resume an mp3/wav paused by pausePlayback(). Returns true iff it resumed an
+   * existing, non-ended element; false if there was nothing to resume (TTS path
+   * / element already finished) — the engine then re-speaks.
+   */
+  resumePlayback(): boolean {
+    if (this.audioEl && this.audioEl.paused && !this.audioEl.ended) {
+      if (!this.muted) this.audioEl.play().catch(() => {})
+      return true
     }
+    return false
   }
 
   /** Stop playback WITHOUT firing onDone (caller is abandoning this beat). */

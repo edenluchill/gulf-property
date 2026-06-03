@@ -1,5 +1,46 @@
 # Luna Tour — 进度与待办(下次 pick up 从这里开始)
 
+> 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
+
+## 2026-06-02 真机打磨第九轮(POI 真名显示 — 证明配套真实)
+- **用户疑问**:距离线("学校 0.42km / 医院 0.93km")连到看似空地,是瞎编还是真有?
+- **核实(查 DB demo session.snapshot.distances)**:**全是真实 POI**,后端 `session-builder.fetchNearby` 用 PostGIS 查真实 `dubai_pois` 表取每类最近 POI(真名+真坐标+真距离)。如 🏫学校=Canadian University Dubai(0.42km)、🏥医院=Mediclinic(0.93km)、🚇地铁=Dubai Mall/Burj Khalifa、🛍️商场=Business Time Centre、🛒超市=Silver Life Mini Market。前端 `fetchAmenity` 同样走真实 `/api/dubai-pois/near`。
+- **根因(为何像空地)**:渲染只显示 `${label} ${km}km`="学校 0.42km",**真名 `s.name` 数据里有却没渲染**;端点仅一个小橙点无名字。
+- **修法**:
+  - `MapViewMapLibre` amenityGeoJson 给 amenity 点加 `name` 属性;新增 `amenity-poi-label` symbol 层在每个端点显示真实 POI 名字(如 "Canadian University Dubai")。
+  - **POI 图标加名字**(用户拍板「高 zoom 显示」):`poi-circles` 同 source 新增 `poi-labels` 层(`minzoom 14.5`,text-optional 防挤,color 按类),放大到一定级别 POI 旁显示真名。
+  - 两个新文字层(`amenity-poi-label`、`poi-labels`)加入 `mapTourHandle` 的 `HOST_DISTANCE_LAYERS` 抬升列表 → 压过地铁线(承接第八轮 z 序)。
+- 前端 tsc + vite build 全绿;暂停不变量 22/22。纯前端。
+- **已有但未充分利用的基础设施**(供下次):`enabledPoiCategories`/`togglePoiCategory`/POI 面板(`showPoiPanel`)/`QUICK_BUTTONS`(医院/学校/超市)/`useDubaiPois({enabledCategories})`/MapPage line ~295 已有 voice mapAction 启用某类 POI。**「AI 选择性显示 POI」触发方式待用户定**(Live 工具 / 自动按 beat / 暂停手动面板),未擅自开发。
+
+## 2026-06-02 真机打磨第八轮(地图图层 z 序系统化 + 隐藏占位站名)
+- **症状(真机)**:地铁路线线(红/黄/蓝)盖住了 pin 的字和距离线;地铁站名显示 "New Stop 6/7/8/13/14/15" 占位噪音。期望栈(上→下)= **pin+字 > 距离线标识 > 路线 > area 字+色块**。
+- **根因**:共享主地图时,距离线/便利度其实是**主地图 `measure-*`/`amenity-*` GL 图层**画的(tour 经 `sink` 驱动),不是 `lt-dist`;transit 路线是 `transport-*`。`life` beat 切 transit 时 **react-map-gl 按挂载时机把路线插到了 measure/pin 之上** → 盖住。
+- **修法(系统化,权威排序函数)**:
+  - `mapTourHandle.ts` 新增 `raiseNow()`:按 canonical 顺序(下→上 `HOST_DISTANCE_LAYERS`[measure/amenity 线+标签] → `lt-` 线 → `lt-focus-ring` → `lt-props-sym` 钉)对存在的图层逐个 `map.moveLayer(id)` 抬到顶 → 最终栈恰好 = 该顺序,**始终压过 transit/area/poi**。每次 tour 加图层(pin/焦点环/距离线)后调一次。
+  - 新增 `raiseTourLayers()`(暴露给 overlay):`raiseNow()` + **短重试**(6×60ms),因 host transit/measure 图层是 react-map-gl 异步挂载(在触发它的同步 beat-enter 之后)。`TourOverlay` 的 sink(measure/amenities/transit/areaMetric)每次切换后调它 → 路线挂上来后被重新压到底。无事件回环(有界 timer)。
+  - JSX 里 host 图层顺序本就是 area<labels<transit<poi<measure<amenity(已对),问题只在挂载时机 → 命令式排序确定性修复,且不与 react-map-gl 打架(measure/amenity 在 JSX 里本就在 transit 之上)。
+- **附带修复**:`MapViewMapLibre` 的 `transport-stations-labels`(站名文字)在 `chromeless`(导览播放态)时 **react 条件隐藏** → 播放时不显示 "New Stop X" 噪音(站点圆点+路线保留),暂停态恢复显示。react 驱动、无命令式状态泄漏到普通地图。
+- 前端 `npx tsc --noEmit` 0 错 + `vite build` 通过。**纯前端,push 自动 deploy。**
+- **仍需真机确认**:transit 开启的 `life` beat 时,路线确实在距离线/pin 之下、area 名在最底;"New Stop X" 播放时消失。
+
+## 2026-06-02 真机打磨第七轮(暂停同时钟 + CC/字幕/mobile,已验证 tsc+build+不变量)
+- **任务1(命脉)暂停/恢复全部跟同一时钟 ✅**:
+  - 根因:① resume 时旁白从头重念但相机时钟从中点继续 → 相机先跑完轨道 `sampleAt` 返回静止终态 → **镜头冻结**;② `armBackstop` 用 `window.setTimeout`,**暂停时不清除** → 长暂停/跟 AI 对话期间 backstop 触发 → beat 在暂停期间自己往前推(「连续多次暂停问题」「跟 AI 说完被打扰」);③ `pause()` 无幂等 → 重复调用用过期 `beatClockStart` 算坏 `beatElapsed`。
+  - 修法(`TimelineEngine.ts` + `audioTrack.ts`):
+    - **backstop 改为 `beatElapsed` 阈值**(在 rAF tick 里判定,不再用 setTimeout)→ 暂停时随时钟一起冻结,永不在暂停期间推进。
+    - **mp3/WAV 就地暂停/恢复**:`audioTrack.pausePlayback()`(暂停元素、保留 `onended`)/`resumePlayback()`(继续播放,返回是否就地恢复)。引擎 resume 时若 mp3 可就地恢复 → `beatClockStart = now - beatElapsed` 继续同一时钟,相机/旁白/overlay 完美锁步、镜头不冻结、台词自然念完。
+    - **TTS 兜底**(无 mp3)才重念,且 `restartBeatClock()` 把 beat 时钟归零(相机+overlay+旁白同步重跑,不冻结)。
+    - **不变量保护**:`pause()` 幂等;`checkBeatDone()` 开头 `if (paused) return` → **暂停期间任何门都不推进 beat**(跟 AI 聊多久都不丢拍)。
+  - **headless 不变量测试**:`frontend/luna-tour-pause.invariant.mts`(`npx tsx` 跑,stub performance/rAF/Audio/speechSynthesis)→ **22/22 全过**:mp3 就地恢复不新建元素、长暂停(70s>backstop)不推进、camera 恢复后继续动、反复横跳 6 次时钟不串、backstop 仍能兜住真卡死(>60s)、TTS 重念后镜头不冻。
+- **任务3 CC 可点 ✅**:暂停时主地图工具占据**上方左右两角**(filter pills 左上 / metric+POI 右上),CC/mute 原在右上被挡。**挪到底部右角**(`bottom:18px; right:16px/62px`,z-index 9 + pointer-events auto)→ 所有状态都不冲突、始终可点、不随状态跳位。ended 态隐藏(replay 屏干净)。
+- **任务2 字幕变小 ✅**:`.lt-subtitle` 字号 `clamp(15,2.4vw,20)`→`clamp(12,1.6vw,15)`、底色 0.62→0.42、padding 收窄、位置降到 `bottom:64px`、字重 600→500;保留阴影(卫星可读)。
+- **任务4 mobile ✅**:`@media(max-width:640px)` 加:章节条 `94vw`/gap6,**仅当前章节显示名字**(其余只剩进度条)不挤屏;CC/mute 缩到 34px 更靠角;字幕 `bottom:56px`/90% 宽。
+- 前端 `npx tsc --noEmit` 0 错 + `vite build` 通过(2557 模块)。**纯前端,push 自动 deploy,后端无需动。**
+- **仍需真机肉眼复验**:暂停→恢复镜头是否真的无缝续转、跟 Luna 说完恢复是否无缝、底部右角 CC/mute 不被任何工具挡、手机章节条/字幕观感。手感旋钮见 polish-plan §旋钮速查。
+
+
+
 > 更新:2026-06-01(经纪台多页重构 + AI 选房报告/匹配;前后端 tsc + vite build 全绿、端点真实 200)
 >
 > ## 2026-06-01 本次 pick up(经纪台 hub 重构,已验证)

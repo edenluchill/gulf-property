@@ -79,13 +79,17 @@ const voiceTools = [
       },
       {
         name: 'show_nearby_pois',
-        description: 'Show nearby amenities on the map: schools, hospitals, malls, metro stations, restaurants. Use when user asks about facilities near a location.',
+        description: 'Show (or hide) a category of points-of-interest on the map as labeled markers. Drives the SAME map filter the customer can toggle by hand. Use when asked to show/hide schools, hospitals, malls, parks, restaurants, etc. near a location. Pass hide=true to hide a category.',
         parameters: {
           type: Type.OBJECT,
           properties: {
             category: {
               type: Type.STRING,
-              description: 'Category: "school", "hospital", "mall", "metro_station", "restaurant", "supermarket", "gym", "park"'
+              description: 'Category: hospital, clinic, pharmacy, school, university, mall, supermarket, restaurant, cafe, bank, atm, gas_station, hotel, mosque, church, park, gym, beach, cinema, police, fire_station, post_office, embassy'
+            },
+            hide: {
+              type: Type.BOOLEAN,
+              description: 'Set true to HIDE this category instead of showing it'
             }
           },
           required: ['category']

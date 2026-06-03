@@ -888,7 +888,9 @@ function MapViewMapLibre({
           },
           ...voiceAmenities.spokes.map(s => ({
             type: 'Feature' as const,
-            properties: { kind: 'amenity', label: `${s.label} ${s.distanceKm}km` },
+            // name = the REAL nearby POI (e.g. "Canadian University Dubai"), so the
+            // line clearly lands on a real place, not seemingly-empty land.
+            properties: { kind: 'amenity', label: `${s.label} ${s.distanceKm}km`, name: s.name },
             geometry: { type: 'Point' as const, coordinates: [s.lng, s.lat] }
           }))
         ]
@@ -1486,7 +1488,11 @@ function MapViewMapLibre({
               }}
             />
 
-            {/* Station labels - show at higher zoom */}
+            {/* Station labels - show at higher zoom. Hidden during cinematic tour
+                playback (chromeless): the seeded names are placeholders ("New Stop
+                N") and read as debug noise over the immersive view. Station dots +
+                route lines stay; names return on pause. */}
+            {!chromeless && (
             <Layer
               id="transport-stations-labels"
               type="symbol"
@@ -1514,6 +1520,7 @@ function MapViewMapLibre({
                 'text-halo-width': 2
               }}
             />
+            )}
 
           </Source>
         )}
@@ -1553,6 +1560,29 @@ function MapViewMapLibre({
                   13, 1,  // zoom 13: small padding
                   14, 0   // zoom >= 14: no padding
                 ]
+              }}
+            />
+            {/* POI names — only at high zoom so they don't crowd the map. Lets the
+                AI demo point at a real named place ("GEMS School") instead of a bare
+                icon. text-optional drops labels that would collide. */}
+            <Layer
+              id="poi-labels"
+              type="symbol"
+              minzoom={14.5}
+              layout={{
+                'text-field': ['get', 'name'],
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 10, 17, 13],
+                'text-offset': [0, 1.2],
+                'text-anchor': 'top',
+                'text-max-width': 8,
+                'text-allow-overlap': false,
+                'text-optional': true
+              }}
+              paint={{
+                'text-color': ['get', 'color'],
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 1.8
               }}
             />
           </Source>
@@ -1654,6 +1684,24 @@ function MapViewMapLibre({
                   'text-anchor': 'top'
                 }}
                 paint={{ 'text-color': '#065f46', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
+              />
+              {/* real POI name at each amenity endpoint — so "学校 0.42km" visibly
+                  lands on "Canadian University Dubai", not seemingly-empty land */}
+              <Layer
+                id="amenity-poi-label"
+                type="symbol"
+                filter={['==', ['get', 'kind'], 'amenity']}
+                layout={{
+                  'text-field': ['get', 'name'],
+                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-size': 11,
+                  'text-offset': [0, 1.1],
+                  'text-anchor': 'top',
+                  'text-max-width': 9,
+                  'text-allow-overlap': false,
+                  'text-optional': true
+                }}
+                paint={{ 'text-color': '#b45309', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
               />
             </Source>
           </>

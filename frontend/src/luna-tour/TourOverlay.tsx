@@ -50,6 +50,7 @@ export default function TourOverlay({
   onTransit,
   onAreaMetric,
   onPins,
+  onPoiCategory,
 }: {
   code: string
   mapRef: React.RefObject<MapTourHandle | null>
@@ -63,6 +64,8 @@ export default function TourOverlay({
   onAreaMetric?: (metric: string | null) => void
   /** report the tour's properties so the main map renders only these native pins */
   onPins?: (pins: import('../lib/api').MapPinProject[]) => void
+  /** drive the host map's POI category filter (same filter the customer toggles) */
+  onPoiCategory?: (category: string, hide?: boolean) => void
 }) {
   const navigate = useNavigate()
   const { enter, exit, setToolsRevealed } = useTourMode()
@@ -92,7 +95,8 @@ export default function TourOverlay({
     })
 
   // Live Q&A (§4.6): connects to Gemini Live when the customer asks. Self-contained.
-  const live = useTourLive(() => mapRef.current)
+  // onPoiCategory lets the Live AI drive the same POI filter the customer toggles.
+  const live = useTourLive(() => mapRef.current, onPoiCategory)
 
   // enter/exit tour mode (hides app chrome via Layout)
   useEffect(() => {
@@ -254,10 +258,26 @@ export default function TourOverlay({
       onUpdate: (s) => setSnap(s),
       amenityById: amenityRef.current,
       sink: {
-        measure: (pts) => onMeasure?.(pts),
-        amenities: (p) => onAmenities?.(p),
-        transit: (on) => onTransit?.(on),
-        areaMetric: (m) => onAreaMetric?.(m),
+        // After toggling a host-map data layer (distance lines / amenity radial /
+        // transit routes / area heatmap), re-assert the tour stacking so the metro
+        // routes never cover the distance lines or the property pins. The host
+        // layers mount async (react-map-gl), so raiseTourLayers() self-retries.
+        measure: (pts) => {
+          onMeasure?.(pts)
+          mapRef.current?.raiseTourLayers()
+        },
+        amenities: (p) => {
+          onAmenities?.(p)
+          mapRef.current?.raiseTourLayers()
+        },
+        transit: (on) => {
+          onTransit?.(on)
+          mapRef.current?.raiseTourLayers()
+        },
+        areaMetric: (m) => {
+          onAreaMetric?.(m)
+          mapRef.current?.raiseTourLayers()
+        },
       },
     })
     engineRef.current = engine
@@ -456,15 +476,15 @@ export default function TourOverlay({
         </div>
       </div>
 
-      {/* mute */}
-      {started && (
+      {/* mute (bottom-right; hidden on the replay screen) */}
+      {started && state !== 'ended' && (
         <button className="lt-mute" onClick={() => engineRef.current?.toggleMute()}>
           {snap?.muted ? '🔇' : '🔊'}
         </button>
       )}
 
       {/* subtitles toggle (sits left of mute) */}
-      {started && (
+      {started && state !== 'ended' && (
         <button
           className={`lt-cc ${subtitlesOn ? 'on' : ''}`}
           onClick={toggleSubtitles}

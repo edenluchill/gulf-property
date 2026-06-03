@@ -103,14 +103,22 @@ export const voiceAssistantTools = [
       },
       {
         name: 'show_nearby_pois',
-        description: 'Show points of interest near the current map view',
+        description: 'Show (or hide) a category of points-of-interest on the map as labeled markers. The customer can also toggle these same categories from the map filter, so this drives the SAME filter the user sees. Use when asked to "show the schools / hospitals / malls / parks nearby", or "hide the restaurants". To hide a category, pass hide=true.',
         parameters: {
           type: 'object',
           properties: {
             category: {
               type: 'string',
-              enum: ['hospital', 'school', 'university', 'mall', 'supermarket', 'metro_station', 'restaurant', 'park', 'beach', 'gym'],
-              description: 'Category of POIs to show'
+              enum: [
+                'hospital', 'clinic', 'pharmacy', 'school', 'university', 'mall', 'supermarket',
+                'restaurant', 'cafe', 'bank', 'atm', 'gas_station', 'hotel', 'mosque', 'church',
+                'park', 'gym', 'beach', 'cinema', 'police', 'fire_station', 'post_office', 'embassy'
+              ],
+              description: 'Category of POIs to show/hide on the map'
+            },
+            hide: {
+              type: 'boolean',
+              description: 'Set true to HIDE this category instead of showing it (default false = show)'
             },
             radius_meters: {
               type: 'number',
@@ -378,12 +386,14 @@ export async function executeTool(
     // --- Pure frontend actions (no DB needed) ---
 
     case 'show_nearby_pois': {
+      const hide = params.hide === true
       return {
-        result: { category: params.category, radius: params.radius_meters || 2000 },
-        summary: `Showing ${params.category}s on the map.`,
+        result: { category: params.category, hide, radius: params.radius_meters || 2000 },
+        summary: hide ? `Hiding ${params.category}s on the map.` : `Showing ${params.category}s on the map.`,
         mapAction: {
           type: 'show_pois',
           category: params.category,
+          hide,
           radius: params.radius_meters || 2000
         }
       }

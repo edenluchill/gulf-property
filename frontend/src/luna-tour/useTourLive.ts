@@ -55,6 +55,21 @@ const TOUR_TOOLS = [
           required: ['area'],
         },
       },
+      {
+        name: 'show_nearby_pois',
+        description: 'Show (or hide) a category of points-of-interest on the map as labeled markers — the SAME filter the customer can toggle by hand. Use for "show the schools / hospitals / malls / parks nearby" or "hide the restaurants". Pass hide=true to hide.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            category: {
+              type: Type.STRING,
+              description: 'hospital, clinic, pharmacy, school, university, mall, supermarket, restaurant, cafe, bank, atm, gas_station, hotel, mosque, church, park, gym, beach, cinema, police, fire_station, post_office, embassy',
+            },
+            hide: { type: Type.BOOLEAN, description: 'true → hide this category instead of showing it' },
+          },
+          required: ['category'],
+        },
+      },
     ],
   },
 ]
@@ -66,7 +81,10 @@ interface TourLiveContext {
   spokenSoFar?: string
 }
 
-export function useTourLive(getMap: () => MapTourHandle | null) {
+export function useTourLive(
+  getMap: () => MapTourHandle | null,
+  onPoiCategory?: (category: string, hide?: boolean) => void
+) {
   const [phase, setPhase] = useState<TourLivePhase>('idle')
   const [lastReply, setLastReply] = useState('')
   const sessionRef = useRef<{ close: () => void; sendRealtimeInput: (i: unknown) => void; sendToolResponse: (r: unknown) => void } | null>(null)
@@ -75,9 +93,16 @@ export function useTourLive(getMap: () => MapTourHandle | null) {
   const connectingRef = useRef(false)
 
   const routeMapAction = useCallback(
-    (action: { type?: string; points?: [number, number][]; center?: [number, number]; spokes?: { label: string; distance_km?: number; distanceKm?: number }[]; score?: number; tier?: string; lat?: number; lng?: number; zoom?: number }) => {
+    (action: { type?: string; points?: [number, number][]; center?: [number, number]; spokes?: { label: string; distance_km?: number; distanceKm?: number }[]; score?: number; tier?: string; lat?: number; lng?: number; zoom?: number; category?: string; hide?: boolean }) => {
       const map = getMap()
-      if (!map || !action?.type) return
+      if (!action?.type) return
+      // POI filter is host-map state (not a tour-map overlay) → route to the
+      // shared filter the customer also controls, even if the map handle is null.
+      if (action.type === 'show_pois' && action.category) {
+        onPoiCategory?.(action.category, action.hide)
+        return
+      }
+      if (!map) return
       if (action.type === 'measure_distance' && action.points?.length) {
         const [hub, ...rest] = action.points
         rest.forEach((to) => map.drawDistanceLine({ from: hub, to, label: '' }))
@@ -92,7 +117,7 @@ export function useTourLive(getMap: () => MapTourHandle | null) {
         void map.flyTo({ center: [action.lng, action.lat], zoom: action.zoom ?? 14, pitch: 55, duration: 1800 })
       }
     },
-    [getMap]
+    [getMap, onPoiCategory]
   )
 
   const executeTool = useCallback(async (toolName: string, params: unknown): Promise<unknown> => {

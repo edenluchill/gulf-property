@@ -293,12 +293,13 @@ export default function MapPage() {
 
       case 'show_pois':
         if (action.category) {
-          // Enable the POI category
+          // Toggle the SAME POI filter the customer controls (single source of
+          // truth). hide=true removes the category; otherwise add it.
+          const cat = action.category as PoiCategory
           setEnabledPoiCategories(prev => {
-            if (!prev.includes(action.category as PoiCategory)) {
-              return [...prev, action.category as PoiCategory]
-            }
-            return prev
+            const next = action.hide ? prev.filter(c => c !== cat) : (prev.includes(cat) ? prev : [...prev, cat])
+            localStorage.setItem('map-poi-categories', JSON.stringify(next))
+            return next
           })
         }
         break
@@ -729,6 +730,7 @@ export default function MapPage() {
               onTransit={(on) => setShowTransit(on)}
               onAreaMetric={(m) => setAreaMetric((m as AreaMetric) ?? 'none')}
               onPins={setTourPins}
+              onPoiCategory={(category, hide) => handleVoiceMapAction({ type: 'show_pois', category, hide })}
             />
           )}
 

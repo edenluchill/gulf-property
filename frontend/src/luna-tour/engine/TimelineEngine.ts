@@ -129,7 +129,10 @@ export class TimelineEngine {
   private narrationDone = false
   private minTimeDone = false
   private resolveBeat: (() => void) | null = null
-  private backstop: number | null = null
+  // Safety backstop as a beatElapsed THRESHOLD (not a wall-clock timer): it's
+  // checked inside the rAF tick, so it freezes with the clock on pause and can
+  // never advance a beat while paused / while the customer talks to Luna.
+  private backstopMs = MAX_BEAT_MS
 
   constructor(deps: EngineDeps) {
     this.script = deps.script
@@ -183,16 +186,36 @@ export class TimelineEngine {
     if (this.paused) {
       this.paused = false
       this.setState(this.computeState(this.curIndex))
-      this.beatClockStart = performance.now() - this.beatElapsed
-      // re-speak the current beat's narration from the start (we hard-stopped it
-      // on pause; resuming a half-spoken TTS utterance is unreliable across
-      // browsers and was causing "still talking after pause").
       const seg = this.segments[this.curIndex]
-      if (seg && !this.narrationDone) {
-        this.audio.play(seg.beat.narration, seg.beat.audio_url, () => {
-          this.narrationDone = true
-          this.checkBeatDone()
-        })
+      if (this.audio.resumePlayback()) {
+        // mp3/wav resumed EXACTLY where it paused → continue the SAME clock from
+        // the frozen elapsed; camera, overlays and audio stay in perfect
+        // lock-step. The line finishes naturally and the camera keeps moving.
+        this.beatClockStart = performance.now() - this.beatElapsed
+      } else if (seg && !this.narrationDone) {
+        // TTS (or a cancelled clip) can't resume mid-utterance → restart THIS
+        // beat from 0 so re-spoken narration + camera + overlays run together on
+        // the one clock (no frozen camera, no desync). camScale is recomputed
+        // when the real clip length re-loads.
+        this.restartBeatClock(seg)
+        this.audio.play(
+          seg.beat.narration,
+          seg.beat.audio_url,
+          () => {
+            this.narrationDone = true
+            this.checkBeatDone()
+          },
+          (durationMs) => {
+            this.armBackstop(Math.max(MAX_BEAT_MS, durationMs + AUDIO_BACKSTOP_PAD_MS))
+            if (this.camTrack && this.camTrack.duration > 0) {
+              this.camScale = Math.max(0.05, durationMs / this.camTrack.duration)
+            }
+          }
+        )
+      } else {
+        // narration already finished (silent / muted / clip ended) → just keep
+        // the clock running so the camera completes its move.
+        this.beatClockStart = performance.now() - this.beatElapsed
       }
       this.startClock()
       this.emit()
@@ -202,15 +225,32 @@ export class TimelineEngine {
   }
 
   pause() {
-    if (this.state === 'ended') return
+    if (this.state === 'ended' || this.paused) return // idempotent
     this.paused = true
-    // Freeze the ONE clock → camera stops sampling, overlays freeze, all together.
+    // Freeze the ONE clock → camera stops sampling, overlays freeze, the backstop
+    // threshold freezes — all together. checkBeatDone() also refuses to advance
+    // while paused, so the beat is preserved no matter how long the pause lasts
+    // (e.g. a full Live Q&A conversation).
     this.stopClock()
     this.beatElapsed = performance.now() - this.beatClockStart
-    // Hard-stop audio (cancels TTS queue) so nothing "talks after pause".
-    this.audio.stop()
+    // Pause audio in place when it's a resumable clip (mp3/wav); cancel TTS.
+    this.audio.pausePlayback()
     this.setState('paused')
     this.emit()
+  }
+
+  /** Restart the current beat's clock from 0 (TTS narration must be re-spoken on
+   *  resume): re-snap the camera to its start, un-fire cues, drop this beat's
+   *  transient overlays — so narration + camera + overlays run together again. */
+  private restartBeatClock(seg: Segment) {
+    this.beatElapsed = 0
+    this.beatClockStart = performance.now()
+    this.minTimeDone = false
+    for (const c of this.beatCues) c.fired = false
+    this.activeOverlays = this.activeOverlays.filter(
+      (o) => STICKY_OVERLAYS.has(o.overlay.type) || !o.key.startsWith(seg.key + ':')
+    )
+    if (this.camTrack?.initial) this.map.jumpTo(this.camTrack.initial)
   }
 
   enterAsking() {
@@ -346,14 +386,9 @@ export class TimelineEngine {
     })
   }
 
-  /** (Re)arm the single safety backstop for the current beat. */
+  /** (Re)arm the single safety backstop (a beatElapsed threshold) for this beat. */
   private armBackstop(ms: number) {
-    if (this.backstop) clearTimeout(this.backstop)
-    this.backstop = window.setTimeout(() => {
-      this.narrationDone = true
-      this.minTimeDone = true
-      this.checkBeatDone()
-    }, ms)
+    this.backstopMs = ms
   }
 
   private startClock() {
@@ -385,6 +420,13 @@ export class TimelineEngine {
         // camera track exhausted — contributes to "beat done" via checkBeatDone
         this.checkBeatDone()
       }
+      // 4) safety backstop — same clock, so it can't fire while paused. Bounds a
+      //    stall (audio never reports `ended`); never cuts a finished line.
+      if (this.beatElapsed >= this.backstopMs) {
+        this.narrationDone = true
+        this.minTimeDone = true
+        this.checkBeatDone()
+      }
       this.maybeEmit()
       this.raf = requestAnimationFrame(tick)
     }
@@ -399,8 +441,9 @@ export class TimelineEngine {
   }
 
   private checkBeatDone() {
+    if (this.paused || !this.resolveBeat) return // never advance a beat while paused
     const cameraDone = !this.camTrack || this.beatElapsed >= this.camTrack.duration * this.camScale
-    if (this.narrationDone && this.minTimeDone && cameraDone && this.resolveBeat) {
+    if (this.narrationDone && this.minTimeDone && cameraDone) {
       // chain the next beat's camera entry from where this one ended
       if (this.camTrack) this.camEntry = finalState(this.camTrack) ?? this.camEntry
       const r = this.resolveBeat
@@ -412,10 +455,7 @@ export class TimelineEngine {
   /** Cancel current-beat machinery without resolving (or after resolving). */
   private abortBeat(resolved = false) {
     this.stopClock()
-    if (this.backstop) {
-      clearTimeout(this.backstop)
-      this.backstop = null
-    }
+    this.backstopMs = MAX_BEAT_MS
     if (!resolved) this.audio.stop()
     this.resolveBeat = null
   }

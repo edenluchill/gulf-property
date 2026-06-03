@@ -79,6 +79,8 @@ export interface MapAction {
   zoom?: number
   bounds?: { sw: [number, number]; ne: [number, number] }
   category?: string
+  /** show_pois: true → hide this category instead of showing it */
+  hide?: boolean
   radius?: number
   areaId?: string
   areas?: string[]

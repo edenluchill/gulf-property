@@ -49,6 +49,10 @@ export interface MapTourHandle {
   setPropertyPins(pins: { id: string; coord: LngLat; label?: string; image?: string | null }[]): void
   /** pulse a single focus ring at a coord (current property). null clears it. */
   pulseAt(coord: LngLat | null): void
+  /** Re-assert the canonical tour stacking (pins > distance lines/labels > transit
+   *  routes > area). Call after the host map toggles transit/measure/amenity (they
+   *  mount on top asynchronously). Self-retries briefly to catch the async mount. */
+  raiseTourLayers(): void
   clearOverlays(): void
   setStyle(style: 'dark' | 'default'): void
   resize(): void
@@ -70,6 +74,28 @@ const EASINGS: Record<string, (t: number) => number> = {
   easeOut: (t) => t * (2 - t),
   easeInOut: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
 }
+
+/**
+ * Canonical bottom→top stacking the tour must keep on the SHARED main map. The
+ * host map (MapViewMapLibre) draws distance/amenity lines + labels via its
+ * `measure-*` / `amenity-*` layers, and transit routes via `transport-*`. When
+ * transit toggles on mid-tour, react-map-gl mounts it on top and covers the
+ * distance lines + the GL pins. We fix it deterministically by moving these
+ * layers back to the top in order whenever the host stack changes. Layers not
+ * present are skipped. (The standalone TourMap has no host measure tool; its own
+ * lt-dist / lt-spokes line layers are appended dynamically below.) */
+const HOST_DISTANCE_LAYERS = [
+  'measure-line-layer',
+  'measure-seg-label',
+  'measure-points-layer',
+  'amenity-lines-layer',
+  'amenity-lines-label',
+  'amenity-points-layer',
+  'amenity-center-label',
+  'amenity-poi-label',
+  'poi-circles',
+  'poi-labels',
+]
 
 export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   const { getMap, accent } = deps
@@ -104,6 +130,39 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       cancelAnimationFrame(rafId)
       rafId = null
     }
+  }
+
+  // ---- layer stacking (pins > distance > transit > area), see HOST_DISTANCE_LAYERS ----
+  let raiseTimer: number | null = null
+  const raiseNow = () => {
+    const map = getMap()
+    if (!map || !map.isStyleLoaded()) return
+    // bottom→top: host distance lines, then standalone lt-* lines, focus ring, pins.
+    // moveLayer() with no beforeId lifts each to the very top in turn → final stack
+    // is exactly this order, above transit/area/poi.
+    const order = [...HOST_DISTANCE_LAYERS, ...overlayLayerIds, 'lt-focus-ring', PROP_LAYER]
+    for (const id of order) {
+      if (map.getLayer(id)) {
+        try {
+          map.moveLayer(id)
+        } catch {
+          /* layer mid-removal — ignore */
+        }
+      }
+    }
+  }
+  /** Re-assert + briefly retry (host transit/measure layers mount async via
+   *  react-map-gl, after the synchronous beat-enter that triggered them). */
+  const raiseTourLayers = () => {
+    raiseNow()
+    if (raiseTimer) clearTimeout(raiseTimer)
+    let n = 0
+    const tick = () => {
+      raiseNow()
+      if (++n < 6) raiseTimer = window.setTimeout(tick, 60)
+      else raiseTimer = null
+    }
+    raiseTimer = window.setTimeout(tick, 50)
   }
 
   function flyTo(o: {
@@ -170,6 +229,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       paint: { 'line-color': accent, 'line-width': 3, 'line-opacity': 0.9, 'line-blur': 1.5 },
     })
     overlayLayerIds.push(id)
+    raiseNow()
     const start = performance.now()
     const dur = 900
     const animate = (now: number) => {
@@ -210,6 +270,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       paint: { 'line-color': accent, 'line-width': 2, 'line-opacity': 0.7, 'line-blur': 1 },
     })
     overlayLayerIds.push(id)
+    raiseNow()
     const el = document.createElement('div')
     el.className = 'lt-score-chip'
     el.style.setProperty('--lt-accent', accent)
@@ -253,6 +314,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
         'circle-stroke-opacity': 0.9,
       },
     })
+    raiseNow()
     const start = performance.now()
     const tick = () => {
       const m = getMap()
@@ -308,6 +370,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     const src = map.getSource(PROP_SRC) as maplibregl.GeoJSONSource | undefined
     if (src) {
       src.setData(fc)
+      raiseNow()
       return
     }
     map.addSource(PROP_SRC, { type: 'geojson', data: fc })
@@ -323,6 +386,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
         'icon-ignore-placement': true,
       },
     })
+    raiseNow()
   }
 
   function addLabelPin(map: MaplibreMap, at: LngLat, label: string) {
@@ -374,6 +438,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     highlightPins,
     setPropertyPins,
     pulseAt,
+    raiseTourLayers,
     clearOverlays,
     setStyle,
     resize,
