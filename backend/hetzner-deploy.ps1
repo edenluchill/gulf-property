@@ -168,7 +168,9 @@ Write-Success "Using production environment: $ENV_FILE"
 # Detect port
 $APP_PORT = 3000
 $envContent = Get-Content $ENV_FILE -Raw
-if ($envContent -match "PORT=(\d+)") {
+# Anchor to start-of-line (multiline) so we match the app's own PORT= and NOT
+# DB_PORT=5432 (the substring "PORT=5432" would otherwise win).
+if ($envContent -match "(?m)^PORT=(\d+)") {
     $APP_PORT = [int]$matches[1]
     Write-Info "Detected application port: $APP_PORT"
 }

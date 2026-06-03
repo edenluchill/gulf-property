@@ -2,6 +2,18 @@
 
 > 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
 
+## 2026-06-02 真机打磨第十轮(统一 POI filter:客户可勾 + 任何 AI 可调 + 部署后端)
+- **目标**:POI 筛选既能客户手动 apply,又能**任何 AI**(主语音助手 + 导览 Live)调用,同一套数据源。
+- **单一数据源** = MapPage `enabledPoiCategories`(已有 localStorage 持久化)。客户 UI(`QUICK_BUTTONS` 医院/学校/超市 + `showPoiPanel` 全分类面板,暂停态 `toolsRevealed` 时可见)已写它。
+- **改动**:
+  - 后端 `voice-assistant-tools.ts` `show_nearby_pois`:类别枚举扩到全部 23 类 + 加 `hide` 参数 → mapAction `{type:'show_pois',category,hide}`。（**需部署后端**）
+  - `MapAction` 类型 + `VoiceAssistantContext`(主语音助手工具声明)加 `hide` + 扩类别;MapPage `handleVoiceMapAction` 的 `show_pois` 支持 add/remove(写 `enabledPoiCategories` + 持久化,functional updater 内持久化避免 stale)。
+  - 导览 Live(`useTourLive`):加同名 `show_nearby_pois` 工具声明 + `onPoiCategory` 回调参数;`routeMapAction` 把 `show_pois` 路由到该回调(POI 是 host 地图 state，即使 tour map handle 为空也路由)。`TourOverlay` 透传 `onPoiCategory`，MapPage 用 `(cat,hide)=>handleVoiceMapAction({type:'show_pois',category:cat,hide})` 接上 → **导览 Live AI 与主 AI 驱动同一筛选**。
+  - POI 图标抬升(`poi-circles`/`poi-labels` 进 `HOST_DISTANCE_LAYERS`）→ 压过地铁线。
+- **部署**:前端 push main 自动 deploy；后端跑 `backend/hetzner-deploy.ps1`。
+  - **修了两个部署脚本坑**:① 启动时勿加 `*>&1`（会把 hcloud stderr 进度在 `$ErrorActionPreference=Stop` 下当终止错误，卡在 firewall 同步）；② `APP_PORT` 检测 `PORT=(\d+)` 误匹配 `DB_PORT=5432` → 改 `(?m)^PORT=`（否则防火墙开错端口、LB 连不上 app）。
+- 前后端 tsc + 前端 build + 暂停不变量 22/22 全绿。
+
 ## 2026-06-02 真机打磨第九轮(POI 真名显示 — 证明配套真实)
 - **用户疑问**:距离线("学校 0.42km / 医院 0.93km")连到看似空地,是瞎编还是真有?
 - **核实(查 DB demo session.snapshot.distances)**:**全是真实 POI**,后端 `session-builder.fetchNearby` 用 PostGIS 查真实 `dubai_pois` 表取每类最近 POI(真名+真坐标+真距离)。如 🏫学校=Canadian University Dubai(0.42km)、🏥医院=Mediclinic(0.93km)、🚇地铁=Dubai Mall/Burj Khalifa、🛍️商场=Business Time Centre、🛒超市=Silver Life Mini Market。前端 `fetchAmenity` 同样走真实 `/api/dubai-pois/near`。
