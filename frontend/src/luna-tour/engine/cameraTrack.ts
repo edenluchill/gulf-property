@@ -113,11 +113,19 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       // already over the property).
       if (!moved && !zoomed) continue
       const to: CameraState = { center: cam.to, zoom: ARRIVAL_ZOOM, pitch: 55, bearing: cur.bearing }
-      // Distance-aware duration so a long hop isn't a rushed streak. NO pull-back
-      // zoom-out arc — it read as a dizzying "zoom out then back in"; just a smooth
-      // direct ease (plain lerp branch in sampleAt).
+      // Distance-aware duration so a long hop isn't a rushed streak.
       const flyDur = Math.max(dur, Math.min(6000, 2600 + distDeg * 22000))
-      segs.push({ start: t, end: t + flyDur, from: cur, to })
+      if (moved) {
+        // Property→property hop: RISE to a high overview at mid-flight so the
+        // viewer sees roughly WHERE the next home is, then descend into it —
+        // never a flat low pan ("挑高再拉近,不要平移"). Bigger rise for longer
+        // hops. (In-place arrivals skip the arc → straight push-in.)
+        const pull = Math.min(5.5, Math.max(2.5, distDeg * 15))
+        const midZoom = Math.max(9.5, Math.min(cur.zoom, to.zoom) - pull)
+        segs.push({ start: t, end: t + flyDur, from: cur, to, arc: true, midZoom })
+      } else {
+        segs.push({ start: t, end: t + flyDur, from: cur, to })
+      }
       cur = to
       t += flyDur
     } else {
