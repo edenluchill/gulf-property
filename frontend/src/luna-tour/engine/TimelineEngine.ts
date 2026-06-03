@@ -56,6 +56,13 @@ export interface EngineSnapshot {
 
 /** Min visual dwell so a near-silent beat doesn't flash by (ms). */
 const MIN_BEAT_MS = 1500
+/** Gentle, CONSISTENT cinematic rotation. The engine drives bearing itself at
+ *  this fixed rate (real time, NOT time-warped) and carries it across beats, so
+ *  every property rotates at the same calm speed regardless of audio length or
+ *  the AI's authored orbit `degrees` (which ranged 24°–180° → dizzy + uneven),
+ *  and the bearing NEVER snaps between beats (fixes the "blink/jump" on the
+ *  numbers beat). Authored camera still controls center/zoom/pitch. */
+const ROTATE_DEG_PER_MS = 0.003 // 3°/sec
 /** Safety backstop FLOOR: pre-metadata / no-audio cap for one beat (ms). */
 const MAX_BEAT_MS = 60000
 /** Once real audio length is known, backstop = clipLen + this pad, floored at
@@ -125,6 +132,9 @@ export class TimelineEngine {
   // Time-warp factor: camera track is stretched so its motion runs for exactly
   // the narration (audio) length. 1 until the real audio duration is known.
   private camScale = 1
+  // running absolute bearing, advanced at ROTATE_DEG_PER_MS and CARRIED across
+  // beats (never reset mid-tour) so rotation is one continuous, even glide.
+  private camBearingBase = 0
   // gates
   private narrationDone = false
   private minTimeDone = false
@@ -280,6 +290,7 @@ export class TimelineEngine {
   replay() {
     this.paused = false
     this.camEntry = null
+    this.camBearingBase = 0
     void this.playFrom(0)
   }
 
@@ -342,8 +353,9 @@ export class TimelineEngine {
       // compile the camera track for this beat (single clock samples it)
       this.camTrack = compileCameraTrack(cameraCues, this.camEntry)
       this.camScale = 1 // until audio length is known (set in onMeta below)
-      // snap to its initial state instantly so the first frame is correct
-      if (this.camTrack.initial) this.map.jumpTo(this.camTrack.initial)
+      // snap to its initial state instantly so the first frame is correct — but
+      // keep the carried bearing (don't reset rotation at a beat boundary).
+      if (this.camTrack.initial) this.map.jumpTo({ ...this.camTrack.initial, bearing: this.camBearingBase })
 
       // gates
       this.narrationDone = false
@@ -398,10 +410,15 @@ export class TimelineEngine {
     const tick = () => {
       if (this.disposed || this.paused) return
       this.beatElapsed = performance.now() - this.beatClockStart
-      // 1) camera — sample the (time-warped) track at the SAME clock and apply.
+      // 1) camera — sample the (time-warped) track for center/zoom/pitch, but
+      //    drive BEARING ourselves at a constant gentle rate (carried across
+      //    beats) so rotation is even and never snaps.
       if (this.camTrack) {
         const cs = this.camTrack.sampleAt(this.beatElapsed / this.camScale)
-        if (cs) this.map.jumpTo(cs)
+        if (cs) {
+          cs.bearing = this.camBearingBase + ROTATE_DEG_PER_MS * this.beatElapsed
+          this.map.jumpTo(cs)
+        }
       }
       // 2) overlay cues at their at_ms
       for (const c of this.beatCues) {
@@ -446,6 +463,8 @@ export class TimelineEngine {
     if (this.narrationDone && this.minTimeDone && cameraDone) {
       // chain the next beat's camera entry from where this one ended
       if (this.camTrack) this.camEntry = finalState(this.camTrack) ?? this.camEntry
+      // carry the bearing forward so the next beat continues the same glide
+      this.camBearingBase = this.camBearingBase + ROTATE_DEG_PER_MS * this.beatElapsed
       const r = this.resolveBeat
       this.abortBeat(true)
       r()

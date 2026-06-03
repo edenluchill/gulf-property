@@ -31,12 +31,18 @@ export interface CameraState {
 
 const EASE = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) // easeInOut
 
-/** Gentle rotation added to an otherwise-static keyframe so it keeps drifting. */
+/** Marks a keyframe as a gentle "orbit" segment (center glides in). Bearing is
+ *  now driven by the ENGINE at a constant rate, so this value only selects the
+ *  smooth-center-glide sampling branch; its magnitude no longer sets rotation. */
 const AMBIENT_ORBIT_DEG = 24
 /** A flyover whose target is within ~this (deg ≈ 80m) of us is a no-op → drop. */
 const NOOP_MOVE_EPS = 0.0008
 /** Floor so a 0-duration cue still occupies a sliver of the track. */
 const MIN_CUE_MS = 800
+/** Don't let the camera pull wider than this — AI sometimes authors zoom 9 wide
+ *  establishing shots that, compressed into a short narration, read as a dizzying
+ *  zoom-out-then-in. Keep the framing tight + steady. */
+const MIN_TOUR_ZOOM = 10.8
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -77,7 +83,7 @@ export interface CameraTrack {
  * (gap-free); authored at_ms is not used for layout.
  */
 export function compileCameraTrack(cues: Camera[], entry: CameraState | null): CameraTrack {
-  const fallback: CameraState = { center: [55.27, 25.2], zoom: 12, pitch: 45, bearing: 0 }
+  const fallback: CameraState = { center: [55.27, 25.2], zoom: 11, pitch: 45, bearing: 0 }
   if (!cues.length) {
     return { duration: 0, sampleAt: () => null, initial: entry }
   }
@@ -107,20 +113,19 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       // already over the property).
       if (!moved && !zoomed) continue
       const to: CameraState = { center: cam.to, zoom: ARRIVAL_ZOOM, pitch: 55, bearing: cur.bearing }
-      // Distance-aware duration so a long hop isn't a rushed streak, + a pull-back
-      // arc (zoom out mid-flight) — cinematic AND fewer satellite tiles thrashing
-      // during the travel (was a big source of the "flicking"/abrupt feel).
+      // Distance-aware duration so a long hop isn't a rushed streak. NO pull-back
+      // zoom-out arc — it read as a dizzying "zoom out then back in"; just a smooth
+      // direct ease (plain lerp branch in sampleAt).
       const flyDur = Math.max(dur, Math.min(6000, 2600 + distDeg * 22000))
-      const pull = Math.min(4.5, distDeg * 90)
-      const midZoom = Math.min(cur.zoom, to.zoom) - pull
-      segs.push({ start: t, end: t + flyDur, from: cur, to, arc: moved, midZoom })
+      segs.push({ start: t, end: t + flyDur, from: cur, to })
       cur = to
       t += flyDur
     } else {
       // keyframe → a gentle continuous orbit so a "static" shot never freezes.
+      // Clamp zoom to the floor so AI-authored wide shots don't yo-yo the view.
       const to: CameraState = {
         center: cam.center ?? cur.center,
-        zoom: cam.zoom ?? cur.zoom,
+        zoom: Math.max(MIN_TOUR_ZOOM, cam.zoom ?? cur.zoom),
         pitch: cam.pitch ?? cur.pitch,
         bearing: (cam.bearing ?? cur.bearing) + AMBIENT_ORBIT_DEG,
       }

@@ -2,6 +2,19 @@
 
 > 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
 
+## 2026-06-02 真机打磨第十一轮(运镜:恒速旋转 + 去眩晕 zoom + 修 beat 闪现)
+- **真机报 3 个运镜问题**:① 旋转太快、每个房子转速不一样;② 开场快速 zoom out 再 zoom in,头晕;③ 讲完房子信息切到"投资增长潜力"(numbers beat)时 blink 然后闪现到某镜头,不 smooth。
+- **根因(查 demo 真实脚本数据坐实)**:
+  - ① arrival beat 是 AI 写的 `orbit degrees:180`(半圈),life/numbers 是注入的 24° ambient;再被 `camScale`(按音频时长缩放)放大 → 每 beat/房子转速都不同,180° 那段很快。
+  - ② intro 相机 `zoom:9` 广角 establishing → arrival `zoom:15`,且 intro 25s 相机被 camScale 压进短音频 → 快速 out-in。
+  - ③ **bearing 瞬跳 bug**:`cameraTrack` keyframe 分支 `to.bearing = cam.bearing(0)+24`,但采样用 `from.bearing + degrees`(相对)→ `finalState` 报 24° 而实际转到了 ~204° → 下个 beat `jumpTo` 把 bearing 从 204° 拉回 24° = 180° 瞬跳 = "闪现"。
+- **修法**:
+  - **引擎自驱 bearing**(`TimelineEngine`):`ROTATE_DEG_PER_MS=0.003`(3°/s)恒速、用真实 `beatElapsed`(不被 camScale 影响)、`camBearingBase` **跨 beat 连续不重置**(checkBeatDone 推进时累加;beat 起始 `jumpTo` 用 base 不用轨道 bearing)→ 一举修 ①(恒速一致)+ ③(永不瞬跳)。replay 时归零。
+  - `cameraTrack`:**去掉 flyover 拉远弧**(`arc`/`midZoom` 不再设 → 直接平滑 ease,不再 zoom-out-then-in)+ **zoom 下限钳制** `MIN_TOUR_ZOOM=10.8`(AI 的 zoom9 广角被夹到 10.8,开场不再 yo-yo)+ fallback zoom 12→11 → 修 ②。bearing 现由引擎驱动,轨道里的 ambient/orbit degrees 只用于选"中心滑入"采样分支,不再决定旋转。
+  - 不变量测试加 TEST 5:恒速 ~3°/s + 跨 beat 连续无瞬跳。**25/25 全过**。
+- 前端 tsc + vite build 全绿。**纯前端(无后端改动,无需部署后端);push 自动 deploy。**
+- **手感旋钮**:旋转速度 `TimelineEngine.ROTATE_DEG_PER_MS`;zoom 下限 `cameraTrack.MIN_TOUR_ZOOM`;到达 zoom `ARRIVAL_ZOOM`;flyover 时长公式在 cameraTrack flyover 分支。
+
 ## 2026-06-02 真机打磨第十轮(统一 POI filter:客户可勾 + 任何 AI 可调 + 部署后端)
 - **目标**:POI 筛选既能客户手动 apply,又能**任何 AI**(主语音助手 + 导览 Live)调用,同一套数据源。
 - **单一数据源** = MapPage `enabledPoiCategories`(已有 localStorage 持久化)。客户 UI(`QUICK_BUTTONS` 医院/学校/超市 + `showPoiPanel` 全分类面板,暂停态 `toolsRevealed` 时可见)已写它。

@@ -110,14 +110,16 @@ import type { TourScript, PropertySnapshot } from './src/luna-tour/types.ts'
 // ---- mocks ----
 let jumpToCount = 0
 let lastCenter: [number, number] | null = null
+let lastBearing = 0
 const map = new Proxy(
   {},
   {
     get(_t, prop) {
       if (prop === 'jumpTo')
-        return (s: { center: [number, number] }) => {
+        return (s: { center: [number, number]; bearing?: number }) => {
           jumpToCount++
           lastCenter = s.center
+          if (typeof s.bearing === 'number') lastBearing = s.bearing
         }
       return () => {}
     },
@@ -166,6 +168,7 @@ function freshEngine(audio = true) {
   FakeAudio.instances = []
   jumpToCount = 0
   lastCenter = null
+  lastBearing = 0
   now = 0
   rafMap.clear()
   let snap: { state: string; actIndex: number; segmentKey: string } | null = null
@@ -284,6 +287,35 @@ console.log('TEST 4 — TTS fallback resume restarts the beat clock (no frozen c
   const jumpsAfterResume = jumpToCount
   run(500)
   ok(jumpToCount > jumpsAfterResume, 'camera moving again after TTS resume (clock restarted, not frozen)')
+}
+
+// ========================================================================
+console.log('TEST 5 — bearing rotates at a constant rate AND never snaps between beats')
+{
+  const { engine, getSnap } = freshEngine(true)
+  engine.start()
+  const a0 = FakeAudio.instances[0]
+  a0.fireMeta(4)
+  run(1000)
+  const b1 = lastBearing
+  run(1000)
+  const b2 = lastBearing
+  // 3°/sec → ~3° per 1000ms (independent of the authored 60° orbit + camScale)
+  const rate = b2 - b1
+  ok(Math.abs(rate - 3) < 0.5, `constant ~3°/s rotation (measured ${rate.toFixed(2)}° over 1s)`)
+
+  // advance to the next beat; bearing must CARRY OVER continuously (no snap like
+  // the old 204°→24° jump that caused the "blink/flash")
+  const bBeforeAdvance = lastBearing
+  run(2500)
+  a0.fireEnded()
+  await settle()
+  const keyAfter = getSnap()?.segmentKey
+  run(120) // let the new beat emit a few camera frames
+  const bAfter = lastBearing
+  ok(keyAfter !== 'intro', 'advanced to the next beat')
+  ok(bAfter >= bBeforeAdvance - 0.2, `bearing kept climbing across the beat boundary (no snap-back): ${bBeforeAdvance.toFixed(1)}° -> ${bAfter.toFixed(1)}°`)
+  ok(bAfter - bBeforeAdvance < 30, 'no large bearing jump at the boundary')
 }
 
 console.log('')
