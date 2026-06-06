@@ -389,6 +389,73 @@ router.get('/sessions/:id/gen-status', async (req: Request, res: Response) => {
   }
 })
 
+/**
+ * E5 analytics→edit loop: turn engagement telemetry into an actionable hint —
+ * which stop held attention least / completion rate — so the agent knows what to
+ * improve. Reads lt_engagement_events (already flowing). Accepts id or share_code.
+ */
+router.get('/sessions/:id/insights', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const tot = await pool.query<{ opens: string; plays: string; completes: string }>(
+      `SELECT count(*) FILTER (WHERE event_type='open') AS opens,
+              count(*) FILTER (WHERE event_type='tour_play') AS plays,
+              count(*) FILTER (WHERE event_type='tour_complete') AS completes
+         FROM lt_engagement_events WHERE session_id=$1`,
+      [sessionId]
+    )
+    const per = await pool.query<{ project_id: string; dwell_ms: string; loves: string; views: string }>(
+      `SELECT project_id::text,
+              COALESCE(sum(dwell_ms) FILTER (WHERE event_type='property_dwell'), 0) AS dwell_ms,
+              count(*) FILTER (WHERE event_type='feedback') AS loves,
+              count(*) FILTER (WHERE event_type='property_view') AS views
+         FROM lt_engagement_events WHERE session_id=$1 AND project_id IS NOT NULL
+         GROUP BY project_id`,
+      [sessionId]
+    )
+    const names = await pool.query<{ project_id: string; name: string }>(
+      `SELECT project_id::text, snapshot->>'name' AS name FROM lt_session_properties WHERE session_id=$1`,
+      [sessionId]
+    )
+    const nameById = new Map(names.rows.map((n) => [n.project_id, n.name]))
+    const props = per.rows.map((r) => ({
+      project_id: r.project_id,
+      name: nameById.get(r.project_id) || '楼盘',
+      dwell_ms: Number(r.dwell_ms),
+      loves: Number(r.loves),
+      views: Number(r.views),
+    }))
+    const t = tot.rows[0]
+    const plays = Number(t?.plays ?? 0)
+    const completes = Number(t?.completes ?? 0)
+    const completionPct = plays ? Math.round((completes / plays) * 100) : null
+
+    let suggestion = '数据还不够(等更多客户观看后再看洞察)。'
+    if (plays >= 3) {
+      if (completionPct != null && completionPct < 50) {
+        suggestion = `完看率偏低(${completionPct}%)。开场或第一处可能太长——试试「短一点」或加段海景视频抓住注意力。`
+      } else if (props.length) {
+        const weakest = [...props].sort((a, b) => a.dwell_ms - b.dwell_ms)[0]
+        suggestion = `客户在「${weakest.name}」停留最短。考虑精简该段旁白、或加张实拍卡片让它更吸引。`
+      } else {
+        suggestion = '表现不错,完看率健康。可继续观察 ❤️ 与联系转化。'
+      }
+    }
+    res.json({
+      opens: Number(t?.opens ?? 0),
+      plays,
+      completes,
+      completionPct,
+      props: props.sort((a, b) => b.dwell_ms - a.dwell_ms),
+      suggestion,
+    })
+  } catch (err) {
+    console.error('[luna] insights error:', err)
+    res.status(500).json({ error: 'insights failed' })
+  }
+})
+
 // ──────────────────────────────────────────────────────────────────────────
 // E2 — comment-driven AI editing
 // ──────────────────────────────────────────────────────────────────────────

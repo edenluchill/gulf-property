@@ -68,6 +68,13 @@ export default function AgentTours() {
 
   const [eventsId, setEventsId] = useState<string | null>(null)
   const [events, setEvents] = useState<EventRow[]>([])
+  const [insights, setInsights] = useState<{
+    plays: number
+    completes: number
+    completionPct: number | null
+    props: { name: string; dwell_ms: number; loves: number }[]
+    suggestion: string
+  } | null>(null)
 
   // create form
   const [clientName, setClientName] = useState('')
@@ -310,6 +317,7 @@ export default function AgentTours() {
     }
     setEventsId(id)
     setEvents([])
+    setInsights(null)
     try {
       const r = await fetch(`${API}/sessions/${id}/events`)
       const d = await r.json()
@@ -317,6 +325,17 @@ export default function AgentTours() {
     } catch {
       setEvents([])
     }
+    try {
+      const ir = await fetch(`${API}/sessions/${id}/insights`)
+      if (ir.ok) setInsights(await ir.json())
+    } catch {
+      /* insights optional */
+    }
+  }
+
+  function fmtMin(ms: number): string {
+    const s = Math.round(ms / 1000)
+    return s >= 60 ? `${(s / 60).toFixed(1)}m` : `${s}s`
   }
 
   const fmtDwell = (ms: number) => (ms >= 60000 ? `${(ms / 60000).toFixed(1)}m` : `${Math.round(ms / 1000)}s`)
@@ -519,6 +538,28 @@ export default function AgentTours() {
                 {eventsId === s.id ? '收起' : '行为'}
               </button>
             </div>
+            {eventsId === s.id && insights && (
+              <div className="border-t border-slate-100 p-4 bg-indigo-50/40">
+                <div className="text-xs font-semibold text-indigo-700 mb-2">📊 洞察</div>
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-2">
+                  <span>观看 <b>{insights.plays}</b></span>
+                  <span>完看 <b>{insights.completes}</b></span>
+                  {insights.completionPct != null && <span>完看率 <b>{insights.completionPct}%</b></span>}
+                </div>
+                {insights.props.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {insights.props.map((p, i) => (
+                      <span key={i} className="text-xs bg-white border border-slate-200 rounded px-2 py-0.5">
+                        {p.name}: 停留 <b>{fmtMin(p.dwell_ms)}</b>{p.loves > 0 ? ` · ❤️${p.loves}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg px-3 py-2">
+                  💡 {insights.suggestion}
+                </div>
+              </div>
+            )}
             {eventsId === s.id && (
               <div className="border-t border-slate-100 p-4 bg-slate-50/50 max-h-72 overflow-y-auto">
                 {events.length === 0 ? (
