@@ -14,9 +14,10 @@ import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../lib/config'
 import OverlayLayer from './overlays/OverlayLayer'
 import GreetingScreen from './overlays/GreetingScreen'
+import EvidenceCard from './overlays/EvidenceCard'
 import { TimelineEngine, EngineSnapshot } from './engine/TimelineEngine'
 import type { MapTourHandle } from './map/mapTourHandle'
-import type { WatchPayload, PropertySnapshot, AmenityPayload } from './types'
+import type { WatchPayload, PropertySnapshot, AmenityPayload, MarketEvidence } from './types'
 import { fetchAmenity } from './amenities'
 import { useTourTelemetry } from './useTourTelemetry'
 import { useTourLive } from './useTourLive'
@@ -166,6 +167,39 @@ export default function TourOverlay({
         if (!Array.isArray(c)) return
         const a = await fetchAmenity(c[0], c[1], p.snapshot.name)
         if (alive && a) amenityRef.current.set(pidOf(p), a)
+      })
+    )
+    return () => {
+      alive = false
+    }
+  }, [data])
+
+  // Prefetch REAL DLD market evidence (last-30d sales volume / median psf /
+  // comparables) per property, so the investment beat can show sourced, verifiable
+  // numbers with no mid-tour lag. Keyed by project_id. (E1 credibility layer.)
+  const evidenceRef = useRef<Map<string, MarketEvidence>>(new Map())
+  const [, setEvidenceTick] = useState(0)
+  useEffect(() => {
+    if (!data) return
+    let alive = true
+    Promise.all(
+      data.properties.map(async (p) => {
+        const s = p.snapshot
+        const qs = new URLSearchParams()
+        if (s.name) qs.set('project', s.name)
+        if (s.area) qs.set('area', s.area)
+        if (![...qs.keys()].length) return
+        try {
+          const r = await fetch(`${API_BASE_URL}/api/luna/public/evidence?${qs.toString()}`)
+          if (!r.ok) return
+          const j = (await r.json()) as { evidence: MarketEvidence | null }
+          if (alive && j.evidence) {
+            evidenceRef.current.set(pidOf(p), j.evidence)
+            setEvidenceTick((n) => n + 1) // re-render so a visible beat picks it up
+          }
+        } catch {
+          /* evidence is best-effort — never blocks the tour */
+        }
       })
     )
     return () => {
@@ -438,6 +472,19 @@ export default function TourOverlay({
           onCta={handleCta}
         />
       )}
+
+      {/* E1 — real DLD market evidence beside the investment claim (when the
+          roi_card beat is active). Sourced + verifiable; falls back silently if
+          we have no evidence for this property. */}
+      {(() => {
+        const roi = snap?.overlays.find((o) => o.overlay.type === 'roi_card')
+        if (!roi || state === 'ended') return null
+        const pid =
+          (roi.overlay.type === 'roi_card' && roi.overlay.property_id) ||
+          (snap && snap.actIndex >= 0 ? data?.script.acts[snap.actIndex]?.property_id : undefined)
+        const ev = pid ? evidenceRef.current.get(pid) : undefined
+        return ev ? <EvidenceCard evidence={ev} accent={accent} /> : null
+      })()}
 
       {/* top CHAPTER bar — one chapter per home, labeled with its name. Tap to fly
           back/forward to that home. Replaces the abstract dot rows. */}

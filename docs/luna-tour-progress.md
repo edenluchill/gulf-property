@@ -2,6 +2,17 @@
 
 > 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
 
+## 2026-06-05 编辑/创作能力 — 愿景 + E1 证据层(护城河)
+- **方向**:从"能看的 demo"→"经纪能创作、客户能验证"。完整愿景 + 三维度 + 分阶段 E1-E5 见 `docs/luna-tour-editor-vision-2026-06-05.md`。用户拍板:先 E1;视频两者都要(R2+外链,E3 用);成交口径楼盘优先样本不足回退区域。
+- **E1 证据层(已实现,数据真实可溯源)**:
+  - **关键资产**:库里有 `dld_transactions` 150 万条真实迪拜土地局成交(最新 2026-05-17)+ `dld_rent_contracts`。
+  - 后端 `luna-tour/evidence.ts`:`getMarketEvidence({projectName,areaName,windowDays})` 查 `dld_transactions`(只读)→ 近30天成交量 + 中位 AED/sqft(`meter_sale_price` 是每㎡价,÷10.7639 换算)+ 3 条最近可比成交。**只算 `trans_group='Sales'`**(排除抵押/赠与);窗口锚定数据最新日期(DLD 有滞后);**楼盘优先,样本 <5 回退区域并标注口径**;带 source(DLD url + as_of)+ 中文免责。
+  - 公开端点 `GET /api/luna/public/evidence?project=&area=&windowDays=`(public-router,cache 1h)。
+  - 前端 `overlays/EvidenceCard.tsx` + `TourOverlay` 预取(按 project/area,keyed by project_id)+ 在 **投资(roi_card)beat** 出现时渲染右侧证据卡:成交量/中位psf/可比成交 + 「核验 →」跳 DLD + 口径标注 + 免责。**无需重生成脚本**(运行时取,旧 session/demo 直接生效)。
+  - **实测真实数据**:City Walk Crestlane 楼盘级 近30天 29 套、中位 3,370 psf、3 条可比;不存在楼盘正确回退区域;Business Bay 区域 508 套、中位 2,593 psf。
+  - 前后端 tsc + 前端 build + 暂停不变量 25/25 全绿。**后端新端点需部署;前端 push 自动。**
+  - 待续(E2-E5):评论式 AI 改稿、地点 stop+视频、手动故事板、多语言/分析闭环/fact-sheet。
+
 ## 2026-06-02 真机打磨第十一轮(运镜:恒速旋转 + 去眩晕 zoom + 修 beat 闪现)
 - **真机报 3 个运镜问题**:① 旋转太快、每个房子转速不一样;② 开场快速 zoom out 再 zoom in,头晕;③ 讲完房子信息切到"投资增长潜力"(numbers beat)时 blink 然后闪现到某镜头,不 smooth。
 - **根因(查 demo 真实脚本数据坐实)**:

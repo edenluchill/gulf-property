@@ -238,6 +238,19 @@ export interface AmenityPayload {
   spokes: AmenitySpoke[]
 }
 
+/** E1 — real, citable DLD market evidence (mirrors backend evidence.ts). */
+export interface MarketEvidence {
+  granularity: 'project' | 'area'
+  scope: string
+  window_days: number
+  window_end: string
+  volume: number
+  median_psf: number | null
+  comparables: { date: string; rooms: string | null; psf: number; worth: number; is_offplan: boolean }[]
+  source: { label: string; url: string; as_of: string }
+  disclaimer: string
+}
+
 /** A flattened, absolute-timed segment used by the playback engine. */
 export interface Segment {
   /** stable key: 'intro' | act index+beat id | 'outro' */

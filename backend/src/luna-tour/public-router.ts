@@ -16,6 +16,7 @@ import { Router, Request, Response } from 'express'
 import { createHash } from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
+import { getMarketEvidence } from './evidence'
 
 const router = Router()
 
@@ -305,6 +306,26 @@ router.get('/public/img', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] img proxy error:', err)
     res.status(502).end()
+  }
+})
+
+/**
+ * E1 evidence: real, citable DLD market data for a property (last-30d sales
+ * volume, median AED/sqft, recent comparables). Project-first, area fallback.
+ *   GET /api/luna/public/evidence?project=<name>&area=<name>&windowDays=30
+ */
+router.get('/public/evidence', async (req: Request, res: Response) => {
+  try {
+    const projectName = req.query.project ? String(req.query.project) : null
+    const areaName = req.query.area ? String(req.query.area) : null
+    if (!projectName && !areaName) return res.status(400).json({ error: 'project or area required' })
+    const windowDays = Math.min(180, Math.max(7, Number(req.query.windowDays) || 30))
+    const ev = await getMarketEvidence({ projectName, areaName, windowDays })
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.json({ evidence: ev })
+  } catch (err) {
+    console.error('[luna] evidence error:', err)
+    res.status(500).json({ error: 'evidence failed' })
   }
 })
 
