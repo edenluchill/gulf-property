@@ -52,6 +52,7 @@ export default function TourOverlay({
   onAreaMetric,
   onPins,
   onPoiCategory,
+  editMode,
 }: {
   code: string
   mapRef: React.RefObject<MapTourHandle | null>
@@ -67,6 +68,8 @@ export default function TourOverlay({
   onPins?: (pins: import('../lib/api').MapPinProject[]) => void
   /** drive the host map's POI category filter (same filter the customer toggles) */
   onPoiCategory?: (category: string, hide?: boolean) => void
+  /** agent edit/preview mode: pause shows a "comment for AI" box anchored to the beat */
+  editMode?: boolean
 }) {
   const navigate = useNavigate()
   const { enter, exit, setToolsRevealed } = useTourMode()
@@ -76,6 +79,11 @@ export default function TourOverlay({
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   // explore-on-pause: which property the customer tapped to inspect (project_id)
   const [exploreId, setExploreId] = useState<string | null>(null)
+  // agent edit-mode: comment composer anchored to the current beat
+  const [commentText, setCommentText] = useState('')
+  const [commentBusy, setCommentBusy] = useState(false)
+  const [commentCount, setCommentCount] = useState(0)
+  const [commentDone, setCommentDone] = useState(false)
   // subtitles (narration captions) — on by default, persisted, toggleable
   const [subtitlesOn, setSubtitlesOn] = useState(() => {
     try {
@@ -351,6 +359,31 @@ export default function TourOverlay({
     engineRef.current?.play()
   }
 
+  // agent edit-mode: save a comment for the CURRENT beat (anchored at this moment)
+  const addComment = async () => {
+    const body = commentText.trim()
+    const beatId = snap?.beatId
+    if (!body || !beatId) return
+    setCommentBusy(true)
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/luna/agent/sessions/${encodeURIComponent(code)}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ beat_id: beatId, at_ms: snap?.atMs ?? null, body }),
+      })
+      if (r.ok) {
+        setCommentText('')
+        setCommentCount((n) => n + 1)
+        setCommentDone(true)
+        vibrate(10)
+        setTimeout(() => setCommentDone(false), 1500)
+      }
+    } catch {
+      /* best-effort */
+    }
+    setCommentBusy(false)
+  }
+
   // start Live Q&A: connect Gemini Live with the current property + what's been said
   const askLuna = () => {
     if (!data) return
@@ -546,6 +579,33 @@ export default function TourOverlay({
       {started && subtitlesOn && snap?.narration && (state === 'playing' || state === 'reveal' || state === 'outro') && (
         <div className="lt-subtitle" aria-live="polite">
           <span>{snap.narration}</span>
+        </div>
+      )}
+
+      {/* agent edit-mode banner */}
+      {editMode && started && state !== 'ended' && (
+        <div className="lt-edit-banner">批注模式 · 暂停后给这段留言{commentCount > 0 ? ` · 已 ${commentCount} 条` : ''}</div>
+      )}
+
+      {/* agent edit-mode: comment composer anchored to the current beat (on pause) */}
+      {editMode && (state === 'asking' || state === 'paused') && (
+        <div className="lt-comment">
+          <div className="lt-comment-head">💬 给这段留言（供 AI 改稿）</div>
+          <textarea
+            className="lt-comment-input"
+            rows={2}
+            placeholder="例如:短一点 / 强调海景 / 这个数字改成…"
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+          />
+          <div className="lt-comment-actions">
+            <button className="lt-comment-save" disabled={commentBusy || !commentText.trim()} onClick={addComment}>
+              {commentDone ? '✓ 已留言' : commentBusy ? '保存中…' : '留言'}
+            </button>
+            {commentCount > 0 && (
+              <span className="lt-comment-count">回经纪台「流程」点「用 AI 应用评论」</span>
+            )}
+          </div>
         </div>
       )}
 

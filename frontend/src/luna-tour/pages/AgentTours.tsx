@@ -490,6 +490,15 @@ export default function AgentTours() {
                 <div className="text-lg font-bold text-emerald-600">{Math.round(s.lead_score)}</div>
                 <div className="text-[11px] text-slate-400">热度</div>
               </div>
+              <a
+                href={`/?toursession=${s.share_code}&edit=1`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-3 py-1.5"
+                title="边看边在特定点暂停留言,回来用 AI 应用"
+              >
+                预览批注
+              </a>
               <FlowToggle sessionId={s.id} onSaved={load} />
               <button onClick={() => openEvents(s.id)} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
                 {eventsId === s.id ? '收起' : '行为'}

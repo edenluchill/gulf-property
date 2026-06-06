@@ -8,7 +8,9 @@
 - **后端端点**(agent-router):`POST/GET/PATCH /sessions/:id/comments`、`POST /sessions/:id/revise`(收集 open 评论→AI 改→**快照版本**→应用 patch(改 narration + 清该 beat audio_url)→**只重生成改动段音频**(后台,generateSessionAudio 跳过已有音频)→标记 applied)、`GET /sessions/:id/versions` + `POST /sessions/:id/revert`。
 - **前端** FlowEditor:每段旁白下加「给 AI 的修改意见」输入 + 「✨ 用 AI 应用评论」按钮(POST 评论→revise→reload),手动直接改文字仍可。改动可回滚(版本)。
 - 前后端 tsc + 前端 build + 暂停不变量 25/25。**后端必须部署。**
-- **下一步(E2b)**:把评论捕获搬进**播放器内**(预览时暂停→当前 beat 留言),复用同一后端;然后 E3 地点 stop+视频。
+- **E2b 播放器内留言(已实现,纯前端)**:引擎快照加 `beatId`+`atMs`;`TourOverlay` 加 `editMode`——暂停态显示「💬 给这段留言」框,锚定当前 beat+时刻,POST 到已部署的 `/comments`;顶部「批注模式」横幅 + 已留言计数。MapPage 读 `?edit=1` 传入。经纪台每个 session 加「预览批注」入口 → `/?toursession=<code>&edit=1`。**工作流闭环**:经纪边看边在卡点留言 → 回「流程」点「用 AI 应用评论」→ AI 改稿。无需部署后端(端点已上线),前端 push 自动。
+- **E2 实测(生产)**:留评论→`/revise`→`{applied:1, changed_beats:[intro_01]}`+版本快照;本地确认旁白真变短。
+- **下一步**:E3 地点 stop + 海景/室内视频。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。

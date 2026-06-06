@@ -85,6 +85,8 @@ export default function MapPage() {
   const { code: pathCode } = useParams<{ code?: string }>()
   const [searchParams] = useSearchParams()
   const tourCode = pathCode || searchParams.get('toursession') || undefined
+  // agent edit/preview mode (?edit=1): pause shows a "comment for AI" composer
+  const tourEditMode = searchParams.get('edit') === '1'
   const tourMapRef = useRef<MapTourHandle>(null)
   const { toolsRevealed } = useTourMode()
   // Tour mode: the overlay reports its 2-3 properties; the main map renders ONLY
@@ -731,6 +733,7 @@ export default function MapPage() {
               onAreaMetric={(m) => setAreaMetric((m as AreaMetric) ?? 'none')}
               onPins={setTourPins}
               onPoiCategory={(category, hide) => handleVoiceMapAction({ type: 'show_pois', category, hide })}
+              editMode={tourEditMode}
             />
           )}
 

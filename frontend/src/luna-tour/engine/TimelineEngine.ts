@@ -52,6 +52,10 @@ export interface EngineSnapshot {
   muted: boolean
   /** current beat's narration text (for the optional subtitle track) */
   narration: string
+  /** raw current beat id (for agent edit-mode comments, matches the script) */
+  beatId: string
+  /** ms elapsed within the current beat (for time-anchored comments) */
+  atMs: number
 }
 
 /** Min visual dwell so a near-silent beat doesn't flash by (ms). */
@@ -594,6 +598,8 @@ export class TimelineEngine {
       overlays: [...this.activeOverlays],
       muted: this.muted,
       narration: seg?.beat.narration ?? '',
+      beatId: seg?.beat.id ?? '',
+      atMs: Math.round(this.beatElapsed),
     })
   }
 }
