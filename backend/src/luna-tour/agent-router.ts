@@ -255,7 +255,17 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
   }
 })
 
-type CameraCue = { type?: string; degrees?: number; zoom?: number; pitch?: number; duration_ms?: number }
+type CameraCue = {
+  type?: string
+  degrees?: number
+  zoom?: number
+  pitch?: number
+  duration_ms?: number
+  at_ms?: number
+  center?: [number, number]
+  from?: [number, number]
+  to?: [number, number]
+}
 type OverlayCue = { type?: string; at_ms?: number; duration_ms?: number }
 type ScriptBeat = {
   id?: string
@@ -266,10 +276,17 @@ type ScriptBeat = {
   camera?: CameraCue[]
   overlays?: OverlayCue[]
 }
+type ScriptAct = {
+  id?: string
+  property_id?: string
+  beats?: ScriptBeat[]
+  transition_out?: { type?: string; duration_ms?: number }
+  place?: { name: string; coords: [number, number] }
+}
 type ScriptShape = {
   intro?: ScriptBeat
   outro?: ScriptBeat
-  acts?: Array<{ property_id?: string; beats?: ScriptBeat[]; transition_out?: { type?: string; duration_ms?: number } }>
+  acts?: ScriptAct[]
 }
 
 const OVERLAY_ZH: Record<string, string> = {
@@ -587,6 +604,83 @@ router.post('/sessions/:id/beat-media', async (req: Request, res: Response) => {
   }
 })
 
+/** Search real Dubai places (from dubai_pois) to add as a tour stop. */
+router.get('/place-search', async (req: Request, res: Response) => {
+  try {
+    const q = String(req.query.q || '').trim()
+    if (q.length < 2) return res.json({ places: [] })
+    const r = await pool.query<{ name: string; category: string; lng: string; lat: string }>(
+      `SELECT name, category, ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat
+         FROM dubai_pois WHERE name ILIKE $1 ORDER BY name LIMIT 10`,
+      [`%${q}%`]
+    )
+    res.json({ places: r.rows.map((p) => ({ name: p.name, category: p.category, lng: Number(p.lng), lat: Number(p.lat) })) })
+  } catch (err) {
+    console.error('[luna] place-search error:', err)
+    res.status(500).json({ error: 'place-search failed' })
+  }
+})
+
+/**
+ * Add a non-property STOP (beach / landmark / any place) to the tour: appends a
+ * place act (camera flies there + gentle orbit) before the outro. Snapshots a
+ * version; the new beat's audio regenerates in the background. Agent can then
+ * attach a sea-view video (beat-media) and refine the narration.
+ * body: { name, lng, lat, narration? }
+ */
+router.post('/sessions/:id/add-stop', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const b = (req.body || {}) as Record<string, unknown>
+    const name = String(b.name || '').trim()
+    const lng = Number(b.lng)
+    const lat = Number(b.lat)
+    if (!name || !Number.isFinite(lng) || !Number.isFinite(lat)) return res.status(400).json({ error: 'name, lng, lat required' })
+
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), `加地点「${name}」前`]
+    )
+
+    const coords: [number, number] = [lng, lat]
+    const beatId = `place_${randomCode(5)}`
+    const narration = (typeof b.narration === 'string' && b.narration.trim()) || `接下来,我们来到${name}。`
+    const beat: ScriptBeat = {
+      id: beatId,
+      narration,
+      duration_ms: 9000,
+      camera: [
+        { type: 'flyover', at_ms: 0, from: coords, to: coords, duration_ms: 3000 },
+        { type: 'orbit', at_ms: 3000, center: coords, degrees: 60, duration_ms: 6000 },
+      ],
+      overlays: [],
+    }
+    const act: ScriptAct = {
+      id: `act_${randomCode(4)}`,
+      property_id: '',
+      place: { name, coords },
+      beats: [beat],
+      transition_out: { type: 'flyover', duration_ms: 2500 },
+    }
+    scriptRow.script.acts = scriptRow.script.acts || []
+    scriptRow.script.acts.push(act)
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    void generateSessionAudio(sessionId).catch(() => {})
+    res.json({ ok: true, beat_id: beatId, name })
+  } catch (err) {
+    console.error('[luna] add-stop error:', err)
+    res.status(500).json({ error: 'add-stop failed' })
+  }
+})
+
 /** List script versions (for undo). */
 router.get('/sessions/:id/versions', async (req: Request, res: Response) => {
   try {
@@ -669,7 +763,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
     if (script) {
       if (script.intro?.id) flow.push(beatItem(script.intro, '开场', 'intro'))
       ;(script.acts || []).forEach((act, ai) => {
-        const gname = (act.property_id && nameById.get(act.property_id)) || '楼盘'
+        const gname = (act.property_id && nameById.get(act.property_id)) || act.place?.name || '楼盘'
         ;(act.beats || []).forEach((beat, bi) => {
           if (!beat?.id) return
           // first beat of acts after the first carries the inter-stop transition

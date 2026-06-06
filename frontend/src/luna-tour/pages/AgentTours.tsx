@@ -571,6 +571,47 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   const [mediaOpen, setMediaOpen] = useState<string | null>(null)
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaCap, setMediaCap] = useState('')
+  // E3 — add a place stop (beach / landmark / any POI)
+  const [placeQ, setPlaceQ] = useState('')
+  const [placeResults, setPlaceResults] = useState<{ name: string; category: string; lng: number; lat: number }[]>([])
+  const [addingStop, setAddingStop] = useState(false)
+  useEffect(() => {
+    const q = placeQ.trim()
+    if (q.length < 2) {
+      setPlaceResults([])
+      return
+    }
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API}/place-search?q=${encodeURIComponent(q)}`)
+        if (r.ok) setPlaceResults((await r.json()).places || [])
+      } catch {
+        /* ignore */
+      }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [placeQ])
+
+  const addStop = async (p: { name: string; lng: number; lat: number }) => {
+    setAddingStop(true)
+    try {
+      const r = await fetch(`${API}/sessions/${sessionId}/add-stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: p.name, lng: p.lng, lat: p.lat }),
+      })
+      if (r.ok) {
+        setPlaceQ('')
+        setPlaceResults([])
+        await reload()
+        setMsg(`✅ 已加入地点「${p.name}」(可在该段加海景视频/改旁白,语音后台生成)`)
+        onSaved()
+      }
+    } catch {
+      /* ignore */
+    }
+    setAddingStop(false)
+  }
 
   const reload = async () => {
     const r = await fetch(`${API}/sessions/${sessionId}/script`)
@@ -798,6 +839,33 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                   )
                 })
               )}
+              {/* E3 — add a place stop (beach / landmark / any POI) */}
+              <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/40 p-2.5">
+                <div className="text-xs font-semibold text-indigo-700 mb-1.5">➕ 加地点停靠(海滩 / 地标 / 任意 POI)</div>
+                <input
+                  className="w-full text-sm border border-slate-300 rounded px-2 py-1.5"
+                  placeholder="搜地点名(如 JBR / Marina Beach / Burj Khalifa)…"
+                  value={placeQ}
+                  onChange={(e) => setPlaceQ(e.target.value)}
+                />
+                {placeResults.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {placeResults.map((p, i) => (
+                      <button
+                        key={i}
+                        disabled={addingStop}
+                        onClick={() => addStop(p)}
+                        className="text-xs bg-white border border-indigo-200 hover:border-indigo-400 rounded-full px-2.5 py-1 disabled:opacity-50"
+                        title={`${p.lng.toFixed(4)},${p.lat.toFixed(4)}`}
+                      >
+                        + {p.name} <span className="text-slate-400">· {p.category}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="text-[11px] text-slate-400 mt-1">加入后会作为一个停靠点(镜头飞过去),可在该段加海景视频、改旁白。</div>
+              </div>
+
               <div className="flex items-center gap-3 flex-wrap">
                 <button disabled={saving || revising} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
                   {saving ? '保存中…' : '保存修改'}

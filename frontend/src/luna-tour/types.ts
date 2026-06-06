@@ -152,6 +152,10 @@ export interface Act {
   property_id: string
   beats: Beat[]
   transition_out?: Transition
+  /** E3 — a non-property stop (beach / landmark / any place). When set (and
+   *  property_id is empty), the camera flies to place.coords and no property card
+   *  shows; the beat carries its own narration + optional media. */
+  place?: { name: string; coords: LngLat }
 }
 export interface TourTheme {
   map_style?: string
@@ -272,4 +276,6 @@ export interface Segment {
   actIndex: number
   /** property id in focus for this segment, if any */
   propertyId?: string
+  /** resolved focus coords (property OR place); camera/pulse use this */
+  focusCoords?: LngLat
 }

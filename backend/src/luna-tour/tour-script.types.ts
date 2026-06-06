@@ -199,6 +199,8 @@ export const ActSchema = z.object({
   property_id: z.string(),
   beats: z.array(BeatSchema).min(1),
   transition_out: TransitionSchema.optional(),
+  // E3 — non-property stop (beach / landmark / any place). property_id is '' then.
+  place: z.object({ name: z.string(), coords: LngLat }).optional(),
 })
 
 export const ThemeSchema = z.object({

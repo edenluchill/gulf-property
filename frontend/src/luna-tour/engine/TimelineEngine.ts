@@ -163,26 +163,36 @@ export class TimelineEngine {
   private build() {
     const segs: Segment[] = []
     const pre: (Camera | undefined)[] = []
-    const add = (beat: Segment['beat'], actIndex: number, propertyId: string | undefined, preCam?: Camera) => {
-      segs.push({ key: segKey(beat, actIndex), beat, start_ms: 0, actIndex, propertyId })
+    // an act's anchor coords = its property's coords, OR a place stop's coords.
+    const actCoords = (act: TourScript['acts'][number]): LngLat | undefined =>
+      (act.property_id && this.properties.get(act.property_id)?.coords) || act.place?.coords
+    const add = (
+      beat: Segment['beat'],
+      actIndex: number,
+      propertyId: string | undefined,
+      focusCoords: LngLat | undefined,
+      preCam?: Camera
+    ) => {
+      segs.push({ key: segKey(beat, actIndex), beat, start_ms: 0, actIndex, propertyId, focusCoords })
       pre.push(preCam)
     }
-    add(this.script.intro, -1, undefined)
+    add(this.script.intro, -1, undefined, undefined)
     this.script.acts.forEach((act, ai) => {
+      const coords = actCoords(act)
       act.beats.forEach((b, bi) => {
         let preCam: Camera | undefined
         if (bi === 0 && ai > 0) {
-          const prevAct = this.script.acts[ai - 1]
-          const from = this.properties.get(prevAct.property_id)?.coords
-          const to = this.properties.get(act.property_id)?.coords
+          const from = actCoords(this.script.acts[ai - 1])
+          const to = coords
           if (from && to) {
+            const prevAct = this.script.acts[ai - 1]
             preCam = { type: 'flyover', at_ms: 0, from, to, duration_ms: prevAct.transition_out?.duration_ms ?? 2500 }
           }
         }
-        add(b, ai, act.property_id, preCam)
+        add(b, ai, act.property_id, coords, preCam)
       })
     })
-    add(this.script.outro, -1, undefined)
+    add(this.script.outro, -1, undefined, undefined)
     this.segments = segs
     this.preCamera = pre
   }
@@ -559,7 +569,7 @@ export class TimelineEngine {
   }
 
   private focusOf(seg: Segment): LngLat | undefined {
-    return seg.propertyId ? this.properties.get(seg.propertyId)?.coords : undefined
+    return seg.focusCoords ?? (seg.propertyId ? this.properties.get(seg.propertyId)?.coords : undefined)
   }
 
   private computeState(index: number): EngineState {

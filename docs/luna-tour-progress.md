@@ -21,7 +21,13 @@
 - **E4 卡片可编辑(已上线验证)**:生产实测 title 8s→11s、移除进度点均成功,卡片数据字段保留。
 - **E3 第一步(媒体卡,外链,已实现)**:新增 `media` overlay 类型(前端 types + OverlayLayer 渲染为带边框的视频/图 inset,muted/loop;后端 zod `MediaOverlaySchema`)。后端 `POST /sessions/:id/beat-media`(外链 http(s),校验,快照版本,push 到 beat.overlays)。前端故事板每段「➕ 视频/图」入口(直链 mp4/jpg)。**引擎无需改**(media 是普通 React overlay,按时间窗显示/过期)。
 - **后端需部署(beat-media + zod media)。**
-- **未完(继续做到 E5)**:E3 剩余=R2 视频上传 + YouTube/iframe 嵌入 + **地点 stop(去海滩/任意点,TourScript v3)**;E4 剩余=拖拽重排、地图摆位捕捉镜头、逐 beat 重生成、加/删 stop;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
+- **E3 地点 stop(已实现)= 你最早要的"去海滩"**:
+  - **引擎**:`Act` 加 `place?:{name,coords}`、`Segment` 加 `focusCoords`;`build()` 用 `actCoords(act)=房源坐标||place.coords` 算锚点(段间挑高 flyover 也用它),`focusOf` 返回 `focusCoords`。房源 act 行为不变(focusCoords=房源坐标),不变量 25/25 仍绿。
+  - **后端**:`GET /place-search?q=`(搜 `dubai_pois` 真实地点,返名+坐标+类别)、`POST /sessions/:id/add-stop`{name,lng,lat,narration?}(快照→追加 place act:property_id=''+place+一个 beat[飞过去+环绕]→存→后台生成该段语音)。`ScriptShape`/`ActSchema`/`CameraCue` 加 place 与位置字段;`/script` group 名用 place.name。
+  - **前端**:FlowEditor 底部「➕ 加地点停靠」搜索(防抖)→ 点结果即插入,reload 显示新停靠点。加入后可在该段用「➕ 视频/图」加海景视频(复用 E3 媒体卡)。
+  - **后端需部署(place-search/add-stop/schema)。**
+  - **全局权限已放开**(`~/.claude/settings.json` 加 `PowerShell(*)`,配合已有 `Bash(*)`)→ 部署等不再弹窗。
+- **未完(继续做到 E5)**:E3 剩余=R2 视频上传 + iframe/YouTube 嵌入;E4 剩余=拖拽重排 stop/beat、地图摆位捕捉镜头、逐 beat 重生成、删 stop;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。
