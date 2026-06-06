@@ -573,6 +573,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   const [mediaOpen, setMediaOpen] = useState<string | null>(null)
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaCap, setMediaCap] = useState('')
+  const [mediaUploading, setMediaUploading] = useState(false)
   // E3 — add a place stop (beach / landmark / any POI)
   const [placeQ, setPlaceQ] = useState('')
   const [placeResults, setPlaceResults] = useState<{ name: string; category: string; lng: number; lat: number }[]>([])
@@ -690,6 +691,37 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     } catch {
       /* best-effort */
     }
+  }
+
+  // E3 — upload a clip/photo to R2, then attach it to the beat
+  const uploadMedia = async (beatId: string, file: File) => {
+    setMediaUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const up = await fetch(`${API}/media-upload`, { method: 'POST', body: fd })
+      const ud = await up.json()
+      if (!up.ok || !ud.url) {
+        alert(ud.error || '上传失败(视频/图,≤60MB)')
+      } else {
+        const r = await fetch(`${API}/sessions/${sessionId}/beat-media`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ beat_id: beatId, media_kind: ud.media_kind, url: ud.url, caption: mediaCap.trim() || undefined }),
+        })
+        if (r.ok) {
+          const d = (await r.json()) as { overlays: FlowBeat['overlays'] }
+          setBeats((cur) => cur.map((b) => (b.id === beatId ? { ...b, overlays: d.overlays } : b)))
+          setMediaOpen(null)
+          setMediaUrl('')
+          setMediaCap('')
+          onSaved()
+        }
+      }
+    } catch {
+      alert('上传出错')
+    }
+    setMediaUploading(false)
   }
 
   // E3 — attach external video/image footage to a beat
@@ -867,11 +899,25 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                               />
                               <button
                                 className="text-xs bg-indigo-500 text-white rounded px-2.5 py-1 disabled:opacity-50"
-                                disabled={!/^https?:\/\/\S+/i.test(mediaUrl.trim())}
+                                disabled={mediaUploading || !/^https?:\/\/\S+/i.test(mediaUrl.trim())}
                                 onClick={() => addMedia(b.id)}
                               >
-                                加入
+                                加链接
                               </button>
+                              <label className="text-xs bg-white border border-indigo-300 text-indigo-600 rounded px-2.5 py-1 cursor-pointer hover:border-indigo-500">
+                                {mediaUploading ? '上传中…' : '或上传文件'}
+                                <input
+                                  type="file"
+                                  accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp"
+                                  className="hidden"
+                                  disabled={mediaUploading}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0]
+                                    if (f) uploadMedia(b.id, f)
+                                    e.currentTarget.value = ''
+                                  }}
+                                />
+                              </label>
                             </div>
                           )}
                           <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />

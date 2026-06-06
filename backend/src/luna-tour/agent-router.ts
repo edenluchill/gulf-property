@@ -11,8 +11,11 @@
  *   POST /api/luna/agent/sessions/create       → generate a tour for given projects
  */
 import crypto from 'crypto'
+import path from 'path'
+import multer from 'multer'
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
+import { uploadBufferToR2 } from '../services/r2-storage'
 import { createSession, ensureAgent } from './session-builder'
 import { draftConfig } from './auto-config'
 import { matchProperties } from './auto-match'
@@ -38,6 +41,22 @@ type GenJob = {
   audioTotal?: number
 }
 const genJobs = new Map<string, GenJob>()
+
+// Media upload (sea-view / interior clips) → R2. Memory storage, 60MB cap (fits
+// under the api.pinzos.com Cloudflare 100MB limit); video + image only.
+const MEDIA_EXT: Record<string, string> = {
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+}
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 60 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, !!MEDIA_EXT[file.mimetype]),
+})
 
 /** Resolve the working agent (MVP: the demo agent). */
 async function currentAgentId(): Promise<string> {
@@ -601,6 +620,24 @@ router.post('/sessions/:id/beat-media', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] beat-media error:', err)
     res.status(500).json({ error: 'beat-media failed' })
+  }
+})
+
+/**
+ * Upload a sea-view / interior clip (or photo) to R2 and return its public URL,
+ * which the agent then attaches to a beat via /beat-media. ≤60MB, video/image.
+ */
+router.post('/media-upload', mediaUpload.single('file'), async (req: Request, res: Response) => {
+  try {
+    const file = (req as Request & { file?: Express.Multer.File }).file
+    if (!file) return res.status(400).json({ error: '没有文件,或类型/大小不支持(视频/图,≤60MB)' })
+    const ext = MEDIA_EXT[file.mimetype] || path.extname(file.originalname) || '.bin'
+    const key = `luna-media/${crypto.randomUUID()}${ext}`
+    const url = await uploadBufferToR2(key, file.buffer, file.mimetype)
+    res.json({ ok: true, url, media_kind: file.mimetype.startsWith('video') ? 'video' : 'image' })
+  } catch (err) {
+    console.error('[luna] media-upload error:', err)
+    res.status(500).json({ error: 'media-upload failed' })
   }
 })
 

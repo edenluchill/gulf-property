@@ -30,7 +30,10 @@
 - **E3 地点 stop 生产验证通过**:place-search "beach"→10 真实 POI;add-stop→flow 含新停靠点(开场→2房源→Beach Centre→结尾)。
 - **E4 重排/删除停靠点(已实现)**:`/script` flow 加 `actIndex`+`isPlace`;后端 `POST /sessions/:id/delete-stop`{act_index}、`/move-stop`{act_index,dir}(均快照版本)。前端故事板每个停靠点表头加 `↑↓✕`(地点停靠点带 📍)。配套「加 stop」形成 增/删/重排 闭环。
 - **后端需部署(delete-stop/move-stop + flow actIndex)。**
-- **未完(继续做到 E5)**:E3 剩余=R2 视频上传 + iframe/YouTube 嵌入;E4 剩余=地图摆位捕捉镜头、逐 beat 重生成;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
+- **E4 删/移停靠点生产验证通过**(上移→顺序变、删除→还原)。
+- **E3 R2 视频上传(已实现)**:复用 multer + `uploadBufferToR2`。后端 `POST /api/luna/agent/media-upload`(memory,≤60MB,video/image,传 R2 返公共 URL)。前端"加媒体"框加「或上传文件」→ 上传后自动 beat-media 加为媒体卡。经纪不再需要外部托管视频。
+- **后端需部署(media-upload)。**
+- **未完(继续做到 E5)**:E3 剩余=iframe/YouTube 嵌入(可选);E4 剩余=地图摆位「设为此视角」、逐 beat 重生成;**E5 多语言 / 分析→编辑闭环 / fact-sheet 导出 / 配额**。一步步推进。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。
