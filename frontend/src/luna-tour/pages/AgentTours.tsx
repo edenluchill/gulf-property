@@ -79,6 +79,7 @@ export default function AgentTours() {
   // create form
   const [clientName, setClientName] = useState('')
   const [oneLiner, setOneLiner] = useState('')
+  const [language, setLanguage] = useState('') // '' = AI 按客户自动判断
   const [picked, setPicked] = useState<ProjectHit[]>([])
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [query, setQuery] = useState('')
@@ -285,6 +286,7 @@ export default function AgentTours() {
           project_ids: picked.map((p) => p.id),
           client: clientName.trim() ? { name: clientName.trim() } : {},
           one_liner: oneLiner,
+          ...(language ? { language } : {}),
         }),
       })
       const d = await r.json()
@@ -364,6 +366,21 @@ export default function AgentTours() {
             value={oneLiner}
             onChange={(e) => setOneLiner(e.target.value)}
           />
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-sm">
+          <span className="text-slate-500">语言</span>
+          <select
+            className="border rounded-lg px-2 py-1.5 text-sm"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          >
+            <option value="">AI 按客户自动判断</option>
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+            <option value="ar">العربية</option>
+            <option value="ru">Русский</option>
+          </select>
+          <span className="text-xs text-slate-400">旁白 + 语音都用此语言生成</span>
         </div>
 
         {/* AI match */}

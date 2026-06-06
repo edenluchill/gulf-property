@@ -250,6 +250,8 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
       : `Luna 为你精选的 ${projectIds.length} 个家`
     const title = typeof b.title === 'string' && b.title.trim() ? b.title.trim() : defaultTitle
     const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    // Explicit language override (zh/en/ar/ru) — for international Dubai clients.
+    const langOverride = ['zh', 'en', 'ar', 'ru'].includes(String(b.language)) ? String(b.language) : undefined
 
     // Kick off the heavy build (AI config + script + audio) in the BACKGROUND and
     // return the share_code now, so the request can't hit the proxy timeout. The
@@ -261,6 +263,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
       try {
         let config
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
+        if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
         const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
