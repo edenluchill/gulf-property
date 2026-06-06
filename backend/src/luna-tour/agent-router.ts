@@ -22,6 +22,21 @@ const router = Router()
 
 const DEMO_AGENT_EMAIL = process.env.LT_AGENT_EMAIL || 'demo-agent@luna.tour'
 
+/**
+ * In-memory generation jobs (keyed by share_code). Tour generation (AI script)
+ * takes ~30–60s — far longer than the proxy timeout — so /create returns a
+ * share_code IMMEDIATELY and runs the build in the background; the client polls
+ * /gen-status. Single API instance (INITIAL_INSTANCES=1) so this map is
+ * consistent; a restart just makes an in-flight poll fall back to the DB row.
+ */
+type GenJob = {
+  status: 'generating' | 'ready' | 'failed'
+  error?: string
+  stops?: string[]
+  audioTotal?: number
+}
+const genJobs = new Map<string, GenJob>()
+
 /** Resolve the working agent (MVP: the demo agent). */
 async function currentAgentId(): Promise<string> {
   return ensureAgent({
@@ -215,21 +230,23 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     const title = typeof b.title === 'string' && b.title.trim() ? b.title.trim() : defaultTitle
     const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
 
-    // AI auto-config when a brief/client is given
-    let config
-    if (oneLiner || Object.keys(client).length) {
-      config = await draftConfig(client, oneLiner)
-    }
+    // Kick off the heavy build (AI config + script + audio) in the BACKGROUND and
+    // return the share_code now, so the request can't hit the proxy timeout. The
+    // client polls /sessions/:code/gen-status for structure + audio progress.
+    genJobs.set(shareCode, { status: 'generating' })
+    res.json({ ok: true, shareCode, status: 'generating', watch_url: `/?toursession=${shareCode}` })
 
-    const result = await createSession({
-      shareCode,
-      projectIds,
-      title,
-      agentId,
-      client,
-      config,
-    })
-    res.json({ ok: true, ...result, watch_url: `/?toursession=${result.shareCode}` })
+    void (async () => {
+      try {
+        let config
+        if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
+        const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
+        genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
+      } catch (err) {
+        console.error('[luna] agent create (bg) error:', err)
+        genJobs.set(shareCode, { status: 'failed', error: err instanceof Error ? err.message : 'create failed' })
+      }
+    })()
   } catch (err) {
     console.error('[luna] agent create error:', err)
     res.status(400).json({ error: err instanceof Error ? err.message : 'create failed' })
@@ -248,28 +265,39 @@ type ScriptShape = {
  * (intro → each property's beats → outro) and the property names.
  */
 /**
- * Audio backfill progress for the just-generated session, so the UI can light up
- * the structure nodes as each beat's narration finishes (audio runs in the
- * background after create returns). Accepts session id OR share_code.
+ * Generation status for the create node-diagram: build phase → ready (with the
+ * tour structure) → audio backfill. Merges the in-memory job (status/stops) with
+ * live audio counts from the DB. Accepts share_code OR session id.
  */
-router.get('/sessions/:id/audio-status', async (req: Request, res: Response) => {
+router.get('/sessions/:id/gen-status', async (req: Request, res: Response) => {
   try {
     const key = req.params.id
+    const job = genJobs.get(key)
     const sres = await pool.query<{ id: string }>(
       `SELECT id FROM lt_demo_sessions WHERE id::text=$1 OR share_code=$1 LIMIT 1`,
       [key]
     )
     const sessionId = sres.rows[0]?.id
-    if (!sessionId) return res.status(404).json({ error: 'not found' })
-    const r = await pool.query<{ ready: string; total: string }>(
-      `SELECT count(*) FILTER (WHERE status='ready') AS ready, count(*) AS total
-         FROM lt_audio_assets WHERE session_id=$1`,
-      [sessionId]
-    )
-    res.json({ ready: Number(r.rows[0]?.ready ?? 0), attempted: Number(r.rows[0]?.total ?? 0) })
+    let audioReady = 0
+    if (sessionId) {
+      const r = await pool.query<{ ready: string }>(
+        `SELECT count(*) FILTER (WHERE status='ready') AS ready FROM lt_audio_assets WHERE session_id=$1`,
+        [sessionId]
+      )
+      audioReady = Number(r.rows[0]?.ready ?? 0)
+    }
+    // status: prefer the live job; fall back to the DB (job lost after restart).
+    const status: 'generating' | 'ready' | 'failed' = job?.status ?? (sessionId ? 'ready' : 'generating')
+    res.json({
+      status,
+      stops: job?.stops ?? null,
+      audioTotal: job?.audioTotal ?? null,
+      audioReady,
+      error: job?.error ?? null,
+    })
   } catch (err) {
-    console.error('[luna] audio-status error:', err)
-    res.status(500).json({ error: 'audio-status failed' })
+    console.error('[luna] gen-status error:', err)
+    res.status(500).json({ error: 'gen-status failed' })
   }
 })
 

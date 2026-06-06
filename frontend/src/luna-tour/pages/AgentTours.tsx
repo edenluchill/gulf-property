@@ -189,27 +189,65 @@ export default function AgentTours() {
     setMatching(false)
   }
 
-  // poll audio backfill so the structure nodes' "语音就绪" progress fills in
-  const pollAudio = useCallback((code: string, total: number) => {
-    if (audioTimer.current) window.clearInterval(audioTimer.current)
-    const tick = async () => {
-      try {
-        const r = await fetch(`${API}/sessions/${encodeURIComponent(code)}/audio-status`)
-        if (r.ok) {
-          const d = (await r.json()) as { ready: number }
-          setAudioReady(d.ready || 0)
-          if (total > 0 && (d.ready || 0) >= total && audioTimer.current) {
-            window.clearInterval(audioTimer.current)
-            audioTimer.current = null
-          }
-        }
-      } catch {
-        /* best-effort */
-      }
+  const stopTimers = useCallback(() => {
+    if (stageTimer.current) {
+      window.clearInterval(stageTimer.current)
+      stageTimer.current = null
     }
-    void tick()
-    audioTimer.current = window.setInterval(tick, 3000)
+    if (audioTimer.current) {
+      window.clearInterval(audioTimer.current)
+      audioTimer.current = null
+    }
   }, [])
+
+  // poll the backend generation job: building → ready (with structure) → audio backfill
+  const pollGen = useCallback(
+    (code: string) => {
+      if (audioTimer.current) window.clearInterval(audioTimer.current)
+      let switchedToReady = false
+      const tick = async () => {
+        try {
+          const r = await fetch(`${API}/sessions/${encodeURIComponent(code)}/gen-status`)
+          if (!r.ok) return
+          const d = (await r.json()) as {
+            status: 'generating' | 'ready' | 'failed'
+            stops: string[] | null
+            audioTotal: number | null
+            audioReady: number
+            error: string | null
+          }
+          if (d.status === 'failed') {
+            stopTimers()
+            setGenPhase('error')
+            setGenError(d.error || '生成失败')
+            return
+          }
+          if (d.status === 'ready') {
+            if (!switchedToReady) {
+              switchedToReady = true
+              if (stageTimer.current) {
+                window.clearInterval(stageTimer.current)
+                stageTimer.current = null
+              }
+              setGenPhase('ready')
+              setGenStops(Array.isArray(d.stops) ? d.stops : [])
+              setAudioTotal(d.audioTotal || 0)
+              load() // refresh "我的导览" list
+            }
+            setAudioReady(d.audioReady || 0)
+            if ((d.audioTotal || 0) > 0 && (d.audioReady || 0) >= (d.audioTotal || 0)) {
+              stopTimers()
+            }
+          }
+        } catch {
+          /* best-effort poll */
+        }
+      }
+      void tick()
+      audioTimer.current = window.setInterval(tick, 2500)
+    },
+    [load, stopTimers]
+  )
 
   const create = async () => {
     if (picked.length < 2) return
@@ -220,12 +258,12 @@ export default function AgentTours() {
     setGenShareCode(null)
     setAudioReady(0)
     setAudioTotal(0)
-    // advance the build-stage indicator while the request is in flight (hold on
-    // the last "AI 编写分镜" stage until the script comes back).
     setGenPhase('building')
     setGenStage(0)
-    if (stageTimer.current) window.clearInterval(stageTimer.current)
-    stageTimer.current = window.setInterval(() => setGenStage((s) => Math.min(s + 1, 2)), 2500)
+    stopTimers()
+    // cosmetic build-stage advance (confirm → real data → AI script) while the
+    // backend job runs; the REAL milestone (structure ready) comes from polling.
+    stageTimer.current = window.setInterval(() => setGenStage((s) => Math.min(s + 1, 2)), 3500)
     try {
       const r = await fetch(`${API}/sessions/create`, {
         method: 'POST',
@@ -237,31 +275,22 @@ export default function AgentTours() {
         }),
       })
       const d = await r.json()
-      if (stageTimer.current) {
-        window.clearInterval(stageTimer.current)
-        stageTimer.current = null
-      }
       if (!r.ok) {
+        stopTimers()
         setGenPhase('error')
         setGenError(d.error || '生成失败')
       } else {
-        setGenPhase('ready')
-        setGenStops(Array.isArray(d.stops) ? d.stops : [])
+        // generation runs in the background — poll for structure + audio.
         setGenShareCode(d.shareCode || null)
-        setAudioTotal(d.audioTotal || 0)
-        if (d.shareCode) pollAudio(d.shareCode, d.audioTotal || 0)
+        if (d.shareCode) pollGen(d.shareCode)
         setClientName('')
         setOneLiner('')
         setPicked([])
         setReasons({})
         setMatchMsg('')
-        load()
       }
     } catch (e) {
-      if (stageTimer.current) {
-        window.clearInterval(stageTimer.current)
-        stageTimer.current = null
-      }
+      stopTimers()
       setGenPhase('error')
       setGenError(e instanceof Error ? e.message : '网络错误')
     }
@@ -416,8 +445,8 @@ export default function AgentTours() {
         </div>
 
         <div className="flex items-center gap-3 mt-4">
-          <button disabled={creating || picked.length < 2} onClick={create} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-            {creating ? '生成中…' : genPhase === 'ready' ? '再生成一个' : '生成导览'}
+          <button disabled={creating || genPhase === 'building' || picked.length < 2} onClick={create} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+            {genPhase === 'building' ? '生成中…' : genPhase === 'ready' ? '再生成一个' : '生成导览'}
           </button>
           {createMsg && <span className="text-sm">{createMsg}</span>}
         </div>

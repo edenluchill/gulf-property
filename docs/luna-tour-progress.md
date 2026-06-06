@@ -10,7 +10,11 @@
   - 后端 `GET /api/luna/agent/sessions/:id/audio-status`(按 id 或 share_code)→ `{ready, attempted}`(查 `lt_audio_assets`)。
   - 前端 `pages/GenerationProgress.tsx`:左→右 node 管道。生成中显示构建阶段(确认楼盘→拉取真实数据→AI 编写分镜,计时推进);返回后显示**真实 tour 结构节点**(开场→各楼盘→结尾,全绿)+ **语音回填进度条**(轮询 audio-status,N/总)+ 立即可用的「打开导览/复制链接」。
   - `AgentTours` 接管状态/计时/轮询;`create` 失败也进 node 图的 error 态。
-- 前后端 tsc + 前端 build + 暂停不变量 25/25 全绿。**后端必须部署(否则生成仍超时);前端 push 自动。**
+- **第一版只把音频异步还不够**:实测脚本生成本身 ~56s(draftConfig + generateTourScript),仍超代理 50s 超时 → 504。**整个生成改全异步**:
+  - `POST /sessions/create` 立即返回 `{shareCode, status:'generating'}`,后台(`void (async()=>{})()`)跑 draftConfig+createSession;进度存进程内 `genJobs` Map(单实例,keyed by share_code)。
+  - `GET /sessions/:id/gen-status`(替代 audio-status)合并 job 状态(generating/ready/failed + stops + audioTotal)与 DB 实时音频计数 → 前端轮询。
+  - 前端 `pollGen` 轮询:building(脚本中,阶段节点动画)→ ready(后端返回真实 stops 结构节点)→ 音频回填进度;失败进 error 态。按钮 building 时禁用。
+- 前后端 tsc + 前端 build + 暂停不变量 25/25 全绿。**后端必须部署(异步逻辑在后端);前端 push 自动。**
 
 ## 2026-06-05 编辑/创作能力 — 愿景 + E1 证据层(护城河)
 - **方向**:从"能看的 demo"→"经纪能创作、客户能验证"。完整愿景 + 三维度 + 分阶段 E1-E5 见 `docs/luna-tour-editor-vision-2026-06-05.md`。用户拍板:先 E1;视频两者都要(R2+外链,E3 用);成交口径楼盘优先样本不足回退区域。
