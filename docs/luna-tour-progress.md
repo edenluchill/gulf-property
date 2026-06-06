@@ -27,7 +27,10 @@
   - **前端**:FlowEditor 底部「➕ 加地点停靠」搜索(防抖)→ 点结果即插入,reload 显示新停靠点。加入后可在该段用「➕ 视频/图」加海景视频(复用 E3 媒体卡)。
   - **后端需部署(place-search/add-stop/schema)。**
   - **全局权限已放开**(`~/.claude/settings.json` 加 `PowerShell(*)`,配合已有 `Bash(*)`)→ 部署等不再弹窗。
-- **未完(继续做到 E5)**:E3 剩余=R2 视频上传 + iframe/YouTube 嵌入;E4 剩余=拖拽重排 stop/beat、地图摆位捕捉镜头、逐 beat 重生成、删 stop;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
+- **E3 地点 stop 生产验证通过**:place-search "beach"→10 真实 POI;add-stop→flow 含新停靠点(开场→2房源→Beach Centre→结尾)。
+- **E4 重排/删除停靠点(已实现)**:`/script` flow 加 `actIndex`+`isPlace`;后端 `POST /sessions/:id/delete-stop`{act_index}、`/move-stop`{act_index,dir}(均快照版本)。前端故事板每个停靠点表头加 `↑↓✕`(地点停靠点带 📍)。配套「加 stop」形成 增/删/重排 闭环。
+- **后端需部署(delete-stop/move-stop + flow actIndex)。**
+- **未完(继续做到 E5)**:E3 剩余=R2 视频上传 + iframe/YouTube 嵌入;E4 剩余=地图摆位捕捉镜头、逐 beat 重生成;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。

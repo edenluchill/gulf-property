@@ -56,6 +56,8 @@ interface FlowBeat {
   camera?: string[]
   overlays?: { idx: number; type: string; label: string; at: number; dur: number }[]
   transition?: string
+  actIndex?: number
+  isPlace?: boolean
 }
 
 const API = `${API_BASE_URL}/api/luna/agent`
@@ -592,6 +594,39 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     return () => clearTimeout(t)
   }, [placeQ])
 
+  // E4 — reorder / delete a stop (act)
+  const moveStop = async (actIndex: number, dir: -1 | 1) => {
+    try {
+      const r = await fetch(`${API}/sessions/${sessionId}/move-stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ act_index: actIndex, dir }),
+      })
+      if (r.ok) {
+        await reload()
+        onSaved()
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  const deleteStop = async (actIndex: number, name: string) => {
+    if (!window.confirm(`删除停靠点「${name}」?(可在保存的版本里回滚)`)) return
+    try {
+      const r = await fetch(`${API}/sessions/${sessionId}/delete-stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ act_index: actIndex }),
+      })
+      if (r.ok) {
+        await reload()
+        onSaved()
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   const addStop = async (p: { name: string; lng: number; lat: number }) => {
     setAddingStop(true)
     try {
@@ -768,7 +803,20 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                           <span className="flex-1 border-t border-dashed border-indigo-200" />
                         </div>
                       )}
-                      {b.group !== prevGroup && <div className="text-xs font-semibold text-emerald-700 mb-1.5 mt-1">{b.group}</div>}
+                      {b.group !== prevGroup && (
+                        <div className="flex items-center gap-2 mb-1.5 mt-1">
+                          <span className="text-xs font-semibold text-emerald-700">
+                            {b.isPlace ? '📍 ' : ''}{b.group}
+                          </span>
+                          {(b.actIndex ?? -1) >= 0 && (
+                            <span className="flex items-center gap-0.5">
+                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title="上移" onClick={() => moveStop(b.actIndex!, -1)}>↑</button>
+                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title="下移" onClick={() => moveStop(b.actIndex!, 1)}>↓</button>
+                              <button className="text-[11px] text-rose-300 hover:text-rose-600 px-1" title="删除这个停靠点" onClick={() => deleteStop(b.actIndex!, b.group)}>✕</button>
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5 mt-1.5 shrink-0 w-12 text-center">
                           {KIND_ZH[b.kind] || b.kind}

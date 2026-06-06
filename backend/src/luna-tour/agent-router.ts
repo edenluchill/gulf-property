@@ -681,6 +681,65 @@ router.post('/sessions/:id/add-stop', async (req: Request, res: Response) => {
   }
 })
 
+/** Remove a stop (act) by index. Snapshots a version. */
+router.post('/sessions/:id/delete-stop', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const actIndex = Number((req.body || {}).act_index)
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+    const acts = scriptRow.script.acts || []
+    if (!Number.isInteger(actIndex) || actIndex < 0 || actIndex >= acts.length) return res.status(400).json({ error: 'bad act_index' })
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), '删除停靠点前']
+    )
+    acts.splice(actIndex, 1)
+    scriptRow.script.acts = acts
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[luna] delete-stop error:', err)
+    res.status(500).json({ error: 'delete-stop failed' })
+  }
+})
+
+/** Reorder a stop (act): swap with its neighbour. body: { act_index, dir: -1|1 } */
+router.post('/sessions/:id/move-stop', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const actIndex = Number((req.body || {}).act_index)
+    const dir = Number((req.body || {}).dir) < 0 ? -1 : 1
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+    const acts = scriptRow.script.acts || []
+    const j = actIndex + dir
+    if (!Number.isInteger(actIndex) || actIndex < 0 || actIndex >= acts.length || j < 0 || j >= acts.length)
+      return res.status(400).json({ error: 'bad move' })
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), '重排停靠点前']
+    )
+    ;[acts[actIndex], acts[j]] = [acts[j], acts[actIndex]]
+    scriptRow.script.acts = acts
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[luna] move-stop error:', err)
+    res.status(500).json({ error: 'move-stop failed' })
+  }
+})
+
 /** List script versions (for undo). */
 router.get('/sessions/:id/versions', async (req: Request, res: Response) => {
   try {
@@ -747,8 +806,10 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       camera: string[]
       overlays: { label: string; at: number; dur: number }[]
       transition?: string
+      actIndex: number
+      isPlace?: boolean
     }
-    const beatItem = (b: ScriptBeat, group: string, kind: string, transition?: string): FlowItem => ({
+    const beatItem = (b: ScriptBeat, group: string, kind: string, actIndex: number, transition?: string, isPlace?: boolean): FlowItem => ({
       id: b.id || '',
       group,
       kind,
@@ -756,22 +817,25 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       seconds: Math.round((b.duration_ms ?? 0) / 1000),
       camera: cameraSummary(b.camera),
       overlays: overlaySummary(b.overlays),
+      actIndex,
+      ...(isPlace ? { isPlace: true } : {}),
       ...(transition ? { transition } : {}),
     })
 
     const flow: FlowItem[] = []
     if (script) {
-      if (script.intro?.id) flow.push(beatItem(script.intro, '开场', 'intro'))
+      if (script.intro?.id) flow.push(beatItem(script.intro, '开场', 'intro', -1))
       ;(script.acts || []).forEach((act, ai) => {
         const gname = (act.property_id && nameById.get(act.property_id)) || act.place?.name || '楼盘'
+        const isPlace = !act.property_id && !!act.place
         ;(act.beats || []).forEach((beat, bi) => {
           if (!beat?.id) return
           // first beat of acts after the first carries the inter-stop transition
           const transition = ai > 0 && bi === 0 ? `挑高抛远飞向 ${gname}` : undefined
-          flow.push(beatItem(beat, gname, beat.kind || 'beat', transition))
+          flow.push(beatItem(beat, gname, beat.kind || 'beat', ai, transition, isPlace))
         })
       })
-      if (script.outro?.id) flow.push(beatItem(script.outro, '结尾', 'outro'))
+      if (script.outro?.id) flow.push(beatItem(script.outro, '结尾', 'outro', -1))
     }
     res.json({ title: s.rows[0].title, flow })
   } catch (err) {
