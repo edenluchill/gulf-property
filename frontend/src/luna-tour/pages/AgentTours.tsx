@@ -52,6 +52,10 @@ interface FlowBeat {
   group: string
   kind: string
   narration: string
+  seconds?: number
+  camera?: string[]
+  overlays?: { label: string; at: number; dur: number }[]
+  transition?: string
 }
 
 const API = `${API_BASE_URL}/api/luna/agent`
@@ -669,12 +673,35 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                   const prevGroup = i > 0 ? beats[i - 1].group : null
                   return (
                     <div key={b.id}>
+                      {b.transition && (
+                        <div className="my-2 flex items-center gap-2 text-[11px] text-indigo-500">
+                          <span className="flex-1 border-t border-dashed border-indigo-200" />
+                          🎬 {b.transition}
+                          <span className="flex-1 border-t border-dashed border-indigo-200" />
+                        </div>
+                      )}
                       {b.group !== prevGroup && <div className="text-xs font-semibold text-emerald-700 mb-1.5 mt-1">{b.group}</div>}
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5 mt-1.5 shrink-0 w-12 text-center">
                           {KIND_ZH[b.kind] || b.kind}
                         </span>
                         <div className="flex-1 min-w-0">
+                          {/* storyboard chips: what the camera does + which cards show + timing */}
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                            {(b.camera || []).map((c, ci) => (
+                              <span key={`c${ci}`} className="text-[10px] bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">
+                                {c}
+                              </span>
+                            ))}
+                            {(b.overlays || []).map((o, oi) => (
+                              <span key={`o${oi}`} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">
+                                🃏 {o.label}
+                                {o.at > 0 ? ` @${o.at}s` : ''}
+                                {o.dur > 0 ? `·${o.dur}s` : ''}
+                              </span>
+                            ))}
+                            {b.seconds ? <span className="text-[10px] text-slate-400">⏱ ~{b.seconds}s</span> : null}
+                          </div>
                           <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />
                           <input
                             className="mt-1 w-full text-xs border border-dashed border-slate-300 rounded-md px-2 py-1.5 placeholder:text-slate-300 focus:border-emerald-400 focus:outline-none"

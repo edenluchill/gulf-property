@@ -255,11 +255,56 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
   }
 })
 
-type ScriptBeat = { id?: string; kind?: string; narration?: string; audio_url?: string }
+type CameraCue = { type?: string; degrees?: number; zoom?: number; pitch?: number; duration_ms?: number }
+type OverlayCue = { type?: string; at_ms?: number; duration_ms?: number }
+type ScriptBeat = {
+  id?: string
+  kind?: string
+  narration?: string
+  audio_url?: string
+  duration_ms?: number
+  camera?: CameraCue[]
+  overlays?: OverlayCue[]
+}
 type ScriptShape = {
   intro?: ScriptBeat
   outro?: ScriptBeat
-  acts?: Array<{ property_id?: string; beats?: ScriptBeat[] }>
+  acts?: Array<{ property_id?: string; beats?: ScriptBeat[]; transition_out?: { type?: string; duration_ms?: number } }>
+}
+
+const OVERLAY_ZH: Record<string, string> = {
+  title: '标题',
+  progress_dots: '进度点',
+  property_card: '房源卡',
+  roi_card: 'ROI 投资卡',
+  distance_line: '距离线',
+  amenity_spokes: '配套放射',
+  highlight_all_pins: '高亮全部',
+  favorite_picker: '收藏',
+  cta: '联系',
+}
+
+/** Human-readable camera moves for a beat (what the agent SEES happen). Note the
+ *  engine also adds a constant gentle rotation to every beat. */
+function cameraSummary(cam: CameraCue[] | undefined): string[] {
+  if (!Array.isArray(cam) || !cam.length) return ['缓慢环绕']
+  const out: string[] = []
+  for (const c of cam) {
+    if (c?.type === 'orbit') out.push('🔄 环绕')
+    else if (c?.type === 'flyover') out.push('✈️ 飞行运镜')
+    else out.push(c?.zoom != null ? `🎥 推近 zoom ${c.zoom}` : '🎥 运镜')
+  }
+  return out
+}
+
+/** Overlay cards on a beat with their timing (when + how long). */
+function overlaySummary(ov: OverlayCue[] | undefined): { label: string; at: number; dur: number }[] {
+  if (!Array.isArray(ov)) return []
+  return ov.map((o) => ({
+    label: OVERLAY_ZH[o.type || ''] || o.type || '卡片',
+    at: Math.round((o.at_ms ?? 0) / 1000),
+    dur: Math.round((o.duration_ms ?? 0) / 1000),
+  }))
 }
 
 /**
@@ -491,16 +536,40 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
     const nameById = new Map(props.rows.map((p) => [p.project_id, p.name]))
     const script = sc.rows[0]?.script
 
-    const flow: Array<{ id: string; group: string; kind: string; narration: string }> = []
+    type FlowItem = {
+      id: string
+      group: string
+      kind: string
+      narration: string
+      seconds: number
+      camera: string[]
+      overlays: { label: string; at: number; dur: number }[]
+      transition?: string
+    }
+    const beatItem = (b: ScriptBeat, group: string, kind: string, transition?: string): FlowItem => ({
+      id: b.id || '',
+      group,
+      kind,
+      narration: b.narration || '',
+      seconds: Math.round((b.duration_ms ?? 0) / 1000),
+      camera: cameraSummary(b.camera),
+      overlays: overlaySummary(b.overlays),
+      ...(transition ? { transition } : {}),
+    })
+
+    const flow: FlowItem[] = []
     if (script) {
-      if (script.intro?.id) flow.push({ id: script.intro.id, group: '开场', kind: 'intro', narration: script.intro.narration || '' })
-      for (const act of script.acts || []) {
+      if (script.intro?.id) flow.push(beatItem(script.intro, '开场', 'intro'))
+      ;(script.acts || []).forEach((act, ai) => {
         const gname = (act.property_id && nameById.get(act.property_id)) || '楼盘'
-        for (const beat of act.beats || []) {
-          if (beat?.id) flow.push({ id: beat.id, group: gname, kind: beat.kind || 'beat', narration: beat.narration || '' })
-        }
-      }
-      if (script.outro?.id) flow.push({ id: script.outro.id, group: '结尾', kind: 'outro', narration: script.outro.narration || '' })
+        ;(act.beats || []).forEach((beat, bi) => {
+          if (!beat?.id) return
+          // first beat of acts after the first carries the inter-stop transition
+          const transition = ai > 0 && bi === 0 ? `挑高抛远飞向 ${gname}` : undefined
+          flow.push(beatItem(beat, gname, beat.kind || 'beat', transition))
+        })
+      })
+      if (script.outro?.id) flow.push(beatItem(script.outro, '结尾', 'outro'))
     }
     res.json({ title: s.rows[0].title, flow })
   } catch (err) {

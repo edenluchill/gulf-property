@@ -12,6 +12,12 @@
 - **E2 实测(生产)**:留评论→`/revise`→`{applied:1, changed_beats:[intro_01]}`+版本快照;本地确认旁白真变短。
 - **下一步**:E3 地点 stop + 海景/室内视频。
 
+## 2026-06-06 故事板可视化(暴露镜头/卡片/时序/转场)— E4 起步
+- **真机反馈**:flow 编辑器只显示旁白文字,看不到也改不了构成 tour 的镜头(环绕/飞行/推近)、卡片 overlay(哪张/第几秒/持续多久)、段间挑高转场、时长 —— "这就是结构图吗?缺很多"。
+- **本步(可视化,已实现)**:`/sessions/:id/script` 的 flow 每段补 `seconds`+`camera`(摘要:🔄环绕/✈️飞行/🎥推近)+`overlays`(中文卡名+@第几s+持续s)+`transition`(acts>0 首 beat:挑高抛远飞向X)。前端 FlowEditor 渲染**故事板 chips**(镜头灰、卡片琥珀带时序、⏱时长、段间转场虚线)。仍保留旁白手改 + 评论 + AI 应用。
+- **后端需部署(/script 变了);前端 push 自动。**
+- **未完(继续 E3-E5 + 让结构可编辑)**:E4 直接编辑镜头/卡片/时序+拖拽重排+地图摆位捕捉镜头+逐 beat 重生成;E3 地点 stop+视频;E5 多语言/分析→编辑闭环/fact-sheet/配额。规模大,分步推进。
+
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。
 - **根因(生成不了)**:`session-builder.createSession` 在 HTTP 响应前 **`await generateSessionAudio`**(为 11+ beat 逐个 Gemini TTS + R2,60–120s),远超 api.pinzos.com 经 Cloudflare 的 ~100s 代理超时 → 连接被掐 → 浏览器 "Failed to fetch"。
