@@ -18,7 +18,10 @@
 - **后端需部署(/script 变了);前端 push 自动。**
 - **E4 第一步(卡片可编辑,已实现)**:`/script` overlay 摘要加 `idx`+`type`;新端点 `POST /sessions/:id/beat-overlays`(按 index 改 `duration_ms`/`at_ms` 或 `remove`,**保留卡片数据字段**,只动时长/删;改前快照版本)。前端卡片 chip 加 `−/时长/+`(调显示秒)+ `×`(移除),即时生效、服务端返回新摘要更新 chips。
 - **后端需部署(beat-overlays 端点 + overlay 摘要变了)。**
-- **未完(继续做到 E5)**:E4 剩余=拖拽重排 beat/stop、地图摆位「设为此视角」、逐 beat 重生成、加/删 stop;E3 地点 stop+视频;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
+- **E4 卡片可编辑(已上线验证)**:生产实测 title 8s→11s、移除进度点均成功,卡片数据字段保留。
+- **E3 第一步(媒体卡,外链,已实现)**:新增 `media` overlay 类型(前端 types + OverlayLayer 渲染为带边框的视频/图 inset,muted/loop;后端 zod `MediaOverlaySchema`)。后端 `POST /sessions/:id/beat-media`(外链 http(s),校验,快照版本,push 到 beat.overlays)。前端故事板每段「➕ 视频/图」入口(直链 mp4/jpg)。**引擎无需改**(media 是普通 React overlay,按时间窗显示/过期)。
+- **后端需部署(beat-media + zod media)。**
+- **未完(继续做到 E5)**:E3 剩余=R2 视频上传 + YouTube/iframe 嵌入 + **地点 stop(去海滩/任意点,TourScript v3)**;E4 剩余=拖拽重排、地图摆位捕捉镜头、逐 beat 重生成、加/删 stop;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。

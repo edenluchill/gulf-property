@@ -567,6 +567,10 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   // E2 — per-beat comments for AI revise
   const [comments, setComments] = useState<Record<string, string>>({})
   const [revising, setRevising] = useState(false)
+  // E3 — per-beat "add media" (which beat's media input is open + its url)
+  const [mediaOpen, setMediaOpen] = useState<string | null>(null)
+  const [mediaUrl, setMediaUrl] = useState('')
+  const [mediaCap, setMediaCap] = useState('')
 
   const reload = async () => {
     const r = await fetch(`${API}/sessions/${sessionId}/script`)
@@ -605,6 +609,30 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
       if (r.ok) {
         const d = (await r.json()) as { overlays: FlowBeat['overlays'] }
         setBeats((cur) => cur.map((b) => (b.id === beatId ? { ...b, overlays: d.overlays } : b)))
+        onSaved()
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  // E3 — attach external video/image footage to a beat
+  const addMedia = async (beatId: string) => {
+    const url = mediaUrl.trim()
+    if (!/^https?:\/\/\S+/i.test(url)) return
+    const kind = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url) ? 'video' : /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url) ? 'image' : 'video'
+    try {
+      const r = await fetch(`${API}/sessions/${sessionId}/beat-media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ beat_id: beatId, media_kind: kind, url, caption: mediaCap.trim() || undefined }),
+      })
+      if (r.ok) {
+        const d = (await r.json()) as { overlays: FlowBeat['overlays'] }
+        setBeats((cur) => cur.map((b) => (b.id === beatId ? { ...b, overlays: d.overlays } : b)))
+        setMediaOpen(null)
+        setMediaUrl('')
+        setMediaCap('')
         onSaved()
       }
     } catch {
@@ -723,7 +751,40 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                               </span>
                             ))}
                             {b.seconds ? <span className="text-[10px] text-slate-400">⏱ ~{b.seconds}s</span> : null}
+                            <button
+                              className="text-[10px] text-indigo-500 hover:text-indigo-700 border border-dashed border-indigo-200 rounded px-1.5 py-0.5"
+                              onClick={() => {
+                                setMediaOpen(mediaOpen === b.id ? null : b.id)
+                                setMediaUrl('')
+                                setMediaCap('')
+                              }}
+                            >
+                              ➕ 视频/图
+                            </button>
                           </div>
+                          {mediaOpen === b.id && (
+                            <div className="mb-1 flex flex-wrap items-center gap-1.5 bg-indigo-50/60 border border-indigo-100 rounded-md p-1.5">
+                              <input
+                                className="flex-1 min-w-[180px] text-xs border border-slate-300 rounded px-2 py-1"
+                                placeholder="视频/图片直链 (https://…/clip.mp4 或 …/photo.jpg)"
+                                value={mediaUrl}
+                                onChange={(e) => setMediaUrl(e.target.value)}
+                              />
+                              <input
+                                className="w-28 text-xs border border-slate-300 rounded px-2 py-1"
+                                placeholder="说明(可选)"
+                                value={mediaCap}
+                                onChange={(e) => setMediaCap(e.target.value)}
+                              />
+                              <button
+                                className="text-xs bg-indigo-500 text-white rounded px-2.5 py-1 disabled:opacity-50"
+                                disabled={!/^https?:\/\/\S+/i.test(mediaUrl.trim())}
+                                onClick={() => addMedia(b.id)}
+                              >
+                                加入
+                              </button>
+                            </div>
+                          )}
                           <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />
                           <input
                             className="mt-1 w-full text-xs border border-dashed border-slate-300 rounded-md px-2 py-1.5 placeholder:text-slate-300 focus:border-emerald-400 focus:outline-none"

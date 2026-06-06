@@ -112,6 +112,15 @@ export interface CtaOverlay {
   prefill?: string
   text?: string
 }
+export interface MediaOverlay {
+  type: 'media'
+  at_ms: number
+  duration_ms?: number
+  media_kind: 'video' | 'image'
+  url: string
+  caption?: string
+  fit?: 'cover' | 'contain'
+}
 export type Overlay =
   | TitleOverlay
   | ProgressDotsOverlay
@@ -122,6 +131,7 @@ export type Overlay =
   | HighlightAllPinsOverlay
   | FavoritePickerOverlay
   | CtaOverlay
+  | MediaOverlay
 
 export interface Beat {
   id: string

@@ -400,6 +400,27 @@
   box-shadow: 0 0 0 1px var(--lt-accent, #00E0B8) inset;
 }
 
+/* E3 — media overlay (real sea-view / interior footage). Framed inset, bottom-
+   left so it clears the left property card (top) and bottom-centre controls. */
+.lt-ov-media {
+  position: absolute; left: 20px; bottom: 92px; z-index: 6;
+  width: min(340px, 44vw); aspect-ratio: 16 / 9;
+  border-radius: 14px; overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
+  background: #000;
+  animation: lt-slide-left 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lt-ov-media video, .lt-ov-media img { width: 100%; height: 100%; display: block; }
+.lt-media-cap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  color: #fff; font-size: 12px; font-weight: 600; padding: 14px 10px 6px;
+}
+@media (max-width: 640px) {
+  .lt-ov-media { left: 10px; bottom: 150px; width: 52vw; }
+}
+
 /* E2b — agent edit-mode: comment composer (on pause) + mode banner */
 .lt-edit-banner {
   position: absolute; top: 50px; left: 50%; transform: translateX(-50%);

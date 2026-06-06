@@ -150,6 +150,15 @@ export const CtaOverlaySchema = OverlayBase.extend({
   text: z.string().optional(),
 })
 
+// E3 — real footage (sea view / interior) the agent attaches to a beat.
+export const MediaOverlaySchema = OverlayBase.extend({
+  type: z.literal('media'),
+  media_kind: z.enum(['video', 'image']),
+  url: z.string(),
+  caption: z.string().optional(),
+  fit: z.enum(['cover', 'contain']).optional(),
+})
+
 export const OverlaySchema = z.discriminatedUnion('type', [
   TitleOverlaySchema,
   ProgressDotsOverlaySchema,
@@ -160,6 +169,7 @@ export const OverlaySchema = z.discriminatedUnion('type', [
   HighlightAllPinsOverlaySchema,
   FavoritePickerOverlaySchema,
   CtaOverlaySchema,
+  MediaOverlaySchema,
 ])
 
 // ---------------------------------------------------------------------------

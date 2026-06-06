@@ -282,6 +282,7 @@ const OVERLAY_ZH: Record<string, string> = {
   highlight_all_pins: '高亮全部',
   favorite_picker: '收藏',
   cta: '联系',
+  media: '📹 视频/图',
 }
 
 /** Human-readable camera moves for a beat (what the agent SEES happen). Note the
@@ -533,6 +534,56 @@ router.post('/sessions/:id/beat-overlays', async (req: Request, res: Response) =
   } catch (err) {
     console.error('[luna] beat-overlays error:', err)
     res.status(500).json({ error: 'beat-overlays failed' })
+  }
+})
+
+/**
+ * Attach real footage (sea view / interior) to a beat — a media overlay shown
+ * during the beat. External URL for now (R2 upload is a later slice). Snapshots.
+ * body: { beat_id, media_kind:'video'|'image', url, caption?, at_ms?, duration_ms? }
+ */
+router.post('/sessions/:id/beat-media', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const b = (req.body || {}) as Record<string, unknown>
+    const beatId = String(b.beat_id || '')
+    const url = String(b.url || '').trim()
+    const kind = b.media_kind === 'image' ? 'image' : 'video'
+    if (!beatId || !/^https?:\/\/\S+$/i.test(url)) return res.status(400).json({ error: 'beat_id and a valid url required' })
+
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+    let target: ScriptBeat | undefined
+    eachBeat(scriptRow.script, (bt) => {
+      if (bt.id === beatId) target = bt
+    })
+    if (!target) return res.status(404).json({ error: 'beat not found' })
+
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), '加媒体前']
+    )
+    const overlay: OverlayCue & Record<string, unknown> = {
+      type: 'media',
+      media_kind: kind,
+      url,
+      at_ms: Number.isFinite(Number(b.at_ms)) ? Math.max(0, Math.round(Number(b.at_ms))) : 1000,
+      duration_ms: Number.isFinite(Number(b.duration_ms)) ? Math.max(1000, Math.round(Number(b.duration_ms))) : 8000,
+      fit: 'cover',
+    }
+    if (typeof b.caption === 'string' && b.caption.trim()) overlay.caption = b.caption.trim()
+    if (!Array.isArray(target.overlays)) target.overlays = []
+    target.overlays.push(overlay)
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    res.json({ ok: true, overlays: overlaySummary(target.overlays) })
+  } catch (err) {
+    console.error('[luna] beat-media error:', err)
+    res.status(500).json({ error: 'beat-media failed' })
   }
 })
 

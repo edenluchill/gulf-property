@@ -164,6 +164,29 @@ function OverlayItem({
         </button>
       )
 
+    case 'media': {
+      // Real footage (sea view / interior) the agent attached — proof a chart
+      // can't give. Muted (narration is the audio), looping, framed inset.
+      const fit = overlay.fit === 'contain' ? 'contain' : 'cover'
+      return (
+        <div className="lt-ov lt-ov-media">
+          {overlay.media_kind === 'video' ? (
+            <video
+              src={overlay.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{ objectFit: fit }}
+            />
+          ) : (
+            <img src={overlay.url} alt={overlay.caption || ''} style={{ objectFit: fit }} loading="eager" />
+          )}
+          {overlay.caption && <div className="lt-media-cap">{overlay.caption}</div>}
+        </div>
+      )
+    }
+
     default:
       return null
   }
