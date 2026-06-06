@@ -27,6 +27,7 @@ import AgentLayout from './luna-tour/pages/AgentLayout'  // Luna Tour agent dash
 import AgentOverview from './luna-tour/pages/AgentOverview'  // Luna Tour agent MVP (isolated)
 import AgentTours from './luna-tour/pages/AgentTours'  // Luna Tour agent MVP (isolated)
 import AgentReport from './luna-tour/pages/AgentReport'  // Luna Tour agent MVP (isolated)
+import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fact sheet (isolated)
 
 function App() {
   const { i18n } = useTranslation()
@@ -42,6 +43,8 @@ function App() {
       <Routes>
         {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
         <Route path="/v/:code" element={<MapPage />} />
+        {/* Verifiable, printable fact sheet (sources cited) */}
+        <Route path="/factsheet/:code" element={<FactSheet />} />
         {/* Agent hub — sidebar tabs + nested routes (gated to agent accounts) */}
         <Route path="/agent" element={<AgentLayout />}>
           <Route index element={<AgentOverview />} />

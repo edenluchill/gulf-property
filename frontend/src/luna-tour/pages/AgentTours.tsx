@@ -505,6 +505,15 @@ export default function AgentTours() {
               >
                 预览批注
               </a>
+              <a
+                href={`/factsheet/${s.share_code}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5"
+                title="可核验的数据事实清单(可打印/存 PDF 给客户)"
+              >
+                事实清单
+              </a>
               <FlowToggle sessionId={s.id} onSaved={load} />
               <button onClick={() => openEvents(s.id)} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
                 {eventsId === s.id ? '收起' : '行为'}

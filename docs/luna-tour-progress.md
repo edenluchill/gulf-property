@@ -33,7 +33,9 @@
 - **E4 删/移停靠点生产验证通过**(上移→顺序变、删除→还原)。
 - **E3 R2 视频上传(已实现)**:复用 multer + `uploadBufferToR2`。后端 `POST /api/luna/agent/media-upload`(memory,≤60MB,video/image,传 R2 返公共 URL)。前端"加媒体"框加「或上传文件」→ 上传后自动 beat-media 加为媒体卡。经纪不再需要外部托管视频。
 - **后端需部署(media-upload)。**
-- **未完(继续做到 E5)**:E3 剩余=iframe/YouTube 嵌入(可选);E4 剩余=地图摆位「设为此视角」、逐 beat 重生成;**E5 多语言 / 分析→编辑闭环 / fact-sheet 导出 / 配额**。一步步推进。
+- **media-upload 生产验证通过**(传图 → R2 公共 URL)。
+- **E5 fact-sheet 导出(已实现,纯前端)**:`/factsheet/:code` 页面复用公开端点 + 证据层,渲染**可核验事实清单**(价格/5年投资/真实配套距离含名/DLD 成交量+中位 psf+可比成交,均带来源链接+as_of+免责),`window.print` 可存 PDF。经纪台每个 session 加「事实清单」入口。**无需部署后端**(纯前端)。
+- **未完(继续做到 E5)**:E5 剩余=分析→编辑闭环 / 多语言 switcher / 配额;E4 剩余(打磨)=地图摆位「设为此视角」、逐 beat 重生成;E3 可选=iframe/YouTube 嵌入。一步步推进。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。
