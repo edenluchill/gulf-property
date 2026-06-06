@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { API_BASE_URL } from '../../lib/config'
+import GenerationProgress from './GenerationProgress'
 
 interface SessionRow {
   id: string
@@ -74,6 +75,23 @@ export default function AgentTours() {
   const [matchMsg, setMatchMsg] = useState('')
   const [creating, setCreating] = useState(false)
   const [createMsg, setCreateMsg] = useState('')
+  // generation progress + tour-structure node diagram
+  const [genPhase, setGenPhase] = useState<'idle' | 'building' | 'ready' | 'error'>('idle')
+  const [genStage, setGenStage] = useState(0)
+  const [genStops, setGenStops] = useState<string[]>([])
+  const [genShareCode, setGenShareCode] = useState<string | null>(null)
+  const [audioReady, setAudioReady] = useState(0)
+  const [audioTotal, setAudioTotal] = useState(0)
+  const [genError, setGenError] = useState('')
+  const stageTimer = useRef<number | null>(null)
+  const audioTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (stageTimer.current) window.clearInterval(stageTimer.current)
+      if (audioTimer.current) window.clearInterval(audioTimer.current)
+    },
+    []
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -171,10 +189,43 @@ export default function AgentTours() {
     setMatching(false)
   }
 
+  // poll audio backfill so the structure nodes' "语音就绪" progress fills in
+  const pollAudio = useCallback((code: string, total: number) => {
+    if (audioTimer.current) window.clearInterval(audioTimer.current)
+    const tick = async () => {
+      try {
+        const r = await fetch(`${API}/sessions/${encodeURIComponent(code)}/audio-status`)
+        if (r.ok) {
+          const d = (await r.json()) as { ready: number }
+          setAudioReady(d.ready || 0)
+          if (total > 0 && (d.ready || 0) >= total && audioTimer.current) {
+            window.clearInterval(audioTimer.current)
+            audioTimer.current = null
+          }
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+    void tick()
+    audioTimer.current = window.setInterval(tick, 3000)
+  }, [])
+
   const create = async () => {
     if (picked.length < 2) return
     setCreating(true)
     setCreateMsg('')
+    setGenError('')
+    setGenStops([])
+    setGenShareCode(null)
+    setAudioReady(0)
+    setAudioTotal(0)
+    // advance the build-stage indicator while the request is in flight (hold on
+    // the last "AI 编写分镜" stage until the script comes back).
+    setGenPhase('building')
+    setGenStage(0)
+    if (stageTimer.current) window.clearInterval(stageTimer.current)
+    stageTimer.current = window.setInterval(() => setGenStage((s) => Math.min(s + 1, 2)), 2500)
     try {
       const r = await fetch(`${API}/sessions/create`, {
         method: 'POST',
@@ -186,10 +237,19 @@ export default function AgentTours() {
         }),
       })
       const d = await r.json()
+      if (stageTimer.current) {
+        window.clearInterval(stageTimer.current)
+        stageTimer.current = null
+      }
       if (!r.ok) {
-        setCreateMsg(`❌ ${d.error || '生成失败'}`)
+        setGenPhase('error')
+        setGenError(d.error || '生成失败')
       } else {
-        setCreateMsg(`✅ 已生成 · ${d.watch_url}`)
+        setGenPhase('ready')
+        setGenStops(Array.isArray(d.stops) ? d.stops : [])
+        setGenShareCode(d.shareCode || null)
+        setAudioTotal(d.audioTotal || 0)
+        if (d.shareCode) pollAudio(d.shareCode, d.audioTotal || 0)
         setClientName('')
         setOneLiner('')
         setPicked([])
@@ -198,7 +258,12 @@ export default function AgentTours() {
         load()
       }
     } catch (e) {
-      setCreateMsg(`❌ ${e instanceof Error ? e.message : '网络错误'}`)
+      if (stageTimer.current) {
+        window.clearInterval(stageTimer.current)
+        stageTimer.current = null
+      }
+      setGenPhase('error')
+      setGenError(e instanceof Error ? e.message : '网络错误')
     }
     setCreating(false)
   }
@@ -352,10 +417,23 @@ export default function AgentTours() {
 
         <div className="flex items-center gap-3 mt-4">
           <button disabled={creating || picked.length < 2} onClick={create} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-            {creating ? '生成中… (~10s)' : '生成导览'}
+            {creating ? '生成中…' : genPhase === 'ready' ? '再生成一个' : '生成导览'}
           </button>
           {createMsg && <span className="text-sm">{createMsg}</span>}
         </div>
+
+        {genPhase !== 'idle' && (
+          <GenerationProgress
+            phase={genPhase}
+            stage={genStage}
+            stops={genStops}
+            audioReady={audioReady}
+            audioTotal={audioTotal}
+            shareCode={genShareCode}
+            error={genError}
+          />
+        )}
+
         <div className="text-xs text-slate-400 mt-2">分享码与标题自动生成，生成后可在「流程」里编辑标题和文案。</div>
       </div>
 

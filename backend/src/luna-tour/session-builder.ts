@@ -139,6 +139,9 @@ export interface CreateSessionInput {
   client?: TourInput['client']
   config?: Partial<TourConfig>
   theme?: Record<string, unknown>
+  /** Wait for narration audio to finish before resolving. CLI passes true; the
+   *  HTTP path leaves it false so the request returns fast (audio backfills). */
+  awaitAudio?: boolean
 }
 
 export interface CreateSessionResult {
@@ -147,6 +150,12 @@ export interface CreateSessionResult {
   totalMs: number
   acts: number
   warnings: string[]
+  /** true if audio generation was kicked off (in background unless awaitAudio) */
+  audioStarted: boolean
+  /** left→right tour structure node labels: 开场 → 各楼盘 → 结尾 (for the UI) */
+  stops: string[]
+  /** number of narrated beats audio will be generated for (progress denominator) */
+  audioTotal: number
 }
 
 const DEFAULT_CONFIG: TourConfig = {
@@ -235,21 +244,34 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
     )
     await client.query('COMMIT')
 
-    // Pre-generate narration audio (one voice = Aoede) so the watch page plays
-    // real Gemini speech, not the browser TTS fallback. Non-fatal: a failure
-    // just leaves audio_url empty and the client falls back per-beat. Done after
-    // COMMIT so a TTS hiccup can never roll back a valid session.
-    try {
-      const audio = await generateSessionAudio(sessionId)
-      console.log(
-        `[luna] audio for ${input.shareCode}: ${audio.ready}/${audio.total} ready` +
-          (audio.failed ? `, ${audio.failed} failed` : '')
+    // Pre-generate narration audio (one voice = Aoede). This is HEAVY (per-beat
+    // Gemini TTS + R2 upload for 11+ beats → 60–120s), so by default we do NOT
+    // block the HTTP response on it — otherwise the request exceeds Cloudflare's
+    // ~100s proxy timeout and the browser sees "Failed to fetch". The session is
+    // already fully playable (the engine falls back to browser TTS for any beat
+    // whose audio_url isn't ready yet) and audio_url backfills as clips finish.
+    // CLI callers pass awaitAudio:true to wait. Done after COMMIT so a TTS hiccup
+    // can never roll back a valid session.
+    const audioJob = generateSessionAudio(sessionId)
+      .then((audio) =>
+        console.log(
+          `[luna] audio for ${input.shareCode}: ${audio.ready}/${audio.total} ready` +
+            (audio.failed ? `, ${audio.failed} failed` : '')
+        )
       )
-    } catch (err) {
-      console.warn('[luna] audio pre-generation skipped:', err instanceof Error ? err.message : err)
-    }
+      .catch((err) => console.warn('[luna] audio pre-generation skipped:', err instanceof Error ? err.message : err))
+    if (input.awaitAudio) await audioJob
 
-    return { sessionId, shareCode: input.shareCode, totalMs: script.total_ms, acts: script.acts.length, warnings }
+    return {
+      sessionId,
+      shareCode: input.shareCode,
+      totalMs: script.total_ms,
+      acts: script.acts.length,
+      warnings,
+      audioStarted: true,
+      stops: ['开场', ...properties.map((p) => p.name), '结尾'],
+      audioTotal: 1 + script.acts.reduce((n, a) => n + a.beats.length, 0) + 1,
+    }
   } catch (err) {
     try {
       await client.query('ROLLBACK')

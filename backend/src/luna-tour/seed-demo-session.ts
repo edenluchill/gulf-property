@@ -77,6 +77,7 @@ async function main(): Promise<void> {
     agentId,
     clientId,
     client: { persona: 'investor', name: '陈先生', goal: 'investment', nationality: '香港' },
+    awaitAudio: true, // CLI: wait so the seed command finishes with audio ready
   })
   if (res.warnings.length) res.warnings.forEach((w) => console.log(`     ! ${w}`))
 

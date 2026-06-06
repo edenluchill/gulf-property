@@ -2,6 +2,16 @@
 
 > 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
 
+## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
+- **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。
+- **根因(生成不了)**:`session-builder.createSession` 在 HTTP 响应前 **`await generateSessionAudio`**(为 11+ beat 逐个 Gemini TTS + R2,60–120s),远超 api.pinzos.com 经 Cloudflare 的 ~100s 代理超时 → 连接被掐 → 浏览器 "Failed to fetch"。
+- **修法**:音频改 **后台异步**(脚本 COMMIT 后立即返回 watch_url;引擎对缺 audio_url 的 beat 回退浏览器 TTS,音频回填)。新增 `CreateSessionInput.awaitAudio`(CLI `create-session`/`seed-demo-session` 传 true 等完成;HTTP 不等)。createSession 额外返回 `stops`(开场→各楼盘→结尾)+ `audioTotal`。
+- **生成进度 UX**:
+  - 后端 `GET /api/luna/agent/sessions/:id/audio-status`(按 id 或 share_code)→ `{ready, attempted}`(查 `lt_audio_assets`)。
+  - 前端 `pages/GenerationProgress.tsx`:左→右 node 管道。生成中显示构建阶段(确认楼盘→拉取真实数据→AI 编写分镜,计时推进);返回后显示**真实 tour 结构节点**(开场→各楼盘→结尾,全绿)+ **语音回填进度条**(轮询 audio-status,N/总)+ 立即可用的「打开导览/复制链接」。
+  - `AgentTours` 接管状态/计时/轮询;`create` 失败也进 node 图的 error 态。
+- 前后端 tsc + 前端 build + 暂停不变量 25/25 全绿。**后端必须部署(否则生成仍超时);前端 push 自动。**
+
 ## 2026-06-05 编辑/创作能力 — 愿景 + E1 证据层(护城河)
 - **方向**:从"能看的 demo"→"经纪能创作、客户能验证"。完整愿景 + 三维度 + 分阶段 E1-E5 见 `docs/luna-tour-editor-vision-2026-06-05.md`。用户拍板:先 E1;视频两者都要(R2+外链,E3 用);成交口径楼盘优先样本不足回退区域。
 - **E1 证据层(已实现,数据真实可溯源)**:

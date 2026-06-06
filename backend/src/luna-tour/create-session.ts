@@ -42,6 +42,7 @@ async function main(): Promise<void> {
     projectIds,
     title: title || 'Luna 为你精选的家',
     agentId,
+    awaitAudio: true, // CLI: wait so the command doesn't exit before audio finishes
   })
 
   if (res.warnings.length) res.warnings.forEach((w) => console.log(`  ! ${w}`))

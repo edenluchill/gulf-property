@@ -247,6 +247,32 @@ type ScriptShape = {
  * Read a session's tour flow for editing: title + the ordered beats
  * (intro → each property's beats → outro) and the property names.
  */
+/**
+ * Audio backfill progress for the just-generated session, so the UI can light up
+ * the structure nodes as each beat's narration finishes (audio runs in the
+ * background after create returns). Accepts session id OR share_code.
+ */
+router.get('/sessions/:id/audio-status', async (req: Request, res: Response) => {
+  try {
+    const key = req.params.id
+    const sres = await pool.query<{ id: string }>(
+      `SELECT id FROM lt_demo_sessions WHERE id::text=$1 OR share_code=$1 LIMIT 1`,
+      [key]
+    )
+    const sessionId = sres.rows[0]?.id
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const r = await pool.query<{ ready: string; total: string }>(
+      `SELECT count(*) FILTER (WHERE status='ready') AS ready, count(*) AS total
+         FROM lt_audio_assets WHERE session_id=$1`,
+      [sessionId]
+    )
+    res.json({ ready: Number(r.rows[0]?.ready ?? 0), attempted: Number(r.rows[0]?.total ?? 0) })
+  } catch (err) {
+    console.error('[luna] audio-status error:', err)
+    res.status(500).json({ error: 'audio-status failed' })
+  }
+})
+
 router.get('/sessions/:id/script', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId()
