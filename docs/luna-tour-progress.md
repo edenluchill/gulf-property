@@ -2,6 +2,14 @@
 
 > 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
 
+## 2026-06-06 E2 评论式 AI 改稿(第一版:flow 编辑器内)
+- **数据层**(`src/db/luna-tour-edit.sql`,已应用 + 进 teardown):`lt_edit_comments`(评论锚 beat+at_ms,status open/applied/dismissed)、`lt_tour_script_versions`(脚本版本快照,撤销用)。
+- **revise 服务** `luna-tour/revise.ts`:`reviseNarration(beats, comments)` → Gemini(gemini-3-flash 主/2.5 fallback,JSON)只重写**有评论的 beat** 的旁白,执行意见(短一点/强调X/改数字),restate 合规底线(不承诺回报、不编数字、禁词),失败返回 []。
+- **后端端点**(agent-router):`POST/GET/PATCH /sessions/:id/comments`、`POST /sessions/:id/revise`(收集 open 评论→AI 改→**快照版本**→应用 patch(改 narration + 清该 beat audio_url)→**只重生成改动段音频**(后台,generateSessionAudio 跳过已有音频)→标记 applied)、`GET /sessions/:id/versions` + `POST /sessions/:id/revert`。
+- **前端** FlowEditor:每段旁白下加「给 AI 的修改意见」输入 + 「✨ 用 AI 应用评论」按钮(POST 评论→revise→reload),手动直接改文字仍可。改动可回滚(版本)。
+- 前后端 tsc + 前端 build + 暂停不变量 25/25。**后端必须部署。**
+- **下一步(E2b)**:把评论捕获搬进**播放器内**(预览时暂停→当前 beat 留言),复用同一后端;然后 E3 地点 stop+视频。
+
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。
 - **根因(生成不了)**:`session-builder.createSession` 在 HTTP 响应前 **`await generateSessionAudio`**(为 11+ beat 逐个 Gemini TTS + R2,60–120s),远超 api.pinzos.com 经 Cloudflare 的 ~100s 代理超时 → 连接被掐 → 浏览器 "Failed to fetch"。

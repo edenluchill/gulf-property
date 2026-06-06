@@ -17,6 +17,8 @@ import { createSession, ensureAgent } from './session-builder'
 import { draftConfig } from './auto-config'
 import { matchProperties } from './auto-match'
 import { buildClientReport } from './auto-report'
+import { reviseNarration } from './revise'
+import { generateSessionAudio } from './audio-pipeline'
 
 const router = Router()
 
@@ -298,6 +300,175 @@ router.get('/sessions/:id/gen-status', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] gen-status error:', err)
     res.status(500).json({ error: 'gen-status failed' })
+  }
+})
+
+// ──────────────────────────────────────────────────────────────────────────
+// E2 — comment-driven AI editing
+// ──────────────────────────────────────────────────────────────────────────
+
+async function resolveSessionId(idOrCode: string): Promise<string | null> {
+  const r = await pool.query<{ id: string }>(
+    `SELECT id FROM lt_demo_sessions WHERE id::text=$1 OR share_code=$1 LIMIT 1`,
+    [idOrCode]
+  )
+  return r.rows[0]?.id ?? null
+}
+
+/** Walk every beat (intro → act beats → outro) in a stored script. */
+function eachBeat(script: ScriptShape, fn: (b: ScriptBeat) => void) {
+  if (script.intro) fn(script.intro)
+  for (const act of script.acts || []) for (const b of act.beats || []) fn(b)
+  if (script.outro) fn(script.outro)
+}
+
+/** Leave a comment anchored to a beat (for later AI revise). */
+router.post('/sessions/:id/comments', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const b = (req.body || {}) as Record<string, unknown>
+    const beatId = String(b.beat_id || '').trim()
+    const body = String(b.body || '').trim()
+    if (!beatId || !body) return res.status(400).json({ error: 'beat_id and body required' })
+    const atMs = Number.isFinite(Number(b.at_ms)) ? Math.round(Number(b.at_ms)) : null
+    const r = await pool.query(
+      `INSERT INTO lt_edit_comments (session_id, beat_id, at_ms, body) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [sessionId, beatId, atMs, body]
+    )
+    res.json({ ok: true, id: r.rows[0].id })
+  } catch (err) {
+    console.error('[luna] comment add error:', err)
+    res.status(500).json({ error: 'comment failed' })
+  }
+})
+
+/** List a session's open comments. */
+router.get('/sessions/:id/comments', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const r = await pool.query(
+      `SELECT id, beat_id, at_ms, body, status, created_at
+         FROM lt_edit_comments WHERE session_id=$1 AND status='open' ORDER BY created_at`,
+      [sessionId]
+    )
+    res.json({ comments: r.rows })
+  } catch (err) {
+    console.error('[luna] comment list error:', err)
+    res.status(500).json({ error: 'comment list failed' })
+  }
+})
+
+/** Dismiss (or otherwise update) a comment. */
+router.patch('/sessions/:id/comments/:cid', async (req: Request, res: Response) => {
+  try {
+    const status = String((req.body || {}).status || 'dismissed')
+    if (!['open', 'dismissed', 'applied'].includes(status)) return res.status(400).json({ error: 'bad status' })
+    await pool.query(`UPDATE lt_edit_comments SET status=$1 WHERE id=$2`, [status, req.params.cid])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[luna] comment patch error:', err)
+    res.status(500).json({ error: 'comment patch failed' })
+  }
+})
+
+/**
+ * Apply open comments with AI: rewrite the commented beats' narration, snapshot a
+ * version (undo), persist, regenerate ONLY the changed beats' audio (background),
+ * and mark the comments applied.
+ */
+router.post('/sessions/:id/revise', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+    const cmtRes = await pool.query<{ beat_id: string; body: string }>(
+      `SELECT beat_id, body FROM lt_edit_comments WHERE session_id=$1 AND status='open'`,
+      [sessionId]
+    )
+    if (!cmtRes.rows.length) return res.json({ ok: true, applied: 0, message: '没有待应用的评论' })
+
+    const beats: { beat_id: string; narration: string }[] = []
+    eachBeat(scriptRow.script, (b) => beats.push({ beat_id: b.id || '', narration: b.narration || '' }))
+    const patches = await reviseNarration(beats, cmtRes.rows)
+    if (!patches.length) return res.json({ ok: true, applied: 0, message: 'AI 未产生改动,可换种说法再试' })
+
+    // snapshot the current script for undo
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), `AI 改稿前 · ${patches.length} 段`]
+    )
+
+    // apply patches: set narration + clear audio_url so only those beats re-synth
+    const changed = new Set(patches.map((p) => p.beat_id))
+    const patchById = new Map(patches.map((p) => [p.beat_id, p.narration]))
+    eachBeat(scriptRow.script, (b) => {
+      if (b.id && changed.has(b.id)) {
+        b.narration = patchById.get(b.id)!
+        b.audio_url = undefined
+      }
+    })
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    // drop stale audio rows for changed beats so status reflects the re-gen
+    await pool.query(`DELETE FROM lt_audio_assets WHERE session_id=$1 AND beat_id = ANY($2::text[])`, [
+      sessionId,
+      [...changed],
+    ])
+    await pool.query(`UPDATE lt_edit_comments SET status='applied' WHERE session_id=$1 AND status='open'`, [sessionId])
+
+    // regenerate only the cleared beats' audio in the background
+    void generateSessionAudio(sessionId).catch((e) =>
+      console.warn('[luna] revise audio regen failed:', e instanceof Error ? e.message : e)
+    )
+
+    res.json({ ok: true, applied: patches.length, changed_beats: [...changed] })
+  } catch (err) {
+    console.error('[luna] revise error:', err)
+    res.status(500).json({ error: err instanceof Error ? err.message : 'revise failed' })
+  }
+})
+
+/** List script versions (for undo). */
+router.get('/sessions/:id/versions', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const r = await pool.query(
+      `SELECT id, note, created_at FROM lt_tour_script_versions WHERE session_id=$1 ORDER BY created_at DESC LIMIT 20`,
+      [sessionId]
+    )
+    res.json({ versions: r.rows })
+  } catch (err) {
+    console.error('[luna] versions error:', err)
+    res.status(500).json({ error: 'versions failed' })
+  }
+})
+
+/** Revert the script to a saved version (regenerates any now-missing audio). */
+router.post('/sessions/:id/revert', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const versionId = String((req.body || {}).version_id || '')
+    if (!versionId) return res.status(400).json({ error: 'version_id required' })
+    const vRes = await pool.query<{ script: ScriptShape; script_id: string }>(
+      `SELECT script, script_id FROM lt_tour_script_versions WHERE id=$1 AND session_id=$2`,
+      [versionId, sessionId]
+    )
+    const v = vRes.rows[0]
+    if (!v) return res.status(404).json({ error: 'version not found' })
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(v.script), v.script_id])
+    void generateSessionAudio(sessionId).catch(() => {})
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[luna] revert error:', err)
+    res.status(500).json({ error: 'revert failed' })
   }
 })
 

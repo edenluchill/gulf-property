@@ -8,6 +8,8 @@
 
 DROP MATERIALIZED VIEW IF EXISTS lt_session_lead_scores CASCADE;
 
+DROP TABLE IF EXISTS lt_tour_script_versions CASCADE;
+DROP TABLE IF EXISTS lt_edit_comments       CASCADE;
 DROP TABLE IF EXISTS lt_usage_counters      CASCADE;
 DROP TABLE IF EXISTS lt_subscriptions       CASCADE;
 DROP TABLE IF EXISTS lt_subscription_plans  CASCADE;

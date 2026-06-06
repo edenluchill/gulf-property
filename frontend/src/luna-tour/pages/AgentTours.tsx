@@ -551,6 +551,16 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const loadedFor = useRef<string | null>(null)
+  // E2 — per-beat comments for AI revise
+  const [comments, setComments] = useState<Record<string, string>>({})
+  const [revising, setRevising] = useState(false)
+
+  const reload = async () => {
+    const r = await fetch(`${API}/sessions/${sessionId}/script`)
+    const d = await r.json()
+    setTitle(d.title || '')
+    setBeats(d.flow || [])
+  }
 
   const toggle = async () => {
     if (open) {
@@ -562,15 +572,47 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     if (loadedFor.current === sessionId) return
     setLoading(true)
     try {
-      const r = await fetch(`${API}/sessions/${sessionId}/script`)
-      const d = await r.json()
-      setTitle(d.title || '')
-      setBeats(d.flow || [])
+      await reload()
       loadedFor.current = sessionId
     } catch {
       setBeats([])
     }
     setLoading(false)
+  }
+
+  // Apply per-beat comments with AI: posts each comment, calls /revise, reloads.
+  const reviseWithAI = async () => {
+    const entries = Object.entries(comments).filter(([, v]) => v.trim())
+    if (!entries.length) {
+      setMsg('先在某段下面写一句修改意见,例如「短一点」「强调海景」')
+      return
+    }
+    setRevising(true)
+    setMsg('')
+    try {
+      await Promise.all(
+        entries.map(([beat_id, body]) =>
+          fetch(`${API}/sessions/${sessionId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ beat_id, body: body.trim() }),
+          })
+        )
+      )
+      const r = await fetch(`${API}/sessions/${sessionId}/revise`, { method: 'POST' })
+      const d = await r.json()
+      if (!r.ok) setMsg(`❌ ${d.error || '改稿失败'}`)
+      else if (!d.applied) setMsg(`ℹ️ ${d.message || 'AI 未产生改动'}`)
+      else {
+        setComments({})
+        await reload()
+        setMsg(`✅ AI 改了 ${d.applied} 段（语音正在后台重生成）`)
+        onSaved()
+      }
+    } catch (e) {
+      setMsg(`❌ ${e instanceof Error ? e.message : '网络错误'}`)
+    }
+    setRevising(false)
   }
 
   const save = async () => {
@@ -623,19 +665,36 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                         <span className="text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5 mt-1.5 shrink-0 w-12 text-center">
                           {KIND_ZH[b.kind] || b.kind}
                         </span>
-                        <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />
+                        <div className="flex-1 min-w-0">
+                          <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />
+                          <input
+                            className="mt-1 w-full text-xs border border-dashed border-slate-300 rounded-md px-2 py-1.5 placeholder:text-slate-300 focus:border-emerald-400 focus:outline-none"
+                            placeholder="💬 给 AI 的修改意见（如 短一点 / 强调海景 / 这个数字改成…）"
+                            value={comments[b.id] || ''}
+                            onChange={(e) => setComments((c) => ({ ...c, [b.id]: e.target.value }))}
+                          />
+                        </div>
                       </div>
                     </div>
                   )
                 })
               )}
               <div className="flex items-center gap-3 flex-wrap">
-                <button disabled={saving} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                <button disabled={saving || revising} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
                   {saving ? '保存中…' : '保存修改'}
                 </button>
+                <button
+                  disabled={saving || revising}
+                  onClick={reviseWithAI}
+                  className="bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {revising ? 'AI 改稿中…' : '✨ 用 AI 应用评论'}
+                </button>
                 {msg && <span className="text-sm">{msg}</span>}
-                <span className="text-xs text-slate-400">改文案后该段改用浏览器朗读新文本（旧录音失效）。</span>
               </div>
+              <span className="text-xs text-slate-400">
+                直接改文字＝手动改；或在每段下写一句意见,点「用 AI 应用评论」让 AI 重写那几段（改动可在保存的版本里回滚）。改文案后该段语音会自动重生成。
+              </span>
             </div>
           )}
         </div>
