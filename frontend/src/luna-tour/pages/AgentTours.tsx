@@ -54,7 +54,7 @@ interface FlowBeat {
   narration: string
   seconds?: number
   camera?: string[]
-  overlays?: { label: string; at: number; dur: number }[]
+  overlays?: { idx: number; type: string; label: string; at: number; dur: number }[]
   transition?: string
 }
 
@@ -593,6 +593,25 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     setLoading(false)
   }
 
+  // E4 — edit a beat's overlay cards (timing / remove). Applies immediately and
+  // updates the chips from the server's fresh summary (avoids index drift).
+  const editOverlays = async (beatId: string, edits: { index: number; duration_ms?: number; remove?: boolean }[]) => {
+    try {
+      const r = await fetch(`${API}/sessions/${sessionId}/beat-overlays`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ beat_id: beatId, edits }),
+      })
+      if (r.ok) {
+        const d = (await r.json()) as { overlays: FlowBeat['overlays'] }
+        setBeats((cur) => cur.map((b) => (b.id === beatId ? { ...b, overlays: d.overlays } : b)))
+        onSaved()
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+
   // Apply per-beat comments with AI: posts each comment, calls /revise, reloads.
   const reviseWithAI = async () => {
     const entries = Object.entries(comments).filter(([, v]) => v.trim())
@@ -693,11 +712,14 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                                 {c}
                               </span>
                             ))}
-                            {(b.overlays || []).map((o, oi) => (
-                              <span key={`o${oi}`} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">
+                            {(b.overlays || []).map((o) => (
+                              <span key={`o${o.idx}`} className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">
                                 🃏 {o.label}
                                 {o.at > 0 ? ` @${o.at}s` : ''}
-                                {o.dur > 0 ? `·${o.dur}s` : ''}
+                                <button className="px-0.5 hover:text-amber-900 disabled:opacity-30" disabled={o.dur <= 0} onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: Math.max(0, o.dur - 1) * 1000 }])} title="缩短显示">−</button>
+                                <span className="tabular-nums">{o.dur}s</span>
+                                <button className="px-0.5 hover:text-amber-900" onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: (o.dur + 1) * 1000 }])} title="延长显示">+</button>
+                                <button className="px-0.5 text-rose-400 hover:text-rose-600" onClick={() => editOverlays(b.id, [{ index: o.idx, remove: true }])} title="移除这张卡">×</button>
                               </span>
                             ))}
                             {b.seconds ? <span className="text-[10px] text-slate-400">⏱ ~{b.seconds}s</span> : null}

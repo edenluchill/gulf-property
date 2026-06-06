@@ -16,7 +16,9 @@
 - **真机反馈**:flow 编辑器只显示旁白文字,看不到也改不了构成 tour 的镜头(环绕/飞行/推近)、卡片 overlay(哪张/第几秒/持续多久)、段间挑高转场、时长 —— "这就是结构图吗?缺很多"。
 - **本步(可视化,已实现)**:`/sessions/:id/script` 的 flow 每段补 `seconds`+`camera`(摘要:🔄环绕/✈️飞行/🎥推近)+`overlays`(中文卡名+@第几s+持续s)+`transition`(acts>0 首 beat:挑高抛远飞向X)。前端 FlowEditor 渲染**故事板 chips**(镜头灰、卡片琥珀带时序、⏱时长、段间转场虚线)。仍保留旁白手改 + 评论 + AI 应用。
 - **后端需部署(/script 变了);前端 push 自动。**
-- **未完(继续 E3-E5 + 让结构可编辑)**:E4 直接编辑镜头/卡片/时序+拖拽重排+地图摆位捕捉镜头+逐 beat 重生成;E3 地点 stop+视频;E5 多语言/分析→编辑闭环/fact-sheet/配额。规模大,分步推进。
+- **E4 第一步(卡片可编辑,已实现)**:`/script` overlay 摘要加 `idx`+`type`;新端点 `POST /sessions/:id/beat-overlays`(按 index 改 `duration_ms`/`at_ms` 或 `remove`,**保留卡片数据字段**,只动时长/删;改前快照版本)。前端卡片 chip 加 `−/时长/+`(调显示秒)+ `×`(移除),即时生效、服务端返回新摘要更新 chips。
+- **后端需部署(beat-overlays 端点 + overlay 摘要变了)。**
+- **未完(继续做到 E5)**:E4 剩余=拖拽重排 beat/stop、地图摆位「设为此视角」、逐 beat 重生成、加/删 stop;E3 地点 stop+视频;E5 多语言/分析→编辑闭环/fact-sheet/配额。一步步推进。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
 - **真机报**:经纪台「生成导览」直接 **Failed to fetch**(生成不了);且生成体验单调,想要进度 + 从左到右的 tour 结构 node 图(显示已完成哪步)。

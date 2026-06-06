@@ -297,10 +297,14 @@ function cameraSummary(cam: CameraCue[] | undefined): string[] {
   return out
 }
 
-/** Overlay cards on a beat with their timing (when + how long). */
-function overlaySummary(ov: OverlayCue[] | undefined): { label: string; at: number; dur: number }[] {
+/** Overlay cards on a beat with their timing (when + how long). idx = position
+ *  in the beat's overlay array, used to target edits without losing the card's
+ *  data fields (we only tweak timing / remove). */
+function overlaySummary(ov: OverlayCue[] | undefined): { idx: number; type: string; label: string; at: number; dur: number }[] {
   if (!Array.isArray(ov)) return []
-  return ov.map((o) => ({
+  return ov.map((o, idx) => ({
+    idx,
+    type: o.type || '',
     label: OVERLAY_ZH[o.type || ''] || o.type || '卡片',
     at: Math.round((o.at_ms ?? 0) / 1000),
     dur: Math.round((o.duration_ms ?? 0) / 1000),
@@ -476,6 +480,59 @@ router.post('/sessions/:id/revise', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] revise error:', err)
     res.status(500).json({ error: err instanceof Error ? err.message : 'revise failed' })
+  }
+})
+
+/**
+ * Edit a beat's overlay CARDS (timing / removal) by index — preserves each card's
+ * data fields (we only change at_ms / duration_ms or drop it). Snapshots a version.
+ * body: { beat_id, edits: [{ index, duration_ms?, at_ms?, remove? }] }
+ */
+router.post('/sessions/:id/beat-overlays', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const b = (req.body || {}) as { beat_id?: string; edits?: { index: number; duration_ms?: number; at_ms?: number; remove?: boolean }[] }
+    const beatId = String(b.beat_id || '')
+    const edits = Array.isArray(b.edits) ? b.edits : []
+    if (!beatId || !edits.length) return res.status(400).json({ error: 'beat_id and edits required' })
+
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+
+    let target: ScriptBeat | undefined
+    eachBeat(scriptRow.script, (bt) => {
+      if (bt.id === beatId) target = bt
+    })
+    if (!target || !Array.isArray(target.overlays)) return res.status(404).json({ error: 'beat/overlays not found' })
+
+    // snapshot for undo
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), '卡片改动前']
+    )
+
+    const removeIdx = new Set<number>()
+    for (const e of edits) {
+      const ov = target.overlays[e.index]
+      if (!ov) continue
+      if (e.remove) removeIdx.add(e.index)
+      else {
+        if (Number.isFinite(e.duration_ms)) ov.duration_ms = Math.max(0, Math.round(e.duration_ms as number))
+        if (Number.isFinite(e.at_ms)) ov.at_ms = Math.max(0, Math.round(e.at_ms as number))
+      }
+    }
+    if (removeIdx.size) target.overlays = target.overlays.filter((_, i) => !removeIdx.has(i))
+
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    res.json({ ok: true, overlays: overlaySummary(target.overlays) })
+  } catch (err) {
+    console.error('[luna] beat-overlays error:', err)
+    res.status(500).json({ error: 'beat-overlays failed' })
   }
 })
 
