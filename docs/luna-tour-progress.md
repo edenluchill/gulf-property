@@ -102,6 +102,12 @@
   - **编辑器内预览播放**:`▶ 预览播放` → 弹层 `<iframe src=/?toursession=code>` 跑真实导览(`/script` 加返回 share_code)。
   - 距离卡显示"到 XX (X km)"(上轮),系统卡隐藏。
 - 前端 tsc + build + 不变量 25/25。后端(estimate + share_code)需部署。
+
+## 2026-06-07 镜头可编辑(去术语)+ 媒体确认
+- 真机反馈:运镜/环绕没法编辑;质疑加媒体是否有用。
+- **镜头可编辑**:后端 `cameraSummary` 改返回**友好字符串**(环绕展示/推近/俯瞰/飞入,去掉 "zoom 8" 术语)+ `cameraStyle`(orbit/push/aerial)+ 新端点 `POST /sessions/:id/beat-camera`{beat_id,style}(写 keyframe zoom/pitch 预设,引擎采样 → 肉眼可见:推近 z16/p55、环绕 z14/p50、俯瞰 z11.5/p70)。前端侧栏加「镜头风格」三按钮选择;镜头轨显示友好标签。
+- **媒体确认有用**:`media` overlay 在 `OverlayLayer` 有渲染(播放时画中画浮于地图),经「▶ 预览播放」可验证。
+- 前端 tsc + build + 不变量 25/25。后端需部署。
 - **串行部署纪律**:并发部署同一组 Hetzner 服务器会冲突,务必等上一个部署完成再起下一个。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图

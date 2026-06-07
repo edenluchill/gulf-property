@@ -407,6 +407,7 @@ type CameraCue = {
   pitch?: number
   duration_ms?: number
   at_ms?: number
+  bearing?: number
   center?: [number, number]
   from?: [number, number]
   to?: [number, number]
@@ -466,17 +467,31 @@ const OVERLAY_ZH: Record<string, string> = {
   media: '📹 视频/图',
 }
 
-/** Human-readable camera moves for a beat (what the agent SEES happen). Note the
- *  engine also adds a constant gentle rotation to every beat. */
-function cameraSummary(cam: CameraCue[] | undefined): string[] {
-  if (!Array.isArray(cam) || !cam.length) return ['缓慢环绕']
-  const out: string[] = []
-  for (const c of cam) {
-    if (c?.type === 'orbit') out.push('🔄 环绕')
-    else if (c?.type === 'flyover') out.push('✈️ 飞行运镜')
-    else out.push(c?.zoom != null ? `🎥 推近 zoom ${c.zoom}` : '🎥 运镜')
-  }
-  return out
+// camera "style" presets the agent can pick (zoom/pitch the engine honours +
+// constant gentle rotation). Friendly, no jargon.
+const CAMERA_STYLES: Record<string, { zoom: number; pitch: number; label: string }> = {
+  orbit: { zoom: 14, pitch: 50, label: '🔄 环绕展示' },
+  push: { zoom: 16, pitch: 55, label: '🔍 推近' },
+  aerial: { zoom: 11.5, pitch: 70, label: '🦅 俯瞰全景' },
+}
+/** Friendly one-word camera move for a beat (no zoom jargon). The engine adds a
+ *  constant gentle rotation to every beat regardless. */
+function cameraSummary(cam: CameraCue[] | undefined): string {
+  if (!Array.isArray(cam) || !cam.length) return '环绕展示'
+  const hasFly = cam.some((c) => c?.type === 'flyover')
+  const key = cam.find((c) => !c?.type && c?.zoom != null) // the keyframe
+  const z = key?.zoom
+  if (z != null && z >= 15.5) return hasFly ? '飞入 · 推近' : '推近'
+  if (z != null && z <= 12) return '俯瞰全景'
+  if (hasFly) return '飞入 · 环绕'
+  return '环绕展示'
+}
+/** Which preset a beat's camera currently matches (for the editor's style picker). */
+function cameraStyle(cam: CameraCue[] | undefined): string {
+  const z = (Array.isArray(cam) ? cam : []).find((c) => !c?.type && c?.zoom != null)?.zoom
+  if (z != null && z >= 15.5) return 'push'
+  if (z != null && z <= 12) return 'aerial'
+  return 'orbit'
 }
 
 interface OverlayViz { idx: number; type: string; label: string; at: number; dur: number; image?: string; value?: string }
@@ -967,6 +982,34 @@ router.post('/sessions/:id/delete-stop', async (req: Request, res: Response) => 
   }
 })
 
+/** Set a beat's camera STYLE (环绕/推近/俯瞰) — a friendly preset (zoom+pitch the
+ *  engine honours). body: { beat_id, style:'orbit'|'push'|'aerial' } */
+router.post('/sessions/:id/beat-camera', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const beatId = String((req.body || {}).beat_id || '')
+    const style = String((req.body || {}).style || '')
+    const preset = CAMERA_STYLES[style]
+    if (!beatId || !preset) return res.status(400).json({ error: 'beat_id and valid style required' })
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+    let target: ScriptBeat | undefined
+    eachBeat(scriptRow.script, (bt) => { if (bt.id === beatId) target = bt })
+    if (!target) return res.status(404).json({ error: 'beat not found' })
+    target.camera = [{ at_ms: 0, zoom: preset.zoom, pitch: preset.pitch, bearing: 0, duration_ms: target.duration_ms || 8000 }]
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    res.json({ ok: true, camera: cameraSummary(target.camera), cameraStyle: style })
+  } catch (err) {
+    console.error('[luna] beat-camera error:', err)
+    res.status(500).json({ error: 'beat-camera failed' })
+  }
+})
+
 /** Edit a stop's outgoing transition (the node BEFORE the next stop).
  *  body: { act_index, type:'flyover'|'cut', duration_ms } */
 router.post('/sessions/:id/stop-transition', async (req: Request, res: Response) => {
@@ -1089,7 +1132,8 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       kind: string
       narration: string
       seconds: number
-      camera: string[]
+      camera: string
+      cameraStyle: string
       overlays: OverlayViz[]
       transition?: string
       transitionType?: string
@@ -1103,6 +1147,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       narration: b.narration || '',
       seconds: estimateSeconds(b.narration || ''),
       camera: cameraSummary(b.camera),
+      cameraStyle: cameraStyle(b.camera),
       overlays: overlaySummary(b.overlays, imageById),
       actIndex,
       ...(transitionType ? { transitionType } : {}),

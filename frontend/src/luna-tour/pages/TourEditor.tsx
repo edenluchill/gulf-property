@@ -24,7 +24,8 @@ interface Node {
   kind: string
   narration: string
   seconds?: number
-  camera?: string[]
+  camera?: string
+  cameraStyle?: string
   overlays?: OverlayChip[]
   transition?: string
   transitionType?: string
@@ -197,6 +198,10 @@ export default function TourEditor() {
     } catch { flash('❌ 改稿失败') }
     setBusy(false)
   }
+  const setCameraStyle = async (beatId: string, style: string) => {
+    const r = await lunaFetch(`/sessions/${id}/beat-camera`, { method: 'POST', body: JSON.stringify({ beat_id: beatId, style }) })
+    if (r.ok) { const d = await r.json(); setNodes((cur) => cur.map((n) => (n.id === beatId ? { ...n, camera: d.camera, cameraStyle: d.cameraStyle } : n))); flash('✅ 镜头已更新') }
+  }
   const editOverlays = async (beatId: string, edits: { index: number; duration_ms?: number; remove?: boolean }[]) => {
     const r = await lunaFetch(`/sessions/${id}/beat-overlays`, { method: 'POST', body: JSON.stringify({ beat_id: beatId, edits }) })
     if (r.ok) { const d = await r.json(); setNodes((cur) => cur.map((n) => (n.id === beatId ? { ...n, overlays: d.overlays } : n))) }
@@ -331,7 +336,7 @@ export default function TourEditor() {
               <Track label="镜头" h={38}>
                 {laid.map((b) => (
                   <div key={b.id} className="absolute top-1 bottom-1 rounded-md bg-slate-700/60 border border-slate-600 flex items-center px-2 overflow-hidden" style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
-                    <span className="text-[11px] text-slate-300 truncate">{(b.camera || []).join(' · ') || '缓慢环绕'}</span>
+                    <span className="text-[11px] text-slate-300 truncate">🎥 {b.camera || '环绕展示'}</span>
                   </div>
                 ))}
               </Track>
@@ -403,6 +408,17 @@ export default function TourEditor() {
                 <input className="w-full border border-dashed border-slate-300 rounded-lg px-2 py-1.5 text-sm" placeholder="短一点 / 强调海景 / 这个数字改成…" value={comments[sel.id] || ''} onChange={(e) => setComments((c) => ({ ...c, [sel.id]: e.target.value }))} />
               </div>
               <div>
+                <label className="block text-xs text-slate-400 mb-1">镜头风格(画面怎么动)</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[{ k: 'orbit', l: '🔄 环绕展示' }, { k: 'push', l: '🔍 推近' }, { k: 'aerial', l: '🦅 俯瞰' }].map((s) => (
+                    <button key={s.k} onClick={() => setCameraStyle(sel.id, s.k)}
+                      className={`text-xs rounded-lg border px-1 py-2 ${sel.cameraStyle === s.k ? 'bg-indigo-50 border-indigo-400 text-indigo-700 font-medium' : 'border-slate-200 text-slate-600'}`}>
+                      {s.l}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1 mb-3">镜头会自动平滑环绕运动,这里选大致取景。</div>
+
                 <label className="block text-xs text-slate-400 mb-1">这一段显示的卡片(也可在轨道上拖动)</label>
                 {(sel.overlays || []).filter((o) => !OV_HIDE.has(o.type)).length === 0 && <div className="text-xs text-slate-300">无</div>}
                 <div className="flex flex-col gap-1">
