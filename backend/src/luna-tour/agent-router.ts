@@ -443,6 +443,16 @@ type ScriptShape = {
   acts?: ScriptAct[]
 }
 
+/** Estimate spoken seconds from narration text (CJK ~4.2 chars/s + latin ~2.6
+ *  words/s + 0.7s tail) — so the timeline duration tracks the TEXT (edit the line
+ *  → duration updates), not a stale authored value. Mirrors the engine's speakMs. */
+function estimateSeconds(text: string): number {
+  const cjk = (text.match(/[一-鿿　-〿＀-￯]/g) || []).length
+  const latin = text.replace(/[一-鿿　-〿＀-￯]/g, ' ').trim()
+  const words = latin ? latin.split(/\s+/).filter(Boolean).length : 0
+  return Math.max(3, Math.round(cjk / 4.2 + words / 2.6 + 0.7))
+}
+
 const OVERLAY_ZH: Record<string, string> = {
   title: '标题',
   progress_dots: '进度点',
@@ -1057,7 +1067,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
     const id = String(req.params.id)
-    const s = await pool.query(`SELECT title FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [id, agentId])
+    const s = await pool.query(`SELECT title, share_code FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [id, agentId])
     if (s.rowCount === 0) return res.status(404).json({ error: 'not found' })
 
     const sc = await pool.query<{ script: ScriptShape }>(
@@ -1091,7 +1101,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       group,
       kind,
       narration: b.narration || '',
-      seconds: Math.round((b.duration_ms ?? 0) / 1000),
+      seconds: estimateSeconds(b.narration || ''),
       camera: cameraSummary(b.camera),
       overlays: overlaySummary(b.overlays, imageById),
       actIndex,
@@ -1116,7 +1126,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       })
       if (script.outro?.id) flow.push(beatItem(script.outro, '结尾', 'outro', -1))
     }
-    res.json({ title: s.rows[0].title, flow })
+    res.json({ title: s.rows[0].title, share_code: s.rows[0].share_code, flow })
   } catch (err) {
     console.error('[luna] agent script error:', err)
     res.status(500).json({ error: 'internal error' })

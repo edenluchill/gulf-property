@@ -39,8 +39,15 @@ const KIND_ZH: Record<string, string> = { intro: '开场', arrival: '到达', li
 const OV_HIDE = new Set(['progress_dots', 'highlight_all_pins'])
 // per-type icon so card clips are instantly recognisable
 const OV_ICON: Record<string, string> = { title: '🅣', property_card: '🏠', roi_card: '📈', distance_line: '📏', amenity_spokes: '🌐', media: '🎞', cta: '🔗' }
-const DEFAULT_BEAT_S = 10
-const GUTTER = 56 // left track-label column width (px)
+const GUTTER = 64 // left track-label column width (px)
+/** Estimate spoken seconds from narration (CJK ~4.2/s + latin ~2.6 words/s + 0.7
+ *  tail) so the timeline duration tracks the TEXT live as you edit — no stale 20s. */
+function estSec(text: string): number {
+  const cjk = (text.match(/[一-鿿　-〿＀-￯]/g) || []).length
+  const latin = text.replace(/[一-鿿　-〿＀-￯]/g, ' ').trim()
+  const words = latin ? latin.split(/\s+/).filter(Boolean).length : 0
+  return Math.max(3, Math.round(cjk / 4.2 + words / 2.6 + 0.7))
+}
 
 type DragState = {
   beatId: string
@@ -58,6 +65,8 @@ type DragState = {
 export default function TourEditor() {
   const { id = '' } = useParams<{ id: string }>()
   const [title, setTitle] = useState('')
+  const [shareCode, setShareCode] = useState('')
+  const [preview, setPreview] = useState(false)
   const [nodes, setNodes] = useState<Node[]>([])
   const [loading, setLoading] = useState(true)
   const [selId, setSelId] = useState<string | null>(null)
@@ -77,6 +86,7 @@ export default function TourEditor() {
     const r = await lunaFetch(`/sessions/${id}/script`)
     const d = await r.json()
     setTitle(d.title || '')
+    setShareCode(d.share_code || '')
     setNodes(d.flow || [])
   }, [id])
 
@@ -103,7 +113,7 @@ export default function TourEditor() {
   // ── layout: absolute time for each beat + overlay ──────────────────────────
   let t = 0
   const laid: Laid[] = nodes.map((n) => {
-    const dur = n.seconds && n.seconds > 0 ? n.seconds : DEFAULT_BEAT_S
+    const dur = estSec(n.narration) // live from current text
     const start = t
     t += dur
     return { ...n, start, dur }
@@ -243,6 +253,7 @@ export default function TourEditor() {
           <span className="text-xs w-10 text-center">{px}px/s</span>
           <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
         </div>
+        <button onClick={() => setPreview(true)} disabled={!shareCode} className="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">▶ 预览播放</button>
         <button onClick={applyComments} disabled={busy} className="bg-indigo-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">✨ 用 AI 应用评论</button>
         <button onClick={saveNarration} disabled={busy} className="bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">保存</button>
         {msg && <span className="text-sm">{msg}</span>}
@@ -255,10 +266,10 @@ export default function TourEditor() {
             <div style={{ width: W + GUTTER }}>
               {/* ruler */}
               <div className="flex sticky top-0 z-10">
-                <div className="shrink-0 bg-slate-900 border-r border-b border-slate-800" style={{ width: GUTTER, height: 24 }} />
-                <div className="relative bg-slate-900 border-b border-slate-800" style={{ width: W, height: 24 }}>
+                <div className="shrink-0 bg-slate-900 border-r border-b border-slate-800" style={{ width: GUTTER, height: 30 }} />
+                <div className="relative bg-slate-900 border-b border-slate-800" style={{ width: W, height: 30 }}>
                   {ruler.map((s) => (
-                    <div key={s} className="absolute top-0 h-full border-l border-slate-700/60 text-[10px] text-slate-500 pl-1" style={{ left: s * px }}>{s}s</div>
+                    <div key={s} className="absolute top-0 h-full border-l border-slate-700/60 text-[11px] text-slate-400 pl-1 pt-1" style={{ left: s * px }}>{s}s</div>
                   ))}
                 </div>
               </div>
@@ -290,16 +301,16 @@ export default function TourEditor() {
               </Track>
 
               {/* stop bands */}
-              <Track label="停靠点" h={36}>
+              <Track label="停靠点" h={54}>
                 {bands.map((b, i) => (
-                  <div key={i} className={`absolute top-1 bottom-1 rounded border ${bandColor(b)} flex items-center px-1.5 gap-1.5 overflow-hidden`} style={{ left: b.start * px, width: (b.end - b.start) * px }}>
-                    {b.image ? <img src={proxied(b.image)} alt="" className="h-5 w-7 object-cover rounded shrink-0" /> : <span className="shrink-0">{b.isPlace ? '📍' : '🏠'}</span>}
-                    <span className="text-[11px] text-slate-100 truncate">{b.name}</span>
+                  <div key={i} className={`absolute top-1.5 bottom-1.5 rounded-lg border ${bandColor(b)} flex items-center px-2 gap-2 overflow-hidden`} style={{ left: b.start * px, width: (b.end - b.start) * px }}>
+                    {b.image ? <img src={proxied(b.image)} alt="" className="h-9 w-12 object-cover rounded shrink-0" /> : <span className="text-lg shrink-0">{b.isPlace ? '📍' : '🏠'}</span>}
+                    <span className="text-sm font-medium text-slate-100 truncate">{b.name}</span>
                     {b.actIndex >= 0 && (
-                      <span className="ml-auto flex items-center gap-0.5 shrink-0">
-                        <button className="text-slate-300 hover:text-white px-0.5 text-xs" title="左移" onClick={() => moveStop(b.actIndex, -1)}>←</button>
-                        <button className="text-slate-300 hover:text-white px-0.5 text-xs" title="右移" onClick={() => moveStop(b.actIndex, 1)}>→</button>
-                        <button className="text-rose-300 hover:text-rose-500 px-0.5 text-xs" title="删除" onClick={() => deleteStop(b.actIndex, b.name)}>✕</button>
+                      <span className="ml-auto flex items-center gap-1 shrink-0">
+                        <button className="text-slate-300 hover:text-white px-1 text-sm" title="左移" onClick={() => moveStop(b.actIndex, -1)}>←</button>
+                        <button className="text-slate-300 hover:text-white px-1 text-sm" title="右移" onClick={() => moveStop(b.actIndex, 1)}>→</button>
+                        <button className="text-rose-300 hover:text-rose-500 px-1 text-sm" title="删除" onClick={() => deleteStop(b.actIndex, b.name)}>✕</button>
                       </span>
                     )}
                   </div>
@@ -307,27 +318,27 @@ export default function TourEditor() {
               </Track>
 
               {/* 旁白 track (beats) */}
-              <Track label="旁白" h={64}>
+              <Track label="旁白" h={104}>
                 {laid.map((b) => (
-                  <button key={b.id} onClick={() => setSelId(b.id)} className={`absolute top-1 bottom-1 rounded-md border text-left px-2 py-1 overflow-hidden transition ${selId === b.id ? 'ring-2 ring-indigo-400 z-10' : ''} ${(b.actIndex ?? -1) < 0 ? 'bg-slate-700 border-slate-600' : b.isPlace ? 'bg-indigo-600/70 border-indigo-400' : 'bg-emerald-700/70 border-emerald-500'}`} style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
-                    <div className="text-[10px] text-slate-200/80">{KIND_ZH[b.kind] || b.kind} · {b.dur}s</div>
-                    <div className="text-[11px] text-white leading-snug line-clamp-2">{b.narration || '—'}</div>
+                  <button key={b.id} onClick={() => setSelId(b.id)} className={`absolute top-1.5 bottom-1.5 rounded-lg border text-left px-2.5 py-2 overflow-hidden transition ${selId === b.id ? 'ring-2 ring-indigo-300 z-10' : ''} ${(b.actIndex ?? -1) < 0 ? 'bg-slate-700 border-slate-600' : b.isPlace ? 'bg-indigo-600/70 border-indigo-400' : 'bg-emerald-700/70 border-emerald-500'}`} style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
+                    <div className="text-[11px] font-medium text-white/80 mb-0.5">{KIND_ZH[b.kind] || b.kind} · ~{b.dur}s</div>
+                    <div className="text-[13px] text-white leading-snug line-clamp-4">{b.narration || '—'}</div>
                   </button>
                 ))}
               </Track>
 
               {/* 镜头 track */}
-              <Track label="镜头" h={30}>
+              <Track label="镜头" h={38}>
                 {laid.map((b) => (
-                  <div key={b.id} className="absolute top-1 bottom-1 rounded bg-slate-700/60 border border-slate-600 flex items-center px-1.5 overflow-hidden" style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
-                    <span className="text-[10px] text-slate-300 truncate">{(b.camera || []).join(' · ') || '缓慢环绕'}</span>
+                  <div key={b.id} className="absolute top-1 bottom-1 rounded-md bg-slate-700/60 border border-slate-600 flex items-center px-2 overflow-hidden" style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
+                    <span className="text-[11px] text-slate-300 truncate">{(b.camera || []).join(' · ') || '缓慢环绕'}</span>
                   </div>
                 ))}
               </Track>
 
               {/* 卡片 track — overlays positioned by absolute time, draggable/trim.
                   System cards (进度点/高亮全部) are hidden — not author content. */}
-              <Track label="卡片" h={Math.max(48, (laid.reduce((m, b) => Math.max(m, (b.overlays || []).filter((o) => !OV_HIDE.has(o.type)).length), 0)) * 30 + 10)}>
+              <Track label="卡片" h={Math.max(60, (laid.reduce((m, b) => Math.max(m, (b.overlays || []).filter((o) => !OV_HIDE.has(o.type)).length), 0)) * 48 + 12)}>
                 {laid.flatMap((b) => {
                   const vis = (b.overlays || []).filter((o) => !OV_HIDE.has(o.type))
                   return vis.map((o, lane) => {
@@ -335,25 +346,28 @@ export default function TourEditor() {
                     const at = isDrag ? drag.current!.liveAt : o.at
                     const dur = isDrag ? drag.current!.liveDur : (o.dur > 0 ? o.dur : Math.max(2, b.dur - o.at))
                     const isMedia = o.type === 'media'
+                    const hasImg = !!o.image
                     return (
                       <div
                         key={`${b.id}-${o.idx}`}
                         onMouseDown={(e) => startDrag(e, b, o, 'move')}
-                        className={`absolute rounded-md border bg-white shadow-sm flex items-center gap-1 pl-1 pr-1.5 cursor-grab active:cursor-grabbing overflow-hidden ${isDrag ? 'z-20 ring-2 ring-amber-300' : 'border-slate-300'}`}
-                        style={{ left: (b.start + at) * px + 1, width: Math.max(28, dur * px - 2), top: 5 + lane * 30, height: 26 }}
+                        className={`absolute rounded-lg border bg-white shadow-sm flex items-center gap-2 pl-2.5 pr-2 cursor-grab active:cursor-grabbing overflow-hidden ${isDrag ? 'z-20 ring-2 ring-amber-300' : 'border-slate-300'}`}
+                        style={{ left: (b.start + at) * px + 1, width: Math.max(hasImg ? 110 : 76, dur * px - 2), top: 6 + lane * 48, height: 42 }}
                         title={`${o.label} · 拖动移动 · 拖右端裁剪时长`}
                       >
-                        {o.image ? (
-                          <img src={proxied(o.image)} alt="" className="h-full w-8 object-cover rounded-l shrink-0 -ml-1" />
-                        ) : (
-                          <span className="text-sm shrink-0">{OV_ICON[o.type] || '🃏'}</span>
-                        )}
-                        {o.value && <span className="text-[11px] font-bold text-emerald-600 shrink-0">{o.value}</span>}
-                        <span className="text-[10px] text-slate-700 truncate leading-tight">{o.label}</span>
-                        <span className="ml-auto text-[9px] text-slate-400 shrink-0">{Math.round(dur)}s</span>
-                        <div onMouseDown={(e) => startDrag(e, b, o, 'trim')} className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize ${isMedia ? 'bg-violet-300' : 'bg-amber-300'}`} />
                         {/* left colour stripe = type */}
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${o.type === 'property_card' ? 'bg-emerald-500' : o.type === 'roi_card' ? 'bg-blue-500' : isMedia ? 'bg-violet-500' : 'bg-amber-500'}`} />
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${o.type === 'property_card' ? 'bg-emerald-500' : o.type === 'roi_card' ? 'bg-blue-500' : isMedia ? 'bg-violet-500' : 'bg-amber-500'}`} />
+                        {hasImg ? (
+                          <img src={proxied(o.image)} alt="" className="h-9 w-14 object-cover rounded shrink-0" />
+                        ) : (
+                          <span className="text-xl shrink-0">{OV_ICON[o.type] || '🃏'}</span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          {o.value && <div className="text-sm font-bold text-emerald-600 leading-tight">{o.value}</div>}
+                          <div className="text-[12px] text-slate-700 truncate leading-tight">{o.label}</div>
+                          <div className="text-[10px] text-slate-400">{Math.round(dur)}s</div>
+                        </div>
+                        <div onMouseDown={(e) => startDrag(e, b, o, 'trim')} className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize ${isMedia ? 'bg-violet-300' : 'bg-amber-300'}`} />
                       </div>
                     )
                   })
@@ -420,6 +434,16 @@ export default function TourEditor() {
           )}
         </div>
       </div>
+
+      {/* in-editor preview — plays the real tour in an iframe */}
+      {preview && shareCode && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPreview(false)}>
+          <div className="relative bg-black rounded-xl overflow-hidden shadow-2xl" style={{ width: 'min(1100px,92vw)', height: 'min(680px,86vh)' }} onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setPreview(false)} className="absolute top-2 right-2 z-10 bg-white/90 rounded-full w-8 h-8 text-slate-700 text-lg leading-none">✕</button>
+            <iframe title="预览" src={`/?toursession=${shareCode}`} className="w-full h-full border-0" allow="autoplay; fullscreen" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
