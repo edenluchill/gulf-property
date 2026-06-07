@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { API_BASE_URL } from '../../lib/config'
+import { lunaFetch } from '../lunaApi'
 
 interface SessionRow {
   id: string
@@ -21,8 +21,6 @@ interface SessionRow {
   lead_score: number
 }
 
-const API = `${API_BASE_URL}/api/luna/agent`
-
 export default function AgentOverview() {
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +28,7 @@ export default function AgentOverview() {
   useEffect(() => {
     ;(async () => {
       try {
-        const r = await fetch(`${API}/sessions`)
+        const r = await lunaFetch(`/sessions`)
         const d = await r.json()
         setSessions(d.sessions || [])
       } catch {

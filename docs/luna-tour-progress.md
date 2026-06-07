@@ -37,7 +37,13 @@
 - **E5 fact-sheet 导出(已实现,纯前端)**:`/factsheet/:code` 页面复用公开端点 + 证据层,渲染**可核验事实清单**(价格/5年投资/真实配套距离含名/DLD 成交量+中位 psf+可比成交,均带来源链接+as_of+免责),`window.print` 可存 PDF。经纪台每个 session 加「事实清单」入口。**无需部署后端**(纯前端)。
 - **E5 分析→编辑闭环(已实现)**:后端 `GET /sessions/:id/insights`(查 `lt_engagement_events`:完看率 + 各停靠点 property_dwell 停留/❤️ + 一句改进建议:完看率低→开场太长 / 停留最短的段→精简或加实拍)。前端经纪台「行为」展开区加「📊 洞察」面板。**后端需部署。**
 - **E5 多语言(已实现)**:生成管线本就支持 zh/en/ar/ru(auto-config 按客户推断旁白+Gemini TTS 语音)。新增**显式语言选择**:create body 接受 `language`(覆盖 auto-config),生成表单加语言下拉(中文/English/العربية/Русский,默认 AI 自动)。覆盖迪拜国际客户。后端需部署。
-- **未完(继续做到 E5)**:E5 剩余=配额计量(需 Phase1 真 auth 才有意义,demo agent 下先轻量记录);E4 打磨(可选)=地图摆位捕捉镜头、逐 beat 重生成。
+- **E5 多语言生产验证通过**(`language:"en"` → 开场旁白英文)。
+- **Phase 1 真实经纪登录(Supabase,已实现)**:
+  - 后端 `currentAgentId(req)`:有有效 Supabase token → 按 email 找/建经纪并 link `auth_user_id`(`ensureAgent` 加 `authUserId`);无 token/未配置 → 软回退 demo agent(向后兼容,不破坏公开 demo)。所有 agent 端点已按此 scope(`WHERE agent_id`)。
+  - 前端 `luna-tour/lunaApi.ts`(`lunaFetch` 自动带 Supabase token);AgentTours/Overview/Report/TourOverlay 评论全迁移到它;`AgentLayout` 加邮箱魔法链接登录(`useAuth().signInWithOtp`)+ 登录态/退出。
+  - 效果:登录的经纪只看/改自己的导览与客户;未登录仍可用共享 demo。
+  - **后端需部署。**
+- **未完**:E5 配额(现可做了——按真实经纪计量进 `lt_usage_counters` + plan 门);E4 打磨(可选)=地图摆位捕捉镜头、逐 beat 重生成。
 - **串行部署纪律**:并发部署同一组 Hetzner 服务器会冲突,务必等上一个部署完成再起下一个。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图

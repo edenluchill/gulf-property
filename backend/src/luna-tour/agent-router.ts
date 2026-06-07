@@ -22,6 +22,7 @@ import { matchProperties } from './auto-match'
 import { buildClientReport } from './auto-report'
 import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
+import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 
 const router = Router()
 
@@ -58,8 +59,7 @@ const mediaUpload = multer({
   fileFilter: (_req, file, cb) => cb(null, !!MEDIA_EXT[file.mimetype]),
 })
 
-/** Resolve the working agent (MVP: the demo agent). */
-async function currentAgentId(): Promise<string> {
+async function demoAgentId(): Promise<string> {
   return ensureAgent({
     email: DEMO_AGENT_EMAIL,
     displayName: 'David Chen',
@@ -68,6 +68,35 @@ async function currentAgentId(): Promise<string> {
     photoUrl: 'https://i.pravatar.cc/200?img=12',
     brand: { title: 'Emaar 认证顾问', whatsapp: '971500000000', accent: '#00E0B8' },
   })
+}
+
+/**
+ * Resolve the working agent. If a valid Supabase token is present → that agent
+ * (find-or-create by email, linked to auth_user_id), so each logged-in agent
+ * only sees their own data. Otherwise → the shared demo agent (anonymous / demo
+ * / Supabase off), keeping the public demo working. Soft = backward compatible.
+ */
+async function currentAgentId(req: Request): Promise<string> {
+  if (isSupabaseConfigured) {
+    const h = req.headers.authorization
+    const token = h && h.startsWith('Bearer ') ? h.substring(7) : null
+    if (token) {
+      try {
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token)
+        if (user?.email) {
+          return ensureAgent({
+            email: user.email,
+            displayName: (user.user_metadata?.name as string) || user.email.split('@')[0],
+            authUserId: user.id,
+            brand: { title: '认证顾问', accent: '#00E0B8' },
+          })
+        }
+      } catch {
+        /* fall through to demo */
+      }
+    }
+  }
+  return demoAgentId()
 }
 
 /** Short, human-friendly random code (no ambiguous chars like 0/o/1/l). */
@@ -90,9 +119,9 @@ async function uniqueShareCode(): Promise<string> {
 }
 
 /** List the agent's sessions with engagement rollups (read-only). */
-router.get('/sessions', async (_req: Request, res: Response) => {
+router.get('/sessions', async (req: Request, res: Response) => {
   try {
-    const agentId = await currentAgentId()
+    const agentId = await currentAgentId(req)
     const { rows } = await pool.query(
       `SELECT s.id, s.title, s.share_code, s.status, s.is_published, s.created_at,
               c.name AS client_name,
@@ -137,7 +166,7 @@ router.get('/sessions', async (_req: Request, res: Response) => {
 /** One session's behaviour timeline (most recent events first). */
 router.get('/sessions/:id/events', async (req: Request, res: Response) => {
   try {
-    const agentId = await currentAgentId()
+    const agentId = await currentAgentId(req)
     const sessionId = String(req.params.id)
     // verify the session belongs to this agent
     const own = await pool.query(`SELECT 1 FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [sessionId, agentId])
@@ -235,7 +264,7 @@ router.post('/report', async (req: Request, res: Response) => {
  */
 router.post('/sessions/create', async (req: Request, res: Response) => {
   try {
-    const agentId = await currentAgentId()
+    const agentId = await currentAgentId(req)
     const b = (req.body || {}) as Record<string, unknown>
     const projectIds = Array.isArray(b.project_ids) ? (b.project_ids as unknown[]).map(String) : []
     if (projectIds.length < 2) {
@@ -887,7 +916,7 @@ router.post('/sessions/:id/revert', async (req: Request, res: Response) => {
 
 router.get('/sessions/:id/script', async (req: Request, res: Response) => {
   try {
-    const agentId = await currentAgentId()
+    const agentId = await currentAgentId(req)
     const id = String(req.params.id)
     const s = await pool.query(`SELECT title FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [id, agentId])
     if (s.rowCount === 0) return res.status(404).json({ error: 'not found' })
@@ -960,7 +989,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
 router.patch('/sessions/:id', async (req: Request, res: Response) => {
   const client = await pool.connect()
   try {
-    const agentId = await currentAgentId()
+    const agentId = await currentAgentId(req)
     const id = String(req.params.id)
     const own = await client.query(`SELECT 1 FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [id, agentId])
     if (own.rowCount === 0) {

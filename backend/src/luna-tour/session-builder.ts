@@ -284,7 +284,8 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
   }
 }
 
-/** Find-or-create an agent by email; returns its id. */
+/** Find-or-create an agent by email; returns its id. Links the Supabase
+ *  auth_user_id when provided (real agent login). */
 export async function ensureAgent(opts: {
   email: string
   displayName: string
@@ -292,13 +293,15 @@ export async function ensureAgent(opts: {
   whatsapp?: string
   photoUrl?: string
   brand?: Record<string, unknown>
+  authUserId?: string
 }): Promise<string> {
   const res = await pool.query<{ id: string }>(
-    `INSERT INTO lt_agents (email, display_name, phone, whatsapp, photo_url, brand, onboarding_done)
-     VALUES ($1,$2,$3,$4,$5,$6,true)
-     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+    `INSERT INTO lt_agents (email, display_name, phone, whatsapp, photo_url, brand, auth_user_id, onboarding_done)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,true)
+     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name,
+       auth_user_id = COALESCE(lt_agents.auth_user_id, EXCLUDED.auth_user_id)
      RETURNING id`,
-    [opts.email, opts.displayName, opts.phone ?? null, opts.whatsapp ?? null, opts.photoUrl ?? null, JSON.stringify(opts.brand ?? {})]
+    [opts.email, opts.displayName, opts.phone ?? null, opts.whatsapp ?? null, opts.photoUrl ?? null, JSON.stringify(opts.brand ?? {}), opts.authUserId ?? null]
   )
   return res.rows[0].id
 }

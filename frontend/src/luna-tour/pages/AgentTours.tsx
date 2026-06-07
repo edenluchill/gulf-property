@@ -8,7 +8,7 @@
  * — backend operates on the demo agent. Delete luna-tour/ + the routes to remove.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { API_BASE_URL } from '../../lib/config'
+import { lunaFetch } from '../lunaApi'
 import GenerationProgress from './GenerationProgress'
 
 interface SessionRow {
@@ -60,8 +60,6 @@ interface FlowBeat {
   isPlace?: boolean
 }
 
-const API = `${API_BASE_URL}/api/luna/agent`
-
 export default function AgentTours() {
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,7 +108,7 @@ export default function AgentTours() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch(`${API}/sessions`)
+      const r = await lunaFetch(`/sessions`)
       const d = await r.json()
       setSessions(d.sessions || [])
     } catch {
@@ -134,7 +132,7 @@ export default function AgentTours() {
     setSearching(true)
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`${API}/projects/search?q=${encodeURIComponent(q)}`)
+        const r = await lunaFetch(`/projects/search?q=${encodeURIComponent(q)}`)
         const d = await r.json()
         setResults(d.projects || [])
       } catch {
@@ -170,7 +168,7 @@ export default function AgentTours() {
     setMatching(true)
     setMatchMsg('')
     try {
-      const r = await fetch(`${API}/match`, {
+      const r = await lunaFetch(`/match`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -221,7 +219,7 @@ export default function AgentTours() {
       let switchedToReady = false
       const tick = async () => {
         try {
-          const r = await fetch(`${API}/sessions/${encodeURIComponent(code)}/gen-status`)
+          const r = await lunaFetch(`/sessions/${encodeURIComponent(code)}/gen-status`)
           if (!r.ok) return
           const d = (await r.json()) as {
             status: 'generating' | 'ready' | 'failed'
@@ -279,7 +277,7 @@ export default function AgentTours() {
     // backend job runs; the REAL milestone (structure ready) comes from polling.
     stageTimer.current = window.setInterval(() => setGenStage((s) => Math.min(s + 1, 2)), 3500)
     try {
-      const r = await fetch(`${API}/sessions/create`, {
+      const r = await lunaFetch(`/sessions/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -321,14 +319,14 @@ export default function AgentTours() {
     setEvents([])
     setInsights(null)
     try {
-      const r = await fetch(`${API}/sessions/${id}/events`)
+      const r = await lunaFetch(`/sessions/${id}/events`)
       const d = await r.json()
       setEvents(d.events || [])
     } catch {
       setEvents([])
     }
     try {
-      const ir = await fetch(`${API}/sessions/${id}/insights`)
+      const ir = await lunaFetch(`/sessions/${id}/insights`)
       if (ir.ok) setInsights(await ir.json())
     } catch {
       /* insights optional */
@@ -653,7 +651,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     }
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`${API}/place-search?q=${encodeURIComponent(q)}`)
+        const r = await lunaFetch(`/place-search?q=${encodeURIComponent(q)}`)
         if (r.ok) setPlaceResults((await r.json()).places || [])
       } catch {
         /* ignore */
@@ -665,7 +663,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   // E4 — reorder / delete a stop (act)
   const moveStop = async (actIndex: number, dir: -1 | 1) => {
     try {
-      const r = await fetch(`${API}/sessions/${sessionId}/move-stop`, {
+      const r = await lunaFetch(`/sessions/${sessionId}/move-stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ act_index: actIndex, dir }),
@@ -681,7 +679,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   const deleteStop = async (actIndex: number, name: string) => {
     if (!window.confirm(`删除停靠点「${name}」?(可在保存的版本里回滚)`)) return
     try {
-      const r = await fetch(`${API}/sessions/${sessionId}/delete-stop`, {
+      const r = await lunaFetch(`/sessions/${sessionId}/delete-stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ act_index: actIndex }),
@@ -698,7 +696,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   const addStop = async (p: { name: string; lng: number; lat: number }) => {
     setAddingStop(true)
     try {
-      const r = await fetch(`${API}/sessions/${sessionId}/add-stop`, {
+      const r = await lunaFetch(`/sessions/${sessionId}/add-stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: p.name, lng: p.lng, lat: p.lat }),
@@ -717,7 +715,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   }
 
   const reload = async () => {
-    const r = await fetch(`${API}/sessions/${sessionId}/script`)
+    const r = await lunaFetch(`/sessions/${sessionId}/script`)
     const d = await r.json()
     setTitle(d.title || '')
     setBeats(d.flow || [])
@@ -745,7 +743,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   // updates the chips from the server's fresh summary (avoids index drift).
   const editOverlays = async (beatId: string, edits: { index: number; duration_ms?: number; remove?: boolean }[]) => {
     try {
-      const r = await fetch(`${API}/sessions/${sessionId}/beat-overlays`, {
+      const r = await lunaFetch(`/sessions/${sessionId}/beat-overlays`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ beat_id: beatId, edits }),
@@ -766,12 +764,12 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const up = await fetch(`${API}/media-upload`, { method: 'POST', body: fd })
+      const up = await lunaFetch(`/media-upload`, { method: 'POST', body: fd })
       const ud = await up.json()
       if (!up.ok || !ud.url) {
         alert(ud.error || '上传失败(视频/图,≤60MB)')
       } else {
-        const r = await fetch(`${API}/sessions/${sessionId}/beat-media`, {
+        const r = await lunaFetch(`/sessions/${sessionId}/beat-media`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ beat_id: beatId, media_kind: ud.media_kind, url: ud.url, caption: mediaCap.trim() || undefined }),
@@ -797,7 +795,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     if (!/^https?:\/\/\S+/i.test(url)) return
     const kind = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url) ? 'video' : /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url) ? 'image' : 'video'
     try {
-      const r = await fetch(`${API}/sessions/${sessionId}/beat-media`, {
+      const r = await lunaFetch(`/sessions/${sessionId}/beat-media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ beat_id: beatId, media_kind: kind, url, caption: mediaCap.trim() || undefined }),
@@ -827,14 +825,14 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     try {
       await Promise.all(
         entries.map(([beat_id, body]) =>
-          fetch(`${API}/sessions/${sessionId}/comments`, {
+          lunaFetch(`/sessions/${sessionId}/comments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ beat_id, body: body.trim() }),
           })
         )
       )
-      const r = await fetch(`${API}/sessions/${sessionId}/revise`, { method: 'POST' })
+      const r = await lunaFetch(`/sessions/${sessionId}/revise`, { method: 'POST' })
       const d = await r.json()
       if (!r.ok) setMsg(`❌ ${d.error || '改稿失败'}`)
       else if (!d.applied) setMsg(`ℹ️ ${d.message || 'AI 未产生改动'}`)
@@ -856,7 +854,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     try {
       const narration: Record<string, string> = {}
       for (const b of beats) narration[b.id] = b.narration
-      const r = await fetch(`${API}/sessions/${sessionId}`, {
+      const r = await lunaFetch(`/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, narration }),

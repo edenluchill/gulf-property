@@ -7,7 +7,7 @@
  * Read-only; calls POST /api/luna/agent/report.
  */
 import { useState } from 'react'
-import { API_BASE_URL } from '../../lib/config'
+import { lunaFetch } from '../lunaApi'
 
 interface Projection {
   buy: number
@@ -41,8 +41,6 @@ interface ClientReport {
   disclaimer: string
 }
 
-const API = `${API_BASE_URL}/api/luna/agent`
-
 const fmtAED = (n: number) => `AED ${Math.round(n).toLocaleString()}`
 
 export default function AgentReport() {
@@ -59,7 +57,7 @@ export default function AgentReport() {
     setErr('')
     setReport(null)
     try {
-      const r = await fetch(`${API}/report`, {
+      const r = await lunaFetch(`/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client: clientName.trim() ? { name: clientName.trim() } : {}, one_liner: oneLiner }),

@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../lib/config'
+import { lunaFetch } from './lunaApi'
 import OverlayLayer from './overlays/OverlayLayer'
 import GreetingScreen from './overlays/GreetingScreen'
 import EvidenceCard from './overlays/EvidenceCard'
@@ -366,9 +367,8 @@ export default function TourOverlay({
     if (!body || !beatId) return
     setCommentBusy(true)
     try {
-      const r = await fetch(`${API_BASE_URL}/api/luna/agent/sessions/${encodeURIComponent(code)}/comments`, {
+      const r = await lunaFetch(`/sessions/${encodeURIComponent(code)}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ beat_id: beatId, at_ms: snap?.atMs ?? null, body }),
       })
       if (r.ok) {

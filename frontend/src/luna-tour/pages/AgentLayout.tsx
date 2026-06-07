@@ -6,14 +6,59 @@
  * App.tsx. GATED: non-agents are bounced to /agent/join (the become-an-agent
  * entry). MVP gate = localStorage profile.agent; swap for real auth later.
  */
+import { useState } from 'react'
 import { NavLink, Outlet, Navigate } from 'react-router-dom'
 import { useUserProfile } from '../../contexts/UserProfileContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 const NAV = [
   { to: '/agent', end: true, label: '概览', icon: '📊' },
   { to: '/agent/tour', end: false, label: '生成导览', icon: '🎬' },
   { to: '/agent/report', end: false, label: '选房报告', icon: '📄' },
 ]
+
+/** Sign in so the agent's tours/clients are scoped to their own account (else
+ *  everything runs on the shared demo agent). Magic-link email — no password. */
+function AgentAuthBox() {
+  const { user, signInWithOtp, signOut } = useAuth()
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  if (user) {
+    return (
+      <div className="mt-4 px-2 text-xs">
+        <div className="text-slate-500 truncate" title={user.email || ''}>✅ {user.email}</div>
+        <button onClick={() => signOut()} className="mt-1 text-slate-400 hover:text-slate-600 hover:underline">退出登录</button>
+      </div>
+    )
+  }
+  return (
+    <div className="mt-4 px-2 text-xs">
+      <div className="text-amber-600 mb-1">⚠ 未登录(数据存到共享 demo)</div>
+      {sent ? (
+        <div className="text-slate-500">已发送登录链接到 {email},去邮箱点开。</div>
+      ) : (
+        <>
+          <input
+            className="w-full border rounded px-2 py-1 mb-1"
+            placeholder="邮箱登录(存到你的账户)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <button
+            disabled={!/.+@.+\..+/.test(email)}
+            onClick={async () => {
+              const { error } = await signInWithOtp(email.trim())
+              if (!error) setSent(true)
+            }}
+            className="w-full bg-emerald-500 text-white rounded px-2 py-1 disabled:opacity-50"
+          >
+            发送登录链接
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function AgentLayout() {
   const { profile, saveProfile, isLoading } = useUserProfile()
@@ -51,9 +96,10 @@ export default function AgentLayout() {
                 </NavLink>
               ))}
             </nav>
+            <AgentAuthBox />
             <button
               onClick={() => saveProfile({ agent: undefined })}
-              className="mt-6 px-3 text-xs text-slate-400 hover:text-slate-600 hover:underline"
+              className="mt-4 px-3 text-xs text-slate-400 hover:text-slate-600 hover:underline"
             >
               退出经纪模式
             </button>
