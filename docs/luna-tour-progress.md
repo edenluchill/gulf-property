@@ -45,7 +45,17 @@
   - **后端需部署。**
 - **E5 配额(已实现)**:`sessionUsage(agentId)`(读 lt_subscriptions plan → lt_subscription_plans.limits.sessions_month;free=3/pro=50/team=-1 无限;本月计数读 lt_usage_counters)+ `meterSession`(成功生成后 +1)。create 前**配额门**(仅对登录的真实经纪;demo 豁免),超额返回 403 友好提示。`GET /usage` + 前端 AgentTours 显示「本月 X/Y · 套餐」。**= E5 全部完成。**
 - **后端需部署。**
-- ✅ **E1–E5 全部完成 + Phase 1 真实经纪登录。** 可选打磨(非阻塞):地图摆位「设为此视角」、逐 beat 重生成、iframe/YouTube 嵌入、Stripe 升级支付。
+- ✅ **E1–E5 全部完成 + Phase 1 真实经纪登录。**
+
+## 2026-06-07 可视化时间线编辑器 + 删除 tour(真机反馈:竖排列表难懂)
+- **删除整个 tour**:后端 `DELETE /sessions/:id`(按经纪 scope,事务删 events/comments/versions/audio/news/scripts/properties + session)。经纪台每行加「删除」按钮(确认)。
+- **独立可视化编辑器** `pages/TourEditor.tsx`(路由 `/agent/tour/:id/edit`,全屏):
+  - **左→右时间线**:节点(开场→各停靠点的 beats→结尾)用连线串起;停靠点分组(带 ←→ 重排 + ✕ 删除);组间「🎬 挑高抛远」转场连接符;末尾「➕ 加地点停靠」搜索卡。
+  - **节点卡**显示 kind + 旁白摘要 + 镜头/卡片 chips + 时长;点击选中。
+  - **右侧编辑面板**:改旁白、给 AI 的意见、镜头只读、卡片(−/时长/+/✕)、加媒体(直链/上传)。
+  - 顶栏:标题编辑、「✨ 用 AI 应用评论」(汇总所有节点意见一次改稿)、保存。
+  - 全部复用已有 agent 端点(lunaFetch 带 token)。经纪台每行加「🎬 编辑器」入口(保留内联「流程」做快速编辑)。
+- 前后端 tsc + 前端 build + 暂停不变量 25/25。**后端需部署(delete 端点)。**
 - **串行部署纪律**:并发部署同一组 Hetzner 服务器会冲突,务必等上一个部署完成再起下一个。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图

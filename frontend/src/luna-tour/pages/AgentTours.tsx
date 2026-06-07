@@ -8,6 +8,7 @@
  * — backend operates on the demo agent. Delete luna-tour/ + the routes to remove.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { lunaFetch } from '../lunaApi'
 import GenerationProgress from './GenerationProgress'
 
@@ -317,6 +318,16 @@ export default function AgentTours() {
     setCreating(false)
   }
 
+  const deleteTour = async (sid: string, t: string) => {
+    if (!window.confirm(`删除导览「${t}」?此操作不可恢复。`)) return
+    try {
+      const r = await lunaFetch(`/sessions/${sid}`, { method: 'DELETE' })
+      if (r.ok) load()
+    } catch {
+      /* ignore */
+    }
+  }
+
   const openEvents = async (id: string) => {
     if (eventsId === id) {
       setEventsId(null)
@@ -562,9 +573,19 @@ export default function AgentTours() {
               >
                 事实清单
               </a>
+              <Link
+                to={`/agent/tour/${s.id}/edit`}
+                className="text-sm text-white bg-slate-800 hover:bg-slate-900 rounded-lg px-3 py-1.5"
+                title="可视化时间线编辑器"
+              >
+                🎬 编辑器
+              </Link>
               <FlowToggle sessionId={s.id} onSaved={load} />
               <button onClick={() => openEvents(s.id)} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
                 {eventsId === s.id ? '收起' : '行为'}
+              </button>
+              <button onClick={() => deleteTour(s.id, s.title)} className="text-sm text-rose-400 hover:text-rose-600 border border-rose-200 rounded-lg px-3 py-1.5" title="删除整个导览">
+                删除
               </button>
             </div>
             {eventsId === s.id && insights && (

@@ -212,6 +212,39 @@ router.get('/sessions', async (req: Request, res: Response) => {
   }
 })
 
+/** Delete a whole tour (session) + its data. Scoped to the owning agent. */
+router.delete('/sessions/:id', async (req: Request, res: Response) => {
+  const client = await pool.connect()
+  try {
+    const agentId = await currentAgentId(req)
+    const id = String(req.params.id)
+    const own = await client.query(`SELECT 1 FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [id, agentId])
+    if (own.rowCount === 0) return res.status(404).json({ error: 'not found' })
+    await client.query('BEGIN')
+    // explicit child deletes (don't rely on FK cascade being set everywhere)
+    for (const t of [
+      'lt_engagement_events',
+      'lt_edit_comments',
+      'lt_tour_script_versions',
+      'lt_audio_assets',
+      'lt_session_news_items',
+      'lt_tour_scripts',
+      'lt_session_properties',
+    ]) {
+      await client.query(`DELETE FROM ${t} WHERE session_id=$1`, [id]).catch(() => {})
+    }
+    await client.query(`DELETE FROM lt_demo_sessions WHERE id=$1`, [id])
+    await client.query('COMMIT')
+    res.json({ ok: true })
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    console.error('[luna] delete session error:', err)
+    res.status(500).json({ error: 'delete failed' })
+  } finally {
+    client.release()
+  }
+})
+
 /** One session's behaviour timeline (most recent events first). */
 router.get('/sessions/:id/events', async (req: Request, res: Response) => {
   try {
