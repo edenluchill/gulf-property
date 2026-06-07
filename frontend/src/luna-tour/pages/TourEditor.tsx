@@ -35,6 +35,10 @@ interface Laid extends Node { start: number; dur: number }
 interface Band { actIndex: number; name: string; isPlace: boolean; start: number; end: number; transition?: string; transitionType?: string; image?: string }
 
 const KIND_ZH: Record<string, string> = { intro: '开场', arrival: '到达', life: '生活', numbers: '数字', outro: '结尾', beat: '段落' }
+// plain-language labels for the SIMPLE mode (non-professional agents)
+const KIND_FRIENDLY: Record<string, string> = { intro: '开场介绍', arrival: '登场亮相', life: '生活与配套', numbers: '投资数字', outro: '结尾邀约', beat: '片段' }
+const OV_FRIENDLY: Record<string, string> = { title: '标题文字', property_card: '房源信息卡', roi_card: '投资回报', distance_line: '到某地的距离', amenity_spokes: '周边配套', media: '实拍视频/图片', cta: '联系按钮' }
+const OV_HIDE = new Set(['progress_dots', 'highlight_all_pins']) // system overlays — hide from non-pros
 const DEFAULT_BEAT_S = 10
 const GUTTER = 56 // left track-label column width (px)
 
@@ -60,6 +64,7 @@ export default function TourEditor() {
   const [comments, setComments] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [mode, setMode] = useState<'simple' | 'timeline'>('simple')
   const [px, setPx] = useState(16) // pixels per second (zoom)
   const [placeQ, setPlaceQ] = useState('')
   const [placeResults, setPlaceResults] = useState<{ name: string; category: string; lng: number; lat: number }[]>([])
@@ -171,6 +176,21 @@ export default function TourEditor() {
     } catch { flash('❌ 网络错误') }
     setBusy(false)
   }
+  // simple-mode: improve ONE beat with AI (post its comment, then revise)
+  const reviseBeat = async (beatId: string) => {
+    const body = (comments[beatId] || '').trim()
+    if (!body) return
+    setBusy(true)
+    try {
+      await lunaFetch(`/sessions/${id}/comments`, { method: 'POST', body: JSON.stringify({ beat_id: beatId, body }) })
+      const r = await lunaFetch(`/sessions/${id}/revise`, { method: 'POST' })
+      const d = await r.json()
+      if (d.applied) { setComments((c) => ({ ...c, [beatId]: '' })); await reload(); flash('✅ AI 已改写这段') }
+      else flash(`ℹ️ ${d.message || 'AI 未改动'}`)
+    } catch { flash('❌ 改写失败') }
+    setBusy(false)
+  }
+
   const applyComments = async () => {
     const entries = Object.entries(comments).filter(([, v]) => v.trim())
     if (!entries.length) return flash('先在某个片段写一句给 AI 的意见')
@@ -234,16 +254,38 @@ export default function TourEditor() {
       <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-white shrink-0">
         <Link to="/agent/tour" className="text-slate-500 hover:text-slate-800 text-sm">← 返回</Link>
         <input className="flex-1 border rounded-lg px-3 py-1.5 text-sm font-medium" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <div className="flex items-center gap-1 text-slate-500">
-          <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.max(6, p - 4))}>−</button>
-          <span className="text-xs w-10 text-center">{px}px/s</span>
-          <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
+        <div className="flex rounded-lg border overflow-hidden text-sm">
+          <button onClick={() => setMode('simple')} className={`px-3 py-1.5 ${mode === 'simple' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>简单</button>
+          <button onClick={() => setMode('timeline')} className={`px-3 py-1.5 ${mode === 'timeline' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>时间线</button>
         </div>
+        {mode === 'timeline' && (
+          <div className="flex items-center gap-1 text-slate-500">
+            <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.max(6, p - 4))}>−</button>
+            <span className="text-xs w-10 text-center">{px}px/s</span>
+            <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
+          </div>
+        )}
         <button onClick={applyComments} disabled={busy} className="bg-indigo-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">✨ 用 AI 应用评论</button>
         <button onClick={saveNarration} disabled={busy} className="bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">保存</button>
         {msg && <span className="text-sm">{msg}</span>}
       </div>
 
+      {mode === 'simple' ? (
+        <SimpleView
+          nodes={nodes}
+          comments={comments}
+          setComments={setComments}
+          setNodes={setNodes}
+          onSaveNarration={saveNarration}
+          onReviseBeat={reviseBeat}
+          onRemoveOverlay={(beatId, idx) => editOverlays(beatId, [{ index: idx, remove: true }])}
+          onAddMedia={addMedia}
+          onMoveStop={moveStop}
+          onDeleteStop={deleteStop}
+          mediaUrl={mediaUrl} setMediaUrl={setMediaUrl} mediaCap={mediaCap} setMediaCap={setMediaCap} mediaBusy={mediaBusy}
+          placeQ={placeQ} setPlaceQ={setPlaceQ} placeResults={placeResults} onAddStop={addStop} busy={busy}
+        />
+      ) : (
       <div className="flex-1 flex min-h-0">
         {/* TIMELINE */}
         <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
@@ -402,6 +444,134 @@ export default function TourEditor() {
                   </label>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      </div>
+      )}
+    </div>
+  )
+}
+
+/** SIMPLE mode — a friendly, jargon-free card list for non-professional agents:
+ *  one card per scene with a photo, the spoken text (+ AI rewrite), plain "shows"
+ *  chips, media, duration; stop headers with reorder/delete; add a stop at the end. */
+function SimpleView(props: {
+  nodes: Node[]
+  comments: Record<string, string>
+  setComments: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  setNodes: React.Dispatch<React.SetStateAction<Node[]>>
+  onSaveNarration: () => void
+  onReviseBeat: (beatId: string) => void
+  onRemoveOverlay: (beatId: string, idx: number) => void
+  onAddMedia: (beatId: string, opts: { url?: string; file?: File }) => void
+  onMoveStop: (actIndex: number, dir: -1 | 1) => void
+  onDeleteStop: (actIndex: number, name: string) => void
+  mediaUrl: string; setMediaUrl: (s: string) => void; mediaCap: string; setMediaCap: (s: string) => void; mediaBusy: boolean
+  placeQ: string; setPlaceQ: (s: string) => void; placeResults: { name: string; category: string; lng: number; lat: number }[]
+  onAddStop: (p: { name: string; lng: number; lat: number }) => void; busy: boolean
+}) {
+  const { nodes, comments, setComments, setNodes } = props
+  const [mediaFor, setMediaFor] = useState<string | null>(null)
+  // group beats by stop
+  const groups: { actIndex: number; name: string; isPlace: boolean; image?: string; nodes: Node[] }[] = []
+  for (const n of nodes) {
+    const ai = n.actIndex ?? -1
+    const last = groups[groups.length - 1]
+    const img = (n.overlays || []).find((o) => o.image)?.image
+    if (!last || last.actIndex !== ai || (ai === -1 && last.name !== n.group)) groups.push({ actIndex: ai, name: n.group, isPlace: !!n.isPlace, image: img, nodes: [n] })
+    else { last.nodes.push(n); if (!last.image) last.image = img }
+  }
+  let sceneNo = 0
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-slate-50">
+      <div className="max-w-2xl mx-auto p-5 space-y-4">
+        <p className="text-sm text-slate-500">每一段就是导览里的一个画面。改文字、让 AI 润色、加照片/视频都在这里。顺序从上到下播放。</p>
+        {groups.map((g, gi) => (
+          <div key={gi}>
+            {gi > 0 && <div className="text-center text-xs text-indigo-400 my-2">↓ 镜头飞到下一处</div>}
+            {/* stop header */}
+            <div className="flex items-center gap-2 mb-2">
+              {g.image ? <img src={proxied(g.image)} alt="" className="w-12 h-12 rounded-lg object-cover" /> : <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center text-xl">{g.isPlace ? '📍' : g.actIndex < 0 ? '🎬' : '🏠'}</div>}
+              <div className="flex-1">
+                <div className="font-semibold text-slate-800">{g.isPlace ? '📍 ' : ''}{g.name}</div>
+                <div className="text-xs text-slate-400">{g.actIndex < 0 ? '固定段落' : g.isPlace ? '地点停靠' : '房源停靠'}</div>
+              </div>
+              {g.actIndex >= 0 && (
+                <div className="flex items-center gap-1">
+                  <button className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 border rounded" title="上移" onClick={() => props.onMoveStop(g.actIndex, -1)}>↑</button>
+                  <button className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 border rounded" title="下移" onClick={() => props.onMoveStop(g.actIndex, 1)}>↓</button>
+                  <button className="text-rose-400 hover:text-rose-600 px-1.5 py-0.5 border border-rose-200 rounded" title="删除这一站" onClick={() => props.onDeleteStop(g.actIndex, g.name)}>删除</button>
+                </div>
+              )}
+            </div>
+            {/* scene cards */}
+            <div className="space-y-3">
+              {g.nodes.map((n) => {
+                sceneNo += 1
+                const shows = (n.overlays || []).filter((o) => !OV_HIDE.has(o.type))
+                return (
+                  <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-xs font-bold text-white bg-slate-700 rounded-full w-5 h-5 flex items-center justify-center">{sceneNo}</span>
+                      <span className="text-sm font-medium text-slate-700">{KIND_FRIENDLY[n.kind] || n.kind}</span>
+                      <span className="text-xs text-slate-300 ml-auto">约 {n.seconds || 0} 秒</span>
+                    </div>
+                    {/* spoken text */}
+                    <label className="block text-xs text-slate-400 mb-1">这一段说的话</label>
+                    <textarea className="w-full border rounded-lg px-3 py-2 text-sm leading-relaxed" rows={3} value={n.narration}
+                      onChange={(e) => setNodes((cur) => cur.map((x) => (x.id === n.id ? { ...x, narration: e.target.value } : x)))}
+                      onBlur={props.onSaveNarration} />
+                    {/* AI rewrite */}
+                    <div className="flex gap-2 mt-1.5">
+                      <input className="flex-1 text-sm border border-dashed border-indigo-200 rounded-lg px-2 py-1.5" placeholder="想怎么改?如 短一点 / 更亲切 / 强调海景"
+                        value={comments[n.id] || ''} onChange={(e) => setComments((c) => ({ ...c, [n.id]: e.target.value }))} />
+                      <button disabled={props.busy || !(comments[n.id] || '').trim()} onClick={() => props.onReviseBeat(n.id)} className="text-sm bg-indigo-500 text-white rounded-lg px-3 disabled:opacity-50">✨ 让 AI 改</button>
+                    </div>
+                    {/* what it shows */}
+                    <div className="mt-2.5">
+                      <div className="text-xs text-slate-400 mb-1">这一段会展示</div>
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {shows.length === 0 && <span className="text-xs text-slate-300">(只有画面)</span>}
+                        {shows.map((o) => (
+                          <span key={o.idx} className="inline-flex items-center gap-1 text-xs bg-amber-50 border border-amber-200 rounded-full pl-1 pr-2 py-0.5">
+                            {o.image ? <img src={proxied(o.image)} alt="" className="w-5 h-5 rounded-full object-cover" /> : <span>🃏</span>}
+                            {OV_FRIENDLY[o.type] || o.label}{o.value ? ` ${o.value}` : ''}
+                            <button className="text-rose-300 hover:text-rose-600 ml-0.5" title="去掉" onClick={() => props.onRemoveOverlay(n.id, o.idx)}>✕</button>
+                          </span>
+                        ))}
+                        <button onClick={() => setMediaFor(mediaFor === n.id ? null : n.id)} className="text-xs text-indigo-600 border border-dashed border-indigo-300 rounded-full px-2 py-0.5">➕ 加视频/图片</button>
+                      </div>
+                      {mediaFor === n.id && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 bg-indigo-50/60 rounded-lg p-1.5">
+                          <input className="flex-1 min-w-[160px] text-xs border rounded px-2 py-1" placeholder="视频/图直链 https://…/clip.mp4" value={props.mediaUrl} onChange={(e) => props.setMediaUrl(e.target.value)} />
+                          <input className="w-24 text-xs border rounded px-2 py-1" placeholder="说明" value={props.mediaCap} onChange={(e) => props.setMediaCap(e.target.value)} />
+                          <button disabled={props.mediaBusy || !/^https?:\/\/\S+/i.test(props.mediaUrl.trim())} onClick={() => { props.onAddMedia(n.id, { url: props.mediaUrl }); setMediaFor(null) }} className="text-xs bg-indigo-500 text-white rounded px-2 py-1 disabled:opacity-50">加链接</button>
+                          <label className="text-xs bg-white border border-indigo-300 text-indigo-600 rounded px-2 py-1 cursor-pointer">
+                            {props.mediaBusy ? '上传中…' : '上传文件'}
+                            <input type="file" accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp" className="hidden" disabled={props.mediaBusy}
+                              onChange={(e) => { const f = e.target.files?.[0]; if (f) { props.onAddMedia(n.id, { file: f }); setMediaFor(null) } e.currentTarget.value = '' }} />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* add a stop */}
+        <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 p-3">
+          <div className="text-sm font-semibold text-indigo-700 mb-1.5">➕ 加一站(海滩 / 地标 / 任意地点)</div>
+          <input className="w-full text-sm border rounded-lg px-3 py-2" placeholder="搜地点名,如 JBR / Marina Beach / Burj Khalifa" value={props.placeQ} onChange={(e) => props.setPlaceQ(e.target.value)} />
+          {props.placeResults.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {props.placeResults.map((p, i) => (
+                <button key={i} disabled={props.busy} onClick={() => props.onAddStop(p)} className="text-sm bg-white border border-indigo-200 hover:border-indigo-400 rounded-full px-3 py-1 disabled:opacity-50">+ {p.name} <span className="text-slate-400 text-xs">· {p.category}</span></button>
+              ))}
             </div>
           )}
         </div>
