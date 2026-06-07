@@ -105,6 +105,7 @@ export default function AgentTours() {
     []
   )
 
+  const [usage, setUsage] = useState<{ used: number; limit: number; plan: string } | null>(null)
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -113,6 +114,12 @@ export default function AgentTours() {
       setSessions(d.sessions || [])
     } catch {
       setSessions([])
+    }
+    try {
+      const u = await lunaFetch(`/usage`)
+      if (u.ok) setUsage(await u.json())
+    } catch {
+      /* usage optional */
     }
     setLoading(false)
   }, [])
@@ -348,7 +355,14 @@ export default function AgentTours() {
 
       {/* create */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 mb-8 shadow-sm">
-        <div className="font-semibold mb-3">生成新导览</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold">生成新导览</div>
+          {usage && usage.limit >= 0 && (
+            <span className={`text-xs ${usage.used >= usage.limit ? 'text-rose-500' : 'text-slate-400'}`}>
+              本月 {usage.used}/{usage.limit} · {usage.plan} 套餐
+            </span>
+          )}
+        </div>
 
         {/* client info */}
         <div className="grid gap-3 md:grid-cols-2">

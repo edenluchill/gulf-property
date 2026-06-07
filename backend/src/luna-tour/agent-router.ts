@@ -99,6 +99,43 @@ async function currentAgentId(req: Request): Promise<string> {
   return demoAgentId()
 }
 
+/** This agent's monthly session quota (used / limit / plan). limit -1 = unlimited. */
+async function sessionUsage(agentId: string): Promise<{ used: number; limit: number; plan: string }> {
+  const sub = await pool.query<{ plan_id: string }>(
+    `SELECT plan_id FROM lt_subscriptions WHERE agent_id=$1 AND status IN ('active','trialing')
+       ORDER BY created_at DESC LIMIT 1`,
+    [agentId]
+  )
+  const plan = sub.rows[0]?.plan_id || 'free'
+  const lim = await pool.query<{ lim: string | null }>(
+    `SELECT (limits->>'sessions_month')::int AS lim FROM lt_subscription_plans WHERE id=$1`,
+    [plan]
+  )
+  const limit = lim.rows[0]?.lim != null ? Number(lim.rows[0].lim) : 3
+  const cnt = await pool.query<{ used: string }>(
+    `SELECT COALESCE(sessions_created,0) AS used FROM lt_usage_counters
+       WHERE agent_id=$1 AND period_month=date_trunc('month', now())::date`,
+    [agentId]
+  )
+  return { used: Number(cnt.rows[0]?.used ?? 0), limit, plan }
+}
+
+/** Increment this agent's monthly session counter (after a successful create). */
+async function meterSession(agentId: string): Promise<void> {
+  const upd = await pool.query(
+    `UPDATE lt_usage_counters SET sessions_created = sessions_created + 1
+       WHERE agent_id=$1 AND period_month=date_trunc('month', now())::date`,
+    [agentId]
+  )
+  if (!upd.rowCount) {
+    await pool.query(
+      `INSERT INTO lt_usage_counters (agent_id, period_month, sessions_created)
+         VALUES ($1, date_trunc('month', now())::date, 1)`,
+      [agentId]
+    )
+  }
+}
+
 /** Short, human-friendly random code (no ambiguous chars like 0/o/1/l). */
 function randomCode(len = 6): string {
   const alpha = 'abcdefghijkmnpqrstuvwxyz23456789'
@@ -117,6 +154,18 @@ async function uniqueShareCode(): Promise<string> {
   }
   return randomCode(8)
 }
+
+/** This agent's monthly usage (for the dashboard quota meter). */
+router.get('/usage', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const u = await sessionUsage(agentId)
+    res.json(u)
+  } catch (err) {
+    console.error('[luna] usage error:', err)
+    res.status(500).json({ error: 'usage failed' })
+  }
+})
 
 /** List the agent's sessions with engagement rollups (read-only). */
 router.get('/sessions', async (req: Request, res: Response) => {
@@ -282,6 +331,17 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     // Explicit language override (zh/en/ar/ru) — for international Dubai clients.
     const langOverride = ['zh', 'en', 'ar', 'ru'].includes(String(b.language)) ? String(b.language) : undefined
 
+    // Quota gate — only for real logged-in agents (the shared demo is exempt).
+    const loggedIn = isSupabaseConfigured && !!req.headers.authorization?.startsWith('Bearer ')
+    if (loggedIn) {
+      const q = await sessionUsage(agentId)
+      if (q.limit >= 0 && q.used >= q.limit) {
+        return res.status(403).json({
+          error: `本月导览额度已用完(${q.used}/${q.limit},${q.plan} 套餐)。升级套餐后可生成更多。`,
+        })
+      }
+    }
+
     // Kick off the heavy build (AI config + script + audio) in the BACKGROUND and
     // return the share_code now, so the request can't hit the proxy timeout. The
     // client polls /sessions/:code/gen-status for structure + audio progress.
@@ -294,6 +354,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
         if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
         const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
+        if (loggedIn) await meterSession(agentId).catch(() => {}) // count only real agents
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
         console.error('[luna] agent create (bg) error:', err)

@@ -43,7 +43,9 @@
   - 前端 `luna-tour/lunaApi.ts`(`lunaFetch` 自动带 Supabase token);AgentTours/Overview/Report/TourOverlay 评论全迁移到它;`AgentLayout` 加邮箱魔法链接登录(`useAuth().signInWithOtp`)+ 登录态/退出。
   - 效果:登录的经纪只看/改自己的导览与客户;未登录仍可用共享 demo。
   - **后端需部署。**
-- **未完**:E5 配额(现可做了——按真实经纪计量进 `lt_usage_counters` + plan 门);E4 打磨(可选)=地图摆位捕捉镜头、逐 beat 重生成。
+- **E5 配额(已实现)**:`sessionUsage(agentId)`(读 lt_subscriptions plan → lt_subscription_plans.limits.sessions_month;free=3/pro=50/team=-1 无限;本月计数读 lt_usage_counters)+ `meterSession`(成功生成后 +1)。create 前**配额门**(仅对登录的真实经纪;demo 豁免),超额返回 403 友好提示。`GET /usage` + 前端 AgentTours 显示「本月 X/Y · 套餐」。**= E5 全部完成。**
+- **后端需部署。**
+- ✅ **E1–E5 全部完成 + Phase 1 真实经纪登录。** 可选打磨(非阻塞):地图摆位「设为此视角」、逐 beat 重生成、iframe/YouTube 嵌入、Stripe 升级支付。
 - **串行部署纪律**:并发部署同一组 Hetzner 服务器会冲突,务必等上一个部署完成再起下一个。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图
