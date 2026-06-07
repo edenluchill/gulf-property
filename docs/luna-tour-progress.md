@@ -65,6 +65,15 @@
   - 深色专业主题(slate-950)+ 右侧选中片段编辑面板(旁白/AI意见/卡片/媒体)。
   - 顶栏:标题、缩放、用 AI 应用评论、保存。
 - 前端 tsc + build + 不变量 25/25。**纯前端,push 自动部署。**
+
+## 2026-06-07 N1 节点可视化(转场节点 + 卡片显示内容)
+- 设计文档:`docs/luna-tour-node-editor-spec.md`(节点类型/视觉/交互/数据映射/分步 N1-N5)。
+- **N1 实现**:
+  - 后端 `/script` overlay 摘要补**可视字段**:`image`(房源卡→房源图 / 媒体图→url)、`value`(ROI→`+X%`);flow 加 `transitionType`(取前一停靠 `transition_out.type`)。join `lt_session_properties.snapshot` 取房源图。
+  - 后端新端点 `POST /sessions/:id/stop-transition`{act_index,type:flyover|cut,duration_ms}。
+  - 前端 `TourEditor`:① 新增「转场」轨——停靠之间的转场以**可点节点**显示(🎬挑高抛远 / ✂直切),点开切换方式;② 卡片片段**显示内容**(房源卡缩略图 / ROI 大字 +X% / 媒体缩略,经 CORS 图片代理);③ 停靠点带显示**房源缩略图**。
+- 前后端 tsc + 前端 build(用本地 `node_modules/.bin/vite`,`npx vite` 会误取缓存 rolldown 版)。**后端需部署。**
+- 待续:N2 点空白加卡片、N3 真拖拽重排、N4 播放头预览联动、N5 卡片库。
 - **串行部署纪律**:并发部署同一组 Hetzner 服务器会冲突,务必等上一个部署完成再起下一个。
 
 ## 2026-06-06 修生成阻塞(Failed to fetch)+ 生成进度/结构 node 图

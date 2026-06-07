@@ -11,8 +11,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { lunaFetch } from '../lunaApi'
+import { API_BASE_URL } from '../../lib/config'
 
-interface OverlayChip { idx: number; type: string; label: string; at: number; dur: number }
+/** R2 images need the CORS proxy to render in the editor canvas. */
+const proxied = (u?: string) =>
+  u && /^https:\/\/pub-[a-z0-9]+\.r2\.dev\//i.test(u) ? `${API_BASE_URL}/api/luna/public/img?u=${encodeURIComponent(u)}` : u
+
+interface OverlayChip { idx: number; type: string; label: string; at: number; dur: number; image?: string; value?: string }
 interface Node {
   id: string
   group: string
@@ -22,11 +27,12 @@ interface Node {
   camera?: string[]
   overlays?: OverlayChip[]
   transition?: string
+  transitionType?: string
   actIndex?: number
   isPlace?: boolean
 }
 interface Laid extends Node { start: number; dur: number }
-interface Band { actIndex: number; name: string; isPlace: boolean; start: number; end: number }
+interface Band { actIndex: number; name: string; isPlace: boolean; start: number; end: number; transition?: string; transitionType?: string; image?: string }
 
 const KIND_ZH: Record<string, string> = { intro: '开场', arrival: '到达', life: '生活', numbers: '数字', outro: '结尾', beat: '段落' }
 const DEFAULT_BEAT_S = 10
@@ -103,10 +109,12 @@ export default function TourEditor() {
   for (const b of laid) {
     const ai = b.actIndex ?? -1
     const last = bands[bands.length - 1]
+    const beatImg = (b.overlays || []).find((o) => o.image)?.image
     if (!last || last.actIndex !== ai || (ai === -1 && last.name !== b.group)) {
-      bands.push({ actIndex: ai, name: b.group, isPlace: !!b.isPlace, start: b.start, end: b.start + b.dur })
+      bands.push({ actIndex: ai, name: b.group, isPlace: !!b.isPlace, start: b.start, end: b.start + b.dur, transition: b.transition, transitionType: b.transitionType, image: beatImg })
     } else {
       last.end = b.start + b.dur
+      if (!last.image && beatImg) last.image = beatImg
     }
   }
   const sel = laid.find((n) => n.id === selId) || null
@@ -195,6 +203,11 @@ export default function TourEditor() {
     } catch { flash('❌ 媒体失败') }
     setMediaBusy(false)
   }
+  const [transEdit, setTransEdit] = useState<number | null>(null)
+  const setTransition = async (prevActIndex: number, type: 'flyover' | 'cut', duration_ms: number) => {
+    const r = await lunaFetch(`/sessions/${id}/stop-transition`, { method: 'POST', body: JSON.stringify({ act_index: prevActIndex, type, duration_ms }) })
+    if (r.ok) { setTransEdit(null); await reload() }
+  }
   const moveStop = async (actIndex: number, dir: -1 | 1) => { const r = await lunaFetch(`/sessions/${id}/move-stop`, { method: 'POST', body: JSON.stringify({ act_index: actIndex, dir }) }); if (r.ok) await reload() }
   const deleteStop = async (actIndex: number, name: string) => { if (!window.confirm(`删除停靠点「${name}」?`)) return; const r = await lunaFetch(`/sessions/${id}/delete-stop`, { method: 'POST', body: JSON.stringify({ act_index: actIndex }) }); if (r.ok) { setSelId(null); await reload() } }
   const addStop = async (p: { name: string; lng: number; lat: number }) => { setBusy(true); const r = await lunaFetch(`/sessions/${id}/add-stop`, { method: 'POST', body: JSON.stringify(p) }); if (r.ok) { setPlaceQ(''); setPlaceResults([]); await reload(); flash(`✅ 已加入「${p.name}」`) } setBusy(false) }
@@ -246,11 +259,38 @@ export default function TourEditor() {
                 </div>
               </div>
 
+              {/* transition nodes (between stops) */}
+              <Track label="转场" h={34}>
+                {bands.filter((b) => b.actIndex > 0 && b.transition).map((b, i) => {
+                  const prevAct = b.actIndex - 1
+                  const isCut = b.transitionType === 'cut'
+                  return (
+                    <div key={i} className="absolute top-1 bottom-1 flex items-center" style={{ left: b.start * px - 44, width: 88 }}>
+                      <button onClick={() => setTransEdit(transEdit === prevAct ? null : prevAct)}
+                        className={`w-full h-full rounded-full border text-[10px] flex items-center justify-center gap-1 ${isCut ? 'bg-slate-700 border-slate-500 text-slate-200' : 'bg-indigo-600/80 border-indigo-400 text-white'}`}
+                        title="点击编辑转场">
+                        {isCut ? '✂ 直切' : '🎬 挑高抛远'}
+                      </button>
+                      {transEdit === prevAct && (
+                        <div className="absolute top-9 left-0 z-30 bg-white text-slate-700 rounded-lg shadow-lg border p-2 w-44">
+                          <div className="text-[11px] font-semibold mb-1">转场方式</div>
+                          <div className="flex gap-1 mb-2">
+                            <button onClick={() => setTransition(prevAct, 'flyover', 2500)} className={`flex-1 text-[11px] rounded px-1 py-1 border ${!isCut ? 'bg-indigo-50 border-indigo-300' : ''}`}>🎬 挑高抛远</button>
+                            <button onClick={() => setTransition(prevAct, 'cut', 0)} className={`flex-1 text-[11px] rounded px-1 py-1 border ${isCut ? 'bg-slate-100 border-slate-300' : ''}`}>✂ 直切</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </Track>
+
               {/* stop bands */}
               <Track label="停靠点" h={36}>
                 {bands.map((b, i) => (
-                  <div key={i} className={`absolute top-1 bottom-1 rounded border ${bandColor(b)} flex items-center px-2 gap-1 overflow-hidden`} style={{ left: b.start * px, width: (b.end - b.start) * px }}>
-                    <span className="text-[11px] text-slate-100 truncate">{b.isPlace ? '📍 ' : ''}{b.name}</span>
+                  <div key={i} className={`absolute top-1 bottom-1 rounded border ${bandColor(b)} flex items-center px-1.5 gap-1.5 overflow-hidden`} style={{ left: b.start * px, width: (b.end - b.start) * px }}>
+                    {b.image ? <img src={proxied(b.image)} alt="" className="h-5 w-7 object-cover rounded shrink-0" /> : <span className="shrink-0">{b.isPlace ? '📍' : '🏠'}</span>}
+                    <span className="text-[11px] text-slate-100 truncate">{b.name}</span>
                     {b.actIndex >= 0 && (
                       <span className="ml-auto flex items-center gap-0.5 shrink-0">
                         <button className="text-slate-300 hover:text-white px-0.5 text-xs" title="左移" onClick={() => moveStop(b.actIndex, -1)}>←</button>
@@ -282,7 +322,7 @@ export default function TourEditor() {
               </Track>
 
               {/* 卡片 track — overlays positioned by absolute time, draggable/trim */}
-              <Track label="卡片" h={Math.max(40, (laid.reduce((m, b) => Math.max(m, (b.overlays || []).length), 0)) * 22 + 8)}>
+              <Track label="卡片" h={Math.max(44, (laid.reduce((m, b) => Math.max(m, (b.overlays || []).length), 0)) * 26 + 8)}>
                 {laid.flatMap((b) =>
                   (b.overlays || []).map((o, lane) => {
                     const isDrag = drag.current?.beatId === b.id && drag.current?.idx === o.idx
@@ -293,11 +333,13 @@ export default function TourEditor() {
                         key={`${b.id}-${o.idx}`}
                         onMouseDown={(e) => startDrag(e, b, o, 'move')}
                         className={`absolute rounded border border-amber-400 bg-amber-500/80 text-[10px] text-amber-950 flex items-center px-1.5 cursor-grab active:cursor-grabbing overflow-hidden ${isDrag ? 'z-20 ring-2 ring-amber-300' : ''}`}
-                        style={{ left: (b.start + at) * px + 1, width: Math.max(10, dur * px - 2), top: 4 + lane * 22, height: 18 }}
+                        style={{ left: (b.start + at) * px + 1, width: Math.max(10, dur * px - 2), top: 4 + lane * 26, height: 22 }}
                         title="拖动移动 · 拖右端裁剪时长"
                       >
+                        {o.image && <img src={proxied(o.image)} alt="" className="h-full w-7 object-cover rounded-l shrink-0 -ml-1.5 mr-1" />}
+                        {o.value && <span className="font-bold text-emerald-900 mr-1 shrink-0">{o.value}</span>}
                         <span className="truncate">{o.label}</span>
-                        <span className="ml-auto pr-0.5 opacity-60">{Math.round(dur)}s</span>
+                        <span className="ml-auto pr-0.5 opacity-60 shrink-0">{Math.round(dur)}s</span>
                         <div onMouseDown={(e) => startDrag(e, b, o, 'trim')} className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-amber-700/50" />
                       </div>
                     )

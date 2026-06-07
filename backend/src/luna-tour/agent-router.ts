@@ -411,7 +411,15 @@ type CameraCue = {
   from?: [number, number]
   to?: [number, number]
 }
-type OverlayCue = { type?: string; at_ms?: number; duration_ms?: number }
+type OverlayCue = {
+  type?: string
+  at_ms?: number
+  duration_ms?: number
+  property_id?: string
+  url?: string
+  media_kind?: string
+  data?: { growth_pct?: number }
+}
 type ScriptBeat = {
   id?: string
   kind?: string
@@ -460,18 +468,25 @@ function cameraSummary(cam: CameraCue[] | undefined): string[] {
   return out
 }
 
-/** Overlay cards on a beat with their timing (when + how long). idx = position
- *  in the beat's overlay array, used to target edits without losing the card's
- *  data fields (we only tweak timing / remove). */
-function overlaySummary(ov: OverlayCue[] | undefined): { idx: number; type: string; label: string; at: number; dur: number }[] {
+interface OverlayViz { idx: number; type: string; label: string; at: number; dur: number; image?: string; value?: string }
+/** Overlay cards on a beat with their timing (when + how long) AND a visual hint
+ *  so the editor can SHOW content: property image, ROI %, media thumbnail. idx =
+ *  position in the beat's overlay array (targets edits without losing fields). */
+function overlaySummary(ov: OverlayCue[] | undefined, imageById?: Map<string, string>): OverlayViz[] {
   if (!Array.isArray(ov)) return []
-  return ov.map((o, idx) => ({
-    idx,
-    type: o.type || '',
-    label: OVERLAY_ZH[o.type || ''] || o.type || '卡片',
-    at: Math.round((o.at_ms ?? 0) / 1000),
-    dur: Math.round((o.duration_ms ?? 0) / 1000),
-  }))
+  return ov.map((o, idx) => {
+    const v: OverlayViz = {
+      idx,
+      type: o.type || '',
+      label: OVERLAY_ZH[o.type || ''] || o.type || '卡片',
+      at: Math.round((o.at_ms ?? 0) / 1000),
+      dur: Math.round((o.duration_ms ?? 0) / 1000),
+    }
+    if (o.type === 'property_card' && o.property_id) v.image = imageById?.get(o.property_id)
+    else if (o.type === 'media' && o.media_kind === 'image' && o.url) v.image = o.url
+    else if (o.type === 'roi_card' && o.data?.growth_pct != null) v.value = `+${o.data.growth_pct}%`
+    return v
+  })
 }
 
 /**
@@ -939,6 +954,33 @@ router.post('/sessions/:id/delete-stop', async (req: Request, res: Response) => 
   }
 })
 
+/** Edit a stop's outgoing transition (the node BEFORE the next stop).
+ *  body: { act_index, type:'flyover'|'cut', duration_ms } */
+router.post('/sessions/:id/stop-transition', async (req: Request, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const actIndex = Number((req.body || {}).act_index)
+    const type = (req.body || {}).type === 'cut' ? 'cut' : 'flyover'
+    const durRaw = Number((req.body || {}).duration_ms)
+    const duration_ms = Number.isFinite(durRaw) ? Math.max(0, Math.min(8000, Math.round(durRaw))) : 2500
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+    const acts = scriptRow.script.acts || []
+    if (!Number.isInteger(actIndex) || actIndex < 0 || actIndex >= acts.length) return res.status(400).json({ error: 'bad act_index' })
+    acts[actIndex].transition_out = { type, duration_ms }
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[luna] stop-transition error:', err)
+    res.status(500).json({ error: 'stop-transition failed' })
+  }
+})
+
 /** Reorder a stop (act): swap with its neighbour. body: { act_index, dir: -1|1 } */
 router.post('/sessions/:id/move-stop', async (req: Request, res: Response) => {
   try {
@@ -1019,12 +1061,13 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       `SELECT script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
       [id]
     )
-    const props = await pool.query<{ project_id: string; name: string }>(
-      `SELECT project_id::text, snapshot->>'name' AS name
+    const props = await pool.query<{ project_id: string; name: string; image: string | null }>(
+      `SELECT project_id::text, snapshot->>'name' AS name, snapshot->>'image' AS image
          FROM lt_session_properties WHERE session_id=$1 ORDER BY sort_order`,
       [id]
     )
     const nameById = new Map(props.rows.map((p) => [p.project_id, p.name]))
+    const imageById = new Map(props.rows.filter((p) => p.image).map((p) => [p.project_id, p.image as string]))
     const script = sc.rows[0]?.script
 
     type FlowItem = {
@@ -1034,20 +1077,22 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       narration: string
       seconds: number
       camera: string[]
-      overlays: { label: string; at: number; dur: number }[]
+      overlays: OverlayViz[]
       transition?: string
+      transitionType?: string
       actIndex: number
       isPlace?: boolean
     }
-    const beatItem = (b: ScriptBeat, group: string, kind: string, actIndex: number, transition?: string, isPlace?: boolean): FlowItem => ({
+    const beatItem = (b: ScriptBeat, group: string, kind: string, actIndex: number, transition?: string, isPlace?: boolean, transitionType?: string): FlowItem => ({
       id: b.id || '',
       group,
       kind,
       narration: b.narration || '',
       seconds: Math.round((b.duration_ms ?? 0) / 1000),
       camera: cameraSummary(b.camera),
-      overlays: overlaySummary(b.overlays),
+      overlays: overlaySummary(b.overlays, imageById),
       actIndex,
+      ...(transitionType ? { transitionType } : {}),
       ...(isPlace ? { isPlace: true } : {}),
       ...(transition ? { transition } : {}),
     })
@@ -1058,11 +1103,12 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       ;(script.acts || []).forEach((act, ai) => {
         const gname = (act.property_id && nameById.get(act.property_id)) || act.place?.name || '楼盘'
         const isPlace = !act.property_id && !!act.place
+        const prevTransType = ai > 0 ? script.acts?.[ai - 1]?.transition_out?.type : undefined
         ;(act.beats || []).forEach((beat, bi) => {
           if (!beat?.id) return
           // first beat of acts after the first carries the inter-stop transition
           const transition = ai > 0 && bi === 0 ? `挑高抛远飞向 ${gname}` : undefined
-          flow.push(beatItem(beat, gname, beat.kind || 'beat', ai, transition, isPlace))
+          flow.push(beatItem(beat, gname, beat.kind || 'beat', ai, transition, isPlace, bi === 0 ? prevTransType : undefined))
         })
       })
       if (script.outro?.id) flow.push(beatItem(script.outro, '结尾', 'outro', -1))
