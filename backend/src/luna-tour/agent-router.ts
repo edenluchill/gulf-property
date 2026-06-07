@@ -418,6 +418,7 @@ type OverlayCue = {
   property_id?: string
   url?: string
   media_kind?: string
+  label?: string
   data?: { growth_pct?: number }
 }
 type ScriptBeat = {
@@ -478,7 +479,9 @@ function overlaySummary(ov: OverlayCue[] | undefined, imageById?: Map<string, st
     const v: OverlayViz = {
       idx,
       type: o.type || '',
-      label: OVERLAY_ZH[o.type || ''] || o.type || '卡片',
+      // distance_line carries its own target+km label (e.g. "地铁 0.4 km") → show
+      // "到 地铁 0.4 km"; everything else uses a plain friendly name.
+      label: o.type === 'distance_line' && o.label ? `到 ${o.label}` : OVERLAY_ZH[o.type || ''] || o.type || '卡片',
       at: Math.round((o.at_ms ?? 0) / 1000),
       dur: Math.round((o.duration_ms ?? 0) / 1000),
     }
