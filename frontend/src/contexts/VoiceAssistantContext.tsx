@@ -106,6 +106,109 @@ const voiceTools = [
           },
           required: ['project_id']
         }
+      },
+      {
+        name: 'recommend_by_budget',
+        description: 'Recommend the best Dubai areas to buy for a given budget. Use when the customer states a budget/income and a goal. Returns areas within budget ranked by goal with median price, gross rental yield %, 3-year price growth %, and confidence. Real DLD data.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            budget: { type: Type.NUMBER, description: 'Budget in AED (total purchase price), e.g. 1500000' },
+            goal: { type: Type.STRING, description: "Goal: 'yield' (rental income), 'growth' (capital gain), or 'balanced' (default)" },
+            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', or 'townhouse'" },
+            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2, 3… Omit for any.' }
+          },
+          required: ['budget']
+        }
+      },
+      {
+        name: 'get_investment_breakdown',
+        description: 'Investment analysis for a specific area + property type + bedrooms: median price, gross rental yield %, 3-year CAGR, and an INDICATIVE 5-year ROI projection with payback years. Use when the customer asks the ROI/yield/return for a specific area & unit type. Always relay confidence; projections are indicative, not guaranteed.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area: { type: Type.STRING, description: 'Dubai area name, e.g. "Business Bay", "Dubai Marina"' },
+            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', or 'townhouse'" },
+            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' },
+            offplan: { type: Type.BOOLEAN, description: 'true=off-plan only, false=ready only, omit=both' }
+          },
+          required: ['area']
+        }
+      },
+      {
+        name: 'compare_market',
+        description: 'Controlled comparison over real DLD sales: hold conditions constant and vary ONE dimension to isolate its price effect. Use for "is off-plan pricier than ready here?" (vary=is_offplan), "price by bedroom?" (vary=bedrooms), "priciest areas?" (vary=area_name). Returns each group with transaction count + median price.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            vary: { type: Type.STRING, description: "Dimension to break down by: 'is_offplan', 'bedrooms', 'area_name', 'ptype', 'size_band', or 'year'" },
+            property_type: { type: Type.STRING, description: "Hold property type constant: 'apartment', 'villa', 'townhouse'" },
+            bedrooms: { type: Type.NUMBER, description: 'Hold bedrooms constant (0=studio)' },
+            area: { type: Type.STRING, description: 'Restrict to an area (fuzzy), e.g. "Marina"' }
+          },
+          required: ['vary']
+        }
+      },
+      {
+        name: 'area_investment_report',
+        description: 'Full investment report for an area + property type + bedrooms in ONE call: price level & range, 3-year & YoY growth, gross rental yield, indicative 5-year ROI & payback, liquidity, price vs city average, off-plan share, confidence, and an explicit list of data gaps. Use this as the DEFAULT for any "analyze / is it a good investment / give me the numbers" question — it is the most complete. Relay confidence and gaps honestly; projections are indicative.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area: { type: Type.STRING, description: 'Dubai area, e.g. "Business Bay", "Dubai Marina", "JVC"' },
+            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', 'townhouse'" },
+            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' }
+          },
+          required: ['area']
+        }
+      },
+      {
+        name: 'check_affordability',
+        description: 'Work out what the customer can afford from their monthly income OR cash for down-payment, then recommend areas within that budget. Use when the customer gives an income/salary or savings and asks what/where they can buy. Returns max purchase price, required down payment, monthly mortgage, and affordable areas with yield & growth.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            income: { type: Type.NUMBER, description: 'Monthly income in AED (for mortgage capacity)' },
+            cash: { type: Type.NUMBER, description: 'Cash available for down payment in AED' },
+            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', 'townhouse'" },
+            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2…' }
+          }
+        }
+      },
+      {
+        name: 'project_value_check',
+        description: "Check whether a specific project's asking price is above or below the DLD resale median for its area & bedrooms. Use when the customer asks 'is this project fairly priced / a good deal / pricier than the area'. Needs project_id (from search results).",
+        parameters: {
+          type: Type.OBJECT,
+          properties: { project_id: { type: Type.STRING, description: 'Project ID from search results' } },
+          required: ['project_id']
+        }
+      },
+      {
+        name: 'purchase_costs',
+        description: 'Break down one-time purchase costs of buying in Dubai (DLD 4% transfer, agent 2%, admin/trustee, mortgage registration) and the all-in total. Use when the customer asks about fees / total cost / extra cost to buy.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            price: { type: Type.NUMBER, description: 'Property price in AED' },
+            mortgage: { type: Type.BOOLEAN, description: 'true if buying with a mortgage' }
+          },
+          required: ['price']
+        }
+      },
+      {
+        name: 'rent_vs_buy',
+        description: 'Indicative rent-vs-buy comparison for an area/unit over N years. Use when the customer asks "should I rent or buy". Ignores mortgage interest & service charges (data gaps) — say so.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area: { type: Type.STRING, description: 'Dubai area' },
+            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', 'townhouse'" },
+            bedrooms: { type: Type.NUMBER, description: 'Bedrooms (0=studio)' },
+            years: { type: Type.NUMBER, description: 'Holding horizon in years (default 5)' }
+          },
+          required: ['area']
+        }
       }
     ]
   }
@@ -174,7 +277,15 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       'compare_areas': currentLanguage === 'zh' ? '对比区域中...' : 'Comparing areas...',
       'show_nearby_pois': currentLanguage === 'zh' ? '显示周边设施...' : 'Showing nearby places...',
       'navigate_to_project': currentLanguage === 'zh' ? '打开项目详情...' : 'Opening project...',
-      'reset_map': currentLanguage === 'zh' ? '重置地图...' : 'Resetting map...'
+      'reset_map': currentLanguage === 'zh' ? '重置地图...' : 'Resetting map...',
+      'recommend_by_budget': currentLanguage === 'zh' ? '按预算分析中...' : 'Analyzing by budget...',
+      'get_investment_breakdown': currentLanguage === 'zh' ? '计算投资回报...' : 'Crunching ROI...',
+      'compare_market': currentLanguage === 'zh' ? '对比市场数据...' : 'Comparing market...',
+      'area_investment_report': currentLanguage === 'zh' ? '生成投资报告...' : 'Building report...',
+      'check_affordability': currentLanguage === 'zh' ? '测算可负担...' : 'Checking affordability...',
+      'project_value_check': currentLanguage === 'zh' ? '对标片区价格...' : 'Checking value...',
+      'purchase_costs': currentLanguage === 'zh' ? '计算购房费用...' : 'Calculating costs...',
+      'rent_vs_buy': currentLanguage === 'zh' ? '对比租与买...' : 'Rent vs buy...'
     }
     return names[toolName] || (currentLanguage === 'zh' ? '处理中...' : 'Processing...')
   }, [currentLanguage])

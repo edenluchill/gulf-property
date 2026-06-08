@@ -246,6 +246,109 @@ export const voiceAssistantTools = [
           },
           required: ['area_name']
         }
+      },
+      {
+        name: 'recommend_by_budget',
+        description: 'Recommend the best Dubai areas to buy given a budget. Use when the customer states a budget/income and an intent. Returns areas within budget ranked by goal, each with median price, gross rental yield %, 3-year price growth %, and confidence. Based on real DLD transaction + rental data.',
+        parameters: {
+          type: 'object',
+          properties: {
+            budget: { type: 'number', description: 'Budget in AED (total purchase price the customer can afford)' },
+            goal: { type: 'string', enum: ['yield', 'growth', 'balanced'], description: 'yield=rental income; growth=capital appreciation; balanced=both. Default balanced.' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            bedrooms: { type: 'number', description: 'Bedrooms (0=studio). Omit for any.' }
+          },
+          required: ['budget']
+        }
+      },
+      {
+        name: 'get_investment_breakdown',
+        description: 'Investment analysis for a specific area + property type + bedrooms: median price, gross rental yield %, 3-year CAGR, and an INDICATIVE 5-year ROI projection with payback years. Use when the customer asks the ROI/yield/return for a specific area & unit type (e.g. "a 1-bed in Business Bay"). More granular than get_area_info. Always relay the confidence; call projections indicative, never guaranteed.',
+        parameters: {
+          type: 'object',
+          properties: {
+            area: { type: 'string', description: 'Dubai area name, e.g. "Business Bay", "Dubai Marina", "JVC"' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            bedrooms: { type: 'number', description: 'Bedrooms (0=studio). Omit for any.' },
+            offplan: { type: 'boolean', description: 'true=off-plan only, false=ready only, omit=both' }
+          },
+          required: ['area']
+        }
+      },
+      {
+        name: 'compare_market',
+        description: 'Controlled comparison over real DLD sales: hold conditions constant and vary ONE dimension to isolate its effect on price. Use for "is off-plan pricier than ready here?" (vary=is_offplan), "how does price change by bedroom?" (vary=bedrooms), "which areas are priciest?" (vary=area_name). Returns each group with transaction count + median price.',
+        parameters: {
+          type: 'object',
+          properties: {
+            vary: { type: 'string', enum: ['is_offplan', 'bedrooms', 'area_name', 'ptype', 'size_band', 'year'], description: 'The single dimension to break results down by (the variable being compared)' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Hold property type constant' },
+            bedrooms: { type: 'number', description: 'Hold bedrooms constant (0=studio)' },
+            area: { type: 'string', description: 'Restrict to an area (fuzzy), e.g. "Marina"' }
+          },
+          required: ['vary']
+        }
+      },
+      {
+        name: 'area_investment_report',
+        description: 'Full investment report for an area + property type + bedrooms in ONE call: price level & range, 3-year & YoY growth, gross rental yield, indicative 5-year ROI & payback, liquidity, price vs city average, off-plan share, confidence, and an explicit list of data gaps. Use this as the DEFAULT for any "analyze / is it a good investment / give me the numbers" question — it is the most complete. Relay confidence and gaps honestly; projections are indicative.',
+        parameters: {
+          type: 'object',
+          properties: {
+            area: { type: 'string', description: 'Dubai area, e.g. "Business Bay", "Dubai Marina", "JVC"' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            bedrooms: { type: 'number', description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' }
+          },
+          required: ['area']
+        }
+      },
+      {
+        name: 'check_affordability',
+        description: 'Work out what the customer can afford from their monthly income OR cash for down-payment, then recommend areas within that budget. Use when the customer gives an income/salary or savings and asks what/where they can buy. Returns max purchase price, required down payment, monthly mortgage, and affordable areas with yield & growth.',
+        parameters: {
+          type: 'object',
+          properties: {
+            income: { type: 'number', description: 'Monthly income in AED (for mortgage capacity)' },
+            cash: { type: 'number', description: 'Cash available for down payment in AED' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            bedrooms: { type: 'number', description: 'Bedrooms: 0=studio, 1, 2…' }
+          }
+        }
+      },
+      {
+        name: 'project_value_check',
+        description: 'Check whether a specific project\'s asking price is above or below the DLD resale median for its area & bedroom count. Use when the customer asks "is this project fairly priced / a good deal / pricier than the area". Needs project_id (from search results).',
+        parameters: {
+          type: 'object',
+          properties: { project_id: { type: 'string', description: 'Project ID from search results' } },
+          required: ['project_id']
+        }
+      },
+      {
+        name: 'purchase_costs',
+        description: 'Break down the one-time purchase costs of buying in Dubai (DLD 4% transfer, agent 2%, admin/trustee, mortgage registration) and the all-in total. Use when the customer asks "what fees / total cost / how much extra to buy".',
+        parameters: {
+          type: 'object',
+          properties: {
+            price: { type: 'number', description: 'Property price in AED' },
+            mortgage: { type: 'boolean', description: 'true if buying with a mortgage (adds registration fee)' }
+          },
+          required: ['price']
+        }
+      },
+      {
+        name: 'rent_vs_buy',
+        description: 'Indicative rent-vs-buy comparison for an area/unit over N years (buying net cost incl. appreciation vs total rent paid). Use when the customer asks "should I rent or buy". Note: ignores mortgage interest & service charges (data gaps) — say so.',
+        parameters: {
+          type: 'object',
+          properties: {
+            area: { type: 'string', description: 'Dubai area' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            bedrooms: { type: 'number', description: 'Bedrooms (0=studio)' },
+            years: { type: 'number', description: 'Holding horizon in years (default 5)' }
+          },
+          required: ['area']
+        }
       }
     ]
   }
@@ -576,6 +679,126 @@ export async function executeTool(
           tier,
           spokes
         }
+      }
+    }
+
+    case 'recommend_by_budget': {
+      const qs = new URLSearchParams()
+      qs.set('budget', String(params.budget))
+      if (params.goal) qs.set('goal', params.goal)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      const data = await apiFetch<{ results: any[] }>(`/api/ai/analytics/recommend?${qs.toString()}`)
+      const rows = data.results || []
+      if (!rows.length) {
+        return { result: { areas: [] }, summary: `预算 ${Math.round(params.budget / 1000)}万 AED 内暂时没有足够数据的区域,可以放宽预算或换户型。` }
+      }
+      const top = rows.slice(0, 3).map((r: any) =>
+        `${r.area_name}(中位约 ${Math.round(r.median_price_aed / 1000)}万,毛收益 ${r.gross_yield_pct ?? '—'}%,3年涨 ${r.cagr_3y_pct ?? '—'}%)`
+      ).join(';')
+      return {
+        result: { areas: rows },
+        summary: `预算 ${Math.round(params.budget / 1000)}万内,按${params.goal || '综合'}推荐:${top}。(基于真实成交,指示性参考)`,
+        mapAction: { type: 'highlight_areas', areas: rows.map((r: any) => r.area_name) }
+      }
+    }
+
+    case 'get_investment_breakdown': {
+      const qs = new URLSearchParams()
+      qs.set('area', params.area)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      if (params.offplan !== undefined) qs.set('offplan', String(params.offplan))
+      const d = await apiFetch<any>(`/api/ai/analytics/investment?${qs.toString()}`)
+      if (d.error || !d.median_price_aed) {
+        return { result: d, summary: `${params.area} 这个条件样本有限,暂时给不出可靠的投资分析。` }
+      }
+      const p = d.projection_5y || {}
+      return {
+        result: d,
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}:中位价约 ${Math.round(d.median_price_aed / 1000)}万 AED,毛租金收益 ${d.gross_yield_pct ?? '—'}%,近3年年化 ${d.cagr_3y_pct ?? '—'}%。指示性5年总回报约 ${p.total_roi_pct ?? '—'}%,回本约 ${p.payback_years ?? '—'} 年(样本置信度 ${d.sample?.confidence};指示性,非保证)。`
+      }
+    }
+
+    case 'compare_market': {
+      const qs = new URLSearchParams()
+      qs.set('vary', params.vary)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      if (params.area) qs.set('area', params.area)
+      const data = await apiFetch<{ results: any[] }>(`/api/ai/analytics/compare?${qs.toString()}`)
+      const rows = data.results || []
+      if (!rows.length) return { result: { groups: [] }, summary: '这个对比条件下暂时没有足够数据。' }
+      const label = (r: any) => r[params.vary] === true ? '期房' : r[params.vary] === false ? '现房' : String(r[params.vary])
+      const parts = rows.slice(0, 8).map((r: any) =>
+        `${label(r)}:${r.median_price_sqm ? Math.round(r.median_price_sqm) + ' AED/㎡' : '—'}(${r.txn_count}笔)`
+      ).join(';')
+      return { result: { groups: rows }, summary: `按 ${params.vary} 对比(其余固定):${parts}。` }
+    }
+
+    case 'area_investment_report': {
+      const qs = new URLSearchParams()
+      qs.set('area', params.area)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      const d = await apiFetch<any>(`/api/ai/analytics/report?${qs.toString()}`)
+      if (d.error) return { result: d, summary: `${params.area} 这个条件近2年没足够成交,给不出可靠报告。` }
+      const pr = d.pricing, t = d.trend, y = d.yield, p = d.projection_5y, c = d.context
+      const vsCity = c.vs_city_pct >= 0 ? `高${c.vs_city_pct}%` : `低${Math.abs(c.vs_city_pct)}%`
+      return {
+        result: d,
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}:中位 ${Math.round(pr.median_price_aed / 1000)}万 AED(${pr.median_price_sqm}/㎡,比全城${vsCity}),近3年年化 ${t.cagr_3y_pct}%、同比 ${t.yoy_pct}%(${t.direction}),毛收益 ${y.gross_yield_pct ?? '—'}%,指示性5年ROI ${p.total_roi_pct}%、回本 ${p.payback_years ?? '—'}年,流动性${d.liquidity.level}(置信度${d.sample.confidence})。净收益/供给/人口数据暂缺。`
+      }
+    }
+
+    case 'check_affordability': {
+      const qs = new URLSearchParams()
+      if (params.income) qs.set('income', String(params.income))
+      if (params.cash) qs.set('cash', String(params.cash))
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      const d = await apiFetch<any>(`/api/ai/analytics/affordability?${qs.toString()}`)
+      const areas = (d.affordable_areas || []).slice(0, 3)
+        .map((a: any) => `${a.area_name}(中位${Math.round(a.median_price_aed / 1000)}万,收益${a.gross_yield_pct ?? '—'}%)`).join(';')
+      return {
+        result: d,
+        summary: `按你的条件大约能买到 ${Math.round(d.max_price_aed / 1000)}万 AED(首付约${Math.round(d.down_payment_aed / 1000)}万${d.monthly_payment_aed ? `,月供约${Math.round(d.monthly_payment_aed / 1000)}千` : ''})。预算内可考虑:${areas || '暂无足够数据的区域'}。(假设:首付${d.assumptions.down_pct * 100}%、利率${d.assumptions.rate * 100}%、${d.assumptions.years}年)`,
+        mapAction: d.affordable_areas?.length ? { type: 'highlight_areas', areas: d.affordable_areas.map((a: any) => a.area_name) } : undefined
+      }
+    }
+
+    case 'project_value_check': {
+      const data = await apiFetch<any>(`/api/ai/analytics/project-value?project_id=${encodeURIComponent(params.project_id)}`)
+      if (data.error || data.market === null || data.area_median_aed == null) {
+        return { result: data, summary: `${data.project_name || '该项目'} 暂无可比片区成交,给不出对标。` }
+      }
+      const dir = data.premium_pct >= 0 ? `高 ${data.premium_pct}%` : `低 ${Math.abs(data.premium_pct)}%`
+      return {
+        result: data,
+        summary: `${data.project_name}(${data.bedrooms}居)报价约 ${Math.round(data.asking_price_aed / 1000)}万,比 ${data.area} 二手中位 ${Math.round(data.area_median_aed / 1000)}万${dir}。片区收益 ${data.area_yield_pct ?? '—'}%、3年涨 ${data.area_cagr_pct ?? '—'}%(期房通常带溢价,置信度${data.confidence})。`
+      }
+    }
+
+    case 'purchase_costs': {
+      const data = await apiFetch<any>(`/api/ai/analytics/costs?price=${params.price}&mortgage=${params.mortgage ? 'true' : 'false'}`)
+      const c = data.costs
+      return {
+        result: data,
+        summary: `买 ${Math.round(data.price_aed / 1000)}万的房,一次性费用约 ${Math.round(data.total_fees_aed / 1000)}万(${data.total_fees_pct}%):过户费 ${Math.round(c.dld_transfer_4pct / 1000)}万、中介 ${Math.round(c.agent_2pct / 1000)}万${c.mortgage_registration ? `、房贷登记 ${Math.round(c.mortgage_registration / 1000)}千` : ''}。连房价共约 ${Math.round(data.all_in_aed / 1000)}万。`
+      }
+    }
+
+    case 'rent_vs_buy': {
+      const qs = new URLSearchParams()
+      qs.set('area', params.area)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      if (params.years) qs.set('years', String(params.years))
+      const data = await apiFetch<any>(`/api/ai/analytics/rent-vs-buy?${qs.toString()}`)
+      if (data.error) return { result: data, summary: `${params.area} 数据不足,暂时算不了租 vs 买。` }
+      return {
+        result: data,
+        summary: `${data.area} ${data.years}年:买(净成本约 ${Math.round(data.buy_net_cost_aed / 1000)}万,已计增值)vs 租(共约 ${Math.round(data.rent_total_aed / 1000)}万)→ 更划算:${data.verdict === 'buy' ? '买' : '租'}。(指示性,未计房贷利息/物业费)`
       }
     }
 
