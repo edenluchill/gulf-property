@@ -36,20 +36,32 @@ const MAP_STYLE_LABELED = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/sty
 // 数据图层（热力/POI/区域/交通）叠加其上不变；只是底图变深色。
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 
-// 卫星底图风格：Esri World Imagery 栅格瓦片。
-// glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
-const SATELLITE_STYLE = {
-  version: 8 as const,
-  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
-  sources: {
-    'satellite-tiles': {
+// 卫星底图风格。
+// 有 VITE_MAPTILER_KEY → MapTiler satellite-v2 的 512 retina 瓦片(手机/高DPI屏清晰);
+// 没有 → 退回 Esri World Imagery 256(免 key,但高 DPI 屏会偏糊)。免费 key: maptiler.com
+const MAPTILER_KEY = (import.meta as any).env?.VITE_MAPTILER_KEY as string | undefined
+
+const SATELLITE_SOURCE = MAPTILER_KEY
+  ? {
+      type: 'raster' as const,
+      tiles: [`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`],
+      tileSize: 512,
+      maxzoom: 20,
+      attribution: '© MapTiler © Esri, Maxar'
+    }
+  : {
       type: 'raster' as const,
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
       maxzoom: 19,
       attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
     }
-  },
+
+// glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
+const SATELLITE_STYLE = {
+  version: 8 as const,
+  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+  sources: { 'satellite-tiles': SATELLITE_SOURCE },
   layers: [
     { id: 'sat-bg', type: 'background' as const, paint: { 'background-color': '#0b1722' } },
     { id: 'satellite', type: 'raster' as const, source: 'satellite-tiles' }
