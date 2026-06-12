@@ -33,7 +33,13 @@
     "coordSet": "地图坐标已设置",
     "coordNotSet": "地图坐标未设置",
     "cancel": "返回检查",
-    "confirm": "确认提交"
+    "confirm": "确认提交",
+    "missingFieldsHint": "请返回表单，在「基本信息」区块补全后再提交。"
+  },
+  "live": {
+    "images": "图片",
+    "units": "户型",
+    "amenities": "配套"
   },
   "steps": {
     "upload": "上传 PDF",

@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Pause, Play, X, Check, Clock } from 'lucide-react'
+import { Loader2, Pause, Play, X, Check, Clock, Image as ImageIcon, Home, Sparkles } from 'lucide-react'
 import { useTaskStore } from '../../stores/taskStore'
+
+export interface LiveExtractionData {
+  images: string[]        // 已提取的图片 URL（流式增长）
+  unitsCount: number      // 已发现的户型数
+  amenitiesCount: number  // 已发现的配套数
+}
 
 interface ProgressEvent {
   stage: string
@@ -26,6 +32,7 @@ interface ProgressSectionProps {
   isUploading?: boolean
   jobId?: string | null
   onCancelled?: () => void
+  liveData?: LiveExtractionData  // ⭐ 实时提取数据（每个 chunk 完成即更新）
 }
 
 export function ProgressSection({
@@ -37,6 +44,7 @@ export function ProgressSection({
   isUploading = false,
   jobId = null,
   onCancelled,
+  liveData,
 }: ProgressSectionProps) {
   const { t } = useTranslation('upload')
   const [isPausing, setIsPausing] = useState(false)
@@ -157,6 +165,44 @@ export function ProgressSection({
               />
             </div>
           </div>
+          {/* ⭐ Live Extraction Preview — chunks stream results as they finish */}
+          {!isUploading && liveData && (liveData.images.length > 0 || liveData.unitsCount > 0) && (
+            <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2.5 shadow-sm">
+              <div className="flex items-center gap-4 text-xs font-medium text-gray-600">
+                <span className="inline-flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5 text-teal-600" />
+                  <span className="tabular-nums font-semibold text-gray-900">{liveData.images.length}</span>
+                  {t('live.images')}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Home className="h-3.5 w-3.5 text-teal-600" />
+                  <span className="tabular-nums font-semibold text-gray-900">{liveData.unitsCount}</span>
+                  {t('live.units')}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-teal-600" />
+                  <span className="tabular-nums font-semibold text-gray-900">{liveData.amenitiesCount}</span>
+                  {t('live.amenities')}
+                </span>
+              </div>
+              {liveData.images.length > 0 && (
+                <div className="grid grid-cols-4 gap-1.5">
+                  {liveData.images.slice(-8).map((url, i) => (
+                    <div key={url} className="aspect-video rounded-md overflow-hidden bg-gray-100 ring-1 ring-gray-200">
+                      <img
+                        src={url}
+                        alt=""
+                        loading="lazy"
+                        className="w-full h-full object-cover animate-in fade-in duration-500"
+                        style={{ animationDelay: `${i * 40}ms` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Recent Events */}
           {!isUploading && progressEvents.length > 0 && (
             <div className="text-xs text-gray-600 max-h-32 overflow-y-auto space-y-1 bg-gray-50 rounded p-3 border">

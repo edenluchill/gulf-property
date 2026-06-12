@@ -12,7 +12,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/card'
-import { Building2, CheckCircle, Loader2 } from 'lucide-react'
+import { Building2, CheckCircle, Loader2, AlertTriangle, MapPin, LayoutGrid, ClipboardCheck } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { UnitTypeCard } from '../components/developer-upload/UnitTypeCard'
 import { DocumentUploadSection } from '../components/developer-upload/DocumentUploadSection'
@@ -26,6 +26,7 @@ import { ExtractedPricingSection } from '../components/developer-upload/Extracte
 import { SubmitReviewDialog, type ClientReadiness } from '../components/developer-upload/SubmitReviewDialog'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS, API_BASE_URL } from '../lib/config'
+import { fetchDubaiAreas } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 
 interface UnitType {
@@ -352,6 +353,11 @@ export default function DeveloperPropertyUploadPageV2() {
           if (extractedName) {
             checkDuplicateProjects(extractedName)
           }
+          // ⭐ area 缺失时从 address 自动回填
+          const bd = progressEvent.data?.buildingData
+          if (bd && !bd.area && bd.address) {
+            autoFillAreaFromAddress(bd.address)
+          }
         }
 
         if (progressEvent.stage === 'error') {
@@ -381,6 +387,26 @@ export default function DeveloperPropertyUploadPageV2() {
       setError(err instanceof Error ? err.message : 'Failed to process PDFs')
       setIsProcessing(false)
       setIsUploading(false)
+    }
+  }
+
+  // ⭐ area 兜底：提取没拿到区域时，从 address 文本里匹配已知 Dubai 区域名回填
+  const autoFillAreaFromAddress = async (address: string) => {
+    try {
+      const areas = await fetchDubaiAreas()
+      const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, '')
+      const addr = norm(address)
+      // 选 address 中出现的最长区域名（"Dubai Islands" 优先于 "Dubai"）
+      const match = areas
+        .map(a => a.name)
+        .filter(name => name && addr.includes(norm(name)))
+        .sort((a, b) => b.length - a.length)[0]
+      if (match) {
+        console.log(`📍 Area auto-filled from address: ${match}`)
+        setFormData(prev => prev.area ? prev : { ...prev, area: match })
+      }
+    } catch (err) {
+      console.warn('Area auto-fill failed (non-fatal):', err)
     }
   }
 
@@ -628,24 +654,40 @@ export default function DeveloperPropertyUploadPageV2() {
               </div>
             </div>
             
-            {/* Process Flow Indicator */}
-            <div className="flex items-center gap-3 text-sm mt-6">
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
-                <span className="font-semibold text-teal-700">{`1️⃣ ${t('steps.upload')}`}</span>
-              </div>
-              <div className="text-teal-400">→</div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
-                <span className="font-semibold text-teal-700">{`2️⃣ ${t('steps.extract')}`}</span>
-              </div>
-              <div className="text-teal-400">→</div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
-                <span className="font-semibold text-teal-700">{`3️⃣ ${t('steps.review')}`}</span>
-              </div>
-              <div className="text-teal-400">→</div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm border border-teal-200">
-                <span className="font-semibold text-green-700">{`4️⃣ ${t('steps.submit')}`}</span>
-              </div>
-            </div>
+            {/* Process Flow Indicator — 高亮当前所处步骤 */}
+            {(() => {
+              const currentStep = submitted ? 4 : (isProcessing || isUploading) ? 2 : hasStarted ? 3 : 1
+              const steps = [t('steps.upload'), t('steps.extract'), t('steps.review'), t('steps.submit')]
+              return (
+                <div className="flex items-center gap-2 text-sm mt-6">
+                  {steps.map((label, i) => {
+                    const n = i + 1
+                    const state = n < currentStep ? 'done' : n === currentStep ? 'active' : 'todo'
+                    return (
+                      <div key={label} className="flex items-center gap-2">
+                        {i > 0 && <div className={`h-px w-6 ${n <= currentStep ? 'bg-teal-400' : 'bg-gray-300'}`} />}
+                        <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all ${
+                          state === 'active'
+                            ? 'bg-teal-600 border-teal-600 text-white shadow-md'
+                            : state === 'done'
+                              ? 'bg-white border-teal-300 text-teal-700'
+                              : 'bg-white/60 border-gray-200 text-gray-400'
+                        }`}>
+                          {state === 'done' ? (
+                            <CheckCircle className="h-3.5 w-3.5" />
+                          ) : (
+                            <span className={`flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-bold ${
+                              state === 'active' ? 'bg-white/25' : 'bg-gray-200 text-gray-500'
+                            }`}>{n}</span>
+                          )}
+                          <span className="font-medium">{label}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -683,6 +725,12 @@ export default function DeveloperPropertyUploadPageV2() {
                   error={error}
                   isUploading={isUploading}
                   jobId={currentJobId}
+                  liveData={{
+                    // 缩略图变体，省流量；chunk 完成即流入
+                    images: (formData.projectImages || []).map(u => u.replace(/_(large|medium)\.jpg/, '_thumbnail.jpg')),
+                    unitsCount: formData.unitTypes.length,
+                    amenitiesCount: formData.amenities.length,
+                  }}
                   onCancelled={() => {
                     setIsProcessing(false)
                     setIsUploading(false)
@@ -905,14 +953,14 @@ export default function DeveloperPropertyUploadPageV2() {
 
                           {/* Review Checklist */}
                           {!isProcessing && formData.unitTypes.length > 0 && (
-                            <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-2 border-blue-300 rounded-xl p-8 space-y-6 shadow-lg mt-8">
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-5 mt-8">
                               <div className="flex items-center gap-3">
-                                <div className="h-10 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
+                                <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
                                 <div>
-                                  <h3 className="font-bold text-blue-900 text-xl">
+                                  <h3 className="font-bold text-gray-900 text-lg">
                                     {t('checklist.title')}
                                   </h3>
-                                  <p className="text-sm text-blue-700 mt-1">
+                                  <p className="text-sm text-gray-500 mt-0.5">
                                     {t('checklist.subtitle')}
                                   </p>
                                 </div>
@@ -955,51 +1003,60 @@ export default function DeveloperPropertyUploadPageV2() {
                                 return null;
                               })()}
                               
-                              <div className="space-y-4">
-                                <div className={`flex items-start gap-4 p-5 rounded-xl shadow-md border-2 transition-all ${
-                                  formData.projectName 
-                                    ? 'bg-white border-green-300' 
-                                    : 'bg-yellow-50 border-yellow-300'
-                                }`}>
-                                  <div className="text-3xl pt-1">{formData.projectName ? '✅' : '⚠️'}</div>
-                                  <div className="flex-1">
-                                    <div className="font-bold text-gray-900 text-base mb-1">{t('checklist.basicInfo')}</div>
-                                    <div className="text-sm text-gray-600">{t('checklist.basicInfoDesc')}</div>
-                                  </div>
-                                </div>
-
-                                <div className={`flex items-start gap-4 p-5 rounded-xl shadow-md border-2 transition-all ${
-                                  formData.latitude && formData.longitude 
-                                    ? 'bg-white border-green-300' 
-                                    : 'bg-yellow-50 border-yellow-300'
-                                }`}>
-                                  <div className="text-3xl pt-1">{formData.latitude && formData.longitude ? '✅' : '⚠️'}</div>
-                                  <div className="flex-1">
-                                    <div className="font-bold text-gray-900 text-base mb-1">
-                                      {t('checklist.mapCoordinates')} {formData.latitude && formData.longitude ? t('checklist.mapSet') : t('checklist.mapNotSet')}
+                              <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                                {(() => {
+                                  const basicOk = !!(formData.projectName && formData.developer && formData.area)
+                                  const coordOk = !!(formData.latitude && formData.longitude)
+                                  const unitsOk = formData.unitTypes.length > 0
+                                  const rows = [
+                                    {
+                                      ok: basicOk,
+                                      icon: ClipboardCheck,
+                                      title: t('checklist.basicInfo'),
+                                      desc: basicOk
+                                        ? t('checklist.basicInfoDesc')
+                                        : t('readiness.missingFields', {
+                                            fields: [
+                                              !formData.projectName && t('readiness.fieldName'),
+                                              !formData.developer && t('readiness.fieldDeveloper'),
+                                              !formData.area && t('readiness.fieldArea'),
+                                            ].filter(Boolean).join(', '),
+                                          }),
+                                    },
+                                    {
+                                      ok: coordOk,
+                                      icon: MapPin,
+                                      title: `${t('checklist.mapCoordinates')} ${coordOk ? t('checklist.mapSet') : t('checklist.mapNotSet')}`,
+                                      desc: coordOk
+                                        ? t('checklist.latLng', { lat: formData.latitude!.toFixed(6), lng: formData.longitude!.toFixed(6) })
+                                        : t('checklist.mapSetHint'),
+                                    },
+                                    {
+                                      ok: unitsOk,
+                                      icon: LayoutGrid,
+                                      title: t('checklist.unitTypes', { count: formData.unitTypes.length }),
+                                      desc: t('checklist.unitTypesDesc'),
+                                    },
+                                  ]
+                                  return rows.map(({ ok, icon: Icon, title, desc }) => (
+                                    <div key={title} className="flex items-center gap-3 px-4 py-3">
+                                      <div className={`flex items-center justify-center h-8 w-8 rounded-lg shrink-0 ${
+                                        ok ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                                      }`}>
+                                        <Icon className="h-4 w-4" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-gray-900 text-sm">{title}</div>
+                                        <div className="text-xs text-gray-500 truncate">{desc}</div>
+                                      </div>
+                                      {ok ? (
+                                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                                      ) : (
+                                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                                      )}
                                     </div>
-                                    <div className="text-sm text-gray-600">
-                                      {formData.latitude && formData.longitude
-                                        ? t('checklist.latLng', { lat: formData.latitude.toFixed(6), lng: formData.longitude.toFixed(6) })
-                                        : t('checklist.mapSetHint')
-                                      }
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className={`flex items-start gap-4 p-5 rounded-xl shadow-md border-2 transition-all ${
-                                  formData.unitTypes.length > 0 
-                                    ? 'bg-white border-green-300' 
-                                    : 'bg-yellow-50 border-yellow-300'
-                                }`}>
-                                  <div className="text-3xl pt-1">{formData.unitTypes.length > 0 ? '✅' : '⚠️'}</div>
-                                  <div className="flex-1">
-                                    <div className="font-bold text-gray-900 text-base mb-1">
-                                      {t('checklist.unitTypes', { count: formData.unitTypes.length })}
-                                    </div>
-                                    <div className="text-sm text-gray-600">{t('checklist.unitTypesDesc')}</div>
-                                  </div>
-                                </div>
+                                  ))
+                                })()}
                               </div>
 
                               <div className="border-t-2 border-blue-200 pt-6 mt-6">

@@ -33,7 +33,13 @@
     "coordSet": "Map coordinates set",
     "coordNotSet": "Map coordinates NOT set",
     "cancel": "Back to review",
-    "confirm": "Confirm & Submit"
+    "confirm": "Confirm & Submit",
+    "missingFieldsHint": "Go back to the form and complete these in the Basic Info section before submitting."
+  },
+  "live": {
+    "images": "images",
+    "units": "units",
+    "amenities": "amenities"
   },
   "steps": {
     "upload": "Upload PDF",

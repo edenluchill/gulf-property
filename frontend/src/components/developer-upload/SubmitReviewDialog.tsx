@@ -81,11 +81,12 @@ export function SubmitReviewDialog({
 
           {/* Missing project fields */}
           {readiness.missingProjectFields.length > 0 && (
-            <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-sm">
+            <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-sm space-y-1">
               <div className="flex items-center gap-2 font-semibold text-red-900">
                 <XCircle className="h-4 w-4" />
                 {t('readiness.missingFields', { fields: readiness.missingProjectFields.join(', ') })}
               </div>
+              <p className="text-red-700 pl-6">{t('reviewDialog.missingFieldsHint')}</p>
             </div>
           )}
 
