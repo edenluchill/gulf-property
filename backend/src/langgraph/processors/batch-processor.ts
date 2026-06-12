@@ -238,7 +238,18 @@ export async function processChunksInBatches(
     
     // 转换为aggregatedData格式（向后兼容）
     finalAggregatedData = convertAssignmentToAggregatedData(finalAssignmentResult, aggregatedData, pageRegistry);
-    
+
+    // ============ 🔧 Final repair pass for incomplete units ============
+    // 任何 area=0 / bedrooms 缺失的户型在提交时会被过滤掉（户型丢失）。
+    // 在这里做最后一次修复：复用有效anchor specs → 重新提取 → 确定性兜底。
+    try {
+      const repairWarnings = await repairIncompleteUnits(finalAggregatedData, pageRegistry);
+      allWarnings.push(...repairWarnings);
+    } catch (repairError) {
+      console.error(`   ⚠️  Unit repair pass failed:`, repairError);
+      allWarnings.push(`Unit repair pass failed: ${repairError}`);
+    }
+
     // ============ ⚡ 条件生成项目描述 ============
     // 只在没有描述或描述太短时才生成，节省API调用
     const originalDescription = finalAggregatedData.description;
@@ -313,6 +324,166 @@ export async function processChunksInBatches(
     aborted: false,
     processedChunks: processedChunkCount,
   };
+}
+
+/**
+ * 从类别名推断卧室数（"1BR" → 1, "Studio" → 0, "2BR + Maid" → 2）
+ */
+function bedroomsFromCategory(category?: string): number | null {
+  if (!category) return null;
+  const c = category.toUpperCase();
+  if (c.includes('STUDIO')) return 0;
+  const m = c.match(/(\d+)\s*-?\s*(BR|BED)/);
+  if (m) return parseInt(m[1], 10);
+  return null;
+}
+
+/**
+ * 判断户型数据是否不完整（提交时会被过滤或明显错误）
+ */
+function unitNeedsRepair(unit: any): boolean {
+  if (!(unit.area > 0)) return true;
+  if (unit.bedrooms == null) return true;
+  // 提取失败的典型特征：category 说有 N 卧但 bedrooms=0（如 "1BR" bed=0）
+  const catBeds = bedroomsFromCategory(unit.category);
+  if (catBeds != null && catBeds > 0 && unit.bedrooms === 0) return true;
+  return false;
+}
+
+/**
+ * 🔧 最终修复兜底：补全不完整的户型数据
+ *
+ * 顺序：
+ * 1. 复用同名同类别 anchor 页里已成功提取的 specs（合并产生的重复户型常见）
+ * 2. 重新对 anchor 页图片跑一次 AI 提取（extractUnitDetails 内部带重试）
+ * 3. 确定性兜底：area ← suiteArea+balconyArea ← 价格表面积；bedrooms ← 类别推断
+ *
+ * 返回 warnings（修复动作 + 仍无法修复的 SUBMIT-BLOCKER）
+ */
+async function repairIncompleteUnits(
+  data: AggregatedBuildingData,
+  pageRegistry: PageRegistry
+): Promise<string[]> {
+  const warnings: string[] = [];
+  const incomplete = (data.units || []).filter(unitNeedsRepair);
+
+  if (incomplete.length === 0) {
+    console.log(`\n✅ [REPAIR] All ${data.units?.length || 0} units have valid specs, no repair needed`);
+    return warnings;
+  }
+
+  console.log(`\n🔧 [REPAIR] ${incomplete.length}/${data.units.length} units incomplete, starting repair pass...`);
+
+  const anchorPages = pageRegistry.getAnchorPages();
+  const { extractUnitDetails } = await import('../agents/unit-detail-extractor.agent');
+
+  for (const unit of incomplete) {
+    const unitName = (unit.typeName || unit.name || '').toUpperCase().trim();
+    const unitCategory = (unit.category || '').toUpperCase().replace(/\s+/g, '');
+    const before = `bed=${unit.bedrooms}, bath=${unit.bathrooms}, area=${unit.area}`;
+
+    // 候选 anchor 页：名称匹配（大小写不敏感），优先类别也匹配的
+    const nameMatches = anchorPages.filter(p =>
+      (p.unitInfo?.unitTypeName || '').toUpperCase().trim() === unitName
+    );
+    const catMatches = unitCategory
+      ? nameMatches.filter(p =>
+          (p.unitInfo?.unitCategory || '').toUpperCase().replace(/\s+/g, '') === unitCategory
+        )
+      : [];
+    const candidates = catMatches.length > 0 ? catMatches : nameMatches;
+
+    // ---- Step 1: 复用已成功提取的 sibling anchor specs ----
+    const validSibling = candidates.find(p => (p.unitInfo?.specs?.area || 0) > 0);
+    if (validSibling) {
+      const specs = validSibling.unitInfo!.specs!;
+      if (!(unit.area > 0)) unit.area = specs.area;
+      const siblingCatBeds = bedroomsFromCategory(unit.category);
+      if (specs.bedrooms != null &&
+          (unit.bedrooms == null || (unit.bedrooms === 0 && (siblingCatBeds ?? 0) > 0))) {
+        unit.bedrooms = specs.bedrooms;
+      }
+      if (!(unit.bathrooms > 0) && specs.bathrooms) unit.bathrooms = specs.bathrooms;
+      if (unit.suiteArea == null && specs.suiteArea) unit.suiteArea = specs.suiteArea;
+      if (unit.balconyArea == null && specs.balconyArea) unit.balconyArea = specs.balconyArea;
+      if (!unit.description && validSibling.unitInfo!.description) unit.description = validSibling.unitInfo!.description;
+      if ((!unit.features || unit.features.length === 0) && validSibling.unitInfo!.features) {
+        unit.features = validSibling.unitInfo!.features;
+      }
+      console.log(`   🔧 [REPAIR] "${unit.typeName}" filled from sibling anchor page ${validSibling.pageNumber}: ${before} → bed=${unit.bedrooms}, area=${unit.area}`);
+    }
+
+    // ---- Step 2: 重新对 anchor 页跑 AI 提取 ----
+    if (unitNeedsRepair(unit) && candidates.length > 0) {
+      const page = candidates[0];
+      const imageUrl = page.images?.[0]?.imagePath;
+      if (imageUrl) {
+        console.log(`   🔧 [REPAIR] Re-extracting "${unit.typeName}" from page ${page.pageNumber}...`);
+        try {
+          const details = await extractUnitDetails(imageUrl, unit.typeName || unit.name, page.pageNumber);
+          const specs = details.specs || {};
+          if (!(unit.area > 0) && (specs.area || 0) > 0) unit.area = specs.area;
+          if (specs.bedrooms != null && (unit.bedrooms == null || unit.bedrooms === 0)) unit.bedrooms = specs.bedrooms;
+          if (!(unit.bathrooms > 0) && specs.bathrooms) unit.bathrooms = specs.bathrooms;
+          if (unit.suiteArea == null && specs.suiteArea) unit.suiteArea = specs.suiteArea;
+          if (unit.balconyArea == null && specs.balconyArea) unit.balconyArea = specs.balconyArea;
+          if (!unit.price && specs.price) unit.price = specs.price;
+          if (!unit.description && details.description) unit.description = details.description;
+          if ((!unit.features || unit.features.length === 0) && details.features?.length) unit.features = details.features;
+          // 把修复后的 specs 写回 anchor 页，后续流程（如实时更新）可见
+          if (page.unitInfo) {
+            page.unitInfo.specs = { ...(page.unitInfo.specs || {}), ...specs };
+            page.unitInfo.hasDetailedSpecs = Object.keys(specs).length > 0;
+          }
+          console.log(`   🔧 [REPAIR] Re-extraction for "${unit.typeName}": ${before} → bed=${unit.bedrooms}, bath=${unit.bathrooms}, area=${unit.area}`);
+        } catch (reExtractError) {
+          console.warn(`   ⚠️  [REPAIR] Re-extraction failed for "${unit.typeName}": ${(reExtractError as Error).message}`);
+        }
+      }
+    }
+
+    // ---- Step 3: 确定性兜底 ----
+    if (!(unit.area > 0) && (unit.suiteArea || 0) > 0) {
+      unit.area = (unit.suiteArea || 0) + (unit.balconyArea || 0);
+      console.log(`   🔧 [REPAIR] "${unit.typeName}" area fallback from suite+balcony: ${unit.area}`);
+    }
+    if (!(unit.area > 0) && data.extractedPricing && data.extractedPricing.length > 0) {
+      const priceEntry = data.extractedPricing.find(e => {
+        const eName = (e.unitTypeName || '').toUpperCase().trim();
+        const eCat = (e.unitCategory || '').toUpperCase().replace(/\s+/g, '');
+        return (e.area || 0) > 0 && (
+          (eName && eName === unitName) ||
+          (eCat && unitCategory && eCat === unitCategory)
+        );
+      });
+      if (priceEntry) {
+        unit.area = priceEntry.area;
+        console.log(`   🔧 [REPAIR] "${unit.typeName}" area fallback from pricing table (page ${priceEntry.sourcePageNumber}): ${unit.area}`);
+      }
+    }
+    const catBeds = bedroomsFromCategory(unit.category);
+    if (catBeds != null && (unit.bedrooms == null || (unit.bedrooms === 0 && catBeds > 0))) {
+      unit.bedrooms = catBeds;
+      console.log(`   🔧 [REPAIR] "${unit.typeName}" bedrooms inferred from category "${unit.category}": ${catBeds}`);
+    }
+    if (!(unit.bathrooms > 0) && unit.bedrooms != null) {
+      unit.bathrooms = unit.bedrooms === 0 ? 1 : Math.min(Math.max(unit.bedrooms, 1), 3);
+    }
+
+    // ---- 结果记录 ----
+    if (unitNeedsRepair(unit)) {
+      const msg = `SUBMIT-BLOCKER: Unit "${unit.typeName || unit.name}" (${unit.category || 'no category'}) still incomplete after repair: bed=${unit.bedrooms}, area=${unit.area} — will be filtered at submission`;
+      console.warn(`   ❌ [REPAIR] ${msg}`);
+      warnings.push(msg);
+    } else if (before !== `bed=${unit.bedrooms}, bath=${unit.bathrooms}, area=${unit.area}`) {
+      warnings.push(`Repaired unit "${unit.typeName || unit.name}" (${unit.category || ''}): ${before} → bed=${unit.bedrooms}, bath=${unit.bathrooms}, area=${unit.area}`);
+    }
+  }
+
+  const stillBroken = data.units.filter(unitNeedsRepair).length;
+  console.log(`\n🔧 [REPAIR] Repair pass complete: ${incomplete.length - stillBroken}/${incomplete.length} units fixed${stillBroken > 0 ? `, ${stillBroken} still incomplete` : ''}`);
+
+  return warnings;
 }
 
 /**
@@ -504,15 +675,18 @@ function convertAssignmentToAggregatedData(
       // 无匹配，从PageMetadata提取（可能不完整）
       // ⚠️ FIX: Must also filter by category AND/OR pageRange to get correct specs
       // This prevents "Type A (1BR)" page 35 from being used for "Type A (4BR)" page 39
+      // ⚠️ Name/category compares are case-insensitive ("TYPE B" vs "Type B")
+      const smartName = smartUnit.unitTypeName.toUpperCase().trim();
+      const smartCategory = (smartUnit.unitCategory || '').toUpperCase().replace(/\s+/g, '');
       const anchorPages = pageRegistry.getAnchorPages().filter(p => {
         // First: must match unit name
-        if (p.unitInfo?.unitTypeName !== smartUnit.unitTypeName) {
+        if ((p.unitInfo?.unitTypeName || '').toUpperCase().trim() !== smartName) {
           return false;
         }
 
         // Strategy 1: Match by category if both are available
-        if (smartUnit.unitCategory && p.unitInfo?.unitCategory) {
-          return p.unitInfo.unitCategory === smartUnit.unitCategory;
+        if (smartCategory && p.unitInfo?.unitCategory) {
+          return p.unitInfo.unitCategory.toUpperCase().replace(/\s+/g, '') === smartCategory;
         }
 
         // Strategy 2: Match by page range if category not available
@@ -525,6 +699,12 @@ function convertAssignmentToAggregatedData(
         // Fallback: match by name only (may be incorrect for same-name units)
         return true;
       });
+
+      // Prefer the anchor whose extraction actually succeeded (valid area) —
+      // a merged unit can have one good anchor page and one failed one
+      anchorPages.sort((a, b) =>
+        ((b.unitInfo?.specs?.area || 0) > 0 ? 1 : 0) - ((a.unitInfo?.specs?.area || 0) > 0 ? 1 : 0)
+      );
 
       const firstAnchor = anchorPages[0];
       const specs = firstAnchor?.unitInfo?.specs;

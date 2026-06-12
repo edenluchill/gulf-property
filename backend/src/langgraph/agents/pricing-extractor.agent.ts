@@ -11,6 +11,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseJsonResponse } from '../utils/json-parser';
+import { withRetry } from '../utils/ai-retry';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -109,7 +110,30 @@ export async function extractPricing(
 
     const response = await result.response;
     const text = response.text();
-    const parsed = parseJsonResponse(text);
+
+    // 🔁 Retry parse-level failures with a fresh AI call — one bad response
+    // would otherwise drop every price on this pricing table
+    let parsed: any;
+    try {
+      parsed = parseJsonResponse(text);
+    } catch (parseError) {
+      parsed = await withRetry<any>(
+        async () => {
+          const retryResult = await Promise.race([
+            model.generateContent([
+              prompt,
+              { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+            ]),
+            new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error('AI timeout')), TIMEOUT_MS);
+            }),
+          ]);
+          const retryResponse = await retryResult.response;
+          return parseJsonResponse(retryResponse.text());
+        },
+        { label: `pricing-extractor:p${pageNumber}`, attempts: 2 }
+      );
+    }
 
     // 处理提取的数据
     const entries: PricingEntry[] = (parsed.entries || []).map((entry: any) => ({

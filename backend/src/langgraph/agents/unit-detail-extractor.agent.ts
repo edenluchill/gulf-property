@@ -9,6 +9,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseJsonResponse } from '../utils/json-parser';
+import { withRetry } from '../utils/ai-retry';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -77,28 +78,40 @@ export async function extractUnitDetails(
             },
           },
         ]),
-        new Promise<never>((_, reject) => 
+        new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(`AI call timeout after ${AI_TIMEOUT}ms`)), AI_TIMEOUT)
         ),
       ]);
     };
 
-    const result = await generateWithTimeout();
-    const response = await result.response;
-    const text = response.text();
-    console.log(`   🔎 [UNIT-EXTRACTOR] AI response received, parsing JSON...`);
-    
-    // ✅ Use parseJsonResponse for fault tolerance
-    const parsed = parseJsonResponse(text);
+    // 🔁 Retry the AI call + parse. A transient parse error or timeout must not
+    // silently drop the unit's specs (area=0 → unit filtered out at submission).
+    const extracted = await withRetry<UnitDetailResult>(
+      async () => {
+        const result = await generateWithTimeout();
+        const response = await result.response;
+        const text = response.text();
 
-    console.log(`   📐 Unit details extracted for ${unitTypeName}: ${parsed.specs?.bedrooms || 'N/A'}BR, ${parsed.specs?.area || 'N/A'}sqft, ${parsed.features?.length || 0} features`);
-    
-    // Validate and return with defaults
-    return {
-      specs: parsed.specs || {},
-      features: parsed.features || [],
-      description: parsed.description || '',
-    };
+        // ✅ Use parseJsonResponse for fault tolerance
+        const parsed = parseJsonResponse(text);
+
+        return {
+          specs: parsed.specs || {},
+          features: parsed.features || [],
+          description: parsed.description || '',
+        };
+      },
+      {
+        label: `unit-extractor:${unitTypeName} p${pageNumber}`,
+        attempts: 3,
+        // Specs are only valid when the required fields actually came back
+        validate: (r) => (r.specs?.area ?? 0) > 0 && r.specs?.bedrooms != null,
+      }
+    );
+
+    console.log(`   📐 Unit details extracted for ${unitTypeName}: ${extracted.specs?.bedrooms ?? 'N/A'}BR, ${extracted.specs?.area ?? 'N/A'}sqft, ${extracted.features?.length || 0} features`);
+
+    return extracted;
 
   } catch (error) {
     console.error(`   ❌ [UNIT-EXTRACTOR] Error extracting unit details for ${unitTypeName}:`, error);

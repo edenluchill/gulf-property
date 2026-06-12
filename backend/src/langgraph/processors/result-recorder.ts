@@ -211,6 +211,53 @@ export class ResultRecorder {
     lines.push(`  Pages with Building Images: ${result.summary.pagesWithBuildingImages}`);
     lines.push('');
     
+    // ============ 提交就绪检查（最重要的一节，放最前面） ============
+    const fd = result.finalData || {};
+    const missingProjectFields = (['name', 'developer', 'address', 'area'] as const)
+      .filter(f => !fd[f]);
+    const units: any[] = fd.units || [];
+    const brokenUnits = units.filter(u => !(u.area > 0) || u.bedrooms == null);
+    const submittable = missingProjectFields.length === 0 && units.length > 0 && brokenUnits.length === 0;
+
+    lines.push('🚦 SUBMIT READINESS:');
+    lines.push(`  SUBMITTABLE: ${submittable ? '✅ YES' : '❌ NO'}`);
+    if (missingProjectFields.length > 0) {
+      lines.push(`  ❌ Missing project fields: ${missingProjectFields.join(', ')}`);
+    }
+    if (units.length === 0) {
+      lines.push('  ❌ No units extracted');
+    }
+    if (brokenUnits.length > 0) {
+      lines.push(`  ❌ ${brokenUnits.length} unit(s) will be FILTERED at submission (area<=0 or bedrooms missing)`);
+    }
+    lines.push('');
+
+    lines.push('🏠 UNIT COMPLETENESS:');
+    if (units.length === 0) {
+      lines.push('  (no units)');
+    }
+    units.forEach(u => {
+      const issues: string[] = [];
+      if (!(u.area > 0)) issues.push('AREA MISSING');
+      if (u.bedrooms == null) issues.push('BEDROOMS MISSING');
+      if (!(u.bathrooms > 0)) issues.push('bathrooms missing');
+      if (!u.price) issues.push('price missing');
+      if (!u.floorPlanImage && (!u.floorPlanImages || u.floorPlanImages.length === 0)) issues.push('no floor plan image');
+      const status = issues.length === 0 ? '✅' : (issues.some(i => i === i.toUpperCase()) ? '❌' : '⚠️');
+      lines.push(`  ${status} ${u.typeName || u.name} [${u.category || '?'}] bed=${u.bedrooms ?? '?'} bath=${u.bathrooms ?? '?'} area=${u.area ?? 0} price=${u.price ?? '-'}${issues.length > 0 ? ` | ${issues.join(', ')}` : ''}`);
+    });
+    lines.push('');
+
+    lines.push('🏗️ PROJECT INFO:');
+    lines.push(`  Name: ${fd.name || '❌ MISSING'}`);
+    lines.push(`  Developer: ${fd.developer || '❌ MISSING'}`);
+    lines.push(`  Address: ${fd.address || '❌ MISSING'}`);
+    lines.push(`  Area: ${fd.area || '❌ MISSING'}`);
+    lines.push(`  Completion: ${fd.completionDate || '-'} | Launch: ${fd.launchDate || '-'} | Handover: ${fd.handoverDate || '-'}`);
+    lines.push(`  Description: ${fd.description ? `${fd.description.length} chars` : '❌ MISSING'}`);
+    lines.push(`  Coordinates: ${fd.latitude && fd.longitude ? `${fd.latitude}, ${fd.longitude}` : '-'}`);
+    lines.push('');
+
     lines.push('📦 CHUNK-BY-CHUNK ANALYSIS:');
     lines.push('');
     

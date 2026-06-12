@@ -31,14 +31,17 @@ export function mergeSameNameUnits(
   console.log('\n🔀 Merging same-name units (multi-PDF support)...');
 
   // ⭐ 按 unitTypeName + unitCategory 分组（防止同名不同规格被错误合并）
+  // ⚠️ Key 必须大小写归一化："TYPE B" 和 "Type B" 是同一个户型，
+  // 否则会产生重复户型，其中一个往往 specs 不完整（area=0 被提交过滤）
   const grouped = new Map<string, UnitImageAssignment[]>();
 
   assignments.forEach(assignment => {
+    const normName = assignment.unitTypeName.toUpperCase().trim();
+    const normCategory = (assignment.unitCategory || '').toUpperCase().replace(/\s+/g, '');
+
     // 组合key：名称 + 类别（如果有）
     // 这样"Type A (1BR)" 和 "Type A (2BR)" 会被分到不同组
-    const key = assignment.unitCategory
-      ? `${assignment.unitTypeName}__${assignment.unitCategory}`
-      : assignment.unitTypeName;
+    const key = normCategory ? `${normName}__${normCategory}` : normName;
 
     if (!grouped.has(key)) {
       grouped.set(key, []);

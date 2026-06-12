@@ -10,6 +10,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PageType } from '../types/page-metadata';
 import { parseJsonResponse } from '../utils/json-parser';
+import { withRetry } from '../utils/ai-retry';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -83,10 +84,17 @@ export async function classifyPage(
       ]);
     };
 
-    const result = await generateWithTimeout();
-    const response = await result.response;
-    const text = response.text();
-    const parsed = parseJsonResponse(text);
+    // 🔁 Retry: a failed classification turns the page into UNKNOWN, which
+    // silently drops unit_anchor pages (= whole unit types lost downstream)
+    const parsed = await withRetry<any>(
+      async () => {
+        const result = await generateWithTimeout();
+        const response = await result.response;
+        const text = response.text();
+        return parseJsonResponse(text);
+      },
+      { label: `page-classifier:p${pageNumber}`, attempts: 3 }
+    );
 
     console.log(`   📋 Page ${pageNumber} classified: ${parsed.pageType} (confidence: ${parsed.confidence})`);
 
