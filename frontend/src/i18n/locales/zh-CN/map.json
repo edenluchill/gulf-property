@@ -55,6 +55,7 @@
   "website": "网站",
   "line": "线路：{{line}}",
   "built": "建于 {{year}}",
+  "landmarkBadge": "城市地标",
   "refreshMetadata": "刷新筛选列表（开发商、区域、项目）",
   "station": {
     "metro": "地铁站",

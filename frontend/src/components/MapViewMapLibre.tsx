@@ -202,6 +202,39 @@ async function generatePoiIcon(color: string, Icon: typeof Cross, size = 64): Pr
 // Default config for unknown categories
 const DEFAULT_CATEGORY_CONFIG = { color: '#475569', Icon: Building2 }
 
+// 热力图可能输出的全部颜色（getHeatmapColor）。给每个颜色注册一个迪拉姆符号
+// 小图，金额型指标的地图标签用 ['image'] 段嵌入文本（canvas 文本放不了 SVG）。
+const HEAT_COLORS = ['#059669', '#10b981', '#6ee7b7', '#fca5a5', '#ef4444', '#dc2626', '#fbbf24', '#94a3b8']
+
+// 新版 UAE 迪拉姆官方符号：D + 两道向左伸出的横线（与 DirhamSymbol.tsx 同造型）
+function generateDirhamIcon(color: string, size = 26): ImageData {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = color
+  // 白色描边底，保证在卫星图上也可读（模拟 text-halo）
+  ctx.font = `700 ${size * 0.92}px Georgia, 'Times New Roman', serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.lineJoin = 'round'
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = Math.max(3, size * 0.14)
+  const dX = size * 0.56
+  const dY = size * 0.85
+  const barW = size * 0.58
+  const barH = Math.max(2, size * 0.085)
+  const bar1Y = size * 0.36
+  const bar2Y = size * 0.56
+  ctx.strokeText('D', dX, dY)
+  ctx.strokeRect(0 + ctx.lineWidth / 2, bar1Y, barW, barH)
+  ctx.strokeRect(0 + ctx.lineWidth / 2, bar2Y, barW, barH)
+  ctx.fillText('D', dX, dY)
+  ctx.fillRect(0 + ctx.lineWidth / 2, bar1Y, barW, barH)
+  ctx.fillRect(0 + ctx.lineWidth / 2, bar2Y, barW, barH)
+  return ctx.getImageData(0, 0, size, size)
+}
+
 export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield'
 
 // ============================================================================
@@ -668,10 +701,15 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
   landmark: DubaiLandmark
   onClick?: (lm: DubaiLandmark) => void
 }) => {
+  const { i18n } = useTranslation()
   // 扣图加载失败(404/无此地标)时退回圆形照片样式
   const [cutoutFailed, setCutoutFailed] = useState(false)
-  const cutoutH = landmark.size === 'large' ? 84 : landmark.size === 'small' ? 54 : 68
-  const pinSize = landmark.size === 'large' ? 52 : landmark.size === 'small' ? 36 : 44
+  // 尺寸收紧：之前 84/68/54 在 z10 全城视野下太抢眼（客户反馈"挤着很乱"）
+  const cutoutH = landmark.size === 'large' ? 64 : landmark.size === 'small' ? 42 : 52
+  const pinSize = landmark.size === 'large' ? 48 : landmark.size === 'small' ? 32 : 40
+
+  const langKey = i18n.language?.split('-')[0]
+  const localizedName = (langKey && landmark.translations?.[langKey]?.name) || landmark.name
 
   return (
     <Marker
@@ -687,6 +725,23 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
         className="cursor-pointer transition-transform duration-150 hover:scale-110"
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
+        {/* 名称标签放建筑上方（本地化），轻量小药丸，避免压住地图 */}
+        <div
+          style={{
+            marginBottom: 1,
+            padding: '1px 6px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.88)',
+            fontSize: 10,
+            fontWeight: 600,
+            color: '#334155',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+            lineHeight: '14px',
+          }}
+        >
+          {localizedName}
+        </div>
         {!cutoutFailed ? (
           <img
             src={`/landmarks/${landmarkSlug(landmark.name)}.png`}
@@ -733,23 +788,6 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
             )}
           </div>
         )}
-        {/* 名称标签：一眼看出这是地标而不是楼盘 */}
-        <div
-          style={{
-            marginTop: 2,
-            padding: '1px 7px',
-            borderRadius: 999,
-            background: 'rgba(255,255,255,0.92)',
-            border: '1px solid rgba(245,158,11,0.5)',
-            fontSize: 10,
-            fontWeight: 700,
-            color: '#78350f',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          }}
-        >
-          {landmark.name}
-        </div>
       </div>
     </Marker>
   )
@@ -1058,6 +1096,11 @@ function MapViewMapLibre({
       safeAddImage(`station-${type}`, imageData)
     })
 
+    // 迪拉姆符号（按热力色一色一图），金额指标标签嵌入用
+    for (const c of HEAT_COLORS) {
+      safeAddImage(`dirham-${c.slice(1)}`, generateDirhamIcon(c))
+    }
+
     await Promise.all([...poiIconPromises, ...transportIconPromises, ...routeTypeIconPromises])
   }, [])
 
@@ -1175,8 +1218,9 @@ function MapViewMapLibre({
         const minZoom = getMinZoomForSpan(span)
         const translatedName = langKey ? area.translations?.[langKey]?.name : undefined
 
-        let displayName = area.name
-        if (translatedName) displayName += `\n${translatedName}`
+        // 单行本地化名称：中文界面只显示中文（原来英中两行 ×100+ 区域是地图
+        // 拥挤的最大来源；客户反馈"挤着很乱"后改为单行）
+        const displayName = translatedName || area.name
 
         let metricValue = ''
         let metricColor = '#94a3b8'
@@ -1195,7 +1239,9 @@ function MapViewMapLibre({
             minZoom,
             displayName,
             metricValue,
-            metricColor
+            metricColor,
+            // 迪拉姆符号按色取图用（'dirham-059669' 等）
+            metricColorKey: metricColor.slice(1)
           },
           geometry: { type: 'Point' as const, coordinates: centroid }
         }
@@ -1369,6 +1415,17 @@ function MapViewMapLibre({
               layout={{
                 'text-field': areaMetric === 'none'
                   ? ['get', 'displayName']
+                  : (areaMetric === 'medianUnitPrice' || areaMetric === 'medianPriceSqft')
+                  // 金额指标：数值前嵌迪拉姆官方符号（按热力色取对应小图）
+                  ? ['format',
+                      ['get', 'displayName'], {},
+                      '\n', {},
+                      ['image', ['concat', 'dirham-', ['get', 'metricColorKey']]], {},
+                      ['get', 'metricValue'], {
+                        'text-color': ['get', 'metricColor'],
+                        'font-scale': 1.25
+                      }
+                    ]
                   : ['format',
                       ['get', 'displayName'], {},
                       '\n', {},

@@ -146,7 +146,7 @@ router.get('/areas/search', async (req: Request, res: Response) => {
 router.get('/landmarks', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         id,
         name,
         name_ar,
@@ -161,7 +161,8 @@ router.get('/landmarks', async (_req: Request, res: Response) => {
         image_url,
         color,
         size,
-        display_order
+        display_order,
+        translations
       FROM dubai_landmarks
       WHERE visible = true
       ORDER BY display_order ASC, name ASC
@@ -185,6 +186,7 @@ router.get('/landmarks', async (_req: Request, res: Response) => {
       color: row.color,
       size: row.size,
       displayOrder: row.display_order,
+      translations: row.translations || {},
     }));
 
     res.json(landmarks);

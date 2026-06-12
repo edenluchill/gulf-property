@@ -1359,8 +1359,35 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* Landmark Popup */}
-      {selectedLandmark && (
+      {/* Landmark Popup — 本地化名称/描述；无实拍图时用 3D 扣图兜底 */}
+      {selectedLandmark && (() => {
+        const lmLang = i18n.language?.split('-')[0]
+        const lmTr = lmLang ? selectedLandmark.translations?.[lmLang] : undefined
+        const lmName = lmTr?.name || selectedLandmark.name
+        const lmDesc = lmTr?.description || selectedLandmark.description
+        const lmSlug = selectedLandmark.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+        const hasPhoto = !!selectedLandmark.imageUrl
+        const lmImg = selectedLandmark.imageUrl || `/landmarks/${lmSlug}.png`
+        const heroImg = hasPhoto ? (
+          <img src={lmImg} alt={lmName} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900">
+            <img src={lmImg} alt={lmName} className="h-[85%] w-auto object-contain drop-shadow-2xl" />
+          </div>
+        )
+        const chips = (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+              {t('map:landmarkBadge')}
+            </span>
+            {selectedLandmark.yearBuilt && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                {t('map:built', { year: selectedLandmark.yearBuilt })}
+              </span>
+            )}
+          </div>
+        )
+        return (
         <div className="fixed inset-0 z-[2000]" onClick={() => setSelectedLandmark(null)}>
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
@@ -1377,33 +1404,23 @@ export default function MapPage() {
               </div>
 
               {/* Image */}
-              {selectedLandmark.imageUrl && (
-                <div className="mx-5 mb-3 rounded-xl overflow-hidden">
-                  <img
-                    src={selectedLandmark.imageUrl}
-                    alt={selectedLandmark.name}
-                    className="w-full h-44 object-cover"
-                  />
-                </div>
-              )}
+              <div className="mx-5 mb-3 h-44 rounded-xl overflow-hidden">
+                {heroImg}
+              </div>
 
               {/* Content */}
               <div className="px-5 pb-4">
-                <h3 className="text-xl font-bold text-slate-900 mb-1">
-                  {selectedLandmark.name}
+                {chips}
+                <h3 className="mt-2 text-xl font-bold text-slate-900 mb-0.5">
+                  {lmName}
                 </h3>
-                {selectedLandmark.nameAr && (
-                  <p className="text-base text-slate-500 mb-2" dir="rtl">
-                    {selectedLandmark.nameAr}
-                  </p>
+                {lmName !== selectedLandmark.name && (
+                  <p className="text-sm text-slate-400 mb-2">{selectedLandmark.name}</p>
                 )}
-                {selectedLandmark.description && (
-                  <p className="text-sm text-slate-600 mb-3">
-                    {selectedLandmark.description}
+                {lmDesc && (
+                  <p className="text-sm leading-relaxed text-slate-600 mt-2">
+                    {lmDesc}
                   </p>
-                )}
-                {selectedLandmark.yearBuilt && (
-                  <p className="text-xs text-slate-400">{t('map:built', { year: selectedLandmark.yearBuilt })}</p>
                 )}
               </div>
 
@@ -1447,13 +1464,9 @@ export default function MapPage() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Image */}
-              {selectedLandmark.imageUrl && (
-                <img
-                  src={selectedLandmark.imageUrl}
-                  alt={selectedLandmark.name}
-                  className="w-full h-52 object-cover"
-                />
-              )}
+              <div className="h-52 w-full overflow-hidden">
+                {heroImg}
+              </div>
 
               {/* Header */}
               <div className="relative p-5 pb-3">
@@ -1464,25 +1477,21 @@ export default function MapPage() {
                   <X className="w-5 h-5" />
                 </button>
 
-                <h3 className="text-xl font-bold text-slate-900 leading-tight pr-10">
-                  {selectedLandmark.name}
+                {chips}
+                <h3 className="mt-2 text-xl font-bold text-slate-900 leading-tight pr-10">
+                  {lmName}
                 </h3>
-                {selectedLandmark.nameAr && (
-                  <p className="text-sm text-slate-500 mt-1" dir="rtl">
-                    {selectedLandmark.nameAr}
-                  </p>
+                {lmName !== selectedLandmark.name && (
+                  <p className="text-sm text-slate-400 mt-0.5">{selectedLandmark.name}</p>
                 )}
               </div>
 
               {/* Details */}
-              <div className="px-5 pb-4 space-y-2">
-                {selectedLandmark.description && (
-                  <p className="text-sm text-slate-600">
-                    {selectedLandmark.description}
+              <div className="px-5 pb-4">
+                {lmDesc && (
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    {lmDesc}
                   </p>
-                )}
-                {selectedLandmark.yearBuilt && (
-                  <p className="text-xs text-slate-400">{t('map:built', { year: selectedLandmark.yearBuilt })}</p>
                 )}
               </div>
 
@@ -1520,7 +1529,8 @@ export default function MapPage() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Mobile: Area Bottom Sheet */}
       <MobileBottomSheet

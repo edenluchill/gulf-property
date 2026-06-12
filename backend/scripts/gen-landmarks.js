@@ -54,6 +54,34 @@ const LANDMARKS = [
     file: 'zayed-international-airport.png',
     desc: 'Zayed International Airport in Abu Dhabi: a futuristic modern airport terminal with a flowing, undulating wavy roof shaped like overlapping sand dunes, white and sand-colored, with a glass curtain-wall facade beneath the dune-like roof shells.',
   },
+  {
+    file: 'dubai-mall.png',
+    desc: 'The Dubai Mall: a vast low modern luxury shopping mall complex in warm sand-colored stone with elegant glass atrium domes and a grand arched glass entrance, wide horizontal building with subtle Arabic geometric facade patterns.',
+  },
+  {
+    file: 'atlantis-the-palm.png',
+    desc: 'Atlantis The Palm hotel in Dubai: the famous coral-pink palace-style resort, two symmetrical towers joined at the top by a bridge suite, with a giant ornate central arch opening between them, turquoise accents and pointed Arabian roof details.',
+  },
+  {
+    file: 'ain-dubai.png',
+    desc: 'Ain Dubai observation wheel: a giant white ferris observation wheel with slim elegant spokes like a bicycle wheel, glass capsule pods around the rim, mounted on a sturdy A-frame support base.',
+  },
+  {
+    file: 'dubai-miracle-garden.png',
+    desc: 'Dubai Miracle Garden: a whimsical flower garden centerpiece, a large heart-shaped archway completely covered in colorful red and pink flowers, surrounded by small colorful flower beds and two small topiary trees.',
+  },
+  {
+    file: 'expo-city-dubai.png',
+    desc: 'Al Wasl Plaza dome at Expo City Dubai: a giant spherical open lattice steel trellis dome with elegant interwoven curved ribs forming a delicate crown-like sphere, warm golden-beige structure with small garden at the base.',
+  },
+  {
+    file: 'gold-souk.png',
+    desc: 'Dubai Gold Souk entrance in Deira: a traditional Arabian market gateway with a wooden lattice barrel-vault roof, carved wooden arch entrance with Arabic style details, small gold shop fronts with glowing warm windows under the arcade.',
+  },
+  {
+    file: 'difc-gate.png',
+    desc: 'The DIFC Gate Building in Dubai International Financial Centre: a monumental rectangular arch-shaped office building like a modern Arc de Triomphe, beige stone frame with a large rectangular opening in the middle and a glass curtain wall inside the arch.',
+  },
 ];
 
 async function generateGreenImage(desc, attempt) {
@@ -134,6 +162,12 @@ async function verifyTransparency(file) {
   const results = [];
   for (const lm of LANDMARKS) {
     const outPath = path.join(OUT_DIR, lm.file);
+    // 已生成的跳过（只补新地标；想重做某个就先删掉对应 PNG）
+    if (fs.existsSync(outPath)) {
+      console.log(`[skip] ${lm.file} exists`);
+      results.push({ file: lm.file, pass: true, skipped: true });
+      continue;
+    }
     let ok = false, err = null;
     for (let attempt = 0; attempt < 3 && !ok; attempt++) {
       try {

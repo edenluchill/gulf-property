@@ -55,6 +55,7 @@
   "website": "Website",
   "line": "Line: {{line}}",
   "built": "Built {{year}}",
+  "landmarkBadge": "City Landmark",
   "refreshMetadata": "Refresh filter lists (developers, areas, projects)",
   "station": {
     "metro": "Metro Station",

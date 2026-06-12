@@ -187,6 +187,8 @@ export interface DubaiLandmark {
   color: string
   size: 'small' | 'medium' | 'large'
   displayOrder: number
+  /** 多语言: { zh: { name, description } },与 DubaiArea.translations 一致 */
+  translations?: Record<string, { name?: string; description?: string }>
 }
 
 // Legacy types for backward compatibility with old components
