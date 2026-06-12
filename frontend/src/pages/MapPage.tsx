@@ -9,6 +9,7 @@ import MapFilterChips from '../components/MapFilterChips'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import MobileBottomSheet from '../components/MobileBottomSheet'
+import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
@@ -381,6 +382,10 @@ export default function MapPage() {
 
   // Mobile bottom sheet state
   const [showAreaSheet, setShowAreaSheet] = useState(false)
+  // 移动端 sheet 的区域洞察（桌面 dialog 内部自取，后端缓存去重）
+  const { insights: sheetInsights, loading: sheetInsightsLoading } = useAreaInsights(
+    showAreaSheet ? selectedArea?.id : undefined
+  )
 
   // Load Dubai areas & landmarks (only once, with caching)
   useEffect(() => {
@@ -597,14 +602,6 @@ export default function MapPage() {
     filters.maxCompletionPercent !== undefined ||
     filters.status ||
     searchQuery
-
-  const formatValue = (value: number | undefined, type: 'price' | 'volume' | 'percent'): string => {
-    if (value === undefined || value === null) return '-'
-    if (type === 'percent') return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M AED`
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}K AED`
-    return `${value} AED`
-  }
 
   // Group area projects by developer for mobile bottom sheet
   const areaDevelopers = useMemo(() => {
@@ -1560,40 +1557,25 @@ export default function MapPage() {
           </div>
         ) : selectedArea ? (
           <div className="p-4 space-y-5">
-            {/* Market Stats Grid */}
+            {/* 区域简介（特色/地段） */}
+            {(() => {
+              const sheetTr = selectedArea.translations?.[i18n.language?.split('-')[0] ?? '']
+              const desc = sheetTr?.description || selectedArea.description
+              return desc ? (
+                <p className="text-sm leading-relaxed text-slate-600">{desc}</p>
+              ) : null
+            })()}
+
+            {/* Market Stats Grid - 四指标趋势图（与桌面同款） */}
             <div>
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                 {t('map:areaDialog.marketStatistics')}
               </h4>
-              <div className="grid grid-cols-2 gap-2">
-                {selectedArea.averagePrice !== undefined && selectedArea.averagePrice !== null && (
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.avgPrice')}</div>
-                    <div className="text-base font-bold text-slate-900">{formatValue(selectedArea.averagePrice, 'price')}</div>
-                  </div>
-                )}
-                {selectedArea.transactionCount !== undefined && selectedArea.transactionCount !== null && (
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.transactionCount')}</div>
-                    <div className="text-base font-bold text-slate-900">{selectedArea.transactionCount.toLocaleString()}</div>
-                  </div>
-                )}
-                {selectedArea.capitalAppreciation !== undefined && selectedArea.capitalAppreciation !== null && (
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.capitalGrowth')}</div>
-                    <div className={`text-base font-bold ${selectedArea.capitalAppreciation >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {formatValue(selectedArea.capitalAppreciation, 'percent')}
-                    </div>
-                  </div>
-                )}
-                {selectedArea.rentalYield !== undefined && selectedArea.rentalYield !== null && (
-                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                    <div className="text-xs text-slate-500 font-medium mb-1">{t('map:areaDialog.rentalYield')}</div>
-                    <div className="text-base font-bold text-slate-900">{selectedArea.rentalYield.toFixed(1)}%</div>
-                  </div>
-                )}
-              </div>
+              <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} />
             </div>
+
+            {/* 近期真实成交（DLD，可加载更多） */}
+            <AreaRecentTx areaId={selectedArea.id} insights={sheetInsights} loading={sheetInsightsLoading} />
 
             {/* Developer Cards */}
             {areaDevelopers.length > 0 && (

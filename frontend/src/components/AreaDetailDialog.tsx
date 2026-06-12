@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Building2, Sparkles, BadgeCheck } from 'lucide-react'
+import { X, Building2, Sparkles } from 'lucide-react'
 import { DubaiArea } from '../types'
-import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
-import { fetchAreaInsights, AreaInsights } from '../lib/api'
-import DirhamSymbol from './DirhamSymbol'
+import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from './AreaInsightsPanel'
 
 interface DeveloperSummary {
   name: string
@@ -21,99 +19,14 @@ interface AreaDetailDialogProps {
   isLoading: boolean
 }
 
-// ── 迷你趋势图（无依赖 SVG）────────────────────────────────────────────────
-
-function SparkLine({ data, color, showZero }: { data: (number | null)[]; color: string; showZero?: boolean }) {
-  const w = 132, h = 36
-  const vals = data.filter((v): v is number => v != null)
-  if (vals.length < 2) {
-    return <div className="flex h-9 items-center text-[10px] text-slate-300">—</div>
-  }
-  const min = Math.min(...vals, showZero ? 0 : Infinity)
-  const max = Math.max(...vals, showZero ? 0 : -Infinity)
-  const span = Math.max(max - min, 1e-9)
-  const y = (v: number) => h - 3 - ((v - min) / span) * (h - 6)
-  const pts: [number, number][] = []
-  data.forEach((v, i) => {
-    if (v != null) pts.push([(i / Math.max(data.length - 1, 1)) * w, y(v)])
-  })
-  const line = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
-  const fill = `${pts[0][0].toFixed(1)},${h} ${line} ${pts[pts.length - 1][0].toFixed(1)},${h}`
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full" preserveAspectRatio="none">
-      {showZero && min < 0 && max > 0 && (
-        <line x1={0} x2={w} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="3,3" />
-      )}
-      <polygon points={fill} fill={color} opacity={0.1} />
-      <polyline points={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function SparkBars({ data, color }: { data: number[]; color: string }) {
-  const w = 132, h = 36
-  if (!data.length) return <div className="flex h-9 items-center text-[10px] text-slate-300">—</div>
-  const max = Math.max(...data, 1)
-  const bw = w / data.length
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full" preserveAspectRatio="none">
-      {data.map((v, i) => {
-        const bh = Math.max((v / max) * (h - 4), v > 0 ? 1.5 : 0)
-        return <rect key={i} x={i * bw + 0.5} y={h - bh} width={Math.max(bw - 1, 1)} height={bh} fill={color} opacity={0.55} rx={1} />
-      })}
-    </svg>
-  )
-}
-
-function StatCard({ label, value, valueClass = 'text-slate-900', chip, chipClass, loading, children }: {
-  label: string
-  value: ReactNode
-  valueClass?: string
-  chip?: string | null
-  chipClass?: string
-  loading?: boolean
-  children?: ReactNode
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-      <div className="flex items-center justify-between gap-1">
-        <span className="truncate text-xs font-medium text-slate-500">{label}</span>
-        {chip && (
-          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${chipClass || 'bg-slate-100 text-slate-500'}`}>
-            {chip}
-          </span>
-        )}
-      </div>
-      <div className={`mt-1 flex items-center gap-1 text-lg font-bold leading-tight ${valueClass}`}>{value}</div>
-      <div className="mt-2">
-        {loading ? <div className="h-9 animate-pulse rounded bg-slate-100" /> : children}
-      </div>
-    </div>
-  )
-}
-
 export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading }: AreaDetailDialogProps) {
   const { t, i18n } = useTranslation(['map', 'common'])
-  const lang = i18n.language || 'en'
-  const langKey = lang.split('-')[0] // 'zh-CN' → 'zh'
+  const langKey = (i18n.language || 'en').split('-')[0] // 'zh-CN' → 'zh'
   const tr = area?.translations?.[langKey ?? '']
   const isTranslated = !!tr
 
-  // 四指标月度序列 + 近期成交（按区域懒加载，后端缓存 6h）
-  const [insights, setInsights] = useState<AreaInsights | null>(null)
-  const [insightsLoading, setInsightsLoading] = useState(false)
-  useEffect(() => {
-    if (!isOpen || !area?.id) return
-    let stale = false
-    setInsights(null)
-    setInsightsLoading(true)
-    fetchAreaInsights(area.id).then(d => {
-      if (stale) return
-      setInsights(d)
-      setInsightsLoading(false)
-    })
-    return () => { stale = true }
-  }, [isOpen, area?.id])
+  // 四指标月度序列 + 近期成交（后端全区域预热，通常秒回）
+  const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined)
 
   // Group projects by developer
   const developers: DeveloperSummary[] = useMemo(() => {
@@ -139,16 +52,6 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
   }, [projects])
 
   if (!isOpen || !area) return null
-
-  const lastNonNull = (arr: (number | null)[] | undefined) => {
-    if (!arr) return null
-    for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]
-    return null
-  }
-  const growthNow = area.capitalAppreciation ?? lastNonNull(insights?.growth)
-  const yieldNow = area.rentalYield ?? lastNonNull(insights?.rentalYield)
-  const pctChip = (v: number | null | undefined) =>
-    v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
   return (
     <>
@@ -204,58 +107,7 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               {t('map:areaDialog.marketStatistics')}
             </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard
-                label={`${t('map:areaDialog.avgPrice')} (AED/m²)`}
-                value={
-                  area.medianPriceSqm != null ? (
-                    <>
-                      <DirhamSymbol size="0.75em" className="text-slate-400" />
-                      {formatMoneyFull(area.medianPriceSqm)}
-                    </>
-                  ) : area.averagePrice != null ? (
-                    <>
-                      <DirhamSymbol size="0.75em" className="text-slate-400" />
-                      {formatMoneyFull(area.averagePrice)}
-                    </>
-                  ) : '—'
-                }
-                chip={pctChip(growthNow)}
-                chipClass={growthNow != null && growthNow >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}
-                loading={insightsLoading}
-              >
-                <SparkLine data={insights?.price || []} color="#0d9488" />
-              </StatCard>
-
-              <StatCard
-                label={t('map:areaDialog.transactionCount')}
-                value={area.transactionCount != null ? area.transactionCount.toLocaleString() : '—'}
-                loading={insightsLoading}
-              >
-                <SparkBars data={insights?.volume || []} color="#3b82f6" />
-              </StatCard>
-
-              <StatCard
-                label={t('map:areaDialog.capitalGrowth')}
-                value={growthNow != null ? `${growthNow >= 0 ? '+' : ''}${growthNow.toFixed(1)}%` : '—'}
-                valueClass={growthNow != null && growthNow >= 0 ? 'text-emerald-600' : 'text-rose-600'}
-                loading={insightsLoading}
-              >
-                <SparkLine data={insights?.growth || []} color={growthNow != null && growthNow >= 0 ? '#059669' : '#e11d48'} showZero />
-              </StatCard>
-
-              <StatCard
-                label={t('map:areaDialog.rentalYield')}
-                value={yieldNow != null ? `${yieldNow.toFixed(1)}%` : '—'}
-                loading={insightsLoading}
-              >
-                <SparkLine data={insights?.rentalYield || []} color="#7c3aed" />
-              </StatCard>
-            </div>
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
-              <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
-              {t('map:areaDialog.dldSource', { month: insights?.dataThrough || '—' })}
-            </p>
+            <AreaTrendGrid area={area} insights={insights} loading={insightsLoading} />
           </div>
 
           {/* Area Tags */}
@@ -368,55 +220,8 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
               </div>
             ) : null}
 
-            {/* 近期真实成交（DLD）——空开发商时这块撑起右栏，可信度核心 */}
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  {t('map:areaDialog.recentTx')}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                  <BadgeCheck className="h-3 w-3" />
-                  Dubai Land Department
-                </span>
-              </div>
-              {insightsLoading ? (
-                <div className="space-y-2">
-                  {[0, 1, 2, 3].map(i => (
-                    <div key={i} className="h-12 animate-pulse rounded-xl bg-white border border-slate-200" />
-                  ))}
-                </div>
-              ) : insights && insights.recentTransactions.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
-                  {insights.recentTransactions.map((tx, i) => (
-                    <div key={i} className="flex items-center gap-3 px-3.5 py-2.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-slate-800">
-                          {tx.building || '—'}
-                        </div>
-                        <div className="mt-0.5 text-xs text-slate-400">
-                          {tx.date}
-                          {tx.rooms ? ` · ${tx.rooms}` : ''}
-                          {tx.sizeSqm ? ` · ${tx.sizeSqm} m²` : ''}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="flex items-center justify-end gap-1 text-sm font-bold text-slate-900">
-                          {tx.price != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
-                          {tx.price != null ? formatMoneyCompact(tx.price, lang) : '—'}
-                        </div>
-                        <span className={`text-[10px] font-medium ${tx.saleType === 'offplan' ? 'text-violet-600' : 'text-emerald-600'}`}>
-                          {tx.saleType === 'offplan' ? t('map:areaDialog.offplan') : t('map:areaDialog.ready')}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-                  {t('map:areaDialog.noRecentTx')}
-                </div>
-              )}
-            </div>
+            {/* 近期真实成交（DLD）——可加载更多 */}
+            <AreaRecentTx areaId={area.id} insights={insights} loading={insightsLoading} />
           </div>
         </div>
       </div>

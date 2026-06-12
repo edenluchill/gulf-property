@@ -92,6 +92,8 @@
     "projectCount_one": "{{count}} project",
     "projectCount_other": "{{count}} projects",
     "recentTx": "Recent verified sales",
+    "loadMore": "Load more transactions",
+    "loadingMore": "Loading…",
     "noRecentTx": "No recent residential sales recorded in this area",
     "offplan": "Off-plan",
     "ready": "Ready",

@@ -187,7 +187,7 @@ const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R']
 // 数据是定期快照（非实时），聚合结果可放心缓存。
 // dld_transactions 154 万行，无缓存时全表 percentile 聚合要数秒。
 const TX_CACHE_TTL_MS = 6 * 60 * 60 * 1000
-const TX_CACHE_MAX = 500
+const TX_CACHE_MAX = 1000  // 210 个区域的 insights 预热 + 各类聚合，留足余量
 const txCache = new Map<string, { at: number; data: any }>()
 
 function txCacheGet(key: string): any | null {
@@ -219,6 +219,11 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     // 前端下拉给的是精确区名；等值匹配才能吃到 (area_name, instance_date) 索引
     params.push(String(q.area).trim())
     parts.push(`dt.area_name = $${params.length}`)
+  }
+  if (q.areaId) {
+    // 地图区域（dubai_areas.id）→ 经 dld_areas 桥接到 DLD area_id（吃 idx_trans_area）
+    params.push(String(q.areaId).trim())
+    parts.push(`dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = $${params.length})`)
   }
   if (q.project) {
     params.push(String(q.project).trim())
@@ -422,14 +427,7 @@ function monthRange(endYm: string, n: number): string[] {
   return out
 }
 
-router.get('/area-insights', async (req: Request, res: Response) => {
-  try {
-    const areaId = String(req.query.areaId || '').trim()
-    if (!areaId) return res.status(400).json({ error: 'areaId is required' })
-    const cacheKey = `insights:${areaId}`
-    const cached = txCacheGet(cacheKey)
-    if (cached) return res.json(cached)
-
+async function loadAreaInsightsData(areaId: string) {
     const [salesRes, rentRes, recentRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据
       pool.query(
@@ -496,7 +494,7 @@ router.get('/area-insights', async (req: Request, res: Response) => {
       `SELECT to_char(date_trunc('month', MAX(instance_date)), 'YYYY-MM') AS m FROM dld_transactions`
     )
     const endYm: string = boundsRes.rows[0]?.m || salesRes.rows[salesRes.rows.length - 1]?.month
-    if (!endYm) return res.json({ months: [], price: [], volume: [], growth: [], rentalYield: [], dataThrough: null, recentTransactions: [] })
+    if (!endYm) return { months: [], price: [], volume: [], growth: [], rentalYield: [], dataThrough: null, recentTransactions: [] }
 
     const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
     const months = monthsWithLookback.slice(-24)
@@ -539,6 +537,17 @@ router.get('/area-insights', async (req: Request, res: Response) => {
         saleType: r.sale_type
       }))
     }
+    return data
+}
+
+router.get('/area-insights', async (req: Request, res: Response) => {
+  try {
+    const areaId = String(req.query.areaId || '').trim()
+    if (!areaId) return res.status(400).json({ error: 'areaId is required' })
+    const cacheKey = `insights:${areaId}`
+    const cached = txCacheGet(cacheKey)
+    if (cached) return res.json(cached)
+    const data = await loadAreaInsightsData(areaId)
     txCacheSet(cacheKey, data)
     res.json(data)
   } catch (err) {
@@ -546,6 +555,34 @@ router.get('/area-insights', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'internal error' })
   }
 })
+
+// 全区域预热：用户点任何区域都秒回（数据是定期快照，预热无副作用）。
+// 启动 30s 后跑一轮，之后每 5 小时强制刷新（赶在 6h TTL 到期前续上）。
+let warmingInsights = false
+async function warmAreaInsights() {
+  if (warmingInsights) return
+  warmingInsights = true
+  try {
+    const r = await pool.query(`SELECT id FROM dubai_areas WHERE visible = true`)
+    let ok = 0
+    for (const row of r.rows) {
+      try {
+        const data = await loadAreaInsightsData(row.id)
+        txCache.delete(`insights:${row.id}`)  // 重置插入序，刷新 TTL
+        txCacheSet(`insights:${row.id}`, data)
+        ok++
+      } catch { /* 单区域失败不影响整轮 */ }
+      await new Promise(resolve => setTimeout(resolve, 250))  // 让出 DB
+    }
+    console.log(`[market] area insights warmed: ${ok}/${r.rows.length}`)
+  } catch (e) {
+    console.error('[market] insights warm failed:', e)
+  } finally {
+    warmingInsights = false
+  }
+}
+setTimeout(warmAreaInsights, 30_000)
+setInterval(warmAreaInsights, 5 * 60 * 60 * 1000)
 
 // ---------------------------------------------------------------------------
 // 区域分级判断（功能 C）—— 基于 get_dubai_area_metrics 的相对分位规则

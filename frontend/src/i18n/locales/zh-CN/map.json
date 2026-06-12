@@ -92,6 +92,8 @@
     "projectCount_one": "{{count}} 个项目",
     "projectCount_other": "{{count}} 个项目",
     "recentTx": "近期真实成交",
+    "loadMore": "加载更多成交记录",
+    "loadingMore": "加载中…",
     "noRecentTx": "该区域近期暂无住宅成交记录",
     "offplan": "期房",
     "ready": "现房",
