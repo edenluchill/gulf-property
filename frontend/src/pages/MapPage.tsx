@@ -561,6 +561,21 @@ export default function MapPage() {
     }
   }, [isMobile, mapPins])
 
+  // 深链：/?area=Business%20Bay 直接打开该区域的详情弹窗（可分享；也供自动化测试）
+  const areaParam = searchParams.get('area')
+  const areaParamOpenedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!areaParam || !dubaiAreas.length) return
+    if (areaParamOpenedRef.current === areaParam) return
+    const target = dubaiAreas.find(
+      a => a.name.trim().toLowerCase() === areaParam.trim().toLowerCase()
+    )
+    if (target) {
+      areaParamOpenedRef.current = areaParam
+      handleAreaClick(target)
+    }
+  }, [areaParam, dubaiAreas, handleAreaClick])
+
 
   const hasActiveFilters =
     filters.developer ||

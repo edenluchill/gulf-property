@@ -90,6 +90,11 @@
     "loadingDevelopers": "正在加载开发商...",
     "noDevelopers": "该区域暂无开发商",
     "projectCount_one": "{{count}} 个项目",
-    "projectCount_other": "{{count}} 个项目"
+    "projectCount_other": "{{count}} 个项目",
+    "recentTx": "近期真实成交",
+    "noRecentTx": "该区域近期暂无住宅成交记录",
+    "offplan": "期房",
+    "ready": "现房",
+    "dldSource": "数据来源 Dubai Land Department · 近 24 个月 · 截至 {{month}}"
   }
 }

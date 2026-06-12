@@ -398,6 +398,156 @@ router.get('/transactions/list', async (req: Request, res: Response) => {
 })
 
 // ---------------------------------------------------------------------------
+// 区域洞察（地图区域弹窗）—— 四指标月度序列 + 近期真实成交
+// 价格/成交量直接按月聚合；增长=中位单价同比；收益率=月度租金中位数(/m²/年)÷售价中位数(/m²)
+// ---------------------------------------------------------------------------
+
+/** 3 个月滑动平均（首尾不足时用可得窗口），抹平小样本月度噪声 */
+function smooth3(series: (number | null)[]): (number | null)[] {
+  return series.map((_, i) => {
+    const win = series.slice(Math.max(0, i - 2), i + 1).filter((v): v is number => v != null)
+    if (!win.length) return null
+    return win.reduce((a, b) => a + b, 0) / win.length
+  })
+}
+
+/** 以 endYm（'YYYY-MM'）结尾、共 n 个月的连续日历月份轴 */
+function monthRange(endYm: string, n: number): string[] {
+  const [y, m] = endYm.split('-').map(Number)
+  const out: string[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(y, m - 1 - i, 1))
+    out.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+  }
+  return out
+}
+
+router.get('/area-insights', async (req: Request, res: Response) => {
+  try {
+    const areaId = String(req.query.areaId || '').trim()
+    if (!areaId) return res.status(400).json({ error: 'areaId is required' })
+    const cacheKey = `insights:${areaId}`
+    const cached = txCacheGet(cacheKey)
+    if (cached) return res.json(cached)
+
+    const [salesRes, rentRes, recentRes] = await Promise.all([
+      // 37 个月：算 24 个月同比需要 t-12 的数据
+      pool.query(
+        `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+         SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
+                COUNT(*)::int AS count,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps
+           FROM dld_transactions dt
+           JOIN dld_areas dla ON dla.area_id = dt.area_id
+          CROSS JOIN bounds b
+          WHERE dla.dubai_area_id = $1
+            AND dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
+            AND dt.property_type IN ('Unit','Villa')
+            AND dt.meter_sale_price BETWEEN 1000 AND 250000
+            AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '37 months'
+            AND dt.instance_date <= b.d
+          GROUP BY 1 ORDER BY 1`,
+        [areaId]
+      ),
+      pool.query(
+        `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+         SELECT to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS month,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area) AS median_rent_sqm
+           FROM dld_rent_contracts rc
+          CROSS JOIN bounds b
+          WHERE rc.dubai_area_id = $1
+            AND rc.usage_type = 'Residential'
+            AND rc.property_area BETWEEN 15 AND 2000
+            AND rc.annual_amount BETWEEN 5000 AND 5000000
+            AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '25 months'
+            AND rc.start_date <= b.d
+          GROUP BY 1 ORDER BY 1`,
+        [areaId]
+      ),
+      pool.query(
+        `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
+                dt.procedure_area AS size_sqm, dt.actual_worth AS price,
+                round(dt.meter_sale_price) AS price_per_sqm,
+                CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
+           FROM dld_transactions dt
+           JOIN dld_areas dla ON dla.area_id = dt.area_id
+          WHERE dla.dubai_area_id = $1
+            AND dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
+            AND dt.property_type IN ('Unit','Villa')
+            AND dt.meter_sale_price BETWEEN 1000 AND 250000
+          ORDER BY dt.instance_date DESC
+          LIMIT 8`,
+        [areaId]
+      )
+    ])
+
+    const salesByMonth = new Map<string, { count: number; pps: number | null }>(
+      salesRes.rows.map(r => [r.month, { count: r.count, pps: r.median_pps != null ? Number(r.median_pps) : null }])
+    )
+    const rentByMonth = new Map<string, number>(
+      rentRes.rows
+        .filter(r => r.median_rent_sqm != null)
+        .map(r => [r.month, Number(r.median_rent_sqm)])
+    )
+
+    // 月份轴锚定全局数据时间（而不是该区域最后一笔成交）：
+    // 稀疏区域近几个月没成交时，图表照样画到当前月，成交量显示 0
+    const boundsRes = await pool.query(
+      `SELECT to_char(date_trunc('month', MAX(instance_date)), 'YYYY-MM') AS m FROM dld_transactions`
+    )
+    const endYm: string = boundsRes.rows[0]?.m || salesRes.rows[salesRes.rows.length - 1]?.month
+    if (!endYm) return res.json({ months: [], price: [], volume: [], growth: [], rentalYield: [], dataThrough: null, recentTransactions: [] })
+
+    const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
+    const months = monthsWithLookback.slice(-24)
+
+    const ppsAll = monthsWithLookback.map(m => salesByMonth.get(m)?.pps ?? null)
+    const ppsSmooth = smooth3(ppsAll)
+    const idxOf = new Map(monthsWithLookback.map((m, i) => [m, i]))
+
+    const price = months.map(m => salesByMonth.get(m)?.pps ?? null)
+    const volume = months.map(m => salesByMonth.get(m)?.count ?? 0)
+    const growth = months.map(m => {
+      const i = idxOf.get(m)!
+      const cur = ppsSmooth[i]
+      const prev = i >= 12 ? ppsSmooth[i - 12] : null
+      if (cur == null || prev == null || prev <= 0) return null
+      return Number((((cur - prev) / prev) * 100).toFixed(1))
+    })
+    const rentSmooth = smooth3(months.map(m => rentByMonth.get(m) ?? null))
+    const rentalYield = months.map((m, i) => {
+      const rent = rentSmooth[i]
+      const pps = ppsSmooth[idxOf.get(m)!]
+      if (rent == null || pps == null || pps <= 0) return null
+      return Number(((rent / pps) * 100).toFixed(2))
+    })
+
+    const data = {
+      months,
+      price,
+      volume,
+      growth,
+      rentalYield,
+      dataThrough: endYm,
+      recentTransactions: recentRes.rows.map(r => ({
+        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+        building: r.building_name || r.project_name || null,
+        rooms: r.rooms || null,
+        sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+        price: r.price ? Math.round(Number(r.price)) : null,
+        pricePerSqm: r.price_per_sqm ? Number(r.price_per_sqm) : null,
+        saleType: r.sale_type
+      }))
+    }
+    txCacheSet(cacheKey, data)
+    res.json(data)
+  } catch (err) {
+    console.error('[market/area-insights] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
 // 区域分级判断（功能 C）—— 基于 get_dubai_area_metrics 的相对分位规则
 // 方法论透明：阈值用全区域分位数（相对而非武断绝对值），reasons 可追溯
 // ---------------------------------------------------------------------------

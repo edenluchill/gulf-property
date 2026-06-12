@@ -90,6 +90,11 @@
     "loadingDevelopers": "Loading developers...",
     "noDevelopers": "No developers found in this area",
     "projectCount_one": "{{count}} project",
-    "projectCount_other": "{{count}} projects"
+    "projectCount_other": "{{count}} projects",
+    "recentTx": "Recent verified sales",
+    "noRecentTx": "No recent residential sales recorded in this area",
+    "offplan": "Off-plan",
+    "ready": "Ready",
+    "dldSource": "Source: Dubai Land Department · last 24 months · through {{month}}"
   }
 }

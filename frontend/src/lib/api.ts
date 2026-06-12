@@ -740,6 +740,28 @@ export async function fetchTxList(p: Record<string, string | undefined>): Promis
   } catch { return { rows: [], limit: 25, offset: 0 }; }
 }
 
+// ---- 区域洞察（地图区域弹窗：四指标月度序列 + 近期成交）----
+export interface AreaInsights {
+  months: string[];
+  price: (number | null)[];
+  volume: number[];
+  growth: (number | null)[];
+  rentalYield: (number | null)[];
+  dataThrough: string | null;
+  recentTransactions: {
+    date: string | null; building: string | null; rooms: string | null;
+    sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
+    saleType: 'offplan' | 'ready';
+  }[];
+}
+export async function fetchAreaInsights(areaId: string): Promise<AreaInsights | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/area-insights?areaId=${encodeURIComponent(areaId)}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
 // ---- 区域分级（功能 C）----
 export interface AreaClass {
   id: string; name: string; tag: string; label: string; reasons: string[];
