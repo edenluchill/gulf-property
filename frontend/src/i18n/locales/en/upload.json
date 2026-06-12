@@ -143,7 +143,7 @@
     "clickMapToSelect": "Click map to select project location",
     "areaCustomInput": "Type manually",
     "areaPickFromList": "Pick from list",
-    "areaHint": "Pick from Dubai districts; extracted areas outside the list are kept, or type your own"
+    "areaHint": "Area auto-resolves from the map coordinates; left empty when the point is outside all areas (empty is allowed)"
   },
   "dateProgress": {
     "title": "Dates & Progress",

@@ -568,13 +568,11 @@ export async function executePdfWorkflow(
         finalData.longitude,
         finalData.area
       );
-      if (canonical && canonical !== finalData.area) {
-        console.log(`   📍 [AREA] Canonicalized: "${finalData.area || '(empty)'}" → "${canonical}"`);
-        if (finalData.area && finalData.area.toUpperCase().replace(/\s+/g, '') !== canonical.toUpperCase().replace(/\s+/g, '')) {
-          allWarnings.push(`区域已按坐标匹配为地图区域: "${finalData.area}" → "${canonical}"`);
-        }
-        finalData.area = canonical;
+      if (canonical !== finalData.area) {
+        console.log(`   📍 [AREA] Canonicalized: "${finalData.area || '(empty)'}" → "${canonical || '(none — outside all areas)'}"`);
       }
+      // area 只存地图系统的标准区域名；坐标不在任何区域内 → 留空（合法状态）
+      finalData.area = canonical || '';
     } catch (areaError) {
       console.warn(`   ⚠️  Area canonicalization failed:`, areaError);
     }

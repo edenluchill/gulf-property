@@ -26,7 +26,6 @@ import { ExtractedPricingSection } from '../components/developer-upload/Extracte
 import { SubmitReviewDialog, type ClientReadiness } from '../components/developer-upload/SubmitReviewDialog'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS, API_BASE_URL } from '../lib/config'
-import { fetchDubaiAreas } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 
 interface UnitType {
@@ -353,11 +352,6 @@ export default function DeveloperPropertyUploadPageV2() {
           if (extractedName) {
             checkDuplicateProjects(extractedName)
           }
-          // ⭐ area 缺失时从 address 自动回填
-          const bd = progressEvent.data?.buildingData
-          if (bd && !bd.area && bd.address) {
-            autoFillAreaFromAddress(bd.address)
-          }
         }
 
         if (progressEvent.stage === 'error') {
@@ -390,23 +384,17 @@ export default function DeveloperPropertyUploadPageV2() {
     }
   }
 
-  // ⭐ area 兜底：提取没拿到区域时，从 address 文本里匹配已知 Dubai 区域名回填
-  const autoFillAreaFromAddress = async (address: string) => {
+  // ⭐ area 由坐标自动解析（区域是手动维护的图层：坐标落在某区域内就带上，
+  // 不在任何区域内则置空——空值是合法状态，不阻塞提交）
+  const resolveAreaFromCoords = async (lat: number, lng: number) => {
     try {
-      const areas = await fetchDubaiAreas()
-      const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, '')
-      const addr = norm(address)
-      // 选 address 中出现的最长区域名（"Dubai Islands" 优先于 "Dubai"）
-      const match = areas
-        .map(a => a.name)
-        .filter(name => name && addr.includes(norm(name)))
-        .sort((a, b) => b.length - a.length)[0]
-      if (match) {
-        console.log(`📍 Area auto-filled from address: ${match}`)
-        setFormData(prev => prev.area ? prev : { ...prev, area: match })
-      }
+      const res = await fetch(`${API_BASE_URL}/api/residential-projects/meta/resolve-area?lat=${lat}&lng=${lng}`)
+      if (!res.ok) return
+      const json = await res.json()
+      console.log(`📍 Area resolved from coords: ${json.area ?? '(outside all areas)'}`)
+      setFormData(prev => ({ ...prev, area: json.area || '' }))
     } catch (err) {
-      console.warn('Area auto-fill failed (non-fatal):', err)
+      console.warn('Area resolve failed (non-fatal):', err)
     }
   }
 
@@ -441,7 +429,7 @@ export default function DeveloperPropertyUploadPageV2() {
     if (!formData.projectName) missingProjectFields.push(t('readiness.fieldName'))
     if (!formData.developer) missingProjectFields.push(t('readiness.fieldDeveloper'))
     if (!formData.address) missingProjectFields.push(t('readiness.fieldAddress'))
-    if (!formData.area) missingProjectFields.push(t('readiness.fieldArea'))
+    // area 不是必填：手动维护的图层，坐标在区域外时合法留空
 
     const blockedUnits: { name: string; issues: string[] }[] = []
     const warningUnits: { name: string; issues: string[] }[] = []
@@ -1005,7 +993,7 @@ export default function DeveloperPropertyUploadPageV2() {
                               
                               <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                                 {(() => {
-                                  const basicOk = !!(formData.projectName && formData.developer && formData.area)
+                                  const basicOk = !!(formData.projectName && formData.developer && formData.address)
                                   const coordOk = !!(formData.latitude && formData.longitude)
                                   const unitsOk = formData.unitTypes.length > 0
                                   const rows = [
@@ -1019,7 +1007,7 @@ export default function DeveloperPropertyUploadPageV2() {
                                             fields: [
                                               !formData.projectName && t('readiness.fieldName'),
                                               !formData.developer && t('readiness.fieldDeveloper'),
-                                              !formData.area && t('readiness.fieldArea'),
+                                              !formData.address && t('readiness.fieldAddress'),
                                             ].filter(Boolean).join(', '),
                                           }),
                                     },
@@ -1125,6 +1113,8 @@ export default function DeveloperPropertyUploadPageV2() {
         onClose={() => setShowMapPicker(false)}
         onConfirm={(lat, lng) => {
           setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))
+          // ⭐ 坐标变更 → 自动重算区域（可能为空）
+          resolveAreaFromCoords(lat, lng)
         }}
         initialPosition={
           formData.latitude && formData.longitude

@@ -13,6 +13,7 @@ import { VisualContentSection } from '../developer-upload/VisualContentSection'
 import { PaymentPlanSection } from '../developer-upload/PaymentPlanSection'
 import { AmenitiesSection } from '../developer-upload/AmenitiesSection'
 import LocationMapPickerModal from '../LocationMapPicker'
+import { API_BASE_URL } from '../../lib/config'
 
 import { UnitTypesSection } from './UnitTypesSection'
 import { ReviewChecklist } from './ReviewChecklist'
@@ -188,6 +189,15 @@ export function PropertyEditorForm({
         onClose={() => setShowMapPicker(false)}
         onConfirm={(lat, lng) => {
           setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))
+          // ⭐ 坐标变更 → 自动重算区域（坐标在所有区域之外则置空，属合法状态）
+          fetch(`${API_BASE_URL}/api/residential-projects/meta/resolve-area?lat=${lat}&lng=${lng}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(json => {
+              if (json?.success) {
+                setFormData(prev => ({ ...prev, area: json.area || '' }))
+              }
+            })
+            .catch(() => { /* non-fatal */ })
         }}
         initialPosition={
           formData.latitude && formData.longitude

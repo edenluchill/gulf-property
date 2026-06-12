@@ -373,6 +373,29 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   })
 
   // ============================================================================
+  // GET /api/residential-projects/meta/resolve-area?lat=..&lng=..
+  // Resolve coordinates to the canonical dubai_areas name (or null if the
+  // point falls outside every area polygon — that's a legitimate result).
+  // Used by the upload/review forms to auto-fill area whenever the user
+  // changes the map location.
+  // ============================================================================
+  router.get('/meta/resolve-area', async (req: Request, res: Response) => {
+    try {
+      const lat = parseFloat(String(req.query.lat))
+      const lng = parseFloat(String(req.query.lng))
+      if (!isFinite(lat) || !isFinite(lng)) {
+        return res.status(400).json({ success: false, error: 'lat and lng are required' })
+      }
+      const { resolveCanonicalArea } = await import('../langgraph/utils/canonical-area')
+      const area = await resolveCanonicalArea(lat, lng)
+      res.json({ success: true, area: area || null })
+    } catch (error) {
+      console.error('Error resolving area:', error)
+      res.status(500).json({ success: false, error: 'Failed to resolve area' })
+    }
+  })
+
+  // ============================================================================
   // POST /api/residential-projects/batch
   // Fetch multiple projects by IDs (for cluster expansion)
   // ============================================================================
@@ -577,7 +600,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.projectName,
         data.developer,
         data.address,
-        data.area,
+        data.area || null,  // area 可空：坐标不在任何区域内属合法状态
         data.description || '',
         data.latitude || null,
         data.longitude || null,
@@ -887,7 +910,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.projectName,
         data.developer,
         data.address,
-        data.area,
+        data.area || null,  // area 可空：坐标不在任何区域内属合法状态
         data.description || '',
         data.latitude || null,
         data.longitude || null,

@@ -22,7 +22,9 @@ export interface SubmitReadiness {
 }
 
 export function computeSubmitReadiness(data: any): SubmitReadiness {
-  const missingProjectFields = (['name', 'developer', 'address', 'area'] as const)
+  // area is intentionally NOT required — it's a manually-curated map layer;
+  // coordinates outside every polygon legitimately leave it empty
+  const missingProjectFields = (['name', 'developer', 'address'] as const)
     .filter(f => !data?.[f]);
 
   const units: any[] = data?.units || [];
