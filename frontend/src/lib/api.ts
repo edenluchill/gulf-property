@@ -726,11 +726,15 @@ export async function fetchTxProjects(params: { area?: string; q?: string }): Pr
   } catch { return []; }
 }
 export async function fetchTxSummary(p: Record<string, string | undefined>): Promise<TxSummary | null> {
-  try {
-    const r = await fetch(`${API_URL}/market/transactions/summary?${txQuery(p)}`);
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
+  // 失败自动重试一次（部署重启/网络抖动的瞬时失败不该让用户看到"无数据"）
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(`${API_URL}/market/transactions/summary?${txQuery(p)}`);
+      if (r.ok) return await r.json();
+    } catch { /* retry */ }
+    if (attempt === 0) await new Promise(res => setTimeout(res, 1200));
+  }
+  return null;
 }
 export async function fetchTxList(p: Record<string, string | undefined>): Promise<{ rows: TxRow[]; limit: number; offset: number }> {
   try {

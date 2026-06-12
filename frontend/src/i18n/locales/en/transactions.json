@@ -26,6 +26,8 @@
     "readyShort": "Ready"
   },
   "loading": "Calculating…",
+  "loadFailed": "Failed to load data (temporary network/server issue) — this does not mean there are no transactions.",
+  "retry": "Retry",
   "kpi": {
     "count": "Transactions",
     "medianPps": "Median Price (AED/m²)",

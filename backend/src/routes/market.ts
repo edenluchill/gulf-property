@@ -216,9 +216,10 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     `dt.procedure_area > 0`
   ]
   if (q.area) {
-    // 前端下拉给的是精确区名；等值匹配才能吃到 (area_name, instance_date) 索引
-    params.push(String(q.area).trim())
-    parts.push(`dt.area_name = $${params.length}`)
+    // DLD 原始数据同一区域存在大小写变体（'Business Bay' / 'BUSINESS BAY'），
+    // 用 UPPER 等值匹配（吃 idx_dld_tx_res_area_upper 函数索引）把变体并在一起
+    params.push(String(q.area).trim().toUpperCase())
+    parts.push(`UPPER(dt.area_name) = $${params.length}`)
   }
   if (q.areaId) {
     // 地图区域（dubai_areas.id）→ 经 dld_areas 桥接到 DLD area_id（吃 idx_trans_area）
@@ -226,8 +227,8 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     parts.push(`dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = $${params.length})`)
   }
   if (q.project) {
-    params.push(String(q.project).trim())
-    parts.push(`dt.project_name = $${params.length}`)
+    params.push(String(q.project).trim().toUpperCase())
+    parts.push(`UPPER(dt.project_name) = $${params.length}`)
   }
   if (q.rooms && ROOM_OPTIONS.includes(q.rooms)) {
     params.push(q.rooms)
@@ -254,12 +255,18 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
   try {
     const cached = txCacheGet('filters')
     if (cached) return res.json(cached)
+    // 口径与 summary/list 完全一致（Unit/Villa+价格区间+面积>0），
+    // 否则下拉里的数量和选中后的 KPI 对不上（客户反馈）。
+    // 大小写变体（'Business Bay'/'BUSINESS BAY'）按 UPPER 归并，名称取最常见写法。
     const areas = await pool.query(
-      `SELECT dt.area_name AS name, COUNT(*)::int AS count
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.area_name) AS name, COUNT(*)::int AS count
          FROM dld_transactions dt
         WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
+          AND dt.property_type IN ('Unit','Villa')
+          AND dt.meter_sale_price BETWEEN 1000 AND 250000
+          AND dt.procedure_area > 0
           AND dt.area_name IS NOT NULL AND dt.area_name <> ''
-        GROUP BY dt.area_name
+        GROUP BY UPPER(dt.area_name)
        HAVING COUNT(*) >= 50
         ORDER BY count DESC`
     )
@@ -278,20 +285,22 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
  * - area 为空：全城项目列表（一次全表聚合，6h 缓存）+ 内存里按 q 过滤
  */
 async function loadProjects(area: string): Promise<{ name: string; count: number }[]> {
-  const cacheKey = area ? `projects:${area}` : 'projects:ALL'
+  const cacheKey = area ? `projects:${area.toUpperCase()}` : 'projects:ALL'
   const cached = txCacheGet(cacheKey)
   if (cached) return cached
   const r = await pool.query(
-    `SELECT dt.project_name AS name, COUNT(*)::int AS count
+    `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name, COUNT(*)::int AS count
        FROM dld_transactions dt
       WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
         AND dt.property_type IN ('Unit','Villa')
-        ${area ? 'AND dt.area_name = $1' : ''}
+        AND dt.meter_sale_price BETWEEN 1000 AND 250000
+        AND dt.procedure_area > 0
+        ${area ? 'AND UPPER(dt.area_name) = $1' : ''}
         AND dt.project_name IS NOT NULL AND dt.project_name <> ''
-      GROUP BY dt.project_name
+      GROUP BY UPPER(dt.project_name)
      HAVING COUNT(*) >= 10
       ORDER BY count DESC`,
-    area ? [area] : []
+    area ? [area.toUpperCase()] : []
   )
   txCacheSet(cacheKey, r.rows)
   return r.rows

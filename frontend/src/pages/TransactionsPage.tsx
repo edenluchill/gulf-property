@@ -69,6 +69,9 @@ export default function TransactionsPage() {
   const [rows, setRows] = useState<TxRow[]>([])
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
+  // 请求失败 ≠ 无数据：失败显示"重试"，不误导用户以为该筛选没成交
+  const [loadError, setLoadError] = useState(false)
+  const [retryTick, setRetryTick] = useState(0)
 
   const limit = 25
   const query = useMemo(() => ({
@@ -103,8 +106,13 @@ export default function TransactionsPage() {
   useEffect(() => {
     setLoading(true)
     setPage(0)
-    fetchTxSummary(query).then(s => { setSummary(s); setLoading(false) })
-  }, [query])
+    setLoadError(false)
+    fetchTxSummary(query).then(s => {
+      setSummary(s)
+      setLoadError(s === null)
+      setLoading(false)
+    })
+  }, [query, retryTick])
 
   useEffect(() => {
     fetchTxList({ ...query, limit: String(limit), offset: String(page * limit) })
@@ -258,6 +266,16 @@ export default function TransactionsPage() {
       {/* 指标卡 */}
       {loading ? (
         <div className="mt-6 text-sm text-slate-400">{t('loading')}</div>
+      ) : loadError ? (
+        <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span>{t('loadFailed')}</span>
+          <button
+            onClick={() => setRetryTick(x => x + 1)}
+            className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700"
+          >
+            {t('retry')}
+          </button>
+        </div>
       ) : summary && summary.count > 0 ? (
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">

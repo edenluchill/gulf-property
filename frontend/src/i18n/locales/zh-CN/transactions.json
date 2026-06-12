@@ -26,6 +26,8 @@
     "readyShort": "现房"
   },
   "loading": "正在统计…",
+  "loadFailed": "数据加载失败（网络或服务暂时不可用），不是没有成交数据。",
+  "retry": "重试",
   "kpi": {
     "count": "成交笔数",
     "medianPps": "中位单价 (AED/m²)",
