@@ -115,5 +115,9 @@
         "desc": "We work directly with developers to bring you accurate, up-to-date information."
       }
     }
+  },
+  "newVersion": {
+    "message": "A new version is available",
+    "refresh": "Refresh now"
   }
 }

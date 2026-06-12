@@ -1,0 +1,10 @@
+# Cloudflare Pages headers
+# version.json must never be cached — running clients poll it to detect new deploys
+/version.json
+  Cache-Control: no-store
+
+# index.html always revalidates (hashed assets under /assets/* are immutable by default)
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache

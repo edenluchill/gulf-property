@@ -23,6 +23,7 @@ import BuyingReportPage from './pages/BuyingReportPage'
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
+import { useVersionCheck } from './hooks/useVersionCheck'  // 检测新前端版本（iPad 快照恢复等场景）
 import AgentLayout from './luna-tour/pages/AgentLayout'  // Luna Tour agent dashboard (isolated)
 import AgentOverview from './luna-tour/pages/AgentOverview'  // Luna Tour agent MVP (isolated)
 import AgentTours from './luna-tour/pages/AgentTours'  // Luna Tour agent MVP (isolated)
@@ -31,7 +32,8 @@ import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fac
 import TourEditor from './luna-tour/pages/TourEditor'  // Luna Tour visual storyboard editor (isolated)
 
 function App() {
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const { updateAvailable } = useVersionCheck()
 
   useEffect(() => {
     document.documentElement.lang = i18n.language
@@ -40,6 +42,19 @@ function App() {
   return (
     <TourModeProvider>
     <VoiceAssistantProvider>
+    {/* 新版本提示条（编辑页不自动刷新，避免丢表单） */}
+    {updateAvailable && (
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-full shadow-xl">
+        <span>{t('common:newVersion.message', '新版本已发布')}</span>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="font-semibold text-teal-300 hover:text-teal-200"
+        >
+          {t('common:newVersion.refresh', '立即刷新')}
+        </button>
+      </div>
+    )}
     <Layout>
       <Routes>
         {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
