@@ -717,9 +717,9 @@ export async function fetchTxFilters(): Promise<TxFilters> {
     return await r.json();
   } catch { return { areas: [], rooms: [] }; }
 }
-export async function fetchTxProjects(area: string): Promise<{ name: string; count: number }[]> {
+export async function fetchTxProjects(params: { area?: string; q?: string }): Promise<{ name: string; count: number }[]> {
   try {
-    const r = await fetch(`${API_URL}/market/transactions/projects?area=${encodeURIComponent(area)}`);
+    const r = await fetch(`${API_URL}/market/transactions/projects?${txQuery(params)}`);
     if (!r.ok) return [];
     const data = await r.json();
     return data.projects || [];

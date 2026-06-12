@@ -56,8 +56,11 @@ export default function TransactionsPage() {
   const { t } = useTranslation(['transactions', 'common'])
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   const [area, setArea] = useState('')
+  // 项目筛选：可搜索 combobox，不依赖区域（选了区域则在区域内搜）
   const [project, setProject] = useState('')
-  const [projects, setProjects] = useState<{ name: string; count: number }[]>([])
+  const [projectQuery, setProjectQuery] = useState('')
+  const [projectOpen, setProjectOpen] = useState(false)
+  const [projectSuggestions, setProjectSuggestions] = useState<{ name: string; count: number }[]>([])
   const [rooms, setRooms] = useState('')
   const [type, setType] = useState<SaleType>('all')
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
@@ -79,14 +82,23 @@ export default function TransactionsPage() {
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
 
-  // 区域变化 → 重置项目筛选并拉取该区域的项目列表
+  // 区域变化 → 重置项目筛选（项目可能不在新区域内）
   useEffect(() => {
     setProject('')
-    if (!area) { setProjects([]); return }
-    let stale = false
-    fetchTxProjects(area).then(p => { if (!stale) setProjects(p) })
-    return () => { stale = true }
+    setProjectQuery('')
   }, [area])
+
+  // 项目搜索建议：按输入关键词（300ms 防抖）+ 当前区域拉取
+  useEffect(() => {
+    const q = projectQuery.trim()
+    if (project && q === project) return  // 已选定，不用再搜
+    let stale = false
+    const id = setTimeout(() => {
+      fetchTxProjects({ area: area || undefined, q: q || undefined })
+        .then(p => { if (!stale) setProjectSuggestions(p) })
+    }, 300)
+    return () => { stale = true; clearTimeout(id) }
+  }, [area, projectQuery, project])
 
   useEffect(() => {
     setLoading(true)
@@ -147,17 +159,52 @@ export default function TransactionsPage() {
         </label>
         <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.project')}
-          <select
-            value={project}
-            onChange={e => setProject(e.target.value)}
-            disabled={!area}
-            className="w-full md:min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
-          >
-            <option value="">{area ? t('filter.allProjects') : t('filter.selectAreaFirst')}</option>
-            {projects.map(p => (
-              <option key={p.name} value={p.name}>{t('filter.areaOption', { name: p.name, count: p.count })}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              type="text"
+              value={projectQuery}
+              onChange={e => {
+                setProjectQuery(e.target.value)
+                setProjectOpen(true)
+                // 清空输入 = 取消项目筛选
+                if (e.target.value.trim() === '') setProject('')
+              }}
+              onFocus={() => setProjectOpen(true)}
+              onBlur={() => setTimeout(() => setProjectOpen(false), 150)}
+              placeholder={t('filter.projectPlaceholder')}
+              className="w-full md:min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 pr-7 text-sm text-slate-800"
+            />
+            {projectQuery && (
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); setProject(''); setProjectQuery(''); setProjectOpen(false) }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label={t('filter.clearProject')}
+              >
+                ×
+              </button>
+            )}
+            {projectOpen && projectSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                {projectSuggestions.map(p => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onMouseDown={e => {
+                      e.preventDefault()
+                      setProject(p.name)
+                      setProjectQuery(p.name)
+                      setProjectOpen(false)
+                    }}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 ${p.name === project ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
+                  >
+                    <span className="truncate">{p.name}</span>
+                    <span className="ml-2 shrink-0 text-xs text-slate-400">{p.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </label>
         <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.rooms')}

@@ -267,30 +267,39 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
   }
 })
 
-/** GET /transactions/projects?area= — 某区域内的项目下拉（按成交量排序） */
+/**
+ * GET /transactions/projects?area=&q= — 项目筛选（可搜索，不强制先选区域）
+ * - area 有值：该区域内的项目（走 area+date 索引，快）
+ * - area 为空：全城项目列表（一次全表聚合，6h 缓存）+ 内存里按 q 过滤
+ */
+async function loadProjects(area: string): Promise<{ name: string; count: number }[]> {
+  const cacheKey = area ? `projects:${area}` : 'projects:ALL'
+  const cached = txCacheGet(cacheKey)
+  if (cached) return cached
+  const r = await pool.query(
+    `SELECT dt.project_name AS name, COUNT(*)::int AS count
+       FROM dld_transactions dt
+      WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
+        AND dt.property_type IN ('Unit','Villa')
+        ${area ? 'AND dt.area_name = $1' : ''}
+        AND dt.project_name IS NOT NULL AND dt.project_name <> ''
+      GROUP BY dt.project_name
+     HAVING COUNT(*) >= 10
+      ORDER BY count DESC`,
+    area ? [area] : []
+  )
+  txCacheSet(cacheKey, r.rows)
+  return r.rows
+}
+
 router.get('/transactions/projects', async (req: Request, res: Response) => {
   try {
     const area = String(req.query.area || '').trim()
-    if (!area) return res.json({ projects: [] })
-    const cacheKey = `projects:${area}`
-    const cached = txCacheGet(cacheKey)
-    if (cached) return res.json(cached)
-    const r = await pool.query(
-      `SELECT dt.project_name AS name, COUNT(*)::int AS count
-         FROM dld_transactions dt
-        WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
-          AND dt.property_type IN ('Unit','Villa')
-          AND dt.area_name = $1
-          AND dt.project_name IS NOT NULL AND dt.project_name <> ''
-        GROUP BY dt.project_name
-       HAVING COUNT(*) >= 10
-        ORDER BY count DESC
-        LIMIT 300`,
-      [area]
-    )
-    const data = { projects: r.rows }
-    txCacheSet(cacheKey, data)
-    res.json(data)
+    const q = String(req.query.q || '').trim().toLowerCase()
+    let projects = await loadProjects(area)
+    if (q) projects = projects.filter(p => p.name.toLowerCase().includes(q))
+    // 无关键词时给前 100（下拉初始展示），有关键词给前 50
+    res.json({ projects: projects.slice(0, q ? 50 : 100) })
   } catch (err) {
     console.error('[market/transactions/projects] error:', err)
     res.status(500).json({ error: 'internal error' })
