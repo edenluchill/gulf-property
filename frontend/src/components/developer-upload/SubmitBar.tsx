@@ -19,6 +19,8 @@ interface SubmitBarProps {
   isProcessing: boolean
   isSubmitting: boolean
   onSubmit: () => void
+  /** Override the submit button label (e.g. 更新项目 on the edit page) */
+  submitLabel?: string
 }
 
 const TONE_CLASSES: Record<ReadinessChip['tone'], string> = {
@@ -35,6 +37,7 @@ export function SubmitBar({
   isProcessing,
   isSubmitting,
   onSubmit,
+  submitLabel,
 }: SubmitBarProps) {
   const { t } = useTranslation('upload')
 
@@ -82,7 +85,7 @@ export function SubmitBar({
               ) : (
                 <>
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  {t('submitBtn.confirmed')}
+                  {submitLabel || t('submitBtn.confirmed')}
                 </>
               )}
             </Button>

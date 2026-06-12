@@ -117,7 +117,10 @@ export async function generateAndUploadAllPdfImages(
     const localImagePaths = await pdfToImages(
       pdfBuffer,
       pdfTempDir,
-      'page'  // Prefix: page.1.png, page.2.png, etc.
+      'page',  // Prefix: page.1.png, page.2.png, etc.
+      // ⭐ 192dpi (~2480px) so the 'original' 2560px variant is genuinely
+      // high-res for lightbox/fullscreen (96dpi made it a duplicate of large)
+      { dpi: 192 }
     );
 
     const imageTime = Date.now() - imageStartTime;

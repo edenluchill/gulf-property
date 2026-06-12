@@ -120,7 +120,8 @@ async function splitPdfIntoChunks(
 async function pdfToImagesChunked(
   pdfBuffer: Buffer,
   outputDir: string,
-  prefix: string = 'page'
+  prefix: string = 'page',
+  dpi: number = 96
 ): Promise<string[]> {
   const tempChunkDir = join(outputDir, '_pdf_chunks');
   mkdirSync(tempChunkDir, { recursive: true });
@@ -149,7 +150,8 @@ async function pdfToImagesChunked(
           chunkBuffer,
           outputDir,
           prefix,
-          chunk.startPage
+          chunk.startPage,
+          dpi
         );
 
         allImagePaths.push(...chunkImagePaths);
@@ -190,7 +192,8 @@ async function convertSingleChunk(
   chunkBuffer: Buffer,
   outputDir: string,
   prefix: string,
-  startPageNumber: number
+  startPageNumber: number,
+  dpi: number = 96
 ): Promise<string[]> {
   const chunkTempDir = join(outputDir, `_chunk_${startPageNumber}_temp`);
   mkdirSync(chunkTempDir, { recursive: true });
@@ -198,9 +201,9 @@ async function convertSingleChunk(
   try {
     // Try MuPDF for the chunk (smaller chunks should work fine)
     const chunkImages = await pdfToImagesMupdf(chunkBuffer, chunkTempDir, {
-      dpi: 96,
+      dpi,
       format: 'jpeg',
-      quality: 80,
+      quality: 88,
       prefix: 'p',
     });
 
@@ -248,9 +251,13 @@ async function convertSingleChunk(
 export async function pdfToImages(
   pdfBuffer: Buffer,
   outputDir: string,
-  filenamePrefix?: string
+  filenamePrefix?: string,
+  options?: { dpi?: number }
 ): Promise<string[]> {
   const prefix = filenamePrefix || 'page';
+  // 192dpi (~2480px wide) makes the 'original' 2560px variant a real
+  // high-res asset for lightbox/fullscreen; 96dpi made it ≈ 'large'.
+  const dpi = options?.dpi ?? 96;
   const pdfSizeMB = pdfBuffer.length / 1024 / 1024;
 
   // Ensure output directory exists
@@ -266,9 +273,9 @@ export async function pdfToImages(
       console.log(`Converting PDF to images using Poppler...`);
 
       const imagePaths = await pdfToImagesPoppler(pdfBuffer, outputDir, {
-        dpi: 96,
+        dpi,
         format: 'jpeg',
-        quality: 80,
+        quality: 88,
         prefix,
       });
 
@@ -290,7 +297,7 @@ export async function pdfToImages(
     console.log(`   Using memory-efficient chunked processing...`);
 
     try {
-      const imagePaths = await pdfToImagesChunked(pdfBuffer, outputDir, prefix);
+      const imagePaths = await pdfToImagesChunked(pdfBuffer, outputDir, prefix, dpi);
 
       if (imagePaths.length > 0) {
         console.log(`✅ Chunked MuPDF conversion successful: ${imagePaths.length} pages`);
@@ -309,9 +316,9 @@ export async function pdfToImages(
     console.log(`Converting PDF to images using MuPDF (direct)...`);
 
     const imagePaths = await pdfToImagesMupdf(pdfBuffer, outputDir, {
-      dpi: 96,         // Lower DPI to reduce memory usage
+      dpi,
       format: 'jpeg',
-      quality: 80,
+      quality: 88,
       prefix,
     });
 
@@ -328,7 +335,7 @@ export async function pdfToImages(
     if (pdfSizeMB < LARGE_PDF_THRESHOLD_MB) {
       console.log('Trying chunked processing as fallback...');
       try {
-        const imagePaths = await pdfToImagesChunked(pdfBuffer, outputDir, prefix);
+        const imagePaths = await pdfToImagesChunked(pdfBuffer, outputDir, prefix, dpi);
         if (imagePaths.length > 0) {
           console.log(`✅ Chunked MuPDF fallback successful: ${imagePaths.length} pages`);
           return imagePaths;

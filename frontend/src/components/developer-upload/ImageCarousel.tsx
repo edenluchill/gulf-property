@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Carousel, CarouselContent, CarouselItem } from '../ui/carousel'
 import { ChevronLeft, ChevronRight, ZoomIn, X, Download } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { getImageUrl, getImageSrcSet } from '../../lib/image-utils'
+import { getImageUrl, getImageSrcSet, fallbackToLargeOnError } from '../../lib/image-utils'
 
 interface ImageCarouselProps {
   images: string[]
@@ -77,7 +77,8 @@ function ImageLightbox({
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={getImageUrl(images[currentIndex], 'large')}
+          src={getImageUrl(images[currentIndex], 'original')}
+          onError={fallbackToLargeOnError}
           alt={`Image ${currentIndex + 1}`}
           className="max-w-full max-h-[85vh] object-contain"
         />

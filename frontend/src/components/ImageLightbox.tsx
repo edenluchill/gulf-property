@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react'
-import { getImageUrl, getImageSrcSet } from '../lib/image-utils'
+import { getImageUrl, getImageSrcSet, getImageSrcSetWithOriginal } from '../lib/image-utils'
 
 interface ImageLightboxProps {
   images: string[]
@@ -541,8 +541,8 @@ export function ImageLightbox({
             )}
 
             <motion.img
-              src={getImageUrl(images[currentIndex], 'large')}
-              srcSet={getImageSrcSet(images[currentIndex])}
+              src={getImageUrl(images[currentIndex], 'original')}
+              srcSet={getImageSrcSetWithOriginal(images[currentIndex])}
               sizes="100vw"
               alt={`${buildingName} - ${currentIndex + 1}`}
               className="max-w-full max-h-full object-contain select-none"

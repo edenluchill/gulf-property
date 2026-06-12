@@ -212,7 +212,7 @@ export async function executePdfWorkflow(
           // ⭐ 验证缓存完整性：检查是否有所有页面的图片
           const uniquePages = new Set<number>();
           cached.forEach(url => {
-            const match = url.match(/page[._](\d+)(?:[._](large|medium|thumbnail))?\.jpg/);
+            const match = url.match(/page[._](\d+)(?:[._](original|large|medium|thumbnail))?\.jpg/);
             if (match) {
               uniquePages.add(parseInt(match[1]));
             }
@@ -331,8 +331,8 @@ export async function executePdfWorkflow(
         
         cachedUrls.forEach(url => {
           // Extract page number from URL pattern: pdf-cache/{hash}/images/page_{pageNum}_{variant}.jpg
-          // ⚡ Only 3 variants now: large, medium, thumbnail (no 'original')
-          const match = url.match(/page[._](\d+)[._](large|medium|thumbnail)\.jpg/);
+          // 4 variants; old caches may lack 'original' (falls back to large below)
+          const match = url.match(/page[._](\d+)[._](original|large|medium|thumbnail)\.jpg/);
           if (match) {
             const pageNum = parseInt(match[1]);
             const variant = match[2];

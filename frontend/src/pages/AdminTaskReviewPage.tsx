@@ -1,8 +1,8 @@
 /**
  * Admin Task Review Page
  *
- * Full editor for reviewing and editing extracted PDF data before submitting.
- * Uses shared PropertyEditorForm component.
+ * Loads a processed PDF task into the shared PropertyWorkspace
+ * (same sectioned layout as /developer/upload) and submits it as a project.
  */
 
 import { useState, useEffect } from 'react'
@@ -12,12 +12,13 @@ import { Building2, Loader2, ArrowLeft, Trash2, AlertTriangle } from 'lucide-rea
 import { Button } from '../components/ui/button'
 import { API_BASE_URL, API_ENDPOINTS } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
+import { PropertyWorkspace } from '../components/property-workspace/PropertyWorkspace'
 import {
   PropertyFormData,
-  PropertyEditorForm,
-  SuccessCard,
   initialFormData,
-} from '../components/property-editor'
+  buildSubmitPayload,
+} from '../components/property-editor/types'
+import { SuccessCard } from '../components/property-editor'
 
 interface TaskData {
   id: string
@@ -38,10 +39,10 @@ export default function AdminTaskReviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [task, setTask] = useState<TaskData | null>(null)
-  const [showMapPicker, setShowMapPicker] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [serverMessage, setServerMessage] = useState<string | undefined>(undefined)
   const [formData, setFormData] = useState<PropertyFormData>(initialFormData)
 
   // Fetch task data
@@ -86,7 +87,15 @@ export default function AdminTaskReviewPage() {
             paymentPlan: buildingData.paymentPlans?.[0]?.milestones || [],
             projectImages: buildingData.images?.projectImages || [],
             floorPlanImages: buildingData.images?.floorPlanImages || [],
+            visualContent: buildingData.visualContent,
+            extractedPricing: buildingData.extractedPricing,
+            serviceCharge: buildingData.serviceCharge ?? undefined,
+            landmarks: buildingData.landmarks || undefined,
           })
+          // 0户型引导文案（营销画册等）
+          if (buildingData.submitReadiness?.message) {
+            setServerMessage(buildingData.submitReadiness.message)
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load task')
@@ -119,68 +128,13 @@ export default function AdminTaskReviewPage() {
     }
   }
 
-  // Submit as project
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (isSubmitting) return
-
-    const confirmSubmit = window.confirm(
-      t('review.submitConfirm', { name: formData.projectName, count: formData.unitTypes.length })
-    )
-
-    if (!confirmSubmit) return
-
+  // PropertyWorkspace dialog 确认后提交为项目
+  const doSubmit = async () => {
     setIsSubmitting(true)
     setError(null)
 
     try {
-      // Filter out hidden images before submitting
-      const visibleProjectImages = (formData.projectImages || []).filter(
-        img => !(formData.hiddenProjectImages || []).includes(img)
-      )
-      const visibleFloorPlanImages = (formData.floorPlanImages || []).filter(
-        img => !(formData.hiddenFloorPlanImages || []).includes(img)
-      )
-
-      const submitData = {
-        projectName: formData.projectName,
-        developer: formData.developer,
-        address: formData.address,
-        area: formData.area,
-        description: formData.description,
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        launchDate: formData.launchDate || null,
-        completionDate: formData.completionDate || null,
-        handoverDate: formData.handoverDate || null,
-        constructionProgress: formData.constructionProgress,
-        status: formData.status || 'upcoming',
-        projectImages: visibleProjectImages,
-        floorPlanImages: visibleFloorPlanImages,
-        primaryImage: formData.primaryImage || null,
-        amenities: formData.amenities || [],
-        unitTypes: formData.unitTypes.map(unit => ({
-          name: unit.name,
-          typeName: unit.typeName,
-          category: unit.category,
-          unitNumbers: unit.unitNumbers,
-          unitCount: unit.unitCount || 1,
-          bedrooms: unit.bedrooms,
-          bathrooms: unit.bathrooms,
-          area: unit.area,
-          suiteArea: unit.suiteArea,
-          balconyArea: unit.balconyArea,
-          price: unit.price,
-          pricePerSqft: unit.pricePerSqft,
-          orientation: unit.orientation,
-          features: unit.features,
-          description: unit.description,
-          floorPlanImage: unit.floorPlanImage,
-          floorPlanImages: unit.floorPlanImages,
-        })),
-        paymentPlan: formData.paymentPlan || [],
-      }
+      const submitData = buildSubmitPayload(formData)
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -214,6 +168,7 @@ export default function AdminTaskReviewPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit')
       setIsSubmitting(false)
+      throw err
     }
   }
 
@@ -243,71 +198,62 @@ export default function AdminTaskReviewPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-white">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-b border-blue-200">
-        <div className="container mx-auto px-6 py-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate('/admin/tasks')}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  {t('review.backToTasks')}
-                </Button>
-                <div className="h-8 w-px bg-gray-300" />
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg">
-                    <Building2 className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-900">{t('review.title')}</h1>
-                    <p className="text-sm text-gray-600">{task?.job_id}</p>
-                  </div>
-                </div>
-              </div>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                className="flex items-center gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                {t('review.deleteTask')}
-              </Button>
+    <div className="h-full overflow-y-auto bg-gray-50 flex flex-col">
+      {/* Compact header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 sm:px-6 py-4 max-w-7xl">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/admin/tasks')}
+              className="p-2 shrink-0"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-md shrink-0">
+              <Building2 className="h-5 w-5 text-white" />
             </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold text-gray-900 truncate">{t('review.title')}</h1>
+              <p className="text-xs text-gray-500 truncate">{task?.job_id}</p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              className="flex items-center gap-2 shrink-0"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('review.deleteTask')}</span>
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          {submitted ? (
-            <SuccessCard
-              title={t('review.projectSubmitted')}
-              subtitle={t('review.redirecting')}
-            />
-          ) : (
-            <PropertyEditorForm
-              formData={formData}
-              setFormData={setFormData}
-              onSubmit={handleSubmit}
-              isSubmitting={isSubmitting}
-              hasReviewed={hasReviewed}
-              setHasReviewed={setHasReviewed}
-              showMapPicker={showMapPicker}
-              setShowMapPicker={setShowMapPicker}
-              error={error}
-              submitButtonTextConfirmed={t('review.submitAsProject')}
-              overlayTitle={t('review.submittingProject')}
-              overlaySubtitle={t('review.savingToDb')}
-              overlayAccentColor="green"
-            />
-          )}
+      {error && (
+        <div className="container mx-auto px-4 sm:px-6 pt-4 max-w-7xl w-full">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>
         </div>
-      </div>
+      )}
+
+      {submitted ? (
+        <div className="container mx-auto px-4 sm:px-6 py-10 max-w-2xl">
+          <SuccessCard
+            title={t('review.projectSubmitted')}
+            subtitle={t('review.redirecting')}
+          />
+        </div>
+      ) : (
+        <PropertyWorkspace
+          formData={formData}
+          setFormData={setFormData}
+          isSubmitting={isSubmitting}
+          hasReviewed={hasReviewed}
+          setHasReviewed={setHasReviewed}
+          onConfirmSubmit={doSubmit}
+          emptyUnitsMessage={formData.unitTypes.length === 0 ? serverMessage : undefined}
+          submitLabel={t('review.submitAsProject')}
+        />
+      )}
     </div>
   )
 }

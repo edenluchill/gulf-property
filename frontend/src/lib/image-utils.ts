@@ -91,13 +91,23 @@ export function getImageSrcSetWithOriginal(imageUrl: string): string {
 
 /**
  * Get the best available image URL with fallback
- * Tries original first, falls back to large
- * Use this for lightbox/fullscreen where you want highest quality
+ * Original (2560px, generated since 2026-06-12 at 192dpi) for lightbox /
+ * fullscreen. Older cached PDFs have no original variant — pair with
+ * `fallbackToLargeOnError` on the <img> so 404s degrade gracefully.
  */
 export function getBestQualityUrl(imageUrl: string): string {
-  // For now, return large as the safe default
-  // The srcset will try to load original if available
-  return getImageUrl(imageUrl, 'large');
+  return getImageUrl(imageUrl, 'original');
+}
+
+/**
+ * onError handler: swap a failed `_original` image to `_large` (legacy
+ * caches predate the original variant). No-op on second failure.
+ */
+export function fallbackToLargeOnError(e: React.SyntheticEvent<HTMLImageElement>): void {
+  const img = e.currentTarget;
+  if (img.src.includes('_original.')) {
+    img.src = img.src.replace(/_original\.(jpg|jpeg|png|webp)/i, '_large.$1');
+  }
 }
 
 /**

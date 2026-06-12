@@ -1,7 +1,8 @@
 /**
  * Admin Property Edit Page - 管理员项目编辑页面
  *
- * Uses shared PropertyEditorForm component.
+ * Loads an existing project into the shared PropertyWorkspace
+ * (same sectioned layout as /developer/upload) and PUTs updates.
  */
 
 import { useState, useEffect } from 'react'
@@ -12,12 +13,13 @@ import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { API_ENDPOINTS } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
+import { PropertyWorkspace } from '../components/property-workspace/PropertyWorkspace'
 import {
   PropertyFormData,
-  PropertyEditorForm,
-  SuccessCard,
   initialFormData,
-} from '../components/property-editor'
+  buildSubmitPayload,
+} from '../components/property-editor/types'
+import { SuccessCard } from '../components/property-editor'
 
 export default function AdminPropertyEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -29,7 +31,6 @@ export default function AdminPropertyEditPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showMapPicker, setShowMapPicker] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
   const [formData, setFormData] = useState<PropertyFormData>(initialFormData)
 
@@ -101,6 +102,7 @@ export default function AdminPropertyEditPage() {
             unit.unit_images ||
             unit.floor_plan_images ||
             (unit.floor_plan_image ? [unit.floor_plan_image] : []),
+          parkingSpaces: unit.parking_spaces ?? undefined,
         })),
         paymentPlan: (project.payment_plan || []).map((milestone: any) => ({
           milestone: milestone.milestone_name || milestone.milestone,
@@ -113,6 +115,8 @@ export default function AdminPropertyEditPage() {
         floorPlanImages: project.floor_plan_images || [],
         primaryImage: project.primary_image || undefined,
         visualContent: project.visual_content,
+        serviceCharge: project.service_charge_per_sqft ?? undefined,
+        landmarks: project.landmark_distances || undefined,
       })
     } catch (err) {
       console.error('Failed to load project:', err)
@@ -122,69 +126,13 @@ export default function AdminPropertyEditPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (isSubmitting) return
-
-    const confirmSubmit = window.confirm(
-      t('edit.confirm.message', {
-        name: formData.projectName,
-        developer: formData.developer,
-        unitCount: formData.unitTypes.length,
-        coordStatus:
-          formData.latitude && formData.longitude
-            ? t('edit.confirm.coordSet')
-            : t('edit.confirm.coordNotSet'),
-      })
-    )
-
-    if (!confirmSubmit) return
-
+  // PropertyWorkspace dialog 确认后更新项目
+  const doUpdate = async () => {
     setIsSubmitting(true)
     setError(null)
 
     try {
-      const submitData = {
-        projectName: formData.projectName,
-        developer: formData.developer,
-        address: formData.address,
-        area: formData.area,
-        description: formData.description,
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        launchDate: formData.launchDate || null,
-        completionDate: formData.completionDate || null,
-        handoverDate: formData.handoverDate || null,
-        constructionProgress: formData.constructionProgress,
-        status: formData.status || 'upcoming',
-        projectImages: formData.projectImages || [],
-        floorPlanImages: formData.floorPlanImages || [],
-        primaryImage: formData.primaryImage || null,
-        amenities: formData.amenities || [],
-        visualContent: formData.visualContent,
-        unitTypes: formData.unitTypes.map(unit => ({
-          id: unit.id,
-          name: unit.name,
-          typeName: unit.typeName,
-          category: unit.category,
-          unitNumbers: unit.unitNumbers,
-          unitCount: unit.unitCount || 1,
-          bedrooms: unit.bedrooms,
-          bathrooms: unit.bathrooms,
-          area: unit.area,
-          suiteArea: unit.suiteArea,
-          balconyArea: unit.balconyArea,
-          price: unit.price,
-          pricePerSqft: unit.pricePerSqft,
-          orientation: unit.orientation,
-          features: unit.features,
-          description: unit.description,
-          floorPlanImage: unit.floorPlanImage,
-          floorPlanImages: unit.floorPlanImages,
-        })),
-        paymentPlan: formData.paymentPlan || [],
-      }
+      const submitData = buildSubmitPayload(formData)
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -216,15 +164,16 @@ export default function AdminPropertyEditPage() {
       setError(errorMessage)
       alert(t('edit.confirm.failAlert', { error: errorMessage }))
       setIsSubmitting(false)
+      throw err
     }
   }
 
   if (loading) {
     return (
-      <div className="flex-1 bg-white flex items-center justify-center">
+      <div className="flex-1 bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-16 w-16 mx-auto mb-4 animate-spin text-blue-600" />
-          <p className="text-gray-600 text-lg">{t('edit.loadingData')}</p>
+          <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-teal-600" />
+          <p className="text-gray-600">{t('edit.loadingData')}</p>
         </div>
       </div>
     )
@@ -232,11 +181,11 @@ export default function AdminPropertyEditPage() {
 
   if (error && !formData.projectName) {
     return (
-      <div className="flex-1 bg-white flex items-center justify-center">
-        <Card className="max-w-md mx-4 shadow-2xl border-2 border-red-200">
+      <div className="flex-1 bg-gray-50 flex items-center justify-center">
+        <Card className="max-w-md mx-4 border border-red-200">
           <CardContent className="pt-6 text-center">
-            <div className="text-6xl mb-4">❌</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('edit.loadFailed')}</h2>
+            <div className="text-5xl mb-4">❌</div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">{t('edit.loadFailed')}</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <Button onClick={() => navigate('/admin/properties')}>
               {t('edit.backToList')}
@@ -248,59 +197,47 @@ export default function AdminPropertyEditPage() {
   }
 
   return (
-    <div className="flex-1 bg-white overflow-auto">
-      {/* Page Title Section */}
-      <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-b border-blue-200">
-        <div className="container mx-auto px-6 py-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-4 mb-4">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/admin/properties')}
-                className="p-2"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </Button>
-              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl">
-                <Building2 className="h-8 w-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">{t('edit.title')}</h1>
-                <p className="text-sm text-gray-700 mt-1">{t('edit.subtitle')}</p>
-              </div>
+    <div className="flex-1 bg-gray-50 overflow-auto flex flex-col">
+      {/* Compact header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 sm:px-6 py-4 max-w-7xl">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/admin/properties')}
+              className="p-2 shrink-0"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-md shrink-0">
+              <Building2 className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-gray-900 truncate">{t('edit.title')}</h1>
+              <p className="text-xs text-gray-500 truncate">{formData.projectName || t('edit.subtitle')}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="max-w-7xl mx-auto">
-          {submitted ? (
-            <SuccessCard
-              title={t('edit.updateSuccess')}
-              subtitle={t('edit.redirecting')}
-            />
-          ) : (
-            <PropertyEditorForm
-              formData={formData}
-              setFormData={setFormData}
-              onSubmit={handleSubmit}
-              isSubmitting={isSubmitting}
-              hasReviewed={hasReviewed}
-              setHasReviewed={setHasReviewed}
-              showMapPicker={showMapPicker}
-              setShowMapPicker={setShowMapPicker}
-              translationNamespace="upload"
-              error={error}
-              submitButtonText={t('edit.submitBtn.pleaseCheck')}
-              submitButtonTextConfirmed={t('edit.submitBtn.confirmed')}
-              overlayTitle={t('edit.overlay.updatingProject')}
-              overlaySubtitle={t('edit.overlay.savingToDb')}
-              overlayAccentColor="blue"
-            />
-          )}
+      {submitted ? (
+        <div className="container mx-auto px-4 sm:px-6 py-10 max-w-2xl">
+          <SuccessCard
+            title={t('edit.updateSuccess')}
+            subtitle={t('edit.redirecting')}
+          />
         </div>
-      </div>
+      ) : (
+        <PropertyWorkspace
+          formData={formData}
+          setFormData={setFormData}
+          isSubmitting={isSubmitting}
+          hasReviewed={hasReviewed}
+          setHasReviewed={setHasReviewed}
+          onConfirmSubmit={doUpdate}
+          submitLabel={t('edit.submitBtn.confirmed')}
+        />
+      )}
     </div>
   )
 }
