@@ -202,23 +202,19 @@ async function generatePoiIcon(color: string, Icon: typeof Cross, size = 64): Pr
 // Default config for unknown categories
 const DEFAULT_CATEGORY_CONFIG = { color: '#475569', Icon: Building2 }
 
-// 热力图可能输出的全部颜色（getHeatmapColor）。给每个颜色注册一个迪拉姆符号
-// 小图，金额型指标的地图标签用 ['image'] 段嵌入文本（canvas 文本放不了 SVG）。
-const HEAT_COLORS = ['#059669', '#10b981', '#6ee7b7', '#fca5a5', '#ef4444', '#dc2626', '#fbbf24', '#94a3b8']
-
-// 新版 UAE 迪拉姆官方符号：D + 两道向左伸出的横线（与 DirhamSymbol.tsx 同造型）
-function generateDirhamIcon(color: string, size = 26): ImageData {
+// 新版 UAE 迪拉姆官方符号：D + 两道向左伸出的横线（与 DirhamSymbol.tsx 同造型）。
+// 固定中性色（像 ¥/$ 一样），不随价格热力色变：深底图用白字、浅底图用深灰。
+function generateDirhamIcon(color: string, halo: string, size = 26): ImageData {
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
   const ctx = canvas.getContext('2d')!
   ctx.fillStyle = color
-  // 白色描边底，保证在卫星图上也可读（模拟 text-halo）
   ctx.font = `700 ${size * 0.92}px Georgia, 'Times New Roman', serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.lineJoin = 'round'
-  ctx.strokeStyle = '#ffffff'
+  ctx.strokeStyle = halo
   ctx.lineWidth = Math.max(3, size * 0.14)
   const dX = size * 0.56
   const dY = size * 0.85
@@ -233,6 +229,14 @@ function generateDirhamIcon(color: string, size = 26): ImageData {
   ctx.fillRect(0 + ctx.lineWidth / 2, bar1Y, barW, barH)
   ctx.fillRect(0 + ctx.lineWidth / 2, bar2Y, barW, barH)
   return ctx.getImageData(0, 0, size, size)
+}
+
+// 1x1 透明图：没有价格的区域用它占位，地图上不会出现孤零零的货币符号
+function transparentIcon(): ImageData {
+  const canvas = document.createElement('canvas')
+  canvas.width = 2
+  canvas.height = 2
+  return canvas.getContext('2d')!.getImageData(0, 0, 2, 2)
 }
 
 export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield'
@@ -423,8 +427,9 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
   const handleMouseEnter = useCallback(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect()
-      // If marker is within 200px of viewport top, show tooltip below
-      setShowBelow(rect.top < 200)
+      // 顶部 ~120px 是指标/POI 控制面板（z-1000，盖在悬浮卡上面），
+      // 卡片自身 ~210px：离顶 320px 内就改为向下弹，避免钻到面板底下
+      setShowBelow(rect.top < 320)
     }
     setIsHovered(true)
   }, [])
@@ -438,6 +443,9 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
       longitude={project.lng}
       latitude={project.lat}
       anchor="bottom"
+      // hover 时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
+      // 不抬容器的话会被 DOM 顺序靠后的其他 pin 压住（客户反馈）
+      style={{ zIndex: isHovered ? 300 : 2 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(project)
@@ -664,6 +672,7 @@ const ClusterMarker = memo(({ cluster, onClick }: { cluster: any; onClick?: (c: 
       longitude={center.lng}
       latitude={center.lat}
       anchor="bottom"
+      style={{ zIndex: 2 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(cluster)
@@ -716,6 +725,8 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
       longitude={landmark.location.lng}
       latitude={landmark.location.lat}
       anchor="bottom"
+      // 地标是背景层装饰：永远垫在项目 pin（zIndex 2）和悬浮卡（300）下面
+      style={{ zIndex: 1 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(landmark)
@@ -1096,10 +1107,10 @@ function MapViewMapLibre({
       safeAddImage(`station-${type}`, imageData)
     })
 
-    // 迪拉姆符号（按热力色一色一图），金额指标标签嵌入用
-    for (const c of HEAT_COLORS) {
-      safeAddImage(`dirham-${c.slice(1)}`, generateDirhamIcon(c))
-    }
+    // 迪拉姆符号：固定中性色两套（深底图用 light、浅底图用 dark）+ 空占位
+    safeAddImage('dirham-light', generateDirhamIcon('#ffffff', 'rgba(0,0,0,0.85)'))
+    safeAddImage('dirham-dark', generateDirhamIcon('#334155', '#ffffff'))
+    safeAddImage('dirham-none', transparentIcon())
 
     await Promise.all([...poiIconPromises, ...transportIconPromises, ...routeTypeIconPromises])
   }, [])
@@ -1239,9 +1250,7 @@ function MapViewMapLibre({
             minZoom,
             displayName,
             metricValue,
-            metricColor,
-            // 迪拉姆符号按色取图用（'dirham-059669' 等）
-            metricColorKey: metricColor.slice(1)
+            metricColor
           },
           geometry: { type: 'Point' as const, coordinates: centroid }
         }
@@ -1416,11 +1425,16 @@ function MapViewMapLibre({
                 'text-field': areaMetric === 'none'
                   ? ['get', 'displayName']
                   : (areaMetric === 'medianUnitPrice' || areaMetric === 'medianPriceSqft')
-                  // 金额指标：数值前嵌迪拉姆官方符号（按热力色取对应小图）
+                  // 金额指标：数值前嵌迪拉姆官方符号——固定中性色（像 ¥/$），
+                  // 与数字隔一个空格；没有数值的区域用透明占位图（不显示符号）
                   ? ['format',
                       ['get', 'displayName'], {},
                       '\n', {},
-                      ['image', ['concat', 'dirham-', ['get', 'metricColorKey']]], {},
+                      ['image', ['concat', 'dirham-',
+                        ['case', ['==', ['get', 'metricValue'], ''], 'none',
+                          (baseMap === 'satellite' || baseMap === 'dark') ? 'light' : 'dark']
+                      ]], {},
+                      ['case', ['==', ['get', 'metricValue'], ''], '', ' '], {},
                       ['get', 'metricValue'], {
                         'text-color': ['get', 'metricColor'],
                         'font-scale': 1.25
