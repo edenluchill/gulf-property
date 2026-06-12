@@ -717,6 +717,14 @@ export async function fetchTxFilters(): Promise<TxFilters> {
     return await r.json();
   } catch { return { areas: [], rooms: [] }; }
 }
+export async function fetchTxProjects(area: string): Promise<{ name: string; count: number }[]> {
+  try {
+    const r = await fetch(`${API_URL}/market/transactions/projects?area=${encodeURIComponent(area)}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.projects || [];
+  } catch { return []; }
+}
 export async function fetchTxSummary(p: Record<string, string | undefined>): Promise<TxSummary | null> {
   try {
     const r = await fetch(`${API_URL}/market/transactions/summary?${txQuery(p)}`);

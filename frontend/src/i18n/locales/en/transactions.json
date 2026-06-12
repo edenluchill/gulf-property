@@ -3,6 +3,9 @@
   "description": "Based on real residential transaction data from the Dubai Land Department (periodic snapshots, not real-time; resale registrations are typically delayed by 4–8 weeks).",
   "filter": {
     "area": "Area",
+    "project": "Project",
+    "allProjects": "All projects",
+    "selectAreaFirst": "Select an area first",
     "rooms": "Bedrooms",
     "year": "Year",
     "type": "Type",

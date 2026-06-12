@@ -6,9 +6,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import {
-  fetchTxFilters, fetchTxSummary, fetchTxList,
+  fetchTxFilters, fetchTxSummary, fetchTxList, fetchTxProjects,
   TxFilters, TxSummary, TxRow
 } from '../lib/api'
+import DirhamSymbol from '../components/DirhamSymbol'
 
 type SaleType = 'all' | 'ready' | 'offplan'
 
@@ -55,6 +56,8 @@ export default function TransactionsPage() {
   const { t } = useTranslation(['transactions', 'common'])
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   const [area, setArea] = useState('')
+  const [project, setProject] = useState('')
+  const [projects, setProjects] = useState<{ name: string; count: number }[]>([])
   const [rooms, setRooms] = useState('')
   const [type, setType] = useState<SaleType>('all')
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
@@ -67,13 +70,23 @@ export default function TransactionsPage() {
   const limit = 25
   const query = useMemo(() => ({
     area: area || undefined,
+    project: project || undefined,
     rooms: rooms || undefined,
     type: type === 'all' ? undefined : type,
     from: year ? `${year}-01-01` : undefined,
     to: year ? `${year}-12-31` : undefined
-  }), [area, rooms, type, year])
+  }), [area, project, rooms, type, year])
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
+
+  // 区域变化 → 重置项目筛选并拉取该区域的项目列表
+  useEffect(() => {
+    setProject('')
+    if (!area) { setProjects([]); return }
+    let stale = false
+    fetchTxProjects(area).then(p => { if (!stale) setProjects(p) })
+    return () => { stale = true }
+  }, [area])
 
   useEffect(() => {
     setLoading(true)
@@ -91,6 +104,7 @@ export default function TransactionsPage() {
   // 移动端筛选摘要(让折叠态也能看出当前筛选)
   const filterParts = [
     area || null,
+    project || null,
     rooms || null,
     year ? t('filter.yearLabel', { year }) : null,
     type !== 'all' ? t(`saleType.${type}`) : null,
@@ -128,6 +142,20 @@ export default function TransactionsPage() {
             <option value="">{t('filter.allAreas')}</option>
             {filters.areas.map(a => (
               <option key={a.name} value={a.name}>{t('filter.areaOption', { name: a.name, count: a.count })}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
+          {t('filter.project')}
+          <select
+            value={project}
+            onChange={e => setProject(e.target.value)}
+            disabled={!area}
+            className="w-full md:min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">{area ? t('filter.allProjects') : t('filter.selectAreaFirst')}</option>
+            {projects.map(p => (
+              <option key={p.name} value={p.name}>{t('filter.areaOption', { name: p.name, count: p.count })}</option>
             ))}
           </select>
         </label>
@@ -187,8 +215,8 @@ export default function TransactionsPage() {
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
             <Kpi label={t('kpi.count')} value={fmt(summary.count)} />
-            <Kpi label={t('kpi.medianPps')} value={fmt(pps?.median)} />
-            <Kpi label={t('kpi.medianTotal')} value={fmt(summary.medianUnitPrice)} />
+            <Kpi label={t('kpi.medianPps')} value={fmt(pps?.median)} currency />
+            <Kpi label={t('kpi.medianTotal')} value={fmt(summary.medianUnitPrice)} currency />
             <Kpi label={t('kpi.avgSize')} value={fmt(summary.avgSizeSqm)} />
           </div>
           {pps && (
@@ -270,11 +298,14 @@ export default function TransactionsPage() {
   )
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({ label, value, currency }: { label: string; value: string; currency?: boolean }) {
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-bold text-slate-800">{value}</div>
+      <div className="mt-1 flex items-center gap-1 text-xl font-bold text-slate-800">
+        {currency && value !== '—' && <DirhamSymbol size="0.8em" className="text-slate-500" />}
+        {value}
+      </div>
     </div>
   )
 }

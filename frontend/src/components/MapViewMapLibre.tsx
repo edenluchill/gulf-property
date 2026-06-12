@@ -245,24 +245,21 @@ const formatPriceShort = (price: number): string => {
   return price.toString()
 }
 
-// 格式化指标值
-function formatMetricValue(area: DubaiArea, metric: AreaMetric): string {
+// 格式化指标值（按语言：中文 185万，英文 1.85M；中文用户对 K/M 不直观）。
+// 不带 "AED" 前缀——地图标签寸土寸金，货币单位由顶部指标条/图例承担。
+function formatMetricValue(area: DubaiArea, metric: AreaMetric, lang: string): string {
   switch (metric) {
     case 'medianUnitPrice': {
       // Total median unit price in AED
       const v = area.medianUnitPrice
       if (v === undefined || v === null) return ''
-      if (v >= 1000000) return `AED ${(v / 1000000).toFixed(1)}M`
-      if (v >= 1000) return `AED ${Math.round(v / 1000)}K`
-      return `AED ${v}`
+      return formatMoneyCompact(v, lang)
     }
     case 'medianPriceSqft': {
       // medianPriceSqm converted to sqft (1 sqm = 10.764 sqft)
       const v = area.medianPriceSqm
       if (v === undefined || v === null) return ''
-      const pricePerSqft = v / 10.764
-      if (pricePerSqft >= 1000) return `AED ${(pricePerSqft / 1000).toFixed(1)}K`
-      return `AED ${Math.round(pricePerSqft)}`
+      return formatMoneyFull(v / 10.764)
     }
     case 'capitalGrowth': {
       const v = area.capitalAppreciation
@@ -272,8 +269,7 @@ function formatMetricValue(area: DubaiArea, metric: AreaMetric): string {
     case 'transactionCount': {
       const v = area.transactionCount
       if (v === undefined || v === null) return ''
-      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`
-      return `${v}`
+      return formatCountCompact(v, lang)
     }
     case 'rentalYield': {
       const v = area.rentalYield
@@ -345,23 +341,29 @@ function getHeatmapColor(
 
 import { MapPinProject } from '../lib/api'
 import { getImageUrl } from '../lib/image-utils'
+import { formatMoneyCompact, formatCountCompact, formatMoneyFull } from '../lib/money'
+import DirhamSymbol from './DirhamSymbol'
 
 const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
+  const { i18n } = useTranslation()
   const [isHovered, setIsHovered] = useState(false)
   const [showBelow, setShowBelow] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const isSoldOut = project.status === 'sold-out'
 
-  // Format price range
+  // Format price range — 中文 120万-200万，英文 1.2M-2M
   const priceText = useMemo(() => {
+    const lang = i18n.language || 'en'
     if (project.minPrice && project.maxPrice) {
-      return `${formatPriceShort(project.minPrice)} - ${formatPriceShort(project.maxPrice)}`
+      return `${formatMoneyCompact(project.minPrice, lang)} - ${formatMoneyCompact(project.maxPrice, lang)}`
     } else if (project.minPrice) {
-      return `From ${formatPriceShort(project.minPrice)}`
+      return lang.startsWith('zh')
+        ? `${formatMoneyCompact(project.minPrice, lang)} 起`
+        : `From ${formatMoneyCompact(project.minPrice, lang)}`
     }
     return null
-  }, [project.minPrice, project.maxPrice])
+  }, [project.minPrice, project.maxPrice, i18n.language])
 
   // Format bedroom range
   const bedText = project.minBeds !== null && project.maxBeds !== null
@@ -473,15 +475,19 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
             }}>
               {project.name}
             </div>
-            {/* Price - prominent */}
+            {/* Price - prominent (迪拉姆官方符号) */}
             {priceText && (
               <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
                 fontSize: '12px',
                 fontWeight: 600,
                 color: '#0d9488',
                 marginBottom: '4px',
               }}>
-                AED {priceText}
+                <DirhamSymbol size="0.95em" />
+                {priceText}
               </div>
             )}
             {/* Details row */}
@@ -650,20 +656,28 @@ const ClusterMarker = memo(({ cluster, onClick }: { cluster: any; onClick?: (c: 
 })
 
 // ============================================================================
-// Landmark Marker - Circle with image thumbnail or type icon
+// Landmark Marker - 3D 扣图建筑立在地图上（与项目 teardrop pin 明确区分）
 // ============================================================================
+
+// 本地扣图资源：frontend/public/landmarks/<slug>.png（透明背景 3D 微缩建筑）。
+// 命中扣图 → 建筑直接"立"在地图上 + 名称标签；没有 → 退回金圈圆形照片。
+const landmarkSlug = (name: string) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 const LandmarkMarker = memo(({ landmark, onClick }: {
   landmark: DubaiLandmark
   onClick?: (lm: DubaiLandmark) => void
 }) => {
+  // 扣图加载失败(404/无此地标)时退回圆形照片样式
+  const [cutoutFailed, setCutoutFailed] = useState(false)
+  const cutoutH = landmark.size === 'large' ? 84 : landmark.size === 'small' ? 54 : 68
   const pinSize = landmark.size === 'large' ? 52 : landmark.size === 'small' ? 36 : 44
 
   return (
     <Marker
       longitude={landmark.location.lng}
       latitude={landmark.location.lat}
-      anchor="center"
+      anchor="bottom"
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(landmark)
@@ -671,34 +685,71 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
     >
       <div
         className="cursor-pointer transition-transform duration-150 hover:scale-110"
-        style={{
-          width: pinSize,
-          height: pinSize,
-          borderRadius: '50%',
-          overflow: 'hidden',
-          border: '2.5px solid #fff',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.12)',
-          background: landmark.imageUrl ? '#f1f5f9' : '#334155',
-        }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
-        {landmark.imageUrl ? (
+        {!cutoutFailed ? (
           <img
-            src={landmark.imageUrl}
+            src={`/landmarks/${landmarkSlug(landmark.name)}.png`}
             alt={landmark.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setCutoutFailed(true)}
+            style={{
+              height: cutoutH,
+              width: 'auto',
+              maxWidth: cutoutH * 1.3,
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.35))',
+            }}
             loading="lazy"
           />
         ) : (
-          <div style={{
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Building2 style={{ width: pinSize * 0.45, height: pinSize * 0.45, color: 'rgba(255,255,255,0.8)' }} />
+          <div
+            style={{
+              width: pinSize,
+              height: pinSize,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              border: '2.5px solid #f59e0b',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.12)',
+              background: landmark.imageUrl ? '#f1f5f9' : '#334155',
+            }}
+          >
+            {landmark.imageUrl ? (
+              <img
+                src={landmark.imageUrl}
+                alt={landmark.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                loading="lazy"
+              />
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Building2 style={{ width: pinSize * 0.45, height: pinSize * 0.45, color: 'rgba(255,255,255,0.8)' }} />
+              </div>
+            )}
           </div>
         )}
+        {/* 名称标签：一眼看出这是地标而不是楼盘 */}
+        <div
+          style={{
+            marginTop: 2,
+            padding: '1px 7px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.92)',
+            border: '1px solid rgba(245,158,11,0.5)',
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#78350f',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          }}
+        >
+          {landmark.name}
+        </div>
       </div>
     </Marker>
   )
@@ -1093,11 +1144,23 @@ function MapViewMapLibre({
     return { type: 'FeatureCollection' as const, features }
   }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric])
 
-  // Area labels GeoJSON - 区域名称
+  // Area labels GeoJSON - 区域名称 + 指标值（同一图层）
+  // 指标值和名称必须在同一个 symbol，否则两个 layer 的碰撞检测会互相
+  // 淘汰：看指标时区域名就消失了（客户反馈）。合并后名字+数值永远一起显示。
   const areaLabelsGeoJson = useMemo(() => {
     if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded) return null
 
     const langKey = i18n.language?.split('-')[0]
+    const lang = i18n.language || 'en'
+
+    // 计算分位数用于指标值着色
+    let percentiles = { p25: 0, p50: 0, p75: 0 }
+    if (areaMetric !== 'none') {
+      const values = dubaiAreas
+        .map(area => getMetricRawValue(area, areaMetric))
+        .filter((v): v is number => v !== null)
+      percentiles = calculatePercentiles(values)
+    }
 
     const features = dubaiAreas
       .filter(area => {
@@ -1112,9 +1175,16 @@ function MapViewMapLibre({
         const minZoom = getMinZoomForSpan(span)
         const translatedName = langKey ? area.translations?.[langKey]?.name : undefined
 
-        // 只显示区域名称（不包含指标值，指标值用单独的 layer）
         let displayName = area.name
         if (translatedName) displayName += `\n${translatedName}`
+
+        let metricValue = ''
+        let metricColor = '#94a3b8'
+        if (areaMetric !== 'none') {
+          metricValue = formatMetricValue(area, areaMetric, lang)
+          const rawValue = getMetricRawValue(area, areaMetric)
+          metricColor = getHeatmapColor(rawValue, areaMetric, percentiles)
+        }
 
         return {
           type: 'Feature' as const,
@@ -1123,54 +1193,16 @@ function MapViewMapLibre({
             translatedName: translatedName || '',
             span,
             minZoom,
-            displayName
+            displayName,
+            metricValue,
+            metricColor
           },
           geometry: { type: 'Point' as const, coordinates: centroid }
         }
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language])
-
-  // Metric values GeoJSON - 独立的指标值图层，带颜色
-  const metricValuesGeoJson = useMemo(() => {
-    if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded || areaMetric === 'none') return null
-
-    // 计算分位数
-    const values = dubaiAreas
-      .map(area => getMetricRawValue(area, areaMetric))
-      .filter((v): v is number => v !== null)
-    const percentiles = calculatePercentiles(values)
-
-    const features = dubaiAreas
-      .filter(area => {
-        if (area.boundary?.type !== 'Polygon') return false
-        const coords = (area.boundary as any).coordinates?.[0]
-        return Array.isArray(coords) && coords.length >= 3
-      })
-      .map(area => {
-        const coords = (area.boundary as any).coordinates[0]
-        const centroid = getCentroid(coords)
-        const span = getPolygonSpan(coords)
-        const minZoom = getMinZoomForSpan(span)
-        const metricValue = formatMetricValue(area, areaMetric)
-        const rawValue = getMetricRawValue(area, areaMetric)
-        const metricColor = getHeatmapColor(rawValue, areaMetric, percentiles)
-
-        return {
-          type: 'Feature' as const,
-          properties: {
-            metricValue: metricValue || '-',
-            metricColor,
-            span,
-            minZoom
-          },
-          geometry: { type: 'Point' as const, coordinates: centroid }
-        }
-      })
-
-    return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric])
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric])
 
   // POI GeoJSON for WebGL rendering (no limit needed - symbol layers are fast)
   const poiGeoJson = useMemo(() => {
@@ -1326,7 +1358,8 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* Area Labels - 区域名称 (始终显示；选指标时名称上移，数值在下方) */}
+        {/* Area Labels - 区域名称 (始终显示；选指标时数值以 format 段追加在名称下方,
+            同一 symbol 保证名字和数值要么一起显示要么一起隐藏) */}
         {mapLoaded && areaLabelsGeoJson && (
           <Source id="area-labels" type="geojson" data={areaLabelsGeoJson}>
             <Layer
@@ -1334,7 +1367,16 @@ function MapViewMapLibre({
               type="symbol"
               filter={['<=', ['get', 'minZoom'], ['zoom']]}
               layout={{
-                'text-field': ['get', 'displayName'],
+                'text-field': areaMetric === 'none'
+                  ? ['get', 'displayName']
+                  : ['format',
+                      ['get', 'displayName'], {},
+                      '\n', {},
+                      ['get', 'metricValue'], {
+                        'text-color': ['get', 'metricColor'],
+                        'font-scale': 1.25
+                      }
+                    ],
                 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
                 // Keep labels flat-on-screen + upright no matter the bearing/pitch,
                 // so the cinematic orbit doesn't tilt or rotate the area names.
@@ -1349,8 +1391,6 @@ function MapViewMapLibre({
                   16, 12
                 ],
                 'text-anchor': 'center',
-                // 选了指标时，区域名上移，给下方的指标值留位置
-                'text-offset': areaMetric === 'none' ? [0, 0] : [0, -0.8],
                 // 更宽松的防叠：zoom 12+ 显示所有
                 'text-allow-overlap': [
                   'step',
@@ -1374,56 +1414,6 @@ function MapViewMapLibre({
                 // area name stays readable; light vector → original dark-on-white.
                 'text-color': (baseMap === 'satellite' || baseMap === 'dark') ? '#ffffff' : '#334155',
                 'text-halo-color': (baseMap === 'satellite' || baseMap === 'dark') ? 'rgba(0,0,0,0.85)' : '#ffffff',
-                'text-halo-width': 2
-              }}
-            />
-          </Source>
-        )}
-
-        {/* Metric Values - 指标数值（带颜色） */}
-        {mapLoaded && metricValuesGeoJson && (
-          <Source id="metric-values" type="geojson" data={metricValuesGeoJson}>
-            <Layer
-              id="metric-value-text"
-              type="symbol"
-              filter={['<=', ['get', 'minZoom'], ['zoom']]}
-              layout={{
-                'text-field': ['get', 'metricValue'],
-                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                'text-rotation-alignment': 'viewport',
-                'text-pitch-alignment': 'viewport',
-                'text-size': [
-                  'interpolate', ['linear'], ['zoom'],
-                  8, 9,    // 更小的字体
-                  10, 10,
-                  12, 11,
-                  14, 12,
-                  16, 13
-                ],
-                'text-anchor': 'center',
-                // 指标值显示在区域名下方
-                'text-offset': [0, 0.9],
-                // 更宽松的防叠：zoom 12+ 显示所有
-                'text-allow-overlap': [
-                  'step',
-                  ['zoom'],
-                  false,  // zoom < 12: hide overlapping
-                  12, true   // zoom >= 12: show all
-                ],
-                // 更小的 padding
-                'text-padding': [
-                  'step',
-                  ['zoom'],
-                  3,   // zoom < 10: small padding
-                  10, 2,  // zoom 10: smaller padding
-                  11, 1,  // zoom 11: minimal padding
-                  12, 0   // zoom >= 12: no padding
-                ],
-                'symbol-sort-key': ['get', 'minZoom']
-              }}
-              paint={{
-                'text-color': ['get', 'metricColor'],
-                'text-halo-color': '#ffffff',
                 'text-halo-width': 2
               }}
             />

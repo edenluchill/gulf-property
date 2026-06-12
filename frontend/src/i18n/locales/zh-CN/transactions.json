@@ -3,6 +3,9 @@
   "description": "基于 Dubai Land Department 真实住宅成交数据（定期快照，非实时；二手登记通常滞后 4–8 周）。",
   "filter": {
     "area": "区域",
+    "project": "项目",
+    "allProjects": "全部项目",
+    "selectAreaFirst": "先选区域",
     "rooms": "户型",
     "year": "年份",
     "type": "类型",

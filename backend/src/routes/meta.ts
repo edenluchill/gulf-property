@@ -17,11 +17,15 @@ router.get('/data-version', async (_req: Request, res: Response) => {
     if (cache && Date.now() - cache.at < 60_000) {
       return res.json({ version: cache.v })
     }
+    // 指纹 = DLD 导入时间 + 区域编辑时间：改区域名/翻译/边界也要让客户端缓存失效
     const r = await pool.query(
-      `SELECT MAX(created_at) AS c FROM dld_transactions`
+      `SELECT
+         (SELECT MAX(created_at) FROM dld_transactions) AS c,
+         (SELECT MAX(updated_at) FROM dubai_areas) AS a`
     )
     const c = r.rows[0]?.c ? new Date(r.rows[0].c).getTime() : 0
-    const version = `dld-${c}`
+    const a = r.rows[0]?.a ? new Date(r.rows[0].a).getTime() : 0
+    const version = `dld-${c}-a${a}`
     cache = { v: version, at: Date.now() }
     res.json({ version })
   } catch (err) {

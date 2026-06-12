@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Building2, Sparkles } from 'lucide-react'
 import { DubaiArea } from '../types'
+import { formatMoneyCompact } from '../lib/money'
 
 interface DeveloperSummary {
   name: string
@@ -52,9 +53,8 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
   const formatValue = (value: number | undefined, type: 'price' | 'volume' | 'percent'): string => {
     if (value === undefined || value === null) return '-'
     if (type === 'percent') return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M AED`
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}K AED`
-    return `${value} AED`
+    // 中文 185万 AED / 英文 1.85M AED（中文用户对 K/M 不直观）
+    return `${formatMoneyCompact(value, i18n.language || 'en')} AED`
   }
 
   return (

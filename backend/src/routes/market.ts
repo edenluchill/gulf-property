@@ -184,6 +184,27 @@ router.get('/price-check', async (req: Request, res: Response) => {
 
 const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R']
 
+// 数据是定期快照（非实时），聚合结果可放心缓存。
+// dld_transactions 154 万行，无缓存时全表 percentile 聚合要数秒。
+const TX_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+const TX_CACHE_MAX = 500
+const txCache = new Map<string, { at: number; data: any }>()
+
+function txCacheGet(key: string): any | null {
+  const hit = txCache.get(key)
+  if (!hit) return null
+  if (Date.now() - hit.at > TX_CACHE_TTL_MS) { txCache.delete(key); return null }
+  return hit.data
+}
+
+function txCacheSet(key: string, data: any) {
+  if (txCache.size >= TX_CACHE_MAX) {
+    const oldest = txCache.keys().next().value
+    if (oldest !== undefined) txCache.delete(oldest)
+  }
+  txCache.set(key, { at: Date.now(), data })
+}
+
 /** 构造公共 WHERE（住宅销售、剔除极端值），返回 { clause, params } */
 function buildTxFilter(q: any): { clause: string; params: any[] } {
   const params: any[] = []
@@ -195,8 +216,13 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     `dt.procedure_area > 0`
   ]
   if (q.area) {
-    params.push(`%${String(q.area).trim()}%`)
-    parts.push(`dt.area_name ILIKE $${params.length}`)
+    // 前端下拉给的是精确区名；等值匹配才能吃到 (area_name, instance_date) 索引
+    params.push(String(q.area).trim())
+    parts.push(`dt.area_name = $${params.length}`)
+  }
+  if (q.project) {
+    params.push(String(q.project).trim())
+    parts.push(`dt.project_name = $${params.length}`)
   }
   if (q.rooms && ROOM_OPTIONS.includes(q.rooms)) {
     params.push(q.rooms)
@@ -221,6 +247,8 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
 /** GET /transactions/filters — 下拉选项（区域、户型） */
 router.get('/transactions/filters', async (_req: Request, res: Response) => {
   try {
+    const cached = txCacheGet('filters')
+    if (cached) return res.json(cached)
     const areas = await pool.query(
       `SELECT dt.area_name AS name, COUNT(*)::int AS count
          FROM dld_transactions dt
@@ -230,9 +258,41 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
        HAVING COUNT(*) >= 50
         ORDER BY count DESC`
     )
-    res.json({ areas: areas.rows, rooms: ROOM_OPTIONS })
+    const data = { areas: areas.rows, rooms: ROOM_OPTIONS }
+    txCacheSet('filters', data)
+    res.json(data)
   } catch (err) {
     console.error('[market/transactions/filters] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/** GET /transactions/projects?area= — 某区域内的项目下拉（按成交量排序） */
+router.get('/transactions/projects', async (req: Request, res: Response) => {
+  try {
+    const area = String(req.query.area || '').trim()
+    if (!area) return res.json({ projects: [] })
+    const cacheKey = `projects:${area}`
+    const cached = txCacheGet(cacheKey)
+    if (cached) return res.json(cached)
+    const r = await pool.query(
+      `SELECT dt.project_name AS name, COUNT(*)::int AS count
+         FROM dld_transactions dt
+        WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
+          AND dt.property_type IN ('Unit','Villa')
+          AND dt.area_name = $1
+          AND dt.project_name IS NOT NULL AND dt.project_name <> ''
+        GROUP BY dt.project_name
+       HAVING COUNT(*) >= 10
+        ORDER BY count DESC
+        LIMIT 300`,
+      [area]
+    )
+    const data = { projects: r.rows }
+    txCacheSet(cacheKey, data)
+    res.json(data)
+  } catch (err) {
+    console.error('[market/transactions/projects] error:', err)
     res.status(500).json({ error: 'internal error' })
   }
 })
@@ -241,6 +301,9 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
 router.get('/transactions/summary', async (req: Request, res: Response) => {
   try {
     const { clause, params } = buildTxFilter(req.query)
+    const cacheKey = `summary:${clause}:${JSON.stringify(params)}`
+    const cached = txCacheGet(cacheKey)
+    if (cached) return res.json(cached)
     const stats = await pool.query(
       `SELECT COUNT(*)::int AS n,
               percentile_cont(0.05) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p05,
@@ -267,7 +330,7 @@ router.get('/transactions/summary', async (req: Request, res: Response) => {
       params
     )
     const s = stats.rows[0]
-    res.json({
+    const data = {
       count: s.n,
       pricePerSqm: s.n ? {
         min: Math.round(Number(s.p05)), p25: Math.round(Number(s.p25)),
@@ -279,7 +342,9 @@ router.get('/transactions/summary', async (req: Request, res: Response) => {
       totalVolume: s.total_volume ? Math.round(Number(s.total_volume)) : null,
       trend: trend.rows.map(r => ({ month: r.month, count: r.count, medianPps: Number(r.median_pps) })),
       note: 'DLD 住宅销售（Unit/Villa），已剔除最高/最低 5% 极端值。数据为定期快照，非实时。'
-    })
+    }
+    txCacheSet(cacheKey, data)
+    res.json(data)
   } catch (err) {
     console.error('[market/transactions/summary] error:', err)
     res.status(500).json({ error: 'internal error' })
