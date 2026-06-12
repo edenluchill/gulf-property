@@ -140,7 +140,10 @@
     "latitude": "Latitude:",
     "longitude": "Longitude:",
     "reselect": "Re-select",
-    "clickMapToSelect": "Click map to select project location"
+    "clickMapToSelect": "Click map to select project location",
+    "areaCustomInput": "Type manually",
+    "areaPickFromList": "Pick from list",
+    "areaHint": "Pick from Dubai districts; extracted areas outside the list are kept, or type your own"
   },
   "dateProgress": {
     "title": "Dates & Progress",

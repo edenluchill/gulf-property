@@ -61,9 +61,9 @@ export function DateTimeProgressSection({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-1 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full"></div>
+        <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
         <div>
-          <h3 className="text-xl font-bold text-gray-900">{t('dateProgress.title')}</h3>
+          <h3 className="text-lg font-bold text-gray-900">{t('dateProgress.title')}</h3>
           <p className="text-sm text-gray-600">{t('dateProgress.subtitle')}</p>
         </div>
       </div>

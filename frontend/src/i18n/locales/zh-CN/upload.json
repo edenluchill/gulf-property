@@ -140,7 +140,10 @@
     "latitude": "纬度:",
     "longitude": "经度:",
     "reselect": "重新选择",
-    "clickMapToSelect": "点击地图选择项目位置"
+    "clickMapToSelect": "点击地图选择项目位置",
+    "areaCustomInput": "手动输入",
+    "areaPickFromList": "从列表选择",
+    "areaHint": "从迪拜区域列表选择;提取的区域不在列表时也会保留,可手动输入"
   },
   "dateProgress": {
     "title": "日期与进度",

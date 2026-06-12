@@ -1,4 +1,4 @@
-import { Loader2, Clock } from 'lucide-react'
+import { Loader2, Clock, Calendar } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface PaymentMilestone {
@@ -14,101 +14,89 @@ interface PaymentPlanSectionProps {
   isProcessing: boolean
 }
 
+/**
+ * Compact payment plan — single card with a percentage bar and one slim row
+ * per milestone (was: one full-width card per instalment, far too tall).
+ */
 export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSectionProps) {
   const { t } = useTranslation('upload')
   const hasPlan = paymentPlan && paymentPlan.length > 0
   const total = hasPlan ? paymentPlan.reduce((sum, m) => sum + (parseFloat(String(m.percentage)) || 0), 0) : 0
+  const totalOk = Math.abs(total - 100) < 0.01
+
+  const timingLabel = (m: PaymentMilestone): string | null => {
+    if (m.intervalDescription) return m.intervalDescription
+    if (m.intervalMonths !== undefined && m.intervalMonths !== null) {
+      return m.intervalMonths === 0 ? 'At booking' : `+${m.intervalMonths} mo`
+    }
+    return m.date || null
+  }
 
   return (
-    <div className="space-y-4 pt-6 border-t-2 border-gray-100">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-1 bg-gradient-to-b from-teal-500 to-emerald-500 rounded-full"></div>
-        <div>
-          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            {t('paymentPlan.title')}
-          </h3>
-          {hasPlan && (
-            <p className="text-sm text-gray-600">
-              {t('paymentPlan.stageCount', { count: paymentPlan.length })}
-            </p>
-          )}
+    <div className="space-y-3 pt-6 border-t border-gray-100">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
+          <h3 className="text-lg font-bold text-gray-900">{t('paymentPlan.title')}</h3>
         </div>
+        {hasPlan && (
+          <span className={`text-sm font-semibold px-2.5 py-0.5 rounded-full ${
+            totalOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+          }`}>
+            {total.toFixed(0)}%{!totalOk && ` (${total > 100 ? t('paymentPlan.exceeded') : t('paymentPlan.insufficient')} ${Math.abs(100 - total).toFixed(0)}%)`}
+          </span>
+        )}
       </div>
 
       {hasPlan ? (
-        <div className="space-y-3">
-          {paymentPlan.map((milestone, idx) => (
-            <div 
-              key={idx} 
-              className="flex items-center justify-between p-5 bg-white rounded-xl border-2 border-gray-200 hover:border-teal-400 hover:shadow-md transition-all"
-            >
-              <div className="flex-1">
-                <div className="font-semibold text-gray-900 flex items-center gap-3">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 text-white text-sm font-bold shadow-md">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {/* Proportional percentage bar */}
+          <div className="flex h-2">
+            {paymentPlan.map((m, idx) => (
+              <div
+                key={idx}
+                className={idx % 2 === 0 ? 'bg-teal-500' : 'bg-teal-300'}
+                style={{ width: `${Math.max(parseFloat(String(m.percentage)) || 0, 1)}%` }}
+                title={`${m.milestone} ${m.percentage}%`}
+              />
+            ))}
+          </div>
+          <div className="divide-y divide-gray-50">
+            {paymentPlan.map((milestone, idx) => {
+              const timing = timingLabel(milestone)
+              return (
+                <div key={idx} className="flex items-center gap-3 px-4 py-2 text-sm">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-bold shrink-0">
                     {idx + 1}
                   </span>
-                  <span className="text-base">
+                  <span className="font-medium text-gray-900 flex-1 min-w-0 truncate">
                     {milestone.milestone || `${t('paymentPlan.stage')} ${idx + 1}`}
                   </span>
-                </div>
-                {/* 优先显示间隔描述，否则显示日期 */}
-                {milestone.intervalDescription ? (
-                  <div className="text-sm text-gray-500 mt-2 ml-11 flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    <span>{milestone.intervalDescription}</span>
-                  </div>
-                ) : milestone.intervalMonths !== undefined && milestone.intervalMonths !== null ? (
-                  <div className="text-sm text-gray-500 mt-2 ml-11 flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    <span>
-                      {milestone.intervalMonths === 0 
-                        ? 'At booking' 
-                        : `${milestone.intervalMonths} month${milestone.intervalMonths !== 1 ? 's' : ''} later`
-                      }
+                  {timing && (
+                    <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 shrink-0">
+                      {milestone.date && !milestone.intervalDescription
+                        ? <Calendar className="h-3 w-3" />
+                        : <Clock className="h-3 w-3" />}
+                      {timing}
                     </span>
-                  </div>
-                ) : milestone.date ? (
-                  <div className="text-sm text-gray-500 mt-2 ml-11 flex items-center gap-2">
-                    <span>📅</span>
-                    <span>{milestone.date}</span>
-                  </div>
-                ) : null}
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-teal-600">
-                  {parseFloat(String(milestone.percentage)) || 0}%
+                  )}
+                  <span className="font-bold text-teal-600 tabular-nums w-12 text-right shrink-0">
+                    {parseFloat(String(milestone.percentage)) || 0}%
+                  </span>
                 </div>
-              </div>
-            </div>
-          ))}
-          
-          {/* Total Summary */}
-          <div className="flex items-center justify-between p-6 bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 rounded-xl border-2 border-teal-400 shadow-lg mt-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎯</span>
-              <span className="text-lg font-bold text-gray-900">{t('paymentPlan.total')}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className={`text-3xl font-bold ${Math.abs(total - 100) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
-                {total.toFixed(2)}%
-              </div>
-              {Math.abs(total - 100) >= 0.01 && (
-                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-100 text-red-600">
-                  {total > 100 ? t('paymentPlan.exceeded') : t('paymentPlan.insufficient')} {Math.abs(100 - total).toFixed(2)}%
-                </span>
-              )}
-            </div>
+              )
+            })}
           </div>
         </div>
       ) : (
-        <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
+        <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
           {isProcessing ? (
             <div className="text-gray-600">
-              <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-teal-600" />
-              <p className="font-medium">{t('paymentPlan.aiExtracting')}</p>
+              <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin text-teal-600" />
+              <p className="text-sm font-medium">{t('paymentPlan.aiExtracting')}</p>
             </div>
           ) : (
-            <p className="text-gray-500">{t('paymentPlan.noPlan')}</p>
+            <p className="text-sm text-gray-500">{t('paymentPlan.noPlan')}</p>
           )}
         </div>
       )}

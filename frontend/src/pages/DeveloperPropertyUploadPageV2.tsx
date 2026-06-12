@@ -640,7 +640,7 @@ export default function DeveloperPropertyUploadPageV2() {
     <div className="flex-1 bg-white overflow-auto">
       {/* Page Title Section */}
       <div className="bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-100 border-b border-teal-200">
-        <div className="container mx-auto px-6 py-8">
+        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-3 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-xl">
@@ -659,12 +659,12 @@ export default function DeveloperPropertyUploadPageV2() {
               const currentStep = submitted ? 4 : (isProcessing || isUploading) ? 2 : hasStarted ? 3 : 1
               const steps = [t('steps.upload'), t('steps.extract'), t('steps.review'), t('steps.submit')]
               return (
-                <div className="flex items-center gap-2 text-sm mt-6">
+                <div className="flex items-center gap-2 text-sm mt-6 overflow-x-auto pb-1 -mx-1 px-1">
                   {steps.map((label, i) => {
                     const n = i + 1
                     const state = n < currentStep ? 'done' : n === currentStep ? 'active' : 'todo'
                     return (
-                      <div key={label} className="flex items-center gap-2">
+                      <div key={label} className="flex items-center gap-2 shrink-0">
                         {i > 0 && <div className={`h-px w-6 ${n <= currentStep ? 'bg-teal-400' : 'bg-gray-300'}`} />}
                         <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all ${
                           state === 'active'
@@ -692,7 +692,7 @@ export default function DeveloperPropertyUploadPageV2() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto">
           {submitted ? (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
@@ -752,7 +752,7 @@ export default function DeveloperPropertyUploadPageV2() {
                     transition={{ duration: 0.5 }}
                   >
                     <Card className="shadow-2xl border-2 border-gray-200 bg-white">
-                      <CardContent className="pt-8 px-8">
+                      <CardContent className="pt-6 px-4 sm:px-8">
                         <form 
                           onSubmit={handleSubmit} 
                           onKeyDown={(e) => {
@@ -802,9 +802,9 @@ export default function DeveloperPropertyUploadPageV2() {
                           {/* Unit Types - Grouped by Tower/Building */}
                           <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                             <div className="flex items-center gap-3 mb-4">
-                              <div className="h-10 w-1 bg-gradient-to-b from-teal-500 to-emerald-500 rounded-full"></div>
+                              <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
                               <div>
-                                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                   {t('unitTypesList')}
                                 </h3>
                                 <p className="text-sm text-gray-600">
@@ -894,8 +894,8 @@ export default function DeveloperPropertyUploadPageV2() {
                           {(formData.serviceCharge != null || (formData.landmarks && formData.landmarks.length > 0)) && (
                             <div className="space-y-4 pt-6 border-t-2 border-gray-100">
                               <div className="flex items-center gap-3">
-                                <div className="h-10 w-1 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
-                                <h3 className="text-xl font-bold text-gray-900">{t('readiness.extraInfoTitle')}</h3>
+                                <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
+                                <h3 className="text-lg font-bold text-gray-900">{t('readiness.extraInfoTitle')}</h3>
                               </div>
                               {formData.serviceCharge != null && (
                                 <div className="flex items-center gap-3 text-sm">

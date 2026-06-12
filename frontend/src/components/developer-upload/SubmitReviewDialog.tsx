@@ -52,7 +52,7 @@ export function SubmitReviewDialog({
           <DialogTitle>{t('reviewDialog.title')}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto px-6">
           {/* Summary */}
           <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
             <div className="font-semibold text-gray-900">{projectName || '—'}</div>
@@ -131,7 +131,7 @@ export function SubmitReviewDialog({
           )}
         </div>
 
-        <div className="flex gap-3 pt-4">
+        <div className="flex gap-3 px-6 pt-4 pb-6">
           <Button
             type="button"
             variant="outline"

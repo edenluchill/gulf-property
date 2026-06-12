@@ -55,9 +55,9 @@ export function AmenitiesSection({ amenities, isProcessing }: Props) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-10 w-1 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
+          <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
           <div>
-            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               {t('amenities.title')}
             </h3>
             <p className="text-sm text-gray-600">{t('amenities.subtitle')}</p>
@@ -83,9 +83,9 @@ export function AmenitiesSection({ amenities, isProcessing }: Props) {
   return (
     <div className="space-y-4 pt-6 border-t-2 border-gray-100">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-1 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
+        <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
         <div>
-          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             {t('amenities.title')}
           </h3>
           <p className="text-sm text-gray-600">

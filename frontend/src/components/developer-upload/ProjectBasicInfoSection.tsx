@@ -31,6 +31,7 @@ export function ProjectBasicInfoSection({
   const { t } = useTranslation('upload')
   const [dubaiAreas, setDubaiAreas] = useState<string[]>([])
   const [isLoadingAreas, setIsLoadingAreas] = useState(true)
+  const [customAreaMode, setCustomAreaMode] = useState(false)
 
   // Load Dubai areas on mount
   useEffect(() => {
@@ -51,9 +52,9 @@ export function ProjectBasicInfoSection({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
+        <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
         <div>
-          <h3 className="text-xl font-bold text-gray-900">{t('basicInfo.title')}</h3>
+          <h3 className="text-lg font-bold text-gray-900">{t('basicInfo.title')}</h3>
           <p className="text-sm text-gray-600">{t('basicInfo.subtitle')}</p>
         </div>
       </div>
@@ -94,34 +95,57 @@ export function ProjectBasicInfoSection({
         />
       </div>
 
-      {/* Area - Dropdown from Dubai Areas */}
+      {/* Area: dropdown of known Dubai areas, but ALSO accepts values outside
+          the list — extracted areas like "City Walk" may not exist in dubai_areas,
+          and a strict select would display empty and block submission */}
       <div>
-        <Label className="text-sm">{t('basicInfo.area')}</Label>
-        <Select
-          value={formData.area}
-          onValueChange={(value) => onChange('area', value)}
-          disabled={isProcessing || isLoadingAreas}
-        >
-          <SelectTrigger className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}>
-            <SelectValue placeholder={isLoadingAreas ? 'Loading areas...' : t('basicInfo.areaPlaceholder')} />
-          </SelectTrigger>
-          <SelectContent>
-            {dubaiAreas.length > 0 ? (
-              dubaiAreas.map((areaName) => (
-                <SelectItem key={areaName} value={areaName}>
-                  {areaName}
+        <div className="flex items-center justify-between">
+          <Label className="text-sm">{t('basicInfo.area')}</Label>
+          <button
+            type="button"
+            onClick={() => setCustomAreaMode(!customAreaMode)}
+            className="text-xs text-teal-600 hover:text-teal-800 font-medium"
+          >
+            {customAreaMode ? t('basicInfo.areaPickFromList') : t('basicInfo.areaCustomInput')}
+          </button>
+        </div>
+        {customAreaMode ? (
+          <Input
+            value={formData.area}
+            onChange={(e) => onChange('area', e.target.value)}
+            disabled={isProcessing}
+            placeholder={t('basicInfo.areaPlaceholder')}
+            className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}
+          />
+        ) : (
+          <Select
+            value={formData.area}
+            onValueChange={(value) => onChange('area', value)}
+            disabled={isProcessing || isLoadingAreas}
+          >
+            <SelectTrigger className={isProcessing ? 'bg-teal-50 animate-pulse' : ''}>
+              <SelectValue placeholder={isLoadingAreas ? 'Loading areas...' : t('basicInfo.areaPlaceholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {/* Keep an out-of-list extracted value selectable & visible */}
+              {formData.area && !dubaiAreas.includes(formData.area) && (
+                <SelectItem value={formData.area}>{formData.area}</SelectItem>
+              )}
+              {dubaiAreas.length > 0 ? (
+                dubaiAreas.map((areaName) => (
+                  <SelectItem key={areaName} value={areaName}>
+                    {areaName}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="__loading__" disabled>
+                  {isLoadingAreas ? 'Loading...' : 'No areas available'}
                 </SelectItem>
-              ))
-            ) : (
-              <SelectItem value="__loading__" disabled>
-                {isLoadingAreas ? 'Loading...' : 'No areas available'}
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-gray-500 mt-1">
-          Select from Dubai districts (synced with map areas)
-        </p>
+              )}
+            </SelectContent>
+          </Select>
+        )}
+        <p className="text-xs text-gray-500 mt-1">{t('basicInfo.areaHint')}</p>
       </div>
 
       {/* Description */}
