@@ -31,6 +31,7 @@ import { geocodeAddress } from '../services/geocoding';
 import { extractPdfTextPages, TextLayerRegistry, type PdfTextLayer } from './utils/text-layer';
 import { extractTextInsights, applyTextInsights, type TextInsights } from './agents/text-insights-extractor.agent';
 import { computeSubmitReadiness } from './utils/submit-readiness';
+import { resolveCanonicalArea } from './utils/canonical-area';
 
 // Memory monitoring to prevent OOM crashes
 const MEMORY_THRESHOLD_MB = 3500; // Warn when heap exceeds this
@@ -554,6 +555,28 @@ export async function executePdfWorkflow(
       } else {
         console.log(`   ⚠️  Could not geocode address, coordinates not set`);
       }
+    }
+
+    // ============================================================
+    // STEP 3.6: Canonicalize area — map extracted (marketing) area names to
+    // the dubai_areas entry by coordinate containment ("City Walk" → "CityWalk").
+    // Deterministic spatial lookup, no AI guessing.
+    // ============================================================
+    try {
+      const canonical = await resolveCanonicalArea(
+        finalData.latitude,
+        finalData.longitude,
+        finalData.area
+      );
+      if (canonical && canonical !== finalData.area) {
+        console.log(`   📍 [AREA] Canonicalized: "${finalData.area || '(empty)'}" → "${canonical}"`);
+        if (finalData.area && finalData.area.toUpperCase().replace(/\s+/g, '') !== canonical.toUpperCase().replace(/\s+/g, '')) {
+          allWarnings.push(`区域已按坐标匹配为地图区域: "${finalData.area}" → "${canonical}"`);
+        }
+        finalData.area = canonical;
+      }
+    } catch (areaError) {
+      console.warn(`   ⚠️  Area canonicalization failed:`, areaError);
     }
 
     // ============================================================
