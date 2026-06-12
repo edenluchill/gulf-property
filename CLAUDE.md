@@ -73,13 +73,23 @@ cd backend && npx ts-node scripts/db-query.ts "SELECT * FROM table LIMIT 5"
 
 **Deploy scripts:**
 ```powershell
-# Deploy main API
-$env:GITHUB_TOKEN = "your_token"
-.\hetzner-deploy.ps1
+# Deploy main API (build + push ghcr pinzos-backend + ssh restart + LB check)
+$env:GITHUB_TOKEN = "your_token"   # usually already in user env
+cd backend; .\hetzner-deploy.ps1
 
-# Deploy worker (separate server)
-.\hetzner-deploy-worker.ps1
+# Deploy worker — NO separate script. Worker runs image ghcr.io/edenluchill/pinzos-worker
+# built from backend/Dockerfile.worker (entry: backend/src/worker/index.ts → dist/worker/index.js):
+cd backend
+docker build -f Dockerfile.worker -t ghcr.io/edenluchill/pinzos-worker:latest .
+docker push ghcr.io/edenluchill/pinzos-worker:latest
+# then on the worker server (compose file at /opt/pinzos-worker/docker-compose.yml):
+#   ssh root@<worker-ip> "cd /opt/pinzos-worker && docker compose pull && docker compose up -d"
+# NOTE: GHCR login on the server may expire; pipe the token via Git Bash (NOT PowerShell —
+# PS 5.1 piping adds a UTF-8 BOM that corrupts the token):
+#   printf '%s' "$GITHUB_TOKEN" | ssh root@<worker-ip> "docker login ghcr.io -u edenluchill --password-stdin"
 ```
+
+⚠️ The legacy top-level `worker/` directory is a STALE copy of langgraph (unused since 2026-06-12) — the worker now builds from `backend/src`. Do not edit `worker/`.
 
 **Environment variables for worker mode:**
 - `USE_WORKER_MODE=true` - API uploads to R2, worker processes
