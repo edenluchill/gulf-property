@@ -90,8 +90,9 @@ export async function processJob(job: PendingJob): Promise<void> {
       return;
     }
 
-    // Step 1: Download PDFs from R2
-    await updateProgress(jobId, 'Downloading PDFs from storage...', 1);
+    // Step 1: Download PDFs from R2 (worker-side fetch — phrase it as
+    // "preparing" so admins don't think their browser is downloading)
+    await updateProgress(jobId, 'Preparing files on processing server...', 1);
 
     const pdfBuffers: Buffer[] = [];
     const pdfNames: string[] = [];
@@ -112,7 +113,7 @@ export async function processJob(job: PendingJob): Promise<void> {
 
       await updateProgress(
         jobId,
-        `Downloading ${name}...`,
+        `Preparing ${name}...`,
         Math.round((i / pdf_urls.length) * 5) + 1
       );
 
@@ -127,7 +128,7 @@ export async function processJob(job: PendingJob): Promise<void> {
       }
     }
 
-    await updateProgress(jobId, `Downloaded ${pdfBuffers.length} PDFs`, 5);
+    await updateProgress(jobId, `Files ready (${pdfBuffers.length}), starting analysis...`, 5);
 
     // Step 2: Process PDFs using workflow executor
     await updateProgress(jobId, 'Starting PDF analysis...', 6);
