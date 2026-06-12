@@ -33,6 +33,10 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Drop devDependencies (typescript, ts-node, @types/*) — keeps compiled
+# native modules (canvas) without rebuilding them in the final stage
+RUN npm prune --omit=dev
+
 # ============================================================================
 # Stage 2: Production Worker
 # ============================================================================
@@ -57,20 +61,25 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# /app itself must be writable by nodejs — the worker mkdirs temp/uploads
+# subpaths at runtime. Chown of the (empty) dir costs nothing.
+RUN chown nodejs:nodejs /app
+
+# Copy with ownership set at COPY time — a separate `RUN chown -R /app`
+# would duplicate every copied file into a new layer (+327MB measured)
+COPY --chown=nodejs:nodejs package*.json ./
 
 # Copy node_modules from builder
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 
 # Copy built application from builder
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
 # Copy data files (GeoJSON, etc.)
-COPY --from=builder /app/data ./data
+COPY --from=builder --chown=nodejs:nodejs /app/data ./data
 
-# Create temp directory for PDF processing
-RUN mkdir -p /app/temp /app/uploads && chown -R nodejs:nodejs /app
+# Create temp directories for PDF processing (chown only these, not /app)
+RUN mkdir -p /app/temp /app/uploads && chown nodejs:nodejs /app/temp /app/uploads
 
 # Switch to non-root user
 USER nodejs

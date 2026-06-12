@@ -48,3 +48,16 @@ build 阶段从 ~60s 降到几秒。但 build 不是大头,优先级最低。
 ## 建议执行顺序
 
 **1(CI/CD)→ 2(瘦身)**,3 可顺手做。1+2 完成后:部署 = git push,约 3 分钟无人值守,两个服务永远同步。
+
+## 实施结果(2026-06-12 当天落地)
+
+用户决定 CI/CD 暂缓,先做本地提速。已完成:
+
+- **镜像瘦身:938MB → 583MB(-38%)**。两个原因:
+  1. `RUN chown -R nodejs:nodejs /app` 把整个 /app 复制进新层(实测 +327MB)→ 改为 `COPY --chown=`;
+  2. 生产镜像带着 devDependencies → builder 里 `npm prune --omit=dev`。
+  踩坑:/app 目录本身必须 chown 给 nodejs(应用启动时 mkdir voice-debug-logs 等),否则容器 crash loop——已在 Dockerfile 中用零成本的空目录 chown 解决。
+- **`backend/quick-deploy.ps1`(新)**:一条命令 build+push 两个镜像 → ssh 重启两台服务器 → 健康检查(API 重试至 2 分钟等 LB 恢复)。内置 GHCR 登录过期自动重授权(token 经 ASCII 临时文件 + cmd stdin 传输,绕开 PS 5.1 BOM 坑)。日常部署从 ~7 分钟两套手动流程 → **一条命令 ~2-3 分钟**。
+- `hetzner-deploy.ps1` 保留用于基建变更(建服务器/LB/防火墙)。
+
+CI/CD(方案1)仍然推荐以后做:Hetzner 并不难搞——runner 构建后 ssh 进服务器 pull 即可,和 quick-deploy.ps1 的服务器侧步骤完全一样,只是把本地 build/push 挪到 GitHub runner 上。

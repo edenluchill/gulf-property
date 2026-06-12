@@ -73,7 +73,10 @@ cd backend && npx ts-node scripts/db-query.ts "SELECT * FROM table LIMIT 5"
 
 **Deploy scripts:**
 ```powershell
-# Deploy main API (build + push ghcr pinzos-backend + ssh restart + LB check)
+# ⭐ Daily driver — deploys BOTH API and worker in one command (~2-3 min):
+cd backend; .\quick-deploy.ps1          # or -SkipWorker / -SkipApi
+
+# Full infra deploy (only when servers/LB/firewall need creating/reconciling):
 $env:GITHUB_TOKEN = "your_token"   # usually already in user env
 cd backend; .\hetzner-deploy.ps1
 
