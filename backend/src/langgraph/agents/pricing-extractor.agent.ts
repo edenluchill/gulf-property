@@ -64,7 +64,8 @@ export interface PricingExtractionResult {
 export async function extractPricing(
   imageUrl: string,
   pageNumber: number,
-  currentBuilding?: string  // 从上下文传入的当前building
+  currentBuilding?: string,  // 从上下文传入的当前building
+  pageText?: string  // ⭐ PDF 文本层内容（价格数字以此为准）
 ): Promise<PricingExtractionResult> {
   const TIMEOUT_MS = 20000; // 20 seconds
 
@@ -76,7 +77,10 @@ export async function extractPricing(
       },
     });
 
-    const prompt = createPricingPrompt(currentBuilding);
+    let prompt = createPricingPrompt(currentBuilding);
+    if (pageText) {
+      prompt += `\n\n## 页面文字内容（PDF文本层，价格/面积数字以此为准）\n${pageText}`;
+    }
 
     // ⚡ Fetch image with timeout
     const controller = new AbortController();

@@ -566,9 +566,11 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           floor_plan_descriptions,
           verified,
           status,
-          payment_plan
+          payment_plan,
+          service_charge_per_sqft,
+          landmark_distances
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
         )
         RETURNING id
       `, [
@@ -595,6 +597,8 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         true,  // Auto-verify for now (no approval workflow)
         data.status || 'upcoming',  // Support sold-out status
         JSON.stringify(paymentPlanJson),
+        (data as any).serviceCharge ?? null,
+        (data as any).landmarks?.length ? JSON.stringify((data as any).landmarks) : null,
       ])
 
       const projectId = projectResult.rows[0].id
@@ -692,9 +696,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
               description,
               floor_plan_image,
               unit_images,
-              display_order
+              display_order,
+              parking_spaces
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
             )
           `, [
             projectId,
@@ -716,6 +721,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
             unitFloorPlanImage || null, // Use migrated URL (backwards compatibility)
             unitImages, // Floor plan + additional images array
             i,  // display_order
+            (unit as any).parkingSpaces ?? null,  // ⭐ Parking allocation from text-layer inventory
           ])
         }
         console.log('✅ Unit types inserted')

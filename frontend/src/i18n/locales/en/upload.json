@@ -1,6 +1,40 @@
 {
   "title": "Smart PDF Extraction System",
   "subtitle": "AI-powered real estate project information extraction and structuring",
+  "readiness": {
+    "fieldName": "Project name",
+    "fieldDeveloper": "Developer",
+    "fieldAddress": "Address",
+    "fieldArea": "Area",
+    "issueArea": "Missing area",
+    "issueBedrooms": "Missing bedrooms",
+    "issuePrice": "Missing price",
+    "issueFloorPlan": "No floor plan",
+    "ready": "All information complete — ready to submit",
+    "missingFields": "Missing required project fields: {{fields}}",
+    "blockedUnits": "{{count}} unit(s) incomplete — they will be FILTERED at submission",
+    "warningUnits": "{{count}} unit(s) missing optional info (still submittable)",
+    "noUnits": {
+      "title": "No unit types extracted",
+      "desc": "This document appears to be a marketing-only brochure (renderings only, no floor plans or pricing pages).",
+      "hint": "Please add a file containing floor plans or a pricing table (e.g. fact sheet, unit handbook) and process them together."
+    },
+    "duplicate": {
+      "title": "Possible duplicate project",
+      "desc": "Similar project name(s) already exist: {{names}}. Please confirm this is not a duplicate, or that it is a different phase."
+    },
+    "extraInfoTitle": "Additional info (from brochure text)",
+    "serviceCharge": "Service charge",
+    "landmarks": "Nearby landmarks"
+  },
+  "reviewDialog": {
+    "title": "Confirm Project Submission",
+    "unitCount": "{{count}} unit types",
+    "coordSet": "Map coordinates set",
+    "coordNotSet": "Map coordinates NOT set",
+    "cancel": "Back to review",
+    "confirm": "Confirm & Submit"
+  },
   "steps": {
     "upload": "Upload PDF",
     "extract": "AI Extract",

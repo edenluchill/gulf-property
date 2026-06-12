@@ -60,12 +60,16 @@ export async function analyzePageWithAI(
   chunkIndex: number,
   _jobId?: string,
   imageUrls?: ImageUrls,
-  _pdfHash?: string  // 保留参数兼容性，但不再使用
+  _pdfHash?: string,  // 保留参数兼容性，但不再使用
+  pageText?: string,  // ⭐ PDF 文本层内容（辅助分类与提取）
+  precomputedClassification?: import('./page-classifier.agent').ClassificationResult  // ⭐ 批量分类结果（跳过 Phase 1）
 ): Promise<PageMetadata> {
 
   try {
     // ============ Phase 1: Lightweight Classification ============
-    const classification = await classifyPage(imageUrl, pageNumber);
+    // ⚡ 批量分类已覆盖时直接复用；否则单页分类（含降级路径）
+    const classification = precomputedClassification
+      ?? await classifyPage(imageUrl, pageNumber, pageText);
 
     // ============ Phase 2: Conditional Detailed Extraction ============
     let unitInfo: UnitPageInfo | undefined = undefined;
@@ -81,7 +85,7 @@ export async function analyzePageWithAI(
     if (classification.pageType === PageType.UNIT_ANCHOR && classification.unitTypeName) {
       console.log(`   🎯 [PAGE-ANALYZER] Detected unit_anchor: ${classification.unitTypeName} on page ${pageNumber}, scheduling extraction...`);
       extractionPromises.push(
-        extractUnitDetails(imageUrl, classification.unitTypeName, pageNumber)
+        extractUnitDetails(imageUrl, classification.unitTypeName, pageNumber, pageText)
           .then((details: any) => {
             console.log(`   ✅ [PAGE-ANALYZER] Unit details extraction completed for ${classification.unitTypeName}`);
             console.log(`   📊 [PAGE-ANALYZER] Specs: bedrooms=${details.specs?.bedrooms}, area=${details.specs?.area}, bathrooms=${details.specs?.bathrooms}`);
@@ -134,7 +138,7 @@ export async function analyzePageWithAI(
         classification.pageType === PageType.PROJECT_OVERVIEW ||
         classification.pageType === PageType.PROJECT_SUMMARY) {
       extractionPromises.push(
-        extractProjectInfo(imageUrl, pageNumber)
+        extractProjectInfo(imageUrl, pageNumber, pageText)
           .then((info: any) => {
             if (Object.keys(info).length > 0) {
               projectInfoData = info;
@@ -150,7 +154,7 @@ export async function analyzePageWithAI(
     // 4. Payment plan extraction ⭐
     if (classification.pageType === PageType.PAYMENT_PLAN) {
       extractionPromises.push(
-        extractPaymentPlan(imageUrl, pageNumber)
+        extractPaymentPlan(imageUrl, pageNumber, pageText)
           .then((plan: any) => {
             if (plan) {
               paymentPlanData = plan;
@@ -172,7 +176,7 @@ export async function analyzePageWithAI(
       }
 
       extractionPromises.push(
-        extractPricing(imageUrl, pageNumber, currentBuilding)  // ⭐ 添加 currentBuilding 参数
+        extractPricing(imageUrl, pageNumber, currentBuilding, pageText)  // ⭐ currentBuilding + 文本层辅助
           .then((result: PricingExtractionResult) => {
             if (result.entries.length > 0) {
               pricingData = result;

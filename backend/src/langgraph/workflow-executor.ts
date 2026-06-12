@@ -28,6 +28,9 @@ import { PageRegistryManager } from './core/page-registry';
 import { TaskAbortedError, taskManager } from '../services/task-manager';
 import { startJobLogging, stopJobLogging } from '../utils/job-logger';
 import { geocodeAddress } from '../services/geocoding';
+import { extractPdfTextPages, TextLayerRegistry, type PdfTextLayer } from './utils/text-layer';
+import { extractTextInsights, applyTextInsights, type TextInsights } from './agents/text-insights-extractor.agent';
+import { computeSubmitReadiness } from './utils/submit-readiness';
 
 // Memory monitoring to prevent OOM crashes
 const MEMORY_THRESHOLD_MB = 3500; // Warn when heap exceeds this
@@ -150,7 +153,34 @@ export async function executePdfWorkflow(
     // ============================================================
     console.log(`\n🔐 Calculating PDF hashes for cache lookup...`);
     const pdfHashes = calculatePdfHashes(pdfBuffers, pdfNames);
-    
+
+    // ============================================================
+    // STEP 0.5: Extract PDF text layer (must run BEFORE chunking —
+    // pdfBuffers are cleared after splitAllPdfsIntoChunks)
+    // ============================================================
+    console.log(`\n📜 Extracting PDF text layer...`);
+    const textLayerStart = Date.now();
+    const textLayers: PdfTextLayer[] = [];
+    for (let i = 0; i < pdfBuffers.length; i++) {
+      const pages = await extractPdfTextPages(pdfBuffers[i]);
+      textLayers.push({
+        pdfHash: pdfHashes[i].hash,
+        pdfName: pdfHashes[i].name,
+        pages,
+      });
+    }
+    TextLayerRegistry.set(jobId, textLayers);
+    const fullText = TextLayerRegistry.getFullText(jobId);
+    console.log(`   ✓ Text layer extracted: ${fullText.length} chars across ${textLayers.reduce((s, l) => s + l.pages.length, 0)} pages (${Date.now() - textLayerStart}ms)`);
+
+    // 🔄 Project-level text pass runs in PARALLEL with image gen + chunk
+    // processing; awaited just before final assembly.
+    const textInsightsPromise: Promise<TextInsights | null> = extractTextInsights(fullText)
+      .catch(err => {
+        console.warn(`   ⚠️  Text insights pass failed: ${err?.message}`);
+        return null;
+      });
+
     // Check if we have cached results for any PDFs
     progressEmitter.emit(jobId, {
       stage: 'ingestion',
@@ -493,6 +523,17 @@ export async function executePdfWorkflow(
     const finalData = finalAggregatedData;
 
     // ============================================================
+    // STEP 3.2: Merge text-layer insights (dates, developer guard,
+    // payment milestones, inventory/parking, service charge, landmarks)
+    // ============================================================
+    try {
+      const textInsights = await textInsightsPromise;
+      applyTextInsights(finalData, textInsights, fullText, allWarnings);
+    } catch (insightsError) {
+      console.warn(`   ⚠️  Failed to apply text insights:`, insightsError);
+    }
+
+    // ============================================================
     // STEP 3.5: Auto-geocode address to get coordinates
     // ============================================================
     if (finalData.address && !finalData.latitude && !finalData.longitude) {
@@ -514,6 +555,17 @@ export async function executePdfWorkflow(
         console.log(`   ⚠️  Could not geocode address, coordinates not set`);
       }
     }
+
+    // ============================================================
+    // STEP 3.7: Submit readiness (structured — rides inside buildingData
+    // so it reaches the frontend in both inline and worker modes)
+    // ============================================================
+    const submitReadiness = computeSubmitReadiness(finalData);
+    (finalData as any).submitReadiness = submitReadiness;
+    if (!submitReadiness.submittable && submitReadiness.message) {
+      allWarnings.push(submitReadiness.message);
+    }
+    console.log(`\n🚦 Submit readiness: ${submitReadiness.submittable ? '✅ YES' : `❌ NO — ${submitReadiness.message}`}`);
 
     // Log summary
     console.log(`\n📊 Final Summary:`);
@@ -642,6 +694,7 @@ export async function executePdfWorkflow(
     // Cleanup PageRegistry for this job (unless aborted for resume)
     if (!abortSignal?.aborted) {
       PageRegistryManager.delete(jobId);
+      TextLayerRegistry.delete(jobId);
     }
   }
 }

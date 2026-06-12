@@ -33,6 +33,7 @@ interface UnitType {
   description?: string;     // ⭐ 户型描述
   floorPlanImage?: string;
   floorPlanImages?: string[]; // Support multiple images
+  parkingSpaces?: number;   // ⭐ 车位配比（楼书文本层库存表）
 }
 
 interface UnitTypeCardProps {
@@ -74,6 +75,7 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
               <div className="text-sm text-gray-600 mt-0.5">
                 {unit.area} sqft • {unit.bedrooms}BR • {unit.bathrooms}BA
                 {unit.price && ` • AED ${unit.price.toLocaleString()}`}
+                {unit.parkingSpaces != null && ` • 🚗 ${unit.parkingSpaces}`}
               </div>
               {unit.unitCount && (
                 <div className="text-xs text-teal-600 mt-1 font-medium">

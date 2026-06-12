@@ -32,7 +32,8 @@ export interface PaymentPlan {
  */
 export async function extractPaymentPlan(
   imagePath: string,
-  pageNumber: number
+  pageNumber: number,
+  pageText?: string  // ⭐ PDF 文本层内容（百分比/日期以此为准）
 ): Promise<PaymentPlan | null> {
   const TIMEOUT_MS = 20000; // 20 seconds
 
@@ -134,9 +135,14 @@ export async function extractPaymentPlan(
 
 只返回JSON，不要其他文字。`;
 
+    // ⭐ 文本层辅助：百分比和日期以文字为准
+    const finalPrompt = pageText
+      ? `${prompt}\n\n## 页面文字内容（PDF文本层，百分比和日期以此为准）\n${pageText}`
+      : prompt;
+
     // ⚡ AI call with timeout
     const aiPromise = model.generateContent([
-      prompt,
+      finalPrompt,
       {
         inlineData: {
           mimeType: 'image/png',

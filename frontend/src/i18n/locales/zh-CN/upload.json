@@ -1,6 +1,40 @@
 {
   "title": "智能 PDF 提取系统",
   "subtitle": "AI 驱动的房地产项目信息自动提取与结构化处理",
+  "readiness": {
+    "fieldName": "项目名称",
+    "fieldDeveloper": "开发商",
+    "fieldAddress": "地址",
+    "fieldArea": "区域",
+    "issueArea": "缺少面积",
+    "issueBedrooms": "缺少卧室数",
+    "issuePrice": "缺少价格",
+    "issueFloorPlan": "没有户型图",
+    "ready": "所有信息齐全，可以提交",
+    "missingFields": "项目缺少必填字段: {{fields}}",
+    "blockedUnits": "{{count}} 个户型信息不完整，提交时会被过滤",
+    "warningUnits": "{{count}} 个户型信息不全（仍可提交）",
+    "noUnits": {
+      "title": "没有提取到户型",
+      "desc": "这本资料可能是纯营销画册（只有效果图，没有平面图/价格页）。",
+      "hint": "请补充包含户型平面图或价格表的文件（如 fact sheet、户型手册），与本文件一起重新上传处理。"
+    },
+    "duplicate": {
+      "title": "可能与现有项目重复",
+      "desc": "数据库中已有相似名称的项目: {{names}}。请确认这不是重复提交，或属于不同期数（Phase）。"
+    },
+    "extraInfoTitle": "附加信息（来自楼书文字）",
+    "serviceCharge": "服务费",
+    "landmarks": "周边地标距离"
+  },
+  "reviewDialog": {
+    "title": "确认提交项目",
+    "unitCount": "{{count}} 个户型",
+    "coordSet": "地图坐标已设置",
+    "coordNotSet": "地图坐标未设置",
+    "cancel": "返回检查",
+    "confirm": "确认提交"
+  },
   "steps": {
     "upload": "上传 PDF",
     "extract": "AI 提取",

@@ -23,8 +23,9 @@ import { VisualContentSection } from '../components/developer-upload/VisualConte
 import { PaymentPlanSection } from '../components/developer-upload/PaymentPlanSection'
 import { AmenitiesSection } from '../components/developer-upload/AmenitiesSection'
 import { ExtractedPricingSection } from '../components/developer-upload/ExtractedPricingSection'
+import { SubmitReviewDialog, type ClientReadiness } from '../components/developer-upload/SubmitReviewDialog'
 import LocationMapPickerModal from '../components/LocationMapPicker'
-import { API_ENDPOINTS } from '../lib/config'
+import { API_ENDPOINTS, API_BASE_URL } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
 
 interface UnitType {
@@ -46,6 +47,21 @@ interface UnitType {
   description?: string      // ⭐ 户型描述 (AI-generated or manual)
   floorPlanImage?: string
   floorPlanImages?: string[]
+  parkingSpaces?: number    // ⭐ 车位配比（来自楼书文本层库存表）
+}
+
+interface Landmark {
+  name: string
+  distanceKm: number
+}
+
+interface ServerReadiness {
+  submittable: boolean
+  missingProjectFields: string[]
+  unitsCount: number
+  blockedUnits: { name: string; category?: string; blockers: string[]; warnings: string[] }[]
+  warningUnits: { name: string; category?: string; blockers: string[]; warnings: string[] }[]
+  message?: string
 }
 
 interface Document {
@@ -94,6 +110,8 @@ interface FormData {
     floorPlanDescriptions?: string[]
   }
   extractedPricing?: ExtractedPricingEntry[]
+  serviceCharge?: number       // ⭐ 服务费 AED/sqft/年（文本层提取）
+  landmarks?: Landmark[]       // ⭐ 周边地标距离（文本层提取）
 }
 
 interface ProgressEvent {
@@ -121,6 +139,9 @@ export default function DeveloperPropertyUploadPageV2() {
   const [hasReviewed, setHasReviewed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [serverReadiness, setServerReadiness] = useState<ServerReadiness | null>(null)
+  const [showReviewDialog, setShowReviewDialog] = useState(false)
+  const [duplicateNames, setDuplicateNames] = useState<string[]>([])
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -309,8 +330,15 @@ export default function DeveloperPropertyUploadPageV2() {
               floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
               visualContent: buildingData.visualContent || prev.visualContent,
               extractedPricing: buildingData.extractedPricing || prev.extractedPricing,
+              serviceCharge: buildingData.serviceCharge ?? prev.serviceCharge,
+              landmarks: buildingData.landmarks || prev.landmarks,
             }
           })
+
+          // ⭐ 结构化提交就绪检查（后端计算，含修复后的最终状态）
+          if (buildingData.submitReadiness) {
+            setServerReadiness(buildingData.submitReadiness)
+          }
         }
 
         if (progressEvent.stage === 'complete') {
@@ -319,6 +347,11 @@ export default function DeveloperPropertyUploadPageV2() {
           setIsUploading(false)
           setHasReviewed(false) // 重置review状态
           eventSource.close()
+          // ⭐ 查重：与库里已有项目按名称比对
+          const extractedName = progressEvent.data?.buildingData?.name
+          if (extractedName) {
+            checkDuplicateProjects(extractedName)
+          }
         }
 
         if (progressEvent.stage === 'error') {
@@ -351,30 +384,78 @@ export default function DeveloperPropertyUploadPageV2() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // ⭐ 查重：拉取项目名列表，归一化比对
+  const checkDuplicateProjects = async (projectName: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/residential-projects/meta/projects`)
+      if (!res.ok) return
+      const json = await res.json()
+      const existing: { project_name: string }[] = json.projects || json.data || json || []
+      const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]+/g, '')
+      const target = norm(projectName)
+      if (!target) return
+      const matches = existing
+        .map(p => p.project_name)
+        .filter(name => {
+          const n = norm(name || '')
+          return n && (n.includes(target) || target.includes(n))
+        })
+      if (matches.length > 0) {
+        console.warn('⚠️ Possible duplicate projects:', matches)
+        setDuplicateNames([...new Set(matches)])
+      }
+    } catch (err) {
+      console.warn('Duplicate check failed (non-fatal):', err)
+    }
+  }
 
-    // 防止意外提交：必须明确点击按钮
+  // ⭐ 客户端实时计算提交就绪状态（随表单编辑更新，规则与后端一致）
+  const computeClientReadiness = (): ClientReadiness => {
+    const missingProjectFields: string[] = []
+    if (!formData.projectName) missingProjectFields.push(t('readiness.fieldName'))
+    if (!formData.developer) missingProjectFields.push(t('readiness.fieldDeveloper'))
+    if (!formData.address) missingProjectFields.push(t('readiness.fieldAddress'))
+    if (!formData.area) missingProjectFields.push(t('readiness.fieldArea'))
+
+    const blockedUnits: { name: string; issues: string[] }[] = []
+    const warningUnits: { name: string; issues: string[] }[] = []
+    for (const u of formData.unitTypes) {
+      const blockers: string[] = []
+      const warnings: string[] = []
+      if (!u.area || u.area <= 0) blockers.push(t('readiness.issueArea'))
+      if (u.bedrooms == null) blockers.push(t('readiness.issueBedrooms'))
+      if (!u.price) warnings.push(t('readiness.issuePrice'))
+      if (!u.floorPlanImage && (!u.floorPlanImages || u.floorPlanImages.length === 0)) {
+        warnings.push(t('readiness.issueFloorPlan'))
+      }
+      const name = u.name || u.typeName || 'Unknown'
+      if (blockers.length > 0) blockedUnits.push({ name, issues: blockers })
+      else if (warnings.length > 0) warningUnits.push({ name, issues: warnings })
+    }
+
+    return {
+      missingProjectFields,
+      blockedUnits,
+      warningUnits,
+      unitsCount: formData.unitTypes.length,
+      submittable: missingProjectFields.length === 0
+        && formData.unitTypes.length > 0
+        && blockedUnits.length === 0,
+    }
+  }
+
+  // 表单提交 → 打开 review dialog（替代 window.confirm）
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
     if (isProcessing || isSubmitting) {
       console.log('⚠️ Still processing, blocking submit')
       return
     }
+    setShowReviewDialog(true)
+  }
 
-    // 二次确认
-    const confirmSubmit = window.confirm(
-      t('confirm.message', {
-        name: formData.projectName,
-        developer: formData.developer,
-        unitCount: formData.unitTypes.length,
-        coordStatus: formData.latitude && formData.longitude ? t('confirm.coordSet') : t('confirm.coordNotSet'),
-      })
-    )
-
-    if (!confirmSubmit) {
-      console.log('❌ User cancelled submit')
-      return
-    }
-
+  // Dialog 确认后真正提交
+  const doSubmit = async () => {
     setIsSubmitting(true)
     setError(null)
 
@@ -433,8 +514,11 @@ export default function DeveloperPropertyUploadPageV2() {
           description: unit.description,      // ⭐ 户型描述
           floorPlanImage: unit.floorPlanImage,
           floorPlanImages: unit.floorPlanImages,
+          parkingSpaces: unit.parkingSpaces,  // ⭐ 车位配比
         })),
         paymentPlan: formData.paymentPlan || [],
+        serviceCharge: formData.serviceCharge ?? null,   // ⭐ 服务费
+        landmarks: formData.landmarks || [],             // ⭐ 地标距离
       }
 
       console.log('📤 Submitting project:', submitData)
@@ -472,6 +556,7 @@ export default function DeveloperPropertyUploadPageV2() {
       // Show success notification
       alert(t('confirm.successAlert'))
       
+      setShowReviewDialog(false)
       setSubmitted(true)
       setTimeout(() => { window.location.href = '/map' }, 2000)
     } catch (err) {
@@ -688,6 +773,18 @@ export default function DeveloperPropertyUploadPageV2() {
                               </div>
                             )}
 
+                            {/* ⭐ 0户型空态：营销画册引导（处理完成但没有提取到任何户型） */}
+                            {!isProcessing && !isUploading && hasStarted && formData.unitTypes.length === 0 && serverReadiness && (
+                              <div className="py-10 px-8 bg-amber-50 rounded-xl border-2 border-amber-300 shadow-inner text-center">
+                                <div className="text-4xl mb-3">📖</div>
+                                <h4 className="text-lg font-bold text-amber-900 mb-2">{t('readiness.noUnits.title')}</h4>
+                                <p className="text-sm text-amber-800 max-w-xl mx-auto">
+                                  {serverReadiness.message || t('readiness.noUnits.desc')}
+                                </p>
+                                <p className="text-xs text-amber-700 mt-3">{t('readiness.noUnits.hint')}</p>
+                              </div>
+                            )}
+
                             {/* Grouped Units */}
                             {Object.entries(groupedUnits).map(([groupKey, units]) => {
                               const isUncategorized = groupKey === 'Uncategorized';
@@ -745,6 +842,42 @@ export default function DeveloperPropertyUploadPageV2() {
                             isProcessing={isProcessing}
                           />
 
+                          {/* ⭐ 文本层附加信息：服务费 + 地标距离 */}
+                          {(formData.serviceCharge != null || (formData.landmarks && formData.landmarks.length > 0)) && (
+                            <div className="space-y-4 pt-6 border-t-2 border-gray-100">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-1 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
+                                <h3 className="text-xl font-bold text-gray-900">{t('readiness.extraInfoTitle')}</h3>
+                              </div>
+                              {formData.serviceCharge != null && (
+                                <div className="flex items-center gap-3 text-sm">
+                                  <span className="font-semibold text-gray-700">{t('readiness.serviceCharge')}:</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={formData.serviceCharge}
+                                    onChange={(e) => handleFormChange('serviceCharge', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                    disabled={isProcessing}
+                                    className="w-28 px-3 py-1.5 border rounded-lg text-sm"
+                                  />
+                                  <span className="text-gray-500">AED/sqft</span>
+                                </div>
+                              )}
+                              {formData.landmarks && formData.landmarks.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-700 mb-2">{t('readiness.landmarks')}:</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {formData.landmarks.map((lm, i) => (
+                                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-900">
+                                        📍 {lm.name} · {lm.distanceKm} km
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Payment Plan */}
                           <PaymentPlanSection
                             paymentPlan={formData.paymentPlan}
@@ -756,6 +889,19 @@ export default function DeveloperPropertyUploadPageV2() {
                             pricing={formData.extractedPricing}
                             isProcessing={isProcessing}
                           />
+
+                          {/* ⭐ 查重提示 */}
+                          {!isProcessing && duplicateNames.length > 0 && (
+                            <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 flex items-start gap-3">
+                              <span className="text-2xl">⚠️</span>
+                              <div>
+                                <h4 className="font-bold text-amber-900">{t('readiness.duplicate.title')}</h4>
+                                <p className="text-sm text-amber-800 mt-1">
+                                  {t('readiness.duplicate.desc', { names: duplicateNames.slice(0, 3).join('、') })}
+                                </p>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Review Checklist */}
                           {!isProcessing && formData.unitTypes.length > 0 && (
@@ -774,7 +920,8 @@ export default function DeveloperPropertyUploadPageV2() {
                               
                               {/* Invalid Units Warning */}
                               {(() => {
-                                const invalidUnits = formData.unitTypes.filter(u => !u.area || u.area <= 0);
+                                // 与后端提交过滤规则一致：area<=0 或 bedrooms 缺失都会被过滤
+                                const invalidUnits = formData.unitTypes.filter(u => !u.area || u.area <= 0 || u.bedrooms == null);
                                 if (invalidUnits.length > 0) {
                                   return (
                                     <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 space-y-3">
@@ -928,6 +1075,19 @@ export default function DeveloperPropertyUploadPageV2() {
             : undefined
         }
         address={formData.address}
+      />
+
+      {/* ⭐ Submit Review Dialog（替代 window.confirm） */}
+      <SubmitReviewDialog
+        open={showReviewDialog}
+        onOpenChange={setShowReviewDialog}
+        onConfirm={doSubmit}
+        isSubmitting={isSubmitting}
+        projectName={formData.projectName}
+        developer={formData.developer}
+        readiness={computeClientReadiness()}
+        hasCoordinates={!!(formData.latitude && formData.longitude)}
+        duplicateNames={duplicateNames}
       />
 
       {/* Submitting Overlay */}

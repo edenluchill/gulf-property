@@ -14,9 +14,11 @@
 
 import type { PdfChunk } from '../../utils/pdf/chunker';
 import { analyzePageWithAI } from '../agents/page-analyzer.agent';
+import { classifyPagesBatch, type BatchClassifyInput, type ClassificationResult } from '../agents/page-classifier.agent';
 import { PageMetadata } from '../types/page-metadata';
 import type { PdfImageBatch } from '../utils/pdf-image-generator';
 import { getAllVariantUrls } from '../utils/pdf-image-generator';
+import { TextLayerRegistry, clipForPrompt } from '../utils/text-layer';
 
 export interface ChunkProcessingConfig {
   chunk: PdfChunk & { sourceFile: string; pdfHash: string; imageBatch?: PdfImageBatch };
@@ -60,33 +62,57 @@ export async function processSingleChunk(
     
     // 1. AI分析每一页（使用R2 URLs）- ⭐ OPTIMIZED: Parallel processing
     const pagesInChunk = chunk.pageRange.end - chunk.pageRange.start + 1;
-    
-    console.log(`   🔄 Analyzing ${pagesInChunk} pages in parallel...`);
-    
-    // ⭐ Create parallel promises for all pages in this chunk
-    const pagePromises = Array.from({ length: pagesInChunk }, (_, localIdx) => {
+
+    console.log(`   🔄 Analyzing ${pagesInChunk} pages...`);
+
+    // ⭐ Collect page inputs (image URLs + text-layer assist)
+    const pageInputs = Array.from({ length: pagesInChunk }, (_, localIdx) => {
       const absolutePageNum = chunk.pageRange.start + localIdx;
-      
-      // Get pre-generated image URLs from imageBatch
       const imageUrls = getAllVariantUrls(imageBatch, absolutePageNum);
-      
       if (!imageUrls) {
         console.warn(`   ⚠️ No image found for page ${absolutePageNum}, skipping`);
         return null;
       }
+      const pageText = jobId
+        ? clipForPrompt(TextLayerRegistry.getPageText(jobId, chunk.pdfHash, absolutePageNum))
+        : undefined;
+      return { absolutePageNum, imageUrls, pageText };
+    }).filter((p): p is NonNullable<typeof p> => p !== null);
 
-      // AI analyzes using R2 URL (no local file needed!)
-      return analyzePageWithAI(
-        imageUrls.large,  // ⭐ R2 URL - 'large' variant for AI analysis
-        absolutePageNum,
+    // ⚡ Phase A: batch classification — ONE call for the whole chunk
+    // (验证过 batch=4~6 关键页零损失；失败/缺页自动降级为逐页分类)
+    let batchClassifications: Map<number, ClassificationResult> | null = null;
+    try {
+      const batchInputs: BatchClassifyInput[] = pageInputs.map(p => ({
+        pageNumber: p.absolutePageNum,
+        imageUrl: p.imageUrls.large,
+        pageText: p.pageText,
+      }));
+      batchClassifications = await classifyPagesBatch(batchInputs);
+      const missing = pageInputs.filter(p => !batchClassifications!.has(p.absolutePageNum));
+      if (missing.length > 0) {
+        console.warn(`   ⚠️ Batch classify missed ${missing.length} pages, they fall back to per-page`);
+      }
+    } catch (batchClassifyError) {
+      console.warn(`   ⚠️ Batch classification failed, falling back to per-page: ${(batchClassifyError as Error).message}`);
+    }
+
+    // ⭐ Phase B: per-page detail extraction in parallel
+    // (有批量分类结果的页跳过 Phase 1；没有的走原单页路径)
+    const pagePromises = pageInputs.map(p =>
+      analyzePageWithAI(
+        p.imageUrls.large,
+        p.absolutePageNum,
         chunk.sourceFile,
         chunkIndex,
         jobId,
-        imageUrls,  // ⭐ Pass all variant URLs
-        chunk.pdfHash  // ⭐ Pass pdfHash for multi-unit cropping
-      );
-    });
-    
+        p.imageUrls,
+        chunk.pdfHash,
+        p.pageText,
+        batchClassifications?.get(p.absolutePageNum)
+      )
+    );
+
     // ⭐ Wait for all pages to complete in parallel
     const pageResults = await Promise.all(pagePromises);
 

@@ -34,7 +34,8 @@ export interface ProjectBasicInfo {
  */
 export async function extractProjectInfo(
   imagePath: string,
-  pageNumber: number
+  pageNumber: number,
+  pageText?: string  // ⭐ PDF 文本层内容（开发商/日期以此为准，防幻觉）
 ): Promise<ProjectBasicInfo> {
   const TIMEOUT_MS = 20000; // 20 seconds
 
@@ -133,9 +134,14 @@ export async function extractProjectInfo(
 
 只返回JSON，如果某字段没有就不要包含该字段。`;
 
+    // ⭐ 文本层辅助：开发商/日期必须有文字依据，防幻觉
+    const finalPrompt = pageText
+      ? `${prompt}\n\n## 页面文字内容（PDF文本层，开发商名称和日期必须以此为准；文字中没有的不要编造）\n${pageText}`
+      : prompt;
+
     // ⚡ AI call with timeout
     const aiPromise = model.generateContent([
-      prompt,
+      finalPrompt,
       {
         inlineData: {
           mimeType: 'image/png',

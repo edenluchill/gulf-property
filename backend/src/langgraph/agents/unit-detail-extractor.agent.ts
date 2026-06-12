@@ -38,7 +38,8 @@ export interface UnitDetailResult {
 export async function extractUnitDetails(
   imageUrl: string,
   unitTypeName: string,
-  pageNumber: number
+  pageNumber: number,
+  pageText?: string  // ⭐ PDF 文本层内容（数字提取的可靠依据）
 ): Promise<UnitDetailResult> {
   
   console.log(`   🔎 [UNIT-EXTRACTOR] Starting extraction for ${unitTypeName} (page ${pageNumber})`);
@@ -53,7 +54,10 @@ export async function extractUnitDetails(
       },
     });
 
-    const prompt = createExtractionPrompt(unitTypeName, pageNumber);
+    let prompt = createExtractionPrompt(unitTypeName, pageNumber);
+    if (pageText) {
+      prompt += `\n\n## 页面文字内容（PDF文本层，数字以此为准）\n${pageText}`;
+    }
     console.log(`   🔎 [UNIT-EXTRACTOR] Prompt created, fetching image from R2...`);
 
     // Fetch image from R2

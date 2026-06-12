@@ -10,6 +10,7 @@
 
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import { computeSubmitReadiness } from '../utils/submit-readiness';
 
 export interface PageAnalysisResult {
   pageNumber: number;
@@ -212,23 +213,24 @@ export class ResultRecorder {
     lines.push('');
     
     // ============ 提交就绪检查（最重要的一节，放最前面） ============
+    // Single source of truth: utils/submit-readiness.ts (same struct the API returns)
     const fd = result.finalData || {};
-    const missingProjectFields = (['name', 'developer', 'address', 'area'] as const)
-      .filter(f => !fd[f]);
     const units: any[] = fd.units || [];
-    const brokenUnits = units.filter(u => !(u.area > 0) || u.bedrooms == null);
-    const submittable = missingProjectFields.length === 0 && units.length > 0 && brokenUnits.length === 0;
+    const readiness = computeSubmitReadiness(fd);
 
     lines.push('🚦 SUBMIT READINESS:');
-    lines.push(`  SUBMITTABLE: ${submittable ? '✅ YES' : '❌ NO'}`);
-    if (missingProjectFields.length > 0) {
-      lines.push(`  ❌ Missing project fields: ${missingProjectFields.join(', ')}`);
+    lines.push(`  SUBMITTABLE: ${readiness.submittable ? '✅ YES' : '❌ NO'}`);
+    if (readiness.missingProjectFields.length > 0) {
+      lines.push(`  ❌ Missing project fields: ${readiness.missingProjectFields.join(', ')}`);
     }
-    if (units.length === 0) {
+    if (readiness.unitsCount === 0) {
       lines.push('  ❌ No units extracted');
     }
-    if (brokenUnits.length > 0) {
-      lines.push(`  ❌ ${brokenUnits.length} unit(s) will be FILTERED at submission (area<=0 or bedrooms missing)`);
+    if (readiness.blockedUnits.length > 0) {
+      lines.push(`  ❌ ${readiness.blockedUnits.length} unit(s) will be FILTERED at submission (area<=0 or bedrooms missing)`);
+    }
+    if (readiness.message) {
+      lines.push(`  💡 ${readiness.message}`);
     }
     lines.push('');
 
@@ -256,6 +258,8 @@ export class ResultRecorder {
     lines.push(`  Completion: ${fd.completionDate || '-'} | Launch: ${fd.launchDate || '-'} | Handover: ${fd.handoverDate || '-'}`);
     lines.push(`  Description: ${fd.description ? `${fd.description.length} chars` : '❌ MISSING'}`);
     lines.push(`  Coordinates: ${fd.latitude && fd.longitude ? `${fd.latitude}, ${fd.longitude}` : '-'}`);
+    lines.push(`  Service Charge: ${fd.serviceCharge != null ? `AED ${fd.serviceCharge}/sqft` : '-'}`);
+    lines.push(`  Landmarks: ${fd.landmarks?.length ? fd.landmarks.map((l: any) => `${l.name} ${l.distanceKm}km`).slice(0, 5).join(', ') : '-'}`);
     lines.push('');
 
     lines.push('📦 CHUNK-BY-CHUNK ANALYSIS:');
