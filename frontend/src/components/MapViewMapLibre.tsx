@@ -1661,11 +1661,11 @@ function MapViewMapLibre({
           </Source>
         )}
 
-        {/* Landmarks + clusters — HIDDEN during a tour (maplibre re-positions every
-            DOM marker each camera frame; hundreds stutter the flyTo). Project pins
-            stay, but in tour mode `projects` is only the 2-3 tour properties, so
-            it's cheap AND they're clickable (details work). Perf rule R2. */}
-        {!tourActive && dubaiLandmarks.map(lm => (
+        {/* Landmarks 永远显示——tour 和首页必须是同一张地图（客户要求）。
+            只有 ~15 个，运镜逐帧重定位它们开销可忽略，不触发 Perf rule R2。
+            Clusters（可能几百个）才是会抖动 flyTo 的 marker 海，tour 时仍隐藏；
+            项目 pin 在 tour 模式下本来就只有 2-3 个 tour 房源。 */}
+        {dubaiLandmarks.map(lm => (
           <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
         ))}
         {!tourActive && clusters.map(cluster => (
