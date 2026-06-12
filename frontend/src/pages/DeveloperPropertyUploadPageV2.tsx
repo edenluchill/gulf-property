@@ -1,19 +1,19 @@
 /**
- * Developer Property Upload Page V2 - Enhanced & Refactored
- * 
- * Features:
- * - Multi-document upload support
- * - Expandable unit type cards with image carousels
- * - Clean component structure
- * - Beautiful image galleries with shadcn carousel
+ * Developer Property Upload Page V2 — sectioned review workspace
+ *
+ * Layout (方案1, 2026-06-12):
+ * - Before upload: centered upload card
+ * - After processing starts: slim top banner (files + progress + live counts)
+ *   + left section nav (status dots, live badges) + single active section panel
+ *   + sticky bottom submit bar (readiness chips + reviewed checkbox + submit)
+ * - Section contents reuse the existing developer-upload section components
  */
 
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/card'
-import { Building2, CheckCircle, Loader2, AlertTriangle, MapPin, LayoutGrid, ClipboardCheck } from 'lucide-react'
-import { Button } from '../components/ui/button'
+import { Building2, CheckCircle, Loader2, AlertTriangle, FileText, Plus } from 'lucide-react'
 import { UnitTypeCard } from '../components/developer-upload/UnitTypeCard'
 import { DocumentUploadSection } from '../components/developer-upload/DocumentUploadSection'
 import { ProgressSection } from '../components/developer-upload/ProgressSection'
@@ -24,6 +24,8 @@ import { PaymentPlanSection } from '../components/developer-upload/PaymentPlanSe
 import { AmenitiesSection } from '../components/developer-upload/AmenitiesSection'
 import { ExtractedPricingSection } from '../components/developer-upload/ExtractedPricingSection'
 import { SubmitReviewDialog, type ClientReadiness } from '../components/developer-upload/SubmitReviewDialog'
+import { SectionNav, type SectionItem } from '../components/developer-upload/SectionNav'
+import { SubmitBar, type ReadinessChip } from '../components/developer-upload/SubmitBar'
 import LocationMapPickerModal from '../components/LocationMapPicker'
 import { API_ENDPOINTS, API_BASE_URL } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
@@ -122,6 +124,8 @@ interface ProgressEvent {
   timestamp: number
 }
 
+type SectionId = 'basic' | 'dates' | 'images' | 'units' | 'amenities' | 'payment' | 'pricing'
+
 export default function DeveloperPropertyUploadPageV2() {
   const { t } = useTranslation('upload')
   const { session } = useAuth()
@@ -142,6 +146,8 @@ export default function DeveloperPropertyUploadPageV2() {
   const [serverReadiness, setServerReadiness] = useState<ServerReadiness | null>(null)
   const [showReviewDialog, setShowReviewDialog] = useState(false)
   const [duplicateNames, setDuplicateNames] = useState<string[]>([])
+  const [activeSection, setActiveSection] = useState<SectionId>('basic')
+  const [showUploadPanel, setShowUploadPanel] = useState(false)
 
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -177,13 +183,13 @@ export default function DeveloperPropertyUploadPageV2() {
   // Validate and clean date format (must be YYYY-MM-DD or empty string)
   const cleanDateFormat = (dateStr: string | undefined): string => {
     if (!dateStr) return ''
-    
+
     // Check if it's already a valid YYYY-MM-DD format
     const validDatePattern = /^\d{4}-\d{2}-\d{2}$/
     if (validDatePattern.test(dateStr)) {
       return dateStr
     }
-    
+
     // If it's an incomplete date (e.g., "2030-06" or "2030-Q4"), return empty
     console.warn(`⚠️ Invalid date format detected: "${dateStr}", clearing it`)
     return ''
@@ -194,6 +200,7 @@ export default function DeveloperPropertyUploadPageV2() {
     if (documents.length === 0) return
 
     setHasStarted(true)
+    setShowUploadPanel(false)
     setIsUploading(true)
     setUploadProgress(0)
     setProgress(0)
@@ -208,11 +215,11 @@ export default function DeveloperPropertyUploadPageV2() {
       })
 
       console.log('📤 Sending files to backend...')
-      
+
       // Use XMLHttpRequest to track upload progress
       const data = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
-        
+
         // Track upload progress
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
@@ -222,7 +229,7 @@ export default function DeveloperPropertyUploadPageV2() {
             console.log(`📤 Upload progress: ${percentComplete}%`)
           }
         })
-        
+
         xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
@@ -237,11 +244,11 @@ export default function DeveloperPropertyUploadPageV2() {
             reject(new Error(`Upload failed: ${xhr.status}`))
           }
         })
-        
+
         xhr.addEventListener('error', () => {
           reject(new Error('Network error during upload'))
         })
-        
+
         xhr.open('POST', API_ENDPOINTS.langgraphProgressStart)
         // Add user authentication headers
         if (session?.access_token) {
@@ -270,7 +277,7 @@ export default function DeveloperPropertyUploadPageV2() {
       setCurrentStage(t('processing.connecting'))
 
       console.log('🔌 Connecting to SSE:', API_ENDPOINTS.langgraphProgressStream(jobId))
-      
+
       const eventSource = new EventSource(API_ENDPOINTS.langgraphProgressStream(jobId))
       eventSourceRef.current = eventSource
 
@@ -283,27 +290,14 @@ export default function DeveloperPropertyUploadPageV2() {
         console.log('📨 SSE message received:', event.data.substring(0, 100))
         const progressEvent: ProgressEvent = JSON.parse(event.data)
         console.log(`   Stage: ${progressEvent.stage}, Progress: ${progressEvent.progress}%`)
-        
+
         setProgressEvents(prev => [...prev, progressEvent])
         setProgress(progressEvent.progress)
         setCurrentStage(progressEvent.message)
 
         if (progressEvent.data?.buildingData) {
           const { buildingData } = progressEvent.data
-          
-          // Debug logs
-          if (buildingData.images) {
-            console.log('📸 Images received:', {
-              projectImages: buildingData.images.projectImages?.length || 0,
-              floorPlanImages: buildingData.images.floorPlanImages?.length || 0,
-            });
-          }
-          if (buildingData.paymentPlans) {
-            console.log('💰 Payment plans received:', buildingData.paymentPlans.length);
-            console.log('💰 First payment plan:', buildingData.paymentPlans[0]);
-            console.log('💰 Milestones:', buildingData.paymentPlans[0]?.milestones);
-          }
-          
+
           setFormData(prev => {
             // Clean date formats before setting form data
             const cleanedLaunchDate = cleanDateFormat(buildingData.launchDate || prev.launchDate)
@@ -367,7 +361,7 @@ export default function DeveloperPropertyUploadPageV2() {
         console.error('❌ SSE error:', error)
         console.log('SSE readyState:', eventSource.readyState)
         // ReadyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
-        
+
         if (eventSource.readyState === EventSource.CLOSED) {
           setError('Connection closed unexpectedly. Please try again.')
           setIsProcessing(false)
@@ -458,16 +452,6 @@ export default function DeveloperPropertyUploadPageV2() {
     }
   }
 
-  // 表单提交 → 打开 review dialog（替代 window.confirm）
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isProcessing || isSubmitting) {
-      console.log('⚠️ Still processing, blocking submit')
-      return
-    }
-    setShowReviewDialog(true)
-  }
-
   // Dialog 确认后真正提交
   const doSubmit = async () => {
     setIsSubmitting(true)
@@ -478,11 +462,6 @@ export default function DeveloperPropertyUploadPageV2() {
       const cleanedLaunchDate = formData.launchDate || null
       const cleanedCompletionDate = formData.completionDate || null
       const cleanedHandoverDate = formData.handoverDate || null
-
-      console.log('🔍 FormData before submit:', {
-        paymentPlanLength: formData.paymentPlan?.length || 0,
-        paymentPlan: formData.paymentPlan,
-      })
 
       // Filter out hidden images before submitting
       const visibleProjectImages = (formData.projectImages || []).filter(
@@ -557,7 +536,7 @@ export default function DeveloperPropertyUploadPageV2() {
       }
 
       console.log('✅ Project submitted successfully:', result.projectId)
-      
+
       // Clear metadata cache so MapPage will fetch fresh data
       localStorage.removeItem('gulf_residential_developers')
       localStorage.removeItem('gulf_residential_developers_timestamp')
@@ -566,10 +545,10 @@ export default function DeveloperPropertyUploadPageV2() {
       localStorage.removeItem('gulf_residential_projects')
       localStorage.removeItem('gulf_residential_projects_timestamp')
       console.log('🗑️ Cleared metadata cache to ensure fresh data on map')
-      
+
       // Show success notification
       alert(t('confirm.successAlert'))
-      
+
       setShowReviewDialog(false)
       setSubmitted(true)
       setTimeout(() => { window.location.href = '/map' }, 2000)
@@ -577,10 +556,10 @@ export default function DeveloperPropertyUploadPageV2() {
       console.error('❌ Submit error:', err)
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit'
       setError(errorMessage)
-      
+
       // Show error notification to user
       alert(t('confirm.failAlert', { error: errorMessage }))
-      
+
       setIsSubmitting(false)
     }
   }
@@ -601,13 +580,13 @@ export default function DeveloperPropertyUploadPageV2() {
   // Group units by building prefix (extracted from typeName)
   const groupedUnits = formData.unitTypes.reduce((acc, unit) => {
     let buildingGroup = null;
-    
+
     // Extract prefix from typeName for consistent grouping
     if (unit.typeName) {
       const matchWithHyphen = unit.typeName.match(/^([A-Z]+)-/);
       const matchLettersOnly = unit.typeName.match(/^([A-Z]+)$/);
       const matchBeforeDigits = unit.typeName.match(/^([A-Z]+)[\d\(]/);
-      
+
       if (matchWithHyphen) {
         buildingGroup = matchWithHyphen[1];
       } else if (matchLettersOnly) {
@@ -616,58 +595,323 @@ export default function DeveloperPropertyUploadPageV2() {
         buildingGroup = matchBeforeDigits[1];
       }
     }
-    
+
     const groupKey = buildingGroup || 'Uncategorized';
-    
+
     if (!acc[groupKey]) acc[groupKey] = [];
     acc[groupKey].push(unit);
     return acc;
   }, {} as Record<string, UnitType[]>);
 
-  return (
-    <div className="flex-1 bg-white overflow-auto">
-      {/* Page Title Section */}
-      <div className="bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-100 border-b border-teal-200">
-        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-xl">
-                <Building2 className="h-8 w-8 text-white" />
+  // ============================================================
+  // Workspace derivations (sections, statuses, readiness chips)
+  // ============================================================
+  const readiness = computeClientReadiness()
+  const extracting = isProcessing || isUploading
+  const visibleImageCount = (formData.projectImages || []).filter(
+    img => !(formData.hiddenProjectImages || []).includes(img)
+  ).length
+  const paymentTotal = (formData.paymentPlan || []).reduce(
+    (sum, m) => sum + (parseFloat(String(m.percentage)) || 0), 0
+  )
+  const hasExtraInfo = formData.serviceCharge != null || (formData.landmarks?.length || 0) > 0
+
+  const sections: SectionItem[] = [
+    {
+      id: 'basic',
+      label: t('basicInfo.title'),
+      status: readiness.missingProjectFields.length > 0
+        ? (extracting ? 'loading' : 'error')
+        : duplicateNames.length > 0 ? 'warn' : 'ok',
+    },
+    {
+      id: 'dates',
+      label: t('dateProgress.title'),
+      status: formData.completionDate || formData.handoverDate ? 'ok' : extracting ? 'loading' : 'warn',
+    },
+    {
+      id: 'images',
+      label: t('visualContent.title'),
+      badge: visibleImageCount,
+      status: visibleImageCount > 0 ? 'ok' : extracting ? 'loading' : 'muted',
+    },
+    {
+      id: 'units',
+      label: t('unitTypesList'),
+      badge: formData.unitTypes.length,
+      status: extracting && formData.unitTypes.length === 0
+        ? 'loading'
+        : readiness.blockedUnits.length > 0 || (!extracting && formData.unitTypes.length === 0)
+          ? 'error'
+          : readiness.warningUnits.length > 0 ? 'warn' : 'ok',
+    },
+    {
+      id: 'amenities',
+      label: t('amenities.title'),
+      badge: formData.amenities.length,
+      status: formData.amenities.length > 0 ? 'ok' : extracting ? 'loading' : 'muted',
+    },
+    {
+      id: 'payment',
+      label: t('paymentPlan.title'),
+      status: formData.paymentPlan.length === 0
+        ? (extracting ? 'loading' : 'muted')
+        : Math.abs(paymentTotal - 100) < 0.01 ? 'ok' : 'warn',
+    },
+    {
+      id: 'pricing',
+      label: t('workspace.sectionPricing'),
+      badge: formData.extractedPricing?.length || 0,
+      status: (formData.extractedPricing?.length || 0) > 0 ? 'ok' : 'muted',
+    },
+  ]
+
+  const submitChips: ReadinessChip[] = [
+    ...readiness.missingProjectFields.map(f => ({ label: f, tone: 'error' as const })),
+    {
+      label: formData.latitude && formData.longitude ? t('reviewDialog.coordSet') : t('reviewDialog.coordNotSet'),
+      tone: formData.latitude && formData.longitude ? 'ok' as const : 'warn' as const,
+    },
+    readiness.blockedUnits.length > 0
+      ? { label: t('readiness.blockedUnits', { count: readiness.blockedUnits.length }), tone: 'error' as const }
+      : { label: t('reviewDialog.unitCount', { count: readiness.unitsCount }), tone: readiness.unitsCount > 0 ? 'ok' as const : 'error' as const },
+    ...(readiness.warningUnits.length > 0
+      ? [{ label: t('readiness.warningUnits', { count: readiness.warningUnits.length }), tone: 'warn' as const }]
+      : []),
+    ...(duplicateNames.length > 0
+      ? [{ label: t('readiness.duplicate.title'), tone: 'warn' as const }]
+      : []),
+  ]
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'basic':
+        return (
+          <div className="space-y-5">
+            {duplicateNames.length > 0 && !isProcessing && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <span className="font-semibold text-amber-900">{t('readiness.duplicate.title')}</span>
+                  <p className="text-amber-800 mt-0.5">
+                    {t('readiness.duplicate.desc', { names: duplicateNames.slice(0, 3).join('、') })}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
-                <p className="text-sm text-gray-700 mt-1">
-                  {t('subtitle')}
+            )}
+            <ProjectBasicInfoSection
+              formData={formData}
+              isProcessing={isProcessing}
+              onChange={handleFormChange}
+              onOpenMapPicker={() => setShowMapPicker(true)}
+            />
+            {/* ⭐ 文本层附加信息：服务费 + 地标距离 */}
+            {hasExtraInfo && (
+              <div className="space-y-3 pt-5 border-t border-gray-100">
+                <h4 className="text-sm font-semibold text-gray-700">{t('readiness.extraInfoTitle')}</h4>
+                {formData.serviceCharge != null && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-gray-600">{t('readiness.serviceCharge')}:</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.serviceCharge}
+                      onChange={(e) => handleFormChange('serviceCharge', e.target.value ? parseFloat(e.target.value) : undefined)}
+                      disabled={isProcessing}
+                      className="w-28 px-3 py-1.5 border rounded-lg text-sm"
+                    />
+                    <span className="text-gray-400">AED/sqft</span>
+                  </div>
+                )}
+                {formData.landmarks && formData.landmarks.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {formData.landmarks.map((lm, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-700">
+                        📍 {lm.name} · {lm.distanceKm} km
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      case 'dates':
+        return (
+          <DateTimeProgressSection
+            formData={{
+              launchDate: formData.launchDate,
+              completionDate: formData.completionDate,
+              handoverDate: formData.handoverDate,
+              constructionProgress: formData.constructionProgress,
+              status: formData.status,
+            }}
+            isProcessing={isProcessing}
+            onChange={handleFormChange}
+          />
+        )
+      case 'images':
+        return (
+          <VisualContentSection
+            projectImages={formData.projectImages}
+            hiddenProjectImages={formData.hiddenProjectImages}
+            visualContent={formData.visualContent}
+            isProcessing={isProcessing}
+            primaryImage={formData.primaryImage}
+            onPrimaryImageChange={(img) => handleFormChange('primaryImage', img)}
+            onProjectImagesChange={(imgs) => handleFormChange('projectImages', imgs)}
+            onHiddenProjectImagesChange={(hidden) => handleFormChange('hiddenProjectImages', hidden)}
+          />
+        )
+      case 'units':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">{t('unitTypesList')}</h3>
+              <span className="text-sm text-gray-500">{t('totalUnitTypes', { count: formData.unitTypes.length })}</span>
+            </div>
+
+            {/* 会被过滤的户型警示（与后端提交规则一致） */}
+            {!isProcessing && readiness.blockedUnits.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm">
+                <div className="flex items-center gap-2 font-semibold text-red-900 mb-1.5">
+                  <AlertTriangle className="h-4 w-4" />
+                  {t('workspace.blockedBanner')}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {readiness.blockedUnits.map(u => (
+                    <span key={u.name} className="px-2 py-0.5 bg-white border border-red-200 rounded text-xs text-red-700">
+                      {u.name} — {u.issues.join('、')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isProcessing && formData.unitTypes.length === 0 && (
+              <div className="text-center py-14 bg-teal-50/60 rounded-xl border border-dashed border-teal-200">
+                <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-teal-600" />
+                <p className="text-sm text-gray-700 font-semibold">{t('aiAnalyzing')}</p>
+                <p className="text-xs text-gray-500 mt-1">{t('extractingUnitTypes')}</p>
+              </div>
+            )}
+
+            {/* ⭐ 0户型空态：营销画册引导（处理完成但没有提取到任何户型） */}
+            {!isProcessing && !isUploading && hasStarted && formData.unitTypes.length === 0 && serverReadiness && (
+              <div className="py-10 px-8 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                <div className="text-3xl mb-2">📖</div>
+                <h4 className="text-base font-bold text-amber-900 mb-1.5">{t('readiness.noUnits.title')}</h4>
+                <p className="text-sm text-amber-800 max-w-xl mx-auto">
+                  {serverReadiness.message || t('readiness.noUnits.desc')}
                 </p>
+                <p className="text-xs text-amber-700 mt-2">{t('readiness.noUnits.hint')}</p>
+              </div>
+            )}
+
+            {/* Grouped Units */}
+            {Object.entries(groupedUnits).map(([groupKey, units]) => {
+              const isUncategorized = groupKey === 'Uncategorized';
+              return (
+                <div key={groupKey} className="space-y-3">
+                  {!isUncategorized && (
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <span className="h-5 w-1 bg-teal-400 rounded-full" />
+                      {t('series', { key: groupKey })}
+                      <span className="text-xs font-normal text-gray-400">{t('unitTypeCount', { count: units.length })}</span>
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {units.map((unit, idx) => (
+                      <UnitTypeCard
+                        key={unit.id}
+                        unit={unit}
+                        index={idx}
+                        isProcessing={isProcessing}
+                        onChange={(field, value) => {
+                          setFormData(prev => {
+                            const globalIdx = prev.unitTypes.findIndex(u => u.id === unit.id);
+                            if (globalIdx === -1) return prev;
+                            const updated = [...prev.unitTypes];
+                            updated[globalIdx] = { ...updated[globalIdx], [field]: value };
+                            return { ...prev, unitTypes: updated };
+                          });
+                        }}
+                        onRemove={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            unitTypes: prev.unitTypes.filter(u => u.id !== unit.id)
+                          }));
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      case 'amenities':
+        return (
+          <AmenitiesSection
+            amenities={formData.amenities}
+            isProcessing={isProcessing}
+          />
+        )
+      case 'payment':
+        return (
+          <PaymentPlanSection
+            paymentPlan={formData.paymentPlan}
+            isProcessing={isProcessing}
+          />
+        )
+      case 'pricing':
+        return (
+          <ExtractedPricingSection
+            pricing={formData.extractedPricing}
+            isProcessing={isProcessing}
+          />
+        )
+    }
+  }
+
+  return (
+    <div className="flex-1 bg-gray-50 overflow-auto flex flex-col">
+      {/* Compact header: title + dynamic stepper on one band */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 sm:px-6 py-4 max-w-7xl">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-md shrink-0">
+                <Building2 className="h-5 w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold text-gray-900 truncate">{t('title')}</h1>
+                <p className="text-xs text-gray-500 truncate">{t('subtitle')}</p>
               </div>
             </div>
-            
-            {/* Process Flow Indicator — 高亮当前所处步骤 */}
+            <div className="flex-1" />
+            {/* Stepper — 高亮当前所处步骤 */}
             {(() => {
               const currentStep = submitted ? 4 : (isProcessing || isUploading) ? 2 : hasStarted ? 3 : 1
               const steps = [t('steps.upload'), t('steps.extract'), t('steps.review'), t('steps.submit')]
               return (
-                <div className="flex items-center gap-2 text-sm mt-6 overflow-x-auto pb-1 -mx-1 px-1">
+                <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-0.5">
                   {steps.map((label, i) => {
                     const n = i + 1
                     const state = n < currentStep ? 'done' : n === currentStep ? 'active' : 'todo'
                     return (
-                      <div key={label} className="flex items-center gap-2 shrink-0">
-                        {i > 0 && <div className={`h-px w-6 ${n <= currentStep ? 'bg-teal-400' : 'bg-gray-300'}`} />}
-                        <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all ${
+                      <div key={label} className="flex items-center gap-1.5 shrink-0">
+                        {i > 0 && <div className={`h-px w-4 ${n <= currentStep ? 'bg-teal-400' : 'bg-gray-200'}`} />}
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${
                           state === 'active'
-                            ? 'bg-teal-600 border-teal-600 text-white shadow-md'
+                            ? 'bg-teal-600 border-teal-600 text-white'
                             : state === 'done'
-                              ? 'bg-white border-teal-300 text-teal-700'
-                              : 'bg-white/60 border-gray-200 text-gray-400'
+                              ? 'bg-white border-teal-200 text-teal-700'
+                              : 'bg-white border-gray-200 text-gray-400'
                         }`}>
-                          {state === 'done' ? (
-                            <CheckCircle className="h-3.5 w-3.5" />
-                          ) : (
-                            <span className={`flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-bold ${
-                              state === 'active' ? 'bg-white/25' : 'bg-gray-200 text-gray-500'
-                            }`}>{n}</span>
-                          )}
+                          {state === 'done'
+                            ? <CheckCircle className="h-3 w-3" />
+                            : <span className="font-bold">{n}</span>}
                           <span className="font-medium">{label}</span>
                         </div>
                       </div>
@@ -680,31 +924,98 @@ export default function DeveloperPropertyUploadPageV2() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="max-w-7xl mx-auto">
-          {submitted ? (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-              <Card className="text-center py-16 shadow-2xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
-                <CardContent>
-                  <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold mb-2 text-gray-900">{t('success.title')}</h2>
-                  <p className="text-gray-600">{t('success.redirecting')}</p>
-                  <Loader2 className="h-6 w-6 mx-auto mt-4 animate-spin text-teal-600" />
-                </CardContent>
-              </Card>
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left Column - Upload & Progress */}
-              <div className="space-y-6">
-                <DocumentUploadSection
-                  documents={documents}
-                  isProcessing={isProcessing}
-                  onAddDocuments={handleAddDocuments}
-                  onRemoveDocument={handleRemoveDocument}
-                  onStartProcessing={handleProcessPdfs}
-                />
-                
+      {submitted ? (
+        <div className="container mx-auto px-4 sm:px-6 py-10 max-w-2xl">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+            <Card className="text-center py-14 border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+              <CardContent>
+                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2 text-gray-900">{t('success.title')}</h2>
+                <p className="text-gray-600">{t('success.redirecting')}</p>
+                <Loader2 className="h-5 w-5 mx-auto mt-4 animate-spin text-teal-600" />
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      ) : !hasStarted ? (
+        /* ============ 上传前：居中上传卡片 ============ */
+        <div className="container mx-auto px-4 sm:px-6 py-10 max-w-xl">
+          <DocumentUploadSection
+            documents={documents}
+            isProcessing={isProcessing}
+            onAddDocuments={handleAddDocuments}
+            onRemoveDocument={handleRemoveDocument}
+            onStartProcessing={handleProcessPdfs}
+          />
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ============ 工作台：顶部横幅 + 分区导航 + 单区块面板 + 底部提交栏 ============ */
+        <>
+          <div className="container mx-auto px-4 sm:px-6 pt-4 max-w-7xl w-full">
+            {/* Top banner: files + status + progress + live counters */}
+            <Card className="border border-gray-200 shadow-sm">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {documents.map(doc => (
+                    <span key={doc.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 max-w-[260px]">
+                      <FileText className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                      <span className="truncate font-medium">{doc.file.name}</span>
+                      <span className="text-xs text-gray-400 shrink-0">{(doc.file.size / 1024 / 1024).toFixed(1)}MB</span>
+                    </span>
+                  ))}
+                  {/* Status chip */}
+                  {isUploading ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {t('workspace.uploadingChip', { percent: uploadProgress })}
+                    </span>
+                  ) : isProcessing ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {t('workspace.processingChip', { percent: progress.toFixed(0) })}
+                    </span>
+                  ) : error ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                      {t('workspace.errorChip')}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                      <CheckCircle className="h-3 w-3" />
+                      {t('workspace.doneChip')}
+                    </span>
+                  )}
+                  <div className="flex-1" />
+                  {!isProcessing && !isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => setShowUploadPanel(v => !v)}
+                      className="inline-flex items-center gap-1 text-sm text-teal-600 hover:text-teal-800 font-medium"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {t('workspace.addFiles')}
+                    </button>
+                  )}
+                </div>
+
+                {/* Re-upload / add-files panel (collapsed by default) */}
+                {showUploadPanel && !isProcessing && !isUploading && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <DocumentUploadSection
+                      documents={documents}
+                      isProcessing={isProcessing}
+                      onAddDocuments={handleAddDocuments}
+                      onRemoveDocument={handleRemoveDocument}
+                      onStartProcessing={handleProcessPdfs}
+                    />
+                  </div>
+                )}
+
+                {/* Progress + live extraction preview (only while running / on error) */}
                 <ProgressSection
                   isProcessing={isProcessing || isUploading}
                   progress={isUploading ? uploadProgress : progress}
@@ -728,384 +1039,52 @@ export default function DeveloperPropertyUploadPageV2() {
                     }
                   }}
                 />
-              </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* Right Column - Form (shows after processing starts) */}
-              <AnimatePresence>
-                {hasStarted && (
+          {/* Nav + active section panel */}
+          <div className="container mx-auto px-4 sm:px-6 py-4 max-w-7xl w-full flex-1">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-5">
+              <SectionNav
+                sections={sections}
+                activeId={activeSection}
+                onSelect={(id) => setActiveSection(id as SectionId)}
+              />
+              <div className="flex-1 min-w-0">
+                <AnimatePresence mode="wait">
                   <motion.div
-                    className="lg:col-span-2"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5 }}
+                    key={activeSection}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
                   >
-                    <Card className="shadow-2xl border-2 border-gray-200 bg-white">
-                      <CardContent className="pt-6 px-4 sm:px-8">
-                        <form 
-                          onSubmit={handleSubmit} 
-                          onKeyDown={(e) => {
-                            // 阻止Enter键意外提交表单
-                            if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
-                              e.preventDefault()
-                              console.log('⚠️ Enter key blocked to prevent accidental submit')
-                            }
-                          }}
-                          className="space-y-6"
-                        >
-                          {/* Basic Info */}
-                          <ProjectBasicInfoSection
-                            formData={formData}
-                            isProcessing={isProcessing}
-                            onChange={handleFormChange}
-                            onOpenMapPicker={() => setShowMapPicker(true)}
-                          />
-
-                          {/* Date & Progress */}
-                          <div className="pt-6 border-t-2 border-gray-100">
-                            <DateTimeProgressSection
-                              formData={{
-                                launchDate: formData.launchDate,
-                                completionDate: formData.completionDate,
-                                handoverDate: formData.handoverDate,
-                                constructionProgress: formData.constructionProgress,
-                                status: formData.status,
-                              }}
-                              isProcessing={isProcessing}
-                              onChange={handleFormChange}
-                            />
-                          </div>
-
-                          {/* Visual Content - Project images only, floor plans are in unit types */}
-                          <VisualContentSection
-                            projectImages={formData.projectImages}
-                            hiddenProjectImages={formData.hiddenProjectImages}
-                            visualContent={formData.visualContent}
-                            isProcessing={isProcessing}
-                            primaryImage={formData.primaryImage}
-                            onPrimaryImageChange={(img) => handleFormChange('primaryImage', img)}
-                            onProjectImagesChange={(imgs) => handleFormChange('projectImages', imgs)}
-                            onHiddenProjectImagesChange={(hidden) => handleFormChange('hiddenProjectImages', hidden)}
-                          />
-
-                          {/* Unit Types - Grouped by Tower/Building */}
-                          <div className="space-y-4 pt-6 border-t-2 border-gray-100">
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
-                              <div>
-                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                  {t('unitTypesList')}
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                  {t('totalUnitTypes', { count: formData.unitTypes.length })}
-                                </p>
-                              </div>
-                            </div>
-
-                            {isProcessing && formData.unitTypes.length === 0 && (
-                              <div className="text-center py-16 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border-2 border-dashed border-teal-300 shadow-inner">
-                                <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-teal-600" />
-                                <p className="text-base text-gray-700 font-semibold">{t('aiAnalyzing')}</p>
-                                <p className="text-sm text-gray-500 mt-2">{t('extractingUnitTypes')}</p>
-                              </div>
-                            )}
-
-                            {/* ⭐ 0户型空态：营销画册引导（处理完成但没有提取到任何户型） */}
-                            {!isProcessing && !isUploading && hasStarted && formData.unitTypes.length === 0 && serverReadiness && (
-                              <div className="py-10 px-8 bg-amber-50 rounded-xl border-2 border-amber-300 shadow-inner text-center">
-                                <div className="text-4xl mb-3">📖</div>
-                                <h4 className="text-lg font-bold text-amber-900 mb-2">{t('readiness.noUnits.title')}</h4>
-                                <p className="text-sm text-amber-800 max-w-xl mx-auto">
-                                  {serverReadiness.message || t('readiness.noUnits.desc')}
-                                </p>
-                                <p className="text-xs text-amber-700 mt-3">{t('readiness.noUnits.hint')}</p>
-                              </div>
-                            )}
-
-                            {/* Grouped Units */}
-                            {Object.entries(groupedUnits).map(([groupKey, units]) => {
-                              const isUncategorized = groupKey === 'Uncategorized';
-                              return (
-                                <div key={groupKey} className="space-y-4">
-                                  {/* Only show group header for categorized units */}
-                                  {!isUncategorized && (
-                                    <div className="px-5 py-4 rounded-xl shadow-md border-l-4 bg-gradient-to-r from-blue-50 via-blue-50 to-indigo-50 border-blue-500">
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-2xl">🏢</span>
-                                        <div>
-                                          <div className="font-bold text-blue-900">
-                                            {t('series', { key: groupKey })}
-                                          </div>
-                                          <div className="text-sm text-gray-600 mt-0.5">
-                                            {t('unitTypeCount', { count: units.length })}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className={`space-y-3 ${!isUncategorized ? 'pl-4' : ''}`}>
-                                    {units.map((unit, idx) => (
-                                      <UnitTypeCard
-                                        key={unit.id}
-                                        unit={unit}
-                                        index={idx}
-                                        isProcessing={isProcessing}
-                                        onChange={(field, value) => {
-                                          setFormData(prev => {
-                                            const globalIdx = prev.unitTypes.findIndex(u => u.id === unit.id);
-                                            if (globalIdx === -1) return prev;
-                                            const updated = [...prev.unitTypes];
-                                            updated[globalIdx] = { ...updated[globalIdx], [field]: value };
-                                            return { ...prev, unitTypes: updated };
-                                          });
-                                        }}
-                                        onRemove={() => {
-                                          setFormData(prev => ({
-                                            ...prev,
-                                            unitTypes: prev.unitTypes.filter(u => u.id !== unit.id)
-                                          }));
-                                        }}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* Amenities */}
-                          <AmenitiesSection
-                            amenities={formData.amenities}
-                            isProcessing={isProcessing}
-                          />
-
-                          {/* ⭐ 文本层附加信息：服务费 + 地标距离 */}
-                          {(formData.serviceCharge != null || (formData.landmarks && formData.landmarks.length > 0)) && (
-                            <div className="space-y-4 pt-6 border-t-2 border-gray-100">
-                              <div className="flex items-center gap-3">
-                                <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
-                                <h3 className="text-lg font-bold text-gray-900">{t('readiness.extraInfoTitle')}</h3>
-                              </div>
-                              {formData.serviceCharge != null && (
-                                <div className="flex items-center gap-3 text-sm">
-                                  <span className="font-semibold text-gray-700">{t('readiness.serviceCharge')}:</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={formData.serviceCharge}
-                                    onChange={(e) => handleFormChange('serviceCharge', e.target.value ? parseFloat(e.target.value) : undefined)}
-                                    disabled={isProcessing}
-                                    className="w-28 px-3 py-1.5 border rounded-lg text-sm"
-                                  />
-                                  <span className="text-gray-500">AED/sqft</span>
-                                </div>
-                              )}
-                              {formData.landmarks && formData.landmarks.length > 0 && (
-                                <div>
-                                  <div className="text-sm font-semibold text-gray-700 mb-2">{t('readiness.landmarks')}:</div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {formData.landmarks.map((lm, i) => (
-                                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-900">
-                                        📍 {lm.name} · {lm.distanceKm} km
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Payment Plan */}
-                          <PaymentPlanSection
-                            paymentPlan={formData.paymentPlan}
-                            isProcessing={isProcessing}
-                          />
-
-                          {/* Extracted Pricing (for verification) */}
-                          <ExtractedPricingSection
-                            pricing={formData.extractedPricing}
-                            isProcessing={isProcessing}
-                          />
-
-                          {/* ⭐ 查重提示 */}
-                          {!isProcessing && duplicateNames.length > 0 && (
-                            <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 flex items-start gap-3">
-                              <span className="text-2xl">⚠️</span>
-                              <div>
-                                <h4 className="font-bold text-amber-900">{t('readiness.duplicate.title')}</h4>
-                                <p className="text-sm text-amber-800 mt-1">
-                                  {t('readiness.duplicate.desc', { names: duplicateNames.slice(0, 3).join('、') })}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Review Checklist */}
-                          {!isProcessing && formData.unitTypes.length > 0 && (
-                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-5 mt-8">
-                              <div className="flex items-center gap-3">
-                                <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
-                                <div>
-                                  <h3 className="font-bold text-gray-900 text-lg">
-                                    {t('checklist.title')}
-                                  </h3>
-                                  <p className="text-sm text-gray-500 mt-0.5">
-                                    {t('checklist.subtitle')}
-                                  </p>
-                                </div>
-                              </div>
-                              
-                              {/* Invalid Units Warning */}
-                              {(() => {
-                                // 与后端提交过滤规则一致：area<=0 或 bedrooms 缺失都会被过滤
-                                const invalidUnits = formData.unitTypes.filter(u => !u.area || u.area <= 0 || u.bedrooms == null);
-                                if (invalidUnits.length > 0) {
-                                  return (
-                                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 space-y-3">
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-2xl">⚠️</span>
-                                        <div>
-                                          <h4 className="font-bold text-red-900">
-                                            {t('checklist.invalidUnits.title', { count: invalidUnits.length })}
-                                          </h4>
-                                          <p className="text-sm text-red-700 mt-1">
-                                            {t('checklist.invalidUnits.desc')}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="bg-white rounded-lg p-4 space-y-2">
-                                        {invalidUnits.map(unit => (
-                                          <div key={unit.id} className="flex items-center justify-between text-sm py-2 border-b last:border-0">
-                                            <span className="font-medium text-gray-900">{unit.name || unit.typeName}</span>
-                                            <span className="text-red-600 text-xs bg-red-100 px-2 py-1 rounded">
-                                              {t('checklist.invalidUnits.areaZero')}
-                                            </span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <p className="text-xs text-red-600">
-                                        {t('checklist.invalidUnits.hint')}
-                                      </p>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
-                              
-                              <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-                                {(() => {
-                                  const basicOk = !!(formData.projectName && formData.developer && formData.address)
-                                  const coordOk = !!(formData.latitude && formData.longitude)
-                                  const unitsOk = formData.unitTypes.length > 0
-                                  const rows = [
-                                    {
-                                      ok: basicOk,
-                                      icon: ClipboardCheck,
-                                      title: t('checklist.basicInfo'),
-                                      desc: basicOk
-                                        ? t('checklist.basicInfoDesc')
-                                        : t('readiness.missingFields', {
-                                            fields: [
-                                              !formData.projectName && t('readiness.fieldName'),
-                                              !formData.developer && t('readiness.fieldDeveloper'),
-                                              !formData.address && t('readiness.fieldAddress'),
-                                            ].filter(Boolean).join(', '),
-                                          }),
-                                    },
-                                    {
-                                      ok: coordOk,
-                                      icon: MapPin,
-                                      title: `${t('checklist.mapCoordinates')} ${coordOk ? t('checklist.mapSet') : t('checklist.mapNotSet')}`,
-                                      desc: coordOk
-                                        ? t('checklist.latLng', { lat: formData.latitude!.toFixed(6), lng: formData.longitude!.toFixed(6) })
-                                        : t('checklist.mapSetHint'),
-                                    },
-                                    {
-                                      ok: unitsOk,
-                                      icon: LayoutGrid,
-                                      title: t('checklist.unitTypes', { count: formData.unitTypes.length }),
-                                      desc: t('checklist.unitTypesDesc'),
-                                    },
-                                  ]
-                                  return rows.map(({ ok, icon: Icon, title, desc }) => (
-                                    <div key={title} className="flex items-center gap-3 px-4 py-3">
-                                      <div className={`flex items-center justify-center h-8 w-8 rounded-lg shrink-0 ${
-                                        ok ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
-                                      }`}>
-                                        <Icon className="h-4 w-4" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-gray-900 text-sm">{title}</div>
-                                        <div className="text-xs text-gray-500 truncate">{desc}</div>
-                                      </div>
-                                      {ok ? (
-                                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                                      ) : (
-                                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                                      )}
-                                    </div>
-                                  ))
-                                })()}
-                              </div>
-
-                              <div className="border-t-2 border-blue-200 pt-6 mt-6">
-                                <label className="flex items-start gap-4 cursor-pointer group">
-                                  <input
-                                    type="checkbox"
-                                    checked={hasReviewed}
-                                    onChange={(e) => setHasReviewed(e.target.checked)}
-                                    className="w-6 h-6 mt-1 rounded border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                                  />
-                                  <div className="flex-1">
-                                    <span className="font-bold text-gray-900 text-base block group-hover:text-blue-700 transition-colors">
-                                      {t('checklist.confirmReview')}
-                                    </span>
-                                    <span className="text-sm text-gray-600 mt-1 block">
-                                      {t('checklist.checkToSubmit')}
-                                    </span>
-                                  </div>
-                                </label>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Submit Button */}
-                          <div className="pt-8 border-t-2 border-gray-100">
-                            <Button
-                              type="submit"
-                              size="lg"
-                              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-xl hover:shadow-2xl text-lg py-7 transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none disabled:opacity-50"
-                              disabled={isProcessing || isSubmitting || !formData.projectName || !hasReviewed}
-                            >
-                              {isSubmitting ? (
-                                <>
-                                  <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                  <span className="text-lg">{t('submitBtn.submitting')}</span>
-                                </>
-                              ) : isProcessing ? (
-                                <>
-                                  <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                  <span className="text-lg">{t('submitBtn.aiProcessing')}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle className="mr-2 h-6 w-6" />
-                                  <span className="text-lg font-bold">
-                                    {hasReviewed ? t('submitBtn.confirmed') : t('submitBtn.pleaseCheck')}
-                                  </span>
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </form>
+                    <Card className="border border-gray-200 shadow-sm">
+                      <CardContent className="p-4 sm:p-6">
+                        {renderActiveSection()}
                       </CardContent>
                     </Card>
                   </motion.div>
-                )}
-              </AnimatePresence>
+                </AnimatePresence>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+
+          {/* Sticky bottom submit bar */}
+          <SubmitBar
+            chips={submitChips}
+            hasReviewed={hasReviewed}
+            onReviewedChange={setHasReviewed}
+            canSubmit={!!formData.projectName}
+            isProcessing={isProcessing || isUploading}
+            isSubmitting={isSubmitting}
+            onSubmit={() => {
+              if (!isProcessing && !isSubmitting) setShowReviewDialog(true)
+            }}
+          />
+        </>
+      )}
 
       {/* Location Map Picker Modal */}
       <LocationMapPickerModal
@@ -1132,7 +1111,7 @@ export default function DeveloperPropertyUploadPageV2() {
         isSubmitting={isSubmitting}
         projectName={formData.projectName}
         developer={formData.developer}
-        readiness={computeClientReadiness()}
+        readiness={readiness}
         hasCoordinates={!!(formData.latitude && formData.longitude)}
         duplicateNames={duplicateNames}
       />

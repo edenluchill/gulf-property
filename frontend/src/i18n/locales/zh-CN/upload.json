@@ -304,5 +304,16 @@
     "pleaseClickMap": "请在地图上点击以选择位置",
     "cancel": "取消",
     "confirm": "确认位置"
+  },
+  "workspace": {
+    "addFiles": "补充文件",
+    "processingChip": "处理中 {{percent}}%",
+    "uploadingChip": "上传中 {{percent}}%",
+    "doneChip": "处理完成",
+    "errorChip": "处理失败",
+    "filesCount": "{{count}} 个文件",
+    "sectionPricing": "定价核对",
+    "sectionExtra": "附加信息",
+    "blockedBanner": "以下户型缺少必填信息,提交时会被过滤:"
   }
 }

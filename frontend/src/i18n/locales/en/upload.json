@@ -304,5 +304,16 @@
     "pleaseClickMap": "Please click on the map to select a location",
     "cancel": "Cancel",
     "confirm": "Confirm Location"
+  },
+  "workspace": {
+    "addFiles": "Add files",
+    "processingChip": "Processing {{percent}}%",
+    "uploadingChip": "Uploading {{percent}}%",
+    "doneChip": "Done",
+    "errorChip": "Failed",
+    "filesCount": "{{count}} files",
+    "sectionPricing": "Pricing check",
+    "sectionExtra": "Extra info",
+    "blockedBanner": "These units are missing required info and will be filtered at submission:"
   }
 }
