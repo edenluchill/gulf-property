@@ -33,6 +33,9 @@ interface UnitType {
   description?: string;     // ⭐ 户型描述
   floorPlanImage?: string;
   floorPlanImages?: string[]; // Support multiple images
+  renderingImages?: string[];  // ⭐ 户型外观效果图
+  interiorImages?: string[];   // ⭐ 户型室内效果图
+  balconyImages?: string[];    // ⭐ 阳台/露台图
   parkingSpaces?: number;   // ⭐ 车位配比（楼书文本层库存表）
 }
 
@@ -42,11 +45,68 @@ interface UnitTypeCardProps {
   isProcessing: boolean;
   onChange: (field: string, value: any) => void;
   onRemove: () => void;
+  /** 项目图库候选图（用于手动把误归类的图移进户型） */
+  galleryImages?: string[];
+  /** 从项目图库移除一张图（移入户型时调用，实现"移动"语义） */
+  onTakeImageFromGallery?: (img: string) => void;
+  /** 把一张图退回项目图库（从户型移除时调用） */
+  onReturnImageToGallery?: (img: string) => void;
 }
 
-export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTypeCardProps) {
+export function UnitTypeCard({
+  unit,
+  isProcessing,
+  onChange,
+  onRemove,
+  galleryImages,
+  onTakeImageFromGallery,
+  onReturnImageToGallery,
+}: UnitTypeCardProps) {
   const { t } = useTranslation('upload');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<'photo' | 'floorplan'>('photo');
+
+  const unitPhotos = [
+    ...(unit.renderingImages || []),
+    ...(unit.interiorImages || []),
+    ...(unit.balconyImages || []),
+  ];
+  const floorPlans = unit.floorPlanImages || (unit.floorPlanImage ? [unit.floorPlanImage] : []);
+
+  // 图库候选：排除已在本户型的图
+  const pickerCandidates = (galleryImages || []).filter(
+    img => !unitPhotos.includes(img) && !floorPlans.includes(img)
+  );
+
+  const addImageToUnit = (img: string) => {
+    if (pickerTarget === 'floorplan') {
+      onChange('floorPlanImages', [...floorPlans, img]);
+    } else {
+      onChange('renderingImages', [...(unit.renderingImages || []), img]);
+    }
+    onTakeImageFromGallery?.(img);
+  };
+
+  const removePhotoFromUnit = (img: string) => {
+    if ((unit.renderingImages || []).includes(img)) {
+      onChange('renderingImages', (unit.renderingImages || []).filter(i => i !== img));
+    } else if ((unit.interiorImages || []).includes(img)) {
+      onChange('interiorImages', (unit.interiorImages || []).filter(i => i !== img));
+    } else if ((unit.balconyImages || []).includes(img)) {
+      onChange('balconyImages', (unit.balconyImages || []).filter(i => i !== img));
+    }
+    onReturnImageToGallery?.(img);
+  };
+
+  const removeFloorPlanFromUnit = (img: string) => {
+    const next = floorPlans.filter(i => i !== img);
+    onChange('floorPlanImages', next);
+    if (unit.floorPlanImage === img) {
+      onChange('floorPlanImage', next[0] || '');
+    }
+    onReturnImageToGallery?.(img);
+  };
 
   return (
     <Card className={`overflow-hidden ${isProcessing ? 'bg-teal-50 animate-pulse' : ''}`}>
@@ -129,15 +189,121 @@ export function UnitTypeCard({ unit, isProcessing, onChange, onRemove }: UnitTyp
                       <span className="text-teal-600 ml-1">({t('unitTypeCard.imageCount', { count: unit.floorPlanImages.length })})</span>
                     )}
                   </Label>
-                  <ImageCarousel 
+                  <ImageCarousel
                     images={unit.floorPlanImages || (unit.floorPlanImage ? [unit.floorPlanImage] : [])}
                     aspectRatio="square"
                     showThumbnails={(unit.floorPlanImages && unit.floorPlanImages.length > 1) || false}
                     maxHeight="280px"
                   />
                   <p className="text-xs text-gray-500 text-center">{t('imageCarousel.clickToEnlarge')}</p>
+
+                  {/* 管理条：移除误归类的图（退回图库）/ 从图库补图 */}
+                  {!isProcessing && (
+                    <div className="flex flex-wrap gap-2">
+                      {floorPlans.map(img => (
+                        <div key={img} className="relative group">
+                          <img src={img} className="h-14 w-20 object-cover rounded border" />
+                          <button
+                            type="button"
+                            onClick={() => removeFloorPlanFromUnit(img)}
+                            className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs shadow"
+                            title={t('unitTypeCard.removeToGallery', { defaultValue: 'Remove (back to gallery)' })}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {pickerCandidates.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { setPickerTarget('floorplan'); setShowPicker(v => !v || pickerTarget !== 'floorplan'); }}
+                          className="h-14 w-20 rounded border-2 border-dashed border-teal-300 text-teal-600 hover:bg-teal-50 text-xl"
+                          title={t('unitTypeCard.addFromGallery', { defaultValue: 'Add from gallery' })}
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : null}
+
+              {/* Unit Renderings (exterior + interior + balcony) */}
+              {(unitPhotos.length > 0 || (!isProcessing && pickerCandidates.length > 0)) && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-gray-600 font-semibold">
+                    {t('unitTypeCard.unitPhotos', { defaultValue: 'Unit Photos' })}
+                    {unitPhotos.length > 0 && (
+                      <span className="text-teal-600 ml-1">({t('unitTypeCard.imageCount', { count: unitPhotos.length })})</span>
+                    )}
+                  </Label>
+                  {unitPhotos.length > 0 && (
+                    <ImageCarousel
+                      images={unitPhotos}
+                      aspectRatio="video"
+                      showThumbnails={unitPhotos.length > 1}
+                      maxHeight="280px"
+                    />
+                  )}
+
+                  {/* 管理条：每张图可移除（退回项目图库），"+"从图库移入 */}
+                  {!isProcessing && (
+                    <div className="flex flex-wrap gap-2">
+                      {unitPhotos.map(img => (
+                        <div key={img} className="relative group">
+                          <img src={img} className="h-14 w-20 object-cover rounded border" />
+                          <button
+                            type="button"
+                            onClick={() => removePhotoFromUnit(img)}
+                            className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs shadow"
+                            title={t('unitTypeCard.removeToGallery', { defaultValue: 'Remove (back to gallery)' })}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {pickerCandidates.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { setPickerTarget('photo'); setShowPicker(v => !v || pickerTarget !== 'photo'); }}
+                          className="h-14 w-20 rounded border-2 border-dashed border-teal-300 text-teal-600 hover:bg-teal-50 text-xl"
+                          title={t('unitTypeCard.addFromGallery', { defaultValue: 'Add from gallery' })}
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 图库选择器（移入户型） */}
+              {showPicker && pickerCandidates.length > 0 && (
+                <div className="space-y-2 p-3 bg-teal-50/60 rounded-lg border border-teal-200">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-teal-800">
+                      {t('unitTypeCard.pickFromGallery', { defaultValue: 'Pick images to move into this unit' })}
+                      {pickerTarget === 'floorplan' && ` → ${t('unitTypeCard.floorPlan')}`}
+                    </Label>
+                    <button type="button" onClick={() => setShowPicker(false)} className="text-xs text-gray-500 hover:text-gray-700">
+                      {t('unitTypeCard.closePicker', { defaultValue: 'Close' })}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-56 overflow-y-auto">
+                    {pickerCandidates.map(img => (
+                      <button
+                        key={img}
+                        type="button"
+                        onClick={() => addImageToUnit(img)}
+                        className="relative rounded overflow-hidden border hover:ring-2 hover:ring-teal-400"
+                        title={t('unitTypeCard.clickToAdd', { defaultValue: 'Click to add' })}
+                      >
+                        <img src={img} className="h-16 w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Basic Fields */}
               <div className="space-y-3">

@@ -43,9 +43,12 @@ RUN npm prune --omit=dev
 FROM node:20-alpine
 
 # Install runtime dependencies
+# - Poppler (pdftoppm) - PRIMARY converter: native C++, handles 200MB+ JPEG2000
+#   brochures that exhaust the mupdf WASM heap (malloc failed → skipped pages)
 # - GraphicsMagick + Ghostscript for pdf2pic (PDF to image conversion)
 # - Cairo + Pango for canvas
 RUN apk add --no-cache \
+    poppler-utils \
     graphicsmagick \
     ghostscript \
     cairo \

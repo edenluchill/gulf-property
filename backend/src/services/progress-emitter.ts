@@ -21,6 +21,8 @@ export interface ProgressEvent {
 
 export class ProgressEmitter {
   private clients: Map<string, Response> = new Map();
+  // ⭐ DB进度写入节流：jobId → { at: 上次写入时间, progress: 上次写入进度 }
+  private lastDbWrite: Map<string, { at: number; progress: number }> = new Map();
 
   /**
    * Register a new SSE client
@@ -67,9 +69,13 @@ export class ProgressEmitter {
    * Emit progress event to a specific client
    */
   emit(jobId: string, event: ProgressEvent) {
+    // ⭐ DB更新必须先于SSE client检查：worker进程上没有SSE client
+    // （client连在API服务器上，API的SSE靠轮询DB），之前这里直接return
+    // 导致worker模式下所有细粒度进度丢失，前端长时间卡在6%
+    this.updateTaskProgressThrottled(jobId, event);
+
     const client = this.clients.get(jobId);
     if (!client) {
-      console.warn(`⚠️ No client found for job ${jobId}`);
       return;
     }
 
@@ -82,15 +88,29 @@ export class ProgressEmitter {
       // No need to manually flush
 
       console.log(`📤 Sent event to ${jobId}: ${event.stage} (${event.progress}%)`);
-
-      // Also update database with progress (async, don't await)
-      this.updateTaskProgress(jobId, event).catch(err => {
-        console.warn(`⚠️ Failed to update task progress in DB:`, err);
-      });
     } catch (error) {
       console.error(`❌ Error emitting progress for job ${jobId}:`, error);
       this.clients.delete(jobId);
     }
+  }
+
+  /**
+   * 节流后的DB进度写入：同一job至少间隔1.5s或进度前进≥1%才写，
+   * 避免图片生成阶段每张图一次DB UPDATE
+   */
+  private updateTaskProgressThrottled(jobId: string, event: ProgressEvent) {
+    if (event.stage === 'starting' || event.stage === 'queued' || event.stage === 'error' || event.stage === 'complete') {
+      return;
+    }
+    const last = this.lastDbWrite.get(jobId);
+    const now = Date.now();
+    if (last && now - last.at < 1500 && event.progress < last.progress + 1) {
+      return;
+    }
+    this.lastDbWrite.set(jobId, { at: now, progress: event.progress });
+    this.updateTaskProgress(jobId, event).catch(err => {
+      console.warn(`⚠️ Failed to update task progress in DB:`, err);
+    });
   }
 
   /**
@@ -133,6 +153,7 @@ export class ProgressEmitter {
       timestamp: Date.now(),
     });
 
+    this.lastDbWrite.delete(jobId);
     const client = this.clients.get(jobId);
     if (client) {
       client.end();
@@ -152,6 +173,7 @@ export class ProgressEmitter {
       timestamp: Date.now(),
     });
 
+    this.lastDbWrite.delete(jobId);
     const client = this.clients.get(jobId);
     if (client) {
       client.end();

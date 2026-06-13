@@ -24,21 +24,27 @@ export function extractProjectImages(
 ): ProjectImages {
   
   console.log('\n🏢 Extracting project images (marketing gallery)...');
-  
-  // 策略1: 不在任何户型边界内的页面
-  const outsideBoundaryPages = pages.filter(page => {
-    const inAnyBoundary = boundaries.some(b => 
-      page.pageNumber >= b.startPage && page.pageNumber <= b.endPage
-    );
-    return !inAnyBoundary;
-  });
-  
-  // 策略2: 即使在边界内，但明确是项目级别的图片
-  const projectTypeImages = pages.flatMap(p => 
-    p.images.filter(img => 
-      isProjectLevelImage(img.category)
-    )
+
+  // ⭐ 页码按PDF各自从1开始，范围判断必须带pdfSource
+  const isInsideBoundary = (page: PageMetadata) => boundaries.some(b =>
+    page.pdfSource === b.pdfSource &&
+    page.pageNumber >= b.startPage && page.pageNumber <= b.endPage
   );
+
+  // ⭐ 角标带户型名的效果图页是户型内容，不进项目图库
+  const hasUnitLabel = (page: PageMetadata) => page.unitInfo?.roleInUnit === 'supplementary';
+
+  // 策略1: 不在任何户型边界内的页面（排除已被户型标签认领的页）
+  const outsideBoundaryPages = pages.filter(page => !isInsideBoundary(page) && !hasUnitLabel(page));
+
+  // 策略2: 即使在边界内，但明确是项目级别的图片
+  // ⚠️ 边界内的页只收严格项目类别（UNKNOWN/UNIT_EXTERIOR 不算——那些是户型效果图）
+  const projectTypeImages = pages.flatMap(p => {
+    const inside = isInsideBoundary(p) || hasUnitLabel(p);
+    return p.images.filter(img =>
+      inside ? isStrictProjectLevelImage(img.category) : isProjectLevelImage(img.category)
+    );
+  });
   
   console.log(`   Pages outside unit boundaries: ${outsideBoundaryPages.length}`);
   console.log(`   Project-level images (all pages): ${projectTypeImages.length}`);
@@ -133,6 +139,25 @@ function isProjectLevelImage(category: ImageCategory): boolean {
   ];
   
   return projectCategories.includes(category);
+}
+
+/**
+ * 严格项目级别类别（用于户型边界内的页面——不含UNKNOWN/UNIT_EXTERIOR）
+ */
+function isStrictProjectLevelImage(category: ImageCategory): boolean {
+  const strictCategories = [
+    ImageCategory.BUILDING_EXTERIOR,
+    ImageCategory.BUILDING_AERIAL,
+    ImageCategory.BUILDING_ENTRANCE,
+    ImageCategory.LOCATION_MAP,
+    ImageCategory.MASTER_PLAN,
+    ImageCategory.AMENITY_POOL,
+    ImageCategory.AMENITY_GYM,
+    ImageCategory.AMENITY_GARDEN,
+    ImageCategory.AMENITY_LOUNGE,
+    ImageCategory.AMENITY_OTHER,
+  ];
+  return strictCategories.includes(category);
 }
 
 /**

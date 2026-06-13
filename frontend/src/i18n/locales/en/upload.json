@@ -224,6 +224,12 @@
   "unitTypeCard": {
     "unitCount": "{{count}} units",
     "floorPlan": "Floor Plan",
+    "unitPhotos": "Unit Photos",
+    "addFromGallery": "Add from project gallery",
+    "removeToGallery": "Remove (back to gallery)",
+    "pickFromGallery": "Click an image to move it into this unit",
+    "closePicker": "Close",
+    "clickToAdd": "Click to add",
     "imageCount": "{{count}} images",
     "typeName": "Unit Type Name (Unit Type)",
     "typeNamePlaceholder": "e.g. B-2BM-A.1, Type-A-1B-A.1",

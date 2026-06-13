@@ -691,13 +691,16 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           
           // All images should already be in PDF cache
           const unitFloorPlanImage = unit.floorPlanImage || null
-          
-          // Build unit_images array: floor plan first, then any additional images
-          const unitImages: string[] = []
-          if (unitFloorPlanImage) {
-            unitImages.push(unitFloorPlanImage)
-          }
-          // TODO: Add support for additional unit images from frontend if needed
+
+          // Build unit_images array: floor plan first, then renderings/interiors/balcony
+          // ⭐ 高端楼书一个户型多页效果图（renderingImages/interiorImages）一并入库
+          const unitImages: string[] = Array.from(new Set([
+            ...(unitFloorPlanImage ? [unitFloorPlanImage] : []),
+            ...(unit.floorPlanImages || []),
+            ...(unit.renderingImages || []),
+            ...(unit.interiorImages || []),
+            ...(unit.balconyImages || []),
+          ].filter(Boolean)))
 
           await client.query(`
             INSERT INTO project_unit_types (
@@ -1009,10 +1012,14 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           const unit = validUnits[i]
 
           const unitFloorPlanImage = unit.floorPlanImage || null
-          const unitImages: string[] = []
-          if (unitFloorPlanImage) {
-            unitImages.push(unitFloorPlanImage)
-          }
+          // ⭐ unit_images = 平面图 + 户型效果图（外观/室内/阳台），去重保序
+          const unitImages: string[] = Array.from(new Set([
+            ...(unitFloorPlanImage ? [unitFloorPlanImage] : []),
+            ...(unit.floorPlanImages || []),
+            ...(unit.renderingImages || []),
+            ...(unit.interiorImages || []),
+            ...(unit.balconyImages || []),
+          ].filter(Boolean)))
 
           // Check if this unit has a valid existing ID
           const hasExistingId = unit.id && existingIds.has(unit.id)

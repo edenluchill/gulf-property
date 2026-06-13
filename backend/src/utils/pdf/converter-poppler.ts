@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
-import { tmpdir } from 'os';
+import { tmpdir, cpus } from 'os';
 
 /**
  * Check if Poppler (pdftoppm) is installed
@@ -72,43 +72,66 @@ export async function pdfToImagesPoppler(
   const startTime = Date.now();
 
   try {
-    // Build pdftoppm arguments
     const outputPrefix = join(outputDir, prefix);
-    const args: string[] = [
-      '-r', String(dpi),  // Resolution (DPI)
-    ];
 
-    if (format === 'jpeg') {
-      args.push('-jpeg');
-      args.push('-jpegopt', `quality=${quality}`);
+    // ⭐ 多进程分片并行转换：pdftoppm 是单线程的，重型 JPEG2000 楼书
+    // （200MB+/140页）单进程要 15-20 分钟。按页范围(-f/-l)切成 N 个并行
+    // 进程后约 N 倍提速。pdftoppm 按真实页号命名输出(page-023.jpg)，
+    // 分片不影响命名/排序。
+    const totalPages = await getPdfPageCountPoppler(pdfBuffer).catch(() => 0);
+    const shardCount = totalPages > 8
+      ? Math.max(1, Math.min(cpus().length - 1, 8))
+      : 1;
+    const pagesPerShard = totalPages > 0 ? Math.ceil(totalPages / shardCount) : 0;
+
+    const runPdftoppm = (firstPage?: number, lastPage?: number) => {
+      const args: string[] = ['-r', String(dpi)];
+      if (firstPage !== undefined && lastPage !== undefined) {
+        args.push('-f', String(firstPage), '-l', String(lastPage));
+      }
+      if (format === 'jpeg') {
+        args.push('-jpeg');
+        args.push('-jpegopt', `quality=${quality}`);
+      } else {
+        args.push('-png');
+      }
+      args.push(tempPdfPath, outputPrefix);
+
+      return new Promise<void>((resolve, reject) => {
+        const proc = spawn('pdftoppm', args, { shell: true });
+
+        let stderr = '';
+        proc.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        proc.on('error', (err) => {
+          reject(new Error(`Failed to start pdftoppm: ${err.message}. Is Poppler installed?`));
+        });
+
+        proc.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`pdftoppm exited with code ${code}: ${stderr}`));
+          }
+        });
+      });
+    };
+
+    if (shardCount > 1 && pagesPerShard > 0) {
+      console.log(`   ⚡ Parallel conversion: ${shardCount} pdftoppm processes (${pagesPerShard} pages each)`);
+      const shards: Array<Promise<void>> = [];
+      for (let s = 0; s < shardCount; s++) {
+        const first = s * pagesPerShard + 1;
+        const last = Math.min((s + 1) * pagesPerShard, totalPages);
+        if (first > last) break;
+        shards.push(runPdftoppm(first, last));
+      }
+      await Promise.all(shards);
     } else {
-      args.push('-png');
+      await runPdftoppm();
     }
-
-    // Add input and output
-    args.push(tempPdfPath, outputPrefix);
-
-    // Execute pdftoppm
-    await new Promise<void>((resolve, reject) => {
-      const proc = spawn('pdftoppm', args, { shell: true });
-
-      let stderr = '';
-      proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on('error', (err) => {
-        reject(new Error(`Failed to start pdftoppm: ${err.message}. Is Poppler installed?`));
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`pdftoppm exited with code ${code}: ${stderr}`));
-        }
-      });
-    });
 
     // Collect output files
     const ext = format === 'jpeg' ? 'jpg' : 'png';
@@ -122,10 +145,13 @@ export async function pdfToImagesPoppler(
       });
 
     // Rename files to consistent format (page.1.jpeg, page.2.jpeg, ...)
+    // ⚠️ 页码必须取自 pdftoppm 输出文件名里的真实页号，不能用数组下标——
+    // 个别页转换失败被跳过时，下标重排会让后续所有页的内容/页码错位
     const imagePaths: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const oldPath = join(outputDir, files[i]);
-      const newName = `${prefix}.${i + 1}.${format}`;
+      const realPageNum = parseInt(files[i].match(/-(\d+)\./)?.[1] || '0') || (i + 1);
+      const newName = `${prefix}.${realPageNum}.${format}`;
       const newPath = join(outputDir, newName);
 
       // Rename if needed

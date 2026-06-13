@@ -200,7 +200,7 @@ export interface PageContent {
  */
 export interface PageMetadata {
   // ============ 基本信息 ============
-  pageNumber: number;           // 全局页码（跨PDF唯一）
+  pageNumber: number;           // ⚠️ PDF内页码（1-based，每个PDF各自从1开始，跨PDF会重复！范围匹配必须带pdfSource）
   pdfSource: string;            // 源PDF文件名
   chunkIndex: number;           // 所属chunk索引
   

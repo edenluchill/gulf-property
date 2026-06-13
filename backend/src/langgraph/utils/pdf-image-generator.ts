@@ -13,10 +13,19 @@
  * - AI only needs to classify/mark images, not decide generation
  */
 
-import { pdfToImages } from '../../utils/pdf/converter';
+import { pdfToImages, pdfPageToImage, getPdfPageCount } from '../../utils/pdf/converter';
 import { uploadFileToPdfCacheWithVariants, type ImageUrls } from '../../services/r2-storage';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { mkdirSync, rmSync } from 'fs';
+
+/**
+ * 从图片文件名解析真实页码（page.23.jpeg → 23）
+ * ⚠️ 不能用数组下标：转换器跳过失败页时，下标会让所有后续页错位
+ */
+function pageNumberFromPath(imgPath: string, fallback: number): number {
+  const m = basename(imgPath).match(/(\d+)\.(?:jpe?g|png)$/i);
+  return m ? parseInt(m[1]) : fallback;
+}
 
 export interface PdfImageBatch {
   pdfHash: string;
@@ -123,6 +132,29 @@ export async function generateAndUploadAllPdfImages(
       { dpi: 192 }
     );
 
+    // ⭐ 缺页检测 + 单页兜底重试（JPEG2000大PDF在mupdf路径下可能跳页）
+    const expectedPages = await getPdfPageCount(pdfBuffer).catch(() => 0);
+    if (expectedPages > 0 && localImagePaths.length < expectedPages) {
+      const havePages = new Set(localImagePaths.map(p => pageNumberFromPath(p, -1)));
+      const missing: number[] = [];
+      for (let pn = 1; pn <= expectedPages; pn++) {
+        if (!havePages.has(pn)) missing.push(pn);
+      }
+      console.warn(`   ⚠️ Converted ${localImagePaths.length}/${expectedPages} pages, retrying ${missing.length} missing pages individually...`);
+
+      for (const pn of missing) {
+        try {
+          const outPath = join(pdfTempDir, `page.${pn}.jpeg`);
+          await pdfPageToImage(pdfBuffer, pn, outPath);
+          localImagePaths.push(outPath);
+          console.log(`   ✓ Recovered page ${pn}`);
+        } catch (e) {
+          console.error(`   ❌ Page ${pn} unrecoverable: ${(e as Error).message}`);
+        }
+      }
+      localImagePaths.sort((a, b) => pageNumberFromPath(a, 0) - pageNumberFromPath(b, 0));
+    }
+
     const imageTime = Date.now() - imageStartTime;
     console.log(`   ✓ Generated ${localImagePaths.length} images in ${(imageTime / 1000).toFixed(2)}s`);
 
@@ -140,7 +172,8 @@ export async function generateAndUploadAllPdfImages(
 
       const batchResults = await Promise.allSettled(
         batch.map(async (imgPath, batchIdx) => {
-          const pageNumber = i + batchIdx + 1;  // ⭐ 1-indexed page numbers
+          // ⭐ 页码从文件名解析（page.N.jpeg），不能用数组下标——跳页时会全体错位
+          const pageNumber = pageNumberFromPath(imgPath, i + batchIdx + 1);
           
           // Small delay to avoid overwhelming R2
           await new Promise(resolve => setTimeout(resolve, batchIdx * 100));

@@ -18,15 +18,17 @@ export interface ClassificationResult {
   pageType: PageType;
   shouldUse: boolean;
   confidence: number;
-  unitTypeName?: string;      // 户型名称（如果是 unit_anchor）
+  unitTypeName?: string;      // 户型名称（unit_anchor 必填；unit_rendering/unit_interior 页有角标时也填）
   unitCategory?: string;      // 分类：Studio, 1BR, 2BR, 3BR, 4BR, Penthouse
+  hasPricingTable?: boolean;  // ⭐ 页面含价格表（与 pageType 解耦：一页可同时有价格+付款计划）
+  hasPaymentPlan?: boolean;   // ⭐ 页面含付款计划（同上）
   boundaryMarkers?: {
     isSectionStart: boolean;  // 章节开始（用于分割户型范围）
     isUnitStart: boolean;     // 户型开始（unit_anchor 必须为 true）
     startMarkerText?: string; // 章节/户型标题
   };
   imageInfo?: {
-    category: string;         // floor_plan, building_exterior, etc.
+    category: string;         // floor_plan, unit_exterior, unit_interior_*, building_exterior, etc.
     isFullPage: boolean;
     hasDimensions: boolean;
   };
@@ -125,15 +127,19 @@ const PAGE_TYPE_CRITERIA = `## 页面类型
 
 **示例：** 1-Bedroom Floor Plan, Type A, B-1B-B.2
 
-### unit_rendering（户型效果图）
-- 室内或室外的3D渲染图
-- 艺术效果图，不是平面图
-- 没有房间标签
+### unit_rendering（户型外观效果图）
+- 单个户型/别墅/联排的**外观**3D渲染图
+- 艺术效果图，不是平面图，没有房间标签
+- ⭐ 高端楼书常为一个户型连续放多页效果图（外观+室内），最后才是平面图——这些效果图页都属于该户型
+- ⭐ 如果页面角标/标题写了户型名（如 "BEACH VILLA — 6 BEDROOM"、"3-BEDROOM TOWNHOUSE"、"Type A"），填入 unitTypeName 和 unitCategory；**读不到就留空，禁止猜测**
+
+### unit_interior（户型室内效果图）
+- 单个户型**内部**的渲染图：客厅、卧室、厨房、浴室、阳台
+- 与 unit_rendering 同理：角标有户型名就填 unitTypeName，没有留空
 
 ### project_rendering（项目效果图）
-- 整栋建筑外观渲染
-- 小区鸟瞰图
-- 不是单个户型
+- 整栋建筑/整个小区外观渲染、鸟瞰图
+- 不是单个户型（区分：单栋别墅/单个单元的渲染 = unit_rendering）
 
 ### amenities_images（配套设施）
 - 泳池、健身房、大堂等公共区域
@@ -148,9 +154,14 @@ const PAGE_TYPE_CRITERIA = `## 页面类型
 - 付款时间表
 - 有百分比和日期
 
+⭐ **价格与付款计划可能在同一页**（如 "STARTING PRICES" + "PAYMENT PLAN" 两块）。
+每一页都独立判断 hasPricingTable 和 hasPaymentPlan 两个布尔值（与 pageType 无关，两者可同时为 true）。
+
 ### section_divider（分隔页）
 - 只有标题，没有实质内容
 - shouldUse: false
+- ⭐ 标题可能是户型/系列名（如 "BLUE HORIZON"、"THE BEACH COLLECTION"、"3-BEDROOM TOWNHOUSE"）——
+  必须设 isSectionStart: true 并把标题原文填进 startMarkerText，后续页面靠它归属户型
 
 ### 其他类型
 - project_cover: 封面
@@ -178,6 +189,8 @@ const CLASSIFICATION_JSON_SHAPE = `{
   "confidence": 0.95,
   "unitTypeName": "Type A",
   "unitCategory": "1BR",
+  "hasPricingTable": false,
+  "hasPaymentPlan": false,
   "boundaryMarkers": {
     "isSectionStart": false,
     "isUnitStart": true,
@@ -188,7 +201,12 @@ const CLASSIFICATION_JSON_SHAPE = `{
     "isFullPage": true,
     "hasDimensions": true
   }
-}`;
+}
+
+imageInfo.category 只能从以下枚举中选（禁止其他值）：
+floor_plan | unit_exterior | unit_interior_living | unit_interior_bedroom | unit_interior_kitchen | unit_interior_bathroom | unit_balcony | building_exterior | building_aerial | building_entrance | location_map | master_plan | amenity_pool | amenity_gym | amenity_garden | amenity_lounge | amenity_other | logo | diagram | unknown
+
+对应规则：unit_rendering 页 → unit_exterior；unit_interior 页 → unit_interior_*（按房间）；project_rendering 页 → building_exterior 或 building_aerial`;
 
 /**
  * 分类 prompt（单页）
@@ -218,6 +236,8 @@ function toClassificationResult(parsed: any): ClassificationResult {
     confidence: parsed.confidence || 0.8,
     unitTypeName: parsed.unitTypeName || undefined,
     unitCategory: parsed.unitCategory || undefined,
+    hasPricingTable: parsed.hasPricingTable === true,
+    hasPaymentPlan: parsed.hasPaymentPlan === true,
     boundaryMarkers: parsed.boundaryMarkers || {
       isSectionStart: false,
       isUnitStart: false,

@@ -84,6 +84,15 @@ class TextLayerRegistryClass {
     return text && text.length > 5 ? text : undefined;
   }
 
+  /** Same as getPageText but keyed by PDF file name (= PageMetadata.pdfSource). */
+  getPageTextByName(jobId: string, pdfName: string, pageNum: number): string | undefined {
+    const layers = this.jobs.get(jobId);
+    if (!layers) return undefined;
+    const layer = layers.find(l => l.pdfName === pdfName);
+    const text = layer?.pages[pageNum - 1];
+    return text && text.length > 5 ? text : undefined;
+  }
+
   /** Full labeled text across all PDFs of the job (for the project-level pass). */
   getFullText(jobId: string): string {
     const layers = this.jobs.get(jobId) || [];

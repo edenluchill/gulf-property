@@ -1,18 +1,23 @@
 /**
  * 边界扫描算法
- * 
+ *
  * 策略：
- * - 遇到isUnitStart → 开始新户型
+ * - 遇到isUnitStart → 开始新户型（并向前回溯未归属的效果图页）
  * - 遇到下一个isUnitStart → 结束当前户型
  * - 遇到isSectionStart → 结束当前户型
+ * - PDF切换 → 结束当前户型（页码按PDF各自从1开始，边界不能跨PDF）
+ *
+ * ⭐ "锚点在尾部"支持（Palm Jebel Ali 等高端楼书）：
+ *   [分隔页"BLUE HORIZON"] → 效果图×N → 平面图(锚点)
+ *   锚点触发时把 startPage 回溯到分隔页之后的第一张效果图页
  */
 
-import { PageMetadata, PageType } from '../types/page-metadata';
+import { PageMetadata, PageType, ImageCategory } from '../types/page-metadata';
 import { UnitBoundary } from '../types/assignment-result';
 
 /**
  * 扫描页面，识别每个户型的边界范围
- * 
+ *
  * 每次插入新pages后都会重新调用
  * 即使锚点页还未出现，也能正常运行（返回空数组）
  */
@@ -21,136 +26,265 @@ export function scanUnitBoundaries(pages: PageMetadata[]): UnitBoundary[] {
     return [];
   }
 
-  const boundaries: UnitBoundary[] = [];
-  let currentStart: number | null = null;
-  let currentUnitName: string | null = null;
-  let currentPdfSources: Set<string> = new Set();
-  let currentSectionContext: string | null = null;  // ⭐ 追踪section上下文
+  console.log('\n🔍 Scanning unit boundaries (section-based)...');
 
-  console.log('\n🔍 Scanning unit boundaries...');
+  const sorted = [...pages].sort((a, b) =>
+    a.pdfSource !== b.pdfSource ? a.pdfSource.localeCompare(b.pdfSource) : a.pageNumber - b.pageNumber
+  );
 
-  pages.forEach((page, index) => {
-    // ============ 场景1: 遇到新户型起始 ============
-    if (page.boundaryMarkers.isUnitStart && page.unitInfo?.unitTypeName) {
-      let unitName = page.unitInfo.unitTypeName;
+  const isAnchor = (p: PageMetadata): boolean =>
+    p.pageType === PageType.UNIT_ANCHOR || p.pageType === PageType.UNIT_FLOORPLAN_ONLY;
 
-      // ⭐ 如果是通用名称（如"Type A"），尝试与section上下文组合
-      if (isGenericUnitName(unitName) && currentSectionContext) {
-        const combinedName = combineWithSectionContext(unitName, currentSectionContext);
-        if (combinedName) {
-          console.log(`   🔄 Combined "${unitName}" with section "${currentSectionContext}" → "${combinedName}"`);
-          unitName = combinedName;
+  const isDivider = (p: PageMetadata): boolean =>
+    p.boundaryMarkers.isSectionStart ||
+    p.pageType === PageType.SECTION_DIVIDER ||
+    p.pageType === PageType.SECTION_TITLE;
 
-          // ⭐ 关键修复：同步更新 PageMetadata.unitInfo.unitTypeName
-          // 这样后续的 batch-processor 可以正确匹配名称
-          if (page.unitInfo) {
-            page.unitInfo.unitTypeName = combinedName;
-            console.log(`   📝 Updated page ${page.pageNumber} unitInfo.unitTypeName to "${combinedName}"`);
-          }
-        } else {
-          console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (no usable section context)`);
-          return;  // 跳过这个"户型"
-        }
-      } else if (isGenericUnitName(unitName)) {
-        console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (no section context)`);
-        return;  // 跳过这个"户型"
-      }
-      
-      // 保存上一个户型的边界
-      if (currentStart !== null && currentUnitName !== null) {
-        const prevPage = pages[index - 1];
-        const endPage = prevPage ? prevPage.pageNumber : page.pageNumber - 1;
-        
-        boundaries.push({
-          unitTypeName: currentUnitName,
-          startPage: currentStart,
-          endPage,
-          pageCount: endPage - currentStart + 1,
-          pdfSources: Array.from(currentPdfSources),
-        });
-        
-        console.log(`   ✓ Found unit "${currentUnitName}": pages ${currentStart}-${endPage} (${currentPdfSources.size} PDFs)`);
-      }
-      
-      // 开始新户型
-      currentStart = page.pageNumber;
-      currentUnitName = unitName;
-      currentPdfSources = new Set([page.pdfSource]);
-      
-      console.log(`   ⚓ Unit start: "${currentUnitName}" at page ${page.pageNumber}`);
+  // ============ 步骤1: 按分隔页/PDF切换切成 section ============
+  type Section = { pages: PageMetadata[]; pdfSource: string; context: string | null };
+  const sections: Section[] = [];
+  let cur: Section | null = null;
+  let runningContext: string | null = null;
+
+  for (const page of sorted) {
+    if (!cur || page.pdfSource !== cur.pdfSource) {
+      cur = { pages: [], pdfSource: page.pdfSource, context: null };
+      sections.push(cur);
+      runningContext = null;
     }
-    
-    // ============ 场景2: 遇到章节分隔 ============
-    else if (page.boundaryMarkers.isSectionStart) {
-      // 结束当前户型
-      if (currentStart !== null && currentUnitName !== null) {
-        boundaries.push({
-          unitTypeName: currentUnitName,
-          startPage: currentStart,
-          endPage: page.pageNumber - 1,
-          pageCount: page.pageNumber - currentStart,
-          pdfSources: Array.from(currentPdfSources),
-        });
-        
-        console.log(`   ✓ Found unit "${currentUnitName}": pages ${currentStart}-${page.pageNumber - 1} (ended by section)`);
-      }
-      
-      currentStart = null;
-      currentUnitName = null;
-      currentPdfSources = new Set();
-
-      // ⭐ 更新section上下文
-      currentSectionContext = page.boundaryMarkers.startMarkerText || null;
-
-      console.log(`   📑 Section start: "${page.boundaryMarkers.startMarkerText || 'Unknown'}" at page ${page.pageNumber}`);
+    if (isDivider(page)) {
+      // 分隔页关闭当前 section，开启新 section（分隔页本身不入任何 section）
+      runningContext = page.boundaryMarkers.startMarkerText || null;
+      cur = { pages: [], pdfSource: page.pdfSource, context: runningContext };
+      sections.push(cur);
+      continue;
     }
-    
-    // ============ 场景3: 遇到户型结束标记 ============
-    else if (page.boundaryMarkers.isUnitEnd) {
-      if (currentStart !== null && currentUnitName !== null) {
-        currentPdfSources.add(page.pdfSource);
-        
-        boundaries.push({
-          unitTypeName: currentUnitName,
-          startPage: currentStart,
-          endPage: page.pageNumber,
-          pageCount: page.pageNumber - currentStart + 1,
-          pdfSources: Array.from(currentPdfSources),
-        });
-        
-        console.log(`   ✓ Found unit "${currentUnitName}": pages ${currentStart}-${page.pageNumber} (ended by marker)`);
-      }
-      
-      currentStart = null;
-      currentUnitName = null;
-      currentPdfSources = new Set();
-    }
-    
-    // ============ 场景4: 在户型范围内的普通页 ============
-    else if (currentStart !== null) {
-      // 记录PDF来源
-      currentPdfSources.add(page.pdfSource);
-    }
-  });
-  
-  // ============ 保存最后一个户型 ============
-  if (currentStart !== null && currentUnitName !== null) {
-    const lastPage = pages[pages.length - 1];
-    
-    boundaries.push({
-      unitTypeName: currentUnitName,
-      startPage: currentStart,
-      endPage: lastPage.pageNumber,
-      pageCount: lastPage.pageNumber - currentStart + 1,
-      pdfSources: Array.from(currentPdfSources),
-    });
-    
-    console.log(`   ✓ Found unit "${currentUnitName}": pages ${currentStart}-${lastPage.pageNumber} (last unit)`);
+    cur.pages.push(page);
   }
-  
+
+  // ============ 步骤2: 每节内按锚点数生成户型 ============
+  const boundaries: UnitBoundary[] = [];
+
+  for (const section of sections) {
+    if (section.pages.length === 0) continue;
+    const anchors = section.pages.filter(isAnchor);
+
+    if (anchors.length === 0) {
+      // 无锚点 section：暂不成户型（图片归项目图库），孤儿吸收阶段可能补救
+      continue;
+    }
+
+    if (anchors.length === 1) {
+      // ⭐ 1 个锚点 → 整节合成 1 个户型（PJA：分隔页→照片×N→户型图）
+      const anchor = anchors[0];
+      const name = resolveUnitName(anchor, section.context, anchor);
+      if (!name) continue;
+      const first = section.pages[0];
+      const last = section.pages[section.pages.length - 1];
+      boundaries.push({
+        unitTypeName: name,
+        startPage: first.pageNumber,
+        endPage: last.pageNumber,
+        pageCount: last.pageNumber - first.pageNumber + 1,
+        pdfSource: section.pdfSource,
+        pdfSources: [section.pdfSource],
+      });
+      console.log(`   ✓ [1-anchor section] "${name}": pages ${first.pageNumber}-${last.pageNumber} (${section.pdfSource})`);
+    } else {
+      // ⭐ N 个锚点 → 按锚点拆 N 个户型（Palm Central：一页一户型）
+      // 每个锚点的范围 = [上一锚点之后的第一页 .. 本锚点]，最后一个锚点吃到节尾
+      const anchorIdxs = section.pages
+        .map((p, i) => (isAnchor(p) ? i : -1))
+        .filter(i => i >= 0);
+
+      for (let k = 0; k < anchorIdxs.length; k++) {
+        const anchor = section.pages[anchorIdxs[k]];
+        const name = resolveUnitName(anchor, section.context, anchor);
+        if (!name) continue;
+
+        // 范围起点：第一个锚点从节首开始(吃掉前面的照片)，其余从锚点本页开始
+        const rangeStartIdx = k === 0 ? 0 : anchorIdxs[k];
+        // 范围终点：最后一个锚点吃到节尾，否则到下一个锚点的前一页(认领后面跟随的照片)
+        const rangeEndIdx = k === anchorIdxs.length - 1
+          ? section.pages.length - 1
+          : anchorIdxs[k + 1] - 1;
+
+        const first = section.pages[rangeStartIdx];
+        const last = section.pages[rangeEndIdx];
+        boundaries.push({
+          unitTypeName: name,
+          startPage: first.pageNumber,
+          endPage: last.pageNumber,
+          pageCount: last.pageNumber - first.pageNumber + 1,
+          pdfSource: section.pdfSource,
+          pdfSources: [section.pdfSource],
+        });
+        console.log(`   ✓ [multi-anchor section] "${name}": pages ${first.pageNumber}-${last.pageNumber} (${section.pdfSource})`);
+      }
+    }
+  }
+
   console.log(`\n📊 Boundary scan complete: ${boundaries.length} units identified\n`);
-  
+
   return boundaries;
+}
+
+/**
+ * 决定户型名：锚点名优先；通用名/纯描述名则与 section 上下文组合。
+ * 会同步更新锚点页的 unitInfo.unitTypeName，供 batch-processor 匹配。
+ */
+function resolveUnitName(
+  namePage: PageMetadata,
+  sectionContext: string | null,
+  anchorToUpdate: PageMetadata
+): string | null {
+  let unitName = namePage.unitInfo?.unitTypeName?.trim();
+
+  // 锚点无名 → 尝试从 section 上下文取（命名系列分隔页）
+  if (!unitName) {
+    unitName = sectionContext?.trim() || undefined;
+    if (!unitName) {
+      console.log(`   ⚠️  Anchor page ${namePage.pageNumber} has no name and no section context, skipping`);
+      return null;
+    }
+  }
+
+  const generic = isGenericUnitName(unitName);
+  const descriptive = !generic && isDescriptiveUnitName(unitName);
+
+  if ((generic || descriptive) && sectionContext) {
+    const combined = combineWithSectionContext(unitName, sectionContext);
+    if (combined) {
+      console.log(`   🔄 Combined "${unitName}" with section "${sectionContext}" → "${combined}"`);
+      unitName = combined;
+    } else if (generic) {
+      console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (no usable section context)`);
+      return null;
+    }
+  } else if (generic) {
+    console.log(`   ⚠️  Skipping generic unit name: "${unitName}" (no section context)`);
+    return null;
+  }
+
+  // 同步回锚点页，供后续 specs/价格按名称匹配
+  if (anchorToUpdate.unitInfo) {
+    anchorToUpdate.unitInfo.unitTypeName = unitName;
+  }
+  return unitName;
+}
+
+/**
+ * ⭐ 孤儿户型图吸收（确定性后处理,解决"户型图掉了+面积=0")
+ *
+ * 高端楼书每节结构固定：分隔页 → 带户型名角标的照片页 ×N → 户型图页(有面积,
+ * 但文本层没户型名)。当 section 重建按"标签名"圈范围时,会圈到照片页、把末尾
+ * 那页户型图漏在外面 → 该户型既没户型图、面积也=0(面积只在户型图页上)。
+ *
+ * 本函数把任何"带户型图/面积、却不在任何户型区间内"的孤儿锚点页,确定性地并入
+ * 它前面相邻的户型(同一 PDF、中间无分隔页、无其他户型)。不依赖 AI 圈准范围。
+ */
+export function absorbOrphanAnchors(
+  boundaries: UnitBoundary[],
+  pages: PageMetadata[]
+): UnitBoundary[] {
+  if (boundaries.length === 0) return boundaries;
+
+  const sorted = [...pages].sort((a, b) =>
+    a.pdfSource !== b.pdfSource ? a.pdfSource.localeCompare(b.pdfSource) : a.pageNumber - b.pageNumber
+  );
+
+  const isAnchorLike = (p: PageMetadata): boolean =>
+    p.pageType === PageType.UNIT_ANCHOR ||
+    p.pageType === PageType.UNIT_FLOORPLAN_ONLY ||
+    p.images.some(img => img.category === ImageCategory.FLOOR_PLAN) ||
+    (p.unitInfo?.specs?.area ?? 0) > 0;
+
+  const isDivider = (p: PageMetadata): boolean =>
+    p.boundaryMarkers.isSectionStart ||
+    p.pageType === PageType.SECTION_DIVIDER ||
+    p.pageType === PageType.SECTION_TITLE;
+
+  const result = boundaries.map(b => ({ ...b }));
+
+  const inAnyBoundary = (p: PageMetadata): boolean =>
+    result.some(b => b.pdfSource === p.pdfSource &&
+      p.pageNumber >= b.startPage && p.pageNumber <= b.endPage);
+
+  let absorbed = 0;
+  for (const page of sorted) {
+    if (!isAnchorLike(page) || inAnyBoundary(page)) continue;
+
+    // 找前面最近、同 PDF、中间无分隔页、无其他户型起点的户型
+    let best: UnitBoundary | null = null;
+    for (const b of result) {
+      if (b.pdfSource !== page.pdfSource || b.endPage >= page.pageNumber) continue;
+
+      const dividerBetween = sorted.some(p2 =>
+        p2.pdfSource === page.pdfSource &&
+        p2.pageNumber > b.endPage && p2.pageNumber < page.pageNumber &&
+        isDivider(p2)
+      );
+      if (dividerBetween) continue;
+
+      const otherUnitBetween = result.some(b2 =>
+        b2 !== b && b2.pdfSource === page.pdfSource &&
+        b2.startPage > b.endPage && b2.startPage < page.pageNumber
+      );
+      if (otherUnitBetween) continue;
+
+      if (!best || b.endPage > best.endPage) best = b;
+    }
+
+    // 没有前置户型 → 尝试并入后面紧邻的户型（户型图在照片前的版式）
+    if (!best) {
+      for (const b of result) {
+        if (b.pdfSource !== page.pdfSource || b.startPage <= page.pageNumber) continue;
+        const dividerBetween = sorted.some(p2 =>
+          p2.pdfSource === page.pdfSource &&
+          p2.pageNumber > page.pageNumber && p2.pageNumber < b.startPage &&
+          isDivider(p2)
+        );
+        if (dividerBetween) continue;
+        if (!best || b.startPage < best.startPage) best = b;
+      }
+      if (best) {
+        best.startPage = page.pageNumber;
+        absorbed++;
+        console.log(`   🧲 Absorbed orphan floor-plan page ${page.pageNumber} into "${best.unitTypeName}" (prepend)`);
+        continue;
+      }
+    }
+
+    if (best) {
+      best.endPage = page.pageNumber;
+      best.pageCount = best.endPage - best.startPage + 1;
+      absorbed++;
+      console.log(`   🧲 Absorbed orphan floor-plan page ${page.pageNumber} into "${best.unitTypeName}" (pages now ${best.startPage}-${best.endPage})`);
+    }
+  }
+
+  if (absorbed > 0) {
+    console.log(`   ✅ Absorbed ${absorbed} orphan floor-plan/anchor page(s) into adjacent units`);
+  }
+  return result;
+}
+
+/**
+ * 判断是否为纯描述性户型名（无独特标识，需要与系列名组合）
+ *
+ * 例如 "BEACH VILLA — 6 BEDROOM"：去掉常见描述词和数字后没有剩余
+ * → 与 section "BLUE HORIZON" 组合成 "BLUE HORIZON BEACH VILLA — 6 BEDROOM"
+ *
+ * 反例 "Type A"（剩 "A"）、"B-1B-B.2"（剩字母代码）→ 有独特标识，保持原名
+ */
+function isDescriptiveUnitName(name: string): boolean {
+  if (!name) return false;
+  const residue = name
+    .toUpperCase()
+    .replace(/\d+/g, ' ')
+    .replace(/\b(BEACH|GARDEN|WATER|WATERFRONT|FAMILY|LUXURY|PREMIUM|GRAND|SIGNATURE|VILLA|VILLAS|TOWNHOUSE|TOWNHOUSES|APARTMENT|APARTMENTS|PENTHOUSE|DUPLEX|SIMPLEX|MAID|STUDY|LARGE|BED|BEDS|BEDROOM|BEDROOMS|BR|ROOM|ROOMS|CONTEMPORARY|MODERN|CLASSIC|COLLECTION|EDITION|RESIDENCE|RESIDENCES)\b/g, ' ')
+    .replace(/[^A-Z]/g, '');
+  return residue.length === 0;
 }
 
 /**
@@ -261,7 +395,38 @@ function combineWithSectionContext(unitName: string, sectionContext: string): st
     return `PENTHOUSE ${unitName.toUpperCase()}`;
   }
 
-  return null;  // 无法组合
+  // ⭐ 命名系列分隔页（如 "BLUE HORIZON"、"CRYSTAL SPRINGS"）：
+  // 非通用标题、非楼栋标识、且未包含在户型名中 → 前置作为系列名
+  const cleaned = sectionContext.trim().replace(/\s+/g, ' ');
+  const upperCleaned = cleaned.toUpperCase();
+
+  // 楼栋/期数标识交给 buildingContext 处理，不并入户型名
+  if (/^(TOWER|BUILDING|BLOCK|PHASE)\b/i.test(upperCleaned)) {
+    return null;
+  }
+
+  // 通用章节标题不能作为系列名
+  const genericTitles = [
+    'floor plans', 'floorplans', 'unit types', 'amenities', 'facilities',
+    'payment plan', 'location', 'features', 'overview', 'specifications',
+    'pricing', 'price', 'prices', 'price list', 'unit mix', 'availability',
+    'interior', 'exterior', 'master plan', 'masterplan', 'gallery',
+    'introduction', 'contents', 'about',
+  ];
+  if (genericTitles.some(t => upperCleaned.toLowerCase().includes(t))) {
+    return null;
+  }
+
+  // 名称合理性：较短的标题才像系列名
+  if (cleaned.length === 0 || cleaned.length > 30) {
+    return null;
+  }
+
+  if (unitName.toUpperCase().includes(upperCleaned)) {
+    return null;  // 户型名已含系列名，无需组合
+  }
+
+  return `${upperCleaned} ${unitName.toUpperCase()}`;
 }
 
 /**

@@ -211,6 +211,10 @@ export interface SubmitUnitType {
   
   // Media
   floorPlanImage?: string
+  floorPlanImages?: string[]   // 多张平面图
+  renderingImages?: string[]   // ⭐ 户型外观效果图（高端楼书一户型多页渲染）
+  interiorImages?: string[]    // ⭐ 户型室内效果图
+  balconyImages?: string[]     // ⭐ 阳台/露台图
 }
 
 export interface SubmitPaymentMilestone {

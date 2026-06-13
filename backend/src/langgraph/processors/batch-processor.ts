@@ -676,11 +676,21 @@ function convertAssignmentToAggregatedData(
       // ⚠️ FIX: Must also filter by category AND/OR pageRange to get correct specs
       // This prevents "Type A (1BR)" page 35 from being used for "Type A (4BR)" page 39
       // ⚠️ Name/category compares are case-insensitive ("TYPE B" vs "Type B")
-      const smartName = smartUnit.unitTypeName.toUpperCase().trim();
+      // ⭐ 名称用归一化包含匹配：全局重建会给户型加系列前缀
+      // （"BLUE HORIZON (BEACH VILLA A)" vs 锚点页的 "BLUE HORIZON"），
+      // 严格相等会找不到锚点 → specs 全空 → 提交时被过滤
+      const normalizeKey = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const smartKey = normalizeKey(smartUnit.unitTypeName);
       const smartCategory = (smartUnit.unitCategory || '').toUpperCase().replace(/\s+/g, '');
-      const anchorPages = pageRegistry.getAnchorPages().filter(p => {
-        // First: must match unit name
-        if ((p.unitInfo?.unitTypeName || '').toUpperCase().trim() !== smartName) {
+      let anchorPages = pageRegistry.getAnchorPages().filter(p => {
+        // First: must match unit name (exact or containment after normalization)
+        const pKey = normalizeKey(p.unitInfo?.unitTypeName || '');
+        const nameMatches = pKey.length > 0 && (
+          pKey === smartKey ||
+          (pKey.length >= 4 && smartKey.includes(pKey)) ||
+          (smartKey.length >= 4 && pKey.includes(smartKey))
+        );
+        if (!nameMatches) {
           return false;
         }
 
@@ -699,6 +709,18 @@ function convertAssignmentToAggregatedData(
         // Fallback: match by name only (may be incorrect for same-name units)
         return true;
       });
+
+      // ⭐ 名称完全失配时按页面范围兜底（锚点一定在户型的页范围内）
+      if (anchorPages.length === 0 && smartUnit.pageRange) {
+        anchorPages = pageRegistry.getAnchorPages().filter(p =>
+          smartUnit.pdfSources.includes(p.pdfSource) &&
+          p.pageNumber >= smartUnit.pageRange!.start &&
+          p.pageNumber <= smartUnit.pageRange!.end
+        );
+        if (anchorPages.length > 0) {
+          console.log(`   🔁 Anchor matched by pageRange for "${smartUnit.unitTypeName}" (page ${anchorPages[0].pageNumber})`);
+        }
+      }
 
       // Prefer the anchor whose extraction actually succeeded (valid area) —
       // a merged unit can have one good anchor page and one failed one
@@ -758,7 +780,8 @@ function convertAssignmentToAggregatedData(
         id: smartUnit.unitTypeName,
         name: smartUnit.unitTypeName,
         typeName: smartUnit.unitTypeName,
-        category: firstAnchor?.unitInfo?.unitCategory || '',
+        // ⭐ 全局重建给的 category 优先（"6BR" 等），锚点页其次
+        category: smartUnit.unitCategory || firstAnchor?.unitInfo?.unitCategory || '',
         buildingName: deriveBuildingName(smartUnit.unitTypeName),  // ⭐ 从名称推断归属
         bedrooms: bedrooms,
         bathrooms: bathrooms,

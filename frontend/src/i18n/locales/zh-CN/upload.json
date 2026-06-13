@@ -224,6 +224,12 @@
   "unitTypeCard": {
     "unitCount": "{{count}} 个单元",
     "floorPlan": "户型图",
+    "unitPhotos": "户型效果图",
+    "addFromGallery": "从项目图库添加",
+    "removeToGallery": "移除(退回项目图库)",
+    "pickFromGallery": "点击图片移入此户型",
+    "closePicker": "收起",
+    "clickToAdd": "点击移入",
     "imageCount": "{{count}} 张",
     "typeName": "户型名称 (Unit Type)",
     "typeNamePlaceholder": "例如: B-2BM-A.1, Type-A-1B-A.1",

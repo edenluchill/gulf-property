@@ -21,6 +21,9 @@ export interface UnitType {
   description?: string
   floorPlanImage?: string
   floorPlanImages?: string[]
+  renderingImages?: string[]   // ⭐ 户型外观效果图（高端楼书一户型多页渲染）
+  interiorImages?: string[]    // ⭐ 户型室内效果图
+  balconyImages?: string[]     // ⭐ 阳台/露台图
   parkingSpaces?: number    // ⭐ 车位配比（来自楼书文本层库存表）
 }
 
@@ -112,6 +115,9 @@ export function buildSubmitPayload(formData: PropertyFormData) {
       description: unit.description,
       floorPlanImage: unit.floorPlanImage,
       floorPlanImages: unit.floorPlanImages,
+      renderingImages: unit.renderingImages,
+      interiorImages: unit.interiorImages,
+      balconyImages: unit.balconyImages,
       parkingSpaces: unit.parkingSpaces,
     })),
     paymentPlan: formData.paymentPlan || [],

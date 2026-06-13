@@ -17,8 +17,9 @@
  */
 
 import { PageMetadata, PageType } from '../types/page-metadata';
-import { AssignmentResult, UnitImageAssignment } from '../types/assignment-result';
-import { scanUnitBoundaries } from '../algorithms/scan-boundaries';
+import { AssignmentResult, UnitBoundary, UnitImageAssignment } from '../types/assignment-result';
+import { scanUnitBoundaries, absorbOrphanAnchors } from '../algorithms/scan-boundaries';
+import { reconstructUnitSections, countAnchorsCovered } from '../agents/section-reconstructor.agent';
 import { assignImagesByBoundaries } from '../algorithms/assign-images';
 import { mergeSameNameUnits } from '../algorithms/merge-units';
 import { extractProjectImages } from '../algorithms/extract-project-images';
@@ -183,14 +184,18 @@ export class PageRegistry {
 
   /**
    * 重新计算图片分配
+   *
+   * @param overrideBoundaries - 全局重建得到的边界（仅 getFinalResult 使用）
    */
-  private async recalculateAssignment(): Promise<AssignmentResult> {
+  private async recalculateAssignment(overrideBoundaries?: UnitBoundary[]): Promise<AssignmentResult> {
     console.log(`\n[${this.jobId}] 🔄 Recalculating image assignment...`);
 
     const startTime = Date.now();
 
-    const boundaries = scanUnitBoundaries(this.pages);
-    console.log(`   [${this.jobId}] ✓ Identified ${boundaries.length} unit boundaries`);
+    const rawBoundaries = overrideBoundaries ?? scanUnitBoundaries(this.pages);
+    // ⭐ 确定性吸收孤儿户型图页（修复"户型图掉失 + 面积=0"）
+    const boundaries = absorbOrphanAnchors(rawBoundaries, this.pages);
+    console.log(`   [${this.jobId}] ✓ ${overrideBoundaries ? 'Using reconstructed' : 'Identified'} ${boundaries.length} unit boundaries`);
 
     const assignments = assignImagesByBoundaries(this.pages, boundaries);
     console.log(`   [${this.jobId}] ✓ Assigned images to ${assignments.length} units`);
@@ -253,7 +258,12 @@ export class PageRegistry {
 
     const result = units.map(unit => {
       // Get unit category (from metadata or inferred from name)
-      const unitCategory = unit.unitCategory || inferCategoryFromUnitName(unit.unitTypeName);
+      // ⭐ 名称带修饰（+Maid 等）时优先用名称推断——分类器常只给 "2BR" 丢失修饰，
+      // 会把 "2-Bedroom With Maid" 的价格档错配给普通 2BR
+      const inferred = inferCategoryFromUnitName(unit.unitTypeName);
+      const unitCategory = (inferred && inferred.includes('+'))
+        ? inferred
+        : (unit.unitCategory || inferred);
 
       // Get building context for this unit (from first page in range)
       const building = unit.building || (unit.pageRange ? this.buildingContext.get(unit.pageRange.start) : undefined);
@@ -384,7 +394,37 @@ export class PageRegistry {
   }
 
   async getFinalResult(): Promise<AssignmentResult> {
-    return await this.recalculateAssignment();
+    // 本地边界扫描（确定性，零 AI 调用）
+    const local = await this.recalculateAssignment();
+
+    // ⭐ 全局 section 重建：一次纯文本调用，从整本楼书视角解决
+    // "效果图页属于哪个户型"的归属问题（单页/单 chunk 视角无解）。
+    // 失败/结果更差 → 回退本地扫描，不阻塞 job。
+    try {
+      const reconstructed = await reconstructUnitSections(this.jobId, this.pages);
+      if (reconstructed && reconstructed.length > 0) {
+        // ⭐ 两边都按吸收后的边界比较锚点覆盖，公平且都受益于孤儿吸收
+        const reconAbsorbed = absorbOrphanAnchors(reconstructed, this.pages);
+        const localAnchors = countAnchorsCovered(local.boundaries, this.pages);
+        const reconAnchors = countAnchorsCovered(reconAbsorbed, this.pages);
+        const localBoundaryCount = local.boundaries?.length ?? 0;
+        // ⭐ 防拆分护栏：重建把"照片"和"户型图"拆成两个户型时,户型数会暴涨
+        // （PJA 实测见过 10→20）。本地 section 扫描已确定性给出干净结果,
+        // 只在重建"覆盖更多锚点"或"平局且不拆分"时才采用重建。
+        const splitRisk = localBoundaryCount > 0 && reconAbsorbed.length > localBoundaryCount;
+        console.log(`   [${this.jobId}] 🧭 Anchor coverage: local=${localAnchors}, reconstructed=${reconAnchors}; units local=${localBoundaryCount}, recon=${reconAbsorbed.length}${splitRisk ? ' (SPLIT RISK)' : ''}`);
+
+        if (reconAnchors > localAnchors || (reconAnchors === localAnchors && !splitRisk)) {
+          console.log(`   [${this.jobId}] ✅ Using globally reconstructed sections`);
+          return await this.recalculateAssignment(reconstructed);
+        }
+        console.log(`   [${this.jobId}] ↩️  Reconstruction covers fewer anchors, keeping local scan`);
+      }
+    } catch (error) {
+      console.warn(`   [${this.jobId}] ⚠️  Section reconstruction error, keeping local scan: ${(error as Error).message}`);
+    }
+
+    return local;
   }
 
   getStats() {

@@ -114,6 +114,24 @@ export async function analyzePageWithAI(
       );
     }
     
+    // 1.5 Supplementary unit label for rendering/interior pages ⭐
+    // 高端楼书一个户型连续多页效果图，角标带户型名 → 记录标签供 assign-images 按标签归属
+    // （不跑 extractUnitDetails，零额外 AI 调用）
+    if (
+      (classification.pageType === PageType.UNIT_RENDERING ||
+       classification.pageType === PageType.UNIT_INTERIOR) &&
+      classification.unitTypeName
+    ) {
+      unitInfo = {
+        unitTypeName: classification.unitTypeName,
+        unitCategory: classification.unitCategory || undefined,
+        hasDetailedSpecs: false,
+        hasFloorPlan: false,
+        roleInUnit: 'supplementary',
+      };
+      console.log(`   🏷️  Page ${pageNumber} carries unit label: "${classification.unitTypeName}" (supplementary)`);
+    }
+
     // 2. Amenities extraction ⭐
     // ⚡ OPTIMIZED: Skip AMENITIES_IMAGES - they're photos, not text lists
     // Classifier already identified page type, no need to run text extraction
@@ -152,7 +170,8 @@ export async function analyzePageWithAI(
     }
     
     // 4. Payment plan extraction ⭐
-    if (classification.pageType === PageType.PAYMENT_PLAN) {
+    // ⭐ 与 pageType 解耦：一页可同时有价格表+付款计划（如 "Prices and Payment Plan" 单页 PDF）
+    if (classification.pageType === PageType.PAYMENT_PLAN || classification.hasPaymentPlan) {
       extractionPromises.push(
         extractPaymentPlan(imageUrl, pageNumber, pageText)
           .then((plan: any) => {
@@ -168,7 +187,7 @@ export async function analyzePageWithAI(
     }
 
     // 5. Pricing table extraction ⭐
-    if (classification.pageType === PageType.PRICING_TABLE) {
+    if (classification.pageType === PageType.PRICING_TABLE || classification.hasPricingTable) {
       // ⭐ 从当前页面的 section 上下文获取 building
       const currentBuilding = extractBuildingFromClassification(classification);
       if (currentBuilding) {
@@ -217,7 +236,8 @@ export async function analyzePageWithAI(
         pageNumber,
         imageUrl,
         imageUrls,
-        classification.shouldUse
+        classification.shouldUse,
+        classification.pageType  // ⭐ 类别未知时按页面类型兜底
       ),
       unitInfo,
       amenitiesData,      // ⭐ 新增：直接包含提取的amenities
@@ -317,19 +337,20 @@ function buildImages(
   pageNumber: number,
   imageUrl: string,
   imageUrls?: ImageUrls,
-  shouldUse: boolean = true
+  shouldUse: boolean = true,
+  pageType?: PageType
 ): PageImage[] {
-  
+
   // Use pre-generated R2 URLs
   const imagePath = imageUrl;
-  
+
   if (aiImages.length === 0) {
     return [{
       imageId: `page_${pageNumber}_img_0`,
       imagePath,
       imageUrls,
       pageNumber,
-      category: ImageCategory.UNKNOWN,
+      category: fallbackCategoryFromPageType(pageType) ?? ImageCategory.UNKNOWN,
       confidence: 0.5,
       shouldUse,
       features: {
@@ -339,24 +360,49 @@ function buildImages(
       },
     }];
   }
-  
+
   // All images use the same R2 URL
-  return aiImages.map((img, idx) => ({
-    imageId: `page_${pageNumber}_img_${idx}`,
-    imagePath,
-    imageUrls,
-    pageNumber,
-    category: mapImageCategory(img.category),
-    confidence: img.confidence || 0.8,
-    shouldUse,
-    features: {
-      isFullPage: img.isFullPage || false,
-      hasDimensions: img.hasDimensions || false,
-      hasScale: img.hasScale || false,
-    },
-    aiDescription: img.aiDescription,
-    marketingText: img.marketingText,
-  }));
+  return aiImages.map((img, idx) => {
+    let category = mapImageCategory(img.category);
+    // ⭐ 类别映射失败时按页面类型兜底，避免户型效果图掉成 UNKNOWN 被项目图库收走
+    if (category === ImageCategory.UNKNOWN) {
+      category = fallbackCategoryFromPageType(pageType) ?? ImageCategory.UNKNOWN;
+    }
+    return {
+      imageId: `page_${pageNumber}_img_${idx}`,
+      imagePath,
+      imageUrls,
+      pageNumber,
+      category,
+      confidence: img.confidence || 0.8,
+      shouldUse,
+      features: {
+        isFullPage: img.isFullPage || false,
+        hasDimensions: img.hasDimensions || false,
+        hasScale: img.hasScale || false,
+      },
+      aiDescription: img.aiDescription,
+      marketingText: img.marketingText,
+    };
+  });
+}
+
+/**
+ * 页面类型 → 图片类别兜底
+ */
+function fallbackCategoryFromPageType(pageType?: PageType): ImageCategory | undefined {
+  switch (pageType) {
+    case PageType.UNIT_RENDERING: return ImageCategory.UNIT_EXTERIOR;
+    case PageType.UNIT_INTERIOR: return ImageCategory.UNIT_INTERIOR_LIVING;
+    case PageType.UNIT_ANCHOR:
+    case PageType.UNIT_FLOORPLAN_ONLY: return ImageCategory.FLOOR_PLAN;
+    case PageType.PROJECT_RENDERING: return ImageCategory.BUILDING_EXTERIOR;
+    case PageType.PROJECT_AERIAL: return ImageCategory.BUILDING_AERIAL;
+    case PageType.PROJECT_LOCATION_MAP: return ImageCategory.LOCATION_MAP;
+    case PageType.PROJECT_MASTER_PLAN: return ImageCategory.MASTER_PLAN;
+    case PageType.AMENITIES_IMAGES: return ImageCategory.AMENITY_OTHER;
+    default: return undefined;
+  }
 }
 
 /**
@@ -366,18 +412,32 @@ function mapImageCategory(category: string): ImageCategory {
   const map: Record<string, ImageCategory> = {
     'floor_plan': ImageCategory.FLOOR_PLAN,
     'unit_exterior': ImageCategory.UNIT_EXTERIOR,
+    'unit_rendering': ImageCategory.UNIT_EXTERIOR,           // ⭐ 分类器旧词表兼容
+    'unit_interior': ImageCategory.UNIT_INTERIOR_LIVING,     // ⭐ 未细分的室内图兜底
     'unit_interior_living': ImageCategory.UNIT_INTERIOR_LIVING,
     'unit_interior_bedroom': ImageCategory.UNIT_INTERIOR_BEDROOM,
     'unit_interior_kitchen': ImageCategory.UNIT_INTERIOR_KITCHEN,
+    'unit_interior_bathroom': ImageCategory.UNIT_INTERIOR_BATHROOM,  // ⭐ 之前漏了
     'unit_balcony': ImageCategory.UNIT_BALCONY,
     'building_exterior': ImageCategory.BUILDING_EXTERIOR,
+    'project_rendering': ImageCategory.BUILDING_EXTERIOR,
+    'project_exterior': ImageCategory.BUILDING_EXTERIOR,
     'building_aerial': ImageCategory.BUILDING_AERIAL,
+    'project_aerial': ImageCategory.BUILDING_AERIAL,
+    'building_entrance': ImageCategory.BUILDING_ENTRANCE,
     'location_map': ImageCategory.LOCATION_MAP,
+    'master_plan': ImageCategory.MASTER_PLAN,
     'amenity_pool': ImageCategory.AMENITY_POOL,
     'amenity_gym': ImageCategory.AMENITY_GYM,
+    'amenity_garden': ImageCategory.AMENITY_GARDEN,
+    'amenity_lounge': ImageCategory.AMENITY_LOUNGE,
+    'amenity': ImageCategory.AMENITY_OTHER,
+    'amenity_other': ImageCategory.AMENITY_OTHER,
+    'diagram': ImageCategory.DIAGRAM,
     'logo': ImageCategory.LOGO,
+    'icon': ImageCategory.ICON,
   };
-  
+
   return map[category] || ImageCategory.UNKNOWN;
 }
 

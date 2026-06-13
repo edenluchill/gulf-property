@@ -354,6 +354,22 @@ export function PropertyWorkspace({
                             unitTypes: prev.unitTypes.filter(u => u.id !== unit.id)
                           }))
                         }}
+                        galleryImages={(formData.projectImages || []).filter(
+                          img => !(formData.hiddenProjectImages || []).includes(img)
+                        )}
+                        onTakeImageFromGallery={(img) => {
+                          // 移入户型 = 从项目图库摘除（真"移动"）
+                          setFormData(prev => ({
+                            ...prev,
+                            projectImages: (prev.projectImages || []).filter(i => i !== img),
+                          }))
+                        }}
+                        onReturnImageToGallery={(img) => {
+                          // 从户型移除 = 退回项目图库
+                          setFormData(prev => (prev.projectImages || []).includes(img)
+                            ? prev
+                            : { ...prev, projectImages: [...(prev.projectImages || []), img] })
+                        }}
                       />
                     ))}
                   </div>

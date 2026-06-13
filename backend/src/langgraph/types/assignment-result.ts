@@ -11,9 +11,11 @@ import { PageImage } from './page-metadata';
  */
 export interface UnitBoundary {
   unitTypeName: string;         // 户型名称
-  startPage: number;            // 起始页码（全局）
-  endPage: number;              // 结束页码（全局）
+  unitCategory?: string;        // 户型分类（全局重建时由AI提供，否则从锚点页推导）
+  startPage: number;            // 起始页码（⚠️ 页码是PDF内1-based，跨PDF会重复，匹配必须带pdfSource）
+  endPage: number;              // 结束页码（同上）
   pageCount: number;            // 页数
+  pdfSource: string;            // 锚点所在的PDF（范围匹配的主键之一）
   pdfSources: string[];         // 跨越的PDF文件（支持多PDF场景）
 }
 

@@ -74,6 +74,25 @@ export function findPriceForUnit(
     };
   }
 
+  // 2.5 归一化包含匹配：全局重建会给户型加系列前缀
+  // （"BLUE HORIZON BEACH VILLA A" 应匹配价格表里的 "Beach Villa A"）
+  const unitNorm = normalizeUnitName(unitTypeName);
+  const containMatch = pricingEntries.find(e => {
+    if (!e.unitTypeName) return false;
+    const entryNorm = normalizeUnitName(e.unitTypeName);
+    return entryNorm.length >= 6 && unitNorm.length >= 6 &&
+      (unitNorm.includes(entryNorm) || entryNorm.includes(unitNorm));
+  });
+  if (containMatch) {
+    return {
+      price: containMatch.price,
+      pricePerSqft: containMatch.pricePerSqft,
+      matchType: 'normalized',
+      matchedEntry: containMatch,
+      confidence: 0.85,
+    };
+  }
+
   // 3. 模糊户型名匹配
   const fuzzyMatch = findFuzzyMatch(unitTypeName, pricingEntries);
   if (fuzzyMatch) {
@@ -140,6 +159,22 @@ export function findPriceForUnit(
         confidence: 0.55,  // Slightly lower confidence
       };
     }
+
+    // ⭐ 基底类别兜底：户型是 "2BR+Maid" 但价格表只有 "2-Bedroom" 档（或反之）
+    // → 按去掉修饰词的基底匹配，置信度更低
+    const targetBase = baseCategory(normalizedTargetCategory);
+    const baseMatch = pricingEntries.find(e =>
+      e.unitCategory && baseCategory(normalizeCategory(e.unitCategory)) === targetBase
+    );
+    if (baseMatch) {
+      return {
+        price: baseMatch.price,
+        pricePerSqft: baseMatch.pricePerSqft,
+        matchType: 'category_only',
+        matchedEntry: baseMatch,
+        confidence: 0.5,
+      };
+    }
   }
 
   return null;
@@ -197,7 +232,13 @@ export function normalizeCategory(category: string): string {
   // 提取卧室数
   const bedroomMatch = normalized.match(/(\d+)\s*(?:bed|br|bedroom)/);
   if (bedroomMatch) {
-    return `${bedroomMatch[1]}br`;
+    // ⭐ 保留修饰词，避免 "2-Bedroom"(4.26M) 和 "2-Bedroom With Maid"(5.22M) 折叠成同一档
+    let suffix = '';
+    if (/maid/.test(normalized)) suffix += '+maid';
+    if (/large/.test(normalized)) suffix += '+large';
+    if (/study/.test(normalized)) suffix += '+study';
+    if (/duplex/.test(normalized)) suffix += '+duplex';
+    return `${bedroomMatch[1]}br${suffix}`;
   }
 
   // 特殊类型
@@ -207,6 +248,13 @@ export function normalizeCategory(category: string): string {
   if (normalized.includes('townhouse')) return 'townhouse';
 
   return normalized.replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * 类别基底（去掉修饰词）："2br+maid" → "2br"
+ */
+export function baseCategory(normalizedCategory: string): string {
+  return normalizedCategory.split('+')[0];
 }
 
 /**
@@ -300,6 +348,10 @@ export function inferCategoryFromUnitName(unitTypeName: string): string | undefi
   // 模式: "1-BEDROOM", "2-BEDROOM", "3-BEDROOM" (常见格式)
   const bedroomWordMatch = name.match(/(\d+)[-\s]?BEDROOM/);
   if (bedroomWordMatch) {
+    // ⭐ 保留 Maid 修饰（"2-BEDROOM + MAID" 是独立价格档）
+    if (name.includes('MAID')) {
+      return `${bedroomWordMatch[1]}BR+Maid`;
+    }
     return `${bedroomWordMatch[1]}BR`;
   }
 

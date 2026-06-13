@@ -208,10 +208,14 @@ async function convertSingleChunk(
     });
 
     // Rename images to have correct page numbers
+    // ⚠️ chunk内页号必须从mupdf输出文件名解析（p.{n}.jpeg），不能用数组下标——
+    // chunk内有页转换失败时，下标会让后续页的内容/页码整体错位
     const finalPaths: string[] = [];
     for (let i = 0; i < chunkImages.length; i++) {
       const originalPath = chunkImages[i];
-      const actualPageNum = startPageNumber + i;
+      const localNumMatch = originalPath.match(/[\\/]p\.(\d+)\.\w+$/);
+      const localPageNum = localNumMatch ? parseInt(localNumMatch[1]) : (i + 1);
+      const actualPageNum = startPageNumber + localPageNum - 1;
       const newFilename = `${prefix}.${actualPageNum}.jpeg`;
       const newPath = join(outputDir, newFilename);
 
