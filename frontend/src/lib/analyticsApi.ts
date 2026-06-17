@@ -7,13 +7,40 @@ import { API_BASE_URL } from './config'
 import { supabase } from './supabase'
 
 const BASE = `${API_BASE_URL}/api/admin/analytics`
+const KEY_STORAGE = 'dashboard-key'
+
+/** Error thrown when the server rejects the dashboard key (403). */
+export class ForbiddenError extends Error {
+  constructor() {
+    super('forbidden')
+    this.name = 'ForbiddenError'
+  }
+}
+
+export function getDashboardKey(): string {
+  try {
+    return localStorage.getItem(KEY_STORAGE) || ''
+  } catch {
+    return ''
+  }
+}
+export function setDashboardKey(key: string): void {
+  try {
+    localStorage.setItem(KEY_STORAGE, key.trim())
+  } catch {
+    /* ignore */
+  }
+}
 
 async function authedGet<T>(path: string): Promise<T> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
-  const res = await fetch(`${BASE}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
+  const key = getDashboardKey()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}` // future: server-side Supabase email gate
+  if (key) headers['x-dashboard-key'] = key
+  const res = await fetch(`${BASE}${path}`, { headers })
+  if (res.status === 403) throw new ForbiddenError()
   if (!res.ok) throw new Error(`${res.status}`)
   const json = await res.json()
   if (!json.success) throw new Error(json.error || 'request failed')

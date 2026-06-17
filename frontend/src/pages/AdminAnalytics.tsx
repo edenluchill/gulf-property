@@ -7,9 +7,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { isOwnerEmail } from '../lib/config'
 import {
   fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions,
+  getDashboardKey, setDashboardKey, ForbiddenError,
   Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
@@ -42,11 +42,15 @@ export default function AdminAnalytics() {
   const [data, setData] = useState<DashData | null>(null)
   const [loading, setLoading] = useState(true)
   const [openSession, setOpenSession] = useState<string | null>(null)
-
-  const isOwner = isOwnerEmail(user?.email)
+  // Access is gated by the dashboard key (server enforces it). Prompt for it if
+  // missing/rejected; store in localStorage once entered.
+  const [needKey, setNeedKey] = useState(!getDashboardKey())
+  const [keyInput, setKeyInput] = useState('')
+  const [keyError, setKeyError] = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
-    if (!isOwner) return
+    if (needKey) return
     let alive = true
     setLoading(true)
     Promise.all([
@@ -62,14 +66,30 @@ export default function AdminAnalytics() {
         })
         setLoading(false)
       })
-      .catch(() => alive && setLoading(false))
+      .catch((err) => {
+        if (!alive) return
+        if (err instanceof ForbiddenError) {
+          setNeedKey(true)
+          setKeyError(true)
+        }
+        setLoading(false)
+      })
     return () => { alive = false }
-  }, [days, isOwner])
+  }, [days, needKey, reloadTick])
 
   const visitorTrend = useMemo(
     () => (data?.daily || []).map((d) => ({ day: d.day, value: d.visitors })),
     [data]
   )
+
+  function submitKey(e: React.FormEvent) {
+    e.preventDefault()
+    if (!keyInput.trim()) return
+    setDashboardKey(keyInput.trim())
+    setKeyError(false)
+    setNeedKey(false)
+    setReloadTick((t) => t + 1)
+  }
 
   if (authLoading) {
     return (
@@ -79,16 +99,28 @@ export default function AdminAnalytics() {
     )
   }
 
-  if (!isOwner) {
+  if (needKey) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="max-w-sm p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <Lock className="h-8 w-8 text-red-600" />
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <form onSubmit={submitKey} className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+            <Lock className="h-8 w-8 text-slate-500" />
           </div>
-          <h2 className="mb-2 text-xl font-semibold text-slate-900">无权访问</h2>
-          <p className="text-slate-600">这个页面只对所有者开放。</p>
-        </div>
+          <h2 className="mb-1 text-xl font-semibold text-slate-900">Dashboard 访问密钥</h2>
+          <p className="mb-5 text-sm text-slate-500">输入所有者密钥以查看客户数据。</p>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            placeholder="dashboard key"
+            autoFocus
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-teal-400 focus:outline-none"
+          />
+          {keyError && <p className="mt-2 text-xs text-rose-500">密钥不对,再试一次。</p>}
+          <button type="submit" className="mt-4 w-full rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 py-2.5 text-sm font-medium text-white">
+            进入
+          </button>
+        </form>
       </div>
     )
   }
