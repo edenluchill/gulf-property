@@ -6,13 +6,16 @@
  * parses the [from,to] window and delegates to services/analyticsQueries.ts.
  */
 import { Router, Request, Response } from 'express'
-import { requireAuth } from '../middleware/auth'
+import { optionalAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import * as q from '../services/analyticsQueries'
 
 const router = Router()
 
-router.use(requireAuth, requireOwner)
+// optionalAuth (not requireAuth) attaches a verified Supabase user when present
+// but never blocks — so the dashboard-secret path works without a token.
+// requireOwner is the sole, fail-closed gate.
+router.use(optionalAuth, requireOwner)
 
 /** Resolve [from,to] from query (?from&to ISO, or ?days=N). Default last 30d. */
 function range(req: Request): q.Range {
