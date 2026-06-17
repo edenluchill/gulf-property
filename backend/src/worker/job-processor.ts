@@ -167,6 +167,14 @@ export async function processJob(job: PendingJob): Promise<void> {
       });
       console.log(`   [100%] Processing complete!`);
 
+      // Raw upload no longer needed once processing succeeded — free R2 space.
+      try {
+        const { deletePdfsForJob } = require('../services/r2-cleanup');
+        await deletePdfsForJob(jobId);
+      } catch (cleanupErr) {
+        console.warn(`   Warning: failed to delete processed PDFs for ${jobId}:`, cleanupErr);
+      }
+
       console.log(`\n✅ Job ${jobId} completed successfully`);
       console.log(`   Processing time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
       console.log(`   Total pages: ${result.totalPages}`);
