@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { ReactNode, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 
 export interface TrendPoint {
@@ -15,11 +15,13 @@ export default function TrendChart({
   points,
   height = 160,
   className,
+  headerRight,
 }: {
   title: string
   points: TrendPoint[]
   height?: number
   className?: string
+  headerRight?: ReactNode
 }) {
   const W = 600
   const H = height
@@ -39,9 +41,12 @@ export default function TrendChart({
 
   return (
     <div className={cn('rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]', className)}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        <span className="text-xs text-slate-400">峰值 {max}</span>
+        <div className="flex items-center gap-2">
+          {headerRight}
+          <span className="text-xs text-slate-400">峰值 {max}</span>
+        </div>
       </div>
       {points.length === 0 ? (
         <p className="mt-3 text-xs text-slate-400">暂无数据</p>

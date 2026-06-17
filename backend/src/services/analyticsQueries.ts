@@ -64,6 +64,42 @@ export async function getDailyVisitors({ from, to }: Range) {
   return rows.map((r) => ({ day: r.day, visitors: Number(r.visitors), events: Number(r.events) }))
 }
 
+const GRANULARITIES = new Set(['day', 'week', 'month'])
+const TIMESERIES_EVENTS = new Set(['search', 'property_view', 'page_view', 'luna_open'])
+
+/** Event counts bucketed by day/week/month — for the volume chart. */
+export async function getTimeseries(
+  { from, to }: Range,
+  eventType: string,
+  granularity: string
+) {
+  const gran = GRANULARITIES.has(granularity) ? granularity : 'day'
+  const evt = TIMESERIES_EVENTS.has(eventType) ? eventType : 'search'
+  const { rows } = await pool.query(
+    `SELECT to_char(date_trunc($3, created_at), 'YYYY-MM-DD') AS bucket,
+            COUNT(*) AS count
+       FROM app_events
+      WHERE event_type = $4 AND created_at >= $1 AND created_at < $2
+      GROUP BY 1 ORDER BY 1`,
+    [from, to, gran, evt]
+  )
+  return { event: evt, granularity: gran, points: rows.map((r) => ({ bucket: r.bucket, count: Number(r.count) })) }
+}
+
+/** Individual recent searches (what was actually searched + when + who). */
+export async function getRecentSearches({ from, to }: Range, limit = 60) {
+  const { rows } = await pool.query(
+    `SELECT created_at, payload->>'query' AS query, payload->>'kind' AS kind, visitor_id
+       FROM app_events
+      WHERE event_type = 'search'
+        AND created_at >= $1 AND created_at < $2
+        AND COALESCE(payload->>'query','') <> ''
+      ORDER BY created_at DESC LIMIT $3`,
+    [from, to, limit]
+  )
+  return rows
+}
+
 /** Top committed search terms. */
 export async function getTopSearches({ from, to }: Range, limit = 20) {
   const { rows } = await pool.query(

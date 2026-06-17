@@ -45,9 +45,15 @@ router.get('/overview', wrap(async (req) => {
 
 router.get('/searches', wrap(async (req) => {
   const r = range(req)
-  const [terms, projects] = await Promise.all([q.getTopSearches(r), q.getTopProjects(r)])
-  return { terms, projects }
+  const [terms, projects, recent] = await Promise.all([
+    q.getTopSearches(r), q.getTopProjects(r), q.getRecentSearches(r),
+  ])
+  return { terms, projects, recent }
 }))
+
+router.get('/timeseries', wrap((req) =>
+  q.getTimeseries(range(req), String(req.query.event || 'search'), String(req.query.granularity || 'day'))
+))
 
 router.get('/luna', wrap((req) => q.getLunaStats(range(req))))
 

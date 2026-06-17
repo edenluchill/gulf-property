@@ -8,9 +8,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions,
+  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries,
   getDashboardKey, setDashboardKey, ForbiddenError,
-  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow,
+  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, RecentSearch, Timeseries, Granularity,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
 import TrendChart from '../components/analytics/TrendChart'
@@ -25,11 +25,18 @@ const RANGES = [
   { label: '90 天', days: 90 },
 ]
 
+const GRANS: { label: string; v: Granularity }[] = [
+  { label: '日', v: 'day' },
+  { label: '周', v: 'week' },
+  { label: '月', v: 'month' },
+]
+
 interface DashData {
   overview: Overview
   daily: DailyPoint[]
   terms: Counted[]
   projects: Counted[]
+  recent: RecentSearch[]
   luna: LunaStats
   funnel: FunnelStep[]
   leads: Lead[]
@@ -48,6 +55,10 @@ export default function AdminAnalytics() {
   const [keyInput, setKeyInput] = useState('')
   const [keyError, setKeyError] = useState(false)
   const [reloadTick, setReloadTick] = useState(0)
+  // Search-volume chart granularity (day/week/month), fetched independently so
+  // toggling it doesn't refetch the whole dashboard.
+  const [gran, setGran] = useState<Granularity>('day')
+  const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
 
   useEffect(() => {
     if (needKey) return
@@ -61,7 +72,7 @@ export default function AdminAnalytics() {
         if (!alive) return
         setData({
           overview: ov.overview, daily: ov.daily,
-          terms: se.terms, projects: se.projects,
+          terms: se.terms, projects: se.projects, recent: se.recent,
           luna: lu, funnel: tu, leads: le, sessions: ss,
         })
         setLoading(false)
@@ -77,9 +88,22 @@ export default function AdminAnalytics() {
     return () => { alive = false }
   }, [days, needKey, reloadTick])
 
+  useEffect(() => {
+    if (needKey) return
+    let alive = true
+    fetchTimeseries('search', gran, days)
+      .then((ts) => alive && setSearchSeries(ts))
+      .catch(() => alive && setSearchSeries(null))
+    return () => { alive = false }
+  }, [days, gran, needKey, reloadTick])
+
   const visitorTrend = useMemo(
     () => (data?.daily || []).map((d) => ({ day: d.day, value: d.visitors })),
     [data]
+  )
+  const searchTrend = useMemo(
+    () => (searchSeries?.points || []).map((p) => ({ day: p.bucket, value: p.count })),
+    [searchSeries]
   )
 
   function submitKey(e: React.FormEvent) {
@@ -126,6 +150,7 @@ export default function AdminAnalytics() {
   }
 
   return (
+    <div className="h-full overflow-y-auto">
     <div className="mx-auto max-w-6xl px-4 py-6">
       <div className="mb-5 flex items-center justify-between">
         <div>
@@ -161,7 +186,7 @@ export default function AdminAnalytics() {
             <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
           </div>
 
-          {/* Trend + Luna stats */}
+          {/* Visitor trend + Luna stats */}
           <div className="grid gap-3 md:grid-cols-3">
             <TrendChart title="每日访客" points={visitorTrend} className="md:col-span-2" />
             <div className="space-y-3">
@@ -179,7 +204,52 @@ export default function AdminAnalytics() {
             </div>
           </div>
 
-          {/* Search + projects + funnel */}
+          {/* Search volume (day/week/month) + recent searches drill-down */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <TrendChart
+              title="搜索量"
+              points={searchTrend}
+              className="md:col-span-2"
+              headerRight={
+                <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                  {GRANS.map((g) => (
+                    <button
+                      key={g.v}
+                      onClick={() => setGran(g.v)}
+                      className={`rounded-md px-2 py-0.5 text-xs transition-colors ${
+                        gran === g.v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              }
+            />
+            {/* Recent searches — what customers actually searched, newest first */}
+            <div className="flex max-h-[220px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-800">最近搜索（搜了啥）</h3>
+              </div>
+              {data.recent.length === 0 ? (
+                <p className="px-4 py-6 text-xs text-slate-400">这段时间没有搜索。</p>
+              ) : (
+                <div className="divide-y divide-slate-50 overflow-y-auto">
+                  {data.recent.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 px-4 py-2">
+                      <div className="min-w-0">
+                        <span className="truncate text-sm text-slate-700">{s.query}</span>
+                        {s.kind && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{s.kind}</span>}
+                      </div>
+                      <span className="shrink-0 text-[10px] text-slate-400">{s.created_at.slice(5, 16).replace('T', ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top terms + projects + funnel */}
           <div className="grid gap-3 md:grid-cols-3">
             <TopList title="搜索热词" items={data.terms} />
             <TopList title="最常看的项目" items={data.projects} />
@@ -226,6 +296,7 @@ export default function AdminAnalytics() {
       )}
 
       {openSession && <SessionViewer sessionId={openSession} onClose={() => setOpenSession(null)} />}
+    </div>
     </div>
   )
 }

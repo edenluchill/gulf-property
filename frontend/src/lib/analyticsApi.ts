@@ -59,6 +59,9 @@ export interface Overview {
 }
 export interface DailyPoint { day: string; visitors: number; events: number }
 export interface Counted { label: string; count: number; id?: string }
+export interface RecentSearch { created_at: string; query: string | null; kind: string | null; visitor_id: string | null }
+export type Granularity = 'day' | 'week' | 'month'
+export interface Timeseries { event: string; granularity: Granularity; points: { bucket: string; count: number }[] }
 export interface LunaStats {
   sessions: number
   avg_duration_ms: number
@@ -104,7 +107,9 @@ export interface SessionDetail extends SessionRow {
 export const fetchOverview = (days: number) =>
   authedGet<{ overview: Overview; daily: DailyPoint[] }>(`/overview?days=${days}`)
 export const fetchSearches = (days: number) =>
-  authedGet<{ terms: Counted[]; projects: Counted[] }>(`/searches?days=${days}`)
+  authedGet<{ terms: Counted[]; projects: Counted[]; recent: RecentSearch[] }>(`/searches?days=${days}`)
+export const fetchTimeseries = (event: string, granularity: Granularity, days: number) =>
+  authedGet<Timeseries>(`/timeseries?event=${event}&granularity=${granularity}&days=${days}`)
 export const fetchLuna = (days: number) => authedGet<LunaStats>(`/luna?days=${days}`)
 export const fetchTutorial = (days: number) => authedGet<FunnelStep[]>(`/tutorial?days=${days}`)
 export const fetchLeads = () => authedGet<Lead[]>(`/leads`)
