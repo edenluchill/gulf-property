@@ -32,6 +32,9 @@ import marketRouter from './routes/market'
 import metaRouter from './routes/meta'
 import lunaPublicRouter from './luna-tour/public-router'  // Luna Tour (isolated; delete line + luna-tour/ to remove)
 import lunaAgentRouter from './luna-tour/agent-router'  // Luna Tour agent dashboard/analytics (isolated)
+import eventsRouter from './routes/events'  // Behaviour analytics ingest (isolated; see docs/analytics-dashboard-spec.md)
+import leadsRouter from './routes/leads'  // Lead capture + intent scoring (isolated)
+import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashboard queries (isolated)
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 
@@ -116,6 +119,9 @@ app.use('/api/market', marketRouter)  // 成交真相层：价格体检等
 app.use('/api/meta', metaRouter)  // 数据版本指纹（客户端缓存自动失效）
 app.use('/api/luna', lunaPublicRouter)  // Luna Tour public watch (isolated)
 app.use('/api/luna/agent', lunaAgentRouter)  // Luna Tour agent dashboard/analytics (isolated)
+app.use('/api/events', eventsRouter)  // Behaviour analytics ingest (public, batched)
+app.use('/api/leads', leadsRouter)  // Lead capture + intent scoring
+app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard queries
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

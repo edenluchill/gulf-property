@@ -11,6 +11,7 @@ import { Search, RefreshCw, X, MapPin, Building2, Briefcase } from 'lucide-react
 import { searchDubaiAreas, AreaSearchResult } from '../lib/api'
 import { PropertyFilters } from '../types'
 import MapFilterChips from './MapFilterChips'
+import { trackEvent } from '../lib/track'
 
 interface Props {
   searchQuery: string
@@ -76,6 +77,8 @@ export default function MapSearchOverlay({
   }, [])
 
   const pick = (s: Sugg) => {
+    // Behaviour analytics: a committed search (query + what they picked).
+    trackEvent('search', { query: searchQuery.trim(), kind: s.kind, label: s.label })
     if (s.kind === 'area') {
       if (s.area.centroid) onFly(s.area.centroid.lat, s.area.centroid.lng)
       setSearchQuery(s.area.name)

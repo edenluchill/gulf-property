@@ -73,6 +73,8 @@ export interface SessionLog {
   }
 }
 
+import { visitorId as appVisitorId } from '../../lib/track'
+
 const isDev = import.meta.env.DEV
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -139,12 +141,40 @@ class VoiceDebugLogger {
     const session = this.currentSession
     this.currentSession = null
 
-    // Auto-save to backend in dev mode
+    // Auto-save full debug log to file backend in dev mode only.
     if (isDev) {
       this.saveToBackend(session)
     }
 
+    // Persist to DB for the analytics dashboard (ALL environments). Best-effort.
+    // Skip empty/aborted sessions (e.g. a reconnect close with no conversation).
+    if (session.messages.length > 0 || session.toolCalls.length > 0) {
+      this.persistSession(session)
+    }
+
     return session
+  }
+
+  /**
+   * Persist a finished session to luna_sessions (always-on, fire-and-forget).
+   * Separate from saveToBackend (dev-only file logs). See analytics spec §3.
+   */
+  private async persistSession(session: SessionLog): Promise<void> {
+    try {
+      const body = JSON.stringify({ session, visitor_id: appVisitorId() })
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([body], { type: 'application/json' })
+        if (navigator.sendBeacon(`${API_BASE}/api/events/voice-session`, blob)) return
+      }
+      await fetch(`${API_BASE}/api/events/voice-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      })
+    } catch {
+      // Never let archival disrupt anything.
+    }
   }
 
   // Save session to backend for persistent storage

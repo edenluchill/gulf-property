@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { trackEvent, installTracking } from './lib/track'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import FavoritesPage from './pages/FavoritesPage'
@@ -11,6 +12,7 @@ import AdminPropertyListPage from './pages/AdminPropertyListPage'
 import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
 import AdminTasksPage from './pages/AdminTasksPage'
 import AdminTaskReviewPage from './pages/AdminTaskReviewPage'
+import AdminAnalytics from './pages/AdminAnalytics'  // Owner-only behaviour dashboard (isolated)
 import Layout from './components/Layout'
 import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -31,6 +33,20 @@ import AgentReport from './luna-tour/pages/AgentReport'  // Luna Tour agent MVP 
 import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fact sheet (isolated)
 import TourEditor from './luna-tour/pages/TourEditor'  // Luna Tour visual storyboard editor (isolated)
 
+/** Behaviour analytics: install page-hide flushing once + emit a page_view on
+ *  every route change. Fully decoupled; remove this component + its render to
+ *  drop page tracking. */
+function RouteTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    installTracking()
+  }, [])
+  useEffect(() => {
+    trackEvent('page_view', { path: location.pathname })
+  }, [location.pathname])
+  return null
+}
+
 function App() {
   const { i18n, t } = useTranslation()
   const { updateAvailable } = useVersionCheck()
@@ -42,6 +58,7 @@ function App() {
   return (
     <TourModeProvider>
     <VoiceAssistantProvider>
+    <RouteTracker />
     {/* 新版本提示条（编辑页不自动刷新，避免丢表单） */}
     {updateAvailable && (
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-full shadow-xl">
@@ -125,6 +142,15 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminTaskReviewPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Owner-only behaviour analytics (login-gated here; owner-email gated in-page + server) */}
+        <Route
+          path="/admin/analytics"
+          element={
+            <ProtectedRoute>
+              <AdminAnalytics />
             </ProtectedRoute>
           }
         />

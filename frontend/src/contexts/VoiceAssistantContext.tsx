@@ -30,6 +30,7 @@ import {
 } from '../hooks/voice-assistant/types'
 import { AudioRecorder, AudioPlayer } from '../hooks/voice-assistant/audioUtils'
 import { voiceDebugLogger } from '../hooks/voice-assistant/debugLogger'
+import { trackEvent, visitorId } from '../lib/track'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
@@ -41,6 +42,19 @@ const AUTO_RECONNECT_BASE_MS = 1000
 const voiceTools = [
   {
     functionDeclarations: [
+      {
+        name: 'capture_contact',
+        description: "Save the customer's contact details so the agent can follow up with full property info. Call this ONLY after the customer has shown clear interest and agreed to share contact (e.g. they said yes to receiving details on WhatsApp). Ask naturally; never pressure. Provide whatever details the customer gave.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING, description: "Customer's name if given" },
+            whatsapp: { type: Type.STRING, description: 'WhatsApp number with country code, e.g. +971501234567' },
+            phone: { type: Type.STRING, description: 'Phone number if different from WhatsApp' },
+            email: { type: Type.STRING, description: 'Email address if given' }
+          }
+        }
+      },
       {
         name: 'search_projects',
         description: 'Search for properties/projects in Dubai. Use when user asks to find, search, or look for properties, apartments, villas, or real estate. Returns list of matching projects.',
@@ -364,6 +378,39 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setToolStatus(getToolDisplayName(toolName))
     // Clear sticky attachment when new tool call starts — new results will replace
     stickyAttachmentRef.current = null
+
+    // Lead capture is browser-local (needs the visitor_id to tie prior behaviour
+    // to the lead) — handle it here, not via the generic backend tool path.
+    // See docs/analytics-dashboard-spec.md §6.3.
+    if (toolName === 'capture_contact') {
+      try {
+        const resp = await fetch(`${API_BASE}/api/leads/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            visitor_id: visitorId(),
+            name: params?.name,
+            email: params?.email,
+            phone: params?.phone,
+            whatsapp: params?.whatsapp || params?.phone,
+            source: 'luna',
+          }),
+        })
+        const ok = resp.ok
+        voiceDebugLogger.logToolCallEnd(callId, { ok })
+        setToolStatus(null)
+        return {
+          success: ok,
+          summary: ok
+            ? '联系方式已记录,稍后把详细资料发过去。'
+            : '暂时没能保存联系方式,可以稍后再留一次。',
+        }
+      } catch (err) {
+        voiceDebugLogger.logToolCallEnd(callId, null, String(err))
+        setToolStatus(null)
+        return { success: false, summary: '暂时没能保存联系方式。' }
+      }
+    }
 
     try {
       const response = await fetch(`${API_BASE}/api/voice/tools/execute`, {
@@ -757,6 +804,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Behaviour analytics: only the user-initiated open, not auto-reconnects.
+    const isReconnect = reconnectAttemptsRef.current > 0
+    if (!isReconnect) trackEvent('luna_open')
+
     connectingRef.current = true
     intentionalDisconnectRef.current = false
     reconnectAttemptsRef.current = 0
@@ -884,6 +935,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
   // Deactivate: full cleanup
   const deactivate = useCallback(() => {
+    trackEvent('luna_close')  // Behaviour analytics: user-initiated close.
     intentionalDisconnectRef.current = true
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)

@@ -1,0 +1,171 @@
+/**
+ * App-wide behaviour tracking (FULLY DECOUPLED, fail-safe).
+ *
+ * Elegant collection (see docs/analytics-dashboard-spec.md §5.1): trackEvent()
+ * only pushes into an in-memory queue — NO network call per action. The queue
+ * flushes in batch when any of these happen:
+ *   1. queue reaches MAX_BATCH events
+ *   2. FLUSH_INTERVAL_MS elapsed since last flush
+ *   3. the page is being hidden/unloaded (sendBeacon, so nothing is lost)
+ *
+ * High-value conversions (lead capture, hot lead) can force an immediate flush
+ * via trackEvent(type, payload, { immediate: true }) — those can't wait for the
+ * batch window because the visitor may leave right after.
+ *
+ * HARD RULE: this must NEVER throw into the app. Every call is best-effort.
+ * Delete this file + the instrumentation call sites + backend routes/events.ts
+ * to remove the feature entirely.
+ */
+import { supabase } from './supabase'
+import { API_BASE_URL } from './config'
+
+export type AppEvent =
+  | 'search'
+  | 'search_result_click'
+  | 'property_view'
+  | 'luna_open'
+  | 'luna_close'
+  | 'tutorial_step'
+  | 'page_view'
+
+const ENDPOINT = `${API_BASE_URL}/api/events`
+const VISITOR_KEY = 'app-visitor-id'
+const SESSION_KEY = 'app-session-id'
+const MAX_BATCH = 10
+const FLUSH_INTERVAL_MS = 10_000
+
+interface QueuedEvent {
+  event_type: AppEvent
+  visitor_id: string
+  session_id: string
+  project_id?: string
+  path?: string
+  payload?: Record<string, unknown>
+}
+
+let queue: QueuedEvent[] = []
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+function makeId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`
+}
+
+function getVisitorId(): string {
+  try {
+    let id = localStorage.getItem(VISITOR_KEY)
+    if (!id) {
+      id = makeId('v')
+      localStorage.setItem(VISITOR_KEY, id)
+    }
+    return id
+  } catch {
+    return makeId('v_anon')
+  }
+}
+
+/** A session = one browser tab/page-load lifetime (sessionStorage). */
+function getSessionId(): string {
+  try {
+    let id = sessionStorage.getItem(SESSION_KEY)
+    if (!id) {
+      id = makeId('s')
+      sessionStorage.setItem(SESSION_KEY, id)
+    }
+    return id
+  } catch {
+    return makeId('s_anon')
+  }
+}
+
+/** Pull the access token synchronously-ish from the cached supabase session. */
+async function authHeader(): Promise<Record<string, string>> {
+  try {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
+function scheduleFlush() {
+  if (flushTimer) return
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    void flush()
+  }, FLUSH_INTERVAL_MS)
+}
+
+/**
+ * Send everything currently queued. `useBeacon` is for page-hide, where async
+ * fetch may be killed — sendBeacon is synchronous-dispatch and survives unload
+ * (but can't attach an auth header, so logged-in attribution falls back to the
+ * normal fetch path during the session).
+ */
+async function flush(useBeacon = false): Promise<void> {
+  if (queue.length === 0) return
+  const batch = queue
+  queue = []
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+
+  const body = JSON.stringify({ events: batch })
+  try {
+    if (useBeacon && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([body], { type: 'application/json' })
+      if (navigator.sendBeacon(ENDPOINT, blob)) return
+    }
+    const headers = { 'Content-Type': 'application/json', ...(await authHeader()) }
+    await fetch(ENDPOINT, { method: 'POST', headers, body, keepalive: true })
+  } catch {
+    // Swallow — never disrupt the app. Dropped batch is acceptable for analytics.
+  }
+}
+
+/**
+ * Queue an event. Returns immediately. Pass { immediate: true } to flush now
+ * (use only for high-value conversions that can't wait for the batch window).
+ */
+export function trackEvent(
+  type: AppEvent,
+  payload?: Record<string, unknown>,
+  opts?: { project_id?: string; immediate?: boolean }
+): void {
+  try {
+    queue.push({
+      event_type: type,
+      visitor_id: getVisitorId(),
+      session_id: getSessionId(),
+      project_id: opts?.project_id,
+      path: typeof location !== 'undefined' ? location.pathname : undefined,
+      payload,
+    })
+    if (opts?.immediate || queue.length >= MAX_BATCH) {
+      void flush()
+    } else {
+      scheduleFlush()
+    }
+  } catch {
+    // Never let tracking throw into the UI.
+  }
+}
+
+/** Convenience for the current visitor id (e.g. to tie a lead to prior events). */
+export function visitorId(): string {
+  return getVisitorId()
+}
+
+let installed = false
+/** Wire page-hide flushing once, at app start. Idempotent. */
+export function installTracking(): void {
+  if (installed || typeof window === 'undefined') return
+  installed = true
+  const onHide = () => {
+    if (document.visibilityState === 'hidden') void flush(true)
+  }
+  document.addEventListener('visibilitychange', onHide)
+  window.addEventListener('pagehide', () => void flush(true))
+}

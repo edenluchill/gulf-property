@@ -19,6 +19,7 @@ import { DesktopHeroGallery } from './ProjectDetailPage/DesktopHeroGallery'
 import { CollapsibleDetails } from './ProjectDetailPage/CollapsibleDetails'
 import { formatPrice } from '../lib/utils'
 import { generateProjectNotes } from '../lib/generateProjectNotes'
+import { trackEvent } from '../lib/track'
 
 type DeviceType = 'mobile' | 'tablet' | 'desktop'
 
@@ -55,6 +56,11 @@ export default function ProjectDetailPage() {
         .then((result) => {
           if (result?.success && result.project) {
             setProject(result.project)
+            // Behaviour analytics: a real property view (project loaded).
+            trackEvent('property_view', {
+              project_name: result.project.project_name,
+              area: result.project.area,
+            }, { project_id: id })
           }
           setLoading(false)
         })

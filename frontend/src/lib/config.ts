@@ -57,6 +57,18 @@ export const API_ENDPOINTS = {
   health: `${API_BASE_URL}/health`,
 } as const;
 
+// Analytics dashboard owner allow-list (frontend gate is UX only — the server
+// enforces the same list on /api/admin/analytics/*). Override with
+// VITE_OWNER_EMAILS (comma-separated) to match the backend OWNER_EMAILS.
+export const OWNER_EMAILS = (import.meta.env.VITE_OWNER_EMAILS || 'lzp6529@gmail.com')
+  .split(',')
+  .map((s: string) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+export function isOwnerEmail(email?: string | null): boolean {
+  return !!email && OWNER_EMAILS.includes(email.toLowerCase());
+}
+
 // Environment info
 export const IS_PRODUCTION = import.meta.env.PROD;
 export const IS_DEVELOPMENT = import.meta.env.DEV;

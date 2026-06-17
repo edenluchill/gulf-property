@@ -1,0 +1,199 @@
+/**
+ * Owner-only analytics dashboard. Assembles reusable analytics components; the
+ * page itself only fetches + lays out. Access is double-gated: this page checks
+ * the owner allow-list (UX), and every /api/admin/analytics call is enforced
+ * server-side via requireOwner. See docs/analytics-dashboard-spec.md §3 / §12.
+ */
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { isOwnerEmail } from '../lib/config'
+import {
+  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions,
+  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow,
+} from '../lib/analyticsApi'
+import StatCard from '../components/analytics/StatCard'
+import TrendChart from '../components/analytics/TrendChart'
+import TopList from '../components/analytics/TopList'
+import Funnel from '../components/analytics/Funnel'
+import LeadTable from '../components/analytics/LeadTable'
+import SessionViewer from '../components/analytics/SessionViewer'
+
+const RANGES = [
+  { label: '7 天', days: 7 },
+  { label: '30 天', days: 30 },
+  { label: '90 天', days: 90 },
+]
+
+interface DashData {
+  overview: Overview
+  daily: DailyPoint[]
+  terms: Counted[]
+  projects: Counted[]
+  luna: LunaStats
+  funnel: FunnelStep[]
+  leads: Lead[]
+  sessions: SessionRow[]
+}
+
+export default function AdminAnalytics() {
+  const { user, loading: authLoading } = useAuth()
+  const [days, setDays] = useState(30)
+  const [data, setData] = useState<DashData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [openSession, setOpenSession] = useState<string | null>(null)
+
+  const isOwner = isOwnerEmail(user?.email)
+
+  useEffect(() => {
+    if (!isOwner) return
+    let alive = true
+    setLoading(true)
+    Promise.all([
+      fetchOverview(days), fetchSearches(days), fetchLuna(days),
+      fetchTutorial(days), fetchLeads(), fetchSessions(),
+    ])
+      .then(([ov, se, lu, tu, le, ss]) => {
+        if (!alive) return
+        setData({
+          overview: ov.overview, daily: ov.daily,
+          terms: se.terms, projects: se.projects,
+          luna: lu, funnel: tu, leads: le, sessions: ss,
+        })
+        setLoading(false)
+      })
+      .catch(() => alive && setLoading(false))
+    return () => { alive = false }
+  }, [days, isOwner])
+
+  const visitorTrend = useMemo(
+    () => (data?.daily || []).map((d) => ({ day: d.day, value: d.visitors })),
+    [data]
+  )
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+
+  if (!isOwner) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="max-w-sm p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+            <Lock className="h-8 w-8 text-red-600" />
+          </div>
+          <h2 className="mb-2 text-xl font-semibold text-slate-900">无权访问</h2>
+          <p className="text-slate-600">这个页面只对所有者开放。</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">客户行为 · Dashboard</h1>
+          <p className="text-xs text-slate-400">仅 {user?.email} 可见</p>
+        </div>
+        <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              onClick={() => setDays(r.days)}
+              className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                days === r.days ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading || !data ? (
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-teal-500" />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* Headline counters */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`${data.overview.events} 次事件`} />
+            <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
+            <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
+            <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
+          </div>
+
+          {/* Trend + Luna stats */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <TrendChart title="每日访客" points={visitorTrend} className="md:col-span-2" />
+            <div className="space-y-3">
+              <StatCard
+                label="热 Leads"
+                value={data.overview.leads_total}
+                icon={<Flame className="h-4 w-4" />}
+                hint={`本期新增 ${data.overview.leads_new}`}
+              />
+              <StatCard
+                label="Luna 平均时长"
+                value={`${Math.round(data.luna.avg_duration_ms / 1000)}s`}
+                hint={`平均 ${data.luna.avg_turns} 轮 · ${data.luna.total_tool_calls} 次工具`}
+              />
+            </div>
+          </div>
+
+          {/* Search + projects + funnel */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <TopList title="搜索热词" items={data.terms} />
+            <TopList title="最常看的项目" items={data.projects} />
+            <Funnel title="Tutorial 漏斗" steps={data.funnel} />
+          </div>
+
+          {/* Leads */}
+          <LeadTable leads={data.leads} />
+
+          {/* Luna sessions */}
+          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <h3 className="text-sm font-semibold text-slate-800">最近 Luna 对话</h3>
+            </div>
+            {data.sessions.length === 0 ? (
+              <p className="px-4 py-6 text-xs text-slate-400">还没有对话记录。</p>
+            ) : (
+              <div className="divide-y divide-slate-50">
+                {data.sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setOpenSession(s.session_id)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm text-slate-700">
+                        {s.created_at.slice(0, 16).replace('T', ' ')}
+                        {s.user_email ? ` · ${s.user_email}` : ' · 匿名'}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具
+                        {s.had_error ? ' · ⚠️ 有错误' : ''}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : '—'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {openSession && <SessionViewer sessionId={openSession} onClose={() => setOpenSession(null)} />}
+    </div>
+  )
+}
