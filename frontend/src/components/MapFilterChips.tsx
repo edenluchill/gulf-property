@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, X, SlidersHorizontal, Wallet, BedDouble, Hammer, Building2, Check } from 'lucide-react'
 import { PropertyFilters } from '../types'
+import { trackEvent } from '../lib/track'
 
 // 按开发商名生成稳定的彩色头像配色（让长列表一眼可区分）
 const AVATAR_PALETTE = [
@@ -92,6 +93,25 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
     minBedrooms: undefined, status: undefined, developer: undefined,
   }))
 
+  // ---- 筛选 = 主应用真正的"搜索"。下面四个 handler 既改 filter 又埋点,
+  //      桌面/移动端共用。选「不限」(重置)不算一次搜索。 ----
+  const applyPrice = (r: { key: PriceKey; min?: number; max?: number }) => {
+    setFilters(f => ({ ...f, minPrice: r.min, maxPrice: r.max }))
+    if (r.key !== 'price0') trackEvent('search', { query: priceText(r.key), kind: 'price' })
+  }
+  const applyBeds = (b: { key: string; v: number | undefined }) => {
+    setFilters(f => ({ ...f, minBedrooms: b.v }))
+    if (b.v !== undefined) trackEvent('search', { query: bedText(b), kind: 'beds' })
+  }
+  const applyStatus = (s: { key: StatusKey; v?: PropertyFilters['status'] }) => {
+    setFilters(f => ({ ...f, status: s.v }))
+    if (s.v) trackEvent('search', { query: statusText(s.key), kind: 'status' })
+  }
+  const applyDeveloper = (d: string) => {
+    setFilters(f => ({ ...f, developer: d }))
+    trackEvent('search', { query: d, kind: 'developer' })
+  }
+
   // ---- 桌面构件 ----
   const Chip = ({ id, base, active }: { id: string; base: string; active: string | null }) => (
     <button
@@ -162,7 +182,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
               {PRICE_RANGES.map(r => (
                 <Opt key={r.key}
                   sel={r.min === filters.minPrice && r.max === filters.maxPrice}
-                  on={() => setFilters(f => ({ ...f, minPrice: r.min, maxPrice: r.max }))}>
+                  on={() => applyPrice(r)}>
                   {priceText(r.key)}
                 </Opt>
               ))}
@@ -175,7 +195,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
             <Pop>
               {BEDS.map(b => (
                 <Opt key={b.key} sel={filters.minBedrooms === b.v}
-                  on={() => setFilters(f => ({ ...f, minBedrooms: b.v }))}>
+                  on={() => applyBeds(b)}>
                   {bedText(b)}
                 </Opt>
               ))}
@@ -188,7 +208,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
             <Pop>
               {STATUS.map(s => (
                 <Opt key={s.key} sel={filters.status === s.v && !!s.v}
-                  on={() => setFilters(f => ({ ...f, status: s.v }))}>
+                  on={() => applyStatus(s)}>
                   {statusText(s.key)}
                 </Opt>
               ))}
@@ -214,7 +234,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                   .slice(0, 50)
                   .map(d => (
                     <Opt key={d} sel={filters.developer === d}
-                      on={() => setFilters(f => ({ ...f, developer: d }))}>
+                      on={() => applyDeveloper(d)}>
                       {d}
                     </Opt>
                   ))}
@@ -268,7 +288,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                     <SheetRow key={r.key} label={priceText(r.key)}
                       isDefault={r.key === 'price0'}
                       sel={r.min === filters.minPrice && r.max === filters.maxPrice}
-                      on={() => setFilters(f => ({ ...f, minPrice: r.min, maxPrice: r.max }))} />
+                      on={() => applyPrice(r)} />
                   ))}
                 </div>
               </Section>
@@ -279,7 +299,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                     <SheetRow key={b.key} label={bedText(b)}
                       isDefault={b.v === undefined}
                       sel={filters.minBedrooms === b.v}
-                      on={() => setFilters(f => ({ ...f, minBedrooms: b.v }))} />
+                      on={() => applyBeds(b)} />
                   ))}
                 </div>
               </Section>
@@ -290,7 +310,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                     <SheetRow key={s.key} label={statusText(s.key)}
                       isDefault={!s.v}
                       sel={s.v ? filters.status === s.v : !filters.status}
-                      on={() => setFilters(f => ({ ...f, status: s.v }))} />
+                      on={() => applyStatus(s)} />
                   ))}
                 </div>
               </Section>
@@ -325,7 +345,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                       const on = filters.developer === d
                       return (
                         <button key={d}
-                          onClick={() => setFilters(f => ({ ...f, developer: d }))}
+                          onClick={() => applyDeveloper(d)}
                           className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-sm transition-colors ${
                             on ? 'bg-primary/5 ring-1 ring-primary/30' : 'hover:bg-slate-50'
                           }`}
