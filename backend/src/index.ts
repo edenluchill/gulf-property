@@ -15,6 +15,7 @@ import langgraphValidateRouter from './routes/langgraph-validate'
 import dubaiAreasLandmarksRouter from './routes/dubai-areas-landmarks'
 import dubaiPoisRouter from './routes/dubai-pois'
 import uploadRouter from './routes/upload'
+import r2UploadRouter from './routes/r2-upload'
 import tasksRouter from './routes/tasks'
 import adminTasksRouter from './routes/admin-tasks'
 import dubaiTransportRouter from './routes/dubai-transport'
@@ -44,7 +45,7 @@ app.use(helmet())
 const allowedOrigins = [
   'https://pinzos.com',
   'https://www.pinzos.com',
-  'https://upload.pinzos.com',  // Direct upload endpoint (bypasses Cloudflare)
+  'https://upload-api.pinzos.com',  // Direct upload endpoint (bypasses Cloudflare)
   'http://localhost:5173',  // For local development
   'http://localhost:5174',  // Alternative local port
 ]
@@ -97,6 +98,7 @@ app.use('/api/langgraph', langgraphValidateRouter)  // Result validation
 app.use('/api/dubai', dubaiAreasLandmarksRouter)  // Dubai areas and landmarks overlay
 app.use('/api/dubai-pois', dubaiPoisRouter)  // Dubai POIs (hospitals, schools, etc.)
 app.use('/api/upload', uploadRouter)  // File upload to R2
+app.use('/api/r2-upload', r2UploadRouter)  // Browser direct-to-R2 multipart upload (fixes Dubai large-file drops)
 app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
 app.use('/api/tasks', tasksRouter)  // PDF processing task management
 app.use('/api/admin/tasks', adminTasksRouter)  // Admin task management

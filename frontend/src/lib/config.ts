@@ -12,6 +12,15 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:30
 // Set VITE_UPLOAD_API_URL to a direct server URL (not proxied by Cloudflare)
 export const UPLOAD_API_URL = import.meta.env.VITE_UPLOAD_API_URL || API_BASE_URL;
 
+// Direct-to-R2 chunked upload — browser PUTs parts straight to the nearest R2
+// edge with per-part retry, fixing dropped large uploads from far regions (Dubai).
+// Defaults ON in production; set VITE_DIRECT_UPLOAD=false to force the legacy
+// single-request path (e.g. local dev without a worker running).
+export const USE_DIRECT_UPLOAD =
+  import.meta.env.VITE_DIRECT_UPLOAD != null
+    ? import.meta.env.VITE_DIRECT_UPLOAD === 'true'
+    : import.meta.env.PROD;
+
 // API Endpoints
 export const API_ENDPOINTS = {
   // Residential Projects

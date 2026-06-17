@@ -20,7 +20,8 @@ import {
   initialFormData,
   buildSubmitPayload,
 } from '../components/property-editor/types'
-import { API_ENDPOINTS, API_BASE_URL } from '../lib/config'
+import { API_ENDPOINTS, API_BASE_URL, USE_DIRECT_UPLOAD } from '../lib/config'
+import { uploadFilesToR2 } from '../lib/r2-upload'
 import { useAuth } from '../contexts/AuthContext'
 
 interface ServerReadiness {
@@ -115,56 +116,72 @@ export default function DeveloperPropertyUploadPageV2() {
     setError(null)
 
     try {
-      const formDataToSend = new FormData()
-      documents.forEach(doc => {
-        formDataToSend.append('files', doc.file)
-      })
+      // Auth headers shared by both upload paths
+      const authHeaders: Record<string, string> = {}
+      if (session?.access_token) authHeaders['Authorization'] = `Bearer ${session.access_token}`
+      if (session?.user?.id) authHeaders['x-user-id'] = session.user.id
+      if (session?.user?.email) authHeaders['x-user-email'] = session.user.email
 
-      console.log('📤 Sending files to backend...')
+      let data: any
 
-      // Use XMLHttpRequest to track upload progress
-      const data = await new Promise<any>((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100)
-            setUploadProgress(percentComplete)
-            setCurrentStage(t('processing.uploadingPercent', { percent: percentComplete }))
-          }
+      if (USE_DIRECT_UPLOAD) {
+        // ⭐ Direct-to-R2 chunked upload with per-part retry (fixes Dubai drops)
+        console.log('📤 Direct-to-R2 chunked upload...')
+        const result = await uploadFilesToR2(documents.map(doc => doc.file), {
+          headers: authHeaders,
+          onProgress: (percent) => {
+            setUploadProgress(percent)
+            setCurrentStage(t('processing.uploadingPercent', { percent }))
+          },
+        })
+        setIsUploading(false)
+        setCurrentStage(t('processing.uploadComplete'))
+        data = { success: true, jobId: result.jobId }
+      } else {
+        // Legacy single-request upload (local dev / fallback)
+        const formDataToSend = new FormData()
+        documents.forEach(doc => {
+          formDataToSend.append('files', doc.file)
         })
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const response = JSON.parse(xhr.responseText)
-              setIsUploading(false)
-              setCurrentStage(t('processing.uploadComplete'))
-              resolve(response)
-            } catch (err) {
-              reject(new Error('Invalid response format'))
+        console.log('📤 Sending files to backend...')
+
+        // Use XMLHttpRequest to track upload progress
+        data = await new Promise<any>((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percentComplete = Math.round((e.loaded / e.total) * 100)
+              setUploadProgress(percentComplete)
+              setCurrentStage(t('processing.uploadingPercent', { percent: percentComplete }))
             }
-          } else {
-            reject(new Error(`Upload failed: ${xhr.status}`))
-          }
-        })
+          })
 
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'))
-        })
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText)
+                setIsUploading(false)
+                setCurrentStage(t('processing.uploadComplete'))
+                resolve(response)
+              } catch (err) {
+                reject(new Error('Invalid response format'))
+              }
+            } else {
+              reject(new Error(`Upload failed: ${xhr.status}`))
+            }
+          })
 
-        xhr.open('POST', API_ENDPOINTS.langgraphProgressStart)
-        if (session?.access_token) {
-          xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
-        }
-        if (session?.user?.id) {
-          xhr.setRequestHeader('x-user-id', session.user.id)
-        }
-        if (session?.user?.email) {
-          xhr.setRequestHeader('x-user-email', session.user.email)
-        }
-        xhr.send(formDataToSend)
-      })
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'))
+          })
+
+          xhr.open('POST', API_ENDPOINTS.langgraphProgressStart)
+          Object.entries(authHeaders).forEach(([k, v]) => xhr.setRequestHeader(k, v))
+          xhr.send(formDataToSend)
+        })
+      }
 
       console.log('✅ Backend response:', data)
 
