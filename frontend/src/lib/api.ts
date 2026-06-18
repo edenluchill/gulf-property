@@ -827,6 +827,7 @@ export async function generateBuyingReport(body: {
 // ---- 项目投资 + 位置情报（详情页改版）----
 export interface ProjectInsights {
   area: {
+    id: string | null;
     name: string | null;
     median_price_sqm: number | null;
     rental_yield_pct: number | null;

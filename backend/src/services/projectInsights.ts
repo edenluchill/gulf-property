@@ -21,6 +21,7 @@ const HUBS: { hub: string; lng: number; lat: number }[] = [
 
 export interface ProjectInsights {
   area: {
+    id: string | null
     name: string | null
     median_price_sqm: number | null
     rental_yield_pct: number | null
@@ -68,7 +69,7 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
   let growthPct = 0
   if (p.area) {
     const m = await pool.query(
-      `SELECT da.name AS area_name, dam.rental_yield_pct, dam.price_growth_pct,
+      `SELECT da.id AS area_id, da.name AS area_name, dam.rental_yield_pct, dam.price_growth_pct,
               dam.median_price_sqm, dam.sales_transaction_count,
               to_char(dam.period_end_month, 'YYYY-MM-DD') AS period_end_month
          FROM dubai_area_rolling_metrics dam
@@ -84,6 +85,7 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
       yieldPct = parseFloat(r.rental_yield_pct) || 0
       growthPct = parseFloat(r.price_growth_pct) || 0
       area = {
+        id: r.area_id != null ? String(r.area_id) : null,
         name: r.area_name,
         median_price_sqm: r.median_price_sqm != null ? parseFloat(r.median_price_sqm) : null,
         rental_yield_pct: yieldPct || null,

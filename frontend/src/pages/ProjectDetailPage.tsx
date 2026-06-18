@@ -31,7 +31,7 @@ function getDeviceType(): DeviceType {
 }
 
 export default function ProjectDetailPage() {
-  const { t } = useTranslation(['project', 'common'])
+  const { t, i18n } = useTranslation(['project', 'common'])
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const [project, setProject] = useState<any>(null)
@@ -284,6 +284,24 @@ export default function ProjectDetailPage() {
                   {project.area}
                 </span>
               </div>
+              {/* Investment highlights (every tab) */}
+              {insights?.investment && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                  {insights.area?.rental_yield_pct != null && (
+                    <span className="rounded-full bg-teal-50 px-2 py-0.5 font-medium text-teal-700">
+                      {i18n.language?.startsWith('zh') ? '回报' : 'Yield'} {insights.area.rental_yield_pct}%
+                    </span>
+                  )}
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                    {i18n.language?.startsWith('zh') ? '5年年化' : '5yr'} {insights.investment.annualized_return_pct}%
+                  </span>
+                  {insights.investment.payback_years != null && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                      {i18n.language?.startsWith('zh') ? `回本 ${insights.investment.payback_years} 年` : `${insights.investment.payback_years}y payback`}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -614,7 +632,10 @@ export default function ProjectDetailPage() {
           <TabsContent value="payment" className="mt-0">
             <CompactProjectHeader />
             <div className="container mx-auto px-4 py-6">
-              <PaymentPlanTab paymentPlan={project.payment_plan || []} />
+              <PaymentPlanTab
+                paymentPlan={project.payment_plan || []}
+                referencePrice={insights?.investment?.reference_price ?? project.starting_price ?? project.min_price}
+              />
             </div>
           </TabsContent>
 
@@ -635,6 +656,7 @@ export default function ProjectDetailPage() {
                   lat: project.latitude,
                   lng: project.longitude
                 }}
+                insights={insights}
               />
             </div>
           </TabsContent>
