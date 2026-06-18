@@ -824,6 +824,46 @@ export async function generateBuyingReport(body: {
   } catch { return null; }
 }
 
+// ---- 项目投资 + 位置情报（详情页改版）----
+export interface ProjectInsights {
+  area: {
+    name: string | null;
+    median_price_sqm: number | null;
+    rental_yield_pct: number | null;
+    price_growth_pct: number | null;
+    sales_transaction_count: number | null;
+    data_through: string | null;
+  } | null;
+  investment: {
+    purchase_price: number;
+    rental_income_5yr: number;
+    appreciation_5yr: number;
+    total_profit_5yr: number;
+    annualized_return_pct: number;
+    area_yield_pct?: number;
+    area_growth_pct?: number;
+    payback_years: number | null;
+    reference_price: number;
+  } | null;
+  nearby: {
+    metro: { name: string; distance_m: number }[];
+    pois: { category: string; name: string; distance_m: number }[];
+    landmarks: { name: string; type: string; distance_m: number }[];
+  };
+  commute: { hub: string; distance_m: number; mins_est: number }[];
+}
+
+export async function fetchProjectInsights(id: string): Promise<ProjectInsights | null> {
+  try {
+    const r = await fetch(`${API_URL}/residential-projects/${id}/insights`);
+    if (!r.ok) return null;
+    const json = await r.json();
+    return json?.success ? (json.data as ProjectInsights) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---- 数据版本指纹（客户端缓存自动失效）----
 export async function fetchDataVersion(): Promise<string | null> {
   try {

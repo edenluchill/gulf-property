@@ -32,6 +32,7 @@ import marketRouter from './routes/market'
 import metaRouter from './routes/meta'
 import lunaPublicRouter from './luna-tour/public-router'  // Luna Tour (isolated; delete line + luna-tour/ to remove)
 import lunaAgentRouter from './luna-tour/agent-router'  // Luna Tour agent dashboard/analytics (isolated)
+import projectInsightsRouter from './routes/project-insights'  // Detail-page investment/location intelligence (isolated)
 import eventsRouter from './routes/events'  // Behaviour analytics ingest (isolated; see docs/analytics-dashboard-spec.md)
 import leadsRouter from './routes/leads'  // Lead capture + intent scoring (isolated)
 import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashboard queries (isolated)
@@ -94,6 +95,7 @@ app.get('/health', async (_req: Request, res: Response) => {
 })
 
 // Routes
+app.use('/api/residential-projects', projectInsightsRouter)  // Detail-page insights (/:id/insights) — before main router
 app.use('/api/residential-projects', createResidentialProjectsRouter(pool))  // Residential projects API
 app.use('/api/langgraph', langgraphRouter)  // LangGraph multi-agent PDF processor
 app.use('/api/langgraph-progress', langgraphProgressRouter)  // LangGraph with real-time progress
