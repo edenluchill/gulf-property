@@ -114,11 +114,32 @@ export function AreaTrendGrid({ area, insights, loading }: {
   insights: AreaInsights | null
   loading: boolean
 }) {
-  const { t } = useTranslation(['map'])
+  const { t, i18n } = useTranslation(['map'])
+  const zh = (i18n.language || 'en').startsWith('zh')
   const growthNow = area.capitalAppreciation ?? lastNonNull(insights?.growth)
   const yieldNow = area.rentalYield ?? lastNonNull(insights?.rentalYield)
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+
+  // Clean empty-state: many display areas are industrial / land / low-activity, or
+  // not yet matched to DLD's cadastre — show an intentional note, not a grid of "—".
+  const hasAnyMetric =
+    area.medianPriceSqm != null || area.averagePrice != null ||
+    area.transactionCount != null || growthNow != null || yieldNow != null
+  if (!loading && !hasAnyMetric) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center">
+        <div className="text-sm font-medium text-slate-600">
+          {zh ? '该区域近期住宅成交较少' : 'Limited recent residential activity'}
+        </div>
+        <div className="mt-1.5 text-xs leading-relaxed text-slate-400">
+          {zh
+            ? '暂无足够 DLD 成交以计算可靠的市场指标。可能是工业 / 新兴 / 低活跃片区。'
+            : 'Not enough DLD transactions to compute reliable market metrics — likely an industrial, emerging, or low-activity district.'}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
