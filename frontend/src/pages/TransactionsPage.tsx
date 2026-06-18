@@ -10,8 +10,10 @@ import {
   TxFilters, TxSummary, TxRow
 } from '../lib/api'
 import DirhamSymbol from '../components/DirhamSymbol'
+import RentView from './TransactionsPage/RentView'
 
 type SaleType = 'all' | 'ready' | 'offplan'
+type Mode = 'sales' | 'rent'
 
 function fmt(n: number | null | undefined) {
   return n == null ? '—' : n.toLocaleString('en-US')
@@ -53,7 +55,9 @@ function TrendChart({ trend }: { trend: TxSummary['trend'] }) {
 }
 
 export default function TransactionsPage() {
-  const { t } = useTranslation(['transactions', 'common'])
+  const { t, i18n } = useTranslation(['transactions', 'common'])
+  const zh = i18n.language?.startsWith('zh')
+  const [mode, setMode] = useState<Mode>('sales')
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   const [area, setArea] = useState('')
   // 项目筛选：可搜索 combobox，不依赖区域（选了区域则在区域内搜）
@@ -139,6 +143,21 @@ export default function TransactionsPage() {
         {t('description')}
       </p>
 
+      {/* 成交 / 租金 切换 */}
+      <div className="mt-3 inline-flex rounded-lg bg-slate-100 p-0.5">
+        {(['sales', 'rent'] as Mode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            {m === 'sales' ? (zh ? '成交' : 'Sales') : (zh ? '租金' : 'Rent')}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'rent' ? <RentView /> : (
+      <>
       {/* 筛选(单一连贯卡片:移动端头部=折叠开关,桌面端头部隐藏) */}
       <div className="mt-3 md:mt-5 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
       <button
@@ -357,6 +376,8 @@ export default function TransactionsPage() {
         </>
       ) : (
         <div className="mt-6 text-sm text-slate-400">{t('empty')}</div>
+      )}
+      </>
       )}
     </div>
     </div>

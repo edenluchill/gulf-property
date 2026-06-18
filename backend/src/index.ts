@@ -29,6 +29,7 @@ import aiProjectsRouter from './routes/ai-projects'
 import aiAreasRouter from './routes/ai-areas'
 import aiAnalyticsRouter from './routes/ai-analytics'
 import marketRouter from './routes/market'
+import marketRentRouter from './routes/market-rent'  // Rent (Ejari) market layer (isolated)
 import metaRouter from './routes/meta'
 import lunaPublicRouter from './luna-tour/public-router'  // Luna Tour (isolated; delete line + luna-tour/ to remove)
 import lunaAgentRouter from './luna-tour/agent-router'  // Luna Tour agent dashboard/analytics (isolated)
@@ -118,6 +119,7 @@ app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/ai/analytics', aiAnalyticsRouter)  // AI investment/ROI/budget analysis (DLD data)
 app.use('/api/market', marketRouter)  // 成交真相层：价格体检等
+app.use('/api/market/rent', marketRentRouter)  // 租金市场层 (Ejari)
 app.use('/api/meta', metaRouter)  // 数据版本指纹（客户端缓存自动失效）
 app.use('/api/luna', lunaPublicRouter)  // Luna Tour public watch (isolated)
 app.use('/api/luna/agent', lunaAgentRouter)  // Luna Tour agent dashboard/analytics (isolated)

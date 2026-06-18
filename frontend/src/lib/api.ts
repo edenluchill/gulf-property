@@ -744,6 +744,46 @@ export async function fetchTxList(p: Record<string, string | undefined>): Promis
   } catch { return { rows: [], limit: 25, offset: 0 }; }
 }
 
+// ---- 租金市场（/transactions 页的租金视图）----
+export interface RentSummary {
+  count: number;
+  rentPerSqm: { p25: number; median: number; p75: number } | null;
+  medianAnnualRent: number | null;
+  avgSizeSqm: number | null;
+  totalVolume: number | null;
+  trend: { month: string; count: number; medianSqm: number }[];
+  note: string;
+}
+export interface RentRow {
+  date: string | null; area: string; building: string; subtype: string;
+  sizeSqm: number | null; annualRent: number | null; rentPerSqm: number | null;
+  regType: 'new' | 'renew';
+}
+export async function fetchRentFilters(): Promise<{ areas: { name: string; count: number }[] }> {
+  try {
+    const r = await fetch(`${API_URL}/market/rent/filters`);
+    if (!r.ok) return { areas: [] };
+    return await r.json();
+  } catch { return { areas: [] }; }
+}
+export async function fetchRentSummary(p: Record<string, string | undefined>): Promise<RentSummary | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(`${API_URL}/market/rent/summary?${txQuery(p)}`);
+      if (r.ok) return await r.json();
+    } catch { /* retry */ }
+    if (attempt === 0) await new Promise(res => setTimeout(res, 1200));
+  }
+  return null;
+}
+export async function fetchRentList(p: Record<string, string | undefined>): Promise<{ rows: RentRow[]; limit: number; offset: number }> {
+  try {
+    const r = await fetch(`${API_URL}/market/rent/list?${txQuery(p)}`);
+    if (!r.ok) return { rows: [], limit: 25, offset: 0 };
+    return await r.json();
+  } catch { return { rows: [], limit: 25, offset: 0 }; }
+}
+
 // ---- 区域洞察（地图区域弹窗：四指标月度序列 + 近期成交）----
 export interface AreaInsights {
   months: string[];
