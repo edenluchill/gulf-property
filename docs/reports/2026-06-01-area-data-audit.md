@@ -1,16 +1,16 @@
 # 区域数据审计 (Area Data Audit)
 
-> 生成:2026-06-01 快照 · 共 210 个可见区
+> 生成:2026-06-01 快照 · 共 229 个可见区
 > 数据源:dld_transactions(住宅 Sales: property_usage='Residential', property_type IN ('Unit','Villa'), meter_sale_price 1000-250000)+ dld_rent_contracts,经 dld_areas 桥接到 dubai_areas。
 
 ## 摘要
 
 | 状态 | 区数 | 说明 |
 |------|------|------|
-| **四项全有**(价/量/增长/收益) | 54 | 有可靠住宅市场数据 |
-| **部分有**(有价或量,缺增长/收益) | 45 | 成交稀疏,增长/收益算不出(<20笔护栏) |
+| **四项全有**(价/量/增长/收益) | 60 | 有可靠住宅市场数据 |
+| **部分有**(有价或量,缺增长/收益) | 58 | 成交稀疏,增长/收益算不出(<20笔护栏) |
 | **完全空**(显示"—") | 111 | 无住宅成交:见下三类原因 |
-| 合计可见区 | 210 | |
+| 合计可见区 | 229 | |
 
 **完全空的三类原因:**
 - 🅰 **真·非住宅**:机场 / 工业区 / Labor camp / DMCC / DIFC / Science Park(纯商业,无住宅成交,正确)。
@@ -27,6 +27,7 @@
 | Dubai Southأ | 10363 | 16693 | 4.3% | 4.79% | 1 | 31773 |
 | The Villa | 9544 | 15789 | 10.8% | 5.01% | 1 | 51987 |
 | Business Bay  | 9196 | 27818 | 6.0% | 4.71% | 1 | 80374 |
+| Wadi Al Safa 3 | 7544 | 16300 | 8.2% | 4.82% | 1 | 19880 |
 | Dubai investments Park | 6982 | 15841 | 7.4% | 4.61% | 2 | 22117 |
 | Al Furjan | 6701 | 16519 | 48.8% | 4.15% | 1 | 40215 |
 | Dubai Island A | 5260 | 28525 | 17.0% | — | 1 | 6938 |
@@ -39,6 +40,7 @@
 | Dubai Marina  | 4133 | 26803 | 4.3% | 4.30% | 1 | 119075 |
 | Sobha Hartland 2 | 3678 | 26694 | 4.1% | 2.35% | 1 | 8206 |
 | Arjan | 3499 | 16360 | 13.5% | 5.87% | 1 | 23433 |
+| Hadaeq Sheikh Mohammed Bin Rashid | 3407 | 25932 | 3.0% | 5.70% | 1 | 37256 |
 | International City | 3394 | 9451 | 21.8% | 6.91% | 2 | 56763 |
 | Sport city | 3329 | 14306 | 11.9% | 6.08% | 1 | 40992 |
 | Al Jadaf | 2934 | 21611 | 18.4% | 4.44% | 1 | 12907 |
@@ -54,9 +56,11 @@
 | Al Satwa | 1741 | 24311 | 18.4% | 4.15% | 1 | 3587 |
 | Studio City | 1419 | 15441 | 4.4% | 7.43% | 1 | 5066 |
 | Damac hills | 1391 | 16583 | 19.4% | 6.21% | 1 | 20324 |
+| Al Yufrah 1 | 1317 | 15636 | 15.5% | 4.74% | 1 | 9685 |
 | Palm Jumeirah | 1196 | 38058 | 27.5% | 3.27% | 2 | 38609 |
 | Al Layyan | 1119 | 15662 | 37.5% | 5.72% | 3 | 3484 |
 | Zabeel 1&2 | 1090 | 32600 | 8.7% | 5.09% | 4 | 6357 |
+| Wadi Al Safa 7 | 1028 | 13907 | 9.7% | 5.94% | 1 | 16400 |
 | Ras Al Khor | 698 | 25129 | 6.0% | 2.40% | 4 | 3610 |
 | Trade Center Second 2 | 695 | 51374 | — | 1.94% | 1 | 1881 |
 | Al Kifaf | 588 | 23907 | 7.5% | 4.90% | 1 | 3922 |
@@ -74,6 +78,7 @@
 | Palm Jebel Ali | 212 | 37515 | — | — | 1 | 1573 |
 | Jumeirah Third | 197 | 78545 | 56.0% | 1.01% | 2 | 2032 |
 | Al Quoz Industrial area 1&2&3 | 181 | 8950 | 5.0% | 8.28% | 9 | 5182 |
+| Madinat Hind 4 | 171 | 12481 | -5.6% | 5.58% | 1 | 13917 |
 | Barsha Heights(Tecom) | 130 | 15686 | 8.5% | 5.51% | 4 | 7920 |
 | Al Barsha First | 117 | 19375 | 16.7% | 4.66% | 2 | 2052 |
 | Al Qusais Industrial Aera 5 | 75 | 6458 | — | 8.21% | 1 | 344 |
@@ -82,12 +87,15 @@
 | Muhaisnah 1 | 54 | 14694 | 14.9% | 5.77% | 1 | 1746 |
 | Dubai Festival City | 53 | 16835 | -0.5% | 5.19% | 3 | 1250 |
 | Al Rashidiya | 43 | 4239 | 28.2% | 13.96% | 3 | 1801 |
+| Hessyan First | 27 | 8215 | 17.8% | 7.12% | 1 | 627 |
 | Al Bada | 26 | 11088 | 56.9% | 4.66% | 1 | 1238 |
+| Al Twar Fourth | 25 | 2557 | — | 17.07% | 1 | 501 |
 | Al Warqa | 17 | 3678 | — | 14.75% | 4 | 6189 |
 | Jumeirah island2 | 17 | 125814 | — | 0.45% | 1 | 925 |
 | Muhaisnnah 3 | 14 | 6439 | — | 9.98% | 2 | 1119 |
 | Al Jaffiliya | 12 | 7162 | — | 9.16% | 2 | 567 |
 | Al Twar 2 | 12 | 3337 | — | 9.09% | 2 | 241 |
+| World Islands | 12 | 28986 | — | — | 1 | 1112 |
 | Um Al Sheif | 11 | 10979 | — | 7.09% | 1 | 1074 |
 | Al Barsha Second | 10 | 5561 | — | 7.03% | 1 | 2338 |
 | Al Barsha Third | 9 | 7347 | — | 5.59% | 1 | 2247 |
@@ -109,12 +117,15 @@
 | Al Barari | — | — | — | — | 1 | 0 |
 | Al Barsha South 1 | — | — | — | — | 0 | 0 |
 | Al faqa | — | — | — | — | 0 | 0 |
+| Al Hamriya | 0 | — | — | — | 1 | 679 |
 | Al Hudaiba | — | — | — | — | 0 | 0 |
 | Al Jadaf Waterfront  | — | — | — | — | 1 | 0 |
 | Al Karama | 0 | — | — | — | 1 | 1009 |
 | Al Khawaneej 2 | 0 | — | — | — | 2 | 2329 |
 | Al Mamzar | — | — | — | — | 0 | 0 |
+| Al Marmoom | 0 | — | — | — | 1 | 2 |
 | Al Mina | — | — | — | — | 0 | 0 |
+| Al Mizhar Third | 0 | — | — | — | 1 | 815 |
 | Al Nahda | 0 | — | — | — | 4 | 1961 |
 | Al Qusais1 | 0 | — | — | — | 2 | 556 |
 | Al Qusais Indusdrial 2 | — | — | — | — | 0 | 0 |
@@ -122,7 +133,10 @@
 | Al Qusais Industrial 3 | — | — | — | — | 0 | 0 |
 | Al Qusais Industrial Area 4 | — | — | — | — | 0 | 0 |
 | Al Raffa | 0 | — | — | — | 1 | 958 |
+| Al Rowaiyah First | 0 | — | — | — | 1 | 57 |
+| Al Rowaiyah Third | 0 | — | — | — | 1 | 10 |
 | Al Safouh Second | — | — | — | — | 0 | 0 |
+| Al Ttay | 0 | — | — | — | 1 | 294 |
 | Arabian Ranches 2 | — | — | — | — | 0 | 0 |
 | Arabian Ranches 3 | — | — | — | — | 0 | 0 |
 | Athlon | — | — | — | — | 0 | 0 |
@@ -160,6 +174,8 @@
 | Fahid island (高端海景公寓&别墅区) | — | — | — | — | 0 | 0 |
 | Gradeer Al Taya | — | — | — | — | 0 | 0 |
 | Grand Polo Club & Resort | — | — | — | — | 1 | 0 |
+| Grayteesah | 0 | — | — | — | 1 | 20 |
+| Hatta | 0 | — | — | — | 1 | 1 |
 | Haven | — | — | — | — | 0 | 0 |
 | Hessyan Second | — | — | — | — | 1 | 51 |
 | Hudayriat island （Modon luxury villa and apartment） | — | — | — | — | 0 | 0 |
@@ -178,9 +194,12 @@
 | Khalifa City (Local villa residential area) | — | — | — | — | 0 | 0 |
 | Lanyan comminity | — | — | — | — | 0 | 0 |
 | Latalia | — | — | — | — | 0 | 0 |
+| Lehbab First | 0 | — | — | — | 1 | 38 |
 | Living Legends | — | — | — | — | 1 | 0 |
 | Local villa residential area | — | — | — | — | 0 | 0 |
+| Madinat Hind 3 | 0 | — | — | — | 1 | 853 |
 | Majan | — | — | — | — | 1 | 0 |
+| Margham | 0 | — | — | — | 1 | 41 |
 | Maryah island (ADGM Abu Dhabi Finacial center) | — | — | — | — | 0 | 0 |
 | Masdar city | — | — | — | — | 0 | 0 |
 | Maydan Distrct One West | 0 | — | — | — | 1 | 1634 |
@@ -238,71 +257,52 @@
 
 ## 2. 未桥接的 DLD 地籍区(数据存在但没接到任何展示区 —— 需手动映射或手画)
 
-共 62 个,合计 176,479 笔成交孤立。
+共 43 个,合计 74,291 笔成交孤立。
 
 | DLD 地籍区 | 成交量 |
 |-----------|--------|
-| Hadaeq Sheikh Mohammed Bin Rashid | 37,256 |
 | Al Yelayiss 2 | 21,939 |
-| Wadi Al Safa 3 | 19,880 |
 | Al Yelayiss 1 | 17,173 |
-| Wadi Al Safa 7 | 16,400 |
 | Jabal Ali | 15,024 |
-| Madinat Hind 4 | 13,917 |
-| Al Yufrah 1 | 9,685 |
 | Nad Al Shiba | 7,277 |
 | Al Yufrah 2 | 5,194 |
 | Al Yufrah 3 | 3,138 |
 | Al Ruwayyah | 1,883 |
-| World Islands | 1,112 |
 | Um Suqaim First | 1,048 |
 | Al Suq Al Kabeer | 868 |
-| Madinat Hind 3 | 853 |
-| Al Mizhar Third | 815 |
-| Al Hamriya | 679 |
-| Hessyan First | 627 |
-| Al Twar Fourth | 501 |
-| Al Ttay | 294 |
 | Al Warsan Third | 225 |
 | Al Warsan Second | 132 |
 | Al Lusaily | 67 |
 | Lehbab | 59 |
-| Al Rowaiyah First | 57 |
 | Mena Jabal Ali | 46 |
-| Margham | 41 |
-| Lehbab First | 38 |
 | Zareeba Duviya | 25 |
 | Saih Aldahal | 24 |
 | Lehbab Second | 22 |
 | Madinat Hind 1 | 21 |
-| Grayteesah | 20 |
 | Madinat Latifa | 19 |
 | Al-Raulah | 16 |
 | Al Asbaq | 15 |
 | Muragab | 14 |
 | Al-Souq Al Kabeer (Deira) | 11 |
-| Al Rowaiyah Third | 10 |
-| Al-Zarouniyyah | 7 |
 | Nazwah | 7 |
+| Al-Zarouniyyah | 7 |
 | Al Maha | 6 |
-| Al-Bastakiyah | 5 |
 | Al Baharna | 5 |
+| Al-Bastakiyah | 5 |
 | Mugatrah | 4 |
 | Muashrah Al Bahraana | 3 |
-| Al Marmoom | 2 |
 | Al Yufrah 4 | 2 |
-| Ghadeer Barashy | 1 |
-| Al-Mustashfa West | 1 |
-| Al Layan1 | 1 |
-| Al Faga'A | 1 |
-| Hatta | 1 |
-| Yaraah | 1 |
-| Shandagha West | 1 |
 | Al Rowaiyah Second | 1 |
+| Al-Mustashfa West | 1 |
 | Le Hemaira | 1 |
-| Remah | 1 |
+| Ghadeer Barashy | 1 |
+| Yaraah | 1 |
 | Madinat Hind 2 | 1 |
+| Al Faga'A | 1 |
+| Shandagha West | 1 |
+| Al Layan1 | 1 |
 | Al Fahidi | 1 |
+| Remah | 1 |
 | Al-Qiyadah | 1 |
 
 ---
