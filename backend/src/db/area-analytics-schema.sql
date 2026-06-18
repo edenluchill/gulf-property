@@ -204,7 +204,7 @@ BEGIN
             AVG(rc.property_area) as avg_size
         FROM dld_rent_contracts rc
         WHERE rc.dubai_area_id = da.id
-            AND rc.property_type IN ('Flat', 'Villa', 'Studio ', 'Complex Villas', 'Penthouse', 'Arabian House')
+            AND TRIM(rc.property_type) IN ('Flat','Villa','Studio','Complex Villas','Penthouse','Arabian House')
             AND rc.property_area >= 20
             AND rc.annual_amount <= 500000
             AND (rc.annual_amount / rc.property_area) <= 3000
@@ -283,9 +283,11 @@ BEGIN
             THEN ROUND((rent.avg_rent / curr.avg_price * 100)::numeric, 2)
             ELSE NULL
         END,
-        -- Growth vs previous period
+        -- Growth vs previous period. Guard: require >= 20 sales in BOTH periods
+        -- so a tiny base (a single off-plan launch) can't explode into +466%.
         CASE
-            WHEN prev.avg_price > 0
+            WHEN prev.avg_price > 0 AND prev.txn_count >= 20 AND curr.txn_count >= 20
+                 AND ABS((curr.avg_price - prev.avg_price) / prev.avg_price * 100) <= 120
             THEN ROUND(((curr.avg_price - prev.avg_price) / prev.avg_price * 100)::numeric, 1)
             ELSE NULL
         END,
@@ -324,9 +326,9 @@ BEGIN
             AND dt.instance_date >= v_period_start
             AND dt.instance_date < v_period_end
     ) curr ON true
-    -- Previous period sales
+    -- Previous period sales (+ count, for the growth sample-size guard)
     LEFT JOIN LATERAL (
-        SELECT AVG(dt.meter_sale_price) as avg_price
+        SELECT AVG(dt.meter_sale_price) as avg_price, COUNT(*)::INTEGER as txn_count
         FROM dld_transactions dt
         JOIN dld_areas dla ON dla.area_id = dt.area_id
         WHERE dla.dubai_area_id = da.id
@@ -345,7 +347,7 @@ BEGIN
             AVG(rc.property_area) as avg_size
         FROM dld_rent_contracts rc
         WHERE rc.dubai_area_id = da.id
-            AND rc.property_type IN ('Flat', 'Villa', 'Studio ', 'Complex Villas', 'Penthouse', 'Arabian House')
+            AND TRIM(rc.property_type) IN ('Flat','Villa','Studio','Complex Villas','Penthouse','Arabian House')
             AND rc.property_area >= 20
             AND rc.annual_amount <= 500000
             AND (rc.annual_amount / rc.property_area) <= 3000
@@ -357,7 +359,7 @@ BEGIN
         SELECT AVG(rc.annual_amount / NULLIF(rc.property_area, 0)) as avg_rent
         FROM dld_rent_contracts rc
         WHERE rc.dubai_area_id = da.id
-            AND rc.property_type IN ('Flat', 'Villa', 'Studio ', 'Complex Villas', 'Penthouse', 'Arabian House')
+            AND TRIM(rc.property_type) IN ('Flat','Villa','Studio','Complex Villas','Penthouse','Arabian House')
             AND rc.property_area >= 20
             AND rc.annual_amount <= 500000
             AND (rc.annual_amount / rc.property_area) <= 3000
