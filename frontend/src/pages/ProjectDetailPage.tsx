@@ -251,6 +251,9 @@ export default function ProjectDetailPage() {
         projectName={project.project_name}
         onUnitSelect={handleUnitSelect}
         onBack={handleBackFromUnitDetail}
+        yieldPct={insights?.area?.rental_yield_pct}
+        growthPct={insights?.area?.price_growth_pct}
+        paymentPlan={project.payment_plan}
       />
     )
   }
@@ -601,6 +604,9 @@ export default function ProjectDetailPage() {
                 unitTypes={project.units || []}
                 projectId={project.id}
                 onUnitSelect={handleUnitSelect}
+                yieldPct={insights?.area?.rental_yield_pct}
+                growthPct={insights?.area?.price_growth_pct}
+                paymentPlan={project.payment_plan}
               />
             </div>
           </TabsContent>

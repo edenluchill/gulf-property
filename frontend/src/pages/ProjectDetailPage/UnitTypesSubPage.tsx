@@ -1,10 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/ui/button'
-import { ArrowLeft, Bed, Bath, Maximize } from 'lucide-react'
+import { ArrowLeft, Bed, Bath, Maximize, ZoomIn } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
-import { UnitType } from '../../types'
+import { UnitType, PaymentPlan } from '../../types'
 import { UnitTypeFavoriteButton } from '../../components/favorites'
 import { cn } from '../../lib/utils'
+import { ImageLightbox } from '../../components/ImageLightbox'
+import UnitEconomics from '../../components/project/UnitEconomics'
+
+const Spec = ({ children }: { children: React.ReactNode }) => (
+  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">{children}</span>
+)
 
 interface UnitTypesSubPageProps {
   unitTypes: UnitType[]
@@ -13,6 +20,9 @@ interface UnitTypesSubPageProps {
   projectName: string
   onUnitSelect: (unitId: string) => void
   onBack: () => void
+  yieldPct?: number | null
+  growthPct?: number | null
+  paymentPlan?: PaymentPlan[]
 }
 
 export function UnitTypesSubPage({
@@ -21,8 +31,13 @@ export function UnitTypesSubPage({
   projectId,
   projectName,
   onUnitSelect,
-  onBack
+  onBack,
+  yieldPct,
+  growthPct,
+  paymentPlan,
 }: UnitTypesSubPageProps) {
+  const { i18n } = useTranslation()
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const selectedUnit = unitTypes.find(u => u.id === selectedUnitId) || unitTypes[0]
 
   useEffect(() => {
@@ -103,6 +118,17 @@ export function UnitTypesSubPage({
                       {parseFloat(selectedUnit.area).toLocaleString()} ft²
                     </span>
                   </div>
+                  {/* Extra specs: view / floor / orientation / balcony / built-up */}
+                  {(selectedUnit.view_type || selectedUnit.floor_level || selectedUnit.orientation ||
+                    selectedUnit.balcony_area || selectedUnit.built_up_area) && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {selectedUnit.view_type && <Spec>{selectedUnit.view_type}</Spec>}
+                      {selectedUnit.floor_level && <Spec>{selectedUnit.floor_level}</Spec>}
+                      {selectedUnit.orientation && <Spec>{selectedUnit.orientation}</Spec>}
+                      {selectedUnit.balcony_area && <Spec>{i18n.language?.startsWith('zh') ? '阳台' : 'Balcony'} {parseFloat(selectedUnit.balcony_area).toLocaleString()} ft²</Spec>}
+                      {selectedUnit.built_up_area && <Spec>{i18n.language?.startsWith('zh') ? '建筑面积' : 'Built-up'} {parseFloat(selectedUnit.built_up_area).toLocaleString()} ft²</Spec>}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   {selectedUnit.price && (
@@ -121,14 +147,20 @@ export function UnitTypesSubPage({
                 </div>
               </div>
 
-              {/* Floor Plan - Hero style */}
+              {/* Floor Plan - Hero style, click to enlarge */}
               {selectedUnit.floor_plan_image && (
-                <div className="bg-white rounded-2xl overflow-hidden shadow-sm border mb-8">
+                <div
+                  onClick={() => setLightboxOpen(true)}
+                  className="group relative bg-white rounded-2xl overflow-hidden shadow-sm border mb-8 cursor-zoom-in"
+                >
                   <img
                     src={selectedUnit.floor_plan_image}
                     alt={selectedUnit.unit_type_name}
                     className="w-full h-auto max-h-[450px] object-contain"
                   />
+                  <div className="absolute top-3 right-3 rounded-full bg-white/90 p-1.5 text-slate-600 opacity-0 shadow group-hover:opacity-100 transition-opacity">
+                    <ZoomIn className="h-4 w-4" />
+                  </div>
                 </div>
               )}
 
@@ -152,6 +184,15 @@ export function UnitTypesSubPage({
                   ))}
                 </div>
               )}
+
+              {/* Per-unit economics: ROI + payment breakdown */}
+              <UnitEconomics
+                price={selectedUnit.price}
+                yieldPct={yieldPct}
+                growthPct={growthPct}
+                paymentPlan={paymentPlan}
+                lang={i18n.language}
+              />
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-slate-400">
@@ -160,6 +201,14 @@ export function UnitTypesSubPage({
           )}
         </div>
       </div>
+
+      {/* Floor plan lightbox */}
+      <ImageLightbox
+        images={selectedUnit?.floor_plan_image ? [selectedUnit.floor_plan_image] : []}
+        initialIndex={0}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </div>
   )
 }

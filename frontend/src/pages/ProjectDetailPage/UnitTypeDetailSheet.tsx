@@ -1,17 +1,23 @@
 import { Bed, Bath, Maximize } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import MobileBottomSheet from '../../components/MobileBottomSheet'
 import { formatPrice } from '../../lib/utils'
-import { UnitType } from '../../types'
+import { UnitType, PaymentPlan } from '../../types'
 import { UnitTypeFavoriteButton } from '../../components/favorites'
+import UnitEconomics from '../../components/project/UnitEconomics'
 
 interface UnitTypeDetailSheetProps {
   unit: UnitType | null
   projectId?: string
   isOpen: boolean
   onClose: () => void
+  yieldPct?: number | null
+  growthPct?: number | null
+  paymentPlan?: PaymentPlan[]
 }
 
-export function UnitTypeDetailSheet({ unit, projectId, isOpen, onClose }: UnitTypeDetailSheetProps) {
+export function UnitTypeDetailSheet({ unit, projectId, isOpen, onClose, yieldPct, growthPct, paymentPlan }: UnitTypeDetailSheetProps) {
+  const { i18n } = useTranslation()
   if (!unit) return null
 
   return (
@@ -81,6 +87,15 @@ export function UnitTypeDetailSheet({ unit, projectId, isOpen, onClose }: UnitTy
             ))}
           </div>
         )}
+
+        {/* Per-unit economics: ROI + payment breakdown */}
+        <UnitEconomics
+          price={unit.price}
+          yieldPct={yieldPct}
+          growthPct={growthPct}
+          paymentPlan={paymentPlan}
+          lang={i18n.language}
+        />
       </div>
     </MobileBottomSheet>
   )
