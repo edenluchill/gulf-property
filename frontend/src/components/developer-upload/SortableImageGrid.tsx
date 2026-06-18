@@ -25,8 +25,9 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Eye, EyeOff, GripVertical, Star, RotateCcw } from 'lucide-react'
+import { Eye, EyeOff, GripVertical, Star, RotateCcw, ZoomIn } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { ImageLightbox } from '../ImageLightbox'
 
 interface SortableImageGridProps {
   images: string[]
@@ -47,6 +48,7 @@ interface ImageItemProps {
   isDefault: boolean
   onToggleHidden: () => void
   onSetPrimary: () => void
+  onOpen?: () => void
   showPrimarySelection: boolean
   sortable: boolean
   isDragOverlay?: boolean
@@ -61,6 +63,7 @@ const SortableImageItem = memo(function SortableImageItem({
   isDefault,
   onToggleHidden,
   onSetPrimary,
+  onOpen,
   showPrimarySelection,
   sortable,
   isDragOverlay = false,
@@ -95,13 +98,14 @@ const SortableImageItem = memo(function SortableImageItem({
           : 'border-gray-200 hover:border-gray-400'
       }`}
     >
-      {/* Image */}
+      {/* Image — click to open the full-size lightbox for verification */}
       <img
         src={url}
         alt=""
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover ${onOpen && !isDragOverlay ? 'cursor-zoom-in' : ''}`}
         draggable={false}
         loading="lazy"
+        onClick={onOpen && !isDragOverlay ? () => onOpen() : undefined}
       />
 
       {/* Hidden overlay */}
@@ -139,6 +143,21 @@ const SortableImageItem = memo(function SortableImageItem({
       {/* Action buttons - bottom */}
       {!isDragOverlay && (
         <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Enlarge for verification */}
+          {onOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpen()
+              }}
+              className="p-1.5 rounded shadow bg-white/90 text-gray-600 hover:bg-blue-100 hover:text-blue-600 transition-colors"
+              title="查看大图"
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           {/* Set as primary */}
           {showPrimarySelection && !isHidden && (
             <button
@@ -202,6 +221,7 @@ export function SortableImageGrid({
   const { t } = useTranslation('upload')
   const [showHidden, setShowHidden] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   // Optimized sensor with higher activation distance for mobile
   const sensors = useSensors(
@@ -277,7 +297,7 @@ export function SortableImageGrid({
 
   const gridContent = (
     <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
-      {displayImages.map((url) => {
+      {displayImages.map((url, displayIndex) => {
         const isHidden = hiddenImages.includes(url)
         const isPrimary = primaryImage === url
         const visibleIndex = visibleImages.indexOf(url)
@@ -293,6 +313,7 @@ export function SortableImageGrid({
             isDefault={isDefault}
             onToggleHidden={() => toggleHidden(url)}
             onSetPrimary={() => handleSetPrimary(url)}
+            onOpen={() => setLightboxIndex(displayIndex)}
             showPrimarySelection={!!onPrimaryImageChange}
             sortable={sortable && !isHidden}
           />
@@ -369,6 +390,14 @@ export function SortableImageGrid({
       ) : (
         gridContent
       )}
+
+      {/* Full-size verification lightbox (reuses the project gallery lightbox) */}
+      <ImageLightbox
+        images={displayImages}
+        initialIndex={lightboxIndex ?? 0}
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   )
 }
