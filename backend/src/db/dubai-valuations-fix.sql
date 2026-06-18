@@ -1,11 +1,10 @@
--- data.dubai 增量同步需要的列/表(增量锚点 load_timestamp + 估价表)
--- 应用:cd backend && npx ts-node scripts/db-runner.ts src/db/dubai-sync-columns.sql
-ALTER TABLE dld_transactions   ADD COLUMN IF NOT EXISTS load_timestamp TIMESTAMPTZ;
-ALTER TABLE dld_rent_contracts ADD COLUMN IF NOT EXISTS load_timestamp TIMESTAMPTZ;
+-- Fix dld_valuations primary key (2026-06-18). The original used procedure_id as
+-- PK, but procedure_id is a CONSTANT type code in this dataset — the real unique
+-- key is (procedure_year, procedure_number). Table is empty, no dependents, so a
+-- clean drop+recreate is safe.
+DROP TABLE IF EXISTS dld_valuations;
 
--- NOTE: procedure_id is a constant type code in this dataset (NOT unique).
--- The real key is (procedure_year, procedure_number) — confirmed 2026-06-18.
-CREATE TABLE IF NOT EXISTS dld_valuations (
+CREATE TABLE dld_valuations (
   procedure_year       INTEGER NOT NULL,
   procedure_number     INTEGER NOT NULL,
   procedure_id         VARCHAR(60),

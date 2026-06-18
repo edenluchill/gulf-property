@@ -78,10 +78,14 @@ export const DATASETS: DatasetConfig[] = [
     entity: 'dld',
     dataset: 'dld_valuation-open-api',
     targetTable: 'dld_valuations',
-    primaryKey: ['procedure_id'],
+    // procedure_id is a constant type code — the real unique key is
+    // (procedure_year, procedure_number). Confirmed 2026-06-18.
+    primaryKey: ['procedure_year', 'procedure_number'],
     incremental: { column: 'load_timestamp' },
     enabled: true,
     fieldMap: {
+      procedure_year:       { from: 'procedure_year', coerce: 'number' },
+      procedure_number:     { from: 'procedure_number', coerce: 'number' },
       procedure_id:         { from: 'procedure_id' },
       instance_date:        { from: 'instance_date', coerce: 'date' },
       property_type:        { from: 'property_type_en' },
