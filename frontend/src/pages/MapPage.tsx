@@ -6,6 +6,7 @@ import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tou
 import TourOverlay from '../luna-tour/TourOverlay'  // Luna Tour (isolated)
 import { useTourMode } from '../luna-tour/TourModeContext'  // Luna Tour (isolated)
 import MapFilterChips from '../components/MapFilterChips'
+import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import MobileBottomSheet from '../components/MobileBottomSheet'
@@ -749,9 +750,14 @@ export default function MapPage() {
             />
           )}
 
-          {/* 只留筛选 pills（搜索 bar 已移除），浮在地图左上 */}
+          {/* 区域搜索 + 筛选 pills，浮在地图左上 */}
           {(!tourCode || toolsRevealed) && (
-          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002]">
+          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 md:flex-row">
+            <AreaSearch
+              onSelect={(a) => {
+                if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
+              }}
+            />
             <MapFilterChips
               filters={filters}
               setFilters={setFilters}
