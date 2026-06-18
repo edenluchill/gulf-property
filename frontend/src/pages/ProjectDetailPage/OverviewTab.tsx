@@ -1,14 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { ResidentialProject } from '../../types'
+import { ProjectInsights } from '../../lib/api'
 import { useTranslation } from 'react-i18next'
 import { PriceCheckModule } from './PriceCheckModule'
+import InvestmentScorecard from '../../components/project/InvestmentScorecard'
 
 interface OverviewTabProps {
   project: ResidentialProject
+  insights?: ProjectInsights | null
 }
 
-export function OverviewTab({ project }: OverviewTabProps) {
-  const { t } = useTranslation(['project', 'common'])
+export function OverviewTab({ project, insights }: OverviewTabProps) {
+  const { t, i18n } = useTranslation(['project', 'common'])
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -22,6 +25,9 @@ export function OverviewTab({ project }: OverviewTabProps) {
 
   return (
     <div className="space-y-6">
+    {/* Investment outlook — the hero of this investment-focused page */}
+    {insights?.investment && <InvestmentScorecard insights={insights} lang={i18n.language} />}
+
     <Card>
       <CardHeader>
         <CardTitle>{t('project:overview.aboutProject')}</CardTitle>

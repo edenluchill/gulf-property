@@ -69,7 +69,8 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
   if (p.area) {
     const m = await pool.query(
       `SELECT da.name AS area_name, dam.rental_yield_pct, dam.price_growth_pct,
-              dam.median_price_sqm, dam.sales_transaction_count, dam.period_end_month
+              dam.median_price_sqm, dam.sales_transaction_count,
+              to_char(dam.period_end_month, 'YYYY-MM-DD') AS period_end_month
          FROM dubai_area_rolling_metrics dam
          JOIN dubai_areas da ON da.id = dam.dubai_area_id
         WHERE LOWER(da.name) = LOWER($1)
@@ -88,7 +89,7 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
         rental_yield_pct: yieldPct || null,
         price_growth_pct: growthPct || null,
         sales_transaction_count: r.sales_transaction_count != null ? Number(r.sales_transaction_count) : null,
-        data_through: r.period_end_month ? String(r.period_end_month).slice(0, 10) : null,
+        data_through: r.period_end_month || null,
       }
     }
   }

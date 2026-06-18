@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button'
 import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed, Copy, Check, Share2 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useFavorites } from '../contexts/FavoritesContext'
-import { fetchResidentialProjectById } from '../lib/api'
+import { fetchResidentialProjectById, fetchProjectInsights, ProjectInsights } from '../lib/api'
 import { ImageGallery } from './ProjectDetailPage/ImageGallery'
 import { OverviewTab } from './ProjectDetailPage/OverviewTab'
 import { UnitTypesTab } from './ProjectDetailPage/UnitTypesTab'
@@ -35,6 +35,7 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const [project, setProject] = useState<any>(null)
+  const [insights, setInsights] = useState<ProjectInsights | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const { isProjectFavorite, toggleProjectFavorite } = useFavorites()
@@ -52,6 +53,9 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (id) {
       setLoading(true)
+      setInsights(null)
+      // Investment + location intelligence (parallel, non-blocking).
+      fetchProjectInsights(id).then(setInsights).catch(() => {})
       fetchResidentialProjectById(id)
         .then((result) => {
           if (result?.success && result.project) {
@@ -581,7 +585,7 @@ export default function ProjectDetailPage() {
 
                     {/* Overview Content (additional content below collapsible) */}
                     <div className="mt-8">
-                      <OverviewTab project={project} />
+                      <OverviewTab project={project} insights={insights} />
                     </div>
                   </motion.div>
                 </div>
