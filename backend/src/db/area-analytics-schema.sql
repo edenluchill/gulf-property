@@ -322,7 +322,9 @@ BEGIN
         JOIN dld_areas dla ON dla.area_id = dt.area_id
         WHERE dla.dubai_area_id = da.id
             AND dt.trans_group = 'Sales'
-            AND dt.meter_sale_price > 0
+            AND dt.property_usage = 'Residential'
+            AND dt.property_type IN ('Unit','Villa')
+            AND dt.meter_sale_price BETWEEN 1000 AND 250000
             AND dt.instance_date >= v_period_start
             AND dt.instance_date < v_period_end
     ) curr ON true
@@ -333,7 +335,9 @@ BEGIN
         JOIN dld_areas dla ON dla.area_id = dt.area_id
         WHERE dla.dubai_area_id = da.id
             AND dt.trans_group = 'Sales'
-            AND dt.meter_sale_price > 0
+            AND dt.property_usage = 'Residential'
+            AND dt.property_type IN ('Unit','Villa')
+            AND dt.meter_sale_price BETWEEN 1000 AND 250000
             AND dt.instance_date >= v_prev_start
             AND dt.instance_date < v_prev_end
     ) prev ON true
