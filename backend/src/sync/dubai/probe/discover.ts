@@ -54,7 +54,8 @@ async function probeFilter(entity: string, dataset: string, sample: any): Promis
   const val = sample[col]
   log.info(`--- probing filter syntax on column "${col}" ---`)
 
-  const candidates = [`${col}>2000-01-01`, `${col}=${val}`, `${col}:${val}`, `${col} gt 2000-01-01`]
+  // PROD wants the value single-quoted: `col>'value'` (confirmed 2026-06-18).
+  const candidates = [`${col}>'2000-01-01'`, `${col}>'${val}'`, `${col}>='2000-01-01'`, `${col}>2000-01-01`]
   for (const f of candidates) {
     try {
       const { results } = await fetchPage(entity, dataset, { filter: f, pageSize: 2 })

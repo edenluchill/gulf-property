@@ -29,8 +29,9 @@ export async function runSync(cfg: DatasetConfig, opts: SyncOptions): Promise<Sy
     base.order_by = incCol
     base.order_dir = 'asc'
     if (opts.mode === 'incremental' && cursorBefore) {
-      // NOTE: exact filter operator syntax is confirmed by `discover` before relying on it.
-      base.filter = `${incCol}>${cursorBefore}`
+      // PROD requires the value single-quoted: `col>'value'` (confirmed via probe
+      // 2026-06-18 — unquoted `col>value` returns 400 InvalidFilter).
+      base.filter = `${incCol}>'${cursorBefore}'`
     }
   }
 
