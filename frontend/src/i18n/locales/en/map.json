@@ -82,11 +82,11 @@
   },
   "explain": {
     "howCalculated": "How it's calculated",
-    "rentalYield": "Median NEW-lease rent ÷ median sale price (both per sqft). New leases = what a unit lets for today.",
-    "rentStability": "Median renewal rent ÷ median new-lease rent. ~100% means sitting tenants pay near market (stable); a low value means rents are rising fast.",
-    "capitalGrowth": "Median sale price/sqft vs the prior 12-month window.",
-    "medianPriceSqft": "Median DLD transaction price per sqft (not listing prices).",
-    "basedOn": "Based on {{newCount}} new + {{renewCount}} renewal leases (last 12mo)."
+    "rentalYield": "Yearly rent on a new lease as a share of the purchase price — the gross return if you buy today and rent it out. Based on the median new-lease rent and median sale price (per sqft).",
+    "rentStability": "How close existing tenants' rent is to new-tenant rent. Near 100% = stable. Well below 100% = new tenants pay noticeably more, so rents are climbing fast.",
+    "capitalGrowth": "Change in the median sale price (per sqft) versus the previous 12 months.",
+    "medianPriceSqft": "The middle DLD transaction price per sqft — actual sales, not asking prices.",
+    "basedOn": "Based on {{newCount}} new and {{renewCount}} renewal leases over the last 12 months."
   },
   "areaDialog": {
     "marketStatistics": "Market Statistics",
@@ -102,6 +102,12 @@
     "projectCount_one": "{{count}} project",
     "projectCount_other": "{{count}} projects",
     "recentTx": "Recent verified sales",
+    "tabSales": "Sales",
+    "tabRentals": "Rentals",
+    "leaseNew": "New",
+    "leaseRenew": "Renewal",
+    "perYear": "/yr",
+    "noRecentRent": "No recent residential leases recorded in this area",
     "loadMore": "Load more transactions",
     "loadingMore": "Loading…",
     "noRecentTx": "No recent residential sales recorded in this area",

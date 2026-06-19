@@ -84,7 +84,21 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'en',
+    // Our resources are keyed 'en' and 'zh-CN'. Browsers / older cached prefs can
+    // report bare 'zh' (or zh-Hans/zh-TW). Without this mapping those resolve to
+    // 'en' for every t() key while `startsWith('zh')` checks still go Chinese —
+    // producing the "labels English but content Chinese" mix. Map all zh variants
+    // to the zh-CN bundle first, then en.
+    fallbackLng: {
+      zh: ['zh-CN', 'en'],
+      'zh-Hans': ['zh-CN', 'en'],
+      'zh-Hans-CN': ['zh-CN', 'en'],
+      'zh-TW': ['zh-CN', 'en'],
+      'zh-HK': ['zh-CN', 'en'],
+      'zh-Hant': ['zh-CN', 'en'],
+      default: ['en'],
+    },
+    nonExplicitSupportedLngs: true,
     defaultNS: 'common',
     ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components'],
     interpolation: {

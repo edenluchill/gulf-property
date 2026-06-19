@@ -57,4 +57,17 @@ await page.waitForTimeout(900)
 const hasPop = await page.evaluate(() => /中位数|新签|续租|DLD/.test(document.body.innerText))
 console.log('info buttons:', n, 'clicked visible idx:', clicked, 'popover text:', hasPop)
 await page.screenshot({ path: out.replace('.png', '-info.png') })
+
+// close any open info popover overlay first, then switch to the Rentals tab
+await page.keyboard.press('Escape').catch(() => {})
+await page.mouse.click(420, 760).catch(() => {})
+await page.waitForTimeout(500)
+const rentTab = page.locator('button', { hasText: /^(租约|Rentals)$/ }).first()
+if (await rentTab.count()) {
+  await rentTab.click({ force: true }).catch(() => {})
+  await page.waitForTimeout(1200)
+  const hasRent = await page.evaluate(() => /\/年|\/yr|新签|续租|New|Renewal/.test(document.body.innerText))
+  console.log('rentals tab present, rent rows text:', hasRent)
+  await page.screenshot({ path: out.replace('.png', '-rentals.png') })
+}
 await browser.close()

@@ -288,17 +288,20 @@ BEGIN
         rent.median_renew_rent,
         rent.new_count,
         rent.renew_count,
-        -- Rent stability = median renew rent / median new rent (per sqm).
+        -- Rent stability = median renew / median new (per sqm). Needs enough of
+        -- BOTH lease types or unit-mix noise dominates (e.g. low-volume villa areas).
         CASE
-            WHEN rent.median_new_rent > 0 AND rent.median_renew_rent > 0
+            WHEN rent.new_count >= 40 AND rent.renew_count >= 40
+                 AND rent.median_new_rent > 0 AND rent.median_renew_rent > 0
             THEN ROUND((rent.median_renew_rent / rent.median_new_rent * 100)::numeric, 1)
             ELSE NULL
         END,
-        -- Rental yield = median NEW-contract rent / median sale price (per sqm).
-        -- Fall back to all-contract median rent if an area has no New contracts.
+        -- Rental yield = NEW-lease median rent (when >= 30 new leases) / median
+        -- sale price; otherwise fall back to the all-contract median rent.
         CASE
-            WHEN curr.median_price > 0 AND COALESCE(rent.median_new_rent, rent.median_rent) > 0
-            THEN ROUND((COALESCE(rent.median_new_rent, rent.median_rent) / curr.median_price * 100)::numeric, 2)
+            WHEN curr.median_price > 0
+                 AND COALESCE(CASE WHEN rent.new_count >= 30 THEN rent.median_new_rent END, rent.median_rent) > 0
+            THEN ROUND((COALESCE(CASE WHEN rent.new_count >= 30 THEN rent.median_new_rent END, rent.median_rent) / curr.median_price * 100)::numeric, 2)
             ELSE NULL
         END,
         -- Capital growth = MEDIAN price change vs prior 12-month window. Guard:

@@ -82,11 +82,11 @@
   },
   "explain": {
     "howCalculated": "如何计算",
-    "rentalYield": "新签租约中位数租金 ÷ 中位数房价(均按每 sqft)。新签 = 这套房今天能租出的价格。",
-    "rentStability": "续租中位数租金 ÷ 新签中位数租金。≈100% 表示老租客接近市场价(稳定);数值越低说明区域租金涨得越快。",
-    "capitalGrowth": "本期中位数房价/sqft 对比前 12 个月。",
-    "medianPriceSqft": "DLD 成交价中位数/sqft(非挂牌价)。",
-    "basedOn": "基于近 12 个月 {{newCount}} 份新签 + {{renewCount}} 份续租合约。"
+    "rentalYield": "新租约一年的租金占房价的比例 —— 今天买入并出租的毛回报率。取新签租金中位数 ÷ 房价中位数(均按每 sqft)。",
+    "rentStability": "老租客租金接近新租户租金的程度。接近 100% = 稳定;明显低于 100% = 新租户要付明显更高的租金,说明租金在快速上涨。",
+    "capitalGrowth": "本期成交价中位数(每 sqft)相比前 12 个月的变化。",
+    "medianPriceSqft": "DLD 成交价的中位数(每 sqft)—— 真实成交价,不是挂牌价。",
+    "basedOn": "基于近 12 个月 {{newCount}} 份新签 + {{renewCount}} 份续租租约。"
   },
   "areaDialog": {
     "marketStatistics": "市场统计",
@@ -102,6 +102,12 @@
     "projectCount_one": "{{count}} 个项目",
     "projectCount_other": "{{count}} 个项目",
     "recentTx": "近期真实成交",
+    "tabSales": "成交",
+    "tabRentals": "租约",
+    "leaseNew": "新签",
+    "leaseRenew": "续租",
+    "perYear": "/年",
+    "noRecentRent": "该区域近期暂无住宅租约记录",
     "loadMore": "加载更多成交记录",
     "loadingMore": "加载中…",
     "noRecentTx": "该区域近期暂无住宅成交记录",

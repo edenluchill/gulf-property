@@ -797,6 +797,11 @@ export interface AreaInsights {
     sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
     saleType: 'offplan' | 'ready';
   }[];
+  recentRentals?: {
+    date: string | null; building: string | null; subtype: string | null;
+    sizeSqm: number | null; annualRent: number | null; rentPerSqm: number | null;
+    regType: 'new' | 'renew';
+  }[];
 }
 export async function fetchAreaInsights(areaId: string): Promise<AreaInsights | null> {
   try {

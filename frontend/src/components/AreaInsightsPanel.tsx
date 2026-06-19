@@ -77,7 +77,7 @@ function SparkBars({ data, color }: { data: number[]; color: string }) {
 // Small "how it's calculated" hint — click toggles a popover with the formula
 // (and, when passed, the evidence: how many leases it's based on). Works on
 // mobile (click) and desktop; a full-screen catcher closes it on outside click.
-function InfoHint({ text }: { text: string }) {
+function InfoHint({ title, text, evidence }: { title: string; text: string; evidence?: string }) {
   const [open, setOpen] = useState(false)
   return (
     <span className="relative inline-flex shrink-0">
@@ -92,8 +92,10 @@ function InfoHint({ text }: { text: string }) {
       {open && (
         <>
           <div className="fixed inset-0 z-[10005]" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute left-1/2 top-6 z-[10006] w-56 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-normal leading-relaxed text-white shadow-xl">
-            {text}
+          <div className="absolute left-1/2 top-6 z-[10006] w-60 -translate-x-1/2 rounded-xl bg-slate-900 p-3 text-left shadow-xl">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{title}</div>
+            <p className="text-[12px] font-normal leading-relaxed text-white">{text}</p>
+            {evidence && <p className="mt-1.5 border-t border-white/10 pt-1.5 text-[11px] leading-relaxed text-slate-400">{evidence}</p>}
           </div>
         </>
       )}
@@ -153,13 +155,14 @@ export function AreaTrendGrid({ area, insights, loading }: {
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
-  // Evidence suffix: how many new/renewal leases the rent metrics are based on.
+  // Evidence line: how many new/renewal leases the rent metrics are based on.
   const leaseEvidence = (area.newContractCount != null && area.renewContractCount != null)
-    ? ' ' + t('map:explain.basedOn', {
+    ? t('map:explain.basedOn', {
         newCount: area.newContractCount.toLocaleString(),
         renewCount: area.renewContractCount.toLocaleString(),
       })
-    : ''
+    : undefined
+  const howTitle = t('map:explain.howCalculated')
 
   // Clean empty-state: many display areas are industrial / land / low-activity, or
   // not yet matched to DLD's cadastre — show an intentional note, not a grid of "—".
@@ -186,7 +189,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label={`${t('map:areaDialog.avgPrice')} (AED/m²)`}
-          info={<InfoHint text={t('map:explain.medianPriceSqft')} />}
+          info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
           value={
             area.medianPriceSqm != null ? (
               <>
@@ -217,7 +220,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
         <StatCard
           label={t('map:areaDialog.capitalGrowth')}
-          info={<InfoHint text={t('map:explain.capitalGrowth')} />}
+          info={<InfoHint title={howTitle} text={t('map:explain.capitalGrowth')} />}
           value={growthNow != null ? `${growthNow >= 0 ? '+' : ''}${growthNow.toFixed(1)}%` : '—'}
           valueClass={growthNow != null && growthNow >= 0 ? 'text-emerald-600' : 'text-rose-600'}
           loading={loading}
@@ -227,7 +230,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
         <StatCard
           label={t('map:areaDialog.rentalYield')}
-          info={<InfoHint text={t('map:explain.rentalYield') + leaseEvidence} />}
+          info={<InfoHint title={howTitle} text={t('map:explain.rentalYield')} evidence={leaseEvidence} />}
           value={yieldNow != null ? `${yieldNow.toFixed(1)}%` : '—'}
           loading={loading}
         >
@@ -236,7 +239,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
         <StatCard
           label={t('map:areaDialog.rentStability')}
-          info={<InfoHint text={t('map:explain.rentStability') + leaseEvidence} />}
+          info={<InfoHint title={howTitle} text={t('map:explain.rentStability')} evidence={leaseEvidence} />}
           value={stabilityNow != null ? `${Math.round(stabilityNow)}%` : '—'}
           valueClass={stabilityNow == null ? 'text-slate-900' : stabilityNow >= 90 ? 'text-emerald-600' : stabilityNow >= 80 ? 'text-slate-900' : 'text-amber-600'}
           chip={stabilityNow == null ? null : stabilityNow >= 90 ? (zh ? '稳定' : 'Stable') : stabilityNow < 80 ? (zh ? '租金上涨快' : 'Rising fast') : null}
@@ -267,6 +270,8 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
 type TxItem = AreaInsights['recentTransactions'][number]
 
+type RentItem = NonNullable<AreaInsights['recentRentals']>[number]
+
 export function AreaRecentTx({ areaId, insights, loading }: {
   areaId: string
   insights: AreaInsights | null
@@ -274,24 +279,22 @@ export function AreaRecentTx({ areaId, insights, loading }: {
 }) {
   const { t, i18n } = useTranslation(['map'])
   const lang = i18n.language || 'en'
+  const [tab, setTab] = useState<'sales' | 'rentals'>('sales')
   const [extra, setExtra] = useState<TxItem[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
 
-  // 切换区域时重置追加列表
-  useEffect(() => { setExtra([]); setHasMore(true) }, [areaId])
+  // 切换区域时重置追加列表 + 回到成交 tab
+  useEffect(() => { setExtra([]); setHasMore(true); setTab('sales') }, [areaId])
 
   const baseRows = insights?.recentTransactions || []
   const rows = [...baseRows, ...extra]
+  const rentRows = insights?.recentRentals || []
 
   const loadMore = async () => {
     setLoadingMore(true)
     const PAGE = 20
-    const r = await fetchTxList({
-      areaId,
-      limit: String(PAGE),
-      offset: String(rows.length)
-    })
+    const r = await fetchTxList({ areaId, limit: String(PAGE), offset: String(rows.length) })
     const mapped: TxItem[] = r.rows.map(x => ({
       date: x.date,
       building: x.building === '—' ? null : x.building,
@@ -306,64 +309,107 @@ export function AreaRecentTx({ areaId, insights, loading }: {
     setLoadingMore(false)
   }
 
+  const TabBtn = ({ id, label }: { id: 'sales' | 'rentals'; label: string }) => (
+    <button
+      type="button"
+      onClick={() => setTab(id)}
+      className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
+        tab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+      }`}
+    >
+      {label}
+    </button>
+  )
+
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          {t('map:areaDialog.recentTx')}
-        </span>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
+          <TabBtn id="sales" label={t('map:areaDialog.tabSales')} />
+          <TabBtn id="rentals" label={t('map:areaDialog.tabRentals')} />
+        </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
           <BadgeCheck className="h-3 w-3" />
           Dubai Land Department
         </span>
       </div>
+
       {loading ? (
         <div className="space-y-2">
           {[0, 1, 2, 3].map(i => (
             <div key={i} className="h-12 animate-pulse rounded-xl bg-white border border-slate-200" />
           ))}
         </div>
-      ) : rows.length > 0 ? (
-        <>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
-            {rows.map((tx, i) => (
-              <div key={i} className="flex items-center gap-3 px-3.5 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-slate-800">
-                    {tx.building || '—'}
+      ) : tab === 'sales' ? (
+        rows.length > 0 ? (
+          <>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
+              {rows.map((tx, i) => (
+                <div key={i} className="flex items-center gap-3 px-3.5 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-slate-800">{tx.building || '—'}</div>
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      {tx.date}
+                      {tx.rooms ? ` · ${tx.rooms}` : ''}
+                      {tx.sizeSqm ? ` · ${tx.sizeSqm} m²` : ''}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-400">
-                    {tx.date}
-                    {tx.rooms ? ` · ${tx.rooms}` : ''}
-                    {tx.sizeSqm ? ` · ${tx.sizeSqm} m²` : ''}
+                  <div className="shrink-0 text-right">
+                    <div className="flex items-center justify-end gap-1 text-sm font-bold text-slate-900">
+                      {tx.price != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
+                      {tx.price != null ? formatMoneyCompact(tx.price, lang) : '—'}
+                    </div>
+                    <span className={`text-[10px] font-medium ${tx.saleType === 'offplan' ? 'text-violet-600' : 'text-emerald-600'}`}>
+                      {tx.saleType === 'offplan' ? t('map:areaDialog.offplan') : t('map:areaDialog.ready')}
+                    </span>
                   </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="flex items-center justify-end gap-1 text-sm font-bold text-slate-900">
-                    {tx.price != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
-                    {tx.price != null ? formatMoneyCompact(tx.price, lang) : '—'}
-                  </div>
-                  <span className={`text-[10px] font-medium ${tx.saleType === 'offplan' ? 'text-violet-600' : 'text-emerald-600'}`}>
-                    {tx.saleType === 'offplan' ? t('map:areaDialog.offplan') : t('map:areaDialog.ready')}
-                  </span>
+              ))}
+            </div>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {loadingMore ? t('map:areaDialog.loadingMore') : t('map:areaDialog.loadMore')}
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            {t('map:areaDialog.noRecentTx')}
+          </div>
+        )
+      ) : rentRows.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
+          {rentRows.map((r: RentItem, i) => (
+            <div key={i} className="flex items-center gap-3 px-3.5 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-slate-800">{r.building || '—'}</div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  {r.date}
+                  {r.subtype ? ` · ${r.subtype}` : ''}
+                  {r.sizeSqm ? ` · ${r.sizeSqm} m²` : ''}
                 </div>
               </div>
-            ))}
-          </div>
-          {hasMore && (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {loadingMore ? t('map:areaDialog.loadingMore') : t('map:areaDialog.loadMore')}
-            </button>
-          )}
-        </>
+              <div className="shrink-0 text-right">
+                <div className="flex items-center justify-end gap-1 text-sm font-bold text-slate-900">
+                  {r.annualRent != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
+                  {r.annualRent != null ? formatMoneyCompact(r.annualRent, lang) : '—'}
+                  <span className="text-[10px] font-normal text-slate-400">{t('map:areaDialog.perYear')}</span>
+                </div>
+                <span className={`text-[10px] font-medium ${r.regType === 'new' ? 'text-sky-600' : 'text-slate-500'}`}>
+                  {r.regType === 'new' ? t('map:areaDialog.leaseNew') : t('map:areaDialog.leaseRenew')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-          {t('map:areaDialog.noRecentTx')}
+          {t('map:areaDialog.noRecentRent')}
         </div>
       )}
     </div>

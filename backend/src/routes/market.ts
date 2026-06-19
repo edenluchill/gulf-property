@@ -457,7 +457,7 @@ function monthRange(endYm: string, n: number): string[] {
 }
 
 async function loadAreaInsightsData(areaId: string) {
-    const [salesRes, rentRes, recentRes] = await Promise.all([
+    const [salesRes, rentRes, recentRes, recentRentRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据
       pool.query(
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
@@ -505,6 +505,21 @@ async function loadAreaInsightsData(areaId: string) {
           ORDER BY dt.instance_date DESC
           LIMIT 8`,
         [areaId]
+      ),
+      // Recent rental contracts (new + renewal) for the same area
+      pool.query(
+        `SELECT rc.start_date AS date, rc.project_name, rc.property_subtype, rc.property_type,
+                rc.property_area AS size_sqm, rc.annual_amount AS annual_rent,
+                round(rc.annual_amount / NULLIF(rc.property_area, 0)) AS rent_per_sqm,
+                rc.registration_type
+           FROM dld_rent_contracts rc
+          WHERE rc.dubai_area_id = $1
+            AND rc.usage_type = 'Residential'
+            AND rc.property_area BETWEEN 15 AND 2000
+            AND rc.annual_amount BETWEEN 5000 AND 5000000
+          ORDER BY rc.start_date DESC
+          LIMIT 8`,
+        [areaId]
       )
     ])
 
@@ -523,7 +538,7 @@ async function loadAreaInsightsData(areaId: string) {
       `SELECT to_char(date_trunc('month', MAX(instance_date)), 'YYYY-MM') AS m FROM dld_transactions`
     )
     const endYm: string = boundsRes.rows[0]?.m || salesRes.rows[salesRes.rows.length - 1]?.month
-    if (!endYm) return { months: [], price: [], volume: [], growth: [], rentalYield: [], dataThrough: null, recentTransactions: [] }
+    if (!endYm) return { months: [], price: [], volume: [], growth: [], rentalYield: [], dataThrough: null, recentTransactions: [], recentRentals: [] }
 
     const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
     const months = monthsWithLookback.slice(-24)
@@ -564,6 +579,15 @@ async function loadAreaInsightsData(areaId: string) {
         price: r.price ? Math.round(Number(r.price)) : null,
         pricePerSqm: r.price_per_sqm ? Number(r.price_per_sqm) : null,
         saleType: r.sale_type
+      })),
+      recentRentals: recentRentRes.rows.map(r => ({
+        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+        building: r.project_name || null,
+        subtype: (r.property_subtype || r.property_type || '').trim() || null,
+        sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+        annualRent: r.annual_rent ? Math.round(Number(r.annual_rent)) : null,
+        rentPerSqm: r.rent_per_sqm ? Number(r.rent_per_sqm) : null,
+        regType: (r.registration_type === 'New' ? 'new' : 'renew') as 'new' | 'renew',
       }))
     }
     return data
