@@ -77,9 +77,15 @@ CREATE TABLE IF NOT EXISTS dubai_area_rolling_metrics (
     total_rent_volume NUMERIC,
     rental_contract_count INTEGER,
     avg_rental_size_sqm NUMERIC,
+    median_new_rent_sqm NUMERIC,        -- median rent/sqm, NEW contracts (drives yield)
+    median_renew_rent_sqm NUMERIC,      -- median rent/sqm, RENEWAL contracts
+    new_contract_count INTEGER,         -- # NEW contracts (evidence)
+    renew_contract_count INTEGER,       -- # RENEWAL contracts (evidence)
+    rent_stability_pct NUMERIC,         -- renew/new median rent * 100 (~100 = stable)
 
     -- Calculated metrics
-    rental_yield_pct NUMERIC,
+    median_unit_price NUMERIC,          -- median total sale price per unit (AED)
+    rental_yield_pct NUMERIC,           -- median NEW rent / median sale price (per sqm)
 
     -- Compared to previous 12-month period
     price_growth_pct NUMERIC,           -- vs previous rolling period
@@ -259,37 +265,48 @@ BEGIN
         sales_transaction_count, avg_sale_size_sqm,
         avg_rent_sqm, median_rent_sqm, total_rent_volume,
         rental_contract_count, avg_rental_size_sqm,
+        median_new_rent_sqm, median_renew_rent_sqm,
+        new_contract_count, renew_contract_count, rent_stability_pct,
         rental_yield_pct, price_growth_pct, rent_growth_pct,
         price_trend, rent_trend
     )
     SELECT
         da.id,
         v_period_end,
-        -- Current period sales
         curr.avg_price,
         curr.median_price,
         curr.median_unit_price,
         curr.total_volume,
         curr.txn_count,
         curr.avg_size,
-        -- Current period rentals
         rent.avg_rent,
         rent.median_rent,
         rent.total_rent,
         rent.contract_count,
         rent.avg_size,
-        -- Rental yield
+        rent.median_new_rent,
+        rent.median_renew_rent,
+        rent.new_count,
+        rent.renew_count,
+        -- Rent stability = median renew rent / median new rent (per sqm).
         CASE
-            WHEN curr.avg_price > 0 AND rent.avg_rent > 0
-            THEN ROUND((rent.avg_rent / curr.avg_price * 100)::numeric, 2)
+            WHEN rent.median_new_rent > 0 AND rent.median_renew_rent > 0
+            THEN ROUND((rent.median_renew_rent / rent.median_new_rent * 100)::numeric, 1)
             ELSE NULL
         END,
-        -- Growth vs previous period. Guard: require >= 20 sales in BOTH periods
-        -- so a tiny base (a single off-plan launch) can't explode into +466%.
+        -- Rental yield = median NEW-contract rent / median sale price (per sqm).
+        -- Fall back to all-contract median rent if an area has no New contracts.
         CASE
-            WHEN prev.avg_price > 0 AND prev.txn_count >= 20 AND curr.txn_count >= 20
-                 AND ABS((curr.avg_price - prev.avg_price) / prev.avg_price * 100) <= 120
-            THEN ROUND(((curr.avg_price - prev.avg_price) / prev.avg_price * 100)::numeric, 1)
+            WHEN curr.median_price > 0 AND COALESCE(rent.median_new_rent, rent.median_rent) > 0
+            THEN ROUND((COALESCE(rent.median_new_rent, rent.median_rent) / curr.median_price * 100)::numeric, 2)
+            ELSE NULL
+        END,
+        -- Capital growth = MEDIAN price change vs prior 12-month window. Guard:
+        -- require >= 20 sales in BOTH periods so a tiny base can't explode.
+        CASE
+            WHEN prev.median_price > 0 AND prev.txn_count >= 20 AND curr.txn_count >= 20
+                 AND ABS((curr.median_price - prev.median_price) / prev.median_price * 100) <= 120
+            THEN ROUND(((curr.median_price - prev.median_price) / prev.median_price * 100)::numeric, 1)
             ELSE NULL
         END,
         CASE
@@ -297,11 +314,10 @@ BEGIN
             THEN ROUND(((rent.avg_rent - prev_rent.avg_rent) / prev_rent.avg_rent * 100)::numeric, 1)
             ELSE NULL
         END,
-        -- Trends
         CASE
-            WHEN prev.avg_price IS NULL THEN NULL
-            WHEN curr.avg_price > prev.avg_price * 1.02 THEN 'up'
-            WHEN curr.avg_price < prev.avg_price * 0.98 THEN 'down'
+            WHEN prev.median_price IS NULL THEN NULL
+            WHEN curr.median_price > prev.median_price * 1.02 THEN 'up'
+            WHEN curr.median_price < prev.median_price * 0.98 THEN 'down'
             ELSE 'stable'
         END,
         CASE
@@ -311,7 +327,6 @@ BEGIN
             ELSE 'stable'
         END
     FROM dubai_areas da
-    -- Current period sales
     LEFT JOIN LATERAL (
         SELECT
             AVG(dt.meter_sale_price) as avg_price,
@@ -330,9 +345,11 @@ BEGIN
             AND dt.instance_date >= v_period_start
             AND dt.instance_date < v_period_end
     ) curr ON true
-    -- Previous period sales (+ count, for the growth sample-size guard)
     LEFT JOIN LATERAL (
-        SELECT AVG(dt.meter_sale_price) as avg_price, COUNT(*)::INTEGER as txn_count
+        SELECT
+            AVG(dt.meter_sale_price) as avg_price,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) as median_price,
+            COUNT(*)::INTEGER as txn_count
         FROM dld_transactions dt
         JOIN dld_areas dla ON dla.area_id = dt.area_id
         WHERE dla.dubai_area_id = da.id
@@ -343,13 +360,18 @@ BEGIN
             AND dt.instance_date >= v_prev_start
             AND dt.instance_date < v_prev_end
     ) prev ON true
-    -- Current period rentals (residential only, with outlier filtering)
     LEFT JOIN LATERAL (
         SELECT
             AVG(rc.annual_amount / NULLIF(rc.property_area, 0)) as avg_rent,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / NULLIF(rc.property_area, 0)) as median_rent,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / NULLIF(rc.property_area, 0))
+                FILTER (WHERE rc.registration_type = 'New') as median_new_rent,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / NULLIF(rc.property_area, 0))
+                FILTER (WHERE rc.registration_type = 'Renew') as median_renew_rent,
             SUM(rc.annual_amount) as total_rent,
             COUNT(*)::INTEGER as contract_count,
+            COUNT(*) FILTER (WHERE rc.registration_type = 'New')::INTEGER as new_count,
+            COUNT(*) FILTER (WHERE rc.registration_type = 'Renew')::INTEGER as renew_count,
             AVG(rc.property_area) as avg_size
         FROM dld_rent_contracts rc
         WHERE rc.dubai_area_id = da.id
@@ -360,7 +382,6 @@ BEGIN
             AND rc.start_date >= v_period_start
             AND rc.start_date < v_period_end
     ) rent ON true
-    -- Previous period rentals (residential only, with outlier filtering)
     LEFT JOIN LATERAL (
         SELECT AVG(rc.annual_amount / NULLIF(rc.property_area, 0)) as avg_rent
         FROM dld_rent_contracts rc
@@ -380,6 +401,12 @@ BEGIN
         total_sales_volume = EXCLUDED.total_sales_volume,
         sales_transaction_count = EXCLUDED.sales_transaction_count,
         avg_rent_sqm = EXCLUDED.avg_rent_sqm,
+        median_rent_sqm = EXCLUDED.median_rent_sqm,
+        median_new_rent_sqm = EXCLUDED.median_new_rent_sqm,
+        median_renew_rent_sqm = EXCLUDED.median_renew_rent_sqm,
+        new_contract_count = EXCLUDED.new_contract_count,
+        renew_contract_count = EXCLUDED.renew_contract_count,
+        rent_stability_pct = EXCLUDED.rent_stability_pct,
         rental_yield_pct = EXCLUDED.rental_yield_pct,
         price_growth_pct = EXCLUDED.price_growth_pct,
         rent_growth_pct = EXCLUDED.rent_growth_pct,

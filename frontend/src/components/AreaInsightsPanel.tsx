@@ -4,7 +4,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BadgeCheck } from 'lucide-react'
+import { BadgeCheck, Info } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
 import { fetchAreaInsights, fetchTxList, AreaInsights } from '../lib/api'
@@ -74,8 +74,36 @@ function SparkBars({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-function StatCard({ label, value, valueClass = 'text-slate-900', chip, chipClass, loading, children }: {
+// Small "how it's calculated" hint — click toggles a popover with the formula
+// (and, when passed, the evidence: how many leases it's based on). Works on
+// mobile (click) and desktop; a full-screen catcher closes it on outside click.
+function InfoHint({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-flex shrink-0">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        className="text-slate-300 transition-colors hover:text-slate-500"
+        aria-label="How it's calculated"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[10005]" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
+          <div className="absolute left-1/2 top-6 z-[10006] w-56 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-normal leading-relaxed text-white shadow-xl">
+            {text}
+          </div>
+        </>
+      )}
+    </span>
+  )
+}
+
+function StatCard({ label, info, value, valueClass = 'text-slate-900', chip, chipClass, loading, children }: {
   label: string
+  info?: ReactNode
   value: ReactNode
   valueClass?: string
   chip?: string | null
@@ -86,7 +114,10 @@ function StatCard({ label, value, valueClass = 'text-slate-900', chip, chipClass
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
       <div className="flex items-center justify-between gap-1">
-        <span className="truncate text-xs font-medium text-slate-500">{label}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="truncate text-xs font-medium text-slate-500">{label}</span>
+          {info}
+        </span>
         {chip && (
           <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${chipClass || 'bg-slate-100 text-slate-500'}`}>
             {chip}
@@ -118,8 +149,17 @@ export function AreaTrendGrid({ area, insights, loading }: {
   const zh = (i18n.language || 'en').startsWith('zh')
   const growthNow = area.capitalAppreciation ?? lastNonNull(insights?.growth)
   const yieldNow = area.rentalYield ?? lastNonNull(insights?.rentalYield)
+  const stabilityNow = area.rentStability ?? null
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+
+  // Evidence suffix: how many new/renewal leases the rent metrics are based on.
+  const leaseEvidence = (area.newContractCount != null && area.renewContractCount != null)
+    ? ' ' + t('map:explain.basedOn', {
+        newCount: area.newContractCount.toLocaleString(),
+        renewCount: area.renewContractCount.toLocaleString(),
+      })
+    : ''
 
   // Clean empty-state: many display areas are industrial / land / low-activity, or
   // not yet matched to DLD's cadastre — show an intentional note, not a grid of "—".
@@ -146,6 +186,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label={`${t('map:areaDialog.avgPrice')} (AED/m²)`}
+          info={<InfoHint text={t('map:explain.medianPriceSqft')} />}
           value={
             area.medianPriceSqm != null ? (
               <>
@@ -176,6 +217,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
         <StatCard
           label={t('map:areaDialog.capitalGrowth')}
+          info={<InfoHint text={t('map:explain.capitalGrowth')} />}
           value={growthNow != null ? `${growthNow >= 0 ? '+' : ''}${growthNow.toFixed(1)}%` : '—'}
           valueClass={growthNow != null && growthNow >= 0 ? 'text-emerald-600' : 'text-rose-600'}
           loading={loading}
@@ -185,10 +227,32 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
         <StatCard
           label={t('map:areaDialog.rentalYield')}
+          info={<InfoHint text={t('map:explain.rentalYield') + leaseEvidence} />}
           value={yieldNow != null ? `${yieldNow.toFixed(1)}%` : '—'}
           loading={loading}
         >
           <SparkLine data={insights?.rentalYield || []} color="#7c3aed" />
+        </StatCard>
+
+        <StatCard
+          label={t('map:areaDialog.rentStability')}
+          info={<InfoHint text={t('map:explain.rentStability') + leaseEvidence} />}
+          value={stabilityNow != null ? `${Math.round(stabilityNow)}%` : '—'}
+          valueClass={stabilityNow == null ? 'text-slate-900' : stabilityNow >= 90 ? 'text-emerald-600' : stabilityNow >= 80 ? 'text-slate-900' : 'text-amber-600'}
+          chip={stabilityNow == null ? null : stabilityNow >= 90 ? (zh ? '稳定' : 'Stable') : stabilityNow < 80 ? (zh ? '租金上涨快' : 'Rising fast') : null}
+          chipClass={stabilityNow != null && stabilityNow >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}
+          loading={loading}
+        >
+          {stabilityNow != null ? (
+            <div className="flex h-9 items-end gap-1.5">
+              <div className="flex-1">
+                <div className="text-[9px] text-slate-400">{zh ? '续租' : 'Renew'}</div>
+                <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${Math.min(stabilityNow, 100)}%` }} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-9 items-center text-[10px] text-slate-300">—</div>
+          )}
         </StatCard>
       </div>
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">

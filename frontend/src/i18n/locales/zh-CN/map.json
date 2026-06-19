@@ -77,7 +77,16 @@
     "medianPriceSqft": "中位数/sqft",
     "capitalGrowth": "增长",
     "transactionCount": "成交量",
-    "rentalYield": "租金回报"
+    "rentalYield": "租金回报",
+    "rentStability": "租赁稳定性"
+  },
+  "explain": {
+    "howCalculated": "如何计算",
+    "rentalYield": "新签租约中位数租金 ÷ 中位数房价(均按每 sqft)。新签 = 这套房今天能租出的价格。",
+    "rentStability": "续租中位数租金 ÷ 新签中位数租金。≈100% 表示老租客接近市场价(稳定);数值越低说明区域租金涨得越快。",
+    "capitalGrowth": "本期中位数房价/sqft 对比前 12 个月。",
+    "medianPriceSqft": "DLD 成交价中位数/sqft(非挂牌价)。",
+    "basedOn": "基于近 12 个月 {{newCount}} 份新签 + {{renewCount}} 份续租合约。"
   },
   "areaDialog": {
     "marketStatistics": "市场统计",
@@ -86,6 +95,7 @@
     "transactionCount": "成交量(12个月)",
     "capitalGrowth": "资本增长",
     "rentalYield": "租金收益率",
+    "rentStability": "租赁稳定性",
     "developersInArea": "该区域共 {{count}} 个活跃开发商",
     "loadingDevelopers": "正在加载开发商...",
     "noDevelopers": "该区域暂无开发商",

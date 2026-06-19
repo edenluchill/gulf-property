@@ -240,7 +240,7 @@ function transparentIcon(): ImageData {
   return canvas.getContext('2d')!.getImageData(0, 0, 2, 2)
 }
 
-export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield'
+export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield' | 'rentStability'
 
 // ============================================================================
 // Helper Functions
@@ -314,6 +314,11 @@ function formatMetricValue(area: DubaiArea, metric: AreaMetric, lang: string): s
       if (v === undefined || v === null) return ''
       return `${v.toFixed(1)}%`
     }
+    case 'rentStability': {
+      const v = area.rentStability
+      if (v === undefined || v === null) return ''
+      return `${Math.round(v)}%`
+    }
     default:
       return ''
   }
@@ -330,6 +335,7 @@ function getMetricRawValue(area: DubaiArea, metric: AreaMetric): number | null {
     case 'capitalGrowth': return area.capitalAppreciation ?? null
     case 'transactionCount': return area.transactionCount ?? null
     case 'rentalYield': return area.rentalYield ?? null
+    case 'rentStability': return area.rentStability ?? null
     default: return null
   }
 }

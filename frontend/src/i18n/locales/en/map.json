@@ -77,7 +77,16 @@
     "medianPriceSqft": "Price/sqft",
     "capitalGrowth": "Growth",
     "transactionCount": "Sales",
-    "rentalYield": "Yield"
+    "rentalYield": "Yield",
+    "rentStability": "Stability"
+  },
+  "explain": {
+    "howCalculated": "How it's calculated",
+    "rentalYield": "Median NEW-lease rent ÷ median sale price (both per sqft). New leases = what a unit lets for today.",
+    "rentStability": "Median renewal rent ÷ median new-lease rent. ~100% means sitting tenants pay near market (stable); a low value means rents are rising fast.",
+    "capitalGrowth": "Median sale price/sqft vs the prior 12-month window.",
+    "medianPriceSqft": "Median DLD transaction price per sqft (not listing prices).",
+    "basedOn": "Based on {{newCount}} new + {{renewCount}} renewal leases (last 12mo)."
   },
   "areaDialog": {
     "marketStatistics": "Market Statistics",
@@ -86,6 +95,7 @@
     "transactionCount": "Transactions (12mo)",
     "capitalGrowth": "Capital Growth",
     "rentalYield": "Rental Yield",
+    "rentStability": "Rent Stability",
     "developersInArea": "{{count}} Developers active in this area",
     "loadingDevelopers": "Loading developers...",
     "noDevelopers": "No developers found in this area",

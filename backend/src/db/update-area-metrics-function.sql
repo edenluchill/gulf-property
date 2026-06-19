@@ -14,7 +14,11 @@ RETURNS TABLE(
   sales_volume numeric,
   transaction_count bigint,
   capital_growth_pct numeric,
-  rental_yield_pct numeric
+  rental_yield_pct numeric,
+  rent_stability_pct numeric,
+  median_new_rent_sqm numeric,
+  new_contract_count integer,
+  renew_contract_count integer
 )
 LANGUAGE sql
 STABLE
@@ -29,7 +33,11 @@ AS $$
     ROUND(rm.total_sales_volume::numeric, 0),
     rm.sales_transaction_count::bigint,
     rm.price_growth_pct,
-    rm.rental_yield_pct
+    rm.rental_yield_pct,
+    rm.rent_stability_pct,
+    ROUND(rm.median_new_rent_sqm::numeric, 0),
+    rm.new_contract_count,
+    rm.renew_contract_count
   FROM dubai_areas da
   JOIN dubai_area_rolling_metrics rm ON rm.dubai_area_id = da.id
   WHERE rm.period_end_month = (

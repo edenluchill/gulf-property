@@ -157,7 +157,11 @@ export interface DubaiArea {
   salesVolume?: number
   transactionCount?: number
   capitalAppreciation?: number
-  rentalYield?: number
+  rentalYield?: number          // median NEW-contract rent / median sale price
+  rentStability?: number        // median renew rent / median new rent * 100 (~100 = stable)
+  medianNewRentSqm?: number     // median annual NEW rent per sqm (evidence)
+  newContractCount?: number     // # new rent contracts, rolling 12mo (evidence)
+  renewContractCount?: number   // # renewal rent contracts, rolling 12mo (evidence)
   // AI analysis fields
   areaCategory?: string
   investmentProfile?: string
