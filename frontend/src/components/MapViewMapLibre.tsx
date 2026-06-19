@@ -265,15 +265,21 @@ function getPolygonSpan(coords: [number, number][]): number {
   return Math.sqrt((maxLat - minLat) ** 2 + (maxLng - minLng) ** 2)
 }
 
-// 根据 span 计算该 area 应该在什么 zoom 级别开始显示
-// 优化：更早显示小区域标签，减少 zoom 门槛
-function getMinZoomForSpan(span: number): number {
-  if (span >= 0.15) return 7    // 超大区域 - 更早显示
-  if (span >= 0.08) return 8    // 大区域
-  if (span >= 0.04) return 9    // 中等区域
-  if (span >= 0.02) return 10   // 小区域
-  if (span >= 0.01) return 11   // 更小区域
-  return 12                      // 最小区域 - 从 13 降到 12
+// Progressive disclosure by importance (LOD). The busiest markets reveal first
+// at city overview; quieter areas appear as you zoom into their neighborhood.
+// This is LOSSLESS (every label is reachable by zooming) and deterministic —
+// the opposite of letting the collision engine randomly drop crowded labels.
+// `rank` is the area's position when all areas are sorted by transaction count
+// (0 = busiest). Areas with no transaction data get Infinity → revealed last.
+// Ranking by importance (not polygon size) keeps the overview a clean, curated
+// set: big-but-quiet desert areas no longer crowd the city core — their color
+// fill still marks them, and the name appears once you zoom into the area.
+function getMinZoomForRank(rank: number): number {
+  if (rank < 12) return 9    // top ~12 busiest markets — visible at city overview
+  if (rank < 28) return 10
+  if (rank < 50) return 11
+  if (rank < 90) return 12
+  return 13                   // long tail / no-data — only when zoomed right in
 }
 
 const formatPriceShort = (price: number): string => {
@@ -1216,6 +1222,17 @@ function MapViewMapLibre({
       percentiles = calculatePercentiles(values)
     }
 
+    // Importance ranking for progressive disclosure: sort by transaction count
+    // (busiest first). Each area's rank drives WHEN its label is revealed, so the
+    // low-zoom view is a clean, curated set of the most relevant markets instead
+    // of a random subset the collision engine happened to keep.
+    const rankById: Record<string, number> = {}
+    ;[...dubaiAreas]
+      .sort((a, b) => (b.transactionCount ?? -1) - (a.transactionCount ?? -1))
+      .forEach((area, i) => {
+        rankById[area.id] = area.transactionCount != null ? i : Infinity
+      })
+
     const features = dubaiAreas
       .filter(area => {
         if (area.boundary?.type !== 'Polygon') return false
@@ -1226,7 +1243,10 @@ function MapViewMapLibre({
         const coords = (area.boundary as any).coordinates[0]
         const centroid = getCentroid(coords)
         const span = getPolygonSpan(coords)
-        const minZoom = getMinZoomForSpan(span)
+        // Reveal threshold driven purely by importance (transaction rank), so the
+        // overview shows only the busiest markets and the rest unfold on zoom.
+        const rank = rankById[area.id] ?? Infinity
+        const minZoom = getMinZoomForRank(rank)
         const translatedName = langKey ? area.translations?.[langKey]?.name : undefined
 
         // 单行本地化名称：中文界面只显示中文（原来英中两行 ×100+ 区域是地图
@@ -1462,21 +1482,19 @@ function MapViewMapLibre({
                   16, 12
                 ],
                 'text-anchor': 'center',
-                // 更宽松的防叠：zoom 12+ 显示所有
-                'text-allow-overlap': [
-                  'step',
-                  ['zoom'],
-                  false,  // zoom < 12: hide overlapping
-                  12, true   // zoom >= 12: show all labels
-                ],
-                // 更小的 padding，允许更紧密的标签
+                // Elegant declutter: NEVER force overlap. Let MapLibre's collision
+                // engine drop labels that would collide and show them again once the
+                // user zooms in far enough for them to breathe. The old `zoom>=12 →
+                // allow-overlap:true` is exactly what crammed every badge on top of
+                // each other. symbol-sort-key (lower minZoom = more prominent area)
+                // decides who wins a collision, so the important areas always show.
+                'text-allow-overlap': false,
                 'text-padding': [
-                  'step',
-                  ['zoom'],
-                  4,   // zoom < 10: small padding
-                  10, 2,  // zoom 10: smaller padding
-                  11, 1,  // zoom 11: minimal padding
-                  12, 0   // zoom >= 12: no padding
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 8,    // city overview: generous spacing
+                  11, 6,
+                  14, 4,
+                  16, 2    // zoomed in: labels are far apart anyway
                 ],
                 'symbol-sort-key': ['get', 'minZoom']
               }}

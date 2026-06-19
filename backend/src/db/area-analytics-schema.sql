@@ -255,7 +255,7 @@ DECLARE
 BEGIN
     INSERT INTO dubai_area_rolling_metrics (
         dubai_area_id, period_end_month,
-        avg_price_sqm, median_price_sqm, total_sales_volume,
+        avg_price_sqm, median_price_sqm, median_unit_price, total_sales_volume,
         sales_transaction_count, avg_sale_size_sqm,
         avg_rent_sqm, median_rent_sqm, total_rent_volume,
         rental_contract_count, avg_rental_size_sqm,
@@ -268,6 +268,7 @@ BEGIN
         -- Current period sales
         curr.avg_price,
         curr.median_price,
+        curr.median_unit_price,
         curr.total_volume,
         curr.txn_count,
         curr.avg_size,
@@ -315,6 +316,7 @@ BEGIN
         SELECT
             AVG(dt.meter_sale_price) as avg_price,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) as median_price,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) as median_unit_price,
             SUM(dt.actual_worth) as total_volume,
             COUNT(*)::INTEGER as txn_count,
             AVG(dt.procedure_area) as avg_size
@@ -374,6 +376,7 @@ BEGIN
     ON CONFLICT (dubai_area_id, period_end_month) DO UPDATE SET
         avg_price_sqm = EXCLUDED.avg_price_sqm,
         median_price_sqm = EXCLUDED.median_price_sqm,
+        median_unit_price = EXCLUDED.median_unit_price,
         total_sales_volume = EXCLUDED.total_sales_volume,
         sales_transaction_count = EXCLUDED.sales_transaction_count,
         avg_rent_sqm = EXCLUDED.avg_rent_sqm,
