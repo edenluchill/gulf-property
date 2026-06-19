@@ -205,6 +205,14 @@ function txCacheSet(key: string, data: any) {
   txCache.set(key, { at: Date.now(), data })
 }
 
+/** Persistent precomputed default (market_cache, refreshed daily). Null if absent/error. */
+async function txPrecomputed(key: string): Promise<any | null> {
+  try {
+    const r = await pool.query(`SELECT payload FROM market_cache WHERE market='tx' AND key=$1`, [key])
+    return r.rows[0]?.payload ?? null
+  } catch { return null }
+}
+
 /** 构造公共 WHERE（住宅销售、剔除极端值），返回 { clause, params } */
 function buildTxFilter(q: any): { clause: string; params: any[] } {
   const params: any[] = []
@@ -255,6 +263,8 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
   try {
     const cached = txCacheGet('filters')
     if (cached) return res.json(cached)
+    const pc = await txPrecomputed('filters')
+    if (pc) { txCacheSet('filters', pc); return res.json(pc) }
     // 口径与 summary/list 完全一致（Unit/Villa+价格区间+面积>0），
     // 否则下拉里的数量和选中后的 KPI 对不上（客户反馈）。
     // 大小写变体（'Business Bay'/'BUSINESS BAY'）按 UPPER 归并，名称取最常见写法。
@@ -288,6 +298,10 @@ async function loadProjects(area: string): Promise<{ name: string; count: number
   const cacheKey = area ? `projects:${area.toUpperCase()}` : 'projects:ALL'
   const cached = txCacheGet(cacheKey)
   if (cached) return cached
+  if (!area) {
+    const pc = await txPrecomputed('projects:ALL')
+    if (pc) { txCacheSet(cacheKey, pc); return pc }
+  }
   const r = await pool.query(
     `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name, COUNT(*)::int AS count
        FROM dld_transactions dt
@@ -327,6 +341,12 @@ router.get('/transactions/summary', async (req: Request, res: Response) => {
     const cacheKey = `summary:${clause}:${JSON.stringify(params)}`
     const cached = txCacheGet(cacheKey)
     if (cached) return res.json(cached)
+    // unfiltered default → serve the daily-precomputed payload (avoids the ~14s full scan)
+    const q = req.query
+    if (!q.area && !q.areaId && !q.project && !q.rooms && !q.type && !q.from && !q.to) {
+      const pc = await txPrecomputed('summary')
+      if (pc) { txCacheSet(cacheKey, pc); return res.json(pc) }
+    }
     const stats = await pool.query(
       `SELECT COUNT(*)::int AS n,
               percentile_cont(0.05) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p05,

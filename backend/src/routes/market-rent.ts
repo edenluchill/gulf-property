@@ -24,6 +24,14 @@ const cSet = (k: string, data: any) => {
   cache.set(k, { at: Date.now(), data })
 }
 
+/** Persistent precomputed default (market_cache, refreshed daily). Null if absent/error. */
+async function precomputed(key: string): Promise<any | null> {
+  try {
+    const r = await pool.query(`SELECT payload FROM market_cache WHERE market='rent' AND key=$1`, [key])
+    return r.rows[0]?.payload ?? null
+  } catch { return null }
+}
+
 /** Common WHERE for residential rent, sane dates, positive amounts/area. */
 function buildRentFilter(q: any): { clause: string; params: any[] } {
   const params: any[] = []
@@ -54,6 +62,8 @@ router.get('/filters', async (_req: Request, res: Response) => {
   try {
     const cached = cGet('filters')
     if (cached) return res.json(cached)
+    const pc = await precomputed('filters')
+    if (pc) { cSet('filters', pc); return res.json(pc) }
     const areas = await pool.query(
       `SELECT mode() WITHIN GROUP (ORDER BY rc.area_name) AS name, COUNT(*)::int AS count
          FROM dld_rent_contracts rc
@@ -80,6 +90,11 @@ router.get('/summary', async (req: Request, res: Response) => {
     const key = `summary:${clause}:${JSON.stringify(params)}`
     const cached = cGet(key)
     if (cached) return res.json(cached)
+    // unfiltered default → serve the daily-precomputed payload (avoids the ~14s full scan)
+    if (!req.query.area && !req.query.areaId && !req.query.project) {
+      const pc = await precomputed('summary')
+      if (pc) { cSet(key, pc); return res.json(pc) }
+    }
     const stats = await pool.query(
       `SELECT COUNT(*)::int AS n,
               percentile_cont(0.25) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area) AS p25_sqm,
