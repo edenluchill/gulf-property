@@ -346,3 +346,19 @@
 .scrollbar-thin.scrollbar-track-transparent:hover {
   scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
 }
+/* ── Project preview popup (map pin click card) ──────────────────────────────
+   Strip MapLibre's default white box/padding so ProjectPreviewCard provides its
+   own rounded, shadowed surface; keep a white tip pointing at the pin. */
+.project-preview-popup .maplibregl-popup-content {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 16px;
+}
+.project-preview-popup .maplibregl-popup-tip {
+  border-top-color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+.project-preview-popup.maplibregl-popup {
+  z-index: 500;
+}

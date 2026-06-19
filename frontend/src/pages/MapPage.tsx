@@ -10,6 +10,7 @@ import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import MobileBottomSheet from '../components/MobileBottomSheet'
+import ProjectPreviewCard from '../components/ProjectPreviewCard'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
@@ -250,6 +251,9 @@ export default function MapPage() {
   // Area detail dialog state
   const [showAreaDialog, setShowAreaDialog] = useState(false)
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
+  // Project whose preview card is open (clicking a pin opens this instead of
+  // navigating straight to the detail page).
+  const [selectedProject, setSelectedProject] = useState<MapPinProject | null>(null)
   const [areaProjects, setAreaProjects] = useState<any[]>([])
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
 
@@ -528,9 +532,14 @@ export default function MapPage() {
     }
   }, [])
 
-  // Handle project pin click - navigate directly to project detail
+  // Handle project pin click — open the preview card (desktop popup / mobile
+  // sheet) instead of navigating. "View More" on the card does the navigation.
   const handleProjectClick = useCallback((project: MapPinProject) => {
-    navigate(`/project/${project.id}`)
+    setSelectedProject(project)
+  }, [])
+
+  const handleProjectViewMore = useCallback((id: string) => {
+    navigate(`/project/${id}`)
   }, [navigate])
 
   // Handle area click to show area detail dialog (or bottom sheet on mobile)
@@ -718,6 +727,10 @@ export default function MapPage() {
             // constantly; reacting to it would re-render the whole map each frame.
             onBoundsChange={tourCode ? undefined : handleMapBoundsChange}
             onProjectClick={handleProjectClick}
+            selectedProject={selectedProject}
+            onCloseProjectCard={() => setSelectedProject(null)}
+            onProjectViewMore={handleProjectViewMore}
+            isMobile={isMobile}
             onAreaClick={handleAreaClick}
             areaMetric={areaMetric}
             dubaiAreas={dubaiAreas}
@@ -1627,6 +1640,29 @@ export default function MapPage() {
           </div>
         ) : null}
       </MobileBottomSheet>
+
+      {/* Mobile project preview — image-topped bottom sheet (desktop uses an
+          anchored map Popup rendered inside MapViewMapLibre). */}
+      {isMobile && (
+        <>
+          <div
+            className={`fixed inset-0 bg-black/40 z-[10000] transition-opacity duration-300 ${selectedProject ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            onClick={() => setSelectedProject(null)}
+          />
+          <div
+            className={`fixed bottom-0 left-0 right-0 z-[10001] transition-transform duration-300 ease-out ${selectedProject ? 'translate-y-0' : 'translate-y-full'}`}
+          >
+            {selectedProject && (
+              <ProjectPreviewCard
+                project={selectedProject}
+                variant="sheet"
+                onViewMore={() => handleProjectViewMore(selectedProject.id)}
+                onClose={() => setSelectedProject(null)}
+              />
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

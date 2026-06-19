@@ -5,10 +5,12 @@
 import { useState, useRef, useMemo, useCallback, memo, useEffect, forwardRef, useImperativeHandle } from 'react'
 import Map, {
   Marker,
+  Popup,
   Source,
   Layer,
   MapRef
 } from 'react-map-gl/maplibre'
+import Supercluster from 'supercluster'
 import { type MapLayerMouseEvent, type Map as MaplibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +26,7 @@ import {
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { TransportGeoJSON } from '../lib/api'
+import ProjectPreviewCard from './ProjectPreviewCard'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
 import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
@@ -282,12 +285,6 @@ function getMinZoomForRank(rank: number): number {
   return 13                   // long tail / no-data — only when zoomed right in
 }
 
-const formatPriceShort = (price: number): string => {
-  if (price >= 1000000) return `${(price / 1000000).toFixed(1)}M`
-  if (price >= 1000) return `${Math.round(price / 1000)}K`
-  return price.toString()
-}
-
 // 格式化指标值（按语言：中文 185万，英文 1.85M；中文用户对 K/M 不直观）。
 // 不带 "AED" 前缀——地图标签寸土寸金，货币单位由顶部指标条/图例承担。
 function formatMetricValue(area: DubaiArea, metric: AreaMetric, lang: string): string {
@@ -385,49 +382,13 @@ function getHeatmapColor(
 import { MapPinProject } from '../lib/api'
 import { getImageUrl } from '../lib/image-utils'
 import { formatMoneyCompact, formatCountCompact, formatMoneyFull } from '../lib/money'
-import DirhamSymbol from './DirhamSymbol'
 
-const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
-  const { i18n } = useTranslation()
+const ProjectPinMarker = memo(({ project, onClick, selected = false }: { project: MapPinProject; onClick?: (p: MapPinProject) => void; selected?: boolean }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [showBelow, setShowBelow] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const isSoldOut = project.status === 'sold-out'
-
-  // Format price range — 中文 120万-200万，英文 1.2M-2M
-  const priceText = useMemo(() => {
-    const lang = i18n.language || 'en'
-    if (project.minPrice && project.maxPrice) {
-      return `${formatMoneyCompact(project.minPrice, lang)} - ${formatMoneyCompact(project.maxPrice, lang)}`
-    } else if (project.minPrice) {
-      return lang.startsWith('zh')
-        ? `${formatMoneyCompact(project.minPrice, lang)} 起`
-        : `From ${formatMoneyCompact(project.minPrice, lang)}`
-    }
-    return null
-  }, [project.minPrice, project.maxPrice, i18n.language])
-
-  // Format bedroom range
-  const bedText = project.minBeds !== null && project.maxBeds !== null
-    ? project.minBeds === project.maxBeds
-      ? `${project.minBeds} BR`
-      : `${project.minBeds}-${project.maxBeds} BR`
-    : project.minBeds !== null
-      ? `${project.minBeds}+ BR`
-      : null
-
-  // Format completion date (e.g., "2029-12-27T08:00:00.000Z" -> "Q4 2029")
-  const completionText = useMemo(() => {
-    if (!project.completionDate) return null
-    try {
-      const date = new Date(project.completionDate)
-      const quarter = Math.ceil((date.getMonth() + 1) / 3)
-      return `Q${quarter} ${date.getFullYear()}`
-    } catch {
-      return null
-    }
-  }, [project.completionDate])
 
   // Check if marker is near top of viewport
   const handleMouseEnter = useCallback(() => {
@@ -449,9 +410,9 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
       longitude={project.lng}
       latitude={project.lat}
       anchor="bottom"
-      // hover 时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
+      // hover/选中时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
       // 不抬容器的话会被 DOM 顺序靠后的其他 pin 压住（客户反馈）
-      style={{ zIndex: isHovered ? 300 : 2 }}
+      style={{ zIndex: isHovered ? 300 : selected ? 200 : 2 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(project)
@@ -466,89 +427,36 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
+          filter: selected
+            ? 'drop-shadow(0 0 0 #14b8a6) drop-shadow(0 6px 12px rgba(20,184,166,0.55))'
+            : 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
+          transform: selected ? 'scale(1.12)' : undefined,
         }}
       >
-        {/* Hover tooltip - rich info card, smart positioning */}
+        {/* Hover peek — just a compact name pill. Full info lives in the click
+            card (ProjectPreviewCard); the old rich hover tooltip duplicated it. */}
         <div
           style={{
             position: 'absolute',
             left: '50%',
-            ...(showBelow ? {
-              top: '100%',
-              marginTop: '12px',
-            } : {
-              bottom: '100%',
-              marginBottom: '12px',
-            }),
+            ...(showBelow ? { top: '100%', marginTop: '8px' } : { bottom: '100%', marginBottom: '8px' }),
             transform: 'translateX(-50%)',
-            background: '#fff',
-            borderRadius: '12px',
-            padding: '0',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+            background: 'rgba(15,23,42,0.92)',
+            color: '#fff',
+            borderRadius: '8px',
+            padding: '4px 9px',
+            fontSize: '12px',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
             pointerEvents: 'none',
-            minWidth: '180px',
-            maxWidth: '220px',
-            overflow: 'hidden',
-            opacity: isHovered ? 1 : 0,
-            visibility: isHovered ? 'visible' : 'hidden',
+            opacity: isHovered && !selected ? 1 : 0,
+            visibility: isHovered && !selected ? 'visible' : 'hidden',
             transition: 'opacity 0.15s ease',
             zIndex: 9999,
           }}
         >
-          {/* Mini image */}
-          {project.image && (
-            <div style={{ width: '100%', height: '80px', overflow: 'hidden' }}>
-              <img
-                src={getImageUrl(project.image, 'thumbnail')}
-                alt=""
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-            </div>
-          )}
-          {/* Info */}
-          <div style={{ padding: '10px 12px' }}>
-            {/* Project name - full, no truncate */}
-            <div style={{
-              fontSize: '13px',
-              fontWeight: 700,
-              color: '#0f172a',
-              lineHeight: 1.3,
-              marginBottom: '6px',
-            }}>
-              {project.name}
-            </div>
-            {/* Price - prominent (迪拉姆官方符号) */}
-            {priceText && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '3px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#0d9488',
-                marginBottom: '4px',
-              }}>
-                <DirhamSymbol size="0.95em" />
-                {priceText}
-              </div>
-            )}
-            {/* Details row */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '8px',
-              fontSize: '11px',
-              color: '#64748b',
-            }}>
-              {bedText && <span>{bedText}</span>}
-              {completionText && <span>{completionText}</span>}
-            </div>
-          </div>
+          {project.name}
         </div>
 
         {/* Teardrop pin with image */}
@@ -664,40 +572,29 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
 })
 
 // ============================================================================
-// Cluster Marker - 简洁版 (Legacy, kept for compatibility)
+// Cluster Bubble - round count badge for grouped project pins (supercluster).
+// Click zooms in to split the group apart so every pin becomes reachable.
 // ============================================================================
 
-const ClusterMarker = memo(({ cluster, onClick }: { cluster: any; onClick?: (c: any) => void }) => {
-  const { count, price_range, center } = cluster
-  const priceText = price_range?.min && price_range?.max
-    ? `${formatPriceShort(price_range.min)}-${formatPriceShort(price_range.max)}`
-    : 'POA'
-
+const ClusterBubble = memo(({ count, lng, lat, onClick }: {
+  count: number; lng: number; lat: number; onClick: () => void
+}) => {
+  // Scale the bubble a touch with the count so big groups read as bigger.
+  const size = count >= 100 ? 52 : count >= 25 ? 46 : count >= 10 ? 40 : 36
   return (
-    <Marker
-      longitude={center.lng}
-      latitude={center.lat}
-      anchor="bottom"
-      style={{ zIndex: 2 }}
-      onClick={(e) => {
-        e.originalEvent.stopPropagation()
-        onClick?.(cluster)
-      }}
-    >
+    <Marker longitude={lng} latitude={lat} anchor="center" style={{ zIndex: 3 }}
+      onClick={(e) => { e.originalEvent.stopPropagation(); onClick() }}>
       <div
-        className="cursor-pointer transition-transform hover:scale-110"
+        className="cursor-pointer transition-transform hover:scale-110 flex items-center justify-center font-bold text-white select-none"
         style={{
-          background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
-          color: 'white',
-          borderRadius: '16px',
-          padding: '6px 10px',
-          fontSize: '12px',
-          fontWeight: 600,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-          whiteSpace: 'nowrap'
+          width: size, height: size, borderRadius: '50%',
+          background: 'radial-gradient(circle at 30% 30%, #334155 0%, #1e293b 70%, #0f172a 100%)',
+          border: '2.5px solid rgba(255,255,255,0.9)',
+          boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
+          fontSize: count >= 100 ? 15 : 14,
         }}
       >
-        {count} | {priceText}
+        {count}
       </div>
     </Marker>
   )
@@ -862,13 +759,19 @@ interface MapViewMapLibreProps {
    *  (flyTo/orbit/setBearing) runs smoothly — the controlled viewState would
    *  otherwise lag a frame behind and fight it (teleport/jitter). */
   tourActive?: boolean
+  /** Project whose preview card is open. Desktop renders an anchored Popup; the
+   *  pin is highlighted. null = no card open. */
+  selectedProject?: MapPinProject | null
+  onCloseProjectCard?: () => void
+  onProjectViewMore?: (id: string) => void
+  /** Mobile uses a bottom sheet (rendered by the parent), so the desktop Popup
+   *  is suppressed here. */
+  isMobile?: boolean
 }
 
 function MapViewMapLibre({
-  clusters = [],
   projects = [],
   onBoundsChange,
-  onClusterClick,
   onProjectClick,
   onAreaClick,
   onPoiClick,
@@ -886,7 +789,11 @@ function MapViewMapLibre({
   voiceMeasure = null,
   voiceAmenities = null,
   chromeless = false,
-  tourActive = false
+  tourActive = false,
+  selectedProject = null,
+  onCloseProjectCard,
+  onProjectViewMore,
+  isMobile = false
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -1146,8 +1053,44 @@ function MapViewMapLibre({
     }, 100)
   }, [onBoundsChange])
 
+  // ─── Project pin clustering (supercluster) ────────────────────────────────
+  // Group overlapping project pins into a count bubble so the back pins stay
+  // reachable; clicking a bubble zooms in to split them apart. Recomputed only
+  // when the camera settles (moveEnd) — markers are geo-anchored so they pan
+  // correctly without per-frame work.
+  const superclusterIndex = useMemo(() => {
+    const idx = new Supercluster<{ project: MapPinProject }>({ radius: 56, maxZoom: 16 })
+    idx.load(projects.map(p => ({
+      type: 'Feature' as const,
+      properties: { project: p },
+      geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+    })))
+    return idx
+  }, [projects])
+
+  const [clusterFeatures, setClusterFeatures] = useState<any[]>([])
+  const recomputeClusters = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const b = map.getBounds()
+    const zoom = Math.round(map.getZoom())
+    setClusterFeatures(
+      superclusterIndex.getClusters([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], zoom)
+    )
+  }, [superclusterIndex])
+
+  useEffect(() => {
+    if (mapLoaded) recomputeClusters()
+  }, [mapLoaded, recomputeClusters])
+
+  const zoomToCluster = useCallback((clusterId: number, lng: number, lat: number) => {
+    const expansionZoom = Math.min(superclusterIndex.getClusterExpansionZoom(clusterId), 18)
+    mapRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: expansionZoom, duration: 600 })
+  }, [superclusterIndex])
+
   // Bounds change handler (debounced)
   const handleMoveEnd = useCallback(() => {
+    recomputeClusters()
     if (!onBoundsChange || !mapRef.current) return
 
     if (boundsTimeoutRef.current) clearTimeout(boundsTimeoutRef.current)
@@ -1163,7 +1106,7 @@ function MapViewMapLibre({
         maxLng: bounds.getEast(),
       }, map.getZoom())
     }, 150)
-  }, [onBoundsChange])
+  }, [onBoundsChange, recomputeClusters])
 
   // Area polygons GeoJSON - 支持热力图
   const areasGeoJson = useMemo(() => {
@@ -1686,12 +1629,65 @@ function MapViewMapLibre({
         {dubaiLandmarks.map(lm => (
           <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
         ))}
-        {!tourActive && clusters.map(cluster => (
-          <ClusterMarker key={cluster.cluster_id} cluster={cluster} onClick={onClusterClick} />
-        ))}
-        {projects.map(project => (
-          <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
-        ))}
+        {/* Tour mode: render the 2-3 tour pins directly (no clustering). Normal
+            mode: render supercluster output — count bubbles + single pins. */}
+        {tourActive
+          ? projects.map(project => (
+              <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
+            ))
+          : clusterFeatures.map(f => {
+              const [lng, lat] = f.geometry.coordinates
+              if (f.properties.cluster) {
+                return (
+                  <ClusterBubble
+                    key={`cluster-${f.properties.cluster_id}`}
+                    count={f.properties.point_count}
+                    lng={lng}
+                    lat={lat}
+                    onClick={() => zoomToCluster(f.properties.cluster_id, lng, lat)}
+                  />
+                )
+              }
+              const project = f.properties.project as MapPinProject
+              return (
+                <ProjectPinMarker
+                  key={project.id}
+                  project={project}
+                  onClick={onProjectClick}
+                  selected={selectedProject?.id === project.id}
+                />
+              )
+            })}
+
+        {/* Desktop project preview card — anchored Popup above the pin. Mobile
+            uses a bottom sheet rendered by the parent instead. */}
+        {!tourActive && !isMobile && selectedProject && (
+          <Popup
+            longitude={selectedProject.lng}
+            latitude={selectedProject.lat}
+            // No fixed anchor: let MapLibre auto-flip the card to whichever side
+            // keeps it on screen (pin near the top → card drops below, etc.). The
+            // pin extends ~58px upward from its coordinate, so the "card above"
+            // anchors need a bigger offset to clear it than the "card below" ones.
+            offset={{
+              'top': [0, 12], 'top-left': [0, 12], 'top-right': [0, 12],
+              'bottom': [0, -62], 'bottom-left': [0, -62], 'bottom-right': [0, -62],
+              'left': [14, -24], 'right': [-14, -24], 'center': [0, 0],
+            }}
+            closeButton={false}
+            closeOnClick={true}
+            onClose={() => onCloseProjectCard?.()}
+            maxWidth="320px"
+            className="project-preview-popup"
+          >
+            <ProjectPreviewCard
+              project={selectedProject}
+              variant="popup"
+              onViewMore={() => onProjectViewMore?.(selectedProject.id)}
+              onClose={() => onCloseProjectCard?.()}
+            />
+          </Popup>
+        )}
 
         {/* 测距：连线 + 顶点 */}
         {mapLoaded && measurePoints.length > 0 && (
