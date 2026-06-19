@@ -15,10 +15,11 @@ import dotenv from 'dotenv'
 dotenv.config()
 import pool from '../src/db/pool'
 
-const SAFETY_RATIO = 0.9 // shadow must have >= 90% of live row count
+const SAFETY_RATIO = 0.95 // shadow must have >= 95% of live rows IN THE SAME PERIOD
+const BACKFILL_START = '2021-01-01' // shadow covers 2021+; live has older history we intentionally drop
 
-async function count(t: string): Promise<number> {
-  const r = await pool.query(`SELECT COUNT(*)::bigint AS n FROM ${t}`)
+async function count(t: string, where = ''): Promise<number> {
+  const r = await pool.query(`SELECT COUNT(*)::bigint AS n FROM ${t} ${where}`)
   return Number(r.rows[0].n)
 }
 
@@ -29,17 +30,20 @@ async function main() {
   const confirm = process.argv.includes('--confirm')
 
   const pairs = [
-    { live: 'dld_transactions', shadow: 'dld_transactions_new' },
-    { live: 'dld_rent_contracts', shadow: 'dld_rent_contracts_new' },
+    { live: 'dld_transactions', shadow: 'dld_transactions_new', dateCol: 'instance_date' },
+    { live: 'dld_rent_contracts', shadow: 'dld_rent_contracts_new', dateCol: 'start_date' },
   ]
 
-  // Counts + guard
+  // Counts + guard — compare shadow to live FOR THE SAME PERIOD (2021+), since the
+  // shadow is 5 years by design while live carries older 2019-2020 history.
   for (const p of pairs) {
-    const [liveN, shadowN] = [await count(p.live), await count(p.shadow)]
-    const ratio = liveN ? shadowN / liveN : 1
-    console.log(`${p.live}: live=${liveN.toLocaleString()} shadow=${shadowN.toLocaleString()} (${(ratio * 100).toFixed(1)}%)`)
+    const liveTotal = await count(p.live)
+    const livePeriod = await count(p.live, `WHERE ${p.dateCol} >= '${BACKFILL_START}'`)
+    const shadowN = await count(p.shadow)
+    const ratio = livePeriod ? shadowN / livePeriod : 1
+    console.log(`${p.live}: live_total=${liveTotal.toLocaleString()} live_2021+=${livePeriod.toLocaleString()} shadow=${shadowN.toLocaleString()} (same-period ${(ratio * 100).toFixed(1)}%)`)
     if (shadowN === 0) throw new Error(`ABORT: ${p.shadow} is empty — backfill not done.`)
-    if (ratio < SAFETY_RATIO) throw new Error(`ABORT: ${p.shadow} has only ${(ratio * 100).toFixed(1)}% of live rows (< ${SAFETY_RATIO * 100}%). Backfill likely incomplete.`)
+    if (ratio < SAFETY_RATIO) throw new Error(`ABORT: ${p.shadow} has only ${(ratio * 100).toFixed(1)}% of live 2021+ rows (< ${SAFETY_RATIO * 100}%). Backfill likely incomplete.`)
   }
 
   // 1. Bridge rent on the shadow table (denormalized dubai_area_id)
