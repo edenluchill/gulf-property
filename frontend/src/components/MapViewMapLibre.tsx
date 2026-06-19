@@ -5,7 +5,6 @@
 import { useState, useRef, useMemo, useCallback, memo, useEffect, forwardRef, useImperativeHandle } from 'react'
 import Map, {
   Marker,
-  Popup,
   Source,
   Layer,
   MapRef
@@ -26,7 +25,6 @@ import {
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { TransportGeoJSON } from '../lib/api'
-import ProjectPreviewCard from './ProjectPreviewCard'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
 import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
@@ -383,7 +381,7 @@ import { MapPinProject } from '../lib/api'
 import { getImageUrl } from '../lib/image-utils'
 import { formatMoneyCompact, formatCountCompact, formatMoneyFull } from '../lib/money'
 
-const ProjectPinMarker = memo(({ project, onClick, selected = false }: { project: MapPinProject; onClick?: (p: MapPinProject) => void; selected?: boolean }) => {
+const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [showBelow, setShowBelow] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -410,9 +408,9 @@ const ProjectPinMarker = memo(({ project, onClick, selected = false }: { project
       longitude={project.lng}
       latitude={project.lat}
       anchor="bottom"
-      // hover/选中时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
+      // hover 时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
       // 不抬容器的话会被 DOM 顺序靠后的其他 pin 压住（客户反馈）
-      style={{ zIndex: isHovered ? 300 : selected ? 200 : 2 }}
+      style={{ zIndex: isHovered ? 300 : 2 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(project)
@@ -427,10 +425,7 @@ const ProjectPinMarker = memo(({ project, onClick, selected = false }: { project
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          filter: selected
-            ? 'drop-shadow(0 0 0 #14b8a6) drop-shadow(0 6px 12px rgba(20,184,166,0.55))'
-            : 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
-          transform: selected ? 'scale(1.12)' : undefined,
+          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
         }}
       >
         {/* Hover peek — just a compact name pill. Full info lives in the click
@@ -450,8 +445,8 @@ const ProjectPinMarker = memo(({ project, onClick, selected = false }: { project
             whiteSpace: 'nowrap',
             boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
             pointerEvents: 'none',
-            opacity: isHovered && !selected ? 1 : 0,
-            visibility: isHovered && !selected ? 'visible' : 'hidden',
+            opacity: isHovered ? 1 : 0,
+            visibility: isHovered ? 'visible' : 'hidden',
             transition: 'opacity 0.15s ease',
             zIndex: 9999,
           }}
@@ -759,14 +754,6 @@ interface MapViewMapLibreProps {
    *  (flyTo/orbit/setBearing) runs smoothly — the controlled viewState would
    *  otherwise lag a frame behind and fight it (teleport/jitter). */
   tourActive?: boolean
-  /** Project whose preview card is open. Desktop renders an anchored Popup; the
-   *  pin is highlighted. null = no card open. */
-  selectedProject?: MapPinProject | null
-  onCloseProjectCard?: () => void
-  onProjectViewMore?: (id: string) => void
-  /** Mobile uses a bottom sheet (rendered by the parent), so the desktop Popup
-   *  is suppressed here. */
-  isMobile?: boolean
 }
 
 function MapViewMapLibre({
@@ -789,11 +776,7 @@ function MapViewMapLibre({
   voiceMeasure = null,
   voiceAmenities = null,
   chromeless = false,
-  tourActive = false,
-  selectedProject = null,
-  onCloseProjectCard,
-  onProjectViewMore,
-  isMobile = false
+  tourActive = false
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -1650,44 +1633,9 @@ function MapViewMapLibre({
               }
               const project = f.properties.project as MapPinProject
               return (
-                <ProjectPinMarker
-                  key={project.id}
-                  project={project}
-                  onClick={onProjectClick}
-                  selected={selectedProject?.id === project.id}
-                />
+                <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
               )
             })}
-
-        {/* Desktop project preview card — anchored Popup above the pin. Mobile
-            uses a bottom sheet rendered by the parent instead. */}
-        {!tourActive && !isMobile && selectedProject && (
-          <Popup
-            longitude={selectedProject.lng}
-            latitude={selectedProject.lat}
-            // No fixed anchor: let MapLibre auto-flip the card to whichever side
-            // keeps it on screen (pin near the top → card drops below, etc.). The
-            // pin extends ~58px upward from its coordinate, so the "card above"
-            // anchors need a bigger offset to clear it than the "card below" ones.
-            offset={{
-              'top': [0, 12], 'top-left': [0, 12], 'top-right': [0, 12],
-              'bottom': [0, -62], 'bottom-left': [0, -62], 'bottom-right': [0, -62],
-              'left': [14, -24], 'right': [-14, -24], 'center': [0, 0],
-            }}
-            closeButton={false}
-            closeOnClick={true}
-            onClose={() => onCloseProjectCard?.()}
-            maxWidth="320px"
-            className="project-preview-popup"
-          >
-            <ProjectPreviewCard
-              project={selectedProject}
-              variant="popup"
-              onViewMore={() => onProjectViewMore?.(selectedProject.id)}
-              onClose={() => onCloseProjectCard?.()}
-            />
-          </Popup>
-        )}
 
         {/* 测距：连线 + 顶点 */}
         {mapLoaded && measurePoints.length > 0 && (
