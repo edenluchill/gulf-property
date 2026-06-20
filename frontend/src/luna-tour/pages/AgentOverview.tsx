@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Radio } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
 
 interface SessionRow {
@@ -56,9 +57,18 @@ export default function AgentOverview() {
           <h1 className="text-2xl font-bold mb-1">概览</h1>
           <p className="text-sm text-slate-500">所有导览的整体表现与最热客户</p>
         </div>
-        <Link to="/agent/tour" className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
-          + 生成新导览
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/?livetour=1"
+            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            <Radio className="h-4 w-4" style={{ color: '#00E0B8' }} />
+            开始实时带看
+          </Link>
+          <Link to="/agent/tour" className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
+            + 生成新导览
+          </Link>
+        </div>
       </div>
 
       {/* aggregate cards */}

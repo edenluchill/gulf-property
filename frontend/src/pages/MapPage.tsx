@@ -97,7 +97,7 @@ export default function MapPage() {
   // Luna Tour: run a shared session ON this map. Supports both /v/:code and the
   // cleaner homepage form  /?toursession=xxx  (user preference).
   const { code: pathCode } = useParams<{ code?: string }>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
   // /t/:code is the collab co-presence route, NOT a luna-tour session. Only
   // /v/:code (and ?toursession=) drive the luna-tour overlay. Without this guard
@@ -488,6 +488,20 @@ export default function MapPage() {
       setStartingTour(false)
     }
   }, [user?.email])
+
+  // Deep-link from the agent console (/?livetour=1): auto-start a live tour once
+  // auth resolves to owner. Strip the param so refresh/back doesn't re-trigger.
+  const autoStartedRef = useRef(false)
+  useEffect(() => {
+    if (autoStartedRef.current) return
+    if (searchParams.get('livetour') !== '1') return
+    if (!isOwner || collabActive || presenterCode) return
+    autoStartedRef.current = true
+    const next = new URLSearchParams(searchParams)
+    next.delete('livetour')
+    setSearchParams(next, { replace: true })
+    void handleStartTour()
+  }, [searchParams, isOwner, collabActive, presenterCode, handleStartTour, setSearchParams])
 
   const collabShareUrl = presenterCode ? `${window.location.origin}/t/${presenterCode}` : undefined
   const handleCopyShare = useCallback(() => {
