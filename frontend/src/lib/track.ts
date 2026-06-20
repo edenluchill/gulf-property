@@ -158,6 +158,29 @@ export function visitorId(): string {
   return getVisitorId()
 }
 
+/**
+ * Link this browser's visitor_id to the logged-in account and backfill prior
+ * events with the email server-side. Call right after auth resolves with a user
+ * (most batched events flush via sendBeacon, which can't carry the token, so
+ * without this explicit authenticated ping the email is rarely captured).
+ * Best-effort; never throws.
+ */
+export async function identifyVisitor(): Promise<void> {
+  try {
+    const auth = await authHeader()
+    if (!auth.Authorization) return // not logged in
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...auth }
+    await fetch(`${ENDPOINT}/identify`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ visitor_id: getVisitorId() }),
+      keepalive: true,
+    })
+  } catch {
+    /* swallow — telemetry must never disrupt the app */
+  }
+}
+
 let installed = false
 /** Wire page-hide flushing once, at app start. Idempotent. */
 export function installTracking(): void {

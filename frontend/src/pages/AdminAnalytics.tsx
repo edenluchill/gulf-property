@@ -5,7 +5,7 @@
  * server-side via requireOwner. See docs/analytics-dashboard-spec.md §3 / §12.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame } from 'lucide-react'
+import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import {
   fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries,
@@ -31,6 +31,13 @@ const GRANS: { label: string; v: Granularity }[] = [
   { label: '周', v: 'week' },
   { label: '月', v: 'month' },
 ]
+
+const TABS = [
+  { id: 'overview', label: '概览', Icon: LayoutDashboard },
+  { id: 'visitors', label: '访客明细', Icon: Users },
+  { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
+  { id: 'luna', label: 'Luna 对话', Icon: Mic },
+] as const
 
 interface DashData {
   overview: Overview
@@ -60,6 +67,7 @@ export default function AdminAnalytics() {
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
+  const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna'>('overview')
 
   useEffect(() => {
     if (needKey) return
@@ -179,123 +187,146 @@ export default function AdminAnalytics() {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Headline counters */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {/* Persistent KPI strip */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
-            <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
             <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
+            <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
             <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
+            <StatCard label="热 Leads" value={data.overview.leads_total} icon={<Flame className="h-4 w-4" />} hint={`本期新增 ${data.overview.leads_new}`} />
           </div>
 
-          {/* Unique visitors — who they are + per-visitor behaviour & prediction */}
-          <Visitors days={days} />
-
-          {/* Visitor trend + Luna stats */}
-          <div className="grid gap-3 md:grid-cols-3">
-            <TrendChart title="每日访客" points={visitorTrend} className="md:col-span-2" />
-            <div className="space-y-3">
-              <StatCard
-                label="热 Leads"
-                value={data.overview.leads_total}
-                icon={<Flame className="h-4 w-4" />}
-                hint={`本期新增 ${data.overview.leads_new}`}
-              />
-              <StatCard
-                label="Luna 平均时长"
-                value={`${Math.round(data.luna.avg_duration_ms / 1000)}s`}
-                hint={`平均 ${data.luna.avg_turns} 轮 · ${data.luna.total_tool_calls} 次工具`}
-              />
-            </div>
+          {/* Tab nav */}
+          <div className="flex gap-1 overflow-x-auto rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-900/[0.06]">
+            {TABS.map((tb) => (
+              <button
+                key={tb.id}
+                onClick={() => setTab(tb.id)}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                  tab === tb.id ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                }`}
+              >
+                <tb.Icon className="h-4 w-4" />
+                {tb.label}
+              </button>
+            ))}
           </div>
 
-          {/* Search volume (day/week/month) + recent searches drill-down */}
-          <div className="grid gap-3 md:grid-cols-3">
-            <TrendChart
-              title="搜索量"
-              points={searchTrend}
-              className="md:col-span-2"
-              headerRight={
-                <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
-                  {GRANS.map((g) => (
-                    <button
-                      key={g.v}
-                      onClick={() => setGran(g.v)}
-                      className={`rounded-md px-2 py-0.5 text-xs transition-colors ${
-                        gran === g.v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {g.label}
-                    </button>
-                  ))}
+          {/* ── Overview ──────────────────────────────────────────────────── */}
+          {tab === 'overview' && (
+            <div className="space-y-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <TrendChart title="每日访客" points={visitorTrend} className="md:col-span-2" />
+                <div className="space-y-3">
+                  <StatCard label="Luna 平均时长" value={`${Math.round(data.luna.avg_duration_ms / 1000)}s`} hint={`平均 ${data.luna.avg_turns} 轮 · ${data.luna.total_tool_calls} 次工具`} />
+                  <StatCard label="搜索热词数" value={data.terms.length} hint={data.terms[0] ? `最热: ${data.terms[0].label}` : '暂无'} />
                 </div>
-              }
-            />
-            {/* Recent searches — what customers actually searched, newest first */}
-            <div className="flex max-h-[220px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
-              <div className="border-b border-slate-100 px-4 py-3">
-                <h3 className="text-sm font-semibold text-slate-800">最近搜索（搜了啥）</h3>
               </div>
-              {data.recent.length === 0 ? (
-                <p className="px-4 py-6 text-xs text-slate-400">这段时间没有搜索。</p>
-              ) : (
-                <div className="divide-y divide-slate-50 overflow-y-auto">
-                  {data.recent.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 px-4 py-2">
-                      <div className="min-w-0">
-                        <span className="truncate text-sm text-slate-700">{s.query}</span>
-                        {s.kind && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{s.kind}</span>}
-                      </div>
-                      <span className="shrink-0 text-[10px] text-slate-400">{s.created_at.slice(5, 16).replace('T', ' ')}</span>
-                    </div>
-                  ))}
+              <TopList title="最常看的项目" items={data.projects} />
+            </div>
+          )}
+
+          {/* ── Visitors (the per-user view) ──────────────────────────────── */}
+          {tab === 'visitors' && (
+            <div className="space-y-5">
+              <Visitors days={days} />
+              <LeadTable leads={data.leads} />
+            </div>
+          )}
+
+          {/* ── Search & projects ─────────────────────────────────────────── */}
+          {tab === 'search' && (
+            <div className="space-y-5">
+              <TrendChart
+                title="搜索量"
+                points={searchTrend}
+                headerRight={
+                  <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                    {GRANS.map((g) => (
+                      <button
+                        key={g.v}
+                        onClick={() => setGran(g.v)}
+                        className={`rounded-md px-2 py-0.5 text-xs transition-colors ${
+                          gran === g.v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              />
+              <div className="grid gap-3 md:grid-cols-3">
+                <TopList title="搜索热词" items={data.terms} />
+                <TopList title="最常看的项目" items={data.projects} />
+                <Funnel title="Tutorial 漏斗" steps={data.funnel} />
+              </div>
+              <div className="flex max-h-[320px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-800">最近搜索（搜了啥）</h3>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Top terms + projects + funnel */}
-          <div className="grid gap-3 md:grid-cols-3">
-            <TopList title="搜索热词" items={data.terms} />
-            <TopList title="最常看的项目" items={data.projects} />
-            <Funnel title="Tutorial 漏斗" steps={data.funnel} />
-          </div>
-
-          {/* Leads */}
-          <LeadTable leads={data.leads} />
-
-          {/* Luna sessions */}
-          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
-            <div className="border-b border-slate-100 px-4 py-3">
-              <h3 className="text-sm font-semibold text-slate-800">最近 Luna 对话</h3>
-            </div>
-            {data.sessions.length === 0 ? (
-              <p className="px-4 py-6 text-xs text-slate-400">还没有对话记录。</p>
-            ) : (
-              <div className="divide-y divide-slate-50">
-                {data.sessions.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setOpenSession(s.session_id)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm text-slate-700">
-                        {s.created_at.slice(0, 16).replace('T', ' ')}
-                        {s.user_email ? ` · ${s.user_email}` : ' · 匿名'}
+                {data.recent.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-slate-400">这段时间没有搜索。</p>
+                ) : (
+                  <div className="divide-y divide-slate-50 overflow-y-auto">
+                    {data.recent.map((s, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2 px-4 py-2">
+                        <div className="min-w-0">
+                          <span className="truncate text-sm text-slate-700">{s.query}</span>
+                          {s.kind && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{s.kind}</span>}
+                        </div>
+                        <span className="shrink-0 text-[10px] text-slate-400">{s.created_at.slice(5, 16).replace('T', ' ')}</span>
                       </div>
-                      <div className="text-xs text-slate-400">
-                        {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具
-                        {s.had_error ? ' · ⚠️ 有错误' : ''}
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-xs text-slate-400">
-                      {s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : '—'}
-                    </span>
-                  </button>
-                ))}
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* ── Luna ──────────────────────────────────────────────────────── */}
+          {tab === 'luna' && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <StatCard label="会话数" value={data.luna.sessions} icon={<Mic className="h-4 w-4" />} />
+                <StatCard label="平均时长" value={`${Math.round(data.luna.avg_duration_ms / 1000)}s`} />
+                <StatCard label="平均轮次" value={data.luna.avg_turns} hint={`${data.luna.total_tool_calls} 次工具调用`} />
+                <StatCard label="出错会话" value={data.luna.error_sessions} />
+              </div>
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-800">最近 Luna 对话</h3>
+                </div>
+                {data.sessions.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-slate-400">还没有对话记录。</p>
+                ) : (
+                  <div className="divide-y divide-slate-50">
+                    {data.sessions.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setOpenSession(s.session_id)}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm text-slate-700">
+                            {s.created_at.slice(0, 16).replace('T', ' ')}
+                            {s.user_email ? ` · ${s.user_email}` : ' · 匿名'}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具
+                            {s.had_error ? ' · ⚠️ 有错误' : ''}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : '—'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

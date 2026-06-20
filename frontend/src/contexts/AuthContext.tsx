@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { identifyVisitor } from '../lib/track'
 
 interface AuthContextType {
   user: User | null
@@ -35,6 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null)
       checkAdminRole(session?.user ?? null)
       setLoading(false)
+      // Link this browser's anonymous visitor_id to the account (backfills email).
+      if (session?.user) void identifyVisitor()
     })
 
     // Listen for auth changes
@@ -45,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null)
       checkAdminRole(session?.user ?? null)
       setLoading(false)
+      if (session?.user) void identifyVisitor()
     })
 
     return () => subscription.unsubscribe()

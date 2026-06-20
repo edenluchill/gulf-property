@@ -94,4 +94,35 @@ router.post('/voice-session', optionalAuth, (req: Request, res: Response) => {
     })
 })
 
+/**
+ * POST /identify — link a visitor_id to the logged-in email and backfill.
+ * Body: { visitor_id }. The email/user_id are taken from the verified token
+ * (never the body), then ALL of this visitor's events (past + future) are
+ * stamped with it — so the dashboard can show the real person behind an
+ * anonymous browsing history once they log in. Best-effort; never blocks.
+ */
+router.post('/identify', optionalAuth, (req: Request, res: Response) => {
+  res.status(204).end()
+
+  const email = req.user?.email ?? null
+  const userId = req.user?.id ?? null
+  if (!email) return // not logged in → nothing to link
+
+  const b = (req.body || {}) as Record<string, unknown>
+  const visitorId = typeof b.visitor_id === 'string' ? b.visitor_id.slice(0, 128) : null
+  if (!visitorId) return
+
+  void pool
+    .query(
+      `UPDATE app_events
+          SET user_email = $1, user_id = COALESCE($2, user_id)
+        WHERE visitor_id = $3
+          AND (user_email IS DISTINCT FROM $1)`,
+      [email, userId, visitorId]
+    )
+    .catch((err) => {
+      console.error('[events] identify backfill failed (ignored):', err instanceof Error ? err.message : err)
+    })
+})
+
 export default router
