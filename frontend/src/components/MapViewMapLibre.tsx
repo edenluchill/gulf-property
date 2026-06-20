@@ -657,6 +657,10 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
         onClick?.(landmark)
       }}
     >
+      {/* Outer wrapper scales with zoom via the map-level --lm-scale CSS var
+          (set imperatively on zoom; no React re-render). Inner div keeps the
+          hover affordance so the two transforms compose. */}
+      <div style={{ transform: 'scale(var(--lm-scale, 1))', transformOrigin: 'bottom center' }}>
       <div
         className="cursor-pointer transition-transform duration-150 hover:scale-110"
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
@@ -724,6 +728,7 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
             )}
           </div>
         )}
+      </div>
       </div>
     </Marker>
   )
@@ -1046,6 +1051,18 @@ function MapViewMapLibre({
 
     // 底图切换后 style 重建，重新注入自定义图标
     map.on('style.load', () => { addCustomIcons(map) })
+
+    // Landmark cutouts scale with zoom so they feel painted on the map (not a
+    // fixed-size overlay floating above it). Driven by ONE CSS variable updated
+    // imperatively on zoom — the markers resize purely in CSS, zero React
+    // re-render. Gentle + clamped so they shrink on zoom-out (less overview
+    // clutter) without vanishing, and don't dominate on zoom-in.
+    const updateLandmarkScale = () => {
+      const s = Math.min(2.2, Math.max(0.5, Math.pow(1.4, map.getZoom() - 12)))
+      map.getContainer().style.setProperty('--lm-scale', s.toFixed(3))
+    }
+    updateLandmarkScale()
+    map.on('zoom', updateLandmarkScale)
 
     setMapLoaded(true)
 
