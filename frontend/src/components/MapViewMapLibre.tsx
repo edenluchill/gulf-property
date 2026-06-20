@@ -71,6 +71,10 @@ const SATELLITE_STYLE = {
 
 type BaseMap = 'vector' | 'satellite' | 'dark'
 
+// Web-mercator latitude → slippy tile Y at a given zoom (for tile prefetching).
+const lat2tileY = (lat: number, z: number) =>
+  Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * 2 ** z)
+
 // 两点间球面距离（km），用于地图测距工具
 function haversineKm(a: { lng: number; lat: number }, b: { lng: number; lat: number }): number {
   const R = 6371
@@ -1101,8 +1105,53 @@ function MapViewMapLibre({
   }, [superclusterIndex])
 
   // Bounds change handler (debounced)
+  // Warm the browser HTTP cache with the satellite tiles for the NEXT 1-2 zoom
+  // levels over the current viewport, so a subsequent zoom-in shows sharp tiles
+  // instantly instead of the blocky upscaled-parent → pop-in-one-by-one look.
+  // MapLibre 5 has no prefetch API; warming via Image() is basemap-agnostic.
+  const prefetchedRef = useRef<Set<string>>(new Set())
+  const prefetchSatelliteAhead = useCallback(() => {
+    if (baseMap !== 'satellite' || !MAPTILER_KEY || tourActive) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    const b = map.getBounds()
+    const z0 = Math.round(map.getZoom())
+    const seen = prefetchedRef.current
+    if (seen.size > 1500) seen.clear()
+    let budget = 64 // cap images warmed per settle (bandwidth guard)
+    for (const z of [z0 + 1, z0 + 2]) {
+      if (z < 1 || z > 20) continue
+      const n = 2 ** z
+      const xMin = Math.floor(((b.getWest() + 180) / 360) * n)
+      const xMax = Math.floor(((b.getEast() + 180) / 360) * n)
+      const yMin = lat2tileY(b.getNorth(), z)
+      const yMax = lat2tileY(b.getSouth(), z)
+      if ((xMax - xMin + 1) * (yMax - yMin + 1) > 48) continue // too many tiles at this level
+      for (let x = xMin; x <= xMax; x++) {
+        for (let y = yMin; y <= yMax; y++) {
+          if (budget <= 0) return
+          if (y < 0 || y >= n) continue
+          const xx = ((x % n) + n) % n
+          const url = `https://api.maptiler.com/tiles/satellite-v2/${z}/${xx}/${y}.jpg?key=${MAPTILER_KEY}`
+          if (seen.has(url)) continue
+          seen.add(url)
+          const img = new Image()
+          img.decoding = 'async'
+          img.src = url // fire-and-forget; lands in the browser cache
+          budget--
+        }
+      }
+    }
+  }, [baseMap, tourActive])
+
+  // Warm tiles once after load + whenever the basemap changes to satellite.
+  useEffect(() => {
+    if (mapLoaded) prefetchSatelliteAhead()
+  }, [mapLoaded, prefetchSatelliteAhead])
+
   const handleMoveEnd = useCallback(() => {
     recomputeClusters()
+    prefetchSatelliteAhead()
     if (!onBoundsChange || !mapRef.current) return
 
     if (boundsTimeoutRef.current) clearTimeout(boundsTimeoutRef.current)
@@ -1118,7 +1167,7 @@ function MapViewMapLibre({
         maxLng: bounds.getEast(),
       }, map.getZoom())
     }, 150)
-  }, [onBoundsChange, recomputeClusters])
+  }, [onBoundsChange, recomputeClusters, prefetchSatelliteAhead])
 
   // Area polygons GeoJSON - 支持热力图
   const areasGeoJson = useMemo(() => {
@@ -1351,6 +1400,9 @@ function MapViewMapLibre({
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
         attributionControl={false}
+        // Keep more raster tiles cached so zooming in/out and back doesn't refetch
+        // (and re-pixelate) tiles already seen this session.
+        maxTileCacheSize={600}
         // CJK (Chinese area/POI names) render locally with a system font instead
         // of being fetched from the glyph server — fast, and the openmaptiles
         // glyph server doesn't carry CJK anyway. Latin/symbols still come from
