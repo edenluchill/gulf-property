@@ -57,6 +57,7 @@ const GULF_CACHE_KEYS = [
   'gulf_residential_projects', 'gulf_residential_projects_timestamp',
   'gulf_dubai_areas', 'gulf_dubai_areas_timestamp',
   'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp',
+  'gulf_residential_mappins', 'gulf_residential_mappins_timestamp',
   'dubai_pois_cache',
   'transport-geojson-cache',
 ]
@@ -110,6 +111,7 @@ export default function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [mapPins, setMapPins] = useState<MapPinProject[]>([])
+  const [mapReady, setMapReady] = useState(false) // first map frame settled → fade out the load overlay
   const [mapBounds, setMapBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null)
 
   // Derive filter lists from mapPins (no extra API calls needed)
@@ -461,21 +463,34 @@ export default function MapPage() {
     }
   }, [])
 
-  // Load map pins (all projects at once, no clustering)
+  // Load map pins — stale-while-revalidate: show cached pins instantly on
+  // refresh (no blank wait), then refresh in the background. Cache is cleared by
+  // the version-check helpers above when server/code data changes.
   useEffect(() => {
-    const loadMapPins = async () => {
-      setIsLoadingPins(true)
-      try {
-        const data = await fetchResidentialMapPins()
-        setMapPins(data)
-      } catch (error: any) {
-        console.error('Error fetching map pins:', error)
-      } finally {
-        setIsLoadingPins(false)
+    const MAPPINS_TTL = 6 * 60 * 60 * 1000 // 6h
+    let revalidated = false
+    try {
+      const cached = localStorage.getItem('gulf_residential_mappins')
+      const ts = localStorage.getItem('gulf_residential_mappins_timestamp')
+      if (cached && ts) {
+        setMapPins(JSON.parse(cached))
+        revalidated = Date.now() - parseInt(ts) < MAPPINS_TTL // fresh → skip refetch
       }
-    }
+    } catch { /* ignore corrupt cache */ }
 
-    loadMapPins()
+    if (revalidated) return
+
+    setIsLoadingPins(true)
+    fetchResidentialMapPins()
+      .then((data) => {
+        setMapPins(data)
+        try {
+          localStorage.setItem('gulf_residential_mappins', JSON.stringify(data))
+          localStorage.setItem('gulf_residential_mappins_timestamp', Date.now().toString())
+        } catch { /* quota — fine, just won't cache */ }
+      })
+      .catch((error) => console.error('Error fetching map pins:', error))
+      .finally(() => setIsLoadingPins(false))
   }, []) // Load once on mount
 
   // Filter map pins based on current filters
@@ -718,6 +733,7 @@ export default function MapPage() {
             // No bounds-driven re-fetch during a tour: the cinematic camera moves
             // constantly; reacting to it would re-render the whole map each frame.
             onBoundsChange={tourCode ? undefined : handleMapBoundsChange}
+            onReady={() => setMapReady(true)}
             onProjectClick={handleProjectClick}
             onAreaClick={handleAreaClick}
             areaMetric={areaMetric}
@@ -735,6 +751,22 @@ export default function MapPage() {
             voiceMeasure={voiceMeasure}
             voiceAmenities={voiceAmenities}
           />
+
+          {/* Load overlay — hides the janky first-paint (GL init + building the
+              POI/area layers) behind a clean loader, then fades out once the map
+              settles. Not shown during a tour (it has its own intro). */}
+          {!tourCode && (
+            <div
+              className={`pointer-events-none absolute inset-0 z-[500] flex items-center justify-center bg-slate-900 transition-opacity duration-500 ${
+                mapReady ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-white/25 border-t-teal-400" />
+                <span className="text-sm font-medium text-white/80">{i18n.language?.startsWith('zh') ? '加载地图…' : 'Loading map…'}</span>
+              </div>
+            </div>
+          )}
 
           {/* Luna Tour: shared session plays over this map; hides search UI below */}
           {tourCode && (

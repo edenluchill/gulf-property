@@ -756,6 +756,8 @@ interface MapViewMapLibreProps {
   clusters?: any[]
   projects?: MapPinProject[]
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
+  /** Fired once the map's first frame has settled (idle) — for a load overlay. */
+  onReady?: () => void
   onClusterClick?: (cluster: any) => void
   onProjectClick?: (project: MapPinProject) => void
   onAreaClick?: (area: DubaiArea) => void
@@ -791,6 +793,7 @@ interface MapViewMapLibreProps {
 function MapViewMapLibre({
   projects = [],
   onBoundsChange,
+  onReady,
   onProjectClick,
   onAreaClick,
   onPoiClick,
@@ -1068,6 +1071,16 @@ function MapViewMapLibre({
 
     setMapLoaded(true)
 
+    // Signal "ready" once the first frame has actually settled (tiles + layers),
+    // so the parent can fade out the load overlay. Fallback timer guarantees the
+    // overlay never sticks even if 'idle' is slow on a flaky network.
+    if (onReady) {
+      let done = false
+      const fire = () => { if (!done) { done = true; onReady() } }
+      map.once('idle', fire)
+      setTimeout(fire, 3500)
+    }
+
     // 延迟触发 bounds change
     setTimeout(() => {
       if (mapRef.current && onBoundsChange) {
@@ -1080,7 +1093,7 @@ function MapViewMapLibre({
         }, map.getZoom())
       }
     }, 100)
-  }, [onBoundsChange])
+  }, [onBoundsChange, onReady])
 
   // ─── Project pin clustering (supercluster) ────────────────────────────────
   // Group overlapping project pins into a count bubble so the back pins stay
