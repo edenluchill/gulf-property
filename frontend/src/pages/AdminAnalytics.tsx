@@ -18,6 +18,7 @@ import TopList from '../components/analytics/TopList'
 import Funnel from '../components/analytics/Funnel'
 import LeadTable from '../components/analytics/LeadTable'
 import SessionViewer from '../components/analytics/SessionViewer'
+import Visitors from '../components/analytics/Visitors'
 
 const RANGES = [
   { label: '7 天', days: 7 },
@@ -180,11 +181,14 @@ export default function AdminAnalytics() {
         <div className="space-y-5">
           {/* Headline counters */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`${data.overview.events} 次事件`} />
+            <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
             <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
             <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
             <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
           </div>
+
+          {/* Unique visitors — who they are + per-visitor behaviour & prediction */}
+          <Visitors days={days} />
 
           {/* Visitor trend + Luna stats */}
           <div className="grid gap-3 md:grid-cols-3">

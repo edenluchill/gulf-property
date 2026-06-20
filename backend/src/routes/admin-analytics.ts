@@ -61,6 +61,15 @@ router.get('/tutorial', wrap((req) => q.getTutorialFunnel(range(req))))
 
 router.get('/leads', wrap((req) => q.getLeads(Math.min(500, Number(req.query.limit) || 100))))
 
+// Unique visitors in the window (each = one browser/visitor_id) + intent score.
+router.get('/visitors', wrap((req) => q.getVisitors(range(req), Math.min(500, Number(req.query.limit) || 200))))
+
+// One visitor's full timeline + prediction profile.
+router.get('/visitors/:id', wrap(async (req) => {
+  const visitor = await q.getVisitorDetail(String(req.params.id))
+  return { visitor }
+}))
+
 router.get('/sessions', wrap((req) =>
   q.getLunaSessions(Math.min(200, Number(req.query.limit) || 50), Math.max(0, Number(req.query.offset) || 0))
 ))

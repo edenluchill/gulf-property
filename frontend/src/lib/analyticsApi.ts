@@ -104,6 +104,45 @@ export interface SessionDetail extends SessionRow {
   }
 }
 
+export type Stage = 'hot' | 'warm' | 'cooling' | 'cold'
+export interface VisitorRow {
+  visitor_id: string
+  user_email: string | null
+  first_seen: string
+  last_seen: string
+  events: number
+  views: number
+  searches: number
+  luna_opens: number
+  distinct_projects: number
+  score: number
+  stage: Stage
+}
+export interface VisitorDetail {
+  visitor_id: string
+  user_email: string | null
+  first_seen: string
+  last_seen: string
+  counts: { events: number; views: number; searches: number; luna: number }
+  contact: { name: string | null; email: string | null; phone: string | null; whatsapp: string | null; source: string | null; lead_score: number; status: string } | null
+  score: number
+  stage: Stage
+  prediction: {
+    budget: { min: number; max: number; median: number } | null
+    topAreas: { name: string; count: number }[]
+    viewedProjects: { id: string; name: string; area: string | null; minPrice: number | null; maxPrice: number | null; count: number }[]
+    searchTerms: string[]
+    usedLuna: boolean
+    hasContact: boolean
+  }
+  lunaSessions: { session_id: string; created_at: string; duration_ms: number | null; turn_count: number | null; tool_call_count: number | null; had_error: boolean }[]
+  timeline: { at: string; type: string; projectId: string | null; projectName: string | null; area: string | null; query: string | null; kind: string | null; path: string | null }[]
+}
+
+export const fetchVisitors = (days: number) => authedGet<VisitorRow[]>(`/visitors?days=${days}`)
+export const fetchVisitor = (id: string) =>
+  authedGet<{ visitor: VisitorDetail | null }>(`/visitors/${encodeURIComponent(id)}`)
+
 export const fetchOverview = (days: number) =>
   authedGet<{ overview: Overview; daily: DailyPoint[] }>(`/overview?days=${days}`)
 export const fetchSearches = (days: number) =>

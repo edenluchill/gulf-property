@@ -180,6 +180,166 @@ export async function getLeads(limit = 100) {
   return rows
 }
 
+// ── Per-visitor drill-down (who they are + what they did + a prediction) ─────
+
+// Lead-style intent score from raw counts (mirrors services/leadScoring weights).
+function quickScore(views: number, searches: number, luna: number, hasContact: boolean): number {
+  let s = 0
+  if (hasContact) s += 25
+  s += Math.min(views, 5) * 6
+  if (luna > 0) s += 12
+  s += Math.min(searches, 5) * 4
+  return s
+}
+// hot / warm / cooling / cold from score + recency.
+function stageFrom(score: number, lastSeen: string): 'hot' | 'warm' | 'cooling' | 'cold' {
+  const ageDays = (Date.now() - new Date(lastSeen).getTime()) / 86_400_000
+  if (score >= 40 && ageDays <= 7) return 'hot'
+  if (score >= 18) return ageDays <= 14 ? 'warm' : 'cooling'
+  return 'cold'
+}
+
+/** One row per UNIQUE visitor in the window, with an intent score + stage. */
+export async function getVisitors({ from, to }: Range, limit = 200) {
+  const { rows } = await pool.query(
+    `SELECT
+        e.visitor_id,
+        MAX(e.user_email)                                                   AS user_email,
+        MIN(e.created_at)                                                   AS first_seen,
+        MAX(e.created_at)                                                   AS last_seen,
+        COUNT(*)                                                            AS events,
+        COUNT(*) FILTER (WHERE e.event_type = 'property_view')              AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'search')                     AS searches,
+        COUNT(*) FILTER (WHERE e.event_type = 'luna_open')                  AS luna_opens,
+        COUNT(DISTINCT e.project_id) FILTER (WHERE e.project_id IS NOT NULL) AS distinct_projects
+       FROM app_events e
+      WHERE e.created_at >= $1 AND e.created_at < $2
+        AND e.visitor_id IS NOT NULL
+      GROUP BY e.visitor_id`,
+    [from, to]
+  )
+  return rows
+    .map((r) => {
+      const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna_opens)
+      const score = quickScore(views, searches, luna, !!r.user_email)
+      return {
+        visitor_id: r.visitor_id as string,
+        user_email: (r.user_email as string) || null,
+        first_seen: r.first_seen,
+        last_seen: r.last_seen,
+        events: Number(r.events),
+        views, searches, luna_opens: luna,
+        distinct_projects: Number(r.distinct_projects),
+        score,
+        stage: stageFrom(score, r.last_seen),
+      }
+    })
+    .sort((a, b) => b.score - a.score || new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime())
+    .slice(0, limit)
+}
+
+/** Full per-visitor profile: ordered timeline + a derived intent prediction. */
+export async function getVisitorDetail(visitorId: string) {
+  const [ev, lunaRes, leadRes] = await Promise.all([
+    pool.query(
+      `SELECT e.created_at, e.event_type, e.project_id, e.payload, e.path, e.session_id,
+              rp.project_name, rp.area AS project_area, rp.min_price, rp.max_price
+         FROM app_events e
+         LEFT JOIN residential_projects rp ON rp.id = e.project_id
+        WHERE e.visitor_id = $1
+        ORDER BY e.created_at ASC
+        LIMIT 1000`,
+      [visitorId]
+    ),
+    pool.query(
+      `SELECT session_id, created_at, duration_ms, turn_count, tool_call_count, had_error
+         FROM luna_sessions WHERE visitor_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      [visitorId]
+    ),
+    pool.query(
+      `SELECT name, email, phone, whatsapp, source, lead_score, status, last_seen_at
+         FROM leads WHERE visitor_id = $1 LIMIT 1`,
+      [visitorId]
+    ),
+  ])
+
+  const rows = ev.rows
+  if (!rows.length) return null
+
+  // Aggregate the behaviour into a prediction profile.
+  const viewedMap = new Map<string, { id: string; name: string; area: string | null; minPrice: number | null; maxPrice: number | null; count: number }>()
+  const areaCount = new Map<string, number>()
+  const searchTerms: string[] = []
+  let views = 0, searches = 0, luna = 0
+  let userEmail: string | null = null
+
+  for (const r of rows) {
+    if (r.user_email) userEmail = r.user_email
+    if (r.event_type === 'property_view') {
+      views++
+      if (r.project_id) {
+        const key = r.project_id
+        const prev = viewedMap.get(key)
+        const name = r.project_name || r.payload?.project_name || 'Unknown'
+        const area = r.project_area || r.payload?.area || null
+        if (prev) prev.count++
+        else viewedMap.set(key, { id: key, name, area, minPrice: r.min_price != null ? Number(r.min_price) : null, maxPrice: r.max_price != null ? Number(r.max_price) : null, count: 1 })
+        if (area) areaCount.set(area, (areaCount.get(area) || 0) + 1)
+      }
+    } else if (r.event_type === 'search') {
+      searches++
+      const q = r.payload?.query
+      if (typeof q === 'string' && q.trim()) searchTerms.push(q.trim())
+      const a = r.payload?.area
+      if (typeof a === 'string' && a.trim()) areaCount.set(a.trim(), (areaCount.get(a.trim()) || 0) + 1)
+    } else if (r.event_type === 'luna_open') {
+      luna++
+    }
+  }
+
+  const viewedProjects = [...viewedMap.values()].sort((a, b) => b.count - a.count)
+  const topAreas = [...areaCount.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+  const prices = viewedProjects.map((p) => p.minPrice).filter((n): n is number => n != null && n > 0).sort((a, b) => a - b)
+  const budget = prices.length
+    ? { min: prices[0], max: viewedProjects.map((p) => p.maxPrice ?? p.minPrice).filter((n): n is number => n != null).sort((a, b) => a - b).slice(-1)[0] ?? prices[prices.length - 1], median: prices[Math.floor(prices.length / 2)] }
+    : null
+
+  const hasContact = !!(leadRes.rows[0]?.email || leadRes.rows[0]?.phone || leadRes.rows[0]?.whatsapp || userEmail)
+  const score = quickScore(views, searches, luna, hasContact)
+  const lastSeen = rows[rows.length - 1].created_at
+  const stage = stageFrom(score, lastSeen)
+
+  return {
+    visitor_id: visitorId,
+    user_email: userEmail,
+    first_seen: rows[0].created_at,
+    last_seen: lastSeen,
+    counts: { events: rows.length, views, searches, luna },
+    contact: leadRes.rows[0] || null,
+    score,
+    stage,
+    prediction: {
+      budget,
+      topAreas: topAreas.slice(0, 6),
+      viewedProjects: viewedProjects.slice(0, 12),
+      searchTerms: [...new Set(searchTerms)].slice(0, 12),
+      usedLuna: luna > 0,
+      hasContact,
+    },
+    lunaSessions: lunaRes.rows,
+    timeline: rows.map((r) => ({
+      at: r.created_at,
+      type: r.event_type,
+      projectId: r.project_id || null,
+      projectName: r.project_name || r.payload?.project_name || null,
+      area: r.project_area || r.payload?.area || null,
+      query: r.payload?.query || null,
+      kind: r.payload?.kind || null,
+      path: r.path || null,
+    })),
+  }
+}
+
 /** Luna session list (no transcript — light). */
 export async function getLunaSessions(limit = 50, offset = 0) {
   const { rows } = await pool.query(
