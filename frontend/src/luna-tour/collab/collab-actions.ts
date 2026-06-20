@@ -17,8 +17,8 @@ export type FollowModeLike = 'following' | 'free'
  * What the presenter should broadcast when the user selects a project or area.
  * `seq:0` is a placeholder — the server stamps the real monotone seq (§5).
  */
-export function selectMessage(kind: SelectKind, id: string): ClientMsg {
-  return { k: 'select', seq: 0, kind, id }
+export function selectMessage(kind: SelectKind, id: string, tab?: string): ClientMsg {
+  return { k: 'select', seq: 0, kind, id, ...(tab ? { tab } : {}) }
 }
 
 /** What the presenter should broadcast as a chat line. */

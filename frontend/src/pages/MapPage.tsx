@@ -11,6 +11,7 @@ import { useTourMode } from '../luna-tour/TourModeContext'  // Luna Tour (isolat
 import { useCollab, type CollabMode } from '../luna-tour/collab/useCollab'
 import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
+import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { createCollabRoom } from '../luna-tour/collab/collabApi'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
@@ -122,6 +123,11 @@ export default function MapPage() {
   const collabActive = collabMode !== 'browse'
   const [shareCopied, setShareCopied] = useState(false)
   const [startingTour, setStartingTour] = useState(false)
+  // In-collab project detail drawer (synced presenter↔viewer; never navigates).
+  const [openProjectId, setOpenProjectId] = useState<string | null>(null)
+  const [projectTab, setProjectTab] = useState('overview')
+  const openProjectIdRef = useRef<string | null>(null)
+  useEffect(() => { openProjectIdRef.current = openProjectId }, [openProjectId])
 
   // Live maplibre instance for the collab hooks (set via onMapReady). The camera
   // is driven imperatively through this — never via React state (perf rule).
@@ -141,7 +147,7 @@ export default function MapPage() {
   // Senders live in a ref so the page handlers (declared above the useCollab
   // call) can broadcast without a circular dependency.
   const collabSendRef = useRef<{
-    sendSelect: (kind: 'project' | 'area', id: string) => void
+    sendSelect: (kind: 'project' | 'area', id: string, tab?: string) => void
     sendMapAction: (action: unknown) => void
   }>({ sendSelect: () => {}, sendMapAction: () => {} })
   // presenter-active flag in a ref so stable handlers (handleProjectClick) can
@@ -320,6 +326,12 @@ export default function MapPage() {
 
   // Landmark popup state
   const [selectedLandmark, setSelectedLandmark] = useState<DubaiLandmark | null>(null)
+  // Presenter: mirror landmark popup open/close to viewers. One effect covers
+  // every open AND close path uniformly; viewers don't broadcast (gate inside).
+  useEffect(() => {
+    if (!collabActiveRef.current) return
+    collabSendRef.current.sendMapAction({ type: '__collab_landmark', landmark: selectedLandmark })
+  }, [selectedLandmark])
 
   // Voice-triggered distance measurement
   const [voiceMeasure, setVoiceMeasure] = useState<{ points: [number, number][]; noFit?: boolean } | null>(null)
@@ -436,10 +448,21 @@ export default function MapPage() {
 
   // Remote collab events → reuse the existing local handlers (idempotent).
   const handleRemoteSelect = useCallback(
-    (kind: 'project' | 'area', id: string) => {
+    (kind: 'project' | 'area', id: string, tab?: string) => {
       if (kind === 'project') {
-        const pin = mapPins.find((p) => p.id === id)
-        if (pin) setFlyToLocation({ lat: pin.lat, lng: pin.lng, zoom: 15 })
+        // empty id = presenter closed the project drawer → close ours.
+        if (!id) {
+          setOpenProjectId(null)
+          return
+        }
+        const isNew = openProjectIdRef.current !== id
+        setOpenProjectId(id)
+        if (tab) setProjectTab(tab)
+        // only fly when it's a freshly opened project (tab-only updates shouldn't move the camera)
+        if (isNew) {
+          const pin = mapPins.find((p) => p.id === id)
+          if (pin) setFlyToLocation({ lat: pin.lat, lng: pin.lng, zoom: 15 })
+        }
       } else {
         // empty id = presenter closed the area panel → close ours too.
         if (!id) {
@@ -460,8 +483,30 @@ export default function MapPage() {
     setShowAreaSheet(false)
     if (collabActiveRef.current) collabSendRef.current.sendSelect('area', '')
   }, [])
+
+  // Close the project drawer; presenter broadcasts a clear so viewers close too.
+  const handleCloseProject = useCallback(() => {
+    setOpenProjectId(null)
+    if (collabActiveRef.current) collabSendRef.current.sendSelect('project', '')
+  }, [])
+
+  // Presenter switches a project tab → viewers follow.
+  const handleProjectTabChange = useCallback((tab: string) => {
+    setProjectTab(tab)
+    if (collabActiveRef.current && openProjectIdRef.current) {
+      collabSendRef.current.sendSelect('project', openProjectIdRef.current, tab)
+    }
+  }, [])
   const handleRemoteMapAction = useCallback(
-    (action: unknown) => handleVoiceMapAction(action as MapAction),
+    (action: unknown) => {
+      // internal collab broadcast: presenter's landmark popup open/close.
+      const a = action as { type?: string; landmark?: DubaiLandmark | null }
+      if (a?.type === '__collab_landmark') {
+        setSelectedLandmark(a.landmark ?? null)
+        return
+      }
+      handleVoiceMapAction(action as MapAction)
+    },
     [handleVoiceMapAction]
   )
 
@@ -723,11 +768,14 @@ export default function MapPage() {
   }, [])
 
   // Handle project pin click — navigate straight to the project detail page.
-  // In a collab session the presenter instead broadcasts a select + flies to it
-  // on the shared map (navigating away would tear down the session).
+  // In a collab session the presenter instead opens an in-place detail drawer
+  // (so the client sees floor plans etc.), flies to it, and broadcasts the open
+  // + tab to viewers. Navigating away would tear down the session.
   const handleProjectClick = useCallback((project: MapPinProject) => {
     if (collabActiveRef.current) {
-      collabSendRef.current.sendSelect('project', project.id)
+      setOpenProjectId(project.id)
+      setProjectTab('overview')
+      collabSendRef.current.sendSelect('project', project.id, 'overview')
       setFlyToLocation({ lat: project.lat, lng: project.lng, zoom: 15 })
       return
     }
@@ -1018,8 +1066,18 @@ export default function MapPage() {
             />
           )}
 
-          {/* 区域搜索 + 筛选 pills，浮在地图左上 */}
-          {(!tourCode || toolsRevealed) && !collabActive && (
+          {/* Collab: in-place project detail drawer (synced presenter↔viewer) */}
+          {collabActive && openProjectId && (
+            <ProjectDetailDialog
+              projectId={openProjectId}
+              tab={projectTab}
+              onTabChange={handleProjectTabChange}
+              onClose={handleCloseProject}
+            />
+          )}
+
+          {/* 区域搜索 + 筛选 pills，浮在地图左上。collab: 经纪保留工具,访客保持沉浸 */}
+          {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && (
           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 md:flex-row">
             <AreaSearch
               onSelect={(a) => {
@@ -1035,7 +1093,7 @@ export default function MapPage() {
           )}
 
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}
-          {(!tourCode || toolsRevealed) && !collabActive && (<>
+          {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && (<>
           {/* Mobile: Top left - Current metric indicator (在 filter pills 下方) */}
           {areaMetric !== 'none' && (
             <div className="absolute top-14 left-3 z-[1000] md:hidden">

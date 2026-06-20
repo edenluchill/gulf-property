@@ -31,8 +31,9 @@ export interface UseCollabOpts {
   getMap: () => MaplibreMap | null | undefined
   /** from createMapTourHandle — cinematic flyTo for `goto` events */
   flyTo: (args: FlyToArgs) => void
-  /** remote select → page highlights / flies to the project/area */
-  onRemoteSelect?: (kind: SelectKind, id: string) => void
+  /** remote select → page highlights / flies to the project/area.
+   *  empty id = deselect/close; `tab` = project detail tab to follow. */
+  onRemoteSelect?: (kind: SelectKind, id: string, tab?: string) => void
   /** remote Luna tool output → page runs its existing voice mapAction path */
   onRemoteMapAction?: (action: unknown) => void
 }
@@ -49,7 +50,7 @@ export interface CollabApi {
   setFree: () => void
   returnToPresenter: () => void
   /** presenter helpers (no-op when not presenter / not connected) */
-  sendSelect: (kind: SelectKind, id: string) => void
+  sendSelect: (kind: SelectKind, id: string, tab?: string) => void
   sendChat: (text: string) => void
   sendMapAction: (action: unknown) => void
 }
@@ -77,7 +78,7 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
     const c = socket.client
     if (!c || !active) return
     const handle = (m: ServerMsg) => {
-      if (m.k === 'select') onRemoteSelect?.(m.kind, m.id)
+      if (m.k === 'select') onRemoteSelect?.(m.kind, m.id, m.tab)
       else if (m.k === 'mapAction') onRemoteMapAction?.(m.action)
     }
     const offSel = c.on('select', handle)
@@ -89,8 +90,8 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
   }, [socket.client, active, onRemoteSelect, onRemoteMapAction])
 
   const sendSelect = useCallback(
-    (kind: SelectKind, id: string) => {
-      if (mode === 'presenter') socket.send(selectMessage(kind, id))
+    (kind: SelectKind, id: string, tab?: string) => {
+      if (mode === 'presenter') socket.send(selectMessage(kind, id, tab))
     },
     [mode, socket]
   )

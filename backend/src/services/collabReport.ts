@@ -109,13 +109,15 @@ export async function getCollabReport(code: string): Promise<CollabReport | null
         if (e.label && !areas.includes(String(e.label))) areas.push(String(e.label))
         break
       case 'select':
-        if (e.kind === 'project' && typeof e.id === 'string' && !projectIds.includes(e.id)) {
+        // non-empty project id only (empty id = a close/deselect broadcast)
+        if (e.kind === 'project' && typeof e.id === 'string' && e.id && !projectIds.includes(e.id)) {
           projectIds.push(e.id)
         }
         break
       case 'mapAction': {
         const t = actionType(e.action)
-        lunaCount.set(t, (lunaCount.get(t) || 0) + 1)
+        // skip internal collab broadcasts (e.g. __collab_landmark) — not Luna data
+        if (!t.startsWith('__')) lunaCount.set(t, (lunaCount.get(t) || 0) + 1)
         break
       }
       case 'join':

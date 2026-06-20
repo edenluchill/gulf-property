@@ -66,6 +66,9 @@ export interface SelectMsg {
   seq: number
   kind: SelectKind
   id: string
+  /** project detail active tab — lets viewers follow the presenter's tab.
+   *  empty id = close/deselect. */
+  tab?: string
 }
 export interface ChatMsg {
   k: 'chat'
