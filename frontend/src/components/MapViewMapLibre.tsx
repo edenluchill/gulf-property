@@ -660,7 +660,7 @@ const LandmarkMarker = memo(({ landmark, onClick }: {
       {/* Outer wrapper scales with zoom via the map-level --lm-scale CSS var
           (set imperatively on zoom; no React re-render). Inner div keeps the
           hover affordance so the two transforms compose. */}
-      <div style={{ transform: 'scale(var(--lm-scale, 1))', transformOrigin: 'bottom center' }}>
+      <div style={{ transform: 'scale(var(--lm-scale, 1))', transformOrigin: 'bottom center', transition: 'transform 0.25s ease' }}>
       <div
         className="cursor-pointer transition-transform duration-150 hover:scale-110"
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
@@ -1053,16 +1053,18 @@ function MapViewMapLibre({
     map.on('style.load', () => { addCustomIcons(map) })
 
     // Landmark cutouts scale with zoom so they feel painted on the map (not a
-    // fixed-size overlay floating above it). Driven by ONE CSS variable updated
-    // imperatively on zoom — the markers resize purely in CSS, zero React
-    // re-render. Gentle + clamped so they shrink on zoom-out (less overview
-    // clutter) without vanishing, and don't dominate on zoom-in.
+    // fixed-size overlay floating above it). Update the CSS var only on ZOOMEND,
+    // not every zoom frame: the var is inherited, so writing it to the map
+    // container restyles every marker subtree — doing that per frame janked zoom
+    // hard (50ms+ frames). A CSS transition on the landmarks smooths the resize
+    // once the zoom settles. Gentle + clamped (shrink on zoom-out without
+    // vanishing, don't dominate on zoom-in).
     const updateLandmarkScale = () => {
       const s = Math.min(2.2, Math.max(0.5, Math.pow(1.4, map.getZoom() - 12)))
       map.getContainer().style.setProperty('--lm-scale', s.toFixed(3))
     }
     updateLandmarkScale()
-    map.on('zoom', updateLandmarkScale)
+    map.on('zoomend', updateLandmarkScale)
 
     setMapLoaded(true)
 
@@ -1121,12 +1123,15 @@ function MapViewMapLibre({
     mapRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: expansionZoom, duration: 600 })
   }, [superclusterIndex])
 
-  // Bounds change handler (debounced)
   // Warm the browser HTTP cache with the satellite tiles for the NEXT 1-2 zoom
   // levels over the current viewport, so a subsequent zoom-in shows sharp tiles
   // instantly instead of the blocky upscaled-parent → pop-in-one-by-one look.
   // MapLibre 5 has no prefetch API; warming via Image() is basemap-agnostic.
+  // IMPORTANT: this is scheduled (debounced) for AFTER the user goes idle, and
+  // the image requests are dripped out a few at a time — firing a 64-image burst
+  // on every moveEnd janked continuous zoom hard (it competed with rendering).
   const prefetchedRef = useRef<Set<string>>(new Set())
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchSatelliteAhead = useCallback(() => {
     if (baseMap !== 'satellite' || !MAPTILER_KEY || tourActive) return
     const map = mapRef.current?.getMap()
@@ -1135,7 +1140,7 @@ function MapViewMapLibre({
     const z0 = Math.round(map.getZoom())
     const seen = prefetchedRef.current
     if (seen.size > 1500) seen.clear()
-    let budget = 64 // cap images warmed per settle (bandwidth guard)
+    const urls: string[] = []
     for (const z of [z0 + 1, z0 + 2]) {
       if (z < 1 || z > 20) continue
       const n = 2 ** z
@@ -1143,32 +1148,46 @@ function MapViewMapLibre({
       const xMax = Math.floor(((b.getEast() + 180) / 360) * n)
       const yMin = lat2tileY(b.getNorth(), z)
       const yMax = lat2tileY(b.getSouth(), z)
-      if ((xMax - xMin + 1) * (yMax - yMin + 1) > 48) continue // too many tiles at this level
-      for (let x = xMin; x <= xMax; x++) {
-        for (let y = yMin; y <= yMax; y++) {
-          if (budget <= 0) return
+      if ((xMax - xMin + 1) * (yMax - yMin + 1) > 40) continue
+      for (let x = xMin; x <= xMax && urls.length < 40; x++) {
+        for (let y = yMin; y <= yMax && urls.length < 40; y++) {
           if (y < 0 || y >= n) continue
           const xx = ((x % n) + n) % n
           const url = `https://api.maptiler.com/tiles/satellite-v2/${z}/${xx}/${y}.jpg?key=${MAPTILER_KEY}`
           if (seen.has(url)) continue
           seen.add(url)
-          const img = new Image()
-          img.decoding = 'async'
-          img.src = url // fire-and-forget; lands in the browser cache
-          budget--
+          urls.push(url)
         }
       }
     }
+    // Drip a few requests per tick so warming never blocks a frame.
+    let i = 0
+    const step = () => {
+      for (let k = 0; k < 4 && i < urls.length; k++) {
+        const img = new Image()
+        img.decoding = 'async'
+        img.src = urls[i++]
+      }
+      if (i < urls.length) setTimeout(step, 60)
+    }
+    step()
   }, [baseMap, tourActive])
+
+  // Schedule a prefetch only once the user has been idle ~600ms — never during a
+  // continuous zoom/pan gesture.
+  const schedulePrefetch = useCallback(() => {
+    if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current)
+    prefetchTimerRef.current = setTimeout(prefetchSatelliteAhead, 600)
+  }, [prefetchSatelliteAhead])
 
   // Warm tiles once after load + whenever the basemap changes to satellite.
   useEffect(() => {
-    if (mapLoaded) prefetchSatelliteAhead()
-  }, [mapLoaded, prefetchSatelliteAhead])
+    if (mapLoaded) schedulePrefetch()
+  }, [mapLoaded, schedulePrefetch])
 
   const handleMoveEnd = useCallback(() => {
     recomputeClusters()
-    prefetchSatelliteAhead()
+    schedulePrefetch()
     if (!onBoundsChange || !mapRef.current) return
 
     if (boundsTimeoutRef.current) clearTimeout(boundsTimeoutRef.current)
@@ -1184,7 +1203,7 @@ function MapViewMapLibre({
         maxLng: bounds.getEast(),
       }, map.getZoom())
     }, 150)
-  }, [onBoundsChange, recomputeClusters, prefetchSatelliteAhead])
+  }, [onBoundsChange, recomputeClusters, schedulePrefetch])
 
   // Area polygons GeoJSON - 支持热力图
   const areasGeoJson = useMemo(() => {
