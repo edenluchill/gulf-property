@@ -1351,6 +1351,11 @@ function MapViewMapLibre({
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
         attributionControl={false}
+        // CJK (Chinese area/POI names) render locally with a system font instead
+        // of being fetched from the glyph server — fast, and the openmaptiles
+        // glyph server doesn't carry CJK anyway. Latin/symbols still come from
+        // the style's glyphs URL (now a fontstack the server actually serves).
+        localIdeographFontFamily="'PingFang SC', 'Microsoft YaHei', sans-serif"
         style={{ width: '100%', height: '100%' }}
         mapStyle={
           baseMap === 'satellite'
@@ -1423,7 +1428,7 @@ function MapViewMapLibre({
                         'font-scale': 1.25
                       }
                     ],
-                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-font': ['Open Sans Bold'],
                 // Keep labels flat-on-screen + upright no matter the bearing/pitch,
                 // so the cinematic orbit doesn't tilt or rotate the area names.
                 'text-rotation-alignment': 'viewport',
@@ -1548,7 +1553,7 @@ function MapViewMapLibre({
               ]}
               layout={{
                 'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-font': ['Open Sans Bold'],
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
                   13, 10,
@@ -1617,7 +1622,7 @@ function MapViewMapLibre({
               minzoom={14.5}
               layout={{
                 'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-font': ['Open Sans Bold'],
                 'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 10, 17, 13],
                 'text-offset': [0, 1.2],
                 'text-anchor': 'top',
@@ -1682,7 +1687,7 @@ function MapViewMapLibre({
                 layout={{
                   'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 13,
                   'text-allow-overlap': true,
                   'text-ignore-placement': true
@@ -1720,7 +1725,7 @@ function MapViewMapLibre({
                 layout={{
                   'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 12
                 }}
                 paint={{ 'text-color': '#b45309', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
@@ -1743,7 +1748,7 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'kind'], 'center']}
                 layout={{
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 13,
                   'text-offset': [0, 1.4],
                   'text-anchor': 'top'
@@ -1758,7 +1763,7 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'kind'], 'amenity']}
                 layout={{
                   'text-field': ['get', 'name'],
-                  'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 11,
                   'text-offset': [0, 1.1],
                   'text-anchor': 'top',
