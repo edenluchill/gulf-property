@@ -5,13 +5,21 @@
 
 .DESCRIPTION
     One-command deployment of production-ready PostgreSQL 16 with PostGIS
-    
+
 .EXAMPLE
-    .\deploy-database.ps1
-    
+    .\deploy-database.ps1                  # Full deployment
+    .\deploy-database.ps1 --secure-only    # Fix security only (firewall + pg_hba.conf)
+
 .NOTES
-    Version: 1.1
+    Version: 1.2
 #>
+
+param(
+    [switch]$SecureOnly
+)
+
+# Also support --secure-only style
+if ($args -contains "--secure-only") { $SecureOnly = $true }
 
 # ============================================================================
 # Configuration
@@ -95,13 +103,15 @@ try {
     exit 1
 }
 
-# Check schema file
+# Check schema file (not needed for --secure-only)
 $SCHEMA_PATH = "backend\src\db\schema.sql"
-if (-not (Test-Path $SCHEMA_PATH)) {
-    Write-Error-Custom "Schema not found: $SCHEMA_PATH"
-    exit 1
+if (-not $SecureOnly) {
+    if (-not (Test-Path $SCHEMA_PATH)) {
+        Write-Error-Custom "Schema not found: $SCHEMA_PATH"
+        exit 1
+    }
+    Write-Success "Schema file found"
 }
-Write-Success "Schema file found"
 
 # Use fixed password
 $DB_PASSWORD = "aB246`$29"
@@ -112,7 +122,163 @@ $FIREWALL_NAME = "$PROJECT_NAME-db-firewall"
 $SERVER_NAME = "$PROJECT_NAME-db"
 
 # ============================================================================
-# Create Infrastructure
+# --secure-only: Quick security fix for existing database
+# ============================================================================
+
+if ($SecureOnly) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "  SECURITY FIX MODE" -ForegroundColor Yellow
+    Write-Host "  Restricting PostgreSQL access..." -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Yellow
+
+    # Get DB server info
+    $serverInfo = hcloud server describe $SERVER_NAME -o json | ConvertFrom-Json
+    if (-not $serverInfo) {
+        Write-Error-Custom "Database server '$SERVER_NAME' not found in Hetzner"
+        exit 1
+    }
+    $PUBLIC_IP = $serverInfo.public_net.ipv4.ip
+    Write-Success "Database server: $PUBLIC_IP"
+
+    # Get API & Worker IPs
+    $apiServerIp = (hcloud server describe Pinzos-backend-1 -o json | ConvertFrom-Json).public_net.ipv4.ip
+    $workerServerIp = (hcloud server describe Pinzos-worker-1 -o json | ConvertFrom-Json).public_net.ipv4.ip
+
+    if (-not $apiServerIp) {
+        Write-Error-Custom "Could not get API server IP (Pinzos-backend-1)"
+        exit 1
+    }
+    Write-Success "API server: $apiServerIp"
+    if ($workerServerIp) { Write-Success "Worker server: $workerServerIp" }
+
+    # Step 1: Fix Hetzner Firewall
+    Write-Step "Fixing Hetzner Firewall rules..."
+
+    $sourceIps = @("""$apiServerIp/32""")
+    if ($workerServerIp) { $sourceIps += """$workerServerIp/32""" }
+    $sourceIpsStr = $sourceIps -join ", "
+
+    $rulesJson = @"
+[
+  {"direction": "in", "protocol": "tcp", "port": "22", "source_ips": ["0.0.0.0/0", "::/0"]},
+  {"direction": "in", "protocol": "tcp", "port": "5432", "source_ips": [$sourceIpsStr]},
+  {"direction": "in", "protocol": "icmp", "source_ips": ["0.0.0.0/0", "::/0"]}
+]
+"@
+
+    $tempFile = [System.IO.Path]::GetTempFileName()
+    $rulesJson | Out-File -FilePath $tempFile -Encoding ascii
+    Start-Process -FilePath "hcloud" -ArgumentList "firewall","replace-rules",$FIREWALL_NAME,"--rules-file",$tempFile -Wait -NoNewWindow -RedirectStandardOutput "$env:TEMP\hcloud.out" -RedirectStandardError "$env:TEMP\hcloud.err"
+    $fwExit = $LASTEXITCODE
+    Remove-Item $tempFile,$env:TEMP\hcloud.out,$env:TEMP\hcloud.err -ErrorAction SilentlyContinue
+
+    if ($fwExit -ne 0) {
+        Write-Error-Custom "Failed to update firewall rules"
+        exit 1
+    }
+    Write-Success "Firewall: port 5432 restricted to API/Worker IPs only"
+
+    # Step 2: Fix pg_hba.conf on the server
+    Write-Step "Fixing PostgreSQL pg_hba.conf..."
+
+    $pgHbaEntries = "host    all             all             $apiServerIp/32               scram-sha-256"
+    if ($workerServerIp) {
+        $pgHbaEntries += "`nhost    all             all             $workerServerIp/32               scram-sha-256"
+    }
+
+    $fixScript = @"
+#!/bin/bash
+set -e
+
+PG_HBA="/etc/postgresql/16/main/pg_hba.conf"
+
+echo "Before fix:"
+grep -n "0\.0\.0\.0" "`$PG_HBA" || echo "  (no 0.0.0.0/0 rules found)"
+
+# Remove any 0.0.0.0/0 rules
+sed -i '/0\.0\.0\.0\/0/d' "`$PG_HBA"
+
+# Add specific server IPs (if not already present)
+if ! grep -q "$apiServerIp" "`$PG_HBA"; then
+    cat >> "`$PG_HBA" << 'PGEOF'
+$pgHbaEntries
+PGEOF
+    echo "Added restricted IP rules"
+else
+    echo "IP rules already present"
+fi
+
+echo ""
+echo "After fix (remote access rules):"
+grep "scram-sha-256" "`$PG_HBA" || echo "  none"
+
+# Restart PostgreSQL
+systemctl restart postgresql
+sleep 2
+echo ""
+echo "PostgreSQL restarted successfully"
+"@
+
+    $tempFile = [System.IO.Path]::GetTempFileName()
+    $cleanScript = $fixScript.Replace("`r", "")
+    [System.IO.File]::WriteAllText($tempFile, $cleanScript, (New-Object System.Text.UTF8Encoding $false))
+    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o LogLevel=ERROR $tempFile "root@${PUBLIC_IP}:/tmp/fix.sh" 2>$null
+    $output = ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$PUBLIC_IP "bash /tmp/fix.sh" 2>&1
+    $sshExit = $LASTEXITCODE
+    Remove-Item $tempFile -ErrorAction SilentlyContinue
+
+    Write-Host $output
+
+    if ($sshExit -ne 0) {
+        Write-Error-Custom "Failed to fix pg_hba.conf"
+        exit 1
+    }
+    Write-Success "pg_hba.conf: restricted to API/Worker IPs only"
+
+    # Step 3: Verify the fix
+    Write-Step "Verifying security fix..."
+
+    $verifyScript = @"
+#!/bin/bash
+# Test that PostgreSQL is still accessible locally
+RESULT=`$(PGPASSWORD='$DB_PASSWORD' psql -h localhost -U $DB_USER -d $DB_NAME -t -c "SELECT 'OK';" 2>/dev/null | xargs)
+if [ "`$RESULT" = "OK" ]; then
+    echo "Local connection: OK"
+else
+    echo "WARNING: Local connection failed!"
+    exit 1
+fi
+"@
+
+    $tempFile = [System.IO.Path]::GetTempFileName()
+    $cleanScript = $verifyScript.Replace("`r", "")
+    [System.IO.File]::WriteAllText($tempFile, $cleanScript, (New-Object System.Text.UTF8Encoding $false))
+    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no -o LogLevel=ERROR $tempFile "root@${PUBLIC_IP}:/tmp/verify.sh" 2>$null
+    $verifyOutput = ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=no root@$PUBLIC_IP "bash /tmp/verify.sh" 2>&1
+    Remove-Item $tempFile -ErrorAction SilentlyContinue
+    Write-Host $verifyOutput
+
+    # Done
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "  SECURITY FIX COMPLETE" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Changes made:" -ForegroundColor Cyan
+    Write-Host "  1. Hetzner Firewall: port 5432 restricted to API/Worker IPs" -ForegroundColor White
+    Write-Host "  2. pg_hba.conf: removed 0.0.0.0/0, added specific server IPs" -ForegroundColor White
+    Write-Host "  3. PostgreSQL restarted" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Allowed IPs:" -ForegroundColor Cyan
+    Write-Host "  API:    $apiServerIp" -ForegroundColor White
+    if ($workerServerIp) { Write-Host "  Worker: $workerServerIp" -ForegroundColor White }
+    Write-Host ""
+    exit 0
+}
+
+# ============================================================================
+# Create Infrastructure (full deployment)
 # ============================================================================
 
 Write-Step "Setting up infrastructure..."
@@ -143,10 +309,26 @@ if (-not (hcloud firewall describe $FIREWALL_NAME 2>$null)) {
     hcloud firewall create --name $FIREWALL_NAME 2>$null | Out-Null
 }
 
+# SECURITY: Only allow PostgreSQL access from API and Worker server IPs
+# Get API server IP
+$apiServerIp = (hcloud server describe Pinzos-backend-1 -o json | ConvertFrom-Json).public_net.ipv4.ip
+$workerServerIp = (hcloud server describe Pinzos-worker-1 -o json | ConvertFrom-Json).public_net.ipv4.ip
+
+if (-not $apiServerIp) {
+    Write-Warning "Could not get API server IP. Deploy API server first."
+    exit 1
+}
+
+$sourceIps = @("""$apiServerIp/32""")
+if ($workerServerIp) {
+    $sourceIps += """$workerServerIp/32"""
+}
+$sourceIpsStr = $sourceIps -join ", "
+
 $rulesJson = @"
 [
   {"direction": "in", "protocol": "tcp", "port": "22", "source_ips": ["0.0.0.0/0", "::/0"]},
-  {"direction": "in", "protocol": "tcp", "port": "5432", "source_ips": ["0.0.0.0/0", "::/0"]},
+  {"direction": "in", "protocol": "tcp", "port": "5432", "source_ips": [$sourceIpsStr]},
   {"direction": "in", "protocol": "icmp", "source_ips": ["0.0.0.0/0", "::/0"]}
 ]
 "@
@@ -264,7 +446,21 @@ Write-Success "PostgreSQL 16 with PostGIS installed"
 
 Write-Step "Configuring PostgreSQL..."
 
-$configScript = @'
+# SECURITY: Only allow connections from API and Worker servers, not the entire internet
+$apiIp = (hcloud server describe Pinzos-backend-1 -o json | ConvertFrom-Json).public_net.ipv4.ip
+$workerIp = (hcloud server describe Pinzos-worker-1 -o json | ConvertFrom-Json).public_net.ipv4.ip
+
+if (-not $apiIp) {
+    Write-Warning "Could not get API server IP. Deploy API server first."
+    exit 1
+}
+
+$pgHbaEntries = "host    all             all             $apiIp/32               scram-sha-256"
+if ($workerIp) {
+    $pgHbaEntries += "`nhost    all             all             $workerIp/32               scram-sha-256"
+}
+
+$configScript = @"
 #!/bin/bash
 set -e
 
@@ -272,24 +468,30 @@ PG_CONF="/etc/postgresql/16/main/postgresql.conf"
 PG_HBA="/etc/postgresql/16/main/pg_hba.conf"
 
 # Configure postgresql.conf
-sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "$PG_CONF"
-sed -i "s/max_connections = 100/max_connections = 200/" "$PG_CONF"
-sed -i "s/shared_buffers = 128MB/shared_buffers = 512MB/" "$PG_CONF"
+sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "`$PG_CONF"
+sed -i "s/max_connections = 100/max_connections = 200/" "`$PG_CONF"
+sed -i "s/shared_buffers = 128MB/shared_buffers = 512MB/" "`$PG_CONF"
 
-# Configure pg_hba.conf
-if ! grep -q "0.0.0.0/0" "$PG_HBA"; then
-    echo "host    all             all             0.0.0.0/0               scram-sha-256" >> "$PG_HBA"
+# Configure pg_hba.conf - ONLY allow API and Worker server IPs
+# Remove any old 0.0.0.0/0 rule if present
+sed -i '/0\.0\.0\.0\/0/d' "`$PG_HBA"
+
+# Add specific server IPs
+if ! grep -q "$apiIp" "`$PG_HBA"; then
+    cat >> "`$PG_HBA" << 'PGEOF'
+$pgHbaEntries
+PGEOF
 fi
 
 # Restart
 systemctl restart postgresql
 sleep 2
 
-echo "PostgreSQL configured"
-'@
+echo "PostgreSQL configured (restricted to API/Worker IPs only)"
+"@
 
-Invoke-RemoteScript -Script $configScript -Description "Configuring remote access"
-Write-Success "Remote access enabled"
+Invoke-RemoteScript -Script $configScript -Description "Configuring restricted remote access"
+Write-Success "Remote access enabled (restricted to API/Worker servers only)"
 
 # ============================================================================
 # Create Database and User

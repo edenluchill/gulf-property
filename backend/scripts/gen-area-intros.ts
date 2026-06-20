@@ -90,12 +90,13 @@ async function main() {
   `)
 
   console.log(`Areas: ${areasRes.rows.length}, landmarks: ${landmarks.length}\n`)
-  let done = 0, skipped = 0, failed = 0
+  let done = 0, failed = 0
 
-  for (const a of areasRes.rows) {
-    const existingZh: string = a.translations?.zh?.description || ''
-    if (existingZh.length >= 20) { skipped++; continue }
+  const pending = areasRes.rows.filter(a => (a.translations?.zh?.description || '').length < 20)
+  const skipped = areasRes.rows.length - pending.length
+  console.log(`Pending: ${pending.length}, skipped(existing): ${skipped}\n`)
 
+  const processOne = async (a: any) => {
     const nearest = landmarks
       .map(lm => ({ ...lm, km: haversineKm(Number(a.lat), Number(a.lng), lm.lat, lm.lng) }))
       .sort((x, y) => x.km - y.km)
@@ -109,7 +110,7 @@ async function main() {
       growthPct: a.capital_growth_pct != null ? Number(a.capital_growth_pct) : null,
       nearest
     })
-    if (!intro) { failed++; console.log(`  ❌ ${a.name}`); continue }
+    if (!intro) { failed++; console.log(`  ❌ ${a.name}`); return }
 
     const proximityZh = nearest.map(n => `距${n.zh}约 ${fmtKm(n.km)}km`).join('、')
     const proximityEn = nearest.map(n => `${fmtKm(n.km)}km to ${n.en}`).join(', ')
@@ -129,8 +130,13 @@ async function main() {
       [JSON.stringify(translations), enDesc, a.id]
     )
     done++
-    console.log(`  ✅ [${done}] ${a.name} → ${zhDesc.slice(0, 60)}…`)
-    await new Promise(r => setTimeout(r, 400))
+    console.log(`  ✅ [${done}/${pending.length}] ${a.name} → ${zhDesc.slice(0, 50)}…`)
+  }
+
+  // 4 路并发（Gemini 延迟为主，不压 DB）
+  const CONCURRENCY = 4
+  for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    await Promise.all(pending.slice(i, i + CONCURRENCY).map(processOne))
   }
 
   console.log(`\nDone: ${done}, skipped(existing): ${skipped}, failed: ${failed}`)
