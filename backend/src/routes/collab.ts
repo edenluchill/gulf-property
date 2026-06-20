@@ -26,6 +26,7 @@ import {
   type Room,
   type Participant
 } from '../services/collab-rooms'
+import { startCollabPersistence, flushRoom } from '../services/collab-persistence'
 
 const router = Router()
 
@@ -40,14 +41,6 @@ const PING_INTERVAL_MS = 25 * 1000
 
 // 服务器盖 seq 的可靠消息类型
 const RELIABLE_KINDS = new Set(['goto', 'select', 'chat', 'mapAction', 'role'])
-
-/**
- * TODO(persistence): 落库 collab_rooms(chat + 事件日志),供带看后意向报告。
- * 本项目本地 db 直连生产库,这次先不写库 —— 只留 stub。见 spec §6 持久化。
- */
-function persistRoomEvent(_room: Room, _msg: any): void {
-  // intentionally empty — DB persistence is a separate, deliberate step
-}
 
 export function initCollabWebSocket(server: Server): void {
   // noServer + 自管 upgrade 路由(见 voice-chat.ts 同款注释):同一 http server
@@ -65,7 +58,10 @@ export function initCollabWebSocket(server: Server): void {
     wss!.handleUpgrade(req, socket, head, (ws) => wss!.emit('connection', ws, req))
   })
 
-  startRoomGc()
+  // 房间被驱逐前最后 flush 一次,确保事件日志不随房间删除而丢。
+  startRoomGc(60 * 1000, (room) => { void flushRoom(room) })
+  // 定时把 dirty 房间落库(15s ≪ 空房 10min TTL,删前必已刷过)。
+  startCollabPersistence()
 
   console.log('🗺️  Collab WebSocket server initialized at /api/collab')
 
@@ -172,7 +168,6 @@ export function initCollabWebSocket(server: Server): void {
         }
         msg.seq = nextSeq(room)
         pushReliable(room, msg)
-        persistRoomEvent(room, msg)
         fanout(room, msg, me.connId)
         return
       }

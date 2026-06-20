@@ -18,8 +18,11 @@ MVP 已实现、本地+生产双重端到端验证通过、已部署上线(commi
 **后端**
 | 文件 | 作用 |
 |---|---|
-| `backend/src/routes/collab.ts` | `initCollabWebSocket(server)`(noServer + `/api/collab` upgrade 路由)+ REST:`POST /api/collab/rooms`、`GET /api/collab/rooms/:code`、`GET /api/collab/health`。协议处理 / seq / ring / resume / 25s ping / join·leave。**`persistRoomEvent` 是 DB 持久化 stub(空)**。 |
-| `backend/src/services/collab-rooms.ts` | 内存房间 `Map`:`createRoom/getRoomByCode/joinRoom/leave/nextSeq/pushReliable/fanout/startRoomGc`。分享码 5 位(去 0/O/1/I)。空房 10 分钟回收。 |
+| `backend/src/routes/collab.ts` | `initCollabWebSocket(server)`(noServer + `/api/collab` upgrade 路由)+ REST:`POST /api/collab/rooms`、`GET /api/collab/rooms/:code`、`GET /api/collab/health`。协议处理 / seq / ring / resume / 25s ping / join·leave。启动时接 `startCollabPersistence()` + GC 驱逐前 `flushRoom`。 |
+| `backend/src/services/collab-rooms.ts` | 内存房间 `Map`:`createRoom/getRoomByCode/joinRoom/leave/nextSeq/pushReliable/fanout/startRoomGc/listRooms`。分享码 5 位(去 0/O/1/I)。空房 10 分钟回收。`pushReliable` 是事件日志咽喉点(累积 `eventLog` + 标 dirty + peak)。 |
+| `backend/src/services/collab-persistence.ts` | **DB 持久化(已实现,#2)**:`buildCollabRoomRow`(纯)+ `flushRoom`(best-effort upsert)+ 15s 定时 flush dirty 房间。落 `collab_rooms` 表。 |
+| `backend/src/db/collab-rooms-schema.sql` | `collab_rooms` 表:一房一行,events JSONB 全量事件日志 + 标量列(counts/peak/时间)。已上生产。 |
+| `backend/scripts/test-collab-persist.ts` | 持久化单测(17 断言,纯内存不连 DB)。`npm run test:collab-persist`。 |
 | `backend/src/routes/voice-chat.ts` | **改为 noServer + 自管 upgrade**(WS 多 path 修复,见 H.5)。 |
 | `backend/src/index.ts` | 注册 collab router + `initCollabWebSocket(server)`。 |
 | `backend/scripts/test-collab.ts` | WS 集成测试(19 断言)。`cd backend && npm run test:collab`。 |
@@ -67,7 +70,7 @@ cd frontend && BE=http://localhost:3000 FE=http://localhost:5174 node scripts/te
 
 ### H.7 待办(按优先级)
 1. **微信内置浏览器真机冒烟**(owner 手动,头号验收):微信打开 `/t/<code>`,验 WebGL 地图 / WS / autoplay 跑通。
-2. **DB 持久化**:`persistRoomEvent` 落 `collab_rooms`(chat + 事件日志),供带看后意向报告(沿用 `luna_sessions` JSONB 思路)。现为空 stub。
+2. ~~**DB 持久化**~~ ✅ **已完成(2026-06-20)**:事件日志在 `pushReliable` 累积 → `collab-persistence` 15s 定时 + 房间驱逐前 `flushRoom` upsert 进 `collab_rooms`(events JSONB 全量 + counts/peak/时间标量)。best-effort,空房/无事件房不写库。表已上生产,API 已部署。**下一步**:在此之上做「带看后意向报告」(读 `collab_rooms.events` + `luna_sessions`,Gemini 生成)。
 3. **第二阶段人声 = Agora**(§8.5):App ID + 证书 → 接 Cloud Recording → R2 → Gemini 转写 → 意向报告。需双方知情同意。demo ≈ $5/月。
 4. **viewer 沉浸打磨**:viewer 模式仍露站点顶栏,可隐藏只留地图+外框。
 5. **P2 增强**:`cur` 光标共享(GL symbol layer,后端已扇出、前端未渲染)、presenter handoff(`role` 事件后端已支持、无 UI)、>1 客户参与者头像、chat 时间戳穿插排序。

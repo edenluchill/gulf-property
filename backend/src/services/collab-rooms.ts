@@ -27,6 +27,7 @@ export interface ReliableMsg {
 export interface Room {
   id: string
   code: string                          // 短分享码
+  name?: string                         // 建房时经纪名(可空),落库用
   presenterConnId: string | null
   participants: Map<string, Participant>
   selected: any | null                  // 最近一次 select 事件 payload
@@ -35,10 +36,15 @@ export interface Room {
   seq: number                           // 单调递增,盖在可靠事件上
   ring: ReliableMsg[]                   // 最近 ~200 条可靠事件,供 resumeSeq 补发
   createdAt: number
+  // ── 持久化用(全在内存累积,由 collab-persistence 落库)──────────────
+  eventLog: ReliableMsg[]               // 全量可靠事件日志(含 chat),供带看后报告
+  peakParticipants: number              // 同时在场峰值
+  dirty: boolean                        // 自上次 flush 后有新事件?
 }
 
 const RECENT_CHAT_MAX = 30
 const RING_MAX = 200
+const EVENT_LOG_MAX = 5000                  // 事件日志上限,兜底防失控房膨胀
 const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000   // 空房 10 分钟回收
 
 const rooms = new Map<string, Room>()      // id -> Room
@@ -63,7 +69,7 @@ function genConnId(): string {
   return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function createRoom(_creatorName?: string): { room: Room; code: string } {
+export function createRoom(creatorName?: string): { room: Room; code: string } {
   // 保证 code 唯一(碰撞极罕见,但兜一下)
   let code = randomCode()
   while (codeToId.has(code)) code = randomCode()
@@ -71,6 +77,7 @@ export function createRoom(_creatorName?: string): { room: Room; code: string } 
   const room: Room = {
     id: genId(),
     code,
+    name: creatorName,
     presenterConnId: null,
     participants: new Map(),
     selected: null,
@@ -78,7 +85,10 @@ export function createRoom(_creatorName?: string): { room: Room; code: string } 
     recentChat: [],
     seq: 0,
     ring: [],
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    eventLog: [],
+    peakParticipants: 0,
+    dirty: false
   }
   rooms.set(room.id, room)
   codeToId.set(code, room.id)
@@ -108,6 +118,9 @@ export function joinRoom(
   const connId = genConnId()
   const participant: Participant = { connId, ws, name, role, lastSeq: 0 }
   room.participants.set(connId, participant)
+  if (room.participants.size > room.peakParticipants) {
+    room.peakParticipants = room.participants.size
+  }
 
   if (role === 'presenter' && room.presenterConnId === null) {
     room.presenterConnId = connId
@@ -136,6 +149,15 @@ export function pushReliable(room: Room, msg: ReliableMsg): void {
   if (room.ring.length > RING_MAX) {
     room.ring.splice(0, room.ring.length - RING_MAX)
   }
+
+  // 持久化用:全量事件日志(含 chat/select/goto/mapAction/role/join/leave),
+  // server 盖一个 at 时间戳(协议本身无 chat 时间戳,见 spec §H.8)。存副本,
+  // 不污染要扇出/进 ring 的原 msg。cam/cur 高频流不走这里,天然排除。
+  room.eventLog.push({ ...msg, at: Date.now() })
+  if (room.eventLog.length > EVENT_LOG_MAX) {
+    room.eventLog.splice(0, room.eventLog.length - EVENT_LOG_MAX)
+  }
+  room.dirty = true
 
   switch (msg.k) {
     case 'chat':
@@ -170,13 +192,20 @@ export function fanout(room: Room, msg: any, exceptConnId?: string): void {
   }
 }
 
+/** 所有活跃房间(供持久化层遍历 flush dirty 房间)。 */
+export function listRooms(): Room[] {
+  return Array.from(rooms.values())
+}
+
 /**
  * 空房 GC:无人后 TTL 到期删除。可由 setInterval 周期调用。
+ * onEvict 在删除前回调(持久化层借此做最后一次 flush,确保数据不丢)。
  */
-export function gcEmptyRooms(now = Date.now()): number {
+export function gcEmptyRooms(now = Date.now(), onEvict?: (room: Room) => void): number {
   let removed = 0
   for (const room of rooms.values()) {
     if (room.participants.size === 0 && now - room.createdAt > EMPTY_ROOM_TTL_MS) {
+      onEvict?.(room)
       rooms.delete(room.id)
       codeToId.delete(room.code)
       removed++
@@ -187,9 +216,9 @@ export function gcEmptyRooms(now = Date.now()): number {
 
 let gcTimer: NodeJS.Timeout | null = null
 
-export function startRoomGc(intervalMs = 60 * 1000): void {
+export function startRoomGc(intervalMs = 60 * 1000, onEvict?: (room: Room) => void): void {
   if (gcTimer) return
-  gcTimer = setInterval(() => gcEmptyRooms(), intervalMs)
+  gcTimer = setInterval(() => gcEmptyRooms(Date.now(), onEvict), intervalMs)
   gcTimer.unref?.()  // 别拦住进程退出(测试友好)
 }
 
