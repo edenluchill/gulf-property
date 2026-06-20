@@ -27,13 +27,18 @@ import {
   type Participant
 } from '../services/collab-rooms'
 import { startCollabPersistence, flushRoom } from '../services/collab-persistence'
+import { purgeOldCollabRooms } from '../services/collabReport'
+
+// 带看记录(含客户 PII)保留期,env 可调,默认 180 天。
+const COLLAB_RETENTION_DAYS = Math.max(1, Number(process.env.COLLAB_RETENTION_DAYS) || 180)
+const RETENTION_SWEEP_MS = 6 * 60 * 60 * 1000   // 每 6h 扫一次
 
 const router = Router()
 
 let wss: WebSocketServer | null = null
 
-// 分享链接域名(前端 /t/:code 路由会消费),做成常量
-const SHARE_BASE_URL = 'https://pinzos.com/t'
+// 分享链接域名(前端 /t/:code 路由会消费)。env 可覆盖(staging/换域名免改码)。
+const SHARE_BASE_URL = process.env.COLLAB_SHARE_BASE_URL || 'https://pinzos.com/t'
 
 // 25s server-side ping —— 让 Cloudflare 橙云的 100s 空闲超时不会断 WS。
 // 用应用层 {k:'ping'} 帧(客户端回 {k:'pong'}),也驱动 server→client 的活性。
@@ -62,6 +67,15 @@ export function initCollabWebSocket(server: Server): void {
   startRoomGc(60 * 1000, (room) => { void flushRoom(room) })
   // 定时把 dirty 房间落库(15s ≪ 空房 10min TTL,删前必已刷过)。
   startCollabPersistence()
+
+  // 保留期清理:开机扫一次 + 每 6h 一次,删超期带看记录(PII 合规)。
+  const sweep = () => {
+    void purgeOldCollabRooms(COLLAB_RETENTION_DAYS).then((n) => {
+      if (n > 0) console.log(`🧹 collab retention: purged ${n} room(s) older than ${COLLAB_RETENTION_DAYS}d`)
+    })
+  }
+  sweep()
+  setInterval(sweep, RETENTION_SWEEP_MS).unref?.()
 
   console.log('🗺️  Collab WebSocket server initialized at /api/collab')
 

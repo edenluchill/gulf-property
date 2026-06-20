@@ -5,12 +5,12 @@
  * server-side via requireOwner. See docs/analytics-dashboard-spec.md §3 / §12.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard } from 'lucide-react'
+import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries,
+  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries, fetchCollabSessions,
   getDashboardKey, setDashboardKey, ForbiddenError,
-  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, RecentSearch, Timeseries, Granularity,
+  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, RecentSearch, Timeseries, Granularity, CollabSessionRow,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
 import TrendChart from '../components/analytics/TrendChart'
@@ -18,6 +18,7 @@ import TopList from '../components/analytics/TopList'
 import Funnel from '../components/analytics/Funnel'
 import LeadTable from '../components/analytics/LeadTable'
 import SessionViewer from '../components/analytics/SessionViewer'
+import CollabReportModal from '../components/analytics/CollabReport'
 import Visitors from '../components/analytics/Visitors'
 
 const RANGES = [
@@ -37,6 +38,7 @@ const TABS = [
   { id: 'visitors', label: '访客明细', Icon: Users },
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
   { id: 'luna', label: 'Luna 对话', Icon: Mic },
+  { id: 'collab', label: '实时带看', Icon: MapIcon },
 ] as const
 
 interface DashData {
@@ -49,6 +51,7 @@ interface DashData {
   funnel: FunnelStep[]
   leads: Lead[]
   sessions: SessionRow[]
+  collab: CollabSessionRow[]
 }
 
 export default function AdminAnalytics() {
@@ -67,7 +70,8 @@ export default function AdminAnalytics() {
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna'>('overview')
+  const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna' | 'collab'>('overview')
+  const [openCollab, setOpenCollab] = useState<string | null>(null)
 
   useEffect(() => {
     if (needKey) return
@@ -75,14 +79,14 @@ export default function AdminAnalytics() {
     setLoading(true)
     Promise.all([
       fetchOverview(days), fetchSearches(days), fetchLuna(days),
-      fetchTutorial(days), fetchLeads(), fetchSessions(),
+      fetchTutorial(days), fetchLeads(), fetchSessions(), fetchCollabSessions(),
     ])
-      .then(([ov, se, lu, tu, le, ss]) => {
+      .then(([ov, se, lu, tu, le, ss, cb]) => {
         if (!alive) return
         setData({
           overview: ov.overview, daily: ov.daily,
           terms: se.terms, projects: se.projects, recent: se.recent,
-          luna: lu, funnel: tu, leads: le, sessions: ss,
+          luna: lu, funnel: tu, leads: le, sessions: ss, collab: cb,
         })
         setLoading(false)
       })
@@ -327,10 +331,48 @@ export default function AdminAnalytics() {
               </div>
             </div>
           )}
+
+          {/* ── 实时带看(collab)──────────────────────────────────────────── */}
+          {tab === 'collab' && (
+            <div className="space-y-5">
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-slate-800">最近实时带看</h3>
+                  <p className="text-xs text-slate-400">点开生成买家意向报告 + 跟进话术</p>
+                </div>
+                {data.collab.length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-slate-400">还没有带看记录。</p>
+                ) : (
+                  <div className="divide-y divide-slate-50">
+                    {data.collab.map((c) => (
+                      <button
+                        key={c.code}
+                        onClick={() => setOpenCollab(c.code)}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm text-slate-700">
+                            {(c.last_event_at || c.created_at).slice(0, 16).replace('T', ' ')}
+                            {c.name ? ` · ${c.name}` : ''}
+                            <span className="ml-1 font-mono text-xs text-slate-400">{c.code}</span>
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {c.chat_count} 条聊天 · {c.event_count} 事件 · 峰值 {c.peak_participants} 人
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-xs text-teal-500">查看报告 →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {openSession && <SessionViewer sessionId={openSession} onClose={() => setOpenSession(null)} />}
+      {openCollab && <CollabReportModal code={openCollab} onClose={() => setOpenCollab(null)} />}
     </div>
     </div>
   )

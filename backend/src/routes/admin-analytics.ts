@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express'
 import { optionalAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import * as q from '../services/analyticsQueries'
+import { getCollabSessions, getCollabReport } from '../services/collabReport'
 
 const router = Router()
 
@@ -77,6 +78,16 @@ router.get('/sessions', wrap((req) =>
 router.get('/sessions/:id', wrap(async (req) => {
   const session = await q.getLunaSession(String(req.params.id))
   return { session }
+}))
+
+// ── 实时带看(collab)意向报告 ─────────────────────────
+router.get('/collab', wrap((req) =>
+  getCollabSessions(Math.min(200, Number(req.query.limit) || 50), Math.max(0, Number(req.query.offset) || 0))
+))
+
+router.get('/collab/:code', wrap(async (req) => {
+  const report = await getCollabReport(String(req.params.code))
+  return { report }
 }))
 
 export default router

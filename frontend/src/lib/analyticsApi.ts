@@ -155,3 +155,41 @@ export const fetchLeads = () => authedGet<Lead[]>(`/leads`)
 export const fetchSessions = () => authedGet<SessionRow[]>(`/sessions`)
 export const fetchSession = (sessionId: string) =>
   authedGet<{ session: SessionDetail | null }>(`/sessions/${encodeURIComponent(sessionId)}`)
+
+// ── 实时带看(collab)意向报告 ───────────────────────────
+export interface CollabSessionRow {
+  code: string
+  name: string | null
+  created_at: string
+  first_event_at: string | null
+  last_event_at: string | null
+  peak_participants: number
+  chat_count: number
+  event_count: number
+}
+export interface CollabChatMsg { from: string; name: string; text: string; at: number | null }
+export interface CollabParticipant { name: string; role: string; joinedAt: number | null; leftAt: number | null }
+export interface CollabAi {
+  summary: string
+  interest_level: '高' | '中' | '低' | '未知'
+  signals: string[]
+  follow_up: string
+}
+export interface CollabReport {
+  code: string
+  name: string | null
+  created_at: string
+  duration_ms: number | null
+  peak_participants: number
+  participants: CollabParticipant[]
+  areas_visited: string[]
+  projects: { id: string; name: string | null; area: string | null }[]
+  luna_actions: { type: string; count: number }[]
+  chat: CollabChatMsg[]
+  truncated: boolean
+  ai: CollabAi | null
+}
+
+export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`)
+export const fetchCollabReport = (code: string) =>
+  authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)
