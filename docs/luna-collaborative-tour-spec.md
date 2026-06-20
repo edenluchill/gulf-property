@@ -70,8 +70,9 @@ cd frontend && BE=http://localhost:3000 FE=http://localhost:5174 node scripts/te
 
 ### H.7 待办(按优先级)
 1. **微信内置浏览器真机冒烟**(owner 手动,头号验收):微信打开 `/t/<code>`,验 WebGL 地图 / WS / autoplay 跑通。
-2. ~~**DB 持久化**~~ ✅ **已完成(2026-06-20)**:事件日志在 `pushReliable` 累积 → `collab-persistence` 15s 定时 + 房间驱逐前 `flushRoom` upsert 进 `collab_rooms`(events JSONB 全量 + counts/peak/时间标量)。best-effort,空房/无事件房不写库。表已上生产,API 已部署。**下一步**:在此之上做「带看后意向报告」(读 `collab_rooms.events` + `luna_sessions`,Gemini 生成)。
-3. **第二阶段人声 = Agora**(§8.5):App ID + 证书 → 接 Cloud Recording → R2 → Gemini 转写 → 意向报告。需双方知情同意。demo ≈ $5/月。
+2. ~~**DB 持久化**~~ ✅ **已完成(2026-06-20)**:事件日志在 `pushReliable` 累积 → `collab-persistence` 15s 定时 + 房间驱逐前 `flushRoom` upsert 进 `collab_rooms`(events JSONB 全量 + counts/peak/时间标量)。best-effort,空房/无事件房不写库。表已上生产,API 已部署。
+2b. ~~**带看后意向报告**~~ ✅ **已完成(2026-06-20)**:`services/collabReport.ts` 从 `collab_rooms.events` 确定性派生事实(去过的区/看过的项目含名称、Luna 查询计数、聊天、参与者进出时间)+ Gemini best-effort 叙述(意向等级/买家信号/可直接发的跟进话术)。Owner 端点 `GET /api/admin/analytics/collab[/:code]`(挂 `requireOwner`,PII)。前端 AdminAnalytics「实时带看」tab + `CollabReport` 弹窗。保留期清理 `purgeOldCollabRooms`(env `COLLAB_RETENTION_DAYS` 默认 180d,开机+每6h 扫)。已端到端验证(合成房:DB读+项目名解析+Gemini)并部署。
+3. **第二阶段人声 = Agora**(§8.5):App ID + 证书 → 接 Cloud Recording → R2 → Gemini 转写 → 拼进意向报告。需双方知情同意。demo ≈ $5/月。
 4. **viewer 沉浸打磨**:viewer 模式仍露站点顶栏,可隐藏只留地图+外框。
 5. **P2 增强**:`cur` 光标共享(GL symbol layer,后端已扇出、前端未渲染)、presenter handoff(`role` 事件后端已支持、无 UI)、>1 客户参与者头像、chat 时间戳穿插排序。
 6. **Redis pub/sub**:仅当后端水平扩展到多实例时才需要,现单进程不做。
