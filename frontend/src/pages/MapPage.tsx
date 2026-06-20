@@ -1,10 +1,20 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom'
+import type { Map as MaplibreMap } from 'maplibre-gl'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
 import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
+import { createMapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
 import TourOverlay from '../luna-tour/TourOverlay'  // Luna Tour (isolated)
 import { useTourMode } from '../luna-tour/TourModeContext'  // Luna Tour (isolated)
+// Luna collaborative tour (isolated co-presence layer). Delete collab/ to remove.
+import { useCollab, type CollabMode } from '../luna-tour/collab/useCollab'
+import CollabBar from '../luna-tour/collab/CollabBar'
+import CollabFrame from '../luna-tour/collab/CollabFrame'
+import { createCollabRoom } from '../luna-tour/collab/collabApi'
+import { useAuth } from '../contexts/AuthContext'
+import { isOwnerEmail } from '../lib/config'
+import { Radio } from 'lucide-react'
 import MapFilterChips from '../components/MapFilterChips'
 import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
@@ -88,11 +98,55 @@ export default function MapPage() {
   // cleaner homepage form  /?toursession=xxx  (user preference).
   const { code: pathCode } = useParams<{ code?: string }>()
   const [searchParams] = useSearchParams()
-  const tourCode = pathCode || searchParams.get('toursession') || undefined
+  const location = useLocation()
+  // /t/:code is the collab co-presence route, NOT a luna-tour session. Only
+  // /v/:code (and ?toursession=) drive the luna-tour overlay. Without this guard
+  // a /t/ link's :code would also feed tourCode → TourOverlay shows
+  // "导览不存在" on top of the collab UI.
+  const isCollabViewerPath = location.pathname.startsWith('/t/')
+  const tourCode = (isCollabViewerPath ? undefined : pathCode) || searchParams.get('toursession') || undefined
   // agent edit/preview mode (?edit=1): pause shows a "comment for AI" composer
   const tourEditMode = searchParams.get('edit') === '1'
   const tourMapRef = useRef<MapTourHandle>(null)
   const { toolsRevealed } = useTourMode()
+
+  // ── Collaborative tour (co-presence) ──────────────────────────────────────
+  // Three modes: 'browse' (default, unchanged), 'presenter' (owner starts a
+  // tour), 'viewer' (a guest opened a /t/:code link — public, no login).
+  const { user } = useAuth()
+  const isOwner = isOwnerEmail(user?.email)
+  const viewerCode = isCollabViewerPath ? pathCode : undefined
+  const [presenterCode, setPresenterCode] = useState<string | undefined>(undefined)
+  const collabMode: CollabMode = viewerCode ? 'viewer' : presenterCode ? 'presenter' : 'browse'
+  const collabCode = viewerCode || presenterCode
+  const collabActive = collabMode !== 'browse'
+  const [shareCopied, setShareCopied] = useState(false)
+  const [startingTour, setStartingTour] = useState(false)
+
+  // Live maplibre instance for the collab hooks (set via onMapReady). The camera
+  // is driven imperatively through this — never via React state (perf rule).
+  const collabMapRef = useRef<MaplibreMap | null>(null)
+  const getCollabMap = useCallback(() => collabMapRef.current, [])
+  // One cinematic handle for the collab layer's flyTo (goto events). Built lazily.
+  const collabHandleRef = useRef<MapTourHandle | null>(null)
+  if (!collabHandleRef.current) {
+    collabHandleRef.current = createMapTourHandle({ getMap: getCollabMap, accent: '#00E0B8' })
+  }
+  const collabFlyTo = useCallback(
+    (a: { center: [number, number]; zoom: number; bearing: number; pitch: number }) => {
+      collabHandleRef.current?.flyTo({ center: a.center, zoom: a.zoom, bearing: a.bearing, pitch: a.pitch })
+    },
+    []
+  )
+  // Senders live in a ref so the page handlers (declared above the useCollab
+  // call) can broadcast without a circular dependency.
+  const collabSendRef = useRef<{
+    sendSelect: (kind: 'project' | 'area', id: string) => void
+    sendMapAction: (action: unknown) => void
+  }>({ sendSelect: () => {}, sendMapAction: () => {} })
+  // presenter-active flag in a ref so stable handlers (handleProjectClick) can
+  // branch without taking collab state as a dependency.
+  const collabActiveRef = useRef(false)
   // Tour mode: the overlay reports its 2-3 properties; the main map renders ONLY
   // these as native (clickable) pins — not the whole search-result marker sea.
   const [tourPins, setTourPins] = useState<MapPinProject[]>([])
@@ -368,11 +422,103 @@ export default function MapPage() {
     }
   }, [navigate])
 
-  // Register voice map action handler with global context
+  // Register voice map action handler with global context. In presenter mode we
+  // also broadcast each Luna mapAction into the room (§8) so the whole room sees
+  // the data appear; the local run is unchanged.
   useEffect(() => {
-    voiceContext.registerMapActionHandler(handleVoiceMapAction)
+    const handler = (action: MapAction) => {
+      handleVoiceMapAction(action)
+      collabSendRef.current.sendMapAction(action)
+    }
+    voiceContext.registerMapActionHandler(handler)
     return () => voiceContext.unregisterMapActionHandler()
   }, [voiceContext, handleVoiceMapAction])
+
+  // Remote collab events → reuse the existing local handlers (idempotent).
+  const handleRemoteSelect = useCallback(
+    (kind: 'project' | 'area', id: string) => {
+      if (kind === 'project') {
+        const pin = mapPins.find((p) => p.id === id)
+        if (pin) setFlyToLocation({ lat: pin.lat, lng: pin.lng, zoom: 15 })
+      } else {
+        const area = dubaiAreas.find((a) => a.id === id)
+        if (area) handleAreaClick(area)
+      }
+    },
+    [mapPins, dubaiAreas]
+  )
+  const handleRemoteMapAction = useCallback(
+    (action: unknown) => handleVoiceMapAction(action as MapAction),
+    [handleVoiceMapAction]
+  )
+
+  const collab = useCollab({
+    mode: collabMode,
+    code: collabCode,
+    name: collabMode === 'presenter' ? (user?.email?.split('@')[0] || 'Ahmed') : '访客',
+    getMap: getCollabMap,
+    flyTo: collabFlyTo,
+    onRemoteSelect: handleRemoteSelect,
+    onRemoteMapAction: handleRemoteMapAction,
+  })
+  useEffect(() => {
+    collabSendRef.current = { sendSelect: collab.sendSelect, sendMapAction: collab.sendMapAction }
+  }, [collab.sendSelect, collab.sendMapAction])
+  useEffect(() => {
+    collabActiveRef.current = collabMode === 'presenter'
+  }, [collabMode])
+
+  // The other party's display name for the session bar / Free pill.
+  const collabPeerName = useMemo(() => {
+    const peer = collab.participants.find((p) =>
+      collabMode === 'presenter' ? p.role === 'viewer' : p.role === 'presenter'
+    )
+    return peer?.name
+  }, [collab.participants, collabMode])
+
+  // Start a tour (owner only): create a room, enter presenter mode.
+  const handleStartTour = useCallback(async () => {
+    setStartingTour(true)
+    try {
+      const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined)
+      setPresenterCode(code)
+    } catch (e) {
+      console.error('[collab] failed to create room', e)
+    } finally {
+      setStartingTour(false)
+    }
+  }, [user?.email])
+
+  const collabShareUrl = presenterCode ? `${window.location.origin}/t/${presenterCode}` : undefined
+  const handleCopyShare = useCallback(() => {
+    if (!collabShareUrl) return
+    navigator.clipboard?.writeText(collabShareUrl).then(
+      () => {
+        setShareCopied(true)
+        setTimeout(() => setShareCopied(false), 1800)
+      },
+      () => {}
+    )
+  }, [collabShareUrl])
+
+  const handleExitCollab = useCallback(() => {
+    if (viewerCode) navigate('/')
+    else setPresenterCode(undefined)
+  }, [viewerCode, navigate])
+
+  // Map ready → store the live instance for the collab hooks and attach the
+  // gesture→Free detector. Only a user gesture carries originalEvent; remote
+  // jumpTo/flyTo are programmatic (no originalEvent) so they never trip this.
+  const collabSetFreeRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    collabSetFreeRef.current = collab.setFree
+  }, [collab.setFree])
+  const handleCollabMapReady = useCallback((map: MaplibreMap) => {
+    collabMapRef.current = map
+    map.on('movestart', (e: { originalEvent?: unknown }) => {
+      if (e.originalEvent) collabSetFreeRef.current()
+    })
+  }, [])
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
@@ -545,12 +691,20 @@ export default function MapPage() {
   }, [])
 
   // Handle project pin click — navigate straight to the project detail page.
+  // In a collab session the presenter instead broadcasts a select + flies to it
+  // on the shared map (navigating away would tear down the session).
   const handleProjectClick = useCallback((project: MapPinProject) => {
+    if (collabActiveRef.current) {
+      collabSendRef.current.sendSelect('project', project.id)
+      setFlyToLocation({ lat: project.lat, lng: project.lng, zoom: 15 })
+      return
+    }
     navigate(`/project/${project.id}`)
   }, [navigate])
 
   // Handle area click to show area detail dialog (or bottom sheet on mobile)
   const handleAreaClick = useCallback(async (area: DubaiArea) => {
+    if (collabActiveRef.current) collabSendRef.current.sendSelect('area', area.id)
     setSelectedArea(area)
     setAreaProjects([])
     setIsLoadingAreaProjects(true)
@@ -725,8 +879,14 @@ export default function MapPage() {
         <div className="h-full overflow-hidden relative">
           <MapViewMapLibre
             ref={tourMapRef}
-            chromeless={!!tourCode && !toolsRevealed}
+            // Collab hides the browse chrome too (only the CollabBar shows). NOTE:
+            // collab keeps tourActive=false so the DOM-marker-hide-on-move logic
+            // stays active — remote-driven jumpTo/flyTo fire movestart/moveend and
+            // hide the marker sea, exactly the perf behaviour we want during sync.
+            chromeless={(!!tourCode && !toolsRevealed) || collabActive}
             tourActive={!!tourCode}
+            // Collab presenter gives the live map to the collab hooks via onMapReady.
+            onMapReady={collabActive ? handleCollabMapReady : undefined}
             // Tour: render ONLY the tour's 2-3 native pins (clickable, with details);
             // not the whole search-result marker sea (which stutters the camera).
             projects={tourCode ? tourPins : filteredMapPins}
@@ -783,8 +943,51 @@ export default function MapPage() {
             />
           )}
 
+          {/* Collab: owner-only "start a live tour" entry (browse mode only) */}
+          {!tourCode && !collabActive && isOwner && (
+            <button
+              type="button"
+              onClick={handleStartTour}
+              disabled={startingTour}
+              className="absolute bottom-4 right-3 z-[1002] flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-white shadow-xl backdrop-blur transition hover:bg-slate-900 disabled:opacity-60"
+            >
+              <Radio className="h-4 w-4" style={{ color: '#00E0B8' }} />
+              {startingTour ? '创建中…' : '开始带看'}
+            </button>
+          )}
+
+          {/* Collab: mode frame + session bar + share link */}
+          {collabActive && (
+            <CollabFrame
+              role={collabMode === 'presenter' ? 'presenter' : 'viewer'}
+              peerName={collabPeerName}
+              followMode={collab.followMode}
+              shareUrl={collabShareUrl}
+              onCopyShare={handleCopyShare}
+              copied={shareCopied}
+              onExit={handleExitCollab}
+            />
+          )}
+
+          {/* Collab: participant dots + chat + Free pill */}
+          {collabActive && (
+            <CollabBar
+              participants={collab.participants}
+              messages={collab.messages}
+              myConnId={collab.connId}
+              myName={collabMode === 'presenter' ? (user?.email?.split('@')[0] || 'Ahmed') : '访客'}
+              onSendChat={collab.sendChat}
+              follow={
+                collabMode === 'viewer' && collab.followMode
+                  ? { mode: collab.followMode, returnToPresenter: collab.returnToPresenter }
+                  : undefined
+              }
+              presenterName={collabPeerName}
+            />
+          )}
+
           {/* 区域搜索 + 筛选 pills，浮在地图左上 */}
-          {(!tourCode || toolsRevealed) && (
+          {(!tourCode || toolsRevealed) && !collabActive && (
           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 md:flex-row">
             <AreaSearch
               onSelect={(a) => {
@@ -800,7 +1003,7 @@ export default function MapPage() {
           )}
 
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}
-          {(!tourCode || toolsRevealed) && (<>
+          {(!tourCode || toolsRevealed) && !collabActive && (<>
           {/* Mobile: Top left - Current metric indicator (在 filter pills 下方) */}
           {areaMetric !== 'none' && (
             <div className="absolute top-14 left-3 z-[1000] md:hidden">

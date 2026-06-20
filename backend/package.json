@@ -22,7 +22,8 @@
     "calculate:area-metrics": "ts-node -e \"require('./src/db/pool').default.query('SELECT calculate_area_rolling_metrics(CURRENT_DATE)').then(() => process.exit(0))\"",
     "seed": "ts-node src/db/seed.ts",
     "cleanup-temp": "ts-node cleanup-temp-folders.ts",
-    "cleanup-r2": "ts-node scripts/cleanup-pending-pdfs.ts"
+    "cleanup-r2": "ts-node scripts/cleanup-pending-pdfs.ts",
+    "test:collab": "ts-node scripts/test-collab.ts"
   },
   "keywords": [
     "dubai",

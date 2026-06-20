@@ -22,6 +22,7 @@ import dubaiTransportRouter from './routes/dubai-transport'
 import customRoutesRouter from './routes/custom-routes'
 import geocodeRouter from './routes/geocode'
 import voiceChatRouter, { initVoiceChatWebSocket } from './routes/voice-chat'
+import collabRouter, { initCollabWebSocket } from './routes/collab'  // 实时协作带看 (isolated; see docs/luna-collaborative-tour-spec.md)
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
 import voiceDebugRouter from './routes/voice-debug'
@@ -115,6 +116,7 @@ app.use('/api/voice-chat', voiceChatRouter)  // Voice chat health check (legacy)
 app.use('/api/voice', voiceTokenRouter)  // Ephemeral token generation
 app.use('/api/voice/tools', voiceToolsRouter)  // Tool execution
 app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
+app.use('/api/collab', collabRouter)  // 实时协作带看 REST (建房/校验); WS 在 /api/collab
 app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/ai/analytics', aiAnalyticsRouter)  // AI investment/ROI/budget analysis (DLD data)
@@ -152,6 +154,9 @@ const server = app.listen(PORT, async () => {
 
   // Initialize WebSocket server for voice chat
   initVoiceChatWebSocket(server)
+
+  // Initialize WebSocket server for collab tour (co-presence) — same http server, path /api/collab
+  initCollabWebSocket(server)
 
   // Recover any tasks that were interrupted by server restart
   await taskManager.recoverInterruptedTasks()

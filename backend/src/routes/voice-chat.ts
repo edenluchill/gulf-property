@@ -28,9 +28,21 @@ let wss: WebSocketServer | null = null
  * Initialize WebSocket server for voice chat
  */
 export function initVoiceChatWebSocket(server: Server): void {
-  wss = new WebSocketServer({
-    server,
-    path: '/api/voice-chat'
+  // noServer + 自管 upgrade 路由:同一 http server 上多个 WSS 必须这样,
+  // 否则 `{server, path}` 模式下先注册的 WSS 会对不匹配自己 path 的 upgrade
+  // 直接 abort 400(把 /api/collab 的握手也杀掉)。各自只处理自己的 path、
+  // 不碰别人的,互不干扰。
+  wss = new WebSocketServer({ noServer: true })
+
+  server.on('upgrade', (req, socket, head) => {
+    let pathname: string
+    try {
+      pathname = new URL(req.url || '', 'http://localhost').pathname
+    } catch {
+      return
+    }
+    if (pathname !== '/api/voice-chat') return // 不是我的 path —— 留给别的监听器,别 destroy
+    wss!.handleUpgrade(req, socket, head, (ws) => wss!.emit('connection', ws, req))
   })
 
   console.log('🎤 Voice chat WebSocket server initialized at /api/voice-chat')

@@ -9,7 +9,7 @@ import Map, {
   MapRef
 } from 'react-map-gl/maplibre'
 import Supercluster from 'supercluster'
-import { type MapLayerMouseEvent } from 'maplibre-gl'
+import { type MapLayerMouseEvent, type Map as MaplibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
 import { Globe, Ruler, X } from 'lucide-react'
@@ -103,6 +103,10 @@ interface MapViewMapLibreProps {
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
   /** Fired once the map's first frame has settled (idle) — for a load overlay. */
   onReady?: () => void
+  /** Fired once with the live maplibre Map instance after load. Used by the
+   *  collab co-presence layer to drive the camera imperatively (getMap). Optional
+   *  — normal callers don't pass it; behaviour is identical when omitted. */
+  onMapReady?: (map: MaplibreMap) => void
   onClusterClick?: (cluster: any) => void
   onProjectClick?: (project: MapPinProject) => void
   onAreaClick?: (area: DubaiArea) => void
@@ -139,6 +143,7 @@ function MapViewMapLibre({
   projects = [],
   onBoundsChange,
   onReady,
+  onMapReady,
   onProjectClick,
   onAreaClick,
   onPoiClick,
@@ -396,6 +401,10 @@ function MapViewMapLibre({
 
     setMapLoaded(true)
 
+    // Hand the live map instance to the collab layer (if any) so it can drive the
+    // camera imperatively. Fires once; harmless when onMapReady is omitted.
+    onMapReady?.(map)
+
     // Signal "ready" once the first frame has actually settled (tiles + layers),
     // so the parent can fade out the load overlay. Fallback timer guarantees the
     // overlay never sticks even if 'idle' is slow on a flaky network.
@@ -418,7 +427,7 @@ function MapViewMapLibre({
         }, map.getZoom())
       }
     }, 100)
-  }, [onBoundsChange, onReady, tourActive])
+  }, [onBoundsChange, onReady, onMapReady, tourActive])
 
   // ─── Project pin clustering (supercluster) ────────────────────────────────
   // Group overlapping project pins into a count bubble so the back pins stay

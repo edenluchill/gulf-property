@@ -76,6 +76,8 @@ function App() {
       <Routes>
         {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
         <Route path="/v/:code" element={<MapPage />} />
+        {/* Collab co-presence: a guest opens a live tour link (public, no login) */}
+        <Route path="/t/:code" element={<MapPage />} />
         {/* Verifiable, printable fact sheet (sources cited) */}
         <Route path="/factsheet/:code" element={<FactSheet />} />
         {/* Full-screen visual storyboard editor */}

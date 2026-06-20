@@ -1,0 +1,206 @@
+/**
+ * Collab Rooms — 内存房间管理(实时协作带看)
+ *
+ * 纯逻辑层:房间 / 参与者 / seq / ring / 扇出。
+ * 单进程内存即可(spec §6)。不碰 DB、不依赖 express。
+ * 未来水平扩展才需 Redis pub/sub —— 不提前做。
+ */
+
+import type { WebSocket } from 'ws'
+
+export type Role = 'presenter' | 'viewer'
+
+export interface Participant {
+  connId: string
+  ws: WebSocket
+  name: string
+  role: Role
+  lastSeq: number
+}
+
+// 已盖 seq 的可靠消息原文(原样存进 ring,供 resumeSeq 补发)
+export interface ReliableMsg {
+  seq: number
+  [key: string]: any
+}
+
+export interface Room {
+  id: string
+  code: string                          // 短分享码
+  presenterConnId: string | null
+  participants: Map<string, Participant>
+  selected: any | null                  // 最近一次 select 事件 payload
+  lastCam: any | null                   // 最近一次 cam 快照
+  recentChat: any[]                     // 最近 ~30 条 chat,供 sync
+  seq: number                           // 单调递增,盖在可靠事件上
+  ring: ReliableMsg[]                   // 最近 ~200 条可靠事件,供 resumeSeq 补发
+  createdAt: number
+}
+
+const RECENT_CHAT_MAX = 30
+const RING_MAX = 200
+const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000   // 空房 10 分钟回收
+
+const rooms = new Map<string, Room>()      // id -> Room
+const codeToId = new Map<string, string>() // code -> id
+
+// 去掉易混的 0/O/1/I
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function randomCode(len = 5): string {
+  let out = ''
+  for (let i = 0; i < len; i++) {
+    out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+  }
+  return out
+}
+
+function genId(): string {
+  return `room_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function genConnId(): string {
+  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function createRoom(_creatorName?: string): { room: Room; code: string } {
+  // 保证 code 唯一(碰撞极罕见,但兜一下)
+  let code = randomCode()
+  while (codeToId.has(code)) code = randomCode()
+
+  const room: Room = {
+    id: genId(),
+    code,
+    presenterConnId: null,
+    participants: new Map(),
+    selected: null,
+    lastCam: null,
+    recentChat: [],
+    seq: 0,
+    ring: [],
+    createdAt: Date.now()
+  }
+  rooms.set(room.id, room)
+  codeToId.set(code, room.id)
+  return { room, code }
+}
+
+export function getRoomByCode(code: string): Room | null {
+  if (!code) return null
+  const id = codeToId.get(code.toUpperCase())
+  if (!id) return null
+  return rooms.get(id) ?? null
+}
+
+/**
+ * 加入房间。校验 code,分配 connId,挂上 participant。
+ * 若房间还没 presenter 且新人是 presenter 角色,设为 presenterConnId。
+ */
+export function joinRoom(
+  code: string,
+  ws: WebSocket,
+  name: string,
+  role: Role = 'viewer'
+): { participant: Participant; room: Room } | null {
+  const room = getRoomByCode(code)
+  if (!room) return null
+
+  const connId = genConnId()
+  const participant: Participant = { connId, ws, name, role, lastSeq: 0 }
+  room.participants.set(connId, participant)
+
+  if (role === 'presenter' && room.presenterConnId === null) {
+    room.presenterConnId = connId
+  }
+  return { participant, room }
+}
+
+export function leave(room: Room, connId: string): void {
+  room.participants.delete(connId)
+  if (room.presenterConnId === connId) {
+    room.presenterConnId = null
+  }
+}
+
+export function nextSeq(room: Room): number {
+  room.seq += 1
+  return room.seq
+}
+
+/**
+ * 盖 seq 后入 ring + 视类型更新房间状态(selected/lastCam/recentChat)。
+ * 传入的 msg 必须已经盖好 seq(由调用方先 nextSeq 再设上)。
+ */
+export function pushReliable(room: Room, msg: ReliableMsg): void {
+  room.ring.push(msg)
+  if (room.ring.length > RING_MAX) {
+    room.ring.splice(0, room.ring.length - RING_MAX)
+  }
+
+  switch (msg.k) {
+    case 'chat':
+      room.recentChat.push(msg)
+      if (room.recentChat.length > RECENT_CHAT_MAX) {
+        room.recentChat.splice(0, room.recentChat.length - RECENT_CHAT_MAX)
+      }
+      break
+    case 'select':
+      room.selected = msg
+      break
+    case 'goto':
+      // goto 也代表镜头落点,记为 lastCam 的离散版本不必要 —— 留作纯事件
+      break
+    default:
+      break
+  }
+}
+
+/**
+ * 扇出给房间内其它人(可排除发送者)。逐个 ws.send,坏连接静默跳过。
+ */
+export function fanout(room: Room, msg: any, exceptConnId?: string): void {
+  const text = JSON.stringify(msg)
+  for (const p of room.participants.values()) {
+    if (p.connId === exceptConnId) continue
+    try {
+      p.ws.send(text)
+    } catch {
+      // 坏连接由 close/error handler 清理,这里不抛
+    }
+  }
+}
+
+/**
+ * 空房 GC:无人后 TTL 到期删除。可由 setInterval 周期调用。
+ */
+export function gcEmptyRooms(now = Date.now()): number {
+  let removed = 0
+  for (const room of rooms.values()) {
+    if (room.participants.size === 0 && now - room.createdAt > EMPTY_ROOM_TTL_MS) {
+      rooms.delete(room.id)
+      codeToId.delete(room.code)
+      removed++
+    }
+  }
+  return removed
+}
+
+let gcTimer: NodeJS.Timeout | null = null
+
+export function startRoomGc(intervalMs = 60 * 1000): void {
+  if (gcTimer) return
+  gcTimer = setInterval(() => gcEmptyRooms(), intervalMs)
+  gcTimer.unref?.()  // 别拦住进程退出(测试友好)
+}
+
+export function stopRoomGc(): void {
+  if (gcTimer) {
+    clearInterval(gcTimer)
+    gcTimer = null
+  }
+}
+
+// 测试 / 调试用
+export function _roomCount(): number {
+  return rooms.size
+}
