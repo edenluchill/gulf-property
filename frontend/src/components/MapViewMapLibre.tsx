@@ -386,6 +386,7 @@ function getHeatmapColor(
 import { MapPinProject } from '../lib/api'
 import { getImageUrl } from '../lib/image-utils'
 import { formatMoneyCompact, formatCountCompact, formatMoneyFull } from '../lib/money'
+import DirhamSymbol from './DirhamSymbol'
 
 const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
   const [isHovered, setIsHovered] = useState(false)
@@ -577,25 +578,41 @@ const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; o
 // Click zooms in to split the group apart so every pin becomes reachable.
 // ============================================================================
 
-const ClusterBubble = memo(({ count, lng, lat, onClick }: {
-  count: number; lng: number; lat: number; onClick: () => void
+const ClusterBubble = memo(({ count, minPrice, lng, lat, onClick }: {
+  count: number; minPrice: number | null; lng: number; lat: number; onClick: () => void
 }) => {
-  // Scale the bubble a touch with the count so big groups read as bigger.
-  const size = count >= 100 ? 52 : count >= 25 ? 46 : count >= 10 ? 40 : 36
+  const { i18n } = useTranslation()
+  const lang = i18n.language || 'en'
+  const isZh = lang.startsWith('zh')
+  // Count circle grows a touch with group size; the pill also shows the cheapest
+  // "from" price in the group so a cluster says something useful, not just a number.
+  const circle = count >= 100 ? 32 : count >= 25 ? 29 : count >= 10 ? 26 : 23
+  const hasPrice = minPrice != null && isFinite(minPrice) && minPrice > 0
   return (
     <Marker longitude={lng} latitude={lat} anchor="center" style={{ zIndex: 3 }}
       onClick={(e) => { e.originalEvent.stopPropagation(); onClick() }}>
       <div
-        className="cursor-pointer transition-transform hover:scale-110 flex items-center justify-center font-bold text-white select-none"
-        style={{
-          width: size, height: size, borderRadius: '50%',
-          background: 'radial-gradient(circle at 30% 30%, #334155 0%, #1e293b 70%, #0f172a 100%)',
-          border: '2.5px solid rgba(255,255,255,0.9)',
-          boxShadow: '0 3px 10px rgba(0,0,0,0.35)',
-          fontSize: count >= 100 ? 15 : 14,
-        }}
+        className="group flex cursor-pointer select-none items-center rounded-full bg-white py-1 shadow-[0_4px_16px_rgba(0,0,0,0.22)] ring-1 ring-black/5 transition-transform hover:scale-105"
+        style={{ paddingLeft: 4, paddingRight: hasPrice ? 10 : 4 }}
       >
-        {count}
+        <span
+          className="flex items-center justify-center rounded-full font-bold leading-none text-white"
+          style={{
+            width: circle, height: circle,
+            background: 'linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)',
+            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35)',
+            fontSize: count >= 100 ? 12.5 : 12,
+          }}
+        >
+          {count}
+        </span>
+        {hasPrice && (
+          <span className="ml-1.5 flex items-center gap-0.5 whitespace-nowrap text-[11px] font-bold leading-none text-slate-700">
+            <span className="font-medium text-slate-400">{isZh ? '起' : 'from'}</span>
+            <DirhamSymbol size="0.85em" className="text-slate-400" />
+            {formatMoneyCompact(minPrice, lang)}
+          </span>
+        )}
       </div>
     </Marker>
   )
@@ -1048,7 +1065,13 @@ function MapViewMapLibre({
   // when the camera settles (moveEnd) — markers are geo-anchored so they pan
   // correctly without per-frame work.
   const superclusterIndex = useMemo(() => {
-    const idx = new Supercluster<{ project: MapPinProject }>({ radius: 56, maxZoom: 16 })
+    // Aggregate the cheapest "from" price across each cluster so the bubble can
+    // show it (Infinity = no priced project in the group).
+    const idx = new Supercluster<{ project: MapPinProject }, { minPrice: number }>({
+      radius: 56, maxZoom: 16,
+      map: (props) => ({ minPrice: props.project?.minPrice ?? Infinity }),
+      reduce: (acc, props) => { if (props.minPrice < acc.minPrice) acc.minPrice = props.minPrice },
+    })
     idx.load(projects.map(p => ({
       type: 'Feature' as const,
       properties: { project: p },
@@ -1631,6 +1654,7 @@ function MapViewMapLibre({
                   <ClusterBubble
                     key={`cluster-${f.properties.cluster_id}`}
                     count={f.properties.point_count}
+                    minPrice={isFinite(f.properties.minPrice) ? f.properties.minPrice : null}
                     lng={lng}
                     lat={lat}
                     onClick={() => zoomToCluster(f.properties.cluster_id, lng, lat)}
