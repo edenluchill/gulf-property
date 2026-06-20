@@ -71,6 +71,12 @@ const SATELLITE_STYLE = {
 
 type BaseMap = 'vector' | 'satellite' | 'dark'
 
+// Initial camera. The map runs UNCONTROLLED (initialViewState only) — we never
+// mirror the view into React state, so panning/zooming triggers no component
+// re-render. Camera reads happen imperatively via mapRef.getMap(); programmatic
+// moves go through map.flyTo. (Per the project's own map perf rule.)
+const INITIAL_VIEW = { longitude: 55.089, latitude: 25.019, zoom: 10.115216007819594, pitch: 0, bearing: 0 }
+
 // Web-mercator latitude → slippy tile Y at a given zoom (for tile prefetching).
 const lat2tileY = (lat: number, z: number) =>
   Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * 2 ** z)
@@ -952,14 +958,6 @@ function MapViewMapLibre({
   const [hoveredAreaId, setHoveredAreaId] = useState<string | null>(null)
   const boundsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 地图初始视图
-  const [viewState, setViewState] = useState({
-    longitude: 55.089,
-    latitude: 25.019,
-    zoom: 10.115216007819594,
-    pitch: 0,
-    bearing: 0
-  })
 
   // 3D 倾斜视角：独立于底图(地图/卫星/夜景都可用)。开启后相机俯角看,
   // 配合电影 flyTo 俯冲。pitchedRef 供 flyTo effect 读取(避免把 pitched 放进
@@ -1466,8 +1464,7 @@ function MapViewMapLibre({
     <div className="h-full w-full">
       <Map
         ref={mapRef}
-        {...(tourActive ? { initialViewState: viewState } : viewState)}
-        onMove={evt => { if (!tourActive) setViewState(evt.viewState) }}
+        initialViewState={INITIAL_VIEW}
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
         attributionControl={false}
