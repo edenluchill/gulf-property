@@ -1,8 +1,82 @@
 # Luna 实时协作带看(Co-Presence)—— 系统设计 Spec
 
-状态:Draft · 2026-06-20(重写:聚焦多人实时,删去单人冗余)
+状态:**MVP 已上线生产**(2026-06-20)· 接手指南见下方 §H
 归属:Luna Tour(B2B2C 高端经纪 demo SaaS)下的实时协作模块
 前置评估:`docs/reports/2026-06-20-collaborative-map-commercial-value.md`
+
+---
+
+## H. 实现现状与接手指南(Handoff · 2026-06-20)
+
+> 后面 §0–§12 是设计原文。本节是**实际落地了什么 + 怎么测 + 还剩什么**,接手先读这里。
+
+### H.1 现状一句话
+MVP 已实现、本地+生产双重端到端验证通过、已部署上线(commit `15b6379`)。经纪在 `pinzos.com` 登录点「开始带看」→ 分享 `pinzos.com/t/<code>` → 客户免登录进房,镜头跟随经纪、能聊天、能脱离自己逛再跟回、能问 Luna。**人声 MVP 走线下电话**(Agora 是第二阶段)。
+
+### H.2 代码地图
+
+**后端**
+| 文件 | 作用 |
+|---|---|
+| `backend/src/routes/collab.ts` | `initCollabWebSocket(server)`(noServer + `/api/collab` upgrade 路由)+ REST:`POST /api/collab/rooms`、`GET /api/collab/rooms/:code`、`GET /api/collab/health`。协议处理 / seq / ring / resume / 25s ping / join·leave。**`persistRoomEvent` 是 DB 持久化 stub(空)**。 |
+| `backend/src/services/collab-rooms.ts` | 内存房间 `Map`:`createRoom/getRoomByCode/joinRoom/leave/nextSeq/pushReliable/fanout/startRoomGc`。分享码 5 位(去 0/O/1/I)。空房 10 分钟回收。 |
+| `backend/src/routes/voice-chat.ts` | **改为 noServer + 自管 upgrade**(WS 多 path 修复,见 H.5)。 |
+| `backend/src/index.ts` | 注册 collab router + `initCollabWebSocket(server)`。 |
+| `backend/scripts/test-collab.ts` | WS 集成测试(19 断言)。`cd backend && npm run test:collab`。 |
+
+**前端**(全在 `frontend/src/luna-tour/collab/`,除标注外)
+| 文件 | 作用 |
+|---|---|
+| `protocol.ts` | 消息类型、`Cam`、`RELIABLE_KINDS`、`collabWsUrl()`(http→ws/https→wss)。**协议事实源**。 |
+| `follow-math.ts` | `lerp/lerpAngle/stepCamera/cameraConverged/shouldSendCam/classifyMove`。netcode 数学心脏。 |
+| `CollabClient.ts` | 框架无关连接:hello / 指数退避重连 / 心跳 / seq 去重 / resumeSeq。 |
+| `useCollabSocket/Presenter/Follow.ts` | 三个薄 React hook。 |
+| `useCollab.ts` | 给 MapPage 用的组合 hook(browse 模式零挂载)。 |
+| `collab-actions.ts` | 纯决策函数(`selectMessage/chatMessage/shouldStoreRemoteTarget`)。 |
+| `collabApi.ts` | REST 包装 `createCollabRoom/getCollabRoom`。 |
+| `CollabBar.tsx` | 参与者圆点 / 聊天面板 / 🎤 disabled 占位 / Free 时「回到 X 视角」pill。 |
+| `CollabFrame.tsx` | accent 模式外框 + 「实时带看中·与 X」session 栏 + presenter 分享链接条。 |
+| `__tests__/collab.test.ts` | 15 单测。`npx tsx --test src/luna-tour/collab/__tests__/collab.test.ts`。 |
+| `components/MapViewMapLibre.tsx` | 加可选 `onMapReady?(map)` prop,其余零改动。 |
+| `pages/MapPage.tsx` | 三模式(browse/presenter/viewer)、`isCollabViewerPath` 守卫、`useCollab` 接线、movestart 脱离、「开始带看」(owner)、select/mapAction 广播。 |
+| `App.tsx` | 公开路由 `/t/:code` → MapPage。 |
+| `lib/config.ts` | `ENV` 兜底,使模块能在 node(测试)下 import。 |
+| `scripts/test-collab-e2e.mjs` | Playwright 端到端冒烟(node 扮 presenter + 真浏览器 viewer)。`BE=.. FE=.. node scripts/test-collab-e2e.mjs`。 |
+
+### H.3 路由(别再撞车)
+- `/v/:code` = **luna-tour 公开观看**(既有,另一套)。
+- `/t/:code` = **collab viewer**(本功能,公开免登录)。
+- `MapPage` 里 `isCollabViewerPath` 守卫确保 `/t/` 的 `:code` **不喂给 `tourCode`**,否则会叠加 luna-tour 的"导览不存在" overlay。
+
+### H.4 怎么验证(三条命令 + 一个 e2e)
+```bash
+cd backend && npm run test:collab                                   # 后端 19 断言
+cd frontend && npx tsx --test src/luna-tour/collab/__tests__/collab.test.ts   # 前端 15 单测
+# 端到端(需先起 backend npm run dev + frontend npm run dev):
+cd frontend && BE=http://localhost:3000 FE=http://localhost:5174 node scripts/test-collab-e2e.mjs
+# 生产复验:BE=https://api.pinzos.com FE=https://pinzos.com node scripts/test-collab-e2e.mjs
+```
+
+### H.5 已知坑(必看)
+**同一 http server 多个 WebSocketServer 必须用 `noServer` + 自管 upgrade**,不能用 `{server,path}`——先注册的 WSS 会把别的 path 的握手 abort 成 400。voice-chat 和 collab 都已按 noServer 写。以后加任何 WS 端点照此,且**必须用真 WS 客户端测**(health 检查查不出)。
+
+### H.6 部署
+- 后端:改完跑 `backend/quick-deploy.ps1`(docker 镜像 → Hetzner,~3 min)。
+- 前端:push 到 `main` → Cloudflare Pages 自动部署(~1-2 min)。
+- WS 穿 Cloudflare 橙云正常,25s 应用层 ping 处理 100s 空闲超时,无需额外 CF 配置。
+
+### H.7 待办(按优先级)
+1. **微信内置浏览器真机冒烟**(owner 手动,头号验收):微信打开 `/t/<code>`,验 WebGL 地图 / WS / autoplay 跑通。
+2. **DB 持久化**:`persistRoomEvent` 落 `collab_rooms`(chat + 事件日志),供带看后意向报告(沿用 `luna_sessions` JSONB 思路)。现为空 stub。
+3. **第二阶段人声 = Agora**(§8.5):App ID + 证书 → 接 Cloud Recording → R2 → Gemini 转写 → 意向报告。需双方知情同意。demo ≈ $5/月。
+4. **viewer 沉浸打磨**:viewer 模式仍露站点顶栏,可隐藏只留地图+外框。
+5. **P2 增强**:`cur` 光标共享(GL symbol layer,后端已扇出、前端未渲染)、presenter handoff(`role` 事件后端已支持、无 UI)、>1 客户参与者头像、chat 时间戳穿插排序。
+6. **Redis pub/sub**:仅当后端水平扩展到多实例时才需要,现单进程不做。
+
+### H.8 当前实现的取舍(非 bug,有意为之)
+- 🎤 静音键 = disabled 占位(应用内语音是第二阶段)。
+- `select` 远端:viewer 飞到坐标,不开项目详情弹窗(viewer 是公开页未必有该项目上下文)。
+- chat:自己的消息本地乐观回显,恒排在收到消息之后(协议无 chat 时间戳)。
 
 ---
 
