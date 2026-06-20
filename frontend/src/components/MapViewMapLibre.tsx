@@ -816,6 +816,13 @@ function MapViewMapLibre({
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  // True while the map is actively zooming/panning. We hide the DOM marker layer
+  // (pins/clusters/landmarks) during the gesture: each marker is a composited
+  // layer over the WebGL canvas, and re-compositing dozens of them every frame
+  // forces a GPU read-back path that froze zoom to ~1fps on real GPUs (proven by
+  // headed CPU profiling). Markers reappear ~180ms after the camera settles.
+  const [mapMoving, setMapMoving] = useState(false)
+  const moveShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [baseMap, setBaseMapState] = useState<BaseMap>(
     () => ((localStorage.getItem('map-base') as BaseMap) || 'satellite')
   )
@@ -1069,6 +1076,21 @@ function MapViewMapLibre({
     updateLandmarkScale()
     map.on('zoomend', updateLandmarkScale)
 
+    // Hide DOM markers during movement (see mapMoving above). Hide instantly on
+    // gesture start; reveal a beat after it settles so a multi-step wheel zoom
+    // doesn't flicker them on/off between steps. Skip in tour mode (few pins, and
+    // the cinematic camera moves constantly).
+    if (!tourActive) {
+      map.on('movestart', () => {
+        if (moveShowTimerRef.current) clearTimeout(moveShowTimerRef.current)
+        setMapMoving(true)
+      })
+      map.on('moveend', () => {
+        if (moveShowTimerRef.current) clearTimeout(moveShowTimerRef.current)
+        moveShowTimerRef.current = setTimeout(() => setMapMoving(false), 180)
+      })
+    }
+
     setMapLoaded(true)
 
     // Signal "ready" once the first frame has actually settled (tiles + layers),
@@ -1093,7 +1115,7 @@ function MapViewMapLibre({
         }, map.getZoom())
       }
     }, 100)
-  }, [onBoundsChange, onReady])
+  }, [onBoundsChange, onReady, tourActive])
 
   // ─── Project pin clustering (supercluster) ────────────────────────────────
   // Group overlapping project pins into a count bubble so the back pins stay
@@ -1744,16 +1766,19 @@ function MapViewMapLibre({
             只有 ~15 个，运镜逐帧重定位它们开销可忽略，不触发 Perf rule R2。
             Clusters（可能几百个）才是会抖动 flyTo 的 marker 海，tour 时仍隐藏；
             项目 pin 在 tour 模式下本来就只有 2-3 个 tour 房源。 */}
-        {dubaiLandmarks.map(lm => (
+        {/* Hidden mid-gesture (mapMoving) in normal mode to keep zoom/pan smooth;
+            always shown during a tour. */}
+        {(tourActive || !mapMoving) && dubaiLandmarks.map(lm => (
           <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
         ))}
         {/* Tour mode: render the 2-3 tour pins directly (no clustering). Normal
-            mode: render supercluster output — count bubbles + single pins. */}
+            mode: render supercluster output — count bubbles + single pins, but
+            only while the camera is settled (mapMoving guard). */}
         {tourActive
           ? projects.map(project => (
               <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
             ))
-          : clusterFeatures.map(f => {
+          : !mapMoving && clusterFeatures.map(f => {
               const [lng, lat] = f.geometry.coordinates
               if (f.properties.cluster) {
                 return (
