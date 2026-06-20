@@ -401,10 +401,6 @@ function MapViewMapLibre({
 
     setMapLoaded(true)
 
-    // Hand the live map instance to the collab layer (if any) so it can drive the
-    // camera imperatively. Fires once; harmless when onMapReady is omitted.
-    onMapReady?.(map)
-
     // Signal "ready" once the first frame has actually settled (tiles + layers),
     // so the parent can fade out the load overlay. Fallback timer guarantees the
     // overlay never sticks even if 'idle' is slow on a flaky network.
@@ -427,7 +423,17 @@ function MapViewMapLibre({
         }, map.getZoom())
       }
     }, 100)
-  }, [onBoundsChange, onReady, onMapReady, tourActive])
+  }, [onBoundsChange, onReady, tourActive])
+
+  // Hand the live map instance to the collab layer whenever onMapReady becomes
+  // available. The map's load handler runs ONCE; if collab attaches afterwards
+  // (presenter clicks "开始带看" on an already-loaded map), that one-shot can't
+  // fire again — so deliver the instance here on the onMapReady ↦ defined edge.
+  useEffect(() => {
+    if (!mapLoaded || !onMapReady) return
+    const map = mapRef.current?.getMap()
+    if (map) onMapReady(map)
+  }, [mapLoaded, onMapReady])
 
   // ─── Project pin clustering (supercluster) ────────────────────────────────
   // Group overlapping project pins into a count bubble so the back pins stay

@@ -441,12 +441,25 @@ export default function MapPage() {
         const pin = mapPins.find((p) => p.id === id)
         if (pin) setFlyToLocation({ lat: pin.lat, lng: pin.lng, zoom: 15 })
       } else {
+        // empty id = presenter closed the area panel → close ours too.
+        if (!id) {
+          setShowAreaDialog(false)
+          setShowAreaSheet(false)
+          return
+        }
         const area = dubaiAreas.find((a) => a.id === id)
         if (area) handleAreaClick(area)
       }
     },
     [mapPins, dubaiAreas]
   )
+
+  // Close the area panel; presenter broadcasts a clear so viewers close in sync.
+  const handleCloseArea = useCallback(() => {
+    setShowAreaDialog(false)
+    setShowAreaSheet(false)
+    if (collabActiveRef.current) collabSendRef.current.sendSelect('area', '')
+  }, [])
   const handleRemoteMapAction = useCallback(
     (action: unknown) => handleVoiceMapAction(action as MapAction),
     [handleVoiceMapAction]
@@ -527,8 +540,13 @@ export default function MapPage() {
   useEffect(() => {
     collabSetFreeRef.current = collab.setFree
   }, [collab.setFree])
+  // Idempotent: onMapReady may now deliver the instance more than once (load edge
+  // + onMapReady-defined edge). Always refresh the ref; attach movestart once.
+  const collabMapWiredRef = useRef(false)
   const handleCollabMapReady = useCallback((map: MaplibreMap) => {
     collabMapRef.current = map
+    if (collabMapWiredRef.current) return
+    collabMapWiredRef.current = true
     map.on('movestart', (e: { originalEvent?: unknown }) => {
       if (e.originalEvent) collabSetFreeRef.current()
     })
@@ -1273,7 +1291,7 @@ export default function MapPage() {
       {/* Desktop: Area Detail Dialog */}
       <AreaDetailDialog
         isOpen={showAreaDialog}
-        onClose={() => setShowAreaDialog(false)}
+        onClose={handleCloseArea}
         area={selectedArea}
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}
@@ -1803,7 +1821,7 @@ export default function MapPage() {
       {/* Mobile: Area Bottom Sheet */}
       <MobileBottomSheet
         isOpen={showAreaSheet}
-        onClose={() => setShowAreaSheet(false)}
+        onClose={handleCloseArea}
         title={selectedArea?.name || ''}
         subtitle={!i18n.language?.startsWith('en') ? selectedArea?.translations?.[i18n.language?.split('-')[0] ?? '']?.name : undefined}
       >
