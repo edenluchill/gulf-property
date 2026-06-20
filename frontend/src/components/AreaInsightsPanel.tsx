@@ -2,7 +2,8 @@
  * 区域洞察共享组件 —— 桌面 AreaDetailDialog 和移动端 bottom sheet 共用：
  * useAreaInsights(取数 hook) + AreaTrendGrid(四指标趋势卡) + AreaRecentTx(近期成交,可加载更多)
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { BadgeCheck, Info } from 'lucide-react'
 import { DubaiArea } from '../types'
@@ -32,8 +33,24 @@ export function useAreaInsights(areaId: string | undefined) {
 
 // ── 迷你趋势图（无依赖 SVG）────────────────────────────────────────────────
 
-function SparkLine({ data, color, showZero }: { data: (number | null)[]; color: string; showZero?: boolean }) {
+// Small floating value label that follows the hovered point on a spark chart.
+function SparkTip({ xPct, text, label }: { xPct: number; text: string; label?: string }) {
+  return (
+    <div
+      className="pointer-events-none absolute -top-6 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-lg"
+      style={{ left: `${Math.min(Math.max(xPct, 16), 84)}%` }}
+    >
+      {text}
+      {label ? <span className="ml-1 font-normal text-slate-400">{label}</span> : null}
+    </div>
+  )
+}
+
+function SparkLine({ data, color, showZero, labels, fmt }: {
+  data: (number | null)[]; color: string; showZero?: boolean; labels?: string[]; fmt?: (v: number) => string
+}) {
   const w = 132, h = 36
+  const [hover, setHover] = useState<number | null>(null)
   const vals = data.filter((v): v is number => v != null)
   if (vals.length < 2) {
     return <div className="flex h-9 items-center text-[10px] text-slate-300">—</div>
@@ -48,29 +65,75 @@ function SparkLine({ data, color, showZero }: { data: (number | null)[]; color: 
   })
   const line = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
   const fill = `${pts[0][0].toFixed(1)},${h} ${line} ${pts[pts.length - 1][0].toFixed(1)},${h}`
+
+  // map a 0..1 fraction to the nearest index that actually has a value
+  const pick = (frac: number) => {
+    let idx = Math.max(0, Math.min(Math.round(frac * (data.length - 1)), data.length - 1))
+    if (data[idx] == null) {
+      for (let d = 1; d < data.length; d++) {
+        if (data[idx - d] != null) { idx -= d; break }
+        if (data[idx + d] != null) { idx += d; break }
+      }
+    }
+    return data[idx] != null ? idx : null
+  }
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    setHover(pick((e.clientX - r.left) / r.width))
+  }
+  const hv = hover != null ? data[hover] : null
+  const hxPct = hover != null ? (hover / Math.max(data.length - 1, 1)) * 100 : 0
+  const hyPct = hv != null ? (y(hv) / h) * 100 : 0
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full" preserveAspectRatio="none">
-      {showZero && min < 0 && max > 0 && (
-        <line x1={0} x2={w} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="3,3" />
+    <div className="relative cursor-crosshair" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full" preserveAspectRatio="none">
+        {showZero && min < 0 && max > 0 && (
+          <line x1={0} x2={w} y1={y(0)} y2={y(0)} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="3,3" />
+        )}
+        <polygon points={fill} fill={color} opacity={0.1} />
+        <polyline points={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+      {hv != null && (
+        <>
+          <div className="pointer-events-none absolute bottom-0 top-0 w-px bg-slate-300/70" style={{ left: `${hxPct}%` }} />
+          <div
+            className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white"
+            style={{ left: `${hxPct}%`, top: `${hyPct}%`, background: color }}
+          />
+          <SparkTip xPct={hxPct} text={fmt ? fmt(hv) : Math.round(hv).toLocaleString()} label={labels?.[hover!]} />
+        </>
       )}
-      <polygon points={fill} fill={color} opacity={0.1} />
-      <polyline points={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    </div>
   )
 }
 
-function SparkBars({ data, color }: { data: number[]; color: string }) {
+function SparkBars({ data, color, labels, fmt }: {
+  data: number[]; color: string; labels?: string[]; fmt?: (v: number) => string
+}) {
   const w = 132, h = 36
+  const [hover, setHover] = useState<number | null>(null)
   if (!data.length) return <div className="flex h-9 items-center text-[10px] text-slate-300">—</div>
   const max = Math.max(...data, 1)
   const bw = w / data.length
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const idx = Math.floor(((e.clientX - r.left) / r.width) * data.length)
+    setHover(Math.max(0, Math.min(idx, data.length - 1)))
+  }
+  const hxPct = hover != null ? ((hover + 0.5) / data.length) * 100 : 0
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full" preserveAspectRatio="none">
-      {data.map((v, i) => {
-        const bh = Math.max((v / max) * (h - 4), v > 0 ? 1.5 : 0)
-        return <rect key={i} x={i * bw + 0.5} y={h - bh} width={Math.max(bw - 1, 1)} height={bh} fill={color} opacity={0.55} rx={1} />
-      })}
-    </svg>
+    <div className="relative cursor-crosshair" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-full" preserveAspectRatio="none">
+        {data.map((v, i) => {
+          const bh = Math.max((v / max) * (h - 4), v > 0 ? 1.5 : 0)
+          return <rect key={i} x={i * bw + 0.5} y={h - bh} width={Math.max(bw - 1, 1)} height={bh} fill={color} opacity={hover === i ? 0.95 : 0.55} rx={1} />
+        })}
+      </svg>
+      {hover != null && (
+        <SparkTip xPct={hxPct} text={fmt ? fmt(data[hover]) : data[hover].toLocaleString()} label={labels?.[hover]} />
+      )}
+    </div>
   )
 }
 
@@ -78,26 +141,44 @@ function SparkBars({ data, color }: { data: number[]; color: string }) {
 // (and, when passed, the evidence: how many leases it's based on). Works on
 // mobile (click) and desktop; a full-screen catcher closes it on outside click.
 function InfoHint({ title, text, evidence }: { title: string; text: string; evidence?: string }) {
-  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  // Render the popover in a body portal with viewport-clamped fixed position so
+  // it can't be clipped by the dialog's rounded/overflow edges (was cut off).
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (pos) { setPos(null); return }
+    const r = btnRef.current?.getBoundingClientRect()
+    if (!r) return
+    const W = 248
+    const left = Math.max(8, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 8))
+    setPos({ top: r.bottom + 6, left })
+  }
   return (
-    <span className="relative inline-flex shrink-0">
+    <span className="inline-flex shrink-0">
       <button
+        ref={btnRef}
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        onClick={toggle}
         className="text-slate-300 transition-colors hover:text-slate-500"
         aria-label="How it's calculated"
       >
         <Info className="h-3.5 w-3.5" />
       </button>
-      {open && (
+      {pos && createPortal(
         <>
-          <div className="fixed inset-0 z-[10005]" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute left-1/2 top-6 z-[10006] w-60 -translate-x-1/2 rounded-xl bg-slate-900 p-3 text-left shadow-xl">
+          <div className="fixed inset-0 z-[10005]" onClick={(e) => { e.stopPropagation(); setPos(null) }} />
+          <div
+            className="fixed z-[10006] w-[248px] rounded-xl bg-slate-900 p-3 text-left shadow-2xl"
+            style={{ top: pos.top, left: pos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{title}</div>
             <p className="text-[12px] font-normal leading-relaxed text-white">{text}</p>
             {evidence && <p className="mt-1.5 border-t border-white/10 pt-1.5 text-[11px] leading-relaxed text-slate-400">{evidence}</p>}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </span>
   )
@@ -207,7 +288,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
           chipClass={growthNow != null && growthNow >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}
           loading={loading}
         >
-          <SparkLine data={insights?.price || []} color="#0d9488" />
+          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(v).toLocaleString()} />
         </StatCard>
 
         <StatCard
@@ -215,7 +296,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
           value={area.transactionCount != null ? area.transactionCount.toLocaleString() : '—'}
           loading={loading}
         >
-          <SparkBars data={insights?.volume || []} color="#3b82f6" />
+          <SparkBars data={insights?.volume || []} color="#3b82f6" labels={insights?.months} fmt={(v) => v.toLocaleString()} />
         </StatCard>
 
         <StatCard
@@ -225,7 +306,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
           valueClass={growthNow != null && growthNow >= 0 ? 'text-emerald-600' : 'text-rose-600'}
           loading={loading}
         >
-          <SparkLine data={insights?.growth || []} color={growthNow != null && growthNow >= 0 ? '#059669' : '#e11d48'} showZero />
+          <SparkLine data={insights?.growth || []} color={growthNow != null && growthNow >= 0 ? '#059669' : '#e11d48'} showZero labels={insights?.months} fmt={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`} />
         </StatCard>
 
         <StatCard
@@ -234,7 +315,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
           value={yieldNow != null ? `${yieldNow.toFixed(1)}%` : '—'}
           loading={loading}
         >
-          <SparkLine data={insights?.rentalYield || []} color="#7c3aed" />
+          <SparkLine data={insights?.rentalYield || []} color="#7c3aed" labels={insights?.months} fmt={(v) => `${v.toFixed(1)}%`} />
         </StatCard>
 
         <StatCard
