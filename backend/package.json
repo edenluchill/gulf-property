@@ -25,7 +25,8 @@
     "cleanup-r2": "ts-node scripts/cleanup-pending-pdfs.ts",
     "test:collab": "ts-node scripts/test-collab.ts",
     "test:collab-persist": "ts-node scripts/test-collab-persist.ts",
-    "test:voice-rtc": "ts-node scripts/test-voice-rtc.ts"
+    "test:voice-rtc": "ts-node scripts/test-voice-rtc.ts",
+    "test:presenter-reconnect": "ts-node scripts/test-presenter-reconnect.ts"
   },
   "keywords": [
     "dubai",

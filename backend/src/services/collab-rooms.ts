@@ -122,7 +122,13 @@ export function joinRoom(
     room.peakParticipants = room.participants.size
   }
 
-  if (role === 'presenter' && room.presenterConnId === null) {
+  // A presenter (re)joining ALWAYS (re)claims the camera source. This makes
+  // presenter reconnects robust even when the old socket hasn't been cleaned up
+  // yet (a network drop can leave the dead socket lingering until its 25s ping
+  // fails). Without this, the reconnected presenter wouldn't own presenterConnId
+  // and its cam would be rejected → viewers freeze. Single-presenter model;
+  // explicit handoff is a separate `role` event.
+  if (role === 'presenter') {
     room.presenterConnId = connId
   }
   return { participant, room }
