@@ -9,8 +9,7 @@
 import { Helmet } from 'react-helmet-async'
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { motion } from 'framer-motion'
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Map as MapIcon, TrendingUp, Building2, Sparkles, Radio, FileText, Mic,
   Upload, Database, KeyRound, Ruler, Layers, ArrowRight, Languages, ShieldCheck,
@@ -20,12 +19,25 @@ const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
 const GRID = 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)'
 
-function Reveal({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
+/** Pure-CSS scroll reveal: a light IntersectionObserver toggles a class; the
+ *  animation itself is a GPU-composited CSS transition (opacity + transform) —
+ *  no per-element JS animation loop, so scrolling stays smooth. */
+function Reveal({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setShown(true); io.disconnect() } }, { rootMargin: '0px 0px -40px 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
   return (
-    <motion.div className={className} initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-50px' }} transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}>
+    <div ref={ref}
+      className={`${className} motion-safe:transition-[opacity,transform] motion-safe:duration-500 motion-safe:ease-out ${shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+      style={{ transitionDelay: shown ? `${delay}s` : '0s', willChange: shown ? 'auto' : 'opacity, transform' }}>
       {children}
-    </motion.div>
+    </div>
   )
 }
 
@@ -141,6 +153,24 @@ export default function AboutPage() {
         </div>
       </nav>
 
+      {/* ═══ SEE IT LIVE — Luna tour video ════════════════════ */}
+      <Section glow>
+        <Reveal><Label tone={ACCENT}>// {L('实况演示', 'SEE IT LIVE')}</Label>
+          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('Luna 带看,长这样', 'This is what a Luna tour looks like')}</h2></Reveal>
+        <Reveal delay={0.1} className="mt-8">
+          <div className="relative mx-auto max-w-4xl">
+            <Glow className="-inset-6" opacity={0.18} />
+            <div className="relative overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
+              <div className="flex items-center gap-1.5 bg-white/[0.06] px-3 py-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                <span className="ml-2 truncate font-mono text-[11px] text-slate-400">pinzos.com/?toursession=demo</span>
+              </div>
+              <video src="/luna-tour-demo.mp4" autoPlay muted loop playsInline preload="metadata" poster="/about-map.jpg" className="block w-full" />
+            </div>
+          </div>
+        </Reveal>
+      </Section>
+
       {/* ═══ FOR BUYERS — bento ════════════════════════════════ */}
       <Section id="buyers">
         <Reveal><Label tone={ACCENT}>// {L('给买家 / 投资人', 'FOR BUYERS / INVESTORS')}</Label>
@@ -149,11 +179,11 @@ export default function AboutPage() {
         <div className="mt-8 grid auto-rows-[150px] grid-cols-2 gap-3 md:grid-cols-4">
           {/* big: latest sales & rents */}
           <Reveal className="col-span-2 row-span-2" delay={0}>
-            <Tile className="h-full">
-              <TileHead icon={<TrendingUp />} title={L('最新成交 & 租约', 'Latest sales & rents')} />
-              <p className="text-sm text-slate-400">{L('每个区直接看 DLD 真实成交价与租约,不是估算。', 'Real DLD transaction prices and rental contracts per district — not estimates.')}</p>
-              <div className="mt-auto flex items-end gap-1.5">
-                {[40, 62, 48, 78, 56, 88, 70].map((h, i) => (<div key={i} className="flex-1 rounded-t" style={{ height: `${h}%`, background: i === 5 ? ACCENT : 'rgba(0,224,184,0.25)' }} />))}
+            <Tile className="h-full overflow-hidden">
+              <TileHead icon={<TrendingUp />} title={L('最新成交 & 区域指标', 'Real sales & area metrics')} />
+              <p className="text-sm text-slate-400">{L('每个区直接看 DLD 真实成交、租约与回报 — 不是估算。', 'Real DLD sales, rents and returns per district — not estimates.')}</p>
+              <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+                <img src="/about-area.jpg" alt={L('迪拜码头区域详情:真实成交与指标', 'Area detail: real transactions and metrics')} className="block w-full" loading="lazy" />
               </div>
             </Tile>
           </Reveal>
