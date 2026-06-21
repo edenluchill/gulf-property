@@ -72,30 +72,49 @@ export default function AboutPage() {
       <section className="relative overflow-hidden bg-slate-950 text-white">
         <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full opacity-20 blur-3xl" style={{ background: ACCENT }} />
         <div className="absolute -left-20 bottom-0 h-72 w-72 rounded-full bg-emerald-500 opacity-10 blur-3xl" />
-        <div className="relative mx-auto max-w-6xl px-6 py-20 md:py-28">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium" style={{ color: ACCENT }}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {L('迪拜期房 · 真实数据 · AI 驱动', 'Dubai Off-Plan · Real Data · AI-Powered')}
-          </span>
-          <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight md:text-6xl">
-            {L('买迪拜期房的', 'A smarter way to buy & sell')}<br />
-            <span style={{ color: ACCENT }}>{L('全新方式', 'Dubai off-plan')}</span>
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-300">
-            {L(
-              '一张交互式卫星地图,装下迪拜每个区的真实成交、租金与回报;AI 读懂开发商楼书;经纪能带海外客户实时在地图上看房、生成 AI 导览与意向报告。',
-              'One interactive satellite map with every district\'s real transactions, rents and returns; AI that reads developer brochures; and agents who guide overseas clients live on the map — with AI tours and buyer-intent reports.'
-            )}
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>
-              {L('打开地图探索', 'Open the map')} <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link to="/agent" className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15">
-              {L('我是经纪', 'I\'m an agent')}
-            </Link>
+        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-6 py-16 md:py-24 lg:grid-cols-2">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium" style={{ color: ACCENT }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {L('迪拜期房 · 真实数据 · AI 驱动', 'Dubai Off-Plan · Real Data · AI-Powered')}
+            </span>
+            <h1 className="mt-5 text-4xl font-bold leading-[1.1] md:text-5xl xl:text-6xl">
+              {L('买卖迪拜期房的', 'A smarter way to buy & sell')}<br />
+              <span style={{ color: ACCENT }}>{L('全新方式', 'Dubai off-plan')}</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-300">
+              {L(
+                '一张交互式卫星地图,装下迪拜每个区的真实成交、租金与回报;AI 读懂开发商楼书;经纪能带海外客户实时在地图上看房、生成 AI 导览与意向报告。',
+                'One interactive satellite map with every district\'s real transactions, rents and returns; AI that reads developer brochures; and agents who guide overseas clients live on the map — with AI tours and buyer-intent reports.'
+              )}
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>
+                {L('打开地图探索', 'Open the map')} <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link to="/agent" className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15">
+                {L('我是经纪', 'I\'m an agent')}
+              </Link>
+            </div>
           </div>
-          {/* credibility strip */}
-          <div className="mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+
+          {/* framed product shot — the single most "premium" element */}
+          <div className="relative">
+            <div className="absolute -inset-4 rounded-3xl opacity-20 blur-2xl" style={{ background: `linear-gradient(135deg, ${ACCENT}, transparent)` }} />
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/15">
+              <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+                <span className="ml-2 truncate text-[11px] text-slate-400">pinzos.com</span>
+              </div>
+              <img src="/about-map.jpg" alt={L('Pinzos 迪拜卫星地图,带真实成交与区域指标', 'Pinzos Dubai satellite map with real transactions and area metrics')} className="block w-full" loading="eager" />
+            </div>
+          </div>
+        </div>
+
+        {/* credibility strip — full width under the hero */}
+        <div className="relative mx-auto max-w-6xl px-6 pb-14">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { icon: <Database className="h-4 w-4" />, t: L('真实 DLD 数据', 'Real DLD data') },
               { icon: <Sparkles className="h-4 w-4" />, t: L('AI 解析与助手', 'AI parsing & assistant') },
@@ -110,6 +129,21 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* sticky section nav — product-page feel */}
+      <nav className="sticky top-0 z-20 border-b border-slate-100 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2.5 text-sm">
+          {([
+            ['map', L('地图情报', 'Map intelligence')],
+            ['investment', L('投资分析', 'Investment')],
+            ['ai', L('AI 解析', 'AI parsing')],
+            ['agents', L('经纪工具', 'For agents')],
+            ['pricing', L('定价', 'Pricing')],
+          ] as [string, string][]).map(([id, label]) => (
+            <a key={id} href={`#${id}`} className="whitespace-nowrap rounded-full px-3 py-1.5 font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">{label}</a>
+          ))}
+        </div>
+      </nav>
+
       {/* ── Two sides ───────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-6 py-16">
         <SectionTitle eyebrow={L('一个平台,两端受益', 'One platform, two sides')} title={L('给买家洞察,给经纪生意', 'Insight for buyers. Business for agents.')} />
@@ -122,7 +156,7 @@ export default function AboutPage() {
       </section>
 
       {/* ── Map intelligence ────────────────────────────────── */}
-      <section className="bg-slate-50 py-16">
+      <section id="map" className="scroll-mt-14 bg-slate-50 py-16">
         <div className="mx-auto max-w-6xl px-6">
           <SectionTitle eyebrow={L('地图情报', 'Map intelligence')} icon={<MapIcon className="h-5 w-5" />}
             title={L('整个迪拜,真实数据,一眼看懂', 'All of Dubai, in real data, at a glance')} />
@@ -138,7 +172,7 @@ export default function AboutPage() {
       </section>
 
       {/* ── Investment analytics ───────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section id="investment" className="mx-auto max-w-6xl scroll-mt-14 px-6 py-16">
         <SectionTitle eyebrow={L('投资分析', 'Investment analytics')} icon={<TrendingUp className="h-5 w-5" />}
           title={L('不止看价格,看 5 年后值多少', 'Beyond price — what it\'s worth in 5 years')} />
         <div className="grid items-center gap-8 md:grid-cols-2">
@@ -164,7 +198,7 @@ export default function AboutPage() {
       </section>
 
       {/* ── AI brochure pipeline ───────────────────────────── */}
-      <section className="bg-slate-950 py-16 text-white">
+      <section id="ai" className="scroll-mt-14 bg-slate-950 py-16 text-white">
         <div className="mx-auto max-w-6xl px-6">
           <SectionTitle dark eyebrow={L('AI 楼书解析', 'AI brochure parsing')} icon={<Sparkles className="h-5 w-5" />}
             title={L('上传一份楼书,自动变成结构化房源', 'Upload a brochure → a structured listing')} />
@@ -182,7 +216,7 @@ export default function AboutPage() {
       </section>
 
       {/* ── Agent monetization: live co-presence tour ──────── */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section id="agents" className="mx-auto max-w-6xl scroll-mt-14 px-6 py-16">
         <SectionTitle eyebrow={L('经纪变现 · 招牌功能', 'For agents · flagship')} icon={<Radio className="h-5 w-5" />}
           title={L('带海外客户,实时在地图上看房', 'Tour overseas clients live, on the map')} />
         <p className="mb-8 max-w-3xl text-slate-600 leading-relaxed">
@@ -220,6 +254,42 @@ export default function AboutPage() {
               <div className="mt-4 flex items-center gap-2 text-sm" style={{ color: ACCENT }}>
                 <ShieldCheck className="h-4 w-4" /> {L('反编造:无数据就说没有,绝不瞎编', 'No hallucination: if data is missing, it says so')}
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ─────────────────────────────────────────── */}
+      <section id="pricing" className="scroll-mt-14 bg-slate-50 py-16">
+        <div className="mx-auto max-w-6xl px-6">
+          <SectionTitle eyebrow={L('定价', 'Pricing')} icon={<KeyRound className="h-5 w-5" />}
+            title={L('买家免费探索,经纪灵活定价', 'Free for buyers, flexible for agents')} />
+          <div className="grid gap-5 md:grid-cols-2">
+            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/[0.06]">
+              <div className="text-sm font-semibold text-slate-500">{L('探索版', 'Explore')}</div>
+              <div className="mt-1 text-3xl font-bold text-slate-900">{L('免费', 'Free')}</div>
+              <p className="mt-2 text-sm text-slate-500">{L('给买家 / 投资人', 'For buyers / investors')}</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                {[L('交互式地图 + 真实 DLD 数据', 'Interactive map + real DLD data'), L('区域指标 + 项目详情', 'Area metrics + project detail'), L('投资分析 + Luna 助手', 'Investment analytics + Luna')].map((x, i) => (
+                  <li key={i} className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {x}</li>
+                ))}
+              </ul>
+              <Link to="/" className="mt-5 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: '#0d9488' }}>
+                {L('打开地图', 'Open the map')} <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm ring-1 ring-slate-900">
+              <div className="text-sm font-semibold" style={{ color: ACCENT }}>{L('经纪版', 'Agent')}</div>
+              <div className="mt-1 text-3xl font-bold">{L('灵活定价', 'Custom')}</div>
+              <p className="mt-2 text-sm text-slate-300">{L('给经纪 / 团队 · 联系洽询', 'For agents / teams · contact us')}</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-200">
+                {[L('实时海外带看 + 应用内语音', 'Live overseas tours + in-app voice'), L('Luna AI 智能导览', 'Luna AI guided tours'), L('买家意向报告', 'Buyer-intent reports'), L('AI 楼书解析', 'AI brochure parsing')].map((x, i) => (
+                  <li key={i} className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {x}</li>
+                ))}
+              </ul>
+              <a href="mailto:info@pinzos.com?subject=Pinzos%20Agent%20Plan" className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>
+                {L('联系洽询', 'Contact us')} <ArrowRight className="h-4 w-4" />
+              </a>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Building2, MapPin, Settings, LogIn, GitCompare, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, LineChart, ChevronDown } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
@@ -27,6 +27,7 @@ const theme = {
 
 export default function Header() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
   const { user, loading } = useAuth()
   const { profile } = useUserProfile()
@@ -185,7 +186,7 @@ export default function Header() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    setAboutOpen(true)
+                    navigate('/about')
                   }}
                   className="flex items-center justify-center w-3.5 h-3.5 xl:w-4 xl:h-4 rounded-full bg-teal-100 hover:bg-teal-200 transition-colors"
                   aria-label={t('nav:learnMore')}
@@ -222,11 +223,6 @@ export default function Header() {
               currentPath={location.pathname}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} panel={theme.panel} dark={theme.dark}
             />
-
-            {/* 功能介绍 / About（营销 + SEO 页） */}
-            <NavPill to="/about" active={location.pathname === '/about'} icon={HelpCircle}
-              label={i18n.language?.startsWith('zh') ? '功能' : 'About'}
-              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {/* 经纪人入口：已开通 → 经纪台；未开通 → 成为经纪（强调色） */}
             <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
