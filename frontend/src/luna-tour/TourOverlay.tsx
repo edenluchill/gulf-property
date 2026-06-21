@@ -39,6 +39,39 @@ function vibrate(ms: number | number[]) {
   }
 }
 
+// ── Caption chunking ───────────────────────────────────────────────────────
+// Show only 1–2 short sentences at a time (the full beat narration dumped on a
+// phone wrapped into a wall of text covering half the screen). We split on CJK +
+// latin sentence punctuation, pair short sentences / keep long ones solo, then
+// advance through the chunks with the beat clock (atMs). Speech pace is estimated
+// per language (CJK ~slower per char); exact sync isn't needed for a caption.
+function splitSentences(text: string): string[] {
+  const parts = text.replace(/\s+/g, ' ').trim().match(/[^。！？!?…\n]+[。！？!?…]*/g)
+  return parts ? parts.map(s => s.trim()).filter(Boolean) : [text.trim()].filter(Boolean)
+}
+function chunkCaption(text: string): string[] {
+  const MAX = 58
+  const chunks: string[] = []
+  let cur = '', count = 0
+  for (const s of splitSentences(text)) {
+    const merged = cur ? `${cur} ${s}` : s
+    if (cur && (count >= 2 || merged.length > MAX)) { chunks.push(cur); cur = s; count = 1 }
+    else { cur = merged; count++ }
+  }
+  if (cur) chunks.push(cur)
+  return chunks.length ? chunks : [text]
+}
+function pickCaption(chunks: string[], atMs: number): string {
+  if (chunks.length <= 1) return chunks[0] ?? ''
+  const cjk = /[　-鿿가-힯]/
+  let acc = 0
+  for (const c of chunks) {
+    acc += Math.max(1000, c.length * (cjk.test(c) ? 175 : 70))
+    if (atMs < acc) return c
+  }
+  return chunks[chunks.length - 1]
+}
+
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -107,6 +140,10 @@ export default function TourOverlay({
   // Live Q&A (§4.6): connects to Gemini Live when the customer asks. Self-contained.
   // onPoiCategory lets the Live AI drive the same POI filter the customer toggles.
   const live = useTourLive(() => mapRef.current, onPoiCategory)
+
+  // Caption: show 1–2 sentences at a time, advanced by the beat clock (atMs).
+  const captionChunks = useMemo(() => (snap?.narration ? chunkCaption(snap.narration) : []), [snap?.narration])
+  const captionText = useMemo(() => pickCaption(captionChunks, snap?.atMs ?? 0), [captionChunks, snap?.atMs])
 
   // enter/exit tour mode (hides app chrome via Layout)
   useEffect(() => {
@@ -575,10 +612,10 @@ export default function TourOverlay({
         </button>
       )}
 
-      {/* subtitle track — current narration while Luna is speaking */}
-      {started && subtitlesOn && snap?.narration && (state === 'playing' || state === 'reveal' || state === 'outro') && (
+      {/* subtitle track — 1–2 sentences at a time while Luna is speaking */}
+      {started && subtitlesOn && captionText && (state === 'playing' || state === 'reveal' || state === 'outro') && (
         <div className="lt-subtitle" aria-live="polite">
-          <span>{snap.narration}</span>
+          <span key={captionText}>{captionText}</span>
         </div>
       )}
 

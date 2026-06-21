@@ -503,12 +503,16 @@
 }
 .lt-subtitle span {
   display: inline; box-decoration-break: clone; -webkit-box-decoration-break: clone;
-  background: rgba(5, 7, 13, 0.42); color: rgba(255, 255, 255, 0.92);
-  padding: 3px 9px; border-radius: 8px; line-height: 1.55;
-  font-size: clamp(12px, 1.6vw, 15px); font-weight: 500;
+  background: rgba(5, 7, 13, 0.55); color: #fff;
+  padding: 4px 11px; border-radius: 9px; line-height: 1.6;
+  font-size: clamp(13px, 1.5vw, 16px); font-weight: 500;
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.92);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(5px);
+  /* fade each new 1–2 sentence chunk in (the span is remounted via React key) */
+  animation: lt-cap-in 0.3s ease both;
 }
+@keyframes lt-cap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .lt-subtitle span { animation: none; } }
 
 /* Luna pill (pause/ask) */
 .lt-luna {
@@ -723,7 +727,9 @@
   .lt-mute { width: 34px; height: 34px; bottom: 14px; right: 12px; font-size: 15px; }
   .lt-cc { height: 34px; bottom: 14px; right: 52px; padding: 0 10px; font-size: 12px; }
 
-  /* subtitle lower + a touch narrower on phones */
-  .lt-subtitle { bottom: 56px; max-width: 90%; }
+  /* phones: lift the caption clear of the bottom controls, keep it compact so
+     it never grows past ~2 short lines (the 1–2 sentence chunking handles length) */
+  .lt-subtitle { bottom: 76px; max-width: 92%; }
+  .lt-subtitle span { font-size: 14px; padding: 5px 11px; line-height: 1.5; }
 }
 @keyframes lt-slide-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }

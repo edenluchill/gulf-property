@@ -9,7 +9,7 @@ import Map, {
   MapRef
 } from 'react-map-gl/maplibre'
 import Supercluster from 'supercluster'
-import { type MapLayerMouseEvent, type Map as MaplibreMap } from 'maplibre-gl'
+import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
 import { Globe, Ruler, X } from 'lucide-react'
@@ -443,6 +443,99 @@ function MapViewMapLibre({
     const map = mapRef.current?.getMap()
     if (map) onMapReady(map)
   }, [mapLoaded, onMapReady])
+
+  // ─── Tour: landmarks as a GL symbol layer (anti-jitter) ───────────────────
+  // During a tour the camera is driven frame-by-frame via jumpTo(). DOM markers
+  // (the normal-mode <LandmarkMarker>) are repositioned by react-map-gl one frame
+  // LATE, so they jitter under the cinematic camera — and moving ~15 of them per
+  // frame drags the framerate (the camera looks shaky, the recording stutters).
+  // A symbol layer renders in the SAME GL frame as the camera → zero jitter, zero
+  // per-frame DOM work. We mirror the cutout look: icon = /landmarks/<slug>.png,
+  // text = localized name. Active only while a tour owns the camera; the normal
+  // map keeps the richer DOM cutouts (hover, settled-only, so they never jitter).
+  useEffect(() => {
+    if (!mapLoaded || !tourActive || !dubaiLandmarks.length) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    let cancelled = false
+    const SRC = 'host-landmarks'
+    const LAYER = 'host-landmarks-sym'
+    const addedIcons: string[] = []
+    const langKey = i18n.language?.split('-')[0]
+    const slugOf = (name: string) =>
+      name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+    const build = async () => {
+      if (cancelled) return
+      if (!map.isStyleLoaded()) { map.once('styledata', build); return }
+      const features: GeoJSON.Feature[] = []
+      await Promise.all(dubaiLandmarks.map(async lm => {
+        const slug = slugOf(lm.name)
+        const iconId = `lmk-${slug}`
+        let h = 120
+        if (!map.hasImage(iconId)) {
+          const img = await loadLandmarkImg(`/landmarks/${slug}.png`)
+          if (cancelled) return
+          if (img) {
+            try { map.addImage(iconId, img); addedIcons.push(iconId); h = img.naturalHeight || 120 } catch { /* race */ }
+          }
+        }
+        const hasIcon = map.hasImage(iconId)
+        const targetH = lm.size === 'large' ? 66 : lm.size === 'small' ? 44 : 54
+        const baseScale = hasIcon && h ? +(targetH / h).toFixed(3) : 0
+        const name = (langKey && lm.translations?.[langKey]?.name) || lm.name
+        features.push({
+          type: 'Feature',
+          properties: { icon: hasIcon ? iconId : '', name, baseScale },
+          geometry: { type: 'Point', coordinates: [lm.location.lng, lm.location.lat] },
+        })
+      }))
+      if (cancelled) return
+      const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features }
+      const existing = map.getSource(SRC) as GeoJSONSource | undefined
+      if (existing) { existing.setData(data); return }
+      map.addSource(SRC, { type: 'geojson', data })
+      map.addLayer({
+        id: LAYER,
+        type: 'symbol',
+        source: SRC,
+        layout: {
+          'icon-image': ['get', 'icon'],
+          'icon-size': ['get', 'baseScale'],
+          'icon-anchor': 'bottom',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-optional': true,
+          'symbol-z-order': 'viewport-y',
+          // Keep names flat & upright under the cinematic orbit (match area labels)
+          'text-rotation-alignment': 'viewport',
+          'text-pitch-alignment': 'viewport',
+          'text-field': ['get', 'name'],
+          'text-font': ['Open Sans Bold'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 14, 12],
+          'text-anchor': 'top',
+          'text-offset': [0, 0.35],
+          'text-allow-overlap': false,
+          'text-optional': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.85)',
+          'text-halo-width': 1.4,
+        },
+      })
+    }
+    void build()
+    return () => {
+      cancelled = true
+      const m = mapRef.current?.getMap()
+      if (m) {
+        if (m.getLayer(LAYER)) m.removeLayer(LAYER)
+        if (m.getSource(SRC)) m.removeSource(SRC)
+        addedIcons.forEach(id => { try { if (m.hasImage(id)) m.removeImage(id) } catch { /* ignore */ } })
+      }
+    }
+  }, [mapLoaded, tourActive, dubaiLandmarks, i18n.language])
 
   // ─── Project pin clustering (supercluster) ────────────────────────────────
   // Group overlapping project pins into a count bubble so the back pins stay
@@ -1098,9 +1191,10 @@ function MapViewMapLibre({
             只有 ~15 个，运镜逐帧重定位它们开销可忽略，不触发 Perf rule R2。
             Clusters（可能几百个）才是会抖动 flyTo 的 marker 海，tour 时仍隐藏；
             项目 pin 在 tour 模式下本来就只有 2-3 个 tour 房源。 */}
-        {/* Hidden mid-gesture (mapMoving) in normal mode to keep zoom/pan smooth;
-            always shown during a tour. */}
-        {(tourActive || !mapMoving) && dubaiLandmarks.map(lm => (
+        {/* Normal mode only: rich DOM cutouts, hidden mid-gesture (mapMoving) so
+            they never jitter. During a tour the GL symbol layer above renders the
+            landmarks instead (DOM markers lag the per-frame cinematic camera). */}
+        {!tourActive && !mapMoving && dubaiLandmarks.map(lm => (
           <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
         ))}
         {/* Tour mode: render the 2-3 tour pins directly (no clustering). Normal
@@ -1362,3 +1456,15 @@ function MapViewMapLibre({
 }
 
 export default memo(forwardRef<MapTourHandle, MapViewMapLibreProps>(MapViewMapLibre))
+
+/** Load a same-origin landmark cutout PNG as an <img> for map.addImage (GL symbol
+ *  icon). Resolves null on 404/error so a missing cutout falls back to text only. */
+function loadLandmarkImg(url: string): Promise<HTMLImageElement | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.decoding = 'async'
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
