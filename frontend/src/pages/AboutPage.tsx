@@ -287,15 +287,15 @@ export default function AboutPage() {
               price="$199"
               priceWas="$299"
               per={L('/ 月', '/ mo')}
-              badge={L('限时优惠', 'Intro offer')}
-              note={L('给经纪 / 团队', 'For agents / teams')}
+              badge={L('7 天免费试用', '7-day free trial')}
+              note={L('7 天免费 · 需绑卡 · 随时取消', '7 days free · card required · cancel anytime')}
               features={[
                 L('实时海外带看 20 场/月', '20 live tours / mo'),
                 L('Luna 智能导览 20 个/月', '20 Luna AI tours / mo'),
                 L('买家意向报告 30 份/月', '30 buyer-intent reports / mo'),
                 L('应用内语音 + AI 楼书解析', 'In-app voice + AI brochure parsing'),
               ]}
-              cta={{ label: L('立即开通', 'Get started'), href: 'mailto:info@pinzos.com?subject=Pinzos%20Agent%20Plan%20($199)' }}
+              cta={{ label: L('免费试用 7 天', 'Start 7-day free trial'), href: 'mailto:info@pinzos.com?subject=Pinzos%20Agent%20Plan%20-%207-day%20free%20trial' }}
             />
 
             {/* Founder — 5x */}
