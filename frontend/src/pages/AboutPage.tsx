@@ -128,7 +128,7 @@ export default function AboutPage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
                   <span className="ml-2 truncate font-mono text-[11px] text-slate-400">pinzos.com</span>
                 </div>
-                <img src="/about-map.jpg" alt={L('Pinzos 迪拜卫星地图', 'Pinzos Dubai satellite map')} className="block w-full" loading="eager" />
+                <img src={zh ? '/about-map.jpg' : '/about-map-en.jpg'} alt={L('Pinzos 迪拜卫星地图', 'Pinzos Dubai satellite map')} className="block w-full" loading="eager" />
               </div>
             </div>
           </Reveal>
@@ -165,7 +165,7 @@ export default function AboutPage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
                 <span className="ml-2 truncate font-mono text-[11px] text-slate-400">pinzos.com/?toursession=demo</span>
               </div>
-              <video src="/luna-tour-demo.mp4" autoPlay muted loop playsInline preload="metadata" poster="/about-map.jpg" className="block w-full" />
+              <video key={zh ? 'zh' : 'en'} src={zh ? '/luna-tour-demo.mp4' : '/luna-tour-demo-en.mp4'} autoPlay muted loop playsInline preload="metadata" poster={zh ? '/about-map.jpg' : '/about-map-en.jpg'} className="block w-full" />
             </div>
           </div>
         </Reveal>
@@ -183,7 +183,7 @@ export default function AboutPage() {
               <TileHead icon={<TrendingUp />} title={L('最新成交 & 区域指标', 'Real sales & area metrics')} />
               <p className="text-sm text-slate-400">{L('每个区直接看 DLD 真实成交、租约与回报 — 不是估算。', 'Real DLD sales, rents and returns per district — not estimates.')}</p>
               <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-                <img src="/about-area.jpg" alt={L('迪拜码头区域详情:真实成交与指标', 'Area detail: real transactions and metrics')} className="block w-full" loading="lazy" />
+                <img src={zh ? '/about-area.jpg' : '/about-area-en.jpg'} alt={L('迪拜码头区域详情:真实成交与指标', 'Area detail: real transactions and metrics')} className="block w-full" loading="lazy" />
               </div>
             </Tile>
           </Reveal>
