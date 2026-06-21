@@ -263,35 +263,61 @@ export default function AboutPage() {
       <section id="pricing" className="scroll-mt-14 bg-slate-50 py-16">
         <div className="mx-auto max-w-6xl px-6">
           <SectionTitle eyebrow={L('定价', 'Pricing')} icon={<KeyRound className="h-5 w-5" />}
-            title={L('买家免费探索,经纪灵活定价', 'Free for buyers, flexible for agents')} />
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/[0.06]">
-              <div className="text-sm font-semibold text-slate-500">{L('探索版', 'Explore')}</div>
-              <div className="mt-1 text-3xl font-bold text-slate-900">{L('免费', 'Free')}</div>
-              <p className="mt-2 text-sm text-slate-500">{L('给买家 / 投资人', 'For buyers / investors')}</p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                {[L('交互式地图 + 真实 DLD 数据', 'Interactive map + real DLD data'), L('区域指标 + 项目详情', 'Area metrics + project detail'), L('投资分析 + Luna 助手', 'Investment analytics + Luna')].map((x, i) => (
-                  <li key={i} className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {x}</li>
-                ))}
-              </ul>
-              <Link to="/" className="mt-5 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: '#0d9488' }}>
-                {L('打开地图', 'Open the map')} <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <div className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm ring-1 ring-slate-900">
-              <div className="text-sm font-semibold" style={{ color: ACCENT }}>{L('经纪版', 'Agent')}</div>
-              <div className="mt-1 text-3xl font-bold">{L('灵活定价', 'Custom')}</div>
-              <p className="mt-2 text-sm text-slate-300">{L('给经纪 / 团队 · 联系洽询', 'For agents / teams · contact us')}</p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-200">
-                {[L('实时海外带看 + 应用内语音', 'Live overseas tours + in-app voice'), L('Luna AI 智能导览', 'Luna AI guided tours'), L('买家意向报告', 'Buyer-intent reports'), L('AI 楼书解析', 'AI brochure parsing')].map((x, i) => (
-                  <li key={i} className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {x}</li>
-                ))}
-              </ul>
-              <a href="mailto:info@pinzos.com?subject=Pinzos%20Agent%20Plan" className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>
-                {L('联系洽询', 'Contact us')} <ArrowRight className="h-4 w-4" />
-              </a>
-            </div>
+            title={L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')} />
+          <div className="grid items-stretch gap-5 lg:grid-cols-3">
+
+            {/* Free */}
+            <PriceTier
+              name={L('探索版', 'Explore')}
+              price={L('免费', 'Free')}
+              note={L('给买家 / 投资人', 'For buyers / investors')}
+              features={[
+                L('交互式地图 + 真实 DLD 数据', 'Interactive map + real DLD data'),
+                L('区域指标 + 项目详情 + 投资分析', 'Area metrics + detail + analytics'),
+                L('Luna 语音助手', 'Luna voice assistant'),
+                L('经纪工具试用:带看 / 导览 / 报告 各 2 次', 'Agent trial: 2 tours / tours / reports each'),
+              ]}
+              cta={{ label: L('打开地图', 'Open the map'), to: '/' }}
+            />
+
+            {/* Agent — highlighted, intro discount */}
+            <PriceTier
+              highlight
+              name={L('经纪版', 'Agent')}
+              price="$199"
+              priceWas="$299"
+              per={L('/ 月', '/ mo')}
+              badge={L('限时优惠', 'Intro offer')}
+              note={L('给经纪 / 团队', 'For agents / teams')}
+              features={[
+                L('实时海外带看 20 场/月', '20 live tours / mo'),
+                L('Luna 智能导览 20 个/月', '20 Luna AI tours / mo'),
+                L('买家意向报告 30 份/月', '30 buyer-intent reports / mo'),
+                L('应用内语音 + AI 楼书解析', 'In-app voice + AI brochure parsing'),
+              ]}
+              cta={{ label: L('立即开通', 'Get started'), href: 'mailto:info@pinzos.com?subject=Pinzos%20Agent%20Plan%20($199)' }}
+            />
+
+            {/* Founder — 5x */}
+            <PriceTier
+              dark
+              name={L('创始会员', 'Founder')}
+              price="$699"
+              per={L('/ 月', '/ mo')}
+              badge={L('5× 额度', '5× quota')}
+              note={L('早期支持者 · 名额有限', 'Early supporters · limited')}
+              features={[
+                L('实时带看 100 场/月', '100 live tours / mo'),
+                L('Luna 导览 100 个/月', '100 Luna AI tours / mo'),
+                L('意向报告 150 份/月', '150 reports / mo'),
+                L('锁定创始价 · 优先支持 · 抢先体验', 'Locked price · priority support · early access'),
+              ]}
+              cta={{ label: L('申请 Founder', 'Apply for Founder'), href: 'mailto:info@pinzos.com?subject=Pinzos%20Founder%20Access%20($699)' }}
+            />
           </div>
+          <p className="mt-5 text-center text-xs text-slate-400">
+            {L('价格以美元计,可开月付。开通请联系洽询。', 'Prices in USD, billed monthly. Contact us to get started.')}
+          </p>
         </div>
       </section>
 
@@ -358,6 +384,44 @@ function BigCard({ icon, title, desc }: { icon: React.ReactNode; title: string; 
       <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">{icon}</div>
       <h3 className="text-lg font-bold text-slate-900">{title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">{desc}</p>
+    </div>
+  )
+}
+
+interface CTA { label: string; to?: string; href?: string }
+function PriceTier({ name, price, priceWas, per, badge, note, features, cta, highlight, dark }: {
+  name: string; price: string; priceWas?: string; per?: string; badge?: string; note: string
+  features: string[]; cta: CTA; highlight?: boolean; dark?: boolean
+}) {
+  const base = dark ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-900 ring-slate-900/[0.06]'
+  const ring = highlight ? 'ring-2' : 'ring-1'
+  const btnCls = highlight || dark
+    ? 'text-slate-900'
+    : 'text-slate-900'
+  const btnStyle = highlight || dark ? { background: ACCENT } : { background: ACCENT }
+  const btn = (
+    <span className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition hover:opacity-90" style={btnStyle as React.CSSProperties}>
+      <span className={btnCls}>{cta.label}</span>
+    </span>
+  )
+  return (
+    <div className={`relative flex flex-col rounded-2xl p-6 shadow-sm ${base} ${ring}`} style={highlight ? { boxShadow: `0 0 0 2px ${ACCENT}` } : undefined}>
+      {badge && (
+        <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: ACCENT }}>{badge}</span>
+      )}
+      <div className={`text-sm font-semibold ${dark ? '' : 'text-slate-500'}`} style={dark ? { color: ACCENT } : undefined}>{name}</div>
+      <div className="mt-1 flex items-end gap-2">
+        <span className="text-3xl font-bold">{price}</span>
+        {priceWas && <span className={`pb-1 text-base font-medium line-through ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{priceWas}</span>}
+        {per && <span className={`pb-1 text-sm ${dark ? 'text-slate-400' : 'text-slate-400'}`}>{per}</span>}
+      </div>
+      <p className={`mt-1.5 text-sm ${dark ? 'text-slate-300' : 'text-slate-500'}`}>{note}</p>
+      <ul className={`mt-4 flex-1 space-y-2 text-sm ${dark ? 'text-slate-200' : 'text-slate-600'}`}>
+        {features.map((f, i) => (
+          <li key={i} className="flex items-start gap-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: ACCENT }} /> {f}</li>
+        ))}
+      </ul>
+      {cta.to ? <Link to={cta.to}>{btn}</Link> : <a href={cta.href}>{btn}</a>}
     </div>
   )
 }
