@@ -450,12 +450,18 @@ function MapViewMapLibre({
   // when the camera settles (moveEnd) — markers are geo-anchored so they pan
   // correctly without per-frame work.
   const superclusterIndex = useMemo(() => {
-    // Aggregate the cheapest "from" price across each cluster so the bubble can
-    // show it (Infinity = no priced project in the group).
-    const idx = new Supercluster<{ project: MapPinProject }, { minPrice: number }>({
+    // Aggregate the price RANGE across each cluster so the bubble shows
+    // "min–max" (minPrice=Infinity / maxPrice=0 = no priced project in the group).
+    const idx = new Supercluster<{ project: MapPinProject }, { minPrice: number; maxPrice: number }>({
       radius: 56, maxZoom: 16,
-      map: (props) => ({ minPrice: props.project?.minPrice ?? Infinity }),
-      reduce: (acc, props) => { if (props.minPrice < acc.minPrice) acc.minPrice = props.minPrice },
+      map: (props) => ({
+        minPrice: props.project?.minPrice ?? Infinity,
+        maxPrice: props.project?.maxPrice ?? props.project?.minPrice ?? 0,
+      }),
+      reduce: (acc, props) => {
+        if (props.minPrice < acc.minPrice) acc.minPrice = props.minPrice
+        if (props.maxPrice > acc.maxPrice) acc.maxPrice = props.maxPrice
+      },
     })
     idx.load(projects.map(p => ({
       type: 'Feature' as const,
@@ -1112,6 +1118,7 @@ function MapViewMapLibre({
                     key={`cluster-${f.properties.cluster_id}`}
                     count={f.properties.point_count}
                     minPrice={isFinite(f.properties.minPrice) ? f.properties.minPrice : null}
+                    maxPrice={f.properties.maxPrice > 0 ? f.properties.maxPrice : null}
                     lng={lng}
                     lat={lat}
                     onClick={() => zoomToCluster(f.properties.cluster_id, lng, lat)}

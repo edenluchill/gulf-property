@@ -202,41 +202,54 @@ export const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinPro
 // Click zooms in to split the group apart so every pin becomes reachable.
 // ============================================================================
 
-export const ClusterBubble = memo(({ count, minPrice, lng, lat, onClick }: {
-  count: number; minPrice: number | null; lng: number; lat: number; onClick: () => void
+export const ClusterBubble = memo(({ count, minPrice, maxPrice, lng, lat, onClick }: {
+  count: number; minPrice: number | null; maxPrice: number | null; lng: number; lat: number; onClick: () => void
 }) => {
   const { i18n } = useTranslation()
   const lang = i18n.language || 'en'
   const isZh = lang.startsWith('zh')
-  // Count circle grows a touch with group size; the pill also shows the cheapest
-  // "from" price in the group so a cluster says something useful, not just a number.
-  const circle = count >= 100 ? 32 : count >= 25 ? 29 : count >= 10 ? 26 : 23
+  // Count circle grows a touch with group size.
+  const circle = count >= 100 ? 30 : count >= 25 ? 27 : count >= 10 ? 25 : 22
   const hasPrice = minPrice != null && isFinite(minPrice) && minPrice > 0
+  // Show a real range when min/max meaningfully differ; else a single figure.
+  const hasRange = hasPrice && maxPrice != null && isFinite(maxPrice) && maxPrice > minPrice! * 1.02
   return (
     <Marker longitude={lng} latitude={lat} anchor="center" style={{ zIndex: 3 }}
       onClick={(e) => { e.originalEvent.stopPropagation(); onClick() }}>
       <div
-        className="group flex cursor-pointer select-none items-center rounded-full bg-white py-1 shadow-[0_4px_16px_rgba(0,0,0,0.22)] ring-1 ring-black/5 transition-transform hover:scale-105"
-        style={{ paddingLeft: 4, paddingRight: hasPrice ? 10 : 4 }}
+        className="group flex cursor-pointer select-none items-center gap-1.5 rounded-full py-[3px] pl-[3px] pr-3 shadow-[0_6px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/10 transition-transform hover:scale-105"
+        style={{ background: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(6px)' }}
       >
+        {/* count badge — solid brand teal, the part the user said is fine */}
         <span
           className="flex items-center justify-center rounded-full font-bold leading-none text-white"
           style={{
             width: circle, height: circle,
-            background: 'linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)',
-            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35)',
+            background: 'linear-gradient(135deg, #00E0B8 0%, #0d9488 100%)',
+            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4)',
             fontSize: count >= 100 ? 12.5 : 12,
+            color: '#06302b',
           }}
         >
           {count}
         </span>
-        {hasPrice && (
-          <span className="ml-1.5 flex items-center gap-0.5 whitespace-nowrap text-[11px] font-bold leading-none text-slate-700">
-            <span className="font-medium text-slate-400">{isZh ? '起' : 'from'}</span>
-            <DirhamSymbol size="0.85em" className="text-slate-400" />
-            {formatMoneyCompact(minPrice, lang)}
-          </span>
-        )}
+        {/* price range — or N/A when the group has no priced project */}
+        <span className="flex items-baseline gap-0.5 whitespace-nowrap leading-none text-white">
+          {hasPrice ? (
+            <>
+              <DirhamSymbol size="0.78em" className="text-[#00E0B8]" />
+              <span className="text-[12px] font-bold tracking-tight">{formatMoneyCompact(minPrice!, lang)}</span>
+              {hasRange && (
+                <>
+                  <span className="px-[1px] text-[11px] text-slate-400">–</span>
+                  <span className="text-[12px] font-bold tracking-tight">{formatMoneyCompact(maxPrice!, lang)}</span>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="text-[11px] font-medium text-slate-300">{isZh ? '暂无报价' : 'N/A'}</span>
+          )}
+        </span>
       </div>
     </Marker>
   )
