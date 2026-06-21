@@ -906,8 +906,8 @@ function MapViewMapLibre({
                 'text-allow-overlap': false,
                 'text-padding': [
                   'interpolate', ['linear'], ['zoom'],
-                  8, 4,    // tighter so the collision engine packs in more names
-                  11, 3,
+                  8, 2,    // very tight so the collision engine packs in the most names
+                  11, 2,
                   14, 2,
                   16, 2
                 ],
