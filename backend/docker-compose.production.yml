@@ -36,6 +36,10 @@ services:
       # API Configuration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CORS_ORIGIN=${CORS_ORIGIN}
+      # Supabase (server-side token validation → requireAuth/approval gating).
+      # Without these the container's isSupabaseConfigured=false and auth is skipped.
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       # Agora in-app voice (token signing). Values live in /opt/pinzos/.env on the
       # server. Optional caps (AGORA_*_SECONDS) fall back to code defaults if unset.
       - AGORA_APP_ID=${AGORA_APP_ID}

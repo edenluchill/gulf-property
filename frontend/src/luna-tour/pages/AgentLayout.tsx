@@ -1,15 +1,15 @@
 /**
  * Luna Tour — agent dashboard shell (route: /agent/*).
  *
- * Left sidebar tabs + an <Outlet/> for the active tab. All agent-facing tools
- * live under here; add a tab by appending to NAV and adding a nested <Route> in
- * App.tsx. GATED: non-agents are bounced to /agent/join (the become-an-agent
- * entry). MVP gate = localStorage profile.agent; swap for real auth later.
+ * Left sidebar tabs + an <Outlet/> for the active tab. GATED server-side by
+ * approval: login (Supabase magic-link) → /api/agents/me → only 'approved'
+ * (or the owner) reaches the console; 'pending'/'rejected' see a status screen.
  */
-import { useState } from 'react'
-import { NavLink, Outlet, Navigate } from 'react-router-dom'
-import { useUserProfile } from '../../contexts/UserProfileContext'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet } from 'react-router-dom'
+import { Loader2, MailCheck, Clock, ShieldX } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 
 const NAV = [
   { to: '/agent', end: true, label: '概览', icon: '📊' },
@@ -60,11 +60,82 @@ function AgentAuthBox() {
   )
 }
 
-export default function AgentLayout() {
-  const { profile, saveProfile, isLoading } = useUserProfile()
+/** Centered status card for the gate states (login / pending / rejected). */
+function GateCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-1 items-center justify-center p-6">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50">{icon}</div>
+        <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        <div className="mt-2 text-sm text-slate-500">{children}</div>
+      </div>
+    </div>
+  )
+}
 
-  if (isLoading) return null
-  if (!profile?.agent) return <Navigate to="/agent/join" replace />
+function LoginGate() {
+  const { signInWithOtp } = useAuth()
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  return (
+    <GateCard icon={<MailCheck className="h-6 w-6 text-emerald-600" />} title="经纪登录">
+      {sent ? (
+        <p>已发送登录链接到 <span className="font-medium text-slate-700">{email}</span>,去邮箱点开即可。</p>
+      ) : (
+        <>
+          <p className="mb-3">用邮箱登录,申请使用经纪台。</p>
+          <input
+            className="mb-2 w-full rounded-lg border px-3 py-2 text-sm"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <button
+            disabled={!/.+@.+\..+/.test(email)}
+            onClick={async () => { const { error } = await signInWithOtp(email.trim()); if (!error) setSent(true) }}
+            className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            发送登录链接
+          </button>
+        </>
+      )}
+    </GateCard>
+  )
+}
+
+export default function AgentLayout() {
+  const { user, loading, signOut } = useAuth()
+  const [status, setStatus] = useState<AgentStatus>('loading')
+
+  useEffect(() => {
+    if (loading) return
+    if (!user) { setStatus('none'); return }
+    setStatus('loading')
+    fetchAgentStatus().then(setStatus)
+  }, [user, loading])
+
+  if (loading || (user && status === 'loading')) {
+    return <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
+  }
+  if (!user) return <LoginGate />
+  if (status === 'pending') {
+    return (
+      <GateCard icon={<Clock className="h-6 w-6 text-amber-500" />} title="申请已提交">
+        <p>你的经纪账号正在审核中,开通后即可使用经纪台。我们会尽快处理。</p>
+        <div className="mt-3 text-xs text-slate-400">{user.email}</div>
+        <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
+      </GateCard>
+    )
+  }
+  if (status === 'rejected') {
+    return (
+      <GateCard icon={<ShieldX className="h-6 w-6 text-rose-500" />} title="暂未开通">
+        <p>当前账号未获得经纪台使用权限。如有疑问请联系我们。</p>
+        <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
+      </GateCard>
+    )
+  }
+  if (status !== 'approved') return <LoginGate />
 
   return (
     // own scroll container (Layout's <main> is overflow-hidden); overflow-y-scroll
@@ -97,12 +168,6 @@ export default function AgentLayout() {
               ))}
             </nav>
             <AgentAuthBox />
-            <button
-              onClick={() => saveProfile({ agent: undefined })}
-              className="mt-4 px-3 text-xs text-slate-400 hover:text-slate-600 hover:underline"
-            >
-              退出经纪模式
-            </button>
           </div>
         </aside>
 

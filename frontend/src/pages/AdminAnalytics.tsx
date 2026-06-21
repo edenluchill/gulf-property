@@ -5,7 +5,7 @@
  * server-side via requireOwner. See docs/analytics-dashboard-spec.md §3 / §12.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon } from 'lucide-react'
+import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import {
   fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries, fetchCollabSessions,
@@ -19,6 +19,7 @@ import Funnel from '../components/analytics/Funnel'
 import LeadTable from '../components/analytics/LeadTable'
 import SessionViewer from '../components/analytics/SessionViewer'
 import CollabReportModal from '../components/analytics/CollabReport'
+import AgentApprovals from '../components/analytics/AgentApprovals'
 import Visitors from '../components/analytics/Visitors'
 
 const RANGES = [
@@ -39,6 +40,7 @@ const TABS = [
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
   { id: 'luna', label: 'Luna 对话', Icon: Mic },
   { id: 'collab', label: '实时带看', Icon: MapIcon },
+  { id: 'agents', label: '经纪审批', Icon: UserCheck },
 ] as const
 
 interface DashData {
@@ -70,7 +72,7 @@ export default function AdminAnalytics() {
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna' | 'collab'>('overview')
+  const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna' | 'collab' | 'agents'>('overview')
   const [openCollab, setOpenCollab] = useState<string | null>(null)
 
   useEffect(() => {
@@ -368,6 +370,9 @@ export default function AdminAnalytics() {
               </div>
             </div>
           )}
+
+          {/* ── 经纪审批 ──────────────────────────────────────────────────── */}
+          {tab === 'agents' && <AgentApprovals />}
         </div>
       )}
 
