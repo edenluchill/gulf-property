@@ -501,9 +501,14 @@ export default function MapPage() {
   const handleRemoteMapAction = useCallback(
     (action: unknown) => {
       // internal collab broadcast: presenter's landmark popup open/close.
-      const a = action as { type?: string; landmark?: DubaiLandmark | null }
+      const a = action as { type?: string; landmark?: DubaiLandmark | null; on?: boolean }
       if (a?.type === '__collab_landmark') {
         setSelectedLandmark(a.landmark ?? null)
+        return
+      }
+      if (a?.type === '__collab_voice') {
+        // presenter started/stopped voice → viewer's mic button reflects it
+        setPresenterVoiceOn(!!a.on)
         return
       }
       handleVoiceMapAction(action as MapAction)
@@ -534,6 +539,18 @@ export default function MapPage() {
     roomCode: collabCode,
     agentEmail: user?.email ?? undefined,
   })
+  // viewer learns the presenter has voice on (proactive "join voice" prompt)
+  const [presenterVoiceOn, setPresenterVoiceOn] = useState(false)
+  // presenter broadcasts when its voice goes live / ends, so viewers can join
+  const prevVoiceLiveRef = useRef(false)
+  useEffect(() => {
+    if (collabMode !== 'presenter') return
+    const live = voice.status === 'live'
+    if (live !== prevVoiceLiveRef.current) {
+      prevVoiceLiveRef.current = live
+      collabSendRef.current.sendMapAction({ type: '__collab_voice', on: live })
+    }
+  }, [voice.status, collabMode])
 
   // The other party's display name for the session bar / Free pill.
   const collabPeerName = useMemo(() => {
@@ -1067,6 +1084,7 @@ export default function MapPage() {
               myName={collabMode === 'presenter' ? (user?.email?.split('@')[0] || 'Ahmed') : '访客'}
               onSendChat={collab.sendChat}
               voice={voice}
+              voicePrompt={collabMode === 'viewer' && presenterVoiceOn}
               follow={
                 collabMode === 'viewer' && collab.followMode
                   ? { mode: collab.followMode, returnToPresenter: collab.returnToPresenter }

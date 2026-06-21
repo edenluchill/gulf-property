@@ -35,6 +35,8 @@ export interface CollabBarProps {
   presenterName?: string
   /** in-app voice (Agora). Omit → mic stays a disabled placeholder. */
   voice?: CollabVoiceApi
+  /** viewer-only: presenter has voice on → highlight "join voice" */
+  voicePrompt?: boolean
 }
 
 function mmss(s: number): string {
@@ -63,6 +65,7 @@ export default function CollabBar({
   follow,
   presenterName,
   voice,
+  voicePrompt,
 }: CollabBarProps) {
   const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState('')
@@ -171,22 +174,31 @@ export default function CollabBar({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={voice.connect}
-              className="flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-200 transition hover:bg-white/10"
-              title={
-                voice.status === 'limit' ? '本场/今日语音已达上限'
-                : voice.status === 'unavailable' ? '语音未配置'
-                : voice.status === 'no_session' ? '经纪还没开启语音'
-                : voice.status === 'error' ? '语音连接失败 · 重试'
-                : '开启语音通话'
-              }
-            >
-              <Mic className="h-4 w-4" style={{ color: voice.status === 'limit' ? '#94a3b8' : ACCENT }} />
-              {voice.status === 'limit' && <span className="text-amber-300">已达上限</span>}
-              {voice.status === 'no_session' && <span className="text-slate-400">等待经纪</span>}
-            </button>
+            (() => {
+              const invite = !!voicePrompt && voice.status !== 'limit' && voice.status !== 'unavailable'
+              return (
+                <button
+                  type="button"
+                  onClick={voice.connect}
+                  className={`flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition ${
+                    invite ? 'bg-white/10 text-white ring-1 ring-[#00E0B8]/60' : 'text-slate-200 hover:bg-white/10'
+                  }`}
+                  title={
+                    voice.status === 'limit' ? '本场/今日语音已达上限'
+                    : voice.status === 'unavailable' ? '语音未配置'
+                    : invite ? '经纪已开启语音 · 点击加入'
+                    : voice.status === 'no_session' ? '经纪还没开启语音'
+                    : voice.status === 'error' ? '语音连接失败 · 重试'
+                    : '开启语音通话'
+                  }
+                >
+                  <Mic className="h-4 w-4" style={{ color: voice.status === 'limit' ? '#94a3b8' : ACCENT }} />
+                  {invite && <span style={{ color: ACCENT }}>加入语音</span>}
+                  {!invite && voice.status === 'limit' && <span className="text-amber-300">已达上限</span>}
+                  {!invite && voice.status === 'no_session' && <span className="text-slate-400">等待经纪</span>}
+                </button>
+              )
+            })()
           )}
         </div>
       </div>
