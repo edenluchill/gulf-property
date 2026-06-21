@@ -126,17 +126,17 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* sticky section nav */}
-      <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/85 backdrop-blur">
+      {/* blend hero(dark) → light, BEFORE the white nav so there's no abrupt stripe */}
+      <div className="h-24 bg-gradient-to-b from-slate-950 to-white" />
+
+      {/* sticky section nav (light) */}
+      <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2.5 text-sm">
           {([['buyers', L('给买家', 'For buyers')], ['agents', L('给经纪 & 开发商', 'For agents & developers')], ['pricing', L('定价', 'Pricing')]] as [string, string][]).map(([id, label]) => (
             <a key={id} href={`#${id}`} className="whitespace-nowrap rounded-full px-3 py-1.5 font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">{label}</a>
           ))}
         </div>
       </nav>
-
-      {/* blend dark → light */}
-      <div className="h-16 bg-gradient-to-b from-slate-950 to-white" />
 
       {/* ═══ ZONE A · BUYERS (light) ═══════════════════════════ */}
       <div id="buyers" className="scroll-mt-14">
@@ -171,7 +171,7 @@ export default function AboutPage() {
       </div>
 
       {/* blend light → dark */}
-      <div className="h-16 bg-gradient-to-b from-white to-slate-950" />
+      <div className="h-24 bg-gradient-to-b from-white to-slate-950" />
 
       {/* ═══ ZONE B · AGENTS & DEVELOPERS (dark) ═══════════════ */}
       <div id="agents" className="scroll-mt-14 bg-slate-950 text-white">
@@ -212,7 +212,7 @@ export default function AboutPage() {
       </div>
 
       {/* blend dark → light */}
-      <div className="h-16 bg-gradient-to-b from-slate-950 to-white" />
+      <div className="h-24 bg-gradient-to-b from-slate-950 to-white" />
 
       {/* ═══ PRICING (light) ═══════════════════════════════════ */}
       <div id="pricing" className="scroll-mt-14">

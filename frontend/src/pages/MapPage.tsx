@@ -27,7 +27,7 @@ import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
 import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
-  DollarSign, TrendingUp, BarChart3, Percent, ShieldCheck,
+  DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
@@ -51,7 +51,7 @@ const METRIC_OPTIONS = [
   { value: 'capitalGrowth' as AreaMetric, labelKey: 'map:metric.capitalGrowth', Icon: TrendingUp },
   { value: 'transactionCount' as AreaMetric, labelKey: 'map:metric.transactionCount', Icon: BarChart3 },
   { value: 'rentalYield' as AreaMetric, labelKey: 'map:metric.rentalYield', Icon: Percent },
-  { value: 'rentStability' as AreaMetric, labelKey: 'map:metric.rentStability', Icon: ShieldCheck },
+  // 租赁稳定率不放进右上角指标切换 —— area block 详情里已有展示(用户反馈)
 ]
 
 // ============================================================================
