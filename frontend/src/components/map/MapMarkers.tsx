@@ -241,7 +241,7 @@ export const ClusterBubble = memo(({ count, minPrice, maxPrice, lng, lat, onClic
               <span className="text-[12px] font-bold tracking-tight">{formatMoneyCompact(minPrice!, lang)}</span>
               {hasRange && (
                 <>
-                  <span className="px-[1px] text-[11px] text-slate-400">–</span>
+                  <span className="mx-[3px] text-[12px] font-semibold text-slate-400">~</span>
                   <span className="text-[12px] font-bold tracking-tight">{formatMoneyCompact(maxPrice!, lang)}</span>
                 </>
               )}
