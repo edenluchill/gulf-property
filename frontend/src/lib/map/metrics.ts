@@ -37,11 +37,14 @@ export function getPolygonSpan(coords: [number, number][]): number {
 // set: big-but-quiet desert areas no longer crowd the city core — their color
 // fill still marks them, and the name appears once you zoom into the area.
 export function getMinZoomForRank(rank: number): number {
-  if (rank < 12) return 9    // top ~12 busiest markets — visible at city overview
-  if (rank < 28) return 10
-  if (rank < 50) return 11
-  if (rank < 90) return 12
-  return 13                   // long tail / no-data — only when zoomed right in
+  // Reveal generously — the collision engine (text-allow-overlap:false) still
+  // prevents any overlap, so a bigger candidate pool just FILLS empty space with
+  // more names instead of leaving gaps. Lowered thresholds (was 12/28/50/90→13)
+  // after feedback that too few area names showed at the overview.
+  if (rank < 26) return 9    // top ~26 busiest markets — visible at city overview
+  if (rank < 55) return 10
+  if (rank < 95) return 11
+  return 12                   // long tail / no-data — candidate by neighborhood zoom
 }
 
 // 格式化指标值（按语言：中文 185万，英文 1.85M；中文用户对 K/M 不直观）。

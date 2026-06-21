@@ -906,10 +906,10 @@ function MapViewMapLibre({
                 'text-allow-overlap': false,
                 'text-padding': [
                   'interpolate', ['linear'], ['zoom'],
-                  8, 8,    // city overview: generous spacing
-                  11, 6,
-                  14, 4,
-                  16, 2    // zoomed in: labels are far apart anyway
+                  8, 4,    // tighter so the collision engine packs in more names
+                  11, 3,
+                  14, 2,
+                  16, 2
                 ],
                 'symbol-sort-key': ['get', 'minZoom']
               }}
