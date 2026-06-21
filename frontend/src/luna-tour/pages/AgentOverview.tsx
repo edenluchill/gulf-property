@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Radio } from 'lucide-react'
+import { Radio, Sparkles, ArrowRight } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
 
 interface SessionRow {
@@ -52,23 +52,62 @@ export default function AgentOverview() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold mb-1">概览</h1>
-          <p className="text-sm text-slate-500">所有导览的整体表现与最热客户</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            to="/?livetour=1"
-            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            <Radio className="h-4 w-4" style={{ color: '#00E0B8' }} />
-            开始实时带看
-          </Link>
-          <Link to="/agent/tour" className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium">
-            + 生成新导览
-          </Link>
-        </div>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold mb-1">经纪台</h1>
+        <p className="text-sm text-slate-500">两种带客户看房的方式 — 选一个开始</p>
+      </div>
+
+      {/* The two hero actions — the heart of the agent console */}
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* 1. Live co-presence tour */}
+        <Link
+          to="/?livetour=1"
+          className="group relative overflow-hidden rounded-2xl bg-slate-900 p-5 text-white shadow-sm ring-1 ring-slate-900/10 transition hover:shadow-xl hover:-translate-y-0.5"
+        >
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-20 blur-2xl" style={{ background: '#00E0B8' }} />
+          <div className="relative">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'rgba(0,224,184,0.15)' }}>
+              <Radio className="h-6 w-6" style={{ color: '#00E0B8' }} />
+            </div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">实时带看</h2>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold" style={{ color: '#00E0B8' }}>LIVE</span>
+            </div>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-300">
+              和客户实时同屏看房 — 镜头同步跟随、地图上一起圈点项目、语音通话、Luna 现场答数据。最适合一对一深度沟通。
+            </p>
+            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: '#00E0B8' }}>
+              开始带看 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </div>
+        </Link>
+
+        {/* 2. Luna async self-serve tour */}
+        <Link
+          to="/agent/tour"
+          className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white shadow-sm ring-1 ring-emerald-600/20 transition hover:shadow-xl hover:-translate-y-0.5"
+        >
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/20 opacity-40 blur-2xl" />
+          <div className="relative">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
+              <Sparkles className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">Luna 智能导览</h2>
+              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold">AI</span>
+            </div>
+            <p className="mt-1.5 text-sm leading-relaxed text-white/90">
+              为客户生成一条可分享的自助看房导览 — AI 精选房源、语音讲解、5 年回报测算,客户随时打开自己看,行为还会回传给你。
+            </p>
+            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-white">
+              生成导览 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </div>
+        </Link>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-500">整体表现</h2>
       </div>
 
       {/* aggregate cards */}

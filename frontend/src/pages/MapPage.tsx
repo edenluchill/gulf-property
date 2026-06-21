@@ -16,7 +16,6 @@ import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { createCollabRoom } from '../luna-tour/collab/collabApi'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
-import { Radio } from 'lucide-react'
 import MapFilterChips from '../components/MapFilterChips'
 import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
@@ -123,7 +122,6 @@ export default function MapPage() {
   const collabCode = viewerCode || presenterCode
   const collabActive = collabMode !== 'browse'
   const [shareCopied, setShareCopied] = useState(false)
-  const [startingTour, setStartingTour] = useState(false)
   // In-collab project detail drawer (synced presenter↔viewer; never navigates).
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
   const [projectTab, setProjectTab] = useState('overview')
@@ -573,7 +571,6 @@ export default function MapPage() {
 
   // Start a tour (owner only): create a room, enter presenter mode.
   const handleStartTour = useCallback(async () => {
-    setStartingTour(true)
     try {
       const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined)
       setPresenterCode(code)
@@ -582,8 +579,6 @@ export default function MapPage() {
       setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('host', code); return n }, { replace: true })
     } catch (e) {
       console.error('[collab] failed to create room', e)
-    } finally {
-      setStartingTour(false)
     }
   }, [user?.email, setSearchParams])
 
@@ -1083,18 +1078,8 @@ export default function MapPage() {
             />
           )}
 
-          {/* Collab: owner-only "start a live tour" entry (browse mode only) */}
-          {!tourCode && !collabActive && isOwner && (
-            <button
-              type="button"
-              onClick={handleStartTour}
-              disabled={startingTour}
-              className="absolute bottom-4 right-3 z-[1002] flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-white shadow-xl backdrop-blur transition hover:bg-slate-900 disabled:opacity-60"
-            >
-              <Radio className="h-4 w-4" style={{ color: '#00E0B8' }} />
-              {startingTour ? '创建中…' : '开始带看'}
-            </button>
-          )}
+          {/* Live-tour entry lives in the 经纪台, not on the map (it deep-links here
+              via ?livetour=1 / ?host=code, which handleStartTour + the effects handle). */}
 
           {/* Collab: mode frame + session bar + share link */}
           {collabActive && (
