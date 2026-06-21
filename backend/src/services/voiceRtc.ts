@@ -80,7 +80,7 @@ export async function startVoiceSession(agentEmail: string, roomCode: string): P
      VALUES ($1, $2, $3) RETURNING id`,
     [email, roomCode, allowed]
   )
-  const sessionId = rows[0].id as number
+  const sessionId = Number(rows[0].id) // pg returns BIGSERIAL as string → coerce
 
   return {
     ok: true,

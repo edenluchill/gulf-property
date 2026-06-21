@@ -52,16 +52,18 @@ router.post('/viewer-token', async (req: Request, res: Response) => {
 
 // 心跳(回填时长,崩溃也记到最近一次)。best-effort,恒 204。
 router.post('/heartbeat', (req: Request, res: Response) => {
-  const { sessionId } = (req.body || {}) as { sessionId?: number }
+  const { sessionId } = (req.body || {}) as { sessionId?: number | string }
   res.status(204).end()
-  if (typeof sessionId === 'number') void heartbeatVoiceSession(sessionId).catch(() => {})
+  const sid = Number(sessionId)
+  if (Number.isFinite(sid)) void heartbeatVoiceSession(sid).catch(() => {})
 })
 
 // 结束。best-effort,恒 204。
 router.post('/end', (req: Request, res: Response) => {
-  const { sessionId, reason } = (req.body || {}) as { sessionId?: number; reason?: string }
+  const { sessionId, reason } = (req.body || {}) as { sessionId?: number | string; reason?: string }
   res.status(204).end()
-  if (typeof sessionId === 'number') void endVoiceSession(sessionId, reason || 'ended').catch(() => {})
+  const sid = Number(sessionId)
+  if (Number.isFinite(sid)) void endVoiceSession(sid, reason || 'ended').catch(() => {})
 })
 
 // 经纪当日用量(给经纪端显示剩余)
