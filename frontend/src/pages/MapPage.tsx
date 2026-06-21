@@ -12,6 +12,7 @@ import { useCollab, type CollabMode } from '../luna-tour/collab/useCollab'
 import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
+import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { createCollabRoom } from '../luna-tour/collab/collabApi'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
@@ -525,6 +526,14 @@ export default function MapPage() {
   useEffect(() => {
     collabActiveRef.current = collabMode === 'presenter'
   }, [collabMode])
+
+  // In-app voice (Agora) — presenter starts a call, viewer joins; cost guards
+  // (30min/session, 3h/day/agent) are enforced server-side.
+  const voice = useCollabVoice({
+    mode: collabMode,
+    roomCode: collabCode,
+    agentEmail: user?.email ?? undefined,
+  })
 
   // The other party's display name for the session bar / Free pill.
   const collabPeerName = useMemo(() => {
@@ -1057,6 +1066,7 @@ export default function MapPage() {
               myConnId={collab.connId}
               myName={collabMode === 'presenter' ? (user?.email?.split('@')[0] || 'Ahmed') : '访客'}
               onSendChat={collab.sendChat}
+              voice={voice}
               follow={
                 collabMode === 'viewer' && collab.followMode
                   ? { mode: collab.followMode, returnToPresenter: collab.returnToPresenter }

@@ -14,9 +14,10 @@
  * elsewhere (performance hard rule).
  */
 import { useEffect, useRef, useState } from 'react'
-import { Send, X, Mic, MessageCircle } from 'lucide-react'
+import { Send, X, Mic, MicOff, PhoneOff, Loader2, MessageCircle } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
 import type { FollowMode } from './useCollabFollow'
+import type { CollabVoiceApi } from './useCollabVoice'
 
 const ACCENT = '#00E0B8'
 
@@ -32,6 +33,14 @@ export interface CollabBarProps {
   follow?: { mode: FollowMode; returnToPresenter: () => void }
   /** presenter display name for the "回到 X 视角" pill */
   presenterName?: string
+  /** in-app voice (Agora). Omit → mic stays a disabled placeholder. */
+  voice?: CollabVoiceApi
+}
+
+function mmss(s: number): string {
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${r.toString().padStart(2, '0')}`
 }
 
 function dotColor(seed: string): string {
@@ -53,6 +62,7 @@ export default function CollabBar({
   onSendChat,
   follow,
   presenterName,
+  voice,
 }: CollabBarProps) {
   const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState('')
@@ -122,17 +132,62 @@ export default function CollabBar({
             <MessageCircle className="h-4 w-4" />
           </button>
 
-          {/* mute placeholder — in-app voice is phase 2 (Agora). Kept disabled so
-              the affordance is visible but inert; do NOT wire to anything here. */}
-          <button
-            type="button"
-            disabled
-            aria-disabled
-            className="flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full text-slate-500"
-            title="应用内语音（第二阶段）"
-          >
-            <Mic className="h-4 w-4" />
-          </button>
+          {/* in-app voice (Agora). Without the voice prop it stays a disabled hint. */}
+          {!voice ? (
+            <button
+              type="button"
+              disabled
+              aria-disabled
+              className="flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full text-slate-500"
+              title="应用内语音（未启用）"
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          ) : voice.status === 'connecting' ? (
+            <div className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200" title="连接语音中…">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          ) : voice.status === 'live' ? (
+            <div className="flex items-center gap-1">
+              <span className="rounded-full bg-white/10 px-1.5 text-[11px] font-medium tabular-nums text-slate-200" title="本场剩余时长（上限）">
+                {mmss(voice.remainingSeconds)}
+              </span>
+              <button
+                type="button"
+                onClick={voice.toggleMute}
+                className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/10"
+                style={{ color: voice.muted ? '#f87171' : ACCENT }}
+                title={voice.muted ? '已静音 · 点击说话' : '通话中 · 点击静音'}
+              >
+                {voice.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={voice.leave}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-rose-400 transition hover:bg-white/10"
+                title="结束语音"
+              >
+                <PhoneOff className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={voice.connect}
+              className="flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-200 transition hover:bg-white/10"
+              title={
+                voice.status === 'limit' ? '本场/今日语音已达上限'
+                : voice.status === 'unavailable' ? '语音未配置'
+                : voice.status === 'no_session' ? '经纪还没开启语音'
+                : voice.status === 'error' ? '语音连接失败 · 重试'
+                : '开启语音通话'
+              }
+            >
+              <Mic className="h-4 w-4" style={{ color: voice.status === 'limit' ? '#94a3b8' : ACCENT }} />
+              {voice.status === 'limit' && <span className="text-amber-300">已达上限</span>}
+              {voice.status === 'no_session' && <span className="text-slate-400">等待经纪</span>}
+            </button>
+          )}
         </div>
       </div>
 

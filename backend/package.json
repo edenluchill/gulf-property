@@ -49,6 +49,7 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
     "@xmldom/xmldom": "^0.8.11",
+    "agora-token": "^2.0.5",
     "axios": "^1.13.2",
     "canvas": "^3.2.1",
     "cloudinary": "^2.8.0",

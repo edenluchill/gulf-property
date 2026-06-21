@@ -23,6 +23,7 @@ import customRoutesRouter from './routes/custom-routes'
 import geocodeRouter from './routes/geocode'
 import voiceChatRouter, { initVoiceChatWebSocket } from './routes/voice-chat'
 import collabRouter, { initCollabWebSocket } from './routes/collab'  // 实时协作带看 (isolated; see docs/luna-collaborative-tour-spec.md)
+import voiceRtcRouter from './routes/voice-rtc'  // Agora 应用内语音 token + 用量额度
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
 import voiceDebugRouter from './routes/voice-debug'
@@ -117,6 +118,7 @@ app.use('/api/voice', voiceTokenRouter)  // Ephemeral token generation
 app.use('/api/voice/tools', voiceToolsRouter)  // Tool execution
 app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
 app.use('/api/collab', collabRouter)  // 实时协作带看 REST (建房/校验); WS 在 /api/collab
+app.use('/api/voice-rtc', voiceRtcRouter)  // Agora 应用内语音 token + 用量额度
 app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/ai/analytics', aiAnalyticsRouter)  // AI investment/ROI/budget analysis (DLD data)
