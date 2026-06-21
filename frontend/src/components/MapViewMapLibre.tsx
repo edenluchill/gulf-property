@@ -166,11 +166,13 @@ function MapViewMapLibre({
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  // True while the map is actively zooming/panning. We hide the DOM marker layer
-  // (pins/clusters/landmarks) during the gesture: each marker is a composited
-  // layer over the WebGL canvas, and re-compositing dozens of them every frame
-  // forces a GPU read-back path that froze zoom to ~1fps on real GPUs (proven by
-  // headed CPU profiling). Markers reappear ~180ms after the camera settles.
+  // True while the map is actively ZOOMING / rotating / pitching. We hide the DOM
+  // marker layer (pins/clusters/landmarks) during those gestures only: each marker
+  // is a composited layer over the WebGL canvas, and re-rasterizing dozens of them
+  // as the map RE-SCALES forces a GPU read-back path that froze zoom to ~1fps on
+  // real GPUs (proven by headed CPU profiling). A plain pan (drag) just translates
+  // the layers — cheap — so markers stay visible while dragging. They reappear
+  // ~180ms after the camera settles.
   const [mapMoving, setMapMoving] = useState(false)
   const moveShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [baseMap, setBaseMapState] = useState<BaseMap>(
@@ -384,19 +386,26 @@ function MapViewMapLibre({
     updateLandmarkScale()
     map.on('zoomend', updateLandmarkScale)
 
-    // Hide DOM markers during movement (see mapMoving above). Hide instantly on
-    // gesture start; reveal a beat after it settles so a multi-step wheel zoom
-    // doesn't flicker them on/off between steps. Skip in tour mode (few pins, and
-    // the cinematic camera moves constantly).
+    // Hide DOM markers only during ZOOM / ROTATE / PITCH — the gestures that
+    // re-scale and froze the GPU. NOT on plain pan (drag): translating the marker
+    // layers is cheap, so pins/landmarks stay visible while you drag. Reveal a
+    // beat after the gesture settles so a multi-step wheel zoom doesn't flicker.
+    // Skip in tour mode (few pins; the cinematic camera moves constantly).
     if (!tourActive) {
-      map.on('movestart', () => {
+      const hideMarkers = () => {
         if (moveShowTimerRef.current) clearTimeout(moveShowTimerRef.current)
         setMapMoving(true)
-      })
-      map.on('moveend', () => {
+      }
+      const revealMarkersSoon = () => {
         if (moveShowTimerRef.current) clearTimeout(moveShowTimerRef.current)
         moveShowTimerRef.current = setTimeout(() => setMapMoving(false), 180)
-      })
+      }
+      map.on('zoomstart', hideMarkers)
+      map.on('zoomend', revealMarkersSoon)
+      map.on('rotatestart', hideMarkers)
+      map.on('rotateend', revealMarkersSoon)
+      map.on('pitchstart', hideMarkers)
+      map.on('pitchend', revealMarkersSoon)
     }
 
     setMapLoaded(true)
