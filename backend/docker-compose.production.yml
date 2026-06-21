@@ -36,6 +36,13 @@ services:
       # API Configuration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CORS_ORIGIN=${CORS_ORIGIN}
+      # Agora in-app voice (token signing). Values live in /opt/pinzos/.env on the
+      # server. Optional caps (AGORA_*_SECONDS) fall back to code defaults if unset.
+      - AGORA_APP_ID=${AGORA_APP_ID}
+      - AGORA_APP_CERTIFICATE=${AGORA_APP_CERTIFICATE}
+      - AGORA_SESSION_MAX_SECONDS=${AGORA_SESSION_MAX_SECONDS:-1800}
+      - AGORA_AGENT_DAILY_SECONDS=${AGORA_AGENT_DAILY_SECONDS:-10800}
+      - AGORA_GLOBAL_DAILY_SECONDS=${AGORA_GLOBAL_DAILY_SECONDS:-21600}
       # Cloudflare R2 Configuration (REQUIRED for image storage)
       - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
