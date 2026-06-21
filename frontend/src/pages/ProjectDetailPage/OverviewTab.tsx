@@ -4,6 +4,7 @@ import { ProjectInsights } from '../../lib/api'
 import { useTranslation } from 'react-i18next'
 import { PriceCheckModule } from './PriceCheckModule'
 import InvestmentScorecard from '../../components/project/InvestmentScorecard'
+import BuyerConfidence from '../../components/project/BuyerConfidence'
 
 interface OverviewTabProps {
   project: ResidentialProject
@@ -27,6 +28,9 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
     <div className="space-y-6">
     {/* Investment outlook — the hero of this investment-focused page */}
     {insights?.investment && <InvestmentScorecard insights={insights} lang={i18n.language} />}
+
+    {/* Investor-confidence: Golden Visa, freehold/tax-free, build progress + handover */}
+    <BuyerConfidence project={project} />
 
     <Card>
       <CardHeader>
