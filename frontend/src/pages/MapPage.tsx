@@ -577,12 +577,26 @@ export default function MapPage() {
     try {
       const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined)
       setPresenterCode(code)
+      // Persist the room in the URL (?host=code) so a refresh re-enters presenter
+      // mode and rejoins the SAME room (server reclaims the camera on reconnect).
+      setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('host', code); return n }, { replace: true })
     } catch (e) {
       console.error('[collab] failed to create room', e)
     } finally {
       setStartingTour(false)
     }
-  }, [user?.email])
+  }, [user?.email, setSearchParams])
+
+  // Presenter refresh / deep-link (?host=code): re-enter presenter mode and rejoin
+  // the existing room (no new room created). Runs once.
+  const hostResumedRef = useRef(false)
+  useEffect(() => {
+    if (hostResumedRef.current) return
+    const host = searchParams.get('host')
+    if (!host || !isOwner || viewerCode || presenterCode) return
+    hostResumedRef.current = true
+    setPresenterCode(host)
+  }, [searchParams, isOwner, viewerCode, presenterCode])
 
   // Deep-link from the agent console (/?livetour=1): auto-start a live tour once
   // auth resolves to owner. Strip the param so refresh/back doesn't re-trigger.
@@ -612,8 +626,12 @@ export default function MapPage() {
 
   const handleExitCollab = useCallback(() => {
     if (viewerCode) navigate('/')
-    else setPresenterCode(undefined)
-  }, [viewerCode, navigate])
+    else {
+      setPresenterCode(undefined)
+      // drop ?host so a later refresh doesn't rejoin the ended tour
+      setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('host'); return n }, { replace: true })
+    }
+  }, [viewerCode, navigate, setSearchParams])
 
   // Map ready → store the live instance for the collab hooks and attach the
   // gesture→Free detector. Only a user gesture carries originalEvent; remote
