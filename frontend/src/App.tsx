@@ -22,6 +22,7 @@ import ProfilePage from './pages/ProfilePage'
 import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
+import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
@@ -97,6 +98,7 @@ function App() {
         <Route path="/" element={<MapPage />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />

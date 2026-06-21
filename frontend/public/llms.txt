@@ -1,0 +1,28 @@
+# Pinzos
+
+> Pinzos is an interactive platform for buying and selling Dubai off-plan (under-construction) property. It combines a satellite map of real Dubai Land Department (DLD) data with AI tools for buyers and agents.
+
+Pinzos serves two audiences: international buyers/investors (especially Chinese-speaking) and real-estate agents. It is multilingual (Chinese, English, Arabic) and all market figures come from real DLD transaction and rental data — never invented.
+
+## What buyers get
+- An interactive satellite map of Dubai with 3D landmarks.
+- Latest real DLD transaction prices and rental contracts per district.
+- Area metrics: median price, price per sqft, capital growth, rental yield, rental stability.
+- Filters by price, bedrooms, status and developer; POI layers (transit, hospital, school, supermarket); distance measuring; 3D tilt.
+- Project detail: unit types, area (m²/sqft), payment plans, amenities, location.
+- Investment analytics: 5-year ROI, payback years, rental yield, Golden Visa eligibility (AED 2M+ → 10-year UAE residency), freehold ownership and tax-free (no property or capital-gains tax).
+
+## What agents get
+- Real-time co-presence map tours: an agent guides an overseas client live on the shared map (camera sync, the client can break off and explore), with in-app voice. The client opens a link on a phone or WeChat with zero install.
+- Luna AI guided tours: shareable self-serve property tours with AI narration and ROI, with client behaviour reported back.
+- Buyer-intent reports: an automatic post-tour summary with an AI-judged interest level and a ready-to-send follow-up.
+- AI brochure parsing: upload a developer PDF and it becomes a structured, map-ready listing.
+
+## Luna AI assistant
+A voice assistant that answers questions about any Dubai area or project using real DLD data, drives the map (fly-to, highlight, measure), cites every figure, and never hallucinates.
+
+## Key pages
+- Map explorer: https://pinzos.com/
+- Features / about: https://pinzos.com/about
+- Transactions: https://pinzos.com/transactions
+- Area insights: https://pinzos.com/areas

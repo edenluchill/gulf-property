@@ -223,6 +223,11 @@ export default function Header() {
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} panel={theme.panel} dark={theme.dark}
             />
 
+            {/* 功能介绍 / About（营销 + SEO 页） */}
+            <NavPill to="/about" active={location.pathname === '/about'} icon={HelpCircle}
+              label={i18n.language?.startsWith('zh') ? '功能' : 'About'}
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
             {/* 经纪人入口：已开通 → 经纪台；未开通 → 成为经纪（强调色） */}
             <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
               label={isAgent ? t('nav:agentHub') : t('nav:becomeAgent')} accent
