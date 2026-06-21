@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, GitCompare, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, LineChart, ChevronDown } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, GitCompare, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, LineChart, ChevronDown, Tag } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -227,6 +227,11 @@ export default function Header() {
             {/* 经纪人入口：已开通 → 经纪台；未开通 → 成为经纪（强调色） */}
             <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
               label={isAgent ? t('nav:agentHub') : t('nav:becomeAgent')} accent
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
+            {/* 定价 / Pricing */}
+            <NavPill to="/pricing" active={location.pathname === '/pricing'} icon={Tag}
+              label={i18n.language?.startsWith('zh') ? '定价' : 'Pricing'}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {user && (

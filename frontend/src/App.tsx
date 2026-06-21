@@ -99,6 +99,7 @@ function App() {
         <Route path="/map" element={<MapPage />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/pricing" element={<AboutPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
