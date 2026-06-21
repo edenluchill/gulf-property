@@ -164,10 +164,18 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
                     <Bath className="h-3.5 w-3.5" />
                     {unit.bathrooms}
                   </span>
-                  <span className="flex items-center gap-1" title={`${parseFloat(unit.area).toLocaleString()} sqft`}>
-                    <Maximize className="h-3.5 w-3.5" />
-                    {parseFloat(unit.area).toLocaleString()}
-                  </span>
+                  {(() => {
+                    // Chinese buyers think in m²; show their unit first, the other in tooltip.
+                    const sqft = parseFloat(unit.area)
+                    const sqftStr = Number.isFinite(sqft) ? sqft.toLocaleString() : '—'
+                    const sqm = Number.isFinite(sqft) ? Math.round(sqft * 0.092903) : null
+                    return (
+                      <span className="flex items-center gap-1" title={zh ? `${sqftStr} sqft` : (sqm != null ? `${sqm} m²` : '')}>
+                        <Maximize className="h-3.5 w-3.5" />
+                        {zh ? (sqm != null ? `${sqm}㎡` : sqftStr) : sqftStr}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 {unit.price ? (

@@ -199,20 +199,21 @@ export function CollapsibleDetails({ project, paymentPlan, amenities }: Collapsi
           )}
         </div>
 
-        {/* Construction Progress */}
-        {project.construction_progress !== undefined && project.status !== 'sold-out' && (
+        {/* Construction Progress — only when we actually have a positive number
+            (data is often null → don't render an empty "null%" bar). */}
+        {Number(project.construction_progress) > 0 && project.status !== 'sold-out' && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Activity className="h-4 w-4" />
                 <span>{t('common:progress.constructionProgress')}</span>
               </div>
-              <span className="font-semibold">{project.construction_progress}%</span>
+              <span className="font-semibold">{Number(project.construction_progress)}%</span>
             </div>
             <div className="w-full bg-slate-200 rounded-full h-2">
               <div
                 className="bg-primary h-2 rounded-full transition-all"
-                style={{ width: `${project.construction_progress}%` }}
+                style={{ width: `${Number(project.construction_progress)}%` }}
               />
             </div>
           </div>
