@@ -244,6 +244,10 @@ interface VoiceAssistantContextType {
 
   // Navigate to project
   navigateToProject: (projectId: string) => void
+
+  // Hide the global Luna pill (e.g. during a collab live tour)
+  hidden: boolean
+  setHidden: (v: boolean) => void
 }
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null)
@@ -257,6 +261,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<VoicePhase>('idle')
   const [latestBubble, setLatestBubble] = useState<BubbleContent | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
+  const [hidden, setHidden] = useState(false)
 
   // Refs
   const sessionRef = useRef<any>(null)
@@ -979,7 +984,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       deactivate,
       registerMapActionHandler,
       unregisterMapActionHandler,
-      navigateToProject
+      navigateToProject,
+      hidden,
+      setHidden
     }}>
       {children}
     </VoiceAssistantContext.Provider>

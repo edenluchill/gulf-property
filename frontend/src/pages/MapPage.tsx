@@ -154,6 +154,9 @@ export default function MapPage() {
   // presenter-active flag in a ref so stable handlers (handleProjectClick) can
   // branch without taking collab state as a dependency.
   const collabActiveRef = useRef(false)
+  // in a collab session at all (presenter OR viewer) — viewers must also open
+  // detail in-place instead of navigating (which would tear down the session).
+  const collabAnyRef = useRef(false)
   // Tour mode: the overlay reports its 2-3 properties; the main map renders ONLY
   // these as native (clickable) pins — not the whole search-result marker sea.
   const [tourPins, setTourPins] = useState<MapPinProject[]>([])
@@ -530,7 +533,15 @@ export default function MapPage() {
   }, [collab.sendSelect, collab.sendMapAction])
   useEffect(() => {
     collabActiveRef.current = collabMode === 'presenter'
+    collabAnyRef.current = collabMode !== 'browse'
   }, [collabMode])
+
+  // Hide the global Luna pill during a collab live tour (in-session UI replaces it).
+  const setLunaHidden = voiceContext.setHidden
+  useEffect(() => {
+    setLunaHidden(collabActive)
+    return () => setLunaHidden(false)
+  }, [collabActive, setLunaHidden])
 
   // In-app voice (Agora) — presenter starts a call, viewer joins; cost guards
   // (30min/session, 3h/day/agent) are enforced server-side.
@@ -798,11 +809,16 @@ export default function MapPage() {
   // (so the client sees floor plans etc.), flies to it, and broadcasts the open
   // + tab to viewers. Navigating away would tear down the session.
   const handleProjectClick = useCallback((project: MapPinProject) => {
-    if (collabActiveRef.current) {
+    if (collabAnyRef.current) {
+      // In a live tour, open the detail drawer in-place (navigating would tear
+      // down the session). Presenter broadcasts it + flies; viewer opens it
+      // locally so the client can freely browse properties too.
       setOpenProjectId(project.id)
       setProjectTab('overview')
-      collabSendRef.current.sendSelect('project', project.id, 'overview')
-      setFlyToLocation({ lat: project.lat, lng: project.lng, zoom: 15 })
+      if (collabActiveRef.current) {
+        collabSendRef.current.sendSelect('project', project.id, 'overview')
+        setFlyToLocation({ lat: project.lat, lng: project.lng, zoom: 15 })
+      }
       return
     }
     navigate(`/project/${project.id}`)
@@ -989,7 +1005,7 @@ export default function MapPage() {
             // collab keeps tourActive=false so the DOM-marker-hide-on-move logic
             // stays active — remote-driven jumpTo/flyTo fire movestart/moveend and
             // hide the marker sea, exactly the perf behaviour we want during sync.
-            chromeless={(!!tourCode && !toolsRevealed) || collabActive}
+            chromeless={(!!tourCode && !toolsRevealed) || (collabActive && collabMode !== 'presenter')}
             tourActive={!!tourCode}
             // Collab presenter gives the live map to the collab hooks via onMapReady.
             onMapReady={collabActive ? handleCollabMapReady : undefined}
@@ -1085,6 +1101,7 @@ export default function MapPage() {
               onSendChat={collab.sendChat}
               voice={voice}
               voicePrompt={collabMode === 'viewer' && presenterVoiceOn}
+              isPresenter={collabMode === 'presenter'}
               follow={
                 collabMode === 'viewer' && collab.followMode
                   ? { mode: collab.followMode, returnToPresenter: collab.returnToPresenter }

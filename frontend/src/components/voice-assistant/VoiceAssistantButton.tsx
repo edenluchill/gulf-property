@@ -446,7 +446,8 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     toolStatus,
     activate,
     deactivate,
-    navigateToProject
+    navigateToProject,
+    hidden
   } = useVoiceAssistantContext()
 
   const isActive = phase !== 'idle' && phase !== 'error'
@@ -464,6 +465,9 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
   // Show thinking bubble during tool calls, response bubble otherwise
   const showThinkingBubble = !!toolStatus
   const showResponseBubble = !toolStatus && !!latestBubble
+
+  // Hidden during a collab live tour (the in-session UI replaces it).
+  if (hidden) return null
 
   return (
     <div className={cn(

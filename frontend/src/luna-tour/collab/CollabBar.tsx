@@ -14,7 +14,7 @@
  * elsewhere (performance hard rule).
  */
 import { useEffect, useRef, useState } from 'react'
-import { Send, X, Mic, MicOff, PhoneOff, Loader2, MessageCircle } from 'lucide-react'
+import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
 import type { FollowMode } from './useCollabFollow'
 import type { CollabVoiceApi } from './useCollabVoice'
@@ -35,8 +35,10 @@ export interface CollabBarProps {
   presenterName?: string
   /** in-app voice (Agora). Omit → mic stays a disabled placeholder. */
   voice?: CollabVoiceApi
-  /** viewer-only: presenter has voice on → highlight "join voice" */
+  /** viewer-only: presenter has voice on → show "answer call" prompt */
   voicePrompt?: boolean
+  /** true for the presenter (drives call vs answer framing) */
+  isPresenter?: boolean
 }
 
 function mmss(s: number): string {
@@ -66,6 +68,7 @@ export default function CollabBar({
   presenterName,
   voice,
   voicePrompt,
+  isPresenter,
 }: CollabBarProps) {
   const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState('')
@@ -135,29 +138,27 @@ export default function CollabBar({
             <MessageCircle className="h-4 w-4" />
           </button>
 
-          {/* in-app voice (Agora). Without the voice prop it stays a disabled hint. */}
+          {/* in-app voice (Agora), framed as a phone CALL (not a mic). The mic icon
+              only appears once connected, as the mute toggle — so it stays accurate. */}
           {!voice ? (
             <button
-              type="button"
-              disabled
-              aria-disabled
+              type="button" disabled aria-disabled
               className="flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full text-slate-500"
-              title="应用内语音（未启用）"
+              title="语音通话（未启用）"
             >
-              <Mic className="h-4 w-4" />
+              <Phone className="h-4 w-4" />
             </button>
           ) : voice.status === 'connecting' ? (
-            <div className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200" title="连接语音中…">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex h-7 items-center gap-1 px-1.5 text-[11px] text-slate-200" title="接通中…">
+              <Loader2 className="h-4 w-4 animate-spin" /> 接通中
             </div>
           ) : voice.status === 'live' ? (
             <div className="flex items-center gap-1">
-              <span className="rounded-full bg-white/10 px-1.5 text-[11px] font-medium tabular-nums text-slate-200" title="本场剩余时长（上限）">
-                {mmss(voice.remainingSeconds)}
+              <span className="flex items-center gap-1 rounded-full bg-white/10 px-1.5 text-[11px] font-medium tabular-nums text-slate-200" title="通话剩余时长（上限）">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> {mmss(voice.remainingSeconds)}
               </span>
               <button
-                type="button"
-                onClick={voice.toggleMute}
+                type="button" onClick={voice.toggleMute}
                 className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/10"
                 style={{ color: voice.muted ? '#f87171' : ACCENT }}
                 title={voice.muted ? '已静音 · 点击说话' : '通话中 · 点击静音'}
@@ -165,43 +166,55 @@ export default function CollabBar({
                 {voice.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
               <button
-                type="button"
-                onClick={voice.leave}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-rose-400 transition hover:bg-white/10"
-                title="结束语音"
+                type="button" onClick={voice.leave}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/90 text-white transition hover:bg-rose-500"
+                title="挂断"
               >
                 <PhoneOff className="h-4 w-4" />
               </button>
             </div>
+          ) : voice.status === 'limit' ? (
+            <div className="flex h-7 items-center gap-1 px-2 text-[11px] font-medium text-amber-300" title="今日语音已达上限">
+              <Phone className="h-4 w-4 text-slate-400" /> 已达上限
+            </div>
+          ) : voicePrompt ? (
+            // viewer: presenter is calling → prominent answer button
+            <button
+              type="button" onClick={voice.connect}
+              className="flex h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-slate-900"
+              style={{ backgroundColor: ACCENT }}
+              title="接听经纪的语音通话"
+            >
+              <PhoneCall className="h-4 w-4" /> 接听
+            </button>
           ) : (
-            (() => {
-              const invite = !!voicePrompt && voice.status !== 'limit' && voice.status !== 'unavailable'
-              return (
-                <button
-                  type="button"
-                  onClick={voice.connect}
-                  className={`flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition ${
-                    invite ? 'bg-white/10 text-white ring-1 ring-[#00E0B8]/60' : 'text-slate-200 hover:bg-white/10'
-                  }`}
-                  title={
-                    voice.status === 'limit' ? '本场/今日语音已达上限'
-                    : voice.status === 'unavailable' ? '语音未配置'
-                    : invite ? '经纪已开启语音 · 点击加入'
-                    : voice.status === 'no_session' ? '经纪还没开启语音'
-                    : voice.status === 'error' ? '语音连接失败 · 重试'
-                    : '开启语音通话'
-                  }
-                >
-                  <Mic className="h-4 w-4" style={{ color: voice.status === 'limit' ? '#94a3b8' : ACCENT }} />
-                  {invite && <span style={{ color: ACCENT }}>加入语音</span>}
-                  {!invite && voice.status === 'limit' && <span className="text-amber-300">已达上限</span>}
-                  {!invite && voice.status === 'no_session' && <span className="text-slate-400">等待经纪</span>}
-                </button>
-              )
-            })()
+            // presenter: start a call · viewer (no active call): waiting
+            <button
+              type="button" onClick={voice.connect}
+              className="flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-200 transition hover:bg-white/10"
+              title={isPresenter ? '发起语音通话' : voice.status === 'error' ? '连接失败 · 重试' : '经纪还没开启语音'}
+            >
+              <Phone className="h-4 w-4" style={{ color: ACCENT }} />
+              {isPresenter ? <span>语音通话</span> : <span className="text-slate-400">等待经纪</span>}
+            </button>
           )}
         </div>
       </div>
+
+      {/* viewer incoming-call banner — center top, impossible to miss */}
+      {voice && voicePrompt && voice.status !== 'live' && voice.status !== 'connecting' && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1006]">
+          <button
+            type="button"
+            onClick={voice.connect}
+            className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-900 shadow-xl transition hover:opacity-90"
+            style={{ backgroundColor: ACCENT }}
+          >
+            <PhoneCall className="h-4 w-4 animate-pulse" />
+            接听 {presenterName || '经纪'} 的语音通话
+          </button>
+        </div>
+      )}
 
       {/* chat panel — slides up from the bottom; collapsed takes no space */}
       {chatOpen && (
