@@ -1,13 +1,14 @@
 /**
  * Declarative dataset registry — the ONLY place you edit to add a synced dataset.
- * Slugs & fields CONFIRMED via probe (2026-06-08) against STG.
- * See docs/reports/2026-06-08-dubai-api-accessible-datasets.md
+ * Slugs & fields CONFIRMED against PROD (https://apis.data.dubai), re-verified 2026-06-22.
+ * Available-but-not-yet-synced datasets (projects / oa_service_charges / units /
+ * buildings / population / metro …): see docs/reports/2026-06-22-dubai-api-prod-datasets.md
  *
  * Target tables already exist (dld_transactions / dld_rent_contracts / dld_valuations).
  * Normalization (bedrooms/ptype/size_band) is computed in views v_sales/v_rent — NOT here.
  * After sync, run area matching (area_id -> dubai_area_id) like the existing import does.
  *
- * ⚠️ STG returns synthetic values — sync into prod tables only with PROD creds.
+ * ⚠️ Run from a UAE egress (DUBAI_API_PROXY_URL or the Dubai box) — the API rejects non-UAE IPs.
  */
 import { DatasetConfig } from '../core/types'
 

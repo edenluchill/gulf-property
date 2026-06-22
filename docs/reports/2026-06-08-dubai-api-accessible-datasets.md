@@ -1,4 +1,9 @@
-# Dubai data.dubai API — 可访问数据集探测报告
+> ⚠️ **已过时 / SUPERSEDED（2026-06-22）。** 本报告是 **STG** 探测，值为假数据，且把
+> `dsc`/`rta`/`projects`/`buildings`/`service_charges` 误判为 403/422。**PROD 实测已推翻这些结论**
+> （dsc/rta 免授权可拉、那批 422 在 PROD 正常）。请以 **`2026-06-22-dubai-api-prod-datasets.md`** 为准。
+> 本文仅保留作历史记录，勿据此判断可达性。
+
+# Dubai data.dubai API — 可访问数据集探测报告（STG·已过时）
 
 > 日期:2026-06-08 · 环境:**STG** · Application Id `PUBLIC-USR-UID-4057946`
 > 探测方式:经 UAE 代理(`38.54.8.9:8888`)从本地实测;OAuth2 真凭证;共探 ~65 个端点 / 7 个实体。
