@@ -16,9 +16,14 @@ dotenv.config()
 import pool from '../src/db/pool'
 
 // max_age_hours: alert if max(load_timestamp) is older than this.
+// Thresholds match each dataset's real publish cadence on data.dubai:
+//  - transactions advance daily → 36h catches a missed day.
+//  - rent (Ejari) publishes in BATCHES every few days, not daily (confirmed
+//    2026-06-22: source had nothing newer than our 58h-old data) → 120h so we
+//    only alert on a genuinely stuck feed, not the normal batch gap.
 const CHECKS: { table: string; col: string; maxAgeHours: number }[] = [
   { table: 'dld_transactions', col: 'load_timestamp', maxAgeHours: 36 },
-  { table: 'dld_rent_contracts', col: 'load_timestamp', maxAgeHours: 48 },
+  { table: 'dld_rent_contracts', col: 'load_timestamp', maxAgeHours: 120 },
 ]
 
 async function main(): Promise<void> {

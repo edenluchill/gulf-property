@@ -70,55 +70,12 @@ BEGIN
   );
 END $$;
 
--- 按预算推荐 —— 改为 block-keyed(返回 block_id + 区名,直接对应地图区块,去重)
-CREATE OR REPLACE FUNCTION recommend_for_budget(
-  p_budget numeric, p_goal text DEFAULT 'balanced',
-  p_ptype text DEFAULT 'apartment', p_bedrooms int DEFAULT NULL, p_limit int DEFAULT 5
-) RETURNS jsonb LANGUAGE plpgsql AS $$
-DECLARE res jsonb;
-BEGIN
-  WITH s AS (
-    SELECT dubai_area_id,
-      percentile_cont(0.5) within group (order by price_aed) AS price_aed,
-      percentile_cont(0.5) within group (order by price_sqm) AS price_sqm,
-      count(*) AS cnt
-    FROM v_sales
-    WHERE dubai_area_id IS NOT NULL AND ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
-      AND txn_date >= CURRENT_DATE - INTERVAL '24 months'
-    GROUP BY dubai_area_id HAVING count(*) >= 10
-  ),
-  r AS (
-    SELECT dubai_area_id, percentile_cont(0.5) within group (order by rent_sqm) AS rent_sqm
-    FROM v_rent WHERE dubai_area_id IS NOT NULL AND ptype=p_ptype AND start_date >= CURRENT_DATE - INTERVAL '24 months'
-    GROUP BY dubai_area_id
-  ),
-  g AS (
-    SELECT dubai_area_id, percentile_cont(0.5) within group (order by price_sqm) AS p_then
-    FROM v_sales WHERE dubai_area_id IS NOT NULL AND ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
-      AND txn_date >= CURRENT_DATE - INTERVAL '48 months' AND txn_date < CURRENT_DATE - INTERVAL '36 months'
-    GROUP BY dubai_area_id
-  ),
-  j AS (
-    SELECT s.dubai_area_id AS block_id, da.name AS area_name,
-      round(s.price_aed::numeric) AS median_price_aed, round(s.price_sqm::numeric) AS median_price_sqm, s.cnt AS sales_count,
-      round((r.rent_sqm/NULLIF(s.price_sqm,0)*100)::numeric,2) AS gross_yield_pct,
-      round(((power(s.price_sqm/NULLIF(g.p_then,0),1.0/3)-1)*100)::numeric,1) AS cagr_3y_pct,
-      CASE WHEN s.cnt>=50 THEN 'high' WHEN s.cnt>=10 THEN 'medium' ELSE 'low' END AS confidence
-    FROM s
-    JOIN dubai_areas da ON da.id = s.dubai_area_id
-    LEFT JOIN r USING(dubai_area_id) LEFT JOIN g USING(dubai_area_id)
-    WHERE s.price_aed <= p_budget
-  )
-  SELECT COALESCE(jsonb_agg(row_to_json(x)),'[]'::jsonb) INTO res FROM (
-    SELECT * FROM j
-    ORDER BY CASE p_goal
-      WHEN 'yield'  THEN gross_yield_pct
-      WHEN 'growth' THEN cagr_3y_pct
-      ELSE COALESCE(gross_yield_pct,0) + COALESCE(cagr_3y_pct,0) END DESC NULLS LAST
-    LIMIT p_limit
-  ) x;
-  RETURN res;
-END $$;
+-- ⚠️ recommend_for_budget is NOT defined here anymore.
+-- The live, canonical version is in dubai-analytics-v2-functions.sql — it is
+-- area_name-keyed AND returns net_yield_pct + service_charge_sqft (Net Yield).
+-- The old block-keyed copy was removed on 2026-06-22 because it shares the same
+-- signature: re-running this file would have CLOBBERED the live function and
+-- silently dropped Net Yield. Do not re-add recommend_for_budget here.
 
 -- 覆盖率小工具(让你随时看哪些 block 有可靠数据)
 CREATE OR REPLACE VIEW v_block_coverage AS
