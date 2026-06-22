@@ -11,7 +11,7 @@ import { X, Loader2, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 import { fetchResidentialProjectById, fetchProjectInsights, ProjectInsights } from '../../lib/api'
-import { ImageGallery } from '../../pages/ProjectDetailPage/ImageGallery'
+import { DesktopHeroGallery } from '../../pages/ProjectDetailPage/DesktopHeroGallery'
 import { OverviewTab } from '../../pages/ProjectDetailPage/OverviewTab'
 import { UnitTypesTab } from '../../pages/ProjectDetailPage/UnitTypesTab'
 import { PaymentPlanTab } from '../../pages/ProjectDetailPage/PaymentPlanTab'
@@ -107,12 +107,10 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
           <div className="flex flex-1 items-center justify-center text-sm text-slate-400">加载失败</div>
         ) : (
           <div className="flex-1 overflow-y-auto">
-            {/* gallery */}
-            <div className="px-3 pt-3">
-              <ImageGallery images={project.project_images || []} buildingName={project.project_name || ''} />
-            </div>
-
-            {/* tabs */}
+            {/* Tabs FIRST (sticky at the very top) so 户型/付款 etc. are reachable
+                without scrolling past the whole photo gallery. The gallery now
+                lives inside 概览 as a compact hero (+ lightbox for the rest) instead
+                of dumping all N images in a vertical stack. */}
             <Tabs value={activeTab} onValueChange={handleTab}>
               <TabsList className="sticky top-0 z-10 flex h-10 w-full justify-start overflow-x-auto border-b border-slate-100 bg-white/95 px-2 backdrop-blur">
                 <TabsTrigger value="overview" className="flex-shrink-0">{t('project:tabs.overview', '概览')}</TabsTrigger>
@@ -123,7 +121,8 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
               </TabsList>
 
               <div className="px-3 py-4">
-                <TabsContent value="overview" className="mt-0">
+                <TabsContent value="overview" className="mt-0 space-y-4">
+                  <DesktopHeroGallery images={project.project_images || []} projectName={project.project_name || ''} />
                   <OverviewTab project={project} insights={insights} />
                 </TabsContent>
                 <TabsContent value="units" className="mt-0">
