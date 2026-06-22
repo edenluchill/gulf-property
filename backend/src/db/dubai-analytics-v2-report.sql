@@ -17,6 +17,7 @@ DECLARE
   v_cagr numeric; v_yoy numeric; v_g numeric;
   v_yield numeric; v_annual_rent numeric; v_future numeric; v_rentinc numeric; v_roi numeric; v_payback numeric;
   v_conf text; v_liq text; v_trend text; v_avail jsonb;
+  v_sc_sqft numeric; v_sc_drag numeric; v_net_yield numeric;
 BEGIN
   -- 营销名 → 区块(认 "Marina"/"Arabian Ranches" 等);取最短匹配名(最贴切)
   SELECT id INTO v_block FROM dubai_areas WHERE name ILIKE v_like ORDER BY length(name) ASC LIMIT 1;
@@ -83,6 +84,12 @@ BEGIN
   v_liq  := CASE WHEN v_cnt12>=200 THEN 'high' WHEN v_cnt12>=50 THEN 'medium' WHEN v_cnt12>=10 THEN 'low' ELSE 'thin' END;
   v_trend := CASE WHEN COALESCE(v_cagr,0)>0.05 THEN 'up' WHEN COALESCE(v_cagr,0)< -0.02 THEN 'down' ELSE 'stable' END;
 
+  -- net = 本函数 gross − v_area_net_yield 的 service-charge drag;缺物业费时 net 回退 gross。
+  SELECT service_charge_sqft, sc_drag_pct INTO v_sc_sqft, v_sc_drag
+  FROM v_area_net_yield WHERE dubai_area_id = v_block;
+  v_net_yield := CASE WHEN v_yield IS NULL THEN NULL
+                      ELSE round((v_yield - COALESCE(v_sc_drag,0))::numeric, 2) END;
+
   RETURN jsonb_build_object(
     'area', p_area, 'matched_block', v_block, 'ptype', p_ptype, 'bedrooms', p_bedrooms,
     'pricing', jsonb_build_object(
@@ -90,8 +97,10 @@ BEGIN
       'price_sqm_p25', round(v_p25), 'price_sqm_p75', round(v_p75), 'avg_size_sqm', round(v_size::numeric,1)),
     'trend', jsonb_build_object('cagr_3y_pct', round((COALESCE(v_cagr,0)*100)::numeric,1),
       'yoy_pct', round((COALESCE(v_yoy,0)*100)::numeric,1), 'direction', v_trend),
-    'yield', jsonb_build_object('gross_yield_pct', v_yield, 'net_yield_pct', NULL,
-      'note', 'net yield unavailable — needs service-charge data (PROD)'),
+    'yield', jsonb_build_object('gross_yield_pct', v_yield, 'net_yield_pct', v_net_yield,
+      'service_charge_sqft', v_sc_sqft,
+      'note', CASE WHEN v_sc_sqft IS NOT NULL THEN 'net = gross − service-charge drag (residential SC, AED/sqft)'
+                   ELSE 'net = gross (no service-charge data for this area)' END),
     'projection_5y', jsonb_build_object('growth_used_pct', round((v_g*100)::numeric,1),
       'future_price_aed', round(v_future), 'rental_income_5y_aed', round(v_rentinc),
       'total_roi_pct', v_roi, 'payback_years', v_payback, 'basis','indicative, not guaranteed'),
@@ -104,8 +113,7 @@ BEGIN
       'yield_friendly', COALESCE(v_yield,0) >= 6,
       'growth_friendly', COALESCE(v_cagr,0)*100 >= 10,
       'value_vs_city', CASE WHEN v_city_sqm>0 AND v_price_sqm < v_city_sqm THEN true ELSE false END),
-    'gaps', jsonb_build_array(
-      'net_yield: needs service-charge data (PROD)',
+    'gaps', (CASE WHEN v_sc_sqft IS NULL THEN jsonb_build_array('net_yield: no service-charge data for this area (net = gross)') ELSE '[]'::jsonb END) || jsonb_build_array(
       'supply_pipeline: needs projects/handover data (PROD)',
       'demographics/demand: needs DSC population (request access)',
       'liquidity is volume-based; days-on-market not in DLD')
