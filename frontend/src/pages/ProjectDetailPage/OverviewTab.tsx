@@ -27,7 +27,15 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
   return (
     <div className="space-y-6">
     {/* Investment outlook — the hero of this investment-focused page */}
-    {insights?.investment && <InvestmentScorecard insights={insights} lang={i18n.language} />}
+    {insights?.investment && (
+      <InvestmentScorecard
+        insights={insights}
+        area={project.area}
+        bedrooms={project.min_bedrooms}
+        offplan={project.status === 'upcoming' || project.status === 'under-construction'}
+        lang={i18n.language}
+      />
+    )}
 
     {/* Investor-confidence: Golden Visa, freehold/tax-free, build progress + handover */}
     <BuyerConfidence project={project} />

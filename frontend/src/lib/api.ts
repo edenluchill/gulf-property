@@ -986,6 +986,64 @@ export async function fetchRecommendAreas(params: RecommendParams): Promise<Reco
   }
 }
 
+/**
+ * investment_analysis() 原样返回。/ai/analytics/investment 公开路由,直接吐 SQL 函数的 jsonb。
+ * 无成交时返回 { error, area, ptype, bedrooms } —— 调用方据 'error' 判断 no-data。
+ * net_yield = 本函数 gross − 片区物业费 drag;service_charge_sqft / net_yield_pct 缺物业费时为 null。
+ */
+export interface AreaInvestment {
+  area: string
+  ptype: string
+  bedrooms: number | null
+  is_offplan: boolean | null
+  sample: { sales_count: number; rent_count: number; confidence: 'high' | 'medium' | 'low' }
+  median_price_aed: number
+  median_price_sqm: number
+  avg_size_sqm: number
+  gross_yield_pct: number | null
+  net_yield_pct: number | null
+  service_charge_sqft: number | null
+  cagr_3y_pct: number
+  growth_used_pct: number
+  projection_5y: {
+    future_price_aed: number
+    rental_income_5y_aed: number
+    total_roi_pct: number
+    payback_years: number | null
+  }
+  note: string
+  error?: undefined
+}
+
+interface AreaInvestmentError {
+  error: string
+  area: string
+  ptype: string
+  bedrooms: number | null
+}
+
+/** 片区投资分析（毛/净回报 + 物业费）。无数据返回 null,调用方安全跳过净回报块。 */
+export async function fetchAreaInvestment(
+  area: string,
+  bedrooms?: number | null,
+  offplan?: boolean | null
+): Promise<AreaInvestment | null> {
+  if (!area) return null
+  try {
+    const qs = new URLSearchParams({ area, property_type: 'apartment' })
+    if (bedrooms != null) qs.set('bedrooms', String(bedrooms))
+    if (offplan != null) qs.set('offplan', String(offplan))
+    const r = await fetch(`${API_URL}/ai/analytics/investment?${qs.toString()}`)
+    if (!r.ok) return null
+    const data: AreaInvestment | AreaInvestmentError = await r.json()
+    if ((data as AreaInvestmentError).error) return null
+    return data as AreaInvestment
+  } catch (error) {
+    console.error('Error fetching area investment:', error)
+    return null
+  }
+}
+
 // ---- 数据版本指纹（客户端缓存自动失效）----
 export async function fetchDataVersion(): Promise<string | null> {
   try {

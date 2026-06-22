@@ -1,5 +1,6 @@
-import { TrendingUp } from 'lucide-react'
-import { ProjectInsights } from '../../lib/api'
+import { useEffect, useState } from 'react'
+import { Info, TrendingUp } from 'lucide-react'
+import { AreaInvestment, ProjectInsights, fetchAreaInvestment } from '../../lib/api'
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../DirhamSymbol'
 import ReturnsBar from './ReturnsBar'
@@ -9,25 +10,58 @@ import ReturnsBar from './ReturnsBar'
  * site. Surfaces rental yield, 5yr annualized return, payback and price growth
  * (from /insights), plus a 5yr returns breakdown bar. Honest: always shows the
  * reference price + data-as-of + a not-a-promise disclaimer.
+ *
+ * Net yield + service charge come from /ai/analytics/investment (area-level DLD),
+ * fetched lazily by area + bedrooms. When the area doesn't resolve or has no
+ * service-charge data we fall back to gross-only and omit the service-charge line.
  */
 export default function InvestmentScorecard({
   insights,
+  area,
+  bedrooms,
+  offplan,
   lang,
 }: {
   insights: ProjectInsights
+  area?: string | null
+  bedrooms?: number | null
+  offplan?: boolean | null
   lang: string
 }) {
   const zh = lang?.startsWith('zh')
   const inv = insights.investment
-  const area = insights.area
+  const insightArea = insights.area
+
+  const [areaInv, setAreaInv] = useState<AreaInvestment | null>(null)
+  useEffect(() => {
+    let alive = true
+    if (!area) {
+      setAreaInv(null)
+      return
+    }
+    fetchAreaInvestment(area, bedrooms, offplan).then((d) => {
+      if (alive) setAreaInv(d)
+    })
+    return () => {
+      alive = false
+    }
+  }, [area, bedrooms, offplan])
+
   if (!inv) return null
 
   const pct = (v?: number | null) => (v != null ? `${v}%` : '—')
+
+  // Net yield is the headline when service charge is known; otherwise gross stays headline.
+  const hasNet = areaInv?.net_yield_pct != null && areaInv?.service_charge_sqft != null
+  const grossYield = areaInv?.gross_yield_pct ?? insightArea?.rental_yield_pct
+  const headlineYield = hasNet ? areaInv!.net_yield_pct : grossYield
+  const headlineLabel = hasNet ? (zh ? '净租金回报' : 'Net yield') : zh ? '租金回报' : 'Rental yield'
+
   const tiles = [
-    { label: zh ? '租金回报' : 'Rental yield', value: pct(area?.rental_yield_pct), accent: 'text-teal-600' },
+    { label: headlineLabel, value: pct(headlineYield), accent: 'text-teal-600' },
     { label: zh ? '5 年年化' : '5yr annualized', value: pct(inv.annualized_return_pct), accent: 'text-emerald-600' },
     { label: zh ? '回本年限' : 'Payback', value: inv.payback_years != null ? `${inv.payback_years}${zh ? ' 年' : 'y'}` : '—', accent: 'text-slate-800' },
-    { label: zh ? '区域涨幅' : 'Area growth', value: pct(area?.price_growth_pct), accent: 'text-amber-600' },
+    { label: zh ? '区域涨幅' : 'Area growth', value: pct(insightArea?.price_growth_pct), accent: 'text-amber-600' },
   ]
 
   return (
@@ -48,6 +82,26 @@ export default function InvestmentScorecard({
         ))}
       </div>
 
+      {hasNet && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-teal-50/60 px-3 py-2 text-xs">
+          <span className="text-slate-500">
+            {zh ? '毛租金回报 ' : 'Gross yield '}
+            <span className="font-semibold text-slate-700">{pct(grossYield)}</span>
+          </span>
+          <span className="text-slate-500">
+            {zh ? '物业费 ' : 'Service charge '}
+            <span className="font-semibold text-slate-700">
+              <DirhamSymbol size="0.85em" className="mx-0.5" />
+              {areaInv!.service_charge_sqft}/sqft
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-slate-400">
+            <Info className="h-3 w-3 shrink-0" />
+            {zh ? '净回报 = 毛回报 − 物业费拖累' : 'Net yield = gross − service charge'}
+          </span>
+        </div>
+      )}
+
       <div className="mt-4">
         <div className="mb-1.5 text-xs font-medium text-slate-500">
           {zh ? '5 年收益拆解（以参考价估算）' : '5-year returns (at reference price)'}
@@ -59,11 +113,11 @@ export default function InvestmentScorecard({
         {zh ? '参考价 ' : 'Reference price '}
         <DirhamSymbol size="0.85em" className="mx-0.5" />
         {formatMoneyCompact(inv.reference_price, lang)}
-        {area?.data_through && (zh ? ` · 区域数据截止 ${area.data_through}` : ` · area data through ${area.data_through}`)}
-        {area?.sales_transaction_count
+        {insightArea?.data_through && (zh ? ` · 区域数据截止 ${insightArea.data_through}` : ` · area data through ${insightArea.data_through}`)}
+        {insightArea?.sales_transaction_count
           ? zh
-            ? ` · 基于近期 ${area.sales_transaction_count.toLocaleString()} 笔成交`
-            : ` · based on ${area.sales_transaction_count.toLocaleString()} recent sales`
+            ? ` · 基于近期 ${insightArea.sales_transaction_count.toLocaleString()} 笔成交`
+            : ` · based on ${insightArea.sales_transaction_count.toLocaleString()} recent sales`
           : ''}
         {'. '}
         {zh ? '估算来自该区域 DLD 成交,非投资回报承诺。' : 'Estimates from area DLD sales — not a guarantee of returns.'}
