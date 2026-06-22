@@ -156,7 +156,8 @@ export default function AboutPage() {
       {/* ═══ SEE IT LIVE — Luna tour video ════════════════════ */}
       <Section glow>
         <Reveal><Label tone={ACCENT}>// {L('实况演示', 'SEE IT LIVE')}</Label>
-          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('Luna 带看,长这样', 'This is what a Luna tour looks like')}</h2></Reveal>
+          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('Luna 带看,长这样', 'This is what a Luna tour looks like')}</h2>
+          <p className="mt-3 max-w-2xl text-slate-400">{L('每个导览都由经纪自己设计 —— 选项目、排路线、配讲解。下面是其中一个的实际效果。', 'Every tour is built by the agent — their projects, their route, their narration. Here\'s one in action.')}</p></Reveal>
         <Reveal delay={0.1} className="mt-8">
           <div className="relative mx-auto max-w-4xl">
             <Glow className="-inset-6" opacity={0.18} />
@@ -169,6 +170,18 @@ export default function AboutPage() {
             </div>
           </div>
         </Reveal>
+      </Section>
+
+      {/* ═══ WHERE THE DATA COMES FROM — trust ════════════════ */}
+      <Section>
+        <Reveal><Label tone={ACCENT}>// {L('数据从哪来', 'WHERE THE DATA COMES FROM')}</Label>
+          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('每个数字都来自迪拜政府官方记录', 'Every number comes from official Dubai government records')}</h2>
+          <p className="mt-3 max-w-2xl text-slate-400">{L('我们不用中介挂牌价、不做模型估算。成交、租约、面积、回报全部来自迪拜土地局(DLD)登记的真实交易,并通过迪拜政府官方数据平台持续同步。', 'No agent asking-prices, no model guesswork. Sales, rents, sizes and returns all come from real transactions registered with the Dubai Land Department (DLD), synced continuously from Dubai\'s official government data platform.')}</p></Reveal>
+        <div className="mt-8 grid gap-3 md:grid-cols-3">
+          <Reveal><Tile className="h-full"><TileHead icon={<Database />} title={L('迪拜土地局 (DLD)', 'Dubai Land Department')} /><p className="text-sm text-slate-400">{L('每一笔成交与租约都是 DLD 政府登记的真实交易 —— 不是中介挂牌价,不是模型估算。', 'Every sale and lease is a real transaction registered with the DLD — not an agent listing, not a model estimate.')}</p></Tile></Reveal>
+          <Reveal delay={0.06}><Tile className="h-full"><TileHead icon={<Radio />} title={L('官方平台 · 持续同步', 'Official platform · live sync')} /><p className="text-sm text-slate-400">{L('通过迪拜政府官方数据接口(data.dubai)增量同步,房价与租约保持更新 —— 不是一次性导入的旧数据。', 'Incrementally synced through Dubai\'s official data platform (data.dubai) — prices and leases stay current, not a one-off stale import.')}</p></Tile></Reveal>
+          <Reveal delay={0.12}><Tile className="h-full"><TileHead icon={<ShieldCheck />} title={L('逐笔可溯源', 'Traceable, deal by deal')} /><p className="text-sm text-slate-400">{L('每个区的成交按日期、面积、楼栋逐笔列出;Luna 回答时每个数字都标注来源 —— 无数据就说没有,从不编造。', 'Each district\'s deals are listed by date, size and tower; Luna sources every figure it quotes — and says so when data is missing.')}</p></Tile></Reveal>
+        </div>
       </Section>
 
       {/* ═══ FOR BUYERS — bento ════════════════════════════════ */}
@@ -204,7 +217,7 @@ export default function AboutPage() {
               <p className="text-sm text-slate-400">{L('5 年回报、回本年限全部标注真实数据来源;黄金签证、永久产权、零税一目了然。', '5-year ROI & payback from real data, sourced; Golden Visa, freehold, zero tax — clear.')}</p>
             </div>
             <div className="grid grid-cols-4 gap-3 md:w-1/2">
-              {[{ k: L('租金回报', 'Yield'), v: '6–8%' }, { k: L('5 年', '5-yr'), v: '↑' }, { k: L('回本', 'Payback'), v: '~12y' }, { k: L('黄金签证', 'Visa'), v: '2M+' }].map((m, i) => (
+              {[{ k: L('租金回报', 'Yield'), v: '6–8%' }, { k: L('房产税', 'Tax'), v: '0%' }, { k: L('回本', 'Payback'), v: '~12y' }, { k: L('黄金签证', 'Visa'), v: '2M+' }].map((m, i) => (
                 <div key={i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-center"><div className="text-lg font-bold" style={{ color: ACCENT }}>{m.v}</div><div className="mt-0.5 text-[10px] text-slate-500">{m.k}</div></div>
               ))}
             </div>
@@ -224,7 +237,7 @@ export default function AboutPage() {
         <Reveal delay={0.1}><CoPresenceDiagram L={L} /></Reveal>
 
         <div className="mt-12 grid gap-3 md:grid-cols-2">
-          <Reveal><Tile><TileHead icon={<FileText />} title={L('Luna AI 智能导览', 'Luna AI guided tour')} /><p className="text-sm text-slate-400">{L('生成可分享的自助看房导览:AI 精选、语音讲解、5 年回报;客户行为回传经纪。', 'Shareable self-serve tour: AI-picked, voice narration, ROI; behaviour flows back.')}</p></Tile></Reveal>
+          <Reveal><Tile><TileHead icon={<MapIcon />} title={L('Build Your Own Tour · 自建导览', 'Build Your Own Tour')} /><p className="text-sm text-slate-400">{L('经纪自己设计专属看房路线:挑项目、排顺序、配语音讲解与 5 年回报,一键生成可分享的自助导览;客户看了什么、问了什么自动回传。', 'Agents design their own tour: pick projects, set the order, add voice narration & 5-year ROI, then share a self-serve tour — every view and question flows back.')}</p></Tile></Reveal>
           <Reveal delay={0.08}><Tile><TileHead icon={<FileText />} title={L('买家意向报告', 'Buyer-intent reports')} /><p className="text-sm text-slate-400">{L('每次带看后自动生成:看了什么、问了什么,AI 判定意向 + 跟进话术。', 'Auto report per tour: viewed / asked, AI interest level + follow-up.')}</p></Tile></Reveal>
         </div>
 
