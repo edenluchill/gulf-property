@@ -170,6 +170,12 @@ export default function AboutPage() {
             </div>
           </div>
         </Reveal>
+        <Reveal delay={0.16} className="mt-6 text-center">
+          <a href="/?toursession=demo" target="_blank" rel="noopener" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
+            {L('▶ 试玩这个导览 · 无需登录', '▶ Try this tour — no login')} <ArrowRight className="h-4 w-4" />
+          </a>
+          <p className="mt-2 text-xs text-slate-500">{L('在新标签页打开真实的 Luna 导览,自己点点看。', 'Opens a real Luna tour in a new tab — click around yourself.')}</p>
+        </Reveal>
       </Section>
 
       {/* ═══ WHERE THE DATA COMES FROM — trust ════════════════ */}
