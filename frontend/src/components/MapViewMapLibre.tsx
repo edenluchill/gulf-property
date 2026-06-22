@@ -384,7 +384,11 @@ function MapViewMapLibre({
       map.getContainer().style.setProperty('--lm-scale', s.toFixed(3))
     }
     updateLandmarkScale()
-    map.on('zoomend', updateLandmarkScale)
+    // jumpTo fires `zoomend` every frame during a tour; rewriting the inherited
+    // --lm-scale var each time restyles the whole overlay subtree (jank). The
+    // landmarks are a GL layer during a tour, so the var is unused then — only
+    // track zoom in normal mode.
+    if (!tourActive) map.on('zoomend', updateLandmarkScale)
 
     // Hide DOM markers only during ZOOM / ROTATE / PITCH — the gestures that
     // re-scale and froze the GPU. NOT on plain pan (drag): translating the marker
@@ -647,13 +651,22 @@ function MapViewMapLibre({
   }, [mapLoaded, schedulePrefetch])
 
   const handleMoveEnd = useCallback(() => {
-    recomputeClusters()
-    schedulePrefetch()
-    if (!onBoundsChange || !mapRef.current) return
-
+    // The cinematic tour drives the camera via jumpTo EVERY FRAME, and jumpTo
+    // fires `moveend` each time — so without this guard the supercluster recompute
+    // + prefetch + bounds-change below would run ~60×/sec, stuttering the camera
+    // on a regular beat ("the map shakes"). The tour shows fixed GL pins (no
+    // clusters) and doesn't need bounds/prefetch, so skip all of it during a tour.
+    if (tourActive) return
+    // DEBOUNCE everything (recompute + prefetch + bounds): a remote-driven collab
+    // camera or an inertial fling also fires moveend repeatedly, so collapse to a
+    // single run ~150ms after the camera settles — the supercluster query never
+    // runs per-frame during continuous motion, and normal pan/zoom is unaffected
+    // (markers stay hidden until ~180ms after a gesture settles anyway).
     if (boundsTimeoutRef.current) clearTimeout(boundsTimeoutRef.current)
-
     boundsTimeoutRef.current = setTimeout(() => {
+      recomputeClusters()
+      schedulePrefetch()
+      if (!onBoundsChange) return
       const map = mapRef.current?.getMap()
       if (!map) return
       const bounds = map.getBounds()
@@ -664,7 +677,7 @@ function MapViewMapLibre({
         maxLng: bounds.getEast(),
       }, map.getZoom())
     }, 150)
-  }, [onBoundsChange, recomputeClusters, schedulePrefetch])
+  }, [onBoundsChange, recomputeClusters, schedulePrefetch, tourActive])
 
   // Area polygons GeoJSON - 支持热力图
   const areasGeoJson = useMemo(() => {
