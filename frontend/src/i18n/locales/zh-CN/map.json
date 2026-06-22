@@ -78,11 +78,13 @@
     "capitalGrowth": "增长",
     "transactionCount": "成交量",
     "rentalYield": "租金回报",
+    "netYield": "净回报",
     "rentStability": "租赁稳定性"
   },
   "explain": {
     "howCalculated": "如何计算",
     "rentalYield": "新租约一年的租金占房价的比例 —— 今天买入并出租的毛回报率。取新签租金中位数 ÷ 房价中位数(均按每 sqft)。",
+    "netYield": "毛租金回报扣除每年物业费拖累(每 sqft 物业费占每 sqft 房价的比例)后的净回报,更接近扣掉物业费后你实际到手的收益。仅对有物业费数据的区域显示。",
     "rentStability": "老租客租金接近新租户租金的程度。接近 100% = 稳定;明显低于 100% = 新租户要付明显更高的租金,说明租金在快速上涨。",
     "capitalGrowth": "本期成交价中位数(每 sqft)相比前 12 个月的变化。",
     "medianPriceSqft": "DLD 成交价的中位数(每 sqft)—— 真实成交价,不是挂牌价。",

@@ -62,10 +62,13 @@ router.get('/areas', async (_req: Request, res: Response) => {
         m.new_contract_count as new_contract_count,
         m.renew_contract_count as renew_contract_count,
         m.transaction_count,
+        ny.net_yield_pct as net_yield_pct,
+        ny.service_charge_sqft as service_charge_sqft,
         da.area_category, da.investment_profile, da.rental_restrictions, da.growth_potential, da.ai_summary,
         da.translations, da.created_at, da.updated_at
       FROM dubai_areas da
       LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
+      LEFT JOIN v_area_net_yield ny ON ny.dubai_area_id = da.id
       WHERE da.visible = true
       ORDER BY da.display_order ASC, da.name ASC
     `);
@@ -84,6 +87,8 @@ router.get('/areas', async (_req: Request, res: Response) => {
       transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
       medianPriceSqm: row.median_price_sqm ? parseFloat(row.median_price_sqm) : null,
       medianUnitPrice: row.median_unit_price ? parseFloat(row.median_unit_price) : null,
+      netYield: row.net_yield_pct != null ? parseFloat(row.net_yield_pct) : null,
+      serviceChargeSqft: row.service_charge_sqft != null ? parseFloat(row.service_charge_sqft) : null,
     }));
 
     res.json(areas);

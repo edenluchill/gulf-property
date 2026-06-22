@@ -158,6 +158,8 @@ export interface DubaiArea {
   transactionCount?: number
   capitalAppreciation?: number
   rentalYield?: number          // median NEW-contract rent / median sale price
+  netYield?: number             // gross rental yield minus service-charge drag (%)
+  serviceChargeSqft?: number    // annual service charge per sqft (AED)
   rentStability?: number        // median renew rent / median new rent * 100 (~100 = stable)
   medianNewRentSqm?: number     // median annual NEW rent per sqm (evidence)
   newContractCount?: number     // # new rent contracts, rolling 12mo (evidence)

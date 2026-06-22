@@ -4,8 +4,9 @@
 --   'Parking' (whole-amount parking fee, avg ~1565) and 'Meter Installation' (one-off).
 -- Only 'Residential' usage (what a home buyer pays; Retail/Parking usages excluded).
 
--- Drop first: the earlier draft had a different column set (CREATE OR REPLACE
--- can't change a view's columns).
+-- Drop first (dependency order: v_area_net_yield depends on by_area depends on latest).
+-- Earlier drafts also had different column sets, so DROP + recreate, not REPLACE.
+DROP VIEW IF EXISTS v_area_net_yield;
 DROP VIEW IF EXISTS v_service_charge_by_community;
 DROP VIEW IF EXISTS v_service_charge_by_area;
 DROP VIEW IF EXISTS v_service_charge_latest;
@@ -68,8 +69,13 @@ SELECT da.id AS dubai_area_id,
        round((r.med_rent_sqm / NULLIF(p.med_price_sqm, 0) * 100)::numeric, 2) AS gross_yield_pct,
        sca.median_service_charge_sqft AS service_charge_sqft,
        round((sca.median_service_charge_sqft * 10.764 / NULLIF(p.med_price_sqm, 0) * 100)::numeric, 2) AS sc_drag_pct,
-       round((r.med_rent_sqm / NULLIF(p.med_price_sqm, 0) * 100
-              - COALESCE(sca.median_service_charge_sqft, 0) * 10.764 / NULLIF(p.med_price_sqm, 0) * 100)::numeric, 2) AS net_yield_pct
+       -- Net yield ONLY when we actually have a service charge for the area — otherwise
+       -- "net" would just equal gross (and could surface outlier gross values). NULL =
+       -- "no net-yield data", which the map metric renders as grey / no label.
+       CASE WHEN sca.median_service_charge_sqft IS NOT NULL THEN
+         round((r.med_rent_sqm / NULLIF(p.med_price_sqm, 0) * 100
+                - sca.median_service_charge_sqft * 10.764 / NULLIF(p.med_price_sqm, 0) * 100)::numeric, 2)
+       END AS net_yield_pct
 FROM dubai_areas da
 JOIN price p ON p.dubai_area_id = da.id
 JOIN rent  r ON r.dubai_area_id = da.id

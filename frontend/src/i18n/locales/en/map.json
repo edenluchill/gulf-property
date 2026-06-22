@@ -78,11 +78,13 @@
     "capitalGrowth": "Growth",
     "transactionCount": "Sales",
     "rentalYield": "Yield",
+    "netYield": "Net Yield",
     "rentStability": "Stability"
   },
   "explain": {
     "howCalculated": "How it's calculated",
     "rentalYield": "Yearly rent on a new lease as a share of the purchase price — the gross return if you buy today and rent it out. Based on the median new-lease rent and median sale price (per sqft).",
+    "netYield": "Gross rental yield minus the annual service-charge drag (service charge per sqft as a share of price per sqft). Closer to what you actually keep after building fees. Only shown for areas with service-charge data.",
     "rentStability": "How close existing tenants' rent is to new-tenant rent. Near 100% = stable. Well below 100% = new tenants pay noticeably more, so rents are climbing fast.",
     "capitalGrowth": "Change in the median sale price (per sqft) versus the previous 12 months.",
     "medianPriceSqft": "The middle DLD transaction price per sqft — actual sales, not asking prices.",

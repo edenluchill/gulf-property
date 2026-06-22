@@ -28,7 +28,7 @@ import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
 import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
-  DollarSign, TrendingUp, BarChart3, Percent,
+  DollarSign, TrendingUp, BarChart3, Percent, PiggyBank,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart, Home
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
@@ -52,6 +52,7 @@ const METRIC_OPTIONS = [
   { value: 'capitalGrowth' as AreaMetric, labelKey: 'map:metric.capitalGrowth', Icon: TrendingUp },
   { value: 'transactionCount' as AreaMetric, labelKey: 'map:metric.transactionCount', Icon: BarChart3 },
   { value: 'rentalYield' as AreaMetric, labelKey: 'map:metric.rentalYield', Icon: Percent },
+  { value: 'netYield' as AreaMetric, labelKey: 'map:metric.netYield', Icon: PiggyBank },
   // 租赁稳定率不放进右上角指标切换 —— area block 详情里已有展示(用户反馈)
 ]
 
@@ -227,7 +228,7 @@ export default function MapPage() {
     if (saved === 'salesVolume') return 'transactionCount'
     if (saved === 'avgPrice' || saved === 'avgPriceSqft') return 'medianPriceSqft'
     if (saved === 'medianPrice') return 'medianUnitPrice'
-    if (saved && ['medianUnitPrice', 'medianPriceSqft', 'capitalGrowth', 'transactionCount', 'rentalYield', 'none'].includes(saved)) {
+    if (saved && ['medianUnitPrice', 'medianPriceSqft', 'capitalGrowth', 'transactionCount', 'rentalYield', 'netYield', 'none'].includes(saved)) {
       return saved as AreaMetric
     }
     return 'none'

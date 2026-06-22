@@ -313,6 +313,8 @@ export function AreaTrendGrid({ area, insights, loading }: {
           label={t('map:areaDialog.rentalYield')}
           info={<InfoHint title={howTitle} text={t('map:explain.rentalYield')} evidence={leaseEvidence} />}
           value={yieldNow != null ? `${yieldNow.toFixed(1)}%` : '—'}
+          chip={area.netYield != null ? `${zh ? '净' : 'Net'} ${area.netYield.toFixed(1)}%` : null}
+          chipClass="bg-emerald-50 text-emerald-700"
           loading={loading}
         >
           <SparkLine data={insights?.rentalYield || []} color="#7c3aed" labels={insights?.months} fmt={(v) => `${v.toFixed(1)}%`} />

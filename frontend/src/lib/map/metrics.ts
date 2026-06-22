@@ -1,7 +1,7 @@
 import { DubaiArea } from '../../types'
 import { formatMoneyCompact, formatCountCompact, formatMoneyFull } from '../money'
 
-export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield' | 'rentStability'
+export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield' | 'netYield' | 'rentStability'
 
 // ============================================================================
 // Helper Functions
@@ -77,6 +77,11 @@ export function formatMetricValue(area: DubaiArea, metric: AreaMetric, lang: str
       if (v === undefined || v === null) return ''
       return `${v.toFixed(1)}%`
     }
+    case 'netYield': {
+      const v = area.netYield
+      if (v === undefined || v === null) return ''
+      return `${v.toFixed(1)}%`
+    }
     case 'rentStability': {
       const v = area.rentStability
       if (v === undefined || v === null) return ''
@@ -98,6 +103,7 @@ export function getMetricRawValue(area: DubaiArea, metric: AreaMetric): number |
     case 'capitalGrowth': return area.capitalAppreciation ?? null
     case 'transactionCount': return area.transactionCount ?? null
     case 'rentalYield': return area.rentalYield ?? null
+    case 'netYield': return area.netYield ?? null
     case 'rentStability': return area.rentStability ?? null
     default: return null
   }
