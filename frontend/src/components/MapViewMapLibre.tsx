@@ -519,7 +519,11 @@ function MapViewMapLibre({
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 14, 12],
           'text-anchor': 'top',
           'text-offset': [0, 0.35],
-          'text-allow-overlap': false,
+          // Skip the collision pass: MapLibre re-runs symbol placement on every
+          // camera rotation, which was a periodic hitch while orbiting a property.
+          // Few landmarks, well spread → overlap is rare and smoothness wins.
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
           'text-optional': true,
         },
         paint: {
@@ -1009,7 +1013,12 @@ function MapViewMapLibre({
                 // allow-overlap:true` is exactly what crammed every badge on top of
                 // each other. symbol-sort-key (lower minZoom = more prominent area)
                 // decides who wins a collision, so the important areas always show.
-                'text-allow-overlap': false,
+                // During a TOUR, skip collision (allow-overlap + ignore-placement):
+                // the placement pass re-runs on every camera rotation → a periodic
+                // hitch while orbiting. At tour zoom only a few labels are in view,
+                // so overlap is minimal. Normal browsing keeps full collision.
+                'text-allow-overlap': tourActive,
+                'text-ignore-placement': tourActive,
                 'text-padding': [
                   'interpolate', ['linear'], ['zoom'],
                   8, 2,    // very tight so the collision engine packs in the most names
@@ -1123,7 +1132,9 @@ function MapViewMapLibre({
                 ],
                 'text-offset': [0, 1.5],
                 'text-anchor': 'top',
-                'text-allow-overlap': false,
+                // Tour: skip collision (re-placed on every camera rotation → orbit hitch)
+                'text-allow-overlap': tourActive,
+                'text-ignore-placement': tourActive,
                 'text-optional': true
               }}
               paint={{
