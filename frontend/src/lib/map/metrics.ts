@@ -41,9 +41,9 @@ export function getMinZoomForRank(rank: number): number {
   // prevents any overlap, so a bigger candidate pool just FILLS empty space with
   // more names instead of leaving gaps. Lowered thresholds (was 12/28/50/90→13)
   // after feedback that too few area names showed at the overview.
-  if (rank < 42) return 9    // top ~42 busiest markets — visible at city overview
-  if (rank < 85) return 10
-  return 11                   // everything else becomes a candidate by zoom 11
+  if (rank < 42) return 8    // top ~42 busiest markets — visible at wide city overview
+  if (rank < 85) return 9
+  return 10                   // everything else (incl. no-data desert areas) by zoom 10
 }
 
 // 格式化指标值（按语言：中文 185万，英文 1.85M；中文用户对 K/M 不直观）。
