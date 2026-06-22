@@ -66,6 +66,13 @@ interface Segment {
 }
 
 const ARRIVAL_ZOOM = 15
+/** Cap the cinematic tilt. A steep pitch (55°+) makes the camera see toward the
+ *  horizon, so a SLOW orbit streams a huge, ever-changing fan of satellite tiles
+ *  (incl. low-zoom far-field tiles) — the periodic "still fetching while rotating"
+ *  hitch. ~45° keeps a clear 3D feel while cutting the visible footprint (and the
+ *  POIs/labels in view) a lot. Applies to authored pitch too. */
+const MAX_TOUR_PITCH = 48
+const ARRIVAL_PITCH = 45
 
 export interface CameraTrack {
   /** total ms this track spans (0 if no camera) */
@@ -112,7 +119,7 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       // flyover that only zooms in (the "arrival" push-in after the camera is
       // already over the property).
       if (!moved && !zoomed) continue
-      const to: CameraState = { center: cam.to, zoom: ARRIVAL_ZOOM, pitch: 55, bearing: cur.bearing }
+      const to: CameraState = { center: cam.to, zoom: ARRIVAL_ZOOM, pitch: ARRIVAL_PITCH, bearing: cur.bearing }
       // Distance-aware duration so a long hop isn't a rushed streak.
       const flyDur = Math.max(dur, Math.min(6000, 2600 + distDeg * 22000))
       if (moved) {
@@ -134,7 +141,7 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       const to: CameraState = {
         center: cam.center ?? cur.center,
         zoom: Math.max(MIN_TOUR_ZOOM, cam.zoom ?? cur.zoom),
-        pitch: cam.pitch ?? cur.pitch,
+        pitch: Math.min(MAX_TOUR_PITCH, cam.pitch ?? cur.pitch),
         bearing: (cam.bearing ?? cur.bearing) + AMBIENT_ORBIT_DEG,
       }
       segs.push({ start: t, end: t + dur, from: cur, to, orbitDegrees: AMBIENT_ORBIT_DEG })
