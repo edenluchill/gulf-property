@@ -910,6 +910,82 @@ export async function fetchProjectInsights(id: string): Promise<ProjectInsights 
   }
 }
 
+// ============================================================================
+// AI ANALYTICS — 找房助手（affordability / recommend）。公开路由，无需 auth。
+// 形状对齐 backend/src/routes/ai-analytics.ts + recommend_for_budget()。
+// ============================================================================
+
+/** recommend_for_budget() 返回的单个区域。affordable_areas / recommend.results 共用此形状。 */
+export interface RecommendedArea {
+  area_name: string
+  median_price_aed: number
+  median_price_sqm: number
+  sales_count: number
+  gross_yield_pct: number | null
+  cagr_3y_pct: number | null
+}
+
+export interface AffordabilityResult {
+  max_price_aed: number
+  down_payment_aed: number
+  monthly_payment_aed: number | null
+  assumptions: { down_pct: number; rate: number; years: number; dbr: number }
+  affordable_areas: RecommendedArea[]
+}
+
+export type RecommendGoal = 'yield' | 'growth' | 'balanced'
+
+export interface AffordabilityParams {
+  income?: number
+  cash?: number
+  down_pct?: number
+  rate?: number
+  years?: number
+  property_type?: string
+  bedrooms?: number
+}
+
+export interface RecommendParams {
+  budget: number
+  goal?: RecommendGoal
+  property_type?: string
+  bedrooms?: number
+  limit?: number
+}
+
+function analyticsQuery(p: AffordabilityParams | RecommendParams): string {
+  const qs = new URLSearchParams()
+  Object.entries(p as Record<string, string | number | undefined>).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  })
+  return qs.toString()
+}
+
+/** 月收入或首付现金 → 可买总价 + 预算内推荐区域。后端默认 DLD 假设(首付20%/利率4.5%/25年/DBR40%)。 */
+export async function fetchAffordability(params: AffordabilityParams): Promise<AffordabilityResult | null> {
+  try {
+    const r = await fetch(`${API_URL}/ai/analytics/affordability?${analyticsQuery(params)}`)
+    if (!r.ok) return null
+    return await r.json()
+  } catch (error) {
+    console.error('Error fetching affordability:', error)
+    return null
+  }
+}
+
+/** 预算 + 目标 → 按 净/毛回报+增值 排序的推荐区域列表。 */
+export async function fetchRecommendAreas(params: RecommendParams): Promise<RecommendedArea[]> {
+  try {
+    const r = await fetch(`${API_URL}/ai/analytics/recommend?${analyticsQuery(params)}`)
+    if (!r.ok) return []
+    const data: { results?: RecommendedArea[] } = await r.json()
+    return data.results ?? []
+  } catch (error) {
+    console.error('Error fetching recommendations:', error)
+    return []
+  }
+}
+
 // ---- 数据版本指纹（客户端缓存自动失效）----
 export async function fetchDataVersion(): Promise<string | null> {
   try {

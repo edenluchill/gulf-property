@@ -1,0 +1,61 @@
+{
+  "openButton": "找房助手",
+  "title": "找房助手",
+  "subtitle": "告诉我们你的预算，算账交给我们。",
+  "close": "关闭",
+  "tabs": {
+    "affordability": "我能买多少",
+    "recommend": "我该买哪个区"
+  },
+  "goal": {
+    "label": "目标",
+    "self": "自住",
+    "rent": "收租",
+    "growth": "增值"
+  },
+  "bedrooms": {
+    "label": "户型",
+    "any": "不限",
+    "studio": "开间",
+    "n": "{{count}} 居"
+  },
+  "affordability": {
+    "inputMode": {
+      "income": "月收入",
+      "cash": "可付首付现金"
+    },
+    "incomePlaceholder": "如 30,000",
+    "cashPlaceholder": "如 400,000",
+    "submit": "开始计算",
+    "maxPrice": "最高可买总价",
+    "downPayment": "首付",
+    "monthlyPayment": "预计月供",
+    "assumptions": "假设：首付 {{downPct}}% · 利率 {{rate}}% · 贷款 {{years}} 年 · 月供不超过收入的 {{dbr}}%",
+    "areasTitle": "预算内可买区域",
+    "empty": "暂无匹配该预算的区域，试试提高收入或现金。"
+  },
+  "recommend": {
+    "budgetLabel": "预算",
+    "budgetPlaceholder": "如 1,500,000",
+    "submit": "推荐区域",
+    "resultsTitle": "为你优选的区域",
+    "empty": "该预算与目标下暂无匹配区域，试试提高预算。"
+  },
+  "card": {
+    "yield": "净回报",
+    "growth": "增值（3年复合）",
+    "median": "中位价",
+    "pricePerSqm": "{{value}}/㎡",
+    "confidence": "置信度",
+    "confidenceHigh": "高",
+    "confidenceMedium": "中",
+    "confidenceLow": "低",
+    "samples": "{{count}} 笔成交",
+    "viewOnMap": "在地图查看"
+  },
+  "errors": {
+    "needInput": "请先输入数值。",
+    "failed": "加载失败，请重试。"
+  },
+  "dataNote": "基于 DLD 近 24 个月真实成交。回报为扣除物业费前的毛回报，数据为指示性参考。"
+}
