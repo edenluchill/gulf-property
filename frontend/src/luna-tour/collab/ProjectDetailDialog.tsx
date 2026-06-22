@@ -6,6 +6,7 @@
  * 用 `tab` prop 受控切换,所以「经纪翻到户型 → 客户也看到户型」。
  */
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Loader2, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
@@ -66,7 +67,12 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
     return typeof p === 'number' && p > 0 ? formatPrice(p) : null
   })()
 
-  return (
+  // Portal to <body> so the drawer escapes any host that traps it — e.g. the Luna
+  // tour overlay (.lt-tour-host is position:absolute, z-index:20, pointer-events:none),
+  // which otherwise capped our z-index below the map controls AND made the whole
+  // drawer non-interactive (couldn't scroll or close). At body level `fixed
+  // inset-0 z-[2100]` covers the real viewport and is fully interactive.
+  return createPortal(
     <div className="fixed inset-0 z-[2100] flex items-stretch justify-end bg-black/30" onClick={onClose}>
       <div
         className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-200"
@@ -152,6 +158,7 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
