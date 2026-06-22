@@ -11,6 +11,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import ProjectDetailDialog from './collab/ProjectDetailDialog'
 import { API_BASE_URL } from '../lib/config'
 import { lunaFetch } from './lunaApi'
 import OverlayLayer from './overlays/OverlayLayer'
@@ -106,6 +108,7 @@ export default function TourOverlay({
   editMode?: boolean
 }) {
   const navigate = useNavigate()
+  const { i18n } = useTranslation()
   const { enter, exit, setToolsRevealed } = useTourMode()
   const engineRef = useRef<TimelineEngine | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -150,6 +153,17 @@ export default function TourOverlay({
     enter(code)
     return () => exit()
   }, [code, enter, exit])
+
+  // Force the whole experience into the SESSION's language (so the demo always
+  // reads Chinese, the EN copy always English) — incl. the map's area/landmark
+  // labels, which otherwise follow the viewer's browser language and read mixed.
+  // Restore the viewer's own language when they leave the tour.
+  useEffect(() => {
+    if (load.kind !== 'ready' || !load.data.language) return
+    const prev = i18n.language
+    if (load.data.language !== prev) i18n.changeLanguage(load.data.language)
+    return () => { if (i18n.language !== prev) i18n.changeLanguage(prev) }
+  }, [load, i18n])
 
   // reveal the real map tools whenever the tour is paused/asking
   const isPaused = snap?.state === 'paused' || snap?.state === 'asking'
@@ -695,34 +709,12 @@ export default function TourOverlay({
         </>
       )}
 
-      {/* paused: a single property's info card the customer pulled up */}
-      {(state === 'asking' || state === 'paused') && exploreId && propertyMap.get(exploreId) && (
-        <div className="lt-explore-card">
-          <button className="lt-explore-back" onClick={() => setExploreId(null)}>← 返回</button>
-          {(() => {
-            const s = propertyMap.get(exploreId)!
-            const metro = s.distances?.find((d) => d.label.includes('地铁'))
-            return (
-              <>
-                {s.image && <div className="lt-card-img"><img src={s.image} alt={s.name} /></div>}
-                {s.area && <div className="lt-card-area">📍 {s.area}</div>}
-                <div className="lt-card-name">{s.name}</div>
-                {s.developer && <div className="lt-card-dev">{s.developer}</div>}
-                {s.min_price != null && (
-                  <div className="lt-card-price">{formatAedShort(s.min_price)}<span className="lt-card-price-unit"> 起</span></div>
-                )}
-                <div className="lt-card-stats">
-                  {s.amenity_score != null && (
-                    <div className="lt-card-stat"><b style={{ color: accent }}>{s.amenity_score}</b><span>便利度{s.amenity_tier ? ` · ${s.amenity_tier}` : ''}</span></div>
-                  )}
-                  {metro && (
-                    <div className="lt-card-stat"><b style={{ color: accent }}>{metro.distance_km}km</b><span>🚇 最近地铁</span></div>
-                  )}
-                </div>
-              </>
-            )
-          })()}
-        </div>
+      {/* paused: full project detail (units, floor plans, payment, investment) in
+          a right drawer — the customer taps a home to inspect EVERYTHING, exactly
+          like /project/:id, then closes to return to the paused tour (resume snaps
+          the camera back to where it left off). Replaces the old thin info card. */}
+      {(state === 'asking' || state === 'paused') && exploreId && (
+        <ProjectDetailDialog projectId={exploreId} onClose={() => setExploreId(null)} />
       )}
 
       {/* Beautiful click-to-start greeting (the tap unlocks audio). */}
