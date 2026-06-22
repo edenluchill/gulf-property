@@ -17,6 +17,19 @@ import { createSession, ensureAgent } from './session-builder'
 const SHARE_CODE = 'demo'
 const DEMO_AGENT_EMAIL = 'demo-agent@luna.tour'
 
+// Curated demo projects — 3 rich-data residential_projects (images + units +
+// payment) in distinct areas, spread across price. Pinned (not auto-picked) so
+// the demo's "tap to see full detail" drawer always loads — the old auto-pick
+// landed on a project that was later deleted (404 in the detail drawer).
+//   113 RESIDENCES         · Al Safouh First · AED 1.8M
+//   Palm Central Residences· Palm Jebel Ali  · AED 2.5M
+//   Dubai Design District  · d3              · AED 2.0M
+const DEMO_PROJECT_IDS = [
+  '4879dabf-a25d-494d-bd42-e16287bf2adf',
+  '6aad8450-de96-4192-adea-ba466fd2790e',
+  '9ee18cfb-f666-4070-91db-34ad3c3ebc56',
+]
+
 function num(v: string | number | null): number | undefined {
   if (v == null) return undefined
   const n = typeof v === 'number' ? v : parseFloat(v)
@@ -41,8 +54,8 @@ async function pickDemoProjectIds(): Promise<string[]> {
 }
 
 async function main(): Promise<void> {
-  console.log('1/4  Picking 3 real projects (distinct areas)...')
-  const projectIds = await pickDemoProjectIds()
+  console.log('1/4  Using curated demo projects...')
+  const projectIds = DEMO_PROJECT_IDS.length >= 3 ? DEMO_PROJECT_IDS : await pickDemoProjectIds()
   if (projectIds.length < 3) throw new Error(`Need 3 usable projects, found ${projectIds.length}.`)
 
   console.log('2/4  Ensuring demo agent + client...')
