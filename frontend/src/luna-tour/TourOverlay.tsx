@@ -145,6 +145,35 @@ export default function TourOverlay({
   const captionChunks = useMemo(() => (snap?.narration ? chunkCaption(snap.narration) : []), [snap?.narration])
   const captionText = useMemo(() => pickCaption(captionChunks, snap?.atMs ?? 0), [captionChunks, snap?.atMs])
 
+  // ── PERF PROBE (temporary — enable with localStorage lt-perf='1') ──────────
+  // Logs long frames (>40ms) with a timestamp, plus a per-second summary (fps,
+  // max frame gap, emit/sec), to locate the ~0.5–1s rhythmic hitch. The long-frame
+  // TIMESTAMPS reveal the rhythm; emit/sec tests the React-rerender hypothesis.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try { if (localStorage.getItem('lt-perf') !== '1') return } catch { return }
+    let raf = 0, last = performance.now(), frames = 0, maxDt = 0, longCount = 0
+    let prevLong = 0
+    const loop = (now: number) => {
+      const dt = now - last; last = now; frames++
+      if (dt > maxDt) maxDt = dt
+      if (dt > 40) {
+        const since = prevLong ? (now - prevLong).toFixed(0) : '—'
+        prevLong = now; longCount++
+        console.log(`[lt-perf] LONG ${dt.toFixed(0)}ms @${(now / 1000).toFixed(2)}s (Δsince last long=${since}ms)`)
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    const iv = window.setInterval(() => {
+      const w = window as unknown as { __ltEmits?: number }
+      const emits = w.__ltEmits ?? 0; w.__ltEmits = 0
+      console.log(`[lt-perf] sec fps=${frames} maxDt=${maxDt.toFixed(0)}ms longFrames=${longCount} emit=${emits}`)
+      frames = 0; maxDt = 0; longCount = 0
+    }, 1000)
+    return () => { cancelAnimationFrame(raf); clearInterval(iv) }
+  }, [])
+
   // enter/exit tour mode (hides app chrome via Layout)
   useEffect(() => {
     enter(code)
@@ -335,7 +364,7 @@ export default function TourOverlay({
       script: data.script,
       properties: propertyMap,
       map: mapRef.current,
-      onUpdate: (s) => setSnap(s),
+      onUpdate: (s) => { (window as unknown as { __ltEmits?: number }).__ltEmits = ((window as unknown as { __ltEmits?: number }).__ltEmits ?? 0) + 1; setSnap(s) },
       amenityById: amenityRef.current,
       sink: {
         // After toggling a host-map data layer (distance lines / amenity radial /
