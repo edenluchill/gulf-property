@@ -171,23 +171,34 @@ export class AudioPlayer {
   private newTurn = true
   private endTimer: ReturnType<typeof setTimeout> | null = null
 
+  // Optional dependency injection (for headless waveform tests with OfflineAudioContext)
+  private injectedCtx: AudioContext | null
+  private injectedDest: AudioNode | null
+
   private static readonly SAMPLE_RATE = 24000
   private static readonly LEAD = 0.20        // 200ms jitter buffer before the first buffer — absorbs bursty/late chunks
   private static readonly FADE = 0.02        // 20ms fade-in on a turn's first buffer
   private static readonly END_MARGIN_MS = 140 // grace after playhead before declaring silence
 
-  constructor(onSpeakingChange?: (speaking: boolean) => void) {
+  constructor(
+    onSpeakingChange?: (speaking: boolean) => void,
+    opts?: { context?: AudioContext; destination?: AudioNode }
+  ) {
     this.onSpeakingChange = onSpeakingChange || null
+    this.injectedCtx = opts?.context || null
+    this.injectedDest = opts?.destination || null
   }
 
   /** Warm up AudioContext (must run on a user gesture) so first play() is instant. */
   async prewarm(): Promise<void> {
     if (!this.ctx) {
-      this.ctx = new AudioContext({ sampleRate: AudioPlayer.SAMPLE_RATE })
+      this.ctx = this.injectedCtx || new AudioContext({ sampleRate: AudioPlayer.SAMPLE_RATE })
       this.gain = this.ctx.createGain()
-      this.gain.connect(this.ctx.destination)
+      this.gain.connect(this.injectedDest || this.ctx.destination)
     }
-    if (this.ctx.state === 'suspended') {
+    // Real (online) contexts start suspended and need resume on a user gesture;
+    // an OfflineAudioContext (has startRendering) must NOT be resumed.
+    if (this.ctx.state === 'suspended' && typeof (this.ctx as any).startRendering !== 'function') {
       await this.ctx.resume()
     }
   }
@@ -213,7 +224,7 @@ export class AudioPlayer {
     if (!this.ctx || !this.gain) {
       await this.prewarm()
     }
-    if (this.ctx!.state === 'suspended') {
+    if (this.ctx!.state === 'suspended' && typeof (this.ctx as any).startRendering !== 'function') {
       await this.ctx!.resume()
     }
     const ctx = this.ctx!
