@@ -187,7 +187,7 @@ export class AudioPlayer {
 
   private static readonly SAMPLE_RATE = 24000
   private static readonly LEAD = 0.20        // 200ms jitter buffer before the first buffer — absorbs bursty/late chunks
-  private static readonly FADE = 0.02        // 20ms fade-in on a turn's first buffer
+  private static readonly FADE = 0.04        // 40ms fade-in on a turn's first buffer — smooths any model entry transient ("电音")
   private static readonly END_MARGIN_MS = 140 // grace after playhead before declaring silence
 
   constructor(

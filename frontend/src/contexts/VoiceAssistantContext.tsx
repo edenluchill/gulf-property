@@ -804,10 +804,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       voiceDebugLogger.logRecordingStart()
       recorderRef.current = new AudioRecorder()
       await recorderRef.current.start((base64) => {
-        // Half-duplex: don't forward mic audio while Luna is speaking, so her own
-        // voice leaking into the mic can't be transcribed as user speech and trigger
-        // a false interruption that cuts her off mid-sentence.
-        if (lunaSpeakingRef.current) return
+        // NOTE: full-duplex. Self-interruption is handled by (1) not leaking the mic
+        // to the speaker and (2) browser echo cancellation — NOT by gating the mic,
+        // which made the user's words + Luna's reply lag several seconds while she
+        // spoke the welcome message. (lunaSpeakingRef kept for possible future use.)
         if (sessionRef.current?.sendRealtimeInput) {
           voiceDebugLogger.logAudioChunkSent()
           sessionRef.current.sendRealtimeInput({
