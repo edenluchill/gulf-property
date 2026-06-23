@@ -180,6 +180,7 @@ export class AudioPlayer {
   private speaking = false
   private newTurn = true
   private endTimer: ReturnType<typeof setTimeout> | null = null
+  private keepAlive: AudioBufferSourceNode | null = null   // inaudible loop to keep BT link awake
 
   // Optional dependency injection (for headless waveform tests with OfflineAudioContext)
   private injectedCtx: AudioContext | null
@@ -211,6 +212,28 @@ export class AudioPlayer {
     if (this.ctx.state === 'suspended' && typeof (this.ctx as any).startRendering !== 'function') {
       await this.ctx.resume()
     }
+    this.startKeepAlive()
+  }
+
+  /**
+   * Continuously play an INAUDIBLE (~-84dB) noise loop. Bluetooth headsets power
+   * down the audio link after a short silence; the next utterance then has to wake
+   * it, which eats/glitches the first audio ("一说话就卡一下"). A constant ultra-low
+   * signal keeps the link awake — exactly what YouTube/Discord do implicitly.
+   */
+  private startKeepAlive(): void {
+    if (this.keepAlive || !this.ctx || typeof (this.ctx as any).startRendering === 'function') return
+    const ctx = this.ctx
+    const len = Math.floor(ctx.sampleRate * 0.5)
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 6e-5 // ~-84dB dither, inaudible
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.loop = true
+    src.connect(ctx.destination)
+    src.start()
+    this.keepAlive = src
   }
 
   /**
@@ -332,6 +355,9 @@ export class AudioPlayer {
   /** Tear down audio context entirely. */
   close(): void {
     this.stop()
+    try { this.keepAlive?.stop() } catch { /* already stopped */ }
+    this.keepAlive?.disconnect()
+    this.keepAlive = null
     this.gain?.disconnect()
     this.gain = null
     this.ctx?.close()
