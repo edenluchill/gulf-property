@@ -28,7 +28,7 @@ import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
 import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
-  DollarSign, TrendingUp, BarChart3, Percent, PiggyBank,
+  DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart, Home
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
@@ -52,8 +52,8 @@ const METRIC_OPTIONS = [
   { value: 'capitalGrowth' as AreaMetric, labelKey: 'map:metric.capitalGrowth', Icon: TrendingUp },
   { value: 'transactionCount' as AreaMetric, labelKey: 'map:metric.transactionCount', Icon: BarChart3 },
   { value: 'rentalYield' as AreaMetric, labelKey: 'map:metric.rentalYield', Icon: Percent },
-  { value: 'netYield' as AreaMetric, labelKey: 'map:metric.netYield', Icon: PiggyBank },
-  // 租赁稳定率不放进右上角指标切换 —— area block 详情里已有展示(用户反馈)
+  // 净回报 & 租赁稳定率不放进右上角指标切换 —— 它们要看明细才有意义(净回报=毛回报扣物业费),
+  // 在 area block 详情里完整展示计算过程(用户反馈),不适合地图概览着色。
 ]
 
 // ============================================================================
@@ -1170,9 +1170,9 @@ export default function MapPage() {
             />
             <button
               onClick={() => setShowFindHome(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-lg transition-opacity hover:opacity-90"
+              className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-medium text-slate-700 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur transition-colors hover:bg-white"
             >
-              <Home className="h-4 w-4" />
+              <Home className="h-4 w-4 text-primary" />
               <span>{t('findhome:openButton')}</span>
             </button>
           </div>

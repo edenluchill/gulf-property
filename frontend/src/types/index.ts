@@ -160,6 +160,8 @@ export interface DubaiArea {
   rentalYield?: number          // median NEW-contract rent / median sale price
   netYield?: number             // gross rental yield minus service-charge drag (%)
   serviceChargeSqft?: number    // annual service charge per sqft (AED)
+  netGrossYield?: number        // the gross yield netYield derives from (same source → gross − drag = net is consistent)
+  scDragPct?: number            // service-charge drag in pct points (netGrossYield − scDragPct = netYield)
   rentStability?: number        // median renew rent / median new rent * 100 (~100 = stable)
   medianNewRentSqm?: number     // median annual NEW rent per sqm (evidence)
   newContractCount?: number     // # new rent contracts, rolling 12mo (evidence)

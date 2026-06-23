@@ -64,6 +64,8 @@ router.get('/areas', async (_req: Request, res: Response) => {
         m.transaction_count,
         ny.net_yield_pct as net_yield_pct,
         ny.service_charge_sqft as service_charge_sqft,
+        ny.gross_yield_pct as net_gross_yield_pct,
+        ny.sc_drag_pct as sc_drag_pct,
         da.area_category, da.investment_profile, da.rental_restrictions, da.growth_potential, da.ai_summary,
         da.translations, da.created_at, da.updated_at
       FROM dubai_areas da
@@ -89,6 +91,10 @@ router.get('/areas', async (_req: Request, res: Response) => {
       medianUnitPrice: row.median_unit_price ? parseFloat(row.median_unit_price) : null,
       netYield: row.net_yield_pct != null ? parseFloat(row.net_yield_pct) : null,
       serviceChargeSqft: row.service_charge_sqft != null ? parseFloat(row.service_charge_sqft) : null,
+      // gross + drag come from the SAME view as netYield, so gross − drag = net is self-consistent
+      // in the area-detail Net Yield breakdown (don't mix with rentalYield, a different source).
+      netGrossYield: row.net_gross_yield_pct != null ? parseFloat(row.net_gross_yield_pct) : null,
+      scDragPct: row.sc_drag_pct != null ? parseFloat(row.sc_drag_pct) : null,
     }));
 
     res.json(areas);

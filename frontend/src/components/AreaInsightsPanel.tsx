@@ -341,6 +341,35 @@ export function AreaTrendGrid({ area, insights, loading }: {
           )}
         </StatCard>
       </div>
+
+      {/* 净租金回报：完整算式(毛回报 − 物业费 = 净回报),三数同源自洽,一看就懂 */}
+      {area.netYield != null && area.serviceChargeSqft != null && area.netGrossYield != null && area.scDragPct != null && (
+        <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-slate-700">{zh ? '净租金回报（扣物业费）' : 'Net rental yield (after service charge)'}</span>
+            <InfoHint title={howTitle} text={t('map:explain.netYield')} />
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">{zh ? '毛租金回报' : 'Gross yield'}</span>
+              <span className="font-medium text-slate-700">{area.netGrossYield.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">
+                {zh ? '物业费' : 'Service charge'}
+                <span className="ml-1 text-slate-400">(<DirhamSymbol size="0.7em" className="text-slate-400" />{area.serviceChargeSqft.toFixed(0)}/sqft)</span>
+              </span>
+              <span className="font-medium text-rose-500">−{area.scDragPct.toFixed(1)}%</span>
+            </div>
+            <div className="h-px bg-emerald-200/70" />
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-700">{zh ? '净租金回报' : 'Net yield'}</span>
+              <span className="text-sm font-bold text-emerald-600">{area.netYield.toFixed(1)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
         <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
         {t('map:areaDialog.dldSource', { month: insights?.dataThrough || '—' })}
