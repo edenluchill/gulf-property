@@ -173,6 +173,11 @@ export class AudioPlayer {
   private speaking = false
   private silentFrames = 0
   private newTurn = true
+  // Anti-stutter: never start draining a near-empty ring buffer. We hold (output
+  // silence) until ~PRIME_SAMPLES are buffered, then drain continuously. On a real
+  // mid-turn underrun we re-prime. This is what kills the choppy start ("开头一卡一卡").
+  private primed = false
+  private primeWaitFrames = 0
 
   // ~340 ms of silence before we consider speech finished (4 × 2048 / 24000)
   private static readonly SILENCE_THRESHOLD = 4
@@ -180,6 +185,11 @@ export class AudioPlayer {
   private static readonly FADE_SAMPLES = 480
   // ScriptProcessor output buffer (≈ 85 ms)
   private static readonly PROC_SIZE = 2048
+  // ~150 ms cushion buffered before (re)starting playback — smooths bursty chunks
+  private static readonly PRIME_SAMPLES = 3600
+  // ...but if audio is present and we've waited this many frames (~680 ms), start
+  // anyway so very short replies aren't swallowed waiting for a cushion.
+  private static readonly PRIME_MAX_WAIT = 8
 
   constructor(onSpeakingChange?: (speaking: boolean) => void) {
     this.onSpeakingChange = onSpeakingChange || null
@@ -211,9 +221,28 @@ export class AudioPlayer {
       const out = e.outputBuffer.getChannelData(0)
       const avail = this.available()
 
+      // (Re)prime: hold until a cushion is buffered, so we never start draining a
+      // near-empty buffer (the cause of the choppy start). Start anyway once we've
+      // waited PRIME_MAX_WAIT frames with some audio, so short replies still play.
+      if (!this.primed) {
+        if (avail >= AudioPlayer.PRIME_SAMPLES ||
+            (avail > 0 && ++this.primeWaitFrames >= AudioPlayer.PRIME_MAX_WAIT)) {
+          this.primed = true
+          this.primeWaitFrames = 0
+        } else {
+          out.fill(0)
+          if (this.speaking && ++this.silentFrames >= AudioPlayer.SILENCE_THRESHOLD) {
+            this.speaking = false
+            this.onSpeakingChange?.(false)
+          }
+          return
+        }
+      }
+
       if (avail === 0) {
-        // Buffer empty — output silence
+        // Real underrun mid-turn — re-prime (rebuild cushion) instead of emitting gaps.
         out.fill(0)
+        this.primed = false
         if (this.speaking && ++this.silentFrames >= AudioPlayer.SILENCE_THRESHOLD) {
           this.speaking = false
           this.onSpeakingChange?.(false)
@@ -279,6 +308,8 @@ export class AudioPlayer {
     this.rPos = 0
     this.newTurn = true
     this.silentFrames = 0
+    this.primed = false
+    this.primeWaitFrames = 0
     if (this.speaking) {
       this.speaking = false
       this.onSpeakingChange?.(false)

@@ -370,7 +370,7 @@ function LunaBubble({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 16 }}
       transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-      className="w-72 max-w-[calc(100vw-6rem)] max-h-[calc(100vh-10rem)] overflow-x-hidden overflow-y-auto"
+      className="w-64 md:w-72 max-w-[calc(100vw-5rem)] max-h-[42vh] md:max-h-[calc(100vh-10rem)] overflow-x-hidden overflow-y-auto"
     >
       <div className="relative rounded-2xl bg-gradient-to-br from-[#f0f4ff] to-white px-4 py-3 text-sm shadow-xl shadow-blue-900/[0.06] backdrop-blur-xl border border-blue-100/50 ring-1 ring-blue-50">
         {/* Tail arrow */}
@@ -444,6 +444,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     phase,
     latestBubble,
     toolStatus,
+    userTranscript,
     activate,
     deactivate,
     navigateToProject,
@@ -465,6 +466,9 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
   // Show thinking bubble during tool calls, response bubble otherwise
   const showThinkingBubble = !!toolStatus
   const showResponseBubble = !toolStatus && !!latestBubble
+  // Live user-speech caption: shown while the user is speaking (before Luna replies)
+  const showUserCaption = !!userTranscript && !showThinkingBubble &&
+    (phase === 'listening' || phase === 'processing')
 
   // Hidden during a collab live tour (the in-session UI replaces it).
   if (hidden) return null
@@ -481,7 +485,22 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             <ThinkingBubble toolStatus={toolStatus} />
           </div>
         )}
-        {showResponseBubble && (
+        {showUserCaption && (
+          <motion.div
+            key="user-caption"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            className="absolute bottom-0 right-[56px] w-56 md:w-64 max-w-[calc(100vw-5rem)]"
+          >
+            <div className="rounded-2xl bg-emerald-600/95 px-3.5 py-2 text-[13px] leading-snug text-white shadow-xl backdrop-blur-xl">
+              <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-100/90">{t('voice.you')}</span>
+              {userTranscript}
+            </div>
+          </motion.div>
+        )}
+        {showResponseBubble && !showUserCaption && (
           <div key="response-bubble" className="absolute bottom-0 right-[56px]">
             <LunaBubble
               bubble={latestBubble}

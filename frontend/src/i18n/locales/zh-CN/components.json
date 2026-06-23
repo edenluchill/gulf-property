@@ -1,5 +1,6 @@
 {
   "voice": {
+    "you": "你说",
     "tool": {
       "search": "搜索",
       "locate": "定位",

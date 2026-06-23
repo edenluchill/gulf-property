@@ -233,6 +233,7 @@ interface VoiceAssistantContextType {
   phase: VoicePhase
   latestBubble: BubbleContent | null
   toolStatus: string | null
+  userTranscript: string   // live caption of the user's own speech
 
   // Actions
   activate: () => Promise<void>
@@ -262,6 +263,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const [latestBubble, setLatestBubble] = useState<BubbleContent | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [hidden, setHidden] = useState(false)
+  // Live caption of the USER's own speech (so they can see what they're saying)
+  const [userTranscript, setUserTranscript] = useState<string>('')
 
   // Refs
   const sessionRef = useRef<any>(null)
@@ -272,6 +275,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const pendingActionRef = useRef<MapAction | null>(null)
   const systemInstructionRef = useRef<string>('')
   const startRecordingRef = useRef<(() => Promise<void>) | null>(null)
+
+  // Live user-speech caption: accumulate this utterance; userTurnFreshRef flips true
+  // after the assistant speaks so the NEXT user words start a fresh caption.
+  const userTextAccumRef = useRef<string>('')
+  const userTurnFreshRef = useRef<boolean>(true)
 
   // Bubble accumulation: collect fragments, flush at most every 200ms
   const assistantTextAccumRef = useRef<string>('')
@@ -559,16 +567,25 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       if (content.interrupted) {
         voiceDebugLogger.logInterruption()
         playerRef.current?.stop()
+        // User barged in → start a fresh caption for the new utterance
+        userTurnFreshRef.current = true
         setPhase('listening')
         return
       }
 
-      // Input transcription (user speech) — no bubble, just log
+      // Input transcription (user speech) — show a live caption of the user's words
       if (content.inputTranscription) {
         const text = typeof content.inputTranscription === 'string'
           ? content.inputTranscription
           : (content.inputTranscription as any).text
         if (text) {
+          // First fragment after the assistant spoke = a new utterance → reset caption
+          if (userTurnFreshRef.current) {
+            userTextAccumRef.current = ''
+            userTurnFreshRef.current = false
+          }
+          userTextAccumRef.current += text
+          setUserTranscript(userTextAccumRef.current.trim())
           voiceDebugLogger.logUserMessage(text)
         }
       }
@@ -584,6 +601,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           if (text.trim()) {
             // Clear thinking bubble once real response arrives
             setToolStatus(null)
+            // Assistant is responding → the next user input starts a fresh caption
+            userTurnFreshRef.current = true
             assistantTextAccumRef.current += text
             voiceDebugLogger.logAssistantMessage(text)
             scheduleBubbleFlush()
@@ -960,9 +979,12 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     pendingAttachmentRef.current = null
     stickyAttachmentRef.current = null
     reconnectAttemptsRef.current = 0
+    userTextAccumRef.current = ''
+    userTurnFreshRef.current = true
     setPhase('idle')
     setLatestBubble(null)
     setToolStatus(null)
+    setUserTranscript('')
     voiceDebugLogger.endSession()
   }, [])
 
@@ -980,6 +1002,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       phase,
       latestBubble,
       toolStatus,
+      userTranscript,
       activate,
       deactivate,
       registerMapActionHandler,

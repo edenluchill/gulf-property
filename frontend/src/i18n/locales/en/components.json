@@ -1,5 +1,6 @@
 {
   "voice": {
+    "you": "You",
     "tool": {
       "search": "Search",
       "locate": "Locate",
