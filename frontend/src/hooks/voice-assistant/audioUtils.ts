@@ -93,6 +93,7 @@ export class AudioRecorder {
   private audioContext: AudioContext | null = null
   private processor: ScriptProcessorNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
+  private mute: GainNode | null = null
   private onAudioData: ((base64: string) => void) | null = null
 
   async start(onAudioData: (base64: string) => void): Promise<void> {
@@ -128,16 +129,25 @@ export class AudioRecorder {
     }
 
     this.source.connect(this.processor)
-    this.processor.connect(this.audioContext.destination)
+    // A ScriptProcessor only fires onaudioprocess while connected to a destination,
+    // but we must NOT leak the mic to the speaker (that echoed the user's own voice
+    // and fed Luna's voice back into the mic). Route through a muted gain so the
+    // processor stays alive while outputting silence.
+    this.mute = this.audioContext.createGain()
+    this.mute.gain.value = 0
+    this.processor.connect(this.mute)
+    this.mute.connect(this.audioContext.destination)
   }
 
   stop(): void {
     this.processor?.disconnect()
+    this.mute?.disconnect()
     this.source?.disconnect()
     this.audioContext?.close()
     this.stream?.getTracks().forEach(track => track.stop())
 
     this.processor = null
+    this.mute = null
     this.source = null
     this.audioContext = null
     this.stream = null

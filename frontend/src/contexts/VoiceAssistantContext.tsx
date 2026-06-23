@@ -272,6 +272,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const recorderRef = useRef<AudioRecorder | null>(null)
   const playerRef = useRef<AudioPlayer | null>(null)
   const mapActionHandlerRef = useRef<((action: MapAction) => void) | null>(null)
+  // Half-duplex: true while Luna is speaking. We don't forward mic audio then, so her
+  // own voice (picked up by the speaker→mic path) can't trigger a false interruption.
+  const lunaSpeakingRef = useRef(false)
   const pendingActionRef = useRef<MapAction | null>(null)
   const systemInstructionRef = useRef<string>('')
   const startRecordingRef = useRef<(() => Promise<void>) | null>(null)
@@ -601,8 +604,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           if (text.trim()) {
             // Clear thinking bubble once real response arrives
             setToolStatus(null)
-            // Assistant is responding → the next user input starts a fresh caption
+            // Luna is responding → hide the user caption and show her bubble (which
+            // then persists after she finishes); next user input starts a fresh caption.
             userTurnFreshRef.current = true
+            setUserTranscript('')
             assistantTextAccumRef.current += text
             voiceDebugLogger.logAssistantMessage(text)
             scheduleBubbleFlush()
@@ -765,6 +770,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     const initAudio = () => {
       if (!playerRef.current) {
         playerRef.current = new AudioPlayer((speaking) => {
+          lunaSpeakingRef.current = speaking
           // Only transition to listening when audio finishes and we're in speaking phase
           if (!speaking) {
             setPhase(prev => prev === 'speaking' ? 'listening' : prev)
@@ -798,6 +804,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       voiceDebugLogger.logRecordingStart()
       recorderRef.current = new AudioRecorder()
       await recorderRef.current.start((base64) => {
+        // Half-duplex: don't forward mic audio while Luna is speaking, so her own
+        // voice leaking into the mic can't be transcribed as user speech and trigger
+        // a false interruption that cuts her off mid-sentence.
+        if (lunaSpeakingRef.current) return
         if (sessionRef.current?.sendRealtimeInput) {
           voiceDebugLogger.logAudioChunkSent()
           sessionRef.current.sendRealtimeInput({
