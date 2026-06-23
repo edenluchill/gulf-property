@@ -21,7 +21,7 @@ import {
 } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { GoogleGenAI, Modality, LiveServerMessage, Type } from '@google/genai'
+import { GoogleGenAI, Modality, LiveServerMessage, Type, StartSensitivity, EndSensitivity } from '@google/genai'
 import {
   VoicePhase,
   BubbleContent,
@@ -890,6 +890,19 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          // VAD tuning: require ~400ms of sustained speech before treating it as a
+          // barge-in, so a brief breath / background noise / faint earphone leak no
+          // longer counts as "the user started talking" and cuts Luna off at the end.
+          // (startOfSpeechSensitivity default is already LOW; prefixPaddingMs is the
+          // real lever.) Longer silenceDuration tolerates natural pauses too.
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
+              prefixPaddingMs: 400,
+              silenceDurationMs: 800,
+            },
+          },
           systemInstruction: {
             parts: [{ text: systemInstructionRef.current }]
           },
