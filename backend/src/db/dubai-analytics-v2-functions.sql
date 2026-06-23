@@ -62,9 +62,9 @@ BEGIN
   v_roi := round((v_future - v_price_aed + v_rentinc) / v_price_aed * 100, 1);
   v_conf := CASE WHEN v_cnt>=50 THEN 'high' WHEN v_cnt>=10 THEN 'medium' ELSE 'low' END;
 
-  -- net = 本函数 gross − v_area_net_yield 的 service-charge drag;缺物业费时 net 回退 gross。
+  -- net = 本函数 gross − mv_area_net_yield 的 service-charge drag;缺物业费时 net 回退 gross。
   SELECT service_charge_sqft, sc_drag_pct INTO v_sc_sqft, v_sc_drag
-  FROM v_area_net_yield WHERE dubai_area_id = v_block;
+  FROM mv_area_net_yield WHERE dubai_area_id = v_block;
   v_net_yield := CASE WHEN v_yield IS NULL THEN NULL
                       ELSE round((v_yield - COALESCE(v_sc_drag,0))::numeric, 2) END;
 
@@ -88,6 +88,24 @@ CREATE OR REPLACE FUNCTION recommend_for_budget(
 ) RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE res jsonb;
 BEGIN
+  -- Fast path: the find-home calculator's default segment (apartment, all bedrooms)
+  -- is precomputed in mv_area_invest_apt (refreshed daily). Reading it is ~ms vs the
+  -- ~12–20s live percentile scan over v_sales/v_rent below. Other segments fall through.
+  IF p_ptype = 'apartment' AND p_bedrooms IS NULL THEN
+    SELECT COALESCE(jsonb_agg(row_to_json(x)),'[]'::jsonb) INTO res FROM (
+      SELECT area_name, median_price_aed, median_price_sqm, sales_count,
+             gross_yield_pct, service_charge_sqft, net_yield_pct, cagr_3y_pct
+      FROM mv_area_invest_apt
+      WHERE median_price_aed <= p_budget
+      ORDER BY CASE p_goal
+        WHEN 'yield'  THEN gross_yield_pct
+        WHEN 'growth' THEN cagr_3y_pct
+        ELSE COALESCE(gross_yield_pct,0) + COALESCE(cagr_3y_pct,0) END DESC NULLS LAST
+      LIMIT p_limit
+    ) x;
+    RETURN res;
+  END IF;
+
   WITH s AS (
     SELECT area_name, (array_agg(dubai_area_id) FILTER (WHERE dubai_area_id IS NOT NULL))[1] AS dubai_area_id,
       percentile_cont(0.5) within group (order by price_aed) AS price_aed,
@@ -110,7 +128,7 @@ BEGIN
     GROUP BY area_name
   ),
   j AS (
-    -- net = 本函数自己的 gross − v_area_net_yield 的 service-charge drag(sc_drag_pct)。
+    -- net = 本函数自己的 gross − mv_area_net_yield 的 service-charge drag(sc_drag_pct)。
     -- 直连区块(dubai_area_id);缺物业费的区 drag 为 null → net 回退到 gross,绝不 null 掉整行。
     -- 不直接用 view 的 net_yield_pct,因 view 的 gross 基准(全房型/12月)与本函数(公寓/24月)不同。
     SELECT s.area_name,
@@ -120,7 +138,7 @@ BEGIN
       round((r.rent_sqm/NULLIF(s.price_sqm,0)*100 - COALESCE(ny.sc_drag_pct,0))::numeric,2) AS net_yield_pct,
       round(((power(s.price_sqm/NULLIF(g.p_then,0),1.0/3)-1)*100)::numeric,1) AS cagr_3y_pct
     FROM s LEFT JOIN r USING(area_name) LEFT JOIN g USING(area_name)
-      LEFT JOIN v_area_net_yield ny ON ny.dubai_area_id = s.dubai_area_id
+      LEFT JOIN mv_area_net_yield ny ON ny.dubai_area_id = s.dubai_area_id
     WHERE s.price_aed <= p_budget
   )
   SELECT COALESCE(jsonb_agg(row_to_json(x)),'[]'::jsonb) INTO res FROM (

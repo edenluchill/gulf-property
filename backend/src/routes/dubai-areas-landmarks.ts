@@ -70,7 +70,7 @@ router.get('/areas', async (_req: Request, res: Response) => {
         da.translations, da.created_at, da.updated_at
       FROM dubai_areas da
       LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
-      LEFT JOIN v_area_net_yield ny ON ny.dubai_area_id = da.id
+      LEFT JOIN mv_area_net_yield ny ON ny.dubai_area_id = da.id
       WHERE da.visible = true
       ORDER BY da.display_order ASC, da.name ASC
     `);

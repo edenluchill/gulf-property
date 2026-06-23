@@ -15,6 +15,9 @@ LOG="logs/dubai-sync-$(date -u +%F).log"
 {
   echo "===== $(date -u +'%F %T') UTC  dubai sync start ====="
   npx ts-node src/sync/dubai/cli.ts sync-all --incremental
+  # Refresh derived matviews (net yield + apartment invest summary) so the map
+  # endpoint and the find-home calculator serve fresh, fast data.
+  npx ts-node scripts/refresh-derived.ts
   echo "===== $(date -u +'%F %T') UTC  done ====="
 } >> "$LOG" 2>&1
 

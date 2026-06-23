@@ -84,9 +84,9 @@ BEGIN
   v_liq  := CASE WHEN v_cnt12>=200 THEN 'high' WHEN v_cnt12>=50 THEN 'medium' WHEN v_cnt12>=10 THEN 'low' ELSE 'thin' END;
   v_trend := CASE WHEN COALESCE(v_cagr,0)>0.05 THEN 'up' WHEN COALESCE(v_cagr,0)< -0.02 THEN 'down' ELSE 'stable' END;
 
-  -- net = 本函数 gross − v_area_net_yield 的 service-charge drag;缺物业费时 net 回退 gross。
+  -- net = 本函数 gross − mv_area_net_yield 的 service-charge drag;缺物业费时 net 回退 gross。
   SELECT service_charge_sqft, sc_drag_pct INTO v_sc_sqft, v_sc_drag
-  FROM v_area_net_yield WHERE dubai_area_id = v_block;
+  FROM mv_area_net_yield WHERE dubai_area_id = v_block;
   v_net_yield := CASE WHEN v_yield IS NULL THEN NULL
                       ELSE round((v_yield - COALESCE(v_sc_drag,0))::numeric, 2) END;
 
