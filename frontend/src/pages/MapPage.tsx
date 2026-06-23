@@ -1180,24 +1180,8 @@ export default function MapPage() {
 
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}
           {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && (<>
-          {/* Mobile: Top left - Current metric indicator (在 filter pills 下方) */}
-          {areaMetric !== 'none' && (
-            <div className="absolute top-14 left-3 z-[1000] md:hidden">
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white shadow-lg rounded-xl text-xs font-medium">
-                {(() => {
-                  const option = METRIC_OPTIONS.find(o => o.value === areaMetric)
-                  if (!option) return null
-                  const Icon = option.Icon
-                  return (
-                    <>
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{t(option.labelKey as any)}</span>
-                    </>
-                  )
-                })()}
-              </div>
-            </div>
-          )}
+          {/* (移除了移动端「当前指标」指示器:右上指标条已高亮选中项,地图每个区也直接
+              显示指标值,这个左上 pill 既冗余又会和筛选/找房助手按钮重叠。) */}
 
           {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
           <div className="absolute top-3 right-3 z-[1000] md:hidden">

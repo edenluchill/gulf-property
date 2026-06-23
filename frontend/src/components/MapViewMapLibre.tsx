@@ -1364,7 +1364,7 @@ function MapViewMapLibre({
             prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'
           )
         }
-        className={`absolute top-28 right-4 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-20 right-4 md:top-28 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           baseMap === 'dark'
             ? 'bg-slate-900/90 text-slate-100 ring-slate-700 hover:bg-slate-900'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1389,7 +1389,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={toggle3D}
-        className={`absolute top-28 right-24 z-[1000] flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-20 right-24 md:top-28 z-[1000] flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
           pitched
             ? 'bg-emerald-500 text-white ring-emerald-400 hover:bg-emerald-500'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1404,7 +1404,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-        className={`absolute top-40 right-4 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-32 right-4 md:top-40 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           measureMode
             ? 'bg-blue-600 text-white ring-blue-700 hover:bg-blue-700'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
