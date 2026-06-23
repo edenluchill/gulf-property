@@ -27,6 +27,9 @@ await page.addInitScript(([lang, metric]) => {
 
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
 await page.waitForTimeout(12000)
+if (process.env.SHOT_CLICK) { // optional: click an element by visible text before shooting
+  try { await page.getByText(process.env.SHOT_CLICK, { exact: true }).first().click({ timeout: 5000 }); await page.waitForTimeout(600) } catch (e) { console.log('click skipped:', String(e).slice(0, 80)) }
+}
 const clipArg = process.env.SHOT_CLIP // "x,y,w,h" in CSS px, optional
 let clip
 if (clipArg) { const [x, y, w, h] = clipArg.split(',').map(Number); clip = { x, y, width: w, height: h } }
