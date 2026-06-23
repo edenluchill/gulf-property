@@ -848,6 +848,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     voiceDebugLogger.startSession()
     setPhase('connecting')
 
+    // "Ready" chime on user-initiated open: UX feedback + warms the audio pipeline
+    // so Luna's first buffer doesn't glitch on a cold context. Runs on this tap
+    // gesture, so the AudioContext is allowed to resume.
+    if (!isReconnect) playerRef.current?.chime?.()
+
     try {
       const tokenFetchStart = Date.now()
       voiceDebugLogger.log('TOKEN_FETCH_START', { language: currentLanguage })

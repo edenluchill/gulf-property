@@ -213,6 +213,40 @@ export class AudioPlayer {
     }
   }
 
+  /**
+   * Play a short two-note "ready" chime. Doubles as UX feedback on activation AND
+   * a pipeline warm-up: it spins up the audio hardware so Luna's first real buffer
+   * doesn't glitch ("电音") on a cold context. Synth (no asset). Soft attack/decay
+   * envelopes avoid clicks.
+   */
+  async chime(): Promise<void> {
+    if (!this.ctx || !this.gain) await this.prewarm()
+    const ctx = this.ctx
+    if (!ctx || !this.gain) return
+    if (ctx.state === 'suspended' && typeof (ctx as any).startRendering !== 'function') {
+      await ctx.resume()
+    }
+    const t0 = ctx.currentTime + 0.02
+    const notes = [
+      { f: 587.33, start: 0.0, dur: 0.12 },  // D5
+      { f: 880.0, start: 0.1, dur: 0.18 },   // A5
+    ]
+    for (const n of notes) {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = n.f
+      const g = ctx.createGain()
+      const s = t0 + n.start
+      g.gain.setValueAtTime(0.0001, s)
+      g.gain.linearRampToValueAtTime(0.16, s + 0.015)          // soft attack
+      g.gain.exponentialRampToValueAtTime(0.0001, s + n.dur)   // gentle decay
+      osc.connect(g)
+      g.connect(this.gain)
+      osc.start(s)
+      osc.stop(s + n.dur + 0.02)
+    }
+  }
+
   /** Arm the end-of-speech timer to fire just after the last scheduled buffer. */
   private armEndTimer(): void {
     if (this.endTimer) clearTimeout(this.endTimer)
