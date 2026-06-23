@@ -495,7 +495,6 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             className="absolute bottom-0 right-[56px] w-56 md:w-64 max-w-[calc(100vw-5rem)]"
           >
             <div className="rounded-2xl bg-emerald-600/95 px-3.5 py-2 text-[13px] leading-snug text-white shadow-xl backdrop-blur-xl">
-              <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-100/90">{t('voice.you')}</span>
               {userTranscript}
             </div>
           </motion.div>
