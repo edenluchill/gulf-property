@@ -12,7 +12,7 @@ import Supercluster from 'supercluster'
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, X } from 'lucide-react'
+import { Globe, Ruler, X, SlidersHorizontal } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON } from '../lib/api'
@@ -175,6 +175,9 @@ function MapViewMapLibre({
   // ~180ms after the camera settles.
   const [mapMoving, setMapMoving] = useState(false)
   const moveShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Mobile only: collapse basemap/3D/measure into one "工具" button (declutters the
+  // narrow top-right). Desktop shows them inline as before.
+  const [toolsOpen, setToolsOpen] = useState(false)
   const [baseMap, setBaseMapState] = useState<BaseMap>(
     () => ((localStorage.getItem('map-base') as BaseMap) || 'satellite')
   )
@@ -1364,7 +1367,7 @@ function MapViewMapLibre({
             prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'
           )
         }
-        className={`absolute top-20 right-4 md:top-28 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-28 right-4 z-[1000] hidden md:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           baseMap === 'dark'
             ? 'bg-slate-900/90 text-slate-100 ring-slate-700 hover:bg-slate-900'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1389,7 +1392,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={toggle3D}
-        className={`absolute top-20 right-24 md:top-28 z-[1000] flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-28 right-24 z-[1000] hidden md:flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
           pitched
             ? 'bg-emerald-500 text-white ring-emerald-400 hover:bg-emerald-500'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1404,7 +1407,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-        className={`absolute top-32 right-4 md:top-40 z-[1000] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-40 right-4 z-[1000] hidden md:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           measureMode
             ? 'bg-blue-600 text-white ring-blue-700 hover:bg-blue-700'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1415,6 +1418,49 @@ function MapViewMapLibre({
         <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
         {measureMode ? '退出' : '测距'}
       </button>
+
+      {/* 移动端:底图/3D/测距 收进一个「工具」按钮(窄屏右上不再堆三个独立按钮) */}
+      <div className="md:hidden absolute top-20 right-4 z-[1000] flex flex-col items-end gap-2">
+        <button
+          type="button"
+          onClick={() => setToolsOpen(o => !o)}
+          className={`flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+            toolsOpen ? 'bg-slate-900/90 text-white ring-slate-700' : 'bg-white/95 text-slate-700 ring-slate-200'
+          }`}
+          aria-label="地图工具"
+        >
+          <SlidersHorizontal size={15} className={toolsOpen ? 'text-white' : 'text-slate-500'} />
+          工具
+        </button>
+        {toolsOpen && (
+          <div className="flex min-w-[112px] flex-col items-stretch gap-1 rounded-lg bg-white/95 p-1.5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
+              className="flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              <Globe size={15} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-500' : 'text-slate-500'} />
+              {baseMap === 'vector' ? '地图' : baseMap === 'satellite' ? '卫星' : '夜景'}
+            </button>
+            <button
+              type="button"
+              onClick={toggle3D}
+              className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold transition ${pitched ? 'bg-emerald-500 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+            >
+              <span className="w-[15px] text-center text-[11px] font-bold">3D</span>
+              {pitched ? '平视视角' : '3D 倾斜'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setToolsOpen(false); measureMode ? exitMeasure() : setMeasureMode(true) }}
+              className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition ${measureMode ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+            >
+              <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
+              {measureMode ? '退出测距' : '测距'}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* 测距状态条(极简,距离已画在地图线上) */}
       {measureMode && (
