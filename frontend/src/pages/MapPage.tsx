@@ -1312,7 +1312,8 @@ export default function MapPage() {
                 className="fixed inset-0 z-[1000]"
                 onClick={() => setShowPoiPanel(false)}
               />
-              <div className="absolute top-4 left-4 md:top-28 md:right-4 md:left-auto bg-white rounded-xl shadow-xl border border-slate-200/80 z-[1001] w-[280px] max-h-[400px] overflow-hidden">
+              {/* 移动端:底部抽屉(全宽,不挤压顶部控件,与筛选 sheet 一致);桌面:右上浮动卡片 */}
+              <div className="fixed inset-x-0 bottom-0 w-full max-h-[65vh] rounded-t-2xl md:absolute md:inset-x-auto md:bottom-auto md:top-28 md:right-4 md:left-auto md:w-[280px] md:max-h-[400px] md:rounded-xl bg-white shadow-xl border border-slate-200/80 z-[1001] overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -1346,7 +1347,7 @@ export default function MapPage() {
               </div>
 
               {/* Category list */}
-              <div className="overflow-y-auto max-h-[280px] p-3">
+              <div className="overflow-y-auto max-h-[44vh] md:max-h-[280px] p-3">
                 {POI_GROUPS.map(group => {
                   const groupCategories = POI_CATEGORIES.filter(c => c.group === group.id)
                   if (groupCategories.length === 0) return null
