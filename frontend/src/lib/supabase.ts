@@ -15,7 +15,14 @@ export const supabase = createClient(
       persistSession: true,
       storageKey: 'pinzos-auth',
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      // detectSessionInUrl is OFF on purpose. With it on, this client parses the
+      // OAuth callback hash itself AND our AuthCallback calls setSession() — two
+      // concurrent ops contend gotrue's navigator.locks lock and one aborts with
+      // "signal is aborted without reason" (seen on mobile, captured via the
+      // auth_failure telemetry). AuthCallback is now the SOLE handler of the
+      // callback URL (hash → setSession, ?code → exchangeCodeForSession), so
+      // there's exactly one processor and no race.
+      detectSessionInUrl: false,
     },
   }
 )

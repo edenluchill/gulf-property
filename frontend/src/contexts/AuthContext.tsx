@@ -69,6 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       options: {
         shouldCreateUser: true,
+        // Route any magic-link click through /auth/callback — with
+        // detectSessionInUrl off, that's the only place tokens get processed.
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
     return { error }

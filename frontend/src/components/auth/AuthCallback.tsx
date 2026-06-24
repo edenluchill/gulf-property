@@ -49,6 +49,26 @@ function parseParams(): { hash: URLSearchParams; query: URLSearchParams } {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/**
+ * gotrue serialises auth ops behind a navigator.locks lock; under contention it
+ * can reject with "signal is aborted without reason". Retry a couple of times
+ * (the lock frees within a tick) before surfacing the failure.
+ */
+async function abortRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (i < tries - 1 && /abort/i.test(msg)) {
+        await delay(350)
+        continue
+      }
+      throw e
+    }
+  }
+}
+
 export default function AuthCallback() {
   const navigate = useNavigate()
   const { t } = useTranslation('auth')
@@ -104,10 +124,9 @@ export default function AuthCallback() {
         const accessToken = hash.get('access_token')
         const refreshToken = hash.get('refresh_token')
         if (accessToken && refreshToken) {
-          const { data, error: setErr } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
+          const { data, error: setErr } = await abortRetry(() =>
+            supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          )
           if (setErr) return fail('set_session', setErr.message)
           if (data.session) return finish()
         }
@@ -116,7 +135,7 @@ export default function AuthCallback() {
         //    missing, e.g. the round-trip crossed www ↔ apex origins.)
         const code = query.get('code')
         if (code) {
-          const { data, error: exErr } = await supabase.auth.exchangeCodeForSession(code)
+          const { data, error: exErr } = await abortRetry(() => supabase.auth.exchangeCodeForSession(code))
           if (exErr) return fail('code_exchange', exErr.message)
           if (data.session) return finish()
         }
