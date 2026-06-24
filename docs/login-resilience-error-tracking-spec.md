@@ -79,3 +79,17 @@ provider 记在 `sessionStorage.authProvider`,由 `AuthContext` 在发起 OAuth 
 前端:`components/auth/AuthCallback.tsx`、`contexts/AuthContext.tsx`、`lib/track.ts`、
 `lib/errorCapture.ts`(新)、`lib/analyticsApi.ts`、`components/analytics/ErrorMonitor.tsx`(新)、
 `pages/AdminAnalytics.tsx`、`App.tsx`、`i18n/locales/{en,zh-CN}/auth.json`
+
+## 6. 第二轮(2026-06-24,用户反馈)
+
+1. **错误监控 404**:首轮后端没部署成功(Docker 没开),`/errors` 路由在生产不存在 → 前端死转圈。
+   修复 = 真正部署后端 + **自测**:`curl /errors` 返回 403(路由在,owner-gated)而非 404;用
+   `db-query.ts` 跑分组 SQL 确认合法。教训:交付前必须自测线上端点。
+2. **Dashboard 改版(desktop + mobile)**:
+   - sticky header(标题 + 时间范围 segmented + 下划线 tab),范围控件不再悬在页中间。
+   - KPI strip(独立访客/搜索/…)**只在概览 tab**,不再每个 tab 重复。
+   - 下划线式 tab,移动端横向滚动(隐藏滚动条),`bg-slate-50` 现代化底色。
+3. **访客明细同邮箱重复**:根因 = `getVisitors` 按 `visitor_id` 分组,同一登录用户多浏览器=多行。
+   修复 = 按 `identity = COALESCE(user_email, visitor_id)` 合并,representative 取最近浏览器,
+   多浏览器显示「N 设备」badge;drill-down 按 identity 取,`getVisitorDetail` 用
+   `visitor_id = $1 OR user_email = $1` 合并整人历史。已用 prod 数据验证(lzp 3 设备 / shell 2 设备)。
