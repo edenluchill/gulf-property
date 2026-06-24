@@ -27,6 +27,10 @@ export type AppEvent =
   | 'luna_close'
   | 'tutorial_step'
   | 'page_view'
+  // Error telemetry — surfaced in the owner dashboard's 错误监控 tab so we can
+  // see failures real users hit (esp. mobile login) instead of losing them silently.
+  | 'auth_failure'
+  | 'api_error'
 
 const ENDPOINT = `${API_BASE_URL}/api/events`
 const VISITOR_KEY = 'app-visitor-id'
@@ -151,6 +155,18 @@ export function trackEvent(
   } catch {
     // Never let tracking throw into the UI.
   }
+}
+
+/**
+ * Report an error (auth_failure | api_error). Flushes immediately because the
+ * user is often about to leave (a broken login/page), and a lost error report
+ * is exactly the data we can't afford to drop. Best-effort; never throws.
+ */
+export function trackError(
+  type: 'auth_failure' | 'api_error',
+  payload: Record<string, unknown>
+): void {
+  trackEvent(type, payload, { immediate: true })
 }
 
 /** Convenience for the current visitor id (e.g. to tie a lead to prior events). */

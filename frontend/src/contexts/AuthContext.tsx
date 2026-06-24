@@ -84,6 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signInWithGoogle = async () => {
+    // Remember the provider so /auth/callback can offer a one-tap retry if the
+    // OAuth round-trip fails (a common mobile flake — see AuthCallback).
+    try { sessionStorage.setItem('authProvider', 'google') } catch { /* ignore */ }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -94,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signInWithMicrosoft = async () => {
+    try { sessionStorage.setItem('authProvider', 'azure') } catch { /* ignore */ }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {

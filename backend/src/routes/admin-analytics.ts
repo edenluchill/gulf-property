@@ -80,6 +80,17 @@ router.get('/sessions/:id', wrap(async (req) => {
   return { session }
 }))
 
+// ── 错误监控(auth_failure + api_error)─────────────────
+router.get('/errors', wrap(async (req) => {
+  const r = range(req)
+  const [overview, groups, recent] = await Promise.all([
+    q.getErrorOverview(r),
+    q.getErrorGroups(r, Math.min(100, Number(req.query.groups) || 40)),
+    q.getRecentErrors(r, Math.min(300, Number(req.query.limit) || 100)),
+  ])
+  return { overview, groups, recent }
+}))
+
 // ── 实时带看(collab)意向报告 ─────────────────────────
 router.get('/collab', wrap((req) =>
   getCollabSessions(Math.min(200, Number(req.query.limit) || 50), Math.max(0, Number(req.query.offset) || 0))

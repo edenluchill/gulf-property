@@ -17,6 +17,10 @@ export const ALLOWED_EVENTS = new Set([
   'luna_close',
   'tutorial_step',
   'page_view',
+  // Error telemetry (see ErrorMonitor in the owner dashboard). Same fail-safe
+  // ingest path — these just carry diagnostic fields in `payload`.
+  'auth_failure', // OAuth/login callback failed (provider error, race, storage blocked, …)
+  'api_error',    // a fetch to our API failed: network down, 5xx, timeout/429
 ])
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

@@ -190,6 +190,39 @@ export interface CollabReport {
   ai: CollabAi | null
 }
 
+// ── 错误监控(auth_failure + api_error)─────────────────
+export interface ErrorOverview {
+  auth_failures: number
+  api_errors: number
+  affected_auth_visitors: number
+  affected_api_visitors: number
+  daily: { day: string; auth_failures: number; api_errors: number }[]
+}
+export interface ErrorGroup {
+  event_type: 'auth_failure' | 'api_error'
+  signature: string
+  count: number
+  visitors: number
+  last_seen: string
+  sample_message: string | null
+}
+export interface ErrorEvent {
+  id: number
+  created_at: string
+  event_type: 'auth_failure' | 'api_error'
+  visitor_id: string | null
+  user_email: string | null
+  path: string | null
+  ua: string | null
+  payload: Record<string, unknown>
+}
+export interface ErrorsData {
+  overview: ErrorOverview
+  groups: ErrorGroup[]
+  recent: ErrorEvent[]
+}
+export const fetchErrors = (days: number) => authedGet<ErrorsData>(`/errors?days=${days}`)
+
 export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`)
 export const fetchCollabReport = (code: string) =>
   authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)

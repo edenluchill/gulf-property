@@ -364,3 +364,107 @@ export async function getLunaSession(sessionId: string) {
   )
   return rows[0] || null
 }
+
+// ── Error monitoring (auth_failure + api_error) ─────────────────────────────
+// All three read app_events filtered to the two error event_types. The frontend
+// (lib/track.ts + lib/errorCapture.ts) stamps diagnostic fields into `payload`:
+//   auth_failure: { provider, reason, code, has_hash, has_code, storage, origin }
+//   api_error:    { url, endpoint, status, kind: 'network'|'http'|'timeout', method }
+
+/** Headline error counters + a small daily trend for the window. */
+export async function getErrorOverview({ from, to }: Range) {
+  const { rows } = await pool.query(
+    `SELECT
+        COUNT(*) FILTER (WHERE event_type = 'auth_failure')                       AS auth_failures,
+        COUNT(*) FILTER (WHERE event_type = 'api_error')                          AS api_errors,
+        COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'auth_failure')     AS affected_auth_visitors,
+        COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'api_error')        AS affected_api_visitors
+       FROM app_events
+      WHERE event_type IN ('auth_failure','api_error')
+        AND created_at >= $1 AND created_at < $2`,
+    [from, to]
+  )
+  const daily = await pool.query(
+    `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+            COUNT(*) FILTER (WHERE event_type = 'auth_failure') AS auth_failures,
+            COUNT(*) FILTER (WHERE event_type = 'api_error')    AS api_errors
+       FROM app_events
+      WHERE event_type IN ('auth_failure','api_error')
+        AND created_at >= $1 AND created_at < $2
+      GROUP BY 1 ORDER BY 1`,
+    [from, to]
+  )
+  const r = rows[0]
+  return {
+    auth_failures: Number(r.auth_failures),
+    api_errors: Number(r.api_errors),
+    affected_auth_visitors: Number(r.affected_auth_visitors),
+    affected_api_visitors: Number(r.affected_api_visitors),
+    daily: daily.rows.map((d) => ({
+      day: d.day,
+      auth_failures: Number(d.auth_failures),
+      api_errors: Number(d.api_errors),
+    })),
+  }
+}
+
+/**
+ * Grouped error signatures — "the same broken thing" collapsed into one row so
+ * a handful of recurring failures don't drown in noise. Signature:
+ *   auth_failure → reason (or provider)
+ *   api_error    → "METHOD endpoint → status" (path only, query stripped client-side)
+ */
+export async function getErrorGroups({ from, to }: Range, limit = 40) {
+  const { rows } = await pool.query(
+    `SELECT
+        event_type,
+        CASE WHEN event_type = 'auth_failure'
+             THEN COALESCE(NULLIF(payload->>'reason',''), NULLIF(payload->>'provider',''), 'unknown')
+             ELSE COALESCE(payload->>'method','GET') || ' '
+                  || COALESCE(NULLIF(payload->>'endpoint',''), NULLIF(payload->>'url',''), '?')
+                  || ' → ' || COALESCE(payload->>'status', payload->>'kind', '?')
+        END AS signature,
+        COUNT(*)                   AS count,
+        COUNT(DISTINCT visitor_id) AS visitors,
+        MAX(created_at)            AS last_seen,
+        (ARRAY_AGG(payload->>'message' ORDER BY created_at DESC) FILTER (WHERE payload->>'message' IS NOT NULL))[1] AS sample_message
+       FROM app_events
+      WHERE event_type IN ('auth_failure','api_error')
+        AND created_at >= $1 AND created_at < $2
+      GROUP BY event_type, signature
+      ORDER BY count DESC, last_seen DESC
+      LIMIT $3`,
+    [from, to, limit]
+  )
+  return rows.map((r) => ({
+    event_type: r.event_type as 'auth_failure' | 'api_error',
+    signature: r.signature as string,
+    count: Number(r.count),
+    visitors: Number(r.visitors),
+    last_seen: r.last_seen,
+    sample_message: r.sample_message ?? null,
+  }))
+}
+
+/** Most recent raw error events (the drill-down feed). */
+export async function getRecentErrors({ from, to }: Range, limit = 100) {
+  const { rows } = await pool.query(
+    `SELECT id, created_at, event_type, visitor_id, user_email, path, ua, payload
+       FROM app_events
+      WHERE event_type IN ('auth_failure','api_error')
+        AND created_at >= $1 AND created_at < $2
+      ORDER BY created_at DESC
+      LIMIT $3`,
+    [from, to, limit]
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    created_at: r.created_at,
+    event_type: r.event_type as 'auth_failure' | 'api_error',
+    visitor_id: r.visitor_id ?? null,
+    user_email: r.user_email ?? null,
+    path: r.path ?? null,
+    ua: r.ua ?? null,
+    payload: r.payload ?? {},
+  }))
+}

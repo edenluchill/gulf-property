@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { trackEvent, installTracking } from './lib/track'
+import { installApiErrorCapture } from './lib/errorCapture'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import FavoritesPage from './pages/FavoritesPage'
@@ -41,6 +42,7 @@ function RouteTracker() {
   const location = useLocation()
   useEffect(() => {
     installTracking()
+    installApiErrorCapture()
   }, [])
   useEffect(() => {
     trackEvent('page_view', { path: location.pathname })
