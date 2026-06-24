@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { isOwnerEmail } from '../lib/config'
 import { Button } from '../components/ui/button'
-import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase } from 'lucide-react'
+import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase, BarChart3 } from 'lucide-react'
 
 export default function ProfilePage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -28,6 +29,11 @@ export default function ProfilePage() {
   }
 
   const menuItems = [
+    // Owner-only: customer-behaviour dashboard. Visible only to the owner
+    // email(s); more accounts can be added via OWNER_EMAILS / VITE_OWNER_EMAILS.
+    ...(isOwnerEmail(user.email)
+      ? [{ icon: BarChart3, label: t('auth:profile.dashboard', '数据后台'), path: '/admin/analytics' }]
+      : []),
     {
       icon: Briefcase,
       label: t('auth:profile.agentPortal', '经纪人工作台'),

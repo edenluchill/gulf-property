@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LogOut, Settings, ChevronDown } from 'lucide-react'
+import { LogOut, Settings, ChevronDown, BarChart3 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
+import { isOwnerEmail } from '../../lib/config'
 
 export default function UserMenu() {
   const { t } = useTranslation('auth')
@@ -111,6 +112,17 @@ export default function UserMenu() {
 
             {/* Menu items */}
             <div className="py-1">
+              {isOwnerEmail(userEmail) && (
+                <Link
+                  to="/admin/analytics"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4 text-slate-400" />
+                  {t('profile.dashboard', '数据后台')}
+                </Link>
+              )}
+
               {isAdmin && (
                 <Link
                   to="/admin/properties"

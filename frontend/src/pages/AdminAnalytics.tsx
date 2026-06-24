@@ -1,15 +1,18 @@
 /**
  * Owner-only analytics dashboard. Assembles reusable analytics components; the
- * page itself only fetches + lays out. Access is double-gated: this page checks
- * the owner allow-list (UX), and every /api/admin/analytics call is enforced
- * server-side via requireOwner. See docs/analytics-dashboard-spec.md §3 / §12.
+ * page itself only fetches + lays out. Access is gated by the owner email
+ * allow-list: this page checks isOwnerEmail (UX), and every /api/admin/analytics
+ * call is enforced server-side via requireOwner against the verified Supabase
+ * token. No secret key. See docs/analytics-dashboard-spec.md §3 / §12.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Lock, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { isOwnerEmail } from '../lib/config'
 import {
   fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries, fetchCollabSessions,
-  getDashboardKey, setDashboardKey, ForbiddenError,
+  ForbiddenError,
   Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, RecentSearch, Timeseries, Granularity, CollabSessionRow,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
@@ -64,12 +67,9 @@ export default function AdminAnalytics() {
   const [data, setData] = useState<DashData | null>(null)
   const [loading, setLoading] = useState(true)
   const [openSession, setOpenSession] = useState<string | null>(null)
-  // Access is gated by the dashboard key (server enforces it). Prompt for it if
-  // missing/rejected; store in localStorage once entered.
-  const [needKey, setNeedKey] = useState(!getDashboardKey())
-  const [keyInput, setKeyInput] = useState('')
-  const [keyError, setKeyError] = useState(false)
-  const [reloadTick, setReloadTick] = useState(0)
+  // Access is owner-email gated; the server enforces it against the verified
+  // Supabase token. `forbidden` flips if the server rejects despite our check.
+  const [forbidden, setForbidden] = useState(false)
   // Search-volume chart granularity (day/week/month), fetched independently so
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
@@ -77,8 +77,10 @@ export default function AdminAnalytics() {
   const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna' | 'collab' | 'agents' | 'errors'>('overview')
   const [openCollab, setOpenCollab] = useState<string | null>(null)
 
+  const isOwner = isOwnerEmail(user?.email)
+
   useEffect(() => {
-    if (needKey) return
+    if (!isOwner) return
     let alive = true
     setLoading(true)
     Promise.all([
@@ -96,23 +98,20 @@ export default function AdminAnalytics() {
       })
       .catch((err) => {
         if (!alive) return
-        if (err instanceof ForbiddenError) {
-          setNeedKey(true)
-          setKeyError(true)
-        }
+        if (err instanceof ForbiddenError) setForbidden(true)
         setLoading(false)
       })
     return () => { alive = false }
-  }, [days, needKey, reloadTick])
+  }, [days, isOwner])
 
   useEffect(() => {
-    if (needKey) return
+    if (!isOwner) return
     let alive = true
     fetchTimeseries('search', gran, days)
       .then((ts) => alive && setSearchSeries(ts))
       .catch(() => alive && setSearchSeries(null))
     return () => { alive = false }
-  }, [days, gran, needKey, reloadTick])
+  }, [days, gran, isOwner])
 
   const visitorTrend = useMemo(
     () => (data?.daily || []).map((d) => ({ day: d.day, value: d.visitors })),
@@ -123,15 +122,6 @@ export default function AdminAnalytics() {
     [searchSeries]
   )
 
-  function submitKey(e: React.FormEvent) {
-    e.preventDefault()
-    if (!keyInput.trim()) return
-    setDashboardKey(keyInput.trim())
-    setKeyError(false)
-    setNeedKey(false)
-    setReloadTick((t) => t + 1)
-  }
-
   if (authLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -140,28 +130,35 @@ export default function AdminAnalytics() {
     )
   }
 
-  if (needKey) {
+  // Not logged in → prompt to sign in (login carries them back here).
+  if (!user) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
-        <form onSubmit={submitKey} className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+            <LogIn className="h-8 w-8 text-slate-500" />
+          </div>
+          <h2 className="mb-1 text-xl font-semibold text-slate-900">需要登录</h2>
+          <p className="mb-5 text-sm text-slate-500">请用所有者账户登录以查看客户数据。</p>
+          <Link to="/login" className="inline-block w-full rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 py-2.5 text-sm font-medium text-white">
+            去登录
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Logged in but not an owner (or the server rejected the token) → no access.
+  if (!isOwner || forbidden) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
             <Lock className="h-8 w-8 text-slate-500" />
           </div>
-          <h2 className="mb-1 text-xl font-semibold text-slate-900">Dashboard 访问密钥</h2>
-          <p className="mb-5 text-sm text-slate-500">输入所有者密钥以查看客户数据。</p>
-          <input
-            type="password"
-            value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
-            placeholder="dashboard key"
-            autoFocus
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-teal-400 focus:outline-none"
-          />
-          {keyError && <p className="mt-2 text-xs text-rose-500">密钥不对,再试一次。</p>}
-          <button type="submit" className="mt-4 w-full rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 py-2.5 text-sm font-medium text-white">
-            进入
-          </button>
-        </form>
+          <h2 className="mb-1 text-xl font-semibold text-slate-900">无权限</h2>
+          <p className="text-sm text-slate-500">当前账户（{user.email}）无权查看此页面。</p>
+        </div>
       </div>
     )
   }
