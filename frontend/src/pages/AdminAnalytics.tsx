@@ -167,62 +167,65 @@ export default function AdminAnalytics() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">客户行为 · Dashboard</h1>
-          <p className="text-xs text-slate-400">仅 {user?.email} 可见</p>
-        </div>
-        <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.days}
-              onClick={() => setDays(r.days)}
-              className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                days === r.days ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading || !data ? (
-        <div className="flex min-h-[40vh] items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin text-teal-500" />
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {/* Persistent KPI strip */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
-            <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
-            <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
-            <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
-            <StatCard label="热 Leads" value={data.overview.leads_total} icon={<Flame className="h-4 w-4" />} hint={`本期新增 ${data.overview.leads_new}`} />
+    <div className="h-full overflow-y-auto bg-slate-50">
+      {/* Sticky header: title + time range + tab nav (one clean band) */}
+      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-slate-50/85 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">客户行为 · Dashboard</h1>
+              <p className="truncate text-xs text-slate-400">仅 {user?.email} 可见</p>
+            </div>
+            <div className="inline-flex shrink-0 rounded-xl bg-slate-200/70 p-0.5">
+              {RANGES.map((r) => (
+                <button
+                  key={r.days}
+                  onClick={() => setDays(r.days)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    days === r.days ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
           </div>
-
-          {/* Tab nav */}
-          <div className="flex gap-1 overflow-x-auto rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-900/[0.06]">
+          {/* Tabs — underline style, horizontal-scroll on mobile (scrollbar hidden) */}
+          <nav className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map((tb) => (
               <button
                 key={tb.id}
                 onClick={() => setTab(tb.id)}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                  tab === tb.id ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  tab === tb.id ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
                 <tb.Icon className="h-4 w-4" />
                 {tb.label}
               </button>
             ))}
-          </div>
+          </nav>
+        </div>
+      </header>
 
+      <main className="mx-auto max-w-6xl px-4 py-5">
+      {loading || !data ? (
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-teal-500" />
+        </div>
+      ) : (
+        <div className="space-y-5">
           {/* ── Overview ──────────────────────────────────────────────────── */}
           {tab === 'overview' && (
             <div className="space-y-5">
+              {/* KPI strip — only on 概览, not every tab */}
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
+                <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
+                <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
+                <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
+                <StatCard label="热 Leads" value={data.overview.leads_total} icon={<Flame className="h-4 w-4" />} hint={`本期新增 ${data.overview.leads_new}`} />
+              </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <TrendChart title="每日访客" points={visitorTrend} className="md:col-span-2" />
                 <div className="space-y-3">
@@ -380,10 +383,10 @@ export default function AdminAnalytics() {
           {tab === 'errors' && <ErrorMonitor days={days} />}
         </div>
       )}
+      </main>
 
       {openSession && <SessionViewer sessionId={openSession} onClose={() => setOpenSession(null)} />}
       {openCollab && <CollabReportModal code={openCollab} onClose={() => setOpenCollab(null)} />}
-    </div>
     </div>
   )
 }

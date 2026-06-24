@@ -106,8 +106,10 @@ export interface SessionDetail extends SessionRow {
 
 export type Stage = 'hot' | 'warm' | 'cooling' | 'cold'
 export interface VisitorRow {
-  visitor_id: string
+  identity: string          // email when logged in, else visitor_id — drill-down key
+  visitor_id: string        // representative (most-recent) browser id
   user_email: string | null
+  browser_count: number     // how many browsers/devices merged into this row
   first_seen: string
   last_seen: string
   events: number

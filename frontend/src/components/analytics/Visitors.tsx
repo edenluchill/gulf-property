@@ -71,10 +71,13 @@ export default function Visitors({ days }: { days: number }) {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {rows.map((v) => (
-                <tr key={v.visitor_id} onClick={() => setSelected(v.visitor_id)} className="cursor-pointer hover:bg-slate-50">
+                <tr key={v.identity} onClick={() => setSelected(v.identity)} className="cursor-pointer hover:bg-slate-50">
                   <td className="px-4 py-2.5">
                     <div className="font-medium text-slate-700">{v.user_email || <span className="font-mono text-slate-500">#{shortId(v.visitor_id)}</span>}</div>
-                    {v.user_email && <div className="font-mono text-[10px] text-slate-400">#{shortId(v.visitor_id)}</div>}
+                    <div className="font-mono text-[10px] text-slate-400">
+                      {v.user_email ? `#${shortId(v.visitor_id)}` : ''}
+                      {v.browser_count > 1 && <span className="ml-1 font-sans text-slate-400">· {v.browser_count} 设备</span>}
+                    </div>
                   </td>
                   <td className="px-2 py-2.5"><StageBadge stage={v.stage} /></td>
                   <td className="px-2 py-2.5 text-right font-semibold text-slate-700">{v.score}</td>

@@ -201,21 +201,42 @@ function stageFrom(score: number, lastSeen: string): 'hot' | 'warm' | 'cooling' 
 
 /** One row per UNIQUE visitor in the window, with an intent score + stage. */
 export async function getVisitors({ from, to }: Range, limit = 200) {
+  // Merge by IDENTITY = COALESCE(user_email, visitor_id): one logged-in person
+  // browsing from several devices/browsers used to show up as several rows with
+  // the same email. We collapse those into a single row (summing activity) and
+  // report how many browsers it spans. Anonymous visitors (no email) stay keyed
+  // by their own visitor_id. `identity` is what the drill-down is fetched by.
   const { rows } = await pool.query(
-    `SELECT
-        e.visitor_id,
-        MAX(e.user_email)                                                   AS user_email,
-        MIN(e.created_at)                                                   AS first_seen,
-        MAX(e.created_at)                                                   AS last_seen,
-        COUNT(*)                                                            AS events,
-        COUNT(*) FILTER (WHERE e.event_type = 'property_view')              AS views,
-        COUNT(*) FILTER (WHERE e.event_type = 'search')                     AS searches,
-        COUNT(*) FILTER (WHERE e.event_type = 'luna_open')                  AS luna_opens,
-        COUNT(DISTINCT e.project_id) FILTER (WHERE e.project_id IS NOT NULL) AS distinct_projects
-       FROM app_events e
-      WHERE e.created_at >= $1 AND e.created_at < $2
-        AND e.visitor_id IS NOT NULL
-      GROUP BY e.visitor_id`,
+    `WITH per_visitor AS (
+        SELECT
+          e.visitor_id,
+          MAX(e.user_email)                                                   AS user_email,
+          MIN(e.created_at)                                                   AS first_seen,
+          MAX(e.created_at)                                                   AS last_seen,
+          COUNT(*)                                                            AS events,
+          COUNT(*) FILTER (WHERE e.event_type = 'property_view')              AS views,
+          COUNT(*) FILTER (WHERE e.event_type = 'search')                     AS searches,
+          COUNT(*) FILTER (WHERE e.event_type = 'luna_open')                  AS luna_opens,
+          COUNT(DISTINCT e.project_id) FILTER (WHERE e.project_id IS NOT NULL) AS distinct_projects
+         FROM app_events e
+        WHERE e.created_at >= $1 AND e.created_at < $2
+          AND e.visitor_id IS NOT NULL
+        GROUP BY e.visitor_id
+      )
+      SELECT
+        COALESCE(user_email, visitor_id)                       AS identity,
+        MAX(user_email)                                        AS user_email,
+        (ARRAY_AGG(visitor_id ORDER BY last_seen DESC))[1]     AS visitor_id,
+        MIN(first_seen)                                        AS first_seen,
+        MAX(last_seen)                                         AS last_seen,
+        SUM(events)                                            AS events,
+        SUM(views)                                             AS views,
+        SUM(searches)                                          AS searches,
+        SUM(luna_opens)                                        AS luna_opens,
+        SUM(distinct_projects)                                 AS distinct_projects,
+        COUNT(*)                                               AS browser_count
+       FROM per_visitor
+      GROUP BY COALESCE(user_email, visitor_id)`,
     [from, to]
   )
   return rows
@@ -223,8 +244,10 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
       const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna_opens)
       const score = quickScore(views, searches, luna, !!r.user_email)
       return {
+        identity: r.identity as string,
         visitor_id: r.visitor_id as string,
         user_email: (r.user_email as string) || null,
+        browser_count: Number(r.browser_count),
         first_seen: r.first_seen,
         last_seen: r.last_seen,
         events: Number(r.events),
@@ -242,23 +265,25 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
 export async function getVisitorDetail(visitorId: string) {
   const [ev, lunaRes, leadRes] = await Promise.all([
     pool.query(
-      `SELECT e.created_at, e.event_type, e.project_id, e.payload, e.path, e.session_id,
+      // Match by identity: $1 is either an email (merge all the person's
+      // browsers) or a single anonymous visitor_id. The OR makes both work.
+      `SELECT e.created_at, e.event_type, e.project_id, e.payload, e.path, e.session_id, e.user_email,
               rp.project_name, rp.area AS project_area, rp.min_price, rp.max_price
          FROM app_events e
          LEFT JOIN residential_projects rp ON rp.id = e.project_id
-        WHERE e.visitor_id = $1
+        WHERE (e.visitor_id = $1 OR e.user_email = $1)
         ORDER BY e.created_at ASC
         LIMIT 1000`,
       [visitorId]
     ),
     pool.query(
       `SELECT session_id, created_at, duration_ms, turn_count, tool_call_count, had_error
-         FROM luna_sessions WHERE visitor_id = $1 ORDER BY created_at DESC LIMIT 20`,
+         FROM luna_sessions WHERE (visitor_id = $1 OR user_email = $1) ORDER BY created_at DESC LIMIT 20`,
       [visitorId]
     ),
     pool.query(
       `SELECT name, email, phone, whatsapp, source, lead_score, status, last_seen_at
-         FROM leads WHERE visitor_id = $1 LIMIT 1`,
+         FROM leads WHERE (visitor_id = $1 OR email = $1) ORDER BY lead_score DESC LIMIT 1`,
       [visitorId]
     ),
   ])
