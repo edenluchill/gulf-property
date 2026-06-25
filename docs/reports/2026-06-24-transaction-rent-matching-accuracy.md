@@ -135,6 +135,26 @@ Palm Central → Palm Jabal Ai(sim 0.80,204 成交)。当前 13 个有迪拜坐�
 **遗留/下一步**:① 项目坐标质量(部分落在阿布扎比)需清洗 → 提升匹配率;② P2 让 master_project
 本身可搜索(无需先有项目即可看 Sobha Hartland 数据);③ 名称匹配率可加 `developer` 信号增强。
 
+## 5c. Geocode 方案 + 质量评估(2026-06-24 第二弹上线)
+
+**怎么找坐标 + 缓存**:Google Geocoding(`GOOGLE_MAPS_API_KEY`,迪拜 bounds 偏置)查
+`"{project_name}, {area_name}, Dubai, UAE"`,结果存入 **`dld_project_locations`**(按唯一
+`(area_name, project_name)` 去重,`ON CONFLICT DO NOTHING`)。**找过一次永久缓存、绝不重复**;
+新楼盘增量补。脚本 `scripts/geocode-dld-projects.ts`(`--master/--buildings/--limit/--retry-failed`)。
+
+**匹配分流**(`market.ts loadAreaInsightsData`):官方区走 area_id 桥接;**自建手画区走空间**
+`ST_Covers(boundary, geom)`,join `COALESCE(NULLIF(project_name,''), building_name)`。
+
+**评估系统** `scripts/eval-geocode-quality.ts` —— 准确率用 DLD `area_id` 自洽性(同区楼盘必聚类,
+离群=geocode 错)+ 官方多边形严格校验。离群点 `snap-geocode-outliers.sql` 吸附到所属区中位中心。
+
+**质量(上线值)**:
+- 覆盖率:项目 99.8%(3026/3032);成交 **98.0%**(project 91.2% + building 6.8%)。
+- 准确率:**99.9%** 落对区域(snap 前 82%);其中 ~82% building 级精准(google)、~18% 区域近似
+  (snap);严格落官方多边形内 77%。
+- **100% 覆盖的理论上限**:0 笔成交无定位文字 → 可达。剩 2%(只有 area_name,13,580 笔)需
+  area-centroid 兜底;100% building 级**精准**不可达(同名楼盘歧义),但区域级 ~100% 已保证。
+
 ## 6. 附:复现实证的查询
 
 ```sql
