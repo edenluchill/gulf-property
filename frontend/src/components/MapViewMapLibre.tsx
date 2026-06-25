@@ -1419,8 +1419,9 @@ function MapViewMapLibre({
         {measureMode ? '退出' : '测距'}
       </button>
 
-      {/* 移动端:底图/3D/测距 收进一个「工具」按钮(窄屏右上不再堆三个独立按钮) */}
-      <div className="md:hidden absolute top-20 right-4 z-[1000] flex flex-col items-end gap-2">
+      {/* 移动端:底图/3D/测距 收进一个「工具」按钮(窄屏右上不再堆三个独立按钮)。
+          top-28 给上方的指标+POI 面板留足间距(原 top-20 贴太近不好看)。 */}
+      <div className="md:hidden absolute top-28 right-4 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setToolsOpen(o => !o)}

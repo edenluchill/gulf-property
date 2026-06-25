@@ -115,7 +115,7 @@ export default function Header() {
 
   return (
     <header
-      className={`${theme.header} backdrop-blur-xl backdrop-saturate-150 border-b sticky top-0 z-[1000] relative transition-transform duration-300 ease-out ${
+      className={`${theme.header} backdrop-blur-xl backdrop-saturate-150 border-b sticky top-0 z-[1100] relative transition-transform duration-300 ease-out ${
         mobileHidden ? '-translate-y-full xl:translate-y-0' : 'translate-y-0'
       }`}
     >

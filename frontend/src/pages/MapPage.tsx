@@ -1204,27 +1204,42 @@ export default function MapPage() {
                   )
                 })}
               </div>
-              {/* 周边:不再平铺一排 POI 图标(窄屏放不下),收成 交通 + 周边 两个按钮。
-                  「周边」开完整 POI 面板(分组选择);transit 单列保留(高频:看地铁) */}
+              {/* 周边 POI:与指标行同款 5 个等宽图标按钮——交通/医院/学校/超市/更多。
+                  「更多」开完整 POI 面板(分组选择)。窄屏放得下且和 desktop 对齐。 */}
               <div className="flex">
                 <button
                   onClick={toggleTransit}
-                  className="flex flex-1 items-center justify-center gap-1 h-8 px-2 transition-colors"
+                  className="flex w-8 h-8 items-center justify-center transition-colors"
                   style={showTransit ? { backgroundColor: '#0891b2', color: 'white' } : { color: '#64748b' }}
                   title={t('map:transit')}
+                  aria-label={t('map:transit')}
                 >
                   <TrainFront className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-medium">{t('map:transit')}</span>
                 </button>
+                {QUICK_BUTTONS.map((btn) => {
+                  const enabled = enabledPoiCategories.includes(btn.id)
+                  return (
+                    <button
+                      key={btn.id}
+                      onClick={() => togglePoiCategory(btn.id)}
+                      className="flex w-8 h-8 items-center justify-center border-l border-slate-100 transition-colors"
+                      style={enabled ? { backgroundColor: btn.color, color: 'white' } : { color: '#64748b' }}
+                      title={t(btn.labelKey as any)}
+                      aria-label={t(btn.labelKey as any)}
+                    >
+                      <btn.Icon className="w-3.5 h-3.5" />
+                    </button>
+                  )
+                })}
                 <button
                   onClick={() => setShowPoiPanel(true)}
-                  className={`flex flex-1 items-center justify-center gap-1 h-8 px-2 border-l border-slate-100 transition-colors ${
-                    enabledPoiCategories.length > 0 ? 'bg-primary text-white' : showPoiPanel ? 'bg-slate-700 text-white' : 'text-slate-600'
+                  className={`flex w-8 h-8 items-center justify-center border-l border-slate-100 transition-colors ${
+                    showPoiPanel ? 'bg-slate-700 text-white' : 'text-slate-600'
                   }`}
-                  title={t('map:poi.title')}
+                  title={t('map:poi.more')}
+                  aria-label={t('map:poi.more')}
                 >
                   <MapPin className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-medium">{t('map:poi.title')}</span>
                 </button>
               </div>
             </div>
