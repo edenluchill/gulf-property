@@ -1200,28 +1200,37 @@ export default function MapPage() {
           </div>
           )}
 
+          {/* Usage lens (住宅/商业/酒店/工业/其他) — segments the area metrics shown
+              on the map; no data is hidden. Bottom-left: an empty corner, so it
+              never collides with the crowded top-right control stack. */}
+          {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && areaMetric !== 'none' && (
+          <div
+            data-testid="map-usage-lens"
+            className="absolute bottom-3 left-3 z-[1000] flex items-center gap-0.5 rounded-full bg-white/90 px-1.5 py-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur"
+          >
+            <span className="px-1 text-[10px] font-medium text-slate-400">{i18n.language?.startsWith('zh') ? '口径' : 'Use'}</span>
+            {USAGE_OPTIONS.map((u) => (
+              <button
+                key={u.v}
+                onClick={() => setAreaUsage(u.v)}
+                className={`rounded-full px-2 py-1 text-[11px] font-medium transition-colors ${
+                  areaUsage === u.v ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {i18n.language?.startsWith('zh') ? u.zh : u.en}
+              </button>
+            ))}
+          </div>
+          )}
+
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}
           {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && (<>
           {/* (移除了移动端「当前指标」指示器:右上指标条已高亮选中项,地图每个区也直接
               显示指标值,这个左上 pill 既冗余又会和筛选/找房助手按钮重叠。) */}
 
           {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
-          <div className="absolute top-3 right-3 z-[1000] md:hidden">
+          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
-              {/* Usage lens row — 住宅/商业/酒店/工业/其他 (no hidden data) */}
-              <div className="flex border-b border-slate-100">
-                {USAGE_OPTIONS.map((u) => (
-                  <button
-                    key={u.v}
-                    onClick={() => setAreaUsage(u.v)}
-                    className={`flex-1 h-7 truncate px-0.5 text-[10px] font-medium leading-none transition-colors ${
-                      areaUsage === u.v ? 'bg-slate-800 text-white' : 'text-slate-500'
-                    }`}
-                  >
-                    {i18n.language?.startsWith('zh') ? u.zh : u.en}
-                  </button>
-                ))}
-              </div>
               {/* Metrics row */}
               <div className="flex border-b border-slate-100">
                 {METRIC_OPTIONS.map((option, idx) => {
@@ -1284,7 +1293,7 @@ export default function MapPage() {
           {/* Area fly-to removed — now controlled by AI voice assistant */}
 
           {/* Floating Metric Panel - top-right */}
-          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
+          <div data-testid="map-metric-panel" className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
             <div className="flex items-center gap-0.5 p-1">
               {METRIC_OPTIONS.map((option) => {
                 const isActive = areaMetric === option.value
@@ -1304,25 +1313,10 @@ export default function MapPage() {
                 )
               })}
             </div>
-            {/* Usage lens row — 住宅/商业/酒店/工业/其他 (no hidden data, just segmented) */}
-            <div className="flex items-center gap-0.5 border-t border-slate-100 px-1 pb-1 pt-0.5">
-              <span className="px-1 text-[10px] text-slate-400">{i18n.language?.startsWith('zh') ? '口径' : 'Lens'}</span>
-              {USAGE_OPTIONS.map((u) => (
-                <button
-                  key={u.v}
-                  onClick={() => setAreaUsage(u.v)}
-                  className={`rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors ${
-                    areaUsage === u.v ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
-                  }`}
-                >
-                  {i18n.language?.startsWith('zh') ? u.zh : u.en}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Floating POI Panel - below metrics */}
-          <div className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
+          <div data-testid="map-poi-panel" className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
             <div className="flex items-center gap-1.5 p-1.5">
               {/* Single Transit toggle */}
               <button

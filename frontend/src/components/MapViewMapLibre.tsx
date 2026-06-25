@@ -1422,7 +1422,7 @@ function MapViewMapLibre({
       {/* 移动端:底图/3D/测距 收进一个「工具」按钮(窄屏右上不再堆三个独立按钮)。
           right-3 与上方指标+POI 面板右对齐;top-[84px] 给它一个 gap-2(~8px)的间距,
           和左侧筛选/找房助手的纵向间距一致。样式也对齐左侧 pill(rounded-full)。 */}
-      <div className="md:hidden absolute top-[84px] right-3 z-[1000] flex flex-col items-end gap-2">
+      <div data-testid="map-mobile-tools" className="md:hidden absolute top-[84px] right-3 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setToolsOpen(o => !o)}

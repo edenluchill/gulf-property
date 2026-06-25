@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "kill": "powershell -ExecutionPolicy Bypass -File ./kill-dev.ps1"
+    "kill": "powershell -ExecutionPolicy Bypass -File ./kill-dev.ps1",
+    "visual-check": "node scripts/visual-check.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
