@@ -286,19 +286,15 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   return (
     <div>
       <div className="grid grid-cols-2 gap-3">
+        {/* 中位总价 (median total transaction price) */}
         <StatCard
           label={zh ? '中位总价' : 'Median price'}
-          info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
+          info={<InfoHint title={zh ? '怎么算的' : 'How'} text={zh ? '该口径近 12 个月 DLD 成交总价的中位数 —— 真实成交,不是挂牌价。' : 'Median total DLD sale price over the last 12 months — actual deals, not asking prices.'} />}
           value={
             medianUnit != null ? (
               <>
                 <DirhamSymbol size="0.7em" className="text-slate-400" />
                 {formatMoneyCompact(medianUnit, i18n.language)}
-              </>
-            ) : priceDisplay != null ? (
-              <>
-                <DirhamSymbol size="0.7em" className="text-slate-400" />
-                {formatMoneyFull(priceDisplay)}<span className="ml-0.5 text-xs font-normal text-slate-400">/m²</span>
               </>
             ) : '—'
           }
@@ -306,11 +302,23 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           chipClass={growthNow != null && growthNow >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}
           loading={loading}
         >
-          {medianUnit != null && priceDisplay != null && (
-            <div className="-mt-0.5 mb-1.5 text-xs text-slate-400">
-              <DirhamSymbol size="0.7em" className="text-slate-300" />{formatMoneyFull(priceDisplay)}<span className="text-slate-300">/m²</span>
-            </div>
-          )}
+          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(v).toLocaleString()} />
+        </StatCard>
+
+        {/* 均价/m² (median price per square metre) */}
+        <StatCard
+          label={zh ? '均价/m²' : 'Price/m²'}
+          info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
+          value={
+            priceDisplay != null ? (
+              <>
+                <DirhamSymbol size="0.7em" className="text-slate-400" />
+                {formatMoneyFull(priceDisplay)}
+              </>
+            ) : '—'
+          }
+          loading={loading}
+        >
           <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(v).toLocaleString()} />
         </StatCard>
 
