@@ -28,6 +28,13 @@ export interface ProjectInsights {
     price_growth_pct: number | null
     sales_transaction_count: number | null
     data_through: string | null
+    // Matching precision (see development-metrics.sql + the matching report):
+    // 'development' = master_project (tightest), 'area' = spatially-resolved
+    // official community, 'area_name' = legacy dirty-string fallback.
+    tier: 'development' | 'area' | 'area_name'
+    label: string | null            // the unit the numbers describe (dev or area name)
+    confidence: 'high' | 'medium' | 'low'
+    rent_count: number | null
   } | null
   investment: (Investment5yr & { payback_years: number | null; reference_price: number }) | null
   nearby: {
@@ -45,7 +52,7 @@ function minsEstimate(distanceM: number): number {
 
 export async function getProjectInsights(projectId: string): Promise<ProjectInsights | null> {
   const projRes = await pool.query(
-    `SELECT id, area, latitude, longitude, min_price, starting_price
+    `SELECT id, project_name, area, latitude, longitude, min_price, starting_price
        FROM residential_projects WHERE id = $1`,
     [projectId]
   )
@@ -63,11 +70,119 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
     Number(p.min_price) ||
     0
 
-  // Area market metrics (latest rolling window for the project's area).
+  // ── Precise market metrics, tightest tier first ─────────────────────────
+  //   1. development (master_project)  — the precise unit, beats the area blend
+  //   2. area (spatially-resolved official community via ST_Covers)
+  //   3. area_name (legacy dirty-string match) — last resort
+  // See development-metrics.sql + docs/reports/2026-06-24-...matching-accuracy.md
+  const lng = p.longitude != null ? parseFloat(p.longitude) : null
+  const lat = p.latitude != null ? parseFloat(p.latitude) : null
+  const titleCase = (s: string) =>
+    s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+
   let area: ProjectInsights['area'] = null
   let yieldPct = 0
   let growthPct = 0
-  if (p.area) {
+
+  // Resolve project → DLD development (master_project) + official area_id.
+  let resolvedMaster: string | null = null
+  let resolvedAreaId: number | null = null
+  let resolverSim = 0
+  try {
+    const rr = await pool.query(
+      `SELECT master_project, area_id, similarity FROM resolve_project_development($1, $2, $3)`,
+      [p.project_name || p.area || '', lng, lat]
+    )
+    if (rr.rows[0]) {
+      resolvedMaster = rr.rows[0].master_project
+      resolvedAreaId = rr.rows[0].area_id != null ? Number(rr.rows[0].area_id) : null
+      resolverSim = parseFloat(rr.rows[0].similarity) || 0
+    }
+  } catch { /* resolver optional */ }
+
+  // Spatial-area rolling metrics for the resolved official community. Computed
+  // once; serves as tier 2 AND as the yield/growth fallback for a brand-new
+  // development that has no rentals / price history of its own yet.
+  let areaMetrics: {
+    area_id: string | null; name: string | null; yield: number | null
+    growth: number | null; median_psm: number | null; sales: number | null; thru: string | null
+  } | null = null
+  if (resolvedAreaId != null) {
+    const am = await pool.query(
+      `SELECT da.id AS area_id, da.name AS area_name, dam.rental_yield_pct, dam.price_growth_pct,
+              dam.median_price_sqm, dam.sales_transaction_count,
+              to_char(dam.period_end_month, 'YYYY-MM-DD') AS period_end_month
+         FROM dld_areas dla
+         JOIN dubai_areas da ON da.id = dla.dubai_area_id
+         JOIN dubai_area_rolling_metrics dam ON dam.dubai_area_id = da.id
+        WHERE dla.area_id = $1
+        ORDER BY dam.period_end_month DESC LIMIT 1`,
+      [resolvedAreaId]
+    )
+    if (am.rows[0]) {
+      const r = am.rows[0]
+      areaMetrics = {
+        area_id: r.area_id != null ? String(r.area_id) : null,
+        name: r.area_name,
+        yield: r.rental_yield_pct != null ? parseFloat(r.rental_yield_pct) : null,
+        growth: r.price_growth_pct != null ? parseFloat(r.price_growth_pct) : null,
+        median_psm: r.median_price_sqm != null ? parseFloat(r.median_price_sqm) : null,
+        sales: r.sales_transaction_count != null ? Number(r.sales_transaction_count) : null,
+        thru: r.period_end_month || null,
+      }
+    }
+  }
+
+  // Tier 1: development metrics (good name match + enough sample). Sale median is
+  // the development's own; yield/growth borrow the area when the development is
+  // too new to have them (e.g. offplan with no leases yet).
+  if (resolvedMaster && resolvedAreaId != null && resolverSim >= 0.45) {
+    try {
+      const dr = await pool.query(`SELECT * FROM get_development_metrics($1, $2)`, [resolvedMaster, resolvedAreaId])
+      const d = dr.rows[0]
+      if (d && Number(d.sales_count) >= 30) {
+        const devYield = d.rental_yield_pct != null ? parseFloat(d.rental_yield_pct) : null
+        const devGrowth = d.price_growth_pct != null ? parseFloat(d.price_growth_pct) : null
+        yieldPct = devYield ?? areaMetrics?.yield ?? 0
+        growthPct = devGrowth ?? areaMetrics?.growth ?? 0
+        area = {
+          id: String(resolvedAreaId),
+          name: titleCase(resolvedMaster),
+          median_price_sqm: d.median_price_sqm != null ? parseFloat(d.median_price_sqm) : null,
+          rental_yield_pct: yieldPct || null,
+          price_growth_pct: growthPct || null,
+          sales_transaction_count: d.sales_count != null ? Number(d.sales_count) : null,
+          data_through: d.data_through ? new Date(d.data_through).toISOString().slice(0, 10) : null,
+          tier: 'development',
+          label: titleCase(resolvedMaster),
+          confidence: resolverSim >= 0.7 ? 'high' : 'medium',
+          rent_count: d.rent_count != null ? Number(d.rent_count) : null,
+        }
+      }
+    } catch { /* dev metrics optional → fall through */ }
+  }
+
+  // Tier 2: spatially-resolved official area (correct community, by area_id).
+  if (!area && areaMetrics) {
+    yieldPct = areaMetrics.yield ?? 0
+    growthPct = areaMetrics.growth ?? 0
+    area = {
+      id: areaMetrics.area_id,
+      name: areaMetrics.name,
+      median_price_sqm: areaMetrics.median_psm,
+      rental_yield_pct: areaMetrics.yield,
+      price_growth_pct: areaMetrics.growth,
+      sales_transaction_count: areaMetrics.sales,
+      data_through: areaMetrics.thru,
+      tier: 'area',
+      label: areaMetrics.name,
+      confidence: 'medium',
+      rent_count: null,
+    }
+  }
+
+  // Tier 3: legacy dirty-string area match (last resort).
+  if (!area && p.area) {
     const m = await pool.query(
       `SELECT da.id AS area_id, da.name AS area_name, dam.rental_yield_pct, dam.price_growth_pct,
               dam.median_price_sqm, dam.sales_transaction_count,
@@ -92,6 +207,10 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
         price_growth_pct: growthPct || null,
         sales_transaction_count: r.sales_transaction_count != null ? Number(r.sales_transaction_count) : null,
         data_through: r.period_end_month || null,
+        tier: 'area_name',
+        label: r.area_name,
+        confidence: 'low',
+        rent_count: null,
       }
     }
   }

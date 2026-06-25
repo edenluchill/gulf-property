@@ -879,6 +879,12 @@ export interface ProjectInsights {
     price_growth_pct: number | null;
     sales_transaction_count: number | null;
     data_through: string | null;
+    // Matching precision: 'development' (master_project, tightest) > 'area'
+    // (spatial official community) > 'area_name' (legacy fallback).
+    tier: 'development' | 'area' | 'area_name';
+    label: string | null;
+    confidence: 'high' | 'medium' | 'low';
+    rent_count: number | null;
   } | null;
   investment: {
     purchase_price: number;
