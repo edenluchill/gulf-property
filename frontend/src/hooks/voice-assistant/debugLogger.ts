@@ -118,6 +118,11 @@ class VoiceDebugLogger {
   endSession(): SessionLog | null {
     if (!this.currentSession) return null
 
+    // Flush any pending utterances so a trailing user/assistant turn isn't lost
+    // (e.g. session ends right after the customer speaks).
+    this.finalizeUserMessage()
+    this.finalizeAssistantMessage()
+
     const now = Date.now()
     this.currentSession.endTime = now
     this.currentSession.duration = now - this.currentSession.startTime

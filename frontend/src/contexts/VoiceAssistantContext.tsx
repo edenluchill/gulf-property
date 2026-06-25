@@ -604,6 +604,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           if (text.trim()) {
             // Clear thinking bubble once real response arrives
             setToolStatus(null)
+            // Luna is responding → the user's turn just ended. Commit the user's
+            // utterance to the transcript now (idempotent — no-op if already flushed),
+            // so the saved conversation includes what the customer said.
+            voiceDebugLogger.finalizeUserMessage()
             // Luna is responding → hide the user caption and show her bubble (which
             // then persists after she finishes); next user input starts a fresh caption.
             userTurnFreshRef.current = true
@@ -643,6 +647,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
     // Tool calls
     if (message.toolCall?.functionCalls) {
+      // A tool call means the user's request just ended → commit their utterance
+      // (idempotent) so the transcript pairs the question with the tool/answer.
+      voiceDebugLogger.finalizeUserMessage()
       voiceDebugLogger.log('TOOL_CALLS_RECEIVED', {
         count: message.toolCall.functionCalls.length
       })
