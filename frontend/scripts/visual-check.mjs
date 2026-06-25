@@ -25,8 +25,8 @@ const VIEWPORTS = {
 }
 // Which control testids must exist + not overlap, per viewport.
 const CONTROLS = {
-  desktop: ['map-metric-panel', 'map-poi-panel', 'map-usage-lens'],
-  mobile: ['map-mobile-controls', 'map-mobile-tools', 'map-usage-lens'],
+  desktop: ['map-metric-panel', 'map-poi-panel'],
+  mobile: ['map-mobile-controls', 'map-mobile-tools'],
 }
 
 const overlap = (a, b, tol = 1) =>

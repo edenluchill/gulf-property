@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Building2, Sparkles } from 'lucide-react'
 import { DubaiArea } from '../types'
@@ -17,14 +17,29 @@ interface AreaDetailDialogProps {
   area: DubaiArea | null
   projects: any[]
   isLoading: boolean
-  usage?: string
 }
 
-export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading, usage = 'residential' }: AreaDetailDialogProps) {
+// Usage filter — the dialog shows ALL property types by default; the user can
+// narrow to one. The map stays 'all'; this lens lives only here. No data hidden.
+const USAGE_FILTER = [
+  { v: 'all', zh: '全部', en: 'All' },
+  { v: 'residential', zh: '住宅', en: 'Residential' },
+  { v: 'commercial', zh: '商业', en: 'Commercial' },
+  { v: 'hospitality', zh: '酒店', en: 'Hotel' },
+  { v: 'industrial', zh: '工业', en: 'Industrial' },
+  { v: 'other', zh: '其他', en: 'Other' },
+]
+
+export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading }: AreaDetailDialogProps) {
   const { t, i18n } = useTranslation(['map', 'common'])
+  const zh = (i18n.language || 'en').startsWith('zh')
   const langKey = (i18n.language || 'en').split('-')[0] // 'zh-CN' → 'zh'
   const tr = area?.translations?.[langKey ?? '']
   const isTranslated = !!tr
+
+  // Usage lens lives here (default 全部). Reset to 'all' each time a new area opens.
+  const [usage, setUsage] = useState<string>('all')
+  useEffect(() => { setUsage('all') }, [area?.id])
 
   // 四指标月度序列 + 近期成交（按 usage 口径,后端全区域预热,通常秒回）
   const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage)
@@ -105,10 +120,26 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
 
           {/* Market Trends - 四指标各配 24 个月走势 */}
           <div className="px-6 py-5">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              {t('map:areaDialog.marketStatistics')}
-            </h4>
-            <AreaTrendGrid area={area} insights={insights} loading={insightsLoading} />
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {t('map:areaDialog.marketStatistics')}
+              </h4>
+              {/* Usage filter — default 全部, narrow to a property type. No data hidden. */}
+              <div className="flex flex-wrap gap-1">
+                {USAGE_FILTER.map((u) => (
+                  <button
+                    key={u.v}
+                    onClick={() => setUsage(u.v)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      usage === u.v ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {zh ? u.zh : u.en}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <AreaTrendGrid area={area} insights={insights} loading={insightsLoading} usageActive={usage !== 'all'} />
           </div>
 
           {/* Area Tags */}

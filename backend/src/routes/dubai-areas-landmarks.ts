@@ -43,13 +43,13 @@ const AREA_SELECT = `
  * Frontend will render these as colored overlays on the map
  * Metrics are calculated from real DLD transaction data
  */
-const USAGE_BUCKETS = ['residential', 'commercial', 'hospitality', 'industrial', 'other']
+const USAGE_BUCKETS = ['all', 'residential', 'commercial', 'hospitality', 'industrial', 'other']
 
 router.get('/areas', async (req: Request, res: Response) => {
   try {
-    // usage lens (住宅/商业/酒店/工业/其他) — default residential. No data is
-    // hidden; switching usage shows that segment's metrics. See get_dubai_area_metrics.
-    const usage = USAGE_BUCKETS.includes(String(req.query.usage)) ? String(req.query.usage) : 'residential'
+    // usage lens — the MAP shows 'all' (every property type combined); the area
+    // detail dialog can filter to a specific usage. Nothing is hidden.
+    const usage = USAGE_BUCKETS.includes(String(req.query.usage)) ? String(req.query.usage) : 'all'
     // Join with real-time metrics from DLD transactions
     const result = await pool.query(`
       SELECT

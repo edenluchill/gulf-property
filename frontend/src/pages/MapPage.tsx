@@ -56,15 +56,6 @@ const METRIC_OPTIONS = [
   // 在 area block 详情里完整展示计算过程(用户反馈),不适合地图概览着色。
 ]
 
-// Usage lens — which DLD property_usage segment the area metrics describe. No
-// data is hidden; this just chooses the lens (backend computes per usage).
-const USAGE_OPTIONS = [
-  { v: 'residential', zh: '住宅', en: 'Residential' },
-  { v: 'commercial', zh: '商业', en: 'Commercial' },
-  { v: 'hospitality', zh: '酒店', en: 'Hotel' },
-  { v: 'industrial', zh: '工业', en: 'Industrial' },
-  { v: 'other', zh: '其他', en: 'Other' },
-]
 
 // ============================================================================
 // MAP DATA VERSION - Increment this to force all clients to reload map data
@@ -249,17 +240,6 @@ export default function MapPage() {
     localStorage.setItem('map-area-metric', next)
   }
 
-  // Usage lens (住宅/商业/酒店/工业/其他) — drives both the area colours and the
-  // detail dialog. Default residential; nothing is hidden, just segmented. The
-  // backend computes metrics per usage (no silent residential-only filter).
-  const [areaUsage, setAreaUsage] = useState<string>(() => localStorage.getItem('map-area-usage') || 'residential')
-  const firstUsageRender = useRef(true)
-  useEffect(() => {
-    // Skip the initial render — the metadata effect already loaded residential.
-    if (firstUsageRender.current) { firstUsageRender.current = false; return }
-    try { localStorage.setItem('map-area-usage', areaUsage) } catch { /* ignore */ }
-    fetchDubaiAreas(areaUsage).then(setDubaiAreas)
-  }, [areaUsage])
 
   // POI state — persisted in localStorage (default: true)
   const [showPois] = useState(() => {
@@ -1200,28 +1180,6 @@ export default function MapPage() {
           </div>
           )}
 
-          {/* Usage lens (住宅/商业/酒店/工业/其他) — segments the area metrics shown
-              on the map; no data is hidden. Bottom-left: an empty corner, so it
-              never collides with the crowded top-right control stack. */}
-          {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && areaMetric !== 'none' && (
-          <div
-            data-testid="map-usage-lens"
-            className="absolute bottom-3 left-3 z-[1000] flex items-center gap-0.5 rounded-full bg-white/90 px-1.5 py-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur"
-          >
-            <span className="px-1 text-[10px] font-medium text-slate-400">{i18n.language?.startsWith('zh') ? '口径' : 'Use'}</span>
-            {USAGE_OPTIONS.map((u) => (
-              <button
-                key={u.v}
-                onClick={() => setAreaUsage(u.v)}
-                className={`rounded-full px-2 py-1 text-[11px] font-medium transition-colors ${
-                  areaUsage === u.v ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {i18n.language?.startsWith('zh') ? u.zh : u.en}
-              </button>
-            ))}
-          </div>
-          )}
 
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}
           {(!tourCode || toolsRevealed) && (!collabActive || collabMode === 'presenter') && (<>
@@ -1478,7 +1436,6 @@ export default function MapPage() {
         area={selectedArea}
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}
-        usage={areaUsage}
       />
 
       {/* POI Info Popup - Mobile: Bottom Sheet, Desktop: Centered Modal */}

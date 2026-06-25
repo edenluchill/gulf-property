@@ -223,21 +223,25 @@ const lastNonNull = (arr: (number | null)[] | undefined) => {
 
 // ── 四指标趋势卡 ────────────────────────────────────────────────────────────
 
-export function AreaTrendGrid({ area, insights, loading }: {
+export function AreaTrendGrid({ area, insights, loading, usageActive = false }: {
   area: DubaiArea
   insights: AreaInsights | null
   loading: boolean
+  usageActive?: boolean   // a specific usage filter is active → prefer the per-usage insights series
 }) {
   const { t, i18n } = useTranslation(['map'])
   const zh = (i18n.language || 'en').startsWith('zh')
-  const growthNow = area.capitalAppreciation ?? lastNonNull(insights?.growth)
-  const yieldNow = area.rentalYield ?? lastNonNull(insights?.rentalYield)
+  // `area.*` is the map's combined ('all') value. When the user picks a specific
+  // usage in the dialog, the insights series IS that usage → prefer it. Otherwise
+  // prefer the precomputed area columns, falling back to insights (custom areas).
+  const insVol = insights?.volume?.length ? insights.volume.reduce((a, b) => a + b, 0) : null
+  const pick = <T,>(a: T | null | undefined, b: T | null | undefined) =>
+    usageActive ? (b ?? a) : (a ?? b)
+  const growthNow = pick(area.capitalAppreciation, lastNonNull(insights?.growth))
+  const yieldNow = pick(area.rentalYield, lastNonNull(insights?.rentalYield))
   const stabilityNow = area.rentStability ?? null
-  // Custom (hand-drawn) areas have no precomputed columns; fall back to the
-  // spatial insights series so price + count tiles still populate.
-  const medianPsm = area.medianPriceSqm ?? lastNonNull(insights?.price)
-  const txCount = area.transactionCount ??
-    (insights?.volume?.length ? insights.volume.reduce((a, b) => a + b, 0) : null)
+  const medianPsm = pick(area.medianPriceSqm, lastNonNull(insights?.price))
+  const txCount = pick(area.transactionCount, insVol)
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 

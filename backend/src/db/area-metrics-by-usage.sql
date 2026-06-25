@@ -47,16 +47,16 @@ BEGIN
     rent_stability_pct, rental_yield_pct, price_growth_pct, price_trend
   )
   SELECT
-    curr.aid, v_pe, curr.usage,
+    curr.aid, v_pe, COALESCE(curr.usage,'all'),
     curr.avg_psm, curr.med_psm, curr.med_unit, curr.vol, curr.n, curr.sz,
-    CASE WHEN curr.usage='residential' THEN rent.med_rent END,
-    CASE WHEN curr.usage='residential' THEN rent.med_new END,
-    CASE WHEN curr.usage='residential' THEN rent.new_n END,
-    CASE WHEN curr.usage='residential' THEN rent.renew_n END,
-    CASE WHEN curr.usage='residential' AND rent.new_n>=40 AND rent.renew_n>=40
+    CASE WHEN COALESCE(curr.usage,'all') IN ('residential','all') THEN rent.med_rent END,
+    CASE WHEN COALESCE(curr.usage,'all') IN ('residential','all') THEN rent.med_new END,
+    CASE WHEN COALESCE(curr.usage,'all') IN ('residential','all') THEN rent.new_n END,
+    CASE WHEN COALESCE(curr.usage,'all') IN ('residential','all') THEN rent.renew_n END,
+    CASE WHEN COALESCE(curr.usage,'all') IN ('residential','all') AND rent.new_n>=40 AND rent.renew_n>=40
               AND rent.med_new>0 AND rent.med_renew>0
          THEN ROUND((rent.med_renew/rent.med_new*100)::numeric,1) END,
-    CASE WHEN curr.usage='residential' AND curr.med_psm>0
+    CASE WHEN COALESCE(curr.usage,'all') IN ('residential','all') AND curr.med_psm>0
               AND COALESCE(CASE WHEN rent.new_n>=30 THEN rent.med_new END, rent.med_rent)>0
          THEN ROUND((COALESCE(CASE WHEN rent.new_n>=30 THEN rent.med_new END, rent.med_rent)/curr.med_psm*100)::numeric,2) END,
     CASE WHEN prev.med_psm>0 AND prev.n>=20 AND curr.n>=20
@@ -74,7 +74,7 @@ BEGIN
     FROM dld_transactions dt JOIN dld_areas dla ON dla.area_id=dt.area_id
     WHERE dt.trans_group='Sales' AND dt.meter_sale_price>0 AND dla.dubai_area_id IS NOT NULL
       AND dt.instance_date>=v_ps AND dt.instance_date<v_pe
-    GROUP BY 1,2
+    GROUP BY GROUPING SETS ((1,2),(1))
   ) curr
   LEFT JOIN (
     SELECT dla.dubai_area_id aid, dld_usage_bucket(dt.property_usage) usage,
@@ -82,8 +82,8 @@ BEGIN
     FROM dld_transactions dt JOIN dld_areas dla ON dla.area_id=dt.area_id
     WHERE dt.trans_group='Sales' AND dt.meter_sale_price>0 AND dla.dubai_area_id IS NOT NULL
       AND dt.instance_date>=v_pps AND dt.instance_date<v_ps
-    GROUP BY 1,2
-  ) prev ON prev.aid=curr.aid AND prev.usage=curr.usage
+    GROUP BY GROUPING SETS ((1,2),(1))
+  ) prev ON prev.aid=curr.aid AND prev.usage IS NOT DISTINCT FROM curr.usage
   LEFT JOIN (
     SELECT rc.dubai_area_id aid,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount/NULLIF(rc.property_area,0)) med_rent,
