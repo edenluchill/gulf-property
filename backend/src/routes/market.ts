@@ -492,7 +492,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
       : `rc.dubai_area_id = $1`
 
-    const [salesRes, rentRes, recentRes, recentRentRes] = await Promise.all([
+    const [salesRes, rentRes, recentRes, recentRentRes, medianRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据
       pool.query(
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
@@ -557,6 +557,20 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
           ORDER BY rc.start_date DESC
           LIMIT 8`,
         [areaId, usage]
+      ),
+      // Median TOTAL transaction price (房子中位总价) over the last 12 months.
+      pool.query(
+        `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+         SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_unit_price,
+                COUNT(*)::int AS n
+           FROM dld_transactions dt
+           ${txJoin}
+          CROSS JOIN bounds b
+          WHERE ${txWhere}
+            AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
+            AND dt.meter_sale_price > 0 AND dt.actual_worth > 0
+            AND dt.instance_date >= b.d - INTERVAL '12 months'`,
+        [areaId, usage]
       )
     ])
 
@@ -608,6 +622,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       growth,
       rentalYield,
       dataThrough: endYm,
+      medianUnitPrice: medianRes.rows[0]?.median_unit_price ? Math.round(Number(medianRes.rows[0].median_unit_price)) : null,
       recentTransactions: recentRes.rows.map(r => ({
         date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
         building: r.building_name || r.project_name || null,

@@ -793,6 +793,7 @@ export interface AreaInsights {
   growth: (number | null)[];
   rentalYield: (number | null)[];
   dataThrough: string | null;
+  medianUnitPrice?: number | null;   // median TOTAL transaction price (房子中位总价) for the usage
   recentTransactions: {
     date: string | null; building: string | null; rooms: string | null;
     sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
@@ -806,7 +807,9 @@ export interface AreaInsights {
 }
 export async function fetchAreaInsights(areaId: string, usage?: string): Promise<AreaInsights | null> {
   try {
-    const u = usage && usage !== 'residential' ? `&usage=${encodeURIComponent(usage)}` : '';
+    // Backend default is 'all' — send the param for every non-'all' usage
+    // (omitting it for 'residential' used to silently return all-usage data).
+    const u = usage && usage !== 'all' ? `&usage=${encodeURIComponent(usage)}` : '';
     const r = await fetch(`${API_URL}/market/area-insights?areaId=${encodeURIComponent(areaId)}${u}`);
     if (!r.ok) return null;
     return await r.json();
