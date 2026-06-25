@@ -233,6 +233,11 @@ export function AreaTrendGrid({ area, insights, loading }: {
   const growthNow = area.capitalAppreciation ?? lastNonNull(insights?.growth)
   const yieldNow = area.rentalYield ?? lastNonNull(insights?.rentalYield)
   const stabilityNow = area.rentStability ?? null
+  // Custom (hand-drawn) areas have no precomputed columns; fall back to the
+  // spatial insights series so price + count tiles still populate.
+  const medianPsm = area.medianPriceSqm ?? lastNonNull(insights?.price)
+  const txCount = area.transactionCount ??
+    (insights?.volume?.length ? insights.volume.reduce((a, b) => a + b, 0) : null)
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
@@ -248,8 +253,8 @@ export function AreaTrendGrid({ area, insights, loading }: {
   // Clean empty-state: many display areas are industrial / land / low-activity, or
   // not yet matched to DLD's cadastre — show an intentional note, not a grid of "—".
   const hasAnyMetric =
-    area.medianPriceSqm != null || area.averagePrice != null ||
-    area.transactionCount != null || growthNow != null || yieldNow != null
+    medianPsm != null || area.averagePrice != null ||
+    txCount != null || growthNow != null || yieldNow != null
   if (!loading && !hasAnyMetric) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center">
@@ -272,10 +277,10 @@ export function AreaTrendGrid({ area, insights, loading }: {
           label={`${t('map:areaDialog.avgPrice')} (AED/m²)`}
           info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
           value={
-            area.medianPriceSqm != null ? (
+            medianPsm != null ? (
               <>
                 <DirhamSymbol size="0.75em" className="text-slate-400" />
-                {formatMoneyFull(area.medianPriceSqm)}
+                {formatMoneyFull(medianPsm)}
               </>
             ) : area.averagePrice != null ? (
               <>
@@ -293,7 +298,7 @@ export function AreaTrendGrid({ area, insights, loading }: {
 
         <StatCard
           label={t('map:areaDialog.transactionCount')}
-          value={area.transactionCount != null ? area.transactionCount.toLocaleString() : '—'}
+          value={txCount != null ? txCount.toLocaleString() : '—'}
           loading={loading}
         >
           <SparkBars data={insights?.volume || []} color="#3b82f6" labels={insights?.months} fmt={(v) => v.toLocaleString()} />

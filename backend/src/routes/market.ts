@@ -457,6 +457,36 @@ function monthRange(endYm: string, n: number): string[] {
 }
 
 async function loadAreaInsightsData(areaId: string) {
+    // Pick the matching mode for this dubai_area:
+    //  • OFFICIAL area (has a real DLD bridge area_id < 900000) → join by the
+    //    area_id bridge (reliable, covers every transaction in the community).
+    //  • CUSTOM hand-drawn area (only a synthetic 900000+ bridge, or none) →
+    //    SPATIAL: capture transactions whose geocoded project point falls inside
+    //    the polygon (dld_project_locations). This is the only thing that works
+    //    for arbitrary colleague-drawn shapes. See dld-geocode-cache.sql.
+    const modeRes = await pool.query(
+      `SELECT (da.boundary IS NOT NULL) AS has_boundary,
+              EXISTS(SELECT 1 FROM dld_areas dla
+                      WHERE dla.dubai_area_id = da.id AND dla.area_id < 900000) AS official
+         FROM dubai_areas da WHERE da.id = $1`,
+      [areaId]
+    )
+    const spatial = !!modeRes.rows[0] && !modeRes.rows[0].official && !!modeRes.rows[0].has_boundary
+
+    // Transaction ↔ area predicates, swapped by mode. $1 = dubai_areas.id.
+    const txJoin = spatial
+      ? `JOIN dld_project_locations loc ON loc.area_name = dt.area_name AND loc.project_name = dt.project_name`
+      : `JOIN dld_areas dla ON dla.area_id = dt.area_id`
+    const txWhere = spatial
+      ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
+      : `dla.dubai_area_id = $1`
+    const rentJoin = spatial
+      ? `JOIN dld_project_locations loc ON loc.area_name = rc.area_name AND loc.project_name = rc.project_name`
+      : ``
+    const rentWhere = spatial
+      ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
+      : `rc.dubai_area_id = $1`
+
     const [salesRes, rentRes, recentRes, recentRentRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据
       pool.query(
@@ -465,9 +495,9 @@ async function loadAreaInsightsData(areaId: string) {
                 COUNT(*)::int AS count,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps
            FROM dld_transactions dt
-           JOIN dld_areas dla ON dla.area_id = dt.area_id
+           ${txJoin}
           CROSS JOIN bounds b
-          WHERE dla.dubai_area_id = $1
+          WHERE ${txWhere}
             AND dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
             AND dt.property_type IN ('Unit','Villa')
             AND dt.meter_sale_price BETWEEN 1000 AND 250000
@@ -481,8 +511,9 @@ async function loadAreaInsightsData(areaId: string) {
          SELECT to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS month,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area) AS median_rent_sqm
            FROM dld_rent_contracts rc
+           ${rentJoin}
           CROSS JOIN bounds b
-          WHERE rc.dubai_area_id = $1
+          WHERE ${rentWhere}
             AND rc.usage_type = 'Residential'
             AND rc.property_area BETWEEN 15 AND 2000
             AND rc.annual_amount BETWEEN 5000 AND 5000000
@@ -497,8 +528,8 @@ async function loadAreaInsightsData(areaId: string) {
                 round(dt.meter_sale_price) AS price_per_sqm,
                 CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
            FROM dld_transactions dt
-           JOIN dld_areas dla ON dla.area_id = dt.area_id
-          WHERE dla.dubai_area_id = $1
+           ${txJoin}
+          WHERE ${txWhere}
             AND dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
             AND dt.property_type IN ('Unit','Villa')
             AND dt.meter_sale_price BETWEEN 1000 AND 250000
@@ -513,7 +544,8 @@ async function loadAreaInsightsData(areaId: string) {
                 round(rc.annual_amount / NULLIF(rc.property_area, 0)) AS rent_per_sqm,
                 rc.registration_type
            FROM dld_rent_contracts rc
-          WHERE rc.dubai_area_id = $1
+           ${rentJoin}
+          WHERE ${rentWhere}
             AND rc.usage_type = 'Residential'
             AND rc.property_area BETWEEN 15 AND 2000
             AND rc.annual_amount BETWEEN 5000 AND 5000000
