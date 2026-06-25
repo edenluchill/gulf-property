@@ -349,6 +349,17 @@ export const voiceAssistantTools = [
           },
           required: ['area']
         }
+      },
+      {
+        name: 'present_place',
+        description: 'Start a short guided walkthrough of ONE project or ONE area on the map: it auto-plays 3 stops — advantages (区域指标), environment (nearby amenities + distances), and recent DLD transactions (成交). Use this when the customer asks whether a specific project/area is good, says "show me / 带我看 / 介绍一下 X", or wants a tour of a place. Prefer this over answering in one long sentence — the walkthrough shows each thing visually. After calling it, say ONE short intro sentence only (the on-screen panel narrates each stop).',
+        parameters: {
+          type: 'object',
+          properties: {
+            project_id: { type: 'string', description: 'The project id to walk through (when the customer is asking about a specific project). Provide this OR area_name.' },
+            area_name: { type: 'string', description: 'The Dubai area name to walk through (e.g. "Dubai Marina"). Provide this OR project_id.' }
+          }
+        }
       }
     ]
   }
@@ -799,6 +810,121 @@ export async function executeTool(
       return {
         result: data,
         summary: `${data.area} ${data.years}年:买(净成本约 ${Math.round(data.buy_net_cost_aed / 1000)}万,已计增值)vs 租(共约 ${Math.round(data.rent_total_aed / 1000)}万)→ 更划算:${data.verdict === 'buy' ? '买' : '租'}。(指示性,未计房贷利息/物业费)`
+      }
+    }
+
+    case 'present_place': {
+      // Assemble a 3-stop guided walkthrough (优势 / 环境 / 成交) for a project or area.
+      const SPECS = [
+        { cat: 'metro_station', zh: '地铁', emoji: '🚇', ideal: 1.5, zero: 5,  weight: 0.25 },
+        { cat: 'school',        zh: '学校', emoji: '🏫', ideal: 1.5, zero: 6,  weight: 0.20 },
+        { cat: 'mall',          zh: '商场', emoji: '🛍️', ideal: 3,   zero: 8,  weight: 0.20 },
+        { cat: 'hospital',      zh: '医院', emoji: '🏥', ideal: 2,   zero: 10, weight: 0.20 },
+        { cat: 'supermarket',   zh: '超市', emoji: '🛒', ideal: 1,   zero: 4,  weight: 0.15 },
+      ] as const
+      const lastNonNull = (arr: any[] | undefined | null) => {
+        if (!arr) return null
+        for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]
+        return null
+      }
+
+      // 1) Resolve focus → name, coords, dubai_areas UUID, optional projectId
+      let name = '', area = '', lat: number | null = null, lng: number | null = null
+      let uuid: string | null = null, projectId: string | null = null
+      if (params.project_id) {
+        const d = await apiFetch<{ result: any }>(`/api/ai/projects/${encodeURIComponent(params.project_id)}/detail`).catch(() => null)
+        const r = d?.result
+        if (!r || r.latitude == null) return { result: null, summary: '没找到这个项目的位置，换个项目我再带你看。' }
+        projectId = String(params.project_id); name = (r.projectName || r.project_name || '').trim(); area = (r.area || '').trim()
+        lat = Number(r.latitude); lng = Number(r.longitude)
+        if (area) {
+          const m = await apiFetch<{ area: { id: string } | null }>(`/api/ai/areas/match?q=${encodeURIComponent(area)}`).catch(() => null)
+          uuid = m?.area?.id || null
+        }
+      } else if (params.area_name) {
+        const m = await apiFetch<{ area: { id: string; name: string; lat: number; lng: number } | null }>(`/api/ai/areas/match?q=${encodeURIComponent(params.area_name)}`).catch(() => null)
+        if (!m?.area) return { result: null, summary: `地图上没找到 "${params.area_name}"，换个区域名我再带你看。` }
+        name = (m.area.name || '').trim(); area = name; uuid = m.area.id; lat = m.area.lat; lng = m.area.lng
+      } else {
+        return { result: null, summary: '告诉我想看哪个项目或区域，我带你走一圈。' }
+      }
+
+      // 2) Fetch the three stops' data in parallel
+      const [insights, near, tx] = await Promise.all([
+        uuid ? apiFetch<any>(`/api/market/area-insights?areaId=${encodeURIComponent(uuid)}`).catch(() => null) : Promise.resolve(null),
+        (lat != null && lng != null)
+          ? apiFetch<{ pois: any[] }>(`/api/dubai-pois/near?lat=${lat}&lng=${lng}&radius=10000&categories=${SPECS.map(s => s.cat).join(',')}`).catch(() => ({ pois: [] }))
+          : Promise.resolve({ pois: [] }),
+        projectId ? apiFetch<any>(`/api/residential-projects/${encodeURIComponent(projectId)}/transactions`).catch(() => null) : Promise.resolve(null),
+      ])
+
+      // 优势 — area metrics; for a project, prefer the project's own comp median
+      // (the area 'all' median can be villa-skewed and misrepresent the project).
+      let pricePerSqm = lastNonNull(insights?.price)
+      const growth = lastNonNull(insights?.growth)
+      const yieldNow = lastNonNull(insights?.rentalYield)
+      let medianUnit = insights?.medianUnitPrice ?? null
+      if (projectId && tx?.sales?.length >= 3) {
+        const med = (arr: number[]) => arr.length ? arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)] : null
+        const prices = tx.sales.map((s: any) => s.price).filter((v: any) => v > 0)
+        const ppss = tx.sales.map((s: any) => s.pricePerSqm).filter((v: any) => v > 0)
+        if (prices.length) medianUnit = med(prices)
+        if (ppss.length) pricePerSqm = med(ppss)
+      }
+
+      // 环境 — amenity spokes + score
+      const pois = (near as any)?.pois || []
+      const spokes: any[] = []
+      let score = 0
+      for (const s of SPECS) {
+        const hit = pois.filter((p: any) => p.category === s.cat).sort((a: any, b: any) => a.distance_meters - b.distance_meters)[0]
+        if (!hit) continue
+        const km = hit.distance_meters / 1000
+        score += s.weight * Math.max(0, Math.min(1, (s.zero - km) / (s.zero - s.ideal)))
+        spokes.push({ category: s.cat, label: s.zh, emoji: s.emoji, name: hit.name, lng: hit.lng, lat: hit.lat, distanceKm: Number(km.toFixed(2)) })
+      }
+      const score100 = Math.round(score * 100)
+      const tier = score100 >= 75 ? '优秀' : score100 >= 55 ? '良好' : score100 >= 35 ? '一般' : '偏远'
+
+      // 成交 — project comps (precise) or area recent transactions
+      let sales: any[] = []
+      if (tx?.sales?.length) sales = tx.sales.slice(0, 5)
+      else if (insights?.recentTransactions?.length) {
+        sales = insights.recentTransactions.slice(0, 5).map((t: any) => ({ date: t.date, building: t.building, rooms: t.rooms, sizeSqm: t.sizeSqm, price: t.price }))
+      }
+
+      const wan = (v: number | null) => v != null ? `${Math.round(v / 10000)}万` : '—'
+      const head = `${name}${area && area !== name ? '·' + area : ''}`
+      // Lead the spoken line with positives (the growth chart still shows the real,
+      // possibly-negative number in the card — nothing hidden, just not the opener).
+      const advParts: string[] = []
+      if (yieldNow != null) advParts.push(`回报约 ${Number(yieldNow).toFixed(1)}%`)
+      if (growth != null && growth >= 0) advParts.push(`近一年涨 ${Number(growth).toFixed(1)}%`)
+      const stops: any[] = []
+      stops.push({
+        kind: 'advantages',
+        line: advParts.length ? `${head}：${advParts.join('、')}，先看硬指标。` : `${head}：先看硬指标。`,
+        metrics: { medianUnitPrice: medianUnit, pricePerSqm, rentalYield: yieldNow, capitalGrowth: growth },
+      })
+      if (spokes.length) stops.push({
+        kind: 'environment',
+        line: `生活很方便——${spokes.slice(0, 3).map(s => `${s.label} ${s.distanceKm.toFixed(1)}km`).join('、')}。`,
+        center: [lng, lat], score: score100, tier, spokes,
+      })
+      if (sales.length) stops.push({
+        kind: 'transactions',
+        line: `最近成交也活跃${sales[0]?.price ? `，比如 ${wan(sales[0].price)}` : ''}。`,
+        sales,
+      })
+
+      if (!stops.length) {
+        return { result: null, summary: `${name} 暂时数据有限，我先帮你飞过去看看。`, mapAction: { type: 'fly_to', lat, lng, zoom: 14 } }
+      }
+      const cnt = stops.length === 3 ? '三' : stops.length === 2 ? '两' : '几'
+      return {
+        result: { name, area, stops: stops.map(s => s.kind) },
+        summary: `我带你看看 ${name}，分${cnt}步：优势、环境、最近成交。`,
+        mapAction: { type: 'guided_tour', tour: { kind: projectId ? 'project' : 'area', projectId, name, area, lat, lng, stops } },
       }
     }
 

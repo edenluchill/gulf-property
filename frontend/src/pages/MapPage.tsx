@@ -20,6 +20,7 @@ import MapFilterChips from '../components/MapFilterChips'
 import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
+import GuidedTour from '../components/GuidedTour'
 import FindHomeAssistant from '../components/find-home/FindHomeAssistant'
 import MobileBottomSheet from '../components/MobileBottomSheet'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
@@ -33,6 +34,7 @@ import {
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
+import { GuidedTourPayload } from '../hooks/voice-assistant/types'
 import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
 import {
@@ -434,6 +436,10 @@ export default function MapPage() {
         }
         break
 
+      case 'guided_tour':
+        if (action.tour?.stops?.length) setGuidedTour(action.tour)
+        break
+
       case 'navigate':
         if (action.path) {
           navigate(action.path)
@@ -674,6 +680,10 @@ export default function MapPage() {
 
   // Mobile bottom sheet state
   const [showAreaSheet, setShowAreaSheet] = useState(false)
+  // Luna guided walkthrough (优势/环境/成交 序列带看)
+  const [guidedTour, setGuidedTour] = useState<GuidedTourPayload | null>(null)
+  // Dev-only test hook so the guided tour can be driven without the live voice pipeline.
+  if (import.meta.env.DEV) (window as any).__lunaGuidedTour = setGuidedTour
   // 移动端 sheet 的 usage 口径(默认全部)+ 市场/项目 tab，新区打开时重置
   const [sheetUsage, setSheetUsage] = useState('all')
   const [sheetTab, setSheetTab] = useState<'market' | 'projects'>('market')
@@ -1092,6 +1102,7 @@ export default function MapPage() {
             showTransport={showTransport}
             voiceMeasure={voiceMeasure}
             voiceAmenities={voiceAmenities}
+            hideAmenityPanel={!!guidedTour}
           />
 
           {/* Load overlay — hides the janky first-paint (GL init + building the
@@ -2076,6 +2087,27 @@ export default function MapPage() {
           </div>
         ) : null}
       </MobileBottomSheet>
+
+      {/* Luna 序列带看（优势 / 环境 / 成交，底部条，自动播放可暂停） */}
+      {guidedTour && (
+        <GuidedTour
+          tour={guidedTour}
+          onClose={() => { setGuidedTour(null); setVoiceAmenities(null) }}
+          onCamera={(loc) => setFlyToLocation({ lat: loc.lat, lng: loc.lng, zoom: loc.zoom || 14 })}
+          onAmenities={(a) => {
+            if (!a) { setVoiceAmenities(null); return }
+            setVoiceMeasure(null)
+            setVoiceAmenities({ center: a.center, centerName: a.centerName, score: a.score, tier: a.tier, spokes: a.spokes || [] })
+            const lngs = [a.center[0], ...(a.spokes || []).map(s => s.lng)]
+            const lats = [a.center[1], ...(a.spokes || []).map(s => s.lat)]
+            setFlyToLocation({
+              lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+              lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+              bounds: [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

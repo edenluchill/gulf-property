@@ -363,7 +363,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    if (['fly_to', 'highlight_projects', 'show_pois', 'toggle_transport', 'show_area_info', 'highlight_areas', 'reset', 'measure_distance', 'amenity_spokes'].includes(action.type)) {
+    if (['fly_to', 'highlight_projects', 'show_pois', 'toggle_transport', 'show_area_info', 'highlight_areas', 'reset', 'measure_distance', 'amenity_spokes', 'guided_tour'].includes(action.type)) {
       pendingActionRef.current = action
       navigate('/')
     }

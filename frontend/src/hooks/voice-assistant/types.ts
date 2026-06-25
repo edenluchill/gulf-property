@@ -69,10 +69,35 @@ export interface BubbleContent {
   timestamp: number
 }
 
+export interface GuidedStop {
+  kind: 'advantages' | 'environment' | 'transactions'
+  line: string
+  // advantages
+  metrics?: { medianUnitPrice: number | null; pricePerSqm: number | null; rentalYield: number | null; capitalGrowth: number | null }
+  // environment
+  center?: [number, number]
+  score?: number
+  tier?: string
+  spokes?: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
+  // transactions
+  sales?: { date: string | null; building: string | null; rooms: string | null; sizeSqm: number | null; price: number | null }[]
+}
+
+export interface GuidedTourPayload {
+  kind: 'project' | 'area'
+  projectId?: string | null
+  name: string
+  area: string
+  lat: number
+  lng: number
+  stops: GuidedStop[]
+}
+
 export interface MapAction {
   type: 'fly_to' | 'highlight_projects' | 'show_pois' | 'toggle_transport' |
         'show_area_info' | 'highlight_areas' | 'navigate' | 'add_favorite' | 'reset' |
-        'measure_distance' | 'amenity_spokes'
+        'measure_distance' | 'amenity_spokes' | 'guided_tour'
+  tour?: GuidedTourPayload
   projectIds?: string[]
   lat?: number
   lng?: number

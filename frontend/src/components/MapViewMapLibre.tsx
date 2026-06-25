@@ -130,6 +130,9 @@ interface MapViewMapLibreProps {
     center: [number, number]; centerName: string; score: number; tier: string
     spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
   } | null
+  /** Keep the amenity spokes on the map but hide the standalone score panel
+   *  (used during the guided tour, where the dock already shows the score). */
+  hideAmenityPanel?: boolean
   /** Luna Tour: hide all map UI controls (basemap/3D/measure buttons, panels)
    *  so the tour plays full-screen immersive. The map canvas + pins stay. */
   chromeless?: boolean
@@ -160,6 +163,7 @@ function MapViewMapLibre({
   showTransport = false,
   voiceMeasure = null,
   voiceAmenities = null,
+  hideAmenityPanel = false,
   chromeless = false,
   tourActive = false
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
@@ -1487,7 +1491,7 @@ function MapViewMapLibre({
       )}
 
       {/* 语音助手：配套便利度评分面板 */}
-      {showAmenities && voiceAmenities && (
+      {showAmenities && voiceAmenities && !hideAmenityPanel && (
         <div className="absolute left-3 bottom-24 md:bottom-6 z-[1000] w-[256px] rounded-2xl bg-white/95 p-3.5 shadow-xl ring-1 ring-slate-200 backdrop-blur">
           <button
             type="button"
