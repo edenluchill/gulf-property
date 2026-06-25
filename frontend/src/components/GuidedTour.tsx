@@ -48,7 +48,8 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
       onAmenities({ center: stop.center, centerName: tour.name, score: stop.score ?? 0, tier: stop.tier ?? '', spokes: stop.spokes })
     } else {
       onAmenities(null)
-      onCamera({ lat: tour.lat, lng: tour.lng, zoom: 15.4 })
+      // A project sits at a point → zoom in close; an area is large → frame wider.
+      onCamera({ lat: tour.lat, lng: tour.lng, zoom: tour.kind === 'project' ? 15.4 : 12.8 })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx])
