@@ -395,20 +395,22 @@ type TxItem = AreaInsights['recentTransactions'][number]
 
 type RentItem = NonNullable<AreaInsights['recentRentals']>[number]
 
-export function AreaRecentTx({ areaId, insights, loading }: {
+export function AreaRecentTx({ areaId, insights, loading, kind }: {
   areaId: string
   insights: AreaInsights | null
   loading: boolean
+  kind?: 'sales' | 'rentals'   // when set, render only that list + hide the internal toggle
 }) {
   const { t, i18n } = useTranslation(['map'])
   const lang = i18n.language || 'en'
-  const [tab, setTab] = useState<'sales' | 'rentals'>('sales')
+  const [internalTab, setInternalTab] = useState<'sales' | 'rentals'>('sales')
+  const tab = kind ?? internalTab
   const [extra, setExtra] = useState<TxItem[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
 
   // 切换区域时重置追加列表 + 回到成交 tab
-  useEffect(() => { setExtra([]); setHasMore(true); setTab('sales') }, [areaId])
+  useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales') }, [areaId])
 
   const baseRows = insights?.recentTransactions || []
   const rows = [...baseRows, ...extra]
@@ -435,7 +437,7 @@ export function AreaRecentTx({ areaId, insights, loading }: {
   const TabBtn = ({ id, label }: { id: 'sales' | 'rentals'; label: string }) => (
     <button
       type="button"
-      onClick={() => setTab(id)}
+      onClick={() => setInternalTab(id)}
       className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
         tab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
       }`}
@@ -446,11 +448,13 @@ export function AreaRecentTx({ areaId, insights, loading }: {
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
-          <TabBtn id="sales" label={t('map:areaDialog.tabSales')} />
-          <TabBtn id="rentals" label={t('map:areaDialog.tabRentals')} />
-        </div>
+      <div className={`mb-2 flex items-center gap-2 ${kind ? 'justify-end' : 'justify-between'}`}>
+        {!kind && (
+          <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
+            <TabBtn id="sales" label={t('map:areaDialog.tabSales')} />
+            <TabBtn id="rentals" label={t('map:areaDialog.tabRentals')} />
+          </div>
+        )}
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
           <BadgeCheck className="h-3 w-3" />
           Dubai Land Department

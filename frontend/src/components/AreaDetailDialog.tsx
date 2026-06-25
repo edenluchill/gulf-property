@@ -39,10 +39,9 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
 
   // Usage lens lives here (default 全部). Reset to 'all' each time a new area opens.
   const [usage, setUsage] = useState<string>('all')
-  // 市场 / 项目 tabs — projects get their own tab so a long project list scales
-  // and never buries the market stats.
-  const [tab, setTab] = useState<'market' | 'projects'>('market')
-  useEffect(() => { setUsage('all'); setTab('market') }, [area?.id])
+  // Right-panel tabs — flat 成交 / 租金 / 项目 (charts stay on the left).
+  const [tab, setTab] = useState<'sales' | 'rentals' | 'projects'>('sales')
+  useEffect(() => { setUsage('all'); setTab('sales') }, [area?.id])
 
   // 四指标月度序列 + 近期成交（按 usage 口径,后端全区域预热,通常秒回）
   const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage)
@@ -87,7 +86,6 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
       <p className="text-sm text-slate-600 leading-relaxed">{tr?.aiSummary || area.aiSummary}</p>
     </div>
   ) : null
-  const txEl = <AreaRecentTx areaId={area.id} insights={insights} loading={insightsLoading} />
   const devsEl = isLoading ? (
     <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
       <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600" />
@@ -127,39 +125,38 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
     </div>
   )
 
+  const RIGHT_TABS = [
+    { id: 'sales' as const, label: zh ? '成交' : 'Sales' },
+    { id: 'rentals' as const, label: zh ? '租金' : 'Rentals' },
+    { id: 'projects' as const, label: `${zh ? '项目' : 'Projects'}${projectTotal ? ` (${projectTotal})` : ''}` },
+  ]
+
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[10000]" onClick={onClose} />
 
-      {/* Dialog — mobile: bottom sheet (full width); desktop: centered panel. */}
-      <div className="fixed z-[10001] flex flex-col bg-white shadow-2xl
-                      inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl
-                      md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-                      md:w-[1000px] md:max-h-[85vh] md:rounded-2xl overflow-hidden">
-        {/* Mobile drag handle */}
-        <div className="md:hidden flex justify-center pt-2"><div className="h-1 w-10 rounded-full bg-slate-300" /></div>
-
-        {/* Header: name + description + close */}
-        <div className="px-5 pt-3 md:pt-5 pb-3 border-b border-slate-100">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2.5">
-                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: area.color }} />
-                <h2 className="font-bold text-xl md:text-2xl text-slate-900 truncate">{(isTranslated && tr?.name) || area.name}</h2>
-              </div>
-              {isTranslated && tr?.name && <p className="text-xs md:text-sm text-slate-400 ml-[22px]">{area.name}</p>}
+      {/* Dialog — centered, FIXED height so switching tabs never resizes the window. */}
+      <div className="fixed z-[10001] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col
+                      bg-white shadow-2xl rounded-2xl overflow-hidden
+                      w-[1000px] max-w-[95vw] h-[78vh] max-h-[760px]">
+        {/* Header — compact (name + en + close on one row, description clamped) */}
+        <div className="px-5 pt-4 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2.5 min-w-0">
+              <span className="w-3 h-3 rounded-full flex-shrink-0 translate-y-0.5" style={{ backgroundColor: area.color }} />
+              <h2 className="font-bold text-xl text-slate-900 truncate">{(isTranslated && tr?.name) || area.name}</h2>
+              {isTranslated && tr?.name && <span className="text-sm text-slate-400 truncate flex-shrink-0">{area.name}</span>}
             </div>
-            <button onClick={onClose} className="flex-shrink-0 p-2 rounded-full hover:bg-slate-100 transition-colors">
+            <button onClick={onClose} className="flex-shrink-0 p-2 -mr-2 rounded-full hover:bg-slate-100 transition-colors">
               <X className="w-5 h-5 text-slate-600" />
             </button>
           </div>
-          {desc && <p className="mt-2 text-sm text-slate-600 leading-relaxed line-clamp-2 md:line-clamp-none">{desc}</p>}
+          {desc && <p className="mt-1 text-sm text-slate-500 leading-snug line-clamp-2">{desc}</p>}
         </div>
 
-        {/* Usage filter — always visible at top so it's instantly clear what's shown
-            and how to switch (especially on mobile). Horizontally scrollable. */}
-        <div className="px-5 py-2.5 border-b border-slate-100 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Usage filter — instantly shows what's measured + how to switch */}
+        <div className="px-5 py-2 border-b border-slate-100 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="text-[11px] font-medium text-slate-400 shrink-0">{zh ? '口径' : 'Usage'}</span>
           {USAGE_FILTER.map((u) => (
             <button
@@ -174,40 +171,15 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
           ))}
         </div>
 
-        {/* ── MOBILE: stacked tabs (市场行情 | 项目) ───────────────────────── */}
-        <div className="md:hidden flex flex-col flex-1 overflow-hidden">
-          <div className="px-5 flex gap-1 border-b border-slate-100">
-            {([
-              { id: 'market' as const, label: zh ? '市场行情' : 'Market' },
-              { id: 'projects' as const, label: `${zh ? '项目' : 'Projects'}${projectTotal ? ` (${projectTotal})` : ''}` },
-            ]).map((tb) => (
-              <button key={tb.id} onClick={() => setTab(tb.id)}
-                className={`border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                  tab === tb.id ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500'
-                }`}>
-                {tb.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            {tab === 'market' ? <div className="space-y-4">{tilesEl}{aiEl}{txEl}</div> : devsEl}
-          </div>
-        </div>
-
-        {/* ── DESKTOP: 2-column — charts left, transactions/projects right ──── */}
-        <div className="hidden md:flex flex-1 overflow-hidden">
-          {/* Left: market charts */}
+        {/* 2-column — charts left, flat 成交/租金/项目 tabs right */}
+        <div className="flex flex-1 overflow-hidden">
           <div className="w-[380px] overflow-y-auto border-r border-slate-100 p-4 space-y-4">
             {tilesEl}
             {aiEl}
           </div>
-          {/* Right: tabbed 成交/租约 | 项目 */}
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/40">
             <div className="px-4 flex gap-1 border-b border-slate-100 bg-white">
-              {([
-                { id: 'market' as const, label: zh ? '成交 / 租约' : 'Transactions' },
-                { id: 'projects' as const, label: `${zh ? '项目' : 'Projects'}${projectTotal ? ` (${projectTotal})` : ''}` },
-              ]).map((tb) => (
+              {RIGHT_TABS.map((tb) => (
                 <button key={tb.id} onClick={() => setTab(tb.id)}
                   className={`border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
                     tab === tb.id ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -217,7 +189,9 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
               ))}
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {tab === 'projects' ? devsEl : txEl}
+              {tab === 'projects'
+                ? devsEl
+                : <AreaRecentTx areaId={area.id} insights={insights} loading={insightsLoading} kind={tab === 'rentals' ? 'rentals' : 'sales'} />}
             </div>
           </div>
         </div>
