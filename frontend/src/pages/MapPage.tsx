@@ -46,6 +46,16 @@ import {
   MapPinProject
 } from '../lib/api'
 
+// Usage filter for the area dialog/sheet (默认全部). No data hidden — just segmented.
+const USAGE_FILTER = [
+  { v: 'all', zh: '全部', en: 'All' },
+  { v: 'residential', zh: '住宅', en: 'Residential' },
+  { v: 'commercial', zh: '商业', en: 'Commercial' },
+  { v: 'hospitality', zh: '酒店', en: 'Hotel' },
+  { v: 'industrial', zh: '工业', en: 'Industrial' },
+  { v: 'other', zh: '其他', en: 'Other' },
+]
+
 const METRIC_OPTIONS = [
   { value: 'medianUnitPrice' as AreaMetric, labelKey: 'map:metric.medianUnitPrice', Icon: DollarSign },
   { value: 'medianPriceSqft' as AreaMetric, labelKey: 'map:metric.medianPriceSqft', Icon: DollarSign },
@@ -664,9 +674,13 @@ export default function MapPage() {
 
   // Mobile bottom sheet state
   const [showAreaSheet, setShowAreaSheet] = useState(false)
+  // 移动端 sheet 的 usage 口径(默认全部)+ 市场/项目 tab，新区打开时重置
+  const [sheetUsage, setSheetUsage] = useState('all')
+  const [sheetTab, setSheetTab] = useState<'market' | 'projects'>('market')
+  useEffect(() => { setSheetUsage('all'); setSheetTab('market') }, [selectedArea?.id])
   // 移动端 sheet 的区域洞察（桌面 dialog 内部自取，后端缓存去重）
   const { insights: sheetInsights, loading: sheetInsightsLoading } = useAreaInsights(
-    showAreaSheet ? selectedArea?.id : undefined
+    showAreaSheet ? selectedArea?.id : undefined, sheetUsage
   )
 
   // Load Dubai areas & landmarks (only once, with caching)
@@ -1971,33 +1985,55 @@ export default function MapPage() {
             <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600"></div>
           </div>
         ) : selectedArea ? (
-          <div className="p-4 space-y-5">
-            {/* 区域简介（特色/地段） */}
+          <div className="flex flex-col">
+            {/* 区域简介 — 收紧到 2 行,给指标和切换让位 */}
             {(() => {
               const sheetTr = selectedArea.translations?.[i18n.language?.split('-')[0] ?? '']
               const desc = sheetTr?.description || selectedArea.description
-              return desc ? (
-                <p className="text-sm leading-relaxed text-slate-600">{desc}</p>
-              ) : null
+              return desc ? <p className="px-4 pt-2 text-sm leading-relaxed text-slate-600 line-clamp-2">{desc}</p> : null
             })()}
 
-            {/* Market Stats Grid - 四指标趋势图（与桌面同款） */}
-            <div>
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                {t('map:areaDialog.marketStatistics')}
-              </h4>
-              <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} />
+            {/* Usage filter — 顶部常驻,一进来就知道当前口径 + 怎么切。横向可滚。 */}
+            <div className="px-4 py-2.5 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-slate-100">
+              <span className="text-[11px] font-medium text-slate-400 shrink-0">{i18n.language?.startsWith('zh') ? '口径' : 'Usage'}</span>
+              {USAGE_FILTER.map((u) => (
+                <button
+                  key={u.v}
+                  onClick={() => setSheetUsage(u.v)}
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    sheetUsage === u.v ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {i18n.language?.startsWith('zh') ? u.zh : u.en}
+                </button>
+              ))}
             </div>
 
-            {/* 近期真实成交（DLD，可加载更多） */}
-            <AreaRecentTx areaId={selectedArea.id} insights={sheetInsights} loading={sheetInsightsLoading} />
+            {/* Tabs: 市场行情 | 项目(N) — 项目单独 tab,多了也不挤 */}
+            <div className="px-4 flex gap-1 border-b border-slate-100">
+              {([
+                { id: 'market' as const, label: i18n.language?.startsWith('zh') ? '市场行情' : 'Market' },
+                { id: 'projects' as const, label: `${i18n.language?.startsWith('zh') ? '项目' : 'Projects'}${areaDevelopers.reduce((n, d) => n + d.projectCount, 0) ? ` (${areaDevelopers.reduce((n, d) => n + d.projectCount, 0)})` : ''}` },
+              ]).map((tb) => (
+                <button
+                  key={tb.id}
+                  onClick={() => setSheetTab(tb.id)}
+                  className={`border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                    sheetTab === tb.id ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500'
+                  }`}
+                >
+                  {tb.label}
+                </button>
+              ))}
+            </div>
 
-            {/* Developer Cards */}
-            {areaDevelopers.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                  {t('map:areaDialog.developersInArea', { count: areaDevelopers.length })}
-                </h4>
+            <div className="p-4 space-y-4">
+              {sheetTab === 'market' ? (
+                <>
+                  <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} usageActive={sheetUsage !== 'all'} />
+                  <AreaRecentTx areaId={selectedArea.id} insights={sheetInsights} loading={sheetInsightsLoading} />
+                </>
+              ) : areaDevelopers.length > 0 ? (
                 <div className="space-y-2">
                   {areaDevelopers.map((dev) => (
                     <div key={dev.name} className="bg-white rounded-xl border border-slate-200 p-3">
@@ -2031,8 +2067,12 @@ export default function MapPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-400">
+                  {i18n.language?.startsWith('zh') ? '该区域暂无已收录的项目' : 'No projects on record yet'}
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
       </MobileBottomSheet>
