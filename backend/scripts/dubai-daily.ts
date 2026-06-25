@@ -65,7 +65,50 @@ async function main() {
 
   await pool.query(`DELETE FROM dubai_area_rolling_metrics WHERE period_end_month = DATE_TRUNC('month', CURRENT_DATE)`)
   const m = await pool.query(`SELECT calculate_area_rolling_metrics(CURRENT_DATE) AS n`)
-  console.log(`[daily] metrics rebuilt: ${m.rows[0].n} areas. done.`)
+  console.log(`[daily] official metrics rebuilt: ${m.rows[0].n} areas`)
+
+  // ── Custom (hand-drawn) areas: geocode-based spatial metrics ─────────────
+  // Official areas use the area_id bridge above. Colleague-drawn areas have no
+  // real bridge, so they're matched spatially via geocoded points. See
+  // dld-geocode-cache.sql / custom-area-metrics.sql.
+
+  // 1. Geocode any NEW project/building/area keys (resumable: skips cached).
+  //    Best-effort — never fail the daily run over geocoding.
+  try {
+    const { execFileSync } = await import('child_process')
+    for (const mode of [[], ['--buildings'], ['--areas']]) {
+      execFileSync('npx', ['ts-node', '--transpile-only', 'scripts/geocode-dld-projects.ts', ...mode], {
+        cwd: process.cwd(), stdio: 'inherit', timeout: 10 * 60 * 1000,
+      })
+    }
+  } catch (e) {
+    console.warn('[daily] incremental geocode skipped:', e instanceof Error ? e.message : e)
+  }
+
+  // 2. Refresh area centroids (so new areas/projects get an '__AREA__' fallback).
+  await pool.query(`
+    INSERT INTO dld_project_locations (area_name, project_name, lat, lng, geom, source, tx_count)
+    SELECT s.area_name, '__AREA__', ST_Y(s.c::geometry), ST_X(s.c::geometry), s.c, 'area_centroid', 0
+    FROM (SELECT area_name, ST_SetSRID(ST_MakePoint(
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY ST_X(geom::geometry)),
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY ST_Y(geom::geometry))),4326)::geography AS c
+          FROM dld_project_locations WHERE geom IS NOT NULL AND project_name <> '__AREA__'
+          GROUP BY area_name) s
+    ON CONFLICT (area_name, project_name) DO UPDATE SET
+      geom = EXCLUDED.geom, lat = EXCLUDED.lat, lng = EXCLUDED.lng, source='area_centroid', geocoded_at=now()`)
+
+  // 3. Spatial rolling metrics for custom areas → same table the map reads.
+  const c = await pool.query(`SELECT calculate_custom_area_rolling_metrics(CURRENT_DATE) AS n`)
+  console.log(`[daily] custom-area metrics rebuilt: ${c.rows[0].n} areas`)
+
+  // 4. Bump custom areas' updated_at → changes /meta/data-version → clients
+  //    clear their cache and refetch the new colours.
+  await pool.query(`
+    UPDATE dubai_areas SET updated_at = now()
+     WHERE id IN (SELECT dubai_area_id FROM dubai_area_rolling_metrics
+                   WHERE period_end_month = date_trunc('month', CURRENT_DATE))
+       AND NOT EXISTS (SELECT 1 FROM dld_areas dla WHERE dla.dubai_area_id = dubai_areas.id AND dla.area_id < 900000)`)
+  console.log('[daily] done.')
   await pool.end()
 }
 main().catch((e) => { console.error('[daily] FAILED', e?.response?.status, e?.message || e); process.exit(1) })
