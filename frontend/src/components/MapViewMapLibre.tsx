@@ -1420,13 +1420,14 @@ function MapViewMapLibre({
       </button>
 
       {/* 移动端:底图/3D/测距 收进一个「工具」按钮(窄屏右上不再堆三个独立按钮)。
-          top-28 给上方的指标+POI 面板留足间距(原 top-20 贴太近不好看)。 */}
-      <div className="md:hidden absolute top-28 right-4 z-[1000] flex flex-col items-end gap-2">
+          right-3 与上方指标+POI 面板右对齐;top-[84px] 给它一个 gap-2(~8px)的间距,
+          和左侧筛选/找房助手的纵向间距一致。样式也对齐左侧 pill(rounded-full)。 */}
+      <div className="md:hidden absolute top-[84px] right-3 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setToolsOpen(o => !o)}
-          className={`flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
-            toolsOpen ? 'bg-slate-900/90 text-white ring-slate-700' : 'bg-white/95 text-slate-700 ring-slate-200'
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium shadow-lg ring-1 backdrop-blur transition ${
+            toolsOpen ? 'bg-slate-900/90 text-white ring-slate-700' : 'bg-white/90 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
           }`}
           aria-label="地图工具"
         >
