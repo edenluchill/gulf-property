@@ -155,25 +155,20 @@ Palm Central → Palm Jabal Ai(sim 0.80,204 成交)。当前 13 个有迪拜坐�
 - **100% 覆盖的理论上限**:0 笔成交无定位文字 → 可达。剩 2%(只有 area_name,13,580 笔)需
   area-centroid 兜底;100% building 级**精准**不可达(同名楼盘歧义),但区域级 ~100% 已保证。
 
-## 5d. 后续 TODO(记录,后面继续搞)
+## 5d. 全覆盖 + 性能(2026-06-24 第三弹,已上线)
 
-**当前状态**:sales 成交 98% 覆盖、99.9% 落对区域,已上线;rent 在带 project_name 的新开发体上
-覆盖良好(Sobha Hartland 4,125 条)。两个已知缺口,留待后续:
+**全覆盖**:`dld-area-centroids.sql` 给每个 area 建一个 `__AREA__` 中心点(该区已 geocode 项目的
+中位中心,共 82 个)。空间 join 用 `COALESCE(project_name, building_name, '__AREA__')` 兜底,所以:
+- **sales 2%**(只有 area_name,13,580 笔)→ 落区中心 → 覆盖 ~100%。
+- **rent 78%**(DLD 只标到区、rent 表无 building_name)→ 落区中心 → rent 也全覆盖。
+  代价:area-only 记录落在区中心(粗,非楼盘级);自建子区会带入该官方区的区级数据。
 
-1. **[sales 2%] 只有 area_name 的成交(13,580 笔)** —— 无 project/building 可 geocode。
-   方案:落所属官方区 centroid 作兜底点 → 覆盖率 98% → ~100%。代价小。
+**性能**:`dld-geocode-indexes.sql` 加 `(area_name, project_name)`/`(area_name, building_name)`
+复合索引。rent 空间查询 833ms → 693ms;area-insights 有 **6h 缓存**(`TX_CACHE_TTL_MS`),
+所以是每区每 6 小时一次的成本,可接受。
 
-2. **[rent 78%] DLD 租约大多只标到区(无 project_name,且 rent 表无 building_name)** ——
-   `dld_rent_contracts` 仅 21%(82万条)带 project_name 能空间定位;其余 290万条只有
-   area_name + dubai_area_id。这是 **DLD 数据粒度限制,非 bug**。
-   方案:自建区 rent 样本不足时,回退到所属**官方区**的租约(area_id 桥接)估 yield
-   (会引入区域混合,但 yield 对开发体没 sale price 敏感,可接受);UI 标注"租金为区域口径"。
-
-3. **[精度长尾] 6 个 Google 找不到的 project + ~18% snap 近似点** —— 可 `--retry-failed` +
-   按区域 centroid 约束重 geocode 精修;或 building 级再细化。
-
-4. **[官方区也用 geocode?]** 目前官方区仍走 area_id 桥接(可靠)。若想全站统一空间口径,
-   可在 geocode 覆盖足够后切换,但需先验证不回归。
+**仍可精修(非阻塞)**:6 个 Google 找不到的 project;~18% snap 近似点可按区 centroid 约束重 geocode;
+官方区是否统一切空间口径(目前走可靠的 area_id 桥接)。
 
 ## 6. 附:复现实证的查询
 
