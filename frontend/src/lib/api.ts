@@ -918,6 +918,25 @@ export async function fetchProjectInsights(id: string): Promise<ProjectInsights 
   }
 }
 
+// ---- 项目真实成交（DLD，按匹配到的开发体）----
+export interface ProjectTransactions {
+  matched: boolean
+  development: string | null
+  sales: { date: string | null; building: string | null; rooms: string | null; sizeSqm: number | null; price: number | null; pricePerSqm: number | null; saleType: 'offplan' | 'ready' }[]
+  rentals: { date: string | null; building: string | null; subtype: string | null; sizeSqm: number | null; annualRent: number | null; rentPerSqm: number | null; regType: 'new' | 'renew' }[]
+}
+
+export async function fetchProjectTransactions(id: string): Promise<ProjectTransactions | null> {
+  try {
+    const r = await fetch(`${API_URL}/residential-projects/${id}/transactions`)
+    if (!r.ok) return null
+    const json = await r.json()
+    return json?.success ? (json.data as ProjectTransactions) : null
+  } catch {
+    return null
+  }
+}
+
 // ============================================================================
 // AI ANALYTICS — 找房助手（affordability / recommend）。公开路由，无需 auth。
 // 形状对齐 backend/src/routes/ai-analytics.ts + recommend_for_budget()。

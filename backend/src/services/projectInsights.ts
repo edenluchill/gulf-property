@@ -289,3 +289,90 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
 
   return { area, investment, nearby, commute }
 }
+
+// ── Real DLD transactions for a project's development ───────────────────────
+export interface ProjectTx {
+  matched: boolean
+  development: string | null          // master_project label
+  sales: { date: string | null; building: string | null; rooms: string | null; sizeSqm: number | null; price: number | null; pricePerSqm: number | null; saleType: 'offplan' | 'ready' }[]
+  rentals: { date: string | null; building: string | null; subtype: string | null; sizeSqm: number | null; annualRent: number | null; rentPerSqm: number | null; regType: 'new' | 'renew' }[]
+}
+
+const titleCaseDev = (s: string) => s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+
+/**
+ * Recent DLD sales + rentals for the project's matched development
+ * (master_project + official area, via resolve_project_development). Honest:
+ * matched=false when the project can't be resolved to a development.
+ */
+export async function getProjectTransactions(projectId: string, limit = 40): Promise<ProjectTx | null> {
+  const projRes = await pool.query(
+    `SELECT project_name, latitude, longitude FROM residential_projects WHERE id = $1`,
+    [projectId]
+  )
+  if (projRes.rows.length === 0) return null
+  const p = projRes.rows[0]
+  const lng = p.longitude != null ? parseFloat(p.longitude) : null
+  const lat = p.latitude != null ? parseFloat(p.latitude) : null
+
+  const rr = await pool.query(
+    `SELECT master_project, area_id, similarity FROM resolve_project_development($1, $2, $3)`,
+    [p.project_name || '', lng, lat]
+  )
+  const master = rr.rows[0]?.master_project as string | undefined
+  const areaId = rr.rows[0]?.area_id != null ? Number(rr.rows[0].area_id) : null
+  const sim = parseFloat(rr.rows[0]?.similarity) || 0
+  if (!master || areaId == null || sim < 0.45) {
+    return { matched: false, development: null, sales: [], rentals: [] }
+  }
+
+  const [salesRes, rentRes] = await Promise.all([
+    pool.query(
+      `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
+              dt.procedure_area AS size_sqm, dt.actual_worth AS price, round(dt.meter_sale_price) AS pps,
+              CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
+         FROM dld_transactions dt
+        WHERE upper(dt.master_project) = upper($1) AND dt.area_id = $2
+          AND dt.trans_group = 'Sales' AND dt.meter_sale_price > 0
+        ORDER BY dt.instance_date DESC LIMIT $3`,
+      [master, areaId, limit]
+    ),
+    pool.query(
+      `SELECT rc.start_date AS date, rc.project_name, rc.property_subtype, rc.property_type,
+              rc.property_area AS size_sqm, rc.annual_amount AS annual_rent,
+              round(rc.annual_amount / NULLIF(rc.property_area, 0)) AS rps, rc.registration_type
+         FROM dld_rent_contracts rc
+        WHERE rc.area_id = $2 AND rc.usage_type = 'Residential'
+          AND regexp_replace(upper(rc.project_name), '[^A-Z0-9]', '', 'g') IN (
+            SELECT DISTINCT regexp_replace(upper(project_name), '[^A-Z0-9]', '', 'g')
+              FROM dld_transactions WHERE upper(master_project) = upper($1) AND area_id = $2
+                AND project_name IS NOT NULL AND project_name <> ''
+          )
+        ORDER BY rc.start_date DESC LIMIT $3`,
+      [master, areaId, limit]
+    ),
+  ])
+
+  return {
+    matched: true,
+    development: titleCaseDev(master),
+    sales: salesRes.rows.map((r) => ({
+      date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+      building: r.building_name || r.project_name || null,
+      rooms: r.rooms || null,
+      sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+      price: r.price ? Math.round(Number(r.price)) : null,
+      pricePerSqm: r.pps ? Number(r.pps) : null,
+      saleType: r.sale_type as 'offplan' | 'ready',
+    })),
+    rentals: rentRes.rows.map((r) => ({
+      date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+      building: r.project_name || null,
+      subtype: (r.property_subtype || r.property_type || '').trim() || null,
+      sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+      annualRent: r.annual_rent ? Math.round(Number(r.annual_rent)) : null,
+      rentPerSqm: r.rps ? Number(r.rps) : null,
+      regType: (r.registration_type === 'New' ? 'new' : 'renew') as 'new' | 'renew',
+    })),
+  }
+}

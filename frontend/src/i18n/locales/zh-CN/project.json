@@ -7,7 +7,8 @@
     "unitTypes": "户型",
     "paymentPlan": "付款计划",
     "amenities": "配套设施",
-    "location": "位置"
+    "location": "位置",
+    "transactions": "成交"
   },
   "overview": {
     "aboutProject": "项目简介",

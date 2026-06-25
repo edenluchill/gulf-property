@@ -14,6 +14,7 @@ import { UnitTypesTab } from './ProjectDetailPage/UnitTypesTab'
 import { PaymentPlanTab } from './ProjectDetailPage/PaymentPlanTab'
 import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
 import { LocationTab } from './ProjectDetailPage/LocationTab'
+import { TransactionsTab } from './ProjectDetailPage/TransactionsTab'
 import { UnitTypesSubPage } from './ProjectDetailPage/UnitTypesSubPage'
 import { DesktopHeroGallery } from './ProjectDetailPage/DesktopHeroGallery'
 import { CollapsibleDetails } from './ProjectDetailPage/CollapsibleDetails'
@@ -362,6 +363,7 @@ export default function ProjectDetailPage() {
                 <TabsTrigger value="payment" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.paymentPlan')}</TabsTrigger>
                 <TabsTrigger value="amenities" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.amenities')}</TabsTrigger>
                 <TabsTrigger value="location" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.location')}</TabsTrigger>
+                <TabsTrigger value="transactions" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.transactions', '成交')}</TabsTrigger>
               </TabsList>
             </div>
           </div>
@@ -659,6 +661,11 @@ export default function ProjectDetailPage() {
                 insights={insights}
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="transactions" className="mt-0">
+            <CompactProjectHeader />
+            <TransactionsTab projectId={project.id} />
           </TabsContent>
         </Tabs>
 
