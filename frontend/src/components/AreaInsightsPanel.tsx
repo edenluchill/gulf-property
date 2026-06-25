@@ -235,13 +235,21 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   // usage in the dialog, the insights series IS that usage → prefer it. Otherwise
   // prefer the precomputed area columns, falling back to insights (custom areas).
   const insVol = insights?.volume?.length ? insights.volume.reduce((a, b) => a + b, 0) : null
+  // When a specific usage is selected, show ONLY that usage's real data (the
+  // insights series). Never fall back to area.* (the map's combined 'all' value)
+  // — otherwise a usage with 0 transactions would wrongly show the 'all' price/
+  // growth. For 'all', use the precomputed area columns, falling back to insights.
   const pick = <T,>(a: T | null | undefined, b: T | null | undefined) =>
-    usageActive ? (b ?? a) : (a ?? b)
+    usageActive ? (b ?? null) : (a ?? b)
   const growthNow = pick(area.capitalAppreciation, lastNonNull(insights?.growth))
   const yieldNow = pick(area.rentalYield, lastNonNull(insights?.rentalYield))
-  const stabilityNow = area.rentStability ?? null
+  // Rent stability is residential-derived → only meaningful in the 'all' view.
+  const stabilityNow = usageActive ? null : (area.rentStability ?? null)
   const medianPsm = pick(area.medianPriceSqm, lastNonNull(insights?.price))
   const txCount = pick(area.transactionCount, insVol)
+  // Single price value for the tile. For a specific usage, only its own median —
+  // never the area's combined avg. For 'all', median then avg fallback.
+  const priceDisplay = medianPsm ?? (usageActive ? null : (area.averagePrice ?? null))
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
@@ -257,8 +265,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   // Clean empty-state: many display areas are industrial / land / low-activity, or
   // not yet matched to DLD's cadastre — show an intentional note, not a grid of "—".
   const hasAnyMetric =
-    medianPsm != null || area.averagePrice != null ||
-    txCount != null || growthNow != null || yieldNow != null
+    priceDisplay != null || (txCount != null && txCount > 0) || growthNow != null || yieldNow != null
   if (!loading && !hasAnyMetric) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center">
@@ -281,15 +288,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           label={`${t('map:areaDialog.avgPrice')} (AED/m²)`}
           info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
           value={
-            medianPsm != null ? (
+            priceDisplay != null ? (
               <>
                 <DirhamSymbol size="0.75em" className="text-slate-400" />
-                {formatMoneyFull(medianPsm)}
-              </>
-            ) : area.averagePrice != null ? (
-              <>
-                <DirhamSymbol size="0.75em" className="text-slate-400" />
-                {formatMoneyFull(area.averagePrice)}
+                {formatMoneyFull(priceDisplay)}
               </>
             ) : '—'
           }
