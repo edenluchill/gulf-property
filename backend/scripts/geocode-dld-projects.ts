@@ -30,12 +30,31 @@ const retryFailed = args.includes('--retry-failed')
 // Stored under project_name = building_name so the COALESCE join in
 // market.ts's area-insights picks them up too. Lifts tx coverage past 91%.
 const buildings = args.includes('--buildings')
+// --areas: geocode the AREA itself ("{area_name}, Dubai") → an '__AREA__' centroid
+// for areas that have no geocoded projects (mostly rent-only older areas). Fills
+// the area-fallback so rent coverage reaches ~100%.
+const areasMode = args.includes('--areas')
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 interface Key { area_name: string; project_name: string; tx: number }
 
 async function pending(): Promise<Key[]> {
+  if (areasMode) {
+    // Distinct area_names (rent + sales) that still have no '__AREA__' centroid.
+    const lim = limit > 0 ? `LIMIT ${limit}` : ''
+    const { rows } = await pool.query(
+      `SELECT u.a AS area_name, '__AREA__' AS project_name, 1 AS tx
+         FROM (SELECT DISTINCT area_name a FROM dld_rent_contracts
+                WHERE usage_type='Residential' AND area_name IS NOT NULL AND area_name<>''
+                UNION
+               SELECT DISTINCT area_name FROM dld_transactions
+                WHERE trans_group='Sales' AND area_name IS NOT NULL AND area_name<>'') u
+        WHERE u.a NOT IN (SELECT area_name FROM dld_project_locations WHERE project_name='__AREA__')
+        ${lim}`
+    )
+    return rows
+  }
   if (buildings) {
     // Key = (area_name, building_name); building_name stored in project_name col.
     const lim = limit > 0 ? `LIMIT ${limit}` : ''
@@ -79,7 +98,11 @@ async function pending(): Promise<Key[]> {
 
 async function geocode(k: Key): Promise<{ lat: number; lng: number } | null> {
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json')
-  url.searchParams.set('address', `${k.project_name}, ${k.area_name}, Dubai, United Arab Emirates`)
+  // Area centroids geocode the area alone; projects/buildings include the name.
+  const address = k.project_name === '__AREA__'
+    ? `${k.area_name}, Dubai, United Arab Emirates`
+    : `${k.project_name}, ${k.area_name}, Dubai, United Arab Emirates`
+  url.searchParams.set('address', address)
   url.searchParams.set('key', KEY!)
   url.searchParams.set('bounds', '24.7,54.8|25.6,56.0') // Dubai bias
   url.searchParams.set('region', 'ae')
