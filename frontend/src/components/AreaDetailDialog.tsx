@@ -17,16 +17,17 @@ interface AreaDetailDialogProps {
   area: DubaiArea | null
   projects: any[]
   isLoading: boolean
+  usage?: string
 }
 
-export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading }: AreaDetailDialogProps) {
+export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading, usage = 'residential' }: AreaDetailDialogProps) {
   const { t, i18n } = useTranslation(['map', 'common'])
   const langKey = (i18n.language || 'en').split('-')[0] // 'zh-CN' → 'zh'
   const tr = area?.translations?.[langKey ?? '']
   const isTranslated = !!tr
 
-  // 四指标月度序列 + 近期成交（后端全区域预热，通常秒回）
-  const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined)
+  // 四指标月度序列 + 近期成交（按 usage 口径,后端全区域预热,通常秒回）
+  const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage)
 
   // Group projects by developer
   const developers: DeveloperSummary[] = useMemo(() => {

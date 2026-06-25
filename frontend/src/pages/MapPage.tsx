@@ -56,6 +56,16 @@ const METRIC_OPTIONS = [
   // 在 area block 详情里完整展示计算过程(用户反馈),不适合地图概览着色。
 ]
 
+// Usage lens — which DLD property_usage segment the area metrics describe. No
+// data is hidden; this just chooses the lens (backend computes per usage).
+const USAGE_OPTIONS = [
+  { v: 'residential', zh: '住宅', en: 'Residential' },
+  { v: 'commercial', zh: '商业', en: 'Commercial' },
+  { v: 'hospitality', zh: '酒店', en: 'Hotel' },
+  { v: 'industrial', zh: '工业', en: 'Industrial' },
+  { v: 'other', zh: '其他', en: 'Other' },
+]
+
 // ============================================================================
 // MAP DATA VERSION - Increment this to force all clients to reload map data
 // Format: YYYYMMDD or any string. When changed, all cached data will be cleared.
@@ -238,6 +248,18 @@ export default function MapPage() {
     setAreaMetric(next)
     localStorage.setItem('map-area-metric', next)
   }
+
+  // Usage lens (住宅/商业/酒店/工业/其他) — drives both the area colours and the
+  // detail dialog. Default residential; nothing is hidden, just segmented. The
+  // backend computes metrics per usage (no silent residential-only filter).
+  const [areaUsage, setAreaUsage] = useState<string>(() => localStorage.getItem('map-area-usage') || 'residential')
+  const firstUsageRender = useRef(true)
+  useEffect(() => {
+    // Skip the initial render — the metadata effect already loaded residential.
+    if (firstUsageRender.current) { firstUsageRender.current = false; return }
+    try { localStorage.setItem('map-area-usage', areaUsage) } catch { /* ignore */ }
+    fetchDubaiAreas(areaUsage).then(setDubaiAreas)
+  }, [areaUsage])
 
   // POI state — persisted in localStorage (default: true)
   const [showPois] = useState(() => {
@@ -1186,6 +1208,20 @@ export default function MapPage() {
           {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
           <div className="absolute top-3 right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+              {/* Usage lens row — 住宅/商业/酒店/工业/其他 (no hidden data) */}
+              <div className="flex border-b border-slate-100">
+                {USAGE_OPTIONS.map((u) => (
+                  <button
+                    key={u.v}
+                    onClick={() => setAreaUsage(u.v)}
+                    className={`flex-1 h-7 truncate px-0.5 text-[10px] font-medium leading-none transition-colors ${
+                      areaUsage === u.v ? 'bg-slate-800 text-white' : 'text-slate-500'
+                    }`}
+                  >
+                    {i18n.language?.startsWith('zh') ? u.zh : u.en}
+                  </button>
+                ))}
+              </div>
               {/* Metrics row */}
               <div className="flex border-b border-slate-100">
                 {METRIC_OPTIONS.map((option, idx) => {
@@ -1267,6 +1303,21 @@ export default function MapPage() {
                   </button>
                 )
               })}
+            </div>
+            {/* Usage lens row — 住宅/商业/酒店/工业/其他 (no hidden data, just segmented) */}
+            <div className="flex items-center gap-0.5 border-t border-slate-100 px-1 pb-1 pt-0.5">
+              <span className="px-1 text-[10px] text-slate-400">{i18n.language?.startsWith('zh') ? '口径' : 'Lens'}</span>
+              {USAGE_OPTIONS.map((u) => (
+                <button
+                  key={u.v}
+                  onClick={() => setAreaUsage(u.v)}
+                  className={`rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                    areaUsage === u.v ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {i18n.language?.startsWith('zh') ? u.zh : u.en}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1433,6 +1484,7 @@ export default function MapPage() {
         area={selectedArea}
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}
+        usage={areaUsage}
       />
 
       {/* POI Info Popup - Mobile: Bottom Sheet, Desktop: Centered Modal */}

@@ -64,8 +64,10 @@ async function main() {
   console.log(`[daily] rent re-bridged: ${rb.rowCount}`)
 
   await pool.query(`DELETE FROM dubai_area_rolling_metrics WHERE period_end_month = DATE_TRUNC('month', CURRENT_DATE)`)
-  const m = await pool.query(`SELECT calculate_area_rolling_metrics(CURRENT_DATE) AS n`)
-  console.log(`[daily] official metrics rebuilt: ${m.rows[0].n} areas`)
+  // Per-usage metrics (住宅/商业/酒店/工业/其他) — no hidden filters. See
+  // area-metrics-by-usage.sql.
+  const m = await pool.query(`SELECT calculate_area_metrics_by_usage(CURRENT_DATE) AS n`)
+  console.log(`[daily] official per-usage metrics rebuilt: ${m.rows[0].n} rows`)
 
   // ── Custom (hand-drawn) areas: geocode-based spatial metrics ─────────────
   // Official areas use the area_id bridge above. Colleague-drawn areas have no
@@ -97,9 +99,9 @@ async function main() {
     ON CONFLICT (area_name, project_name) DO UPDATE SET
       geom = EXCLUDED.geom, lat = EXCLUDED.lat, lng = EXCLUDED.lng, source='area_centroid', geocoded_at=now()`)
 
-  // 3. Spatial rolling metrics for custom areas → same table the map reads.
-  const c = await pool.query(`SELECT calculate_custom_area_rolling_metrics(CURRENT_DATE) AS n`)
-  console.log(`[daily] custom-area metrics rebuilt: ${c.rows[0].n} areas`)
+  // 3. Per-usage spatial rolling metrics for custom areas → same table the map reads.
+  const c = await pool.query(`SELECT calculate_custom_area_metrics_by_usage(CURRENT_DATE) AS n`)
+  console.log(`[daily] custom-area per-usage metrics rebuilt: ${c.rows[0].n} rows`)
 
   // 4. Bump custom areas' updated_at → changes /meta/data-version → clients
   //    clear their cache and refetch the new colours.

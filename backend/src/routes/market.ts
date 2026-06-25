@@ -456,7 +456,7 @@ function monthRange(endYm: string, n: number): string[] {
   return out
 }
 
-async function loadAreaInsightsData(areaId: string) {
+async function loadAreaInsightsData(areaId: string, usage: string = 'residential') {
     // Pick the matching mode for this dubai_area:
     //  • OFFICIAL area (has a real DLD bridge area_id < 900000) → join by the
     //    area_id bridge (reliable, covers every transaction in the community).
@@ -503,13 +503,12 @@ async function loadAreaInsightsData(areaId: string) {
            ${txJoin}
           CROSS JOIN bounds b
           WHERE ${txWhere}
-            AND dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
-            AND dt.property_type IN ('Unit','Villa')
-            AND dt.meter_sale_price BETWEEN 1000 AND 250000
+            AND dt.trans_group = 'Sales' AND dld_usage_bucket(dt.property_usage) = $2
+            AND dt.meter_sale_price > 0
             AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '37 months'
             AND dt.instance_date <= b.d
           GROUP BY 1 ORDER BY 1`,
-        [areaId]
+        [areaId, usage]
       ),
       pool.query(
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
@@ -519,13 +518,14 @@ async function loadAreaInsightsData(areaId: string) {
            ${rentJoin}
           CROSS JOIN bounds b
           WHERE ${rentWhere}
+            AND $2 = 'residential'
             AND rc.usage_type = 'Residential'
             AND rc.property_area BETWEEN 15 AND 2000
             AND rc.annual_amount BETWEEN 5000 AND 5000000
             AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '25 months'
             AND rc.start_date <= b.d
           GROUP BY 1 ORDER BY 1`,
-        [areaId]
+        [areaId, usage]
       ),
       pool.query(
         `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
@@ -535,12 +535,11 @@ async function loadAreaInsightsData(areaId: string) {
            FROM dld_transactions dt
            ${txJoin}
           WHERE ${txWhere}
-            AND dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
-            AND dt.property_type IN ('Unit','Villa')
-            AND dt.meter_sale_price BETWEEN 1000 AND 250000
+            AND dt.trans_group = 'Sales' AND dld_usage_bucket(dt.property_usage) = $2
+            AND dt.meter_sale_price > 0
           ORDER BY dt.instance_date DESC
           LIMIT 8`,
-        [areaId]
+        [areaId, usage]
       ),
       // Recent rental contracts (new + renewal) for the same area
       pool.query(
@@ -551,12 +550,13 @@ async function loadAreaInsightsData(areaId: string) {
            FROM dld_rent_contracts rc
            ${rentJoin}
           WHERE ${rentWhere}
+            AND $2 = 'residential'
             AND rc.usage_type = 'Residential'
             AND rc.property_area BETWEEN 15 AND 2000
             AND rc.annual_amount BETWEEN 5000 AND 5000000
           ORDER BY rc.start_date DESC
           LIMIT 8`,
-        [areaId]
+        [areaId, usage]
       )
     ])
 
@@ -634,10 +634,13 @@ router.get('/area-insights', async (req: Request, res: Response) => {
   try {
     const areaId = String(req.query.areaId || '').trim()
     if (!areaId) return res.status(400).json({ error: 'areaId is required' })
-    const cacheKey = `insights:${areaId}`
+    // usage lens (default residential); cache per usage.
+    const usage = ['residential','commercial','hospitality','industrial','other'].includes(String(req.query.usage))
+      ? String(req.query.usage) : 'residential'
+    const cacheKey = `insights:${areaId}:${usage}`
     const cached = txCacheGet(cacheKey)
     if (cached) return res.json(cached)
-    const data = await loadAreaInsightsData(areaId)
+    const data = await loadAreaInsightsData(areaId, usage)
     txCacheSet(cacheKey, data)
     res.json(data)
   } catch (err) {

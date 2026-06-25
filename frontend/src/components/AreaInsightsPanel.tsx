@@ -13,7 +13,7 @@ import DirhamSymbol from './DirhamSymbol'
 
 // ── 取数 hook ────────────────────────────────────────────────────────────────
 
-export function useAreaInsights(areaId: string | undefined) {
+export function useAreaInsights(areaId: string | undefined, usage: string = 'residential') {
   const [insights, setInsights] = useState<AreaInsights | null>(null)
   const [loading, setLoading] = useState(false)
   useEffect(() => {
@@ -21,13 +21,13 @@ export function useAreaInsights(areaId: string | undefined) {
     let stale = false
     setInsights(null)
     setLoading(true)
-    fetchAreaInsights(areaId).then(d => {
+    fetchAreaInsights(areaId, usage).then(d => {
       if (stale) return
       setInsights(d)
       setLoading(false)
     })
     return () => { stale = true }
-  }, [areaId])
+  }, [areaId, usage])
   return { insights, loading }
 }
 

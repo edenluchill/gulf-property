@@ -43,8 +43,13 @@ const AREA_SELECT = `
  * Frontend will render these as colored overlays on the map
  * Metrics are calculated from real DLD transaction data
  */
-router.get('/areas', async (_req: Request, res: Response) => {
+const USAGE_BUCKETS = ['residential', 'commercial', 'hospitality', 'industrial', 'other']
+
+router.get('/areas', async (req: Request, res: Response) => {
   try {
+    // usage lens (住宅/商业/酒店/工业/其他) — default residential. No data is
+    // hidden; switching usage shows that segment's metrics. See get_dubai_area_metrics.
+    const usage = USAGE_BUCKETS.includes(String(req.query.usage)) ? String(req.query.usage) : 'residential'
     // Join with real-time metrics from DLD transactions
     const result = await pool.query(`
       SELECT
@@ -69,11 +74,11 @@ router.get('/areas', async (_req: Request, res: Response) => {
         da.area_category, da.investment_profile, da.rental_restrictions, da.growth_potential, da.ai_summary,
         da.translations, da.created_at, da.updated_at
       FROM dubai_areas da
-      LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
+      LEFT JOIN get_dubai_area_metrics($1) m ON m.id = da.id
       LEFT JOIN mv_area_net_yield ny ON ny.dubai_area_id = da.id
       WHERE da.visible = true
       ORDER BY da.display_order ASC, da.name ASC
-    `);
+    `, [usage]);
 
     const areas = result.rows.map(row => ({
       ...mapAreaRow(row),

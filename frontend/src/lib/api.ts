@@ -56,9 +56,10 @@ export interface ApiResponse<T> {
 /**
  * Fetch Dubai areas (districts with boundaries)
  */
-export async function fetchDubaiAreas(): Promise<DubaiArea[]> {
+export async function fetchDubaiAreas(usage?: string): Promise<DubaiArea[]> {
   try {
-    const response = await fetch(`${API_URL}/dubai/areas`);
+    const qs = usage && usage !== 'residential' ? `?usage=${encodeURIComponent(usage)}` : '';
+    const response = await fetch(`${API_URL}/dubai/areas${qs}`);
     const areas: DubaiArea[] = await response.json();
     return areas;
   } catch (error) {
@@ -803,9 +804,10 @@ export interface AreaInsights {
     regType: 'new' | 'renew';
   }[];
 }
-export async function fetchAreaInsights(areaId: string): Promise<AreaInsights | null> {
+export async function fetchAreaInsights(areaId: string, usage?: string): Promise<AreaInsights | null> {
   try {
-    const r = await fetch(`${API_URL}/market/area-insights?areaId=${encodeURIComponent(areaId)}`);
+    const u = usage && usage !== 'residential' ? `&usage=${encodeURIComponent(usage)}` : '';
+    const r = await fetch(`${API_URL}/market/area-insights?areaId=${encodeURIComponent(areaId)}${u}`);
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
