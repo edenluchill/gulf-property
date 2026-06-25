@@ -18,6 +18,14 @@ RETURNS TABLE(
   new_contract_count integer, renew_contract_count integer
 )
 LANGUAGE sql STABLE AS $function$
+  -- Resilience: if the requested usage has no rows (e.g. the daily job only
+  -- produced 'residential' and the 'all'/segment rollups are missing), fall back
+  -- to 'residential' so the map never goes blank. Pick the latest period that
+  -- actually has data for the effective usage.
+  WITH eff AS (
+    SELECT CASE WHEN EXISTS (SELECT 1 FROM dubai_area_rolling_metrics WHERE usage = p_usage)
+                THEN p_usage ELSE 'residential' END AS u
+  )
   SELECT
     da.id, da.name, da.name_ar,
     ROUND(rm.avg_price_sqm::numeric, 0),
@@ -31,12 +39,12 @@ LANGUAGE sql STABLE AS $function$
     ROUND(rm.median_new_rent_sqm::numeric, 0),
     rm.new_contract_count,
     rm.renew_contract_count
-  FROM dubai_areas da
-  JOIN dubai_area_rolling_metrics rm ON rm.dubai_area_id = da.id
-  WHERE rm.usage = p_usage
-    AND rm.period_end_month = (
-      SELECT MAX(period_end_month) FROM dubai_area_rolling_metrics WHERE usage = p_usage
-    )
-    AND rm.sales_transaction_count > 0
+  FROM eff
+  JOIN dubai_area_rolling_metrics rm ON rm.usage = eff.u
+   AND rm.period_end_month = (
+     SELECT MAX(period_end_month) FROM dubai_area_rolling_metrics WHERE usage = eff.u
+   )
+  JOIN dubai_areas da ON da.id = rm.dubai_area_id
+  WHERE rm.sales_transaction_count > 0
   ORDER BY rm.sales_transaction_count DESC;
 $function$;
