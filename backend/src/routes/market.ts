@@ -474,15 +474,19 @@ async function loadAreaInsightsData(areaId: string) {
     const spatial = !!modeRes.rows[0] && !modeRes.rows[0].official && !!modeRes.rows[0].has_boundary
 
     // Transaction ↔ area predicates, swapped by mode. $1 = dubai_areas.id.
+    // COALESCE(...'__AREA__') falls records with no project/building back to the
+    // area centroid row, so the 2% area-only sales + 78% area-only rent are
+    // captured too (coarse — placed at area centre). See dld-area-centroids.sql.
     const txJoin = spatial
       ? `JOIN dld_project_locations loc ON loc.area_name = dt.area_name
-           AND loc.project_name = COALESCE(NULLIF(dt.project_name, ''), dt.building_name)`
+           AND loc.project_name = COALESCE(NULLIF(dt.project_name, ''), NULLIF(dt.building_name, ''), '__AREA__')`
       : `JOIN dld_areas dla ON dla.area_id = dt.area_id`
     const txWhere = spatial
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
       : `dla.dubai_area_id = $1`
     const rentJoin = spatial
-      ? `JOIN dld_project_locations loc ON loc.area_name = rc.area_name AND loc.project_name = rc.project_name`
+      ? `JOIN dld_project_locations loc ON loc.area_name = rc.area_name
+           AND loc.project_name = COALESCE(NULLIF(rc.project_name, ''), '__AREA__')`
       : ``
     const rentWhere = spatial
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
