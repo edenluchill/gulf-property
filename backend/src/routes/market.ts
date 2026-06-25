@@ -475,7 +475,8 @@ async function loadAreaInsightsData(areaId: string) {
 
     // Transaction ↔ area predicates, swapped by mode. $1 = dubai_areas.id.
     const txJoin = spatial
-      ? `JOIN dld_project_locations loc ON loc.area_name = dt.area_name AND loc.project_name = dt.project_name`
+      ? `JOIN dld_project_locations loc ON loc.area_name = dt.area_name
+           AND loc.project_name = COALESCE(NULLIF(dt.project_name, ''), dt.building_name)`
       : `JOIN dld_areas dla ON dla.area_id = dt.area_id`
     const txWhere = spatial
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`

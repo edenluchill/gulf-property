@@ -26,12 +26,33 @@ const master = argVal('--master')
 const limit = Number(argVal('--limit') || 0)
 const minTx = Number(argVal('--min-tx') || 3)
 const retryFailed = args.includes('--retry-failed')
+// --buildings: geocode tx that have only a building_name (no project_name).
+// Stored under project_name = building_name so the COALESCE join in
+// market.ts's area-insights picks them up too. Lifts tx coverage past 91%.
+const buildings = args.includes('--buildings')
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 interface Key { area_name: string; project_name: string; tx: number }
 
 async function pending(): Promise<Key[]> {
+  if (buildings) {
+    // Key = (area_name, building_name); building_name stored in project_name col.
+    const lim = limit > 0 ? `LIMIT ${limit}` : ''
+    const { rows } = await pool.query(
+      `SELECT dt.area_name, dt.building_name AS project_name, COUNT(*)::int AS tx
+         FROM dld_transactions dt
+        WHERE (dt.project_name IS NULL OR dt.project_name = '')
+          AND dt.building_name IS NOT NULL AND dt.building_name <> ''
+          AND dt.area_name IS NOT NULL AND dt.area_name <> ''
+          AND NOT EXISTS (SELECT 1 FROM dld_project_locations l
+                           WHERE l.area_name = dt.area_name AND l.project_name = dt.building_name)
+        GROUP BY dt.area_name, dt.building_name
+       HAVING COUNT(*) >= ${minTx}
+        ORDER BY tx DESC ${lim}`
+    )
+    return rows
+  }
   const where: string[] = [
     "dt.project_name IS NOT NULL AND dt.project_name <> ''",
     "dt.area_name IS NOT NULL AND dt.area_name <> ''",
