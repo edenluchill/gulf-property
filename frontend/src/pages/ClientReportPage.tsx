@@ -69,11 +69,13 @@ export default function ClientReportPage() {
         {/* Market & policy */}
         {r.market && (
           <Section title="市场与政策" icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
-            <div className="mb-3 grid grid-cols-3 gap-2.5">
-              <Stat label="区域平均回报" value={r.market.avg_yield_pct != null ? <span className="text-emerald-600">{r.market.avg_yield_pct}%</span> : '—'} />
-              <Stat label="区域年增长" value={r.market.avg_growth_pct != null ? `${r.market.avg_growth_pct}%` : '—'} />
-              <Stat label="在建供给" value={r.market.pipeline_units != null ? Number(r.market.pipeline_units).toLocaleString() : '—'} />
-            </div>
+            {(r.market.avg_yield_pct != null || r.market.avg_growth_pct != null || r.market.pipeline_units != null) && (
+              <div className="mb-3 grid grid-cols-3 gap-2.5">
+                {r.market.avg_yield_pct != null && <Stat label="区域平均回报" value={<span className="text-emerald-600">{r.market.avg_yield_pct}%</span>} />}
+                {r.market.avg_growth_pct != null && <Stat label="区域年增长" value={`${r.market.avg_growth_pct}%`} />}
+                {r.market.pipeline_units != null && <Stat label="在建供给" value={Number(r.market.pipeline_units).toLocaleString()} />}
+              </div>
+            )}
             <ul className="space-y-1.5">
               {(r.market.policy || []).map((p: string, i: number) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-600"><span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-teal-400" />{p}</li>
@@ -105,6 +107,7 @@ export default function ClientReportPage() {
                     <Stat label="年化回报" value={<span className="text-emerald-600">{p.projection.annualized_return_pct != null ? `${Number(p.projection.annualized_return_pct).toFixed(1)}%` : '—'}</span>} />
                     <Stat label="回本" value={p.projection.payback_years != null ? `${Number(p.projection.payback_years).toFixed(0)} 年` : '—'} />
                   </div>
+                  <GrowthCurve buy={p.projection.buy} future={p.projection.future} />
                   <FlowBar buy={p.projection.buy} appr={p.projection.appreciation_5yr} rent={p.projection.rental_income_5yr} />
                   {p.area_metrics && (
                     <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
@@ -171,6 +174,28 @@ export default function ClientReportPage() {
   )
 }
 
+/** 5-year asset value growth curve (buy → future, compounded). */
+function GrowthCurve({ buy, future }: { buy: number; future: number }) {
+  if (!buy || !future || future <= buy) return null
+  const r = Math.pow(future / buy, 1 / 5) - 1
+  const pts = Array.from({ length: 6 }, (_, i) => buy * Math.pow(1 + r, i))
+  const W = 320, H = 64, pad = 3
+  const min = buy, max = future, span = max - min || 1
+  const x = (i: number) => pad + (i / 5) * (W - 2 * pad)
+  const y = (v: number) => H - pad - ((v - min) / span) * (H - 2 * pad)
+  const line = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const fill = `${line} L${x(5)},${H} L${x(0)},${H} Z`
+  return (
+    <div className="mt-3">
+      <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400"><span>资产价值（5 年）</span><span className="font-semibold text-emerald-600">+{((future / buy - 1) * 100).toFixed(0)}%</span></div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 64 }}>
+        <defs><linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity="0.2" /><stop offset="100%" stopColor="#10b981" stopOpacity="0" /></linearGradient></defs>
+        <path d={fill} fill="url(#gc)" />
+        <path d={line} fill="none" stroke="#10b981" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+    </div>
+  )
+}
 function FlowBar({ buy, appr, rent }: { buy: number; appr: number | null; rent: number | null }) {
   const a = Math.max(0, appr ?? 0), rr = Math.max(0, rent ?? 0), total = buy + a + rr
   const seg = (v: number) => `${Math.max(2, (v / total) * 100)}%`
