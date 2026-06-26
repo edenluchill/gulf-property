@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, TrendingUp, Building2 } from 'lucide-react'
+import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, MapPin, TrendingUp } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
 import DirhamSymbol from '../components/DirhamSymbol'
 
@@ -35,19 +35,16 @@ export default function ClientReportPage() {
   const contactHref = agent.whatsapp ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}` : `tel:${agent.phone}`
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
-      <style>{`@media print { .no-print { display:none !important } .pg { box-shadow:none !important; margin:0 !important } body { background:#fff } }`}</style>
+    <div className="min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
+      <style>{`@media print { .no-print{display:none!important} .pg{box-shadow:none!important;margin:0!important} body{background:#fff} }`}</style>
 
-      {/* Toolbar */}
       <div className="no-print sticky top-0 z-50 flex items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur">
         <div className="text-sm font-semibold text-slate-700">投资提案 · {r.client_name || '客户'}</div>
-        <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900">
-          <Printer className="h-4 w-4" />保存 PDF
-        </button>
+        <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900"><Printer className="h-4 w-4" />保存 PDF</button>
       </div>
 
       <div className="pg mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
-        {/* Header — agent brand */}
+        {/* Header — brand only, no chatty prose */}
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           {agent.photo
             ? <img src={agent.photo} alt={agent.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-teal-100" />
@@ -56,21 +53,15 @@ export default function ClientReportPage() {
             <div className="text-lg font-bold text-slate-900">迪拜房产投资提案</div>
             <div className="text-sm text-slate-500">顾问 {agent.name}{agent.phone ? ` · ${agent.phone}` : ''}</div>
           </div>
-          <BadgeCheck className="h-6 w-6 text-emerald-500" />
+          <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200"><BadgeCheck className="h-3.5 w-3.5" />DLD 认证数据</span>
         </div>
-
-        {/* Client + summary */}
-        <div className="mt-4">
-          <div className="text-sm text-slate-400">致 {r.client_name || '尊敬的客户'}</div>
-          {r.profile && <div className="mt-0.5 text-xs text-slate-400">需求：{r.profile}</div>}
-          {r.summary && <p className="mt-2 text-sm leading-relaxed text-slate-700">{r.summary}</p>}
-        </div>
+        <div className="mt-3 text-sm text-slate-500">致 {r.client_name || '客户'}{r.profile ? ` · 需求：${r.profile}` : ''} · 共 {r.properties?.length || 0} 个项目</div>
 
         {/* Market & policy */}
         {r.market && (
           <Section title="市场与政策" icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
-            {(r.market.avg_yield_pct != null || r.market.avg_growth_pct != null || r.market.pipeline_units != null) && (
-              <div className="mb-3 grid grid-cols-3 gap-2.5">
+            {(r.market.avg_growth_pct != null || r.market.pipeline_units != null) && (
+              <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 {r.market.avg_yield_pct != null && <Stat label="区域平均回报" value={<span className="text-emerald-600">{r.market.avg_yield_pct}%</span>} />}
                 {r.market.avg_growth_pct != null && <Stat label="区域年增长" value={`${r.market.avg_growth_pct}%`} />}
                 {r.market.pipeline_units != null && <Stat label="在建供给" value={Number(r.market.pipeline_units).toLocaleString()} />}
@@ -85,131 +76,131 @@ export default function ClientReportPage() {
         )}
 
         {/* Properties */}
-        {(r.properties || []).map((p: any, i: number) => (
-          <div key={i} className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="flex gap-3 bg-slate-50 p-3">
-              {p.image && <img src={p.image} alt={p.name} className="h-20 w-28 flex-shrink-0 rounded-lg object-cover" />}
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold text-teal-600">候选 {i + 1}</div>
-                <div className="truncate text-base font-bold text-slate-900">{p.name}</div>
-                <div className="text-xs text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
+        {(r.properties || []).map((p: any, i: number) => {
+          const yoySane = p.yoy && p.yoy.growth_pct != null && Math.abs(p.yoy.growth_pct) <= 40
+          return (
+            <div key={i} className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+              {/* Clickable header → project page */}
+              <a href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="flex gap-3 bg-slate-50 p-3 hover:bg-slate-100">
+                {p.image && <img src={p.image} alt={p.name} className="h-20 w-28 flex-shrink-0 rounded-lg object-cover" />}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold text-teal-600">候选 {i + 1}</div>
+                  <div className="flex items-center gap-1 truncate text-base font-bold text-slate-900">{p.name}<ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" /></div>
+                  <div className="text-xs text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
+                </div>
+              </a>
+
+              <div className="p-3.5">
+                {/* Transparent 5yr net profit calculation */}
+                {p.net && (
+                  <>
+                    <div className="mb-2 text-xs font-bold text-slate-700">利润测算（净额 · 5 年）</div>
+                    <div className="overflow-hidden rounded-xl border border-slate-100 text-sm">
+                      <Row label="买入价" value={<Dh v={p.net.buy} />} />
+                      <Row label={`资产增值（年增长 ${p.area_metrics?.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : '约 7%'}）`} value={<span className="text-emerald-600">+<Dh v={p.net.appreciation} /></span>} />
+                      <Row label="5 年净租金（扣物业费/维护约 25%）" value={<span className="text-emerald-600">+<Dh v={p.net.net_rent} /></span>} />
+                      <Row label="过户费 DLD 4%" value={<span className="text-rose-500">−<Dh v={p.net.dld_fee} /></span>} />
+                      <Row label="中介费 2%" value={<span className="text-rose-500">−<Dh v={p.net.agent_fee} /></span>} />
+                      <Row label="5 年净利润" value={<span className="font-extrabold text-teal-700"><Dh v={p.net.net_profit} /></span>} strong />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-2">
+                      <span className="text-xs text-teal-700/80">净年化回报</span>
+                      <span className="text-lg font-extrabold text-teal-700">{p.net.net_annualized_pct}%</span>
+                    </div>
+                  </>
+                )}
+
+                {/* Growth evidence: real price trend + comp count + sane YoY */}
+                {p.price_trend?.length > 1 && (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500"><TrendingUp className="h-3 w-3 text-teal-500" />增长依据 · {p.area} 真实成交（近 24 个月）</div>
+                    <TrendChart trend={p.price_trend} />
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      {yoySane
+                        ? `中位价：去年 ${Number(p.yoy.last_year_sqm).toLocaleString()} → 今年 ${Number(p.yoy.this_year_sqm).toLocaleString()} /㎡（同比 ${p.yoy.growth_pct > 0 ? '+' : ''}${p.yoy.growth_pct}%，${p.yoy.count} 笔）`
+                        : `基于 ${p.yoy?.count ?? p.area_metrics?.transaction_count ?? ''} 笔近期 DLD 成交。增长率取区域稳健均值，非单点同比。`}
+                    </div>
+                  </div>
+                )}
+
+                {/* Nearby */}
+                {p.nearby && (p.nearby.metro?.length || p.nearby.pois?.length) && (
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-slate-500"><MapPin className="h-3 w-3 text-teal-500" />附近环境</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(p.nearby.metro || []).slice(0, 2).map((m: any, k: number) => <span key={k} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">🚇 {m.name} · {(m.distance_m / 1000).toFixed(1)}km</span>)}
+                      {(p.nearby.pois || []).slice(0, 5).map((m: any, k: number) => <span key={k} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{m.name} · {(m.distance_m / 1000).toFixed(1)}km</span>)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Supply */}
+                {p.supply && p.supply.units_pipeline > 0 && (
+                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"><Building2 className="h-3.5 w-3.5 text-slate-400" />区域在建 {Number(p.supply.units_pipeline).toLocaleString()} 套，1 年内交付 {Number(p.supply.units_handover_1y).toLocaleString()} 套</div>
+                )}
+
+                {/* Real comps */}
+                {p.comps?.length > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500"><BadgeCheck className="h-3 w-3 text-emerald-500" />近期真实成交（DLD）</div>
+                    <div className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+                      {p.comps.map((c: any, k: number) => (
+                        <div key={k} className="flex items-center justify-between px-2.5 py-1.5 text-xs">
+                          <span className="truncate text-slate-600">{c.building || p.name} · {c.date}{c.sizeSqm ? ` · ${c.sizeSqm}㎡` : ''}</span>
+                          <span className="font-semibold text-slate-800"><Dh v={c.price} /></span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {p.risks?.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {p.risks.map((rk: string, k: number) => <span key={k} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700 ring-1 ring-amber-200">{rk}</span>)}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="p-3.5">
-              {p.reason && <p className="mb-3 text-sm leading-relaxed text-slate-600">{p.reason}</p>}
+          )
+        })}
 
-              {/* Returns */}
-              {p.projection && (
-                <>
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                    <Stat label="买入" value={<Dh v={p.projection.buy} />} />
-                    <Stat label="5 年后" value={<Dh v={p.projection.future} />} />
-                    <Stat label="年化回报" value={<span className="text-emerald-600">{p.projection.annualized_return_pct != null ? `${Number(p.projection.annualized_return_pct).toFixed(1)}%` : '—'}</span>} />
-                    <Stat label="回本" value={p.projection.payback_years != null ? `${Number(p.projection.payback_years).toFixed(0)} 年` : '—'} />
-                  </div>
-                  <GrowthCurve buy={p.projection.buy} future={p.projection.future} />
-                  <FlowBar buy={p.projection.buy} appr={p.projection.appreciation_5yr} rent={p.projection.rental_income_5yr} />
-                  {p.area_metrics && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <TrendingUp className="h-3 w-3" />测算依据：{p.area} 真实成交 —— 回报 {p.area_metrics.rental_yield_pct != null ? `${Number(p.area_metrics.rental_yield_pct).toFixed(1)}%` : '—'}、年增长 {p.area_metrics.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : '—'}{p.area_metrics.transaction_count ? `（${p.area_metrics.transaction_count} 笔）` : ''}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Supply */}
-              {p.supply && p.supply.units_pipeline > 0 && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                  <Building2 className="h-3.5 w-3.5 text-slate-400" />区域在建 {Number(p.supply.units_pipeline).toLocaleString()} 套，1 年内交付 {Number(p.supply.units_handover_1y).toLocaleString()} 套
-                </div>
-              )}
-
-              {/* Comps */}
-              {p.comps?.length > 0 && (
-                <div className="mt-3">
-                  <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-500"><BadgeCheck className="h-3 w-3 text-emerald-500" />近期真实成交（DLD）</div>
-                  <div className="divide-y divide-slate-100 rounded-lg border border-slate-100">
-                    {p.comps.map((c: any, k: number) => (
-                      <div key={k} className="flex items-center justify-between px-2.5 py-1.5 text-xs">
-                        <span className="truncate text-slate-600">{c.building || p.name} · {c.date}{c.sizeSqm ? ` · ${c.sizeSqm}㎡` : ''}</span>
-                        <span className="font-semibold text-slate-800"><Dh v={c.price} /></span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Scenarios */}
-              {p.scenarios && (
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <Scen color="emerald" label="乐观" text={p.scenarios.optimistic} />
-                  <Scen color="slate" label="基准" text={p.scenarios.base} />
-                  <Scen color="amber" label="保守" text={p.scenarios.conservative} />
-                </div>
-              )}
-              {p.risks?.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {p.risks.map((rk: string, k: number) => <span key={k} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700 ring-1 ring-amber-200">{rk}</span>)}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {/* Footer */}
         <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-400">
           {r.assumptions}<br />{r.disclaimer}
         </div>
       </div>
 
-      {/* Sticky contact */}
       {wa && (
         <div className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-          <a href={contactHref} className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white hover:bg-teal-600">
-            {agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}咨询 {agent.name}
-          </a>
+          <a href={contactHref} className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white hover:bg-teal-600">{agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}咨询 {agent.name}</a>
         </div>
       )}
     </div>
   )
 }
 
-/** 5-year asset value growth curve (buy → future, compounded). */
-function GrowthCurve({ buy, future }: { buy: number; future: number }) {
-  if (!buy || !future || future <= buy) return null
-  const r = Math.pow(future / buy, 1 / 5) - 1
-  const pts = Array.from({ length: 6 }, (_, i) => buy * Math.pow(1 + r, i))
-  const W = 320, H = 64, pad = 3
-  const min = buy, max = future, span = max - min || 1
-  const x = (i: number) => pad + (i / 5) * (W - 2 * pad)
+function Row({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between px-3 py-2 ${strong ? 'bg-teal-50/50' : ''} border-b border-slate-50 last:border-0`}>
+      <span className="text-slate-500">{label}</span><span className="font-medium text-slate-800">{value}</span>
+    </div>
+  )
+}
+
+function TrendChart({ trend }: { trend: { m: string; v: number | null }[] }) {
+  const pts = trend.map((t, i) => ({ v: t.v, i })).filter((p) => p.v != null) as { v: number; i: number }[]
+  if (pts.length < 2) return null
+  const W = 320, H = 70, pad = 4
+  const min = Math.min(...pts.map((p) => p.v)), max = Math.max(...pts.map((p) => p.v)), span = max - min || 1
+  const x = (i: number) => pad + (i / (trend.length - 1)) * (W - 2 * pad)
   const y = (v: number) => H - pad - ((v - min) / span) * (H - 2 * pad)
-  const line = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const fill = `${line} L${x(5)},${H} L${x(0)},${H} Z`
+  const line = pts.map((p, k) => `${k === 0 ? 'M' : 'L'}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ')
+  const fill = `${line} L${x(pts[pts.length - 1].i).toFixed(1)},${H} L${x(pts[0].i).toFixed(1)},${H} Z`
   return (
-    <div className="mt-3">
-      <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400"><span>资产价值（5 年）</span><span className="font-semibold text-emerald-600">+{((future / buy - 1) * 100).toFixed(0)}%</span></div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 64 }}>
-        <defs><linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity="0.2" /><stop offset="100%" stopColor="#10b981" stopOpacity="0" /></linearGradient></defs>
-        <path d={fill} fill="url(#gc)" />
-        <path d={line} fill="none" stroke="#10b981" strokeWidth="2" strokeLinejoin="round" />
-      </svg>
-    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 70 }}>
+      <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0d9488" stopOpacity="0.18" /><stop offset="100%" stopColor="#0d9488" stopOpacity="0" /></linearGradient></defs>
+      <path d={fill} fill="url(#tg)" /><path d={line} fill="none" stroke="#0d9488" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
   )
-}
-function FlowBar({ buy, appr, rent }: { buy: number; appr: number | null; rent: number | null }) {
-  const a = Math.max(0, appr ?? 0), rr = Math.max(0, rent ?? 0), total = buy + a + rr
-  const seg = (v: number) => `${Math.max(2, (v / total) * 100)}%`
-  return (
-    <div className="mt-3 flex h-6 w-full overflow-hidden rounded-lg text-[10px] font-semibold text-white">
-      <div className="flex items-center justify-center bg-slate-400" style={{ width: seg(buy) }}>本金</div>
-      {a > 0 && <div className="flex items-center justify-center bg-teal-500" style={{ width: seg(a) }}>增值</div>}
-      {rr > 0 && <div className="flex items-center justify-center bg-emerald-500" style={{ width: seg(rr) }}>租金</div>}
-    </div>
-  )
-}
-function Scen({ color, label, text }: { color: string; label: string; text: string }) {
-  const c: any = { emerald: 'bg-emerald-50 text-emerald-700', slate: 'bg-slate-50 text-slate-600', amber: 'bg-amber-50 text-amber-700' }
-  return <div className={`rounded-lg p-2.5 text-[11px] leading-relaxed ${c[color]}`}><div className="mb-0.5 font-semibold">{label}</div>{text}</div>
 }
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return <div className="mt-5"><div className="mb-3 flex items-center gap-2">{icon}<h3 className="text-sm font-bold text-slate-800">{title}</h3></div>{children}</div>

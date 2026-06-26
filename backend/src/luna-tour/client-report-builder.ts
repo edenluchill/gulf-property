@@ -36,28 +36,70 @@ const POLICY = [
   '期房常见灵活付款计划（如交付前分期 + 交付后尾款），资金占用低。',
 ]
 
-/** Aggregate the matched areas' real metrics into a market-overview section. */
-async function buildMarketSection(properties: { area: string | null }[]) {
-  const areas = [...new Set(properties.map((p) => (p.area || '').trim()).filter(Boolean))]
-  let agg: any = null
-  if (areas.length) {
-    const r = await pool.query(
-      `SELECT ROUND(AVG(rental_yield_pct)::numeric,1) AS yield, ROUND(AVG(price_growth_pct)::numeric,1) AS growth,
-              SUM(COALESCE(s.units_pipeline,0))::bigint AS supply
-         FROM dubai_areas da
-         LEFT JOIN v_area_supply s ON s.dubai_area_id = da.id
-        WHERE da.name = ANY($1)`,
-      [areas]
-    ).catch(() => null)
-    agg = r?.rows?.[0] || null
-  }
+/** Market overview from the already-resolved per-project metrics (reliable). */
+function buildMarketSection(enriched: any[]) {
+  const areas = [...new Set(enriched.map((p) => (p.area || '').trim()).filter(Boolean))]
+  const avg = (vals: number[]) => vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : null
+  const yields = enriched.map((p) => p.area_metrics?.rental_yield_pct).filter((v: any) => v != null).map(Number)
+  const growths = enriched.map((p) => p.area_metrics?.price_growth_pct).filter((v: any) => v != null).map(Number)
+  const supply = enriched.reduce((sum, p) => sum + (Number(p.supply?.units_pipeline) || 0), 0)
   return {
     areas,
-    avg_yield_pct: agg?.yield != null ? Number(agg.yield) : null,
-    avg_growth_pct: agg?.growth != null ? Number(agg.growth) : null,
-    pipeline_units: agg?.supply != null ? Number(agg.supply) : null,
+    avg_yield_pct: avg(yields),
+    avg_growth_pct: avg(growths),
+    pipeline_units: supply || null,
     policy: POLICY,
   }
+}
+
+/** Real price trend (24mo median AED/sqm) + YoY evidence for a dubai_area. */
+async function areaPriceEvidence(dubaiAreaId: string) {
+  try {
+    const t = await pool.query(
+      `WITH ids AS (SELECT area_id FROM dld_areas WHERE dubai_area_id=$1),
+            b AS (SELECT MAX(instance_date) d FROM dld_transactions)
+       SELECT to_char(date_trunc('month', dt.instance_date),'YYYY-MM') AS m,
+              ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)) AS med
+         FROM dld_transactions dt, b
+        WHERE dt.area_id IN (SELECT area_id FROM ids) AND dt.trans_group='Sales' AND dt.meter_sale_price>0
+          AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '23 months'
+        GROUP BY 1 ORDER BY 1`,
+      [dubaiAreaId]
+    )
+    const trend = t.rows.map((r) => ({ m: r.m, v: r.med != null ? Number(r.med) : null }))
+    // YoY: median of last 12 months vs the prior 12 months
+    const y = await pool.query(
+      `WITH ids AS (SELECT area_id FROM dld_areas WHERE dubai_area_id=$1),
+            b AS (SELECT MAX(instance_date) d FROM dld_transactions)
+       SELECT ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE dt.instance_date >= b.d - INTERVAL '12 months')) AS this_y,
+              ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE dt.instance_date >= b.d - INTERVAL '24 months' AND dt.instance_date < b.d - INTERVAL '12 months')) AS last_y,
+              COUNT(*) FILTER (WHERE dt.instance_date >= b.d - INTERVAL '12 months') AS n
+         FROM dld_transactions dt, b
+        WHERE dt.area_id IN (SELECT area_id FROM ids) AND dt.trans_group='Sales' AND dt.meter_sale_price>0
+          AND dt.instance_date >= b.d - INTERVAL '24 months'`,
+      [dubaiAreaId]
+    )
+    const r = y.rows[0] || {}
+    const thisY = r.this_y != null ? Number(r.this_y) : null
+    const lastY = r.last_y != null ? Number(r.last_y) : null
+    const yoy = thisY != null && lastY != null && lastY > 0 ? Number((((thisY - lastY) / lastY) * 100).toFixed(1)) : null
+    return { trend, yoy: { this_year_sqm: thisY, last_year_sqm: lastY, growth_pct: yoy, count: Number(r.n || 0) } }
+  } catch { return { trend: [], yoy: null } }
+}
+
+/** Cost-adjusted net 5yr profit (transparent: appreciation + net rent − fees). */
+function netCalc(proj: any) {
+  if (!proj?.buy) return null
+  const buy = proj.buy
+  const appreciation = Math.max(0, proj.appreciation_5yr || 0)
+  const grossRent = Math.max(0, proj.rental_income_5yr || 0)
+  const netRent = Math.round(grossRent * 0.75)          // ~25% for service charge + maintenance
+  const dldFee = Math.round(buy * 0.04)                 // DLD transfer 4%
+  const agentFee = Math.round(buy * 0.02)               // agency 2%
+  const netProfit = Math.round(appreciation + netRent - dldFee - agentFee)
+  const netAnnualized = Number(((Math.pow((buy + netProfit) / buy, 1 / 5) - 1) * 100).toFixed(1))
+  return { buy, appreciation: Math.round(appreciation), gross_rent: Math.round(grossRent), net_rent: netRent,
+           dld_fee: dldFee, agent_fee: agentFee, net_profit: netProfit, net_annualized_pct: netAnnualized }
 }
 
 export async function generateClientReport(reportId: string, client: Record<string, unknown>, oneLiner: string) {
@@ -72,29 +114,35 @@ export async function generateClientReport(reportId: string, client: Record<stri
         getProjectInsights(p.id).catch(() => null),
         getProjectTransactions(p.id).catch(() => null),
       ])
-      let supply: any = null
+      let supply: any = null, evidence: any = { trend: [], yoy: null }
       const areaId = insights?.area?.id
       if (areaId) {
         const s = await pool.query(
           `SELECT pipeline_projects, units_pipeline, units_handover_1y FROM v_area_supply WHERE dubai_area_id=$1`, [areaId]
         ).catch(() => null)
         supply = s?.rows?.[0] || null
+        evidence = await areaPriceEvidence(areaId)
       }
+      const projection = insights?.investment ? {
+        buy: insights.investment.buy, future: insights.investment.future,
+        total_profit_5yr: insights.investment.total_profit_5yr,
+        rental_income_5yr: insights.investment.rental_income_5yr,
+        appreciation_5yr: insights.investment.appreciation_5yr,
+        annualized_return_pct: insights.investment.annualized_return_pct,
+        yield_pct: insights.investment.yield_pct, payback_years: insights.investment.payback_years,
+      } : p.projection
       return {
         ...p,
-        // prefer the real, data-backed projection when available
-        projection: insights?.investment ? {
-          buy: insights.investment.buy, future: insights.investment.future,
-          total_profit_5yr: insights.investment.total_profit_5yr,
-          rental_income_5yr: insights.investment.rental_income_5yr,
-          appreciation_5yr: insights.investment.appreciation_5yr,
-          annualized_return_pct: insights.investment.annualized_return_pct,
-          yield_pct: insights.investment.yield_pct, payback_years: insights.investment.payback_years,
-        } : p.projection,
+        project_id: p.id,
+        area_id: areaId || null,
+        projection,
+        net: netCalc(projection),
         area_metrics: insights?.area ? {
           median_price_sqm: insights.area.median_price_sqm, rental_yield_pct: insights.area.rental_yield_pct,
           price_growth_pct: insights.area.price_growth_pct, transaction_count: insights.area.sales_transaction_count,
         } : null,
+        price_trend: evidence.trend,
+        yoy: evidence.yoy,
         comps: (tx?.sales || []).slice(0, 4),
         supply,
         nearby: insights?.nearby || null,
@@ -102,8 +150,8 @@ export async function generateClientReport(reportId: string, client: Record<stri
     }))
     await mark(reportId, 'data')
 
-    // 3) Overall market + policy + trends
-    const market = await buildMarketSection(report.properties)
+    // 3) Overall market + policy + trends (from the resolved per-project metrics)
+    const market = buildMarketSection(enriched)
     await mark(reportId, 'market')
 
     // 4) Finalize
