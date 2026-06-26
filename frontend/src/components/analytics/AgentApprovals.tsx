@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Check, X, Clock } from 'lucide-react'
-import { listAgents, approveAgent, rejectAgent, AgentRow } from '../../lib/agentApi'
+import { listAgents, approveAgent, rejectAgent, setAgentPlan, AgentRow } from '../../lib/agentApi'
 
 const STATUS_STYLE: Record<string, string> = {
   approved: 'bg-emerald-100 text-emerald-700',
@@ -8,6 +8,40 @@ const STATUS_STYLE: Record<string, string> = {
   rejected: 'bg-slate-100 text-slate-500',
 }
 const STATUS_LABEL: Record<string, string> = { approved: '已开通', pending: '待审核', rejected: '已拒绝' }
+const PLAN_LABEL: Record<string, string> = { explore: '探索(免费)', agent: '经纪版', founder: '创始会员' }
+const SUB_LABEL: Record<string, string> = { none: '未订阅', trialing: '试用中', active: '生效', past_due: '欠费', canceled: '已取消' }
+
+/** 一个经纪的套餐 + 本月用量 + 手动授予下拉。 */
+function PlanCell({ a, busy, onSet }: { a: AgentRow; busy: boolean; onSet: (plan: 'explore' | 'agent' | 'founder' | 'revoke') => void }) {
+  const plan = a.plan_id || 'explore'
+  const sub = a.sub_status || 'none'
+  const paid = a.paid
+  const isPaidPlan = plan !== 'explore' && sub !== 'none'
+  return (
+    <div className="flex items-center gap-2">
+      <div className="text-right">
+        <div className={`text-[11px] font-semibold ${isPaidPlan ? 'text-emerald-700' : 'text-slate-400'}`}>
+          {PLAN_LABEL[plan]} {isPaidPlan && <span className="font-normal text-slate-400">· {SUB_LABEL[sub]}{paid ? '' : '(赠)'}</span>}
+        </div>
+        {isPaidPlan && (
+          <div className="text-[10px] text-slate-400">导览 {a.luna_tours_used ?? 0} · 带看 {a.live_tours_used ?? 0} · 报告 {a.reports_used ?? 0}</div>
+        )}
+      </div>
+      <select
+        disabled={busy}
+        value=""
+        onChange={(e) => { const v = e.target.value as 'explore' | 'agent' | 'founder' | 'revoke'; if (v) onSet(v) }}
+        className="rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-600 disabled:opacity-50"
+        title="手动授予/撤销套餐(不走 Stripe)"
+      >
+        <option value="">授予…</option>
+        <option value="agent">赠 经纪版</option>
+        <option value="founder">赠 创始会员</option>
+        <option value="revoke">撤销赠送</option>
+      </select>
+    </div>
+  )
+}
 
 /** Owner-only: approve/reject agents who requested access to the 经纪台. */
 export default function AgentApprovals() {
@@ -76,8 +110,11 @@ export default function AgentApprovals() {
           <div className="divide-y divide-slate-50">
             {rows.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="min-w-0 truncate text-sm text-slate-600">{a.email}</div>
+                <div className="min-w-0 flex-1 truncate text-sm text-slate-600">{a.email}</div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {a.status === 'approved' && (
+                    <PlanCell a={a} busy={busy === a.email} onSet={(plan) => act(a.email, (e) => setAgentPlan(e, plan))} />
+                  )}
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[a.status]}`}>{STATUS_LABEL[a.status]}</span>
                   {a.status === 'approved' && (
                     <button disabled={busy === a.email} onClick={() => act(a.email, rejectAgent)} className="text-[11px] text-slate-400 hover:text-rose-500 disabled:opacity-50">撤销</button>

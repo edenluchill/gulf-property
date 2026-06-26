@@ -21,7 +21,7 @@ export interface BillingMe {
   plan: { id: string; name: string; limits: Record<string, number | boolean> }
   status: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   current_period_end: string | null
-  usage: { luna_tours: number; live_minutes: number }
+  usage: { luna_tours: number; live_tours: number; reports: number }
 }
 
 async function authed(path: string, opts: RequestInit = {}): Promise<Response> {

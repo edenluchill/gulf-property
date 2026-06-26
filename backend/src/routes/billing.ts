@@ -234,10 +234,12 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 
     const usage = await pool.query<{
       sessions_created: number
-      live_minutes: string
+      live_tours_created: number
+      reports_created: number
     }>(
-      `SELECT COALESCE(sessions_created, 0) AS sessions_created,
-              COALESCE(live_minutes, 0) AS live_minutes
+      `SELECT COALESCE(sessions_created, 0)   AS sessions_created,
+              COALESCE(live_tours_created, 0) AS live_tours_created,
+              COALESCE(reports_created, 0)    AS reports_created
          FROM lt_usage_counters
         WHERE agent_id = $1 AND period_month = date_trunc('month', now())::date`,
       [agent.id]
@@ -251,7 +253,8 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       current_period_end: sub.rows[0]?.current_period_end || null,
       usage: {
         luna_tours: Number(usage.rows[0]?.sessions_created ?? 0),
-        live_minutes: Number(usage.rows[0]?.live_minutes ?? 0),
+        live_tours: Number(usage.rows[0]?.live_tours_created ?? 0),
+        reports: Number(usage.rows[0]?.reports_created ?? 0),
       },
     })
   } catch (err) {

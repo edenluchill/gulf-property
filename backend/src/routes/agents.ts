@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { requireAuth, optionalAuth } from '../middleware/auth'
 import { requireOwner, isOwnerEmail } from '../middleware/requireOwner'
+import { ensureAgent } from '../luna-tour/session-builder'
 
 const router = Router()
 
@@ -36,14 +37,67 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 // ── 所有者:列表 + 批准/拒绝 ──────────────────────────
 router.get('/', optionalAuth, requireOwner, async (_req: Request, res: Response) => {
   try {
+    // 关联 lt_agents(按 email)+ 当前生效订阅 + 本月用量,给后台展示套餐/用量。
     const { rows } = await pool.query(
-      `SELECT id, email, name, status, requested_at, decided_at
-         FROM agents
-        ORDER BY (status = 'pending') DESC, requested_at DESC`
+      `SELECT a.id, a.email, a.name, a.status, a.requested_at, a.decided_at,
+              COALESCE(s.plan_id, 'explore')      AS plan_id,
+              COALESCE(s.status, 'none')          AS sub_status,
+              (s.stripe_subscription_id IS NOT NULL) AS paid,
+              s.current_period_end,
+              COALESCE(u.sessions_created, 0)     AS luna_tours_used,
+              COALESCE(u.live_tours_created, 0)   AS live_tours_used,
+              COALESCE(u.reports_created, 0)      AS reports_used
+         FROM agents a
+         LEFT JOIN lt_agents la ON la.email = a.email
+         LEFT JOIN LATERAL (
+           SELECT plan_id, status, stripe_subscription_id, current_period_end
+             FROM lt_subscriptions
+            WHERE agent_id = la.id AND status IN ('active','trialing')
+            ORDER BY created_at DESC LIMIT 1
+         ) s ON true
+         LEFT JOIN lt_usage_counters u
+           ON u.agent_id = la.id AND u.period_month = date_trunc('month', now())::date
+        ORDER BY (a.status = 'pending') DESC, a.requested_at DESC`
     )
     res.json({ success: true, agents: rows })
   } catch (err) {
     console.error('[agents] list failed:', err)
+    res.status(500).json({ success: false })
+  }
+})
+
+// 所有者手动授予/撤销套餐(comp,不走 Stripe)。body { plan: 'explore'|'agent'|'founder'|'revoke' }
+router.post('/:email/plan', optionalAuth, requireOwner, async (req: Request, res: Response) => {
+  const email = decodeURIComponent(req.params.email || '').toLowerCase().trim()
+  const plan = String(req.body?.plan || '')
+  if (!email) return res.status(400).json({ success: false, error: 'email required' })
+  if (!['explore', 'agent', 'founder', 'revoke'].includes(plan)) {
+    return res.status(400).json({ success: false, error: 'invalid plan' })
+  }
+  try {
+    // 确保有 lt_agents 行(comp 挂在 lt_agents.id 上)
+    const nameRow = await pool.query<{ name: string | null }>(`SELECT name FROM agents WHERE email = $1`, [email])
+    const agentId = await ensureAgent({
+      email,
+      displayName: nameRow.rows[0]?.name || email.split('@')[0],
+    })
+    // 撤销/explore:取消所有"手动 comp"行(不动真实 Stripe 订阅)
+    await pool.query(
+      `UPDATE lt_subscriptions SET status = 'canceled', updated_at = now()
+         WHERE agent_id = $1 AND stripe_subscription_id IS NULL AND status <> 'canceled'`,
+      [agentId]
+    )
+    if (plan !== 'revoke' && plan !== 'explore') {
+      // 授予:新建一条 active 的 comp 订阅(planFor 取最新生效的 → 即刻生效)
+      await pool.query(
+        `INSERT INTO lt_subscriptions (agent_id, plan_id, status, current_period_end)
+           VALUES ($1, $2, 'active', now() + interval '100 years')`,
+        [agentId, plan]
+      )
+    }
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[agents] set plan failed:', err)
     res.status(500).json({ success: false })
   }
 })

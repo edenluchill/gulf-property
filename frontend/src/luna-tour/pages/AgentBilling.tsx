@@ -65,7 +65,8 @@ export default function AgentBilling() {
   const limits = me?.plan.limits || {}
   const isPaid = status === 'active' || status === 'trialing'
   const lunaLimit = Number(limits.sessions_month ?? 0)
-  const liveLimit = Number(limits.live_minutes_month ?? limits.live_tours_month ?? 0)
+  const liveLimit = Number(limits.live_tours_month ?? 0)
+  const reportsLimit = Number(limits.reports_month ?? 0)
 
   const PLANS: { id: 'agent' | 'founder'; name: string; price: string; lines: string[]; edge: string }[] = [
     { id: 'agent', name: '经纪版 Agent', price: '$99 / 月', edge: '#10b981',
@@ -102,9 +103,10 @@ export default function AgentBilling() {
           </div>
         )}
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <UsageBar label="Luna 智能导览(本月)" used={me?.usage.luna_tours ?? 0} limit={lunaLimit} />
-          <UsageBar label="实时带看(本月)" used={Math.round(me?.usage.live_minutes ?? 0)} limit={liveLimit} />
+          <UsageBar label="实时带看(本月)" used={me?.usage.live_tours ?? 0} limit={liveLimit} />
+          <UsageBar label="买家意向报告(本月)" used={me?.usage.reports ?? 0} limit={reportsLimit} />
         </div>
 
         {isPaid && (
