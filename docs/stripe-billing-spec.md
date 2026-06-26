@@ -177,7 +177,24 @@ function syncSubscription(sub) {
 - Webhook 端点走 `api.pinzos.com/api/billing/webhook`(Cloudflare 代理,Stripe webhook 正常通过)。
 - requireAuth 已存在(`backend/src/middleware/auth.ts`),已审批用 `agents.status='approved'` 判断。
 
-## 6. 配额 gating(P3)
+## 5.5 套餐打包与 gating 决策(2026-06-25 已实现)
+
+**决策**:免费档完全不给经纪工具(必须订阅);White-label 仅 Founder;后台查看+手动授予。
+
+| | Explore 免费 | Agent $99 | Founder $699 |
+|---|---|---|---|
+| 定位 | 买家 + 经纪种草 | 个人经纪成交主力 | 品牌 + 规模 + 共建 |
+| 地图/DLD/投资分析/Luna语音 | ✓(买家公开端点,不 gating) | ✓ | ✓ |
+| Luna 智能导览 | 0 | 20/月 | 200/月 |
+| 实时海外带看 + 应用内语音 | 0 | 20/月 | 200/月 |
+| 买家意向报告 | 0 | 30/月 | 300/月 |
+| AI 楼书解析 / 品牌项目报告 / 行为洞察 | — | ✓ | ✓ |
+| White-label + 自定义域名 | — | — | ✓ |
+| 优先支持 · 锁定创始价 · 共建 | — | — | ✓ |
+
+**实现**:`quota.ts` 统一拦截(402),免费档 limits 归零,owner 无限。**注**:AI 楼书解析(langgraph 上传流)暂未 gating(上传流无 agent 身份),营销页已列为 Agent 功能但后端未强制 — 待 P4 给上传流加经纪身份后补。
+
+## 6. 配额 gating(已实现,见 §5.5)
 
 - **准入(approved)= 能进经纪台(Explore 免费档)。**
 - **active/trialing 订阅 = 解锁 Agent/Founder 额度。**
