@@ -234,7 +234,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   // `area.*` is the map's combined ('all') value. When the user picks a specific
   // usage in the dialog, the insights series IS that usage → prefer it. Otherwise
   // prefer the precomputed area columns, falling back to insights (custom areas).
-  const insVol = insights?.volume?.length ? insights.volume.reduce((a, b) => a + b, 0) : null
+  // 成交量卡片标注「12个月」，且「全部」用的是 area.transactionCount(真·12个月滚动值)。
+  // insights.volume 是 24 个月序列 → 这里只取最近 12 个月求和，口径才一致(否则各 usage
+  // 会拿 24 个月总数,出现「商业 949 > 全部 511」的矛盾)。
+  const insVol = insights?.volume?.length ? insights.volume.slice(-12).reduce((a, b) => a + b, 0) : null
   // When a specific usage is selected, show ONLY that usage's real data (the
   // insights series). Never fall back to area.* (the map's combined 'all' value)
   // — otherwise a usage with 0 transactions would wrongly show the 'all' price/
