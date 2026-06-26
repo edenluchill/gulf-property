@@ -188,11 +188,12 @@ function syncSubscription(sub) {
 | Luna 智能导览 | 0 | 20/月 | 200/月 |
 | 实时海外带看 + 应用内语音 | 0 | 20/月 | 200/月 |
 | 买家意向报告 | 0 | 30/月 | 300/月 |
-| AI 楼书解析 / 品牌项目报告 / 行为洞察 | — | ✓ | ✓ |
+| AI 楼书解析(brochures_month) | 0 | 10/月 | 100/月 |
+| 品牌项目报告 / 行为洞察 | — | ✓ | ✓ |
 | White-label + 自定义域名 | — | — | ✓ |
 | 优先支持 · 锁定创始价 · 共建 | — | — | ✓ |
 
-**实现**:`quota.ts` 统一拦截(402),免费档 limits 归零,owner 无限。**注**:AI 楼书解析(langgraph 上传流)暂未 gating(上传流无 agent 身份),营销页已列为 Agent 功能但后端未强制 — 待 P4 给上传流加经纪身份后补。
+**实现**:`quota.ts` 统一拦截(402),免费档 limits 归零,owner 无限。AI 楼书解析已纳入 gating(2026-06-26):上传两条链路(`r2-upload /start` + `/complete`、`langgraph-progress /start`)用 `lib/agent-identity.ts` 的 `resolveAgentId` 验证 Supabase token(不信任可伪造的 x-user-* 头),匿名→401、未订阅/超额→402、owner 无限。
 
 ## 6. 配额 gating(已实现,见 §5.5)
 
