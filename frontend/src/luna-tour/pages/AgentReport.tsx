@@ -19,11 +19,14 @@ export default function AgentReport() {
   const [shareCode, setShareCode] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState('')
+  const [history, setHistory] = useState<any[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const canRun = !!(clientName.trim() || oneLiner.trim())
   const url = shareCode ? `${window.location.origin}/cr/${shareCode}` : ''
 
+  const loadHistory = () => { lunaFetch('/client-reports').then((r) => r.json()).then((j) => setHistory(j.reports || [])).catch(() => {}) }
+  useEffect(() => { loadHistory() }, [])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   const run = async () => {
@@ -40,7 +43,7 @@ export default function AgentReport() {
         try {
           const s = await (await lunaFetch(`/client-reports/${d.shareCode}/status`)).json()
           if (s.progress) setSteps(s.progress)
-          if (s.status === 'ready') { clearInterval(pollRef.current!); setPhase('ready') }
+          if (s.status === 'ready') { clearInterval(pollRef.current!); setPhase('ready'); loadHistory() }
           else if (s.status === 'error') { clearInterval(pollRef.current!); setErr('生成失败'); setPhase('error') }
         } catch { /* keep polling */ }
       }, 1500)
@@ -97,6 +100,32 @@ export default function AgentReport() {
               <p className="mt-2 text-[11px] text-slate-400">客户打开后可点「保存 PDF」。链接公开，无需登录。</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* History — past client proposals, findable + re-shareable */}
+      {history.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-bold text-slate-700">我的客户报告（{history.length}）</h2>
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {history.map((h) => {
+              const u = `${window.location.origin}/cr/${h.share_code}`
+              return (
+                <div key={h.share_code} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-slate-800">{h.client_name || '未命名客户'}</span>
+                      {h.status === 'generating' && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600">生成中</span>}
+                      {h.status === 'error' && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-600">失败</span>}
+                    </div>
+                    <div className="truncate text-xs text-slate-400">{h.brief || '—'} · {String(h.created_at).slice(0, 10)}{h.view_count ? ` · 浏览 ${h.view_count}` : ''}</div>
+                  </div>
+                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title="复制链接" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
+                  <a href={u} target="_blank" rel="noreferrer" title="打开" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>

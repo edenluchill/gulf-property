@@ -229,6 +229,22 @@ router.post('/client-reports', async (req: Request, res: Response) => {
   }
 })
 
+/** This agent's client proposals (grouped/found by client) — to re-open & re-share. */
+router.get('/client-reports', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const r = await pool.query(
+      `SELECT share_code, client_name, brief, status, view_count, created_at
+         FROM lt_client_reports WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 100`,
+      [agentId]
+    )
+    res.json({ success: true, reports: r.rows })
+  } catch (err) {
+    console.error('[agent/client-reports list] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
 /** Poll generation status + progress. */
 router.get('/client-reports/:code/status', async (req: Request, res: Response) => {
   try {
