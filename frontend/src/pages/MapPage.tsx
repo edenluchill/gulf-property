@@ -1275,6 +1275,17 @@ export default function MapPage() {
                   <MapPin className="w-3.5 h-3.5" />
                 </button>
               </div>
+              {/* 移动端只有图标 → 客户分不清选了哪个指标(且两个 $ 图标长一样)。
+                  底部加一条当前选中指标的文字标签,横贯卡片宽度。 */}
+              {areaMetric !== 'none' && (() => {
+                const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
+                return active ? (
+                  <div className="flex items-center justify-center gap-1 border-t border-slate-100 bg-primary/5 px-2 py-1 text-[11px] font-semibold text-primary">
+                    <active.Icon className="w-3 h-3" />
+                    <span className="whitespace-nowrap">{t(active.labelKey as any)}</span>
+                  </div>
+                ) : null
+              })()}
             </div>
           </div>
 
