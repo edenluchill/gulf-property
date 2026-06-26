@@ -5,6 +5,7 @@ import { trackEvent, installTracking } from './lib/track'
 import { installApiErrorCapture } from './lib/errorCapture'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
+import ProjectReportPage from './pages/ProjectReportPage'
 import FavoritesPage from './pages/FavoritesPage'
 import DeveloperPropertyUploadPageV2 from './pages/DeveloperPropertyUploadPageV2'
 import LangGraphTestPage from './pages/LangGraphTestPage'
@@ -83,6 +84,8 @@ function App() {
         <Route path="/t/:code" element={<MapPage />} />
         {/* Verifiable, printable fact sheet (sources cited) */}
         <Route path="/factsheet/:code" element={<FactSheet />} />
+        {/* Agent-branded shareable per-project report */}
+        <Route path="/r/:code" element={<ProjectReportPage />} />
         {/* Full-screen visual storyboard editor */}
         <Route path="/agent/tour/:id/edit" element={<TourEditor />} />
         {/* Agent hub — sidebar tabs + nested routes (gated to agent accounts) */}

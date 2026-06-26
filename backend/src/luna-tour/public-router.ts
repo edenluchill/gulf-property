@@ -17,6 +17,7 @@ import { createHash } from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
 import { getMarketEvidence } from './evidence'
+import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
 
 const router = Router()
 
@@ -326,6 +327,70 @@ router.get('/public/evidence', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] evidence error:', err)
     res.status(500).json({ error: 'evidence failed' })
+  }
+})
+
+/**
+ * Public agent-branded project report → /r/:code.
+ * Bundles agent branding + project detail + insights + recent DLD comps + area
+ * supply pipeline. No auth.
+ */
+router.get('/public/project-report/:code', async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code)
+    const rr = await pool.query(
+      `SELECT pr.project_id, pr.title,
+              a.display_name AS agent_name, a.photo_url AS agent_photo,
+              a.phone AS agent_phone, a.whatsapp AS agent_whatsapp, a.brand AS agent_brand
+         FROM lt_project_reports pr JOIN lt_agents a ON a.id = pr.agent_id
+        WHERE pr.share_code = $1 AND pr.is_published = true LIMIT 1`,
+      [code]
+    )
+    if (rr.rowCount === 0) return res.status(404).json({ error: 'report not found' })
+    const rep = rr.rows[0]
+    pool.query('UPDATE lt_project_reports SET view_count=view_count+1 WHERE share_code=$1', [code]).catch(() => {})
+
+    const pr = await pool.query(
+      `SELECT id, project_name, area, developer, status, latitude, longitude,
+              starting_price, min_price, max_price, min_bedrooms, max_bedrooms,
+              completion_date, primary_image, project_images, amenities
+         FROM residential_projects WHERE id = $1`,
+      [rep.project_id]
+    )
+    if (pr.rowCount === 0) return res.status(404).json({ error: 'project not found' })
+    const project = pr.rows[0]
+
+    const [insights, tx] = await Promise.all([
+      getProjectInsights(rep.project_id).catch(() => null),
+      getProjectTransactions(rep.project_id).catch(() => null),
+    ])
+
+    // Area supply pipeline (the new signal) for the project's matched area.
+    let supply: any = null
+    const areaId = insights?.area?.id
+    if (areaId) {
+      const s = await pool.query(
+        `SELECT pipeline_projects, units_pipeline, avg_completion_pct, units_handover_1y, units_handover_1_3y
+           FROM v_area_supply WHERE dubai_area_id = $1`, [areaId]
+      ).catch(() => null)
+      supply = s?.rows?.[0] || null
+    }
+
+    res.set('Cache-Control', 'public, max-age=600')
+    res.json({
+      report: { title: rep.title },
+      agent: {
+        name: rep.agent_name, photo: rep.agent_photo,
+        phone: rep.agent_phone, whatsapp: rep.agent_whatsapp, brand: rep.agent_brand || {},
+      },
+      project,
+      insights,
+      transactions: tx,
+      supply,
+    })
+  } catch (err) {
+    console.error('[luna] project-report error:', err)
+    res.status(500).json({ error: 'report failed' })
   }
 })
 

@@ -155,6 +155,101 @@ async function uniqueShareCode(): Promise<string> {
   return randomCode(8)
 }
 
+/** Share code unique within lt_project_reports. */
+async function uniqueReportCode(): Promise<string> {
+  for (let i = 0; i < 8; i++) {
+    const code = randomCode(6)
+    const { rowCount } = await pool.query('SELECT 1 FROM lt_project_reports WHERE share_code=$1', [code])
+    if (rowCount === 0) return code
+  }
+  return randomCode(8)
+}
+
+// ── Agent-branded per-project shareable reports ────────────────────────────
+/** Create (or fetch the existing) shareable report for a project → /r/:code. */
+router.post('/project-reports', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const projectId = String(req.body?.projectId || '').trim()
+    if (!projectId) return res.status(400).json({ success: false, error: 'projectId required' })
+    const p = await pool.query('SELECT id, project_name FROM residential_projects WHERE id=$1', [projectId])
+    if (p.rowCount === 0) return res.status(404).json({ success: false, error: 'project not found' })
+
+    const existing = await pool.query('SELECT share_code FROM lt_project_reports WHERE agent_id=$1 AND project_id=$2', [agentId, projectId])
+    let code: string
+    if (existing.rowCount && existing.rows[0]) {
+      code = existing.rows[0].share_code
+    } else {
+      code = await uniqueReportCode()
+      await pool.query(
+        'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title) VALUES ($1,$2,$3,$4)',
+        [agentId, projectId, code, p.rows[0].project_name]
+      )
+    }
+    res.json({ success: true, shareCode: code, url: `/r/${code}` })
+  } catch (err) {
+    console.error('[agent/project-reports] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** List this agent's project reports (for the dashboard). */
+router.get('/project-reports', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const r = await pool.query(
+      `SELECT pr.share_code, pr.title, pr.project_id, pr.view_count, pr.created_at,
+              rp.project_name, rp.area, rp.primary_image
+         FROM lt_project_reports pr
+         JOIN residential_projects rp ON rp.id = pr.project_id
+        WHERE pr.agent_id = $1 ORDER BY pr.created_at DESC`,
+      [agentId]
+    )
+    res.json({ success: true, reports: r.rows })
+  } catch (err) {
+    console.error('[agent/project-reports list] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** Update this agent's brand/contact (name, phone, whatsapp, photo URL). */
+router.post('/profile', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const { display_name, phone, whatsapp, photo_url } = req.body || {}
+    await pool.query(
+      `UPDATE lt_agents SET
+         display_name = COALESCE(NULLIF($2,''), display_name),
+         phone = COALESCE($3, phone), whatsapp = COALESCE($4, whatsapp),
+         photo_url = COALESCE(NULLIF($5,''), photo_url), updated_at = now()
+       WHERE id = $1`,
+      [agentId, display_name ?? '', phone ?? null, whatsapp ?? null, photo_url ?? '']
+    )
+    const r = await pool.query('SELECT display_name, phone, whatsapp, photo_url FROM lt_agents WHERE id=$1', [agentId])
+    res.json({ success: true, agent: r.rows[0] })
+  } catch (err) {
+    console.error('[agent/profile] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** Upload an agent avatar → R2 → lt_agents.photo_url. */
+router.post('/avatar', multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }).single('file'), async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const f = (req as any).file
+    if (!f?.buffer) return res.status(400).json({ success: false, error: 'no file' })
+    if (!/^image\/(jpeg|png|webp)$/.test(f.mimetype)) return res.status(400).json({ success: false, error: 'jpeg/png/webp only' })
+    const ext = f.mimetype.split('/')[1].replace('jpeg', 'jpg')
+    const url = await uploadBufferToR2(`agent-photos/${agentId}.${ext}`, f.buffer, f.mimetype)
+    await pool.query('UPDATE lt_agents SET photo_url=$2, updated_at=now() WHERE id=$1', [agentId, url])
+    res.json({ success: true, photoUrl: url })
+  } catch (err) {
+    console.error('[agent/avatar] error:', err)
+    res.status(500).json({ success: false, error: 'upload failed' })
+  }
+})
+
 /** This agent's monthly usage (for the dashboard quota meter). */
 router.get('/usage', async (req: Request, res: Response) => {
   try {

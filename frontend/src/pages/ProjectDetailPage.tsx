@@ -38,6 +38,8 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null)
   const [insights, setInsights] = useState<ProjectInsights | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reportUrl, setReportUrl] = useState<string | null>(null)
+  const [genningReport, setGenningReport] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const { isProjectFavorite, toggleProjectFavorite } = useFavorites()
 
@@ -151,6 +153,32 @@ export default function ProjectDetailPage() {
       document.body.removeChild(textarea)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  // Agent-branded shareable report: generate (or fetch) a /r/:code link + copy it.
+  const handleGenerateReport = async () => {
+    if (!project || genningReport) return
+    setGenningReport(true)
+    try {
+      const { lunaFetch } = await import('../luna-tour/lunaApi')
+      const r = await lunaFetch('/project-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id }),
+      })
+      const j = await r.json()
+      if (j?.shareCode) {
+        const url = `${window.location.origin}/r/${j.shareCode}`
+        setReportUrl(url)
+        try { await navigator.clipboard.writeText(url) } catch { /* ignore */ }
+      } else {
+        alert('生成失败,请确认已登录经纪账户')
+      }
+    } catch {
+      alert('生成失败,请确认已登录经纪账户')
+    } finally {
+      setGenningReport(false)
     }
   }
 
@@ -465,6 +493,14 @@ export default function ProjectDetailPage() {
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <Button
+                        size="sm"
+                        className="h-10 bg-teal-500 px-3 text-white hover:bg-teal-600"
+                        onClick={handleGenerateReport}
+                        disabled={genningReport}
+                      >
+                        <Share2 className="mr-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
+                      </Button>
+                      <Button
                         variant="outline"
                         size="icon"
                         className="h-10 w-10"
@@ -668,6 +704,19 @@ export default function ProjectDetailPage() {
             <TransactionsTab projectId={project.id} />
           </TabsContent>
         </Tabs>
+
+        {/* Generated shareable report link */}
+        {reportUrl && (
+          <div className="fixed bottom-4 left-4 right-4 z-[10000] mx-auto flex max-w-lg items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-2xl">
+            <Check className="h-5 w-5 flex-shrink-0 text-emerald-400" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-slate-300">客户专属报告已生成(链接已复制)</div>
+              <div className="truncate text-sm font-medium">{reportUrl}</div>
+            </div>
+            <a href={reportUrl} target="_blank" rel="noreferrer" className="flex-shrink-0 rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-semibold hover:bg-teal-600">打开</a>
+            <button onClick={() => setReportUrl(null)} className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-700"><X className="h-4 w-4" /></button>
+          </div>
+        )}
 
         {/* Mobile & Tablet: Floating Pull-up Handle & Sheet */}
         {(isMobile || isTablet) && activeTab === 'overview' && (
