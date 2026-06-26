@@ -35,6 +35,7 @@ import AgentOverview from './luna-tour/pages/AgentOverview'  // Luna Tour agent 
 import AgentBilling from './luna-tour/pages/AgentBilling'  // 经纪订阅/升级 (Stripe billing)
 import AgentTours from './luna-tour/pages/AgentTours'  // Luna Tour agent MVP (isolated)
 import AgentReport from './luna-tour/pages/AgentReport'  // Luna Tour agent MVP (isolated)
+import AgentClients from './luna-tour/pages/AgentClients'  // Agent CRM: client profiles
 import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fact sheet (isolated)
 import TourEditor from './luna-tour/pages/TourEditor'  // Luna Tour visual storyboard editor (isolated)
 
@@ -94,6 +95,7 @@ function App() {
         {/* Agent hub — sidebar tabs + nested routes (gated to agent accounts) */}
         <Route path="/agent" element={<AgentLayout />}>
           <Route index element={<AgentOverview />} />
+          <Route path="clients" element={<AgentClients />} />
           <Route path="tour" element={<AgentTours />} />
           <Route path="report" element={<AgentReport />} />
           <Route path="billing" element={<AgentBilling />} />

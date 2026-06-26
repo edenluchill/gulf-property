@@ -13,8 +13,9 @@ import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 
 const NAV = [
   { to: '/agent', end: true, label: '概览', icon: '📊' },
+  { to: '/agent/clients', end: false, label: '客户', icon: '👥' },
   { to: '/agent/tour', end: false, label: '生成导览', icon: '🎬' },
-  { to: '/agent/report', end: false, label: '选房报告', icon: '📄' },
+  { to: '/agent/report', end: false, label: '快速提案', icon: '📄' },
   { to: '/agent/billing', end: false, label: '订阅', icon: '💳' },
 ]
 
