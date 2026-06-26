@@ -102,6 +102,46 @@ function netCalc(proj: any) {
            dld_fee: dldFee, agent_fee: agentFee, net_profit: netProfit, net_annualized_pct: netAnnualized }
 }
 
+/** The project's unit types (for "适合户型"), cheapest first. */
+async function projectUnits(projectId: string) {
+  try {
+    const r = await pool.query(
+      `SELECT unit_type_name, bedrooms, area, price, price_per_sqft FROM project_unit_types
+        WHERE project_id=$1 AND price IS NOT NULL ORDER BY price ASC LIMIT 8`, [projectId]
+    )
+    return r.rows.map((u) => ({
+      name: u.unit_type_name, bedrooms: u.bedrooms,
+      area: u.area != null ? Number(u.area) : null,
+      price: u.price != null ? Number(u.price) : null,
+      price_per_sqft: u.price_per_sqft != null ? Number(u.price_per_sqft) : null,
+    }))
+  } catch { return [] }
+}
+
+/** 5-axis radar scores (0–100) — an at-a-glance investment rating. */
+function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0): { k: string; v: number }[] {
+  const yld = am?.rental_yield_pct ?? 5
+  const grw = Math.max(0, am?.price_growth_pct ?? 6)
+  // recent real DLD activity — area YoY count, else project comps as a presence signal
+  const txn = Math.max(yoy?.count ?? 0, am?.transaction_count ?? 0, compsCount * 50)
+  const nearestKm = (cat: string) => {
+    const arr = cat === 'metro' ? (nearby?.metro || []) : (nearby?.pois || []).filter((x: any) => String(x.category || '').toLowerCase().includes(cat))
+    return arr.length ? Math.min(...arr.map((x: any) => x.distance_m)) / 1000 : null
+  }
+  const dist = (km: number | null, full: number, zero: number) => km == null ? 45 : Math.max(0, Math.min(100, Math.round(((zero - km) / (zero - full)) * 100)))
+  const amenity = Math.round((dist(nearestKm('metro'), 0.5, 5) + dist(nearestKm('school'), 1, 6) + dist(nearestKm('mall'), 1, 8)) / 3)
+  const netA = net?.net_annualized_pct ?? 8
+  // floor at 15 so a data-gap axis renders as a sensible shape, not a broken "0"
+  const fl = (n: number) => Math.max(15, Math.round(Math.min(100, n)))
+  return [
+    { k: '租金回报', v: fl((yld / 8) * 100) },
+    { k: '增值潜力', v: fl((grw / 12) * 100) },
+    { k: '生活配套', v: fl(amenity) },
+    { k: '市场活跃', v: fl((txn / 400) * 100) },
+    { k: '综合净回报', v: fl((netA / 12) * 100) },
+  ]
+}
+
 export async function generateClientReport(reportId: string, client: Record<string, unknown>, oneLiner: string) {
   try {
     // 1) Match + base projection + AI scenarios (existing builder)
@@ -131,21 +171,28 @@ export async function generateClientReport(reportId: string, client: Record<stri
         annualized_return_pct: insights.investment.annualized_return_pct,
         yield_pct: insights.investment.yield_pct, payback_years: insights.investment.payback_years,
       } : p.projection
+      const area_metrics = insights?.area ? {
+        median_price_sqm: insights.area.median_price_sqm, rental_yield_pct: insights.area.rental_yield_pct,
+        price_growth_pct: insights.area.price_growth_pct, transaction_count: insights.area.sales_transaction_count,
+      } : null
+      const net = netCalc(projection)
+      const nearby = insights?.nearby || null
+      const units = await projectUnits(p.id)
+      const comps = (tx?.sales || []).slice(0, 6)
       return {
         ...p,
         project_id: p.id,
         area_id: areaId || null,
         projection,
-        net: netCalc(projection),
-        area_metrics: insights?.area ? {
-          median_price_sqm: insights.area.median_price_sqm, rental_yield_pct: insights.area.rental_yield_pct,
-          price_growth_pct: insights.area.price_growth_pct, transaction_count: insights.area.sales_transaction_count,
-        } : null,
+        net,
+        area_metrics,
         price_trend: evidence.trend,
         yoy: evidence.yoy,
-        comps: (tx?.sales || []).slice(0, 4),
+        comps,
         supply,
-        nearby: insights?.nearby || null,
+        nearby,
+        units,
+        scores: radarScores(area_metrics, nearby, net, evidence.yoy, comps.length),
       }
     }))
     await mark(reportId, 'data')
