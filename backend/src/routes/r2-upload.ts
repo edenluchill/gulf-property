@@ -23,6 +23,8 @@ import {
   completeMultipartUpload,
   abortMultipartUpload,
 } from '../services/r2-multipart';
+import { resolveAgentId } from '../lib/agent-identity';
+import { checkQuota, meter, quotaError } from '../luna-tour/quota';
 
 const router = Router();
 
@@ -51,6 +53,15 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ success: false, error: `Too many files (max ${MAX_FILES})` });
       return;
     }
+
+    // 楼书解析订阅 gating —— 在上传大文件之前先 fail-fast(真正的强制 + 计量在 /complete)。
+    const agentId = await resolveAgentId(req);
+    if (!agentId) {
+      res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
+      return;
+    }
+    const q = await checkQuota(agentId, 'brochures');
+    if (!q.allowed) { const e = quotaError('brochures', q); res.status(e.status).json(e.body); return; }
 
     const jobId = generateJobId();
     const uploads: Array<{ filename: string; key: string; uploadId: string }> = [];
@@ -125,6 +136,16 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // AI 楼书解析订阅 gating(验证 token,不信任 x-user-* 头)。owner 无限;
+    // 匿名/未订阅/超额一律拦,避免无订阅者消耗 AI 处理成本。
+    const agentId = await resolveAgentId(req);
+    if (!agentId) {
+      res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
+      return;
+    }
+    const q = await checkQuota(agentId, 'brochures');
+    if (!q.allowed) { const e = quotaError('brochures', q); res.status(e.status).json(e.body); return; }
+
     const pdfUrls: string[] = [];
     const pdfNames: string[] = [];
 
@@ -158,6 +179,7 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       metadata: { uploadedAt: Date.now(), workerMode: true, directUpload: true },
     });
 
+    await meter(agentId, 'brochures').catch(() => {});
     console.log(`📋 Task created from direct upload: ${jobId} (${pdfNames.length} file(s))`);
     res.json({
       success: true,

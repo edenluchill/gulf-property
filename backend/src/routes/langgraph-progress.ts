@@ -15,6 +15,8 @@ import { readFile, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { executeWithQueue, getQueueStats, canStartImmediately } from '../services/job-queue';
 import { uploadPdfForProcessing } from '../services/r2-storage';
+import { resolveAgentId } from '../lib/agent-identity';
+import { checkQuota, meter, quotaError } from '../luna-tour/quota';
 
 // Worker mode: if enabled, upload PDFs to R2 and let worker process
 // If disabled (local dev), process inline
@@ -98,6 +100,17 @@ router.post(
       // Get user info from request headers or body
       const userId = req.headers['x-user-id'] as string || (req as any).user?.id || req.body.userId || 'anonymous';
       const userEmail = req.headers['x-user-email'] as string || (req as any).user?.email || req.body.userEmail;
+
+      // AI 楼书解析订阅 gating(验证 token,不信任 x-user-* 头)。owner 无限;
+      // 匿名/未订阅/超额一律拦。与直传 R2 路径(/api/r2-upload/complete)同口径。
+      const agentId = await resolveAgentId(req);
+      if (!agentId) {
+        res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
+        return;
+      }
+      const quota = await checkQuota(agentId, 'brochures');
+      if (!quota.allowed) { const e = quotaError('brochures', quota); res.status(e.status).json(e.body); return; }
+      await meter(agentId, 'brochures').catch(() => {});
 
       // Calculate total file size
       const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);

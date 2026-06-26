@@ -169,7 +169,10 @@ export default function DeveloperPropertyUploadPageV2() {
                 reject(new Error('Invalid response format'))
               }
             } else {
-              reject(new Error(`Upload failed: ${xhr.status}`))
+              // 把后端的友好提示(如"需订阅"402)透出来,而不是裸状态码
+              let msg = `Upload failed: ${xhr.status}`
+              try { const r = JSON.parse(xhr.responseText); if (r?.error) msg = r.error } catch { /* keep default */ }
+              reject(new Error(msg))
             }
           })
 

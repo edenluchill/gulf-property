@@ -28,29 +28,8 @@ import {
 } from '../services/collab-rooms'
 import { startCollabPersistence, flushRoom } from '../services/collab-persistence'
 import { purgeOldCollabRooms } from '../services/collabReport'
-import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
-import { ensureAgent } from '../luna-tour/session-builder'
 import { checkQuota, meter, quotaError } from '../luna-tour/quota'
-
-/** 解析登录经纪 → lt_agents.id;匿名/未登录/demo → null(公开演示豁免配额)。 */
-async function resolveAgentId(req: { headers: Record<string, unknown> }): Promise<string | null> {
-  if (!isSupabaseConfigured) return null
-  const h = req.headers.authorization
-  const token = typeof h === 'string' && h.startsWith('Bearer ') ? h.substring(7) : null
-  if (!token) return null
-  try {
-    const { data: { user } } = await supabaseAdmin.auth.getUser(token)
-    if (user?.email) {
-      return ensureAgent({
-        email: user.email,
-        displayName: (user.user_metadata?.name as string) || user.email.split('@')[0],
-        authUserId: user.id,
-        brand: { title: '认证顾问', accent: '#00E0B8' },
-      })
-    }
-  } catch { /* fall through */ }
-  return null
-}
+import { resolveAgentId } from '../lib/agent-identity'
 
 // 带看记录(含客户 PII)保留期,env 可调,默认 180 天。
 const COLLAB_RETENTION_DAYS = Math.max(1, Number(process.env.COLLAB_RETENTION_DAYS) || 180)

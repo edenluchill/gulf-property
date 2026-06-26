@@ -10,13 +10,14 @@
 import pool from '../db/pool'
 import { isOwnerEmail } from '../middleware/requireOwner'
 
-export type Feature = 'luna_tours' | 'live_tours' | 'reports'
+export type Feature = 'luna_tours' | 'live_tours' | 'reports' | 'brochures'
 
 // feature → 套餐额度 key + 月度计数列(列名为白名单常量,可安全内插)
 const FEATURE: Record<Feature, { limitKey: string; counter: string; label: string }> = {
   luna_tours: { limitKey: 'sessions_month', counter: 'sessions_created', label: 'Luna 智能导览' },
   live_tours: { limitKey: 'live_tours_month', counter: 'live_tours_created', label: '实时带看' },
   reports: { limitKey: 'reports_month', counter: 'reports_created', label: '买家意向报告' },
+  brochures: { limitKey: 'brochures_month', counter: 'brochures_parsed', label: 'AI 楼书解析' },
 }
 
 export interface QuotaState {
