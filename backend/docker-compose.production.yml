@@ -40,6 +40,14 @@ services:
       # Without these the container's isSupabaseConfigured=false and auth is skipped.
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # Stripe billing (经纪订阅). Values live in /opt/pinzos/.env on the server.
+      # Without STRIPE_SECRET_KEY the billing endpoints gracefully return 503.
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PRICE_AGENT=${STRIPE_PRICE_AGENT}
+      - STRIPE_PRICE_FOUNDER=${STRIPE_PRICE_FOUNDER}
+      - STRIPE_PORTAL_CONFIG=${STRIPE_PORTAL_CONFIG}
+      - APP_URL=${APP_URL:-https://www.pinzos.com}
       # Agora in-app voice (token signing). Values live in /opt/pinzos/.env on the
       # server. Optional caps (AGORA_*_SECONDS) fall back to code defaults if unset.
       - AGORA_APP_ID=${AGORA_APP_ID}

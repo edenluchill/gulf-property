@@ -40,6 +40,7 @@ import projectInsightsRouter from './routes/project-insights'  // Detail-page in
 import eventsRouter from './routes/events'  // Behaviour analytics ingest (isolated; see docs/analytics-dashboard-spec.md)
 import leadsRouter from './routes/leads'  // Lead capture + intent scoring (isolated)
 import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashboard queries (isolated)
+import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stripe 订阅计费 (isolated; docs/stripe-billing-spec.md)
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 
@@ -72,6 +73,11 @@ app.use(cors({
   credentials: true
 }))
 app.use(morgan('dev'))
+
+// ⚠️ Stripe webhook MUST receive the raw body for signature verification, so it is
+// mounted BEFORE express.json (which would otherwise consume/parse the body).
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingWebhookHandler)
+
 // Increase body size limit for large PDF uploads (up to 500MB)
 // Note: If using Cloudflare proxy, Free plan limits to 100MB
 app.use(express.json({ limit: '500mb' }))
@@ -132,6 +138,7 @@ app.use('/api/luna/agent', lunaAgentRouter)  // Luna Tour agent dashboard/analyt
 app.use('/api/events', eventsRouter)  // Behaviour analytics ingest (public, batched)
 app.use('/api/leads', leadsRouter)  // Lead capture + intent scoring
 app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard queries
+app.use('/api/billing', billingRouter)  // Stripe 订阅计费(webhook 已在 json parser 之前单独挂)
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

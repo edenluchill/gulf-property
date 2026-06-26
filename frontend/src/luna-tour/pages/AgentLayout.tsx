@@ -15,6 +15,7 @@ const NAV = [
   { to: '/agent', end: true, label: '概览', icon: '📊' },
   { to: '/agent/tour', end: false, label: '生成导览', icon: '🎬' },
   { to: '/agent/report', end: false, label: '选房报告', icon: '📄' },
+  { to: '/agent/billing', end: false, label: '订阅', icon: '💳' },
 ]
 
 /** Sign in so the agent's tours/clients are scoped to their own account (else

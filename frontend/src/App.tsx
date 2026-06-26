@@ -26,12 +26,14 @@ import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
 import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
+import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
 import { useVersionCheck } from './hooks/useVersionCheck'  // 检测新前端版本（iPad 快照恢复等场景）
 import AgentLayout from './luna-tour/pages/AgentLayout'  // Luna Tour agent dashboard (isolated)
 import AgentOverview from './luna-tour/pages/AgentOverview'  // Luna Tour agent MVP (isolated)
+import AgentBilling from './luna-tour/pages/AgentBilling'  // 经纪订阅/升级 (Stripe billing)
 import AgentTours from './luna-tour/pages/AgentTours'  // Luna Tour agent MVP (isolated)
 import AgentReport from './luna-tour/pages/AgentReport'  // Luna Tour agent MVP (isolated)
 import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fact sheet (isolated)
@@ -96,6 +98,7 @@ function App() {
           <Route index element={<AgentOverview />} />
           <Route path="tour" element={<AgentTours />} />
           <Route path="report" element={<AgentReport />} />
+          <Route path="billing" element={<AgentBilling />} />
         </Route>
         {/* Become-an-agent onboarding (no sidebar; flips the account to agent) */}
         <Route path="/agent/join" element={<AgentJoin />} />
@@ -107,7 +110,7 @@ function App() {
         <Route path="/map" element={<MapPage />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/about" element={<AboutPage />} />
-        <Route path="/pricing" element={<AboutPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
