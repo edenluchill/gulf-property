@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { trackEvent, installTracking } from './lib/track'
 import { installApiErrorCapture } from './lib/errorCapture'
-import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectReportPage from './pages/ProjectReportPage'
 import ClientReportPage from './pages/ClientReportPage'
@@ -81,10 +80,9 @@ function App() {
     )}
     <Layout>
       <Routes>
-        {/* Luna Tour: a shared session runs ON the main map (MapPage reads :code) */}
-        <Route path="/v/:code" element={<MapPage />} />
-        {/* Collab co-presence: a guest opens a live tour link (public, no login) */}
-        <Route path="/t/:code" element={<MapPage />} />
+        {/* NOTE: the map routes ('/', '/map', '/v/:code', '/t/:code') are NOT here.
+            MapPage is mounted persistently inside <Layout> so the WebGL map is never
+            torn down on tab switches. Layout shows/hides it based on the route. */}
         {/* Verifiable, printable fact sheet (sources cited) */}
         <Route path="/factsheet/:code" element={<FactSheet />} />
         {/* Agent-branded shareable per-project report */}
@@ -105,9 +103,6 @@ function App() {
         {/* Legacy Luna paths → new agent hub */}
         <Route path="/luna/agent" element={<Navigate to="/agent" replace />} />
         <Route path="/luna/agent/*" element={<Navigate to="/agent" replace />} />
-        {/* MapPage is now the homepage */}
-        <Route path="/" element={<MapPage />} />
-        <Route path="/map" element={<MapPage />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/pricing" element={<PricingPage />} />

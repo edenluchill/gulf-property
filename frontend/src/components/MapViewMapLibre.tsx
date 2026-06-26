@@ -140,6 +140,11 @@ interface MapViewMapLibreProps {
    *  (flyTo/orbit/setBearing) runs smoothly — the controlled viewState would
    *  otherwise lag a frame behind and fight it (teleport/jitter). */
   tourActive?: boolean
+  /** Persistent-map support: the map is kept mounted across route changes and
+   *  hidden via display:none on non-map routes. When it becomes visible again we
+   *  must resize maplibre (a hidden container reports 0×0). Defaults to true so
+   *  non-persistent callers are unaffected. */
+  visible?: boolean
 }
 
 function MapViewMapLibre({
@@ -165,10 +170,21 @@ function MapViewMapLibre({
   voiceAmenities = null,
   hideAmenityPanel = false,
   chromeless = false,
-  tourActive = false
+  tourActive = false,
+  visible = true
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
+
+  // Persistent map: when the container un-hides (display:none → shown), maplibre
+  // still thinks it's 0×0 until told otherwise. Resize on the next frame (after
+  // layout) so the map fills the box without a blank/letterboxed flash.
+  useEffect(() => {
+    if (!visible) return
+    const id = requestAnimationFrame(() => mapRef.current?.resize())
+    return () => cancelAnimationFrame(id)
+  }, [visible])
+
   const [mapLoaded, setMapLoaded] = useState(false)
   // True while the map is actively ZOOMING / rotating / pitching. We hide the DOM
   // marker layer (pins/clusters/landmarks) during those gestures only: each marker

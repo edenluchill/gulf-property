@@ -24,6 +24,7 @@ import { buildClientReport } from './auto-report'
 import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
+import { checkQuota, meter, quotaError } from './quota'
 
 const router = Router()
 
@@ -100,41 +101,9 @@ async function currentAgentId(req: Request): Promise<string> {
   return demoAgentId()
 }
 
-/** This agent's monthly session quota (used / limit / plan). limit -1 = unlimited. */
-async function sessionUsage(agentId: string): Promise<{ used: number; limit: number; plan: string }> {
-  const sub = await pool.query<{ plan_id: string }>(
-    `SELECT plan_id FROM lt_subscriptions WHERE agent_id=$1 AND status IN ('active','trialing')
-       ORDER BY created_at DESC LIMIT 1`,
-    [agentId]
-  )
-  const plan = sub.rows[0]?.plan_id || 'free'
-  const lim = await pool.query<{ lim: string | null }>(
-    `SELECT (limits->>'sessions_month')::int AS lim FROM lt_subscription_plans WHERE id=$1`,
-    [plan]
-  )
-  const limit = lim.rows[0]?.lim != null ? Number(lim.rows[0].lim) : 3
-  const cnt = await pool.query<{ used: string }>(
-    `SELECT COALESCE(sessions_created,0) AS used FROM lt_usage_counters
-       WHERE agent_id=$1 AND period_month=date_trunc('month', now())::date`,
-    [agentId]
-  )
-  return { used: Number(cnt.rows[0]?.used ?? 0), limit, plan }
-}
-
-/** Increment this agent's monthly session counter (after a successful create). */
-async function meterSession(agentId: string): Promise<void> {
-  const upd = await pool.query(
-    `UPDATE lt_usage_counters SET sessions_created = sessions_created + 1
-       WHERE agent_id=$1 AND period_month=date_trunc('month', now())::date`,
-    [agentId]
-  )
-  if (!upd.rowCount) {
-    await pool.query(
-      `INSERT INTO lt_usage_counters (agent_id, period_month, sessions_created)
-         VALUES ($1, date_trunc('month', now())::date, 1)`,
-      [agentId]
-    )
-  }
+/** 该请求是否为真实登录经纪(共享 demo 经纪豁免配额)。 */
+function isLoggedIn(req: Request): boolean {
+  return isSupabaseConfigured && !!req.headers.authorization?.startsWith('Bearer ')
 }
 
 /** Short, human-friendly random code (no ambiguous chars like 0/o/1/l). */
@@ -179,19 +148,80 @@ router.post('/project-reports', async (req: Request, res: Response) => {
     const existing = await pool.query('SELECT share_code FROM lt_project_reports WHERE agent_id=$1 AND project_id=$2', [agentId, projectId])
     let code: string
     if (existing.rowCount && existing.rows[0]) {
-      code = existing.rows[0].share_code
+      code = existing.rows[0].share_code // 复用已生成的报告 — 不计额度
     } else {
+      // 新建报告才走配额门 + 计量(共享 demo 经纪豁免)
+      const loggedIn = isLoggedIn(req)
+      if (loggedIn) {
+        const q = await checkQuota(agentId, 'reports')
+        if (!q.allowed) { const e = quotaError('reports', q); return res.status(e.status).json(e.body) }
+      }
       code = await uniqueReportCode()
       await pool.query(
         'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title) VALUES ($1,$2,$3,$4)',
         [agentId, projectId, code, p.rows[0].project_name]
       )
+      if (loggedIn) await meter(agentId, 'reports').catch(() => {})
     }
     res.json({ success: true, shareCode: code, url: `/r/${code}` })
   } catch (err) {
     console.error('[agent/project-reports] error:', err)
     res.status(500).json({ success: false, error: 'internal error' })
   }
+})
+
+// ── Client profiles (lightweight CRM) ─────────────────────────────────────
+router.post('/clients', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const b = (req.body || {}) as Record<string, string>
+    const name = String(b.name || '').trim()
+    if (!name) return res.status(400).json({ success: false, error: '客户姓名必填' })
+    const r = await pool.query(
+      `INSERT INTO lt_clients (agent_id, name, avatar_url, background, budget, expectations, traits)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [agentId, name, b.avatar_url || null, b.background || null, b.budget || null, b.expectations || null, b.traits || null]
+    )
+    res.json({ success: true, id: r.rows[0].id })
+  } catch (err) { console.error('[agent/clients create]', err); res.status(500).json({ success: false, error: 'internal error' }) }
+})
+
+router.put('/clients/:id', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const b = (req.body || {}) as Record<string, string>
+    await pool.query(
+      `UPDATE lt_clients SET name=COALESCE(NULLIF($3,''),name), avatar_url=$4, background=$5, budget=$6,
+              expectations=$7, traits=$8, updated_at=now() WHERE id=$2 AND agent_id=$1`,
+      [agentId, req.params.id, b.name || '', b.avatar_url || null, b.background || null, b.budget || null, b.expectations || null, b.traits || null]
+    )
+    res.json({ success: true })
+  } catch (err) { res.status(500).json({ success: false, error: 'internal error' }) }
+})
+
+router.get('/clients', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const r = await pool.query(
+      `SELECT c.*, (SELECT COUNT(*) FROM lt_client_reports cr WHERE cr.client_id=c.id) AS report_count
+         FROM lt_clients c WHERE c.agent_id=$1 ORDER BY c.updated_at DESC`,
+      [agentId]
+    )
+    res.json({ success: true, clients: r.rows })
+  } catch (err) { console.error('[agent/clients list]', err); res.status(500).json({ success: false, error: 'internal error' }) }
+})
+
+router.get('/clients/:id', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const c = await pool.query('SELECT * FROM lt_clients WHERE id=$1 AND agent_id=$2', [req.params.id, agentId])
+    if (c.rowCount === 0) return res.status(404).json({ success: false, error: 'not found' })
+    const reports = await pool.query(
+      `SELECT share_code, status, view_count, created_at FROM lt_client_reports WHERE client_id=$1 ORDER BY created_at DESC`,
+      [req.params.id]
+    )
+    res.json({ success: true, client: c.rows[0], reports: reports.rows })
+  } catch (err) { res.status(500).json({ success: false, error: 'internal error' }) }
 })
 
 // ── Comprehensive client investment proposals (async + progress + shareable) ──
@@ -204,22 +234,44 @@ async function uniqueClientCode(): Promise<string> {
   return randomCode(8)
 }
 
+/** Assemble a one-liner brief from a client profile (for report/tour matching). */
+async function briefFromClient(agentId: string, clientId: string): Promise<{ name: string; brief: string } | null> {
+  const c = await pool.query('SELECT name, background, budget, expectations, traits FROM lt_clients WHERE id=$1 AND agent_id=$2', [clientId, agentId])
+  if (c.rowCount === 0) return null
+  const r = c.rows[0]
+  const brief = [r.background, r.budget && `预算 ${r.budget}`, r.expectations && `期待 ${r.expectations}`, r.traits].filter(Boolean).join('，')
+  return { name: r.name, brief }
+}
+
 /** Kick off a client investment proposal — returns a share code immediately,
  *  builds in the background (poll /client-reports/:code/status for progress). */
 router.post('/client-reports', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
     const b = (req.body || {}) as Record<string, unknown>
-    const client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
-    const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    let client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
+    let oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    // Generated from a saved client profile → build the brief from it.
+    const clientId = typeof b.client_id === 'string' ? b.client_id : null
+    if (clientId) {
+      const cb = await briefFromClient(agentId, clientId)
+      if (cb) { client = { name: cb.name }; oneLiner = cb.brief }
+    }
     if (!oneLiner.trim() && !Object.keys(client).length) return res.status(400).json({ success: false, error: '需要客户画像或一句话' })
+    // 配额门 + 计量(共享 demo 经纪豁免)
+    const loggedIn = isLoggedIn(req)
+    if (loggedIn) {
+      const q = await checkQuota(agentId, 'reports')
+      if (!q.allowed) { const e = quotaError('reports', q); return res.status(e.status).json(e.body) }
+    }
     const code = await uniqueClientCode()
     const clientName = typeof client.name === 'string' ? client.name : ''
     const r = await pool.query(
-      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress)
-       VALUES ($1,$2,$3,$4,'generating',$5) RETURNING id`,
-      [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress())]
+      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress, client_id)
+       VALUES ($1,$2,$3,$4,'generating',$5,$6) RETURNING id`,
+      [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress()), clientId]
     )
+    if (loggedIn) await meter(agentId, 'reports').catch(() => {})
     // fire-and-forget background build
     generateClientReport(r.rows[0].id, client, oneLiner)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
@@ -331,8 +383,8 @@ router.post('/avatar', multer({ storage: multer.memoryStorage(), limits: { fileS
 router.get('/usage', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
-    const u = await sessionUsage(agentId)
-    res.json(u)
+    const q = await checkQuota(agentId, 'luna_tours')
+    res.json({ used: q.used, limit: q.limit, plan: q.plan })
   } catch (err) {
     console.error('[luna] usage error:', err)
     res.status(500).json({ error: 'usage failed' })
@@ -537,14 +589,10 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     const langOverride = ['zh', 'en', 'ar', 'ru'].includes(String(b.language)) ? String(b.language) : undefined
 
     // Quota gate — only for real logged-in agents (the shared demo is exempt).
-    const loggedIn = isSupabaseConfigured && !!req.headers.authorization?.startsWith('Bearer ')
+    const loggedIn = isLoggedIn(req)
     if (loggedIn) {
-      const q = await sessionUsage(agentId)
-      if (q.limit >= 0 && q.used >= q.limit) {
-        return res.status(403).json({
-          error: `本月导览额度已用完(${q.used}/${q.limit},${q.plan} 套餐)。升级套餐后可生成更多。`,
-        })
-      }
+      const q = await checkQuota(agentId, 'luna_tours')
+      if (!q.allowed) { const e = quotaError('luna_tours', q); return res.status(e.status).json(e.body) }
     }
 
     // Kick off the heavy build (AI config + script + audio) in the BACKGROUND and
@@ -559,7 +607,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
         if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
         const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
-        if (loggedIn) await meterSession(agentId).catch(() => {}) // count only real agents
+        if (loggedIn) await meter(agentId, 'luna_tours').catch(() => {}) // count only real agents
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
         console.error('[luna] agent create (bg) error:', err)

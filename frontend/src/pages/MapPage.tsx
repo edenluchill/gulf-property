@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
 import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
@@ -37,6 +37,7 @@ import { MapAction } from '../hooks/voice-assistant'
 import { GuidedTourPayload } from '../hooks/voice-assistant/types'
 import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
+import { isMapPath } from '../lib/isMapPath'
 import {
   fetchResidentialMapPins,
   fetchResidentialProjectsBatch,
@@ -112,9 +113,16 @@ export default function MapPage() {
   const voiceContext = useVoiceAssistantContext()
   // Luna Tour: run a shared session ON this map. Supports both /v/:code and the
   // cleaner homepage form  /?toursession=xxx  (user preference).
-  const { code: pathCode } = useParams<{ code?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
+  // MapPage is mounted persistently (outside the /v/:code & /t/:code routes) so
+  // the WebGL map is never torn down on tab switches. That means useParams() no
+  // longer sees the :code segment — derive it from the pathname instead. Matches
+  // both /v/<code> (tour) and /t/<code> (collab viewer).
+  const pathCode = (() => {
+    const m = location.pathname.match(/^\/[vt]\/(.+)$/)
+    return m ? decodeURIComponent(m[1]) : undefined
+  })()
   // /t/:code is the collab co-presence route, NOT a luna-tour session. Only
   // /v/:code (and ?toursession=) drive the luna-tour overlay. Without this guard
   // a /t/ link's :code would also feed tourCode → TourOverlay shows
@@ -1071,6 +1079,10 @@ export default function MapPage() {
         <div className="h-full overflow-hidden relative">
           <MapViewMapLibre
             ref={tourMapRef}
+            // Persistent map: when the user returns to a map route the container
+            // un-hides (display:none → flex); tell maplibre to resize so it fills
+            // the box again (ResizeObserver alone can miss a display toggle).
+            visible={isMapPath(location.pathname, location.search)}
             // Collab hides the browse chrome too (only the CollabBar shows). NOTE:
             // collab keeps tourActive=false so the DOM-marker-hide-on-move logic
             // stays active — remote-driven jumpTo/flyTo fire movestart/moveend and
