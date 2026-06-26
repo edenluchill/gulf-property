@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, MapPin, TrendingUp } from 'lucide-react'
+import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, MapPin, TrendingUp, FileText, ListChecks } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
 import DirhamSymbol from '../components/DirhamSymbol'
 
@@ -55,7 +55,24 @@ export default function ClientReportPage() {
           </div>
           <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200"><BadgeCheck className="h-3.5 w-3.5" />DLD 认证数据</span>
         </div>
-        <div className="mt-3 text-sm text-slate-500">致 {r.client_name || '客户'}{r.profile ? ` · 需求：${r.profile}` : ''} · 共 {r.properties?.length || 0} 个项目</div>
+        <div className="mt-3 text-sm text-slate-400">致 {r.client_name || '客户'}{r.profile ? ` · 需求：${r.profile}` : ''}</div>
+
+        {/* 概要 — structured, data-driven summary (no chatty prose) */}
+        {r.overview && (
+          <Section title="概要" icon={<FileText className="h-4 w-4 text-teal-500" />}>
+            <p className="text-sm leading-relaxed text-slate-700">
+              为{r.client_name || '客户'}{r.profile ? `（${r.profile}）` : ''}精选 <b>{r.overview.count}</b> 个预算内项目。
+              {r.overview.avg_net_annualized_pct != null && <>平均<b>净</b>年化回报 <b className="text-emerald-600">{r.overview.avg_net_annualized_pct}%</b></>}
+              {r.overview.best_name && <>，其中 <b>{r.overview.best_name}</b> 最高（{r.overview.best_net_pct}%）</>}。
+              以下测算均基于 DLD 真实成交，并已扣除过户费、中介费与物业费。
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-2.5">
+              <Stat label="精选项目" value={`${r.overview.count} 个`} />
+              <Stat label="平均净年化" value={r.overview.avg_net_annualized_pct != null ? <span className="text-emerald-600">{r.overview.avg_net_annualized_pct}%</span> : '—'} />
+              <Stat label="价格区间" value={r.overview.price_min != null ? <span className="text-[13px]"><Dh v={r.overview.price_min} />–<Dh v={r.overview.price_max} /></span> : '—'} />
+            </div>
+          </Section>
+        )}
 
         {/* Market & policy */}
         {r.market && (
@@ -76,6 +93,10 @@ export default function ClientReportPage() {
         )}
 
         {/* Properties */}
+        <div className="mt-6 mb-1 flex items-center gap-2">
+          <ListChecks className="h-4 w-4 text-teal-500" />
+          <h3 className="text-sm font-bold text-slate-800">推荐项目（{r.properties?.length || 0}）</h3>
+        </div>
         {(r.properties || []).map((p: any, i: number) => {
           const yoySane = p.yoy && p.yoy.growth_pct != null && Math.abs(p.yoy.growth_pct) <= 40
           return (

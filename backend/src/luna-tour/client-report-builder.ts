@@ -154,8 +154,22 @@ export async function generateClientReport(reportId: string, client: Record<stri
     const market = buildMarketSection(enriched)
     await mark(reportId, 'market')
 
+    // Structured (non-chatty) executive overview from the numbers.
+    const nets = enriched.map((p: any) => p.net?.net_annualized_pct).filter((v: any) => v != null)
+    const avgNet = nets.length ? Number((nets.reduce((a: number, b: number) => a + b, 0) / nets.length).toFixed(1)) : null
+    const best = enriched.reduce((m: any, p: any) => (p.net?.net_annualized_pct != null && (!m || p.net.net_annualized_pct > (m.net?.net_annualized_pct ?? -1)) ? p : m), null)
+    const prices = enriched.map((p: any) => p.net?.buy).filter((v: any) => v != null)
+    const overview = {
+      count: enriched.length,
+      avg_net_annualized_pct: avgNet,
+      best_name: best?.name || null,
+      best_net_pct: best?.net?.net_annualized_pct ?? null,
+      price_min: prices.length ? Math.min(...prices) : null,
+      price_max: prices.length ? Math.max(...prices) : null,
+    }
+
     // 4) Finalize
-    const full = { ...report, properties: enriched, market }
+    const full = { ...report, properties: enriched, market, overview }
     await pool.query(
       `UPDATE lt_client_reports SET report=$2, status='ready' WHERE id=$1`,
       [reportId, JSON.stringify(full)]
