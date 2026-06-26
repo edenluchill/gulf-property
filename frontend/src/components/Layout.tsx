@@ -11,7 +11,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Collab viewer (/t/:code) is the CLIENT's immersive guided view — usually on a
   // phone. Drop the site header + bottom nav so the map fills the screen; the
   // in-session collab UI (frame, bar, drawer) is rendered inside the page.
-  const isCollabViewer = useLocation().pathname.startsWith('/t/')
+  const path = useLocation().pathname
+  const isCollabViewer = path.startsWith('/t/')
+
+  // Agent-branded shareable report (/r/:code) — a clean client-facing page with NO
+  // app chrome (no header/nav/Luna), but it must scroll (unlike the full-screen map).
+  if (path.startsWith('/r/')) {
+    return <div className="min-h-screen overflow-y-auto bg-slate-50">{children}</div>
+  }
 
   if (tourMode || isCollabViewer) {
     return (
