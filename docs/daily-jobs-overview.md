@@ -6,10 +6,14 @@
 
 ## 0. 一句话总览
 
-每天 **02:00**（迪拜盒子 `38.54.8.9` 上的 systemd timer），跑一条数据刷新链：
-**从 data.dubai 拉最近一个多月的成交/租约 → 落库 → 重桥接 → 重算区域指标（按口径）→ 刷地图缓存版本 → 预热市场聚合缓存**。
+迪拜盒子 `38.54.8.9` 上有两个 systemd timer：
 
-唯一的"数据" cron 在迪拜盒子；Hetzner 服务器上只有基础设施 cron（SSL 证书续期），不碰业务数据。
+| 频率 | 时间 | 任务 | 拉什么 |
+|---|---|---|---|
+| **每日** | 02:00 | `dubai-daily.timer` → `daily-cron.sh` | 成交 `dld_transactions` + 租约 `dld_rent_contracts`（DLD 每天出新）→ 落库 → 重桥接 → 重算区域指标 → 刷缓存 |
+| **每周** | 周日 03:00 | `dubai-weekly.timer` → `weekly-cron.sh` | 慢变参考数据：`dld_projects`（进度/托管/开发商）+ `dld_oa_service_charges`（物业费）+ `dld_valuations`（估值）→ 整表原子替换 |
+
+频率按**源数据更新频率**对齐：成交/租约每天变 → 每日；项目/物业费/估值变化慢 → 每周足矣。Hetzner 服务器上只有基础设施 cron（SSL 证书续期），不碰业务数据。
 
 ---
 
@@ -170,6 +174,18 @@ flowchart LR
 - **前端缓存刷新** 靠 `/meta/data-version` 指纹（含 `MAX(dld_transactions.created_at)` + `MAX(dubai_areas.updated_at)` + landmarks）；所以每日 job 步骤 ⑨ bump `updated_at` 是让客户端看到新颜色的关键。
 
 ---
+
+## 5.5 每周 Job：`dubai-weekly.ts`（参考数据,整表原子替换）
+
+慢变数据集每周日 03:00 全量替换一次（事务内 `DELETE` + `INSERT ON CONFLICT DO NOTHING`，失败回滚保留旧数据）。
+
+| 表 | 行数(2026-06-26 backfill) | 亮点 | 备注 |
+|---|---|---|---|
+| `dld_projects` | 3,036 | percent_completed / project_status / escrow_agent / developer / no_of_units | **项目名是阿拉伯语**;英文锚点用 `master_project_en`/`area_name_en` |
+| `dld_oa_service_charges` | 91,193 | 按 project×year×category 的 service_cost | ⚠️ 混了 per-sqft 费率和一次性基金(Reserved Fund)，**算净回报需按 category 清洗**，别直接 SUM |
+| `dld_valuations` | 89,637 | 官方估值 | — |
+
+扩展:`scripts/dubai-weekly.ts` 的 `WEEKLY` 数组加 key(该 key 要在 `DATASETS` 配置里且有对应表)。**盒子源码是拷贝的,改了要 scp 同步 `datasets.ts` + `dubai-weekly.ts`**。
 
 ## 6. 其它（非数据）定时任务
 

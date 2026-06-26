@@ -62,11 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_dld_oa_project ON dld_oa_service_charges (project
 CREATE INDEX IF NOT EXISTS idx_dld_oa_pgroup  ON dld_oa_service_charges (upper(property_group_name_en));
 CREATE INDEX IF NOT EXISTS idx_dld_oa_comm    ON dld_oa_service_charges (upper(master_community_name_en));
 
--- Convenience view: total service charge (AED/sqft) per project, latest budget year.
-CREATE OR REPLACE VIEW v_project_service_charge AS
-  SELECT DISTINCT ON (project_id)
-         project_id, project_name, master_community_name_en AS community,
-         budget_year, ROUND(SUM(service_cost) OVER (PARTITION BY project_id, budget_year), 2) AS service_charge_sqft
-    FROM dld_oa_service_charges
-   WHERE service_cost > 0
-   ORDER BY project_id, budget_year DESC;
+-- NOTE: deriving a clean "service charge AED/sqft per project" for net-yield needs
+-- category-aware logic — `service_cost` mixes per-sqft rates with lump-sum funds
+-- (e.g. "Reserved Fund"), so a naive SUM is wrong (some projects → thousands).
+-- Raw rows are kept here; the net-yield integration is a separate follow-up.
