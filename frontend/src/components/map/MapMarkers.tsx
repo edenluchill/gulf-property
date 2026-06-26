@@ -272,8 +272,9 @@ export const LandmarkMarker = memo(({ landmark, onClick }: {
   // 扣图加载失败(404/无此地标)时退回圆形照片样式
   const [cutoutFailed, setCutoutFailed] = useState(false)
   // 尺寸收紧：之前 84/68/54 在 z10 全城视野下太抢眼（客户反馈"挤着很乱"）
-  const cutoutH = landmark.size === 'large' ? 64 : landmark.size === 'small' ? 42 : 52
-  const pinSize = landmark.size === 'large' ? 48 : landmark.size === 'small' ? 32 : 40
+  // xlarge 专给哈利法塔等关键标志塔楼（窄高，放大不显臃肿）
+  const cutoutH = landmark.size === 'xlarge' ? 88 : landmark.size === 'large' ? 64 : landmark.size === 'small' ? 42 : 52
+  const pinSize = landmark.size === 'xlarge' ? 56 : landmark.size === 'large' ? 48 : landmark.size === 'small' ? 32 : 40
 
   const langKey = i18n.language?.split('-')[0]
   const localizedName = (langKey && landmark.translations?.[langKey]?.name) || landmark.name

@@ -193,7 +193,7 @@ export interface DubaiLandmark {
   websiteUrl?: string
   imageUrl?: string
   color: string
-  size: 'small' | 'medium' | 'large'
+  size: 'small' | 'medium' | 'large' | 'xlarge'
   displayOrder: number
   /** 多语言: { zh: { name, description } },与 DubaiArea.translations 一致 */
   translations?: Record<string, { name?: string; description?: string }>

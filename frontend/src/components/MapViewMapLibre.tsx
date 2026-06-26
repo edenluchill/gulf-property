@@ -508,7 +508,7 @@ function MapViewMapLibre({
           }
         }
         const hasIcon = map.hasImage(iconId)
-        const targetH = lm.size === 'large' ? 66 : lm.size === 'small' ? 44 : 54
+        const targetH = lm.size === 'xlarge' ? 90 : lm.size === 'large' ? 66 : lm.size === 'small' ? 44 : 54
         const baseScale = hasIcon && h ? +(targetH / h).toFixed(3) : 0
         const name = (langKey && lm.translations?.[langKey]?.name) || lm.name
         features.push({

@@ -923,7 +923,7 @@ function MapViewClustered({ clusters, onBoundsChange, onClusterClick, onAreaClic
   const landmarkIcons = useMemo(() => {
     if (!Array.isArray(dubaiLandmarks)) return []
     return dubaiLandmarks.map((landmark) => {
-      const sizeMap = { small: [70, 90], medium: [80, 100], large: [90, 110] }
+      const sizeMap = { small: [70, 90], medium: [80, 100], large: [90, 110], xlarge: [110, 130] }
       const size = sizeMap[landmark.size] || [80, 100]
       const imageUrl = getImageForLandmark(landmark)
 

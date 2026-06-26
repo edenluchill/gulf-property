@@ -32,7 +32,7 @@ interface DraggableMarkerProps {
 }
 
 function DraggableLandmarkMarker({ landmark, isSelected, onClick, onDrag, isDraggable }: DraggableMarkerProps) {
-  const sizeMap = { small: [24, 24], medium: [32, 32], large: [40, 40] }
+  const sizeMap = { small: [24, 24], medium: [32, 32], large: [40, 40], xlarge: [52, 52] }
   const size = sizeMap[landmark.size] || [32, 32]
   
   const icon = L.divIcon({
