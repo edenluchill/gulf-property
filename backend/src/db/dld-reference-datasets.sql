@@ -66,3 +66,38 @@ CREATE INDEX IF NOT EXISTS idx_dld_oa_comm    ON dld_oa_service_charges (upper(m
 -- category-aware logic — `service_cost` mixes per-sqft rates with lump-sum funds
 -- (e.g. "Reserved Fund"), so a naive SUM is wrong (some projects → thousands).
 -- Raw rows are kept here; the net-yield integration is a separate follow-up.
+
+-- ── Developers: background (English name, license, legal status, expiry) ─────
+CREATE TABLE IF NOT EXISTS dld_developers (
+  developer_id        bigint PRIMARY KEY,
+  developer_number    text,
+  developer_name_en   text,
+  developer_name_ar   text,
+  registration_date   date,
+  license_source_en   text,
+  license_type_en     text,
+  license_number      text,
+  license_issue_date  date,
+  license_expiry_date date,
+  chamber_of_commerce_no text,
+  legal_status_en     text,
+  webpage             text,
+  phone               text,
+  load_timestamp      timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_dld_developers_name ON dld_developers (upper(developer_name_en));
+
+-- ── Metro stations: official RTA coords for map "distance to metro" ─────────
+CREATE TABLE IF NOT EXISTS rta_metro_stations (
+  location_id            bigint PRIMARY KEY,
+  zone_id                bigint,
+  location_name_english  text,
+  location_name_arabic   text,
+  line_name              text,
+  lng                    numeric,
+  lat                    numeric,
+  station_opening_date   date,
+  station_closing_date   date,
+  load_timestamp         timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_rta_metro_line ON rta_metro_stations (line_name);

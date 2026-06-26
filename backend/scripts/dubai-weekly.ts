@@ -14,7 +14,7 @@ import { DATASETS } from '../src/sync/dubai/config/datasets'
 
 // Slow-moving datasets to full-replace weekly. Add more keys here (they must be
 // in DATASETS with a matching target table) to extend coverage.
-const WEEKLY = ['dld_valuations', 'dld_projects', 'dld_oa_service_charges']
+const WEEKLY = ['dld_valuations', 'dld_projects', 'dld_oa_service_charges', 'dld_developers', 'rta_metro_stations']
 
 async function fullReplace(key: string) {
   const ds = DATASETS.find((d) => d.key === key)
@@ -25,8 +25,10 @@ async function fullReplace(key: string) {
   try {
     await client.query('BEGIN')
     await client.query(`DELETE FROM ${ds.targetTable}`)
-    // Pull the whole dataset (every row has load_timestamp; >'2000' = all).
-    const base: any = { pageSize: 1000, order_by: 'load_timestamp', order_dir: 'asc', filter: `load_timestamp>'2000-01-01'` }
+    // Pull the whole dataset latest-first (the source repeats project_id /
+    // valuation keys; DESC + ON CONFLICT DO NOTHING keeps the most recent row
+    // per key). Every row has load_timestamp; >'2000' = all.
+    const base: any = { pageSize: 1000, order_by: 'load_timestamp', order_dir: 'desc', filter: `load_timestamp>'2000-01-01'` }
     for await (const { results } of iteratePages(ds.entity, ds.dataset, base)) {
       const mapped = results.map((r) => applyFieldMap(r, ds.fieldMap))
       if (!mapped.length) continue
@@ -36,8 +38,8 @@ async function fullReplace(key: string) {
         cols.forEach((c) => vals.push((m as any)[c] ?? null))
         return `(${cols.map((_, j) => `$${b + j + 1}`).join(',')})`
       })
-      await client.query(`INSERT INTO ${ds.targetTable} (${cols.join(',')}) VALUES ${tuples.join(',')}`, vals)
-      inserted += mapped.length
+      const r = await client.query(`INSERT INTO ${ds.targetTable} (${cols.join(',')}) VALUES ${tuples.join(',')} ON CONFLICT DO NOTHING`, vals)
+      inserted += r.rowCount ?? 0
     }
     await client.query('COMMIT')
     console.log(`[weekly] ${ds.targetTable}: replaced with ${inserted} rows`)
