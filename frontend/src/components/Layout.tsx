@@ -16,7 +16,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Agent-branded shareable report (/r/:code) — a clean client-facing page with NO
   // app chrome (no header/nav/Luna), but it must scroll (unlike the full-screen map).
-  if (path.startsWith('/r/')) {
+  if (path.startsWith('/r/') || path.startsWith('/cr/')) {
     return <div className="min-h-screen overflow-y-auto bg-slate-50">{children}</div>
   }
 

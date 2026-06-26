@@ -6,6 +6,7 @@ import { installApiErrorCapture } from './lib/errorCapture'
 import MapPage from './pages/MapPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectReportPage from './pages/ProjectReportPage'
+import ClientReportPage from './pages/ClientReportPage'
 import FavoritesPage from './pages/FavoritesPage'
 import DeveloperPropertyUploadPageV2 from './pages/DeveloperPropertyUploadPageV2'
 import LangGraphTestPage from './pages/LangGraphTestPage'
@@ -86,6 +87,8 @@ function App() {
         <Route path="/factsheet/:code" element={<FactSheet />} />
         {/* Agent-branded shareable per-project report */}
         <Route path="/r/:code" element={<ProjectReportPage />} />
+        {/* Comprehensive client investment proposal (shareable, printable) */}
+        <Route path="/cr/:code" element={<ClientReportPage />} />
         {/* Full-screen visual storyboard editor */}
         <Route path="/agent/tour/:id/edit" element={<TourEditor />} />
         {/* Agent hub — sidebar tabs + nested routes (gated to agent accounts) */}

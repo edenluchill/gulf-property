@@ -17,6 +17,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { uploadBufferToR2 } from '../services/r2-storage'
 import { createSession, ensureAgent } from './session-builder'
+import { generateClientReport, initialProgress } from './client-report-builder'
 import { draftConfig } from './auto-config'
 import { matchProperties } from './auto-match'
 import { buildClientReport } from './auto-report'
@@ -190,6 +191,54 @@ router.post('/project-reports', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[agent/project-reports] error:', err)
     res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+// ── Comprehensive client investment proposals (async + progress + shareable) ──
+async function uniqueClientCode(): Promise<string> {
+  for (let i = 0; i < 8; i++) {
+    const code = randomCode(6)
+    const { rowCount } = await pool.query('SELECT 1 FROM lt_client_reports WHERE share_code=$1', [code])
+    if (rowCount === 0) return code
+  }
+  return randomCode(8)
+}
+
+/** Kick off a client investment proposal — returns a share code immediately,
+ *  builds in the background (poll /client-reports/:code/status for progress). */
+router.post('/client-reports', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const b = (req.body || {}) as Record<string, unknown>
+    const client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
+    const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    if (!oneLiner.trim() && !Object.keys(client).length) return res.status(400).json({ success: false, error: '需要客户画像或一句话' })
+    const code = await uniqueClientCode()
+    const clientName = typeof client.name === 'string' ? client.name : ''
+    const r = await pool.query(
+      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress)
+       VALUES ($1,$2,$3,$4,'generating',$5) RETURNING id`,
+      [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress())]
+    )
+    // fire-and-forget background build
+    generateClientReport(r.rows[0].id, client, oneLiner)
+    res.json({ success: true, shareCode: code, url: `/cr/${code}` })
+  } catch (err) {
+    console.error('[agent/client-reports] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** Poll generation status + progress. */
+router.get('/client-reports/:code/status', async (req: Request, res: Response) => {
+  try {
+    const r = await pool.query(
+      'SELECT status, progress, client_name FROM lt_client_reports WHERE share_code=$1', [req.params.code]
+    )
+    if (r.rowCount === 0) return res.status(404).json({ success: false })
+    res.json({ success: true, status: r.rows[0].status, progress: r.rows[0].progress, clientName: r.rows[0].client_name })
+  } catch (err) {
+    res.status(500).json({ success: false })
   }
 })
 

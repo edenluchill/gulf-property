@@ -394,4 +394,30 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
   }
 })
 
+/** Public comprehensive client investment proposal → /cr/:code. */
+router.get('/public/client-report/:code', async (req: Request, res: Response) => {
+  try {
+    const r = await pool.query(
+      `SELECT cr.status, cr.report, cr.client_name,
+              a.display_name AS agent_name, a.photo_url AS agent_photo, a.phone AS agent_phone, a.whatsapp AS agent_whatsapp
+         FROM lt_client_reports cr JOIN lt_agents a ON a.id = cr.agent_id
+        WHERE cr.share_code = $1 LIMIT 1`,
+      [req.params.code]
+    )
+    if (r.rowCount === 0) return res.status(404).json({ error: 'not found' })
+    const row = r.rows[0]
+    if (row.status !== 'ready') return res.json({ status: row.status })
+    pool.query('UPDATE lt_client_reports SET view_count=view_count+1 WHERE share_code=$1', [req.params.code]).catch(() => {})
+    res.set('Cache-Control', 'public, max-age=300')
+    res.json({
+      status: 'ready',
+      agent: { name: row.agent_name, photo: row.agent_photo, phone: row.agent_phone, whatsapp: row.agent_whatsapp },
+      report: row.report,
+    })
+  } catch (err) {
+    console.error('[luna] client-report error:', err)
+    res.status(500).json({ error: 'report failed' })
+  }
+})
+
 export default router
