@@ -92,22 +92,23 @@ export default function ClientReportPage() {
           </Section>
         )}
 
-        {/* Properties */}
+        {/* Featured project — one focused, detailed analysis */}
         <div className="mt-6 mb-1 flex items-center gap-2">
           <ListChecks className="h-4 w-4 text-teal-500" />
-          <h3 className="text-sm font-bold text-slate-800">推荐项目（{r.properties?.length || 0}）</h3>
+          <h3 className="text-sm font-bold text-slate-800">主推项目</h3>
         </div>
-        {(r.properties || []).map((p: any, i: number) => {
+        {(r.properties || []).slice(0, 1).map((p: any, i: number) => {
           const yoySane = p.yoy && p.yoy.growth_pct != null && Math.abs(p.yoy.growth_pct) <= 40
           return (
-            <div key={i} className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+            <div key={i} className="mt-2 overflow-hidden rounded-2xl border-2 border-teal-200">
               {/* Clickable header → project page */}
-              <a href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="flex gap-3 bg-slate-50 p-3 hover:bg-slate-100">
-                {p.image && <img src={p.image} alt={p.name} className="h-20 w-28 flex-shrink-0 rounded-lg object-cover" />}
+              <a href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="flex gap-3 bg-teal-50/60 p-3 hover:bg-teal-50">
+                {p.image && <img src={p.image} alt={p.name} className="h-24 w-32 flex-shrink-0 rounded-lg object-cover" />}
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold text-teal-600">候选 {i + 1}</div>
-                  <div className="flex items-center gap-1 truncate text-base font-bold text-slate-900">{p.name}<ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" /></div>
+                  <div className="text-[11px] font-semibold text-teal-600">主推 · 最佳匹配</div>
+                  <div className="flex items-center gap-1 truncate text-lg font-bold text-slate-900">{p.name}<ExternalLink className="h-4 w-4 flex-shrink-0 text-slate-400" /></div>
                   <div className="text-xs text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
+                  <div className="mt-1 text-[11px] text-teal-600">点击查看项目详情 →</div>
                 </div>
               </a>
 
@@ -127,6 +128,10 @@ export default function ClientReportPage() {
                     <div className="mt-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-2">
                       <span className="text-xs text-teal-700/80">净年化回报</span>
                       <span className="text-lg font-extrabold text-teal-700">{p.net.net_annualized_pct}%</span>
+                    </div>
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400"><span>净资产价值（5 年）</span><span className="font-semibold text-emerald-600">+{Math.round((p.net.net_profit / p.net.buy) * 100)}%</span></div>
+                      <GrowthCurve start={p.net.buy} end={p.net.buy + p.net.net_profit} />
                     </div>
                   </>
                 )}
@@ -185,6 +190,28 @@ export default function ClientReportPage() {
           )
         })}
 
+        {/* 其他推荐 — compact alternatives at the bottom */}
+        {(r.properties || []).length > 1 && (
+          <div className="mt-6">
+            <div className="mb-2 flex items-center gap-2"><ListChecks className="h-4 w-4 text-slate-400" /><h3 className="text-sm font-bold text-slate-800">其他推荐</h3></div>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {r.properties.slice(1).map((p: any, i: number) => (
+                <a key={i} href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:border-teal-300">
+                  {p.image && <img src={p.image} alt={p.name} className="h-16 w-20 flex-shrink-0 rounded-lg object-cover" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1 truncate text-sm font-semibold text-slate-800">{p.name}<ExternalLink className="h-3 w-3 flex-shrink-0 text-slate-300" /></div>
+                    <div className="truncate text-[11px] text-slate-400">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                      {p.net?.buy != null && <span className="text-slate-500">起 <Dh v={p.net.buy} /></span>}
+                      {p.net?.net_annualized_pct != null && <span className="font-semibold text-emerald-600">净年化 {p.net.net_annualized_pct}%</span>}
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-400">
           {r.assumptions}<br />{r.disclaimer}
         </div>
@@ -220,6 +247,23 @@ function TrendChart({ trend }: { trend: { m: string; v: number | null }[] }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 70 }}>
       <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0d9488" stopOpacity="0.18" /><stop offset="100%" stopColor="#0d9488" stopOpacity="0" /></linearGradient></defs>
       <path d={fill} fill="url(#tg)" /><path d={line} fill="none" stroke="#0d9488" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function GrowthCurve({ start, end }: { start: number; end: number }) {
+  if (!start || !end || end <= start) return null
+  const r = Math.pow(end / start, 1 / 5) - 1
+  const pts = Array.from({ length: 6 }, (_, i) => start * Math.pow(1 + r, i))
+  const W = 320, H = 60, pad = 3
+  const min = start, max = end, span = max - min || 1
+  const x = (i: number) => pad + (i / 5) * (W - 2 * pad)
+  const y = (v: number) => H - pad - ((v - min) / span) * (H - 2 * pad)
+  const line = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const fill = `${line} L${x(5)},${H} L${x(0)},${H} Z`
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 60 }}>
+      <defs><linearGradient id="gcv" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity="0.2" /><stop offset="100%" stopColor="#10b981" stopOpacity="0" /></linearGradient></defs>
+      <path d={fill} fill="url(#gcv)" /><path d={line} fill="none" stroke="#10b981" strokeWidth="2" strokeLinejoin="round" />
     </svg>
   )
 }
