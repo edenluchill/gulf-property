@@ -212,6 +212,18 @@ router.get('/project-reports', async (req: Request, res: Response) => {
   }
 })
 
+/** This agent's current brand/contact (to prefill the card editor). */
+router.get('/profile', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const r = await pool.query('SELECT display_name, phone, whatsapp, photo_url FROM lt_agents WHERE id=$1', [agentId])
+    res.json({ success: true, agent: r.rows[0] || null })
+  } catch (err) {
+    console.error('[agent/profile get] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
 /** Update this agent's brand/contact (name, phone, whatsapp, photo URL). */
 router.post('/profile', async (req: Request, res: Response) => {
   try {

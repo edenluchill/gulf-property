@@ -15,6 +15,7 @@ import { PaymentPlanTab } from './ProjectDetailPage/PaymentPlanTab'
 import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
 import { LocationTab } from './ProjectDetailPage/LocationTab'
 import { TransactionsTab } from './ProjectDetailPage/TransactionsTab'
+import AgentCardEditor from '../components/AgentCardEditor'
 import { UnitTypesSubPage } from './ProjectDetailPage/UnitTypesSubPage'
 import { DesktopHeroGallery } from './ProjectDetailPage/DesktopHeroGallery'
 import { CollapsibleDetails } from './ProjectDetailPage/CollapsibleDetails'
@@ -40,6 +41,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [reportUrl, setReportUrl] = useState<string | null>(null)
   const [genningReport, setGenningReport] = useState(false)
+  const [showCardEditor, setShowCardEditor] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const { isProjectFavorite, toggleProjectFavorite } = useFavorites()
 
@@ -500,6 +502,7 @@ export default function ProjectDetailPage() {
                       >
                         <Share2 className="mr-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
                       </Button>
+                      <Button variant="outline" size="sm" className="h-10 px-3" onClick={() => setShowCardEditor(true)}>名片</Button>
                       <Button
                         variant="outline"
                         size="icon"
@@ -713,10 +716,12 @@ export default function ProjectDetailPage() {
               <div className="text-xs text-slate-300">客户专属报告已生成(链接已复制)</div>
               <div className="truncate text-sm font-medium">{reportUrl}</div>
             </div>
+            <button onClick={() => { setReportUrl(null); setShowCardEditor(true) }} className="flex-shrink-0 rounded-lg px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-700">完善名片</button>
             <a href={reportUrl} target="_blank" rel="noreferrer" className="flex-shrink-0 rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-semibold hover:bg-teal-600">打开</a>
             <button onClick={() => setReportUrl(null)} className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-700"><X className="h-4 w-4" /></button>
           </div>
         )}
+        {showCardEditor && <AgentCardEditor onClose={() => setShowCardEditor(false)} />}
 
         {/* Mobile & Tablet: Floating Pull-up Handle & Sheet */}
         {(isMobile || isTablet) && activeTab === 'overview' && (
