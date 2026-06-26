@@ -30,7 +30,7 @@ import { Button } from '../components/ui/button'
 import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
-  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart, Home
+  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
@@ -1207,13 +1207,6 @@ export default function MapPage() {
               setFilters={setFilters}
               developers={developers}
             />
-            <button
-              onClick={() => setShowFindHome(true)}
-              className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-medium text-slate-700 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur transition-colors hover:bg-white"
-            >
-              <Home className="h-4 w-4 text-primary" />
-              <span>{t('findhome:openButton')}</span>
-            </button>
           </div>
           )}
 
