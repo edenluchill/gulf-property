@@ -250,6 +250,15 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     params.push(q.rooms)
     parts.push(`dt.rooms = $${params.length}`)
   }
+  // 按成交总价(actual_worth)区间过滤
+  if (q.minPrice && Number(q.minPrice) > 0) {
+    params.push(Number(q.minPrice))
+    parts.push(`dt.actual_worth >= $${params.length}`)
+  }
+  if (q.maxPrice && Number(q.maxPrice) > 0) {
+    params.push(Number(q.maxPrice))
+    parts.push(`dt.actual_worth <= $${params.length}`)
+  }
   if (q.type === 'offplan') {
     parts.push(`dt.procedure_name = 'Sell - Pre registration'`)
   } else if (q.type === 'ready') {

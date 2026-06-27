@@ -50,9 +50,33 @@ function buildRentFilter(q: any): { clause: string; params: any[] } {
     params.push(String(q.areaId).trim())
     parts.push(`rc.dubai_area_id = $${params.length}`)
   }
+  // project 多选(同社区多个 phase 合看),与成交侧一致
   if (q.project) {
-    params.push(String(q.project).trim().toUpperCase())
-    parts.push(`UPPER(rc.project_name) = $${params.length}`)
+    const projectList = (Array.isArray(q.project) ? q.project : [q.project])
+      .map((p: any) => String(p).trim().toUpperCase())
+      .filter(Boolean)
+    if (projectList.length > 0) {
+      params.push(projectList)
+      parts.push(`UPPER(rc.project_name) = ANY($${params.length}::text[])`)
+    }
+  }
+  // 年份(起租日)区间 —— 之前前端传了 from/to 但后端没接,年份筛选形同虚设
+  if (q.from) {
+    params.push(q.from)
+    parts.push(`rc.start_date >= $${params.length}`)
+  }
+  if (q.to) {
+    params.push(q.to)
+    parts.push(`rc.start_date <= $${params.length}`)
+  }
+  // 按年租金(annual_amount)区间过滤
+  if (q.minPrice && Number(q.minPrice) > 0) {
+    params.push(Number(q.minPrice))
+    parts.push(`rc.annual_amount >= $${params.length}`)
+  }
+  if (q.maxPrice && Number(q.maxPrice) > 0) {
+    params.push(Number(q.maxPrice))
+    parts.push(`rc.annual_amount <= $${params.length}`)
   }
   return { clause: parts.join(' AND '), params }
 }
@@ -83,6 +107,44 @@ router.get('/filters', async (_req: Request, res: Response) => {
   }
 })
 
+/** GET /projects?area=&q= — 可搜索项目列表(租约口径),供多选筛选用 */
+async function loadRentProjects(area: string): Promise<{ name: string; count: number }[]> {
+  const cacheKey = area ? `projects:${area.toUpperCase()}` : 'projects:ALL'
+  const cached = cGet(cacheKey)
+  if (cached) return cached
+  if (!area) {
+    const pc = await precomputed('projects:ALL')
+    if (pc) { cSet(cacheKey, pc); return pc }
+  }
+  const r = await pool.query(
+    `SELECT mode() WITHIN GROUP (ORDER BY rc.project_name) AS name, COUNT(*)::int AS count
+       FROM dld_rent_contracts rc
+      WHERE rc.usage_type = 'Residential' AND rc.annual_amount > 0 AND rc.property_area > 0
+        AND rc.start_date >= '2000-01-01' AND rc.start_date <= CURRENT_DATE
+        ${area ? 'AND UPPER(rc.area_name) = $1' : ''}
+        AND rc.project_name IS NOT NULL AND rc.project_name <> ''
+      GROUP BY UPPER(rc.project_name)
+     HAVING COUNT(*) >= 10
+      ORDER BY count DESC`,
+    area ? [area.toUpperCase()] : []
+  )
+  cSet(cacheKey, r.rows)
+  return r.rows
+}
+
+router.get('/projects', async (req: Request, res: Response) => {
+  try {
+    const area = String(req.query.area || '').trim()
+    const q = String(req.query.q || '').trim().toLowerCase()
+    let projects = await loadRentProjects(area)
+    if (q) projects = projects.filter((p) => p.name.toLowerCase().includes(q))
+    res.json({ projects: projects.slice(0, q ? 50 : 100) })
+  } catch (err) {
+    console.error('[market/rent/projects] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
 /** GET /summary — aggregate rent metrics + 24-month trend. */
 router.get('/summary', async (req: Request, res: Response) => {
   try {
@@ -91,7 +153,9 @@ router.get('/summary', async (req: Request, res: Response) => {
     const cached = cGet(key)
     if (cached) return res.json(cached)
     // unfiltered default → serve the daily-precomputed payload (avoids the ~14s full scan)
-    if (!req.query.area && !req.query.areaId && !req.query.project) {
+    const q = req.query
+    const unfiltered = !q.area && !q.areaId && !q.project && !q.from && !q.to && !q.minPrice && !q.maxPrice
+    if (unfiltered) {
       const pc = await precomputed('summary')
       if (pc) { cSet(key, pc); return res.json(pc) }
     }

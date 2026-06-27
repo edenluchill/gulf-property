@@ -770,7 +770,15 @@ export async function fetchRentFilters(): Promise<{ areas: { name: string; count
     return await r.json();
   } catch { return { areas: [] }; }
 }
-export async function fetchRentSummary(p: Record<string, string | undefined>): Promise<RentSummary | null> {
+export async function fetchRentProjects(params: { area?: string; q?: string }): Promise<{ name: string; count: number }[]> {
+  try {
+    const r = await fetch(`${API_URL}/market/rent/projects?${txQuery(params)}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.projects || [];
+  } catch { return []; }
+}
+export async function fetchRentSummary(p: Record<string, string | string[] | undefined>): Promise<RentSummary | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const r = await fetch(`${API_URL}/market/rent/summary?${txQuery(p)}`);
@@ -780,7 +788,7 @@ export async function fetchRentSummary(p: Record<string, string | undefined>): P
   }
   return null;
 }
-export async function fetchRentList(p: Record<string, string | undefined>): Promise<{ rows: RentRow[]; limit: number; offset: number }> {
+export async function fetchRentList(p: Record<string, string | string[] | undefined>): Promise<{ rows: RentRow[]; limit: number; offset: number }> {
   try {
     const r = await fetch(`${API_URL}/market/rent/list?${txQuery(p)}`);
     if (!r.ok) return { rows: [], limit: 25, offset: 0 };

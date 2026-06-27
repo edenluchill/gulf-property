@@ -10,7 +10,11 @@ import {
   TxFilters, TxSummary, TxRow
 } from '../lib/api'
 import DirhamSymbol from '../components/DirhamSymbol'
+import { formatMoneyCompact } from '../lib/money'
 import RentView from './TransactionsPage/RentView'
+
+// 价格区间预设(成交总价 AED)。min/max 各一个下拉,避免手机上敲 7 位数字。
+const SALE_PRICE_STEPS = [500000, 1000000, 1500000, 2000000, 3000000, 5000000, 10000000, 20000000, 50000000]
 
 type SaleType = 'all' | 'ready' | 'offplan'
 type Mode = 'sales' | 'rent'
@@ -68,6 +72,8 @@ export default function TransactionsPage() {
   const [rooms, setRooms] = useState('')
   const [type, setType] = useState<SaleType>('all')
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
+  const [minPrice, setMinPrice] = useState('')  // 成交总价区间(AED)
+  const [maxPrice, setMaxPrice] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)  // 移动端筛选折叠
   const [summary, setSummary] = useState<TxSummary | null>(null)
   const [rows, setRows] = useState<TxRow[]>([])
@@ -84,8 +90,10 @@ export default function TransactionsPage() {
     rooms: rooms || undefined,
     type: type === 'all' ? undefined : type,
     from: year ? `${year}-01-01` : undefined,
-    to: year ? `${year}-12-31` : undefined
-  }), [area, selectedProjects, rooms, type, year])
+    to: year ? `${year}-12-31` : undefined,
+    minPrice: minPrice || undefined,
+    maxPrice: maxPrice || undefined,
+  }), [area, selectedProjects, rooms, type, year, minPrice, maxPrice])
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
 
@@ -131,6 +139,9 @@ export default function TransactionsPage() {
       : null,
     area || null,
     rooms || null,
+    (minPrice || maxPrice)
+      ? `${minPrice ? formatMoneyCompact(Number(minPrice), i18n.language) : ''}~${maxPrice ? formatMoneyCompact(Number(maxPrice), i18n.language) : ''}`
+      : null,
     year ? t('filter.yearLabel', { year }) : null,
     type !== 'all' ? t(`saleType.${type}`) : null,
   ].filter(Boolean) as string[]
@@ -263,6 +274,29 @@ export default function TransactionsPage() {
             {filters.rooms.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </label>
+        {/* 价格区间(成交总价) */}
+        <div className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
+          {t('filter.priceRange', { defaultValue: zh ? '价格区间' : 'Price' })}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={minPrice}
+              onChange={e => setMinPrice(e.target.value)}
+              className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
+            >
+              <option value="">{zh ? '最低' : 'Min'}</option>
+              {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
+            </select>
+            <span className="text-slate-400">–</span>
+            <select
+              value={maxPrice}
+              onChange={e => setMaxPrice(e.target.value)}
+              className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
+            >
+              <option value="">{zh ? '最高' : 'Max'}</option>
+              {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
+            </select>
+          </div>
+        </div>
         <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.year')}
           <select
