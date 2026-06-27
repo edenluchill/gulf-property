@@ -13,20 +13,61 @@ import {
 import { isR2PdfCacheUrl } from '../services/r2-storage'
 import { requireAuth } from '../middleware/auth'
 
+const MONTH_NAMES: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8,
+  september: 9, sep: 9, sept: 9, october: 10, oct: 10, november: 11, nov: 11,
+  december: 12, dec: 12,
+}
+
 /**
- * Validate and clean date format for PostgreSQL (must be YYYY-MM-DD or null)
+ * Normalize an AI-extracted date into a PostgreSQL `date` (YYYY-MM-DD) or null.
+ *
+ * Brochures give dates in many shapes — "DECEMBER 2029", "Q4 2029", "2030-06",
+ * "2030" — none of which Postgres accepts for a `date` column (that 500'd the
+ * submit endpoint). We normalize to month/quarter granularity (1st of the
+ * month/quarter) so the date is preserved instead of lost, and fall back to
+ * null only when truly unparseable so a submit never crashes on a date again.
  */
 function cleanDateFormat(dateStr: string | undefined | null): string | null {
   if (!dateStr) return null
+  const s = String(dateStr).trim()
+  if (!s) return null
 
-  // Check if it's already a valid YYYY-MM-DD format
-  const validDatePattern = /^\d{4}-\d{2}-\d{2}$/
-  if (validDatePattern.test(dateStr)) {
-    return dateStr
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+
+  // YYYY-MM or YYYY/MM → first of month
+  let m = s.match(/^(\d{4})[-/](\d{1,2})$/)
+  if (m) {
+    const mon = Number(m[2])
+    if (mon >= 1 && mon <= 12) return `${m[1]}-${pad(mon)}-01`
   }
 
-  // If it's an incomplete date (e.g., "2030-06" or "2030-Q4"), return null
-  console.warn(`⚠️ Invalid date format detected: "${dateStr}", skipping it`)
+  // Quarter: "Q4 2029", "2029 Q4", "2029-Q4" → first month of the quarter
+  m = s.match(/^Q([1-4])[\s-]*(\d{4})$/i) || s.match(/^(\d{4})[\s-]*Q([1-4])$/i)
+  if (m) {
+    const isLeading = /^Q/i.test(s)
+    const q = Number(isLeading ? m[1] : m[2])
+    const year = isLeading ? m[2] : m[1]
+    return `${year}-${pad((q - 1) * 3 + 1)}-01`
+  }
+
+  // Month name + year: "DECEMBER 2029", "Dec 2029" → first of month
+  m = s.match(/^([A-Za-z]+)[\s,]+(\d{4})$/) || s.match(/^(\d{4})[\s,]+([A-Za-z]+)$/)
+  if (m) {
+    const word = (/^\d/.test(m[1]) ? m[2] : m[1]).toLowerCase()
+    const year = /^\d/.test(m[1]) ? m[1] : m[2]
+    const mon = MONTH_NAMES[word]
+    if (mon) return `${year}-${pad(mon)}-01`
+  }
+
+  // Bare year → Jan 1
+  if (/^\d{4}$/.test(s)) return `${s}-01-01`
+
+  console.warn(`⚠️ Unparseable date format: "${dateStr}", storing null`)
   return null
 }
 
@@ -604,9 +645,9 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.description || '',
         data.latitude || null,
         data.longitude || null,
-        data.launchDate || null,
-        data.completionDate || null,
-        data.handoverDate || null,
+        cleanDateFormat(data.launchDate),
+        cleanDateFormat(data.completionDate),
+        cleanDateFormat(data.handoverDate),
         data.constructionProgress || null,
         finalProjectImages,
         finalFloorPlanImages,
@@ -917,9 +958,9 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         data.description || '',
         data.latitude || null,
         data.longitude || null,
-        data.launchDate || null,
-        data.completionDate || null,
-        data.handoverDate || null,
+        cleanDateFormat(data.launchDate),
+        cleanDateFormat(data.completionDate),
+        cleanDateFormat(data.handoverDate),
         data.constructionProgress || null,
         projectImages,
         floorPlanImages,
