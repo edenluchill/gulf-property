@@ -1,0 +1,134 @@
+/**
+ * perfSink — dependency-free, in-memory performance accumulator.
+ *
+ * WHY a standalone module: db/pool.ts feeds query timings here, and
+ * services/perfMonitor.ts (which imports pool) drains+evaluates here. Keeping
+ * the raw buffers in a module with ZERO imports breaks the pool↔monitor cycle
+ * and guarantees this can never throw into a request path.
+ *
+ * Model: one bucket per wall-clock SECOND, ring of 300 (last 5 min). Each
+ * request/query updates the current second's bucket. window(s) aggregates the
+ * last s seconds. Per-bucket latency samples are capped so memory stays bounded
+ * even under a 10k-user spike (≤ LAT_CAP numbers/sec × 300s).
+ */
+
+const RING = 300 // seconds of history kept
+const LAT_CAP = 1000 // max latency samples stored per second (reservoir cap)
+
+export const SLOW_REQ_MS = Number(process.env.PERF_SLOW_REQ_MS) || 1000
+export const SLOW_QUERY_MS = Number(process.env.PERF_SLOW_QUERY_MS) || 500
+
+interface Bucket {
+  sec: number // epoch second this bucket represents
+  req: number
+  err4: number
+  err5: number
+  slowReq: number
+  query: number
+  slowQuery: number
+  peakConc: number
+  lat: number[] // request latencies (ms), capped at LAT_CAP
+}
+
+function emptyBucket(sec: number): Bucket {
+  return { sec, req: 0, err4: 0, err5: 0, slowReq: 0, query: 0, slowQuery: 0, peakConc: 0, lat: [] }
+}
+
+const buckets: Bucket[] = Array.from({ length: RING }, () => emptyBucket(0))
+let activeConcurrency = 0
+
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000)
+}
+
+/** Get (and lazily reset) the bucket for a given epoch second. */
+function bucketFor(sec: number): Bucket {
+  const idx = sec % RING
+  const b = buckets[idx]
+  if (b.sec !== sec) {
+    // Reused slot from 300s ago — reset it for the new second.
+    b.sec = sec
+    b.req = 0; b.err4 = 0; b.err5 = 0; b.slowReq = 0
+    b.query = 0; b.slowQuery = 0; b.peakConc = 0
+    b.lat.length = 0
+  }
+  return b
+}
+
+export function recordRequest(status: number, ms: number): void {
+  const b = bucketFor(nowSec())
+  b.req++
+  if (status >= 500) b.err5++
+  else if (status >= 400) b.err4++
+  if (ms >= SLOW_REQ_MS) b.slowReq++
+  if (b.lat.length < LAT_CAP) b.lat.push(ms)
+}
+
+export function recordQuery(ms: number): void {
+  const b = bucketFor(nowSec())
+  b.query++
+  if (ms >= SLOW_QUERY_MS) b.slowQuery++
+}
+
+export function incConcurrency(): void {
+  activeConcurrency++
+  const b = bucketFor(nowSec())
+  if (activeConcurrency > b.peakConc) b.peakConc = activeConcurrency
+}
+
+export function decConcurrency(): void {
+  if (activeConcurrency > 0) activeConcurrency--
+}
+
+export interface Window {
+  windowSec: number
+  req: number
+  err4: number
+  err5: number
+  slowReq: number
+  query: number
+  slowQuery: number
+  rps: number
+  errPct: number // 5xx as % of all requests
+  p50: number
+  p95: number
+  p99: number
+  max: number
+  peakConcurrency: number
+  activeConcurrency: number
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0
+  const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))
+  return Math.round(sorted[idx])
+}
+
+/** Aggregate the last `seconds` of history (clamped to RING). */
+export function window(seconds: number): Window {
+  const s = Math.min(RING, Math.max(1, Math.floor(seconds)))
+  const cutoff = nowSec() - s + 1
+  let req = 0, err4 = 0, err5 = 0, slowReq = 0, query = 0, slowQuery = 0, peakConc = 0
+  const lat: number[] = []
+  for (const b of buckets) {
+    if (b.sec >= cutoff) {
+      req += b.req; err4 += b.err4; err5 += b.err5; slowReq += b.slowReq
+      query += b.query; slowQuery += b.slowQuery
+      if (b.peakConc > peakConc) peakConc = b.peakConc
+      for (const v of b.lat) lat.push(v)
+    }
+  }
+  lat.sort((a, b) => a - b)
+  return {
+    windowSec: s,
+    req, err4, err5, slowReq, query, slowQuery,
+    rps: Math.round((req / s) * 100) / 100,
+    errPct: req > 0 ? Math.round((err5 / req) * 1000) / 10 : 0,
+    p50: percentile(lat, 50),
+    p95: percentile(lat, 95),
+    p99: percentile(lat, 99),
+    max: lat.length ? Math.round(lat[lat.length - 1]) : 0,
+    peakConcurrency: peakConc,
+    activeConcurrency,
+  }
+}

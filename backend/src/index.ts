@@ -43,6 +43,8 @@ import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashb
 import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stripe 订阅计费 (isolated; docs/stripe-billing-spec.md)
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
+import { perfMetrics } from './middleware/perfMetrics'  // per-request latency/status sampler
+import { startPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 
 const app: Application = express()
 const PORT = process.env.PORT || 3000
@@ -73,6 +75,10 @@ app.use(cors({
   credentials: true
 }))
 app.use(morgan('dev'))
+
+// Per-request performance sampling (latency/status/concurrency → in-memory sink).
+// Mounted before routes; never touches the response. See services/perfMonitor.ts.
+app.use(perfMetrics)
 
 // ⚠️ Stripe webhook MUST receive the raw body for signature verification, so it is
 // mounted BEFORE express.json (which would otherwise consume/parse the body).
@@ -171,6 +177,9 @@ const server = app.listen(PORT, async () => {
 
   // Recover any tasks that were interrupted by server restart
   await taskManager.recoverInterruptedTasks()
+
+  // Start perf monitor (60s rollups into perf_minute + threshold alerting).
+  startPerfFlusher()
 })
 
 // Extend timeouts for large file uploads (10 minutes)

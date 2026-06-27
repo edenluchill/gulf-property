@@ -10,6 +10,7 @@ import { optionalAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import * as q from '../services/analyticsQueries'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
+import * as perf from '../services/perfMonitor'
 
 const router = Router()
 
@@ -100,5 +101,24 @@ router.get('/collab/:code', wrap(async (req) => {
   const report = await getCollabReport(String(req.params.code))
   return { report }
 }))
+
+// ── 性能 / 负载监控 ───────────────────────────────────────
+// Full panel: live in-memory snapshot + minute rollups + alert history.
+router.get('/perf', wrap(async (req) => {
+  const minutes = Math.min(1440, Math.max(5, Number(req.query.minutes) || 180))
+  const [rollups, alerts] = await Promise.all([
+    perf.getPerfRollups(minutes),
+    perf.getRecentAlerts(50),
+  ])
+  return { live: perf.getPerfSnapshot(), rollups, alerts }
+}))
+
+// Lightweight — drives the dashboard red banner (polled frequently).
+router.get('/perf/alerts/active', wrap(async () => ({ alerts: await perf.getActiveAlerts() })))
+
+// Manually resolve an alert.
+router.post('/perf/alerts/:id/ack', wrap(async (req) => ({
+  ok: await perf.ackAlert(Number(req.params.id)),
+})))
 
 export default router

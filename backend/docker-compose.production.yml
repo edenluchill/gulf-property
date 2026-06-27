@@ -68,6 +68,17 @@ services:
       - R2_PUBLIC_URL=${R2_PUBLIC_URL}
       - API_RATE_LIMIT_WINDOW_MS=${API_RATE_LIMIT_WINDOW_MS:-900000}
       - API_RATE_LIMIT_MAX_REQUESTS=${API_RATE_LIMIT_MAX_REQUESTS:-100}
+      # Perf monitor alert email (Resend HTTP API). Without RESEND_API_KEY the
+      # monitor still works — alerts just show in the Admin red banner, no email.
+      # Optional PERF_* threshold overrides fall back to code defaults if unset.
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - ALERT_EMAIL=${ALERT_EMAIL}
+      - ALERT_FROM=${ALERT_FROM:-Pinzos Alerts <alerts@pinzos.com>}
+      - OWNER_EMAIL=${OWNER_EMAIL}
+      - PERF_P95_MS=${PERF_P95_MS:-2000}
+      - PERF_ERR_PCT=${PERF_ERR_PCT:-5}
+      - PERF_SLOWQ_3MIN=${PERF_SLOWQ_3MIN:-60}
+      - PERF_SLOW_QUERY_MS=${PERF_SLOW_QUERY_MS:-500}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       # Logs only - all images stored in Cloudflare R2

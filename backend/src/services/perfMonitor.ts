@@ -1,0 +1,256 @@
+/**
+ * perfMonitor — minute rollups + threshold alerting on top of perfSink.
+ *
+ * startPerfFlusher() runs a 60s timer that:
+ *   1. writes the last 60s aggregate into perf_minute (1 row/min),
+ *   2. evaluates alert rules over a 180s window,
+ *   3. opens/closes rows in perf_alerts (state machine: no active → breach opens
+ *      one + emails; recovery resolves it + emails). Firing only on transitions
+ *      gives natural debounce — no flapping spam.
+ *
+ * Read helpers (getPerfSnapshot/getActiveAlerts/...) back the Admin dashboard.
+ * Everything is wrapped so a DB hiccup can never crash the process.
+ */
+import pool from '../db/pool'
+import * as sink from './perfSink'
+import { sendAlertEmail } from './notify'
+
+// ── Tunable thresholds (env-overridable) ────────────────────────────────────
+const P95_MS = Number(process.env.PERF_P95_MS) || 2000
+const ERR_PCT = Number(process.env.PERF_ERR_PCT) || 5
+const SLOWQ_3MIN = Number(process.env.PERF_SLOWQ_3MIN) || 60
+const POOL_WAIT = Number(process.env.PERF_POOL_WAIT) || 1
+const MIN_SAMPLE = 30 // min requests in window before rate rules can fire
+const EVAL_WINDOW_S = 180
+
+const APP_URL = process.env.APP_URL || 'https://www.pinzos.com'
+
+interface RuleResult {
+  kind: string
+  breached: boolean
+  metric: number
+  threshold: number
+  message: string
+}
+
+export interface PoolStats {
+  total: number
+  idle: number
+  waiting: number
+  max: number
+}
+
+function poolStats(): PoolStats {
+  // pg Pool exposes these counters at runtime; typings omit them.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p = pool as any
+  return {
+    total: p.totalCount ?? 0,
+    idle: p.idleCount ?? 0,
+    waiting: p.waitingCount ?? 0,
+    max: p.options?.max ?? 0,
+  }
+}
+
+function evaluateRules(w: sink.Window, ps: PoolStats): RuleResult[] {
+  const rateReady = w.req >= MIN_SAMPLE
+  return [
+    {
+      kind: 'HIGH_LATENCY',
+      breached: w.req >= 5 && w.p95 > P95_MS,
+      metric: w.p95,
+      threshold: P95_MS,
+      message: `p95 延迟 ${w.p95}ms 超过阈值 ${P95_MS}ms（近 3 分钟，${w.req} 请求）`,
+    },
+    {
+      kind: 'HIGH_ERROR_RATE',
+      breached: rateReady && w.errPct > ERR_PCT,
+      metric: w.errPct,
+      threshold: ERR_PCT,
+      message: `5xx 错误率 ${w.errPct}% 超过阈值 ${ERR_PCT}%（近 3 分钟，${w.err5}/${w.req}）`,
+    },
+    {
+      kind: 'SLOW_QUERIES',
+      breached: w.slowQuery > SLOWQ_3MIN,
+      metric: w.slowQuery,
+      threshold: SLOWQ_3MIN,
+      message: `慢查询 ${w.slowQuery} 条超过阈值 ${SLOWQ_3MIN}（近 3 分钟，>${sink.SLOW_QUERY_MS}ms）`,
+    },
+    {
+      kind: 'DB_POOL_SATURATION',
+      breached: ps.waiting >= POOL_WAIT,
+      metric: ps.waiting,
+      threshold: POOL_WAIT,
+      message: `数据库连接池排队 ${ps.waiting}（池 ${ps.total}/${ps.max}）— 请求在等连接`,
+    },
+  ]
+}
+
+async function flushMinute(w: sink.Window, ps: PoolStats): Promise<void> {
+  // Stamp to the start of the current minute.
+  const minute = new Date(Math.floor(Date.now() / 60000) * 60000).toISOString()
+  await pool.query(
+    `INSERT INTO perf_minute
+       (minute, req, err4, err5, slow_req, query_count, slow_query,
+        p50, p95, p99, max_ms, peak_concurrency, pool_total, pool_waiting)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     ON CONFLICT (minute) DO UPDATE SET
+       req=EXCLUDED.req, err4=EXCLUDED.err4, err5=EXCLUDED.err5,
+       slow_req=EXCLUDED.slow_req, query_count=EXCLUDED.query_count,
+       slow_query=EXCLUDED.slow_query, p50=EXCLUDED.p50, p95=EXCLUDED.p95,
+       p99=EXCLUDED.p99, max_ms=EXCLUDED.max_ms,
+       peak_concurrency=EXCLUDED.peak_concurrency,
+       pool_total=EXCLUDED.pool_total, pool_waiting=EXCLUDED.pool_waiting`,
+    [minute, w.req, w.err4, w.err5, w.slowReq, w.query, w.slowQuery,
+     w.p50, w.p95, w.p99, w.max, w.peakConcurrency, ps.total, ps.waiting]
+  )
+}
+
+async function reconcileAlerts(rules: RuleResult[]): Promise<void> {
+  // Current active (unresolved) alerts keyed by kind.
+  const { rows } = await pool.query(
+    `SELECT id, kind FROM perf_alerts WHERE resolved_at IS NULL`
+  )
+  const active = new Map<string, number>()
+  for (const r of rows) active.set(r.kind, Number(r.id))
+
+  for (const rule of rules) {
+    const isActive = active.has(rule.kind)
+    if (rule.breached && !isActive) {
+      // New breach → open alert + email.
+      const ins = await pool.query(
+        `INSERT INTO perf_alerts (kind, severity, metric, threshold, window_s, message)
+         VALUES ($1,'warning',$2,$3,$4,$5) RETURNING id`,
+        [rule.kind, rule.metric, rule.threshold, EVAL_WINDOW_S, rule.message]
+      )
+      const ok = await sendAlertEmail(
+        `⚠️ Pinzos 性能告警: ${rule.kind}`,
+        `${rule.message}\n\n时间: ${new Date().toISOString()}\n查看: ${APP_URL}/dashboard\n\n— 性能监控自动发出`
+      )
+      if (ok) {
+        await pool.query(`UPDATE perf_alerts SET emailed = true WHERE id = $1`, [ins.rows[0].id])
+      }
+    } else if (!rule.breached && isActive) {
+      // Recovered → resolve + email.
+      await pool.query(`UPDATE perf_alerts SET resolved_at = now() WHERE id = $1`, [active.get(rule.kind)])
+      await sendAlertEmail(
+        `✅ Pinzos 性能恢复: ${rule.kind}`,
+        `已恢复正常: ${rule.message}\n\n时间: ${new Date().toISOString()}\n\n— 性能监控自动发出`
+      )
+    }
+  }
+}
+
+let timer: NodeJS.Timeout | null = null
+
+async function tick(): Promise<void> {
+  try {
+    const w = sink.window(EVAL_WINDOW_S)
+    const ps = poolStats()
+    await flushMinute(sink.window(60), ps)
+    await reconcileAlerts(evaluateRules(w, ps))
+  } catch (err) {
+    console.error('[perfMonitor] tick failed:', err)
+  }
+}
+
+/** Start the 60s rollup/alert loop. Idempotent. */
+export function startPerfFlusher(): void {
+  if (timer) return
+  timer = setInterval(tick, 60_000)
+  // Don't keep the event loop alive solely for this.
+  if (typeof timer.unref === 'function') timer.unref()
+  console.log('📈 Perf monitor started (60s rollups + threshold alerts)')
+}
+
+export function stopPerfFlusher(): void {
+  if (timer) { clearInterval(timer); timer = null }
+}
+
+// ── Read helpers for the Admin dashboard ────────────────────────────────────
+
+/** Live in-memory snapshot: 1-min + 3-min windows + current pool state. */
+export function getPerfSnapshot() {
+  return {
+    now: new Date().toISOString(),
+    last1m: sink.window(60),
+    last3m: sink.window(EVAL_WINDOW_S),
+    pool: poolStats(),
+    thresholds: { p95_ms: P95_MS, err_pct: ERR_PCT, slowq_3min: SLOWQ_3MIN, pool_wait: POOL_WAIT },
+  }
+}
+
+/** Recent minute rollups (newest first) for the trend charts. */
+export async function getPerfRollups(minutes = 180) {
+  const { rows } = await pool.query(
+    `SELECT minute, req, err4, err5, slow_req, query_count, slow_query,
+            p50, p95, p99, max_ms, peak_concurrency, pool_total, pool_waiting
+       FROM perf_minute
+      WHERE minute >= now() - ($1 || ' minutes')::interval
+      ORDER BY minute ASC`,
+    [String(Math.min(1440, Math.max(1, minutes)))]
+  )
+  return rows.map((r) => ({
+    minute: r.minute,
+    req: Number(r.req),
+    err4: Number(r.err4),
+    err5: Number(r.err5),
+    slow_req: Number(r.slow_req),
+    query_count: Number(r.query_count),
+    slow_query: Number(r.slow_query),
+    p50: Number(r.p50),
+    p95: Number(r.p95),
+    p99: Number(r.p99),
+    max_ms: Number(r.max_ms),
+    peak_concurrency: Number(r.peak_concurrency),
+    pool_total: Number(r.pool_total),
+    pool_waiting: Number(r.pool_waiting),
+  }))
+}
+
+/** Recent alerts (active + recently resolved), newest first. */
+export async function getRecentAlerts(limit = 50) {
+  const { rows } = await pool.query(
+    `SELECT id, created_at, resolved_at, kind, severity, metric, threshold, window_s, message, emailed
+       FROM perf_alerts
+      ORDER BY (resolved_at IS NULL) DESC, created_at DESC
+      LIMIT $1`,
+    [Math.min(200, Math.max(1, limit))]
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    created_at: r.created_at,
+    resolved_at: r.resolved_at,
+    kind: r.kind as string,
+    severity: r.severity as string,
+    metric: r.metric != null ? Number(r.metric) : null,
+    threshold: r.threshold != null ? Number(r.threshold) : null,
+    window_s: r.window_s != null ? Number(r.window_s) : null,
+    message: r.message as string,
+    emailed: !!r.emailed,
+    active: r.resolved_at == null,
+  }))
+}
+
+/** Just the currently-firing alerts — drives the red banner (kept light). */
+export async function getActiveAlerts() {
+  const { rows } = await pool.query(
+    `SELECT id, created_at, kind, message FROM perf_alerts
+      WHERE resolved_at IS NULL ORDER BY created_at DESC`
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    created_at: r.created_at,
+    kind: r.kind as string,
+    message: r.message as string,
+  }))
+}
+
+/** Manually resolve an alert from the dashboard. */
+export async function ackAlert(id: number): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE perf_alerts SET resolved_at = now() WHERE id = $1 AND resolved_at IS NULL`,
+    [id]
+  )
+  return (rowCount ?? 0) > 0
+}

@@ -211,3 +211,82 @@ export const fetchErrors = (days: number) => authedGet<ErrorsData>(`/errors?days
 export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`)
 export const fetchCollabReport = (code: string) =>
   authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)
+
+async function authedPost<T>(path: string): Promise<T> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${BASE}${path}`, { method: 'POST', headers })
+  if (res.status === 403 || res.status === 401) throw new ForbiddenError()
+  if (!res.ok) throw new Error(`${res.status}`)
+  const json = await res.json()
+  if (!json.success) throw new Error(json.error || 'request failed')
+  return json.data as T
+}
+
+// ── 性能 / 负载监控 ─────────────────────────────────────
+export interface PerfWindow {
+  windowSec: number
+  req: number
+  err4: number
+  err5: number
+  slowReq: number
+  query: number
+  slowQuery: number
+  rps: number
+  errPct: number
+  p50: number
+  p95: number
+  p99: number
+  max: number
+  peakConcurrency: number
+  activeConcurrency: number
+}
+export interface PerfPoolStats { total: number; idle: number; waiting: number; max: number }
+export interface PerfSnapshot {
+  now: string
+  last1m: PerfWindow
+  last3m: PerfWindow
+  pool: PerfPoolStats
+  thresholds: { p95_ms: number; err_pct: number; slowq_3min: number; pool_wait: number }
+}
+export interface PerfRollup {
+  minute: string
+  req: number
+  err4: number
+  err5: number
+  slow_req: number
+  query_count: number
+  slow_query: number
+  p50: number
+  p95: number
+  p99: number
+  max_ms: number
+  peak_concurrency: number
+  pool_total: number
+  pool_waiting: number
+}
+export interface PerfAlert {
+  id: number
+  created_at: string
+  resolved_at: string | null
+  kind: string
+  severity: string
+  metric: number | null
+  threshold: number | null
+  window_s: number | null
+  message: string
+  emailed: boolean
+  active: boolean
+}
+export interface PerfData {
+  live: PerfSnapshot
+  rollups: PerfRollup[]
+  alerts: PerfAlert[]
+}
+export interface ActiveAlert { id: number; created_at: string; kind: string; message: string }
+
+export const fetchPerf = (minutes = 180) => authedGet<PerfData>(`/perf?minutes=${minutes}`)
+export const fetchActiveAlerts = () => authedGet<{ alerts: ActiveAlert[] }>(`/perf/alerts/active`)
+export const ackAlert = (id: number) => authedPost<{ ok: boolean }>(`/perf/alerts/${id}/ack`)
