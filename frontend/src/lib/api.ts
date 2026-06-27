@@ -706,9 +706,12 @@ export interface TxRow {
   sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
   saleType: 'offplan' | 'ready';
 }
-function txQuery(p: Record<string, string | undefined>): string {
+function txQuery(p: Record<string, string | string[] | undefined>): string {
   const qs = new URLSearchParams();
-  Object.entries(p).forEach(([k, v]) => { if (v) qs.set(k, v); });
+  Object.entries(p).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach(x => { if (x) qs.append(k, x); });  // 多选(如 project)重复传参
+    else if (v) qs.set(k, v);
+  });
   return qs.toString();
 }
 export async function fetchTxFilters(): Promise<TxFilters> {
@@ -726,7 +729,7 @@ export async function fetchTxProjects(params: { area?: string; q?: string }): Pr
     return data.projects || [];
   } catch { return []; }
 }
-export async function fetchTxSummary(p: Record<string, string | undefined>): Promise<TxSummary | null> {
+export async function fetchTxSummary(p: Record<string, string | string[] | undefined>): Promise<TxSummary | null> {
   // 失败自动重试一次（部署重启/网络抖动的瞬时失败不该让用户看到"无数据"）
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -737,7 +740,7 @@ export async function fetchTxSummary(p: Record<string, string | undefined>): Pro
   }
   return null;
 }
-export async function fetchTxList(p: Record<string, string | undefined>): Promise<{ rows: TxRow[]; limit: number; offset: number }> {
+export async function fetchTxList(p: Record<string, string | string[] | undefined>): Promise<{ rows: TxRow[]; limit: number; offset: number }> {
   try {
     const r = await fetch(`${API_URL}/market/transactions/list?${txQuery(p)}`);
     if (!r.ok) return { rows: [], limit: 25, offset: 0 };

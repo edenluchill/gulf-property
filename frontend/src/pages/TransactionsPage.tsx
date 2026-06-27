@@ -60,8 +60,8 @@ export default function TransactionsPage() {
   const [mode, setMode] = useState<Mode>('sales')
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   const [area, setArea] = useState('')
-  // 项目筛选：可搜索 combobox，不依赖区域（选了区域则在区域内搜）
-  const [project, setProject] = useState('')
+  // 项目筛选：可搜索 + 多选(经纪要把同社区多个 phase 合在一起看销售)。
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [projectQuery, setProjectQuery] = useState('')
   const [projectOpen, setProjectOpen] = useState(false)
   const [projectSuggestions, setProjectSuggestions] = useState<{ name: string; count: number }[]>([])
@@ -80,32 +80,31 @@ export default function TransactionsPage() {
   const limit = 25
   const query = useMemo(() => ({
     area: area || undefined,
-    project: project || undefined,
+    project: selectedProjects.length ? selectedProjects : undefined,
     rooms: rooms || undefined,
     type: type === 'all' ? undefined : type,
     from: year ? `${year}-01-01` : undefined,
     to: year ? `${year}-12-31` : undefined
-  }), [area, project, rooms, type, year])
+  }), [area, selectedProjects, rooms, type, year])
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
 
   // 区域变化 → 重置项目筛选（项目可能不在新区域内）
   useEffect(() => {
-    setProject('')
+    setSelectedProjects([])
     setProjectQuery('')
   }, [area])
 
   // 项目搜索建议：按输入关键词（300ms 防抖）+ 当前区域拉取
   useEffect(() => {
     const q = projectQuery.trim()
-    if (project && q === project) return  // 已选定，不用再搜
     let stale = false
     const id = setTimeout(() => {
       fetchTxProjects({ area: area || undefined, q: q || undefined })
         .then(p => { if (!stale) setProjectSuggestions(p) })
     }, 300)
     return () => { stale = true; clearTimeout(id) }
-  }, [area, projectQuery, project])
+  }, [area, projectQuery])
 
   useEffect(() => {
     setLoading(true)
@@ -127,8 +126,10 @@ export default function TransactionsPage() {
 
   // 移动端筛选摘要(让折叠态也能看出当前筛选)
   const filterParts = [
+    selectedProjects.length === 1 ? selectedProjects[0]
+      : selectedProjects.length > 1 ? t('filter.projectsSelected', { count: selectedProjects.length, defaultValue: `${selectedProjects.length} 个项目` })
+      : null,
     area || null,
-    project || null,
     rooms || null,
     year ? t('filter.yearLabel', { year }) : null,
     type !== 'all' ? t(`saleType.${type}`) : null,
@@ -171,6 +172,73 @@ export default function TransactionsPage() {
       </button>
 
       <div className={`${filtersOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row md:flex-wrap items-stretch md:items-end gap-3 border-t border-slate-100 px-4 pb-4 pt-3 md:border-t-0 md:p-4`}>
+        {/* 项目放最前：搜索页更看重项目(可多选,把同社区多个 phase 合起来看销售) */}
+        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
+          {t('filter.project')}
+          <div className="relative">
+            <input
+              type="text"
+              value={projectQuery}
+              onChange={e => { setProjectQuery(e.target.value); setProjectOpen(true) }}
+              onFocus={() => setProjectOpen(true)}
+              onBlur={() => setTimeout(() => setProjectOpen(false), 150)}
+              placeholder={t('filter.projectPlaceholder')}
+              className="w-full md:min-w-[260px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            />
+            {projectOpen && projectSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                {projectSuggestions.map(p => {
+                  const picked = selectedProjects.includes(p.name)
+                  return (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        setSelectedProjects(prev =>
+                          prev.includes(p.name) ? prev.filter(x => x !== p.name) : [...prev, p.name]
+                        )
+                        setProjectQuery('')  // 清空便于继续加下一个
+                      }}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 ${picked ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${picked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'}`}>
+                          {picked ? '✓' : ''}
+                        </span>
+                        <span className="truncate">{p.name}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-400">{p.count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          {/* 已选项目 chips(可移除) */}
+          {selectedProjects.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {selectedProjects.map(name => (
+                <span key={name} className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700 ring-1 ring-blue-200">
+                  <span className="truncate">{name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProjects(prev => prev.filter(x => x !== name))}
+                    className="shrink-0 text-blue-400 hover:text-blue-700"
+                    aria-label={t('filter.clearProject')}
+                  >×</button>
+                </span>
+              ))}
+              {selectedProjects.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedProjects([])}
+                  className="text-xs text-slate-400 underline hover:text-slate-600"
+                >{t('filter.clearAll', { defaultValue: '清空' })}</button>
+              )}
+            </div>
+          )}
+        </label>
         <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.area')}
           <select
@@ -183,55 +251,6 @@ export default function TransactionsPage() {
               <option key={a.name} value={a.name}>{t('filter.areaOption', { name: a.name, count: a.count })}</option>
             ))}
           </select>
-        </label>
-        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.project')}
-          <div className="relative">
-            <input
-              type="text"
-              value={projectQuery}
-              onChange={e => {
-                setProjectQuery(e.target.value)
-                setProjectOpen(true)
-                // 清空输入 = 取消项目筛选
-                if (e.target.value.trim() === '') setProject('')
-              }}
-              onFocus={() => setProjectOpen(true)}
-              onBlur={() => setTimeout(() => setProjectOpen(false), 150)}
-              placeholder={t('filter.projectPlaceholder')}
-              className="w-full md:min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 pr-7 text-sm text-slate-800"
-            />
-            {projectQuery && (
-              <button
-                type="button"
-                onMouseDown={e => { e.preventDefault(); setProject(''); setProjectQuery(''); setProjectOpen(false) }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label={t('filter.clearProject')}
-              >
-                ×
-              </button>
-            )}
-            {projectOpen && projectSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                {projectSuggestions.map(p => (
-                  <button
-                    key={p.name}
-                    type="button"
-                    onMouseDown={e => {
-                      e.preventDefault()
-                      setProject(p.name)
-                      setProjectQuery(p.name)
-                      setProjectOpen(false)
-                    }}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 ${p.name === project ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
-                  >
-                    <span className="truncate">{p.name}</span>
-                    <span className="ml-2 shrink-0 text-xs text-slate-400">{p.count}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </label>
         <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
           {t('filter.rooms')}
@@ -322,7 +341,34 @@ export default function TransactionsPage() {
           </div>
 
           {/* 明细 */}
-          <div className="mt-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="mt-6 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+            {/* 移动端：卡片(价格优先,所有信息一屏看全,无需横向滚动) */}
+            <div className="divide-y divide-slate-100 md:hidden">
+              {rows.map((r, i) => (
+                <div key={i} className="p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="flex items-center gap-1 text-base font-bold text-slate-900">
+                      <DirhamSymbol size="0.8em" className="text-slate-400" />
+                      {fmt(r.price)}
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${r.saleType === 'offplan' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {r.saleType === 'offplan' ? t('saleType.offplan') : t('saleType.readyShort')}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 truncate text-sm text-slate-700" title={r.building}>{r.building}</div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                    {r.area && <span>{r.area}</span>}
+                    {r.rooms && <span>{r.rooms}</span>}
+                    {r.sizeSqm != null && <span>{fmt(r.sizeSqm)} m²</span>}
+                    {r.pricePerSqm != null && <span className="inline-flex items-center gap-0.5"><DirhamSymbol size="0.75em" className="text-slate-400" />{fmt(r.pricePerSqm)}/m²</span>}
+                    <span className="text-slate-400">{r.date}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 桌面端：完整表格 */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
@@ -355,6 +401,7 @@ export default function TransactionsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
               <span>{t('pagination.page', { page: page + 1 })}</span>
               <div className="flex gap-2">

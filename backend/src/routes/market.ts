@@ -234,9 +234,17 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     params.push(String(q.areaId).trim())
     parts.push(`dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = $${params.length})`)
   }
+  // project 支持多选：经纪常把同一社区的多个 phase/楼盘合在一起看销售
+  // (如 Sobha Hartland Greens 的 2 个 project)。前端可重复传 project 参数 →
+  // Express 给出 string[]; 单选时是 string。统一成数组用 = ANY 匹配。
   if (q.project) {
-    params.push(String(q.project).trim().toUpperCase())
-    parts.push(`UPPER(dt.project_name) = $${params.length}`)
+    const projectList = (Array.isArray(q.project) ? q.project : [q.project])
+      .map((p: any) => String(p).trim().toUpperCase())
+      .filter(Boolean)
+    if (projectList.length > 0) {
+      params.push(projectList)
+      parts.push(`UPPER(dt.project_name) = ANY($${params.length}::text[])`)
+    }
   }
   if (q.rooms && ROOM_OPTIONS.includes(q.rooms)) {
     params.push(q.rooms)
