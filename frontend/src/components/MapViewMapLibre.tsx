@@ -1439,7 +1439,8 @@ function MapViewMapLibre({
       {/* 移动端:底图/3D/测距 直接平铺成独立 pill(工具还少,放出来更直观;后面加工具继续往下堆)。
           right-3 与上方指标+POI 面板右对齐;top-[84px] 给它一个 gap-2(~8px)的间距,
           和左侧筛选/找房助手的纵向间距一致。样式对齐左侧 pill(rounded-full)。 */}
-      <div data-testid="map-mobile-tools" className="md:hidden absolute top-[84px] right-3 z-[1000] flex flex-col items-end gap-2">
+      {/* top 下移到 116px:上方指标控制卡选中指标后底部会多一行标签(~100px),84px 会被压住重叠 */}
+      <div data-testid="map-mobile-tools" className="md:hidden absolute top-[116px] right-3 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}

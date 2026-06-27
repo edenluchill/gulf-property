@@ -14,6 +14,17 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_upper_area_name
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rent_upper_area_name
   ON dld_rent_contracts (UPPER(area_name));
 
+-- Rent table is ~3.6M rows (5.6× the sales table), so a seq-scan on a non-area
+-- filter costs 8-11s. Sales (~640k) is small enough to seq-scan fine, so it needs
+-- no equivalent. Added 2026-06-27 after rent project/price filters shipped:
+--   3. UPPER(project_name) → project drill-down uses an index (was full scan).
+--   4. partial index on annual_amount → price-range filter uses a bitmap scan.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rent_upper_project
+  ON dld_rent_contracts (UPPER(project_name));
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rent_annual_amount
+  ON dld_rent_contracts (annual_amount)
+  WHERE usage_type = 'Residential' AND annual_amount > 0 AND property_area > 0;
+
 CREATE TABLE IF NOT EXISTS market_cache (
   market     TEXT,                       -- 'tx' | 'rent'
   key        TEXT,                       -- 'summary' | 'filters' | 'projects:ALL'
