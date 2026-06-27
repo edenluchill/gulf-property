@@ -15,6 +15,7 @@ import {
   ListObjectsV2Command,
   HeadObjectCommand
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { readFileSync } from 'fs';
 import { basename } from 'path';
 
@@ -322,6 +323,31 @@ export async function uploadPdfForProcessing(
   console.log(`📤 Uploaded PDF to R2: ${key} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`);
 
   return key;
+}
+
+/**
+ * Build a short-lived presigned GET URL for a private R2 object (e.g. the raw
+ * uploaded brochures under pending-pdfs/, which are NOT on the public bucket).
+ * Forces a download with the original filename so admins can compare against the
+ * AI extraction.
+ *
+ * @param key - R2 object key (e.g. pending-pdfs/job123/brochure.pdf)
+ * @param filename - filename to suggest to the browser (Content-Disposition)
+ * @param expiresIn - link lifetime in seconds (default 1h)
+ */
+export async function presignDownloadUrl(
+  key: string,
+  filename?: string,
+  expiresIn = 3600
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    ResponseContentDisposition: filename
+      ? `attachment; filename="${filename.replace(/"/g, '')}"`
+      : undefined,
+  });
+  return getSignedUrl(r2Client, command, { expiresIn });
 }
 
 /**

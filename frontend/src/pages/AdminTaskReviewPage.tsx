@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Building2, Loader2, ArrowLeft, Trash2, AlertTriangle } from 'lucide-react'
+import { Building2, Loader2, ArrowLeft, Trash2, AlertTriangle, FileText, Download } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { API_BASE_URL, API_ENDPOINTS } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
@@ -44,6 +44,8 @@ export default function AdminTaskReviewPage() {
   const [submitted, setSubmitted] = useState(false)
   const [serverMessage, setServerMessage] = useState<string | undefined>(undefined)
   const [formData, setFormData] = useState<PropertyFormData>(initialFormData)
+  // 源 PDF 下载链接（用于对比 AI 提取结果 vs 原件）。提交成功后会被清理。
+  const [pdfLinks, setPdfLinks] = useState<{ name: string; url: string }[]>([])
 
   // Fetch task data
   useEffect(() => {
@@ -107,6 +109,19 @@ export default function AdminTaskReviewPage() {
     fetchTask()
   }, [jobId])
 
+  // 拉取源 PDF 的临时下载链接（presigned）。处理后 PDF 保留到提交/删除任务为止。
+  useEffect(() => {
+    if (!jobId) return
+    let stale = false
+    fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}/pdf-links`, {
+      headers: { 'x-user-id': 'admin', 'x-admin': 'true' },
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!stale && d?.links) setPdfLinks(d.links) })
+      .catch(() => { /* 无 PDF 链接不影响审核 */ })
+    return () => { stale = true }
+  }, [jobId])
+
   // Delete task
   const handleDelete = async () => {
     if (!confirm(t('review.deleteConfirm'))) return
@@ -162,6 +177,12 @@ export default function AdminTaskReviewPage() {
       localStorage.removeItem('gulf_residential_areas_timestamp')
       localStorage.removeItem('gulf_residential_projects')
       localStorage.removeItem('gulf_residential_projects_timestamp')
+
+      // 提交成功 → 释放该任务的源 PDF（"保留到提交为止"）。非致命。
+      fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}/pdfs`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': 'admin', 'x-admin': 'true' },
+      }).catch(() => { /* ignore */ })
 
       setSubmitted(true)
       setTimeout(() => navigate('/admin/tasks'), 2000)
@@ -232,6 +253,32 @@ export default function AdminTaskReviewPage() {
       {error && (
         <div className="container mx-auto px-4 sm:px-6 pt-4 max-w-7xl w-full">
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>
+        </div>
+      )}
+
+      {/* 源 PDF —— 点击下载原件,对比 AI 提取是否正确 */}
+      {!submitted && pdfLinks.length > 0 && (
+        <div className="container mx-auto px-4 sm:px-6 pt-4 max-w-7xl w-full">
+          <div className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-2.5 text-sm font-semibold text-gray-700">
+              <FileText className="h-4 w-4 text-teal-600" />
+              {t('review.sourcePdfs', '源 PDF（点击下载对比）')}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {pdfLinks.map((pdf, i) => (
+                <a
+                  key={i}
+                  href={pdf.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition-colors hover:border-teal-300 hover:bg-teal-50"
+                >
+                  <Download className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-teal-600" />
+                  <span className="truncate max-w-[70vw] sm:max-w-xs">{pdf.name}</span>
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

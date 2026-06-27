@@ -12,6 +12,8 @@
 import { Router, Request, Response } from 'express';
 import { taskManager, TaskStatus } from '../services/task-manager';
 import pool from '../db/pool';
+import { deletePdfsForJob } from '../services/r2-cleanup';
+import { presignDownloadUrl } from '../services/r2-storage';
 
 const router = Router();
 
@@ -299,6 +301,13 @@ router.delete('/:jobId', async (req: Request, res: Response) => {
       });
     }
 
+    // Free the raw uploaded PDFs (kept around for review) now the task is gone.
+    try {
+      await deletePdfsForJob(jobId);
+    } catch (e) {
+      console.warn(`Failed to delete PDFs for ${jobId} (non-fatal):`, e);
+    }
+
     res.json({
       success: true,
       message: 'Task deleted',
@@ -309,6 +318,52 @@ router.delete('/:jobId', async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to delete task',
     });
+  }
+});
+
+/**
+ * GET /api/admin/tasks/:jobId/pdf-links
+ * Presigned download links for the raw uploaded PDFs (review comparison).
+ */
+router.get('/:jobId/pdf-links', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const task = await taskManager.getTask(jobId);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    const keys: string[] = (task as any).pdf_urls || [];
+    const names: string[] = (task as any).pdf_names || [];
+    const links = await Promise.all(
+      keys.map(async (key, i) => ({
+        name: names[i] || key.split('/').pop() || `PDF ${i + 1}`,
+        url: await presignDownloadUrl(key, names[i]),
+      }))
+    );
+    res.json({ success: true, links });
+  } catch (error) {
+    console.error('Error building PDF links:', error);
+    res.status(500).json({ success: false, error: 'Failed to build PDF links' });
+  }
+});
+
+/**
+ * DELETE /api/admin/tasks/:jobId/pdfs
+ * Free the raw uploaded PDFs without deleting the task (called after a task is
+ * submitted as a project — honours "keep until submit/delete").
+ */
+router.delete('/:jobId/pdfs', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const count = await deletePdfsForJob(jobId);
+    await pool.query(
+      `UPDATE pdf_processing_tasks SET pdf_urls = '{}' WHERE job_id = $1`,
+      [jobId]
+    );
+    res.json({ success: true, deleted: count });
+  } catch (error) {
+    console.error('Error deleting task PDFs:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete PDFs' });
   }
 });
 

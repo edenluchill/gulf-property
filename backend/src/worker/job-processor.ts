@@ -167,13 +167,11 @@ export async function processJob(job: PendingJob): Promise<void> {
       });
       console.log(`   [100%] Processing complete!`);
 
-      // Raw upload no longer needed once processing succeeded — free R2 space.
-      try {
-        const { deletePdfsForJob } = require('../services/r2-cleanup');
-        await deletePdfsForJob(jobId);
-      } catch (cleanupErr) {
-        console.warn(`   Warning: failed to delete processed PDFs for ${jobId}:`, cleanupErr);
-      }
+      // NOTE: We intentionally keep the raw PDFs in R2 after success now, so the
+      // admin can download them on the review page to compare against the AI
+      // extraction. They're cleaned up when the task is submitted/deleted (see
+      // admin-tasks DELETE /:jobId and DELETE /:jobId/pdfs), with the manual
+      // scripts/cleanup-pending-pdfs.ts as a backstop for abandoned tasks.
 
       console.log(`\n✅ Job ${jobId} completed successfully`);
       console.log(`   Processing time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
