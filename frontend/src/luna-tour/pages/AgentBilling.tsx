@@ -140,7 +140,10 @@ export default function AgentBilling() {
                 <div className="flex items-baseline justify-between">
                   <div className="font-bold text-slate-900">{p.name}</div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</div>
+                    <div className="flex items-baseline justify-end gap-1.5">
+                      {cycle === 'year' && <span className="text-xs text-slate-400 line-through">${p.monthly * 12}</span>}
+                      <span className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</span>
+                    </div>
                     <div className="text-[10px] text-slate-400">{perMonthLabel(p.monthly)}</div>
                   </div>
                 </div>

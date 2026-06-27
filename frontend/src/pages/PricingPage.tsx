@@ -43,8 +43,10 @@ export default function PricingPage() {
   // 大字下方一行:有效月单价(+ 年付省钱提示)
   const billedLine = (monthly: number) =>
     cycle === 'year'
-      ? L(`≈ $${perMonthEff(monthly)}/月 · 送 2 个月 · 随时取消`, `≈ $${perMonthEff(monthly)}/mo · 2 months free · cancel anytime`)
+      ? L(`≈ $${perMonthEff(monthly)}/月 · 省 $${monthly * 2}(送 2 个月)· 随时取消`, `≈ $${perMonthEff(monthly)}/mo · save $${monthly * 2} (2 months free) · cancel anytime`)
       : L(`≈ $${monthly}/月 · 随时取消`, `≈ $${monthly}/mo · cancel anytime`)
+  // 年付时的原价(满 12 个月),划掉做对比
+  const wasOf = (monthly: number) => (cycle === 'year' ? `$${monthly * 12}` : undefined)
 
   async function subscribe(planId: 'agent' | 'founder') {
     setErr(null)
@@ -71,7 +73,7 @@ export default function PricingPage() {
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: ACCENT, highlight: true,
       badge: L('15 天免费试用', '15-day free trial'),
       note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
-      billed: billedLine(priceOf('agent', 99)),
+      billed: billedLine(priceOf('agent', 99)), priceWas: wasOf(priceOf('agent', 99)),
       features: [
         L('实时海外带看 20 场/月 + 应用内语音', '20 live overseas tours/mo + in-app voice'),
         L('Luna 智能导览 20 个/月(可分享自助看房)', '20 Luna AI tours/mo (shareable)'),
@@ -86,7 +88,7 @@ export default function PricingPage() {
       id: 'founder', name: L('创始会员', 'Founder'), price: `$${totalOf(priceOf('founder', 699))}`,
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: GOLD, badge: L('10× 额度', '10× quota'),
       note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
-      billed: billedLine(priceOf('founder', 699)),
+      billed: billedLine(priceOf('founder', 699)), priceWas: wasOf(priceOf('founder', 699)),
       features: [
         L('Agent 全部功能 · 额度 ×10(带看200·导览200·报告300)', 'Everything in Agent · 10× quota'),
         L('White-label 品牌定制:你的 logo/配色', 'White-label branding (your logo/colors)'),
@@ -145,6 +147,7 @@ export default function PricingPage() {
               <div className="text-sm font-semibold" style={{ color: t.edge }}>{t.name}</div>
               <div className="mt-1 flex items-end gap-2">
                 <span className="text-3xl font-bold">{t.price}</span>
+                {t.priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{t.priceWas}</span>}
                 {t.per && <span className="pb-1 text-sm text-slate-500">{t.per}{L(' (USD)', ' (USD)')}</span>}
               </div>
               <p className="mt-1.5 text-sm text-slate-400">{t.note}</p>
