@@ -36,15 +36,14 @@ export default function PricingPage() {
     const p = plans.find((x) => x.id === id)
     return p ? Number(p.price_usd_month) : fallback
   }
-  // 年付送 2 个月:年付收 10 个月价(覆盖 12 个月使用)。季付 = 3 个月价。
+  // 当套餐卖:只显示一个总价。年付收 10 个月价(送 2 个月);季付 = 3 个月价。
   const chargeMonths = cycle === 'year' ? 10 : 3
   const totalOf = (monthly: number) => monthly * chargeMonths
-  const perMonthEff = (monthly: number) => (cycle === 'year' ? Math.round((monthly * 10) / 12) : monthly)
-  // 大字下方一行:有效月单价(+ 年付省钱提示)
+  // 大字下方一行:套餐说明(年付标省了多少,不显示每月单价)
   const billedLine = (monthly: number) =>
     cycle === 'year'
-      ? L(`≈ $${perMonthEff(monthly)}/月 · 省 $${monthly * 2}(送 2 个月)· 随时取消`, `≈ $${perMonthEff(monthly)}/mo · save $${monthly * 2} (2 months free) · cancel anytime`)
-      : L(`≈ $${monthly}/月 · 随时取消`, `≈ $${monthly}/mo · cancel anytime`)
+      ? L(`年度套餐 · 省 $${monthly * 2}(送 2 个月)· 随时取消`, `Yearly package · save $${monthly * 2} (2 months free) · cancel anytime`)
+      : L('季度套餐 · 一次付清 · 随时取消', 'Quarterly package · cancel anytime')
   // 年付时的原价(满 12 个月),划掉做对比
   const wasOf = (monthly: number) => (cycle === 'year' ? `$${monthly * 12}` : undefined)
 

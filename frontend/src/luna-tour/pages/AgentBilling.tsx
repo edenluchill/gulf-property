@@ -77,8 +77,8 @@ export default function AgentBilling() {
   ]
   const priceLabel = (monthly: number) =>
     cycle === 'year' ? `$${monthly * 10} / 年` : `$${monthly * 3} / 季`
-  const perMonthLabel = (monthly: number) =>
-    cycle === 'year' ? `≈ $${Math.round((monthly * 10) / 12)}/月 · 送2个月` : `≈ $${monthly}/月`
+  const noteLabel = (monthly: number) =>
+    cycle === 'year' ? `省 $${monthly * 2}(送 2 个月)` : '一次付清'
 
   return (
     <div className="space-y-6">
@@ -144,7 +144,7 @@ export default function AgentBilling() {
                       {cycle === 'year' && <span className="text-xs text-slate-400 line-through">${p.monthly * 12}</span>}
                       <span className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</span>
                     </div>
-                    <div className="text-[10px] text-slate-400">{perMonthLabel(p.monthly)}</div>
+                    <div className="text-[10px] text-slate-400">{noteLabel(p.monthly)}</div>
                   </div>
                 </div>
                 <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">
