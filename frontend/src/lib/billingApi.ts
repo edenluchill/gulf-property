@@ -35,6 +35,26 @@ async function authed(path: string, opts: RequestInit = {}): Promise<Response> {
   return fetch(`${BASE}${path}`, { ...opts, headers })
 }
 
+export interface Promo {
+  active: boolean
+  percentOff?: number       // 30
+  forever?: boolean         // 永久锁定创始价
+  seatsTotal?: number | null
+  seatsRemaining?: number | null
+  endsAt?: string | null    // ISO
+}
+
+/** 公开:创始发布优惠的实时状态(真实剩余席位 + 截止)。 */
+export async function fetchPromo(): Promise<Promo> {
+  try {
+    const res = await fetch(`${BASE}/promo`)
+    if (!res.ok) return { active: false }
+    return await res.json()
+  } catch {
+    return { active: false }
+  }
+}
+
 /** 公开:套餐目录(价格来自后端,与 Stripe 一致)。 */
 export async function fetchPlans(): Promise<BillingPlan[]> {
   try {

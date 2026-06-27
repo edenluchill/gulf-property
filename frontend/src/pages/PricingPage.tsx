@@ -9,9 +9,9 @@ import { Helmet } from 'react-helmet-async'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, Loader2 } from 'lucide-react'
+import { ArrowRight, Check, Loader2, Flame, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, startCheckout, type BillingPlan, type BillingInterval } from '../lib/billingApi'
+import { fetchPlans, fetchPromo, startCheckout, type BillingPlan, type BillingInterval, type Promo } from '../lib/billingApi'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -28,9 +28,18 @@ export default function PricingPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [cycle, setCycle] = useState<BillingInterval>('quarter') // 默认季付(更少扣费,经纪偏好)
+  const [promo, setPromo] = useState<Promo>({ active: false })
+  const [now, setNow] = useState(() => Date.now())
 
-  useEffect(() => { fetchPlans().then(setPlans) }, [])
+  useEffect(() => { fetchPlans().then(setPlans); fetchPromo().then(setPromo) }, [])
+  // 倒计时心跳(仅在有截止时间时跑)
+  useEffect(() => {
+    if (!promo.active || !promo.endsAt) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [promo.active, promo.endsAt])
 
+  const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   // 价格优先后端,回退本地默认(后端不可达时仍能展示)
   const priceOf = (id: string, fallback: number) => {
     const p = plans.find((x) => x.id === id)
@@ -39,13 +48,34 @@ export default function PricingPage() {
   // 当套餐卖:只显示一个总价。年付收 10 个月价(送 2 个月);季付 = 3 个月价。
   const chargeMonths = cycle === 'year' ? 10 : 3
   const totalOf = (monthly: number) => monthly * chargeMonths
-  // 大字下方一行:套餐说明(年付标省了多少,不显示每月单价)
-  const billedLine = (monthly: number) =>
-    cycle === 'year'
+  const fmt = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
+  // 大字 = 套餐总价(有优惠则扣 30%)
+  const bigPriceOf = (monthly: number) => fmt(totalOf(monthly) * (1 - pct))
+  // 划掉的锚点:年付锚满 12 个月($1188);季付锚原季价。无优惠时仅年付显示满价锚。
+  const struckOf = (monthly: number): string | undefined => {
+    if (pct > 0) return `$${cycle === 'year' ? monthly * 12 : monthly * 3}`
+    return cycle === 'year' ? `$${monthly * 12}` : undefined
+  }
+  // 大字下方一行
+  const billedLine = (monthly: number) => {
+    if (promo.active) {
+      return cycle === 'year'
+        ? L('永久锁定创始价 · 已含送 2 个月 · 随时取消', 'Founding price locked forever · 2 months free included · cancel anytime')
+        : L('永久锁定创始价 · 一次付清 · 随时取消', 'Founding price locked forever · cancel anytime')
+    }
+    return cycle === 'year'
       ? L(`年度套餐 · 省 $${monthly * 2}(送 2 个月)· 随时取消`, `Yearly package · save $${monthly * 2} (2 months free) · cancel anytime`)
       : L('季度套餐 · 一次付清 · 随时取消', 'Quarterly package · cancel anytime')
-  // 年付时的原价(满 12 个月),划掉做对比
-  const wasOf = (monthly: number) => (cycle === 'year' ? `$${monthly * 12}` : undefined)
+  }
+
+  // 倒计时 dd hh mm ss
+  const countdown = (() => {
+    if (!promo.endsAt) return null
+    const ms = new Date(promo.endsAt).getTime() - now
+    if (ms <= 0) return null
+    const s = Math.floor(ms / 1000)
+    return { d: Math.floor(s / 86400), h: Math.floor((s % 86400) / 3600), m: Math.floor((s % 3600) / 60), s: s % 60 }
+  })()
 
   async function subscribe(planId: 'agent' | 'founder') {
     setErr(null)
@@ -68,11 +98,11 @@ export default function PricingPage() {
       cta: { label: L('打开地图', 'Open the map'), onClick: () => navigate('/') },
     },
     {
-      id: 'agent', name: L('经纪版', 'Agent'), price: `$${totalOf(priceOf('agent', 99))}`,
+      id: 'agent', name: L('经纪版', 'Agent'), price: bigPriceOf(priceOf('agent', 99)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: ACCENT, highlight: true,
       badge: L('15 天免费试用', '15-day free trial'),
       note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
-      billed: billedLine(priceOf('agent', 99)), priceWas: wasOf(priceOf('agent', 99)),
+      billed: billedLine(priceOf('agent', 99)), priceWas: struckOf(priceOf('agent', 99)),
       features: [
         L('实时海外带看 20 场/月 + 应用内语音', '20 live overseas tours/mo + in-app voice'),
         L('Luna 智能导览 20 个/月(可分享自助看房)', '20 Luna AI tours/mo (shareable)'),
@@ -84,10 +114,10 @@ export default function PricingPage() {
       cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('agent') },
     },
     {
-      id: 'founder', name: L('创始会员', 'Founder'), price: `$${totalOf(priceOf('founder', 699))}`,
+      id: 'founder', name: L('创始会员', 'Founder'), price: bigPriceOf(priceOf('founder', 699)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: GOLD, badge: L('10× 额度', '10× quota'),
       note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
-      billed: billedLine(priceOf('founder', 699)), priceWas: wasOf(priceOf('founder', 699)),
+      billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       features: [
         L('Agent 全部功能 · 额度 ×10(带看200·导览200·报告300)', 'Everything in Agent · 10× quota'),
         L('White-label 品牌定制:你的 logo/配色', 'White-label branding (your logo/colors)'),
@@ -118,6 +148,50 @@ export default function PricingPage() {
             'One map for Dubai off-plan; agents use it to tour overseas clients live, generate tours and intent reports. Billed quarterly or yearly, cancel anytime.'
           )}</p>
         </div>
+
+        {/* ── 创始发布优惠横幅(限名额 + 限时,均为 Stripe 真实 enforce)── */}
+        {promo.active && (
+          <div className="mx-auto mt-8 max-w-3xl overflow-hidden rounded-2xl border"
+            style={{ borderColor: `${GOLD}66`, background: `linear-gradient(135deg, ${GOLD}1f, ${ACCENT}14)`, boxShadow: `0 0 50px -20px ${GOLD}` }}>
+            <div className="flex flex-col items-center gap-3 p-5 text-center md:flex-row md:justify-between md:text-left">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: `${GOLD}26`, color: GOLD }}>
+                  <Flame className="h-5 w-5" />
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-x-2 text-base font-bold">
+                    {L('创始发布优惠', 'Founding Launch')}
+                    <span className="rounded-md px-2 py-0.5 text-sm font-extrabold text-slate-900" style={{ background: GOLD }}>-{promo.percentOff}%</span>
+                    {promo.forever && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: GOLD }}>
+                        <Lock className="h-3 w-3" /> {L('永久锁定创始价', 'price locked forever')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-xs text-slate-300">
+                    {L('全场 7 折 · 早鸟订阅永久享此价 · 错过即恢复原价', 'Everything 30% off · early subscribers keep this price forever')}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {promo.seatsRemaining != null && (
+                  <div className="text-center">
+                    <div className="text-2xl font-extrabold leading-none" style={{ color: GOLD }}>{promo.seatsRemaining}</div>
+                    <div className="text-[10px] text-slate-400">{L(`/ ${promo.seatsTotal} 席仅剩`, `of ${promo.seatsTotal} left`)}</div>
+                  </div>
+                )}
+                {countdown && (
+                  <div className="text-center">
+                    <div className="font-mono text-lg font-bold tabular-nums text-white">
+                      {String(countdown.d).padStart(2, '0')}:{String(countdown.h).padStart(2, '0')}:{String(countdown.m).padStart(2, '0')}:{String(countdown.s).padStart(2, '0')}
+                    </div>
+                    <div className="text-[10px] text-slate-400">{L('天 时 分 秒 后结束', 'until offer ends')}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 季付 / 年付 切换(月单价不变,年付送 2 个月) */}
         <div className="mt-8 flex justify-center">
@@ -165,10 +239,13 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-500">{L(
-          '价格以美元(USD)计,按季或按年付(年付送 2 个月、约省 17%)。15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。',
-          'Prices in USD, billed quarterly or yearly (yearly = 2 months free, ~17% off). 15-day free trial, cancel before billing. Payments securely handled by Stripe.'
-        )}</p>
+        <p className="mt-6 text-center text-xs text-slate-500">
+          {promo.active
+            ? L(`创始发布优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
+                `Founding Launch: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
+            : L('价格以美元(USD)计,按季或按年付(年付送 2 个月)。', 'Prices in USD, billed quarterly or yearly (yearly = 2 months free).')}
+          {L(' 15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 15-day free trial, cancel before billing. Payments securely handled by Stripe.')}
+        </p>
 
         <div className="mt-10 text-center">
           <Link to="/about" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">

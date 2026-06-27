@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Check, ExternalLink } from 'lucide-react'
-import { fetchBillingMe, startCheckout, openPortal, type BillingMe, type BillingInterval } from '../../lib/billingApi'
+import { fetchBillingMe, fetchPromo, startCheckout, openPortal, type BillingMe, type BillingInterval, type Promo } from '../../lib/billingApi'
 
 const STATUS_LABEL: Record<string, string> = {
   none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
@@ -36,9 +36,10 @@ export default function AgentBilling() {
   const [err, setErr] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
   const [cycle, setCycle] = useState<BillingInterval>('quarter') // 默认季付
+  const [promo, setPromo] = useState<Promo>({ active: false })
 
   const refresh = () => fetchBillingMe().then((m) => { setMe(m); setLoading(false) })
-  useEffect(() => { refresh() }, [])
+  useEffect(() => { refresh(); fetchPromo().then(setPromo) }, [])
 
   // Checkout 回跳提示(?status=success|cancel),读后清掉 query
   const banner = params.get('status')
@@ -75,10 +76,18 @@ export default function AgentBilling() {
     { id: 'founder', name: '创始会员 Founder', monthly: 699, edge: '#E8C37E',
       lines: ['实时带看 200 场/月', 'Luna 导览 200 个/月', '意向报告 300 份/月', '锁定创始价 · 优先支持'] },
   ]
+  const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
+  const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
+  const cycleTotal = (monthly: number) => (cycle === 'year' ? monthly * 10 : monthly * 3)
   const priceLabel = (monthly: number) =>
-    cycle === 'year' ? `$${monthly * 10} / 年` : `$${monthly * 3} / 季`
+    `${fmtUsd(cycleTotal(monthly) * (1 - pct))} / ${cycle === 'year' ? '年' : '季'}`
+  // 划掉锚点:年付锚满 12 个月,季付锚原季价(有优惠时才划)
+  const struckLabel = (monthly: number) =>
+    cycle === 'year' ? `$${monthly * 12}` : pct > 0 ? `$${monthly * 3}` : ''
   const noteLabel = (monthly: number) =>
-    cycle === 'year' ? `省 $${monthly * 2}(送 2 个月)` : '一次付清'
+    promo.active
+      ? `创始价 -${promo.percentOff}% · 永久锁定`
+      : cycle === 'year' ? `省 $${monthly * 2}(送 2 个月)` : '一次付清'
 
   return (
     <div className="space-y-6">
@@ -126,6 +135,13 @@ export default function AgentBilling() {
       {/* 升级选项(已是 founder 则不显示) */}
       {planId !== 'founder' && (
         <div>
+          {promo.active && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm">
+              <span className="font-bold text-amber-700">🔥 创始优惠 -{promo.percentOff}%</span>
+              <span className="text-amber-700">订阅即永久锁定此价</span>
+              {promo.seatsRemaining != null && <span className="text-amber-600">· 限 {promo.seatsTotal} 席,仅剩 {promo.seatsRemaining}</span>}
+            </div>
+          )}
           {/* 季付 / 年付 切换 */}
           <div className="mb-3 flex items-center gap-2">
             <span className="text-xs text-slate-400">计费周期:</span>
@@ -141,7 +157,7 @@ export default function AgentBilling() {
                   <div className="font-bold text-slate-900">{p.name}</div>
                   <div className="text-right">
                     <div className="flex items-baseline justify-end gap-1.5">
-                      {cycle === 'year' && <span className="text-xs text-slate-400 line-through">${p.monthly * 12}</span>}
+                      {struckLabel(p.monthly) && <span className="text-xs text-slate-400 line-through">{struckLabel(p.monthly)}</span>}
                       <span className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</span>
                     </div>
                     <div className="text-[10px] text-slate-400">{noteLabel(p.monthly)}</div>

@@ -70,6 +70,18 @@ async function planForPriceId(priceId: string): Promise<string | null> {
   return rows[0]?.id || null
 }
 
+/** 创始发布优惠 coupon(STRIPE_LAUNCH_COUPON);仅在仍有效(未过期/未抢光)时返回。 */
+async function activeLaunchCoupon(stripe: Stripe): Promise<Stripe.Coupon | null> {
+  const id = process.env.STRIPE_LAUNCH_COUPON
+  if (!id) return null
+  try {
+    const c = await stripe.coupons.retrieve(id)
+    return c.valid ? c : null
+  } catch {
+    return null
+  }
+}
+
 // ── 当前经纪身份(requireAuth 已挂 req.user)→ lt_agents.id + 审批状态 ──────
 async function currentAgent(
   req: Request
@@ -136,6 +148,30 @@ router.get('/plans', async (_req: Request, res: Response) => {
 })
 
 // ============================================================
+// GET /promo — 创始发布优惠的实时状态(真实剩余席位 + 截止时间)
+// ============================================================
+router.get('/promo', async (_req: Request, res: Response) => {
+  const stripe = getStripe()
+  if (!stripe) return res.json({ active: false })
+  try {
+    const c = await activeLaunchCoupon(stripe)
+    if (!c) return res.json({ active: false })
+    const remaining =
+      c.max_redemptions != null ? Math.max(0, c.max_redemptions - (c.times_redeemed || 0)) : null
+    res.json({
+      active: true,
+      percentOff: c.percent_off,                 // 30
+      forever: c.duration === 'forever',         // 永久锁定创始价
+      seatsTotal: c.max_redemptions ?? null,     // 50
+      seatsRemaining: remaining,                 // 真实剩余
+      endsAt: c.redeem_by ? new Date(c.redeem_by * 1000).toISOString() : null,
+    })
+  } catch {
+    res.json({ active: false })
+  }
+})
+
+// ============================================================
 // POST /checkout — 新订阅
 // ============================================================
 router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
@@ -162,6 +198,12 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
 
   try {
     const customerId = await ensureCustomer(stripe, agent)
+    // 创始发布优惠:有效时自动套用 coupon(永久锁定折扣);失效则改为可手填促销码。
+    // 注:Stripe 不允许 discounts 与 allow_promotion_codes 同时存在。
+    const coupon = await activeLaunchCoupon(stripe)
+    const promoFields = coupon
+      ? { discounts: [{ coupon: coupon.id }] }
+      : { allow_promotion_codes: true as const }
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
@@ -172,7 +214,7 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
         metadata: { lt_agent_id: agent.id, plan_id: planId, interval },
       },
       payment_method_collection: 'always', // 试用也收卡
-      allow_promotion_codes: true,
+      ...promoFields,
       client_reference_id: agent.id,
       success_url: `${APP_URL}/agent/billing?status=success`,
       cancel_url: `${APP_URL}/agent/billing?status=cancel`,

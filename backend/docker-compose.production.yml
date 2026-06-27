@@ -50,6 +50,7 @@ services:
       - STRIPE_PRICE_FOUNDER_Q=${STRIPE_PRICE_FOUNDER_Q}
       - STRIPE_PRICE_AGENT_Y=${STRIPE_PRICE_AGENT_Y}
       - STRIPE_PRICE_FOUNDER_Y=${STRIPE_PRICE_FOUNDER_Y}
+      - STRIPE_LAUNCH_COUPON=${STRIPE_LAUNCH_COUPON}
       - STRIPE_PORTAL_CONFIG=${STRIPE_PORTAL_CONFIG}
       - APP_URL=${APP_URL:-https://www.pinzos.com}
       # Agora in-app voice (token signing). Values live in /opt/pinzos/.env on the
