@@ -129,23 +129,23 @@ export default function AdminPropertyListPage() {
     <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 overflow-auto">
       {/* Header */}
       <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-b border-blue-200">
-        <div className="container mx-auto px-6 py-8">
+        <div className="container mx-auto px-4 py-5 sm:px-6 sm:py-8">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl">
-                  <Building2 className="h-8 w-8 text-white" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl shrink-0">
+                  <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{t('list.title')}</h1>
-                  <p className="text-sm text-gray-700 mt-1">
+                <div className="min-w-0">
+                  <h1 className="text-xl sm:text-3xl font-bold text-gray-900 truncate">{t('list.title')}</h1>
+                  <p className="text-xs sm:text-sm text-gray-700 mt-0.5 sm:mt-1">
                     {t('list.subtitle')}
                   </p>
                 </div>
               </div>
               <Button
                 onClick={() => navigate('/developer/upload')}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
               >
                 {t('list.newProject')}
               </Button>
@@ -154,10 +154,10 @@ export default function AdminPropertyListPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 py-5 sm:px-6 sm:py-8">
         <div className="max-w-7xl mx-auto">
           {/* Search Bar */}
-          <Card className="mb-6 shadow-lg">
+          <Card className="mb-4 sm:mb-6 shadow-lg">
             <CardContent className="pt-6">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -203,9 +203,9 @@ export default function AdminPropertyListPage() {
                     onClick={() => navigate(`/admin/property/edit/${project.id}`)}
                   >
                     <CardContent className="p-0">
-                      <div className="flex items-stretch gap-0">
-                        {/* Thumbnail */}
-                        <div className="w-80 flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden flex items-center justify-center p-4">
+                      <div className="flex flex-col md:flex-row md:items-stretch gap-0">
+                        {/* Thumbnail — 移动端铺满顶部固定高度, 桌面端左侧 w-80 */}
+                        <div className="w-full h-44 md:w-80 md:h-auto flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden flex items-center justify-center p-4">
                           {thumbnail ? (
                             <img
                               src={thumbnail}
@@ -245,27 +245,27 @@ export default function AdminPropertyListPage() {
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 p-6">
+                        <div className="flex-1 min-w-0 p-4 sm:p-6">
                           <div className="mb-4">
-                            <h3 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-                              {project.project_name}
-                              <Edit className="h-5 w-5 text-blue-600 opacity-70" />
+                            <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                              <span className="min-w-0 break-words">{project.project_name}</span>
+                              <Edit className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 opacity-70 shrink-0" />
                             </h3>
-                            <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                              <span className="flex items-center gap-1">
-                                <span className="font-semibold text-gray-700">{t('list.developerLabel')}</span>
-                                {project.developer}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 mb-3">
+                              <span className="flex items-center gap-1 min-w-0">
+                                <span className="font-semibold text-gray-700 shrink-0">{t('list.developerLabel')}</span>
+                                <span className="truncate">{project.developer}</span>
                               </span>
-                              <span className="text-gray-300">|</span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="h-4 w-4" />
-                                {project.area || t('list.notSet')}
+                              <span className="hidden sm:inline text-gray-300">|</span>
+                              <span className="flex items-center gap-1 min-w-0">
+                                <MapPin className="h-4 w-4 shrink-0" />
+                                <span className="truncate">{project.area || t('list.notSet')}</span>
                               </span>
                             </div>
                           </div>
 
                           {/* Info Grid */}
-                          <div className="grid grid-cols-3 gap-4 mb-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 mb-4">
                             <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                               <div className="text-xs text-gray-500 mb-1">{t('list.unitCount')}</div>
                               <div className="text-xl font-bold text-gray-900">
@@ -327,7 +327,7 @@ export default function AdminPropertyListPage() {
                           </div>
 
                           {/* Footer */}
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
                             <span className="text-xs text-gray-500">
                               {t('list.createdAt')}: {new Date(project.created_at).toLocaleString(dateLocale)}
                             </span>

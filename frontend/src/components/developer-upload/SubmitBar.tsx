@@ -44,7 +44,7 @@ export function SubmitBar({
   return (
     <div className="sticky bottom-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
       <div className="container mx-auto px-4 sm:px-6 py-3 max-w-7xl">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
           {/* Readiness chips */}
           <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
             {chips.map((chip, i) => (
@@ -57,17 +57,18 @@ export function SubmitBar({
             ))}
           </div>
 
-          {/* Reviewed checkbox + submit */}
-          <div className="flex items-center gap-4 shrink-0">
+          {/* Reviewed checkbox + submit — 移动端 checkbox 一行、提交按钮全宽另起一行,
+              保证小屏也能看到并点到提交。sm 以上恢复横排。 */}
+          <div className="flex flex-col gap-2.5 shrink-0 sm:flex-row sm:items-center sm:gap-4">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={hasReviewed}
                 onChange={(e) => onReviewedChange(e.target.checked)}
                 disabled={isProcessing}
-                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                className="w-4 h-4 shrink-0 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
               />
-              <span className="text-sm text-gray-700 font-medium whitespace-nowrap">
+              <span className="text-sm text-gray-700 font-medium">
                 {t('checklist.confirmReview')}
               </span>
             </label>
@@ -75,7 +76,7 @@ export function SubmitBar({
               type="button"
               onClick={onSubmit}
               disabled={!canSubmit || isProcessing || isSubmitting || !hasReviewed}
-              className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-md px-6"
+              className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-md px-6"
             >
               {isSubmitting ? (
                 <>

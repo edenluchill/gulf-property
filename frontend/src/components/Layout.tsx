@@ -17,6 +17,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const loc = useLocation()
   const path = loc.pathname
   const isCollabViewer = path.startsWith('/t/')
+  // Luna 是面向买家/客户的助手 —— admin 后台(任务审核/项目管理/分析)用不到,反而挡住
+  // 提交按钮等操作区,这里统一不渲染。
+  const isAdmin = path.startsWith('/admin')
 
   // Agent-branded shareable report (/r/:code) — a clean client-facing page with NO
   // app chrome (no header/nav/Luna), but it must scroll (unlike the full-screen map).
@@ -64,8 +67,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Favorites Drawer - Global, not inside Header */}
       {!chromeless && <FavoritesDrawer />}
 
-      {/* Voice Assistant - Global, works on all pages */}
-      {!chromeless && <VoiceAssistantButton />}
+      {/* Voice Assistant - Global, works on all pages (但 admin 后台不显示) */}
+      {!chromeless && !isAdmin && <VoiceAssistantButton />}
 
       {/* Footer - Hidden on mobile, visible on desktop */}
       {/* <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">
