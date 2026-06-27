@@ -139,62 +139,40 @@ export default function PricingPage() {
         <link rel="canonical" href="https://pinzos.com/pricing" />
       </Helmet>
 
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-24">
+      <section className="mx-auto max-w-6xl px-6 py-6 md:py-9">
         <div className="text-center">
-          <span className="font-mono text-xs font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
-          <h1 className="mt-3 text-4xl font-bold md:text-5xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-slate-400">{L(
-            '一张地图看懂迪拜期房;经纪用它带海外客户实时看房、生成导览与意向报告。按季或按年付,随时取消。',
-            'One map for Dubai off-plan; agents use it to tour overseas clients live, generate tours and intent reports. Billed quarterly or yearly, cancel anytime.'
+          <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
+          <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
+          <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{L(
+            '带海外客户实时看房、生成导览与意向报告。按季或按年付,随时取消。',
+            'Tour overseas clients live, generate tours and intent reports. Billed quarterly or yearly, cancel anytime.'
           )}</p>
         </div>
 
-        {/* ── 创始发布优惠横幅(限名额 + 限时,均为 Stripe 真实 enforce)── */}
+        {/* ── 创始发布优惠条(纤细单行;限名额+限时均为 Stripe 真实 enforce)── */}
         {promo.active && (
-          <div className="mx-auto mt-8 max-w-3xl overflow-hidden rounded-2xl border"
-            style={{ borderColor: `${GOLD}66`, background: `linear-gradient(135deg, ${GOLD}1f, ${ACCENT}14)`, boxShadow: `0 0 50px -20px ${GOLD}` }}>
-            <div className="flex flex-col items-center gap-3 p-5 text-center md:flex-row md:justify-between md:text-left">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: `${GOLD}26`, color: GOLD }}>
-                  <Flame className="h-5 w-5" />
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-x-2 text-base font-bold">
-                    {L('创始发布优惠', 'Founding Launch')}
-                    <span className="rounded-md px-2 py-0.5 text-sm font-extrabold text-slate-900" style={{ background: GOLD }}>-{promo.percentOff}%</span>
-                    {promo.forever && (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: GOLD }}>
-                        <Lock className="h-3 w-3" /> {L('永久锁定创始价', 'price locked forever')}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 text-xs text-slate-300">
-                    {L('全场 7 折 · 早鸟订阅永久享此价 · 错过即恢复原价', 'Everything 30% off · early subscribers keep this price forever')}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                {promo.seatsRemaining != null && (
-                  <div className="text-center">
-                    <div className="text-2xl font-extrabold leading-none" style={{ color: GOLD }}>{promo.seatsRemaining}</div>
-                    <div className="text-[10px] text-slate-400">{L(`/ ${promo.seatsTotal} 席仅剩`, `of ${promo.seatsTotal} left`)}</div>
-                  </div>
-                )}
-                {countdown && (
-                  <div className="text-center">
-                    <div className="font-mono text-lg font-bold tabular-nums text-white">
-                      {String(countdown.d).padStart(2, '0')}:{String(countdown.h).padStart(2, '0')}:{String(countdown.m).padStart(2, '0')}:{String(countdown.s).padStart(2, '0')}
-                    </div>
-                    <div className="text-[10px] text-slate-400">{L('天 时 分 秒 后结束', 'until offer ends')}</div>
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="mx-auto mt-5 flex max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border px-4 py-2 text-sm"
+            style={{ borderColor: `${GOLD}66`, background: `linear-gradient(90deg, ${GOLD}22, ${ACCENT}12)`, boxShadow: `0 0 40px -22px ${GOLD}` }}>
+            <span className="inline-flex items-center gap-1.5 font-bold" style={{ color: GOLD }}>
+              <Flame className="h-4 w-4" /> {L('创始发布优惠', 'Founding Launch')}
+            </span>
+            <span className="rounded-md px-1.5 py-0.5 text-xs font-extrabold text-slate-900" style={{ background: GOLD }}>-{promo.percentOff}%</span>
+            {promo.forever && (
+              <span className="inline-flex items-center gap-1 text-xs text-slate-200"><Lock className="h-3 w-3" /> {L('永久锁价', 'locked forever')}</span>
+            )}
+            {promo.seatsRemaining != null && (
+              <span className="text-xs text-slate-300">· {L('仅剩', 'only')} <b style={{ color: GOLD }}>{promo.seatsRemaining}</b>/{promo.seatsTotal} {L('席', 'left')}</span>
+            )}
+            {countdown && (
+              <span className="font-mono text-xs font-semibold tabular-nums text-white">
+                · ⏱ {String(countdown.d).padStart(2, '0')}:{String(countdown.h).padStart(2, '0')}:{String(countdown.m).padStart(2, '0')}:{String(countdown.s).padStart(2, '0')}
+              </span>
+            )}
           </div>
         )}
 
         {/* 季付 / 年付 切换(月单价不变,年付送 2 个月) */}
-        <div className="mt-8 flex justify-center">
+        <div className="mt-5 flex justify-center">
           <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-sm">
             <button onClick={() => setCycle('quarter')}
               className={`rounded-full px-4 py-1.5 font-medium transition ${cycle === 'quarter' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
@@ -210,11 +188,12 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {err && <div className="mx-auto mt-6 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
+        {err && <div className="mx-auto mt-4 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
 
-        <div className="mt-8 grid items-stretch gap-4 lg:grid-cols-3">
+        <div className="mt-5 grid items-stretch gap-3 lg:grid-cols-3">
           {tiers.map((t) => (
-            <div key={t.id} className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-6"
+            // 手机端把付费的「经纪版」排第一(受众是经纪),桌面端保持 探索/经纪/创始 原序
+            <div key={t.id} className={`relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 lg:order-none ${t.id === 'agent' ? 'order-1' : t.id === 'founder' ? 'order-2' : 'order-3'}`}
               style={{ borderColor: t.highlight ? ACCENT : t.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)', boxShadow: t.highlight ? `0 0 40px -16px ${ACCENT}` : undefined }}>
               {t.badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: t.edge }}>{t.badge}</span>}
               <div className="text-sm font-semibold" style={{ color: t.edge }}>{t.name}</div>
@@ -223,15 +202,15 @@ export default function PricingPage() {
                 {t.priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{t.priceWas}</span>}
                 {t.per && <span className="pb-1 text-sm text-slate-500">{t.per}{L(' (USD)', ' (USD)')}</span>}
               </div>
-              <p className="mt-1.5 text-sm text-slate-400">{t.note}</p>
-              {t.billed && <p className="mt-0.5 text-xs text-slate-500">{t.billed}</p>}
-              <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-300">
+              <p className="mt-1 text-[13px] text-slate-400">{t.note}</p>
+              {t.billed && <p className="mt-0.5 text-[11px] text-slate-500">{t.billed}</p>}
+              <ul className="mt-3 flex-1 space-y-1.5 text-[13px] leading-snug text-slate-300">
                 {t.features.map((f, i) => (
-                  <li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: t.edge }} /> {f}</li>
+                  <li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: t.edge }} /> {f}</li>
                 ))}
               </ul>
               <button onClick={t.cta.onClick} disabled={busy === t.id}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-60"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-60"
                 style={{ background: t.edge }}>
                 {busy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t.cta.label} <ArrowRight className="h-4 w-4" /></>}
               </button>
@@ -239,7 +218,7 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-500">
+        <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-500">
           {promo.active
             ? L(`创始发布优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
                 `Founding Launch: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
@@ -247,9 +226,9 @@ export default function PricingPage() {
           {L(' 15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 15-day free trial, cancel before billing. Payments securely handled by Stripe.')}
         </p>
 
-        <div className="mt-10 text-center">
-          <Link to="/about" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-            {L('查看完整功能介绍', 'See all features')} <ArrowRight className="h-4 w-4" />
+        <div className="mt-4 text-center">
+          <Link to="/about" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-400 transition hover:text-white">
+            {L('查看完整功能介绍', 'See all features')} <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       </section>
