@@ -34,21 +34,21 @@ function getStripe(): Stripe | null {
   return _stripe
 }
 
-export type BillingInterval = 'month' | 'quarter'
+export type BillingInterval = 'month' | 'quarter' | 'year'
 
 // ── 套餐+周期 ↔ Stripe price 映射(env 优先,月付回退 DB 的 stripe_price_id 列)──
-// 月付:STRIPE_PRICE_AGENT / STRIPE_PRICE_FOUNDER;季付(3月一付):*_Q。单价不变。
+// 月付:STRIPE_PRICE_{PLAN};季付(3月一付):*_Q;年付(送2个月):*_Y。月单价不变。
 function envPriceId(planId: string, interval: BillingInterval): string | undefined {
-  const q = interval === 'quarter'
-  if (planId === 'agent') return q ? process.env.STRIPE_PRICE_AGENT_Q : process.env.STRIPE_PRICE_AGENT
-  if (planId === 'founder') return q ? process.env.STRIPE_PRICE_FOUNDER_Q : process.env.STRIPE_PRICE_FOUNDER
+  const P = planId.toUpperCase()
+  const suffix = interval === 'year' ? '_Y' : interval === 'quarter' ? '_Q' : ''
+  if (planId === 'agent' || planId === 'founder') return process.env[`STRIPE_PRICE_${P}${suffix}`]
   return undefined
 }
 
 async function priceIdForPlan(planId: string, interval: BillingInterval): Promise<string | null> {
   const fromEnv = envPriceId(planId, interval)
   if (fromEnv) return fromEnv
-  if (interval === 'quarter') return null // 季付仅 env 配置,无 DB 回退
+  if (interval !== 'month') return null // 季付/年付仅 env 配置,无 DB 回退
   const { rows } = await pool.query<{ stripe_price_id: string | null }>(
     `SELECT stripe_price_id FROM lt_subscription_plans WHERE id = $1`,
     [planId]
@@ -56,10 +56,13 @@ async function priceIdForPlan(planId: string, interval: BillingInterval): Promis
   return rows[0]?.stripe_price_id || null
 }
 
-/** Stripe price id → 我们的 plan id(反查,webhook 用;月付/季付都认)。 */
+/** Stripe price id → 我们的 plan id(反查,webhook 用;月/季/年付都认)。 */
 async function planForPriceId(priceId: string): Promise<string | null> {
-  if (priceId && (priceId === process.env.STRIPE_PRICE_AGENT || priceId === process.env.STRIPE_PRICE_AGENT_Q)) return 'agent'
-  if (priceId && (priceId === process.env.STRIPE_PRICE_FOUNDER || priceId === process.env.STRIPE_PRICE_FOUNDER_Q)) return 'founder'
+  if (!priceId) return null
+  const agentIds = [process.env.STRIPE_PRICE_AGENT, process.env.STRIPE_PRICE_AGENT_Q, process.env.STRIPE_PRICE_AGENT_Y]
+  const founderIds = [process.env.STRIPE_PRICE_FOUNDER, process.env.STRIPE_PRICE_FOUNDER_Q, process.env.STRIPE_PRICE_FOUNDER_Y]
+  if (agentIds.includes(priceId)) return 'agent'
+  if (founderIds.includes(priceId)) return 'founder'
   const { rows } = await pool.query<{ id: string }>(
     `SELECT id FROM lt_subscription_plans WHERE stripe_price_id = $1 LIMIT 1`,
     [priceId]
@@ -143,7 +146,8 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
   if (!['agent', 'founder'].includes(planId)) {
     return res.status(400).json({ success: false, error: 'Invalid plan' })
   }
-  const interval: BillingInterval = req.body?.interval === 'quarter' ? 'quarter' : 'month'
+  const reqInterval = req.body?.interval
+  const interval: BillingInterval = reqInterval === 'year' ? 'year' : reqInterval === 'month' ? 'month' : 'quarter'
 
   const agent = await currentAgent(req)
   if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })

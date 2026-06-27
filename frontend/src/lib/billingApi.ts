@@ -58,7 +58,7 @@ export async function fetchBillingMe(): Promise<BillingMe | null> {
   }
 }
 
-export type BillingInterval = 'month' | 'quarter'
+export type BillingInterval = 'month' | 'quarter' | 'year'
 
 /** 开始订阅:跳转到 Stripe Checkout。interval=quarter 为季付(3月一付,单价不变)。
  *  返回错误信息(成功则直接跳转,不返回)。 */

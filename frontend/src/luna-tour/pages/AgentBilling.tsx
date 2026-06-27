@@ -76,7 +76,9 @@ export default function AgentBilling() {
       lines: ['实时带看 200 场/月', 'Luna 导览 200 个/月', '意向报告 300 份/月', '锁定创始价 · 优先支持'] },
   ]
   const priceLabel = (monthly: number) =>
-    cycle === 'quarter' ? `$${monthly * 3} / 3个月` : `$${monthly} / 月`
+    cycle === 'year' ? `$${monthly * 10} / 年` : `$${monthly * 3} / 季`
+  const perMonthLabel = (monthly: number) =>
+    cycle === 'year' ? `≈ $${Math.round((monthly * 10) / 12)}/月 · 送2个月` : `≈ $${monthly}/月`
 
   return (
     <div className="space-y-6">
@@ -124,12 +126,12 @@ export default function AgentBilling() {
       {/* 升级选项(已是 founder 则不显示) */}
       {planId !== 'founder' && (
         <div>
-          {/* 月付 / 季付 切换 */}
+          {/* 季付 / 年付 切换 */}
           <div className="mb-3 flex items-center gap-2">
             <span className="text-xs text-slate-400">计费周期:</span>
             <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
-              <button onClick={() => setCycle('month')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'month' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>月付</button>
-              <button onClick={() => setCycle('quarter')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'quarter' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>季付 · 少扣费</button>
+              <button onClick={() => setCycle('quarter')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'quarter' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按季付</button>
+              <button onClick={() => setCycle('year')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'year' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按年付 · 省17%</button>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -139,7 +141,7 @@ export default function AgentBilling() {
                   <div className="font-bold text-slate-900">{p.name}</div>
                   <div className="text-right">
                     <div className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</div>
-                    {cycle === 'quarter' && <div className="text-[10px] text-slate-400">${p.monthly}/月</div>}
+                    <div className="text-[10px] text-slate-400">{perMonthLabel(p.monthly)}</div>
                   </div>
                 </div>
                 <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">

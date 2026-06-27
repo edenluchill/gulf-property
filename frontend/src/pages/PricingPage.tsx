@@ -36,11 +36,15 @@ export default function PricingPage() {
     const p = plans.find((x) => x.id === id)
     return p ? Number(p.price_usd_month) : fallback
   }
-  // 季付一次扣的总额 = 月单价 × 3(单价不变)
+  // 年付送 2 个月:年付收 10 个月价(覆盖 12 个月使用)。季付 = 3 个月价。
+  const chargeMonths = cycle === 'year' ? 10 : 3
+  const totalOf = (monthly: number) => monthly * chargeMonths
+  const perMonthEff = (monthly: number) => (cycle === 'year' ? Math.round((monthly * 10) / 12) : monthly)
+  // 大字下方一行:有效月单价(+ 年付省钱提示)
   const billedLine = (monthly: number) =>
-    cycle === 'quarter'
-      ? L(`季付 · 一次 $${monthly * 3}(3 个月)· 随时取消`, `Billed $${monthly * 3} every 3 months · cancel anytime`)
-      : L('按月计费 · 随时取消', 'Billed monthly · cancel anytime')
+    cycle === 'year'
+      ? L(`≈ $${perMonthEff(monthly)}/月 · 送 2 个月 · 随时取消`, `≈ $${perMonthEff(monthly)}/mo · 2 months free · cancel anytime`)
+      : L(`≈ $${monthly}/月 · 随时取消`, `≈ $${monthly}/mo · cancel anytime`)
 
   async function subscribe(planId: 'agent' | 'founder') {
     setErr(null)
@@ -63,8 +67,9 @@ export default function PricingPage() {
       cta: { label: L('打开地图', 'Open the map'), onClick: () => navigate('/') },
     },
     {
-      id: 'agent', name: L('经纪版', 'Agent'), price: `$${priceOf('agent', 99)}`, priceWas: '$199',
-      per: L('/ 月', '/ mo'), edge: ACCENT, highlight: true, badge: L('15 天免费试用', '15-day free trial'),
+      id: 'agent', name: L('经纪版', 'Agent'), price: `$${totalOf(priceOf('agent', 99))}`,
+      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: ACCENT, highlight: true,
+      badge: L('15 天免费试用', '15-day free trial'),
       note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
       billed: billedLine(priceOf('agent', 99)),
       features: [
@@ -78,8 +83,8 @@ export default function PricingPage() {
       cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('agent') },
     },
     {
-      id: 'founder', name: L('创始会员', 'Founder'), price: `$${priceOf('founder', 699)}`,
-      per: L('/ 月', '/ mo'), edge: GOLD, badge: L('10× 额度', '10× quota'),
+      id: 'founder', name: L('创始会员', 'Founder'), price: `$${totalOf(priceOf('founder', 699))}`,
+      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: GOLD, badge: L('10× 额度', '10× quota'),
       note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
       billed: billedLine(priceOf('founder', 699)),
       features: [
@@ -108,24 +113,24 @@ export default function PricingPage() {
           <span className="font-mono text-xs font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
           <h1 className="mt-3 text-4xl font-bold md:text-5xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
           <p className="mx-auto mt-4 max-w-2xl text-slate-400">{L(
-            '一张地图看懂迪拜期房;经纪用它带海外客户实时看房、生成导览与意向报告。按月计费,随时取消。',
-            'One map for Dubai off-plan; agents use it to tour overseas clients live, generate tours and intent reports. Billed monthly, cancel anytime.'
+            '一张地图看懂迪拜期房;经纪用它带海外客户实时看房、生成导览与意向报告。按季或按年付,随时取消。',
+            'One map for Dubai off-plan; agents use it to tour overseas clients live, generate tours and intent reports. Billed quarterly or yearly, cancel anytime.'
           )}</p>
         </div>
 
-        {/* 月付 / 季付 切换(单价不变,季付一次少扣几次) */}
+        {/* 季付 / 年付 切换(月单价不变,年付送 2 个月) */}
         <div className="mt-8 flex justify-center">
           <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-sm">
-            <button onClick={() => setCycle('month')}
-              className={`rounded-full px-4 py-1.5 font-medium transition ${cycle === 'month' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
-              style={cycle === 'month' ? { background: ACCENT } : undefined}>
-              {L('月付', 'Monthly')}
-            </button>
             <button onClick={() => setCycle('quarter')}
-              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition ${cycle === 'quarter' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
+              className={`rounded-full px-4 py-1.5 font-medium transition ${cycle === 'quarter' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
               style={cycle === 'quarter' ? { background: ACCENT } : undefined}>
-              {L('季付', 'Quarterly')}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'quarter' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('少扣费', 'fewer charges')}</span>
+              {L('按季付', 'Quarterly')}
+            </button>
+            <button onClick={() => setCycle('year')}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition ${cycle === 'year' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
+              style={cycle === 'year' ? { background: ACCENT } : undefined}>
+              {L('按年付', 'Yearly')}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'year' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('省 17%', 'save 17%')}</span>
             </button>
           </div>
         </div>
@@ -140,7 +145,6 @@ export default function PricingPage() {
               <div className="text-sm font-semibold" style={{ color: t.edge }}>{t.name}</div>
               <div className="mt-1 flex items-end gap-2">
                 <span className="text-3xl font-bold">{t.price}</span>
-                {t.priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{t.priceWas}</span>}
                 {t.per && <span className="pb-1 text-sm text-slate-500">{t.per}{L(' (USD)', ' (USD)')}</span>}
               </div>
               <p className="mt-1.5 text-sm text-slate-400">{t.note}</p>
@@ -160,8 +164,8 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">{L(
-          '价格以美元(USD)计,单价不变;可选月付或季付(季付一次付 3 个月、少扣几次)。15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。',
-          'Prices in USD; same per-month rate, pay monthly or quarterly (quarterly = one charge per 3 months). 15-day free trial, cancel before billing. Payments securely handled by Stripe.'
+          '价格以美元(USD)计,按季或按年付(年付送 2 个月、约省 17%)。15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。',
+          'Prices in USD, billed quarterly or yearly (yearly = 2 months free, ~17% off). 15-day free trial, cancel before billing. Payments securely handled by Stripe.'
         )}</p>
 
         <div className="mt-10 text-center">
