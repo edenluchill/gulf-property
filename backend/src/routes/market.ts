@@ -360,7 +360,7 @@ router.get('/transactions/summary', async (req: Request, res: Response) => {
     if (cached) return res.json(cached)
     // unfiltered default → serve the daily-precomputed payload (avoids the ~14s full scan)
     const q = req.query
-    if (!q.area && !q.areaId && !q.project && !q.rooms && !q.type && !q.from && !q.to) {
+    if (!q.area && !q.areaId && !q.project && !q.rooms && !q.type && !q.from && !q.to && !q.minPrice && !q.maxPrice) {
       const pc = await txPrecomputed('summary')
       if (pc) { txCacheSet(cacheKey, pc); return res.json(pc) }
     }
