@@ -42,7 +42,9 @@ export function SubmitBar({
   const { t } = useTranslation('upload')
 
   return (
-    <div className="sticky bottom-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+    {/* 移动端底部有固定 Tab 导航(MobileNav: xl:hidden fixed bottom-0 h-16/h-20),
+        提交栏必须上移到导航之上,否则提交按钮被导航挡住点不到。xl 以上导航消失 → 贴底。 */}
+    <div className="sticky bottom-16 md:bottom-20 xl:bottom-0 z-30 border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
       <div className="container mx-auto px-4 sm:px-6 py-3 max-w-7xl">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
           {/* Readiness chips */}
