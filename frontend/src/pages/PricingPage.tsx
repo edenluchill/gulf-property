@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { ArrowRight, Check, Loader2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, startCheckout, type BillingPlan } from '../lib/billingApi'
+import { fetchPlans, startCheckout, type BillingPlan, type BillingInterval } from '../lib/billingApi'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -27,6 +27,7 @@ export default function PricingPage() {
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [cycle, setCycle] = useState<BillingInterval>('quarter') // 默认季付(更少扣费,经纪偏好)
 
   useEffect(() => { fetchPlans().then(setPlans) }, [])
 
@@ -35,12 +36,17 @@ export default function PricingPage() {
     const p = plans.find((x) => x.id === id)
     return p ? Number(p.price_usd_month) : fallback
   }
+  // 季付一次扣的总额 = 月单价 × 3(单价不变)
+  const billedLine = (monthly: number) =>
+    cycle === 'quarter'
+      ? L(`季付 · 一次 $${monthly * 3}(3 个月)· 随时取消`, `Billed $${monthly * 3} every 3 months · cancel anytime`)
+      : L('按月计费 · 随时取消', 'Billed monthly · cancel anytime')
 
   async function subscribe(planId: 'agent' | 'founder') {
     setErr(null)
     if (!user) { navigate('/agent'); return }   // 去经纪台登录(登录后回来再订阅)
     setBusy(planId)
-    const error = await startCheckout(planId)    // 成功则跳转 Stripe,不返回
+    const error = await startCheckout(planId, cycle)  // 成功则跳转 Stripe,不返回
     if (error) { setErr(error); setBusy(null) }
   }
 
@@ -58,8 +64,9 @@ export default function PricingPage() {
     },
     {
       id: 'agent', name: L('经纪版', 'Agent'), price: `$${priceOf('agent', 99)}`, priceWas: '$199',
-      per: L('/ 月', '/ mo'), edge: ACCENT, highlight: true, badge: L('7 天免费试用', '7-day free trial'),
-      note: L('7 天免费 · 需绑卡 · 随时取消', '7 days free · card required · cancel anytime'),
+      per: L('/ 月', '/ mo'), edge: ACCENT, highlight: true, badge: L('15 天免费试用', '15-day free trial'),
+      note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
+      billed: billedLine(priceOf('agent', 99)),
       features: [
         L('实时海外带看 20 场/月 + 应用内语音', '20 live overseas tours/mo + in-app voice'),
         L('Luna 智能导览 20 个/月(可分享自助看房)', '20 Luna AI tours/mo (shareable)'),
@@ -68,12 +75,13 @@ export default function PricingPage() {
         L('经纪品牌项目报告 · 无限分享(头像+ROI+真实成交)', 'Branded project reports · unlimited'),
         L('客户行为洞察 + 热度排序(谁最可能成交)', 'Client behaviour insights + lead scoring'),
       ],
-      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('agent') },
+      cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('agent') },
     },
     {
       id: 'founder', name: L('创始会员', 'Founder'), price: `$${priceOf('founder', 699)}`,
       per: L('/ 月', '/ mo'), edge: GOLD, badge: L('10× 额度', '10× quota'),
       note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
+      billed: billedLine(priceOf('founder', 699)),
       features: [
         L('Agent 全部功能 · 额度 ×10(带看200·导览200·报告300)', 'Everything in Agent · 10× quota'),
         L('White-label 品牌定制:你的 logo/配色', 'White-label branding (your logo/colors)'),
@@ -105,9 +113,26 @@ export default function PricingPage() {
           )}</p>
         </div>
 
+        {/* 月付 / 季付 切换(单价不变,季付一次少扣几次) */}
+        <div className="mt-8 flex justify-center">
+          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-sm">
+            <button onClick={() => setCycle('month')}
+              className={`rounded-full px-4 py-1.5 font-medium transition ${cycle === 'month' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
+              style={cycle === 'month' ? { background: ACCENT } : undefined}>
+              {L('月付', 'Monthly')}
+            </button>
+            <button onClick={() => setCycle('quarter')}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition ${cycle === 'quarter' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
+              style={cycle === 'quarter' ? { background: ACCENT } : undefined}>
+              {L('季付', 'Quarterly')}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'quarter' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('少扣费', 'fewer charges')}</span>
+            </button>
+          </div>
+        </div>
+
         {err && <div className="mx-auto mt-6 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
 
-        <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
+        <div className="mt-8 grid items-stretch gap-4 lg:grid-cols-3">
           {tiers.map((t) => (
             <div key={t.id} className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-6"
               style={{ borderColor: t.highlight ? ACCENT : t.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)', boxShadow: t.highlight ? `0 0 40px -16px ${ACCENT}` : undefined }}>
@@ -119,6 +144,7 @@ export default function PricingPage() {
                 {t.per && <span className="pb-1 text-sm text-slate-500">{t.per}{L(' (USD)', ' (USD)')}</span>}
               </div>
               <p className="mt-1.5 text-sm text-slate-400">{t.note}</p>
+              {t.billed && <p className="mt-0.5 text-xs text-slate-500">{t.billed}</p>}
               <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-300">
                 {t.features.map((f, i) => (
                   <li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: t.edge }} /> {f}</li>
@@ -134,8 +160,8 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">{L(
-          '价格以美元(USD)计,按月计费,随时取消。支付由 Stripe 安全处理。',
-          'Prices in USD, billed monthly, cancel anytime. Payments securely handled by Stripe.'
+          '价格以美元(USD)计,单价不变;可选月付或季付(季付一次付 3 个月、少扣几次)。15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。',
+          'Prices in USD; same per-month rate, pay monthly or quarterly (quarterly = one charge per 3 months). 15-day free trial, cancel before billing. Payments securely handled by Stripe.'
         )}</p>
 
         <div className="mt-10 text-center">

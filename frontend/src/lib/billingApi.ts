@@ -58,10 +58,13 @@ export async function fetchBillingMe(): Promise<BillingMe | null> {
   }
 }
 
-/** 开始订阅:跳转到 Stripe Checkout。返回错误信息(成功则直接跳转,不返回)。 */
-export async function startCheckout(planId: 'agent' | 'founder'): Promise<string | null> {
+export type BillingInterval = 'month' | 'quarter'
+
+/** 开始订阅:跳转到 Stripe Checkout。interval=quarter 为季付(3月一付,单价不变)。
+ *  返回错误信息(成功则直接跳转,不返回)。 */
+export async function startCheckout(planId: 'agent' | 'founder', interval: BillingInterval = 'month'): Promise<string | null> {
   try {
-    const res = await authed('/checkout', { method: 'POST', body: JSON.stringify({ planId }) })
+    const res = await authed('/checkout', { method: 'POST', body: JSON.stringify({ planId, interval }) })
     const j = await res.json().catch(() => ({}))
     if (res.ok && j.url) {
       window.location.href = j.url

@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Check, ExternalLink } from 'lucide-react'
-import { fetchBillingMe, startCheckout, openPortal, type BillingMe } from '../../lib/billingApi'
+import { fetchBillingMe, startCheckout, openPortal, type BillingMe, type BillingInterval } from '../../lib/billingApi'
 
 const STATUS_LABEL: Record<string, string> = {
   none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
@@ -35,6 +35,7 @@ export default function AgentBilling() {
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
+  const [cycle, setCycle] = useState<BillingInterval>('quarter') // 默认季付
 
   const refresh = () => fetchBillingMe().then((m) => { setMe(m); setLoading(false) })
   useEffect(() => { refresh() }, [])
@@ -47,7 +48,7 @@ export default function AgentBilling() {
 
   async function upgrade(planId: 'agent' | 'founder') {
     setErr(null); setBusy(planId)
-    const error = await startCheckout(planId)  // 成功跳转 Stripe
+    const error = await startCheckout(planId, cycle)  // 成功跳转 Stripe
     if (error) { setErr(error); setBusy(null) }
   }
   async function manage() {
@@ -68,12 +69,14 @@ export default function AgentBilling() {
   const liveLimit = Number(limits.live_tours_month ?? 0)
   const reportsLimit = Number(limits.reports_month ?? 0)
 
-  const PLANS: { id: 'agent' | 'founder'; name: string; price: string; lines: string[]; edge: string }[] = [
-    { id: 'agent', name: '经纪版 Agent', price: '$99 / 月', edge: '#10b981',
+  const PLANS: { id: 'agent' | 'founder'; name: string; monthly: number; lines: string[]; edge: string }[] = [
+    { id: 'agent', name: '经纪版 Agent', monthly: 99, edge: '#10b981',
       lines: ['实时带看 20 场/月', 'Luna 导览 20 个/月', '意向报告 30 份/月', '应用内语音 + AI 楼书解析'] },
-    { id: 'founder', name: '创始会员 Founder', price: '$699 / 月', edge: '#E8C37E',
+    { id: 'founder', name: '创始会员 Founder', monthly: 699, edge: '#E8C37E',
       lines: ['实时带看 200 场/月', 'Luna 导览 200 个/月', '意向报告 300 份/月', '锁定创始价 · 优先支持'] },
   ]
+  const priceLabel = (monthly: number) =>
+    cycle === 'quarter' ? `$${monthly * 3} / 3个月` : `$${monthly} / 月`
 
   return (
     <div className="space-y-6">
@@ -120,23 +123,36 @@ export default function AgentBilling() {
 
       {/* 升级选项(已是 founder 则不显示) */}
       {planId !== 'founder' && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {PLANS.filter((p) => !(planId === 'agent' && p.id === 'agent')).map((p) => (
-            <div key={p.id} className="flex flex-col rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
-              <div className="flex items-baseline justify-between">
-                <div className="font-bold text-slate-900">{p.name}</div>
-                <div className="text-sm font-semibold" style={{ color: p.edge }}>{p.price}</div>
-              </div>
-              <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">
-                {p.lines.map((l, i) => (<li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: p.edge }} /> {l}</li>))}
-              </ul>
-              <button onClick={() => upgrade(p.id)} disabled={busy === p.id}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-                style={{ background: p.edge }}>
-                {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'agent' ? '免费试用 7 天' : '升级到 Founder')}
-              </button>
+        <div>
+          {/* 月付 / 季付 切换 */}
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-xs text-slate-400">计费周期:</span>
+            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
+              <button onClick={() => setCycle('month')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'month' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>月付</button>
+              <button onClick={() => setCycle('quarter')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'quarter' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>季付 · 少扣费</button>
             </div>
-          ))}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {PLANS.filter((p) => !(planId === 'agent' && p.id === 'agent')).map((p) => (
+              <div key={p.id} className="flex flex-col rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
+                <div className="flex items-baseline justify-between">
+                  <div className="font-bold text-slate-900">{p.name}</div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</div>
+                    {cycle === 'quarter' && <div className="text-[10px] text-slate-400">${p.monthly}/月</div>}
+                  </div>
+                </div>
+                <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">
+                  {p.lines.map((l, i) => (<li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: p.edge }} /> {l}</li>))}
+                </ul>
+                <button onClick={() => upgrade(p.id)} disabled={busy === p.id}
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                  style={{ background: p.edge }}>
+                  {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'agent' ? '免费试用 15 天' : '升级到 Founder')}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

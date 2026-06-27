@@ -46,6 +46,8 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - STRIPE_PRICE_AGENT=${STRIPE_PRICE_AGENT}
       - STRIPE_PRICE_FOUNDER=${STRIPE_PRICE_FOUNDER}
+      - STRIPE_PRICE_AGENT_Q=${STRIPE_PRICE_AGENT_Q}
+      - STRIPE_PRICE_FOUNDER_Q=${STRIPE_PRICE_FOUNDER_Q}
       - STRIPE_PORTAL_CONFIG=${STRIPE_PORTAL_CONFIG}
       - APP_URL=${APP_URL:-https://www.pinzos.com}
       # Agora in-app voice (token signing). Values live in /opt/pinzos/.env on the
