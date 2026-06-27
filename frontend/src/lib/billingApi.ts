@@ -21,7 +21,35 @@ export interface BillingMe {
   plan: { id: string; name: string; limits: Record<string, number | boolean> }
   status: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   current_period_end: string | null
-  usage: { luna_tours: number; live_tours: number; reports: number }
+  credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
+}
+
+export interface FeatureCost {
+  key: string
+  label: string
+  credits: number               // 标准每次成本
+  minPlan: 'explore' | 'agent' | 'founder'
+}
+export interface PlanCredits {
+  id: string
+  creditsMonth: number
+  multiplier: number            // Founder < 1(扣得便宜)
+}
+export interface FeaturesInfo {
+  features: FeatureCost[]
+  plans: PlanCredits[]
+}
+
+/** 公开:积分功能目录(每次成本)+ 各套餐积分额度/折扣。价格页/台内渲染消耗表。 */
+export async function fetchFeatures(): Promise<FeaturesInfo> {
+  try {
+    const res = await fetch(`${BASE}/features`)
+    if (!res.ok) return { features: [], plans: [] }
+    const j = await res.json()
+    return { features: j.features || [], plans: j.plans || [] }
+  } catch {
+    return { features: [], plans: [] }
+  }
 }
 
 async function authed(path: string, opts: RequestInit = {}): Promise<Response> {

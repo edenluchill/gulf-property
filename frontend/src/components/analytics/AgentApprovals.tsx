@@ -24,7 +24,7 @@ function PlanCell({ a, busy, onSet }: { a: AgentRow; busy: boolean; onSet: (plan
           {PLAN_LABEL[plan]} {isPaidPlan && <span className="font-normal text-slate-400">· {SUB_LABEL[sub]}{paid ? '' : '(赠)'}</span>}
         </div>
         {isPaidPlan && (
-          <div className="text-[10px] text-slate-400">导览 {a.luna_tours_used ?? 0} · 带看 {a.live_tours_used ?? 0} · 报告 {a.reports_used ?? 0}</div>
+          <div className="text-[10px] text-slate-400">积分 {(a.credits_used ?? 0).toLocaleString()} / {(a.credits_month ?? 0).toLocaleString()}</div>
         )}
       </div>
       <select

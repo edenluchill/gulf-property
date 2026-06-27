@@ -21,9 +21,8 @@ export interface AgentRow {
   sub_status?: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   paid?: boolean
   current_period_end?: string | null
-  luna_tours_used?: number
-  live_tours_used?: number
-  reports_used?: number
+  credits_month?: number
+  credits_used?: number
 }
 
 async function authed(path: string, opts: RequestInit = {}): Promise<Response> {

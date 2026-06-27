@@ -19,6 +19,7 @@ import pool from '../db/pool'
 import { requireAuth } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
+import { creditBalance, featureCatalog } from '../luna-tour/credits'
 
 const router = Router()
 
@@ -143,6 +144,31 @@ router.get('/plans', async (_req: Request, res: Response) => {
     res.json({ success: true, plans: rows })
   } catch (err) {
     console.error('[billing] /plans failed:', err)
+    res.status(500).json({ success: false })
+  }
+})
+
+// ============================================================
+// GET /features — 积分功能目录 + 各套餐积分额度(价格页/台内自动渲染消耗表)
+// 功能成本来自代码配置 credits.ts(单一真相源);套餐积分来自 DB。
+// ============================================================
+router.get('/features', async (_req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query<{ id: string; credits_month: number | null; cost_multiplier: number | null }>(
+      `SELECT id, (limits->>'credits_month')::int AS credits_month, (limits->>'cost_multiplier')::float AS cost_multiplier
+         FROM lt_subscription_plans ORDER BY (limits->>'credits_month')::int ASC NULLS FIRST`
+    )
+    res.json({
+      success: true,
+      features: featureCatalog(), // [{ key, label, credits, minPlan }]
+      plans: rows.map((r) => ({
+        id: r.id,
+        creditsMonth: Number(r.credits_month ?? 0),
+        multiplier: Number(r.cost_multiplier ?? 1),
+      })),
+    })
+  } catch (err) {
+    console.error('[billing] /features failed:', err)
     res.status(500).json({ success: false })
   }
 })
@@ -285,18 +311,8 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     )
     const limits = planRow.rows[0]?.limits || {}
 
-    const usage = await pool.query<{
-      sessions_created: number
-      live_tours_created: number
-      reports_created: number
-    }>(
-      `SELECT COALESCE(sessions_created, 0)   AS sessions_created,
-              COALESCE(live_tours_created, 0) AS live_tours_created,
-              COALESCE(reports_created, 0)    AS reports_created
-         FROM lt_usage_counters
-        WHERE agent_id = $1 AND period_month = date_trunc('month', now())::date`,
-      [agent.id]
-    )
+    // 积分制:本月余额(creditsMonth - 已花),-1 = 无限(owner)
+    const credits = await creditBalance(agent.id)
 
     res.json({
       success: true,
@@ -304,10 +320,10 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       plan: { id: planId, name: planRow.rows[0]?.name || 'Explore', limits },
       status,
       current_period_end: sub.rows[0]?.current_period_end || null,
-      usage: {
-        luna_tours: Number(usage.rows[0]?.sessions_created ?? 0),
-        live_tours: Number(usage.rows[0]?.live_tours_created ?? 0),
-        reports: Number(usage.rows[0]?.reports_created ?? 0),
+      credits: {
+        month: credits.creditsMonth,   // 月额度(-1=无限)
+        used: credits.used,            // 本月已花
+        balance: credits.balance,      // 余额(-1=无限)
       },
     })
   } catch (err) {

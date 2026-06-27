@@ -7,26 +7,10 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Check, ExternalLink } from 'lucide-react'
-import { fetchBillingMe, fetchPromo, startCheckout, openPortal, type BillingMe, type BillingInterval, type Promo } from '../../lib/billingApi'
+import { fetchBillingMe, fetchPromo, fetchFeatures, startCheckout, openPortal, type BillingMe, type BillingInterval, type Promo, type FeaturesInfo } from '../../lib/billingApi'
 
 const STATUS_LABEL: Record<string, string> = {
   none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
-}
-
-function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
-  const unlimited = limit < 0
-  const pct = unlimited || limit === 0 ? 0 : Math.min(100, Math.round((used / limit) * 100))
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-xs text-slate-500">
-        <span>{label}</span>
-        <span>{used} / {unlimited ? '∞' : limit}</span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
 }
 
 export default function AgentBilling() {
@@ -37,9 +21,10 @@ export default function AgentBilling() {
   const [params, setParams] = useSearchParams()
   const [cycle, setCycle] = useState<BillingInterval>('quarter') // 默认季付
   const [promo, setPromo] = useState<Promo>({ active: false })
+  const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
 
   const refresh = () => fetchBillingMe().then((m) => { setMe(m); setLoading(false) })
-  useEffect(() => { refresh(); fetchPromo().then(setPromo) }, [])
+  useEffect(() => { refresh(); fetchPromo().then(setPromo); fetchFeatures().then(setFeat) }, [])
 
   // Checkout 回跳提示(?status=success|cancel),读后清掉 query
   const banner = params.get('status')
@@ -64,17 +49,20 @@ export default function AgentBilling() {
 
   const planId = me?.plan.id || 'explore'
   const status = me?.status || 'none'
-  const limits = me?.plan.limits || {}
   const isPaid = status === 'active' || status === 'trialing'
-  const lunaLimit = Number(limits.sessions_month ?? 0)
-  const liveLimit = Number(limits.live_tours_month ?? 0)
-  const reportsLimit = Number(limits.reports_month ?? 0)
+  // 积分(-1 = 无限/owner)
+  const cMonth = me?.credits.month ?? 0
+  const cUsed = me?.credits.used ?? 0
+  const cBalance = me?.credits.balance ?? 0
+  const unlimited = cMonth < 0
+  // 我的套餐折扣(Founder<1),用来在消耗表显示实扣
+  const myMult = Number(feat.plans.find((p) => p.id === planId)?.multiplier ?? 1)
 
   const PLANS: { id: 'agent' | 'founder'; name: string; monthly: number; lines: string[]; edge: string }[] = [
     { id: 'agent', name: '经纪版 Agent', monthly: 99, edge: '#10b981',
-      lines: ['实时带看 20 场/月', 'Luna 导览 20 个/月', '意向报告 30 份/月', '应用内语音 + AI 楼书解析'] },
+      lines: ['2,500 积分/月', '所有功能按积分消耗', '应用内语音 + AI 楼书解析', '客户行为洞察 + 品牌报告'] },
     { id: 'founder', name: '创始会员 Founder', monthly: 699, edge: '#E8C37E',
-      lines: ['实时带看 200 场/月', 'Luna 导览 200 个/月', '意向报告 300 份/月', '锁定创始价 · 优先支持'] },
+      lines: ['15,000 积分/月', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', '锁定创始价 · 优先支持'] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
@@ -117,11 +105,35 @@ export default function AgentBilling() {
           </div>
         )}
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <UsageBar label="Luna 智能导览(本月)" used={me?.usage.luna_tours ?? 0} limit={lunaLimit} />
-          <UsageBar label="实时带看(本月)" used={me?.usage.live_tours ?? 0} limit={liveLimit} />
-          <UsageBar label="买家意向报告(本月)" used={me?.usage.reports ?? 0} limit={reportsLimit} />
+        {/* 本月积分余额 */}
+        <div className="mt-5">
+          <div className="mb-1 flex items-baseline justify-between">
+            <span className="text-sm text-slate-500">本月积分余额</span>
+            <span className="text-sm font-semibold text-slate-900">
+              {unlimited ? '无限' : <>剩 <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }} />
+          </div>
+          <div className="mt-1 text-[11px] text-slate-400">每月 1 日刷新,未用完不累积。</div>
         </div>
+
+        {/* 积分消耗表(成本来自后端配置,自动同步) */}
+        {feat.features.length > 0 && (
+          <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <div className="mb-2 text-xs font-semibold text-slate-600">积分这样花{myMult < 1 ? `(你的套餐 ×${myMult},已含折扣)` : ''}</div>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {feat.features.map((f) => (
+                <div key={f.key} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">{f.label}</span>
+                  <span className="font-medium text-slate-800">{Math.round(f.credits * myMult)} 积分{f.key === 'live_tours' ? '/场' : ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isPaid && (
           <button onClick={manage} disabled={busy === 'portal'}

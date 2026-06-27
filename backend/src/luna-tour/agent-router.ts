@@ -24,7 +24,7 @@ import { buildClientReport } from './auto-report'
 import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
-import { checkQuota, meter, quotaError } from './quota'
+import { checkCredits, spend, creditError, creditBalance } from './credits'
 
 const router = Router()
 
@@ -153,15 +153,15 @@ router.post('/project-reports', async (req: Request, res: Response) => {
       // 新建报告才走配额门 + 计量(共享 demo 经纪豁免)
       const loggedIn = isLoggedIn(req)
       if (loggedIn) {
-        const q = await checkQuota(agentId, 'reports')
-        if (!q.allowed) { const e = quotaError('reports', q); return res.status(e.status).json(e.body) }
+        const q = await checkCredits(agentId, 'reports')
+        if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
       }
       code = await uniqueReportCode()
       await pool.query(
         'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title) VALUES ($1,$2,$3,$4)',
         [agentId, projectId, code, p.rows[0].project_name]
       )
-      if (loggedIn) await meter(agentId, 'reports').catch(() => {})
+      if (loggedIn) await spend(agentId, 'reports').catch(() => {})
     }
     res.json({ success: true, shareCode: code, url: `/r/${code}` })
   } catch (err) {
@@ -261,8 +261,8 @@ router.post('/client-reports', async (req: Request, res: Response) => {
     // 配额门 + 计量(共享 demo 经纪豁免)
     const loggedIn = isLoggedIn(req)
     if (loggedIn) {
-      const q = await checkQuota(agentId, 'reports')
-      if (!q.allowed) { const e = quotaError('reports', q); return res.status(e.status).json(e.body) }
+      const q = await checkCredits(agentId, 'reports')
+      if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
     }
     const code = await uniqueClientCode()
     const clientName = typeof client.name === 'string' ? client.name : ''
@@ -271,7 +271,7 @@ router.post('/client-reports', async (req: Request, res: Response) => {
        VALUES ($1,$2,$3,$4,'generating',$5,$6) RETURNING id`,
       [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress()), clientId]
     )
-    if (loggedIn) await meter(agentId, 'reports').catch(() => {})
+    if (loggedIn) await spend(agentId, 'reports').catch(() => {})
     // fire-and-forget background build
     generateClientReport(r.rows[0].id, client, oneLiner)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
@@ -383,8 +383,7 @@ router.post('/avatar', multer({ storage: multer.memoryStorage(), limits: { fileS
 router.get('/usage', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
-    const q = await checkQuota(agentId, 'luna_tours')
-    res.json({ used: q.used, limit: q.limit, plan: q.plan })
+    res.json(await creditBalance(agentId)) // { creditsMonth, used, balance, plan, status, multiplier }
   } catch (err) {
     console.error('[luna] usage error:', err)
     res.status(500).json({ error: 'usage failed' })
@@ -591,8 +590,8 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     // Quota gate — only for real logged-in agents (the shared demo is exempt).
     const loggedIn = isLoggedIn(req)
     if (loggedIn) {
-      const q = await checkQuota(agentId, 'luna_tours')
-      if (!q.allowed) { const e = quotaError('luna_tours', q); return res.status(e.status).json(e.body) }
+      const q = await checkCredits(agentId, 'luna_tours')
+      if (!q.allowed) { const e = creditError('luna_tours', q); return res.status(e.status).json(e.body) }
     }
 
     // Kick off the heavy build (AI config + script + audio) in the BACKGROUND and
@@ -607,7 +606,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
         if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
         const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
-        if (loggedIn) await meter(agentId, 'luna_tours').catch(() => {}) // count only real agents
+        if (loggedIn) await spend(agentId, 'luna_tours').catch(() => {}) // count only real agents
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
         console.error('[luna] agent create (bg) error:', err)

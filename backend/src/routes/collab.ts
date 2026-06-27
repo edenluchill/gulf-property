@@ -28,7 +28,7 @@ import {
 } from '../services/collab-rooms'
 import { startCollabPersistence, flushRoom } from '../services/collab-persistence'
 import { purgeOldCollabRooms } from '../services/collabReport'
-import { checkQuota, meter, quotaError } from '../luna-tour/quota'
+import { checkCredits, spend, creditError } from '../luna-tour/credits'
 import { resolveAgentId } from '../lib/agent-identity'
 
 // 带看记录(含客户 PII)保留期,env 可调,默认 180 天。
@@ -217,12 +217,12 @@ export function initCollabWebSocket(server: Server): void {
 router.post('/rooms', async (req, res) => {
   const agentId = await resolveAgentId(req)
   if (agentId) {
-    const q = await checkQuota(agentId, 'live_tours')
-    if (!q.allowed) { const e = quotaError('live_tours', q); return res.status(e.status).json(e.body) }
+    const q = await checkCredits(agentId, 'live_tours')
+    if (!q.allowed) { const e = creditError('live_tours', q); return res.status(e.status).json(e.body) }
   }
   const { name } = req.body || {}
   const { code } = createRoom(typeof name === 'string' ? name : undefined)
-  if (agentId) await meter(agentId, 'live_tours').catch(() => {})
+  if (agentId) await spend(agentId, 'live_tours').catch(() => {})
   res.json({ code, url: `${SHARE_BASE_URL}/${code}` })
 })
 

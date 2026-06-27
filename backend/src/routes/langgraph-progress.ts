@@ -16,7 +16,7 @@ import { existsSync } from 'fs';
 import { executeWithQueue, getQueueStats, canStartImmediately } from '../services/job-queue';
 import { uploadPdfForProcessing } from '../services/r2-storage';
 import { resolveAgentId } from '../lib/agent-identity';
-import { checkQuota, meter, quotaError } from '../luna-tour/quota';
+import { checkCredits, spend, creditError } from '../luna-tour/credits';
 
 // Worker mode: if enabled, upload PDFs to R2 and let worker process
 // If disabled (local dev), process inline
@@ -108,9 +108,9 @@ router.post(
         res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
         return;
       }
-      const quota = await checkQuota(agentId, 'brochures');
-      if (!quota.allowed) { const e = quotaError('brochures', quota); res.status(e.status).json(e.body); return; }
-      await meter(agentId, 'brochures').catch(() => {});
+      const quota = await checkCredits(agentId, 'brochures');
+      if (!quota.allowed) { const e = creditError('brochures', quota); res.status(e.status).json(e.body); return; }
+      await spend(agentId, 'brochures').catch(() => {});
 
       // Calculate total file size
       const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);

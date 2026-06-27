@@ -44,9 +44,8 @@ router.get('/', optionalAuth, requireOwner, async (_req: Request, res: Response)
               COALESCE(s.status, 'none')          AS sub_status,
               (s.stripe_subscription_id IS NOT NULL) AS paid,
               s.current_period_end,
-              COALESCE(u.sessions_created, 0)     AS luna_tours_used,
-              COALESCE(u.live_tours_created, 0)   AS live_tours_used,
-              COALESCE(u.reports_created, 0)      AS reports_used
+              COALESCE((p.limits->>'credits_month')::int, 0) AS credits_month,
+              COALESCE(u.credits_used, 0)         AS credits_used
          FROM agents a
          LEFT JOIN lt_agents la ON la.email = a.email
          LEFT JOIN LATERAL (
@@ -55,6 +54,7 @@ router.get('/', optionalAuth, requireOwner, async (_req: Request, res: Response)
             WHERE agent_id = la.id AND status IN ('active','trialing')
             ORDER BY created_at DESC LIMIT 1
          ) s ON true
+         LEFT JOIN lt_subscription_plans p ON p.id = COALESCE(s.plan_id, 'explore')
          LEFT JOIN lt_usage_counters u
            ON u.agent_id = la.id AND u.period_month = date_trunc('month', now())::date
         ORDER BY (a.status = 'pending') DESC, a.requested_at DESC`

@@ -24,7 +24,7 @@ import {
   abortMultipartUpload,
 } from '../services/r2-multipart';
 import { resolveAgentId } from '../lib/agent-identity';
-import { checkQuota, meter, quotaError } from '../luna-tour/quota';
+import { checkCredits, spend, creditError } from '../luna-tour/credits';
 
 const router = Router();
 
@@ -60,8 +60,8 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
       return;
     }
-    const q = await checkQuota(agentId, 'brochures');
-    if (!q.allowed) { const e = quotaError('brochures', q); res.status(e.status).json(e.body); return; }
+    const q = await checkCredits(agentId, 'brochures');
+    if (!q.allowed) { const e = creditError('brochures', q); res.status(e.status).json(e.body); return; }
 
     const jobId = generateJobId();
     const uploads: Array<{ filename: string; key: string; uploadId: string }> = [];
@@ -143,8 +143,8 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
       return;
     }
-    const q = await checkQuota(agentId, 'brochures');
-    if (!q.allowed) { const e = quotaError('brochures', q); res.status(e.status).json(e.body); return; }
+    const q = await checkCredits(agentId, 'brochures');
+    if (!q.allowed) { const e = creditError('brochures', q); res.status(e.status).json(e.body); return; }
 
     const pdfUrls: string[] = [];
     const pdfNames: string[] = [];
@@ -179,7 +179,7 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       metadata: { uploadedAt: Date.now(), workerMode: true, directUpload: true },
     });
 
-    await meter(agentId, 'brochures').catch(() => {});
+    await spend(agentId, 'brochures').catch(() => {});
     console.log(`📋 Task created from direct upload: ${jobId} (${pdfNames.length} file(s))`);
     res.json({
       success: true,

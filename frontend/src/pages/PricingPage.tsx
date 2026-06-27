@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { ArrowRight, Check, Loader2, Flame, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, fetchPromo, startCheckout, type BillingPlan, type BillingInterval, type Promo } from '../lib/billingApi'
+import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -29,9 +29,11 @@ export default function PricingPage() {
   const [err, setErr] = useState<string | null>(null)
   const [cycle, setCycle] = useState<BillingInterval>('quarter') // 默认季付(更少扣费,经纪偏好)
   const [promo, setPromo] = useState<Promo>({ active: false })
+  const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
   const [now, setNow] = useState(() => Date.now())
 
-  useEffect(() => { fetchPlans().then(setPlans); fetchPromo().then(setPromo) }, [])
+  useEffect(() => { fetchPlans().then(setPlans); fetchPromo().then(setPromo); fetchFeatures().then(setFeat) }, [])
+  const creditsOf = (id: string) => feat.plans.find((p) => p.id === id)?.creditsMonth ?? 0
   // 倒计时心跳(仅在有截止时间时跑)
   useEffect(() => {
     if (!promo.active || !promo.endsAt) return
@@ -104,12 +106,12 @@ export default function PricingPage() {
       note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
       billed: billedLine(priceOf('agent', 99)), priceWas: struckOf(priceOf('agent', 99)),
       features: [
-        L('实时海外带看 20 场/月 + 应用内语音', '20 live overseas tours/mo + in-app voice'),
-        L('Luna 智能导览 20 个/月(可分享自助看房)', '20 Luna AI tours/mo (shareable)'),
-        L('买家意向报告 30 份/月(AI 意向判定 + 跟进话术)', '30 buyer-intent reports/mo'),
-        L('AI 楼书解析:上传开发商 PDF 秒变可视化房源', 'AI brochure parsing: PDF → listings'),
-        L('经纪品牌项目报告 · 无限分享(头像+ROI+真实成交)', 'Branded project reports · unlimited'),
-        L('客户行为洞察 + 热度排序(谁最可能成交)', 'Client behaviour insights + lead scoring'),
+        L(`${(creditsOf('agent') || 2500).toLocaleString()} 积分/月,自由分配到任意功能`, `${(creditsOf('agent') || 2500).toLocaleString()} credits/mo, spend on anything`),
+        L('实时海外带看 + 应用内语音', 'Live overseas tours + in-app voice'),
+        L('Luna 智能导览(可分享自助看房)', 'Luna AI tours (shareable)'),
+        L('买家意向报告(AI 意向判定 + 跟进话术)', 'Buyer-intent reports (AI scoring)'),
+        L('AI 楼书解析:上传 PDF 秒变可视化房源', 'AI brochure parsing: PDF → listings'),
+        L('经纪品牌项目报告 + 客户行为洞察', 'Branded reports + behaviour insights'),
       ],
       cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('agent') },
     },
@@ -119,9 +121,9 @@ export default function PricingPage() {
       note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
       billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       features: [
-        L('Agent 全部功能 · 额度 ×10(带看200·导览200·报告300)', 'Everything in Agent · 10× quota'),
-        L('White-label 品牌定制:你的 logo/配色', 'White-label branding (your logo/colors)'),
-        L('自定义域名(客户只看到你的品牌)', 'Custom domain'),
+        L(`${(creditsOf('founder') || 15000).toLocaleString()} 积分/月 · 消耗 ×0.6(省 40%)`, `${(creditsOf('founder') || 15000).toLocaleString()} credits/mo · 0.6× cost`),
+        L('Agent 全部功能', 'Everything in Agent'),
+        L('White-label 品牌定制 + 自定义域名', 'White-label + custom domain'),
         L('优先支持 · 共建功能 · 锁定创始价', 'Priority support · shape features · locked price'),
       ],
       cta: { label: L('申请 Founder', 'Apply for Founder'), onClick: () => subscribe('founder') },
@@ -217,6 +219,25 @@ export default function PricingPage() {
             </div>
           ))}
         </div>
+
+        {/* 积分消耗表(成本来自后端 /features 配置,改配置自动同步) */}
+        {feat.features.length > 0 && (() => {
+          const founderMult = feat.plans.find((p) => p.id === 'founder')?.multiplier ?? 0.6
+          return (
+            <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-2.5 text-center font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('积分这样花', 'WHAT CREDITS BUY')}</div>
+              <div className="grid gap-x-8 gap-y-1.5 sm:grid-cols-2">
+                {feat.features.map((f) => (
+                  <div key={f.key} className="flex items-center justify-between text-[13px]">
+                    <span className="text-slate-300">{f.label}{f.key === 'live_tours' ? L('(每场)', ' (each)') : ''}</span>
+                    <span className="text-slate-400"><b className="text-white">{f.credits}</b> {L('积分', 'cr')}<span className="text-slate-500"> · Founder {Math.round(f.credits * founderMult)}</span></span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2.5 text-center text-[11px] text-slate-500">{L('每月刷新,未用完不累积 · Founder 所有消耗 ×0.6', 'Refreshes monthly · Founder spends 0.6× on everything')}</div>
+            </div>
+          )
+        })()}
 
         <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-500">
           {promo.active
