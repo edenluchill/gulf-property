@@ -1131,6 +1131,30 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', onPageHide)
   }, [])
 
+  // QA/test hook (guarded): drive Luna with TEXT instead of the mic so the full real
+  // flow — Gemini, tool calls, map actions, bubbles — can be automated + screenshotted
+  // without speech. Enabled ONLY with ?lunatest=1 (or localStorage luna_test=1); never
+  // exposed to customers. __lunaTest.say(text) injects a user turn; .state() reads UI.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const enabled =
+      new URLSearchParams(window.location.search).has('lunatest') ||
+      window.localStorage?.getItem('luna_test') === '1'
+    if (!enabled) return
+    ;(window as any).__lunaTest = {
+      say: (text: string) => {
+        if (!sessionRef.current?.sendClientContent) return 'no active session — open Luna first'
+        sessionRef.current.sendClientContent({
+          turns: [{ role: 'user', parts: [{ text }] }],
+          turnComplete: true,
+        })
+        return `sent: ${text}`
+      },
+      state: () => ({ phase, bubble: latestBubble, userTranscript, toolStatus }),
+    }
+    return () => { delete (window as any).__lunaTest }
+  }, [phase, latestBubble, userTranscript, toolStatus])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
