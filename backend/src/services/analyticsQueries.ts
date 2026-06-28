@@ -12,8 +12,37 @@ export interface Range {
   to: string
 }
 
-/** Headline counters for the selected window. */
+// ── Internal-traffic exclusion ───────────────────────────────────────────────
+// ~70% of raw events are OUR OWN testing (owner + colleague test accounts). If we
+// don't strip them, every metric, intent score and lost-customer list is about us,
+// not real customers. INTERNAL_EMAILS = owner allow-list + test accounts (env-tunable).
+const INTERNAL_EMAILS = [
+  ...(process.env.OWNER_EMAILS || 'lzp6529@gmail.com').split(','),
+  ...(process.env.ANALYTICS_INTERNAL_EMAILS || 'shelldubai26@gmail.com').split(','),
+].map((s) => s.trim().toLowerCase()).filter(Boolean)
+
+let _internalCache: { ids: string[]; at: number } | null = null
+/**
+ * Every visitor_id that has EVER been tied to an internal/test email — so even the
+ * pre-login anonymous browsing of an internal person (same browser, identified
+ * later) is excluded. Cached 60s; effectively free per call. Empty array is safe:
+ * `visitor_id <> ALL('{}')` is TRUE, i.e. excludes nothing.
+ */
+async function internalVisitorIds(): Promise<string[]> {
+  if (_internalCache && Date.now() - _internalCache.at < 60_000) return _internalCache.ids
+  const { rows } = await pool.query(
+    `SELECT DISTINCT visitor_id FROM app_events
+      WHERE visitor_id IS NOT NULL AND lower(user_email) = ANY($1::text[])`,
+    [INTERNAL_EMAILS]
+  )
+  const ids = rows.map((r) => r.visitor_id as string)
+  _internalCache = { ids, at: Date.now() }
+  return ids
+}
+
+/** Headline counters for the selected window (real customers only — internal excluded). */
 export async function getOverview({ from, to }: Range) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT
         COUNT(*)                                   AS events,
@@ -24,8 +53,9 @@ export async function getOverview({ from, to }: Range) {
         COUNT(*) FILTER (WHERE event_type = 'favorite_toggle' AND payload->>'action' = 'add') AS favorites,
         COUNT(*) FILTER (WHERE event_type = 'contact_attempt') AS contacts
        FROM app_events
-      WHERE created_at >= $1 AND created_at < $2`,
-    [from, to]
+      WHERE created_at >= $1 AND created_at < $2
+        AND visitor_id <> ALL($3::text[])`,
+    [from, to, internal]
   )
   const leads = await pool.query(
     `SELECT COUNT(*) AS total,
@@ -36,8 +66,9 @@ export async function getOverview({ from, to }: Range) {
   const luna = await pool.query(
     `SELECT COUNT(*) AS sessions
        FROM luna_sessions
-      WHERE created_at >= $1 AND created_at < $2`,
-    [from, to]
+      WHERE created_at >= $1 AND created_at < $2
+        AND (visitor_id IS NULL OR visitor_id <> ALL($3::text[]))`,
+    [from, to, internal]
   )
   const r = rows[0]
   return {
@@ -56,14 +87,16 @@ export async function getOverview({ from, to }: Range) {
 
 /** Distinct visitors + events per day, for the trend chart. */
 export async function getDailyVisitors({ from, to }: Range) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
             COUNT(DISTINCT visitor_id) AS visitors,
             COUNT(*)                   AS events
        FROM app_events
       WHERE created_at >= $1 AND created_at < $2
+        AND visitor_id <> ALL($3::text[])
       GROUP BY 1 ORDER BY 1`,
-    [from, to]
+    [from, to, internal]
   )
   return rows.map((r) => ({ day: r.day, visitors: Number(r.visitors), events: Number(r.events) }))
 }
@@ -106,20 +139,23 @@ export async function getRecentSearches({ from, to }: Range, limit = 60) {
 
 /** Top committed search terms. */
 export async function getTopSearches({ from, to }: Range, limit = 20) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT lower(payload->>'query') AS term, COUNT(*) AS count
        FROM app_events
       WHERE event_type = 'search'
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'query','') <> ''
+        AND visitor_id <> ALL($4::text[])
       GROUP BY 1 ORDER BY count DESC LIMIT $3`,
-    [from, to, limit]
+    [from, to, limit, internal]
   )
   return rows.map((r) => ({ label: r.term, count: Number(r.count) }))
 }
 
 /** Most-viewed projects (joins project name). */
 export async function getTopProjects({ from, to }: Range, limit = 20) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT e.project_id,
             COALESCE(rp.project_name, e.payload->>'project_name', 'Unknown') AS label,
@@ -128,9 +164,10 @@ export async function getTopProjects({ from, to }: Range, limit = 20) {
        LEFT JOIN residential_projects rp ON rp.id = e.project_id
       WHERE e.event_type = 'property_view'
         AND e.created_at >= $1 AND e.created_at < $2
+        AND e.visitor_id <> ALL($4::text[])
       GROUP BY e.project_id, label
       ORDER BY count DESC LIMIT $3`,
-    [from, to, limit]
+    [from, to, limit, internal]
   )
   return rows.map((r) => ({ id: r.project_id, label: r.label, count: Number(r.count) }))
 }
@@ -226,6 +263,7 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
   // the same email. We collapse those into a single row (summing activity) and
   // report how many browsers it spans. Anonymous visitors (no email) stay keyed
   // by their own visitor_id. `identity` is what the drill-down is fetched by.
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `WITH per_visitor AS (
         SELECT
@@ -244,6 +282,7 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
          FROM app_events e
         WHERE e.created_at >= $1 AND e.created_at < $2
           AND e.visitor_id IS NOT NULL
+          AND e.visitor_id <> ALL($3::text[])
         GROUP BY e.visitor_id
       )
       SELECT
@@ -263,7 +302,7 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
         COUNT(*)                                               AS browser_count
        FROM per_visitor
       GROUP BY COALESCE(user_email, visitor_id)`,
-    [from, to]
+    [from, to, internal]
   )
   return rows
     .map((r) => {
@@ -456,6 +495,7 @@ export async function getVisitorDetail(visitorId: string) {
  *   • cooling    — simply went quiet.
  */
 export async function getLostCustomers(limit = 100) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `WITH per AS (
         SELECT visitor_id,
@@ -471,6 +511,7 @@ export async function getLostCustomers(limit = 100) {
           MAX(created_at) FILTER (WHERE event_type IN ('api_error','auth_failure')) AS last_error_at
          FROM app_events
         WHERE visitor_id IS NOT NULL
+          AND visitor_id <> ALL($1::text[])
         GROUP BY visitor_id
       )
       SELECT
@@ -485,7 +526,7 @@ export async function getLostCustomers(limit = 100) {
        FROM per
       GROUP BY COALESCE(user_email, visitor_id)
       HAVING MAX(last_seen) < now() - interval '7 days'`,  // silent ≥ 7 days
-    []
+    [internal]
   )
 
   const out = rows
@@ -559,7 +600,8 @@ export async function getErrorOverview({ from, to }: Range) {
         COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'api_error')        AS affected_api_visitors
        FROM app_events
       WHERE event_type IN ('auth_failure','api_error')
-        AND created_at >= $1 AND created_at < $2`,
+        AND created_at >= $1 AND created_at < $2
+        AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'`,
     [from, to]
   )
   const daily = await pool.query(
@@ -569,6 +611,7 @@ export async function getErrorOverview({ from, to }: Range) {
        FROM app_events
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
+        AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
       GROUP BY 1 ORDER BY 1`,
     [from, to]
   )
@@ -609,6 +652,7 @@ export async function getErrorGroups({ from, to }: Range, limit = 40) {
        FROM app_events
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
+        AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
       GROUP BY event_type, signature
       ORDER BY count DESC, last_seen DESC
       LIMIT $3`,
@@ -631,6 +675,7 @@ export async function getRecentErrors({ from, to }: Range, limit = 100) {
        FROM app_events
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
+        AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
       ORDER BY created_at DESC
       LIMIT $3`,
     [from, to, limit]
