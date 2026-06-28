@@ -52,6 +52,8 @@ page.on('pageerror', (e) => bucket.push('PAGEERROR: ' + e.message))
 const report = []
 console.log('→ goto', URL)
 await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
+// Persist the test flag so it survives navigate_to_project dropping the ?lunatest query.
+await page.evaluate(() => { try { localStorage.setItem('luna_test', '1') } catch {} })
 
 // Wait for the test hook (with the new open/stopMic methods) to be present.
 let hookOk = false
@@ -83,25 +85,30 @@ await page.evaluate(() => window.__lunaTest.stopMic())
 console.log('✓ connected, mic stopped — driving by text')
 await page.screenshot({ path: join(OUT, '00-connected.png') })
 
+let prevTurnBubble = '' // bubble left over from the previous turn (persists in UI)
 for (let i = 0; i < TURNS.length; i++) {
   const turn = TURNS[i]
   bucket = []
   const t0 = Date.now()
   await page.evaluate((s) => window.__lunaTest.say(s), turn.say)
 
-  // Poll until the reply settles (bubble stable + phase back to listening) or timeout.
-  let lastBubble = '', stableFor = 0, firstReplyMs = null, sawTool = null
-  const DEADLINE = 28000
+  // A real reply = the bubble CHANGES from the previous turn's leftover (not just
+  // "non-empty"). This both detects ignored turns and paces us like a real user
+  // (we don't fire the next turn until this one actually produced a new answer).
+  let lastBubble = prevTurnBubble, stableFor = 0, firstReplyMs = null, sawTool = null, changed = false
+  const DEADLINE = 30000
   while (Date.now() - t0 < DEADLINE) {
     await sleep(700)
     const st = await page.evaluate(() => (window.__lunaTest ? window.__lunaTest.state() : null))
     if (!st) continue
     const bub = st.bubble ? JSON.stringify(st.bubble) : ''
     if (st.toolStatus && !sawTool) sawTool = st.toolStatus
-    if (bub && firstReplyMs === null) firstReplyMs = Date.now() - t0
-    if (bub === lastBubble && bub) { stableFor += 700 } else { stableFor = 0; lastBubble = bub }
-    if (stableFor >= 2100 && st.phase === 'listening') break
+    if (bub && bub !== prevTurnBubble && !changed) { changed = true; firstReplyMs = Date.now() - t0 }
+    if (bub === lastBubble) { stableFor += 700 } else { stableFor = 0; lastBubble = bub }
+    // settle once a NEW reply has arrived, stabilised, and Luna is back to listening
+    if (changed && stableFor >= 2100 && st.phase === 'listening') break
   }
+  prevTurnBubble = lastBubble
   const toolLines = bucket.filter((l) => /Tool call|VoiceTiming|GoAway|CONNECTION_CLOSED|error/i.test(l))
   const shot = `${String(i + 1).padStart(2, '0')}.png`
   await page.screenshot({ path: join(OUT, shot) })
