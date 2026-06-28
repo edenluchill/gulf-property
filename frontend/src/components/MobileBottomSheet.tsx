@@ -1,13 +1,12 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { getImageUrl } from '../lib/image-utils'
 
 interface MobileBottomSheetProps {
   isOpen: boolean
   onClose: () => void
   title: string
   subtitle?: string
-  /** Optional hero photo shown as a banner behind the title. */
+  /** Optional ready-to-use thumbnail src shown to the left of the title. */
   headerImage?: string | null
   children: ReactNode
   height?: string // e.g., '60vh', '85vh', '90vh'
@@ -51,7 +50,7 @@ export default function MobileBottomSheet({ isOpen, onClose, title, subtitle, he
           <div className="mb-3 h-1 w-10 rounded-full bg-slate-300" />
           <div className="flex w-full items-center gap-3">
             {headerImage && (
-              <img src={getImageUrl(headerImage, 'thumbnail')} alt={title} className="h-12 w-16 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-900/5" />
+              <img src={headerImage} alt={title} className="h-12 w-16 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-900/5" />
             )}
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-lg font-bold text-slate-900">{title}</h2>

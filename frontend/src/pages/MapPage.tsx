@@ -23,6 +23,8 @@ import AreaDetailDialog from '../components/AreaDetailDialog'
 import GuidedTour from '../components/GuidedTour'
 import FindHomeAssistant from '../components/find-home/FindHomeAssistant'
 import MobileBottomSheet from '../components/MobileBottomSheet'
+import { getImageUrl } from '../lib/image-utils'
+import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
@@ -2016,7 +2018,12 @@ export default function MapPage() {
         onClose={handleCloseArea}
         title={selectedArea?.name || ''}
         subtitle={!i18n.language?.startsWith('en') ? selectedArea?.translations?.[i18n.language?.split('-')[0] ?? '']?.name : undefined}
-        headerImage={areaProjects.find((p) => p.primaryImage)?.primaryImage || null}
+        headerImage={(() => {
+          const projImg = areaProjects.find((p) => p.primaryImage)?.primaryImage || areaProjects.find((p) => p.images?.[0])?.images?.[0]
+          if (projImg) return getImageUrl(projImg, 'thumbnail')
+          const c = selectedArea?.boundary ? geomCenter(selectedArea.boundary) : null
+          return c ? satelliteThumbUrl(c.lat, c.lng) : null
+        })()}
       >
         {isLoadingAreaProjects ? (
           <div className="flex items-center justify-center py-16">

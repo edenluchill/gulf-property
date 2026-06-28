@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X, Building2, Sparkles } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { getImageUrl } from '../lib/image-utils'
+import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from './AreaInsightsPanel'
 
 interface DeveloperSummary {
@@ -74,10 +75,14 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
 
   const desc = (isTranslated && tr?.description) || area.description || null
   const projectTotal = developers.reduce((n, d) => n + d.projectCount, 0)
-  // Hero photo for the header — borrow a project's image from this area so the
-  // customer recognises the place (areas have no photo of their own).
-  const heroImage: string | null = projects?.find((p: any) => p.primaryImage)?.primaryImage
+  // Header photo: prefer a project render from this area; otherwise fall back to a
+  // satellite aerial of the area's location so EVERY area gets a recognisable image.
+  const projImg: string | null = projects?.find((p: any) => p.primaryImage)?.primaryImage
     || projects?.find((p: any) => p.images?.[0])?.images?.[0] || null
+  const center = geomCenter(area.boundary)
+  const heroSrc: string | null = projImg
+    ? getImageUrl(projImg, 'thumbnail')
+    : (center ? satelliteThumbUrl(center.lat, center.lng) : null)
 
   // Reusable blocks — composed differently on mobile (stacked tabs) vs desktop
   // (2-column: charts left, transactions/projects right).
@@ -147,9 +152,9 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
                       w-[1000px] max-w-[95vw] h-[78vh] max-h-[760px]">
         {/* Header — small photo on the left, title + description stacked on the right */}
         <div className="flex items-start gap-3.5 px-5 pt-4 pb-3 border-b border-slate-100">
-          {heroImage && (
+          {heroSrc && (
             <img
-              src={getImageUrl(heroImage, 'thumbnail')}
+              src={heroSrc}
               alt={(isTranslated && tr?.name) || area.name}
               className="h-16 w-24 flex-shrink-0 rounded-xl object-cover ring-1 ring-slate-900/5"
             />
