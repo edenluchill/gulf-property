@@ -920,20 +920,21 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          // VAD tuning — optimized for RESPONSIVENESS ("一停就回应"). The old
-          // LOW/LOW + 800ms silence config (meant to stop noise from cutting Luna's
-          // endings) made Gemini too slow to accept that the user had finished →
-          // 10s+ reply latency. With echo ruled out (headphones), we go aggressive:
-          //   HIGH endOfSpeech + 350ms silence → fires fast once the user stops.
-          //   HIGH startOfSpeech → registers/barge-in the instant the user talks.
-          //   prefixPaddingMs 200 → small debounce so a single blip isn't a barge-in.
-          // If Luna's endings start getting clipped by background noise, raise
-          // prefixPaddingMs first (the debounce lever), not the sensitivities.
+          // VAD tuning — the START and END sides are tuned INDEPENDENTLY:
+          //   END side (endOfSpeechSensitivity + silenceDurationMs) controls how fast
+          //   Luna replies AFTER the user stops → kept AGGRESSIVE (HIGH + 350ms) so
+          //   she answers ~instantly. (The old LOW + 800ms here caused 10s+ latency.)
+          //   START side (startOfSpeechSensitivity + prefixPaddingMs) controls how
+          //   eagerly noise/breath is treated as a barge-in → kept CONSERVATIVE
+          //   (LOW + 400ms) so background noise no longer interrupts Luna mid-sentence
+          //   and clips her endings. (HIGH + 200ms here was cutting her off.)
+          // If endings still get clipped, raise prefixPaddingMs further (debounce);
+          // if replies feel slow again, lower silenceDurationMs — don't cross-tune.
           realtimeInputConfig: {
             automaticActivityDetection: {
-              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
               endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
-              prefixPaddingMs: 200,
+              prefixPaddingMs: 400,
               silenceDurationMs: 350,
             },
           },
