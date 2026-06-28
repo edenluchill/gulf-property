@@ -875,7 +875,15 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     connectingRef.current = true
     intentionalDisconnectRef.current = false
     reconnectAttemptsRef.current = 0
-    voiceDebugLogger.startSession()
+    // Keep an auto-reconnect inside the SAME debug session so a dropped WebSocket
+    // doesn't split one conversation into multiple records (it used to: the drop
+    // ended the session, the 1s reconnect started a fresh one). Only a real open
+    // starts a new session; a reconnect resumes the existing one if it's still alive.
+    if (isReconnect && voiceDebugLogger.getCurrentSession()) {
+      voiceDebugLogger.log('RECONNECTED')
+    } else {
+      voiceDebugLogger.startSession()
+    }
     setPhase('connecting')
 
     // "Ready" chime on user-initiated open: UX feedback + warms the audio pipeline
@@ -974,11 +982,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
             connectingRef.current = false
             sessionRef.current = null
-            voiceDebugLogger.endSession()
 
             // Auto-reconnect if not intentional
             if (!intentionalDisconnectRef.current &&
                 reconnectAttemptsRef.current < AUTO_RECONNECT_MAX) {
+              // Involuntary drop → keep the debug session OPEN so the whole
+              // conversation stays in one record across the reconnect.
+              voiceDebugLogger.log('RECONNECT_PENDING')
               const attempt = reconnectAttemptsRef.current
               const delayMs = AUTO_RECONNECT_BASE_MS * Math.pow(2, attempt)
               console.log(`[Voice] Auto-reconnect attempt ${attempt + 1}/${AUTO_RECONNECT_MAX} in ${delayMs}ms`)
@@ -989,6 +999,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
                 activate()
               }, delayMs)
             } else {
+              // Real end (reconnect exhausted or intentional) → persist now.
+              voiceDebugLogger.endSession()
               setPhase('idle')
             }
           }
@@ -1049,6 +1061,20 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setToolStatus(null)
     setUserTranscript('')
     voiceDebugLogger.endSession()
+  }, [])
+
+  // Persist the session if the tab is closed/backgrounded mid-conversation.
+  // Needed because auto-reconnect no longer ends the session on every drop — a
+  // close that's really a page unload would otherwise lose the record. endSession()
+  // persists via navigator.sendBeacon, which is built for exactly this moment.
+  useEffect(() => {
+    const onPageHide = () => {
+      if (!voiceDebugLogger.getCurrentSession()) return
+      intentionalDisconnectRef.current = true // don't try to reconnect during unload
+      voiceDebugLogger.endSession()
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
   }, [])
 
   // Cleanup on unmount
