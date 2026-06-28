@@ -86,14 +86,77 @@ export function playAudioBuffer(
 }
 
 /**
- * Audio Recorder class for capturing microphone input
+ * AudioWorklet processor source — runs on the AUDIO thread, immune to main-thread
+ * jank (map rendering, React). The old ScriptProcessorNode ran onaudioprocess on
+ * the MAIN thread; on the map page (heavy GPU/main-thread load) it got starved,
+ * which dropped/glitched mic frames and let audio back up locally. Gemini then got
+ * gappy audio (garbled transcription + dropped words) and couldn't detect end-of-turn
+ * until the backlog drained (6–20s reply latency). This is the same fix already
+ * applied to AudioPlayer — moving the hot path off the main thread.
+ *
+ * Accumulates the 128-sample quanta into ~85ms frames (1280 samples @ 16kHz),
+ * converts Float32 → Int16 PCM here (cheap), and posts the transferable buffer so
+ * the main thread only does base64 + send.
+ */
+const RECORDER_WORKLET_SRC = `
+class LunaRecorderProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super()
+    this._frame = 1280            // ~80ms @ 16kHz — low latency, few messages
+    this._buf = []
+    this._count = 0
+  }
+  process(inputs) {
+    const input = inputs[0]
+    if (input && input[0]) {
+      this._buf.push(new Float32Array(input[0]))
+      this._count += input[0].length
+      while (this._count >= this._frame) {
+        const out = new Float32Array(this._frame)
+        let filled = 0
+        while (filled < this._frame) {
+          const head = this._buf[0]
+          const need = this._frame - filled
+          if (head.length <= need) {
+            out.set(head, filled); filled += head.length; this._buf.shift()
+          } else {
+            out.set(head.subarray(0, need), filled); this._buf[0] = head.subarray(need); filled += need
+          }
+        }
+        this._count -= this._frame
+        const pcm = new Int16Array(this._frame)
+        for (let i = 0; i < this._frame; i++) {
+          const s = Math.max(-1, Math.min(1, out[i]))
+          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+        }
+        this.port.postMessage(pcm.buffer, [pcm.buffer])
+      }
+    }
+    return true
+  }
+}
+registerProcessor('luna-recorder', LunaRecorderProcessor)
+`
+
+let recorderWorkletUrl: string | null = null
+function getRecorderWorkletUrl(): string {
+  if (!recorderWorkletUrl) {
+    recorderWorkletUrl = URL.createObjectURL(
+      new Blob([RECORDER_WORKLET_SRC], { type: 'application/javascript' })
+    )
+  }
+  return recorderWorkletUrl
+}
+
+/**
+ * Audio Recorder — captures the mic on the AUDIO thread via AudioWorklet.
+ * Drop-in: start(onAudioData) / stop(). Emits 16kHz Int16 PCM as base64.
  */
 export class AudioRecorder {
   private stream: MediaStream | null = null
   private audioContext: AudioContext | null = null
-  private processor: ScriptProcessorNode | null = null
+  private node: AudioWorkletNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
-  private mute: GainNode | null = null
   private onAudioData: ((base64: string) => void) | null = null
 
   async start(onAudioData: (base64: string) => void): Promise<void> {
@@ -109,45 +172,41 @@ export class AudioRecorder {
     })
 
     this.audioContext = new AudioContext({ sampleRate: 16000 })
+    // Safari may suspend a fresh context; start() runs on a user gesture so resume is allowed.
+    if (this.audioContext.state === 'suspended') {
+      await this.audioContext.resume()
+    }
+    await this.audioContext.audioWorklet.addModule(getRecorderWorkletUrl())
+
     this.source = this.audioContext.createMediaStreamSource(this.stream)
-    this.processor = this.audioContext.createScriptProcessor(4096, 1, 1)
+    this.node = new AudioWorkletNode(this.audioContext, 'luna-recorder')
 
     let chunkCount = 0
-    this.processor.onaudioprocess = (e) => {
+    this.node.port.onmessage = (e) => {
       if (!this.onAudioData) return
-
-      const inputData = e.inputBuffer.getChannelData(0)
-      const pcmData = float32ToInt16(inputData)
-      const base64 = arrayBufferToBase64(pcmData.buffer as ArrayBuffer)
-
+      const base64 = arrayBufferToBase64(e.data as ArrayBuffer)
       chunkCount++
-      if (chunkCount % 10 === 1) {
+      if (chunkCount % 25 === 1) {
         console.log(`[AudioRecorder] Sending chunk #${chunkCount}, size: ${base64.length}`)
       }
-
       this.onAudioData(base64)
     }
 
-    this.source.connect(this.processor)
-    // A ScriptProcessor only fires onaudioprocess while connected to a destination,
-    // but we must NOT leak the mic to the speaker (that echoed the user's own voice
-    // and fed Luna's voice back into the mic). Route through a muted gain so the
-    // processor stays alive while outputting silence.
-    this.mute = this.audioContext.createGain()
-    this.mute.gain.value = 0
-    this.processor.connect(this.mute)
-    this.mute.connect(this.audioContext.destination)
+    this.source.connect(this.node)
+    // The worklet writes no output (silent), so connecting it to the destination
+    // keeps the graph pulled WITHOUT leaking the mic to the speaker. (The old
+    // ScriptProcessor needed a muted gain for this; here the node is silent by default.)
+    this.node.connect(this.audioContext.destination)
   }
 
   stop(): void {
-    this.processor?.disconnect()
-    this.mute?.disconnect()
+    if (this.node) { this.node.port.onmessage = null }
+    this.node?.disconnect()
     this.source?.disconnect()
     this.audioContext?.close()
     this.stream?.getTracks().forEach(track => track.stop())
 
-    this.processor = null
-    this.mute = null
+    this.node = null
     this.source = null
     this.audioContext = null
     this.stream = null
