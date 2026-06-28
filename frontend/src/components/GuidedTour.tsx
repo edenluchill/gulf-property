@@ -3,12 +3,15 @@ import { useTranslation } from 'react-i18next'
 import { Pause, Play, X, ChevronLeft, ChevronRight, TrendingUp, MapPin, Receipt } from 'lucide-react'
 import { GuidedTourPayload, GuidedStop } from '../hooks/voice-assistant/types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
+import { getImageUrl } from '../lib/image-utils'
 import DirhamSymbol from './DirhamSymbol'
 
+// Dwell per stop. Generous so Luna's narration of a stop finishes before the panel
+// auto-advances (customers reported step 1 jumping before its info was read/heard).
 const DWELL_BY_KIND: Record<GuidedStop['kind'], number> = {
-  advantages: 6500,
-  environment: 8500,   // more to take in (spokes + list)
-  transactions: 7000,
+  advantages: 10000,
+  environment: 12000,   // more to take in (spokes + list)
+  transactions: 9000,
 }
 
 interface Props {
@@ -84,9 +87,18 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
     >
       <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@media(min-width:768px){@keyframes slideUp{from{transform:translate(-50%,120%)}to{transform:translate(-50%,0)}}}`}</style>
 
-      {/* Header row: title + progress dots + close */}
+      {/* Header row: photo + title + progress dots + close */}
       <div className="flex items-center gap-3 px-4 pt-3">
-        <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />
+        {tour.image ? (
+          <img
+            src={getImageUrl(tour.image, 'thumbnail')}
+            alt={tour.name}
+            className="h-9 w-9 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-900/10"
+            loading="lazy"
+          />
+        ) : (
+          <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />
+        )}
         <div className="font-semibold text-sm text-slate-800 truncate">{tour.name}</div>
         <div className="ml-auto flex items-center gap-1.5">
           <button onClick={() => setPaused(p => !p)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500" title={paused ? 'Play' : 'Pause'}>

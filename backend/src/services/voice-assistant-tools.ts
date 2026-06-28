@@ -831,12 +831,14 @@ export async function executeTool(
       // 1) Resolve focus → name, coords, dubai_areas UUID, optional projectId
       let name = '', area = '', lat: number | null = null, lng: number | null = null
       let uuid: string | null = null, projectId: string | null = null
+      let image: string | null = null  // a photo so the customer recognises the place
       if (params.project_id) {
         const d = await apiFetch<{ result: any }>(`/api/ai/projects/${encodeURIComponent(params.project_id)}/detail`).catch(() => null)
         const r = d?.result
         if (!r || r.latitude == null) return { result: null, summary: '没找到这个项目的位置，换个项目我再带你看。' }
         projectId = String(params.project_id); name = (r.projectName || r.project_name || '').trim(); area = (r.area || '').trim()
         lat = Number(r.latitude); lng = Number(r.longitude)
+        image = r.image || r.primary_image || null
         if (area) {
           const m = await apiFetch<{ area: { id: string } | null }>(`/api/ai/areas/match?q=${encodeURIComponent(area)}`).catch(() => null)
           uuid = m?.area?.id || null
@@ -849,14 +851,20 @@ export async function executeTool(
         return { result: null, summary: '告诉我想看哪个项目或区域，我带你走一圈。' }
       }
 
-      // 2) Fetch the three stops' data in parallel
-      const [insights, near, tx] = await Promise.all([
+      // 2) Fetch the three stops' data in parallel (+ a representative photo for areas)
+      const [insights, near, tx, areaImg] = await Promise.all([
         uuid ? apiFetch<any>(`/api/market/area-insights?areaId=${encodeURIComponent(uuid)}`).catch(() => null) : Promise.resolve(null),
         (lat != null && lng != null)
           ? apiFetch<{ pois: any[] }>(`/api/dubai-pois/near?lat=${lat}&lng=${lng}&radius=10000&categories=${SPECS.map(s => s.cat).join(',')}`).catch(() => ({ pois: [] }))
           : Promise.resolve({ pois: [] }),
         projectId ? apiFetch<any>(`/api/residential-projects/${encodeURIComponent(projectId)}/transactions`).catch(() => null) : Promise.resolve(null),
+        // Area tour has no photo of its own → borrow one project's image so the
+        // customer still sees a picture of the place.
+        (!projectId && area)
+          ? apiFetch<{ projects: any[] }>(`/api/ai/projects/search?area=${encodeURIComponent(area)}`).then(d => d.projects?.find((p: any) => p.image || p.primary_image)).then(p => p?.image || p?.primary_image || null).catch(() => null)
+          : Promise.resolve(null),
       ])
+      if (!image && areaImg) image = areaImg
 
       // 优势 — area metrics; for a project, prefer the project's own comp median
       // (the area 'all' median can be villa-skewed and misrepresent the project).
@@ -927,7 +935,7 @@ export async function executeTool(
       return {
         result: { name, area, stops: stops.map(s => s.kind) },
         summary: `已开始带看 ${name}（地图正逐站展示）。请用口语顺着把这三站讲出来，自然连贯、像带客户现场看房，不要照读、不要只说"分三步"：\n${narration}`,
-        mapAction: { type: 'guided_tour', tour: { kind: projectId ? 'project' : 'area', projectId, name, area, lat, lng, stops } },
+        mapAction: { type: 'guided_tour', tour: { kind: projectId ? 'project' : 'area', projectId, name, area, lat, lng, image, stops } },
       }
     }
 

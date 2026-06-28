@@ -90,6 +90,7 @@ export interface GuidedTourPayload {
   area: string
   lat: number
   lng: number
+  image?: string | null  // a photo of the place so the customer recognises it
   stops: GuidedStop[]
 }
 
