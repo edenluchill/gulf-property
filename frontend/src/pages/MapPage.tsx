@@ -2016,6 +2016,7 @@ export default function MapPage() {
         onClose={handleCloseArea}
         title={selectedArea?.name || ''}
         subtitle={!i18n.language?.startsWith('en') ? selectedArea?.translations?.[i18n.language?.split('-')[0] ?? '']?.name : undefined}
+        headerImage={areaProjects.find((p) => p.primaryImage)?.primaryImage || null}
       >
         {isLoadingAreaProjects ? (
           <div className="flex items-center justify-center py-16">
