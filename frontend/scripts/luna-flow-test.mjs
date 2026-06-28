@@ -36,6 +36,13 @@ const JOURNEYS = {
     { say: '买一套200万的房子,一共要花多少钱,有哪些费用?', expect: 'purchase_costs' },
     { say: '带我飞到 Palm Jumeirah 看看。', expect: 'fly_to_area' },
   ],
+  // Reliability probe: 4 present_place requests for different areas in one session.
+  tourprobe: [
+    { say: '带我看看 Dubai Marina 这个区。', expect: 'present_place' },
+    { say: '那 JVC 呢,也带我看看。', expect: 'present_place' },
+    { say: '帮我介绍一下 Business Bay。', expect: 'present_place' },
+    { say: 'Downtown Dubai 怎么样,带我看看。', expect: 'present_place' },
+  ],
 }
 const TURNS = JOURNEYS[process.env.JOURNEY || 'buyer'] || JOURNEYS.buyer
 
@@ -99,30 +106,46 @@ await page.evaluate(() => window.__lunaTest.stopMic())
 console.log('✓ connected, mic stopped — driving by text')
 await page.screenshot({ path: join(OUT, '00-connected.png') })
 
-let prevTurnBubble = '' // bubble left over from the previous turn (persists in UI)
+// Wait until Luna is genuinely idle (no pending tool, listening, bubble stable).
+// Drains any backlog so each turn is attributed cleanly and we pace like a real user.
+async function waitIdle(maxMs) {
+  const start = Date.now(); let last = '', stable = 0
+  while (Date.now() - start < maxMs) {
+    await sleep(700)
+    const st = await page.evaluate(() => (window.__lunaTest ? window.__lunaTest.state() : null))
+    if (!st) continue
+    const bub = st.bubble ? JSON.stringify(st.bubble) : ''
+    if (bub === last) stable += 700; else { stable = 0; last = bub }
+    // Require a long quiet window: real voice users wait for Luna to FINISH speaking
+    // (server-side turn fully closed) before talking; injecting a text turn too soon
+    // after a long reply gets it dropped. 4.9s stable ≈ Luna has truly stopped.
+    if (!st.toolStatus && st.phase === 'listening' && stable >= 4900) return last
+  }
+  return last
+}
+
 for (let i = 0; i < TURNS.length; i++) {
   const turn = TURNS[i]
+  const baseline = await waitIdle(35000) // fully drain + settle previous turn before speaking
+  await sleep(1500)                      // extra settle so the injected turn isn't dropped
   bucket = []
   const t0 = Date.now()
   await page.evaluate((s) => window.__lunaTest.say(s), turn.say)
 
-  // A real reply = the bubble CHANGES from the previous turn's leftover (not just
-  // "non-empty"). This both detects ignored turns and paces us like a real user
-  // (we don't fire the next turn until this one actually produced a new answer).
-  let lastBubble = prevTurnBubble, stableFor = 0, firstReplyMs = null, sawTool = null, changed = false
-  const DEADLINE = 30000
+  // A real reply = the bubble CHANGES from the baseline. Wait up to 45s (some tools
+  // like area_investment_report are slow) for a new, settled reply with no tool in flight.
+  let lastBubble = baseline, stableFor = 0, firstReplyMs = null, sawTool = null, changed = false
+  const DEADLINE = 45000
   while (Date.now() - t0 < DEADLINE) {
     await sleep(700)
     const st = await page.evaluate(() => (window.__lunaTest ? window.__lunaTest.state() : null))
     if (!st) continue
     const bub = st.bubble ? JSON.stringify(st.bubble) : ''
     if (st.toolStatus && !sawTool) sawTool = st.toolStatus
-    if (bub && bub !== prevTurnBubble && !changed) { changed = true; firstReplyMs = Date.now() - t0 }
+    if (bub && bub !== baseline && !changed) { changed = true; firstReplyMs = Date.now() - t0 }
     if (bub === lastBubble) { stableFor += 700 } else { stableFor = 0; lastBubble = bub }
-    // settle once a NEW reply has arrived, stabilised, and Luna is back to listening
-    if (changed && stableFor >= 2100 && st.phase === 'listening') break
+    if (changed && stableFor >= 2800 && st.phase === 'listening' && !st.toolStatus) break
   }
-  prevTurnBubble = lastBubble
   const toolLines = bucket.filter((l) => /Tool call|VoiceTiming|GoAway|CONNECTION_CLOSED|error/i.test(l))
   const shot = `${String(i + 1).padStart(2, '0')}.png`
   await page.screenshot({ path: join(OUT, shot) })
