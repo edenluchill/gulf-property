@@ -45,8 +45,30 @@
 - `__lunaTest` 钩子**仅** `?lunatest=1`/localStorage 开启,只能驱动用户自己的会话、不碰密钥/鉴权/他人数据 → 留作回归测试入口,安全。
 - 未覆盖(需真机):真人语音识别准确率、VAD 对真嗓音时机、音质、iOS 外放路由。
 
+## 第二轮(用户反馈后的优化,2026-06-28 下午)
+
+用户真机反馈 3 个体验问题 + 要求测全部工具。又跑了 ~8 轮迭代:
+
+| 反馈 | 根因 | 修复 | 验证 |
+|------|------|------|------|
+| ① 第一次带看失败,等10秒没反应,要重新强调 | Luna 口头应承("好的这就带您看看")却隔一轮才真调 present_place | 提示词:**调用前根本不知道数据 → 必须先调用**,禁止凭空叙述 | tourprobe **4/4** 触发;buyer 6/6 |
+| ② 推荐项目时看不出她说的是哪个 | `highlight_projects` 只飞镜头、**没高亮项目**(projectIds 被忽略) | 前端:`flashProjectIds` → `ProjectPinMarker` emerald 脉冲环(animate-ping),6s 后清 | 已上线(动画需真眼看) |
+| ③ 介绍环境时 Luna 不说话,光看很奇怪 | present_place 只回一句空话,三站要点没喂给模型 | 后端 summary 带三站口语要点 + 提示词"调用后顺着要点边看边讲" | 带看时已朗读"回报X% 地铁X km 成交X万" |
+| 全部工具 | — | harness 加 JOURNEY=tools/tourprobe | 见下 |
+
+**全部工具实测(JOURNEY=tools)**:check_affordability ✓、get_area_info ✓、rent_vs_buy ✓(带免责)、purchase_costs ✓(费用明细)、fly_to_area ✓、area_investment_report ✓、navigate_to_project ✓、search_projects ✓、recommend_by_budget ✓、analyze_area_amenities ✓、present_place ✓。
+
+**测试机制经验**:文字注入(sendClientContent)在 Luna **长语音还没说完**时发下一句会被丢(turn 显示 stuck)——真人语音靠 VAD 自然等她说完不会遇到。harness 加 settle(等 listening+无工具+气泡稳 4.9s)后 buyer **干净 6/6**。
+
+**已知待办(非阻塞,已记录)**:
+- `area_investment_report` 后端端点 `/api/ai/analytics/report` 慢(~15-20s/次),"对比"时模型调两次 → ~30s。需端点层优化(查询/缓存)。
+- "对比 A vs B" 模型用 area_investment_report×2 而非 compare_market(能对比但慢)。
+- 金额偶发说错数量级(180万→1.8万),已加提示词防护,待复验。
+
 ## 复跑命令
 ```
-node frontend/scripts/check-voice-tools.mjs     # 工具一致性(每次改工具必跑)
-node frontend/scripts/luna-flow-test.mjs         # 买家旅程 6 轮 + 截图
+node frontend/scripts/check-voice-tools.mjs               # 工具一致性(每次改工具必跑)
+node frontend/scripts/luna-flow-test.mjs                   # 买家旅程 6 轮 + 截图
+JOURNEY=tools node frontend/scripts/luna-flow-test.mjs     # 其它 8 个工具
+JOURNEY=tourprobe node frontend/scripts/luna-flow-test.mjs # present_place 可靠性(4次)
 ```
