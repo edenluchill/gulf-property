@@ -1131,10 +1131,16 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', onPageHide)
   }, [])
 
+  // Latest state + callbacks mirrored into a ref so the test hook below can read them
+  // WITHOUT re-registering on every render (re-registering deleted/re-added
+  // window.__lunaTest each render, leaving a gap that crashed automated polling).
+  const lunaLiveRef = useRef<any>({})
+  lunaLiveRef.current = { phase, latestBubble, userTranscript, toolStatus, activate, deactivate }
+
   // QA/test hook (guarded): drive Luna with TEXT instead of the mic so the full real
   // flow — Gemini, tool calls, map actions, bubbles — can be automated + screenshotted
   // without speech. Enabled ONLY with ?lunatest=1 (or localStorage luna_test=1); never
-  // exposed to customers. __lunaTest.say(text) injects a user turn; .state() reads UI.
+  // exposed to customers. Registered ONCE; reads live values via lunaLiveRef.
   useEffect(() => {
     if (typeof window === 'undefined') return
     const enabled =
@@ -1150,15 +1156,18 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         })
         return `sent: ${text}`
       },
-      open: () => { activate(); return 'opening' },
-      close: () => { deactivate(); return 'closing' },
+      open: () => { lunaLiveRef.current.activate?.(); return 'opening' },
+      close: () => { lunaLiveRef.current.deactivate?.(); return 'closing' },
       // Stop the mic so the fake-audio test device can't trigger VAD — text turns only.
       stopMic: () => { recorderRef.current?.stop(); recorderRef.current = null; return 'mic stopped' },
       connected: () => !!sessionRef.current?.sendClientContent,
-      state: () => ({ phase, bubble: latestBubble, userTranscript, toolStatus }),
+      state: () => {
+        const s = lunaLiveRef.current
+        return { phase: s.phase, bubble: s.latestBubble, userTranscript: s.userTranscript, toolStatus: s.toolStatus }
+      },
     }
     return () => { delete (window as any).__lunaTest }
-  }, [phase, latestBubble, userTranscript, toolStatus, activate, deactivate])
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
