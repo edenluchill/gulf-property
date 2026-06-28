@@ -1,26 +1,26 @@
 import { Request, Response, NextFunction } from 'express'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
-
-// Extend Express Request type to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User
-      isAdmin?: boolean
-    }
-  }
-}
+import { extractBearerToken, applyUser } from './context'
+// NB: the Express.Request augmentation (user/isAdmin/ctx) lives in ./context.
 
 /**
- * Extract Bearer token from Authorization header
+ * Resolve the user via a REMOTE Supabase check — the fallback used only when
+ * attachContext couldn't verify the token locally (no JWT secret, or a non-HS256
+ * token). With SUPABASE_JWT_SECRET configured this is never hit for valid tokens,
+ * so the common case stays network-free.
  */
-function extractBearerToken(req: Request): string | null {
-  const authHeader = req.headers.authorization
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+async function resolveRemote(req: Request): Promise<User | null> {
+  const token = req._deferredToken || extractBearerToken(req)
+  if (!token) return null
+  try {
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
+    if (error || !user) return null
+    applyUser(req, user, 'remote')
+    return user
+  } catch {
     return null
   }
-  return authHeader.substring(7)
 }
 
 /**
@@ -34,40 +34,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return next()
   }
 
-  const token = extractBearerToken(req)
+  // Fast path: attachContext already verified the token locally (no network).
+  if (req.ctx?.userId) return next()
 
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication required',
-    })
+  // No locally-verified user and no deferred token → unauthenticated.
+  if (!req._deferredToken && !extractBearerToken(req)) {
+    return res.status(401).json({ success: false, error: 'Authentication required' })
   }
 
-  try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
-
-    if (error || !user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid or expired token',
-      })
-    }
-
-    // Attach user to request
-    req.user = user
-
-    // Check if user is admin
-    const role = user.user_metadata?.role || user.app_metadata?.role
-    req.isAdmin = role === 'admin'
-
-    next()
-  } catch (error) {
-    console.error('Auth middleware error:', error)
-    return res.status(500).json({
-      success: false,
-      error: 'Authentication error',
-    })
+  // Fallback: remote-verify the deferred token (no JWT secret / non-HS256).
+  const user = await resolveRemote(req)
+  if (!user) {
+    return res.status(401).json({ success: false, error: 'Invalid or expired token' })
   }
+  next()
 }
 
 /**
@@ -81,74 +61,36 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     return next()
   }
 
-  const token = extractBearerToken(req)
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication required',
-    })
+  // Resolve identity (local fast path, else remote fallback).
+  if (!req.ctx?.userId) {
+    if (!req._deferredToken && !extractBearerToken(req)) {
+      return res.status(401).json({ success: false, error: 'Authentication required' })
+    }
+    const user = await resolveRemote(req)
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' })
+    }
   }
 
-  try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
-
-    if (error || !user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid or expired token',
-      })
-    }
-
-    // Check if user is admin
-    const role = user.user_metadata?.role || user.app_metadata?.role
-    if (role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Admin access required',
-      })
-    }
-
-    // Attach user to request
-    req.user = user
-    req.isAdmin = true
-
-    next()
-  } catch (error) {
-    console.error('Admin middleware error:', error)
-    return res.status(500).json({
-      success: false,
-      error: 'Authentication error',
-    })
+  if (!req.ctx?.isAdmin) {
+    return res.status(403).json({ success: false, error: 'Admin access required' })
   }
+  next()
 }
 
 /**
  * Optional auth middleware - attaches user if token is valid, but doesn't require it
  */
 export async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
-  if (!isSupabaseConfigured) {
-    return next()
-  }
+  if (!isSupabaseConfigured) return next()
 
-  const token = extractBearerToken(req)
+  // Already resolved locally by attachContext (the common case when a JWT secret
+  // is configured) → zero network on this hot path (e.g. /api/events ingest).
+  if (req.ctx?.userId) return next()
 
-  if (!token) {
-    return next()
-  }
-
-  try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
-
-    if (!error && user) {
-      req.user = user
-      const role = user.user_metadata?.role || user.app_metadata?.role
-      req.isAdmin = role === 'admin'
-    }
-
-    next()
-  } catch (error) {
-    // Don't fail on optional auth errors
-    next()
-  }
+  // Only a deferred (locally-unverifiable) token warrants a remote lookup; a
+  // missing token is just an anonymous request.
+  if (!req._deferredToken) return next()
+  await resolveRemote(req)  // best-effort; ignore failures
+  next()
 }

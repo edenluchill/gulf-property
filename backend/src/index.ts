@@ -45,6 +45,8 @@ import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stri
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 import { perfMetrics } from './middleware/perfMetrics'  // per-request latency/status sampler
+import { attachContext } from './middleware/context'  // network-free identity (visitor + local-verified user)
+import { attribution } from './middleware/attribution'  // sampled who-called-what → api_calls
 import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (generous per-IP cap)
 import { startPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 
@@ -78,9 +80,18 @@ app.use(cors({
 }))
 app.use(morgan('dev'))
 
+// Identity context — one network-free pass resolving visitor_id + (locally
+// verified) user, so guards/handlers read req.ctx instead of each round-tripping
+// to Supabase. Must run before any auth guard. See middleware/context.ts.
+app.use(attachContext)
+
 // Per-request performance sampling (latency/status/concurrency → in-memory sink).
 // Mounted before routes; never touches the response. See services/perfMonitor.ts.
 app.use(perfMetrics)
+
+// Attribution — sampled who-called-what, written fire-and-forget on res.finish
+// (zero latency in the request path). See middleware/attribution.ts.
+app.use(attribution)
 
 // ⚠️ Stripe webhook MUST receive the raw body for signature verification, so it is
 // mounted BEFORE express.json (which would otherwise consume/parse the body).

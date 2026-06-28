@@ -47,5 +47,52 @@
 - **Luna 高延迟导致放弃**：22 个 Luna 会话中 7 个单轮（32% 开了就走）；voice 日志显示首响 5s、回复延迟 9–12s。见 memory `luna-experience-redesign`。
 - **Lead 捕获缺口**：见上 §2.1。
 
-## 部署
-- 已 `quick-deploy.ps1 -SkipWorker`，API 健康。**改动尚未 git commit**（quick-deploy 从工作区构建镜像，生产已生效但 git 未留痕）—— 需要的话我可以补一个 commit。
+## 4. 整体优化（第二轮：favorite 持久化 + 全埋点）✅ 已上线
+
+> 触发：用户指出「favorite 登录后要存 db 然后要 merge，整体优化都要做」。对前端埋点系统 + favorite + 登录 merge 做了穷尽审计（两个 Explore agent）后实施。
+
+### 4.1 埋点系统现状（审计结论）
+- 前端 `lib/track.ts`（`trackEvent(type, payload, opts)`，batch 队列 + sendBeacon）→ `POST /api/events` → `eventIngest.ts`（白名单校验）。visitor_id 存 localStorage `app-visitor-id`。
+- **app_events 的匿名→登录 merge 已存在**：`identifyVisitor()`（AuthContext 登录后调）→ `/api/events/identify` 把该 visitor_id 全部历史事件回填 user_email/user_id。
+- 原白名单仅 9 个事件（page_view/property_view/search/luna_*/tutorial_step/auth_failure/api_error），**只有 view 级，无 intent 信号**。
+
+### 4.2 favorite 现状（审计结论）
+- 原本**纯 localStorage**（`pinzos-favorites`，v2 结构），无 DB 表、无 API、无 merge → 换设备/浏览器即丢，登录不同步，owner dashboard 看不到。
+
+### 4.3 实施
+1. **favorite 服务端持久化 + 登录 merge**
+   - 新表 `user_favorites(user_id, project_id, unit_type_id, added_at)`，`unit_type_id=''` 表项目级，`UNIQUE(user_id,project_id,unit_type_id)` 幂等。
+   - 新 `backend/src/routes/favorites.ts`：`GET /`（拉取，分组成 v2 wire shape）、`POST /`（加）、`DELETE /`（删，项目级删联带 unit）、`POST /merge`（登录时把本地匿名收藏幂等并入 + 返回统一集）。全 requireAuth。
+   - `FavoritesContext`：登录(useAuth)触发 `mergeFavoritesOnLogin()` 并入并采用统一集；登录态下 toggle 双写服务端（best-effort）；登出 `clearFavorites()` 清本地防账号间泄漏。localStorage 仍是匿名/即时/离线来源。
+2. **补全转化/意图埋点**（白名单前端+后端各加 8 个）：`favorite_toggle / contact_attempt / resource_download / report_action / share_action / image_view / area_detail / tab_switch`。插桩点：收藏(FavoritesContext)、联系经纪+Request Info(contact_attempt,immediate)、下载手册、生成报告、分享、看大图 lightbox、区域弹窗开关、详情页切 tab。
+
+### 4.4 验证 & 部署
+- 前后端 `tsc --noEmit` 0 error（除预存的 client-report-builder 无关报错）。
+- favorites SQL 幂等/分组逻辑直连 DB 测过（重复 unit 去重、`''`+unit 行正确归并）。
+- 后端已 `quick-deploy`（tag `20260628-153140`）；`/api/favorites` 无 auth → 401（已挂载+守卫）。
+- 全部 commit `6899deb` 已 push main → 前端 Cloudflare Pages 自动部署。
+
+### 4.5 仍未做（建议下一步）
+- 把高意向**行为**自动转成 lead（现在 leads 仍只来自 Luna 语音留资）——有了 favorite_toggle/contact_attempt 信号后可做规则引擎。
+- dwell time / 滚动深度；area-insights / luna_open 带更多上下文。
+- owner dashboard 增加新事件类型 + api_calls 的可视化（转化漏斗 / 每客户请求轨迹）。
+
+## 5. 统一身份+追踪中间件（第三轮）✅ 已上线
+
+> 问题：原来"客户行为"只在前端显式 trackEvent 处产生，**成功的业务 API 调用不绑定任何客户**（请求里根本不带 visitor_id，后端也无归因中间件）。且 `requireAuth/requireAdmin/optionalAuth` 每次都远程 `supabaseAdmin.auth.getUser(token)` —— 每个受保护请求一次 Supabase 往返（含 /api/events 热路径）。
+
+### 5.1 设计原则（elegant + 零性能回退）
+- **解析与强制分离**：全局 `attachContext` 只做**便宜**的身份解析，鉴权**强制**留给各端点声明式守卫。
+- **attachContext 永不发网络**：能本地验签就验，不能就把 token 暂存（`req._deferredToken`），让需要鉴权的端点**懒**回退远程。匿名/公开端点一次远程都不付。
+- **追踪在响应后、采样、批量、fire-and-forget**：`res.on('finish')`，对请求延迟影响为 0。
+
+### 5.2 实施
+1. **`middleware/context.ts`**（新）：零依赖本地 HS256 JWT 验签（Node `crypto`，拒 alg=none/过期/错签/非HS256→降级），全局 `attachContext` 解析 `X-Visitor-Id` + 本地验签用户 → `req.ctx`。**优雅降级**：配了 `SUPABASE_JWT_SECRET` 走本地（免网络）；没配自动回退远程 = 与原行为完全一致，零回退。
+2. **`middleware/auth.ts`**（重构）：三守卫先读 `req.ctx`（本地已验→0 IO），否则远程回退。配 secret 后 `optionalAuth` 在 /api/events 热路径**零网络**。向后兼容（仍填 `req.user`/`req.isAdmin`）。
+3. **`middleware/attribution.ts` + `api_calls` 表**（新）：采样记录"谁调了哪个业务 API"。规则：写操作(POST/PUT/PATCH/DELETE)全量 + 关键读白名单(项目详情/insights/market/compare)；跳过 /api/events、/health、perf 轮询、map-pins 等高频噪音。
+4. **前端 `track.ts`**：一处全局 `fetch` 拦截器给所有本 API 请求注入 `X-Visitor-Id`（覆盖现有+未来所有调用点，零散改），在 `installTracking()` 启用。
+
+### 5.3 验证 & 部署
+- 本地 JWT 验签 5 例单测全过（有效/过期/错签/alg=none/垃圾）。前后端 tsc 0 error。
+- 生产（tag `20260628-155834`）：favorites 无 auth→401（鉴权未坏）；项目详情读→200 **且**记入 api_calls(带 visitor_id/status/82ms)；map-pins→200 但**未记录**(采样正确跳过)。
+- ⚠️ **要激活提速**：需在两台服务器 compose env 加 `SUPABASE_JWT_SECRET`（Supabase dashboard→Settings→API→JWT Secret）。未配也正常运行（走远程回退），只是没拿到本地验签的提速。

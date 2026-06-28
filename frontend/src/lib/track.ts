@@ -207,11 +207,42 @@ export async function identifyVisitor(): Promise<void> {
   }
 }
 
+/**
+ * Stamp every request to OUR API with the anonymous visitor id, so the backend
+ * can attribute successful business calls to a customer (server-side api_calls)
+ * — not just the handful of interactions we explicitly trackEvent(). One global
+ * fetch wrapper covers all call sites (current and future) with no per-call
+ * change. Scoped to API_BASE_URL only; other origins are untouched. Idempotent.
+ */
+function installApiAttribution(): void {
+  const w = window as unknown as { __apiAttrInstalled?: boolean; fetch: typeof fetch }
+  if (w.__apiAttrInstalled || typeof w.fetch !== 'function') return
+  w.__apiAttrInstalled = true
+  const orig = w.fetch.bind(window)
+  w.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    try {
+      const url = typeof input === 'string' ? input
+        : input instanceof URL ? input.href
+        : (input as Request).url
+      if (url && url.startsWith(API_BASE_URL)) {
+        const headers = new Headers(
+          init?.headers || (input instanceof Request ? input.headers : undefined)
+        )
+        if (!headers.has('X-Visitor-Id')) headers.set('X-Visitor-Id', getVisitorId())
+        if (input instanceof Request && !init) return orig(new Request(input, { headers }))
+        return orig(input as RequestInfo, { ...init, headers })
+      }
+    } catch { /* fall through to the untouched original */ }
+    return orig(input as RequestInfo, init)
+  }
+}
+
 let installed = false
-/** Wire page-hide flushing once, at app start. Idempotent. */
+/** Wire page-hide flushing + API attribution once, at app start. Idempotent. */
 export function installTracking(): void {
   if (installed || typeof window === 'undefined') return
   installed = true
+  installApiAttribution()
   const onHide = () => {
     if (document.visibilityState === 'hidden') void flush(true)
   }
