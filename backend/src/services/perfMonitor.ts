@@ -180,6 +180,11 @@ export function getPerfSnapshot() {
   }
 }
 
+/** Per-endpoint usage + latency table (last `minutes`), busiest first. */
+export function getEndpointStats(minutes = 5) {
+  return sink.endpoints(minutes)
+}
+
 /** Recent minute rollups (newest first) for the trend charts. */
 export async function getPerfRollups(minutes = 180) {
   const { rows } = await pool.query(

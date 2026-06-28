@@ -44,6 +44,7 @@ import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stri
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 import { perfMetrics } from './middleware/perfMetrics'  // per-request latency/status sampler
+import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (generous per-IP cap)
 import { startPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 
 const app: Application = express()
@@ -89,8 +90,10 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), bill
 app.use(express.json({ limit: '500mb' }))
 app.use(express.urlencoded({ extended: true, limit: '500mb' }))
 
-// Rate limiting disabled - No restrictions
-console.log('⚠️  Rate limiting disabled for all environments')
+// Abuse/DoS backstop — generous per-IP cap, skips realtime/webhook paths.
+// Tune down later with the per-endpoint dashboard data. See middleware/rateLimit.ts.
+app.use(apiRateLimiter)
+console.log('🛡️  API rate limiter active (backstop; tune via RATE_LIMIT_MAX)')
 
 // Health check
 app.get('/health', async (_req: Request, res: Response) => {

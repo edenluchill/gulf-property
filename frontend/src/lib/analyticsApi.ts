@@ -280,10 +280,22 @@ export interface PerfAlert {
   emailed: boolean
   active: boolean
 }
+export interface PerfEndpointStat {
+  key: string
+  req: number
+  err: number
+  slow: number
+  rps: number
+  p50: number
+  p95: number
+  p99: number
+  max: number
+}
 export interface PerfData {
   live: PerfSnapshot
   rollups: PerfRollup[]
   alerts: PerfAlert[]
+  endpoints?: PerfEndpointStat[]
 }
 export interface ActiveAlert { id: number; created_at: string; kind: string; message: string }
 

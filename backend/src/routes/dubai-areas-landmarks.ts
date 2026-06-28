@@ -2,8 +2,24 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../db/pool';
 import { requireAuth } from '../middleware/auth';
+import { cachedRender, acceptsGzip, invalidate } from '../services/microCache';
 
 const router = Router();
+
+// Map first-screen reads (/areas, /landmarks) are the hottest public endpoints and
+// the proven load-test bottleneck. Cache them in-process with single-flight; the
+// underlying DLD-derived metrics only change on the daily recompute, so a few-minute
+// TTL is plenty fresh while collapsing a herd of cold visitors into one DB query.
+const AREAS_TTL_MS = Number(process.env.AREAS_CACHE_TTL_MS) || 5 * 60 * 1000;
+
+// Any write to areas/landmarks (editor saves, batch-update) drops the cache after
+// the response finishes, so the editor's post-save refetch always sees fresh data.
+router.use((req, res, next) => {
+  if (req.method !== 'GET') {
+    res.on('finish', () => { invalidate('render:areas'); invalidate('render:landmarks'); });
+  }
+  next();
+});
 
 // Shared helper: map a dubai_areas row to API response shape
 function mapAreaRow(row: any) {
@@ -50,6 +66,7 @@ router.get('/areas', async (req: Request, res: Response) => {
     // usage lens — the MAP shows 'all' (every property type combined); the area
     // detail dialog can filter to a specific usage. Nothing is hidden.
     const usage = USAGE_BUCKETS.includes(String(req.query.usage)) ? String(req.query.usage) : 'all'
+    const rendered = await cachedRender(`areas:${usage}`, AREAS_TTL_MS, async () => {
     // Join with real-time metrics from DLD transactions
     const result = await pool.query(`
       SELECT
@@ -80,7 +97,7 @@ router.get('/areas', async (req: Request, res: Response) => {
       ORDER BY da.display_order ASC, da.name ASC
     `, [usage]);
 
-    const areas = result.rows.map(row => ({
+    const mapped = result.rows.map(row => ({
       ...mapAreaRow(row),
       // Metrics from DLD transactions (read-only, not stored in areas table)
       averagePrice: row.average_price ? parseFloat(row.average_price) : null,
@@ -101,8 +118,18 @@ router.get('/areas', async (req: Request, res: Response) => {
       netGrossYield: row.net_gross_yield_pct != null ? parseFloat(row.net_gross_yield_pct) : null,
       scDragPct: row.sc_drag_pct != null ? parseFloat(row.sc_drag_pct) : null,
     }));
+      return mapped;
+    });
 
-    res.json(areas);
+    // Serve pre-rendered bytes: no per-request stringify, gzip if the client takes it.
+    res.type('application/json');
+    res.setHeader('Vary', 'Accept-Encoding');
+    if (acceptsGzip(req.headers['accept-encoding'])) {
+      res.setHeader('Content-Encoding', 'gzip');
+      res.end(rendered.gz);
+    } else {
+      res.end(rendered.json);
+    }
   } catch (error) {
     console.error('Error fetching Dubai areas:', error);
     res.status(500).json({ error: 'Failed to fetch Dubai areas' });
@@ -167,8 +194,9 @@ router.get('/areas/search', async (req: Request, res: Response) => {
  * Returns all Dubai landmarks (points of interest)
  * Frontend will render these as markers on the map
  */
-router.get('/landmarks', async (_req: Request, res: Response) => {
+router.get('/landmarks', async (req: Request, res: Response) => {
   try {
+    const rendered = await cachedRender('landmarks', AREAS_TTL_MS, async () => {
     const result = await pool.query(`
       SELECT
         id,
@@ -192,7 +220,7 @@ router.get('/landmarks', async (_req: Request, res: Response) => {
       ORDER BY display_order ASC, name ASC
     `);
 
-    const landmarks = result.rows.map(row => ({
+    const mapped = result.rows.map(row => ({
       id: row.id,
       name: row.name,
       nameAr: row.name_ar,
@@ -212,8 +240,17 @@ router.get('/landmarks', async (_req: Request, res: Response) => {
       displayOrder: row.display_order,
       translations: row.translations || {},
     }));
+      return mapped;
+    });
 
-    res.json(landmarks);
+    res.type('application/json');
+    res.setHeader('Vary', 'Accept-Encoding');
+    if (acceptsGzip(req.headers['accept-encoding'])) {
+      res.setHeader('Content-Encoding', 'gzip');
+      res.end(rendered.gz);
+    } else {
+      res.end(rendered.json);
+    }
   } catch (error) {
     console.error('Error fetching Dubai landmarks:', error);
     res.status(500).json({ error: 'Failed to fetch Dubai landmarks' });

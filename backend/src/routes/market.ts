@@ -692,9 +692,13 @@ async function warmAreaInsights() {
     let ok = 0
     for (const row of r.rows) {
       try {
-        const data = await loadAreaInsightsData(row.id)
-        txCache.delete(`insights:${row.id}`)  // 重置插入序，刷新 TTL
-        txCacheSet(`insights:${row.id}`, data)
+        // Warm the SAME key the request path reads: `insights:${id}:${usage}`.
+        // (Previously warmed `insights:${id}` — a key nothing ever looked up, so
+        //  every first area click was a cold DB miss. That cold-miss storm is what
+        //  saturated the pool under load — see docs/reports/2026-06-27-api-load-test.md.)
+        const data = await loadAreaInsightsData(row.id, 'all')
+        txCache.delete(`insights:${row.id}:all`)  // 重置插入序，刷新 TTL
+        txCacheSet(`insights:${row.id}:all`, data)
         ok++
       } catch { /* 单区域失败不影响整轮 */ }
       await new Promise(resolve => setTimeout(resolve, 250))  // 让出 DB

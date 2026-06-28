@@ -132,3 +132,77 @@ export function window(seconds: number): Window {
     activeConcurrency,
   }
 }
+
+// ───────────────────────── per-endpoint (path) tracking ─────────────────────
+// Separate, bounded structure: one record per normalized route template
+// ("GET /api/dubai/areas"), each holding a small ring of minute buckets. This
+// powers the dashboard's per-endpoint usage+latency table. Memory ceiling:
+// MAX_PATHS × PATH_RING × PATH_LAT_CAP numbers (~300×5×200 = 300k worst case).
+const PATH_RING = 5 // minute buckets kept per path (last 5 min)
+const PATH_BUCKET_S = 60
+const PATH_LAT_CAP = 200 // latency samples per path per minute bucket
+const MAX_PATHS = 300 // distinct route templates tracked (real surface is ~80)
+
+interface PathBucket { idx: number; req: number; err: number; slow: number; lat: number[] }
+interface PathRec { buckets: PathBucket[] }
+const paths = new Map<string, PathRec>()
+
+function pathBucketIdx(sec: number): number {
+  return Math.floor(sec / PATH_BUCKET_S)
+}
+
+export function recordEndpoint(key: string, status: number, ms: number): void {
+  let rec = paths.get(key)
+  if (!rec) {
+    if (paths.size >= MAX_PATHS) return // cardinality guard — never grows unbounded
+    rec = { buckets: Array.from({ length: PATH_RING }, () => ({ idx: -1, req: 0, err: 0, slow: 0, lat: [] })) }
+    paths.set(key, rec)
+  }
+  const bIdx = pathBucketIdx(nowSec())
+  const slot = rec.buckets[bIdx % PATH_RING]
+  if (slot.idx !== bIdx) {
+    slot.idx = bIdx; slot.req = 0; slot.err = 0; slot.slow = 0; slot.lat.length = 0
+  }
+  slot.req++
+  if (status >= 500) slot.err++
+  if (ms >= SLOW_REQ_MS) slot.slow++
+  if (slot.lat.length < PATH_LAT_CAP) slot.lat.push(ms)
+}
+
+export interface EndpointStat {
+  key: string
+  req: number
+  err: number
+  slow: number
+  rps: number
+  p50: number
+  p95: number
+  p99: number
+  max: number
+}
+
+/** Per-endpoint aggregate over the last `minutes` (clamped to PATH_RING). */
+export function endpoints(minutes = 5): EndpointStat[] {
+  const span = Math.min(PATH_RING, Math.max(1, Math.floor(minutes)))
+  const cutoff = pathBucketIdx(nowSec()) - span + 1
+  const out: EndpointStat[] = []
+  for (const [key, rec] of paths) {
+    let req = 0, err = 0, slow = 0
+    const lat: number[] = []
+    for (const b of rec.buckets) {
+      if (b.idx >= cutoff) { req += b.req; err += b.err; slow += b.slow; for (const v of b.lat) lat.push(v) }
+    }
+    if (req === 0) continue
+    lat.sort((a, b) => a - b)
+    out.push({
+      key, req, err, slow,
+      rps: Math.round((req / (span * PATH_BUCKET_S)) * 100) / 100,
+      p50: percentile(lat, 50),
+      p95: percentile(lat, 95),
+      p99: percentile(lat, 99),
+      max: lat.length ? Math.round(lat[lat.length - 1]) : 0,
+    })
+  }
+  out.sort((a, b) => b.req - a.req)
+  return out
+}

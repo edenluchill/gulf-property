@@ -74,6 +74,7 @@ export default function PerfMonitor() {
   }
 
   const { live, alerts } = data
+  const endpoints = data.endpoints || []
   const m1 = live.last1m
   const m3 = live.last3m
   const poolPct = live.pool.max ? Math.round((live.pool.total / live.pool.max) * 100) : 0
@@ -127,6 +128,50 @@ export default function PerfMonitor() {
       <div className="grid gap-3 md:grid-cols-2">
         <TrendChart title="p95 延迟（每分钟 · ms）" points={p95Trend} />
         <TrendChart title="RPS（每分钟均值）" points={rpsTrend} />
+      </div>
+
+      {/* Per-endpoint usage + speed (last 5 min) */}
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="border-b border-slate-100 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-800">各接口用量 / 速度（近 5 分钟）</h3>
+          <p className="text-xs text-slate-400">按请求数排序。p95 标红 = 超过 {live.thresholds.p95_ms}ms。错误为 5xx。</p>
+        </div>
+        {endpoints.length === 0 ? (
+          <p className="px-4 py-6 text-xs text-slate-400">近 5 分钟暂无流量。</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-slate-400">
+                  <th className="px-4 py-2 font-medium">接口</th>
+                  <th className="px-3 py-2 text-right font-medium">请求</th>
+                  <th className="px-3 py-2 text-right font-medium">RPS</th>
+                  <th className="px-3 py-2 text-right font-medium">错误</th>
+                  <th className="px-3 py-2 text-right font-medium">慢</th>
+                  <th className="px-3 py-2 text-right font-medium">p50</th>
+                  <th className="px-3 py-2 text-right font-medium">p95</th>
+                  <th className="px-3 py-2 text-right font-medium">p99</th>
+                  <th className="px-3 py-2 text-right font-medium">max</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {endpoints.map((e) => (
+                  <tr key={e.key} className="text-slate-600 hover:bg-slate-50/60">
+                    <td className="px-4 py-2 font-mono text-[11px] text-slate-700">{e.key}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{e.req}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{e.rps}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${e.err > 0 ? 'text-rose-600' : ''}`}>{e.err}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${e.slow > 0 ? 'text-amber-600' : ''}`}>{e.slow}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{e.p50}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${e.p95 > live.thresholds.p95_ms ? 'font-semibold text-rose-600' : ''}`}>{e.p95}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{e.p99}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-400">{e.max}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Alerts */}

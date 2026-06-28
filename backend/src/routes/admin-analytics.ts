@@ -110,7 +110,7 @@ router.get('/perf', wrap(async (req) => {
     perf.getPerfRollups(minutes),
     perf.getRecentAlerts(50),
   ])
-  return { live: perf.getPerfSnapshot(), rollups, alerts }
+  return { live: perf.getPerfSnapshot(), rollups, alerts, endpoints: perf.getEndpointStats(5) }
 }))
 
 // Lightweight — drives the dashboard red banner (polled frequently).
