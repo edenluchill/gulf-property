@@ -959,9 +959,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           // if replies feel slow again, lower silenceDurationMs — don't cross-tune.
           realtimeInputConfig: {
             automaticActivityDetection: {
-              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+              // HIGH start = Gemini registers the user is talking FAST (this was the
+              // value that actually worked; LOW made it miss speech start entirely →
+              // "说半天没反应"). prefixPaddingMs is the debounce against false barge-ins
+              // (raise it, not the sensitivity, if endings get clipped on speaker).
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
               endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
-              prefixPaddingMs: 400,
+              prefixPaddingMs: 300,
               silenceDurationMs: 350,
             },
           },
