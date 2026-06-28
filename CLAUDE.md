@@ -92,7 +92,7 @@ docker push ghcr.io/edenluchill/pinzos-worker:latest
 #   printf '%s' "$GITHUB_TOKEN" | ssh root@<worker-ip> "docker login ghcr.io -u edenluchill --password-stdin"
 ```
 
-⚠️ The legacy top-level `worker/` directory is a STALE copy of langgraph (unused since 2026-06-12) — the worker now builds from `backend/src`. Do not edit `worker/`.
+ℹ️ The worker builds from `backend/src` (entry `backend/src/worker/index.ts`). The old top-level `worker/` directory (a stale langgraph copy, unused since 2026-06-12) was removed on 2026-06-28.
 
 **Environment variables for worker mode:**
 - `USE_WORKER_MODE=true` - API uploads to R2, worker processes
