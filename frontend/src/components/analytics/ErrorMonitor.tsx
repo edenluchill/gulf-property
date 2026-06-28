@@ -7,9 +7,92 @@
  * feed, all as card lists (no wide tables), so it's readable on a phone.
  */
 import { useEffect, useState } from 'react'
-import { Loader2, ShieldAlert, ServerCrash, Users } from 'lucide-react'
-import { fetchErrors, ErrorsData, ErrorEvent } from '../../lib/analyticsApi'
+import { Loader2, ShieldAlert, ServerCrash, Users, PhoneCall, ChevronRight } from 'lucide-react'
+import { fetchErrors, fetchErrorImpact, ErrorsData, ErrorEvent, ErrorImpactCustomer } from '../../lib/analyticsApi'
 import StatCard from './StatCard'
+import { VisitorDrawer, ago as agoRel, shortId } from './Visitors'
+
+/** Strip the API origin so error_urls show just the path. */
+const cleanUrl = (u: string) => u.replace(/^https?:\/\/[^/]+/, '') || u
+
+/** Top-of-tab alert: real high-intent customers who just hit a bug. The owner
+ *  should proactively reach out (WhatsApp/call) once the bug is fixed. */
+function UrgentContactBlock() {
+  const [rows, setRows] = useState<ErrorImpactCustomer[] | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    fetchErrorImpact(48)
+      .then((d) => alive && setRows(d))
+      .catch(() => alive && setRows([]))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  return (
+    <div className="overflow-hidden rounded-2xl bg-amber-50/70 shadow-sm ring-1 ring-amber-200">
+      <div className="border-b border-amber-200/70 px-4 py-3">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+          <PhoneCall className="h-4 w-4" />
+          该立刻联系的客户（近48h 撞到错误）
+        </h3>
+        <p className="mt-0.5 text-[11px] text-amber-700/80">
+          这些真实客户遇到故障——修复后建议主动 WhatsApp/电话回访,别让 bug 赶走高意向客户
+        </p>
+      </div>
+
+      {rows === null ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="px-4 py-5">
+          <p className="rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-600 ring-1 ring-emerald-200">
+            近48h 没有真实客户撞到错误 👍
+          </p>
+        </div>
+      ) : (
+        <div className="max-h-[360px] overflow-y-auto">
+          {rows.map((r) => {
+            const who = r.user_email || `#${shortId(r.visitor_id)}`
+            const hot = r.score >= 30
+            return (
+              <button
+                key={r.identity}
+                onClick={() => setOpenId(r.identity)}
+                className="flex w-full items-start justify-between gap-2 border-b border-amber-200/50 px-4 py-3 text-left transition-colors last:border-0 hover:bg-amber-100/50"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-slate-800">{who}</span>
+                    <span
+                      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
+                        hot
+                          ? 'bg-rose-50 text-rose-600 ring-rose-200'
+                          : 'bg-slate-100 text-slate-600 ring-slate-200'
+                      }`}
+                    >
+                      意向 {r.score}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-slate-500">
+                    撞到:{r.error_urls.map(cleanUrl).join(' · ') || '—'}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">最后错误 {agoRel(r.last_error_at)}</p>
+                </div>
+                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {openId && <VisitorDrawer id={openId} onClose={() => setOpenId(null)} />}
+    </div>
+  )
+}
 
 const ago = (iso: string) => {
   const m = (Date.now() - new Date(iso).getTime()) / 60000
@@ -92,8 +175,11 @@ export default function ErrorMonitor({ days }: { days: number }) {
 
   if (!data) {
     return (
-      <div className="flex h-40 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-teal-500" />
+      <div className="space-y-4">
+        <UrgentContactBlock />
+        <div className="flex h-40 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-teal-500" />
+        </div>
       </div>
     )
   }
@@ -104,6 +190,8 @@ export default function ErrorMonitor({ days }: { days: number }) {
 
   return (
     <div className="space-y-4">
+      <UrgentContactBlock />
+
       {/* Stat grid — 2 cols on phone, 4 on desktop. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="登录失败" value={overview.auth_failures} icon={<ShieldAlert className="h-4 w-4" />}

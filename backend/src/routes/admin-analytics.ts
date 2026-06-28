@@ -95,6 +95,9 @@ router.get('/errors', wrap(async (req) => {
   return { overview, groups, recent }
 }))
 
+// Fault-recovery loop: real customers who hit an error recently — reach out now.
+router.get('/error-impact', wrap((req) => q.getErrorImpact(Math.min(168, Number(req.query.hours) || 48))))
+
 // ── 实时带看(collab)意向报告 ─────────────────────────
 router.get('/collab', wrap((req) =>
   getCollabSessions(Math.min(200, Number(req.query.limit) || 50), Math.max(0, Number(req.query.offset) || 0))

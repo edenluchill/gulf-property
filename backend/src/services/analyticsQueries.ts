@@ -691,3 +691,59 @@ export async function getRecentErrors({ from, to }: Range, limit = 100) {
     payload: r.payload ?? {},
   }))
 }
+
+/**
+ * Fault-recovery closed loop (策略 C2): the REAL customers who hit an error in the
+ * last N hours, with their intent score + which bug they hit + contact info —
+ * i.e. "reach out to these people NOW, before they churn". Distinct from
+ * getLostCustomers (already gone, silent ≥7d): this is the act-now window so a
+ * failure like the area-insights 500 doesn't silently cost us a hot lead.
+ * Internal/test traffic + dashboard self-noise excluded.
+ */
+export async function getErrorImpact(hours = 48) {
+  const internal = await internalVisitorIds()
+  const { rows } = await pool.query(
+    `WITH hit AS (
+        SELECT DISTINCT visitor_id
+          FROM app_events
+         WHERE event_type IN ('api_error','auth_failure')
+           AND created_at >= now() - make_interval(hours => $1)
+           AND visitor_id IS NOT NULL
+           AND visitor_id <> ALL($2::text[])
+           AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
+           AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/insights/%'
+      )
+      SELECT e.visitor_id,
+             MAX(e.user_email)                                                       AS user_email,
+             MAX(e.created_at)                                                        AS last_seen,
+             COUNT(*) FILTER (WHERE e.event_type='property_view')                     AS views,
+             COUNT(*) FILTER (WHERE e.event_type='search')                            AS searches,
+             COUNT(*) FILTER (WHERE e.event_type='luna_open')                         AS luna,
+             COUNT(*) FILTER (WHERE e.event_type='favorite_toggle' AND e.payload->>'action'='add') AS favorites,
+             COUNT(*) FILTER (WHERE e.event_type='contact_attempt')                   AS contacts,
+             MAX(e.created_at) FILTER (WHERE e.event_type IN ('api_error','auth_failure')) AS last_error_at,
+             (ARRAY_AGG(DISTINCT COALESCE(e.payload->>'url', e.payload->>'endpoint'))
+                FILTER (WHERE e.event_type IN ('api_error','auth_failure')
+                        AND COALESCE(e.payload->>'url', e.payload->>'endpoint','') <> ''))[1:3] AS error_urls
+        FROM app_events e
+        JOIN hit ON hit.visitor_id = e.visitor_id
+       GROUP BY e.visitor_id`,
+    [hours, internal]
+  )
+  return rows
+    .map((r) => {
+      const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna)
+      const favorites = Number(r.favorites), contacts = Number(r.contacts)
+      const score = quickScore({ views, searches, luna, hasContact: !!r.user_email || contacts > 0, favorites, contacts })
+      return {
+        identity: (r.user_email as string) || (r.visitor_id as string),
+        visitor_id: r.visitor_id as string,
+        user_email: (r.user_email as string) || null,
+        last_seen: r.last_seen,
+        last_error_at: r.last_error_at,
+        error_urls: ((r.error_urls as string[]) || []).filter(Boolean),
+        views, favorites, contacts, score,
+      }
+    })
+    .sort((a, b) => b.score - a.score || new Date(b.last_error_at).getTime() - new Date(a.last_error_at).getTime())
+}

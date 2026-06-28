@@ -249,6 +249,23 @@ export interface ErrorsData {
 }
 export const fetchErrors = (days: number) => authedGet<ErrorsData>(`/errors?days=${days}`)
 
+/** Real high-intent customers who hit an api_error / login failure recently
+ *  (internal test ids excluded server-side), ranked by intent score. */
+export interface ErrorImpactCustomer {
+  identity: string
+  visitor_id: string
+  user_email: string | null
+  last_seen: string
+  last_error_at: string
+  error_urls: string[]
+  views: number
+  favorites: number
+  contacts: number
+  score: number
+}
+export const fetchErrorImpact = (hours?: number) =>
+  authedGet<ErrorImpactCustomer[]>(`/error-impact?hours=${hours || 48}`)
+
 export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`)
 export const fetchCollabReport = (code: string) =>
   authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)
