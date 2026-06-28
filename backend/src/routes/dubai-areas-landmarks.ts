@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import pool from '../db/pool';
 import { requireAuth } from '../middleware/auth';
 import { cachedRender, acceptsGzip, invalidate } from '../services/microCache';
+import { seal } from '../services/seal';
 
 const router = Router();
 
@@ -130,6 +131,15 @@ router.get('/areas', async (req: Request, res: Response) => {
     }));
       return mapped;
     });
+
+    // Sealed variant (multi-stage, date-rotating obfuscation) — the public map asks
+    // for this so the Network tab shows binary gibberish, not copy-pasteable JSON.
+    if (req.query.sealed) {
+      res.type('application/octet-stream');
+      res.setHeader('Cache-Control', 'no-transform'); // keep nginx/CF off the binary
+      res.end(seal(rendered.gz));
+      return;
+    }
 
     // Serve pre-rendered bytes: no per-request stringify, gzip if the client takes it.
     res.type('application/json');

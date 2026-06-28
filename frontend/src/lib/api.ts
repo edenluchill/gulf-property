@@ -53,15 +53,66 @@ export interface ApiResponse<T> {
 // DUBAI AREAS & LANDMARKS API
 // ============================================================================
 
+// ── Sealed /dubai/areas decode (mirrors backend services/seal.ts) ──────────────
+// OBFUSCATION ONLY: these passphrases live in the bundle by necessity (we must be
+// able to decrypt to render). Multi-stage + daily rotation just raises the cost of
+// casual copying — the Network tab shows binary, and a recorded scraper breaks
+// every day. It does not stop a determined scripter.
+const VEIL_PASS = 'pinzos-area-veil-v1';
+const XOR_PASS = 'pinzos-area-xor-v1';
+
+function utcDate(offsetDays = 0): string {
+  return new Date(Date.now() + offsetDays * 86400000).toISOString().slice(0, 10);
+}
+async function sha256Bytes(s: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
+}
+async function veilKeystream(date: string, len: number): Promise<Uint8Array> {
+  const out = new Uint8Array(len);
+  for (let i = 0; i * 32 < len; i++) {
+    const block = await sha256Bytes(`${XOR_PASS}:${date}:${i}`);
+    out.set(block.subarray(0, Math.min(32, len - i * 32)), i * 32);
+  }
+  return out;
+}
+async function gunzipToText(buf: ArrayBuffer): Promise<string> {
+  const stream = new Response(buf).body!.pipeThrough(new DecompressionStream('gzip'));
+  return await new Response(stream).text();
+}
+async function unsealWith(buf: ArrayBuffer, date: string): Promise<DubaiArea[]> {
+  const blob = new Uint8Array(buf.slice(0));
+  const ks = await veilKeystream(date, blob.length);          // stage 1: undo XOR
+  for (let i = 0; i < blob.length; i++) blob[i] ^= ks[i];
+  const iv = blob.subarray(0, 12);
+  const tag = blob.subarray(12, 28);
+  const ct = blob.subarray(28);
+  const ctTag = new Uint8Array(ct.length + 16);
+  ctTag.set(ct); ctTag.set(tag, ct.length);
+  const keyBytes = await sha256Bytes(`${VEIL_PASS}:${date}`);
+  const key = await crypto.subtle.importKey(
+    'raw', keyBytes.buffer as ArrayBuffer, 'AES-GCM', false, ['decrypt']
+  );
+  const gz = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: iv as unknown as BufferSource }, key, ctTag as unknown as BufferSource
+  ); // stage 2: AES
+  return JSON.parse(await gunzipToText(gz));                                    // stage 3: gunzip
+}
+
 /**
- * Fetch Dubai areas (districts with boundaries)
+ * Fetch Dubai areas (districts with boundaries). Requests the sealed variant and
+ * decrypts client-side; tries today then yesterday (UTC) to survive the daily
+ * key rollover at the midnight boundary / minor clock skew.
  */
 export async function fetchDubaiAreas(usage?: string): Promise<DubaiArea[]> {
+  const u = usage && usage !== 'residential' ? `&usage=${encodeURIComponent(usage)}` : '';
   try {
-    const qs = usage && usage !== 'residential' ? `?usage=${encodeURIComponent(usage)}` : '';
-    const response = await fetch(`${API_URL}/dubai/areas${qs}`);
-    const areas: DubaiArea[] = await response.json();
-    return areas;
+    const response = await fetch(`${API_URL}/dubai/areas?sealed=1${u}`);
+    if (!response.ok) throw new Error(`areas ${response.status}`);
+    const buf = await response.arrayBuffer();
+    for (const date of [utcDate(0), utcDate(-1)]) {
+      try { return await unsealWith(buf, date); } catch { /* try previous day */ }
+    }
+    throw new Error('unseal failed');
   } catch (error) {
     console.error('Error fetching Dubai areas:', error);
     return [];
