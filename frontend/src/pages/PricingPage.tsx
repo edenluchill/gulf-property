@@ -105,13 +105,11 @@ export default function PricingPage() {
       badge: L('15 天免费试用', '15-day free trial'),
       note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
       billed: billedLine(priceOf('agent', 99)), priceWas: struckOf(priceOf('agent', 99)),
+      creditsMo: creditsOf('agent') || 2500,
       features: [
-        L(`${(creditsOf('agent') || 2500).toLocaleString()} 积分/月,自由分配到任意功能`, `${(creditsOf('agent') || 2500).toLocaleString()} credits/mo, spend on anything`),
-        L('实时海外带看 + 应用内语音', 'Live overseas tours + in-app voice'),
-        L('Luna 智能导览(可分享自助看房)', 'Luna AI tours (shareable)'),
-        L('买家意向报告(AI 意向判定 + 跟进话术)', 'Buyer-intent reports (AI scoring)'),
-        L('AI 楼书解析:上传 PDF 秒变可视化房源', 'AI brochure parsing: PDF → listings'),
-        L('经纪品牌项目报告 + 客户行为洞察', 'Branded reports + behaviour insights'),
+        L('实时海外带看 · Luna 导览 · 意向报告', 'Live tours · Luna tours · intent reports'),
+        L('AI 楼书解析 · 应用内语音', 'AI brochure parsing · in-app voice'),
+        L('经纪品牌报告 + 客户行为洞察', 'Branded reports + behaviour insights'),
       ],
       cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('agent') },
     },
@@ -120,8 +118,8 @@ export default function PricingPage() {
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 季', '/ qtr'), edge: GOLD, badge: L('10× 额度', '10× quota'),
       note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
       billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
+      creditsMo: creditsOf('founder') || 15000, founderDiscount: true,
       features: [
-        L(`${(creditsOf('founder') || 15000).toLocaleString()} 积分/月 · 消耗 ×0.6(省 40%)`, `${(creditsOf('founder') || 15000).toLocaleString()} credits/mo · 0.6× cost`),
         L('Agent 全部功能', 'Everything in Agent'),
         L('White-label 品牌定制 + 自定义域名', 'White-label + custom domain'),
         L('优先支持 · 共建功能 · 锁定创始价', 'Priority support · shape features · locked price'),
@@ -141,7 +139,7 @@ export default function PricingPage() {
         <link rel="canonical" href="https://pinzos.com/pricing" />
       </Helmet>
 
-      <section className="mx-auto max-w-6xl px-6 py-6 md:py-9">
+      <section className="mx-auto max-w-6xl px-6 py-5 md:py-7">
         <div className="text-center">
           <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
           <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
@@ -192,7 +190,7 @@ export default function PricingPage() {
 
         {err && <div className="mx-auto mt-4 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
 
-        <div className="mt-5 grid items-stretch gap-3 lg:grid-cols-3">
+        <div className="mt-4 grid items-stretch gap-3 lg:grid-cols-3">
           {tiers.map((t) => (
             // 手机端把付费的「经纪版」排第一(受众是经纪),桌面端保持 探索/经纪/创始 原序
             <div key={t.id} className={`relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 lg:order-none ${t.id === 'agent' ? 'order-1' : t.id === 'founder' ? 'order-2' : 'order-3'}`}
@@ -206,6 +204,16 @@ export default function PricingPage() {
               </div>
               <p className="mt-1 text-[13px] text-slate-400">{t.note}</p>
               {t.billed && <p className="mt-0.5 text-[11px] text-slate-500">{t.billed}</p>}
+              {/* 醒目的每月积分额度 */}
+              {'creditsMo' in t && (t as { creditsMo?: number }).creditsMo != null && (
+                <div className="mt-2.5 flex items-baseline gap-1.5 rounded-lg px-3 py-1.5" style={{ background: `${t.edge}1a` }}>
+                  <span className="text-xl font-extrabold" style={{ color: t.edge }}>{(t as { creditsMo: number }).creditsMo.toLocaleString()}</span>
+                  <span className="text-[13px] font-medium text-slate-300">{L('积分 / 月', 'credits / mo')}</span>
+                  {(t as { founderDiscount?: boolean }).founderDiscount && (
+                    <span className="ml-auto text-[11px] font-semibold" style={{ color: t.edge }}>{L('消耗 ×0.6', '0.6× cost')}</span>
+                  )}
+                </div>
+              )}
               <ul className="mt-3 flex-1 space-y-1.5 text-[13px] leading-snug text-slate-300">
                 {t.features.map((f, i) => (
                   <li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: t.edge }} /> {f}</li>
@@ -224,22 +232,30 @@ export default function PricingPage() {
         {feat.features.length > 0 && (() => {
           const founderMult = feat.plans.find((p) => p.id === 'founder')?.multiplier ?? 0.6
           return (
-            <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="mb-2.5 text-center font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('积分这样花', 'WHAT CREDITS BUY')}</div>
-              <div className="grid gap-x-8 gap-y-1.5 sm:grid-cols-2">
-                {feat.features.map((f) => (
-                  <div key={f.key} className="flex items-center justify-between text-[13px]">
-                    <span className="text-slate-300">{f.label}{f.key === 'live_tours' ? L('(每场)', ' (each)') : ''}</span>
-                    <span className="text-slate-400"><b className="text-white">{f.credits}</b> {L('积分', 'cr')}<span className="text-slate-500"> · Founder {Math.round(f.credits * founderMult)}</span></span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-2.5 text-center text-[11px] text-slate-500">{L('每月刷新,未用完不累积 · Founder 所有消耗 ×0.6', 'Refreshes monthly · Founder spends 0.6× on everything')}</div>
+            <div className="mx-auto mt-4 max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide text-slate-400" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <th className="px-4 py-1.5 text-left font-semibold" style={{ color: ACCENT }}>{L('积分消耗对照', 'WHAT CREDITS BUY')}</th>
+                    <th className="px-4 py-1.5 text-right font-medium">{L('标准', 'Standard')}</th>
+                    <th className="px-4 py-1.5 text-right font-medium" style={{ color: GOLD }}>Founder ×{founderMult}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {feat.features.map((f) => (
+                    <tr key={f.key} className="border-t border-white/[0.05]">
+                      <td className="px-4 py-1 text-slate-300">{f.label}{f.key === 'live_tours' ? L('(每场)', ' (each)') : ''}</td>
+                      <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {L('积分', 'cr')}</td>
+                      <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {L('积分', 'cr')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )
         })()}
 
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-500">
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500">
           {promo.active
             ? L(`创始发布优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
                 `Founding Launch: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
@@ -247,7 +263,7 @@ export default function PricingPage() {
           {L(' 15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 15-day free trial, cancel before billing. Payments securely handled by Stripe.')}
         </p>
 
-        <div className="mt-4 text-center">
+        <div className="mt-2.5 text-center">
           <Link to="/about" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-400 transition hover:text-white">
             {L('查看完整功能介绍', 'See all features')} <ArrowRight className="h-3.5 w-3.5" />
           </Link>
