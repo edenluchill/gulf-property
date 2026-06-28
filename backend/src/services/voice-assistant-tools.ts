@@ -920,10 +920,13 @@ export async function executeTool(
       if (!stops.length) {
         return { result: null, summary: `${name} 暂时数据有限，我先帮你飞过去看看。`, mapAction: { type: 'fly_to', lat, lng, zoom: 14 } }
       }
-      const cnt = stops.length === 3 ? '三' : stops.length === 2 ? '两' : '几'
+      // Feed the three stops' spoken one-liners back to the model so Luna actually
+      // NARRATES the walkthrough (优势→环境→成交) instead of going silent while the
+      // panel animates. The lines are already written in a natural spoken style.
+      const narration = stops.map((s, idx) => `${idx + 1}. ${s.line}`).join('\n')
       return {
         result: { name, area, stops: stops.map(s => s.kind) },
-        summary: `我带你看看 ${name}，分${cnt}步：优势、环境、最近成交。`,
+        summary: `已开始带看 ${name}（地图正逐站展示）。请用口语顺着把这三站讲出来，自然连贯、像带客户现场看房，不要照读、不要只说"分三步"：\n${narration}`,
         mapAction: { type: 'guided_tour', tour: { kind: projectId ? 'project' : 'area', projectId, name, area, lat, lng, stops } },
       }
     }

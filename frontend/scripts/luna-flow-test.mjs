@@ -15,15 +15,29 @@ const OUT = process.env.SHOT_DIR ||
   'C:/Users/lzp65/AppData/Local/Temp/claude/C--Users-lzp65-Desktop-projects-gulf-property/7f4876a1-d971-4b65-89a3-1981ce97eabc/scratchpad/luna-test'
 mkdirSync(OUT, { recursive: true })
 
-// Realistic buyer journey (Mandarin). Each turn notes the tool we EXPECT Luna to call.
-const TURNS = [
-  { say: '你好,我有大概300万迪拉姆,想在迪拜投资买房,推荐哪些区域?', expect: 'recommend_by_budget' },
-  { say: '带我看看 Al Safouh First 这个区怎么样。', expect: 'present_place' },
-  { say: '这个区生活方便吗?离地铁、学校、医院远不远?', expect: 'analyze_area_amenities' },
-  { say: '在我的预算内有哪些具体的项目?', expect: 'search_projects' },
-  { say: '带我去看第一个项目的详情。', expect: 'navigate_to_project' },
-  { say: '这个项目五年回报怎么样?值得投资吗?', expect: '(investment talk)' },
-]
+// Two journeys (Mandarin). Each turn notes the tool we EXPECT Luna to call.
+// Pick with JOURNEY=buyer (default) or JOURNEY=tools.
+const JOURNEYS = {
+  buyer: [
+    { say: '你好,我有大概300万迪拉姆,想在迪拜投资买房,推荐哪些区域?', expect: 'recommend_by_budget' },
+    { say: '带我看看 Al Safouh First 这个区怎么样。', expect: 'present_place' },
+    { say: '这个区生活方便吗?离地铁、学校、医院远不远?', expect: 'analyze_area_amenities' },
+    { say: '在我的预算内有哪些具体的项目?', expect: 'search_projects' },
+    { say: '带我去看第一个项目的详情。', expect: 'navigate_to_project' },
+    { say: '这个项目五年回报怎么样?值得投资吗?', expect: '(investment talk)' },
+  ],
+  tools: [
+    { say: '我手上有200万现金,大概能在迪拜买哪里的房?', expect: 'check_affordability' },
+    { say: 'Dubai Marina 和 JVC 这两个区,哪个更适合投资?对比一下。', expect: 'compare_market' },
+    { say: '帮我分析一下 Business Bay 的投资回报怎么样。', expect: 'area_investment_report' },
+    { say: 'Downtown Dubai 这个区现在市场行情如何?', expect: 'get_area_info' },
+    { say: '这附近有没有学校?在地图上显示一下。', expect: 'show_nearby_pois' },
+    { say: '在迪拜,我到底该租房还是买房?', expect: 'rent_vs_buy' },
+    { say: '买一套200万的房子,一共要花多少钱,有哪些费用?', expect: 'purchase_costs' },
+    { say: '带我飞到 Palm Jumeirah 看看。', expect: 'fly_to_area' },
+  ],
+}
+const TURNS = JOURNEYS[process.env.JOURNEY || 'buyer'] || JOURNEYS.buyer
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
