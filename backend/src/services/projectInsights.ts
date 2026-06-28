@@ -38,9 +38,9 @@ export interface ProjectInsights {
   } | null
   investment: (Investment5yr & { payback_years: number | null; reference_price: number }) | null
   nearby: {
-    metro: { name: string; distance_m: number }[]
-    pois: { category: string; name: string; distance_m: number }[]
-    landmarks: { name: string; type: string; distance_m: number }[]
+    metro: { name: string; distance_m: number; lat?: number; lng?: number }[]
+    pois: { category: string; name: string; distance_m: number; lat?: number; lng?: number }[]
+    landmarks: { name: string; type: string; distance_m: number; lat?: number; lng?: number }[]
   }
   commute: { hub: string; distance_m: number; mins_est: number }[]
 }
@@ -238,6 +238,7 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
       const [poisRes, landmarkRes] = await Promise.all([
         pool.query(
           `SELECT DISTINCT ON (category) category, name,
+                  ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat,
                   ROUND(ST_Distance(location::geography, ST_SetSRID(ST_Point($1,$2),4326)::geography)::numeric) AS distance_m
              FROM dubai_pois
             WHERE category IN ('metro_station','hospital','school','university','mall','supermarket','park','beach','gym')
@@ -246,6 +247,7 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
         ),
         pool.query(
           `SELECT name, landmark_type,
+                  ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat,
                   ROUND(ST_Distance(location::geography, ST_SetSRID(ST_Point($1,$2),4326)::geography)::numeric) AS distance_m
              FROM dubai_landmarks WHERE visible = true
             ORDER BY location <-> ST_SetSRID(ST_Point($1,$2),4326)
@@ -254,14 +256,16 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
         ),
       ])
       for (const r of poisRes.rows) {
-        const item = { category: r.category, name: r.name, distance_m: Number(r.distance_m) }
-        if (r.category === 'metro_station') nearby.metro.push({ name: r.name, distance_m: item.distance_m })
-        else nearby.pois.push(item)
+        const ll = { lat: r.lat != null ? Number(r.lat) : undefined, lng: r.lng != null ? Number(r.lng) : undefined }
+        if (r.category === 'metro_station') nearby.metro.push({ name: r.name, distance_m: Number(r.distance_m), ...ll })
+        else nearby.pois.push({ category: r.category, name: r.name, distance_m: Number(r.distance_m), ...ll })
       }
       nearby.landmarks = landmarkRes.rows.map((r) => ({
         name: r.name,
         type: r.landmark_type,
         distance_m: Number(r.distance_m),
+        lat: r.lat != null ? Number(r.lat) : undefined,
+        lng: r.lng != null ? Number(r.lng) : undefined,
       }))
     } catch {
       /* geo optional — leave empty */

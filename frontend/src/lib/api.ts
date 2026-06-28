@@ -965,9 +965,9 @@ export interface ProjectInsights {
     reference_price: number;
   } | null;
   nearby: {
-    metro: { name: string; distance_m: number }[];
-    pois: { category: string; name: string; distance_m: number }[];
-    landmarks: { name: string; type: string; distance_m: number }[];
+    metro: { name: string; distance_m: number; lat?: number; lng?: number }[];
+    pois: { category: string; name: string; distance_m: number; lat?: number; lng?: number }[];
+    landmarks: { name: string; type: string; distance_m: number; lat?: number; lng?: number }[];
   };
   commute: { hub: string; distance_m: number; mins_est: number }[];
 }

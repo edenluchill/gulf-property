@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import { MapPin, Clock, Train } from 'lucide-react'
 import { ProjectInsights, fetchAreaInsights, AreaInsights } from '../../lib/api'
 import { formatMoneyCompact } from '../../lib/money'
@@ -32,6 +33,37 @@ function dist(m: number, zh: boolean): string {
   return `${(m / 1000).toFixed(1)} km${m <= 1500 ? (zh ? ' · 步行可达' : ' · walkable') : ''}`
 }
 
+// 项目主标记:醒目的 teal 水滴 pin(尖端落点)
+const projectIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:26px;height:26px;background:#0d9488;border:2.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.45)"><div style="width:8px;height:8px;background:#fff;border-radius:50%;position:absolute;top:7px;left:7px;transform:rotate(45deg)"></div></div>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 26],
+})
+
+// 周边 POI 标记:分类色圆形 + 编号(和右侧列表的编号一一对应)
+const numberedIcon = (n: number, color: string) =>
+  L.divIcon({
+    className: '',
+    html: `<div style="background:${color};color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${n}</div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  })
+
+// 地图加载后自动缩放到包含项目 + 所有周边点
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap()
+  useEffect(() => {
+    if (points.length === 0) return
+    if (points.length === 1) {
+      map.setView(points[0], 14)
+    } else {
+      map.fitBounds(points, { padding: [42, 42], maxZoom: 15 })
+    }
+  }, [map, points])
+  return null
+}
+
 export function LocationTab({ buildingName, areaName, location, insights }: LocationTabProps) {
   const { i18n } = useTranslation()
   const zh = i18n.language?.startsWith('zh')
@@ -54,23 +86,52 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
 
   const metro = insights?.nearby?.metro || []
   const pois = insights?.nearby?.pois || []
-  const landmarks = insights?.nearby?.landmarks || []
   const commute = insights?.commute || []
+
+  // 周边统一列表(地铁在前,然后各类 POI),编号 1..N —— 地图标记与右侧列表共用同一编号。
+  const nearbyList = useMemo(
+    () => [
+      ...metro.map((m) => ({ ...m, category: 'metro_station' as const })),
+      ...pois,
+    ],
+    [metro, pois]
+  )
+  // 有坐标的点才上图(后端按距离算,坐标齐全;个别缺失则只在列表显示)
+  const mapped = nearbyList
+    .map((p, i) => ({ ...p, n: i + 1 }))
+    .filter((p) => p.lat != null && p.lng != null) as Array<typeof nearbyList[number] & { n: number; lat: number; lng: number }>
+  const boundsPoints = useMemo<[number, number][]>(
+    () => [[location.lat, location.lng], ...mapped.map((p) => [p.lat, p.lng] as [number, number])],
+    [location.lat, location.lng, mapped]
+  )
 
   return (
     <div className="space-y-5">
-      {/* Map with nearby markers */}
+      {/* Map with project pin + numbered nearby POIs */}
       <div className="h-80 overflow-hidden rounded-2xl ring-1 ring-slate-900/[0.06]">
-        <MapContainer center={[location.lat, location.lng]} zoom={14} className="h-full w-full">
+        <MapContainer center={[location.lat, location.lng]} zoom={14} scrollWheelZoom={false} className="h-full w-full">
+          {/* CARTO Voyager:干净、拉丁字母标注,比原始 OSM(阿语)好看且更易读 */}
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            subdomains="abcd"
+            maxZoom={20}
           />
-          <Marker position={[location.lat, location.lng]}>
-            <Popup>{buildingName}</Popup>
+          <FitBounds points={boundsPoints} />
+          <Marker position={[location.lat, location.lng]} icon={projectIcon} zIndexOffset={1000}>
+            <Tooltip direction="top" offset={[0, -24]}>{buildingName}</Tooltip>
           </Marker>
-          {/* Nearby POIs as coloured dots (positions approximated radially since we
-              only have distances, not coords — kept near the project for context). */}
+          {mapped.map((p) => {
+            const meta = metaFor(p.category)
+            return (
+              <Marker key={`${p.category}-${p.n}`} position={[p.lat, p.lng]} icon={numberedIcon(p.n, meta.color)}>
+                <Tooltip direction="top" offset={[0, -12]}>
+                  <span className="font-medium">{p.n}. {p.name}</span>
+                  <span className="ml-1 text-slate-400">{zh ? meta.zh : meta.en} · {dist(p.distance_m, zh)}</span>
+                </Tooltip>
+              </Marker>
+            )
+          })}
         </MapContainer>
       </div>
 
@@ -96,26 +157,30 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
             <MapPin className="h-4 w-4 text-slate-400" /> {zh ? '周边' : 'Nearby'}
           </h3>
-          {metro.length === 0 && pois.length === 0 && landmarks.length === 0 ? (
+          {nearbyList.length === 0 ? (
             <p className="text-xs text-slate-400">{zh ? '暂无周边数据' : 'No nearby data'}</p>
           ) : (
             <div className="space-y-2">
-              {metro.map((m, i) => (
-                <div key={`m${i}`} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
-                    <Train className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
-                    <span className="truncate">{m.name}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-slate-500">{dist(m.distance_m, zh)}</span>
-                </div>
-              ))}
-              {pois.map((p, i) => {
+              {nearbyList.map((p, i) => {
                 const meta = metaFor(p.category)
+                const onMap = p.lat != null && p.lng != null
+                const isMetro = p.category === 'metro_station'
                 return (
-                  <div key={`p${i}`} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
-                      <span className="text-xs text-slate-400">{zh ? meta.zh : meta.en}</span>
+                  <div key={`${p.category}-${i}`} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2 text-slate-600">
+                      {/* 编号徽章:与地图标记同色同号(没坐标上不了图的退化成灰点) */}
+                      {onMap ? (
+                        <span
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                          style={{ background: meta.color }}
+                        >
+                          {i + 1}
+                        </span>
+                      ) : (
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
+                      )}
+                      {isMetro && <Train className="h-3.5 w-3.5 shrink-0 text-indigo-500" />}
+                      <span className="shrink-0 text-xs text-slate-400">{zh ? meta.zh : meta.en}</span>
                       <span className="truncate">{p.name}</span>
                     </span>
                     <span className="shrink-0 text-xs text-slate-500">{dist(p.distance_m, zh)}</span>
