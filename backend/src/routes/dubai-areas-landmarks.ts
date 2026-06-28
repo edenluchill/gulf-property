@@ -132,24 +132,12 @@ router.get('/areas', async (req: Request, res: Response) => {
       return mapped;
     });
 
-    // Sealed variant (multi-stage, date-rotating obfuscation) — the public map asks
-    // for this so the Network tab shows binary gibberish, not copy-pasteable JSON.
-    if (req.query.sealed) {
-      res.type('application/octet-stream');
-      res.setHeader('Cache-Control', 'no-transform'); // keep nginx/CF off the binary
-      res.end(seal(rendered.gz));
-      return;
-    }
-
-    // Serve pre-rendered bytes: no per-request stringify, gzip if the client takes it.
-    res.type('application/json');
-    res.setHeader('Vary', 'Accept-Encoding');
-    if (acceptsGzip(req.headers['accept-encoding'])) {
-      res.setHeader('Content-Encoding', 'gzip');
-      res.end(rendered.gz);
-    } else {
-      res.end(rendered.json);
-    }
+    // ALWAYS sealed (multi-stage, date-rotating obfuscation): the bare URL must not
+    // return copy-pasteable JSON. The map decrypts client-side (frontend lib/api.ts);
+    // our own node tools use unseal() from services/seal. ~127KB, gzip kept inside.
+    res.type('application/octet-stream');
+    res.setHeader('Cache-Control', 'no-transform'); // keep nginx/CF off the binary
+    res.end(seal(rendered.gz));
   } catch (error) {
     console.error('Error fetching Dubai areas:', error);
     res.status(500).json({ error: 'Failed to fetch Dubai areas' });

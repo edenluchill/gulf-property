@@ -24,21 +24,30 @@
 import fs from 'fs'
 import https from 'https'
 import http from 'http'
+import { unseal, utcDateStr } from '../src/services/seal'
 
 const AREAS_URL = process.env.AREAS_URL || 'https://api.pinzos.com/api/dubai/areas'
 const PRECISION = 5 // must match AREA_COORD_DIGITS in dubai-areas-landmarks.ts
 
-function fetchJson(url: string): Promise<any> {
+function fetchBuffer(url: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http
     lib.get(url, (res) => {
-      let buf = ''
-      res.on('data', (c) => (buf += c))
-      res.on('end', () => {
-        try { resolve(JSON.parse(buf)) } catch (e) { reject(e) }
-      })
+      const chunks: Buffer[] = []
+      res.on('data', (c) => chunks.push(c))
+      res.on('end', () => resolve(Buffer.concat(chunks)))
     }).on('error', reject)
   })
+}
+
+/** Our /dubai/areas is sealed (services/seal). Unseal it (try today then yesterday UTC). */
+function fetchOurAreas(buf: Buffer): any {
+  const yesterday = utcDateStr(new Date(Date.now() - 86400000))
+  for (const date of [utcDateStr(), yesterday]) {
+    try { return JSON.parse(unseal(buf, date).toString()) } catch { /* try previous day */ }
+  }
+  // last resort: maybe it's still plain JSON (older deployment)
+  return JSON.parse(buf.toString())
 }
 
 /** Recursively harvest every [lng,lat] pair from any nested coordinate structure. */
@@ -73,7 +82,7 @@ function coordSet(data: any): Set<string> {
   }
 
   console.log(`Fetching our fingerprint from: ${AREAS_URL}`)
-  const ours = coordSet(await fetchJson(AREAS_URL))
+  const ours = coordSet(fetchOurAreas(await fetchBuffer(AREAS_URL)))
   console.log(`  our distinct vertices (${PRECISION}-decimal): ${ours.size}`)
 
   const suspectRaw = JSON.parse(fs.readFileSync(suspectPath, 'utf8'))

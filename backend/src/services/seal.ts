@@ -15,6 +15,7 @@
  * Wire format after XOR: the XOR'd bytes of [ iv(12) | gcmTag(16) | ciphertext ].
  */
 import crypto from 'crypto'
+import zlib from 'zlib'
 
 const VEIL_PASS = 'pinzos-area-veil-v1' // AES key material (bump to rotate scheme)
 const XOR_PASS = 'pinzos-area-xor-v1'   // second-layer keystream material
@@ -46,4 +47,15 @@ export function seal(gzipped: Buffer, date: string = utcDateStr()): Buffer {
   const ks = keystream(XOR_PASS, date, blob.length)
   for (let i = 0; i < blob.length; i++) blob[i] ^= ks[i]
   return blob
+}
+
+/** Reverse seal() → the original JSON bytes. For our own node tools (leak-check). */
+export function unseal(sealed: Buffer, date: string = utcDateStr()): Buffer {
+  const x = Buffer.from(sealed)
+  const ks = keystream(XOR_PASS, date, x.length)
+  for (let i = 0; i < x.length; i++) x[i] ^= ks[i]
+  const iv = x.subarray(0, 12), tag = x.subarray(12, 28), ct = x.subarray(28)
+  const dec = crypto.createDecipheriv('aes-256-gcm', dailyKey(VEIL_PASS, date), iv)
+  dec.setAuthTag(tag)
+  return zlib.gunzipSync(Buffer.concat([dec.update(ct), dec.final()]))
 }
