@@ -283,6 +283,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // after the assistant speaks so the NEXT user words start a fresh caption.
   const userTextAccumRef = useRef<string>('')
   const userTurnFreshRef = useRef<boolean>(true)
+  // Latency diagnostics: stamp when this turn's user speech is first/last seen so we
+  // can print the exact gap to Luna's first reply token in the console.
+  const turnUserFirstTsRef = useRef<number>(0)
+  const turnUserLastTsRef = useRef<number>(0)
+  const turnReplyLoggedRef = useRef<boolean>(false)
 
   // Bubble accumulation: collect fragments, flush at most every 200ms
   const assistantTextAccumRef = useRef<string>('')
@@ -563,6 +568,17 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
   // Handle Gemini messages
   const handleMessage = useCallback(async (message: LiveServerMessage) => {
+    // Log the gap from the user's speech to Luna's first reply token (once per turn).
+    const logReplyLatency = (kind: string) => {
+      if (turnReplyLoggedRef.current || !turnUserFirstTsRef.current) return
+      turnReplyLoggedRef.current = true
+      const now = performance.now()
+      console.log(
+        `[VoiceTiming] Luna reply START (${kind}) — ` +
+        `${Math.round(now - turnUserLastTsRef.current)}ms after user STOPPED, ` +
+        `${Math.round(now - turnUserFirstTsRef.current)}ms after user STARTED`
+      )
+    }
     if (message.serverContent) {
       const content = message.serverContent
 
@@ -586,7 +602,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           if (userTurnFreshRef.current) {
             userTextAccumRef.current = ''
             userTurnFreshRef.current = false
+            turnUserFirstTsRef.current = performance.now()
+            turnReplyLoggedRef.current = false
+            console.log('[VoiceTiming] user speech START')
           }
+          turnUserLastTsRef.current = performance.now()
           userTextAccumRef.current += text
           setUserTranscript(userTextAccumRef.current.trim())
           voiceDebugLogger.logUserMessage(text)
@@ -602,6 +622,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           // Strip control characters (e.g. <ctrl46>) that Gemini sometimes outputs
           text = text.replace(/<ctrl\d+>/gi, '').replace(/[\x00-\x1F\x7F]/g, '')
           if (text.trim()) {
+            logReplyLatency('text')
             // Clear thinking bubble once real response arrives
             setToolStatus(null)
             // Luna is responding → the user's turn just ended. Commit the user's
@@ -623,6 +644,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       if (content.modelTurn?.parts) {
         for (const part of content.modelTurn.parts) {
           if (part.inlineData?.data && typeof part.inlineData.data === 'string') {
+            logReplyLatency('audio')
             setPhase('speaking')
             voiceDebugLogger.logAudioChunkReceived()
             playerRef.current?.play(part.inlineData.data)
@@ -647,6 +669,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
     // Tool calls
     if (message.toolCall?.functionCalls) {
+      logReplyLatency('tool')
       // A tool call means the user's request just ended → commit their utterance
       // (idempotent) so the transcript pairs the question with the tool/answer.
       voiceDebugLogger.finalizeUserMessage()
@@ -897,17 +920,21 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          // VAD tuning: require ~400ms of sustained speech before treating it as a
-          // barge-in, so a brief breath / background noise / faint earphone leak no
-          // longer counts as "the user started talking" and cuts Luna off at the end.
-          // (startOfSpeechSensitivity default is already LOW; prefixPaddingMs is the
-          // real lever.) Longer silenceDuration tolerates natural pauses too.
+          // VAD tuning — optimized for RESPONSIVENESS ("一停就回应"). The old
+          // LOW/LOW + 800ms silence config (meant to stop noise from cutting Luna's
+          // endings) made Gemini too slow to accept that the user had finished →
+          // 10s+ reply latency. With echo ruled out (headphones), we go aggressive:
+          //   HIGH endOfSpeech + 350ms silence → fires fast once the user stops.
+          //   HIGH startOfSpeech → registers/barge-in the instant the user talks.
+          //   prefixPaddingMs 200 → small debounce so a single blip isn't a barge-in.
+          // If Luna's endings start getting clipped by background noise, raise
+          // prefixPaddingMs first (the debounce lever), not the sensitivities.
           realtimeInputConfig: {
             automaticActivityDetection: {
-              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
-              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
-              prefixPaddingMs: 400,
-              silenceDurationMs: 800,
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
+              prefixPaddingMs: 200,
+              silenceDurationMs: 350,
             },
           },
           systemInstruction: {
