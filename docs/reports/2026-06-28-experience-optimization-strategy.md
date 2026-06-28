@@ -17,11 +17,13 @@
 
 ## B. 隐患清单（坏东西，按严重度）
 
-### 🔴 B1. 分析数据被内部测试号污染 70%
+### 🔴 B1. 分析数据被内部测试号污染 70%　— ✅ 已修复（commit 13865ce, 2026-06-28）
+> 已实现 internalVisitorIds() + 各聚合排除内部号。实测：事件 1981→560，访客榜从"全是测试号"变成真实客户（#c4ef81e7 等）。
 dashboard 所有聚合（overview/visitors/lost/评分）都没排除 OWNER_EMAILS / 测试号。后果：指标、意向评分、流失名单、"最有价值客户"全失真。**这是做任何分析前必须先解决的前提。**
 - 修法：analyticsQueries 各查询加 `WHERE user_email NOT IN (内部名单) AND visitor_id NOT IN (内部 visitor)`，或给 app_events/api_calls 加 `is_internal` 标记；内部名单复用 `OWNER_EMAILS` + 一张测试账号表/env。
 
-### 🔴 B2. ad-blocker 可能正在吃掉客户端埋点
+### 🔴 B2. ad-blocker 可能正在吃掉客户端埋点　— ✅ 已修复（commit fc435d9, 2026-06-28）
+> 路径去敏感词:埋点 `/api/events`→也挂 `/api/sync`,分析 `/api/admin/analytics`→也挂 `/api/admin/insights`(旧路径保留兼容)。前端切到干净路径。已验证新路径 204/403、旧路径仍可用。服务端 api_calls 归因本就不受拦截,是兜底。
 `perf/alerts/active` 反复 "Failed to fetch"（网络层、非 500、服务器是通的），且全在 `/analytics/` 路径——**典型 ad-blocker / 隐私插件按 URL 含 "analytics" 拦截**。
 - **关键推论**：同理 `trackEvent → /api/events` 等客户端埋点也很可能被部分用户的 blocker 吃掉 → 真实客户行为被**静默少计**（解释了真实数据为何稀疏）。
 - 好消息：本轮新建的**服务端 `api_calls` 归因不经浏览器拦截**，天然兜底。
@@ -49,8 +51,8 @@ SSE 走 `EventSource`（不经 window.fetch）；R2 上传是不同 origin（拦
 
 ## C. 优化策略（按优先级，均可执行）
 
-### C1. 数据可信化（前提，先做）
-排除内部号后再谈一切分析。改动小、马上见效。→ 解决 B1。
+### C1. 数据可信化（前提，先做）　— ✅ 已完成（13865ce）
+排除内部号后再谈一切分析。改动小、马上见效。→ 解决 B1，并清掉 B2 的 `/admin/analytics/` 自我噪音错误。
 
 ### C2. 体验故障闭环（最高价值）
 把"修 bug"和"挽回被 bug 赶走的人"连成环：
@@ -59,9 +61,10 @@ SSE 走 `EventSource`（不经 window.fetch）；R2 上传是不同 origin（拦
 - 修复后对受影响且留了联系方式的客户主动回访。
 - 指标：bug_hit 流失数、故障 MTTR、回访转化率。
 
-### C3. 数据韧性（承认 ad-blocker）
-- 关键转化信号（contact_attempt/favorite）以**服务端 api_calls/favorites** 为权威，客户端埋点只作补充。
-- 分析路径去敏感词 / 走自有子域，减少被拦。→ 配合 B2。
+### C3. 数据韧性（承认 ad-blocker）　— ✅ 路径去敏感词已完成（fc435d9）
+- 分析/埋点路径去敏感词（sync/insights），减少被拦。→ 已做。
+- 关键转化信号（favorite）登录态已服务端权威（user_favorites）；contact 是外链点击无自然 API，靠 /api/sync 干净通道 + immediate flush。
+- 仍可选：走自有子域 first-party 反代（更彻底，成本高，暂不做）。
 
 ### C4. 漏斗补全（针对 no_contact）
 流失主因是"研究很深却从没联系"（no_contact）：
