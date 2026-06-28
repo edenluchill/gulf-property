@@ -344,6 +344,9 @@ export default function MapPage() {
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
 
   const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number; bounds?: [[number, number], [number, number]] } | null>(null)
+  // Project pins to pulse (so the customer sees which projects Luna is discussing).
+  const [flashProjectIds, setFlashProjectIds] = useState<string[] | undefined>(undefined)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // POI popup state
   const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null)
@@ -388,6 +391,12 @@ export default function MapPage() {
           })
         } else if (action.lat && action.lng) {
           setFlyToLocation({ lat: action.lat, lng: action.lng, zoom: action.zoom || 11 })
+        }
+        // Pulse the discussed project pins so the customer sees which ones Luna means.
+        if (Array.isArray(action.projectIds) && action.projectIds.length) {
+          if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+          setFlashProjectIds(action.projectIds)
+          flashTimerRef.current = setTimeout(() => setFlashProjectIds(undefined), 6000)
         }
         break
 
@@ -1079,6 +1088,7 @@ export default function MapPage() {
         <div className="h-full overflow-hidden relative">
           <MapViewMapLibre
             ref={tourMapRef}
+            flashProjectIds={flashProjectIds}
             // Persistent map: when the user returns to a map route the container
             // un-hides (display:none → flex); tell maplibre to resize so it fills
             // the box again (ResizeObserver alone can miss a display toggle).

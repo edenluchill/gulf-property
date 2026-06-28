@@ -12,7 +12,7 @@ import DirhamSymbol from '../DirhamSymbol'
 // Project Pin Marker - Premium teardrop style with thumbnail
 // ============================================================================
 
-export const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinProject; onClick?: (p: MapPinProject) => void }) => {
+export const ProjectPinMarker = memo(({ project, onClick, flashing }: { project: MapPinProject; onClick?: (p: MapPinProject) => void; flashing?: boolean }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [showBelow, setShowBelow] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -93,6 +93,23 @@ export const ProjectPinMarker = memo(({ project, onClick }: { project: MapPinPro
             height: '58px',
           }}
         >
+          {/* Flash ring — pulses when Luna is talking about THIS project, so the
+              customer can see on the map which one she means. */}
+          {flashing && (
+            <span
+              className="animate-ping"
+              style={{
+                position: 'absolute',
+                top: '1px',
+                left: '4px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                background: 'rgba(16,185,129,0.55)',
+                pointerEvents: 'none',
+              }}
+            />
+          )}
           {/* Teardrop shape SVG background - premium dark gradient */}
           <svg
             viewBox="0 0 46 58"

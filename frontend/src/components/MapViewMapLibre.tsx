@@ -100,6 +100,8 @@ export interface TransportStation {
 interface MapViewMapLibreProps {
   clusters?: any[]
   projects?: MapPinProject[]
+  /** Project IDs to pulse on the map (so the customer sees which one Luna means). */
+  flashProjectIds?: string[]
   onBoundsChange?: (bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, zoom: number) => void
   /** Fired once the map's first frame has settled (idle) — for a load overlay. */
   onReady?: () => void
@@ -149,6 +151,7 @@ interface MapViewMapLibreProps {
 
 function MapViewMapLibre({
   projects = [],
+  flashProjectIds,
   onBoundsChange,
   onReady,
   onMapReady,
@@ -1246,7 +1249,7 @@ function MapViewMapLibre({
             only while the camera is settled (mapMoving guard). */}
         {tourActive
           ? projects.map(project => (
-              <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
+              <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
             ))
           : !mapMoving && clusterFeatures.map(f => {
               const [lng, lat] = f.geometry.coordinates
@@ -1265,7 +1268,7 @@ function MapViewMapLibre({
               }
               const project = f.properties.project as MapPinProject
               return (
-                <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} />
+                <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
               )
             })}
 
