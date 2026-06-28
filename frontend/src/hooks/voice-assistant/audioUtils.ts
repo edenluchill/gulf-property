@@ -241,9 +241,23 @@ export class AudioPlayer {
   private endTimer: ReturnType<typeof setTimeout> | null = null
   private keepAlive: AudioBufferSourceNode | null = null   // inaudible loop to keep BT link awake
 
+  // iOS loudspeaker routing (see IS_IOS / setupStreamRoute below).
+  private streamDest: MediaStreamAudioDestinationNode | null = null
+  private sinkEl: HTMLAudioElement | null = null
+  private outDest: AudioNode | null = null   // where gain + keepAlive connect (speaker route)
+
   // Optional dependency injection (for headless waveform tests with OfflineAudioContext)
   private injectedCtx: AudioContext | null
   private injectedDest: AudioNode | null
+
+  // iPhone/iPad (incl. iPadOS-as-Mac and iOS Chrome, all WebKit). Once getUserMedia
+  // holds the mic, iOS routes WebAudio→ctx.destination to the EARPIECE (quiet). The
+  // fix is to render through a MediaStreamAudioDestinationNode played via an <audio>
+  // element — that path routes to the LOUDSPEAKER (WebKit bug 218012 workaround).
+  private static readonly IS_IOS =
+    typeof navigator !== 'undefined' &&
+    (/iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1))
 
   private static readonly SAMPLE_RATE = 24000
   private static readonly LEAD = 0.20        // 200ms jitter buffer before the first buffer — absorbs bursty/late chunks
@@ -264,14 +278,49 @@ export class AudioPlayer {
     if (!this.ctx) {
       this.ctx = this.injectedCtx || new AudioContext({ sampleRate: AudioPlayer.SAMPLE_RATE })
       this.gain = this.ctx.createGain()
-      this.gain.connect(this.injectedDest || this.ctx.destination)
+      // Output target: injected dest (offline tests) → iOS stream route → speaker.
+      this.outDest = this.injectedDest || this.setupStreamRoute() || this.ctx.destination
+      this.gain.connect(this.outDest)
     }
     // Real (online) contexts start suspended and need resume on a user gesture;
     // an OfflineAudioContext (has startRendering) must NOT be resumed.
     if (this.ctx.state === 'suspended' && typeof (this.ctx as any).startRendering !== 'function') {
       await this.ctx.resume()
     }
+    // The <audio> sink also needs the gesture to start playing.
+    if (this.sinkEl && this.sinkEl.paused) {
+      this.sinkEl.play().catch(() => { /* will retry on next gesture */ })
+    }
     this.startKeepAlive()
+  }
+
+  /**
+   * iOS only: route output through a MediaStreamAudioDestinationNode played by a
+   * hidden <audio> element, so audio goes to the LOUDSPEAKER instead of the earpiece
+   * while the mic is active. Returns the node to connect to, or null (non-iOS /
+   * offline / unsupported → caller falls back to ctx.destination, the low-latency path).
+   */
+  private setupStreamRoute(): AudioNode | null {
+    if (!AudioPlayer.IS_IOS || !this.ctx) return null
+    // OfflineAudioContext (waveform tests) has no MediaStreamDestination.
+    if (typeof this.ctx.createMediaStreamDestination !== 'function') return null
+    try {
+      this.streamDest = this.ctx.createMediaStreamDestination()
+      const el = new Audio()
+      el.srcObject = this.streamDest.stream
+      el.autoplay = true
+      ;(el as any).playsInline = true
+      el.setAttribute('playsinline', '')
+      el.muted = false
+      el.volume = 1
+      this.sinkEl = el
+      return this.streamDest
+    } catch {
+      // Any failure → fall back to the direct path so audio still works.
+      this.streamDest = null
+      this.sinkEl = null
+      return null
+    }
   }
 
   /**
@@ -290,7 +339,8 @@ export class AudioPlayer {
     const src = ctx.createBufferSource()
     src.buffer = buf
     src.loop = true
-    src.connect(ctx.destination)
+    // Route through the same output as playback (iOS speaker stream, else destination).
+    src.connect(this.outDest || ctx.destination)
     src.start()
     this.keepAlive = src
   }
@@ -419,6 +469,14 @@ export class AudioPlayer {
     this.keepAlive = null
     this.gain?.disconnect()
     this.gain = null
+    if (this.sinkEl) {
+      try { this.sinkEl.pause() } catch { /* ignore */ }
+      this.sinkEl.srcObject = null
+      this.sinkEl = null
+    }
+    this.streamDest?.disconnect()
+    this.streamDest = null
+    this.outDest = null
     this.ctx?.close()
     this.ctx = null
   }
