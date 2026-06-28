@@ -43,6 +43,17 @@ const voiceTools = [
   {
     functionDeclarations: [
       {
+        name: 'present_place',
+        description: 'Start a short guided walkthrough of ONE project or ONE area on the map: it auto-plays 3 stops — advantages (区域指标), environment (nearby amenities + distances), and recent DLD transactions (成交). Use this when the customer asks whether a specific project/area is good, says "show me / 带我看 / 介绍一下 X", or wants a tour of a place. Prefer this over answering in one long sentence — the walkthrough shows each thing visually. After calling it, say ONE short intro sentence only (the on-screen panel narrates each stop).',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            project_id: { type: Type.STRING, description: 'The project id to walk through (when the customer is asking about a specific project). Provide this OR area_name.' },
+            area_name: { type: Type.STRING, description: 'The Dubai area name to walk through (e.g. "Dubai Marina"). Provide this OR project_id.' }
+          }
+        }
+      },
+      {
         name: 'capture_contact',
         description: "Save the customer's contact details so the agent can follow up with full property info. Call this ONLY after the customer has shown clear interest and agreed to share contact (e.g. they said yes to receiving details on WhatsApp). Ask naturally; never pressure. Provide whatever details the customer gave.",
         parameters: {
@@ -107,6 +118,17 @@ const voiceTools = [
             }
           },
           required: ['category']
+        }
+      },
+      {
+        name: 'analyze_area_amenities',
+        description: 'Analyze how convenient a Dubai area is by measuring straight-line distance from the area to its NEAREST hospital, school, shopping mall, metro station and supermarket. Draws labeled distance spokes on the map and returns a 0-100 convenience score with a tier. Use this whenever the customer asks how good/convenient/livable a location is, whether amenities are close, or "how far is the nearest school/hospital/metro".',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            area_name: { type: Type.STRING, description: 'The Dubai area to analyze, e.g. "Dubai Marina", "JVC", "Business Bay"' }
+          },
+          required: ['area_name']
         }
       },
       {
