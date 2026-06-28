@@ -19,10 +19,10 @@ type PlanId = 'explore' | 'agent' | 'founder'
 // ── 功能目录(单一真相源)──────────────────────────────────
 // credits = 标准每次成本;minPlan = 至少需要的套餐(低于则需升级,与积分无关)。
 export const FEATURES = {
-  reports: { label: '买家意向报告', credits: 30, minPlan: 'agent' as PlanId },
-  luna_tours: { label: 'Luna 智能导览', credits: 50, minPlan: 'agent' as PlanId },
-  live_tours: { label: '实时带看', credits: 80, minPlan: 'agent' as PlanId },
-  brochures: { label: 'AI 楼书解析', credits: 100, minPlan: 'agent' as PlanId },
+  reports: { label: '买家意向报告', credits: 20, minPlan: 'agent' as PlanId },   // 常用 → 最便宜
+  brochures: { label: 'AI 楼书解析', credits: 40, minPlan: 'agent' as PlanId },  // 常用 → 便宜
+  live_tours: { label: '实时带看', credits: 60, minPlan: 'agent' as PlanId },    // 居中
+  luna_tours: { label: 'Luna 智能导览', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
 } as const
 
 export type Feature = keyof typeof FEATURES
