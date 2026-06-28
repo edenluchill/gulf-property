@@ -145,38 +145,27 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
       <div className="fixed z-[10001] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col
                       bg-white shadow-2xl rounded-2xl overflow-hidden
                       w-[1000px] max-w-[95vw] h-[78vh] max-h-[760px]">
-        {/* Header — hero photo banner when the area has a project image, else compact text */}
-        {heroImage ? (
-          <div className="border-b border-slate-100">
-            <div className="relative h-36 w-full">
-              <img src={getImageUrl(heroImage, 'medium')} alt={(isTranslated && tr?.name) || area.name} className="absolute inset-0 h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/5" />
-              <button onClick={onClose} className="absolute right-3 top-3 rounded-full bg-black/35 p-2 text-white backdrop-blur-sm transition-colors hover:bg-black/55">
-                <X className="h-5 w-5" />
-              </button>
-              <div className="absolute inset-x-0 bottom-0 flex items-baseline gap-2.5 p-4">
-                <span className="h-3 w-3 flex-shrink-0 translate-y-0.5 rounded-full ring-2 ring-white/60" style={{ backgroundColor: area.color }} />
-                <h2 className="truncate text-2xl font-bold text-white drop-shadow">{(isTranslated && tr?.name) || area.name}</h2>
-                {isTranslated && tr?.name && <span className="truncate text-sm text-white/75 flex-shrink-0">{area.name}</span>}
-              </div>
-            </div>
-            {desc && <p className="px-5 py-2 text-sm text-slate-500 leading-snug line-clamp-2">{desc}</p>}
-          </div>
-        ) : (
-          <div className="px-5 pt-4 pb-2.5 border-b border-slate-100">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-baseline gap-2.5 min-w-0">
-                <span className="w-3 h-3 rounded-full flex-shrink-0 translate-y-0.5" style={{ backgroundColor: area.color }} />
-                <h2 className="font-bold text-xl text-slate-900 truncate">{(isTranslated && tr?.name) || area.name}</h2>
-                {isTranslated && tr?.name && <span className="text-sm text-slate-400 truncate flex-shrink-0">{area.name}</span>}
-              </div>
-              <button onClick={onClose} className="flex-shrink-0 p-2 -mr-2 rounded-full hover:bg-slate-100 transition-colors">
-                <X className="w-5 h-5 text-slate-600" />
-              </button>
+        {/* Header — small photo on the left, title + description stacked on the right */}
+        <div className="flex items-start gap-3.5 px-5 pt-4 pb-3 border-b border-slate-100">
+          {heroImage && (
+            <img
+              src={getImageUrl(heroImage, 'thumbnail')}
+              alt={(isTranslated && tr?.name) || area.name}
+              className="h-16 w-24 flex-shrink-0 rounded-xl object-cover ring-1 ring-slate-900/5"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2.5 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 translate-y-0.5" style={{ backgroundColor: area.color }} />
+              <h2 className="font-bold text-xl text-slate-900 truncate">{(isTranslated && tr?.name) || area.name}</h2>
+              {isTranslated && tr?.name && <span className="text-sm text-slate-400 truncate flex-shrink-0">{area.name}</span>}
             </div>
             {desc && <p className="mt-1 text-sm text-slate-500 leading-snug line-clamp-2">{desc}</p>}
           </div>
-        )}
+          <button onClick={onClose} className="flex-shrink-0 p-2 -mr-1 rounded-full hover:bg-slate-100 transition-colors">
+            <X className="w-5 h-5 text-slate-600" />
+          </button>
+        </div>
 
         {/* Usage filter — instantly shows what's measured + how to switch */}
         <div className="px-5 py-2 border-b border-slate-100 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

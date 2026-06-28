@@ -46,35 +46,22 @@ export default function MobileBottomSheet({ isOpen, onClose, title, subtitle, he
         }`}
         style={{ height }}
       >
-        {headerImage ? (
-          /* Hero header — photo banner with the title overlaid for recognition */
-          <div className="relative shrink-0 h-32 w-full">
-            <img src={getImageUrl(headerImage, 'medium')} alt={title} className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/10" />
-            <div className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/70" />
-            <button onClick={onClose} className="absolute right-3 top-3 rounded-full bg-black/35 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/55">
-              <X className="h-5 w-5" />
+        {/* Header — small photo on the left, title + subtitle on the right */}
+        <div className="flex shrink-0 flex-col items-center border-b border-slate-200 px-4 pt-3 pb-2.5">
+          <div className="mb-3 h-1 w-10 rounded-full bg-slate-300" />
+          <div className="flex w-full items-center gap-3">
+            {headerImage && (
+              <img src={getImageUrl(headerImage, 'thumbnail')} alt={title} className="h-12 w-16 flex-shrink-0 rounded-lg object-cover ring-1 ring-slate-900/5" />
+            )}
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-lg font-bold text-slate-900">{title}</h2>
+              {subtitle && <p className="truncate text-sm text-slate-500">{subtitle}</p>}
+            </div>
+            <button onClick={onClose} className="flex-shrink-0 rounded-full p-1.5 transition-colors hover:bg-slate-100">
+              <X className="h-5 w-5 text-slate-600" />
             </button>
-            <div className="absolute inset-x-0 bottom-0 p-4">
-              <h2 className="truncate text-xl font-bold text-white drop-shadow-sm">{title}</h2>
-              {subtitle && <p className="truncate text-sm text-white/80">{subtitle}</p>}
-            </div>
           </div>
-        ) : (
-          /* Plain header (no photo) */
-          <div className="flex shrink-0 flex-col items-center border-b border-slate-200 px-4 pt-3 pb-2">
-            <div className="mb-3 h-1 w-10 rounded-full bg-slate-300" />
-            <div className="flex w-full items-center justify-between">
-              <div className="min-w-0 flex-1 pr-4">
-                <h2 className="truncate text-lg font-bold text-slate-900">{title}</h2>
-                {subtitle && <p className="truncate text-sm text-slate-500">{subtitle}</p>}
-              </div>
-              <button onClick={onClose} className="flex-shrink-0 rounded-full p-1.5 transition-colors hover:bg-slate-100">
-                <X className="h-5 w-5 text-slate-600" />
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto">
