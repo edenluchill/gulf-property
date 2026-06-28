@@ -300,6 +300,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalDisconnectRef = useRef(false)
+  // Gemini Live session resumption: the server periodically sends a handle that
+  // captures full conversation state. We keep the latest so a reconnect resumes
+  // WITH context (Luna doesn't forget). Cleared on a fresh, user-initiated open.
+  const resumeHandleRef = useRef<string | null>(null)
 
   const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en'
 
@@ -579,6 +583,20 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         `${Math.round(now - turnUserFirstTsRef.current)}ms after user STARTED`
       )
     }
+    // Session resumption: stash the latest handle (only when the server says this
+    // point is resumable — not mid-tool-call/generation, which would lose state).
+    if (message.sessionResumptionUpdate) {
+      const u = message.sessionResumptionUpdate
+      if (u.resumable && u.newHandle) resumeHandleRef.current = u.newHandle
+    }
+    // GoAway: the server is about to terminate this connection (session/rate limit).
+    // Log it so we can SEE why drops happen; the close → auto-reconnect then resumes
+    // via the handle above, so context survives.
+    if (message.goAway) {
+      console.warn('[Voice] GoAway — server will close soon, timeLeft:', message.goAway.timeLeft)
+      voiceDebugLogger.log('GO_AWAY', { timeLeft: message.goAway.timeLeft })
+    }
+
     if (message.serverContent) {
       const content = message.serverContent
 
@@ -880,8 +898,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     // ended the session, the 1s reconnect started a fresh one). Only a real open
     // starts a new session; a reconnect resumes the existing one if it's still alive.
     if (isReconnect && voiceDebugLogger.getCurrentSession()) {
-      voiceDebugLogger.log('RECONNECTED')
+      voiceDebugLogger.log('RECONNECTED', { resuming: !!resumeHandleRef.current })
     } else {
+      resumeHandleRef.current = null // fresh conversation → don't resume an old one
       voiceDebugLogger.startSession()
     }
     setPhase('connecting')
@@ -949,7 +968,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           systemInstruction: {
             parts: [{ text: systemInstructionRef.current }]
           },
-          tools: voiceTools as any
+          tools: voiceTools as any,
+          // Survive WebSocket drops WITH full context: the server sends resumption
+          // handles (captured in handleMessage); on reconnect we pass the latest so
+          // Luna remembers the conversation instead of starting over ("找不到…").
+          // contextWindowCompression keeps long sessions from hitting the token cap.
+          sessionResumption: { handle: resumeHandleRef.current || undefined },
+          contextWindowCompression: { slidingWindow: {} },
         },
         callbacks: {
           onopen: () => {
@@ -971,9 +996,12 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
             setPhase('error')
             setTimeout(() => setPhase('idle'), 3000)
           },
-          onclose: () => {
-            console.log('[Voice] Connection closed')
-            voiceDebugLogger.log('CONNECTION_CLOSED')
+          onclose: (e?: CloseEvent) => {
+            // Capture WHY it closed (code/reason) so drops are diagnosable, not a mystery.
+            console.log('[Voice] Connection closed', e?.code, e?.reason, 'wasClean:', e?.wasClean)
+            voiceDebugLogger.log('CONNECTION_CLOSED', {
+              code: e?.code, reason: e?.reason, wasClean: e?.wasClean
+            })
 
             if (recorderRef.current) {
               recorderRef.current.stop()
