@@ -1150,10 +1150,15 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         })
         return `sent: ${text}`
       },
+      open: () => { activate(); return 'opening' },
+      close: () => { deactivate(); return 'closing' },
+      // Stop the mic so the fake-audio test device can't trigger VAD — text turns only.
+      stopMic: () => { recorderRef.current?.stop(); recorderRef.current = null; return 'mic stopped' },
+      connected: () => !!sessionRef.current?.sendClientContent,
       state: () => ({ phase, bubble: latestBubble, userTranscript, toolStatus }),
     }
     return () => { delete (window as any).__lunaTest }
-  }, [phase, latestBubble, userTranscript, toolStatus])
+  }, [phase, latestBubble, userTranscript, toolStatus, activate, deactivate])
 
   // Cleanup on unmount
   useEffect(() => {
