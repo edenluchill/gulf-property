@@ -12,6 +12,15 @@ const router = Router();
 // TTL is plenty fresh while collapsing a herd of cold visitors into one DB query.
 const AREAS_TTL_MS = Number(process.env.AREAS_CACHE_TTL_MS) || 5 * 60 * 1000;
 
+// Area boundaries are the bulk of the /areas payload (672KB raw). We keep them as
+// ONE preloaded geojson vector source (zero pop-in for Luna tours, instant
+// recolor/highlight anywhere) — NOT per-viewport MVT tiles which would stream/pop.
+// To make that preloaded source lean: simplify geometry (Douglas-Peucker, topology
+// preserved) + drop coordinate precision to 5 decimals (~1.1m, invisible at map
+// zoom). Tunable so we can dial fidelity↔size. degrees: 0.0001 ≈ 11m.
+const AREA_SIMPLIFY_TOL = Number(process.env.AREA_SIMPLIFY_TOLERANCE) || 0.0001;
+const AREA_COORD_DIGITS = Number(process.env.AREA_COORD_DIGITS) || 5;
+
 // Any write to areas/landmarks (editor saves, batch-update) drops the cache after
 // the response finishes, so the editor's post-save refetch always sees fresh data.
 router.use((req, res, next) => {
@@ -70,7 +79,8 @@ router.get('/areas', async (req: Request, res: Response) => {
     // Join with real-time metrics from DLD transactions
     const result = await pool.query(`
       SELECT
-        da.id, da.name, da.name_ar, ST_AsGeoJSON(da.boundary)::json as boundary,
+        da.id, da.name, da.name_ar,
+        ST_AsGeoJSON(ST_SimplifyPreserveTopology(da.boundary::geometry, ${AREA_SIMPLIFY_TOL}), ${AREA_COORD_DIGITS})::json as boundary,
         da.description, da.description_ar, da.color, da.opacity, da.display_order, da.visible,
         -- Metrics from DLD transactions
         m.avg_price_sqm as average_price,
