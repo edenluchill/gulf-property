@@ -76,24 +76,28 @@ await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
 // Persist the test flag so it survives navigate_to_project dropping the ?lunatest query.
 await page.evaluate(() => { try { localStorage.setItem('luna_test', '1') } catch {} })
 
-// Wait for the test hook (with the new open/stopMic methods) to be present.
-let hookOk = false
-for (let i = 0; i < 30; i++) {
-  hookOk = await page.evaluate(() => !!(window.__lunaTest && window.__lunaTest.open && window.__lunaTest.stopMic))
-  if (hookOk) break
+await sleep(2500) // let the map settle first
+
+// Acquire the hook AND open in one shot, retried — the hook can momentarily vanish
+// if the deployed build re-registers it per render, so never split check + use.
+let opened = false
+for (let i = 0; i < 40; i++) {
+  opened = await page.evaluate(() => {
+    if (window.__lunaTest && window.__lunaTest.open) { window.__lunaTest.open(); return true }
+    return false
+  })
+  if (opened) break
   await sleep(1000)
 }
-if (!hookOk) { console.log('❌ __lunaTest hook (open/stopMic) not found — is the latest deploy live?'); await browser.close(); process.exit(2) }
-console.log('✓ hook present')
+if (!opened) { console.log('❌ __lunaTest hook never available — latest deploy live?'); await browser.close(); process.exit(2) }
+console.log('✓ hook present, opening')
 
-await sleep(2000) // let the map settle
-await page.evaluate(() => window.__lunaTest.open())
-
-// Wait for the Gemini Live session to connect.
+// Wait for the Gemini Live session to connect (re-open if the hook had vanished).
 let connected = false
-for (let i = 0; i < 25; i++) {
-  connected = await page.evaluate(() => window.__lunaTest.connected())
+for (let i = 0; i < 30; i++) {
+  connected = await page.evaluate(() => (window.__lunaTest ? !!window.__lunaTest.connected() : false))
   if (connected) break
+  if (i % 5 === 4) await page.evaluate(() => { window.__lunaTest && window.__lunaTest.open() }) // retry open
   await sleep(1000)
 }
 if (!connected) {
@@ -102,7 +106,7 @@ if (!connected) {
   await browser.close(); process.exit(3)
 }
 await sleep(1500)
-await page.evaluate(() => window.__lunaTest.stopMic())
+await page.evaluate(() => { window.__lunaTest && window.__lunaTest.stopMic() })
 console.log('✓ connected, mic stopped — driving by text')
 await page.screenshot({ path: join(OUT, '00-connected.png') })
 
@@ -130,7 +134,7 @@ for (let i = 0; i < TURNS.length; i++) {
   await sleep(1500)                      // extra settle so the injected turn isn't dropped
   bucket = []
   const t0 = Date.now()
-  await page.evaluate((s) => window.__lunaTest.say(s), turn.say)
+  await page.evaluate((s) => { window.__lunaTest && window.__lunaTest.say(s) }, turn.say)
 
   // A real reply = the bubble CHANGES from the baseline. Wait up to 45s (some tools
   // like area_investment_report are slow) for a new, settled reply with no tool in flight.
