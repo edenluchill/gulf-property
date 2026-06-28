@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle, Activity } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle, Activity, UserMinus, Heart, Phone } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
@@ -24,6 +24,7 @@ import SessionViewer from '../components/analytics/SessionViewer'
 import CollabReportModal from '../components/analytics/CollabReport'
 import AgentApprovals from '../components/analytics/AgentApprovals'
 import Visitors from '../components/analytics/Visitors'
+import LostCustomers from '../components/analytics/LostCustomers'
 import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import { fetchActiveAlerts, ActiveAlert } from '../lib/analyticsApi'
@@ -43,6 +44,7 @@ const GRANS: { label: string; v: Granularity }[] = [
 const TABS = [
   { id: 'overview', label: '概览', Icon: LayoutDashboard },
   { id: 'visitors', label: '访客明细', Icon: Users },
+  { id: 'lost', label: '流失', Icon: UserMinus },
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
   { id: 'luna', label: 'Luna 对话', Icon: Mic },
   { id: 'collab', label: '实时带看', Icon: MapIcon },
@@ -77,7 +79,7 @@ export default function AdminAnalytics() {
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<'overview' | 'visitors' | 'search' | 'luna' | 'collab' | 'agents' | 'errors' | 'perf'>('overview')
+  const [tab, setTab] = useState<'overview' | 'visitors' | 'lost' | 'search' | 'luna' | 'collab' | 'agents' | 'errors' | 'perf'>('overview')
   const [openCollab, setOpenCollab] = useState<string | null>(null)
   // Active perf alerts → cross-dashboard red banner. Polled every 30s.
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
@@ -249,12 +251,14 @@ export default function AdminAnalytics() {
           {tab === 'overview' && (
             <div className="space-y-5">
               {/* KPI strip — only on 概览, not every tab */}
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
                 <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
                 <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
                 <StatCard label="搜索" value={data.overview.searches} icon={<SearchIcon className="h-4 w-4" />} />
                 <StatCard label="Luna 会话" value={data.overview.luna_sessions} icon={<Mic className="h-4 w-4" />} hint={`${data.overview.luna_opens} 次打开`} />
                 <StatCard label="热 Leads" value={data.overview.leads_total} icon={<Flame className="h-4 w-4" />} hint={`本期新增 ${data.overview.leads_new}`} />
+                <StatCard label="收藏" value={data.overview.favorites} icon={<Heart className="h-4 w-4" />} />
+                <StatCard label="尝试联系" value={data.overview.contacts} icon={<Phone className="h-4 w-4" />} />
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <TrendChart title="每日访客" points={visitorTrend} className="md:col-span-2" />
@@ -274,6 +278,9 @@ export default function AdminAnalytics() {
               <LeadTable leads={data.leads} />
             </div>
           )}
+
+          {/* ── 流失客户 ──────────────────────────────────────────────────── */}
+          {tab === 'lost' && <LostCustomers days={days} />}
 
           {/* ── Search & projects ─────────────────────────────────────────── */}
           {tab === 'search' && (

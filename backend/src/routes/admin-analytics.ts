@@ -63,6 +63,9 @@ router.get('/tutorial', wrap((req) => q.getTutorialFunnel(range(req))))
 
 router.get('/leads', wrap((req) => q.getLeads(Math.min(500, Number(req.query.limit) || 100))))
 
+// Customers we're losing — high-intent visitors gone silent, with churn reasons.
+router.get('/lost', wrap((req) => q.getLostCustomers(Math.min(500, Number(req.query.limit) || 100))))
+
 // Unique visitors in the window (each = one browser/visitor_id) + intent score.
 router.get('/visitors', wrap((req) => q.getVisitors(range(req), Math.min(500, Number(req.query.limit) || 200))))
 

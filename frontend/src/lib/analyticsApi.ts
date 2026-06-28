@@ -39,6 +39,8 @@ export interface Overview {
   luna_sessions: number
   leads_total: number
   leads_new: number
+  favorites: number
+  contacts: number
 }
 export interface DailyPoint { day: string; visitors: number; events: number }
 export interface Counted { label: string; count: number; id?: string }
@@ -87,7 +89,7 @@ export interface SessionDetail extends SessionRow {
   }
 }
 
-export type Stage = 'hot' | 'warm' | 'cooling' | 'cold'
+export type Stage = 'hot' | 'warm' | 'cooling' | 'cold' | 'lost'
 export interface VisitorRow {
   identity: string          // email when logged in, else visitor_id — drill-down key
   visitor_id: string        // representative (most-recent) browser id
@@ -99,16 +101,34 @@ export interface VisitorRow {
   views: number
   searches: number
   luna_opens: number
+  favorites: number
+  contacts: number
   distinct_projects: number
   score: number
   stage: Stage
+}
+export interface TimelineItem {
+  at: string
+  source: 'intent' | 'api'
+  type: string
+  projectId: string | null
+  projectName: string | null
+  area: string | null
+  query: string | null
+  kind: string | null
+  action: string | null
+  contactType: string | null
+  path: string | null
+  label: string | null
+  method: string | null
+  status: number | null
 }
 export interface VisitorDetail {
   visitor_id: string
   user_email: string | null
   first_seen: string
   last_seen: string
-  counts: { events: number; views: number; searches: number; luna: number }
+  counts: { events: number; views: number; searches: number; luna: number; favorites: number; contacts: number; reports: number; research: number }
   contact: { name: string | null; email: string | null; phone: string | null; whatsapp: string | null; source: string | null; lead_score: number; status: string } | null
   score: number
   stage: Stage
@@ -121,10 +141,28 @@ export interface VisitorDetail {
     hasContact: boolean
   }
   lunaSessions: { session_id: string; created_at: string; duration_ms: number | null; turn_count: number | null; tool_call_count: number | null; had_error: boolean }[]
-  timeline: { at: string; type: string; projectId: string | null; projectName: string | null; area: string | null; query: string | null; kind: string | null; path: string | null }[]
+  timeline: TimelineItem[]
+}
+
+export interface LostCustomer {
+  identity: string
+  visitor_id: string
+  user_email: string | null
+  first_seen: string
+  last_seen: string
+  days_silent: number
+  views: number
+  searches: number
+  luna_opens: number
+  favorites: number
+  contacts: number
+  errors: number
+  score: number
+  reasons: ('bug_hit' | 'no_contact' | 'cooling')[]
 }
 
 export const fetchVisitors = (days: number) => authedGet<VisitorRow[]>(`/visitors?days=${days}`)
+export const fetchLostCustomers = (limit?: number) => authedGet<LostCustomer[]>(`/lost?limit=${limit || 100}`)
 export const fetchVisitor = (id: string) =>
   authedGet<{ visitor: VisitorDetail | null }>(`/visitors/${encodeURIComponent(id)}`)
 

@@ -20,7 +20,9 @@ export async function getOverview({ from, to }: Range) {
         COUNT(DISTINCT visitor_id)                 AS visitors,
         COUNT(*) FILTER (WHERE event_type = 'search')        AS searches,
         COUNT(*) FILTER (WHERE event_type = 'property_view') AS property_views,
-        COUNT(*) FILTER (WHERE event_type = 'luna_open')     AS luna_opens
+        COUNT(*) FILTER (WHERE event_type = 'luna_open')     AS luna_opens,
+        COUNT(*) FILTER (WHERE event_type = 'favorite_toggle' AND payload->>'action' = 'add') AS favorites,
+        COUNT(*) FILTER (WHERE event_type = 'contact_attempt') AS contacts
        FROM app_events
       WHERE created_at >= $1 AND created_at < $2`,
     [from, to]
@@ -44,6 +46,8 @@ export async function getOverview({ from, to }: Range) {
     searches: Number(r.searches),
     property_views: Number(r.property_views),
     luna_opens: Number(r.luna_opens),
+    favorites: Number(r.favorites),
+    contacts: Number(r.contacts),
     luna_sessions: Number(luna.rows[0].sessions),
     leads_total: Number(leads.rows[0].total),
     leads_new: Number(leads.rows[0].new_in_range),
@@ -183,19 +187,35 @@ export async function getLeads(limit = 100) {
 // ── Per-visitor drill-down (who they are + what they did + a prediction) ─────
 
 // Lead-style intent score from raw counts (mirrors services/leadScoring weights).
-function quickScore(views: number, searches: number, luna: number, hasContact: boolean): number {
-  let s = 0
-  if (hasContact) s += 25
-  s += Math.min(views, 5) * 6
-  if (luna > 0) s += 12
-  s += Math.min(searches, 5) * 4
-  return s
+// Now intent-aware: a saved project or a contact tap weighs far more than a view,
+// and deep data research (api_calls hits the visitor never explicitly "did") adds
+// a smaller signal. All inputs optional so older callers keep working.
+interface ScoreInput {
+  views: number; searches: number; luna: number; hasContact: boolean
+  favorites?: number; contacts?: number; reports?: number; research?: number
 }
-// hot / warm / cooling / cold from score + recency.
-function stageFrom(score: number, lastSeen: string): 'hot' | 'warm' | 'cooling' | 'cold' {
+function quickScore(i: ScoreInput): number {
+  let s = 0
+  if (i.hasContact) s += 25
+  s += Math.min(i.views, 5) * 6
+  if (i.luna > 0) s += 12
+  s += Math.min(i.searches, 5) * 4
+  s += Math.min(i.contacts ?? 0, 3) * 18   // contact_attempt = the strongest intent
+  s += Math.min(i.favorites ?? 0, 5) * 8    // saved a project = strong
+  s += Math.min(i.reports ?? 0, 2) * 8      // generated / shared a report
+  s += Math.min(i.research ?? 0, 10) * 1.5  // deep data research (insights/market api_calls)
+  return Math.round(s)
+}
+// hot / warm / cooling / cold / lost from score + recency. 'lost' = a visitor who
+// HAD real intent (warm+) but has since gone quiet for weeks — the ones worth
+// winning back, surfaced by getLostCustomers.
+function stageFrom(score: number, lastSeen: string): 'hot' | 'warm' | 'cooling' | 'cold' | 'lost' {
   const ageDays = (Date.now() - new Date(lastSeen).getTime()) / 86_400_000
   if (score >= 40 && ageDays <= 7) return 'hot'
-  if (score >= 18) return ageDays <= 14 ? 'warm' : 'cooling'
+  if (score >= 18) {
+    if (ageDays > 30) return 'lost'
+    return ageDays <= 14 ? 'warm' : 'cooling'
+  }
   return 'cold'
 }
 
@@ -217,6 +237,9 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
           COUNT(*) FILTER (WHERE e.event_type = 'property_view')              AS views,
           COUNT(*) FILTER (WHERE e.event_type = 'search')                     AS searches,
           COUNT(*) FILTER (WHERE e.event_type = 'luna_open')                  AS luna_opens,
+          COUNT(*) FILTER (WHERE e.event_type = 'favorite_toggle' AND e.payload->>'action' = 'add') AS favorites,
+          COUNT(*) FILTER (WHERE e.event_type = 'contact_attempt')            AS contacts,
+          COUNT(*) FILTER (WHERE e.event_type = 'report_action')              AS reports,
           COUNT(DISTINCT e.project_id) FILTER (WHERE e.project_id IS NOT NULL) AS distinct_projects
          FROM app_events e
         WHERE e.created_at >= $1 AND e.created_at < $2
@@ -233,6 +256,9 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
         SUM(views)                                             AS views,
         SUM(searches)                                          AS searches,
         SUM(luna_opens)                                        AS luna_opens,
+        SUM(favorites)                                         AS favorites,
+        SUM(contacts)                                          AS contacts,
+        SUM(reports)                                           AS reports,
         SUM(distinct_projects)                                 AS distinct_projects,
         COUNT(*)                                               AS browser_count
        FROM per_visitor
@@ -242,7 +268,8 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
   return rows
     .map((r) => {
       const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna_opens)
-      const score = quickScore(views, searches, luna, !!r.user_email)
+      const favorites = Number(r.favorites), contacts = Number(r.contacts), reports = Number(r.reports)
+      const score = quickScore({ views, searches, luna, hasContact: !!r.user_email || contacts > 0, favorites, contacts, reports })
       return {
         identity: r.identity as string,
         visitor_id: r.visitor_id as string,
@@ -252,6 +279,7 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
         last_seen: r.last_seen,
         events: Number(r.events),
         views, searches, luna_opens: luna,
+        favorites, contacts,
         distinct_projects: Number(r.distinct_projects),
         score,
         stage: stageFrom(score, r.last_seen),
@@ -263,7 +291,7 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
 
 /** Full per-visitor profile: ordered timeline + a derived intent prediction. */
 export async function getVisitorDetail(visitorId: string) {
-  const [ev, lunaRes, leadRes] = await Promise.all([
+  const [ev, lunaRes, leadRes, apiRes] = await Promise.all([
     pool.query(
       // Match by identity: $1 is either an email (merge all the person's
       // browsers) or a single anonymous visitor_id. The OR makes both work.
@@ -286,6 +314,15 @@ export async function getVisitorDetail(visitorId: string) {
          FROM leads WHERE (visitor_id = $1 OR email = $1) ORDER BY lead_score DESC LIMIT 1`,
       [visitorId]
     ),
+    // Server-side attribution: the data this person actually fetched. Folded into
+    // the timeline (intent layer wins) but the calls with no matching intent event
+    // surface as "implicit research" — the silent high-intent signal app_events misses.
+    pool.query(
+      `SELECT created_at, method, path, status, duration_ms
+         FROM api_calls WHERE (visitor_id = $1 OR user_email = $1)
+        ORDER BY created_at ASC LIMIT 1000`,
+      [visitorId]
+    ),
   ])
 
   const rows = ev.rows
@@ -295,7 +332,7 @@ export async function getVisitorDetail(visitorId: string) {
   const viewedMap = new Map<string, { id: string; name: string; area: string | null; minPrice: number | null; maxPrice: number | null; count: number }>()
   const areaCount = new Map<string, number>()
   const searchTerms: string[] = []
-  let views = 0, searches = 0, luna = 0
+  let views = 0, searches = 0, luna = 0, favorites = 0, contacts = 0, reports = 0
   let userEmail: string | null = null
 
   for (const r of rows) {
@@ -319,8 +356,28 @@ export async function getVisitorDetail(visitorId: string) {
       if (typeof a === 'string' && a.trim()) areaCount.set(a.trim(), (areaCount.get(a.trim()) || 0) + 1)
     } else if (r.event_type === 'luna_open') {
       luna++
+    } else if (r.event_type === 'favorite_toggle') {
+      if (r.payload?.action === 'add') favorites++
+    } else if (r.event_type === 'contact_attempt') {
+      contacts++
+    } else if (r.event_type === 'report_action') {
+      reports++
     }
   }
+
+  // "Implicit research" = business-data api_calls (insights/market/compare) that
+  // have NO matching intent event within a 2s window → folded out of the noise,
+  // kept as a signal of how deep this person dug without leaving an explicit mark.
+  const apiRows = apiRes.rows as Array<{ created_at: string; method: string; path: string; status: number; duration_ms: number }>
+  const eventTimes = rows.map((r) => new Date(r.created_at).getTime())
+  const FOLD_MS = 2000
+  const isBusinessRead = (p: string) => /\/api\/(market\/|compare|residential-projects\/[0-9a-f-]{36})/.test(p)
+  const implicitApi = apiRows.filter((a) => {
+    if (a.method !== 'GET' || !isBusinessRead(a.path)) return false  // actions already have intent rows
+    const t = new Date(a.created_at).getTime()
+    return !eventTimes.some((et) => Math.abs(et - t) <= FOLD_MS)       // fold those behind a tracked action
+  })
+  const research = implicitApi.length
 
   const viewedProjects = [...viewedMap.values()].sort((a, b) => b.count - a.count)
   const topAreas = [...areaCount.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
@@ -329,17 +386,48 @@ export async function getVisitorDetail(visitorId: string) {
     ? { min: prices[0], max: viewedProjects.map((p) => p.maxPrice ?? p.minPrice).filter((n): n is number => n != null).sort((a, b) => a - b).slice(-1)[0] ?? prices[prices.length - 1], median: prices[Math.floor(prices.length / 2)] }
     : null
 
-  const hasContact = !!(leadRes.rows[0]?.email || leadRes.rows[0]?.phone || leadRes.rows[0]?.whatsapp || userEmail)
-  const score = quickScore(views, searches, luna, hasContact)
+  const hasContact = !!(leadRes.rows[0]?.email || leadRes.rows[0]?.phone || leadRes.rows[0]?.whatsapp || userEmail || contacts > 0)
+  const score = quickScore({ views, searches, luna, hasContact, favorites, contacts, reports, research })
   const lastSeen = rows[rows.length - 1].created_at
   const stage = stageFrom(score, lastSeen)
+
+  // A human label for an implicit (folded-out) api_call.
+  const apiLabel = (p: string): string => {
+    if (/\/insights/.test(p)) return '研究项目投资数据'
+    if (/\/transactions/.test(p)) return '查看成交记录'
+    if (/\/market\//.test(p)) return '查看区域行情'
+    if (/\/compare/.test(p)) return '对比房源'
+    if (/\/residential-projects\/[0-9a-f-]{36}/.test(p)) return '调取项目详情'
+    return '数据请求'
+  }
+  // Unified, smart-folded timeline: explicit intent events + the implicit api
+  // research that had no matching intent event. Same shape (null-filled) so the
+  // client renders one stream; `source` tells intent ('做了什么') from api ('查了什么').
+  const intentTimeline = rows.map((r) => ({
+    at: r.created_at as string, source: 'intent' as const, type: r.event_type as string,
+    projectId: r.project_id || null,
+    projectName: r.project_name || r.payload?.project_name || null,
+    area: r.project_area || r.payload?.area || null,
+    query: r.payload?.query || null,
+    kind: r.payload?.kind || null,
+    action: r.payload?.action || null,            // favorite add/remove · report generate · tab name
+    contactType: r.payload?.contact_type || null, // whatsapp / phone / form_request
+    path: r.path || null, label: null as string | null, method: null as string | null, status: null as number | null,
+  }))
+  const apiTimeline = implicitApi.map((a) => ({
+    at: a.created_at, source: 'api' as const, type: 'api_access',
+    projectId: null, projectName: null, area: null, query: null, kind: null, action: null, contactType: null,
+    path: a.path, label: apiLabel(a.path), method: a.method, status: a.status,
+  }))
+  const timeline = [...intentTimeline, ...apiTimeline]
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
 
   return {
     visitor_id: visitorId,
     user_email: userEmail,
     first_seen: rows[0].created_at,
     last_seen: lastSeen,
-    counts: { events: rows.length, views, searches, luna },
+    counts: { events: rows.length, views, searches, luna, favorites, contacts, reports, research },
     contact: leadRes.rows[0] || null,
     score,
     stage,
@@ -352,17 +440,82 @@ export async function getVisitorDetail(visitorId: string) {
       hasContact,
     },
     lunaSessions: lunaRes.rows,
-    timeline: rows.map((r) => ({
-      at: r.created_at,
-      type: r.event_type,
-      projectId: r.project_id || null,
-      projectName: r.project_name || r.payload?.project_name || null,
-      area: r.project_area || r.payload?.area || null,
-      query: r.payload?.query || null,
-      kind: r.payload?.kind || null,
-      path: r.path || null,
-    })),
+    timeline,
   }
+}
+
+/**
+ * Customers we are losing / have lost — visitors who showed real intent but have
+ * since gone quiet. Lifetime aggregates (not windowed) keyed by identity; each
+ * carries WHY we're likely losing them so the owner knows how to win them back:
+ *   • bug_hit   — hit an api_error/auth_failure right before going silent ⭐ the
+ *                 actionable one: a failure (e.g. the area-insights 500) drove
+ *                 them off. Fix + reach out.
+ *   • no_contact — researched deeply (views/favorites) but never tried to contact
+ *                 → the funnel broke at the last step.
+ *   • cooling    — simply went quiet.
+ */
+export async function getLostCustomers(limit = 100) {
+  const { rows } = await pool.query(
+    `WITH per AS (
+        SELECT visitor_id,
+          MAX(user_email)                                                          AS user_email,
+          MIN(created_at)                                                          AS first_seen,
+          MAX(created_at)                                                          AS last_seen,
+          COUNT(*) FILTER (WHERE event_type='property_view')                       AS views,
+          COUNT(*) FILTER (WHERE event_type='search')                              AS searches,
+          COUNT(*) FILTER (WHERE event_type='luna_open')                           AS luna,
+          COUNT(*) FILTER (WHERE event_type='favorite_toggle' AND payload->>'action'='add') AS favorites,
+          COUNT(*) FILTER (WHERE event_type='contact_attempt')                     AS contacts,
+          COUNT(*) FILTER (WHERE event_type IN ('api_error','auth_failure'))       AS errors,
+          MAX(created_at) FILTER (WHERE event_type IN ('api_error','auth_failure')) AS last_error_at
+         FROM app_events
+        WHERE visitor_id IS NOT NULL
+        GROUP BY visitor_id
+      )
+      SELECT
+        COALESCE(user_email, visitor_id)                   AS identity,
+        MAX(user_email)                                    AS user_email,
+        (ARRAY_AGG(visitor_id ORDER BY last_seen DESC))[1] AS visitor_id,
+        MIN(first_seen)                                    AS first_seen,
+        MAX(last_seen)                                     AS last_seen,
+        SUM(views) AS views, SUM(searches) AS searches, SUM(luna) AS luna,
+        SUM(favorites) AS favorites, SUM(contacts) AS contacts, SUM(errors) AS errors,
+        MAX(last_error_at)                                 AS last_error_at
+       FROM per
+      GROUP BY COALESCE(user_email, visitor_id)
+      HAVING MAX(last_seen) < now() - interval '7 days'`,  // silent ≥ 7 days
+    []
+  )
+
+  const out = rows
+    .map((r) => {
+      const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna)
+      const favorites = Number(r.favorites), contacts = Number(r.contacts), errors = Number(r.errors)
+      const score = quickScore({ views, searches, luna, hasContact: !!r.user_email || contacts > 0, favorites, contacts })
+      const lastSeen = new Date(r.last_seen).getTime()
+      const daysSilent = Math.floor((Date.now() - lastSeen) / 86_400_000)
+      // Did a failure happen right before they vanished (within 1h of last activity)?
+      const bugHit = errors > 0 && r.last_error_at != null &&
+        Math.abs(lastSeen - new Date(r.last_error_at).getTime()) <= 3_600_000
+      const reasons: string[] = []
+      if (bugHit) reasons.push('bug_hit')
+      if ((views >= 3 || favorites > 0) && contacts === 0) reasons.push('no_contact')
+      if (reasons.length === 0) reasons.push('cooling')
+      return {
+        identity: r.identity as string,
+        visitor_id: r.visitor_id as string,
+        user_email: (r.user_email as string) || null,
+        first_seen: r.first_seen, last_seen: r.last_seen,
+        days_silent: daysSilent,
+        views, searches, luna_opens: luna, favorites, contacts, errors,
+        score, reasons,
+      }
+    })
+    // Only those who actually showed intent — not every one-page bounce.
+    .filter((v) => v.score >= 18 || v.views >= 2 || v.favorites > 0 || v.contacts > 0)
+    .sort((a, b) => b.score - a.score || a.days_silent - b.days_silent)
+  return out.slice(0, limit)
 }
 
 /** Luna session list (no transcript — light). */
