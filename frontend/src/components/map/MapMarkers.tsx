@@ -273,8 +273,12 @@ export const LandmarkMarker = memo(({ landmark, onClick }: {
   const [cutoutFailed, setCutoutFailed] = useState(false)
   // 尺寸收紧：之前 84/68/54 在 z10 全城视野下太抢眼（客户反馈"挤着很乱"）
   // xlarge 专给哈利法塔等关键标志塔楼（窄高，放大不显臃肿）
-  const cutoutH = landmark.size === 'xlarge' ? 88 : landmark.size === 'large' ? 64 : landmark.size === 'small' ? 42 : 52
-  const pinSize = landmark.size === 'xlarge' ? 56 : landmark.size === 'large' ? 48 : landmark.size === 'small' ? 32 : 40
+  const isXl = landmark.size === 'xlarge'
+  const cutoutH = isXl ? 132 : landmark.size === 'large' ? 64 : landmark.size === 'small' ? 42 : 52
+  const pinSize = isXl ? 64 : landmark.size === 'large' ? 48 : landmark.size === 'small' ? 32 : 40
+  // xlarge 是城市天际线主地标(哈利法塔)：抬到其它地标(zIndex 1)和项目 pin(zIndex 2)
+  // 之上,保证它永远不被旁边的图标/标签盖住。仍在悬浮卡(300)之下。
+  const zIndex = isXl ? 5 : 1
 
   const langKey = i18n.language?.split('-')[0]
   const localizedName = (langKey && landmark.translations?.[langKey]?.name) || landmark.name
@@ -284,8 +288,9 @@ export const LandmarkMarker = memo(({ landmark, onClick }: {
       longitude={landmark.location.lng}
       latitude={landmark.location.lat}
       anchor="bottom"
-      // 地标是背景层装饰：永远垫在项目 pin（zIndex 2）和悬浮卡（300）下面
-      style={{ zIndex: 1 }}
+      // 普通地标垫在项目 pin（zIndex 2）和悬浮卡（300）下面；xlarge 主地标(哈利法塔)
+      // 抬高到最上(zIndex 5)以免被旁边图标/标签盖住。
+      style={{ zIndex }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(landmark)
