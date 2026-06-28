@@ -157,9 +157,13 @@ app.use('/api/meta', metaRouter)  // 数据版本指纹（客户端缓存自动�
 app.use('/api/luna', lunaPublicRouter)  // Luna Tour public watch (isolated)
 app.use('/api/luna/agent', lunaAgentRouter)  // Luna Tour agent dashboard/analytics (isolated)
 app.use('/api/events', eventsRouter)  // Behaviour analytics ingest (public, batched)
+app.use('/api/sync', eventsRouter)    // ⭐ ad-blocker-resistant alias of /api/events — clients post here now.
+                                      //   "events" is on ad-block keyword lists; "sync" isn't, so real users'
+                                      //   telemetry stops getting silently eaten. Old path kept for cached bundles.
 app.use('/api/leads', leadsRouter)  // Lead capture + intent scoring
 app.use('/api/favorites', favoritesRouter)  // Server-side favorites persistence + login merge
-app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard queries
+app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard queries (legacy path; ad-blockers eat "analytics")
+app.use('/api/admin/insights', adminAnalyticsRouter)   // ⭐ ad-blocker-resistant alias — the dashboard reads here now
 app.use('/api/billing', billingRouter)  // Stripe 订阅计费(webhook 已在 json parser 之前单独挂)
 
 // 404 handler

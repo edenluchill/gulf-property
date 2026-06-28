@@ -26,9 +26,9 @@ const BUSINESS_READ: RegExp[] = [
 
 // Never record these even though they're writes (telemetry channels / noise).
 const SKIP_PATH: RegExp[] = [
-  /^\/api\/events/,        // the semantic-event channel itself
+  /^\/api\/(events|sync)/,                  // the semantic-event channels (events + ad-blocker-safe alias)
   /^\/health/,
-  /^\/api\/admin\/analytics\/perf/, // dashboard's own perf polling
+  /^\/api\/admin\/(analytics|insights)\/perf/, // dashboard's own perf polling (both path aliases)
 ]
 
 function shouldRecord(method: string, path: string): boolean {

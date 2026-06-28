@@ -91,8 +91,9 @@ export function installApiErrorCapture(): void {
     const url = urlOf(input)
     const method = (init?.method || (input instanceof Request ? input.method : 'GET') || 'GET').toUpperCase()
     const mine = isOurApi(url)
-    // Never let the telemetry POST itself loop back into capture.
-    const isTelemetry = url.includes('/api/events')
+    // Never let the telemetry POST itself loop back into capture (both the legacy
+    // /api/events path and the ad-blocker-safe /api/sync alias).
+    const isTelemetry = url.includes('/api/events') || url.includes('/api/sync')
 
     try {
       const res = await original(input as RequestInfo, init)

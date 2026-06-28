@@ -169,9 +169,9 @@ class VoiceDebugLogger {
       const body = JSON.stringify({ session, visitor_id: appVisitorId() })
       if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
         const blob = new Blob([body], { type: 'application/json' })
-        if (navigator.sendBeacon(`${API_BASE}/api/events/voice-session`, blob)) return
+        if (navigator.sendBeacon(`${API_BASE}/api/sync/voice-session`, blob)) return
       }
-      await fetch(`${API_BASE}/api/events/voice-session`, {
+      await fetch(`${API_BASE}/api/sync/voice-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,

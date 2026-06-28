@@ -6,7 +6,10 @@
 import { API_BASE_URL } from './config'
 import { supabase } from './supabase'
 
-const BASE = `${API_BASE_URL}/api/admin/analytics`
+// '/api/admin/insights' (not '/api/admin/analytics') — ad-blockers eat URLs
+// containing "analytics", which broke the owner's own dashboard polling. The
+// backend double-mounts both; clients read from the clean alias.
+const BASE = `${API_BASE_URL}/api/admin/insights`
 
 /** Thrown when the server rejects access (401/403). Access is owner-email gated
  *  server-side (requireOwner + verified Supabase token) — no secret key. */

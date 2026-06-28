@@ -42,7 +42,9 @@ export type AppEvent =
   | 'auth_failure'
   | 'api_error'
 
-const ENDPOINT = `${API_BASE_URL}/api/events`
+// '/api/sync' (not '/api/events') — "events" is on ad-block keyword lists, which
+// silently eats real users' telemetry. The backend double-mounts both paths.
+const ENDPOINT = `${API_BASE_URL}/api/sync`
 const VISITOR_KEY = 'app-visitor-id'
 const SESSION_KEY = 'app-session-id'
 const MAX_BATCH = 10
