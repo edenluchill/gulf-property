@@ -666,6 +666,12 @@ router.get('/area-insights', async (req: Request, res: Response) => {
   try {
     const areaId = String(req.query.areaId || '').trim()
     if (!areaId) return res.status(400).json({ error: 'areaId is required' })
+    // areaId must be a dubai_areas UUID. Reject anything else with 400 — otherwise
+    // a stray DLD integer area_id reaches `da.id = $1` and Postgres throws an
+    // invalid-uuid error that surfaces as a 500 (this is what broke the project
+    // detail page for City of Arabia). See projectInsights.ts area.id.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(areaId))
+      return res.status(400).json({ error: 'areaId must be a valid area UUID' })
     // usage lens — default 'all' (the dialog shows everything, then filters); cache per usage.
     const usage = ['all','residential','commercial','hospitality','industrial','other'].includes(String(req.query.usage))
       ? String(req.query.usage) : 'all'

@@ -1,3 +1,6 @@
+import { supabase } from './supabase'
+import { API_BASE_URL } from './config'
+
 const STORAGE_KEY = 'pinzos-favorites'
 
 export interface FavoriteProject {
@@ -161,4 +164,82 @@ export function removeFavorite(projectId: string): void {
 
 export function isFavorite(projectId: string): boolean {
   return isProjectFavorite(projectId)
+}
+
+// ---------------------------------------------------------------------------
+// Server sync (logged-in users) — localStorage stays the instant/offline source
+// of truth and the anonymous store; these mirror writes to /api/favorites and,
+// on login, merge the local picks into the account. All best-effort: a failed
+// sync never breaks the local UX. See backend/src/routes/favorites.ts.
+// ---------------------------------------------------------------------------
+
+async function authHeader(): Promise<Record<string, string> | null> {
+  try {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    return token ? { Authorization: `Bearer ${token}` } : null
+  } catch {
+    return null
+  }
+}
+
+/** Mirror an add to the server. No-op when logged out. Best-effort. */
+export async function pushAddFavorite(projectId: string, unitTypeId?: string): Promise<void> {
+  try {
+    const auth = await authHeader()
+    if (!auth) return
+    await fetch(`${API_BASE_URL}/api/favorites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ project_id: projectId, unit_type_id: unitTypeId }),
+      keepalive: true,
+    })
+  } catch { /* swallow — local store already updated */ }
+}
+
+/** Mirror a remove to the server. No-op when logged out. Best-effort. */
+export async function pushRemoveFavorite(projectId: string, unitTypeId?: string): Promise<void> {
+  try {
+    const auth = await authHeader()
+    if (!auth) return
+    await fetch(`${API_BASE_URL}/api/favorites`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ project_id: projectId, unit_type_id: unitTypeId }),
+      keepalive: true,
+    })
+  } catch { /* swallow */ }
+}
+
+/**
+ * On login: push the local (anonymous) favorites to the account and pull back the
+ * unified set, writing it to localStorage. Returns the merged data (or the local
+ * data unchanged if the user is logged out / the call fails) so the context can
+ * update state. Best-effort.
+ */
+export async function mergeFavoritesOnLogin(): Promise<FavoritesData> {
+  const local = loadFavorites()
+  try {
+    const auth = await authHeader()
+    if (!auth) return local
+    const res = await fetch(`${API_BASE_URL}/api/favorites/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ projects: local.projects }),
+    })
+    if (!res.ok) return local
+    const merged = (await res.json()) as FavoritesData
+    if (merged && merged.version === 2 && Array.isArray(merged.projects)) {
+      saveFavorites(merged)
+      return merged
+    }
+    return local
+  } catch {
+    return local
+  }
+}
+
+/** Clear the local store (call on sign-out so the next account starts clean). */
+export function clearFavorites(): void {
+  saveFavorites(createEmptyData())
 }

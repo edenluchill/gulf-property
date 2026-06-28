@@ -27,6 +27,16 @@ export type AppEvent =
   | 'luna_close'
   | 'tutorial_step'
   | 'page_view'
+  // Conversion / intent signals — interest is a view; intent is these. Kept in
+  // sync with the backend whitelist (backend/src/services/eventIngest.ts).
+  | 'favorite_toggle'
+  | 'contact_attempt'
+  | 'resource_download'
+  | 'report_action'
+  | 'share_action'
+  | 'image_view'
+  | 'area_detail'
+  | 'tab_switch'
   // Error telemetry — surfaced in the owner dashboard's 错误监控 tab so we can
   // see failures real users hit (esp. mobile login) instead of losing them silently.
   | 'auth_failure'

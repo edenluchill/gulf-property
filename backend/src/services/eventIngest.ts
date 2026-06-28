@@ -17,6 +17,16 @@ export const ALLOWED_EVENTS = new Set([
   'luna_close',
   'tutorial_step',
   'page_view',
+  // Conversion / intent signals — the high-value actions the lead engine and
+  // owner dashboard care about (a view tells us interest; these tell us intent).
+  'favorite_toggle',   // saved/unsaved a project or unit type  (payload: action, item_type, unit_type_id?)
+  'contact_attempt',   // tapped WhatsApp / phone / request-info (payload: contact_type, agent_id?)
+  'resource_download', // opened a brochure / floor plan         (payload: resource_type)
+  'report_action',     // generated / viewed / shared a report   (payload: action, success?)
+  'share_action',      // shared a project (native / clipboard)  (payload: method, success?)
+  'image_view',        // opened the gallery lightbox            (payload: image_count, index, view_type)
+  'area_detail',       // opened/closed an area dialog           (payload: action, area_name)
+  'tab_switch',        // switched a project-detail tab          (payload: tab_name, source)
   // Error telemetry (see ErrorMonitor in the owner dashboard). Same fail-safe
   // ingest path — these just carry diagnostic fields in `payload`.
   'auth_failure', // OAuth/login callback failed (provider error, race, storage blocked, …)

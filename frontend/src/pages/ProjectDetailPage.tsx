@@ -90,6 +90,7 @@ export default function ProjectDetailPage() {
 
 
   const handleTabChange = (value: string) => {
+    trackEvent('tab_switch', { tab_name: value, source: 'user' }, { project_id: project?.id })
     setActiveTab(value)
     const newParams = new URLSearchParams(searchParams)
     newParams.set('tab', value)
@@ -161,6 +162,7 @@ export default function ProjectDetailPage() {
   // Agent-branded shareable report: generate (or fetch) a /r/:code link + copy it.
   const handleGenerateReport = async () => {
     if (!project || genningReport) return
+    trackEvent('report_action', { action: 'generate' }, { project_id: project.id })
     setGenningReport(true)
     try {
       const { lunaFetch } = await import('../luna-tour/lunaApi')
@@ -186,6 +188,7 @@ export default function ProjectDetailPage() {
 
   const handleShare = async () => {
     if (!project) return
+    trackEvent('share_action', { method: typeof navigator.share === 'function' ? 'native' : 'clipboard' }, { project_id: project.id })
     const currentLang = document.documentElement.lang || localStorage.getItem('i18nextLng') || 'en'
     const notesLang = currentLang.startsWith('zh') ? 'zh-CN' : 'en'
     const projectUrl = `${window.location.origin}/project/${project.id}`

@@ -24,6 +24,7 @@ import GuidedTour from '../components/GuidedTour'
 import FindHomeAssistant from '../components/find-home/FindHomeAssistant'
 import MobileBottomSheet from '../components/MobileBottomSheet'
 import { getImageUrl } from '../lib/image-utils'
+import { trackEvent } from '../lib/track'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
@@ -521,6 +522,7 @@ export default function MapPage() {
 
   // Close the area panel; presenter broadcasts a clear so viewers close in sync.
   const handleCloseArea = useCallback(() => {
+    trackEvent('area_detail', { action: 'close' })
     setShowAreaDialog(false)
     setShowAreaSheet(false)
     if (collabActiveRef.current) collabSendRef.current.sendSelect('area', '')
@@ -887,6 +889,7 @@ export default function MapPage() {
 
   // Handle area click to show area detail dialog (or bottom sheet on mobile)
   const handleAreaClick = useCallback(async (area: DubaiArea) => {
+    trackEvent('area_detail', { action: 'open', area_name: area?.name, area_id: area?.id })
     if (collabActiveRef.current) collabSendRef.current.sendSelect('area', area.id)
     setSelectedArea(area)
     setAreaProjects([])

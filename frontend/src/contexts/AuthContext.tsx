@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { identifyVisitor } from '../lib/track'
+import { clearFavorites } from '../lib/favorites'
 
 interface AuthContextType {
   user: User | null
@@ -116,6 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setSession(null)
     setIsAdmin(false)
+    // Clear the local favorites store so the next account on this device starts
+    // clean — they're safely persisted server-side and re-merge on next login.
+    try { clearFavorites() } catch { /* best-effort */ }
   }
 
   const value = {

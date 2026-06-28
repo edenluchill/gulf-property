@@ -4,6 +4,7 @@ import { Building2, Expand } from 'lucide-react'
 import { getImageUrl, getImageSrcSet } from '../../lib/image-utils'
 import { ImageLightbox } from '../../components/ImageLightbox'
 import { ProjectInfoTags } from './ProjectInfoTags'
+import { trackEvent } from '../../lib/track'
 
 interface DesktopHeroGalleryProps {
   images: string[]
@@ -35,6 +36,7 @@ export function DesktopHeroGallery({
   const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0.8])
 
   const openLightbox = (index: number) => {
+    trackEvent('image_view', { index, view_type: 'lightbox', image_count: images?.length })
     setLightboxIndex(index)
     setLightboxOpen(true)
   }

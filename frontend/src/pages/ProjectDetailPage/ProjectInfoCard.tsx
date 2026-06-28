@@ -16,6 +16,7 @@ import { ResidentialProject, UnitType, PaymentPlan } from '../../types'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { generateProjectNotes } from '../../lib/generateProjectNotes'
+import { trackEvent } from '../../lib/track'
 
 interface ProjectInfoCardProps {
   project: ResidentialProject
@@ -67,6 +68,7 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
   }
 
   const handleShare = async () => {
+    trackEvent('share_action', { method: typeof navigator.share === 'function' ? 'native' : 'clipboard' }, { project_id: project.id })
     const lang = i18n.language.startsWith('zh') ? 'zh-CN' : 'en'
     const projectUrl = `${window.location.origin}/project/${project.id}`
 
@@ -226,7 +228,11 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
 
         {/* CTA Button */}
         <div className="pt-4 border-t">
-          <Button className="w-full" size="lg">
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={() => trackEvent('contact_attempt', { contact_type: 'form_request' }, { project_id: project.id, immediate: true })}
+          >
             {t('common:buttons.requestInfo')}
           </Button>
           {project.brochure_url && (
@@ -234,7 +240,10 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
               variant="outline"
               className="w-full mt-2"
               size="lg"
-              onClick={() => window.open(project.brochure_url, '_blank')}
+              onClick={() => {
+                trackEvent('resource_download', { resource_type: 'brochure' }, { project_id: project.id })
+                window.open(project.brochure_url, '_blank')
+              }}
             >
               {t('common:buttons.downloadBrochure')}
             </Button>

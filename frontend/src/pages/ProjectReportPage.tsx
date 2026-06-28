@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Phone, MessageCircle, BadgeCheck, TrendingUp, Building2, MapPin, Loader2, Info } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
 import DirhamSymbol from '../components/DirhamSymbol'
+import { trackEvent } from '../lib/track'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -72,7 +73,7 @@ export default function ProjectReportPage() {
             {agent.phone && <div className="text-xs text-slate-400">{agent.phone}</div>}
           </div>
           {wa && (
-            <a href={contactHref} className="flex items-center gap-1.5 rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-600">
+            <a href={contactHref} onClick={() => trackEvent('contact_attempt', { contact_type: contactHref.startsWith('https://wa.me/') ? 'whatsapp' : 'phone' }, { project_id: project?.id, immediate: true })} className="flex items-center gap-1.5 rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-600">
               {agent.whatsapp ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}咨询
             </a>
           )}

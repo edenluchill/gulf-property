@@ -39,6 +39,7 @@ import lunaAgentRouter from './luna-tour/agent-router'  // Luna Tour agent dashb
 import projectInsightsRouter from './routes/project-insights'  // Detail-page investment/location intelligence (isolated)
 import eventsRouter from './routes/events'  // Behaviour analytics ingest (isolated; see docs/analytics-dashboard-spec.md)
 import leadsRouter from './routes/leads'  // Lead capture + intent scoring (isolated)
+import favoritesRouter from './routes/favorites'  // Server-side favorites persistence + login merge (isolated)
 import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashboard queries (isolated)
 import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stripe 订阅计费 (isolated; docs/stripe-billing-spec.md)
 import pool from './db/pool'
@@ -146,6 +147,7 @@ app.use('/api/luna', lunaPublicRouter)  // Luna Tour public watch (isolated)
 app.use('/api/luna/agent', lunaAgentRouter)  // Luna Tour agent dashboard/analytics (isolated)
 app.use('/api/events', eventsRouter)  // Behaviour analytics ingest (public, batched)
 app.use('/api/leads', leadsRouter)  // Lead capture + intent scoring
+app.use('/api/favorites', favoritesRouter)  // Server-side favorites persistence + login merge
 app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard queries
 app.use('/api/billing', billingRouter)  // Stripe 订阅计费(webhook 已在 json parser 之前单独挂)
 

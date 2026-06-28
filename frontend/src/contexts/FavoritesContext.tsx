@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import {
   FavoritesData,
   loadFavorites,
@@ -9,7 +9,12 @@ import {
   isProjectFavorite as checkProjectFavorite,
   isUnitTypeFavorite as checkUnitTypeFavorite,
   getProjectUnitTypeIds as getUnitTypeIds,
+  pushAddFavorite,
+  pushRemoveFavorite,
+  mergeFavoritesOnLogin,
 } from '../lib/favorites'
+import { useAuth } from './AuthContext'
+import { trackEvent } from '../lib/track'
 
 interface FavoritesContextValue {
   favorites: FavoritesData
@@ -39,6 +44,8 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
   const [favorites, setFavorites] = useState<FavoritesData>(() => loadFavorites())
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isCompareOpen, setIsCompareOpen] = useState(false)
+  const { user } = useAuth()
+  const isLoggedIn = !!user
 
   // Listen for storage changes (cross-tab sync)
   useEffect(() => {
@@ -52,6 +59,16 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
+  // On login: merge this browser's local picks into the account, then adopt the
+  // unified set. Runs once per user.id (guarded) so re-renders don't re-merge.
+  const mergedForUser = useRef<string | null>(null)
+  useEffect(() => {
+    if (!user) { mergedForUser.current = null; return }
+    if (mergedForUser.current === user.id) return
+    mergedForUser.current = user.id
+    void mergeFavoritesOnLogin().then((merged) => setFavorites(merged))
+  }, [user])
+
   const isProjectFavorite = useCallback((projectId: string) => {
     return checkProjectFavorite(projectId)
   }, [favorites]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -61,24 +78,28 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
   }, [favorites]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleProjectFavorite = useCallback((projectId: string) => {
-    if (checkProjectFavorite(projectId)) {
-      const newData = removeProject(projectId)
-      setFavorites(newData)
-    } else {
-      const newData = addProject(projectId)
-      setFavorites(newData)
+    const wasFavorite = checkProjectFavorite(projectId)
+    const newData = wasFavorite ? removeProject(projectId) : addProject(projectId)
+    setFavorites(newData)
+    const action = wasFavorite ? 'remove' : 'add'
+    trackEvent('favorite_toggle', { action, item_type: 'project' }, { project_id: projectId })
+    if (isLoggedIn) {
+      if (wasFavorite) void pushRemoveFavorite(projectId)
+      else void pushAddFavorite(projectId)
     }
-  }, [])
+  }, [isLoggedIn])
 
   const toggleUnitTypeFavorite = useCallback((projectId: string, unitTypeId: string) => {
-    if (checkUnitTypeFavorite(projectId, unitTypeId)) {
-      const newData = removeUnitType(projectId, unitTypeId)
-      setFavorites(newData)
-    } else {
-      const newData = addUnitType(projectId, unitTypeId)
-      setFavorites(newData)
+    const wasFavorite = checkUnitTypeFavorite(projectId, unitTypeId)
+    const newData = wasFavorite ? removeUnitType(projectId, unitTypeId) : addUnitType(projectId, unitTypeId)
+    setFavorites(newData)
+    const action = wasFavorite ? 'remove' : 'add'
+    trackEvent('favorite_toggle', { action, item_type: 'unit_type', unit_type_id: unitTypeId }, { project_id: projectId })
+    if (isLoggedIn) {
+      if (wasFavorite) void pushRemoveFavorite(projectId, unitTypeId)
+      else void pushAddFavorite(projectId, unitTypeId)
     }
-  }, [])
+  }, [isLoggedIn])
 
   const getProjectUnitTypeIds = useCallback((projectId: string) => {
     return getUnitTypeIds(projectId)

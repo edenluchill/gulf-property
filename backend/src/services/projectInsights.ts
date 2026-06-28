@@ -146,7 +146,12 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
         yieldPct = devYield ?? areaMetrics?.yield ?? 0
         growthPct = devGrowth ?? areaMetrics?.growth ?? 0
         area = {
-          id: String(resolvedAreaId),
+          // area.id is consumed by the frontend to call /market/area-insights,
+          // which keys on the dubai_areas UUID — NOT the DLD integer area_id.
+          // Emit the UUID (from areaMetrics, resolved off the same area_id); fall
+          // back to null when the area has no rolling metrics so the client simply
+          // skips the area-insights fetch instead of 500-ing on a bad UUID cast.
+          id: areaMetrics?.area_id ?? null,
           name: titleCase(resolvedMaster),
           median_price_sqm: d.median_price_sqm != null ? parseFloat(d.median_price_sqm) : null,
           rental_yield_pct: yieldPct || null,
