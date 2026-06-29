@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { MapPin, Heart, GitCompare, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, LineChart, TrendingUp, Briefcase } from 'lucide-react'
+import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, LineChart, TrendingUp, Briefcase } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
@@ -33,12 +33,10 @@ export default function MobileNav() {
   // Check if current path is admin-related
   const isAdminActive = location.pathname.startsWith('/admin') || location.pathname.startsWith('/developer')
 
-  // 分析与工具组（对齐桌面"分析"下拉 + 收藏）
+  // 工具组：成交记录(买家查真实 transaction/rent) + 收藏。区域分析/AI报告/对比零使用已移除
+  // (对比/AI报告能力改在经纪台为客户生成)。
   const analysisItems = [
     { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp, description: t('nav:desc.transactions') },
-    { path: '/areas', label: t('nav:areaInsights'), icon: MapPinned, description: t('nav:desc.areaInsights') },
-    { path: '/report', label: t('nav:buyingReport'), icon: ClipboardList, description: t('nav:desc.buyingReport') },
-    { path: '/compare', label: t('nav:compare'), icon: GitCompare, description: t('nav:desc.compare') },
     { path: '/favorites', label: t('nav:favorites'), icon: Heart, description: t('nav:desc.favorites') },
   ]
   const isAnalysisActive = analysisItems.some(i => location.pathname === i.path)
