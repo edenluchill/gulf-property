@@ -1564,53 +1564,54 @@ export default function MapPage() {
                   <div className="w-10 h-1 bg-slate-300 rounded-full" />
                 </div>
 
-                {/* Hero: photo, or category-tinted band with emoji (no generic pin) */}
-                {photo ? (
-                  <div className="px-5 pb-3">
-                    <img
-                      src={photo}
-                      alt={selectedPoi.name}
-                      loading="lazy"
-                      className="w-full h-40 object-cover rounded-xl bg-slate-100"
-                      onError={(e) => { const p = e.currentTarget.parentElement as HTMLElement; if (p) p.style.display = 'none' }}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="mx-5 mb-3 h-24 rounded-xl flex items-center justify-center"
-                    style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
-                  >
-                    <span className="text-5xl leading-none">{catInfo?.icon}</span>
-                  </div>
-                )}
-
                 {/* Content */}
                 <div className="px-5 pb-4">
-                  {/* Category + KHDA chips */}
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span
-                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: `${color}1f`, color }}
+                  {/* Header: thumbnail left + type/title right */}
+                  <div className="flex gap-3 mb-3">
+                    <div
+                      className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
                     >
-                      {catInfo?.label || selectedPoi.category}
-                    </span>
-                    {khdaStyle && (
-                      <span
-                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
-                      >
-                        <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
-                      </span>
-                    )}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-4xl leading-none">{catInfo?.icon}</span>
+                      </div>
+                      {photo && (
+                        <img
+                          src={photo}
+                          alt={selectedPoi.name}
+                          loading="lazy"
+                          className="relative w-full h-full object-cover"
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                        <span
+                          className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                          style={{ backgroundColor: `${color}1f`, color }}
+                        >
+                          {catInfo?.label || selectedPoi.category}
+                        </span>
+                        {khdaStyle && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+                            style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
+                          >
+                            <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 leading-tight">
+                        {selectedPoi.name}
+                      </h3>
+                      {selectedPoi.name_ar && (
+                        <p className="text-sm text-slate-400 mt-0.5" dir="rtl">
+                          {selectedPoi.name_ar}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 leading-tight">
-                    {selectedPoi.name}
-                  </h3>
-                  {selectedPoi.name_ar && (
-                    <p className="text-base text-slate-400 mt-0.5 mb-1" dir="rtl">
-                      {selectedPoi.name_ar}
-                    </p>
-                  )}
 
                   {/* Description (or loading skeleton) */}
                   {poiDetailsLoading && !d ? (
@@ -1701,50 +1702,53 @@ export default function MapPage() {
                   <X className="w-5 h-5" />
                 </button>
 
-                {/* Hero: photo, or category-tinted band with emoji (no generic pin) */}
-                {photo ? (
-                  <img
-                    src={photo}
-                    alt={selectedPoi.name}
-                    loading="lazy"
-                    className="w-full h-44 object-cover bg-slate-100"
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                  />
-                ) : (
-                  <div
-                    className="h-28 flex items-center justify-center"
-                    style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
-                  >
-                    <span className="text-6xl leading-none">{catInfo?.icon}</span>
-                  </div>
-                )}
-
-                {/* Header */}
+                {/* Header: thumbnail left + type/title right */}
                 <div className="p-5 pb-3">
-                  <div className="flex items-center gap-2 flex-wrap mb-2.5">
-                    <span
-                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: `${color}1f`, color }}
+                  <div className="flex gap-4 pr-8">
+                    <div
+                      className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
                     >
-                      {catInfo?.label || selectedPoi.category}
-                    </span>
-                    {khdaStyle && (
-                      <span
-                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
-                        style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
-                      >
-                        <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
-                      </span>
-                    )}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-5xl leading-none">{catInfo?.icon}</span>
+                      </div>
+                      {photo && (
+                        <img
+                          src={photo}
+                          alt={selectedPoi.name}
+                          loading="lazy"
+                          className="relative w-full h-full object-cover"
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                        <span
+                          className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                          style={{ backgroundColor: `${color}1f`, color }}
+                        >
+                          {catInfo?.label || selectedPoi.category}
+                        </span>
+                        {khdaStyle && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+                            style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
+                          >
+                            <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-900 leading-tight">
+                        {selectedPoi.name}
+                      </h3>
+                      {selectedPoi.name_ar && (
+                        <p className="text-sm text-slate-400 mt-0.5" dir="rtl">
+                          {selectedPoi.name_ar}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="text-[22px] font-bold text-slate-900 leading-tight">
-                    {selectedPoi.name}
-                  </h3>
-                  {selectedPoi.name_ar && (
-                    <p className="text-sm text-slate-400 mt-1" dir="rtl">
-                      {selectedPoi.name_ar}
-                    </p>
-                  )}
                 </div>
 
                 {/* Description (or loading skeleton) */}
