@@ -1564,8 +1564,8 @@ export default function MapPage() {
                   <div className="w-10 h-1 bg-slate-300 rounded-full" />
                 </div>
 
-                {/* Photo banner */}
-                {photo && (
+                {/* Hero: photo, or category-tinted band with emoji (no generic pin) */}
+                {photo ? (
                   <div className="px-5 pb-3">
                     <img
                       src={photo}
@@ -1575,39 +1575,39 @@ export default function MapPage() {
                       onError={(e) => { const p = e.currentTarget.parentElement as HTMLElement; if (p) p.style.display = 'none' }}
                     />
                   </div>
-                )}
-
-                {/* Icon + Category + KHDA badge */}
-                <div className="flex items-center gap-2 px-5 pb-3 flex-wrap">
+                ) : (
                   <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
-                    style={{ backgroundColor: color }}
+                    className="mx-5 mb-3 h-24 rounded-xl flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
                   >
-                    <MapPin className="w-6 h-6 text-white" />
+                    <span className="text-5xl leading-none">{catInfo?.icon}</span>
                   </div>
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
-                    style={{ backgroundColor: color }}
-                  >
-                    {catInfo?.label || selectedPoi.category}
-                  </span>
-                  {khdaStyle && (
-                    <span
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
-                    >
-                      <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
-                    </span>
-                  )}
-                </div>
+                )}
 
                 {/* Content */}
                 <div className="px-5 pb-4">
-                  <h3 className="text-xl font-bold text-slate-900 mb-1">
+                  {/* Category + KHDA chips */}
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: `${color}1f`, color }}
+                    >
+                      {catInfo?.label || selectedPoi.category}
+                    </span>
+                    {khdaStyle && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
+                      >
+                        <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 leading-tight">
                     {selectedPoi.name}
                   </h3>
                   {selectedPoi.name_ar && (
-                    <p className="text-base text-slate-500 mb-2" dir="rtl">
+                    <p className="text-base text-slate-400 mt-0.5 mb-1" dir="rtl">
                       {selectedPoi.name_ar}
                     </p>
                   )}
@@ -1701,8 +1701,8 @@ export default function MapPage() {
                   <X className="w-5 h-5" />
                 </button>
 
-                {/* Photo banner */}
-                {photo && (
+                {/* Hero: photo, or category-tinted band with emoji (no generic pin) */}
+                {photo ? (
                   <img
                     src={photo}
                     alt={selectedPoi.name}
@@ -1710,44 +1710,41 @@ export default function MapPage() {
                     className="w-full h-44 object-cover bg-slate-100"
                     onError={(e) => { e.currentTarget.style.display = 'none' }}
                   />
+                ) : (
+                  <div
+                    className="h-28 flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
+                  >
+                    <span className="text-6xl leading-none">{catInfo?.icon}</span>
+                  </div>
                 )}
 
                 {/* Header */}
                 <div className="p-5 pb-3">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="w-14 h-14 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
-                      style={{ backgroundColor: color }}
+                  <div className="flex items-center gap-2 flex-wrap mb-2.5">
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: `${color}1f`, color }}
                     >
-                      <MapPin className="w-7 h-7 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0 pt-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <span
-                          className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white"
-                          style={{ backgroundColor: color }}
-                        >
-                          {catInfo?.label || selectedPoi.category}
-                        </span>
-                        {khdaStyle && (
-                          <span
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
-                          >
-                            <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-900 leading-tight">
-                        {selectedPoi.name}
-                      </h3>
-                      {selectedPoi.name_ar && (
-                        <p className="text-sm text-slate-500 mt-1" dir="rtl">
-                          {selectedPoi.name_ar}
-                        </p>
-                      )}
-                    </div>
+                      {catInfo?.label || selectedPoi.category}
+                    </span>
+                    {khdaStyle && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
+                      >
+                        <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                      </span>
+                    )}
                   </div>
+                  <h3 className="text-[22px] font-bold text-slate-900 leading-tight">
+                    {selectedPoi.name}
+                  </h3>
+                  {selectedPoi.name_ar && (
+                    <p className="text-sm text-slate-400 mt-1" dir="rtl">
+                      {selectedPoi.name_ar}
+                    </p>
+                  )}
                 </div>
 
                 {/* Description (or loading skeleton) */}
