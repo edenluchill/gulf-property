@@ -11,6 +11,7 @@ import { requireOwner } from '../middleware/requireOwner'
 import * as q from '../services/analyticsQueries'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
+import { getAgentRuns } from '../services/agentRuns'
 
 const router = Router()
 
@@ -97,6 +98,9 @@ router.get('/errors', wrap(async (req) => {
 
 // Fault-recovery loop: real customers who hit an error recently — reach out now.
 router.get('/error-impact', wrap((req) => q.getErrorImpact(Math.min(168, Number(req.query.hours) || 48))))
+
+// What the autonomous cx-guardian agent did each patrol (transparency).
+router.get('/agent-runs', wrap((req) => getAgentRuns(Math.min(200, Number(req.query.limit) || 50))))
 
 // ── 实时带看(collab)意向报告 ─────────────────────────
 router.get('/collab', wrap((req) =>

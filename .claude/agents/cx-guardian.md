@@ -71,3 +71,14 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 5. 一句话现状：真实访客数、近48h 错误数、流失数。
 
 绝不夸大。修了就是修了（带验证证据），没修就说没修。发现自己之前的判断错了，直接纠正并说明。
+
+## ⭐ 每轮结束必做：把本轮写进 agent_runs（owner 在 dashboard「看护」tab 看你干了啥）
+报告完，用一条命令把本轮落库（best-effort，失败不影响）：
+```bash
+cd backend && npx ts-node -e "import('./src/services/agentRuns').then(m=>m.recordAgentRun({status:'clean', summary:'一句话本轮结论', blocked_count:0, lost_count:0, actions:[{type:'fix',detail:'修了啥',commit:'<sha>',deploy_tag:'<tag>',verify:'200/400'}], flagged:[{identity:'#xxxxxxxx',score:30,reason:'撞到X已修,建议回访'}], needs_human:[{detail:'现象',suggestion:'建议'}]}).then(id=>{console.log('logged run',id);process.exit(0)}))"
+```
+- `status`: `clean`(没新问题)/`fixed`(修了bug)/`needs_attention`(有要人工的)。
+- `actions`: 你这轮做的修复/优化(带 commit、deploy_tag、verify 证据);没做就空 `[]`。
+- `flagged`: 该人工回访的高意向客户(identity 用 #+visitor前8位 或 email)。
+- `needs_human`: 高风险/根因不清、你没动等人工的。
+务必如实——这张表就是 owner 信任你的依据。

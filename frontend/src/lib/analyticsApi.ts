@@ -266,6 +266,22 @@ export interface ErrorImpactCustomer {
 export const fetchErrorImpact = (hours?: number) =>
   authedGet<ErrorImpactCustomer[]>(`/error-impact?hours=${hours || 48}`)
 
+// ── 自治看护 agent(cx-guardian)巡检记录 ──────────────────
+export interface AgentRun {
+  id: number
+  created_at: string
+  agent: string
+  status: 'clean' | 'fixed' | 'needs_attention'
+  summary: string | null
+  blocked_count: number
+  lost_count: number
+  actions: Array<{ type: string; detail: string; commit?: string; deploy_tag?: string; verify?: string }>
+  flagged: Array<{ identity: string; score: number; reason: string }>
+  needs_human: Array<{ detail: string; suggestion: string }>
+}
+export const fetchAgentRuns = (limit?: number) =>
+  authedGet<AgentRun[]>(`/agent-runs?limit=${limit || 50}`)
+
 export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`)
 export const fetchCollabReport = (code: string) =>
   authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)
