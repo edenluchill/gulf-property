@@ -73,8 +73,14 @@ SSE 走 `EventSource`（不经 window.fetch）；R2 上传是不同 origin（拦
 - 降低联系门槛（免填表单、直接唤起 WhatsApp）。
 - 指标：深研究→contact 转化率、no_contact 流失占比下降。
 
-### C5. 行为自动转 lead（闭合 leads=0）
-用 contact_attempt / favorite / 深研究（api_calls research 信号）触发规则引擎自动建 lead，不再只依赖 Luna 语音。→ 解决 B6。
+### C5. 行为自动转 lead（闭合 leads=0）　— ✅ 已完成（2026-06-28，tag 20260628-174916）
+> 新增 `services/leadEngine.ts`：事件摄入后 fire-and-forget 触发，按信号自动 upsert lead（不再只依赖 Luna 语音）。
+> - **强信号**（contact_attempt / favorite add）→ 无条件建 lead，source=`behavior_intent`。
+> - **深研究**（intent score ≥ 30，约 5 次看房或 Luna+3 次）→ 建 lead，source=`behavior`。
+> - 评分 intent-aware（对齐 quickScore：contact×18 / favorite×8），热 lead 排在前；按 visitor_id UPSERT 去重，绝不下调已有更丰富的 lead（COALESCE 保留已有 source/email、GREATEST 保留高分）；**创建时排除内部测试号**。
+> - 验证：dry-run 38 真实访客→精准 2 人达标（正是巡检标记的 8ded682d/c4ef81e7），0 误抓内部号；生产合成 contact_attempt→`behavior_intent` score30、5看房→`behavior` score30，均经生产 DB 确认后清理。
+> - 未回填历史高意向访客：引擎写 last_seen_at=now() 会污染流失判断，留待其下次信号自然转化。
+> - 阈值 env 可调：`AUTO_LEAD_SCORE_THRESHOLD`（默认 30）。→ 解决 B6。
 
 ### C6. 激活已建但未生效的能力
 - 配 SUPABASE_JWT_SECRET（B5）。

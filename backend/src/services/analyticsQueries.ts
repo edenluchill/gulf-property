@@ -28,7 +28,7 @@ let _internalCache: { ids: string[]; at: number } | null = null
  * later) is excluded. Cached 60s; effectively free per call. Empty array is safe:
  * `visitor_id <> ALL('{}')` is TRUE, i.e. excludes nothing.
  */
-async function internalVisitorIds(): Promise<string[]> {
+export async function internalVisitorIds(): Promise<string[]> {
   if (_internalCache && Date.now() - _internalCache.at < 60_000) return _internalCache.ids
   const { rows } = await pool.query(
     `SELECT DISTINCT visitor_id FROM app_events

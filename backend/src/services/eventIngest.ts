@@ -8,6 +8,7 @@
 import { Request } from 'express'
 import { createHash } from 'crypto'
 import pool from '../db/pool'
+import { processEventsForLeads } from './leadEngine'
 
 export const ALLOWED_EVENTS = new Set([
   'search',
@@ -134,5 +135,13 @@ export async function ingestEvents(rawEvents: unknown, ctx: IngestContext): Prom
      VALUES ${placeholders}`,
     flat
   )
+
+  // Behaviour → lead (strategy C5). Fire-and-forget: turning intent into a lead
+  // must never block or break the ingest path. processEventsForLeads swallows its
+  // own errors; the .catch is belt-and-suspenders.
+  void processEventsForLeads(clean, ctx).catch((err) =>
+    console.error('[leadEngine] trigger failed:', err)
+  )
+
   return clean.length
 }
