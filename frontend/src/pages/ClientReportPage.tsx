@@ -31,11 +31,10 @@ export default function ClientReportPage() {
   if (state === 'error' || !data) return <div className="flex min-h-screen items-center justify-center text-slate-400">报告不存在或已下线</div>
 
   const { agent, report } = data
+  if (report?.kind === 'compare') return <CompareReport agent={agent} report={report} />
   const r = report
   const p = (r.properties || [])[0]            // the single featured project
   const others = (r.properties || []).slice(1)
-  const wa = agent.whatsapp || agent.phone
-  const contactHref = agent.whatsapp ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}` : `tel:${agent.phone}`
   const yoySane = p?.yoy && p.yoy.growth_pct != null && Math.abs(p.yoy.growth_pct) <= 40
 
   // categorise nearby into 交通 / 学校 / 环境
@@ -49,22 +48,10 @@ export default function ClientReportPage() {
     <div className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
       <style>{`@media print { .no-print{display:none!important} .pg{box-shadow:none!important;margin:0!important} body{background:#fff} }`}</style>
 
-      <div className="no-print sticky top-0 z-50 flex items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur">
-        <div className="truncate text-sm font-semibold text-slate-700">{p?.name || '投资提案'}</div>
-        <button onClick={() => window.print()} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900"><Printer className="h-4 w-4" />保存 PDF</button>
-      </div>
+      <TopBar title={p?.name || '投资提案'} />
 
       <div className="pg relative mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
-        {/* Agent stamp — small, top-right corner */}
-        <div className="absolute right-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 pl-1 pr-3 shadow-sm">
-          {agent.photo
-            ? <img src={agent.photo} alt={agent.name} className="h-8 w-8 rounded-full object-cover" />
-            : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
-          <div className="leading-tight">
-            <div className="text-[11px] font-semibold text-slate-700">{agent.name}</div>
-            <div className="flex items-center gap-0.5 text-[9px] text-emerald-600"><BadgeCheck className="h-2.5 w-2.5" />DLD 认证</div>
-          </div>
-        </div>
+        <AgentStamp agent={agent} />
 
         {/* Hero — the project IS the title */}
         {p && (
@@ -218,11 +205,206 @@ export default function ClientReportPage() {
         <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-400">{r.assumptions}<br />{r.disclaimer}</div>
       </div>
 
-      {wa && (
-        <div className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-          <a href={contactHref} className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white hover:bg-teal-600">{agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}咨询 {agent.name}</a>
+      <ContactBar agent={agent} />
+    </div>
+  )
+}
+
+/* ---- shared branded chrome (used by proposal + compare views) ---- */
+
+function TopBar({ title }: { title: string }) {
+  return (
+    <div className="no-print sticky top-0 z-50 flex items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur">
+      <div className="truncate text-sm font-semibold text-slate-700">{title}</div>
+      <button onClick={() => window.print()} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900"><Printer className="h-4 w-4" />保存 PDF</button>
+    </div>
+  )
+}
+
+function AgentStamp({ agent }: { agent: any }) {
+  return (
+    <div className="absolute right-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 pl-1 pr-3 shadow-sm">
+      {agent.photo
+        ? <img src={agent.photo} alt={agent.name} className="h-8 w-8 rounded-full object-cover" />
+        : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
+      <div className="leading-tight">
+        <div className="text-[11px] font-semibold text-slate-700">{agent.name}</div>
+        <div className="flex items-center gap-0.5 text-[9px] text-emerald-600"><BadgeCheck className="h-2.5 w-2.5" />DLD 认证</div>
+      </div>
+    </div>
+  )
+}
+
+function ContactBar({ agent }: { agent: any }) {
+  const wa = agent.whatsapp || agent.phone
+  if (!wa) return null
+  const contactHref = agent.whatsapp ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}` : `tel:${agent.phone}`
+  return (
+    <div className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
+      <a href={contactHref} className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white hover:bg-teal-600">{agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}咨询 {agent.name}</a>
+    </div>
+  )
+}
+
+/* ---- compare view (report.kind === 'compare') ---- */
+
+function CompareReport({ agent, report }: { agent: any; report: any }) {
+  const props: any[] = report.properties || []
+  const cmp = report.comparison || null
+  const rec = cmp?.recommendation || null
+  const winnerIdx: number | null = rec?.winnerIndex != null ? rec.winnerIndex : null
+  const winnerName = winnerIdx != null && props[winnerIdx] ? props[winnerIdx].name : report.overview?.winner_name
+  const confLabel = ({ high: '高', medium: '中', low: '低' } as Record<string, string>)[rec?.confidence] || ''
+
+  const DIMS: [string, string][] = [['investment', '投资'], ['lifestyle', '生活'], ['location', '位置'], ['value', '性价比']]
+
+  type RowDef = { label: string; render: (p: any) => React.ReactNode; val: (p: any) => number | null; best?: 'max' | 'min' }
+  const rows: RowDef[] = [
+    { label: '区域', render: (p) => p.area || '—', val: () => null },
+    { label: '总价（起）', render: (p) => <Dh v={p.min_price ?? p.net?.buy} />, val: (p) => (p.min_price ?? p.net?.buy ?? null), best: 'min' },
+    { label: '租金回报', render: (p) => (p.area_metrics?.rental_yield_pct != null ? `${Number(p.area_metrics.rental_yield_pct).toFixed(1)}%` : '—'), val: (p) => p.area_metrics?.rental_yield_pct ?? null, best: 'max' },
+    { label: '价格增长', render: (p) => (p.area_metrics?.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : '—'), val: (p) => p.area_metrics?.price_growth_pct ?? null, best: 'max' },
+    { label: '净年化', render: (p) => (p.net?.net_annualized_pct != null ? `${p.net.net_annualized_pct}%` : '—'), val: (p) => p.net?.net_annualized_pct ?? null, best: 'max' },
+    { label: '回本年限', render: (p) => (p.projection?.payback_years != null ? `${p.projection.payback_years} 年` : '—'), val: (p) => p.projection?.payback_years ?? null, best: 'min' },
+  ]
+
+  const bestIdxOf = (row: RowDef): number => {
+    if (!row.best) return -1
+    let bi = -1, bv = row.best === 'max' ? -Infinity : Infinity
+    props.forEach((p, i) => {
+      const v = row.val(p)
+      if (v == null) return
+      if ((row.best === 'max' && v > bv) || (row.best === 'min' && v < bv)) { bv = v; bi = i }
+    })
+    return bi
+  }
+
+  return (
+    <div className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
+      <style>{`@media print { .no-print{display:none!important} .pg{box-shadow:none!important;margin:0!important} body{background:#fff} }`}</style>
+
+      <TopBar title="项目对比" />
+
+      <div className="pg relative mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
+        <AgentStamp agent={agent} />
+
+        <div className="pr-24">
+          <div className="text-[11px] font-semibold text-teal-600">项目对比 · 为 {report.client_name || '客户'} 精选</div>
+          <h1 className="text-2xl font-extrabold text-slate-900">为 {report.client_name || '客户'} 准备的项目对比</h1>
+          <div className="text-sm text-slate-500">{props.length} 个项目并排对比</div>
         </div>
-      )}
+
+        {/* AI 裁定 */}
+        {cmp && (
+          <>
+            {rec && winnerName && (
+              <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50/60 p-4">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-teal-600"><Star className="h-3.5 w-3.5 text-amber-400" />AI 推荐</div>
+                <div className="mt-1 flex flex-wrap items-baseline gap-2">
+                  <span className="text-xl font-extrabold text-slate-900">{winnerName}</span>
+                  {confLabel && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">信心 {confLabel}</span>}
+                </div>
+                {Array.isArray(rec.reasons) && rec.reasons.length > 0 && (
+                  <ul className="mt-2.5 space-y-1.5">
+                    {rec.reasons.map((reason: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-slate-700"><span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-teal-500" />{reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {cmp.summary && (
+              <Section title="对比综述" icon={<ListChecks className="h-4 w-4 text-teal-500" />}>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{cmp.summary}</p>
+              </Section>
+            )}
+
+            {cmp.dimensions && (
+              <Section title="四维评估" icon={<Star className="h-4 w-4 text-amber-400" />}>
+                <div className="space-y-4">
+                  {DIMS.map(([key, label]) => {
+                    const dim = cmp.dimensions[key]
+                    if (!dim) return null
+                    const scores: number[] = Array.isArray(dim.scores) ? dim.scores : []
+                    const maxScore = Math.max(1, ...scores)
+                    return (
+                      <div key={key}>
+                        <div className="mb-1.5 text-xs font-bold text-slate-700">{label}</div>
+                        {scores.length > 0 && (
+                          <div className="mb-2 space-y-1.5">
+                            {props.map((p, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="w-24 flex-shrink-0 truncate text-[11px] text-slate-500">{p.name}</span>
+                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.min(100, ((scores[i] ?? 0) / maxScore) * 100)}%` }} /></div>
+                                <span className="w-7 flex-shrink-0 text-right text-[11px] font-semibold text-slate-700">{scores[i] ?? '—'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {dim.explanation && <p className="text-sm text-slate-600">{dim.explanation}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </Section>
+            )}
+
+            {cmp.personalizedAdvice && (
+              <Section title={`给 ${report.client_name || '客户'} 的建议`} icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{cmp.personalizedAdvice}</p>
+              </Section>
+            )}
+          </>
+        )}
+
+        {/* 并排对比表 */}
+        <Section title={cmp ? '关键指标对比' : '数据对比'} icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full min-w-[480px] border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 bg-white p-2.5 text-left text-[11px] font-semibold text-slate-400" />
+                  {props.map((p, i) => (
+                    <th key={i} className={`min-w-[120px] border-l border-slate-100 p-2.5 align-top ${i === winnerIdx ? 'bg-teal-50/70' : 'bg-slate-50/60'}`}>
+                      {p.primary_image && <img src={p.primary_image} alt={p.name} className="mb-1.5 h-16 w-full rounded-lg object-cover" />}
+                      <div className="flex items-center gap-1 text-xs font-bold text-slate-800">{p.name}{i === winnerIdx && <Star className="h-3 w-3 flex-shrink-0 text-amber-400" />}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, ri) => {
+                  const bi = bestIdxOf(row)
+                  return (
+                    <tr key={ri} className="border-t border-slate-50">
+                      <td className="sticky left-0 z-10 bg-white p-2.5 text-left text-xs text-slate-500">{row.label}</td>
+                      {props.map((p, i) => (
+                        <td key={i} className={`border-l border-slate-100 p-2.5 text-center ${i === winnerIdx ? 'bg-teal-50/50' : ''} ${i === bi ? 'font-bold text-teal-700' : 'text-slate-700'}`}>
+                          {row.render(p)}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        {/* 市场与政策 */}
+        {report.market && Array.isArray(report.market.policy) && report.market.policy.length > 0 && (
+          <Section title="市场与政策" icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
+            <ul className="space-y-1.5">
+              {report.market.policy.map((pol: string, i: number) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-600"><span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-teal-400" />{pol}</li>
+              ))}
+            </ul>
+          </Section>
+        )}
+      </div>
+
+      <ContactBar agent={agent} />
     </div>
   )
 }

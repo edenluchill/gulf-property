@@ -17,7 +17,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { uploadBufferToR2 } from '../services/r2-storage'
 import { createSession, ensureAgent } from './session-builder'
-import { generateClientReport, initialProgress } from './client-report-builder'
+import { generateClientReport, generateCompareReport, initialProgress } from './client-report-builder'
 import { draftConfig } from './auto-config'
 import { matchProperties } from './auto-match'
 import { buildClientReport } from './auto-report'
@@ -370,6 +370,48 @@ router.post('/client-reports', async (req: Request, res: Response) => {
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
   } catch (err) {
     console.error('[agent/client-reports] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** Kick off an agent-branded COMPARISON report for a client over hand-picked
+ *  projects (2-4). Same async + share_code + /cr/:code page as the proposal,
+ *  but kind='compare'. Body: { client_id?, client_name?, project_ids: [] }. */
+router.post('/client-reports/compare', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const b = (req.body || {}) as Record<string, unknown>
+    const projectIds = Array.isArray(b.project_ids) ? b.project_ids.filter((x) => typeof x === 'string').slice(0, 4) as string[] : []
+    if (projectIds.length < 2) return res.status(400).json({ success: false, error: '请选择 2-4 个项目对比' })
+    const clientId = typeof b.client_id === 'string' ? b.client_id : null
+
+    // Resolve client name + budget from the saved (agent-owned) profile.
+    let clientName = typeof b.client_name === 'string' ? b.client_name : ''
+    let profile: { budget?: { min: number; max: number } } = {}
+    if (clientId) {
+      const c = await pool.query('SELECT name, budget_min, budget_max FROM lt_clients WHERE id=$1 AND agent_id=$2', [clientId, agentId])
+      if (c.rowCount === 0) return res.status(403).json({ success: false, error: 'not authorized' })
+      clientName = c.rows[0].name || clientName
+      if (c.rows[0].budget_min || c.rows[0].budget_max)
+        profile = { budget: { min: Number(c.rows[0].budget_min) || 0, max: Number(c.rows[0].budget_max) || 0 } }
+    }
+
+    const loggedIn = isLoggedIn(req)
+    if (loggedIn) {
+      const q = await checkCredits(agentId, 'reports')
+      if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
+    }
+    const code = await uniqueClientCode()
+    const r = await pool.query(
+      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress, client_id, kind)
+       VALUES ($1,$2,$3,$4,'generating',$5,$6,'compare') RETURNING id`,
+      [agentId, code, clientName, `对比 ${projectIds.length} 个项目`, JSON.stringify(initialProgress()), clientId]
+    )
+    if (loggedIn) await spend(agentId, 'reports').catch(() => {})
+    generateCompareReport(r.rows[0].id, clientName, projectIds, profile)
+    res.json({ success: true, shareCode: code, url: `/cr/${code}` })
+  } catch (err) {
+    console.error('[agent/client-reports/compare] error:', err)
     res.status(500).json({ success: false, error: 'internal error' })
   }
 })

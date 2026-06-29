@@ -117,3 +117,44 @@ export async function addInteraction(
 export async function setClientStage(id: string, stage: PipelineStage): Promise<Response> {
   return lunaFetch(`/clients/${id}/stage`, { method: 'POST', body: JSON.stringify({ stage }) })
 }
+
+/* ---- Compare report (branded, shareable project comparison) ---- */
+
+export interface CompareSearchProject {
+  id: number
+  project_name: string
+  area: string | null
+  primary_image: string | null
+  min_price: number | null
+}
+
+export interface CompareGenerateResult {
+  shareCode: string
+  url: string
+}
+
+export interface ClientReportStatus {
+  status: 'generating' | 'ready' | 'error'
+  progress?: { key: string; label: string; done: boolean }[]
+}
+
+/** Search projects to pick for a compare report (min 2, max 4 are selectable). */
+export async function searchProjectsForCompare(q: string): Promise<CompareSearchProject[]> {
+  const r = await lunaFetch(`/projects/search?q=${encodeURIComponent(q)}`)
+  const j = await r.json()
+  return (j.projects || []) as CompareSearchProject[]
+}
+
+/** Kick off an async branded compare report bound to a client. Returns the share code + path. */
+export async function generateCompareReport(body: { client_id: string; project_ids: number[] }): Promise<CompareGenerateResult> {
+  const r = await lunaFetch('/client-reports/compare', { method: 'POST', body: JSON.stringify(body) })
+  const j = await r.json()
+  if (!j.success || !j.shareCode) throw new Error(j.error || '生成失败')
+  return { shareCode: j.shareCode, url: j.url }
+}
+
+/** Poll a client report's generation status by share code. */
+export async function getClientReportStatus(code: string): Promise<ClientReportStatus> {
+  const r = await lunaFetch(`/client-reports/${code}/status`)
+  return (await r.json()) as ClientReportStatus
+}

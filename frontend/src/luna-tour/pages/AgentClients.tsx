@@ -12,13 +12,16 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, X, Loader2, Check, ExternalLink, Copy, Sparkles, RefreshCw, ChevronLeft, FileText,
   Map as MapIcon, Search, Phone, MessageCircle, Mail, Users, Home, StickyNote, Flame,
-  Clock, Eye, CheckCircle2, BarChart3, CalendarClock,
+  Clock, Eye, CheckCircle2, BarChart3, CalendarClock, Scale, ImageOff,
 } from 'lucide-react'
 import {
   lunaFetch, getClients, getClientDetail, addInteraction, setClientStage,
+  searchProjectsForCompare, generateCompareReport, getClientReportStatus,
   type Client, type PipelineStage, type InteractionKind, type InteractionOutcome,
-  type ClientInteraction, type ClientEngagement, type ClientHeat,
+  type ClientInteraction, type ClientEngagement, type ClientHeat, type CompareSearchProject,
 } from '../lunaApi'
+import { formatMoneyCompact } from '../../lib/money'
+import DirhamSymbol from '../../components/DirhamSymbol'
 
 const AVA = (seed: string) => `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,ffd5dc,ffdfbf`
 const rseed = () => Math.random().toString(36).slice(2, 9)
@@ -213,6 +216,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
   const [heat, setHeat] = useState<ClientHeat | null>(null)
   const [stage, setStage] = useState<PipelineStage | null>(client.pipeline_stage || null)
   const [savingStage, setSavingStage] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const url = shareCode ? `${window.location.origin}/cr/${shareCode}` : ''
 
@@ -305,14 +309,19 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
           {fields.map(([k, v]) => v && <div key={k} className="rounded-lg bg-slate-50 px-3 py-2"><div className="text-[11px] text-slate-400">{k}</div><div className="mt-0.5 text-sm text-slate-700">{v}</div></div>)}
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <button onClick={genReport} disabled={phase === 'generating'} className="flex items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-3 font-semibold text-white hover:bg-teal-600 disabled:opacity-60">
             {phase === 'generating' ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}生成投资提案
+          </button>
+          <button onClick={() => setShowCompare(true)} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+            <Scale className="h-5 w-5 text-teal-500" />生成对比报告
           </button>
           <button onClick={() => navigate('/agent/tour')} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50">
             <MapIcon className="h-5 w-5 text-teal-500" />生成导览
           </button>
         </div>
+
+        {showCompare && <CompareModal clientId={client.id} onClose={() => { setShowCompare(false); refresh() }} />}
 
         {(phase === 'generating' || phase === 'ready') && (
           <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
@@ -368,6 +377,163 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
               t.kind === 'interaction'
                 ? <InteractionItem key={`i-${t.it.id || i}`} it={t.it} />
                 : <EngagementItem key={`e-${i}`} ev={t.ev} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CompareModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<CompareSearchProject[]>([])
+  const [searching, setSearching] = useState(false)
+  const [picked, setPicked] = useState<CompareSearchProject[]>([])
+  const [phase, setPhase] = useState<'pick' | 'generating' | 'ready'>('pick')
+  const [steps, setSteps] = useState<{ key: string; label: string; done: boolean }[]>([])
+  const [shareCode, setShareCode] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const url = shareCode ? `${window.location.origin}/cr/${shareCode}` : ''
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); return }
+    setSearching(true)
+    const id = setTimeout(() => {
+      searchProjectsForCompare(q.trim())
+        .then((ps) => setResults(ps))
+        .catch(() => setResults([]))
+        .finally(() => setSearching(false))
+    }, 250)
+    return () => clearTimeout(id)
+  }, [q])
+
+  const isPicked = (id: number) => picked.some((p) => p.id === id)
+  const toggle = (p: CompareSearchProject) => {
+    setPicked((prev) => {
+      if (prev.some((x) => x.id === p.id)) return prev.filter((x) => x.id !== p.id)
+      if (prev.length >= 4) return prev
+      return [...prev, p]
+    })
+  }
+
+  const canGenerate = picked.length >= 2 && picked.length <= 4
+
+  const generate = async () => {
+    if (!canGenerate) return
+    setPhase('generating'); setSteps([]); setError(null); setShareCode(null)
+    try {
+      const { shareCode: code } = await generateCompareReport({ client_id: clientId, project_ids: picked.map((p) => p.id) })
+      setShareCode(code)
+      pollRef.current = setInterval(async () => {
+        try {
+          const s = await getClientReportStatus(code)
+          if (s.progress) setSteps(s.progress)
+          if (s.status === 'ready') { clearInterval(pollRef.current!); setPhase('ready') }
+          else if (s.status === 'error') { clearInterval(pollRef.current!); setError('生成失败'); setPhase('pick') }
+        } catch { /* keep polling */ }
+      }, 1500)
+    } catch (e: any) { setError(e?.message || '生成失败'); setPhase('pick') }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h3 className="flex items-center gap-2 text-base font-bold"><Scale className="h-5 w-5 text-teal-500" />生成对比报告</h3>
+          <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+
+        {phase === 'pick' ? (
+          <>
+            <div className="overflow-y-auto px-5 py-4">
+              <div className="relative mb-3">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  autoFocus
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="搜项目名 / 区域"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </div>
+
+              {/* picked chips */}
+              {picked.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {picked.map((p) => (
+                    <button key={p.id} onClick={() => toggle(p)} className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 ring-1 ring-teal-200">
+                      {p.project_name}<X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {searching ? (
+                <div className="py-8 text-center text-sm text-slate-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>
+              ) : results.length === 0 ? (
+                <div className="py-8 text-center text-sm text-slate-400">{q.trim() ? '没有匹配的项目。' : '输入关键词搜索项目，选 2-4 个对比。'}</div>
+              ) : (
+                <div className="space-y-2">
+                  {results.map((p) => {
+                    const on = isPicked(p.id)
+                    const disabled = !on && picked.length >= 4
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => toggle(p)}
+                        disabled={disabled}
+                        className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition disabled:opacity-40 ${on ? 'border-teal-400 bg-teal-50/60 ring-1 ring-teal-200' : 'border-slate-200 hover:border-teal-300'}`}
+                      >
+                        {p.primary_image
+                          ? <img src={p.primary_image} alt={p.project_name} className="h-12 w-16 flex-shrink-0 rounded-lg object-cover" />
+                          : <div className="flex h-12 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300"><ImageOff className="h-5 w-5" /></div>}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-slate-800">{p.project_name}</div>
+                          <div className="truncate text-xs text-slate-400">{p.area || '—'}{p.min_price != null ? <> · 起 <DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyCompact(p.min_price, 'zh')}</> : ''}</div>
+                        </div>
+                        <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${on ? 'bg-teal-500 text-white' : 'border border-slate-300'}`}>{on && <Check className="h-3 w-3" />}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 px-5 py-3">
+              {error && <div className="mb-2 text-xs text-rose-500">{error}</div>}
+              <button
+                onClick={generate}
+                disabled={!canGenerate}
+                className="w-full rounded-xl bg-teal-500 py-2.5 font-semibold text-white hover:bg-teal-600 disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {canGenerate ? `生成对比报告（${picked.length} 个项目）` : '选 2-4 个项目'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="px-5 py-5">
+            <div className="space-y-2.5">
+              {steps.map((s) => (
+                <div key={s.key} className="flex items-center gap-2.5 text-sm">
+                  {s.done ? <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white"><Check className="h-3 w-3" /></span> : <Loader2 className="h-5 w-5 animate-spin text-slate-300" />}
+                  <span className={s.done ? 'text-slate-700' : 'text-slate-400'}>{s.label}</span>
+                </div>
+              ))}
+              {!steps.length && phase === 'generating' && <div className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />正在启动…</div>}
+            </div>
+            {phase === 'ready' && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <div className="mb-2 text-xs font-semibold text-slate-400">分享链接</div>
+                <div className="flex items-center gap-2">
+                  <input readOnly value={url} className="flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600" />
+                  <button onClick={() => navigator.clipboard?.writeText(url)} className="rounded-lg border border-slate-200 p-2 text-slate-500"><Copy className="h-4 w-4" /></button>
+                  <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-white"><ExternalLink className="h-4 w-4" />打开报告</a>
+                </div>
+              </div>
             )}
           </div>
         )}

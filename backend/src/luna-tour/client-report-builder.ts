@@ -6,6 +6,7 @@
 import pool from '../db/pool'
 import { buildClientReport } from './auto-report'
 import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
+import { analyzeProperties } from '../services/property-analyzer'
 
 const STEPS = [
   { key: 'match', label: '匹配最优项目' },
@@ -142,6 +143,55 @@ function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0): 
   ]
 }
 
+/** Enrich one base property with REAL DLD data (shared by proposal + compare). */
+async function enrichProperty(p: any) {
+  const [insights, tx] = await Promise.all([
+    getProjectInsights(p.id).catch(() => null),
+    getProjectTransactions(p.id).catch(() => null),
+  ])
+  let supply: any = null, evidence: any = { trend: [], yoy: null }
+  const areaId = insights?.area?.id
+  if (areaId) {
+    const s = await pool.query(
+      `SELECT pipeline_projects, units_pipeline, units_handover_1y FROM v_area_supply WHERE dubai_area_id=$1`, [areaId]
+    ).catch(() => null)
+    supply = s?.rows?.[0] || null
+    evidence = await areaPriceEvidence(areaId)
+  }
+  const inv = insights?.investment as any
+  const projection = inv ? {
+    buy: inv.buy, future: inv.future,
+    total_profit_5yr: inv.total_profit_5yr,
+    rental_income_5yr: inv.rental_income_5yr,
+    appreciation_5yr: inv.appreciation_5yr,
+    annualized_return_pct: inv.annualized_return_pct,
+    yield_pct: inv.yield_pct, payback_years: inv.payback_years,
+  } : p.projection
+  const area_metrics = insights?.area ? {
+    median_price_sqm: insights.area.median_price_sqm, rental_yield_pct: insights.area.rental_yield_pct,
+    price_growth_pct: insights.area.price_growth_pct, transaction_count: insights.area.sales_transaction_count,
+  } : null
+  const net = netCalc(projection)
+  const nearby = insights?.nearby || null
+  const units = await projectUnits(p.id)
+  const comps = (tx?.sales || []).slice(0, 6)
+  return {
+    ...p,
+    project_id: p.id,
+    area_id: areaId || null,
+    projection,
+    net,
+    area_metrics,
+    price_trend: evidence.trend,
+    yoy: evidence.yoy,
+    comps,
+    supply,
+    nearby,
+    units,
+    scores: radarScores(area_metrics, nearby, net, evidence.yoy, comps.length),
+  }
+}
+
 export async function generateClientReport(reportId: string, client: Record<string, unknown>, oneLiner: string) {
   try {
     // 1) Match + base projection + AI scenarios (existing builder)
@@ -149,52 +199,7 @@ export async function generateClientReport(reportId: string, client: Record<stri
     await mark(reportId, 'match')
 
     // 2) Enrich each property with REAL data (replaces placeholder projection)
-    const enriched = await Promise.all(report.properties.map(async (p) => {
-      const [insights, tx] = await Promise.all([
-        getProjectInsights(p.id).catch(() => null),
-        getProjectTransactions(p.id).catch(() => null),
-      ])
-      let supply: any = null, evidence: any = { trend: [], yoy: null }
-      const areaId = insights?.area?.id
-      if (areaId) {
-        const s = await pool.query(
-          `SELECT pipeline_projects, units_pipeline, units_handover_1y FROM v_area_supply WHERE dubai_area_id=$1`, [areaId]
-        ).catch(() => null)
-        supply = s?.rows?.[0] || null
-        evidence = await areaPriceEvidence(areaId)
-      }
-      const projection = insights?.investment ? {
-        buy: insights.investment.buy, future: insights.investment.future,
-        total_profit_5yr: insights.investment.total_profit_5yr,
-        rental_income_5yr: insights.investment.rental_income_5yr,
-        appreciation_5yr: insights.investment.appreciation_5yr,
-        annualized_return_pct: insights.investment.annualized_return_pct,
-        yield_pct: insights.investment.yield_pct, payback_years: insights.investment.payback_years,
-      } : p.projection
-      const area_metrics = insights?.area ? {
-        median_price_sqm: insights.area.median_price_sqm, rental_yield_pct: insights.area.rental_yield_pct,
-        price_growth_pct: insights.area.price_growth_pct, transaction_count: insights.area.sales_transaction_count,
-      } : null
-      const net = netCalc(projection)
-      const nearby = insights?.nearby || null
-      const units = await projectUnits(p.id)
-      const comps = (tx?.sales || []).slice(0, 6)
-      return {
-        ...p,
-        project_id: p.id,
-        area_id: areaId || null,
-        projection,
-        net,
-        area_metrics,
-        price_trend: evidence.trend,
-        yoy: evidence.yoy,
-        comps,
-        supply,
-        nearby,
-        units,
-        scores: radarScores(area_metrics, nearby, net, evidence.yoy, comps.length),
-      }
-    }))
+    const enriched = await Promise.all(report.properties.map(enrichProperty))
     await mark(reportId, 'data')
 
     // 3) Overall market + policy + trends (from the resolved per-project metrics)
@@ -224,6 +229,75 @@ export async function generateClientReport(reportId: string, client: Record<stri
     await mark(reportId, 'finalize')
   } catch (err) {
     console.error('[client-report] generate failed:', err)
+    await pool.query(`UPDATE lt_client_reports SET status='error' WHERE id=$1`, [reportId]).catch(() => {})
+  }
+}
+
+/**
+ * Agent-driven COMPARISON report (策略: 把分析变成经纪给客户的弹药). Unlike the
+ * proposal it does NOT AI-match projects — the agent hand-picks 2-4. Same real
+ * DLD enrichment per project + an AI side-by-side verdict (winner + dimensions).
+ * Stored in the SAME lt_client_reports row (kind='compare') so it reuses the
+ * branded, shareable, tracked /cr/:code page. Async; writes progress.
+ */
+export async function generateCompareReport(
+  reportId: string,
+  clientName: string,
+  projectIds: string[],
+  profile: { budget?: { min: number; max: number }; freeformDescription?: string } = {}
+) {
+  try {
+    // 1) Base projects (agent's hand-picked shortlist), preserve the picked order.
+    const r = await pool.query(
+      `SELECT id, project_name AS name, area, min_price, primary_image FROM residential_projects WHERE id = ANY($1::uuid[])`,
+      [projectIds]
+    )
+    const byId = new Map(r.rows.map((row) => [row.id, row]))
+    const bases = projectIds.map((id) => byId.get(id)).filter(Boolean).map((row: any) => ({
+      id: row.id, name: row.name, area: row.area, min_price: row.min_price,
+      primary_image: row.primary_image, projection: null,
+    }))
+    await mark(reportId, 'match')
+
+    // 2) Same real-DLD enrichment as the proposal.
+    const enriched = await Promise.all(bases.map(enrichProperty))
+    await mark(reportId, 'data')
+
+    // 3) AI side-by-side verdict (best-effort: a missing key → mock; any error → skip).
+    let comparison: any = null
+    try {
+      const propData = enriched.map((e: any) => ({
+        id: e.project_id, projectId: e.project_id, projectName: e.name || '项目',
+        developer: '', area: e.area || '', address: e.area || '',
+        bedrooms: 0, size: 0, price: e.net?.buy ?? e.min_price ?? 0,
+        status: 'offplan', amenities: [] as string[],
+      }))
+      comparison = await analyzeProperties(propData as any, profile as any, 'zh')
+    } catch (e) {
+      console.error('[compare-report] analyze failed (kept table only):', e instanceof Error ? e.message : e)
+    }
+    await mark(reportId, 'market')
+
+    const market = buildMarketSection(enriched)
+    const nets = enriched.map((p: any) => p.net?.net_annualized_pct).filter((v: any) => v != null)
+    const overview = {
+      count: enriched.length,
+      avg_net_annualized_pct: nets.length ? Number((nets.reduce((a: number, b: number) => a + b, 0) / nets.length).toFixed(1)) : null,
+      winner_name: comparison?.recommendation?.winnerIndex != null ? enriched[comparison.recommendation.winnerIndex]?.name : null,
+    }
+
+    const full = {
+      kind: 'compare',
+      client_name: clientName || null,
+      properties: enriched,
+      comparison,
+      market,
+      overview,
+    }
+    await pool.query(`UPDATE lt_client_reports SET report=$2, status='ready' WHERE id=$1`, [reportId, JSON.stringify(full)])
+    await mark(reportId, 'finalize')
+  } catch (err) {
+    console.error('[compare-report] generate failed:', err)
     await pool.query(`UPDATE lt_client_reports SET status='error' WHERE id=$1`, [reportId]).catch(() => {})
   }
 }

@@ -282,6 +282,20 @@ export interface AgentRun {
 export const fetchAgentRuns = (limit?: number) =>
   authedGet<AgentRun[]>(`/agent-runs?limit=${limit || 50}`)
 
+// ── 经纪客户总览(owner 跨经纪可见)──────────────────────
+export interface AgentClientRow {
+  agent_name: string | null
+  agent_email: string | null
+  client_id: string
+  client_name: string
+  pipeline_stage: string
+  heat: number
+  last_activity_at: string | null
+  interactions: number
+  created_at: string
+}
+export const fetchAgentClients = () => authedGet<AgentClientRow[]>('/agent-clients')
+
 export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`)
 export const fetchCollabReport = (code: string) =>
   authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)

@@ -28,6 +28,7 @@ import LostCustomers from '../components/analytics/LostCustomers'
 import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import AgentRuns from '../components/analytics/AgentRuns'
+import AgentClientsOverview from '../components/analytics/AgentClientsOverview'
 import { fetchActiveAlerts, ActiveAlert } from '../lib/analyticsApi'
 
 const RANGES = [
@@ -50,6 +51,7 @@ const TABS = [
   { id: 'luna', label: 'Luna 对话', Icon: Mic },
   { id: 'collab', label: '实时带看', Icon: MapIcon },
   { id: 'agents', label: '经纪审批', Icon: UserCheck },
+  { id: 'agentclients', label: '经纪客户', Icon: Users },
   { id: 'errors', label: '错误监控', Icon: AlertTriangle },
   { id: 'guardian', label: '看护', Icon: ShieldCheck },
   { id: 'perf', label: '性能负载', Icon: Activity },
@@ -81,7 +83,7 @@ export default function AdminAnalytics() {
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<'overview' | 'visitors' | 'lost' | 'search' | 'luna' | 'collab' | 'agents' | 'errors' | 'guardian' | 'perf'>('overview')
+  const [tab, setTab] = useState<'overview' | 'visitors' | 'lost' | 'search' | 'luna' | 'collab' | 'agents' | 'agentclients' | 'errors' | 'guardian' | 'perf'>('overview')
   const [openCollab, setOpenCollab] = useState<string | null>(null)
   // Active perf alerts → cross-dashboard red banner. Polled every 30s.
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
@@ -417,6 +419,9 @@ export default function AdminAnalytics() {
 
           {/* ── 经纪审批 ──────────────────────────────────────────────────── */}
           {tab === 'agents' && <AgentApprovals />}
+
+          {/* ── 经纪客户(跨经纪总览,仅 owner)──────────────────────────── */}
+          {tab === 'agentclients' && <AgentClientsOverview days={days} />}
 
           {/* ── 错误监控(登录失败 + API 异常)──────────────────────────────── */}
           {tab === 'errors' && <ErrorMonitor days={days} />}
