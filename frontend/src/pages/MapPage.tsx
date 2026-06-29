@@ -1540,6 +1540,10 @@ export default function MapPage() {
         const hours = d?.opening_hours
         const khda = d?.khda_rating
         const khdaStyle = getKhdaStyle(khda)
+        // Credit label: "Wikipedia" or the source site's domain.
+        const photoCreditLabel = d?.photo_credit
+          ? (/^wikipedia/i.test(d.photo_credit) ? 'Wikipedia' : d.photo_credit.split('·')[0].trim())
+          : null
         const addr = d?.address || selectedPoi.address
         const phone = d?.phone || selectedPoi.phone
         const website = d?.website || selectedPoi.website
@@ -1630,8 +1634,8 @@ export default function MapPage() {
                       <span>{hours}</span>
                     </p>
                   )}
-                  {photo && (
-                    <p className="text-[10px] text-slate-400 mt-2">© Wikipedia</p>
+                  {photo && photoCreditLabel && (
+                    <p className="text-[10px] text-slate-400 mt-2">© {photoCreditLabel}</p>
                   )}
                 </div>
 
@@ -1796,8 +1800,8 @@ export default function MapPage() {
                         </a>
                       </div>
                     )}
-                    {photo && (
-                      <p className="text-[10px] text-slate-400">© Wikipedia</p>
+                    {photo && photoCreditLabel && (
+                      <p className="text-[10px] text-slate-400">© {photoCreditLabel}</p>
                     )}
                   </div>
                 )}
