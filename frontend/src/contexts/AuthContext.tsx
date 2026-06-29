@@ -31,15 +31,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      checkAdminRole(session?.user ?? null)
+    // On the OAuth callback route, let AuthCallback be the SOLE auth operator.
+    // A concurrent getSession() here races AuthCallback's setSession()/exchange
+    // for the gotrue navigator.locks lock and throws "signal is aborted without
+    // reason" — the cause of mobile Google login failing (provider=google,
+    // has_hash=true). AuthCallback will finish auth and onAuthStateChange below
+    // will then update us; so we just skip the initial getSession on that route.
+    const onAuthCallback =
+      typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/callback')
+
+    // Get initial session (skipped on the callback route to avoid the lock race)
+    if (!onAuthCallback) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session)
+        setUser(session?.user ?? null)
+        checkAdminRole(session?.user ?? null)
+        setLoading(false)
+        // Link this browser's anonymous visitor_id to the account (backfills email).
+        if (session?.user) void identifyVisitor()
+      })
+    } else {
       setLoading(false)
-      // Link this browser's anonymous visitor_id to the account (backfills email).
-      if (session?.user) void identifyVisitor()
-    })
+    }
 
     // Listen for auth changes
     const {

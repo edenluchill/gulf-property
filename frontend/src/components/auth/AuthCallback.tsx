@@ -54,14 +54,16 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
  * can reject with "signal is aborted without reason". Retry a couple of times
  * (the lock frees within a tick) before surfacing the failure.
  */
-async function abortRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+async function abortRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
   for (let i = 0; ; i++) {
     try {
       return await fn()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
+      // Increasing backoff (300/600/900/1200ms): on mobile the lock can stay
+      // contended longer than a fixed delay, which is why 3×350ms still failed.
       if (i < tries - 1 && /abort/i.test(msg)) {
-        await delay(350)
+        await delay(300 * (i + 1))
         continue
       }
       throw e
@@ -144,7 +146,7 @@ export default function AuthCallback() {
         //    (or the AuthProvider) may have already consumed the hash. Poll
         //    briefly so we win that race instead of failing instantly.
         for (let i = 0; i < 14 && !cancelled; i++) {
-          const { data } = await supabase.auth.getSession()
+          const { data } = await abortRetry(() => supabase.auth.getSession())
           if (data.session) return finish()
           await delay(300)
         }
