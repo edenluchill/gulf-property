@@ -1540,6 +1540,7 @@ export default function MapPage() {
         const hours = d?.opening_hours
         const khda = d?.khda_rating
         const khdaStyle = getKhdaStyle(khda)
+        const khdaNote = khdaStyle ? 'KHDA 官方督导评级 · 截至 2023-24 学年' : null
         // Credit label: "Wikipedia" or the source site's domain.
         const photoCreditLabel = d?.photo_credit
           ? (/^wikipedia/i.test(d.photo_credit) ? 'Wikipedia' : d.photo_credit.split('·')[0].trim())
@@ -1597,6 +1598,7 @@ export default function MapPage() {
                         </span>
                         {khdaStyle && (
                           <span
+                            title={khdaNote || undefined}
                             className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
                             style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
                           >
@@ -1637,8 +1639,11 @@ export default function MapPage() {
                       <span>{hours}</span>
                     </p>
                   )}
+                  {khdaNote && (
+                    <p className="text-[10px] text-slate-400 mt-2">{khdaNote}</p>
+                  )}
                   {heroCredit && (
-                    <p className="text-[10px] text-slate-400 mt-2">© {heroCredit}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">© {heroCredit}</p>
                   )}
                 </div>
 
@@ -1732,6 +1737,7 @@ export default function MapPage() {
                         </span>
                         {khdaStyle && (
                           <span
+                            title={khdaNote || undefined}
                             className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
                             style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
                           >
@@ -1800,6 +1806,9 @@ export default function MapPage() {
                           {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>
                       </div>
+                    )}
+                    {khdaNote && (
+                      <p className="text-[10px] text-slate-400">{khdaNote}</p>
                     )}
                     {heroCredit && (
                       <p className="text-[10px] text-slate-400">© {heroCredit}</p>
