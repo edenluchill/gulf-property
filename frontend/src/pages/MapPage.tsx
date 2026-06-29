@@ -1544,6 +1544,10 @@ export default function MapPage() {
         const photoCreditLabel = d?.photo_credit
           ? (/^wikipedia/i.test(d.photo_credit) ? 'Wikipedia' : d.photo_credit.split('·')[0].trim())
           : null
+        // Every POI gets an image: real photo → satellite thumbnail of its
+        // location (free, 100% coverage) → emoji tile (if the tile 404s).
+        const heroSrc = photo || satelliteThumbUrl(selectedPoi.lat, selectedPoi.lng, 16)
+        const heroCredit = photo ? photoCreditLabel : 'Esri 卫星图'
         const addr = d?.address || selectedPoi.address
         const phone = d?.phone || selectedPoi.phone
         const website = d?.website || selectedPoi.website
@@ -1575,15 +1579,13 @@ export default function MapPage() {
                       <div className="absolute inset-0 flex items-center justify-center">
                         <span className="text-4xl leading-none">{catInfo?.icon}</span>
                       </div>
-                      {photo && (
-                        <img
-                          src={photo}
-                          alt={selectedPoi.name}
-                          loading="lazy"
-                          className="relative w-full h-full object-cover"
-                          onError={(e) => { e.currentTarget.style.display = 'none' }}
-                        />
-                      )}
+                      <img
+                        src={heroSrc}
+                        alt={selectedPoi.name}
+                        loading="lazy"
+                        className="relative w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
@@ -1635,8 +1637,8 @@ export default function MapPage() {
                       <span>{hours}</span>
                     </p>
                   )}
-                  {photo && photoCreditLabel && (
-                    <p className="text-[10px] text-slate-400 mt-2">© {photoCreditLabel}</p>
+                  {heroCredit && (
+                    <p className="text-[10px] text-slate-400 mt-2">© {heroCredit}</p>
                   )}
                 </div>
 
@@ -1712,15 +1714,13 @@ export default function MapPage() {
                       <div className="absolute inset-0 flex items-center justify-center">
                         <span className="text-5xl leading-none">{catInfo?.icon}</span>
                       </div>
-                      {photo && (
-                        <img
-                          src={photo}
-                          alt={selectedPoi.name}
-                          loading="lazy"
-                          className="relative w-full h-full object-cover"
-                          onError={(e) => { e.currentTarget.style.display = 'none' }}
-                        />
-                      )}
+                      <img
+                        src={heroSrc}
+                        alt={selectedPoi.name}
+                        loading="lazy"
+                        className="relative w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
@@ -1801,8 +1801,8 @@ export default function MapPage() {
                         </a>
                       </div>
                     )}
-                    {photo && photoCreditLabel && (
-                      <p className="text-[10px] text-slate-400">© {photoCreditLabel}</p>
+                    {heroCredit && (
+                      <p className="text-[10px] text-slate-400">© {heroCredit}</p>
                     )}
                   </div>
                 )}
