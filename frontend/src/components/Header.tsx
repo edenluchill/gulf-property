@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, Globe, ClipboardList, HelpCircle, Upload, MapPinned, Briefcase, ChevronDown, Tag } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, GitCompare, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, LineChart, ChevronDown, Tag } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -93,7 +93,14 @@ export default function Header() {
   }
   const langLabel = i18n.language?.startsWith('zh') ? '中' : 'EN'
 
-  // 分组导航：地图(主) · 经纪人 · 管理(下拉)
+  // 分组导航：地图(主) · 分析(下拉) · 经纪人 · 管理(下拉)
+  const analysisItems = [
+    { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp, desc: t('nav:desc.transactions') },
+    { path: '/areas', label: t('nav:areaInsights'), icon: MapPinned, desc: t('nav:desc.areaInsights') },
+    { path: '/report', label: t('nav:buyingReport'), icon: ClipboardList, desc: t('nav:desc.buyingReport') },
+    { path: '/compare', label: t('nav:compare'), icon: GitCompare, desc: t('nav:desc.compare') },
+  ]
+
   const adminItems = [
     { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, desc: '' },
     { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, desc: '' },
@@ -102,6 +109,7 @@ export default function Header() {
   ]
 
   const isAdminPage = location.pathname.startsWith('/admin') || location.pathname.startsWith('/developer')
+  const isAnalysisActive = analysisItems.some(i => location.pathname === i.path)
   const isMapActive = location.pathname === '/' || location.pathname === '/map'
   const isAgentActive = location.pathname.startsWith('/agent')
 
@@ -203,6 +211,18 @@ export default function Header() {
             {/* 地图探索（主入口） */}
             <NavPill to="/" active={isMapActive} icon={MapPin} label={t('nav:mapExplore')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
+            {/* 分析（下拉） */}
+            <DropdownNav
+              label={t('nav:analysis')}
+              icon={LineChart}
+              active={isAnalysisActive}
+              open={openMenu === 'analysis'}
+              onToggle={() => setOpenMenu(openMenu === 'analysis' ? null : 'analysis')}
+              items={analysisItems}
+              currentPath={location.pathname}
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} panel={theme.panel} dark={theme.dark}
+            />
 
             {/* 经纪人入口：已开通 → 经纪台；未开通 → 成为经纪（强调色） */}
             <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
