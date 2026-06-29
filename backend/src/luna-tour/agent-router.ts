@@ -202,10 +202,32 @@ router.put('/clients/:id', async (req: Request, res: Response) => {
 router.get('/clients', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
+    // Heat = the client's engagement rolled up across their tour sessions
+    // (lt_session_lead_scores: opens/completes/cta/dwell). Turns the list from a
+    // static address book into a "who's hot, who to chase" board. Optional ?stage
+    // and ?q filters. Matview may lag a refresh cycle — acceptable for a list view.
+    const stage = typeof req.query.stage === 'string' ? req.query.stage : ''
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
     const r = await pool.query(
-      `SELECT c.*, (SELECT COUNT(*) FROM lt_client_reports cr WHERE cr.client_id=c.id) AS report_count
-         FROM lt_clients c WHERE c.agent_id=$1 ORDER BY c.updated_at DESC`,
-      [agentId]
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM lt_client_reports cr WHERE cr.client_id=c.id)         AS report_count,
+              (SELECT COUNT(*) FROM lt_client_interactions i WHERE i.client_id=c.id)       AS interaction_count,
+              (SELECT MAX(i.created_at) FROM lt_client_interactions i WHERE i.client_id=c.id) AS last_interaction_at,
+              (SELECT MIN(i.next_followup_at) FROM lt_client_interactions i
+                 WHERE i.client_id=c.id AND i.next_followup_at IS NOT NULL AND i.next_followup_at > now()) AS next_followup_at,
+              COALESCE(h.heat,0)::int AS heat,
+              h.last_activity_at
+         FROM lt_clients c
+         LEFT JOIN (
+           SELECT client_id, SUM(lead_score) AS heat, MAX(last_seen_at) AS last_activity_at
+             FROM lt_session_lead_scores WHERE agent_id=$1 AND client_id IS NOT NULL
+            GROUP BY client_id
+         ) h ON h.client_id = c.id
+        WHERE c.agent_id=$1
+          AND ($2='' OR c.pipeline_stage=$2)
+          AND ($3='' OR c.name ILIKE '%'||$3||'%' OR COALESCE(c.email,'') ILIKE '%'||$3||'%' OR COALESCE(c.phone,'') ILIKE '%'||$3||'%')
+        ORDER BY COALESCE(h.heat,0) DESC, c.updated_at DESC`,
+      [agentId, stage, q]
     )
     res.json({ success: true, clients: r.rows })
   } catch (err) { console.error('[agent/clients list]', err); res.status(500).json({ success: false, error: 'internal error' }) }
@@ -216,11 +238,82 @@ router.get('/clients/:id', async (req: Request, res: Response) => {
     const agentId = await currentAgentId(req)
     const c = await pool.query('SELECT * FROM lt_clients WHERE id=$1 AND agent_id=$2', [req.params.id, agentId])
     if (c.rowCount === 0) return res.status(404).json({ success: false, error: 'not found' })
-    const reports = await pool.query(
-      `SELECT share_code, status, view_count, created_at FROM lt_client_reports WHERE client_id=$1 ORDER BY created_at DESC`,
-      [req.params.id]
+    const cid = req.params.id
+
+    const [reports, interactions, heatRow, sessionEvents] = await Promise.all([
+      pool.query(
+        `SELECT share_code, status, view_count, created_at FROM lt_client_reports WHERE client_id=$1 ORDER BY created_at DESC`,
+        [cid]
+      ),
+      pool.query(
+        `SELECT id, kind, note, outcome, next_followup_at, created_at
+           FROM lt_client_interactions WHERE client_id=$1 AND agent_id=$2 ORDER BY created_at DESC LIMIT 100`,
+        [cid, agentId]
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(lead_score),0)::int AS heat, MAX(last_seen_at) AS last_activity_at,
+                COALESCE(SUM(opens),0)::int AS opens, COALESCE(SUM(tour_completes),0)::int AS completes,
+                COALESCE(SUM(cta_clicks),0)::int AS cta
+           FROM lt_session_lead_scores WHERE agent_id=$1 AND client_id=$2`,
+        [agentId, cid]
+      ),
+      // What the client actually did inside this agent's tours — the engagement
+      // signal, joined to project names, for the activity timeline.
+      pool.query(
+        `SELECT e.event_type, e.created_at, e.dwell_ms, rp.project_name
+           FROM lt_engagement_events e
+           JOIN lt_demo_sessions s ON s.id = e.session_id AND s.client_id=$1 AND s.agent_id=$2
+           LEFT JOIN residential_projects rp ON rp.id = e.project_id
+          ORDER BY e.created_at DESC LIMIT 80`,
+        [cid, agentId]
+      ),
+    ])
+    res.json({
+      success: true,
+      client: c.rows[0],
+      reports: reports.rows,
+      interactions: interactions.rows,
+      heat: heatRow.rows[0] || { heat: 0 },
+      engagement: sessionEvents.rows,
+    })
+  } catch (err) { console.error('[agent/clients detail]', err); res.status(500).json({ success: false, error: 'internal error' }) }
+})
+
+// Log a follow-up (call/whatsapp/meeting/viewing/note). Optionally schedule the
+// next chase + advance the pipeline stage in one shot. agent-isolated.
+router.post('/clients/:id/interactions', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const own = await pool.query('SELECT 1 FROM lt_clients WHERE id=$1 AND agent_id=$2', [req.params.id, agentId])
+    if (own.rowCount === 0) return res.status(403).json({ success: false, error: 'not authorized' })
+    const b = (req.body || {}) as Record<string, unknown>
+    const kind = ['note', 'call', 'whatsapp', 'email', 'meeting', 'viewing'].includes(String(b.kind)) ? String(b.kind) : 'note'
+    const nextAt = b.next_followup_at ? new Date(String(b.next_followup_at)) : null
+    const r = await pool.query(
+      `INSERT INTO lt_client_interactions (client_id, agent_id, kind, note, outcome, next_followup_at)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
+      [req.params.id, agentId, kind, b.note ? String(b.note).slice(0, 4000) : null, b.outcome ? String(b.outcome) : null, nextAt]
     )
-    res.json({ success: true, client: c.rows[0], reports: reports.rows })
+    // Optional: advance pipeline stage alongside the interaction.
+    if (typeof b.stage === 'string' && b.stage) {
+      await pool.query('UPDATE lt_clients SET pipeline_stage=$3, updated_at=now() WHERE id=$1 AND agent_id=$2',
+        [req.params.id, agentId, b.stage])
+    }
+    res.json({ success: true, id: r.rows[0].id, created_at: r.rows[0].created_at })
+  } catch (err) { console.error('[agent/clients interaction]', err); res.status(500).json({ success: false, error: 'internal error' }) }
+})
+
+// Move a client along the pipeline (new|engaged|viewing|offer|closed|lost).
+router.post('/clients/:id/stage', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const stage = String((req.body as Record<string, unknown>)?.stage || '')
+    if (!['new', 'engaged', 'viewing', 'offer', 'closed', 'lost'].includes(stage))
+      return res.status(400).json({ success: false, error: 'invalid stage' })
+    const r = await pool.query('UPDATE lt_clients SET pipeline_stage=$3, updated_at=now() WHERE id=$1 AND agent_id=$2',
+      [req.params.id, agentId, stage])
+    if (r.rowCount === 0) return res.status(403).json({ success: false, error: 'not authorized' })
+    res.json({ success: true })
   } catch (err) { res.status(500).json({ success: false, error: 'internal error' }) }
 })
 

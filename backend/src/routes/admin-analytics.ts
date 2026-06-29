@@ -11,7 +11,7 @@ import { requireOwner } from '../middleware/requireOwner'
 import * as q from '../services/analyticsQueries'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
-import { getAgentRuns } from '../services/agentRuns'
+import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
 
 const router = Router()
 
@@ -101,6 +101,9 @@ router.get('/error-impact', wrap((req) => q.getErrorImpact(Math.min(168, Number(
 
 // What the autonomous cx-guardian agent did each patrol (transparency).
 router.get('/agent-runs', wrap((req) => getAgentRuns(Math.min(200, Number(req.query.limit) || 50))))
+
+// Owner-only cross-agent view of every agent's clients (admin can see all).
+router.get('/agent-clients', wrap((req) => getAgentClientsOverview(Math.min(1000, Number(req.query.limit) || 500))))
 
 // ── 实时带看(collab)意向报告 ─────────────────────────
 router.get('/collab', wrap((req) =>
