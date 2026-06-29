@@ -208,6 +208,49 @@ router.post('/refresh-cache', async (_req: Request, res: Response) => {
 })
 
 /**
+ * GET /api/dubai-pois/:id/details
+ * Full record for a single POI + enrichment (photo / description / KHDA rating).
+ * Lazy-loaded when a POI popup opens (keeps the bulk /all payload light).
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+router.get('/:id/details', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      res.status(400).json({ error: 'Invalid POI id' })
+      return
+    }
+
+    const result = await pool.query(
+      `SELECT
+         p.id, p.name, p.name_ar, p.category, p.subcategory,
+         ST_X(p.location::geometry) as lng,
+         ST_Y(p.location::geometry) as lat,
+         p.address, p.phone, p.website,
+         e.description, e.description_zh,
+         e.photo_url, e.photo_credit, e.opening_hours,
+         e.khda_rating, e.khda_year, e.khda_url
+       FROM dubai_pois p
+       LEFT JOIN dubai_poi_enrichment e ON e.poi_id = p.id
+       WHERE p.id = $1`,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'POI not found' })
+      return
+    }
+
+    // Enrichment changes rarely; let clients/CDN cache for a day.
+    res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+    res.json({ poi: result.rows[0] })
+  } catch (error) {
+    console.error('Error fetching POI details:', error)
+    res.status(500).json({ error: 'Failed to fetch POI details' })
+  }
+})
+
+/**
  * GET /api/dubai-pois/near
  * Get POIs near a specific point
  *

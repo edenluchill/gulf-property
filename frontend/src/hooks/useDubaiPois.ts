@@ -29,6 +29,19 @@ export interface Poi {
   address?: string
   phone?: string
   website?: string
+  // Enrichment (lazy-loaded via /api/dubai-pois/:id/details — see PoiDetails)
+}
+
+/** Full POI record incl. free-source enrichment, loaded when a popup opens. */
+export interface PoiDetails extends Poi {
+  description?: string
+  description_zh?: string
+  photo_url?: string
+  photo_credit?: string
+  opening_hours?: string
+  khda_rating?: string
+  khda_year?: number
+  khda_url?: string
 }
 
 export interface PoiCategoryInfo {
@@ -290,4 +303,25 @@ export function getPoiCacheInfo(): { count: number; age: number | null } {
 // Helper to get category info
 export function getCategoryInfo(category: PoiCategory): PoiCategoryInfo | undefined {
   return POI_CATEGORIES.find(c => c.id === category)
+}
+
+// Fetch full details (incl. photo/description/KHDA) for a single POI.
+// Cached in-memory so re-opening the same POI is instant.
+const detailsCache = new Map<string, PoiDetails>()
+
+export async function fetchPoiDetails(id: string): Promise<PoiDetails | null> {
+  const cached = detailsCache.get(id)
+  if (cached) return cached
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/dubai-pois/${id}/details`)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data?.poi) {
+      detailsCache.set(id, data.poi)
+      return data.poi
+    }
+    return null
+  } catch {
+    return null
+  }
 }

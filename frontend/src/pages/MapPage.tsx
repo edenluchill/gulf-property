@@ -33,9 +33,10 @@ import { Button } from '../components/ui/button'
 import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
-  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart
+  Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart,
+  Clock, Award
 } from 'lucide-react'
-import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, getCategoryInfo } from '../hooks/useDubaiPois'
+import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
 import { GuidedTourPayload } from '../hooks/voice-assistant/types'
 import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
@@ -109,6 +110,22 @@ function checkAndClearCache() {
 
 // Run on module load
 checkAndClearCache()
+
+// KHDA official school rating → badge style + Chinese label.
+// Scale (best→worst): Outstanding, Very Good, Good, Acceptable, Weak, Very Weak.
+function getKhdaStyle(rating?: string): { bg: string; text: string; zh: string } | null {
+  if (!rating) return null
+  const r = rating.trim().toLowerCase()
+  const map: Record<string, { bg: string; text: string; zh: string }> = {
+    'outstanding': { bg: '#047857', text: '#fff', zh: '卓越' },
+    'very good': { bg: '#059669', text: '#fff', zh: '优秀' },
+    'good': { bg: '#2563eb', text: '#fff', zh: '良好' },
+    'acceptable': { bg: '#d97706', text: '#fff', zh: '合格' },
+    'weak': { bg: '#dc2626', text: '#fff', zh: '欠佳' },
+    'very weak': { bg: '#991b1b', text: '#fff', zh: '很差' },
+  }
+  return map[r] || { bg: '#475569', text: '#fff', zh: rating }
+}
 
 export default function MapPage() {
   const { t, i18n } = useTranslation(['map', 'common', 'findhome'])
@@ -353,6 +370,22 @@ export default function MapPage() {
 
   // POI popup state
   const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null)
+  const [poiDetails, setPoiDetails] = useState<PoiDetails | null>(null)
+  const [poiDetailsLoading, setPoiDetailsLoading] = useState(false)
+
+  // Lazy-load full POI details (photo/description/KHDA) when a popup opens
+  useEffect(() => {
+    if (!selectedPoi) { setPoiDetails(null); setPoiDetailsLoading(false); return }
+    let cancelled = false
+    setPoiDetails(null)
+    setPoiDetailsLoading(true)
+    fetchPoiDetails(selectedPoi.id).then(d => {
+      if (cancelled) return
+      setPoiDetails(d)
+      setPoiDetailsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [selectedPoi])
 
   // Transport station popup state
   const [selectedStation, setSelectedStation] = useState<TransportStation | null>(null)
@@ -1499,6 +1532,18 @@ export default function MapPage() {
         const catInfo = getCategoryInfo(selectedPoi.category)
         const color = catInfo?.color || '#6b7280'
 
+        // Enrichment (lazy-loaded). /all payload lacks address/phone/website,
+        // so prefer details for those too.
+        const d = poiDetails
+        const photo = d?.photo_url
+        const descZh = d?.description_zh || d?.description
+        const hours = d?.opening_hours
+        const khda = d?.khda_rating
+        const khdaStyle = getKhdaStyle(khda)
+        const addr = d?.address || selectedPoi.address
+        const phone = d?.phone || selectedPoi.phone
+        const website = d?.website || selectedPoi.website
+
         return (
           <div className="fixed inset-0 z-[2000]" onClick={() => setSelectedPoi(null)}>
             {/* Backdrop */}
@@ -1515,22 +1560,41 @@ export default function MapPage() {
                   <div className="w-10 h-1 bg-slate-300 rounded-full" />
                 </div>
 
-                {/* Icon + Category */}
-                <div className="flex items-center gap-3 px-5 pb-3">
+                {/* Photo banner */}
+                {photo && (
+                  <div className="px-5 pb-3">
+                    <img
+                      src={photo}
+                      alt={selectedPoi.name}
+                      loading="lazy"
+                      className="w-full h-40 object-cover rounded-xl bg-slate-100"
+                      onError={(e) => { const p = e.currentTarget.parentElement as HTMLElement; if (p) p.style.display = 'none' }}
+                    />
+                  </div>
+                )}
+
+                {/* Icon + Category + KHDA badge */}
+                <div className="flex items-center gap-2 px-5 pb-3 flex-wrap">
                   <div
                     className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
                     style={{ backgroundColor: color }}
                   >
                     <MapPin className="w-6 h-6 text-white" />
                   </div>
-                  <div>
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
+                    style={{ backgroundColor: color }}
+                  >
+                    {catInfo?.label || selectedPoi.category}
+                  </span>
+                  {khdaStyle && (
                     <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
-                      style={{ backgroundColor: color }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
                     >
-                      {catInfo?.label || selectedPoi.category}
+                      <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
                     </span>
-                  </div>
+                  )}
                 </div>
 
                 {/* Content */}
@@ -1539,14 +1603,35 @@ export default function MapPage() {
                     {selectedPoi.name}
                   </h3>
                   {selectedPoi.name_ar && (
-                    <p className="text-base text-slate-500 mb-3" dir="rtl">
+                    <p className="text-base text-slate-500 mb-2" dir="rtl">
                       {selectedPoi.name_ar}
                     </p>
                   )}
-                  {selectedPoi.address && (
-                    <p className="text-sm text-slate-600 mb-4">
-                      {selectedPoi.address}
+
+                  {/* Description (or loading skeleton) */}
+                  {poiDetailsLoading && !d ? (
+                    <div className="space-y-2 mt-2 mb-1">
+                      <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                      <div className="h-3 bg-slate-100 rounded animate-pulse w-4/5" />
+                    </div>
+                  ) : descZh ? (
+                    <p className="text-sm text-slate-700 leading-relaxed mt-1 mb-2">{descZh}</p>
+                  ) : null}
+
+                  {addr && (
+                    <p className="text-sm text-slate-500 flex items-start gap-1.5 mt-2">
+                      <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-slate-400" />
+                      <span>{addr}</span>
                     </p>
+                  )}
+                  {hours && (
+                    <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
+                      <Clock className="w-4 h-4 flex-shrink-0 text-slate-400" />
+                      <span>{hours}</span>
+                    </p>
+                  )}
+                  {photo && (
+                    <p className="text-[10px] text-slate-400 mt-2">© Wikipedia</p>
                   )}
                 </div>
 
@@ -1561,9 +1646,9 @@ export default function MapPage() {
                     <Navigation className="w-5 h-5 text-blue-600" />
                     <span className="text-xs font-medium text-slate-700">{t('map:directionsShort')}</span>
                   </a>
-                  {selectedPoi.phone ? (
+                  {phone ? (
                     <a
-                      href={`tel:${selectedPoi.phone}`}
+                      href={`tel:${phone}`}
                       className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
                     >
                       <Phone className="w-5 h-5 text-green-600" />
@@ -1575,9 +1660,9 @@ export default function MapPage() {
                       <span className="text-xs font-medium text-slate-400">{t('map:call')}</span>
                     </div>
                   )}
-                  {selectedPoi.website ? (
+                  {website ? (
                     <a
-                      href={selectedPoi.website}
+                      href={website}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex flex-col items-center gap-1.5 py-4 bg-white active:bg-slate-50"
@@ -1601,18 +1686,30 @@ export default function MapPage() {
             {/* Desktop: Centered Modal */}
             <div className="hidden md:flex absolute inset-0 items-center justify-center p-4">
               <div
-                className="bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200"
+                className="relative bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-md animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Header */}
-                <div className="relative p-5 pb-4">
-                  <button
-                    onClick={() => setSelectedPoi(null)}
-                    className="absolute top-3 right-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                {/* Close (overlays photo when present) */}
+                <button
+                  onClick={() => setSelectedPoi(null)}
+                  className="absolute top-3 right-3 z-10 p-2 bg-white/80 hover:bg-white backdrop-blur rounded-full text-slate-500 hover:text-slate-700 transition-colors shadow-sm"
+                >
+                  <X className="w-5 h-5" />
+                </button>
 
+                {/* Photo banner */}
+                {photo && (
+                  <img
+                    src={photo}
+                    alt={selectedPoi.name}
+                    loading="lazy"
+                    className="w-full h-44 object-cover bg-slate-100"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                )}
+
+                {/* Header */}
+                <div className="p-5 pb-3">
                   <div className="flex items-start gap-4">
                     <div
                       className="w-14 h-14 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
@@ -1621,12 +1718,22 @@ export default function MapPage() {
                       <MapPin className="w-7 h-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0 pt-1">
-                      <span
-                        className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white mb-2"
-                        style={{ backgroundColor: color }}
-                      >
-                        {catInfo?.label || selectedPoi.category}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span
+                          className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white"
+                          style={{ backgroundColor: color }}
+                        >
+                          {catInfo?.label || selectedPoi.category}
+                        </span>
+                        {khdaStyle && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
+                          >
+                            <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-xl font-bold text-slate-900 leading-tight">
                         {selectedPoi.name}
                       </h3>
@@ -1639,35 +1746,58 @@ export default function MapPage() {
                   </div>
                 </div>
 
+                {/* Description (or loading skeleton) */}
+                {(poiDetailsLoading && !d) || descZh ? (
+                  <div className="px-5 pb-2">
+                    {poiDetailsLoading && !d ? (
+                      <div className="space-y-2 mb-1">
+                        <div className="h-3 bg-slate-100 rounded animate-pulse" />
+                        <div className="h-3 bg-slate-100 rounded animate-pulse w-4/5" />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-700 leading-relaxed">{descZh}</p>
+                    )}
+                  </div>
+                ) : null}
+
                 {/* Details */}
-                {(selectedPoi.address || selectedPoi.phone || selectedPoi.website) && (
-                  <div className="px-5 pb-4 space-y-3">
-                    {selectedPoi.address && (
+                {(addr || phone || website || hours) && (
+                  <div className="px-5 pb-4 pt-2 space-y-3">
+                    {addr && (
                       <div className="flex items-start gap-3">
                         <MapPin className="w-4 h-4 mt-0.5 text-slate-400 flex-shrink-0" />
-                        <span className="text-sm text-slate-600">{selectedPoi.address}</span>
+                        <span className="text-sm text-slate-600">{addr}</span>
                       </div>
                     )}
-                    {selectedPoi.phone && (
+                    {hours && (
+                      <div className="flex items-center gap-3">
+                        <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <span className="text-sm text-slate-600">{hours}</span>
+                      </div>
+                    )}
+                    {phone && (
                       <div className="flex items-center gap-3">
                         <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                        <a href={`tel:${selectedPoi.phone}`} className="text-sm text-blue-600 hover:underline">
-                          {selectedPoi.phone}
+                        <a href={`tel:${phone}`} className="text-sm text-blue-600 hover:underline">
+                          {phone}
                         </a>
                       </div>
                     )}
-                    {selectedPoi.website && (
+                    {website && (
                       <div className="flex items-center gap-3">
                         <Globe className="w-4 h-4 text-slate-400 flex-shrink-0" />
                         <a
-                          href={selectedPoi.website}
+                          href={website}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-blue-600 hover:underline truncate"
                         >
-                          {selectedPoi.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                          {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>
                       </div>
+                    )}
+                    {photo && (
+                      <p className="text-[10px] text-slate-400">© Wikipedia</p>
                     )}
                   </div>
                 )}
