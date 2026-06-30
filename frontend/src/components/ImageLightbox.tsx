@@ -79,6 +79,8 @@ export function ImageLightbox({
   // Images stay full-brightness; each one does a one-time fade-up as it enters
   // view (or once it loads — whichever first, so it can never get stuck hidden).
   const [revealed, setRevealed] = useState<Set<number>>(new Set())
+  // 0→1 scroll progress through the gallery — drives the slim bottom progress bar.
+  const [scrollProgress, setScrollProgress] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const thumbnailListRef = useRef<HTMLDivElement>(null)
   const mainScrollRef = useRef<HTMLDivElement>(null)
@@ -157,6 +159,19 @@ export function ImageLightbox({
 
     imageRefs.current.forEach((el) => el && io.observe(el))
     return () => io.disconnect()
+  }, [isMobile, isOpen, images.length])
+
+  // Slim bottom progress bar — tracks how far through the gallery you've scrolled.
+  useEffect(() => {
+    if (isMobile || !isOpen || !mainScrollRef.current) return
+    const container = mainScrollRef.current
+    const onScroll = () => {
+      const max = container.scrollHeight - container.clientHeight
+      setScrollProgress(max > 0 ? Math.min(1, Math.max(0, container.scrollTop / max)) : 0)
+    }
+    onScroll()
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => container.removeEventListener('scroll', onScroll)
   }, [isMobile, isOpen, images.length])
 
   // Scroll to specific image
@@ -284,14 +299,15 @@ export function ImageLightbox({
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1, duration: 0.3 }}
-          className="w-28 h-full flex flex-col bg-black/80 border-r border-white/10"
+          className="w-28 h-full flex flex-col bg-black border-r border-white/[0.08]"
         >
-          {/* Header */}
-          <div className="flex-shrink-0 px-3 py-4 border-b border-white/10">
-            <div className="text-white text-xl font-bold">
-              {currentIndex + 1}
-              <span className="text-white/40 text-sm font-normal ml-1">/ {images.length}</span>
+          {/* Header — zero-padded counter, luxury portfolio feel */}
+          <div className="flex-shrink-0 px-3 py-4 border-b border-white/[0.08]">
+            <div className="flex items-baseline gap-1 text-white tabular-nums">
+              <span className="text-2xl font-semibold tracking-tight">{String(currentIndex + 1).padStart(2, '0')}</span>
+              <span className="text-xs font-normal text-white/35">/ {String(images.length).padStart(2, '0')}</span>
             </div>
+            <div className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.2em] text-white/30">Gallery</div>
           </div>
 
           {/* Navigation up button */}
@@ -312,30 +328,34 @@ export function ImageLightbox({
               <button
                 key={index}
                 onClick={() => handleThumbnailClick(index)}
-                className={`relative w-full aspect-[4/3] rounded-lg overflow-hidden transition-all duration-300 transform ${
+                className={`group relative w-full aspect-[4/3] rounded-md overflow-hidden transition-all duration-300 ease-out ${
                   index === currentIndex
-                    ? 'ring-2 ring-teal-400 opacity-100 scale-100'
-                    : 'opacity-40 hover:opacity-70 scale-95 hover:scale-100'
+                    ? 'opacity-100'
+                    : 'opacity-45 hover:opacity-80'
                 }`}
               >
                 <img
                   src={getImageUrl(image, 'thumbnail')}
                   alt={`Thumbnail ${index + 1}`}
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover transition-transform duration-500 ease-out ${
+                    index === currentIndex ? 'scale-100' : 'scale-105 group-hover:scale-100'
+                  }`}
                   loading="lazy"
                 />
-                {/* Index badge */}
-                <div className={`absolute bottom-1 right-1 min-w-[18px] px-1 py-0.5 rounded text-[9px] font-bold text-center ${
-                  index === currentIndex
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-black/60 text-white/70'
-                }`}>
-                  {index + 1}
-                </div>
-                {/* Active indicator */}
+                {/* Active frame — thin white inset border */}
+                <div className={`pointer-events-none absolute inset-0 rounded-md transition-all duration-300 ${
+                  index === currentIndex ? 'ring-1 ring-inset ring-white/90' : 'ring-1 ring-inset ring-white/0'
+                }`} />
+                {/* Active indicator bar */}
                 {index === currentIndex && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-teal-400" />
+                  <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-white" />
                 )}
+                {/* Index — zero padded, appears on hover / active */}
+                <div className={`absolute bottom-1 right-1.5 text-[9px] font-semibold tabular-nums tracking-wide transition-opacity duration-200 ${
+                  index === currentIndex ? 'text-white opacity-100' : 'text-white/80 opacity-0 group-hover:opacity-100'
+                }`} style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                  {String(index + 1).padStart(2, '0')}
+                </div>
               </button>
             ))}
           </div>
@@ -357,20 +377,21 @@ export function ImageLightbox({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4"
+          className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between p-5"
         >
-          {/* Project name */}
-          <div className="text-white/60 text-sm font-medium truncate max-w-[300px] bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full">
+          {/* Project name — uppercase, letter-spaced, editorial */}
+          <div className="max-w-[60%] truncate text-white/85 text-[13px] font-medium uppercase tracking-[0.18em] pt-1.5"
+            style={{ textShadow: '0 1px 12px rgba(0,0,0,0.8)' }}>
             {buildingName}
           </div>
 
-          {/* Close button */}
+          {/* Close button — thin, neutral */}
           <button
             onClick={onClose}
-            className="p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-red-500 text-white transition-all duration-200 hover:scale-110"
+            className="p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/70 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
             aria-label="Close gallery"
           >
-            <X className="h-5 w-5" />
+            <X className="h-[18px] w-[18px]" />
           </button>
         </motion.div>
 
@@ -400,8 +421,8 @@ export function ImageLightbox({
                 }`}>
                   {/* Loading skeleton */}
                   {!imageLoaded[index] && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/5 min-h-[300px]">
-                      <div className="w-8 h-8 border-2 border-white/20 border-t-teal-400 rounded-full animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/[0.03] min-h-[300px]">
+                      <div className="w-7 h-7 border-2 border-white/15 border-t-white/80 rounded-full animate-spin" />
                     </div>
                   )}
 
@@ -424,13 +445,12 @@ export function ImageLightbox({
                     }}
                   />
 
-                  {/* Image number overlay */}
-                  <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-full backdrop-blur-sm text-sm font-medium transition-all ${
-                    index === currentIndex
-                      ? 'bg-teal-500/80 text-white'
-                      : 'bg-black/50 text-white/70'
-                  }`}>
-                    {index + 1} / {images.length}
+                  {/* Editorial index caption — fades up only on the centered image */}
+                  <div className={`pointer-events-none absolute bottom-4 left-5 flex items-baseline gap-1.5 tabular-nums transition-all duration-500 ${
+                    index === currentIndex ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
+                  }`} style={{ textShadow: '0 2px 14px rgba(0,0,0,0.85)' }}>
+                    <span className="text-white text-2xl font-light leading-none tracking-tight">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="text-white/55 text-xs font-medium">/ {String(images.length).padStart(2, '0')}</span>
                   </div>
                 </div>
               </div>
@@ -441,32 +461,42 @@ export function ImageLightbox({
           </div>
         </div>
 
-        {/* Scroll hint */}
+        {/* Minimal hint — fades out once you start scrolling */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/40 text-xs bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2"
+          animate={{ opacity: scrollProgress > 0.02 ? 0 : 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="pointer-events-none absolute bottom-7 left-1/2 -translate-x-1/2 flex items-center gap-2.5 text-[11px] font-medium uppercase tracking-[0.15em] text-white/45"
         >
-          <span>Scroll to browse</span>
+          <span>Scroll</span>
           <span className="text-white/20">·</span>
-          <span>ESC to close</span>
+          <span>Esc to close</span>
         </motion.div>
+
+        {/* Slim bottom progress bar */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10">
+          <div
+            className="h-full bg-white/85"
+            style={{ width: `${scrollProgress * 100}%`, transition: 'width 120ms linear' }}
+          />
+        </div>
 
         {/* Navigation arrows on sides */}
         {images.length > 1 && (
           <>
             <button
               onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-white/20 text-white/60 hover:text-white transition-all hover:scale-110"
+              className="absolute left-5 top-1/2 -translate-y-1/2 p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/55 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
+              aria-label="Previous image"
             >
-              <ChevronUp className="h-5 w-5" />
+              <ChevronUp className="h-[18px] w-[18px]" />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/40 backdrop-blur-sm hover:bg-white/20 text-white/60 hover:text-white transition-all hover:scale-110"
+              className="absolute right-5 top-1/2 -translate-y-1/2 p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/55 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
+              aria-label="Next image"
             >
-              <ChevronDown className="h-5 w-5" />
+              <ChevronDown className="h-[18px] w-[18px]" />
             </button>
           </>
         )}
