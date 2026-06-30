@@ -43,7 +43,8 @@ export function SubmitReviewDialog({
   hasCoordinates,
   duplicateNames,
 }: SubmitReviewDialogProps) {
-  const { t } = useTranslation('upload')
+  const { t, i18n } = useTranslation('upload')
+  const zh = i18n.language?.startsWith('zh')
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,6 +120,21 @@ export function SubmitReviewDialog({
                   <span className="text-xs text-amber-600">{u.issues.join('、')}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* No unit types — submittable, but remind the user explicitly. */}
+          {readiness.unitsCount === 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm">
+              <div className="flex items-center gap-2 font-semibold text-amber-900 mb-1">
+                <AlertTriangle className="h-4 w-4" />
+                {zh ? '暂无户型信息' : 'No unit types'}
+              </div>
+              <p className="text-amber-800">
+                {zh
+                  ? '该项目还没有户型信息——仍可提交，之后可在项目编辑页随时补充。'
+                  : 'This project has no unit types yet — you can still submit and add them later from the project editor.'}
+              </p>
             </div>
           )}
 

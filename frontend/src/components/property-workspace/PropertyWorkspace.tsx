@@ -114,8 +114,10 @@ export function PropertyWorkspace({
       blockedUnits,
       warningUnits,
       unitsCount: formData.unitTypes.length,
+      // No unit types is allowed (info can be added later) — the submit dialog
+      // shows an explicit "暂无户型" reminder. Only missing project fields or
+      // hard-broken units block submission.
       submittable: missingProjectFields.length === 0
-        && formData.unitTypes.length > 0
         && blockedUnits.length === 0,
     }
   }

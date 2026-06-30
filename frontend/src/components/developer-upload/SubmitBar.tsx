@@ -31,8 +31,9 @@ const TONE_CLASSES: Record<ReadinessChip['tone'], string> = {
 
 export function SubmitBar({
   chips,
-  hasReviewed,
-  onReviewedChange,
+  // hasReviewed / onReviewedChange kept on the interface for callers but no longer
+  // used — the "我已仔细检查" gate was removed (info can be edited later anyway).
+  // The pre-submit reminder is the SubmitReviewDialog that opens on click.
   canSubmit,
   isProcessing,
   isSubmitting,
@@ -59,25 +60,12 @@ export function SubmitBar({
             ))}
           </div>
 
-          {/* Reviewed checkbox + submit — 移动端 checkbox 一行、提交按钮全宽另起一行,
-              保证小屏也能看到并点到提交。sm 以上恢复横排。 */}
+          {/* Submit button (no reviewed-checkbox gate; the confirm dialog reminds). */}
           <div className="flex flex-col gap-2.5 shrink-0 sm:flex-row sm:items-center sm:gap-4">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={hasReviewed}
-                onChange={(e) => onReviewedChange(e.target.checked)}
-                disabled={isProcessing}
-                className="w-4 h-4 shrink-0 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
-              />
-              <span className="text-sm text-gray-700 font-medium">
-                {t('checklist.confirmReview')}
-              </span>
-            </label>
             <Button
               type="button"
               onClick={onSubmit}
-              disabled={!canSubmit || isProcessing || isSubmitting || !hasReviewed}
+              disabled={!canSubmit || isProcessing || isSubmitting}
               className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-md px-6"
             >
               {isSubmitting ? (
