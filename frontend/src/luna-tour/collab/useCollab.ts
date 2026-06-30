@@ -17,11 +17,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useCollabSocket } from './useCollabSocket'
 import { useCollabPresenter } from './useCollabPresenter'
-import { useCollabPresenterCursor, useCollabRemoteCursor } from './useCollabCursor'
+import { useCollabPresenterCursor } from './useCollabCursor'
 import { useCollabFollow, type FlyToArgs, type FollowMode } from './useCollabFollow'
 import { chatMessage, selectMessage } from './collab-actions'
 import type { Participant, ChatEntry, SelectKind, ServerMsg } from './protocol'
-import type { ConnState } from './CollabClient'
+import type { CollabClient, ConnState } from './CollabClient'
 
 export type CollabMode = 'browse' | 'presenter' | 'viewer'
 
@@ -42,6 +42,8 @@ export interface UseCollabOpts {
 export interface CollabApi {
   active: boolean
   state: ConnState
+  /** the live connection — for the global cursor overlay */
+  client: CollabClient | null
   connId: string | null
   presenterConnId: string | null
   participants: Participant[]
@@ -66,19 +68,10 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
   // presenter samples + broadcasts its camera; viewers pass active=false.
   useCollabPresenter({ getMap, client: socket.client, active: active && mode === 'presenter' })
 
-  // live cursor: presenter broadcasts its pointer; the viewer renders it. Uses
-  // the `cur` channel (server already fans it out) — pure imperative DOM.
-  useCollabPresenterCursor({ getMap, client: socket.client, active: active && mode === 'presenter' })
-  const presenterName = useMemo(
-    () => socket.participants.find((p) => p.connId === socket.presenterConnId)?.name,
-    [socket.participants, socket.presenterConnId]
-  )
-  useCollabRemoteCursor({
-    getMap,
-    client: socket.client,
-    active: active && mode === 'viewer',
-    label: presenterName || '经纪',
-  })
+  // live cursor: presenter broadcasts its pointer (viewport-normalized) on `cur`;
+  // the viewer renders it via the global <CollabCursorLayer/> (mounted by the
+  // page) so the cursor shows on EVERY surface, not just the map.
+  useCollabPresenterCursor({ client: socket.client, active: active && mode === 'presenter' })
 
   const follow = useCollabFollow({
     getMap,
@@ -141,6 +134,7 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
     () => ({
       active,
       state: socket.state,
+      client: socket.client,
       connId: socket.connId,
       presenterConnId: socket.presenterConnId,
       participants: socket.participants,
@@ -156,6 +150,7 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
       active,
       mode,
       socket.state,
+      socket.client,
       socket.connId,
       socket.presenterConnId,
       socket.participants,

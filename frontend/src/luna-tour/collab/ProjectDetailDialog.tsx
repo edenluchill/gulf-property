@@ -109,7 +109,9 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
       ) : (
         <div className="flex-1 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={handleTab}>
-            <TabsList className="sticky top-0 z-10 flex h-11 w-full justify-start overflow-x-auto border-b border-slate-100 bg-white/95 px-2 backdrop-blur md:justify-center">
+            {/* solid bg + shadow (NOT backdrop-blur) — a translucent/blurred sticky
+                bar repaints jankily as images scroll under it = the flicker. */}
+            <TabsList className="sticky top-0 z-10 flex h-11 w-full justify-start overflow-x-auto border-b border-slate-200 bg-white px-2 shadow-sm md:justify-center">
               <TabsTrigger value="overview" className="flex-shrink-0">{t('project:tabs.overview', '概览')}</TabsTrigger>
               <TabsTrigger value="units" className="flex-shrink-0">{t('project:tabs.unitTypes', '户型')}</TabsTrigger>
               <TabsTrigger value="payment" className="flex-shrink-0">{t('project:tabs.paymentPlan', '付款')}</TabsTrigger>
@@ -126,6 +128,25 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
                   currentImageIndex={imgIndex}
                   onImageIndexChange={setImgIndex}
                 />
+                {/* Quick facts — the essentials the real page's "More Details" shows */}
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                  {priceText && <Fact label={t('project:from', '起价')} value={priceText} />}
+                  {(project.min_bedrooms != null || project.max_bedrooms != null) && (
+                    <Fact
+                      label={t('project:bedrooms', '户型')}
+                      value={project.min_bedrooms === project.max_bedrooms
+                        ? (project.min_bedrooms === 0 ? 'Studio' : `${project.min_bedrooms} BR`)
+                        : `${project.min_bedrooms ?? 'Studio'}–${project.max_bedrooms} BR`}
+                    />
+                  )}
+                  {project.completion_date && (
+                    <Fact
+                      label={t('project:completion', '交付')}
+                      value={new Date(project.completion_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    />
+                  )}
+                  {project.developer && <Fact label="开发商" value={project.developer} />}
+                </div>
                 <OverviewTab project={project} insights={insights} />
               </TabsContent>
               <TabsContent value="units" className="mt-0">
@@ -161,5 +182,14 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
       )}
     </div>,
     document.body,
+  )
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+      <div className="text-[11px] text-slate-400">{label}</div>
+      <div className="mt-0.5 truncate text-sm font-semibold text-slate-900">{value}</div>
+    </div>
   )
 }

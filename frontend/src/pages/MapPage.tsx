@@ -15,6 +15,7 @@ import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { createCollabRoom, deriveHostCode } from '../luna-tour/collab/collabApi'
 import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
+import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
@@ -1224,6 +1225,12 @@ export default function MapPage() {
               copied={shareCopied}
               onExit={handleExitCollab}
             />
+          )}
+
+          {/* Collab: the presenter's live cursor — global overlay, shows on the map,
+              the project drawer, POI panels… everywhere (Figma-style presence). */}
+          {collabMode === 'viewer' && (
+            <CollabCursorLayer client={collab.client} active label={collabPeerName || '经纪'} />
           )}
 
           {/* Collab: presenter onboarding ("share your link to clients") */}
