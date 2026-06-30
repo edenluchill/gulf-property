@@ -127,6 +127,8 @@ interface MapViewMapLibreProps {
   /** 由语音助手/导览触发的测距：传入点序列即进入测距模式并画线。
    *  noFit=true 时不自动缩放（导览用，避免抢电影运镜的镜头）。 */
   voiceMeasure?: { points: [number, number][]; noFit?: boolean } | null
+  /** 测距点变化时回调(collab 同步用):经纪测距 → 广播 → 客户端 voiceMeasure 渲染 */
+  onMeasureChange?: (points: [number, number][] | null) => void
   /** 由语音助手触发的「区域配套放射图」：从区域中心向最近配套画连线+距离 */
   voiceAmenities?: {
     center: [number, number]; centerName: string; score: number; tier: string
@@ -170,6 +172,7 @@ function MapViewMapLibre({
   transportGeoJSON = null,
   showTransport = false,
   voiceMeasure = null,
+  onMeasureChange,
   voiceAmenities = null,
   hideAmenityPanel = false,
   chromeless = false,
@@ -251,6 +254,14 @@ function MapViewMapLibre({
     setMeasureMode(false)
     setMeasurePoints([])
   }, [])
+
+  // Surface measure points so collab can broadcast them (presenter) / a viewer can
+  // mirror them. Ref-held callback so this effect only depends on the points.
+  const onMeasureChangeRef = useRef(onMeasureChange)
+  onMeasureChangeRef.current = onMeasureChange
+  useEffect(() => {
+    onMeasureChangeRef.current?.(measurePoints.length ? measurePoints.map((p) => [p.lng, p.lat] as [number, number]) : null)
+  }, [measurePoints])
 
   // 测距模式：Esc 退出并清空
   useEffect(() => {

@@ -15,8 +15,10 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle, Globe } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
+import type { FollowMode } from './useCollabFollow'
 import type { CollabVoiceApi } from './useCollabVoice'
 
 const ACCENT = '#00E0B8'
@@ -37,6 +39,13 @@ export interface CollabBarProps {
   voicePrompt?: boolean
   /** true for the presenter (drives call vs answer framing) */
   isPresenter?: boolean
+  // ── merged session-bar controls (one unified bottom bar) ──────────────────
+  followMode?: FollowMode
+  onDetach?: () => void
+  onReturnToPresenter?: () => void
+  offMap?: boolean
+  onReturnToMap?: () => void
+  onExit?: () => void
 }
 
 function mmss(s: number): string {
@@ -66,7 +75,17 @@ export default function CollabBar({
   voice,
   voicePrompt,
   isPresenter,
+  followMode,
+  onDetach,
+  onReturnToPresenter,
+  offMap,
+  onReturnToMap,
+  onExit,
 }: CollabBarProps) {
+  const { i18n } = useTranslation()
+  const zh = (i18n.language || 'en').startsWith('zh')
+  const toggleLang = () => i18n.changeLanguage(zh ? 'en' : 'zh-CN')
+  const isFree = followMode === 'free'
   const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -86,13 +105,25 @@ export default function CollabBar({
 
   return createPortal(
     <>
-      {/* in-session controls — fixed bottom-RIGHT corner (keep the map centre clear
-          for drawing/markup). Viewer is chromeless (no app nav) → hug the edge;
-          presenter clears the mobile nav. Portaled to <body>. */}
-      <div className={`fixed ${isPresenter ? 'bottom-20' : 'bottom-4'} right-3 z-[2150] flex w-max items-center gap-2 md:bottom-6`}>
-        <div className="flex h-9 items-center gap-2 rounded-full bg-slate-900/75 px-2.5 shadow-lg backdrop-blur">
+      {/* ONE unified in-session bar, bottom-centre, above the app nav. Viewer is
+          chromeless (no nav) → hug the edge; presenter clears the mobile nav.
+          Portaled to <body> so it shows on every page. */}
+      <div className={`fixed ${isPresenter ? 'bottom-20' : 'bottom-4'} left-1/2 z-[2150] flex w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center md:bottom-6`}>
+        <div className="flex h-9 items-center gap-1.5 overflow-x-auto rounded-full bg-slate-900/85 px-2.5 shadow-lg ring-1 ring-white/10 backdrop-blur scrollbar-hide">
+          {/* live status */}
+          <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full" style={{ backgroundColor: isFree ? '#94a3b8' : ACCENT }} />
+          {/* viewer follow / detach toggle */}
+          {!isPresenter && onDetach && (isFree ? (
+            <button type="button" onClick={onReturnToPresenter} className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-slate-900" style={{ backgroundColor: ACCENT }}>{zh ? '回到经纪视角' : 'Rejoin'}</button>
+          ) : (
+            <button type="button" onClick={onDetach} className="shrink-0 rounded-full px-2 py-0.5 text-xs text-white ring-1 ring-white/25 transition hover:bg-white/10">{zh ? '自己看' : 'Explore'}</button>
+          ))}
+          {offMap && onReturnToMap && (
+            <button type="button" onClick={onReturnToMap} className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-slate-900" style={{ backgroundColor: ACCENT }}>{zh ? '回到地图' : 'Map'}</button>
+          )}
+          <span className="mx-0.5 h-4 w-px shrink-0 bg-white/10" />
           {/* participant dots */}
-          <div className="flex -space-x-1.5">
+          <div className="flex shrink-0 -space-x-1.5">
             {participants.slice(0, 5).map((p) => (
               <div
                 key={p.connId}
@@ -178,7 +209,29 @@ export default function CollabBar({
               title={isPresenter ? '发起语音通话' : voice.status === 'error' ? '连接失败 · 重试' : '经纪还没开启语音'}
             >
               <Phone className="h-4 w-4" style={{ color: ACCENT }} />
-              {isPresenter ? <span>语音通话</span> : <span className="text-slate-400">等待经纪</span>}
+              {isPresenter
+                ? <span className="hidden sm:inline">语音通话</span>
+                : <span className="hidden text-slate-400 sm:inline">等待经纪</span>}
+            </button>
+          )}
+
+          {/* language + exit (merged in from the old separate session bar) */}
+          <span className="mx-0.5 h-4 w-px shrink-0 bg-white/10" />
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs text-slate-200 transition hover:bg-white/10"
+            title={zh ? '切换语言' : 'Switch language'}
+          >
+            <Globe className="h-3.5 w-3.5" /> {zh ? 'EN' : '中'}
+          </button>
+          {onExit && (
+            <button
+              type="button"
+              onClick={onExit}
+              className="shrink-0 rounded-full px-2 py-0.5 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white"
+            >
+              {isPresenter ? (zh ? '结束' : 'End') : (zh ? '退出' : 'Leave')}
             </button>
           )}
         </div>
@@ -186,7 +239,7 @@ export default function CollabBar({
 
       {/* viewer incoming-call banner — bottom-right, above the controls */}
       {voice && voicePrompt && voice.status !== 'live' && voice.status !== 'connecting' && (
-        <div className="fixed bottom-16 right-3 z-[2150] w-max">
+        <div className="fixed bottom-16 left-1/2 z-[2150] w-max -translate-x-1/2">
           <button
             type="button"
             onClick={voice.connect}
@@ -201,7 +254,7 @@ export default function CollabBar({
 
       {/* chat panel — opens above the control capsule (bottom-right) */}
       {chatOpen && (
-        <div className={`fixed ${isPresenter ? 'bottom-32' : 'bottom-16'} right-3 z-[2150] flex w-[min(320px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur md:bottom-20`}>
+        <div className={`fixed ${isPresenter ? 'bottom-32' : 'bottom-16'} left-1/2 z-[2150] flex w-[min(320px,calc(100vw-1.5rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur md:bottom-20`}>
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
             <span className="text-sm font-semibold text-white">聊天</span>
             <button

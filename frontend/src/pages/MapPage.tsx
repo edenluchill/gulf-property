@@ -632,10 +632,16 @@ export default function MapPage() {
         landmark?: DubaiLandmark | null
         poi?: Poi | null
         station?: TransportStation | null
+        points?: [number, number][] | null
         on?: boolean
       }
       // Map drawing/markup ops are owned by useCollabDraw (its own subscription).
       if (a?.type === '__collab_draw') return
+      // Presenter's distance ruler → mirror it on the viewer (renders via voiceMeasure).
+      if (a?.type === '__collab_measure') {
+        setVoiceMeasure(a.points && a.points.length ? { points: a.points, noFit: true } : null)
+        return
+      }
       // A detached (Free) viewer is exploring on their own — don't yank panels open.
       const detached = followFreeRef.current
       if (a?.type === '__collab_landmark') {
@@ -680,6 +686,11 @@ export default function MapPage() {
 
   // Map drawing / markup (pen + eraser), geo-anchored + broadcast to the room.
   const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive })
+
+  // Presenter's distance-measure → broadcast so viewers see the same ruler.
+  const handleMeasureChange = useCallback((points: [number, number][] | null) => {
+    if (collabActiveRef.current) collabSendRef.current.sendMapAction({ type: '__collab_measure', points })
+  }, [])
 
   // Hide the global Luna pill during a collab live tour (in-session UI replaces it).
   const setLunaHidden = voiceContext.setHidden
@@ -1251,6 +1262,7 @@ export default function MapPage() {
             transportGeoJSON={transportGeoJSON}
             showTransport={showTransport}
             voiceMeasure={voiceMeasure}
+            onMeasureChange={handleMeasureChange}
             voiceAmenities={voiceAmenities}
             hideAmenityPanel={!!guidedTour}
           />
@@ -1293,16 +1305,10 @@ export default function MapPage() {
           {collabActive && (
             <CollabFrame
               role={collabMode === 'presenter' ? 'presenter' : 'viewer'}
-              peerName={collabPeerName}
               followMode={collab.followMode}
               shareUrl={collabShareUrl}
               onCopyShare={handleCopyShare}
               copied={shareCopied}
-              onExit={handleExitCollab}
-              offMap={!isMapPath(location.pathname, location.search)}
-              onReturnToMap={() => navigate('/')}
-              onReturnToPresenter={collab.returnToPresenter}
-              onDetach={collab.setFree}
             />
           )}
 
@@ -1339,6 +1345,12 @@ export default function MapPage() {
               voicePrompt={collabMode === 'viewer' && presenterVoiceOn}
               isPresenter={collabMode === 'presenter'}
               presenterName={collabPeerName}
+              followMode={collab.followMode}
+              onDetach={collab.setFree}
+              onReturnToPresenter={collab.returnToPresenter}
+              offMap={!isMapPath(location.pathname, location.search)}
+              onReturnToMap={() => navigate('/')}
+              onExit={handleExitCollab}
             />
           )}
 
