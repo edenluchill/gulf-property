@@ -2240,10 +2240,11 @@ export default function MapPage() {
         )
       })()}
 
-      {/* Mobile: Area Bottom Sheet */}
+      {/* Mobile: Area Bottom Sheet — taller so it's actually readable on a phone */}
       <MobileBottomSheet
         isOpen={showAreaSheet}
         onClose={handleCloseArea}
+        height="88vh"
         title={selectedArea?.name || ''}
         subtitle={!i18n.language?.startsWith('en') ? selectedArea?.translations?.[i18n.language?.split('-')[0] ?? '']?.name : undefined}
         headerImage={(() => {

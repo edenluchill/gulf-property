@@ -87,8 +87,10 @@ export default function CollabCursorLayer({ client, active, label }: CollabCurso
 
   if (!active) return null
 
+  // z above ALL app overlays (bottom sheets / lightbox / toasts are z-[10000]) so
+  // the presenter's cursor stays visible on every panel — Figma-style.
   return createPortal(
-    <div ref={layerRef} aria-hidden className="pointer-events-none fixed inset-0 z-[2200] overflow-hidden">
+    <div ref={layerRef} aria-hidden className="pointer-events-none fixed inset-0 z-[100000] overflow-hidden">
       <div
         ref={cursorRef}
         style={{
