@@ -673,7 +673,13 @@ export async function executeTool(
       const ratedHit = pois.filter(p => p.category === 'school' && p.khda_rating && p.distance_meters <= 5000)
         .sort((a, b) => a.distance_meters - b.distance_meters)[0]
       const ratedSchool = ratedHit
-        ? { name: ratedHit.name, khdaRating: ratedHit.khda_rating!, distanceKm: Number((ratedHit.distance_meters / 1000).toFixed(2)) }
+        ? { name: ratedHit.name, khdaRating: ratedHit.khda_rating!, distanceKm: Number((ratedHit.distance_meters / 1000).toFixed(2)), description: ratedHit.description_zh || undefined }
+        : null
+      // Nearest hospital with a description — so Luna can describe it if asked.
+      const hospHit = pois.filter(p => p.category === 'hospital' && p.description_zh && p.distance_meters <= 8000)
+        .sort((a, b) => a.distance_meters - b.distance_meters)[0]
+      const nearestHospital = hospHit
+        ? { name: hospHit.name, distanceKm: Number((hospHit.distance_meters / 1000).toFixed(2)), description: hospHit.description_zh || undefined }
         : null
 
       if (spokes.length === 0) {
@@ -697,8 +703,9 @@ export async function executeTool(
           tier,
           amenities: spokes.map(s => ({ type: s.label, name: s.name, distance_km: s.distanceKm, khda_rating: s.khdaRating || undefined })),
           nearest_rated_school: ratedSchool
-            ? { name: ratedSchool.name, khda_rating: ratedSchool.khdaRating, khda_rating_zh: khdaZh(ratedSchool.khdaRating), distance_km: ratedSchool.distanceKm }
+            ? { name: ratedSchool.name, khda_rating: ratedSchool.khdaRating, khda_rating_zh: khdaZh(ratedSchool.khdaRating), distance_km: ratedSchool.distanceKm, description: ratedSchool.description }
             : undefined,
+          nearest_hospital: nearestHospital || undefined,
         },
         summary: `${area.name} 生活便利度 ${score100}/100（${tier}）。最近：${list}。${ratedSchool ? `附近 ${ratedSchool.name}（约${ratedSchool.distanceKm}km）是 KHDA「${khdaZh(ratedSchool.khdaRating)}」官方评级学校（截至2023-24学年），适合有孩子的家庭。` : ''}`,
         mapAction: {
@@ -913,6 +920,8 @@ export async function executeTool(
       // Nearest KHDA-rated school within 5km, cited separately (doesn't distort score).
       const envRatedHit = pois.filter((p: any) => p.category === 'school' && p.khda_rating && p.distance_meters <= 5000)
         .sort((a: any, b: any) => a.distance_meters - b.distance_meters)[0]
+      const envHospHit = pois.filter((p: any) => p.category === 'hospital' && p.description_zh && p.distance_meters <= 8000)
+        .sort((a: any, b: any) => a.distance_meters - b.distance_meters)[0]
       const score100 = Math.round(score * 100)
       const tier = score100 >= 75 ? '优秀' : score100 >= 55 ? '良好' : score100 >= 35 ? '一般' : '偏远'
 
@@ -955,7 +964,13 @@ export async function executeTool(
       // panel animates. The lines are already written in a natural spoken style.
       const narration = stops.map((s, idx) => `${idx + 1}. ${s.line}`).join('\n')
       return {
-        result: { name, area, stops: stops.map(s => s.kind) },
+        result: {
+          name, area, stops: stops.map(s => s.kind),
+          // Context for Luna to describe a nearby institution if the buyer asks
+          // (don't auto-dump — keep voice concise).
+          nearby_school: envRatedHit ? { name: envRatedHit.name, khda_rating_zh: khdaZh(envRatedHit.khda_rating), description: envRatedHit.description_zh || undefined } : undefined,
+          nearby_hospital: envHospHit ? { name: envHospHit.name, description: envHospHit.description_zh || undefined } : undefined,
+        },
         summary: `已开始带看 ${name}（地图正逐站展示）。请用口语顺着把这三站讲出来，自然连贯、像带客户现场看房，不要照读、不要只说"分三步"：\n${narration}`,
         mapAction: { type: 'guided_tour', tour: { kind: projectId ? 'project' : 'area', projectId, name, area, lat, lng, image, stops } },
       }
