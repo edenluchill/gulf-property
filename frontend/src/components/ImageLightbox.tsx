@@ -76,6 +76,9 @@ export function ImageLightbox({
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({})
+  // Images stay full-brightness; each one does a one-time fade-up as it enters
+  // view (or once it loads — whichever first, so it can never get stuck hidden).
+  const [revealed, setRevealed] = useState<Set<number>>(new Set())
   const [isMobile, setIsMobile] = useState(false)
   const thumbnailListRef = useRef<HTMLDivElement>(null)
   const mainScrollRef = useRef<HTMLDivElement>(null)
@@ -102,6 +105,7 @@ export function ImageLightbox({
     if (isOpen) {
       setCurrentIndex(initialIndex)
       setImageLoaded({})
+      setRevealed(new Set([initialIndex]))
       // Scroll to initial image after mount
       requestAnimationFrame(() => {
         scrollToImage(initialIndex, false)
@@ -119,47 +123,41 @@ export function ImageLightbox({
     }
   }, [currentIndex, isMobile])
 
-  // Scroll detection - find which image is most visible
+  // Track the centered image (drives counter + thumbnail) and reveal images as
+  // they scroll into view — via IntersectionObserver against the scroll
+  // container. More reliable than per-frame center math, and it never dims the
+  // off-center images, so scrolling no longer goes dark.
   useEffect(() => {
-    if (isMobile || !mainScrollRef.current) return
+    if (isMobile || !isOpen || !mainScrollRef.current) return
 
     const container = mainScrollRef.current
-    let ticking = false
+    const ratios = new Array(images.length).fill(0)
 
-    const handleScroll = () => {
-      if (isScrollingToImage.current) return
-      if (ticking) return
-
-      ticking = true
-      requestAnimationFrame(() => {
-        const containerRect = container.getBoundingClientRect()
-        const containerCenter = containerRect.top + containerRect.height / 2
-
-        let closestIndex = 0
-        let closestDistance = Infinity
-
-        imageRefs.current.forEach((ref, index) => {
-          if (!ref) return
-          const rect = ref.getBoundingClientRect()
-          const imageCenter = rect.top + rect.height / 2
-          const distance = Math.abs(imageCenter - containerCenter)
-
-          if (distance < closestDistance) {
-            closestDistance = distance
-            closestIndex = index
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const idx = imageRefs.current.indexOf(entry.target as HTMLDivElement)
+          if (idx === -1) continue
+          ratios[idx] = entry.isIntersecting ? entry.intersectionRatio : 0
+          if (entry.intersectionRatio > 0.05) {
+            setRevealed((prev) => (prev.has(idx) ? prev : new Set(prev).add(idx)))
           }
-        })
-
-        if (closestIndex !== currentIndex) {
-          setCurrentIndex(closestIndex)
         }
-        ticking = false
-      })
-    }
+        // Don't fight a programmatic scroll-to (thumbnail click / arrows).
+        if (isScrollingToImage.current) return
+        let best = 0
+        let bestRatio = -1
+        for (let i = 0; i < ratios.length; i++) {
+          if (ratios[i] > bestRatio) { bestRatio = ratios[i]; best = i }
+        }
+        if (bestRatio > 0) setCurrentIndex((cur) => (cur === best ? cur : best))
+      },
+      { root: container, threshold: [0, 0.25, 0.5, 0.75, 1] }
+    )
 
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [isMobile, currentIndex])
+    imageRefs.current.forEach((el) => el && io.observe(el))
+    return () => io.disconnect()
+  }, [isMobile, isOpen, images.length])
 
   // Scroll to specific image
   const scrollToImage = useCallback((index: number, smooth = true) => {
@@ -265,6 +263,7 @@ export function ImageLightbox({
 
   const handleImageLoad = (index: number) => {
     setImageLoaded(prev => ({ ...prev, [index]: true }))
+    setRevealed(prev => (prev.has(index) ? prev : new Set(prev).add(index)))
   }
 
   const handleThumbnailClick = (index: number) => {
@@ -379,21 +378,26 @@ export function ImageLightbox({
         <div
           ref={mainScrollRef}
           className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide"
-          style={{ cursor: 'grab' }}
+          style={{ cursor: 'grab', background: 'radial-gradient(130% 90% at 50% -10%, #15151c 0%, #060608 58%, #000 100%)' }}
         >
-          <div className="flex flex-col items-center gap-8 px-8 py-20">
+          <div className="flex flex-col items-center gap-10 px-8 py-20">
             {images.map((image, index) => (
               <div
                 key={index}
                 ref={el => imageRefs.current[index] = el}
-                className={`relative w-full max-w-5xl transition-all duration-500 ease-out ${
-                  index === currentIndex
-                    ? 'opacity-100 scale-100'
-                    : 'opacity-40 scale-[0.96]'
+                className={`relative w-full max-w-5xl transition-[opacity,transform] duration-700 ease-out ${
+                  revealed.has(index)
+                    ? 'opacity-100 translate-y-0'
+                    : 'opacity-0 translate-y-8'
                 }`}
               >
-                {/* Image container */}
-                <div className="relative rounded-2xl overflow-hidden bg-white/5 shadow-2xl">
+                {/* Image container — stays bright; the centered one gets a subtle
+                    premium lift (softer ring + deeper shadow), never dims others. */}
+                <div className={`relative rounded-2xl overflow-hidden bg-white/5 transition-all duration-500 ease-out ${
+                  index === currentIndex
+                    ? 'ring-1 ring-white/20 shadow-[0_40px_110px_-30px_rgba(0,0,0,0.95)]'
+                    : 'ring-1 ring-white/[0.08] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]'
+                }`}>
                   {/* Loading skeleton */}
                   {!imageLoaded[index] && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/5 min-h-[300px]">
