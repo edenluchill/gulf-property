@@ -76,9 +76,10 @@ export default function CollabFrame({
       {createPortal(
         <>
           {/* persistent session bar — fixed bottom-LEFT corner (keep the map's
-              centre clear for drawing/markup); above the drawer (z>2100); clears
-              the mobile nav. */}
-          <div className="fixed bottom-20 left-3 z-[2150] w-max md:bottom-6">
+              centre clear for drawing/markup); above the drawer (z>2100). The
+              viewer has NO app nav (chromeless) so it hugs the edge; the presenter
+              keeps clear of the mobile nav. */}
+          <div className={`fixed ${role === 'viewer' ? 'bottom-4' : 'bottom-20'} left-3 z-[2150] w-max md:bottom-6`}>
             <div className="flex items-center gap-1.5 rounded-full bg-slate-900/90 px-3 py-1.5 text-sm text-white shadow-lg ring-1 ring-white/10 backdrop-blur">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ backgroundColor: neutral ? '#94a3b8' : ACCENT }} />
               <span className="hidden font-medium sm:inline">{zh ? '实时带看中' : 'Live tour'}</span>
