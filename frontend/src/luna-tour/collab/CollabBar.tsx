@@ -86,10 +86,9 @@ export default function CollabBar({
 
   return createPortal(
     <>
-      {/* in-session controls — fixed, bottom-right, off the top map tools; portaled
-          to <body> so they stay visible on every page (the session survives nav).
-          The Free "回到经纪视角" affordance now lives in the bottom session bar. */}
-      <div className="fixed bottom-24 right-3 z-[2150] flex items-center gap-2 md:bottom-6">
+      {/* in-session controls — fixed bottom-RIGHT corner (keep the map centre clear
+          for drawing/markup). Portaled to <body> so they show on every page. */}
+      <div className="fixed bottom-20 right-3 z-[2150] flex w-max items-center gap-2 md:bottom-6">
         <div className="flex h-9 items-center gap-2 rounded-full bg-slate-900/75 px-2.5 shadow-lg backdrop-blur">
           {/* participant dots */}
           <div className="flex -space-x-1.5">
@@ -184,9 +183,9 @@ export default function CollabBar({
         </div>
       </div>
 
-      {/* viewer incoming-call banner — bottom-center, impossible to miss */}
+      {/* viewer incoming-call banner — bottom-right, above the controls */}
       {voice && voicePrompt && voice.status !== 'live' && voice.status !== 'connecting' && (
-        <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[2150]">
+        <div className="fixed bottom-32 right-3 z-[2150] w-max">
           <button
             type="button"
             onClick={voice.connect}
@@ -199,9 +198,9 @@ export default function CollabBar({
         </div>
       )}
 
-      {/* chat panel — opens above the control capsule */}
+      {/* chat panel — opens above the control capsule (bottom-right) */}
       {chatOpen && (
-        <div className="fixed bottom-40 right-3 z-[2150] flex w-[300px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur">
+        <div className="fixed bottom-32 right-3 z-[2150] flex w-[min(320px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur md:bottom-20">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
             <span className="text-sm font-semibold text-white">聊天</span>
             <button

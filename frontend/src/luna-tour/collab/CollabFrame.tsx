@@ -75,12 +75,13 @@ export default function CollabFrame({
 
       {createPortal(
         <>
-          {/* persistent session bar — fixed, bottom-center, above the project drawer
-              (z>2100) so it's reachable everywhere; clears the mobile nav. */}
-          <div className="fixed bottom-20 left-1/2 z-[2150] -translate-x-1/2 md:bottom-6">
+          {/* persistent session bar — fixed bottom-LEFT corner (keep the map's
+              centre clear for drawing/markup); above the drawer (z>2100); clears
+              the mobile nav. */}
+          <div className="fixed bottom-20 left-3 z-[2150] w-max md:bottom-6">
             <div className="flex items-center gap-1.5 rounded-full bg-slate-900/90 px-3 py-1.5 text-sm text-white shadow-lg ring-1 ring-white/10 backdrop-blur">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: neutral ? '#94a3b8' : ACCENT }} />
-              <span className="font-medium">{zh ? '实时带看中' : 'Live tour'}</span>
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ backgroundColor: neutral ? '#94a3b8' : ACCENT }} />
+              <span className="hidden font-medium sm:inline">{zh ? '实时带看中' : 'Live tour'}</span>
               {peerName && (
                 <span className="hidden text-slate-300 sm:inline">· {zh ? '与' : 'with'} {peerName}</span>
               )}
@@ -140,9 +141,10 @@ export default function CollabFrame({
             </div>
           </div>
 
-          {/* presenter share strip — fixed, bottom-left */}
+          {/* presenter share strip — stacked above the controls (center on mobile),
+              bottom-left on desktop where there's room. */}
           {role === 'presenter' && shareUrl && (
-            <div className="fixed bottom-4 left-3 z-[2150] flex max-w-[min(420px,calc(100vw-1.5rem))] items-center gap-2 rounded-2xl bg-slate-900/90 px-3 py-2 shadow-xl ring-1 ring-white/10 backdrop-blur">
+            <div className="fixed bottom-32 left-3 z-[2150] flex w-[min(330px,calc(100vw-1.5rem))] items-center gap-2 rounded-2xl bg-slate-900/90 px-3 py-2 shadow-xl ring-1 ring-white/10 backdrop-blur md:bottom-4 md:w-auto md:max-w-[420px]">
               <span className="hidden text-xs text-slate-400 sm:inline">分享链接</span>
               <code className="min-w-0 flex-1 truncate rounded-md bg-black/30 px-2 py-1 text-xs text-slate-200">
                 {shareUrl}

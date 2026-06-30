@@ -1364,9 +1364,8 @@ export default function MapPage() {
           {/* (移除了移动端「当前指标」指示器:右上指标条已高亮选中项,地图每个区也直接
               显示指标值,这个左上 pill 既冗余又会和筛选/找房助手按钮重叠。) */}
 
-          {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位;
-              collab 态再下移一档,避开右上角的实时带看参与者胶囊 */}
-          <div data-testid="map-mobile-controls" className={`absolute ${collabActive ? 'top-16' : 'top-3'} right-3 z-[1000] md:hidden`}>
+          {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
+          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
               {/* Metrics row */}
               <div className="flex border-b border-slate-100">
