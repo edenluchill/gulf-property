@@ -12,6 +12,8 @@
  * Renders NOTHING for browse mode (the caller doesn't mount it).
  */
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import { Globe } from 'lucide-react'
 import type { FollowMode } from './useCollabFollow'
 
 const ACCENT = '#00E0B8'
@@ -33,6 +35,8 @@ export interface CollabFrameProps {
   offMap?: boolean
   /** jump back to the synced map */
   onReturnToMap?: () => void
+  /** viewer re-follows the presenter (when detached / Free) */
+  onReturnToPresenter?: () => void
 }
 
 export default function CollabFrame({
@@ -45,7 +49,11 @@ export default function CollabFrame({
   onExit,
   offMap,
   onReturnToMap,
+  onReturnToPresenter,
 }: CollabFrameProps) {
+  const { i18n } = useTranslation()
+  const zh = (i18n.language || 'en').startsWith('zh')
+  const toggleLang = () => i18n.changeLanguage(zh ? 'en' : 'zh-CN')
   const neutral = followMode === 'free'
   const ringColor = neutral ? 'rgba(148,163,184,0.6)' : ACCENT
   const glow = neutral
@@ -66,31 +74,54 @@ export default function CollabFrame({
           {/* persistent session bar — fixed, bottom-center, above the project drawer
               (z>2100) so it's reachable everywhere; clears the mobile nav. */}
           <div className="fixed bottom-20 left-1/2 z-[2150] -translate-x-1/2 md:bottom-6">
-            <div className="flex items-center gap-2 rounded-full bg-slate-900/90 px-3.5 py-1.5 text-sm text-white shadow-lg ring-1 ring-white/10 backdrop-blur">
+            <div className="flex items-center gap-1.5 rounded-full bg-slate-900/90 px-3 py-1.5 text-sm text-white shadow-lg ring-1 ring-white/10 backdrop-blur">
               <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: neutral ? '#94a3b8' : ACCENT }} />
-              <span className="font-medium">实时带看中</span>
+              <span className="font-medium">{zh ? '实时带看中' : 'Live tour'}</span>
               {peerName && (
-                <>
-                  <span className="text-slate-400">·</span>
-                  <span className="hidden text-slate-200 sm:inline">与 {peerName}</span>
-                </>
+                <span className="hidden text-slate-300 sm:inline">· {zh ? '与' : 'with'} {peerName}</span>
+              )}
+
+              {/* detached viewer → jump back into the presenter's view */}
+              {neutral && onReturnToPresenter && (
+                <button
+                  type="button"
+                  onClick={onReturnToPresenter}
+                  className="ml-0.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-slate-900"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  {zh ? '回到经纪视角' : 'Rejoin'}
+                </button>
               )}
               {offMap && onReturnToMap && (
                 <button
                   type="button"
                   onClick={onReturnToMap}
-                  className="ml-1 rounded-full px-2 py-0.5 text-xs font-medium text-slate-900"
+                  className="ml-0.5 rounded-full px-2.5 py-0.5 text-xs font-medium text-slate-900"
                   style={{ backgroundColor: ACCENT }}
                 >
-                  回到地图
+                  {zh ? '回到地图' : 'Map'}
                 </button>
               )}
+
+              {/* language toggle — always reachable so the client can read in their
+                  language no matter which panel they're in (auto-detected at first
+                  load from the browser, this lets them override). */}
+              <button
+                type="button"
+                onClick={toggleLang}
+                className="ml-0.5 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-slate-200 transition hover:bg-white/10"
+                title={zh ? '切换语言' : 'Switch language'}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                {zh ? 'EN' : '中'}
+              </button>
+
               <button
                 type="button"
                 onClick={onExit}
-                className="ml-0.5 rounded-full px-2 py-0.5 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white"
+                className="rounded-full px-2 py-0.5 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white"
               >
-                {role === 'viewer' ? '退出' : '结束'}
+                {role === 'viewer' ? (zh ? '退出' : 'Leave') : (zh ? '结束' : 'End')}
               </button>
             </div>
           </div>

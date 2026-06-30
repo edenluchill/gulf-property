@@ -201,6 +201,10 @@ export default function MapPage() {
   const [projectTab, setProjectTab] = useState('overview')
   const openProjectIdRef = useRef<string | null>(null)
   useEffect(() => { openProjectIdRef.current = openProjectId }, [openProjectId])
+  // Viewer's follow state, in a ref the remote handlers can read: when the client
+  // has DETACHED (Free), we don't force the presenter's panels open on them — they
+  // get to explore on their own ("share everything… unless they detached").
+  const followFreeRef = useRef(false)
 
   // Live maplibre instance for the collab hooks (set via onMapReady). The camera
   // is driven imperatively through this — never via React state (perf rule).
@@ -429,6 +433,17 @@ export default function MapPage() {
     if (!collabActiveRef.current) return
     collabSendRef.current.sendMapAction({ type: '__collab_landmark', landmark: selectedLandmark })
   }, [selectedLandmark])
+  // Same mirroring for POI + transport-station popups, so "everything the agent
+  // opens, the client sees" — not just landmarks. Viewers re-fetch details from
+  // their own setSelected* effects, so broadcasting the bare object is enough.
+  useEffect(() => {
+    if (!collabActiveRef.current) return
+    collabSendRef.current.sendMapAction({ type: '__collab_poi', poi: selectedPoi })
+  }, [selectedPoi])
+  useEffect(() => {
+    if (!collabActiveRef.current) return
+    collabSendRef.current.sendMapAction({ type: '__collab_station', station: selectedStation })
+  }, [selectedStation])
 
   // Voice-triggered distance measurement
   const [voiceMeasure, setVoiceMeasure] = useState<{ points: [number, number][]; noFit?: boolean } | null>(null)
@@ -562,6 +577,7 @@ export default function MapPage() {
           setOpenProjectId(null)
           return
         }
+        if (followFreeRef.current) return // detached client explores on their own
         const isNew = openProjectIdRef.current !== id
         setOpenProjectId(id)
         if (tab) setProjectTab(tab)
@@ -577,6 +593,7 @@ export default function MapPage() {
           setShowAreaSheet(false)
           return
         }
+        if (followFreeRef.current) return // detached client explores on their own
         const area = dubaiAreas.find((a) => a.id === id)
         if (area) handleAreaClick(area)
       }
@@ -607,10 +624,26 @@ export default function MapPage() {
   }, [])
   const handleRemoteMapAction = useCallback(
     (action: unknown) => {
-      // internal collab broadcast: presenter's landmark popup open/close.
-      const a = action as { type?: string; landmark?: DubaiLandmark | null; on?: boolean }
+      // internal collab broadcast: presenter's landmark / POI / station popups.
+      const a = action as {
+        type?: string
+        landmark?: DubaiLandmark | null
+        poi?: Poi | null
+        station?: TransportStation | null
+        on?: boolean
+      }
+      // A detached (Free) viewer is exploring on their own — don't yank panels open.
+      const detached = followFreeRef.current
       if (a?.type === '__collab_landmark') {
-        setSelectedLandmark(a.landmark ?? null)
+        if (!detached) setSelectedLandmark(a.landmark ?? null)
+        return
+      }
+      if (a?.type === '__collab_poi') {
+        if (!detached) setSelectedPoi(a.poi ?? null)
+        return
+      }
+      if (a?.type === '__collab_station') {
+        if (!detached) setSelectedStation(a.station ?? null)
         return
       }
       if (a?.type === '__collab_voice') {
@@ -639,6 +672,7 @@ export default function MapPage() {
     collabActiveRef.current = collabMode === 'presenter'
     collabAnyRef.current = collabMode !== 'browse'
   }, [collabMode])
+  useEffect(() => { followFreeRef.current = collab.followMode === 'free' }, [collab.followMode])
 
   // Hide the global Luna pill during a collab live tour (in-session UI replaces it).
   const setLunaHidden = voiceContext.setHidden
@@ -1271,6 +1305,7 @@ export default function MapPage() {
               onExit={handleExitCollab}
               offMap={!isMapPath(location.pathname, location.search)}
               onReturnToMap={() => navigate('/')}
+              onReturnToPresenter={collab.returnToPresenter}
             />
           )}
 
@@ -1302,11 +1337,6 @@ export default function MapPage() {
               voice={voice}
               voicePrompt={collabMode === 'viewer' && presenterVoiceOn}
               isPresenter={collabMode === 'presenter'}
-              follow={
-                collabMode === 'viewer' && collab.followMode
-                  ? { mode: collab.followMode, returnToPresenter: collab.returnToPresenter }
-                  : undefined
-              }
               presenterName={collabPeerName}
             />
           )}

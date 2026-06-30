@@ -14,9 +14,9 @@
  * elsewhere (performance hard rule).
  */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
-import type { FollowMode } from './useCollabFollow'
 import type { CollabVoiceApi } from './useCollabVoice'
 
 const ACCENT = '#00E0B8'
@@ -29,9 +29,7 @@ export interface CollabBarProps {
   /** display name used when sending chat */
   myName: string
   onSendChat: (text: string) => void
-  /** viewer follow state — omit for the presenter (no Free pill) */
-  follow?: { mode: FollowMode; returnToPresenter: () => void }
-  /** presenter display name for the "回到 X 视角" pill */
+  /** presenter/peer display name (for the incoming-call banner) */
   presenterName?: string
   /** in-app voice (Agora). Omit → mic stays a disabled placeholder. */
   voice?: CollabVoiceApi
@@ -64,7 +62,6 @@ export default function CollabBar({
   myConnId,
   myName,
   onSendChat,
-  follow,
   presenterName,
   voice,
   voicePrompt,
@@ -87,26 +84,12 @@ export default function CollabBar({
     setDraft('')
   }
 
-  const isFree = follow?.mode === 'free'
-
-  return (
+  return createPortal(
     <>
-      {/* viewer Free pill — centered top, taps back to following */}
-      {isFree && follow && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1006]">
-          <button
-            type="button"
-            onClick={follow.returnToPresenter}
-            className="flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2 text-sm font-medium text-white shadow-xl backdrop-blur transition hover:bg-slate-900"
-          >
-            <span className="text-slate-300">已脱离 ·</span>
-            <span style={{ color: ACCENT }}>回到 {presenterName || '经纪'} 视角</span>
-          </button>
-        </div>
-      )}
-
-      {/* top-right capsule */}
-      <div className="absolute top-3 right-3 z-[1006] flex items-center gap-2">
+      {/* in-session controls — fixed, bottom-right, off the top map tools; portaled
+          to <body> so they stay visible on every page (the session survives nav).
+          The Free "回到经纪视角" affordance now lives in the bottom session bar. */}
+      <div className="fixed bottom-24 right-3 z-[2150] flex items-center gap-2 md:bottom-6">
         <div className="flex h-9 items-center gap-2 rounded-full bg-slate-900/75 px-2.5 shadow-lg backdrop-blur">
           {/* participant dots */}
           <div className="flex -space-x-1.5">
@@ -201,9 +184,9 @@ export default function CollabBar({
         </div>
       </div>
 
-      {/* viewer incoming-call banner — center top, impossible to miss */}
+      {/* viewer incoming-call banner — bottom-center, impossible to miss */}
       {voice && voicePrompt && voice.status !== 'live' && voice.status !== 'connecting' && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1006]">
+        <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[2150]">
           <button
             type="button"
             onClick={voice.connect}
@@ -216,9 +199,9 @@ export default function CollabBar({
         </div>
       )}
 
-      {/* chat panel — slides up from the bottom; collapsed takes no space */}
+      {/* chat panel — opens above the control capsule */}
       {chatOpen && (
-        <div className="absolute bottom-4 right-3 z-[1006] flex w-[300px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur">
+        <div className="fixed bottom-40 right-3 z-[2150] flex w-[300px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
             <span className="text-sm font-semibold text-white">聊天</span>
             <button
@@ -276,6 +259,7 @@ export default function CollabBar({
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body,
   )
 }
