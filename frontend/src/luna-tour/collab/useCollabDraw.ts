@@ -120,89 +120,115 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
     return () => off()
   }, [active, client, ensureLayer, render])
 
-  // ── local pointer drawing / erasing ───────────────────────────────────────
+  // ── drawing / erasing via MAPLIBRE events (not raw DOM) ────────────────────
+  // Using map.on('mousemove'/'touchmove') gives us e.lngLat directly and, crucially,
+  // e.preventDefault() cancels the map's OWN pan for that gesture — so a one-finger
+  // drag draws a continuous line instead of fighting the map (the "only dots" bug).
+  // Touch: ONE finger draws; TWO+ fingers are left alone so pinch-zoom still works
+  // (and a second finger mid-stroke aborts that stroke — no more two-finger scribble).
   useEffect(() => {
     if (!active) return
-    let canvas: HTMLElement | null = null
+    let map: MaplibreMap | null = null
     let drawing = false
     let cur: Stroke | null = null
 
-    const llOf = (map: MaplibreMap, e: PointerEvent): [number, number] => {
-      const r = map.getCanvasContainer().getBoundingClientRect()
-      const p = map.unproject([e.clientX - r.left, e.clientY - r.top])
-      return [p.lng, p.lat]
+    const newStroke = (lng: number, lat: number): Stroke => ({
+      id: `s_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
+      color: colorRef.current,
+      pts: [[lng, lat]],
+    })
+    const cancel = () => {
+      if (cur) strokes.current.delete(cur.id)
+      drawing = false; cur = null; render()
     }
-
-    const onDown = (e: PointerEvent) => {
-      const map = getMapRef.current?.()
-      if (!map) return
-      const t = toolRef.current
-      if (t === 'pen') {
-        drawing = true
-        cur = {
-          id: `s_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
-          color: colorRef.current,
-          pts: [llOf(map, e)],
-        }
-        strokes.current.set(cur.id, cur)
-        try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
-      } else if (t === 'eraser') {
-        const r = map.getCanvasContainer().getBoundingClientRect()
-        const x = e.clientX - r.left, y = e.clientY - r.top
-        const hits = map.queryRenderedFeatures([[x - 9, y - 9], [x + 9, y + 9]], { layers: [LAYER] })
-        const id = hits[0]?.properties?.id as string | undefined
-        if (id) { strokes.current.delete(id); broadcast({ type: '__collab_draw', op: 'erase', id }); render() }
-      }
-    }
-    const onMove = (e: PointerEvent) => {
-      if (!drawing || !cur) return
-      const map = getMapRef.current?.()
-      if (!map) return
-      cur.pts.push(llOf(map, e))
-      render()
-    }
-    const onUp = () => {
+    const finish = () => {
       if (drawing && cur) {
         if (cur.pts.length >= 2) broadcast({ type: '__collab_draw', op: 'add', stroke: cur })
         else strokes.current.delete(cur.id)
         render()
       }
-      drawing = false
-      cur = null
+      drawing = false; cur = null
+    }
+    const eraseAt = (m: MaplibreMap, pt: { x: number; y: number }) => {
+      const hits = m.queryRenderedFeatures([[pt.x - 10, pt.y - 10], [pt.x + 10, pt.y + 10]], { layers: [LAYER] })
+      const id = hits[0]?.properties?.id as string | undefined
+      if (id) { strokes.current.delete(id); broadcast({ type: '__collab_draw', op: 'erase', id }); render() }
     }
 
-    // wait for the map's canvas, then attach
+    // shared by mouse + (single-finger) touch
+    type LL = { lng: number; lat: number }
+    const begin = (m: MaplibreMap, ll: LL, pt: { x: number; y: number }, e: { preventDefault: () => void }) => {
+      const t = toolRef.current
+      if (t === 'pen') {
+        e.preventDefault()
+        cur = newStroke(ll.lng, ll.lat)
+        strokes.current.set(cur.id, cur)
+        drawing = true
+      } else if (t === 'eraser') {
+        e.preventDefault()
+        eraseAt(m, pt)
+      }
+    }
+    const move = (ll: LL, e: { preventDefault: () => void }) => {
+      if (!drawing || !cur) return
+      e.preventDefault()
+      cur.pts.push([ll.lng, ll.lat])
+      render()
+    }
+
+    // maplibre event shapes
+    type MEvt = { lngLat: LL; point: { x: number; y: number }; preventDefault: () => void }
+    type TEvt = MEvt & { points: { x: number; y: number }[] }
+
+    const onMouseDown = (e: MEvt) => { if (map) begin(map, e.lngLat, e.point, e) }
+    const onMouseMove = (e: MEvt) => move(e.lngLat, e)
+    const onMouseUp = () => finish()
+    const onTouchStart = (e: TEvt) => {
+      if (e.points.length > 1) { if (drawing) cancel(); return } // two-finger → let map zoom
+      if (map) begin(map, e.lngLat, e.point, e)
+    }
+    const onTouchMove = (e: TEvt) => {
+      if (e.points.length > 1) { if (drawing) cancel(); return }
+      move(e.lngLat, e)
+    }
+    const onTouchEnd = () => finish()
+
     let tries = 0
     const wire = setInterval(() => {
-      const map = getMapRef.current?.()
-      if (map) {
-        canvas = map.getCanvasContainer()
-        canvas.addEventListener('pointerdown', onDown)
-        window.addEventListener('pointermove', onMove)
-        window.addEventListener('pointerup', onUp)
+      const m = getMapRef.current?.()
+      if (m) {
+        map = m
+        m.on('mousedown', onMouseDown as never)
+        m.on('mousemove', onMouseMove as never)
+        m.on('mouseup', onMouseUp as never)
+        m.on('touchstart', onTouchStart as never)
+        m.on('touchmove', onTouchMove as never)
+        m.on('touchend', onTouchEnd as never)
         clearInterval(wire)
       } else if (++tries > 60) clearInterval(wire)
     }, 150)
 
     return () => {
       clearInterval(wire)
-      canvas?.removeEventListener('pointerdown', onDown)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
+      if (map) {
+        map.off('mousedown', onMouseDown as never)
+        map.off('mousemove', onMouseMove as never)
+        map.off('mouseup', onMouseUp as never)
+        map.off('touchstart', onTouchStart as never)
+        map.off('touchmove', onTouchMove as never)
+        map.off('touchend', onTouchEnd as never)
+      }
     }
   }, [active, render, broadcast])
 
-  // ── disable single-pointer pan while a draw tool is active ─────────────────
+  // crosshair cursor while a draw tool is active (pan is handled per-gesture via
+  // e.preventDefault above, so dragPan stays enabled → two-finger zoom keeps working).
   useEffect(() => {
     if (!active) return
     const map = getMapRef.current?.()
     if (!map) return
-    const drawingTool = tool === 'pen' || tool === 'eraser'
-    try {
-      if (drawingTool) { map.dragPan.disable(); map.getCanvasContainer().style.cursor = 'crosshair' }
-      else { map.dragPan.enable(); map.getCanvasContainer().style.cursor = '' }
-    } catch { /* ignore */ }
-    return () => { try { map.dragPan.enable(); map.getCanvasContainer().style.cursor = '' } catch { /* ignore */ } }
+    try { map.getCanvasContainer().style.cursor = (tool === 'pen' || tool === 'eraser') ? 'crosshair' : '' } catch { /* ignore */ }
+    return () => { try { map.getCanvasContainer().style.cursor = '' } catch { /* ignore */ } }
   }, [tool, active])
 
   const clearAll = useCallback(() => {
