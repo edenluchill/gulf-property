@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { useCollabSocket } from './useCollabSocket'
 import { useCollabPresenter } from './useCollabPresenter'
+import { useCollabPresenterCursor, useCollabRemoteCursor } from './useCollabCursor'
 import { useCollabFollow, type FlyToArgs, type FollowMode } from './useCollabFollow'
 import { chatMessage, selectMessage } from './collab-actions'
 import type { Participant, ChatEntry, SelectKind, ServerMsg } from './protocol'
@@ -64,6 +65,20 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
 
   // presenter samples + broadcasts its camera; viewers pass active=false.
   useCollabPresenter({ getMap, client: socket.client, active: active && mode === 'presenter' })
+
+  // live cursor: presenter broadcasts its pointer; the viewer renders it. Uses
+  // the `cur` channel (server already fans it out) — pure imperative DOM.
+  useCollabPresenterCursor({ getMap, client: socket.client, active: active && mode === 'presenter' })
+  const presenterName = useMemo(
+    () => socket.participants.find((p) => p.connId === socket.presenterConnId)?.name,
+    [socket.participants, socket.presenterConnId]
+  )
+  useCollabRemoteCursor({
+    getMap,
+    client: socket.client,
+    active: active && mode === 'viewer',
+    label: presenterName || '经纪',
+  })
 
   const follow = useCollabFollow({
     getMap,

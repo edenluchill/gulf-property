@@ -69,11 +69,7 @@ function genConnId(): string {
   return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function createRoom(creatorName?: string): { room: Room; code: string } {
-  // 保证 code 唯一(碰撞极罕见,但兜一下)
-  let code = randomCode()
-  while (codeToId.has(code)) code = randomCode()
-
+function buildRoom(code: string, creatorName?: string): Room {
   const room: Room = {
     id: genId(),
     code,
@@ -92,7 +88,34 @@ export function createRoom(creatorName?: string): { room: Room; code: string } {
   }
   rooms.set(room.id, room)
   codeToId.set(code, room.id)
-  return { room, code }
+  return room
+}
+
+export function createRoom(creatorName?: string): { room: Room; code: string } {
+  // 保证 code 唯一(碰撞极罕见,但兜一下)
+  let code = randomCode()
+  while (codeToId.has(code)) code = randomCode()
+  return { room: buildRoom(code, creatorName), code }
+}
+
+/** 归一化外部传入的 code(经纪稳定 code / 重连):限我们的字母表与长度,
+ *  防止 presenter 凭空捏造任意房间 id。无效返回 null。 */
+function normalizeCode(code: string): string | null {
+  const norm = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (norm.length < 4 || norm.length > 8) return null
+  return norm
+}
+
+/**
+ * 用「指定 code」拿房间:已存在就返回原房间,不存在就以该 code 新建。
+ * 用途:① 经纪稳定分享链接(同一 code 永远复用同一房间);② presenter 断线/
+ * 服务器重启后房间被回收,用同一 code 复活,使分享出去的链接永不失效。
+ * 仅 presenter 路径调用(viewer 找不到房间应提示「主持人不在线」,不在此重建)。
+ */
+export function ensureRoomWithCode(code: string, creatorName?: string): Room | null {
+  const norm = normalizeCode(code)
+  if (!norm) return null
+  return getRoomByCode(norm) ?? buildRoom(norm, creatorName)
 }
 
 export function getRoomByCode(code: string): Room | null {

@@ -13,7 +13,8 @@ import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
-import { createCollabRoom } from '../luna-tour/collab/collabApi'
+import { createCollabRoom, deriveHostCode } from '../luna-tour/collab/collabApi'
+import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
@@ -647,7 +648,11 @@ export default function MapPage() {
   // Start a tour (owner only): create a room, enter presenter mode.
   const handleStartTour = useCallback(async () => {
     try {
-      const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined)
+      // Stable per-agent code → the agent (and their clients) always use the SAME
+      // link; the server revives that room on reconnect so old links never die.
+      const seed = user?.id || user?.email || ''
+      const stable = seed ? deriveHostCode(seed) : undefined
+      const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined, stable)
       setPresenterCode(code)
       // Persist the room in the URL (?host=code) so a refresh re-enters presenter
       // mode and rejoins the SAME room (server reclaims the camera on reconnect).
@@ -655,7 +660,7 @@ export default function MapPage() {
     } catch (e) {
       console.error('[collab] failed to create room', e)
     }
-  }, [user?.email, setSearchParams])
+  }, [user?.id, user?.email, setSearchParams])
 
   // Presenter refresh / deep-link (?host=code): re-enter presenter mode and rejoin
   // the existing room (no new room created). Runs once.
@@ -683,6 +688,15 @@ export default function MapPage() {
   }, [searchParams, isOwner, collabActive, presenterCode, handleStartTour, setSearchParams])
 
   const collabShareUrl = presenterCode ? `${window.location.origin}/t/${presenterCode}` : undefined
+
+  // Presenter onboarding card ("share your link") — shown until dismissed; reset
+  // each time a new tour starts. A viewer joining flips it to the success state.
+  const [guideDismissed, setGuideDismissed] = useState(false)
+  useEffect(() => { setGuideDismissed(false) }, [presenterCode])
+  const hasViewer = useMemo(
+    () => collab.participants.some((p) => p.role === 'viewer'),
+    [collab.participants]
+  )
   const handleCopyShare = useCallback(() => {
     if (!collabShareUrl) return
     navigator.clipboard?.writeText(collabShareUrl).then(
@@ -1209,6 +1223,17 @@ export default function MapPage() {
               onCopyShare={handleCopyShare}
               copied={shareCopied}
               onExit={handleExitCollab}
+            />
+          )}
+
+          {/* Collab: presenter onboarding ("share your link to clients") */}
+          {collabMode === 'presenter' && presenterCode && !guideDismissed && (
+            <CollabPresenterGuide
+              shareUrl={collabShareUrl}
+              copied={shareCopied}
+              onCopyShare={handleCopyShare}
+              hasViewer={hasViewer}
+              onDismiss={() => setGuideDismissed(true)}
             />
           )}
 

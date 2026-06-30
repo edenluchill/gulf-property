@@ -46,9 +46,12 @@ export interface CamMsg extends Cam {
 }
 export interface CurMsg {
   k: 'cur'
-  /** normalized cursor 0..1 */
+  /** normalized cursor 0..1 (relative to the presenter's map container) */
   x: number
   y: number
+  /** true on a tap / pointerdown — viewers spawn a ripple at (x,y). Lets a phone
+   *  presenter (no hover) still show clients "what I'm tapping". */
+  tap?: boolean
 }
 
 // ── ② reliable · ordered (server stamps `seq`, client de-dupes) ────────────

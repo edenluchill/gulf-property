@@ -16,6 +16,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { Server } from 'http'
 import {
   createRoom,
+  ensureRoomWithCode,
   getRoomByCode,
   joinRoom,
   leave,
@@ -113,7 +114,14 @@ export function initCollabWebSocket(server: Server): void {
 
       // ── 控制:hello(进房/重连)──────────────────────
       if (msg.k === 'hello') {
-        const joined = joinRoom(msg.code, ws, msg.name || '访客', msg.role === 'presenter' ? 'presenter' : 'viewer')
+        const role = msg.role === 'presenter' ? 'presenter' : 'viewer'
+        let joined = joinRoom(msg.code, ws, msg.name || '访客', role)
+        // presenter 重连而房间已被回收(空房 TTL / 服务器重启)→ 用同一 code 复活,
+        // 使经纪/客户分享出去的链接永不失效。viewer 找不到房间则照旧提示离线。
+        if (!joined && role === 'presenter') {
+          ensureRoomWithCode(msg.code, msg.name)
+          joined = joinRoom(msg.code, ws, msg.name || '访客', role)
+        }
         if (!joined) {
           ws.send(JSON.stringify({ k: 'error', reason: 'room_not_found' }))
           ws.close()
@@ -220,10 +228,15 @@ router.post('/rooms', async (req, res) => {
     const q = await checkCredits(agentId, 'live_tours')
     if (!q.allowed) { const e = creditError('live_tours', q); return res.status(e.status).json(e.body) }
   }
-  const { name } = req.body || {}
-  const { code } = createRoom(typeof name === 'string' ? name : undefined)
+  const { name, code: wantCode } = req.body || {}
+  const creatorName = typeof name === 'string' ? name : undefined
+  // 经纪稳定 code(前端按 agent 身份派生):同一 code 永远复用/复活同一房间,
+  // 让经纪与客户始终用同一条链接。非法/缺省则回退随机 code。
+  const room =
+    (typeof wantCode === 'string' && wantCode.trim() ? ensureRoomWithCode(wantCode, creatorName) : null) ||
+    createRoom(creatorName).room
   if (agentId) await spend(agentId, 'live_tours').catch(() => {})
-  res.json({ code, url: `${SHARE_BASE_URL}/${code}` })
+  res.json({ code: room.code, url: `${SHARE_BASE_URL}/${room.code}` })
 })
 
 // GET /api/collab/rooms/:code → { exists, participants }
