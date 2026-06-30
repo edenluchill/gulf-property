@@ -39,7 +39,7 @@ export interface ProjectInsights {
   investment: (Investment5yr & { payback_years: number | null; reference_price: number }) | null
   nearby: {
     metro: { name: string; distance_m: number; lat?: number; lng?: number }[]
-    pois: { category: string; name: string; distance_m: number; lat?: number; lng?: number }[]
+    pois: { category: string; name: string; distance_m: number; lat?: number; lng?: number; khda_rating?: string; description_zh?: string }[]
     landmarks: { name: string; type: string; distance_m: number; lat?: number; lng?: number }[]
   }
   commute: { hub: string; distance_m: number; mins_est: number }[]
@@ -242,12 +242,14 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
     try {
       const [poisRes, landmarkRes] = await Promise.all([
         pool.query(
-          `SELECT DISTINCT ON (category) category, name,
-                  ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat,
-                  ROUND(ST_Distance(location::geography, ST_SetSRID(ST_Point($1,$2),4326)::geography)::numeric) AS distance_m
-             FROM dubai_pois
-            WHERE category IN ('metro_station','hospital','school','university','mall','supermarket','park','beach','gym')
-            ORDER BY category, location <-> ST_SetSRID(ST_Point($1,$2),4326)`,
+          `SELECT DISTINCT ON (dp.category) dp.category, dp.name,
+                  ST_X(dp.location::geometry) AS lng, ST_Y(dp.location::geometry) AS lat,
+                  ROUND(ST_Distance(dp.location::geography, ST_SetSRID(ST_Point($1,$2),4326)::geography)::numeric) AS distance_m,
+                  e.khda_rating, e.description_zh
+             FROM dubai_pois dp
+             LEFT JOIN dubai_poi_enrichment e ON e.poi_id = dp.id
+            WHERE dp.category IN ('metro_station','hospital','school','university','mall','supermarket','park','beach','gym')
+            ORDER BY dp.category, dp.location <-> ST_SetSRID(ST_Point($1,$2),4326)`,
           [lng, lat]
         ),
         pool.query(
@@ -263,7 +265,7 @@ export async function getProjectInsights(projectId: string): Promise<ProjectInsi
       for (const r of poisRes.rows) {
         const ll = { lat: r.lat != null ? Number(r.lat) : undefined, lng: r.lng != null ? Number(r.lng) : undefined }
         if (r.category === 'metro_station') nearby.metro.push({ name: r.name, distance_m: Number(r.distance_m), ...ll })
-        else nearby.pois.push({ category: r.category, name: r.name, distance_m: Number(r.distance_m), ...ll })
+        else nearby.pois.push({ category: r.category, name: r.name, distance_m: Number(r.distance_m), khda_rating: r.khda_rating || undefined, description_zh: r.description_zh || undefined, ...ll })
       }
       nearby.landmarks = landmarkRes.rows.map((r) => ({
         name: r.name,

@@ -182,6 +182,19 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
                       {isMetro && <Train className="h-3.5 w-3.5 shrink-0 text-indigo-500" />}
                       <span className="shrink-0 text-xs text-slate-400">{zh ? meta.zh : meta.en}</span>
                       <span className="truncate">{p.name}</span>
+                      {(() => {
+                        const r = (p as { khda_rating?: string }).khda_rating
+                        if (!r) return null
+                        const label = ({ outstanding: '卓越', 'very good': '优秀', good: '良好', acceptable: '合格', weak: '欠佳', 'very weak': '很差' } as Record<string, string>)[r.toLowerCase()] || r
+                        return (
+                          <span
+                            title="KHDA 迪拜教育局官方督导评级 · 截至 2023-24 学年"
+                            className="shrink-0 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                          >
+                            KHDA {zh ? label : r}
+                          </span>
+                        )
+                      })()}
                     </span>
                     <span className="shrink-0 text-xs text-slate-500">{dist(p.distance_m, zh)}</span>
                   </div>

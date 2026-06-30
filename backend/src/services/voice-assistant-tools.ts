@@ -13,6 +13,14 @@ async function apiFetch<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// KHDA official school rating → Chinese label (6-tier scale). Lets Luna speak it.
+const KHDA_ZH: Record<string, string> = {
+  'outstanding': '卓越', 'very good': '优秀', 'good': '良好',
+  'acceptable': '合格', 'weak': '欠佳', 'very weak': '很差',
+}
+const khdaZh = (r?: string | null): string | null =>
+  r ? (KHDA_ZH[r.trim().toLowerCase()] || r) : null
+
 // Tool definitions for Gemini Live API
 export const voiceAssistantTools = [
   {
@@ -640,12 +648,12 @@ export async function executeTool(
         { cat: 'supermarket',   zh: '超市', emoji: '🛒', ideal: 1,   zero: 4,  weight: 0.15 },
       ] as const
 
-      const near = await apiFetch<{ pois: { name: string; category: string; lat: number; lng: number; distance_meters: number }[] }>(
+      const near = await apiFetch<{ pois: { name: string; category: string; lat: number; lng: number; distance_meters: number; khda_rating?: string | null; description_zh?: string | null }[] }>(
         `/api/dubai-pois/near?lat=${area.lat}&lng=${area.lng}&radius=10000&categories=${SPECS.map(s => s.cat).join(',')}`
       )
       const pois = near.pois || []
 
-      const spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[] = []
+      const spokes: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number; khdaRating?: string | null }[] = []
       let score = 0
       for (const s of SPECS) {
         const hit = pois.filter(p => p.category === s.cat)
@@ -656,9 +664,17 @@ export async function executeTool(
         score += s.weight * sub
         spokes.push({
           category: s.cat, label: s.zh, emoji: s.emoji, name: hit.name,
-          lng: hit.lng, lat: hit.lat, distanceKm: Number(km.toFixed(2))
+          lng: hit.lng, lat: hit.lat, distanceKm: Number(km.toFixed(2)),
+          khdaRating: hit.khda_rating || null,
         })
       }
+      // Nearest KHDA-rated school within 5km — cited separately so it never
+      // distorts the proximity score or masks a closer (unrated) school.
+      const ratedHit = pois.filter(p => p.category === 'school' && p.khda_rating && p.distance_meters <= 5000)
+        .sort((a, b) => a.distance_meters - b.distance_meters)[0]
+      const ratedSchool = ratedHit
+        ? { name: ratedHit.name, khdaRating: ratedHit.khda_rating!, distanceKm: Number((ratedHit.distance_meters / 1000).toFixed(2)) }
+        : null
 
       if (spokes.length === 0) {
         return {
@@ -679,9 +695,12 @@ export async function executeTool(
           area: area.name,
           convenience_score: score100,
           tier,
-          amenities: spokes.map(s => ({ type: s.label, name: s.name, distance_km: s.distanceKm }))
+          amenities: spokes.map(s => ({ type: s.label, name: s.name, distance_km: s.distanceKm, khda_rating: s.khdaRating || undefined })),
+          nearest_rated_school: ratedSchool
+            ? { name: ratedSchool.name, khda_rating: ratedSchool.khdaRating, khda_rating_zh: khdaZh(ratedSchool.khdaRating), distance_km: ratedSchool.distanceKm }
+            : undefined,
         },
-        summary: `${area.name} 生活便利度 ${score100}/100（${tier}）。最近：${list}。`,
+        summary: `${area.name} 生活便利度 ${score100}/100（${tier}）。最近：${list}。${ratedSchool ? `附近 ${ratedSchool.name}（约${ratedSchool.distanceKm}km）是 KHDA「${khdaZh(ratedSchool.khdaRating)}」官方评级学校（截至2023-24学年），适合有孩子的家庭。` : ''}`,
         mapAction: {
           type: 'amenity_spokes',
           center: [area.lng, area.lat],
@@ -889,8 +908,11 @@ export async function executeTool(
         if (!hit) continue
         const km = hit.distance_meters / 1000
         score += s.weight * Math.max(0, Math.min(1, (s.zero - km) / (s.zero - s.ideal)))
-        spokes.push({ category: s.cat, label: s.zh, emoji: s.emoji, name: hit.name, lng: hit.lng, lat: hit.lat, distanceKm: Number(km.toFixed(2)) })
+        spokes.push({ category: s.cat, label: s.zh, emoji: s.emoji, name: hit.name, lng: hit.lng, lat: hit.lat, distanceKm: Number(km.toFixed(2)), khdaRating: hit.khda_rating || null })
       }
+      // Nearest KHDA-rated school within 5km, cited separately (doesn't distort score).
+      const envRatedHit = pois.filter((p: any) => p.category === 'school' && p.khda_rating && p.distance_meters <= 5000)
+        .sort((a: any, b: any) => a.distance_meters - b.distance_meters)[0]
       const score100 = Math.round(score * 100)
       const tier = score100 >= 75 ? '优秀' : score100 >= 55 ? '良好' : score100 >= 35 ? '一般' : '偏远'
 
@@ -916,7 +938,7 @@ export async function executeTool(
       })
       if (spokes.length) stops.push({
         kind: 'environment',
-        line: `生活很方便——${spokes.slice(0, 3).map(s => `${s.label} ${s.distanceKm.toFixed(1)}km`).join('、')}。`,
+        line: `生活很方便——${spokes.slice(0, 3).map(s => `${s.label} ${s.distanceKm.toFixed(1)}km`).join('、')}${envRatedHit ? `；${envRatedHit.name} 是 KHDA「${khdaZh(envRatedHit.khda_rating)}」官方评级学校` : ''}。`,
         center: [lng, lat], score: score100, tier, spokes,
       })
       if (sales.length) stops.push({
