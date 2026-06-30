@@ -37,6 +37,9 @@ export interface CollabFrameProps {
   onReturnToMap?: () => void
   /** viewer re-follows the presenter (when detached / Free) */
   onReturnToPresenter?: () => void
+  /** viewer detaches to explore on their own (when following). Detach is now
+   *  EXPLICIT — only this button does it (no more accidental gesture-detach). */
+  onDetach?: () => void
 }
 
 export default function CollabFrame({
@@ -50,6 +53,7 @@ export default function CollabFrame({
   offMap,
   onReturnToMap,
   onReturnToPresenter,
+  onDetach,
 }: CollabFrameProps) {
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
@@ -81,7 +85,8 @@ export default function CollabFrame({
                 <span className="hidden text-slate-300 sm:inline">· {zh ? '与' : 'with'} {peerName}</span>
               )}
 
-              {/* detached viewer → jump back into the presenter's view */}
+              {/* follow ↔ detach toggle. Following is the locked default; the
+                  client must tap「自己看」to break away (no accidental detach). */}
               {neutral && onReturnToPresenter && (
                 <button
                   type="button"
@@ -90,6 +95,15 @@ export default function CollabFrame({
                   style={{ backgroundColor: ACCENT }}
                 >
                   {zh ? '回到经纪视角' : 'Rejoin'}
+                </button>
+              )}
+              {followMode === 'following' && onDetach && (
+                <button
+                  type="button"
+                  onClick={onDetach}
+                  className="ml-0.5 rounded-full px-2.5 py-0.5 text-xs font-medium text-white ring-1 ring-white/25 transition hover:bg-white/10"
+                >
+                  {zh ? '自己看' : 'Explore'}
                 </button>
               )}
               {offMap && onReturnToMap && (

@@ -797,23 +797,12 @@ export default function MapPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [collabActive])
 
-  // Map ready → store the live instance for the collab hooks and attach the
-  // gesture→Free detector. Only a user gesture carries originalEvent; remote
-  // jumpTo/flyTo are programmatic (no originalEvent) so they never trip this.
-  const collabSetFreeRef = useRef<() => void>(() => {})
-  useEffect(() => {
-    collabSetFreeRef.current = collab.setFree
-  }, [collab.setFree])
-  // Idempotent: onMapReady may now deliver the instance more than once (load edge
-  // + onMapReady-defined edge). Always refresh the ref; attach movestart once.
-  const collabMapWiredRef = useRef(false)
+  // Map ready → store the live instance for the collab hooks. NOTE: we used to
+  // auto-detach (→ Free) on the viewer's first map gesture. That made clients lose
+  // the presenter's view by accident, so detach is now EXPLICIT only — the client
+  // taps「自己看」in the session bar. No gesture→Free wiring here anymore.
   const handleCollabMapReady = useCallback((map: MaplibreMap) => {
     collabMapRef.current = map
-    if (collabMapWiredRef.current) return
-    collabMapWiredRef.current = true
-    map.on('movestart', (e: { originalEvent?: unknown }) => {
-      if (e.originalEvent) collabSetFreeRef.current()
-    })
   }, [])
 
   // Mobile detection
@@ -1306,6 +1295,7 @@ export default function MapPage() {
               offMap={!isMapPath(location.pathname, location.search)}
               onReturnToMap={() => navigate('/')}
               onReturnToPresenter={collab.returnToPresenter}
+              onDetach={collab.setFree}
             />
           )}
 
