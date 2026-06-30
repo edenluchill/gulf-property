@@ -46,11 +46,17 @@ export interface CamMsg extends Cam {
 }
 export interface CurMsg {
   k: 'cur'
-  /** normalized cursor 0..1 (relative to the presenter's map container) */
+  /** normalized cursor 0..1 (relative to the presenter's map container) — fallback
+   *  when geo-anchoring isn't available (pointer off the map). */
   x: number
   y: number
-  /** true on a tap / pointerdown — viewers spawn a ripple at (x,y). Lets a phone
-   *  presenter (no hover) still show clients "what I'm tapping". */
+  /** geographic anchor — the lng/lat under the presenter's pointer. Viewers
+   *  re-project this every frame so the cursor sits on the SAME building on any
+   *  screen size/aspect (Figma-style), not a mismatched normalized position. */
+  lng?: number
+  lat?: number
+  /** true on a tap / pointerdown — viewers spawn a ripple at the anchor. Lets a
+   *  phone presenter (no hover) still show clients "what I'm tapping". */
   tap?: boolean
 }
 

@@ -56,8 +56,9 @@ export default function CollabFrame({
         aria-hidden
       />
 
-      {/* persistent session bar, top-center */}
-      <div className="absolute top-3 left-1/2 z-[1005] -translate-x-1/2">
+      {/* persistent session bar — bottom-center on mobile (the top is full of map
+          tools), top-center on desktop where there's room. */}
+      <div className="absolute bottom-24 left-1/2 z-[1005] -translate-x-1/2 md:bottom-auto md:top-3">
         <div className="flex items-center gap-2 rounded-full bg-slate-900/80 px-3.5 py-1.5 text-sm text-white shadow-lg backdrop-blur">
           <span
             className="inline-block h-2 w-2 rounded-full"

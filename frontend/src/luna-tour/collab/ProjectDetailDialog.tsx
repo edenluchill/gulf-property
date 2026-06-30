@@ -11,7 +11,7 @@ import { X, Loader2, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 import { fetchResidentialProjectById, fetchProjectInsights, ProjectInsights } from '../../lib/api'
-import { DesktopHeroGallery } from '../../pages/ProjectDetailPage/DesktopHeroGallery'
+import { ImageGallery } from '../../pages/ProjectDetailPage/ImageGallery'
 import { OverviewTab } from '../../pages/ProjectDetailPage/OverviewTab'
 import { UnitTypesTab } from '../../pages/ProjectDetailPage/UnitTypesTab'
 import { PaymentPlanTab } from '../../pages/ProjectDetailPage/PaymentPlanTab'
@@ -34,6 +34,7 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
   const [insights, setInsights] = useState<ProjectInsights | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(tab || 'overview')
+  const [imgIndex, setImgIndex] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -73,90 +74,91 @@ export default function ProjectDetailDialog({ projectId, tab, onTabChange, onClo
   // drawer non-interactive (couldn't scroll or close). At body level `fixed
   // inset-0 z-[2100]` covers the real viewport and is fully interactive.
   return createPortal(
-    <div className="fixed inset-0 z-[2100] flex items-stretch justify-end bg-black/30" onClick={onClose}>
-      <div
-        className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* header */}
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <div className="min-w-0">
-            {loading ? (
-              <div className="h-5 w-40 animate-pulse rounded bg-slate-100" />
-            ) : (
-              <>
-                <h3 className="truncate text-base font-bold text-slate-900">{project?.project_name || '房产详情'}</h3>
-                <p className="flex items-center gap-1 truncate text-xs text-slate-400">
-                  <MapPin className="h-3 w-3" />
-                  {project?.area || 'Dubai'}
-                  {priceText ? ` · ${t('project:from', '起')} ${priceText}` : ''}
-                </p>
-              </>
-            )}
-          </div>
-          <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-            <X className="h-5 w-5" />
-          </button>
+    // Full-screen takeover (not a cramped side drawer) so the in-session detail is
+    // the SAME immersive experience as the real /project/:id page — same gallery,
+    // same tabs. We don't navigate (that would tear down the collab session); the
+    // presenter's tab switches still sync to viewers.
+    <div className="fixed inset-0 z-[2100] flex flex-col bg-white animate-in fade-in duration-200">
+      {/* compact header — mirrors the real page */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+        <div className="min-w-0">
+          {loading ? (
+            <div className="h-5 w-40 animate-pulse rounded bg-slate-100" />
+          ) : (
+            <>
+              <h3 className="truncate text-base font-bold text-slate-900 md:text-lg">{project?.project_name || '房产详情'}</h3>
+              <p className="flex items-center gap-1 truncate text-xs text-slate-400">
+                <MapPin className="h-3 w-3" />
+                {project?.area || 'Dubai'}
+                {priceText ? ` · ${t('project:from', '起')} ${priceText}` : ''}
+              </p>
+            </>
+          )}
         </div>
-
-        {loading ? (
-          <div className="flex flex-1 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
-          </div>
-        ) : !project ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-slate-400">加载失败</div>
-        ) : (
-          <div className="flex-1 overflow-y-auto">
-            {/* Tabs FIRST (sticky at the very top) so 户型/付款 etc. are reachable
-                without scrolling past the whole photo gallery. The gallery now
-                lives inside 概览 as a compact hero (+ lightbox for the rest) instead
-                of dumping all N images in a vertical stack. */}
-            <Tabs value={activeTab} onValueChange={handleTab}>
-              <TabsList className="sticky top-0 z-10 flex h-10 w-full justify-start overflow-x-auto border-b border-slate-100 bg-white/95 px-2 backdrop-blur">
-                <TabsTrigger value="overview" className="flex-shrink-0">{t('project:tabs.overview', '概览')}</TabsTrigger>
-                <TabsTrigger value="units" className="flex-shrink-0">{t('project:tabs.unitTypes', '户型')}</TabsTrigger>
-                <TabsTrigger value="payment" className="flex-shrink-0">{t('project:tabs.paymentPlan', '付款')}</TabsTrigger>
-                <TabsTrigger value="amenities" className="flex-shrink-0">{t('project:tabs.amenities', '配套')}</TabsTrigger>
-                <TabsTrigger value="location" className="flex-shrink-0">{t('project:tabs.location', '位置')}</TabsTrigger>
-              </TabsList>
-
-              <div className="px-3 py-4">
-                <TabsContent value="overview" className="mt-0 space-y-4">
-                  <DesktopHeroGallery images={project.project_images || []} projectName={project.project_name || ''} />
-                  <OverviewTab project={project} insights={insights} />
-                </TabsContent>
-                <TabsContent value="units" className="mt-0">
-                  <UnitTypesTab
-                    unitTypes={project.units || []}
-                    projectId={project.id}
-                    onUnitSelect={() => {}}
-                    yieldPct={insights?.area?.rental_yield_pct}
-                    growthPct={insights?.area?.price_growth_pct}
-                    paymentPlan={project.payment_plan}
-                  />
-                </TabsContent>
-                <TabsContent value="payment" className="mt-0">
-                  <PaymentPlanTab
-                    paymentPlan={project.payment_plan || []}
-                    referencePrice={insights?.investment?.reference_price ?? project.starting_price ?? project.min_price}
-                  />
-                </TabsContent>
-                <TabsContent value="amenities" className="mt-0">
-                  <AmenitiesTab amenities={project.amenities} />
-                </TabsContent>
-                <TabsContent value="location" className="mt-0">
-                  <LocationTab
-                    buildingName={project.project_name}
-                    areaName={project.area}
-                    location={{ lat: project.latitude, lng: project.longitude }}
-                    insights={insights}
-                  />
-                </TabsContent>
-              </div>
-            </Tabs>
-          </div>
-        )}
+        <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+          <X className="h-5 w-5" />
+        </button>
       </div>
+
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
+        </div>
+      ) : !project ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-slate-400">加载失败</div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <Tabs value={activeTab} onValueChange={handleTab}>
+            <TabsList className="sticky top-0 z-10 flex h-11 w-full justify-start overflow-x-auto border-b border-slate-100 bg-white/95 px-2 backdrop-blur md:justify-center">
+              <TabsTrigger value="overview" className="flex-shrink-0">{t('project:tabs.overview', '概览')}</TabsTrigger>
+              <TabsTrigger value="units" className="flex-shrink-0">{t('project:tabs.unitTypes', '户型')}</TabsTrigger>
+              <TabsTrigger value="payment" className="flex-shrink-0">{t('project:tabs.paymentPlan', '付款')}</TabsTrigger>
+              <TabsTrigger value="amenities" className="flex-shrink-0">{t('project:tabs.amenities', '配套')}</TabsTrigger>
+              <TabsTrigger value="location" className="flex-shrink-0">{t('project:tabs.location', '位置')}</TabsTrigger>
+            </TabsList>
+
+            <div className="mx-auto w-full max-w-3xl px-3 py-4 md:px-5">
+              <TabsContent value="overview" className="mt-0 space-y-5">
+                {/* same immersive gallery the real mobile page uses */}
+                <ImageGallery
+                  images={project.project_images}
+                  buildingName={project.project_name}
+                  currentImageIndex={imgIndex}
+                  onImageIndexChange={setImgIndex}
+                />
+                <OverviewTab project={project} insights={insights} />
+              </TabsContent>
+              <TabsContent value="units" className="mt-0">
+                <UnitTypesTab
+                  unitTypes={project.units || []}
+                  projectId={project.id}
+                  onUnitSelect={() => {}}
+                  yieldPct={insights?.area?.rental_yield_pct}
+                  growthPct={insights?.area?.price_growth_pct}
+                  paymentPlan={project.payment_plan}
+                />
+              </TabsContent>
+              <TabsContent value="payment" className="mt-0">
+                <PaymentPlanTab
+                  paymentPlan={project.payment_plan || []}
+                  referencePrice={insights?.investment?.reference_price ?? project.starting_price ?? project.min_price}
+                />
+              </TabsContent>
+              <TabsContent value="amenities" className="mt-0">
+                <AmenitiesTab amenities={project.amenities} />
+              </TabsContent>
+              <TabsContent value="location" className="mt-0">
+                <LocationTab
+                  buildingName={project.project_name}
+                  areaName={project.area}
+                  location={{ lat: project.latitude, lng: project.longitude }}
+                  insights={insights}
+                />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      )}
     </div>,
     document.body,
   )
