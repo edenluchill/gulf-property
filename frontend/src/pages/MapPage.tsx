@@ -13,7 +13,7 @@ import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
-import { createCollabRoom, deriveHostCode } from '../luna-tour/collab/collabApi'
+import { createCollabRoom, deriveHostCode, getCollabRoom } from '../luna-tour/collab/collabApi'
 import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
 import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useAuth } from '../contexts/AuthContext'
@@ -161,7 +161,36 @@ export default function MapPage() {
   // tour), 'viewer' (a guest opened a /t/:code link — public, no login).
   const { user } = useAuth()
   const isOwner = isOwnerEmail(user?.email)
-  const viewerCode = isCollabViewerPath ? pathCode : undefined
+  // Viewer session is STICKY: captured from /t/:code, then KEPT across in-app
+  // navigation (and reloads, via sessionStorage) so a client roaming the real app
+  // never drops the tour. Cleared only on explicit exit. (Presenter already
+  // survives nav via state + ?host, so it stays as-is.)
+  const [viewerCode, setViewerCode] = useState<string | undefined>(() => {
+    try { return sessionStorage.getItem('collabViewerCode') || undefined } catch { return undefined }
+  })
+  useEffect(() => {
+    if (isCollabViewerPath && pathCode) {
+      setViewerCode(pathCode)
+      try { sessionStorage.setItem('collabViewerCode', pathCode) } catch { /* ignore */ }
+    }
+  }, [isCollabViewerPath, pathCode])
+  // A session restored from storage (not a fresh /t/ visit) might point at a tour
+  // that already ended — verify the room exists so we don't reconnect-loop into a
+  // dead room; drop it if gone.
+  const viewerValidatedRef = useRef(false)
+  useEffect(() => {
+    if (viewerValidatedRef.current || isCollabViewerPath) return
+    viewerValidatedRef.current = true
+    let restored: string | null = null
+    try { restored = sessionStorage.getItem('collabViewerCode') } catch { /* ignore */ }
+    if (!restored) return
+    getCollabRoom(restored).then((info) => {
+      if (!info.exists) {
+        setViewerCode(undefined)
+        try { sessionStorage.removeItem('collabViewerCode') } catch { /* ignore */ }
+      }
+    }).catch(() => {})
+  }, [isCollabViewerPath])
   const [presenterCode, setPresenterCode] = useState<string | undefined>(undefined)
   const collabMode: CollabMode = viewerCode ? 'viewer' : presenterCode ? 'presenter' : 'browse'
   const collabCode = viewerCode || presenterCode
@@ -710,13 +739,29 @@ export default function MapPage() {
   }, [collabShareUrl])
 
   const handleExitCollab = useCallback(() => {
-    if (viewerCode) navigate('/')
-    else {
+    // Confirm so a client doesn't drop the tour by a stray tap.
+    const msg = viewerCode ? '确定退出这场实时带看吗?' : '确定结束这场实时带看吗?'
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    if (viewerCode) {
+      setViewerCode(undefined)
+      try { sessionStorage.removeItem('collabViewerCode') } catch { /* ignore */ }
+      if (location.pathname.startsWith('/t/')) navigate('/')
+    } else {
       setPresenterCode(undefined)
       // drop ?host so a later refresh doesn't rejoin the ended tour
       setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('host'); return n }, { replace: true })
     }
-  }, [viewerCode, navigate, setSearchParams])
+  }, [viewerCode, location.pathname, navigate, setSearchParams])
+
+  // Guard against closing/refreshing the tab mid-tour — a native "Leave site?"
+  // prompt. (In-app navigation no longer drops the session, so this is the main
+  // accidental-exit vector left.)
+  useEffect(() => {
+    if (!collabActive) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [collabActive])
 
   // Map ready → store the live instance for the collab hooks and attach the
   // gesture→Free detector. Only a user gesture carries originalEvent; remote
@@ -1224,6 +1269,8 @@ export default function MapPage() {
               onCopyShare={handleCopyShare}
               copied={shareCopied}
               onExit={handleExitCollab}
+              offMap={!isMapPath(location.pathname, location.search)}
+              onReturnToMap={() => navigate('/')}
             />
           )}
 
