@@ -7,7 +7,7 @@
  * scroll reveals. Helmet + JSON-LD for SEO / AI discoverability. At /about & /pricing.
  */
 import { Helmet } from 'react-helmet-async'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -51,14 +51,6 @@ export default function AboutPage() {
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
   const L = (cn: string, en: string) => (zh ? cn : en)
-  const location = useLocation()
-
-  useEffect(() => {
-    if (location.pathname === '/pricing') {
-      const el = document.getElementById('pricing')
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 300)
-    }
-  }, [location.pathname])
 
   const ld = {
     '@context': 'https://schema.org',
@@ -117,7 +109,7 @@ export default function AboutPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>{L('打开地图探索', 'Open the map')} <ArrowRight className="h-4 w-4" /></Link>
-              <a href="#pricing" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{L('查看定价', 'See pricing')}</a>
+              <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{L('查看定价', 'See pricing')}</Link>
             </div>
           </Reveal>
           <Reveal delay={0.12}>
@@ -262,24 +254,29 @@ export default function AboutPage() {
         </Reveal>
       </Section>
 
-      {/* ═══ PRICING ═══════════════════════════════════════════ */}
+      {/* ═══ PRICING — summary only; full plans, quotas & checkout live on /pricing ═══ */}
       <Section id="pricing">
         <Reveal><Label tone={ACCENT}>// {L('定价', 'PRICING')}</Label>
-          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h2></Reveal>
-        <div className="mt-8 grid items-stretch gap-4 lg:grid-cols-3">
-          <Reveal><PriceTier name={L('探索版', 'Explore')} price={L('免费', 'Free')} note={L('给买家 / 投资人', 'For buyers / investors')}
-            features={[L('交互式地图 + 真实 DLD 数据', 'Interactive map + real DLD data'), L('区域指标 + 项目详情 + 投资分析', 'Area metrics + detail + analytics'), L('Luna 语音助手', 'Luna voice assistant'), L('经纪工具试用:带看/导览/报告 各 2 次', 'Agent trial: 2 each')]}
-            cta={{ label: L('打开地图', 'Open the map'), to: '/' }} /></Reveal>
-          <Reveal delay={0.08}><PriceTier highlight name={L('经纪版', 'Agent')} price="$99" priceWas="$199" per={L('/ 月 (USD)', '/ mo (USD)')}
-            badge={L('7 天免费试用', '7-day free trial')} note={L('7 天免费 · 需绑卡 · 随时取消', '7 days free · card required · cancel anytime')}
-            features={[L('实时海外带看 20 场/月', '20 live tours / mo'), L('Luna 智能导览 20 个/月', '20 Luna AI tours / mo'), L('买家意向报告 30 份/月', '30 buyer-intent reports / mo'), L('应用内语音 + AI 楼书解析', 'In-app voice + AI brochure parsing')]}
-            cta={{ label: L('免费试用 7 天', 'Start 7-day free trial'), href: 'mailto:info@pinzos.com?subject=Pinzos%20Agent%20Plan%20-%207-day%20free%20trial' }} /></Reveal>
-          <Reveal delay={0.16}><PriceTier founder name={L('创始会员', 'Founder')} price="$699" per={L('/ 月 (USD)', '/ mo (USD)')}
-            badge={L('10× 额度', '10× quota')} note={L('早期支持者 · 名额有限', 'Early supporters · limited')}
-            features={[L('实时带看 200 场/月', '200 live tours / mo'), L('Luna 导览 200 个/月', '200 Luna AI tours / mo'), L('意向报告 300 份/月', '300 reports / mo'), L('锁定创始价 · 优先支持 · 直接谈定制', 'Locked price · priority · shape features')]}
-            cta={{ label: L('申请 Founder', 'Apply for Founder'), href: 'mailto:info@pinzos.com?subject=Pinzos%20Founder%20Access%20($699)' }} /></Reveal>
-        </div>
-        <p className="mt-5 text-center text-xs text-slate-500">{L('价格以美元(USD)计,按月计费。', 'Prices in USD, billed monthly.')}</p>
+          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h2>
+          <p className="mt-3 max-w-2xl text-slate-400">{L(
+            '买家与投资人永久免费使用地图、真实 DLD 数据与 Luna 助手;经纪按需订阅,解锁实时带看、Luna 导览与买家意向报告。',
+            'Buyers and investors use the map, real DLD data and Luna for free; agents subscribe to unlock live tours, Luna tours and buyer-intent reports.'
+          )}</p></Reveal>
+        <Reveal delay={0.08} className="mt-6">
+          <div className="flex flex-wrap gap-2.5">
+            {[{ n: L('探索版 · 免费', 'Explore · Free'), c: ACCENT }, { n: L('经纪版', 'Agent'), c: ACCENT }, { n: L('创始会员', 'Founder'), c: GOLD }].map((tier, i) => (
+              <span key={i} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-white" style={{ borderColor: `${tier.c}55`, background: `${tier.c}14` }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: tier.c }} />{tier.n}
+              </span>
+            ))}
+          </div>
+        </Reveal>
+        <Reveal delay={0.14} className="mt-7">
+          <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
+            {L('查看套餐与定价', 'See plans & pricing')} <ArrowRight className="h-4 w-4" />
+          </Link>
+          <p className="mt-2.5 text-xs text-slate-500">{L('完整套餐、额度与结账都在定价页;订阅前需先登录经纪账号。', 'Full plans, quotas and checkout are on the pricing page; sign in to your agent account before subscribing.')}</p>
+        </Reveal>
       </Section>
 
       {/* ── CTA ──────────────────────────────────────────────── */}
@@ -325,31 +322,6 @@ function TileHead({ icon, title }: { icon: React.ReactNode; title: string }) {
     <div className="mb-1 flex items-center gap-2.5">
       <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'rgba(0,224,184,0.12)', color: ACCENT }}>{icon}</span>
       <h3 className="font-semibold text-white">{title}</h3>
-    </div>
-  )
-}
-
-interface CTA { label: string; to?: string; href?: string }
-function PriceTier({ name, price, priceWas, per, badge, note, features, cta, highlight, founder }: {
-  name: string; price: string; priceWas?: string; per?: string; badge?: string; note: string; features: string[]; cta: CTA; highlight?: boolean; founder?: boolean
-}) {
-  const edge = founder ? GOLD : ACCENT
-  const btn = <span className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: edge }}>{cta.label}</span>
-  return (
-    <div className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-6"
-      style={{ borderColor: highlight ? ACCENT : founder ? `${GOLD}77` : 'rgba(255,255,255,0.1)', boxShadow: highlight ? `0 0 40px -16px ${ACCENT}` : undefined }}>
-      {badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: edge }}>{badge}</span>}
-      <div className="text-sm font-semibold" style={{ color: edge }}>{name}</div>
-      <div className="mt-1 flex items-end gap-2">
-        <span className="text-3xl font-bold">{price}</span>
-        {priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{priceWas}</span>}
-        {per && <span className="pb-1 text-sm text-slate-500">{per}</span>}
-      </div>
-      <p className="mt-1.5 text-sm text-slate-400">{note}</p>
-      <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-300">
-        {features.map((f, i) => (<li key={i} className="flex items-start gap-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: edge }} /> {f}</li>))}
-      </ul>
-      {cta.to ? <Link to={cta.to}>{btn}</Link> : <a href={cta.href}>{btn}</a>}
     </div>
   )
 }
