@@ -16,6 +16,8 @@ import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { createCollabRoom, deriveHostCode, getCollabRoom } from '../luna-tour/collab/collabApi'
 import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
 import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
+import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
+import CollabDrawToolbar from '../luna-tour/collab/CollabDrawToolbar'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
@@ -632,6 +634,8 @@ export default function MapPage() {
         station?: TransportStation | null
         on?: boolean
       }
+      // Map drawing/markup ops are owned by useCollabDraw (its own subscription).
+      if (a?.type === '__collab_draw') return
       // A detached (Free) viewer is exploring on their own — don't yank panels open.
       const detached = followFreeRef.current
       if (a?.type === '__collab_landmark') {
@@ -673,6 +677,9 @@ export default function MapPage() {
     collabAnyRef.current = collabMode !== 'browse'
   }, [collabMode])
   useEffect(() => { followFreeRef.current = collab.followMode === 'free' }, [collab.followMode])
+
+  // Map drawing / markup (pen + eraser), geo-anchored + broadcast to the room.
+  const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive })
 
   // Hide the global Luna pill during a collab live tour (in-session UI replaces it).
   const setLunaHidden = voiceContext.setHidden
@@ -1304,6 +1311,10 @@ export default function MapPage() {
           {collabMode === 'viewer' && (
             <CollabCursorLayer client={collab.client} active label={collabPeerName || '经纪'} />
           )}
+
+          {/* Collab: map drawing/markup toolbar (pen + eraser), strokes geo-anchored
+              and broadcast to everyone in the room. */}
+          {collabActive && <CollabDrawToolbar draw={draw} />}
 
           {/* Collab: presenter onboarding ("share your link to clients") */}
           {collabMode === 'presenter' && presenterCode && !guideDismissed && (
