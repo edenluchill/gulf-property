@@ -113,7 +113,14 @@ function App() {
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/areas" element={<AreaInsightsPage />} />
         <Route path="/report" element={<BuyingReportPage />} />
-        <Route path="/developer/upload" element={<DeveloperPropertyUploadPageV2 />} />
+        <Route
+          path="/developer/upload"
+          element={
+            <ProtectedRoute requireAdmin>
+              <DeveloperPropertyUploadPageV2 />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/login" element={<LoginPage />} />
@@ -121,7 +128,7 @@ function App() {
         <Route
           path="/admin/dubai"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <DubaiEditor />
             </ProtectedRoute>
           }
@@ -129,7 +136,7 @@ function App() {
         <Route
           path="/admin/properties"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminPropertyListPage />
             </ProtectedRoute>
           }
@@ -137,7 +144,7 @@ function App() {
         <Route
           path="/admin/property/edit/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminPropertyEditPage />
             </ProtectedRoute>
           }
@@ -145,7 +152,7 @@ function App() {
         <Route
           path="/admin/tasks"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminTasksPage />
             </ProtectedRoute>
           }
@@ -153,16 +160,16 @@ function App() {
         <Route
           path="/admin/tasks/:jobId/review"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminTaskReviewPage />
             </ProtectedRoute>
           }
         />
-        {/* Owner-only behaviour analytics (login-gated here; owner-email gated in-page + server) */}
+        {/* Admin-only behaviour analytics (admin-gated here; owner-email gated in-page + server) */}
         <Route
           path="/admin/analytics"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminAnalytics />
             </ProtectedRoute>
           }

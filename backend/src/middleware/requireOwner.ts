@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { createHash, timingSafeEqual } from 'crypto'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { isAdminEmail } from '../lib/adminEmails'
 
 /**
  * Owner-only access gate for the analytics dashboard. FAILS CLOSED.
@@ -44,8 +45,10 @@ function secretMatches(req: Request): boolean {
 }
 
 export function requireOwner(req: Request, res: Response, next: NextFunction) {
-  // 1. Verified Supabase owner email.
-  if (isSupabaseConfigured && isOwnerEmail(req.user?.email)) return next()
+  // 1. Verified Supabase owner OR admin email. The analytics dashboard ("数据管理")
+  //    is shared by all admins; owner perks (billing/credits) stay narrow and are
+  //    handled by OWNER_EMAILS elsewhere — admin access here grants neither.
+  if (isSupabaseConfigured && (isOwnerEmail(req.user?.email) || isAdminEmail(req.user?.email))) return next()
   // 2. Shared dashboard secret.
   if (secretMatches(req)) return next()
   // 3. Local-dev convenience ONLY — never in prod, never once a gate is configured.

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -29,7 +29,7 @@ export default function Header() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
-  const { user, loading } = useAuth()
+  const { user, loading, isAdmin } = useAuth()
   const { profile } = useUserProfile()
   const isAgent = !!profile?.agent
 
@@ -97,6 +97,7 @@ export default function Header() {
   // 散客只保留「成交记录」(买家查真实 transaction/rent,有真实使用)。区域分析/AI报告/
   // 对比零使用已移除;对比/AI报告能力改在经纪台为客户生成(品牌化、可分享)。
   const adminItems = [
+    { path: '/admin/analytics', label: t('nav:dataManagement'), icon: BarChart3, desc: '' },
     { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, desc: '' },
     { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, desc: '' },
     { path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, desc: '' },
@@ -221,7 +222,7 @@ export default function Header() {
               label={i18n.language?.startsWith('zh') ? '定价' : 'Pricing'}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
-            {user && (
+            {isAdmin && (
               <>
                 <span className={`mx-1 h-5 w-px ${theme.divider}`} />
                 <DropdownNav

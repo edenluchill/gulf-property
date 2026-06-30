@@ -61,17 +61,24 @@ export const API_ENDPOINTS = {
   health: `${API_BASE_URL}/health`,
 } as const;
 
-// Analytics dashboard owner allow-list (frontend gate is UX only — the server
-// enforces the same list on /api/admin/analytics/*). Override with
-// VITE_OWNER_EMAILS (comma-separated) to match the backend OWNER_EMAILS.
-export const OWNER_EMAILS = ((ENV.VITE_OWNER_EMAILS as string) || 'lzp6529@gmail.com')
+// Admin allow-list — the single source of truth for who sees admin nav + the
+// data/analytics dashboard. Frontend gate is UX only; the server enforces the
+// same list (backend lib/adminEmails ADMIN_EMAILS). Override with
+// VITE_ADMIN_EMAILS (comma-separated) to match the backend.
+export const ADMIN_EMAILS = ((ENV.VITE_ADMIN_EMAILS as string) || 'lzp6529@gmail.com,shelldubai26@gmail.com')
   .split(',')
   .map((s: string) => s.trim().toLowerCase())
   .filter(Boolean);
 
-export function isOwnerEmail(email?: string | null): boolean {
-  return !!email && OWNER_EMAILS.includes(email.toLowerCase());
+export function isAdminEmail(email?: string | null): boolean {
+  return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 }
+
+// Back-compat alias: the analytics dashboard ("数据管理") is now an admin-gated
+// page shared by all admins, so "owner" access === admin access here. (Owner-only
+// billing/credit privileges live server-side under OWNER_EMAILS, untouched.)
+export const OWNER_EMAILS = ADMIN_EMAILS;
+export const isOwnerEmail = isAdminEmail;
 
 // Environment info
 export const IS_PRODUCTION = !!ENV.PROD;

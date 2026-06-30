@@ -16,6 +16,7 @@
   "projectManagement": "Project Management",
   "dubaiMapEditor": "Map Editor",
   "taskManagement": "Task Management",
+  "dataManagement": "Data Management",
   "learnMore": "Learn more",
   "desc": {
     "transactions": "Multi-dimensional DLD real transaction search",
@@ -26,6 +27,7 @@
     "uploadBrochure": "Auto-extract project info from PDF brochures",
     "projectManagement": "View and edit all projects",
     "dubaiMapEditor": "Edit Dubai map routes",
-    "taskManagement": "View upload task status"
+    "taskManagement": "View upload task status",
+    "dataManagement": "Customer behavior & business analytics"
   }
 }

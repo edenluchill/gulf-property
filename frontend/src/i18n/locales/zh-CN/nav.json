@@ -16,6 +16,7 @@
   "projectManagement": "项目管理",
   "dubaiMapEditor": "地图编辑",
   "taskManagement": "任务管理",
+  "dataManagement": "数据管理",
   "learnMore": "了解更多",
   "desc": {
     "transactions": "DLD 真实成交多维查询",
@@ -26,6 +27,7 @@
     "uploadBrochure": "上传PDF楼书自动提取项目信息",
     "projectManagement": "查看和编辑所有项目",
     "dubaiMapEditor": "编辑迪拜地图路线",
-    "taskManagement": "查看上传任务状态"
+    "taskManagement": "查看上传任务状态",
+    "dataManagement": "客户行为与经营数据后台"
   }
 }

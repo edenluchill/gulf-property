@@ -18,6 +18,7 @@ import { Request, Response, NextFunction } from 'express'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { isAdminEmail } from '../lib/adminEmails'
 
 export interface ReqContext {
   userId: string | null
@@ -90,14 +91,18 @@ function adminRoleOf(meta: { user_metadata?: any; app_metadata?: any }): string 
 /** Fill req.ctx + req.user + req.isAdmin from a fully-resolved Supabase user. */
 export function applyUser(req: Request, user: User, auth: 'local' | 'remote'): void {
   const role = adminRoleOf(user)
+  // Admin is gated strictly by the email allow-list (lib/adminEmails) — NOT by the
+  // role metadata — so only the two whitelisted accounts get admin, regardless of
+  // any stale `role: admin` left in a user's Supabase metadata.
+  const admin = isAdminEmail(user.email)
   req.user = user
-  req.isAdmin = role === 'admin'
+  req.isAdmin = admin
   req.ctx = {
     userId: user.id,
     email: user.email ?? null,
     role,
     visitorId: req.ctx?.visitorId ?? null,
-    isAdmin: role === 'admin',
+    isAdmin: admin,
     auth,
   }
 }

@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { identifyVisitor } from '../lib/track'
 import { clearFavorites } from '../lib/favorites'
+import { isAdminEmail } from '../lib/config'
 
 interface AuthContextType {
   user: User | null
@@ -73,9 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(false)
       return
     }
-    // Check user_metadata for role (can be set via Supabase dashboard or SQL)
-    const role = user.user_metadata?.role || user.app_metadata?.role
-    setIsAdmin(role === 'admin')
+    // Admin is restricted to a fixed email allow-list (see lib/config ADMIN_EMAILS),
+    // NOT role metadata — so only the whitelisted accounts get admin access. The
+    // server enforces the same list; this is the UX-side gate.
+    setIsAdmin(isAdminEmail(user.email))
   }
 
   const signInWithOtp = async (email: string) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, LineChart, TrendingUp, Briefcase } from 'lucide-react'
+import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, LineChart, TrendingUp, Briefcase, BarChart3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
@@ -10,7 +10,7 @@ export default function MobileNav() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation(['common', 'nav', 'auth'])
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const { profile } = useUserProfile()
   const isAgent = !!profile?.agent
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
@@ -24,6 +24,7 @@ export default function MobileNav() {
 
   // Admin menu items
   const adminItems = [
+    { path: '/admin/analytics', label: t('nav:dataManagement'), icon: BarChart3, description: t('nav:desc.dataManagement') },
     { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, description: t('nav:desc.uploadBrochure') },
     { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, description: t('nav:desc.projectManagement') },
     { path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, description: t('nav:desc.dubaiMapEditor') },
@@ -48,16 +49,17 @@ export default function MobileNav() {
     isAgent
       ? { path: '/agent', label: t('nav:agentHub'), icon: Briefcase }
       : { path: '/agent/join', label: t('nav:becomeAgent'), icon: Briefcase },
-    // Admin - only for logged in users
-    ...(user ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
+    // Admin - only for whitelisted admin accounts
+    ...(isAdmin ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
     // Login/Profile based on auth status
     user
       ? { path: '/profile', label: t('nav:profile'), icon: User }
       : { path: '/login', label: t('auth:login', 'Login'), icon: LogIn },
   ]
 
-  // Grid columns based on login state
-  const gridCols = user ? 'grid-cols-5' : 'grid-cols-4'
+  // Grid columns: the admin tab (whitelisted accounts only) is the 5th item;
+  // everyone else — guests and non-admin users — has 4.
+  const gridCols = isAdmin ? 'grid-cols-5' : 'grid-cols-4'
 
   const handleNavClick = (item: typeof navItems[0], e: React.MouseEvent) => {
     if ('isAdminTrigger' in item && item.isAdminTrigger) {
