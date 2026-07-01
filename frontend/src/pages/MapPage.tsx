@@ -45,6 +45,7 @@ import { MapAction } from '../hooks/voice-assistant'
 import { GuidedTourPayload } from '../hooks/voice-assistant/types'
 import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
+import { formatMoneyCompact } from '../lib/money'
 import { isMapPath } from '../lib/isMapPath'
 import {
   fetchResidentialMapPins,
@@ -56,6 +57,24 @@ import {
   TransportGeoJSON,
   MapPinProject
 } from '../lib/api'
+
+// Ray-casting point-in-ring (ring = array of [lng,lat]). Handles the single-ring
+// case; polygon holes are ignored (area boundaries here have no holes).
+function pointInRing(pt: [number, number], ring: number[][]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1]
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+// Point-in-GeoJSON for Polygon | MultiPolygon (outer ring [0] of each polygon).
+function pointInGeometry(pt: [number, number], geom?: GeoJSON.Geometry): boolean {
+  if (!geom) return false
+  if (geom.type === 'Polygon') return pointInRing(pt, geom.coordinates[0] as number[][])
+  if (geom.type === 'MultiPolygon') return geom.coordinates.some((poly) => pointInRing(pt, poly[0] as number[][]))
+  return false
+}
 
 // Usage filter for the area dialog/sheet (默认全部). No data hidden — just segmented.
 const USAGE_FILTER = [
@@ -684,8 +703,24 @@ export default function MapPage() {
   }, [collabMode])
   useEffect(() => { followFreeRef.current = collab.followMode === 'free' }, [collab.followMode])
 
-  // Map drawing / markup (pen + eraser), geo-anchored + broadcast to the room.
-  const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive })
+  // Circle "draw-to-query": circle centre → the area under it → a compact
+  // multi-line readout (name + median price + yield + recent deals). Pure
+  // client-side (areas + metrics are already loaded), so no backend call.
+  const getAreaInfoAtPoint = useCallback((lng: number, lat: number): string | null => {
+    const zh = i18n.language?.startsWith('zh')
+    const area = dubaiAreas.find((a) => pointInGeometry([lng, lat], a.boundary))
+    if (!area) return null
+    const name = (zh && area.translations?.zh?.name) || area.name
+    const lines = [name]
+    if (area.medianUnitPrice) lines.push(`${zh ? '中位价' : 'Median'} ${formatMoneyCompact(area.medianUnitPrice, i18n.language)}`)
+    if (area.rentalYield) lines.push(`${zh ? '租金回报' : 'Yield'} ${area.rentalYield.toFixed(1)}%`)
+    if (area.transactionCount) lines.push(`${zh ? '成交' : 'Deals'} ${area.transactionCount.toLocaleString('en-US')}`)
+    return lines.join('\n')
+  }, [dubaiAreas, i18n.language])
+
+  // Map drawing / markup (pen / arrow / text / pin / circle), geo-anchored +
+  // broadcast to the room. Circle uses getAreaInfoAtPoint for draw-to-query.
+  const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive, getAreaInfo: getAreaInfoAtPoint })
 
   // Presenter's distance-measure → broadcast so viewers see the same ruler.
   const handleMeasureChange = useCallback((points: [number, number][] | null) => {
