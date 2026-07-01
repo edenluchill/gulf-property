@@ -1007,6 +1007,15 @@ export default function MapPage() {
       // Status filter
       if (filters.status && pin.status !== filters.status) return false
 
+      // Completion / handover date filter (交房年份) — also powers FilterDialog's date range pickers.
+      // completionDateStart/End are YYYY-MM-DD; compare against the pin's completion date (date part only).
+      if (filters.completionDateStart || filters.completionDateEnd) {
+        const d = pin.completionDate ? pin.completionDate.slice(0, 10) : null
+        if (!d) return false
+        if (filters.completionDateStart && d < filters.completionDateStart) return false
+        if (filters.completionDateEnd && d > filters.completionDateEnd) return false
+      }
+
       // Search query
       if (searchQuery) {
         const query = searchQuery.toLowerCase()

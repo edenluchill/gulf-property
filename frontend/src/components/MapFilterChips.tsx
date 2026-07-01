@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, X, SlidersHorizontal, Wallet, BedDouble, Hammer, Building2, Check } from 'lucide-react'
+import { ChevronDown, X, SlidersHorizontal, Wallet, BedDouble, Hammer, Building2, Check, CalendarClock } from 'lucide-react'
 import { PropertyFilters } from '../types'
 import { trackEvent } from '../lib/track'
 
@@ -52,6 +52,15 @@ const STATUS: { key: StatusKey; v?: PropertyFilters['status'] }[] = [
   { key: 'statusCompleted', v: 'completed' },
 ]
 
+// 交房年份:当前年起 5 个具体年 + 一个「及以后」桶。用现有 completionDate* 字段表达,
+// 一套过滤逻辑同时驱动 FilterDialog 的日期区间。
+const HANDOVER_BASE = new Date().getFullYear()
+const HANDOVER_OPTS: { year: number | null; plus?: boolean }[] = [
+  { year: null },
+  ...[0, 1, 2, 3, 4].map(i => ({ year: HANDOVER_BASE + i })),
+  { year: HANDOVER_BASE + 5, plus: true },
+]
+
 export default function MapFilterChips({ filters, setFilters, developers }: Props) {
   const { t } = useTranslation('filter')
   const [open, setOpen] = useState<string | null>(null)   // 桌面 popover
@@ -65,6 +74,8 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       : b.v === 0 ? t('chips.studio')
       : t('chips.bedsPlus', { n: b.v })
   const statusText = (key: StatusKey) => t(`chips.${key}`)
+  const handoverOptLabel = (o: { year: number | null; plus?: boolean }) =>
+    o.year === null ? t('chips.any') : o.plus ? t('chips.yearPlus', { y: o.year }) : String(o.year)
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -85,12 +96,27 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
     return s ? statusText(s.key) : null
   })()
   const devLabel = filters.developer || null
-  const activeCount = [priceLabel, bedLabel, statusLabel, devLabel].filter(Boolean).length
+  // 交房年份当前选中态:从 completionDateStart/End 反推。具体年两端都设,「及以后」仅 start。
+  const handoverLabel = (() => {
+    const s = filters.completionDateStart
+    if (!s) return null
+    const y = s.slice(0, 4)
+    return filters.completionDateEnd ? y : `${y}+`
+  })()
+  const handoverSel = (year: number | null, plus?: boolean) => {
+    const s = filters.completionDateStart
+    const e = filters.completionDateEnd
+    if (year === null) return !s && !e
+    if (plus) return s === `${year}-01-01` && !e
+    return s === `${year}-01-01` && e === `${year}-12-31`
+  }
+  const activeCount = [priceLabel, bedLabel, statusLabel, devLabel, handoverLabel].filter(Boolean).length
   const anyActive = activeCount > 0
 
   const clearAll = () => setFilters(f => ({
     ...f, minPrice: undefined, maxPrice: undefined,
     minBedrooms: undefined, status: undefined, developer: undefined,
+    completionDateStart: undefined, completionDateEnd: undefined,
   }))
 
   // ---- 筛选 = 主应用真正的"搜索"。下面四个 handler 既改 filter 又埋点,
@@ -110,6 +136,18 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
   const applyDeveloper = (d: string) => {
     setFilters(f => ({ ...f, developer: d }))
     trackEvent('search', { query: d, kind: 'developer' })
+  }
+  const applyHandover = (year: number | null, plus?: boolean) => {
+    if (year === null) {
+      setFilters(f => ({ ...f, completionDateStart: undefined, completionDateEnd: undefined }))
+      return
+    }
+    setFilters(f => ({
+      ...f,
+      completionDateStart: `${year}-01-01`,
+      completionDateEnd: plus ? undefined : `${year}-12-31`,
+    }))
+    trackEvent('search', { query: plus ? `${year}+` : String(year), kind: 'handover' })
   }
 
   // ---- 桌面构件 ----
@@ -216,6 +254,19 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
           )}
         </div>
         <div className="relative shrink-0">
+          <Chip id="handover" base={t('chips.handover')} active={handoverLabel} />
+          {open === 'handover' && (
+            <Pop>
+              {HANDOVER_OPTS.map(o => (
+                <Opt key={o.year ?? 'any'} sel={handoverSel(o.year, o.plus)}
+                  on={() => applyHandover(o.year, o.plus)}>
+                  {handoverOptLabel(o)}
+                </Opt>
+              ))}
+            </Pop>
+          )}
+        </div>
+        <div className="relative shrink-0">
           <Chip id="dev" base={t('chips.developer')} active={devLabel} />
           {open === 'dev' && (
             <div className="absolute left-0 top-9 z-[1001] w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
@@ -311,6 +362,17 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                       isDefault={!s.v}
                       sel={s.v ? filters.status === s.v : !filters.status}
                       on={() => applyStatus(s)} />
+                  ))}
+                </div>
+              </Section>
+
+              <Section icon={CalendarClock} title={t('chips.handover')} hint={t('chips.handoverHint')}>
+                <div className="flex flex-wrap gap-2">
+                  {HANDOVER_OPTS.map(o => (
+                    <SheetRow key={o.year ?? 'any'} label={handoverOptLabel(o)}
+                      isDefault={o.year === null}
+                      sel={handoverSel(o.year, o.plus)}
+                      on={() => applyHandover(o.year, o.plus)} />
                   ))}
                 </div>
               </Section>
