@@ -39,26 +39,18 @@ const MAP_STYLE_LABELED = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/sty
 // 数据图层（热力/POI/区域/交通）叠加其上不变；只是底图变深色。
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 
-// 卫星底图风格。
-// 有 VITE_MAPTILER_KEY → MapTiler satellite-v2 的 512 retina 瓦片(手机/高DPI屏清晰);
-// 没有 → 退回 Esri World Imagery 256(免 key,但高 DPI 屏会偏糊)。免费 key: maptiler.com
-const MAPTILER_KEY = (import.meta as any).env?.VITE_MAPTILER_KEY as string | undefined
-
-const SATELLITE_SOURCE = MAPTILER_KEY
-  ? {
-      type: 'raster' as const,
-      tiles: [`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`],
-      tileSize: 512,
-      maxzoom: 20,
-      attribution: '© MapTiler © Esri, Maxar'
-    }
-  : {
-      type: 'raster' as const,
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
-    }
+// 卫星底图风格 = Esri World Imagery(免费、无 key)。
+// 迪拜实测:Esri 对迪拜通常比 MapTiler satellite-v2 的全球拼接图更新(后者部分区域
+// 落后好几年,看着像"多年前的空地")。Esri 免费无 key、迪拜市区约 2–3 年内,取舍上
+// 新鲜度 > 高DPI锐度(256 瓦片在高分屏略软,可接受)。任何免费源对迪拜都会滞后 1–3 年,
+// 真·当月最新只有付费 Maxar/Airbus。
+const SATELLITE_SOURCE = {
+  type: 'raster' as const,
+  tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+  tileSize: 256,
+  maxzoom: 19,
+  attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
+}
 
 // glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
 const SATELLITE_STYLE = {
@@ -650,7 +642,7 @@ function MapViewMapLibre({
   const prefetchedRef = useRef<Set<string>>(new Set())
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchSatelliteAhead = useCallback(() => {
-    if (baseMap !== 'satellite' || !MAPTILER_KEY || tourActive) return
+    if (baseMap !== 'satellite' || tourActive) return
     const map = mapRef.current?.getMap()
     if (!map) return
     const b = map.getBounds()
@@ -659,7 +651,7 @@ function MapViewMapLibre({
     if (seen.size > 1500) seen.clear()
     const urls: string[] = []
     for (const z of [z0 + 1, z0 + 2]) {
-      if (z < 1 || z > 20) continue
+      if (z < 1 || z > 19) continue
       const n = 2 ** z
       const xMin = Math.floor(((b.getWest() + 180) / 360) * n)
       const xMax = Math.floor(((b.getEast() + 180) / 360) * n)
@@ -670,7 +662,8 @@ function MapViewMapLibre({
         for (let y = yMin; y <= yMax && urls.length < 40; y++) {
           if (y < 0 || y >= n) continue
           const xx = ((x % n) + n) % n
-          const url = `https://api.maptiler.com/tiles/satellite-v2/${z}/${xx}/${y}.jpg?key=${MAPTILER_KEY}`
+          // Esri World Imagery tile order is {z}/{y}/{x}
+          const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${xx}`
           if (seen.has(url)) continue
           seen.add(url)
           urls.push(url)
