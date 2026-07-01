@@ -259,7 +259,14 @@ function MapViewMapLibre({
   // mirror them. Ref-held callback so this effect only depends on the points.
   const onMeasureChangeRef = useRef(onMeasureChange)
   onMeasureChangeRef.current = onMeasureChange
+  // Points written programmatically from `voiceMeasure` (Luna voice OR a peer's
+  // mirrored ruler arriving over collab) must NOT be re-broadcast — otherwise two
+  // broadcasting nodes in one room (e.g. the `?host=` URL opened as presenter in a
+  // second tab) ping-pong the same points forever: the ruler flickers wildly and
+  // refuses to exit. Only LOCAL user edits (map clicks / clear / exit) are emitted.
+  const measureFromExternalRef = useRef(false)
   useEffect(() => {
+    if (measureFromExternalRef.current) { measureFromExternalRef.current = false; return }
     onMeasureChangeRef.current?.(measurePoints.length ? measurePoints.map((p) => [p.lng, p.lat] as [number, number]) : null)
   }, [measurePoints])
 
@@ -281,11 +288,13 @@ function MapViewMapLibre({
   useEffect(() => {
     if (!voiceMeasure || !voiceMeasure.points?.length) {
       // 清空：退出测距模式并移除连线（导览结束/语音清除时调用）
+      measureFromExternalRef.current = true
       setMeasureMode(false)
       setMeasurePoints([])
       return
     }
     const pts = voiceMeasure.points.map(([lng, lat]) => ({ lng, lat }))
+    measureFromExternalRef.current = true
     setMeasureMode(true)
     setMeasurePoints(pts)
     const map = mapRef.current?.getMap()
