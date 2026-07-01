@@ -149,6 +149,10 @@ interface MapViewMapLibreProps {
    *  must resize maplibre (a hidden container reports 0×0). Defaults to true so
    *  non-persistent callers are unaffected. */
   visible?: boolean
+  /** Collab markup: while a draw/markup tool is active, swallow map feature clicks
+   *  so tapping to draw/place a mark doesn't ALSO open a POI/area/project panel
+   *  (and so dismissing a panel doesn't re-select the feature underneath). */
+  disableFeatureClicks?: boolean
 }
 
 function MapViewMapLibre({
@@ -177,7 +181,8 @@ function MapViewMapLibre({
   hideAmenityPanel = false,
   chromeless = false,
   tourActive = false,
-  visible = true
+  visible = true,
+  disableFeatureClicks = false
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -901,6 +906,9 @@ function MapViewMapLibre({
       return
     }
 
+    // 画笔/标记工具激活时：完全吞掉要素点击，画画不误开 POI/区域/项目面板
+    if (disableFeatureClicks) return
+
     if (!e.features?.length) return
 
     // Prioritize: POI > Station > Area
@@ -946,10 +954,17 @@ function MapViewMapLibre({
       const area = dubaiAreas.find(a => a.id === areaId)
       if (area) onAreaClick(area)
     }
-  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode])
+  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks])
 
   return (
-    <div className="h-full w-full">
+    <div className={`h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
+      {/* While a markup tool is active, DOM markers (projects/clusters/landmarks)
+          must not eat the pointer — otherwise a tap over a pin opens its panel
+          instead of drawing, and you can't draw over a pin. GL-layer features
+          (POI/area/station) are already gated in handleMapClick above. */}
+      {disableFeatureClicks && (
+        <style>{`.lt-draw-active .maplibregl-marker{pointer-events:none !important}`}</style>
+      )}
       <Map
         ref={mapRef}
         initialViewState={INITIAL_VIEW}

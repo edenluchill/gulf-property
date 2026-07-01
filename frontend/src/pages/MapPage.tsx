@@ -1307,6 +1307,10 @@ export default function MapPage() {
             showTransport={showTransport}
             voiceMeasure={voiceMeasure}
             onMeasureChange={handleMeasureChange}
+            // Collab markup: while a draw tool is active, swallow feature clicks so
+            // drawing/placing marks never opens a POI/area/project panel (and
+            // closing a panel doesn't re-select the feature underneath).
+            disableFeatureClicks={collabActive && draw.tool !== 'none'}
             voiceAmenities={voiceAmenities}
             hideAmenityPanel={!!guidedTour}
           />
