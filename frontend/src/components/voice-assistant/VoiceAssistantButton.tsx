@@ -17,6 +17,13 @@ import { useVoiceAssistantContext } from '../../contexts/VoiceAssistantContext'
 import { VoicePhase, ProjectCard, AreaInfoCard, BubbleContent, Investment5yr, MessageAttachment } from '../../hooks/voice-assistant/types'
 import { cn } from '../../lib/utils'
 
+// Text mode is built (keyboard icon + panel + backend /api/voice/text) but the
+// backend Gemini tool-understanding is currently ERRATIC from the production
+// server's region (works 12/12 locally, ~1/6 on the server — same key/model).
+// Keep the entry hidden until that's resolved, so customers don't get a text
+// Luna that greets instead of acting. Flip to true once reliable.
+const TEXT_MODE_ENABLED = false
+
 // ─── Helpers ───
 
 function formatPrice(price: number | undefined): string {
@@ -650,7 +657,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     )}>
       {/* Text-mode panel: absolutely positioned left of pill (independent of voice) */}
       <AnimatePresence>
-        {textOpen && (
+        {TEXT_MODE_ENABLED && textOpen && (
           <div key="text-panel" className="absolute bottom-0 right-[56px]">
             <LunaTextPanel onNavigateProject={navigateToProject} t={t} />
           </div>
@@ -794,6 +801,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       </motion.button>
 
       {/* Keyboard mini-button: opens text mode. stopPropagation → never triggers voice. */}
+      {TEXT_MODE_ENABLED && (
       <button
         onClick={handleKeyboard}
         className={cn(
@@ -806,6 +814,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       >
         <Keyboard className="h-3.5 w-3.5" />
       </button>
+      )}
 
     </div>
   )
