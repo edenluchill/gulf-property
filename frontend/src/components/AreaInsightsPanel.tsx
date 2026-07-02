@@ -238,7 +238,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   // 成交量卡片标注「12个月」，且「全部」用的是 area.transactionCount(真·12个月滚动值)。
   // insights.volume 是 24 个月序列 → 这里只取最近 12 个月求和，口径才一致(否则各 usage
   // 会拿 24 个月总数,出现「商业 949 > 全部 511」的矛盾)。
-  const insVol = insights?.volume?.length ? insights.volume.slice(-12).reduce((a, b) => a + b, 0) : null
+  // 成交量看全口径（含现房/地块）——流动性是"区活不活跃"的信号，不随价格口径缩水
+  // （Palm Jebel Ali 的地块交易被 DLD 归非期房，只看期房会误显冷清）
+  const volSeries = insights?.volumeAll ?? insights?.volume
+  const insVol = volSeries?.length ? volSeries.slice(-12).reduce((a, b) => a + b, 0) : null
   // When a specific usage is selected, show ONLY that usage's real data (the
   // insights series). Never fall back to area.* (the map's combined 'all' value)
   // — otherwise a usage with 0 transactions would wrongly show the 'all' price/
@@ -250,7 +253,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   // Rent stability is residential-derived → only meaningful in the 'all' view.
   const stabilityNow = usageActive ? null : (area.rentStability ?? null)
   const medianPsm = pick(area.medianPriceSqm, lastNonNull(insights?.price))
-  const txCount = pick(area.transactionCount, insVol)
+  const txCount = pick(area.transactionCountAll ?? area.transactionCount, insVol)
   // Single price value for the tile. For a specific usage, only its own median —
   // never the area's combined avg. For 'all', median then avg fallback.
   const priceDisplay = medianPsm ?? (usageActive ? null : (area.averagePrice ?? null))
@@ -354,10 +357,14 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
 
         <StatCard
           label={t('map:areaDialog.transactionCount')}
+          info={<InfoHint title={howTitle} text={zh ? '近 12 个月该区全部 DLD 成交（含期房、现房与地块）——反映真实活跃度。价格与增长另按期房口径计算。' : 'All DLD sales in the last 12 months (off-plan, ready and plots) — real market activity. Price & growth are computed on the off-plan basis separately.'} />}
           value={txCount != null ? txCount.toLocaleString() : '—'}
+          chip={effSeg === 'offplan' && insights?.segmentCounts12m?.offplan != null && !usageActive
+            ? `${zh ? '期房' : 'Off-plan'} ${insights.segmentCounts12m.offplan.toLocaleString()}` : null}
+          chipClass="bg-violet-50 text-violet-700"
           loading={loading}
         >
-          <SparkBars data={insights?.volume || []} color="#3b82f6" labels={insights?.months} fmt={(v) => v.toLocaleString()} />
+          <SparkBars data={volSeries || []} color="#3b82f6" labels={insights?.months} fmt={(v) => v.toLocaleString()} />
         </StatCard>
 
         <StatCard

@@ -758,6 +758,8 @@ function composeAreaInsights(raw: any, segment: MarketSegment) {
     months: raw.months,
     price: v.price,
     volume: v.volume,
+    // 全口径月度成交量——成交量 tile 显示真实活跃度（含现房/地块），不随价格口径缩水
+    volumeAll: variants.all.volume,
     growth: v.growth,
     rentalYield: raw.rentalYield,   // 固定全口径
     dataThrough: raw.dataThrough,
@@ -934,9 +936,10 @@ function classifyAreas(rows: AreaMetricRow[]) {
 }
 
 async function loadAreaMetricRows(): Promise<AreaMetricRow[]> {
-  // 分级用与散客展示同一口径（默认期房；函数内部对样本不足的区自动回退全口径）
+  // 分级：增长按散客口径（默认期房，样本不足自动回退），成交量按全口径——
+  // 流动性分位用期房数会把地块主导的区（如 Palm Jebel Ali）误判成低活跃。
   const r = await pool.query(
-    `SELECT id, name, transaction_count, capital_growth_pct,
+    `SELECT id, name, transaction_count_all AS transaction_count, capital_growth_pct,
             rental_yield_pct, median_unit_price, median_price_sqm
        FROM get_dubai_area_metrics('residential', $1)`,
     [DEFAULT_SEGMENT]

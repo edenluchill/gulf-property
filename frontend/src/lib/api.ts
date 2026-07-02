@@ -852,6 +852,8 @@ export interface AreaInsights {
   months: string[];
   price: (number | null)[];
   volume: number[];
+  /** 全口径月度成交量（含现房/地块）——成交量展示用，不随价格口径缩水 */
+  volumeAll?: number[];
   growth: (number | null)[];
   rentalYield: (number | null)[];
   dataThrough: string | null;

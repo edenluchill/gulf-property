@@ -167,6 +167,7 @@ export interface DubaiArea {
   newContractCount?: number     // # new rent contracts, rolling 12mo (evidence)
   renewContractCount?: number   // # renewal rent contracts, rolling 12mo (evidence)
   priceSegment?: 'offplan' | 'ready' | 'all'  // 价格/增长字段实际口径（期房样本不足时后端回退 'all'）
+  transactionCountAll?: number  // 全口径成交量（含现房/地块）——流动性展示用
   // AI analysis fields
   areaCategory?: string
   investmentProfile?: string

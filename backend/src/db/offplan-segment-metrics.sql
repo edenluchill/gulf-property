@@ -208,8 +208,11 @@ END $function$;
 
 -- 4. get_dubai_area_metrics：加 p_segment + 每区样本护栏 + price_segment 口径标记。
 --    价格类字段取 segment 行（样本足够时），租金/收益率类永远取 'all' 行。
+--    transaction_count_all 永远给全口径成交量——流动性是"区活不活跃"的信号，
+--    不跟口径走（Palm Jebel Ali 的地块交易被 DLD 归非期房，藏掉会误显冷清）。
 --    旧调用 get_dubai_area_metrics() / ($1) 走默认参数，行为与之前完全一致。
 DROP FUNCTION IF EXISTS get_dubai_area_metrics(text);
+DROP FUNCTION IF EXISTS get_dubai_area_metrics(text, text, int);
 
 CREATE OR REPLACE FUNCTION get_dubai_area_metrics(
   p_usage text DEFAULT 'residential',
@@ -222,7 +225,7 @@ RETURNS TABLE(
   sales_volume numeric, transaction_count bigint, capital_growth_pct numeric,
   rental_yield_pct numeric, rent_stability_pct numeric, median_new_rent_sqm numeric,
   new_contract_count integer, renew_contract_count integer,
-  price_segment text
+  price_segment text, transaction_count_all bigint
 )
 LANGUAGE sql STABLE AS $function$
   WITH eff AS (
@@ -257,7 +260,8 @@ LANGUAGE sql STABLE AS $function$
     ROUND(b.median_new_rent_sqm::numeric, 0),
     b.new_contract_count,
     b.renew_contract_count,
-    pick.price_segment
+    pick.price_segment,
+    b.sales_transaction_count::bigint
   FROM base b
   LEFT JOIN seg s ON s.dubai_area_id = b.dubai_area_id
   CROSS JOIN LATERAL (

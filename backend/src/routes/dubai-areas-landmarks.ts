@@ -99,6 +99,7 @@ router.get('/areas', async (req: Request, res: Response) => {
         m.new_contract_count as new_contract_count,
         m.renew_contract_count as renew_contract_count,
         m.transaction_count,
+        m.transaction_count_all,
         m.price_segment as price_segment,
         ny.net_yield_pct as net_yield_pct,
         ny.service_charge_sqft as service_charge_sqft,
@@ -125,6 +126,8 @@ router.get('/areas', async (req: Request, res: Response) => {
       newContractCount: row.new_contract_count != null ? parseInt(row.new_contract_count) : null,
       renewContractCount: row.renew_contract_count != null ? parseInt(row.renew_contract_count) : null,
       transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
+      // 全口径成交量（含现房/地块）——流动性展示用，不随价格口径缩水
+      transactionCountAll: row.transaction_count_all ? parseInt(row.transaction_count_all) : null,
       medianPriceSqm: row.median_price_sqm ? parseFloat(row.median_price_sqm) : null,
       medianUnitPrice: row.median_unit_price ? parseFloat(row.median_unit_price) : null,
       // 价格/增长字段的实际口径（'offplan'|'ready'|'all'）；样本不足时函数已回退 'all'
