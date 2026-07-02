@@ -25,7 +25,6 @@ import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog from '../components/AreaDetailDialog'
 import GuidedTour from '../components/GuidedTour'
-import FindHomeAssistant from '../components/find-home/FindHomeAssistant'
 import MobileBottomSheet from '../components/MobileBottomSheet'
 import { getImageUrl } from '../lib/image-utils'
 import { trackEvent } from '../lib/track'
@@ -151,7 +150,7 @@ function getKhdaStyle(rating?: string): { bg: string; text: string; zh: string }
 }
 
 export default function MapPage() {
-  const { t, i18n } = useTranslation(['map', 'common', 'findhome'])
+  const { t, i18n } = useTranslation(['map', 'common'])
   const navigate = useNavigate()
   const voiceContext = useVoiceAssistantContext()
   // Luna Tour: run a shared session ON this map. Supports both /v/:code and the
@@ -271,7 +270,6 @@ export default function MapPage() {
   const [filters, setFilters] = useState<PropertyFilters>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [showFindHome, setShowFindHome] = useState(false)
   const [mapPins, setMapPins] = useState<MapPinProject[]>([])
   const [mapReady, setMapReady] = useState(false) // first map frame settled → fade out the load overlay
   const [mapBounds, setMapBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null)
@@ -1101,33 +1099,6 @@ export default function MapPage() {
     }
   }, [isMobile, mapPins])
 
-  // 找房助手：把推荐/可负担区域名（DLD area_name）匹配回地图上的 DubaiArea，
-  // 飞过去并打开区域详情。沿用项目的区域名级联匹配（精确→去空格→词重叠）。
-  const handleFindHomeViewArea = useCallback((areaName: string) => {
-    const target = areaName.trim().toLowerCase()
-    const strip = (s: string) => s.toLowerCase().replace(/\s+/g, '')
-    let area =
-      dubaiAreas.find(a => a.name.trim().toLowerCase() === target) ||
-      dubaiAreas.find(a => strip(a.name) === strip(areaName))
-    if (!area) {
-      const words = target.split(/\s+/).filter(w => w.length > 2)
-      area = dubaiAreas.find(a => {
-        const an = a.name.toLowerCase()
-        return words.some(w => an.includes(w))
-      })
-    }
-    if (!area || area.boundary?.type !== 'Polygon') return
-
-    const ring = (area.boundary as GeoJSON.Polygon).coordinates[0]
-    if (!ring?.length) return
-    let sx = 0, sy = 0
-    for (const [lng, lat] of ring) { sx += lng; sy += lat }
-    const center = { lng: sx / ring.length, lat: sy / ring.length }
-
-    setShowFindHome(false)
-    setFlyToLocation({ lat: center.lat, lng: center.lng, zoom: 13 })
-    handleAreaClick(area)
-  }, [dubaiAreas, handleAreaClick])
 
   // 深链：/?area=Business%20Bay 直接打开该区域的详情弹窗（可分享；也供自动化测试）
   const areaParam = searchParams.get('area')
@@ -1680,13 +1651,6 @@ export default function MapPage() {
         developers={developers}
         areas={areas}
         projects={projects}
-      />
-
-      {/* 找房助手：移动端底部 sheet / 桌面端左侧浮动面板 */}
-      <FindHomeAssistant
-        isOpen={showFindHome}
-        onClose={() => setShowFindHome(false)}
-        onViewArea={handleFindHomeViewArea}
       />
 
       {/* Desktop: Area Detail Dialog */}

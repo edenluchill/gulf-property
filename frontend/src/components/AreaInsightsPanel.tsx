@@ -298,13 +298,13 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       {(effSeg !== 'all' || segFellBack) && (
         <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
           {effSeg !== 'all' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-200">
-              {effSeg === 'offplan' ? (zh ? '期房口径' : 'Off-plan basis') : (zh ? '现房口径' : 'Ready basis')}
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">
+              {effSeg === 'offplan' ? (zh ? '仅统计期房成交' : 'Off-plan sales only') : (zh ? '仅统计现房成交' : 'Ready sales only')}
               <InfoHint
-                title={howTitle}
+                title={zh ? '为什么只看期房' : 'Why off-plan only'}
                 text={zh
-                  ? '中位价与增长仅统计期房（off-plan）成交，避免现房成交结构变化稀释期房增值。租金回报与稳定性始终基于全市场租约，不受口径影响。'
-                  : 'Median price & growth count off-plan sales only, so ready-market mix shifts don’t dilute off-plan appreciation. Rental yield & stability always use the full rental market.'}
+                  ? '价格、增长与成交量仅统计期房（off-plan）成交。期房与现房是两个市场：现房中位价反映的是存量老盘，跟你关注的新盘不可比，混在一起会让期房增值失真。租金回报与稳定性基于全市场租约，不受影响。'
+                  : 'Price, growth and volume count off-plan sales only. Off-plan and ready are two different markets — the ready median reflects older existing stock, not new launches, and mixing them distorts off-plan appreciation. Rental yield & stability always use the full rental market.'}
               />
             </span>
           )}
@@ -434,6 +434,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
         <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
         {t('map:areaDialog.dldSource', { month: insights?.dataThrough || '—' })}
+        {effSeg === 'offplan' && <span>{zh ? '· 期房口径' : '· off-plan basis'}</span>}
       </p>
     </div>
   )
@@ -458,16 +459,19 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
   const [extra, setExtra] = useState<TxItem[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  // 期房/现房筛选 —— 散客默认期房；基础 30 条客户端过滤，加载更多走服务端 type 参数
-  const [saleFilter, setSaleFilter] = useState<MarketSegment>(CONSUMER_SEGMENT)
+  // 成交列表固定散客口径（默认仅期房，不给现房切换 tab——现房老盘存量价会误导
+  // "能卖多少"的判断；改口径只动 lib/marketSegment.ts 的 CONSUMER_SEGMENT）
+  const saleFilter: MarketSegment = CONSUMER_SEGMENT
 
-  // 切换区域时重置追加列表 + 回到成交 tab + 恢复默认口径
-  useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales'); setSaleFilter(CONSUMER_SEGMENT) }, [areaId])
-  // 切换口径时重置追加列表（服务端 offset 按各自口径独立计）
-  useEffect(() => { setExtra([]); setHasMore(true) }, [saleFilter])
+  // 切换区域时重置追加列表 + 回到成交 tab
+  useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales') }, [areaId])
 
   const allBaseRows = insights?.recentTransactions || []
-  const baseRows = saleFilter === 'all' ? allBaseRows : allBaseRows.filter(r => r.saleType === saleFilter)
+  const filteredRows = saleFilter === 'all' ? allBaseRows : allBaseRows.filter(r => r.saleType === saleFilter)
+  // 该区近期没有期房成交 → 回退显示全部（如实标注），别给客户一个空列表
+  const segFellBack = saleFilter !== 'all' && filteredRows.length === 0 && allBaseRows.length > 0
+  const effFilter: MarketSegment = segFellBack ? 'all' : saleFilter
+  const baseRows = effFilter === 'all' ? allBaseRows : filteredRows
   const rows = [...baseRows, ...extra]
   const rentRows = insights?.recentRentals || []
 
@@ -476,7 +480,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
     const PAGE = 20
     const r = await fetchTxList({
       areaId, limit: String(PAGE), offset: String(rows.length),
-      ...(saleFilter !== 'all' ? { type: saleFilter } : {})
+      ...(effFilter !== 'all' ? { type: effFilter } : {})
     })
     const mapped: TxItem[] = r.rows.map(x => ({
       date: x.date,
@@ -505,19 +509,6 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
   )
 
   const zh = (lang || 'en').startsWith('zh')
-  const FilterChip = ({ id, label }: { id: MarketSegment; label: string }) => (
-    <button
-      type="button"
-      onClick={() => setSaleFilter(id)}
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
-        saleFilter === id
-          ? 'bg-violet-600 text-white'
-          : 'bg-slate-100 text-slate-500 hover:text-slate-700'
-      }`}
-    >
-      {label}
-    </button>
-  )
 
   return (
     <div>
@@ -528,18 +519,23 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
             <TabBtn id="rentals" label={t('map:areaDialog.tabRentals')} />
           </div>
         )}
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-          <BadgeCheck className="h-3 w-3" />
-          Dubai Land Department
+        <span className="inline-flex items-center gap-1.5">
+          {tab === 'sales' && effFilter === 'offplan' && (
+            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-200">
+              {zh ? '仅期房成交' : 'Off-plan only'}
+            </span>
+          )}
+          {tab === 'sales' && segFellBack && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+              {zh ? '该区近期无期房成交，显示全部' : 'No recent off-plan here — showing all'}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+            <BadgeCheck className="h-3 w-3" />
+            Dubai Land Department
+          </span>
         </span>
       </div>
-      {tab === 'sales' && (
-        <div className="mb-2 flex items-center gap-1">
-          <FilterChip id="offplan" label={t('map:areaDialog.offplan')} />
-          <FilterChip id="ready" label={t('map:areaDialog.ready')} />
-          <FilterChip id="all" label={zh ? '全部' : 'All'} />
-        </div>
-      )}
 
       {loading ? (
         <div className="space-y-2">
@@ -566,9 +562,11 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
                       {tx.price != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
                       {tx.price != null ? formatMoneyCompact(tx.price, lang) : '—'}
                     </div>
-                    <span className={`text-[10px] font-medium ${tx.saleType === 'offplan' ? 'text-violet-600' : 'text-emerald-600'}`}>
-                      {tx.saleType === 'offplan' ? t('map:areaDialog.offplan') : t('map:areaDialog.ready')}
-                    </span>
+                    {effFilter === 'all' && (
+                      <span className={`text-[10px] font-medium ${tx.saleType === 'offplan' ? 'text-violet-600' : 'text-emerald-600'}`}>
+                        {tx.saleType === 'offplan' ? t('map:areaDialog.offplan') : t('map:areaDialog.ready')}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
