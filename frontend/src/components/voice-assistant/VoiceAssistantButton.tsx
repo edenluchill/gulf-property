@@ -463,9 +463,10 @@ function LunaTextPanel({
   onNavigateProject: (id: string) => void
   t: TFunction<'components'>
 }) {
-  const { lastExchange, sendText, closeText, textPending } = useVoiceAssistantContext()
+  const { textThread, sendText, closeText, textPending } = useVoiceAssistantContext()
   const [input, setInput] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto-grow the textarea (capped) as the user types.
   useEffect(() => {
@@ -474,6 +475,12 @@ function LunaTextPanel({
     ta.style.height = 'auto'
     ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`
   }, [input])
+
+  // Keep the thread pinned to the bottom as messages/stream update (fixed-height box).
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [textThread])
 
   const handleSend = useCallback(() => {
     const v = input.trim()
@@ -516,52 +523,53 @@ function LunaTextPanel({
           </button>
         </div>
 
-        {/* Last exchange (only 2 bubbles) */}
-        <div className="px-3 py-2.5 space-y-2 max-h-[46vh] md:max-h-[calc(100vh-14rem)] overflow-y-auto">
-          {lastExchange ? (
-            <>
-              {/* User message (right, teal) */}
-              <div className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-emerald-600 px-3 py-1.5 text-[13px] leading-snug text-white">
-                  {lastExchange.user}
-                </div>
-              </div>
-
-              {/* Luna reply (left) or typing indicator */}
-              {lastExchange.bubble ? (
-                <div className="flex justify-start">
+        {/* Conversation thread — FIXED height + scroll (so it never grows with the
+            streaming text; scrollback = this session's history, cleared on close). */}
+        {textThread.length === 0 ? (
+          <p className="px-3 py-4 text-center text-[12px] text-gray-400">
+            {t('voice.text.placeholder', { defaultValue: 'Type to ask Luna anything about Dubai property' })}
+          </p>
+        ) : (
+          <div ref={scrollRef} className="px-3 py-2.5 space-y-2 h-[42vh] md:h-[46vh] overflow-y-auto">
+            {textThread.map((m, i) => {
+              const isLast = i === textThread.length - 1
+              if (m.role === 'user') {
+                return (
+                  <div key={m.id} className="flex justify-end">
+                    <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-emerald-600 px-3 py-1.5 text-[13px] leading-snug text-white">{m.text}</div>
+                  </div>
+                )
+              }
+              // assistant: show streamed text/attachment, or dots while empty+pending
+              const empty = !m.text && !m.attachment
+              return (
+                <div key={m.id} className="flex justify-start">
                   <div className="max-w-[92%] rounded-2xl rounded-bl-sm bg-gradient-to-br from-[#f0f4ff] to-white px-3 py-2 border border-blue-100/50">
-                    {lastExchange.bubble.text && (
-                      <p className="text-gray-800 leading-relaxed text-[13px]">{lastExchange.bubble.text}</p>
-                    )}
-                    {lastExchange.bubble.attachment && (
-                      <BubbleAttachmentView attachment={lastExchange.bubble.attachment} onNavigateProject={onNavigateProject} t={t} />
+                    {empty && isLast && textPending ? (
+                      <div className="flex gap-[3px] py-0.5">
+                        {[0, 1, 2].map(d => (
+                          <motion.div
+                            key={d}
+                            className="w-[5px] h-[5px] rounded-full bg-indigo-300"
+                            animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                            transition={{ duration: 0.8, repeat: Infinity, delay: d * 0.15, ease: 'easeInOut' }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        {m.text && <p className="text-gray-800 leading-relaxed text-[13px]">{m.text}</p>}
+                        {m.attachment && (
+                          <BubbleAttachmentView attachment={m.attachment} onNavigateProject={onNavigateProject} t={t} />
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-              ) : textPending ? (
-                <div className="flex justify-start">
-                  <div className="rounded-2xl rounded-bl-sm bg-gradient-to-br from-[#f0f4ff] to-white px-3 py-2 border border-blue-100/50">
-                    <div className="flex gap-[3px]">
-                      {[0, 1, 2].map(i => (
-                        <motion.div
-                          key={i}
-                          className="w-[5px] h-[5px] rounded-full bg-indigo-300"
-                          animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
-                          transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-center text-[12px] text-gray-400 py-3">
-              {t('voice.text.placeholder', { defaultValue: 'Type to ask Luna anything about Dubai property' })}
-            </p>
-          )}
-        </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Composer */}
         <div className="flex items-end gap-1.5 px-2.5 py-2 border-t border-blue-50">
@@ -659,7 +667,9 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
 
   return (
     <div className={cn(
-      'fixed bottom-20 right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
+      // Mobile: sit ABOVE the bottom nav bar (探索/分析/…) so the pill + 打字 button
+      // (stacked below it) don't overlap it. Desktop: no nav → sit near the corner.
+      'fixed bottom-28 right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
       className
     )}>
       {/* Text-mode panel: absolutely positioned left of pill (independent of voice) */}

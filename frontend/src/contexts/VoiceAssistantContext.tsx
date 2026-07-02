@@ -251,6 +251,8 @@ const voiceTools = [
   }
 ]
 
+export interface TextMsg { id: string; role: 'user' | 'assistant'; text: string; attachment?: MessageAttachment }
+
 interface VoiceAssistantContextType {
   // Phase-based state
   phase: VoicePhase
@@ -275,7 +277,7 @@ interface VoiceAssistantContextType {
   closeText: () => void
   sendText: (text: string) => Promise<void>
   textPending: boolean
-  lastExchange: { user: string; bubble: BubbleContent | null } | null
+  textThread: TextMsg[]
 
   // Hide the global Luna pill (e.g. during a collab live tour)
   hidden: boolean
@@ -297,11 +299,14 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // Live caption of the USER's own speech (so they can see what they're saying)
   const [userTranscript, setUserTranscript] = useState<string>('')
 
-  // Text mode: only the LAST exchange is shown on screen (2 bubbles); the Live session
-  // keeps its own multi-turn context, so no local history buffer is needed.
+  // Text mode: a running thread for THIS open session (scrollable history; cleared on
+  // close — that's fine per product). Luna's reply STREAMS into the current assistant
+  // message so text appears progressively; the panel is fixed-height + scrolls so it
+  // never grows with the text.
   const [textOpen, setTextOpen] = useState(false)
   const [textPending, setTextPending] = useState(false)
-  const [lastExchange, setLastExchange] = useState<{ user: string; bubble: BubbleContent | null } | null>(null)
+  const [textThread, setTextThread] = useState<TextMsg[]>([])
+  const turnAsstIdRef = useRef<string | null>(null) // id of the assistant msg for the current turn
   // Text mode reuses the SAME voice Live session but: no mic, no audio playback, and
   // Luna's words route to the panel (lastExchange) instead of the voice bubble. Every
   // voice-path change is guarded by this ref; when false the voice flow is byte-identical.
@@ -375,10 +380,21 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
   // Flush accumulated assistant text to bubble
   const flushBubble = useCallback(() => {
-    // Text mode renders the reply ONCE on turnComplete (see handleMessage), not
-    // fragment-by-fragment — streaming here made the text pop choppily and resize
-    // the panel every 200ms. Skip; the panel shows a typing indicator meanwhile.
-    if (textModeRef.current) { flushTimerRef.current = null; return }
+    // Text mode: STREAM Luna's words into the current assistant message so text
+    // appears progressively (慢慢显示). The panel is fixed-height + scrolls, so it
+    // never grows with the text. Throttled to BUBBLE_FLUSH_MS.
+    if (textModeRef.current) {
+      const id = turnAsstIdRef.current
+      if (id) {
+        const t = assistantTextAccumRef.current.trim()
+        const att = pendingAttachmentRef.current || stickyAttachmentRef.current
+        if (pendingAttachmentRef.current) stickyAttachmentRef.current = pendingAttachmentRef.current
+        if (t || att) setTextThread(prev => prev.map(m => m.id === id ? { ...m, text: t, attachment: att || m.attachment } : m))
+      }
+      lastFlushRef.current = Date.now()
+      flushTimerRef.current = null
+      return
+    }
     const text = assistantTextAccumRef.current.trim()
     // Use pending attachment, or carry forward the sticky one from previous turns
     const attachment = pendingAttachmentRef.current || stickyAttachmentRef.current
@@ -453,6 +469,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const deactivateRef = useRef<(() => void) | null>(null)
   const closeText = useCallback(() => {
     setTextOpen(false)
+    setTextThread([])          // history is per-open-session; clearing on close is fine
+    turnAsstIdRef.current = null
     if (textModeRef.current && sessionRef.current) {
       deactivateRef.current?.()   // stops recorder / closes session / ends debug session
       textModeRef.current = false
@@ -464,9 +482,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     const trimmed = text.trim()
     if (!trimmed || textPending) return
 
+    const asstId = `a_${Date.now()}`
+    turnAsstIdRef.current = asstId
     setTextPending(true)
-    // Show the user's message immediately; Luna's reply fills in via handleMessage→flushBubble.
-    setLastExchange({ user: trimmed, bubble: null })
+    // Append the user's message + an empty assistant message (streams in via flushBubble).
+    setTextThread(prev => [...prev, { id: `u_${Date.now()}`, role: 'user', text: trimmed }, { id: asstId, role: 'assistant', text: '' }])
     textModeRef.current = true
 
     try {
@@ -494,8 +514,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       const reply = currentLanguage === 'zh'
         ? '刚刚有点忙不过来，麻烦再说一次？'
         : 'Something went wrong — please try again.'
-      setLastExchange({ user: trimmed, bubble: { text: reply, timestamp: Date.now() } })
+      setTextThread(prev => prev.map(m => m.id === asstId ? { ...m, text: reply } : m))
       setTextPending(false)
+      turnAsstIdRef.current = null
     }
   }, [textPending, currentLanguage])
 
@@ -680,17 +701,14 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       // Turn complete
       if (content.turnComplete) {
         if (textModeRef.current) {
-          // Text mode: render the FULL reply once now (no mid-stream choppiness).
+          // Finalize the current assistant message (text already streamed in).
+          const id = turnAsstIdRef.current
           const text = assistantTextAccumRef.current.trim()
           const attachment = pendingAttachmentRef.current || stickyAttachmentRef.current
           if (pendingAttachmentRef.current) stickyAttachmentRef.current = pendingAttachmentRef.current
-          if (text || attachment) {
-            setLastExchange(prev => ({
-              user: prev?.user ?? '',
-              bubble: { text, attachment: attachment || undefined, timestamp: Date.now() }
-            }))
-          }
+          if (id) setTextThread(prev => prev.map(m => m.id === id ? { ...m, text, attachment: attachment || m.attachment } : m))
           setTextPending(false) // text turn done → re-enable input
+          turnAsstIdRef.current = null
         } else {
           // Final flush of any remaining text
           if (assistantTextAccumRef.current.trim() || pendingAttachmentRef.current) {
@@ -1208,7 +1226,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       closeText,
       sendText,
       textPending,
-      lastExchange,
+      textThread,
       hidden,
       setHidden
     }}>
