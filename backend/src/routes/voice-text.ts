@@ -61,7 +61,14 @@ router.post('/text', async (req, res) => {
     }
 
     const tools = [{ functionDeclarations: convertToolsForSDK() }]
-    const systemInstruction = getSystemInstruction(language)
+    // The voice prompt is written for a live AUDIO session that opens with a
+    // greeting — in text mode the model otherwise tends to reply "你好，想了解
+    // 什么?" instead of acting. This addendum forces it to DO (call a tool) when
+    // the typed request is actionable, and never greet/self-introduce.
+    const textAddendum = language === 'zh'
+      ? '\n\n【文字模式·重要】现在是文字聊天(不是语音)。用户已直接打字提出需求 —— 请立刻调用对应工具去做(搜房源/飞到区域/分析区域/开项目/测距等),然后用简洁中文说结果。禁止寒暄、禁止自我介绍、禁止反问"您想了解什么"。只有当信息确实不足以调用任何工具时,才追问一句关键信息。'
+      : '\n\n[TEXT MODE — IMPORTANT] This is a TEXT chat (not voice). The user already typed a concrete request — immediately call the right tool (search/fly/analyze/open project/measure) and then answer concisely. Do NOT greet, do NOT introduce yourself, do NOT ask "what would you like". Only ask a follow-up if information is genuinely insufficient to call any tool.'
+    const systemInstruction = getSystemInstruction(language) + textAddendum
 
     const steps: AgentStep[] = []
     let reply = ''
