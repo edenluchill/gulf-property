@@ -81,7 +81,16 @@ router.post('/text', async (req, res) => {
         // thinkingBudget:0 is REQUIRED — with thinking on, 2.5-flash swallows the
         // turn (finishReason STOP, empty parts, no functionCall) when tools are
         // attached. Disabling it makes tool-calling reliable.
-        config: { systemInstruction, tools, thinkingConfig: { thinkingBudget: 0 } },
+        // Round 0: force a tool call (mode ANY) so the model can't fall back to a
+        // "你好，想了解什么?" greeting for a question like "X有什么房" — the voice
+        // prompt's opening/greeting behavior otherwise leaks into text mode. Later
+        // rounds use AUTO so it can produce the final text answer after tools run.
+        config: {
+          systemInstruction,
+          tools,
+          thinkingConfig: { thinkingBudget: 0 },
+          ...(round === 0 ? { toolConfig: { functionCallingConfig: { mode: 'ANY' as any } } } : {}),
+        },
       })
 
       const modelContent = resp.candidates?.[0]?.content
