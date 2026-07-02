@@ -20,9 +20,10 @@ import { cn } from '../../lib/utils'
 // Text mode is built (keyboard icon + panel + backend /api/voice/text) but the
 // backend Gemini tool-understanding is currently ERRATIC from the production
 // server's region (works 12/12 locally, ~1/6 on the server — same key/model).
-// Keep the entry hidden until that's resolved, so customers don't get a text
-// Luna that greets instead of acting. Flip to true once reliable.
-const TEXT_MODE_ENABLED = false
+// Fixed 2026-07-01: text mode now reuses the reliable front-end Gemini Live pipeline
+// (no mic, no audio) instead of the flaky backend endpoint — see
+// docs/luna-text-mode-plan-2026-07-01.md — so the entry is enabled again.
+const TEXT_MODE_ENABLED = true
 
 // ─── Helpers ───
 

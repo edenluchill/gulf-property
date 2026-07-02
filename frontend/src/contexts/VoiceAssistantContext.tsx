@@ -297,12 +297,18 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // Live caption of the USER's own speech (so they can see what they're saying)
   const [userTranscript, setUserTranscript] = useState<string>('')
 
-  // Text mode: only the LAST exchange is shown on screen (2 bubbles); the model still
-  // gets full multi-turn context via textHistoryRef.
+  // Text mode: only the LAST exchange is shown on screen (2 bubbles); the Live session
+  // keeps its own multi-turn context, so no local history buffer is needed.
   const [textOpen, setTextOpen] = useState(false)
   const [textPending, setTextPending] = useState(false)
   const [lastExchange, setLastExchange] = useState<{ user: string; bubble: BubbleContent | null } | null>(null)
-  const textHistoryRef = useRef<{ role: 'user' | 'model'; text: string }[]>([])
+  // Text mode reuses the SAME voice Live session but: no mic, no audio playback, and
+  // Luna's words route to the panel (lastExchange) instead of the voice bubble. Every
+  // voice-path change is guarded by this ref; when false the voice flow is byte-identical.
+  const textModeRef = useRef(false)
+  // Set in an effect after activate() is defined so sendText (defined earlier) can call
+  // it without a TDZ error — mirrors the startRecordingRef pattern below.
+  const activateRef = useRef<(() => Promise<void>) | null>(null)
 
   // Refs
   const sessionRef = useRef<any>(null)
@@ -377,11 +383,19 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     if (pendingAttachmentRef.current) {
       stickyAttachmentRef.current = pendingAttachmentRef.current
     }
-    setLatestBubble({
-      text,
-      attachment: attachment || undefined,
-      timestamp: Date.now()
-    })
+    if (textModeRef.current) {
+      // Text mode: Luna's reply goes to the panel's last exchange, not the voice bubble.
+      setLastExchange(prev => ({
+        user: prev?.user ?? '',
+        bubble: { text, attachment: attachment || undefined, timestamp: Date.now() }
+      }))
+    } else {
+      setLatestBubble({
+        text,
+        attachment: attachment || undefined,
+        timestamp: Date.now()
+      })
+    }
     lastFlushRef.current = Date.now()
     flushTimerRef.current = null
   }, [])
@@ -434,59 +448,60 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     navigate(`/project/${projectId}`)
   }, [navigate])
 
-  // ─── Text mode (方案 B): typed, audio-free, independent of the voice session ───
-  // Opening text must NOT activate the mic (no activate() call here).
-  const openText = useCallback(() => setTextOpen(true), [])
-  const closeText = useCallback(() => setTextOpen(false), [])
+  // ─── Text mode (方案 B): typed input over the SAME voice Live session ───
+  // Reuses the working front-end Gemini Live pipeline (the backend /api/voice/text path
+  // picks tools unreliably from the Hetzner region). We just don't open the mic or play
+  // audio, and route replies to the panel. See docs/luna-text-mode-plan-2026-07-01.md.
+  const openText = useCallback(() => setTextOpen(true), []) // lazy-connect on first send
+  // deactivate is defined further down; call it via a ref to avoid a TDZ reference here.
+  const deactivateRef = useRef<(() => void) | null>(null)
+  const closeText = useCallback(() => {
+    setTextOpen(false)
+    if (textModeRef.current && sessionRef.current) {
+      deactivateRef.current?.()   // stops recorder / closes session / ends debug session
+      textModeRef.current = false
+      setTextPending(false)
+    }
+  }, [])
 
   const sendText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || textPending) return
 
     setTextPending(true)
-    // Show the user's message immediately; Luna's reply fills in when it returns.
+    // Show the user's message immediately; Luna's reply fills in via handleMessage→flushBubble.
     setLastExchange({ user: trimmed, bubble: null })
-
-    // Cap the context we feed the model (screen still shows only the last exchange).
-    const history = textHistoryRef.current.slice(-12)
+    textModeRef.current = true
 
     try {
-      const response = await fetch(`${API_BASE}/api/voice/text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, text: trimmed, language: currentLanguage })
-      })
-      const data = await response.json()
-      const steps: Array<{ name: string; result: any; mapAction?: MapAction }> =
-        Array.isArray(data.steps) ? data.steps : []
-
-      // Apply every step's map action; the attachment comes from the LAST step that yields one.
-      let attachment: MessageAttachment | undefined
-      for (const step of steps) {
-        if (step.mapAction) handleMapAction(step.mapAction)
-        const att = buildBubbleAttachment(step.name, step.result)
-        if (att) attachment = att
+      // Lazy-connect: if there's no live session yet, open one (no mic in text mode) and
+      // wait for it to be ready to accept client content.
+      if (!sessionRef.current?.sendClientContent) {
+        await activateRef.current?.()
+        const deadline = Date.now() + 8000
+        while (!sessionRef.current?.sendClientContent && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 50))
+        }
+        if (!sessionRef.current?.sendClientContent) {
+          throw new Error('Live session not ready')
+        }
       }
 
-      const reply: string = typeof data.reply === 'string' ? data.reply : ''
-      const bubble: BubbleContent = { text: reply, attachment, timestamp: Date.now() }
-
-      textHistoryRef.current = [
-        ...textHistoryRef.current,
-        { role: 'user', text: trimmed },
-        { role: 'model', text: reply }
-      ]
-      setLastExchange({ user: trimmed, bubble })
+      // Send the typed turn; the reply (text + tool map actions + card) arrives
+      // asynchronously through handleMessage, and textPending clears on turnComplete.
+      sessionRef.current.sendClientContent({
+        turns: [{ role: 'user', parts: [{ text: trimmed }] }],
+        turnComplete: true,
+      })
     } catch (err) {
       console.error('[Voice Text] send error:', err)
       const reply = currentLanguage === 'zh'
         ? '刚刚有点忙不过来，麻烦再说一次？'
         : 'Something went wrong — please try again.'
       setLastExchange({ user: trimmed, bubble: { text: reply, timestamp: Date.now() } })
-    } finally {
       setTextPending(false)
     }
-  }, [textPending, currentLanguage, handleMapAction])
+  }, [textPending, currentLanguage])
 
   // Execute tool
   const executeTool = useCallback(async (toolName: string, params: any, callId: string) => {
@@ -654,8 +669,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Audio output
-      if (content.modelTurn?.parts) {
+      // Audio output — skipped entirely in text mode (no playback, no speaking phase).
+      if (!textModeRef.current && content.modelTurn?.parts) {
         for (const part of content.modelTurn.parts) {
           if (part.inlineData?.data && typeof part.inlineData.data === 'string') {
             logReplyLatency('audio')
@@ -676,6 +691,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         pendingAttachmentRef.current = null
         setToolStatus(null) // Safety: clear thinking bubble
         setPhase('listening')
+        if (textModeRef.current) setTextPending(false) // text turn is done → re-enable input
         voiceDebugLogger.finalizeAssistantMessage()
         voiceDebugLogger.log('TURN_COMPLETE')
       }
@@ -904,7 +920,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     // "Ready" chime on user-initiated open: UX feedback + warms the audio pipeline
     // so Luna's first buffer doesn't glitch on a cold context. Runs on this tap
     // gesture, so the AudioContext is allowed to resume.
-    if (!isReconnect) playerRef.current?.chime?.()
+    if (!isReconnect && !textModeRef.current) playerRef.current?.chime?.()
 
     try {
       const tokenFetchStart = Date.now()
@@ -983,10 +999,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
             reconnectAttemptsRef.current = 0
             voiceDebugLogger.logConnected(connectStart)
 
-            voiceDebugLogger.log('AUTO_START_RECORDING')
-            setTimeout(() => {
-              startRecordingRef.current?.()
-            }, 100)
+            // Text mode never opens the mic — it drives the session via sendClientContent.
+            if (!textModeRef.current) {
+              voiceDebugLogger.log('AUTO_START_RECORDING')
+              setTimeout(() => {
+                startRecordingRef.current?.()
+              }, 100)
+            }
           },
           onmessage: handleMessage,
           onerror: (e) => {
@@ -1060,9 +1079,16 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     }
   }, [currentLanguage, handleMessage])
 
+  // Mirror activate() into a ref so sendText (defined earlier) can call it without a
+  // TDZ error — same pattern as startRecordingRef above.
+  useEffect(() => {
+    activateRef.current = activate
+  }, [activate])
+
   // Deactivate: full cleanup
   const deactivate = useCallback(() => {
     trackEvent('luna_close')  // Behaviour analytics: user-initiated close.
+    textModeRef.current = false
     intentionalDisconnectRef.current = true
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)
@@ -1090,6 +1116,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setUserTranscript('')
     voiceDebugLogger.endSession()
   }, [])
+
+  // Mirror deactivate() into a ref so closeText (defined earlier) can call it TDZ-free.
+  useEffect(() => {
+    deactivateRef.current = deactivate
+  }, [deactivate])
 
   // Persist the session if the tab is closed/backgrounded mid-conversation.
   // Needed because auto-reconnect no longer ends the session on every drop — a
