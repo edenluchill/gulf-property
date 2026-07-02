@@ -38,6 +38,11 @@ const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
 const BUBBLE_FLUSH_MS = 200
 const AUTO_RECONNECT_MAX = 3
 const AUTO_RECONNECT_BASE_MS = 1000
+// Grace window after a close before the debug session is really ended/persisted.
+// Users often tap to interrupt Luna's spoken reply then re-ask within a second or
+// two (tap-off/tap-on) — that's ONE conversation. If Luna re-activates within this
+// window we resume the SAME session instead of splitting into a new record.
+const SESSION_GRACE_MS = 8000
 
 // Tool definitions
 const voiceTools = [
@@ -349,6 +354,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalDisconnectRef = useRef(false)
+  // Deferred session-end timer (grace window; see SESSION_GRACE_MS).
+  const pendingEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Gemini Live session resumption: the server periodically sends a handle that
   // captures full conversation state. We keep the latest so a reconnect resumes
   // WITH context (Luna doesn't forget). Cleared on a fresh, user-initiated open.
@@ -925,18 +932,20 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Behaviour analytics: only the user-initiated open, not auto-reconnects.
-    const isReconnect = reconnectAttemptsRef.current > 0
-    if (!isReconnect) trackEvent('luna_open')
+    // A debug session may still be alive here because of (a) an auto-reconnect, or
+    // (b) a close still inside its grace window (user tapped to interrupt + re-ask).
+    // In BOTH cases we RESUME it so one open→close stays one record. Cancel any
+    // pending end.
+    if (pendingEndTimerRef.current) { clearTimeout(pendingEndTimerRef.current); pendingEndTimerRef.current = null }
+    const resuming = !!voiceDebugLogger.getCurrentSession()
+
+    // Behaviour analytics: only a genuinely fresh open (not a reconnect/grace-resume).
+    if (!resuming) trackEvent('luna_open')
 
     connectingRef.current = true
     intentionalDisconnectRef.current = false
     reconnectAttemptsRef.current = 0
-    // Keep an auto-reconnect inside the SAME debug session so a dropped WebSocket
-    // doesn't split one conversation into multiple records (it used to: the drop
-    // ended the session, the 1s reconnect started a fresh one). Only a real open
-    // starts a new session; a reconnect resumes the existing one if it's still alive.
-    if (isReconnect && voiceDebugLogger.getCurrentSession()) {
+    if (resuming) {
       voiceDebugLogger.log('RECONNECTED', { resuming: !!resumeHandleRef.current })
     } else {
       resumeHandleRef.current = null // fresh conversation → don't resume an old one
@@ -947,7 +956,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     // "Ready" chime on user-initiated open: UX feedback + warms the audio pipeline
     // so Luna's first buffer doesn't glitch on a cold context. Runs on this tap
     // gesture, so the AudioContext is allowed to resume.
-    if (!isReconnect && !textModeRef.current) playerRef.current?.chime?.()
+    if (!resuming && !textModeRef.current) playerRef.current?.chime?.()
 
     try {
       const tokenFetchStart = Date.now()
@@ -1073,8 +1082,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
                 activate()
               }, delayMs)
             } else {
-              // Real end (reconnect exhausted or intentional) → persist now.
-              voiceDebugLogger.endSession()
+              // Intentional close (deactivate) → the grace timer owns the session end
+              // so a quick re-open resumes it; don't end here. Reconnect-exhausted with
+              // no grace pending → really end now.
+              if (!pendingEndTimerRef.current) voiceDebugLogger.endSession()
               setPhase('idle')
             }
           }
@@ -1112,11 +1123,19 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     activateRef.current = activate
   }, [activate])
 
-  // Deactivate: full cleanup
+  // Deactivate: tear down the connection, but DEFER ending the debug session by a
+  // grace window so a quick re-open (tap-to-interrupt then re-ask) resumes the SAME
+  // record instead of splitting the conversation. Set the timer FIRST so the socket's
+  // onclose (below) sees a pending end and doesn't end the session itself.
   const deactivate = useCallback(() => {
     trackEvent('luna_close')  // Behaviour analytics: user-initiated close.
     textModeRef.current = false
     intentionalDisconnectRef.current = true
+    if (pendingEndTimerRef.current) clearTimeout(pendingEndTimerRef.current)
+    pendingEndTimerRef.current = setTimeout(() => {
+      pendingEndTimerRef.current = null
+      voiceDebugLogger.endSession()
+    }, SESSION_GRACE_MS)
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
@@ -1141,7 +1160,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setLatestBubble(null)
     setToolStatus(null)
     setUserTranscript('')
-    voiceDebugLogger.endSession()
+    // NOTE: endSession is NOT called here — the grace timer above owns it.
   }, [])
 
   // Mirror deactivate() into a ref so closeText (defined earlier) can call it TDZ-free.
@@ -1157,7 +1176,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     const onPageHide = () => {
       if (!voiceDebugLogger.getCurrentSession()) return
       intentionalDisconnectRef.current = true // don't try to reconnect during unload
-      voiceDebugLogger.endSession()
+      if (pendingEndTimerRef.current) { clearTimeout(pendingEndTimerRef.current); pendingEndTimerRef.current = null }
+      voiceDebugLogger.endSession() // persist NOW (grace window doesn't survive unload)
     }
     window.addEventListener('pagehide', onPageHide)
     return () => window.removeEventListener('pagehide', onPageHide)
