@@ -609,7 +609,8 @@ function getStatusText(phase: VoicePhase, t: TFunction<'components'>, toolStatus
 // ─── Main Export ───
 
 export function VoiceAssistantButton({ className }: { className?: string }) {
-  const { t } = useTranslation('components')
+  const { t, i18n } = useTranslation('components')
+  const typeLabel = i18n.language?.startsWith('zh') ? '打字' : 'Type'
   const {
     phase,
     latestBubble,
@@ -639,7 +640,11 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     }
   }, [phase, activate, deactivate])
 
-  const statusText = getStatusText(phase, t, toolStatus)
+  // While the TEXT panel is open, the pill must look neutral — voice phases
+  // (listening/processing/speaking) leak in otherwise and show "聆听中/思考中",
+  // which is wrong for typing. Text mode has its own indicator in the panel.
+  const effPhase: VoicePhase = textOpen ? 'idle' : phase
+  const statusText = textOpen ? null : getStatusText(phase, t, toolStatus)
 
   // Show thinking bubble during tool calls, response bubble otherwise
   const showThinkingBubble = !!toolStatus
@@ -707,16 +712,16 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
           'rounded-l-2xl backdrop-blur-xl',
           'w-[52px] transition-all duration-300',
           isActive ? 'py-2.5 px-1.5' : 'py-3 px-1.5',
-          phase === 'idle' && 'bg-gradient-to-b from-slate-200/90 to-slate-100/90 shadow-md border border-slate-300/50 hover:from-slate-200 hover:to-slate-100 hover:shadow-lg',
-          phase === 'connecting' && 'bg-gradient-to-b from-slate-200/80 to-slate-100/80 shadow-md border border-slate-300/50',
-          phase === 'listening' && 'bg-gradient-to-b from-emerald-200/80 to-emerald-100/80 shadow-lg shadow-emerald-200/30 border border-emerald-300/50',
-          phase === 'processing' && 'bg-gradient-to-b from-indigo-200/80 to-blue-100/80 shadow-lg shadow-indigo-200/30 border border-indigo-300/50',
-          phase === 'speaking' && 'bg-gradient-to-b from-violet-200/80 to-purple-100/80 shadow-lg shadow-violet-200/30 border border-violet-300/50',
-          phase === 'error' && 'bg-gradient-to-b from-red-200/80 to-red-100/80 shadow-md border border-red-300/50',
+          effPhase === 'idle' && 'bg-gradient-to-b from-slate-200/90 to-slate-100/90 shadow-md border border-slate-300/50 hover:from-slate-200 hover:to-slate-100 hover:shadow-lg',
+          effPhase === 'connecting' && 'bg-gradient-to-b from-slate-200/80 to-slate-100/80 shadow-md border border-slate-300/50',
+          effPhase === 'listening' && 'bg-gradient-to-b from-emerald-200/80 to-emerald-100/80 shadow-lg shadow-emerald-200/30 border border-emerald-300/50',
+          effPhase === 'processing' && 'bg-gradient-to-b from-indigo-200/80 to-blue-100/80 shadow-lg shadow-indigo-200/30 border border-indigo-300/50',
+          effPhase === 'speaking' && 'bg-gradient-to-b from-violet-200/80 to-purple-100/80 shadow-lg shadow-violet-200/30 border border-violet-300/50',
+          effPhase === 'error' && 'bg-gradient-to-b from-red-200/80 to-red-100/80 shadow-md border border-red-300/50',
         )}
       >
         {/* Listening: emerald glow pulse */}
-        {phase === 'listening' && (
+        {effPhase === 'listening' && (
           <motion.div
             className="absolute inset-0 rounded-l-2xl bg-emerald-200/30"
             animate={{ opacity: [0.2, 0.5, 0.2] }}
@@ -724,7 +729,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
           />
         )}
         {/* Speaking: violet shimmer sweep */}
-        {phase === 'speaking' && (
+        {effPhase === 'speaking' && (
           <motion.div
             className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-200/30 to-transparent"
             animate={{ y: ['-100%', '100%'] }}
@@ -732,7 +737,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
           />
         )}
         {/* Processing: indigo pulse */}
-        {phase === 'processing' && (
+        {effPhase === 'processing' && (
           <motion.div
             className="absolute inset-0 rounded-l-2xl bg-indigo-200/25"
             animate={{ opacity: [0.15, 0.4, 0.15] }}
@@ -740,7 +745,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
           />
         )}
         {/* Recording indicator dot */}
-        {phase === 'listening' && (
+        {effPhase === 'listening' && (
           <div className="absolute top-1.5 right-1.5 z-20">
             <div className="h-2 w-2 rounded-full bg-red-400">
               <motion.div
@@ -754,28 +759,28 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
 
         <span className={cn(
           'relative z-10 text-[9px] font-semibold tracking-wide uppercase',
-          phase === 'listening' && 'text-emerald-700',
-          phase === 'processing' && 'text-indigo-600',
-          phase === 'speaking' && 'text-violet-700',
-          phase === 'error' && 'text-red-600',
-          (phase === 'idle' || phase === 'connecting') && 'text-slate-600',
+          effPhase === 'listening' && 'text-emerald-700',
+          effPhase === 'processing' && 'text-indigo-600',
+          effPhase === 'speaking' && 'text-violet-700',
+          effPhase === 'error' && 'text-red-600',
+          (effPhase === 'idle' || effPhase === 'connecting') && 'text-slate-600',
         )}>Luna</span>
 
         <motion.div
           className="relative z-10"
           animate={
-            phase === 'speaking' ? { y: [0, -1.5, 0] }
-              : phase === 'listening' ? { scale: [1, 1.05, 1] }
+            effPhase === 'speaking' ? { y: [0, -1.5, 0] }
+              : effPhase === 'listening' ? { scale: [1, 1.05, 1] }
               : {}
           }
           transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
         >
-          {phase === 'connecting' ? (
+          {effPhase === 'connecting' ? (
             <div className="flex items-center justify-center w-9 h-9">
               <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
             </div>
           ) : (
-            <LunaFace phase={phase} size={36} />
+            <LunaFace phase={effPhase} size={36} />
           )}
         </motion.div>
 
@@ -801,19 +806,23 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         </AnimatePresence>
       </motion.button>
 
-      {/* Keyboard mini-button: opens text mode. stopPropagation → never triggers voice. */}
+      {/* "打字" chip: a labeled tab clipped to the top of the pill so it's obviously a
+          SEPARATE text-only entry (not voice). stopPropagation → never triggers voice. */}
       {TEXT_MODE_ENABLED && (
       <button
         onClick={handleKeyboard}
         className={cn(
-          'absolute -top-2 left-0 z-20 flex h-6 w-6 items-center justify-center rounded-full',
-          'bg-white/95 text-slate-500 shadow-md border border-slate-200/70',
-          'hover:text-slate-700 hover:shadow-lg transition-all',
-          textOpen && 'bg-emerald-600 text-white border-emerald-500'
+          'absolute -top-3 right-1 z-20 flex items-center gap-1 rounded-full px-2 py-1',
+          'shadow-lg ring-1 backdrop-blur transition-all',
+          textOpen
+            ? 'bg-teal-500 text-white ring-teal-400'
+            : 'bg-slate-900/85 text-white ring-white/15 hover:bg-slate-900'
         )}
         aria-label={t('voice.text.open', { defaultValue: 'Type to Luna' })}
+        title={t('voice.text.open', { defaultValue: 'Type to Luna' })}
       >
-        <Keyboard className="h-3.5 w-3.5" />
+        <Keyboard className={cn('h-3 w-3', textOpen ? 'text-white' : 'text-teal-300')} />
+        <span className="text-[9px] font-semibold leading-none">{typeLabel}</span>
       </button>
       )}
 

@@ -375,6 +375,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
   // Flush accumulated assistant text to bubble
   const flushBubble = useCallback(() => {
+    // Text mode renders the reply ONCE on turnComplete (see handleMessage), not
+    // fragment-by-fragment — streaming here made the text pop choppily and resize
+    // the panel every 200ms. Skip; the panel shows a typing indicator meanwhile.
+    if (textModeRef.current) { flushTimerRef.current = null; return }
     const text = assistantTextAccumRef.current.trim()
     // Use pending attachment, or carry forward the sticky one from previous turns
     const attachment = pendingAttachmentRef.current || stickyAttachmentRef.current
@@ -383,19 +387,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     if (pendingAttachmentRef.current) {
       stickyAttachmentRef.current = pendingAttachmentRef.current
     }
-    if (textModeRef.current) {
-      // Text mode: Luna's reply goes to the panel's last exchange, not the voice bubble.
-      setLastExchange(prev => ({
-        user: prev?.user ?? '',
-        bubble: { text, attachment: attachment || undefined, timestamp: Date.now() }
-      }))
-    } else {
-      setLatestBubble({
-        text,
-        attachment: attachment || undefined,
-        timestamp: Date.now()
-      })
-    }
+    setLatestBubble({
+      text,
+      attachment: attachment || undefined,
+      timestamp: Date.now()
+    })
     lastFlushRef.current = Date.now()
     flushTimerRef.current = null
   }, [])
@@ -683,15 +679,28 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
       // Turn complete
       if (content.turnComplete) {
-        // Final flush of any remaining text
-        if (assistantTextAccumRef.current.trim() || pendingAttachmentRef.current) {
-          flushBubble()
+        if (textModeRef.current) {
+          // Text mode: render the FULL reply once now (no mid-stream choppiness).
+          const text = assistantTextAccumRef.current.trim()
+          const attachment = pendingAttachmentRef.current || stickyAttachmentRef.current
+          if (pendingAttachmentRef.current) stickyAttachmentRef.current = pendingAttachmentRef.current
+          if (text || attachment) {
+            setLastExchange(prev => ({
+              user: prev?.user ?? '',
+              bubble: { text, attachment: attachment || undefined, timestamp: Date.now() }
+            }))
+          }
+          setTextPending(false) // text turn done → re-enable input
+        } else {
+          // Final flush of any remaining text
+          if (assistantTextAccumRef.current.trim() || pendingAttachmentRef.current) {
+            flushBubble()
+          }
         }
         assistantTextAccumRef.current = ''
         pendingAttachmentRef.current = null
         setToolStatus(null) // Safety: clear thinking bubble
         setPhase('listening')
-        if (textModeRef.current) setTextPending(false) // text turn is done → re-enable input
         voiceDebugLogger.finalizeAssistantMessage()
         voiceDebugLogger.log('TURN_COMPLETE')
       }
