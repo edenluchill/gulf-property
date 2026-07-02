@@ -11,6 +11,7 @@ import {
 import { fetchVisitors, fetchVisitor, VisitorRow, VisitorDetail, Stage } from '../../lib/analyticsApi'
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../DirhamSymbol'
+import SessionViewer from './SessionViewer'
 
 const STAGE: Record<Stage, { label: string; cls: string; dot: string }> = {
   hot: { label: '热', cls: 'bg-rose-50 text-rose-600 ring-rose-200', dot: 'bg-rose-500' },
@@ -134,6 +135,7 @@ function nextAction(d: VisitorDetail): string {
 export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const [d, setD] = useState<VisitorDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [openSession, setOpenSession] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -232,6 +234,35 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
               </div>
             )}
 
+            {/* Luna 对话(点击看完整回看 + AI 摘要 + 工具调用)*/}
+            {d.lunaSessions.length > 0 && (
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Mic className="h-4 w-4 text-teal-500" /> Luna 对话 ({d.lunaSessions.length})
+                </div>
+                <div className="space-y-1.5">
+                  {d.lunaSessions.map((s) => (
+                    <button
+                      key={s.session_id}
+                      onClick={() => setOpenSession(s.session_id)}
+                      className="flex w-full items-start justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs text-slate-500">
+                          {s.created_at.slice(0, 16).replace('T', ' ')} · {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具
+                          {s.had_error ? ' · ⚠️' : ''}
+                        </div>
+                        <div className="mt-0.5 line-clamp-2 text-[12.5px] text-slate-700">
+                          {s.summary || <span className="italic text-slate-300">暂无摘要</span>}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-[11px] text-slate-400">{s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : ''}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Timeline */}
             <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
               <div className="mb-1 flex items-center justify-between">
@@ -300,6 +331,7 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
           </div>
         )}
       </div>
+      {openSession && <SessionViewer sessionId={openSession} onClose={() => setOpenSession(null)} />}
     </>
   )
 }

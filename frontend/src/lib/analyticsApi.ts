@@ -77,19 +77,28 @@ export interface SessionRow {
   session_id: string
   created_at: string
   visitor_id: string | null
-  user_email: string | null
+  email: string | null       // resolved: own user_email, else latest from app_events
+  short_id: string | null    // last 6 of visitor_id, uppercase
   duration_ms: number | null
   turn_count: number | null
   tool_call_count: number | null
   had_error: boolean
+  summary: string | null     // AI 中文摘要(null = 未生成)
 }
 export interface SessionTranscriptMessage { role: 'user' | 'assistant'; content: string; timestamp: number }
 export interface SessionDetail extends SessionRow {
   transcript: {
     messages?: SessionTranscriptMessage[]
-    toolCalls?: Array<{ name: string; params: unknown; duration?: number; error?: string }>
+    toolCalls?: Array<{ name: string; params: unknown; result?: unknown; duration?: number; error?: string }>
+    errors?: unknown[]
     metrics?: Record<string, unknown>
   }
+}
+export interface SessionFilters {
+  errored?: boolean
+  visitorId?: string
+  q?: string
+  tool?: string
 }
 
 export type Stage = 'hot' | 'warm' | 'cooling' | 'cold' | 'lost'
@@ -143,7 +152,7 @@ export interface VisitorDetail {
     usedLuna: boolean
     hasContact: boolean
   }
-  lunaSessions: { session_id: string; created_at: string; duration_ms: number | null; turn_count: number | null; tool_call_count: number | null; had_error: boolean }[]
+  lunaSessions: { session_id: string; created_at: string; duration_ms: number | null; turn_count: number | null; tool_call_count: number | null; had_error: boolean; summary: string | null }[]
   timeline: TimelineItem[]
 }
 
@@ -178,9 +187,19 @@ export const fetchTimeseries = (event: string, granularity: Granularity, days: n
 export const fetchLuna = (days: number) => authedGet<LunaStats>(`/luna?days=${days}`)
 export const fetchTutorial = (days: number) => authedGet<FunnelStep[]>(`/tutorial?days=${days}`)
 export const fetchLeads = () => authedGet<Lead[]>(`/leads`)
-export const fetchSessions = () => authedGet<SessionRow[]>(`/sessions`)
+export const fetchSessions = (filters: SessionFilters = {}) => {
+  const p = new URLSearchParams()
+  if (filters.errored) p.set('errored', '1')
+  if (filters.visitorId) p.set('visitorId', filters.visitorId)
+  if (filters.q && filters.q.trim()) p.set('q', filters.q.trim())
+  if (filters.tool && filters.tool.trim()) p.set('tool', filters.tool.trim())
+  const qs = p.toString()
+  return authedGet<SessionRow[]>(`/sessions${qs ? `?${qs}` : ''}`)
+}
 export const fetchSession = (sessionId: string) =>
   authedGet<{ session: SessionDetail | null }>(`/sessions/${encodeURIComponent(sessionId)}`)
+export const backfillSessionSummaries = () =>
+  authedPost<{ generated: number }>(`/sessions/backfill-summaries`)
 
 // ── 实时带看(collab)意向报告 ───────────────────────────
 export interface CollabSessionRow {

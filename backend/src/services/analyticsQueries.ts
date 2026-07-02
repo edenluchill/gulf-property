@@ -6,6 +6,7 @@
  * window (ISO strings) so the route owns defaulting. See analytics spec §4.3.
  */
 import pool from '../db/pool'
+import { summarizeLunaSession } from './lunaSummary'
 
 export interface Range {
   from: string
@@ -344,7 +345,7 @@ export async function getVisitorDetail(visitorId: string) {
       [visitorId]
     ),
     pool.query(
-      `SELECT session_id, created_at, duration_ms, turn_count, tool_call_count, had_error
+      `SELECT session_id, created_at, duration_ms, turn_count, tool_call_count, had_error, summary
          FROM luna_sessions WHERE (visitor_id = $1 OR user_email = $1) ORDER BY created_at DESC LIMIT 20`,
       [visitorId]
     ),
@@ -559,29 +560,115 @@ export async function getLostCustomers(limit = 100) {
   return out.slice(0, limit)
 }
 
-/** Luna session list (no transcript — light). */
-export async function getLunaSessions(limit = 50, offset = 0) {
+// Resolve identity for a session: prefer the row's own user_email, else the most
+// recent email this visitor ever stamped on app_events (via /identify). Rescues
+// historically anonymous sessions (voice-session is posted via sendBeacon, which
+// can't carry an Authorization header → user_email is almost always NULL).
+const EMAIL_JOIN = `LEFT JOIN LATERAL (
+  SELECT user_email FROM app_events
+   WHERE visitor_id = ls.visitor_id AND user_email IS NOT NULL
+   ORDER BY created_at DESC LIMIT 1
+) ae ON true`
+
+// Last 6 of visitor_id, uppercase — the human-facing short handle (mirrors
+// frontend Visitors.tsx shortId styling but keyed differently: last 6, not first 8).
+const SHORT_ID = `UPPER(RIGHT(ls.visitor_id, 6))`
+
+export interface LunaSessionFilters {
+  errored?: boolean
+  visitorId?: string
+  q?: string
+  tool?: string
+}
+
+/** Luna session list (no transcript — light) + resolved identity + summary. */
+export async function getLunaSessions(limit = 50, offset = 0, filters: LunaSessionFilters = {}) {
+  const where: string[] = []
+  const params: unknown[] = []
+  if (filters.errored) where.push('ls.had_error = true')
+  if (filters.visitorId) {
+    params.push(filters.visitorId)
+    where.push(`ls.visitor_id = $${params.length}`)
+  }
+  if (filters.q && filters.q.trim()) {
+    params.push(`%${filters.q.trim()}%`)
+    where.push(`(ls.summary ILIKE $${params.length} OR ls.transcript::text ILIKE $${params.length})`)
+  }
+  if (filters.tool && filters.tool.trim()) {
+    params.push(`%"name":"${filters.tool.trim()}"%`)
+    where.push(`ls.transcript::text ILIKE $${params.length}`)
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  params.push(limit, offset)
+
   const { rows } = await pool.query(
-    `SELECT id, session_id, created_at, visitor_id, user_email,
-            duration_ms, turn_count, tool_call_count, had_error
-       FROM luna_sessions
-      ORDER BY created_at DESC
-      LIMIT $1 OFFSET $2`,
-    [limit, offset]
+    `SELECT ls.id, ls.session_id, ls.created_at, ls.visitor_id,
+            COALESCE(ls.user_email, ae.user_email) AS email,
+            ${SHORT_ID} AS short_id,
+            ls.duration_ms, ls.turn_count, ls.tool_call_count, ls.had_error, ls.summary
+       FROM luna_sessions ls
+       ${EMAIL_JOIN}
+      ${whereSql}
+      ORDER BY ls.created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params
   )
   return rows
 }
 
-/** Full transcript for one session (the conversation viewer). */
+/** Full transcript for one session (the conversation viewer) + resolved identity. */
 export async function getLunaSession(sessionId: string) {
   const { rows } = await pool.query(
-    `SELECT id, session_id, created_at, visitor_id, user_email, user_id,
-            started_at, ended_at, duration_ms, turn_count, tool_call_count,
-            had_error, transcript
-       FROM luna_sessions WHERE session_id = $1 LIMIT 1`,
+    `SELECT ls.id, ls.session_id, ls.created_at, ls.visitor_id,
+            COALESCE(ls.user_email, ae.user_email) AS email,
+            ${SHORT_ID} AS short_id,
+            ls.user_email, ls.user_id,
+            ls.started_at, ls.ended_at, ls.duration_ms, ls.turn_count, ls.tool_call_count,
+            ls.had_error, ls.summary, ls.transcript
+       FROM luna_sessions ls
+       ${EMAIL_JOIN}
+      WHERE ls.session_id = $1 LIMIT 1`,
     [sessionId]
   )
   return rows[0] || null
+}
+
+/** Persist a generated summary (best-effort; caller ignores failures). */
+export async function saveLunaSummary(sessionId: string, summary: string): Promise<void> {
+  await pool.query(
+    `UPDATE luna_sessions SET summary = $1, summary_at = now() WHERE session_id = $2`,
+    [summary, sessionId]
+  )
+}
+
+/**
+ * Backfill AI summaries for up to `limit` sessions that have none yet but carry
+ * summarizable transcript content. Owner-triggered. Returns how many were written.
+ */
+export async function backfillLunaSummaries(limit = 30): Promise<number> {
+  const { rows } = await pool.query(
+    `SELECT session_id, transcript
+       FROM luna_sessions
+      WHERE summary IS NULL
+        AND transcript IS NOT NULL
+        AND transcript <> '{}'::jsonb
+      ORDER BY created_at DESC
+      LIMIT $1`,
+    [Math.max(1, Math.min(30, limit))]
+  )
+  let generated = 0
+  for (const row of rows) {
+    try {
+      const summary = await summarizeLunaSession(row.transcript)
+      if (summary) {
+        await saveLunaSummary(row.session_id, summary)
+        generated++
+      }
+    } catch {
+      /* skip this one, keep going */
+    }
+  }
+  return generated
 }
 
 // ── Error monitoring (auth_failure + api_error) ─────────────────────────────

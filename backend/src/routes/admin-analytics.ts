@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express'
 import { optionalAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import * as q from '../services/analyticsQueries'
+import { summarizeLunaSession } from '../services/lunaSummary'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
 import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
@@ -77,13 +78,36 @@ router.get('/visitors/:id', wrap(async (req) => {
 }))
 
 router.get('/sessions', wrap((req) =>
-  q.getLunaSessions(Math.min(200, Number(req.query.limit) || 50), Math.max(0, Number(req.query.offset) || 0))
+  q.getLunaSessions(
+    Math.min(200, Number(req.query.limit) || 50),
+    Math.max(0, Number(req.query.offset) || 0),
+    {
+      errored: req.query.errored === '1' || req.query.errored === 'true',
+      visitorId: typeof req.query.visitorId === 'string' ? req.query.visitorId : undefined,
+      q: typeof req.query.q === 'string' ? req.query.q : undefined,
+      tool: typeof req.query.tool === 'string' ? req.query.tool : undefined,
+    }
+  )
 ))
 
 router.get('/sessions/:id', wrap(async (req) => {
   const session = await q.getLunaSession(String(req.params.id))
+  // Lazy-generate + cache the AI synopsis on first open for older sessions that
+  // predate write-time summarization. Best-effort; never blocks the response.
+  if (session && !session.summary) {
+    const summary = await summarizeLunaSession(session.transcript).catch(() => null)
+    if (summary) {
+      session.summary = summary
+      q.saveLunaSummary(session.session_id, summary).catch(() => {})
+    }
+  }
   return { session }
 }))
+
+// Backfill AI summaries for sessions that have none yet (≤30/call). Owner-triggered.
+router.post('/sessions/backfill-summaries', wrap(async () => ({
+  generated: await q.backfillLunaSummaries(30),
+})))
 
 // ── 错误监控(auth_failure + api_error)─────────────────
 router.get('/errors', wrap(async (req) => {

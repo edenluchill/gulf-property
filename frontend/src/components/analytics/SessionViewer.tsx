@@ -35,9 +35,10 @@ export default function SessionViewer({
 
   const messages = detail?.transcript?.messages || []
   const toolCalls = detail?.transcript?.toolCalls || []
+  const actor = detail ? detail.email || (detail.short_id ? `#${detail.short_id}` : '#—') : ''
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
         className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -49,7 +50,7 @@ export default function SessionViewer({
               <p className="text-xs text-slate-400">
                 {detail.created_at.slice(0, 16).replace('T', ' ')} · {messages.length} 句 ·{' '}
                 {detail.duration_ms ? `${Math.round(detail.duration_ms / 1000)}s` : '—'}
-                {detail.user_email ? ` · ${detail.user_email}` : ''}
+                {actor ? <span className="font-mono"> · {actor}</span> : ''}
               </p>
             )}
           </div>
@@ -65,6 +66,11 @@ export default function SessionViewer({
             </div>
           )}
           {error && <p className="text-sm text-rose-500">加载失败</p>}
+          {!loading && !error && detail?.summary && (
+            <div className="rounded-xl bg-teal-50 px-3 py-2.5 text-[13px] leading-relaxed text-teal-900 ring-1 ring-teal-100">
+              <span className="font-semibold text-teal-700">AI 摘要:</span> {detail.summary}
+            </div>
+          )}
           {!loading && !error && messages.length === 0 && (
             <p className="text-sm text-slate-400">这段会话没有文字记录。</p>
           )}
@@ -83,15 +89,36 @@ export default function SessionViewer({
           {toolCalls.length > 0 && (
             <div className="mt-4 border-t border-slate-100 pt-3">
               <p className="mb-2 text-xs font-medium text-slate-500">工具调用 ({toolCalls.length})</p>
-              <div className="space-y-1">
-                {toolCalls.map((tc, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
-                    <Wrench className="h-3 w-3 text-slate-400" />
-                    <span className="font-mono text-slate-700">{tc.name}</span>
-                    {tc.duration != null && <span className="text-slate-400">{tc.duration}ms</span>}
-                    {tc.error && <span className="text-rose-500">error</span>}
-                  </div>
-                ))}
+              <div className="space-y-2">
+                {toolCalls.map((tc, i) => {
+                  const hasParams = tc.params != null && (typeof tc.params !== 'object' || Object.keys(tc.params as object).length > 0)
+                  const hasResult = tc.result !== undefined && tc.result !== null
+                  return (
+                    <div key={i} className="rounded-lg bg-slate-50 px-2.5 py-2 ring-1 ring-slate-100">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <Wrench className="h-3 w-3 text-slate-400" />
+                        <span className="font-mono font-medium text-slate-700">{tc.name}</span>
+                        {tc.duration != null && <span className="text-slate-400">{tc.duration}ms</span>}
+                        {tc.error && <span className="rounded bg-rose-50 px-1.5 text-rose-600">出错</span>}
+                      </div>
+                      {hasParams && (
+                        <div className="mt-1.5">
+                          <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">参数</div>
+                          <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap break-words rounded bg-white px-2 py-1 font-mono text-[11px] leading-snug text-slate-600 ring-1 ring-slate-100">{JSON.stringify(tc.params, null, 2)}</pre>
+                        </div>
+                      )}
+                      {hasResult && (
+                        <details className="mt-1.5">
+                          <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wide text-slate-400 hover:text-slate-600">返回结果</summary>
+                          <pre className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white px-2 py-1 font-mono text-[11px] leading-snug text-slate-600 ring-1 ring-slate-100">{JSON.stringify(tc.result, null, 2)}</pre>
+                        </details>
+                      )}
+                      {tc.error && (
+                        <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap break-words rounded bg-rose-50 px-2 py-1 font-mono text-[11px] leading-snug text-rose-700">{String(tc.error)}</pre>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

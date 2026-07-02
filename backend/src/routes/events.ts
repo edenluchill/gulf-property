@@ -12,6 +12,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { optionalAuth } from '../middleware/auth'
 import { ingestEvents, hashIp } from '../services/eventIngest'
+import { summarizeLunaSession, hasSummarizableContent } from '../services/lunaSummary'
 
 const router = Router()
 
@@ -89,6 +90,18 @@ router.post('/voice-session', optionalAuth, (req: Request, res: Response) => {
         transcript,
       ]
     )
+    .then(() => {
+      // Fire-and-forget AI summary so each new session lands with a readable
+      // Chinese synopsis (the raw voice transcript is barely legible). Best-effort.
+      if (!hasSummarizableContent(session as any)) return
+      return summarizeLunaSession(session as any).then((summary) => {
+        if (!summary) return
+        return pool.query(
+          `UPDATE luna_sessions SET summary = $1, summary_at = now() WHERE session_id = $2`,
+          [summary, sessionId]
+        )
+      })
+    })
     .catch((err) => {
       console.error('[events] voice-session persist failed (ignored):', err instanceof Error ? err.message : err)
     })

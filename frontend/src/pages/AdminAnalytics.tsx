@@ -12,8 +12,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
   fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries, fetchCollabSessions,
+  backfillSessionSummaries,
   ForbiddenError,
-  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, RecentSearch, Timeseries, Granularity, CollabSessionRow,
+  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, SessionFilters, RecentSearch, Timeseries, Granularity, CollabSessionRow,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
 import TrendChart from '../components/analytics/TrendChart'
@@ -87,6 +88,11 @@ export default function AdminAnalytics() {
   const [openCollab, setOpenCollab] = useState<string | null>(null)
   // Active perf alerts → cross-dashboard red banner. Polled every 30s.
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
+  // Luna 对话 list: filterable + AI-summary backfill, fetched independently of the
+  // big dashboard load so filtering doesn't refetch everything.
+  const [sessionFilters, setSessionFilters] = useState<SessionFilters>({})
+  const [sessionList, setSessionList] = useState<SessionRow[] | null>(null)
+  const [backfilling, setBackfilling] = useState(false)
 
   const isOwner = isOwnerEmail(user?.email)
 
@@ -136,6 +142,25 @@ export default function AdminAnalytics() {
     const id = setInterval(load, 30_000)
     return () => { alive = false; clearInterval(id) }
   }, [isOwner])
+
+  // Luna session list — refetch on filter change (independent of the big load).
+  useEffect(() => {
+    if (!isOwner) return
+    let alive = true
+    fetchSessions(sessionFilters)
+      .then((ss) => alive && setSessionList(ss))
+      .catch(() => { /* keep last list */ })
+    return () => { alive = false }
+  }, [isOwner, sessionFilters])
+
+  const runBackfillSummaries = async () => {
+    setBackfilling(true)
+    try {
+      await backfillSessionSummaries()
+      const ss = await fetchSessions(sessionFilters)
+      setSessionList(ss)
+    } catch { /* ignore */ } finally { setBackfilling(false) }
+  }
 
   const visitorTrend = useMemo(
     () => (data?.daily || []).map((d) => ({ day: d.day, value: d.visitors })),
@@ -345,26 +370,62 @@ export default function AdminAnalytics() {
                 <StatCard label="平均轮次" value={data.luna.avg_turns} hint={`${data.luna.total_tool_calls} 次工具调用`} />
                 <StatCard label="出错会话" value={data.luna.error_sessions} />
               </div>
+              {/* 筛选:搜索(摘要/访客) + 仅出错 + 补全 AI 摘要 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  defaultValue={sessionFilters.q || ''}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setSessionFilters((f) => ({ ...f, q: (e.target as HTMLInputElement).value })) }}
+                  placeholder="搜索摘要 / 访客… (回车)"
+                  className="w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-teal-400"
+                />
+                <button
+                  onClick={() => setSessionFilters((f) => ({ ...f, errored: !f.errored }))}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+                    sessionFilters.errored ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  ⚠️ 仅出错
+                </button>
+                {(sessionFilters.q || sessionFilters.errored || sessionFilters.tool) && (
+                  <button onClick={() => setSessionFilters({})} className="text-xs text-slate-400 hover:text-slate-600">清除筛选</button>
+                )}
+                <button
+                  onClick={runBackfillSummaries}
+                  disabled={backfilling}
+                  className="ml-auto rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-teal-700 disabled:opacity-50"
+                >
+                  {backfilling ? '生成中…' : '补全 AI 摘要'}
+                </button>
+              </div>
               <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
                 <div className="border-b border-slate-100 px-4 py-3">
                   <h3 className="text-sm font-semibold text-slate-800">最近 Luna 对话</h3>
                 </div>
-                {data.sessions.length === 0 ? (
-                  <p className="px-4 py-6 text-xs text-slate-400">还没有对话记录。</p>
+                {(sessionList ?? data.sessions).length === 0 ? (
+                  <p className="px-4 py-6 text-xs text-slate-400">没有符合条件的对话。</p>
                 ) : (
                   <div className="divide-y divide-slate-50">
-                    {data.sessions.map((s) => (
+                    {(sessionList ?? data.sessions).map((s) => (
                       <button
                         key={s.id}
                         onClick={() => setOpenSession(s.session_id)}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
                       >
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="text-sm text-slate-700">
                             {s.created_at.slice(0, 16).replace('T', ' ')}
-                            {s.user_email ? ` · ${s.user_email}` : ' · 匿名'}
+                            {' · '}
+                            <span className={s.email ? 'text-slate-700' : 'text-slate-400'}>
+                              {s.email || (s.short_id ? `#${s.short_id}` : '匿名')}
+                            </span>
                           </div>
-                          <div className="text-xs text-slate-400">
+                          {s.summary ? (
+                            <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">{s.summary}</div>
+                          ) : (
+                            <div className="mt-0.5 text-xs italic text-slate-300">暂无摘要</div>
+                          )}
+                          <div className="mt-0.5 text-xs text-slate-400">
                             {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具
                             {s.had_error ? ' · ⚠️ 有错误' : ''}
                           </div>
