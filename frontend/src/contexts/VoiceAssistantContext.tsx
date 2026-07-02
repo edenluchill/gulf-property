@@ -32,6 +32,7 @@ import { AudioRecorder, AudioPlayer } from '../hooks/voice-assistant/audioUtils'
 import { buildBubbleAttachment } from '../hooks/voice-assistant/buildAttachment'
 import { voiceDebugLogger } from '../hooks/voice-assistant/debugLogger'
 import { trackEvent, visitorId } from '../lib/track'
+import { useAuth } from './AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
@@ -41,6 +42,12 @@ const AUTO_RECONNECT_BASE_MS = 1000
 // A conversation record ends after 5 min of no activity (or on page close); tap-close
 // only disconnects so a re-open within this window is the SAME record.
 const CONVO_IDLE_MS = 5 * 60 * 1000
+// Anonymous (not-logged-in) Luna usage cap. After this much cumulative Luna time we
+// stop and prompt login — so we capture the lead + can track their experience.
+const LUNA_ANON_LIMIT_MS = 15 * 60 * 1000
+const LUNA_USED_KEY = 'pinzos_luna_used_ms'
+const getLunaUsedMs = () => { try { return parseInt(localStorage.getItem(LUNA_USED_KEY) || '0', 10) || 0 } catch { return 0 } }
+const addLunaUsedMs = (ms: number) => { try { localStorage.setItem(LUNA_USED_KEY, String(getLunaUsedMs() + Math.max(0, Math.round(ms)))) } catch { /* ignore */ } }
 
 // Tool definitions
 const voiceTools = [
@@ -273,6 +280,10 @@ interface VoiceAssistantContextType {
 
   // Navigate to project
   navigateToProject: (projectId: string) => void
+  dismissBubble: () => void
+  // Anonymous 15-min cap: true → show a "login to continue" prompt.
+  lunaGated: boolean
+  dismissGate: () => void
 
   // Text mode (方案 B): typed input, audio-free, separate from voice.
   textOpen: boolean
@@ -293,6 +304,22 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { i18n } = useTranslation()
+  const { user } = useAuth()
+
+  // Anonymous usage cap: logged-in = unlimited; anonymous accrues Luna active time
+  // (persisted in localStorage) and is gated at LUNA_ANON_LIMIT_MS → prompt login.
+  const loggedInRef = useRef(false)
+  loggedInRef.current = !!user
+  const activeSinceRef = useRef<number | null>(null) // start of the current active period (null = idle)
+  const [lunaGated, setLunaGated] = useState(false)   // true → show the "login to continue" prompt
+  // Commit the elapsed active time of the current period into the anonymous usage
+  // counter (idempotent — no-op once committed). Called on every idle transition.
+  const commitActiveUsage = useCallback(() => {
+    if (activeSinceRef.current != null) {
+      if (!loggedInRef.current) addLunaUsedMs(Date.now() - activeSinceRef.current)
+      activeSinceRef.current = null
+    }
+  }, [])
 
   // Phase-based state
   const [phase, setPhase] = useState<VoicePhase>('idle')
@@ -376,9 +403,12 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     sessionRef.current?.close?.()
     sessionRef.current = null
     connectingRef.current = false
+    commitActiveUsage() // bank the anonymous active time before the record closes
     voiceDebugLogger.endSession()
     setPhase('idle')
-  }, [])
+    setLatestBubble(null) // clear any lingering reply so it doesn't block the map
+    setToolStatus(null)
+  }, [commitActiveUsage])
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
@@ -492,6 +522,14 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     navigate(`/project/${projectId}`)
   }, [navigate])
 
+  // Dismiss the lingering voice reply bubble (so it never blocks the map after a
+  // conversation ends or drops).
+  const dismissBubble = useCallback(() => setLatestBubble(null), [])
+
+  // True when an anonymous user has used up their free Luna time.
+  const overAnonLimit = useCallback(() => !loggedInRef.current && getLunaUsedMs() >= LUNA_ANON_LIMIT_MS, [])
+  const dismissGate = useCallback(() => setLunaGated(false), [])
+
   // ─── Text mode (方案 B): typed input over the SAME voice Live session ───
   // Reuses the working front-end Gemini Live pipeline (the backend /api/voice/text path
   // picks tools unreliably from the Hetzner region). We just don't open the mic or play
@@ -513,6 +551,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const sendText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || textPending) return
+    if (overAnonLimit()) { setLunaGated(true); return } // anonymous free-time used up
+    if (activeSinceRef.current == null) activeSinceRef.current = Date.now()
 
     const asstId = `a_${Date.now()}`
     turnAsstIdRef.current = asstId
@@ -551,7 +591,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       setTextPending(false)
       turnAsstIdRef.current = null
     }
-  }, [textPending, currentLanguage, resetIdleTimer])
+  }, [textPending, currentLanguage, resetIdleTimer, overAnonLimit])
 
   // Execute tool
   const executeTool = useCallback(async (toolName: string, params: any, callId: string) => {
@@ -959,6 +999,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       console.log('[Voice] Already connected or connecting, skipping')
       return
     }
+    // Anonymous free-time cap → prompt login instead of opening.
+    if (overAnonLimit()) { setLunaGated(true); return }
+    // Start (or continue) the active period for usage accounting.
+    if (activeSinceRef.current == null) activeSinceRef.current = Date.now()
 
     // A debug session may still be alive here because of (a) an auto-reconnect, or
     // (b) a tap-close whose idle window hasn't elapsed (user tapped to close + re-open).
@@ -1114,6 +1158,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
               // Intentional close (deactivate) OR reconnect-exhausted → just drop to
               // idle. The record persists; the idle timer (or pagehide) finalizes it,
               // so a re-open within CONVO_IDLE_MS resumes the SAME record.
+              commitActiveUsage()
               setPhase('idle')
               resetIdleTimer()
             }
@@ -1145,7 +1190,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         resetIdleTimer()
       }
     }
-  }, [currentLanguage, handleMessage, resetIdleTimer])
+  }, [currentLanguage, handleMessage, resetIdleTimer, overAnonLimit, commitActiveUsage])
 
   // Mirror activate() into a ref so sendText (defined earlier) can call it without a
   // TDZ error — same pattern as startRecordingRef above.
@@ -1185,9 +1230,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setLatestBubble(null)
     setToolStatus(null)
     setUserTranscript('')
+    commitActiveUsage() // bank anonymous active time for this period
     // Record lives on; finalizes after CONVO_IDLE_MS unless re-opened.
     resetIdleTimer()
-  }, [resetIdleTimer])
+  }, [resetIdleTimer, commitActiveUsage])
 
   // Mirror deactivate() into a ref so closeText (defined earlier) can call it TDZ-free.
   useEffect(() => {
@@ -1208,6 +1254,23 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     window.addEventListener('pagehide', onPageHide)
     return () => window.removeEventListener('pagehide', onPageHide)
   }, [])
+
+  // Anonymous cap: cut Luna off mid-conversation once the 15-min free cap is hit.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (activeSinceRef.current != null && !loggedInRef.current) {
+        const projected = getLunaUsedMs() + (Date.now() - activeSinceRef.current)
+        if (projected >= LUNA_ANON_LIMIT_MS) {
+          endConversationNow() // commits usage + ends the conversation
+          setLunaGated(true)
+        }
+      }
+    }, 20_000)
+    return () => clearInterval(id)
+  }, [endConversationNow])
+
+  // Logging in lifts the gate (full unlimited access).
+  useEffect(() => { if (user) setLunaGated(false) }, [user])
 
   // Latest state + callbacks mirrored into a ref so the test hook below can read them
   // WITHOUT re-registering on every render (re-registering deleted/re-added
@@ -1267,6 +1330,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       registerMapActionHandler,
       unregisterMapActionHandler,
       navigateToProject,
+      dismissBubble,
+      lunaGated,
+      dismissGate,
       textOpen,
       openText,
       closeText,

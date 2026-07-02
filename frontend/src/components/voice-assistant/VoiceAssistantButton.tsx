@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Loader2, MapPin, Building2, ExternalLink, Search, Globe, BarChart3, Compass, Keyboard, X, Send } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
@@ -422,10 +423,12 @@ function BubbleAttachmentView({
 function LunaBubble({
   bubble,
   onNavigateProject,
+  onDismiss,
   t
 }: {
   bubble: BubbleContent
   onNavigateProject: (id: string) => void
+  onDismiss: () => void
   t: TFunction<'components'>
 }) {
   return (
@@ -440,9 +443,18 @@ function LunaBubble({
         {/* Tail arrow */}
         <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-[#f5f7ff] border-t border-r border-blue-100/50" />
 
+        {/* Dismiss — so a lingering reply never blocks the map */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDismiss() }}
+          aria-label="关闭"
+          className="absolute -top-2 -left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-700"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+
         {/* Text */}
         {bubble.text && (
-          <p className="text-gray-800 leading-relaxed text-[13px]">{bubble.text}</p>
+          <p className="pr-2 text-gray-800 leading-relaxed text-[13px]">{bubble.text}</p>
         )}
 
         {bubble.attachment && (
@@ -627,10 +639,14 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     activate,
     deactivate,
     navigateToProject,
+    dismissBubble,
+    lunaGated,
+    dismissGate,
     textOpen,
     openText,
     hidden
   } = useVoiceAssistantContext()
+  const navigate = useNavigate()
 
   // Keyboard icon → open text mode. stopPropagation so it never triggers the voice tap.
   const handleKeyboard = useCallback((e: React.MouseEvent) => {
@@ -665,7 +681,35 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
   // Hidden during a collab live tour (the in-session UI replaces it).
   if (hidden) return null
 
+  const zh = i18n.language?.startsWith('zh')
+
   return (
+    <>
+    {/* Anonymous 15-min cap → prompt login (captures the lead). */}
+    {lunaGated && (
+      <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/40 p-4" onClick={dismissGate}>
+        <div className="w-[330px] max-w-[90vw] rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <LunaFace phase="idle" size={28} />
+            <h3 className="text-base font-semibold text-slate-800">{zh ? '继续和 Luna 聊' : 'Keep chatting with Luna'}</h3>
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
+            {zh
+              ? '你的免费体验已用满 15 分钟。登录后可无限使用 Luna,并保存你的对话记录,方便随时回看。'
+              : "You've used your 15 free minutes. Log in for unlimited Luna — and to save your conversations so you can revisit them anytime."}
+          </p>
+          <button
+            onClick={() => { dismissGate(); navigate('/login') }}
+            className="mt-4 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+          >
+            {zh ? '登录 / 注册' : 'Log in / Sign up'}
+          </button>
+          <button onClick={dismissGate} className="mt-2 w-full text-xs text-slate-400 hover:text-slate-600">
+            {zh ? '稍后' : 'Later'}
+          </button>
+        </div>
+      </div>
+    )}
     <div className={cn(
       // Mobile: sit ABOVE the bottom nav bar (探索/分析/…) so the pill + 打字 button
       // (stacked below it) don't overlap it. Desktop: no nav → sit near the corner.
@@ -707,6 +751,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             <LunaBubble
               bubble={latestBubble}
               onNavigateProject={navigateToProject}
+              onDismiss={dismissBubble}
               t={t}
             />
           </div>
@@ -840,5 +885,6 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       )}
 
     </div>
+    </>
   )
 }
