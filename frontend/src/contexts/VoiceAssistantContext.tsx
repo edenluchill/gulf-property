@@ -38,11 +38,9 @@ const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
 const BUBBLE_FLUSH_MS = 200
 const AUTO_RECONNECT_MAX = 3
 const AUTO_RECONNECT_BASE_MS = 1000
-// Grace window after a close before the debug session is really ended/persisted.
-// Users often tap to interrupt Luna's spoken reply then re-ask within a second or
-// two (tap-off/tap-on) — that's ONE conversation. If Luna re-activates within this
-// window we resume the SAME session instead of splitting into a new record.
-const SESSION_GRACE_MS = 8000
+// A conversation record ends after 5 min of no activity (or on page close); tap-close
+// only disconnects so a re-open within this window is the SAME record.
+const CONVO_IDLE_MS = 5 * 60 * 1000
 
 // Tool definitions
 const voiceTools = [
@@ -354,14 +352,41 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalDisconnectRef = useRef(false)
-  // Deferred session-end timer (grace window; see SESSION_GRACE_MS).
-  const pendingEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Idle-finalize timer: a conversation record ends after CONVO_IDLE_MS of no activity.
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Gemini Live session resumption: the server periodically sends a handle that
   // captures full conversation state. We keep the latest so a reconnect resumes
   // WITH context (Luna doesn't forget). Cleared on a fresh, user-initiated open.
   const resumeHandleRef = useRef<string | null>(null)
 
   const currentLanguage = i18n.language?.startsWith('zh') ? 'zh' : 'en'
+
+  // ─── Conversation record lifecycle (separate from the WebSocket connection) ───
+  // "Disconnect" tears down the socket; "finalize" persists the debug session (= ends
+  // the record). Tapping the pill to close only disconnects — the record is finalized
+  // ONLY by the idle timer or pagehide, so a re-open within CONVO_IDLE_MS resumes the
+  // SAME record. Placed early so handleMessage/activate/deactivate can call them TDZ-free.
+  const endConversationNow = useCallback(() => {
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
+    intentionalDisconnectRef.current = true
+    if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null }
+    recorderRef.current?.stop()
+    recorderRef.current = null
+    playerRef.current?.stop()
+    sessionRef.current?.close?.()
+    sessionRef.current = null
+    connectingRef.current = false
+    voiceDebugLogger.endSession()
+    setPhase('idle')
+  }, [])
+
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
+    idleTimerRef.current = setTimeout(() => {
+      idleTimerRef.current = null
+      endConversationNow()
+    }, CONVO_IDLE_MS)
+  }, [endConversationNow])
 
   // Tool display names
   const getToolDisplayName = useCallback((toolName: string): string => {
@@ -516,6 +541,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         turns: [{ role: 'user', parts: [{ text: trimmed }] }],
         turnComplete: true,
       })
+      resetIdleTimer() // text activity counts → push the idle finalize back
     } catch (err) {
       console.error('[Voice Text] send error:', err)
       const reply = currentLanguage === 'zh'
@@ -525,7 +551,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       setTextPending(false)
       turnAsstIdRef.current = null
     }
-  }, [textPending, currentLanguage])
+  }, [textPending, currentLanguage, resetIdleTimer])
 
   // Execute tool
   const executeTool = useCallback(async (toolName: string, params: any, callId: string) => {
@@ -607,6 +633,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
   // Handle Gemini messages
   const handleMessage = useCallback(async (message: LiveServerMessage) => {
+    // Any inbound model message = activity → push the idle finalize back.
+    resetIdleTimer()
     // Log the gap from the user's speech to Luna's first reply token (once per turn).
     const logReplyLatency = (kind: string) => {
       if (turnReplyLoggedRef.current || !turnUserFirstTsRef.current) return
@@ -857,7 +885,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [executeTool, scheduleBubbleFlush, flushBubble])
+  }, [executeTool, scheduleBubbleFlush, flushBubble, resetIdleTimer])
 
   // Initialize audio player
   useEffect(() => {
@@ -933,10 +961,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     }
 
     // A debug session may still be alive here because of (a) an auto-reconnect, or
-    // (b) a close still inside its grace window (user tapped to interrupt + re-ask).
-    // In BOTH cases we RESUME it so one open→close stays one record. Cancel any
-    // pending end.
-    if (pendingEndTimerRef.current) { clearTimeout(pendingEndTimerRef.current); pendingEndTimerRef.current = null }
+    // (b) a tap-close whose idle window hasn't elapsed (user tapped to close + re-open).
+    // In BOTH cases we RESUME it so it stays ONE record. Cancel the pending idle end.
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
     const resuming = !!voiceDebugLogger.getCurrentSession()
 
     // Behaviour analytics: only a genuinely fresh open (not a reconnect/grace-resume).
@@ -952,6 +979,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       voiceDebugLogger.startSession()
     }
     setPhase('connecting')
+    // Arm the idle finalize so an idle-but-connected conversation still ends after 5 min.
+    resetIdleTimer()
 
     // "Ready" chime on user-initiated open: UX feedback + warms the audio pipeline
     // so Luna's first buffer doesn't glitch on a cold context. Runs on this tap
@@ -1082,11 +1111,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
                 activate()
               }, delayMs)
             } else {
-              // Intentional close (deactivate) → the grace timer owns the session end
-              // so a quick re-open resumes it; don't end here. Reconnect-exhausted with
-              // no grace pending → really end now.
-              if (!pendingEndTimerRef.current) voiceDebugLogger.endSession()
+              // Intentional close (deactivate) OR reconnect-exhausted → just drop to
+              // idle. The record persists; the idle timer (or pagehide) finalizes it,
+              // so a re-open within CONVO_IDLE_MS resumes the SAME record.
               setPhase('idle')
+              resetIdleTimer()
             }
           }
         }
@@ -1112,10 +1141,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       } else {
         setPhase('error')
         setTimeout(() => setPhase('idle'), 3000)
-        voiceDebugLogger.endSession()
+        // Record persists; the idle timer (or pagehide) finalizes it.
+        resetIdleTimer()
       }
     }
-  }, [currentLanguage, handleMessage])
+  }, [currentLanguage, handleMessage, resetIdleTimer])
 
   // Mirror activate() into a ref so sendText (defined earlier) can call it without a
   // TDZ error — same pattern as startRecordingRef above.
@@ -1123,19 +1153,14 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     activateRef.current = activate
   }, [activate])
 
-  // Deactivate: tear down the connection, but DEFER ending the debug session by a
-  // grace window so a quick re-open (tap-to-interrupt then re-ask) resumes the SAME
-  // record instead of splitting the conversation. Set the timer FIRST so the socket's
-  // onclose (below) sees a pending end and doesn't end the session itself.
+  // Deactivate = DISCONNECT ONLY (tap-close / interrupt path): tear down the WebSocket
+  // and reset transient UI, but do NOT end the debug session. The conversation record
+  // lives on and is finalized only by the idle timer (armed below) or pagehide, so a
+  // re-open within CONVO_IDLE_MS resumes the SAME record.
   const deactivate = useCallback(() => {
     trackEvent('luna_close')  // Behaviour analytics: user-initiated close.
     textModeRef.current = false
-    intentionalDisconnectRef.current = true
-    if (pendingEndTimerRef.current) clearTimeout(pendingEndTimerRef.current)
-    pendingEndTimerRef.current = setTimeout(() => {
-      pendingEndTimerRef.current = null
-      voiceDebugLogger.endSession()
-    }, SESSION_GRACE_MS)
+    intentionalDisconnectRef.current = true // socket close must not trigger a reconnect
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
@@ -1160,8 +1185,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setLatestBubble(null)
     setToolStatus(null)
     setUserTranscript('')
-    // NOTE: endSession is NOT called here — the grace timer above owns it.
-  }, [])
+    // Record lives on; finalizes after CONVO_IDLE_MS unless re-opened.
+    resetIdleTimer()
+  }, [resetIdleTimer])
 
   // Mirror deactivate() into a ref so closeText (defined earlier) can call it TDZ-free.
   useEffect(() => {
@@ -1176,8 +1202,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     const onPageHide = () => {
       if (!voiceDebugLogger.getCurrentSession()) return
       intentionalDisconnectRef.current = true // don't try to reconnect during unload
-      if (pendingEndTimerRef.current) { clearTimeout(pendingEndTimerRef.current); pendingEndTimerRef.current = null }
-      voiceDebugLogger.endSession() // persist NOW (grace window doesn't survive unload)
+      if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
+      voiceDebugLogger.endSession() // persist NOW (the 5-min window can't survive unload)
     }
     window.addEventListener('pagehide', onPageHide)
     return () => window.removeEventListener('pagehide', onPageHide)
