@@ -14,11 +14,57 @@
 
 import { Router } from 'express'
 import { GoogleGenAI } from '@google/genai'
-import { getSystemInstruction } from './voice-token'
 import { executeTool } from '../services/voice-assistant-tools'
 import { convertToolsForSDK } from '../services/voice-assistant'
 
 const router = Router()
+
+/** Lean, tool-first system prompt for TEXT mode (greet-free). Kept separate from
+ *  the voice prompt on purpose (see the call site). */
+function buildTextPrompt(language: string): string {
+  const glossary =
+    '伊曼/艾玛→Emaar、达马克/迪马克→DAMAC、纳克希尔→Nakheel、索巴/哈特兰→Sobha、迈拉斯→Meraas、宾加提→Binghatti、多瑙河→Danube；' +
+    '马瑞纳/码头→Dubai Marina、市中心→Downtown Dubai、朱美拉村/JVC→JVC、商业湾→Business Bay、迪拜山庄→Dubai Hills Estate、' +
+    '棕榈岛→Palm Jumeirah、达马克山→DAMAC Hills、阿拉伯牧场→Arabian Ranches、富尔詹→Al Furjan、金融中心→DIFC、美丹→Meydan、国际城→International City'
+  if (language === 'zh') {
+    return `你是 Luna,迪拜期房 App 的 AI 助手。这是文字聊天。
+用户已经打字提出需求 —— 你的任务是【立刻调用一个工具去做】,然后(下一轮)用简洁中文说明结果。
+严禁:寒暄、自我介绍、反问"您想了解什么"。直接做。
+
+选工具(按用户意图):
+- "X有什么房/找房/推荐/N居/预算200万" → search_projects(area 或 max_price 等)
+- "带我去X/看看X区/X在哪" → fly_to_area(area_name)
+- "X投资回报/值不值/ROI/收益/帮我分析这个区" → area_investment_report(area)
+- "X生活方便吗/配套/离医院学校地铁多远" → analyze_area_amenities(area_name)
+- "X万预算能买哪" → recommend_by_budget
+- "对比A和B" → compare_areas
+- "A到B多远" → measure_distance
+- 提到具体项目名 → navigate_to_project / open_project_detail
+
+名称模糊音映射(把口音写法映射到真实实体,没把握就选最接近的): ${glossary}。
+
+若搜索返回 0 条,不要冷场 —— 说明并推荐 1-2 个符合条件的邻近区域。
+回答简洁,只讲买家关心的:户型、面积、价格、回报。`
+  }
+  return `You are Luna, an AI assistant for a Dubai off-plan property app. This is a TEXT chat.
+The user already typed a request — your job is to IMMEDIATELY call one tool to do it, then (next turn) summarize the result concisely in English.
+NEVER greet, introduce yourself, or ask "what would you like". Just act.
+
+Tool routing (by intent):
+- "what's in X / find homes / N-bed / budget 2M" → search_projects
+- "take me to X / show X area / where is X" → fly_to_area(area_name)
+- "X investment return / is it worth it / ROI / analyze this area" → area_investment_report(area)
+- "is X convenient / amenities / how far to hospital/school/metro" → analyze_area_amenities(area_name)
+- "what can I buy with 2M" → recommend_by_budget
+- "compare A and B" → compare_areas
+- "how far from A to B" → measure_distance
+- a specific project by name → navigate_to_project / open_project_detail
+
+Name glossary (map fuzzy renderings to real entities): ${glossary}.
+
+If a search returns 0 results, don't dead-end — mention it and suggest 1-2 nearby areas that fit.
+Keep answers concise: bedrooms, size, price, yield.`
+}
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 // gemini-3-flash 404s on our current API access — 2.5-flash is the working fast
@@ -61,14 +107,12 @@ router.post('/text', async (req, res) => {
     }
 
     const tools = [{ functionDeclarations: convertToolsForSDK() }]
-    // The voice prompt is written for a live AUDIO session that opens with a
-    // greeting — in text mode the model otherwise tends to reply "你好，想了解
-    // 什么?" instead of acting. This addendum forces it to DO (call a tool) when
-    // the typed request is actionable, and never greet/self-introduce.
-    const textAddendum = language === 'zh'
-      ? '\n\n【文字模式·重要】现在是文字聊天(不是语音)。用户已直接打字提出需求 —— 请立刻调用对应工具去做(搜房源/飞到区域/分析区域/开项目/测距等),然后用简洁中文说结果。禁止寒暄、禁止自我介绍、禁止反问"您想了解什么"。只有当信息确实不足以调用任何工具时,才追问一句关键信息。'
-      : '\n\n[TEXT MODE — IMPORTANT] This is a TEXT chat (not voice). The user already typed a concrete request — immediately call the right tool (search/fly/analyze/open project/measure) and then answer concisely. Do NOT greet, do NOT introduce yourself, do NOT ask "what would you like". Only ask a follow-up if information is genuinely insufficient to call any tool.'
-    const systemInstruction = getSystemInstruction(language) + textAddendum
+    // Dedicated LEAN text prompt — NOT the voice prompt. The voice prompt is written
+    // for a live audio session (opens with a greeting, literally says "emit
+    // present_place this turn"), which both makes the model greet instead of act AND
+    // biases tool selection. This tool-first prompt + round-0 forced call makes text
+    // mode reliably DO the right thing.
+    const systemInstruction = buildTextPrompt(language)
 
     const steps: AgentStep[] = []
     let reply = ''
@@ -89,7 +133,6 @@ router.post('/text', async (req, res) => {
           systemInstruction,
           tools,
           thinkingConfig: { thinkingBudget: 0 },
-          ...(round === 0 ? { toolConfig: { functionCallingConfig: { mode: 'ANY' as any } } } : {}),
         },
       })
 
