@@ -459,19 +459,16 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
   const [extra, setExtra] = useState<TxItem[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  // 成交列表固定散客口径（默认仅期房，不给现房切换 tab——现房老盘存量价会误导
-  // "能卖多少"的判断；改口径只动 lib/marketSegment.ts 的 CONSUMER_SEGMENT）
-  const saleFilter: MarketSegment = CONSUMER_SEGMENT
 
   // 切换区域时重置追加列表 + 回到成交 tab
   useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales') }, [areaId])
 
-  const allBaseRows = insights?.recentTransactions || []
-  const filteredRows = saleFilter === 'all' ? allBaseRows : allBaseRows.filter(r => r.saleType === saleFilter)
-  // 该区近期没有期房成交 → 回退显示全部（如实标注），别给客户一个空列表
-  const segFellBack = saleFilter !== 'all' && filteredRows.length === 0 && allBaseRows.length > 0
-  const effFilter: MarketSegment = segFellBack ? 'all' : saleFilter
-  const baseRows = effFilter === 'all' ? allBaseRows : filteredRows
+  // 成交列表口径由后端决定（散客默认仅期房，专门取的期房 30 条；该区没有期房
+  // 成交时后端回退混合列表并用 txSegment 标注）。不给现房切换 tab——区域级现房
+  // 老盘存量价会误导"能卖多少"的判断。
+  const baseRows = insights?.recentTransactions || []
+  const effFilter: MarketSegment = (insights?.txSegment as MarketSegment) ?? 'all'
+  const segFellBack = CONSUMER_SEGMENT === 'offplan' && effFilter === 'all' && baseRows.length > 0
   const rows = [...baseRows, ...extra]
   const rentRows = insights?.recentRentals || []
 
@@ -571,7 +568,8 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
                 </div>
               ))}
             </div>
-            {hasMore && (
+            {/* 基础列表不足 30 条 = 该区该口径已经没有更多了，不显示按钮 */}
+            {hasMore && baseRows.length >= 30 && (
               <button
                 type="button"
                 onClick={loadMore}

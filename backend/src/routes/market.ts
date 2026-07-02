@@ -481,6 +481,16 @@ function monthRange(endYm: string, n: number): string[] {
   return out
 }
 
+const mapTxRow = (r: any) => ({
+  date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+  building: r.building_name || r.project_name || null,
+  rooms: r.rooms || null,
+  sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+  price: r.price ? Math.round(Number(r.price)) : null,
+  pricePerSqm: r.price_per_sqm ? Number(r.price_per_sqm) : null,
+  saleType: r.sale_type
+})
+
 async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
     // Pick the matching mode for this dubai_area:
     //  • OFFICIAL area (has a real DLD bridge area_id < 900000) → join by the
@@ -517,7 +527,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
       : `rc.dubai_area_id = $1`
 
-    const [salesRes, rentRes, recentRes, recentRentRes, medianRes] = await Promise.all([
+    const [salesRes, rentRes, recentRes, recentOffplanRes, recentRentRes, medianRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据。
       // 一次扫描同时聚合 全部/期房/现房 三口径（FILTER 聚合）——不用二次查询做
       // 样本回退，缓存里三口径齐全，切口径零额外成本。
@@ -560,7 +570,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
           GROUP BY 1 ORDER BY 1`,
         [areaId, usage]
       ),
-      // 近期成交给到 30 条（带期房/现房标签），前端筛选 chip 纯客户端过滤
+      // 近期成交 30 条（混合，带期房/现房标签）—— 'all' 口径视图用
       pool.query(
         `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
                 dt.procedure_area AS size_sqm, dt.actual_worth AS price,
@@ -571,6 +581,23 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
           WHERE ${txWhere}
             AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
             AND dt.meter_sale_price > 0
+          ORDER BY dt.instance_date DESC
+          LIMIT 30`,
+        [areaId, usage]
+      ),
+      // 近期期房成交 30 条 —— 单独取！不能从混合 top-30 里筛：有的区（如 Palm
+      // Jebel Ali）最近成交几乎全是非期房登记，筛完只剩 1 条，但更早的期房
+      // 成交其实有几百笔。期房口径视图用这份。
+      pool.query(
+        `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
+                dt.procedure_area AS size_sqm, dt.actual_worth AS price,
+                round(dt.meter_sale_price) AS price_per_sqm,
+                'offplan' AS sale_type
+           FROM dld_transactions dt
+           ${txJoin}
+          WHERE ${txWhere}
+            AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
+            AND dt.meter_sale_price > 0 AND dt.is_offplan
           ORDER BY dt.instance_date DESC
           LIMIT 30`,
         [areaId, usage]
@@ -631,7 +658,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
     if (!endYm) return {
       months: [], rentalYield: [], dataThrough: null,
       variants: { all: emptyVariant, offplan: emptyVariant, ready: emptyVariant },
-      recentTransactions: [], recentRentals: []
+      recentTransactions: [], recentTransactionsOffplan: [], recentRentals: []
     }
 
     const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
@@ -696,15 +723,8 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
         ready: { price: sReady.price, volume: sReady.volume, growth: sReady.growth,
                  medianUnitPrice: roundOrNull(mr.median_unit_price_ready), count12m: Number(mr.n_ready || 0) },
       },
-      recentTransactions: recentRes.rows.map(r => ({
-        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
-        building: r.building_name || r.project_name || null,
-        rooms: r.rooms || null,
-        sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
-        price: r.price ? Math.round(Number(r.price)) : null,
-        pricePerSqm: r.price_per_sqm ? Number(r.price_per_sqm) : null,
-        saleType: r.sale_type
-      })),
+      recentTransactions: recentRes.rows.map(mapTxRow),
+      recentTransactionsOffplan: recentOffplanRes.rows.map(mapTxRow),
       recentRentals: recentRentRes.rows.map(r => ({
         date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
         building: r.project_name || null,
@@ -729,6 +749,11 @@ function composeAreaInsights(raw: any, segment: MarketSegment) {
   const eff: MarketSegment =
     segment !== 'all' && variants[segment]?.count12m >= SEGMENT_MIN_SAMPLE ? segment : 'all'
   const v = variants[eff]
+  // 成交列表：期房口径给专门取的期房 30 条（混合 top-30 里筛会漏掉更早的期房）；
+  // 该区确实没有期房成交时回退混合列表，txSegment 如实标注给前端。
+  const offplanList = raw.recentTransactionsOffplan || []
+  const txSegment: 'offplan' | 'all' =
+    segment === 'offplan' && offplanList.length > 0 ? 'offplan' : 'all'
   return {
     months: raw.months,
     price: v.price,
@@ -744,7 +769,8 @@ function composeAreaInsights(raw: any, segment: MarketSegment) {
       offplan: variants.offplan.count12m,
       ready: variants.ready.count12m,
     },
-    recentTransactions: raw.recentTransactions,
+    txSegment,
+    recentTransactions: txSegment === 'offplan' ? offplanList : raw.recentTransactions,
     recentRentals: raw.recentRentals,
   }
 }

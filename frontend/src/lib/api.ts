@@ -861,6 +861,8 @@ export interface AreaInsights {
   /** 价格/增长实际生效口径 —— 期房样本不足时后端回退 'all'，前端要如实标注 */
   priceSegment?: 'offplan' | 'ready' | 'all';
   segmentCounts12m?: { all: number; offplan: number; ready: number };
+  /** 成交列表口径：'offplan' = 专取的期房 30 条；'all' = 该区无期房成交回退混合列表 */
+  txSegment?: 'offplan' | 'all';
   recentTransactions: {
     date: string | null; building: string | null; rooms: string | null;
     sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
