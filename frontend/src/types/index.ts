@@ -166,6 +166,7 @@ export interface DubaiArea {
   medianNewRentSqm?: number     // median annual NEW rent per sqm (evidence)
   newContractCount?: number     // # new rent contracts, rolling 12mo (evidence)
   renewContractCount?: number   // # renewal rent contracts, rolling 12mo (evidence)
+  priceSegment?: 'offplan' | 'ready' | 'all'  // 价格/增长字段实际口径（期房样本不足时后端回退 'all'）
   // AI analysis fields
   areaCategory?: string
   investmentProfile?: string

@@ -9,11 +9,12 @@ import { BadgeCheck, Info } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
 import { fetchAreaInsights, fetchTxList, AreaInsights } from '../lib/api'
+import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 import DirhamSymbol from './DirhamSymbol'
 
 // ── 取数 hook ────────────────────────────────────────────────────────────────
 
-export function useAreaInsights(areaId: string | undefined, usage: string = 'residential') {
+export function useAreaInsights(areaId: string | undefined, usage: string = 'residential', segment: MarketSegment = CONSUMER_SEGMENT) {
   const [insights, setInsights] = useState<AreaInsights | null>(null)
   const [loading, setLoading] = useState(false)
   useEffect(() => {
@@ -21,13 +22,13 @@ export function useAreaInsights(areaId: string | undefined, usage: string = 'res
     let stale = false
     setInsights(null)
     setLoading(true)
-    fetchAreaInsights(areaId, usage).then(d => {
+    fetchAreaInsights(areaId, usage, segment).then(d => {
       if (stale) return
       setInsights(d)
       setLoading(false)
     })
     return () => { stale = true }
-  }, [areaId, usage])
+  }, [areaId, usage, segment])
   return { insights, loading }
 }
 
@@ -286,8 +287,34 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
     )
   }
 
+  // 价格/增长的实际生效口径（insights 优先；地图 payload 的 priceSegment 兜底）。
+  // 期房口径要明标；请求期房但样本不足回退全部时也要如实说明——数字对不上别家网站
+  // 时，标注就是信任的来源。收益率/稳定性永远全口径，不标。
+  const effSeg = insights?.priceSegment ?? area.priceSegment ?? 'all'
+  const segFellBack = (insights?.segment === 'offplan' && insights?.priceSegment === 'all')
+
   return (
     <div>
+      {(effSeg !== 'all' || segFellBack) && (
+        <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+          {effSeg !== 'all' && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-200">
+              {effSeg === 'offplan' ? (zh ? '期房口径' : 'Off-plan basis') : (zh ? '现房口径' : 'Ready basis')}
+              <InfoHint
+                title={howTitle}
+                text={zh
+                  ? '中位价与增长仅统计期房（off-plan）成交，避免现房成交结构变化稀释期房增值。租金回报与稳定性始终基于全市场租约，不受口径影响。'
+                  : 'Median price & growth count off-plan sales only, so ready-market mix shifts don’t dilute off-plan appreciation. Rental yield & stability always use the full rental market.'}
+              />
+            </span>
+          )}
+          {segFellBack && (
+            <span className="text-[10px] text-slate-400">
+              {zh ? '该区期房成交较少，价格与增长按全部成交计算' : 'Few off-plan sales here — price & growth use all sales'}
+            </span>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         {/* 中位总价 (median total transaction price) */}
         <StatCard
@@ -431,18 +458,26 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
   const [extra, setExtra] = useState<TxItem[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  // 期房/现房筛选 —— 散客默认期房；基础 30 条客户端过滤，加载更多走服务端 type 参数
+  const [saleFilter, setSaleFilter] = useState<MarketSegment>(CONSUMER_SEGMENT)
 
-  // 切换区域时重置追加列表 + 回到成交 tab
-  useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales') }, [areaId])
+  // 切换区域时重置追加列表 + 回到成交 tab + 恢复默认口径
+  useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales'); setSaleFilter(CONSUMER_SEGMENT) }, [areaId])
+  // 切换口径时重置追加列表（服务端 offset 按各自口径独立计）
+  useEffect(() => { setExtra([]); setHasMore(true) }, [saleFilter])
 
-  const baseRows = insights?.recentTransactions || []
+  const allBaseRows = insights?.recentTransactions || []
+  const baseRows = saleFilter === 'all' ? allBaseRows : allBaseRows.filter(r => r.saleType === saleFilter)
   const rows = [...baseRows, ...extra]
   const rentRows = insights?.recentRentals || []
 
   const loadMore = async () => {
     setLoadingMore(true)
     const PAGE = 20
-    const r = await fetchTxList({ areaId, limit: String(PAGE), offset: String(rows.length) })
+    const r = await fetchTxList({
+      areaId, limit: String(PAGE), offset: String(rows.length),
+      ...(saleFilter !== 'all' ? { type: saleFilter } : {})
+    })
     const mapped: TxItem[] = r.rows.map(x => ({
       date: x.date,
       building: x.building === '—' ? null : x.building,
@@ -469,6 +504,21 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
     </button>
   )
 
+  const zh = (lang || 'en').startsWith('zh')
+  const FilterChip = ({ id, label }: { id: MarketSegment; label: string }) => (
+    <button
+      type="button"
+      onClick={() => setSaleFilter(id)}
+      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+        saleFilter === id
+          ? 'bg-violet-600 text-white'
+          : 'bg-slate-100 text-slate-500 hover:text-slate-700'
+      }`}
+    >
+      {label}
+    </button>
+  )
+
   return (
     <div>
       <div className={`mb-2 flex items-center gap-2 ${kind ? 'justify-end' : 'justify-between'}`}>
@@ -483,6 +533,13 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
           Dubai Land Department
         </span>
       </div>
+      {tab === 'sales' && (
+        <div className="mb-2 flex items-center gap-1">
+          <FilterChip id="offplan" label={t('map:areaDialog.offplan')} />
+          <FilterChip id="ready" label={t('map:areaDialog.ready')} />
+          <FilterChip id="all" label={zh ? '全部' : 'All'} />
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">

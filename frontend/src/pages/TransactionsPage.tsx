@@ -12,6 +12,7 @@ import {
 import DirhamSymbol from '../components/DirhamSymbol'
 import { formatMoneyCompact } from '../lib/money'
 import RentView from './TransactionsPage/RentView'
+import { CONSUMER_SEGMENT } from '../lib/marketSegment'
 
 // 价格区间预设(成交总价 AED)。min/max 各一个下拉,避免手机上敲 7 位数字。
 const SALE_PRICE_STEPS = [500000, 1000000, 1500000, 2000000, 3000000, 5000000, 10000000, 20000000, 50000000]
@@ -70,7 +71,8 @@ export default function TransactionsPage() {
   const [projectOpen, setProjectOpen] = useState(false)
   const [projectSuggestions, setProjectSuggestions] = useState<{ name: string; count: number }[]>([])
   const [rooms, setRooms] = useState('')
-  const [type, setType] = useState<SaleType>('all')
+  // 散客默认期房口径（lib/marketSegment.ts 单点配置；用户可随时切现房/全部）
+  const [type, setType] = useState<SaleType>(CONSUMER_SEGMENT)
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
   const [minPrice, setMinPrice] = useState('')  // 成交总价区间(AED)
   const [maxPrice, setMaxPrice] = useState('')

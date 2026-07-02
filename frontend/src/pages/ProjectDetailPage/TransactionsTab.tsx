@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { fetchProjectTransactions, ProjectTransactions } from '../../lib/api'
 import { formatMoneyCompact } from '../../lib/money'
+import { CONSUMER_SEGMENT, MarketSegment } from '../../lib/marketSegment'
 import DirhamSymbol from '../../components/DirhamSymbol'
 
 /**
@@ -16,6 +17,8 @@ export function TransactionsTab({ projectId }: { projectId: string }) {
   const [data, setData] = useState<ProjectTransactions | null>(null)
   const [loading, setLoading] = useState(true)
   const [kind, setKind] = useState<'sales' | 'rentals'>('sales')
+  // 期房/现房筛选（散客默认期房口径；后端返回带标签的完整列表，客户端过滤）
+  const [saleFilter, setSaleFilter] = useState<MarketSegment>(CONSUMER_SEGMENT)
 
   useEffect(() => {
     let alive = true
@@ -43,7 +46,8 @@ export function TransactionsTab({ projectId }: { projectId: string }) {
     )
   }
 
-  const rows = kind === 'sales' ? data.sales : data.rentals
+  const filteredSales = saleFilter === 'all' ? data.sales : data.sales.filter(s => s.saleType === saleFilter)
+  const rows = kind === 'sales' ? filteredSales : data.rentals
   const total = data.sales.length + data.rentals.length
 
   return (
@@ -77,6 +81,27 @@ export function TransactionsTab({ projectId }: { projectId: string }) {
         ))}
       </div>
 
+      {/* 期房/现房筛选 chips（仅成交 tab） */}
+      {kind === 'sales' && (
+        <div className="mb-3 flex items-center gap-1.5">
+          {([
+            { k: 'offplan' as const, label: zh ? '期房' : 'Off-plan' },
+            { k: 'ready' as const, label: zh ? '现房' : 'Ready' },
+            { k: 'all' as const, label: zh ? '全部' : 'All' },
+          ]).map((c) => (
+            <button
+              key={c.k}
+              onClick={() => setSaleFilter(c.k)}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                saleFilter === c.k ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center text-sm text-slate-400">
           {zh ? '该口径暂无记录' : 'No records'}
@@ -84,7 +109,7 @@ export function TransactionsTab({ projectId }: { projectId: string }) {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100">
           {kind === 'sales'
-            ? data.sales.map((r, i) => (
+            ? filteredSales.map((r, i) => (
                 <div key={i} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-slate-800">{r.building || '—'}</div>

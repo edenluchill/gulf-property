@@ -87,7 +87,10 @@ async function txProjectsAll() {
   await store('tx', 'projects:ALL', r.rows)
 }
 
-async function txSummary() {
+// type: 期房/现房口径变体 —— 前端散客默认 type=offplan（frontend lib/marketSegment.ts），
+// 该默认查询也必须命中预计算，否则每个冷访客都是 ~14s 全表扫描。
+async function txSummary(type?: 'offplan' | 'ready') {
+  const seg = type === 'offplan' ? ' AND dt.is_offplan' : type === 'ready' ? ' AND NOT dt.is_offplan' : ''
   const stats = await pool.query(
     `SELECT COUNT(*)::int AS n,
             percentile_cont(0.05) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS p05,
@@ -98,17 +101,17 @@ async function txSummary() {
             AVG(dt.meter_sale_price) AS avg_pps,
             percentile_cont(0.50) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_price,
             AVG(dt.procedure_area) AS avg_size_sqm, SUM(dt.actual_worth) AS total_volume
-       FROM dld_transactions dt WHERE ${TX_BASE}`
+       FROM dld_transactions dt WHERE ${TX_BASE}${seg}`
   )
   const trend = await pool.query(
     `SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month, COUNT(*)::int AS count,
             round(percentile_cont(0.50) WITHIN GROUP (ORDER BY dt.meter_sale_price)) AS median_pps
        FROM dld_transactions dt
-      WHERE ${TX_BASE} AND dt.instance_date >= (SELECT MAX(instance_date) FROM dld_transactions) - INTERVAL '24 months'
+      WHERE ${TX_BASE}${seg} AND dt.instance_date >= (SELECT MAX(instance_date) FROM dld_transactions) - INTERVAL '24 months'
       GROUP BY 1 ORDER BY 1`
   )
   const s = stats.rows[0]
-  await store('tx', 'summary', {
+  await store('tx', type ? `summary:${type}` : 'summary', {
     count: s.n,
     pricePerSqm: s.n ? {
       min: Math.round(+s.p05), p25: Math.round(+s.p25), median: Math.round(+s.median_pps),
@@ -128,7 +131,7 @@ async function main() {
     PRIMARY KEY (market, key))`)
   const t0 = Date.now()
   await rentFilters(); await rentSummary()
-  await txFilters(); await txSummary(); await txProjectsAll()
+  await txFilters(); await txSummary(); await txSummary('offplan'); await txSummary('ready'); await txProjectsAll()
   console.log(`[precompute] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
   await pool.end()
 }

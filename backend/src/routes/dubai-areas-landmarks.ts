@@ -4,6 +4,7 @@ import pool from '../db/pool';
 import { requireAuth } from '../middleware/auth';
 import { cachedRender, acceptsGzip, invalidate } from '../services/microCache';
 import { seal } from '../services/seal';
+import { parseSegment } from '../lib/marketSegment';
 
 const router = Router();
 
@@ -76,7 +77,10 @@ router.get('/areas', async (req: Request, res: Response) => {
     // usage lens — the MAP shows 'all' (every property type combined); the area
     // detail dialog can filter to a specific usage. Nothing is hidden.
     const usage = USAGE_BUCKETS.includes(String(req.query.usage)) ? String(req.query.usage) : 'all'
-    const rendered = await cachedRender(`areas:${usage}`, AREAS_TTL_MS, async () => {
+    // 市场口径：散客默认期房（价格/增长；收益率永远全口径），经纪端传 segment=all。
+    // 样本不足的区域函数内部自动回退全口径，price_segment 标注实际口径。
+    const segment = parseSegment(req.query.segment)
+    const rendered = await cachedRender(`areas:${usage}:${segment}`, AREAS_TTL_MS, async () => {
     // Join with real-time metrics from DLD transactions
     const result = await pool.query(`
       SELECT
@@ -95,6 +99,7 @@ router.get('/areas', async (req: Request, res: Response) => {
         m.new_contract_count as new_contract_count,
         m.renew_contract_count as renew_contract_count,
         m.transaction_count,
+        m.price_segment as price_segment,
         ny.net_yield_pct as net_yield_pct,
         ny.service_charge_sqft as service_charge_sqft,
         ny.gross_yield_pct as net_gross_yield_pct,
@@ -102,11 +107,11 @@ router.get('/areas', async (req: Request, res: Response) => {
         da.area_category, da.investment_profile, da.rental_restrictions, da.growth_potential, da.ai_summary,
         da.translations, da.created_at, da.updated_at
       FROM dubai_areas da
-      LEFT JOIN get_dubai_area_metrics($1) m ON m.id = da.id
+      LEFT JOIN get_dubai_area_metrics($1, $2) m ON m.id = da.id
       LEFT JOIN mv_area_net_yield ny ON ny.dubai_area_id = da.id
       WHERE da.visible = true
       ORDER BY da.display_order ASC, da.name ASC
-    `, [usage]);
+    `, [usage, segment]);
 
     const mapped = result.rows.map(row => ({
       ...mapAreaRow(row),
@@ -122,6 +127,8 @@ router.get('/areas', async (req: Request, res: Response) => {
       transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
       medianPriceSqm: row.median_price_sqm ? parseFloat(row.median_price_sqm) : null,
       medianUnitPrice: row.median_unit_price ? parseFloat(row.median_unit_price) : null,
+      // 价格/增长字段的实际口径（'offplan'|'ready'|'all'）；样本不足时函数已回退 'all'
+      priceSegment: row.price_segment || 'all',
       netYield: row.net_yield_pct != null ? parseFloat(row.net_yield_pct) : null,
       serviceChargeSqft: row.service_charge_sqft != null ? parseFloat(row.service_charge_sqft) : null,
       // gross + drag come from the SAME view as netYield, so gross − drag = net is self-consistent

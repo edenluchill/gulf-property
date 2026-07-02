@@ -753,7 +753,7 @@ export async function executeTool(
       const p = d.projection_5y || {}
       return {
         result: d,
-        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}:中位价约 ${Math.round(d.median_price_aed / 1000)}万 AED,毛租金收益 ${d.gross_yield_pct ?? '—'}%,近3年年化 ${d.cagr_3y_pct ?? '—'}%。指示性5年总回报约 ${p.total_roi_pct ?? '—'}%,回本约 ${p.payback_years ?? '—'} 年(样本置信度 ${d.sample?.confidence};指示性,非保证)。`
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位价约 ${Math.round(d.median_price_aed / 1000)}万 AED,毛租金收益 ${d.gross_yield_pct ?? '—'}%,近3年年化 ${d.cagr_3y_pct ?? '—'}%。指示性5年总回报约 ${p.total_roi_pct ?? '—'}%,回本约 ${p.payback_years ?? '—'} 年(样本置信度 ${d.sample?.confidence};指示性,非保证)。`
       }
     }
 
@@ -784,7 +784,7 @@ export async function executeTool(
       const vsCity = c.vs_city_pct >= 0 ? `高${c.vs_city_pct}%` : `低${Math.abs(c.vs_city_pct)}%`
       return {
         result: d,
-        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}:中位 ${Math.round(pr.median_price_aed / 1000)}万 AED(${pr.median_price_sqm}/㎡,比全城${vsCity}),近3年年化 ${t.cagr_3y_pct}%、同比 ${t.yoy_pct}%(${t.direction}),毛收益 ${y.gross_yield_pct ?? '—'}%,指示性5年ROI ${p.total_roi_pct}%、回本 ${p.payback_years ?? '—'}年,流动性${d.liquidity.level}(置信度${d.sample.confidence})。净收益/供给/人口数据暂缺。`
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位 ${Math.round(pr.median_price_aed / 1000)}万 AED(${pr.median_price_sqm}/㎡,比全城${vsCity}),近3年年化 ${t.cagr_3y_pct}%、同比 ${t.yoy_pct}%(${t.direction}),毛收益 ${y.gross_yield_pct ?? '—'}%,指示性5年ROI ${p.total_roi_pct}%、回本 ${p.payback_years ?? '—'}年,流动性${d.liquidity.level}(置信度${d.sample.confidence})。净收益/供给/人口数据暂缺。`
       }
     }
 
@@ -812,7 +812,7 @@ export async function executeTool(
       const dir = data.premium_pct >= 0 ? `高 ${data.premium_pct}%` : `低 ${Math.abs(data.premium_pct)}%`
       return {
         result: data,
-        summary: `${data.project_name}(${data.bedrooms}居)报价约 ${Math.round(data.asking_price_aed / 1000)}万,比 ${data.area} 二手中位 ${Math.round(data.area_median_aed / 1000)}万${dir}。片区收益 ${data.area_yield_pct ?? '—'}%、3年涨 ${data.area_cagr_pct ?? '—'}%(期房通常带溢价,置信度${data.confidence})。`
+        summary: `${data.project_name}(${data.bedrooms}居)报价约 ${Math.round(data.asking_price_aed / 1000)}万,比 ${data.area} ${data.segment_used === 'offplan' ? '期房成交中位' : '成交中位'} ${Math.round(data.area_median_aed / 1000)}万${dir}。片区收益 ${data.area_yield_pct ?? '—'}%、3年涨 ${data.area_cagr_pct ?? '—'}%(置信度${data.confidence})。`
       }
     }
 

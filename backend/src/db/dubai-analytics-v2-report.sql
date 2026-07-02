@@ -4,12 +4,19 @@
 --          匹配不到再退回 DLD 地籍名 ILIKE。依赖 v_sales / v_rent / dubai_areas。
 -- 应用:cd backend && npx ts-node scripts/db-runner.ts src/db/dubai-analytics-v2-report.sql
 -- ============================================================================
+-- 签名变更（加 p_is_offplan / p_min_n）：必须先 DROP 旧 3 参版本，否则 3 参调用会
+-- 命中两个重载报 "function is not unique"。
+DROP FUNCTION IF EXISTS area_investment_report(text, text, int);
+
 CREATE OR REPLACE FUNCTION area_investment_report(
-  p_area text, p_ptype text DEFAULT 'apartment', p_bedrooms int DEFAULT NULL
+  p_area text, p_ptype text DEFAULT 'apartment', p_bedrooms int DEFAULT NULL,
+  p_is_offplan boolean DEFAULT NULL, p_min_n int DEFAULT 10
 ) RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE
   v_like text := '%'||p_area||'%';
   v_block uuid;
+  v_off boolean := p_is_offplan;      -- 生效口径（样本不足时置回 NULL=全口径）
+  v_seg text;
   v_price_aed numeric; v_price_sqm numeric; v_p25 numeric; v_p75 numeric; v_size numeric;
   v_cnt int; v_cnt12 int; v_offplan_share numeric;
   v_rent_sqm numeric; v_rent_cnt int;
@@ -22,18 +29,42 @@ BEGIN
   -- 营销名 → 区块(认 "Marina"/"Arabian Ranches" 等);取最短匹配名(最贴切)
   SELECT id INTO v_block FROM dubai_areas WHERE name ILIKE v_like ORDER BY length(name) ASC LIMIT 1;
 
+  -- 期房占比永远按全口径算（口径过滤后该数没有意义）
+  SELECT avg((is_offplan)::int::numeric) INTO v_offplan_share
+  FROM v_sales
+  WHERE ptype = p_ptype AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
+    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
+
   SELECT percentile_cont(0.5) within group (order by price_aed),
          percentile_cont(0.5) within group (order by price_sqm),
          percentile_cont(0.25) within group (order by price_sqm),
          percentile_cont(0.75) within group (order by price_sqm),
          avg(size_sqm), count(*),
-         count(*) FILTER (WHERE txn_date >= CURRENT_DATE - INTERVAL '12 months'),
-         avg((is_offplan)::int::numeric)
-    INTO v_price_aed, v_price_sqm, v_p25, v_p75, v_size, v_cnt, v_cnt12, v_offplan_share
+         count(*) FILTER (WHERE txn_date >= CURRENT_DATE - INTERVAL '12 months')
+    INTO v_price_aed, v_price_sqm, v_p25, v_p75, v_size, v_cnt, v_cnt12
   FROM v_sales
   WHERE ptype = p_ptype AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
+    AND (v_off IS NULL OR is_offplan = v_off)
     AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
     AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
+
+  -- 样本护栏：请求口径样本太薄 → 回退全口径重算（segment_used 会如实标注）
+  IF v_off IS NOT NULL AND COALESCE(v_cnt, 0) < p_min_n THEN
+    v_off := NULL;
+    SELECT percentile_cont(0.5) within group (order by price_aed),
+           percentile_cont(0.5) within group (order by price_sqm),
+           percentile_cont(0.25) within group (order by price_sqm),
+           percentile_cont(0.75) within group (order by price_sqm),
+           avg(size_sqm), count(*),
+           count(*) FILTER (WHERE txn_date >= CURRENT_DATE - INTERVAL '12 months')
+      INTO v_price_aed, v_price_sqm, v_p25, v_p75, v_size, v_cnt, v_cnt12
+    FROM v_sales
+    WHERE ptype = p_ptype AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
+      AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+      AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
+  END IF;
+  v_seg := CASE WHEN v_off IS NULL THEN 'all' WHEN v_off THEN 'offplan' ELSE 'ready' END;
 
   IF v_cnt IS NULL OR v_cnt = 0 THEN
     SELECT jsonb_agg(jsonb_build_object('ptype', ptype, 'count', c) ORDER BY c DESC) INTO v_avail
@@ -52,20 +83,25 @@ BEGIN
     AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
     AND start_date >= CURRENT_DATE - INTERVAL '24 months';
 
+  -- 趋势/同城对比全部沿用生效口径（同口径对比才是苹果比苹果）
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_then
   FROM v_sales WHERE ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
+    AND (v_off IS NULL OR is_offplan = v_off)
     AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
     AND txn_date >= CURRENT_DATE - INTERVAL '48 months' AND txn_date < CURRENT_DATE - INTERVAL '36 months';
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_prev12
   FROM v_sales WHERE ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
+    AND (v_off IS NULL OR is_offplan = v_off)
     AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
     AND txn_date >= CURRENT_DATE - INTERVAL '24 months' AND txn_date < CURRENT_DATE - INTERVAL '12 months';
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_cur12
   FROM v_sales WHERE ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
+    AND (v_off IS NULL OR is_offplan = v_off)
     AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
     AND txn_date >= CURRENT_DATE - INTERVAL '12 months';
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_city_sqm
-  FROM v_sales WHERE ptype=p_ptype AND txn_date >= CURRENT_DATE - INTERVAL '12 months';
+  FROM v_sales WHERE ptype=p_ptype AND (v_off IS NULL OR is_offplan = v_off)
+    AND txn_date >= CURRENT_DATE - INTERVAL '12 months';
 
   IF v_then > 0 THEN v_cagr := power(v_price_sqm / v_then, 1.0/3) - 1; END IF;
   IF v_prev12 > 0 AND v_cur12 > 0 THEN v_yoy := v_cur12/v_prev12 - 1; END IF;
@@ -92,6 +128,9 @@ BEGIN
 
   RETURN jsonb_build_object(
     'area', p_area, 'matched_block', v_block, 'ptype', p_ptype, 'bedrooms', p_bedrooms,
+    -- 实际生效口径：requested 可能因样本护栏回退（AI 要如实转述）
+    'segment_used', v_seg,
+    'segment_requested', CASE WHEN p_is_offplan IS NULL THEN 'all' WHEN p_is_offplan THEN 'offplan' ELSE 'ready' END,
     'pricing', jsonb_build_object(
       'median_price_aed', round(v_price_aed), 'median_price_sqm', round(v_price_sqm),
       'price_sqm_p25', round(v_p25), 'price_sqm_p75', round(v_p75), 'avg_size_sqm', round(v_size::numeric,1)),

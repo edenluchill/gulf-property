@@ -17,6 +17,7 @@
  * the file + the one public-router route to remove.
  */
 import pool from '../db/pool'
+import { DEFAULT_SEGMENT, segmentToOffplan } from '../lib/marketSegment'
 
 const SQM_TO_SQFT = 10.7639
 /** Min sales in the window for a PROJECT-level number to be trustworthy; below
@@ -36,6 +37,8 @@ export interface Comparable {
 export interface MarketEvidence {
   granularity: 'project' | 'area'
   scope: string // the matched project or area name
+  /** 实际口径：默认期房；该口径样本太薄时回退 'all'（如实标注，别装作期房数据） */
+  segment: 'offplan' | 'ready' | 'all'
   window_days: number
   window_end: string // YYYY-MM-DD (latest data date)
   volume: number // sales count in window
@@ -70,40 +73,43 @@ async function latestSaleDate(): Promise<string | null> {
   return d
 }
 
-async function aggregate(field: 'project_name' | 'area_name', value: string, end: string, windowDays: number): Promise<number> {
+async function aggregate(field: 'project_name' | 'area_name', value: string, end: string, windowDays: number, off: boolean | null): Promise<number> {
   const r = await pool.query<AggRow>(
     `SELECT count(*) AS vol
        FROM dld_transactions
       WHERE trans_group='Sales'
+        AND ($4::boolean IS NULL OR is_offplan = $4)
         AND ${field} ILIKE $1
         AND instance_date > ($2::date - ($3 || ' days')::interval)
         AND instance_date <= $2::date`,
-    [`%${value}%`, end, windowDays]
+    [`%${value}%`, end, windowDays, off]
   )
   return Number(r.rows[0]?.vol ?? 0)
 }
 
-async function detail(field: 'project_name' | 'area_name', value: string, end: string, windowDays: number) {
+async function detail(field: 'project_name' | 'area_name', value: string, end: string, windowDays: number, off: boolean | null) {
   const agg = await pool.query<AggRow>(
     `SELECT count(*) AS vol,
             percentile_cont(0.5) WITHIN GROUP (ORDER BY meter_sale_price) AS median_psm
        FROM dld_transactions
       WHERE trans_group='Sales' AND meter_sale_price > 0
+        AND ($4::boolean IS NULL OR is_offplan = $4)
         AND ${field} ILIKE $1
         AND instance_date > ($2::date - ($3 || ' days')::interval)
         AND instance_date <= $2::date`,
-    [`%${value}%`, end, windowDays]
+    [`%${value}%`, end, windowDays, off]
   )
   const comps = await pool.query<CompRow>(
     `SELECT to_char(instance_date,'YYYY-MM-DD') AS instance_date, rooms,
             meter_sale_price, actual_worth, COALESCE(is_offplan,false) AS is_offplan
        FROM dld_transactions
       WHERE trans_group='Sales' AND meter_sale_price > 0 AND actual_worth > 0
+        AND ($3::boolean IS NULL OR is_offplan = $3)
         AND ${field} ILIKE $1
         AND instance_date <= $2::date
       ORDER BY instance_date DESC, id DESC
       LIMIT 3`,
-    [`%${value}%`, end]
+    [`%${value}%`, end, off]
   )
   const medianPsm = agg.rows[0]?.median_psm
   const median_psf = medianPsm ? Math.round(Number(medianPsm) / SQM_TO_SQFT) : null
@@ -131,36 +137,47 @@ export async function getMarketEvidence(opts: {
   if (!end) return null
   const asOf = end.slice(0, 7) // YYYY-MM
 
-  // project-first
-  if (opts.projectName) {
-    const vol = await aggregate('project_name', opts.projectName, end, windowDays)
-    if (vol >= MIN_PROJECT_SAMPLE) {
-      const d = await detail('project_name', opts.projectName, end, windowDays)
-      return {
-        granularity: 'project',
-        scope: opts.projectName,
-        window_days: windowDays,
-        window_end: end,
-        ...d,
-        source: { label: 'Dubai Land Department', url: DLD_URL, as_of: asOf },
-        disclaimer: DISCLAIMER,
+  const attempt = async (off: boolean | null): Promise<Omit<MarketEvidence, 'segment'> | null> => {
+    // project-first
+    if (opts.projectName) {
+      const vol = await aggregate('project_name', opts.projectName, end, windowDays, off)
+      if (vol >= MIN_PROJECT_SAMPLE) {
+        const d = await detail('project_name', opts.projectName, end, windowDays, off)
+        return {
+          granularity: 'project',
+          scope: opts.projectName,
+          window_days: windowDays,
+          window_end: end,
+          ...d,
+          source: { label: 'Dubai Land Department', url: DLD_URL, as_of: asOf },
+          disclaimer: DISCLAIMER,
+        }
       }
     }
-  }
-  // area fallback
-  if (opts.areaName) {
-    const d = await detail('area_name', opts.areaName, end, windowDays)
-    if (d.volume > 0 || d.comparables.length) {
-      return {
-        granularity: 'area',
-        scope: opts.areaName,
-        window_days: windowDays,
-        window_end: end,
-        ...d,
-        source: { label: 'Dubai Land Department', url: DLD_URL, as_of: asOf },
-        disclaimer: DISCLAIMER,
+    // area fallback
+    if (opts.areaName) {
+      const d = await detail('area_name', opts.areaName, end, windowDays, off)
+      if (d.volume > 0 || d.comparables.length) {
+        return {
+          granularity: 'area',
+          scope: opts.areaName,
+          window_days: windowDays,
+          window_end: end,
+          ...d,
+          source: { label: 'Dubai Land Department', url: DLD_URL, as_of: asOf },
+          disclaimer: DISCLAIMER,
+        }
       }
     }
+    return null
   }
-  return null
+
+  // 默认期房口径；期房样本太薄（<MIN_PROJECT_SAMPLE）→ 回退全口径并如实标注
+  const off = segmentToOffplan(DEFAULT_SEGMENT)
+  if (off !== null) {
+    const ev = await attempt(off)
+    if (ev && ev.volume >= MIN_PROJECT_SAMPLE) return { ...ev, segment: DEFAULT_SEGMENT }
+  }
+  const evAll = await attempt(null)
+  return evAll ? { ...evAll, segment: 'all' } : null
 }

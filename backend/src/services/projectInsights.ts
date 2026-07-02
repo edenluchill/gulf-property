@@ -353,7 +353,7 @@ export async function getProjectTransactions(projectId: string, limit = 40): Pro
     pool.query(
       `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
               dt.procedure_area AS size_sqm, dt.actual_worth AS price, round(dt.meter_sale_price) AS pps,
-              CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
+              CASE WHEN dt.is_offplan THEN 'offplan' ELSE 'ready' END AS sale_type
          FROM dld_transactions dt
         WHERE dt.master_project = $1 AND dt.area_id = $2
           AND dt.trans_group = 'Sales' AND dt.meter_sale_price > 0

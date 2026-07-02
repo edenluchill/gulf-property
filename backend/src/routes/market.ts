@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { findAreaByName } from '../services/area-matcher'
 import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
+import { DEFAULT_SEGMENT, SEGMENT_MIN_SAMPLE, parseSegment, MarketSegment } from '../lib/marketSegment'
 
 const router = Router()
 
@@ -259,10 +260,12 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     params.push(Number(q.maxPrice))
     parts.push(`dt.actual_worth <= $${params.length}`)
   }
+  // 期房/现房用 DLD 官方 is_offplan 标志（比 procedure_name 文本匹配全：
+  // Delayed Sell 等程序官方归现房，之前的 ='Sell' 会漏掉它们）
   if (q.type === 'offplan') {
-    parts.push(`dt.procedure_name = 'Sell - Pre registration'`)
+    parts.push(`dt.is_offplan`)
   } else if (q.type === 'ready') {
-    parts.push(`dt.procedure_name = 'Sell'`)
+    parts.push(`NOT dt.is_offplan`)
   }
   if (q.from) {
     params.push(q.from)
@@ -358,11 +361,16 @@ router.get('/transactions/summary', async (req: Request, res: Response) => {
     const cacheKey = `summary:${clause}:${JSON.stringify(params)}`
     const cached = txCacheGet(cacheKey)
     if (cached) return res.json(cached)
-    // unfiltered default → serve the daily-precomputed payload (avoids the ~14s full scan)
+    // type-only default → serve the daily-precomputed payload (avoids the ~14s full scan)。
+    // 前端散客默认 type=offplan（见 frontend lib/marketSegment.ts），所以期房/现房
+    // 的无其它筛选场景也各有预计算 key（market-precompute.ts）。
     const q = req.query
-    if (!q.area && !q.areaId && !q.project && !q.rooms && !q.type && !q.from && !q.to && !q.minPrice && !q.maxPrice) {
-      const pc = await txPrecomputed('summary')
-      if (pc) { txCacheSet(cacheKey, pc); return res.json(pc) }
+    if (!q.area && !q.areaId && !q.project && !q.rooms && !q.from && !q.to && !q.minPrice && !q.maxPrice) {
+      const pcKey = q.type === 'offplan' ? 'summary:offplan' : q.type === 'ready' ? 'summary:ready' : !q.type ? 'summary' : null
+      if (pcKey) {
+        const pc = await txPrecomputed(pcKey)
+        if (pc) { txCacheSet(cacheKey, pc); return res.json(pc) }
+      }
     }
     const stats = await pool.query(
       `SELECT COUNT(*)::int AS n,
@@ -421,7 +429,7 @@ router.get('/transactions/list', async (req: Request, res: Response) => {
       `SELECT dt.instance_date AS date, dt.area_name, dt.building_name, dt.project_name,
               dt.rooms, dt.procedure_area AS size_sqm, dt.actual_worth AS price,
               round(dt.meter_sale_price) AS price_per_sqm,
-              CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
+              CASE WHEN dt.is_offplan THEN 'offplan' ELSE 'ready' END AS sale_type
          FROM dld_transactions dt
         WHERE ${clause}
         ORDER BY dt.instance_date DESC
@@ -510,12 +518,20 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       : `rc.dubai_area_id = $1`
 
     const [salesRes, rentRes, recentRes, recentRentRes, medianRes] = await Promise.all([
-      // 37 个月：算 24 个月同比需要 t-12 的数据
+      // 37 个月：算 24 个月同比需要 t-12 的数据。
+      // 一次扫描同时聚合 全部/期房/现房 三口径（FILTER 聚合）——不用二次查询做
+      // 样本回退，缓存里三口径齐全，切口径零额外成本。
       pool.query(
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
          SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
                 COUNT(*)::int AS count,
-                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps,
+                COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
+                  FILTER (WHERE dt.is_offplan) AS median_pps_offplan,
+                COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
+                  FILTER (WHERE NOT dt.is_offplan) AS median_pps_ready
            FROM dld_transactions dt
            ${txJoin}
           CROSS JOIN bounds b
@@ -544,18 +560,19 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
           GROUP BY 1 ORDER BY 1`,
         [areaId, usage]
       ),
+      // 近期成交给到 30 条（带期房/现房标签），前端筛选 chip 纯客户端过滤
       pool.query(
         `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
                 dt.procedure_area AS size_sqm, dt.actual_worth AS price,
                 round(dt.meter_sale_price) AS price_per_sqm,
-                CASE WHEN dt.procedure_name = 'Sell - Pre registration' THEN 'offplan' ELSE 'ready' END AS sale_type
+                CASE WHEN dt.is_offplan THEN 'offplan' ELSE 'ready' END AS sale_type
            FROM dld_transactions dt
            ${txJoin}
           WHERE ${txWhere}
             AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
             AND dt.meter_sale_price > 0
           ORDER BY dt.instance_date DESC
-          LIMIT 8`,
+          LIMIT 30`,
         [areaId, usage]
       ),
       // Recent rental contracts (new + renewal) for the same area
@@ -575,11 +592,17 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
           LIMIT 8`,
         [areaId, usage]
       ),
-      // Median TOTAL transaction price (房子中位总价) over the last 12 months.
+      // Median TOTAL transaction price (房子中位总价) over the last 12 months — 三口径。
       pool.query(
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
          SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_unit_price,
-                COUNT(*)::int AS n
+                COUNT(*)::int AS n,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
+                  FILTER (WHERE dt.is_offplan) AS median_unit_price_offplan,
+                COUNT(*) FILTER (WHERE dt.is_offplan)::int AS n_offplan,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
+                  FILTER (WHERE NOT dt.is_offplan) AS median_unit_price_ready,
+                COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS n_ready
            FROM dld_transactions dt
            ${txJoin}
           CROSS JOIN bounds b
@@ -591,9 +614,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       )
     ])
 
-    const salesByMonth = new Map<string, { count: number; pps: number | null }>(
-      salesRes.rows.map(r => [r.month, { count: r.count, pps: r.median_pps != null ? Number(r.median_pps) : null }])
-    )
+    const byMonth = new Map<string, any>(salesRes.rows.map(r => [r.month, r]))
     const rentByMonth = new Map<string, number>(
       rentRes.rows
         .filter(r => r.median_rent_sqm != null)
@@ -606,40 +627,75 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       `SELECT to_char(date_trunc('month', MAX(instance_date)), 'YYYY-MM') AS m FROM dld_transactions`
     )
     const endYm: string = boundsRes.rows[0]?.m || salesRes.rows[salesRes.rows.length - 1]?.month
-    if (!endYm) return { months: [], price: [], volume: [], growth: [], rentalYield: [], dataThrough: null, recentTransactions: [], recentRentals: [] }
+    const emptyVariant = { price: [], volume: [], growth: [], medianUnitPrice: null, count12m: 0 }
+    if (!endYm) return {
+      months: [], rentalYield: [], dataThrough: null,
+      variants: { all: emptyVariant, offplan: emptyVariant, ready: emptyVariant },
+      recentTransactions: [], recentRentals: []
+    }
 
     const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
     const months = monthsWithLookback.slice(-24)
-
-    const ppsAll = monthsWithLookback.map(m => salesByMonth.get(m)?.pps ?? null)
-    const ppsSmooth = smooth3(ppsAll)
     const idxOf = new Map(monthsWithLookback.map((m, i) => [m, i]))
 
-    const price = months.map(m => salesByMonth.get(m)?.pps ?? null)
-    const volume = months.map(m => salesByMonth.get(m)?.count ?? 0)
-    const growth = months.map(m => {
-      const i = idxOf.get(m)!
-      const cur = ppsSmooth[i]
-      const prev = i >= 12 ? ppsSmooth[i - 12] : null
-      if (cur == null || prev == null || prev <= 0) return null
-      return Number((((cur - prev) / prev) * 100).toFixed(1))
-    })
+    // 每口径一套 价格/量/同比 序列（列名后缀区分；'all' 用无后缀列）
+    const segCols = (r: any, seg: 'all' | 'offplan' | 'ready') => seg === 'all'
+      ? { count: r.count, pps: r.median_pps }
+      : seg === 'offplan'
+        ? { count: r.count_offplan, pps: r.median_pps_offplan }
+        : { count: r.count_ready, pps: r.median_pps_ready }
+    const mkSeries = (seg: 'all' | 'offplan' | 'ready') => {
+      const pps37 = monthsWithLookback.map(m => {
+        const r = byMonth.get(m)
+        const v = r ? segCols(r, seg).pps : null
+        return v != null ? Number(v) : null
+      })
+      const smooth = smooth3(pps37)
+      const price = months.map(m => {
+        const r = byMonth.get(m)
+        const v = r ? segCols(r, seg).pps : null
+        return v != null ? Number(v) : null
+      })
+      const volume = months.map(m => {
+        const r = byMonth.get(m)
+        return r ? Number(segCols(r, seg).count || 0) : 0
+      })
+      const growth = months.map(m => {
+        const i = idxOf.get(m)!
+        const cur = smooth[i]
+        const prev = i >= 12 ? smooth[i - 12] : null
+        if (cur == null || prev == null || prev <= 0) return null
+        return Number((((cur - prev) / prev) * 100).toFixed(1))
+      })
+      return { smooth, price, volume, growth }
+    }
+    const sAll = mkSeries('all')
+    const sOffplan = mkSeries('offplan')
+    const sReady = mkSeries('ready')
+
+    // 收益率永远用全口径价格做分母（租金全部来自已交付现房，期房价格做分母无意义）
     const rentSmooth = smooth3(months.map(m => rentByMonth.get(m) ?? null))
     const rentalYield = months.map((m, i) => {
       const rent = rentSmooth[i]
-      const pps = ppsSmooth[idxOf.get(m)!]
+      const pps = sAll.smooth[idxOf.get(m)!]
       if (rent == null || pps == null || pps <= 0) return null
       return Number(((rent / pps) * 100).toFixed(2))
     })
 
+    const mr = medianRes.rows[0] || {}
+    const roundOrNull = (v: any) => v != null ? Math.round(Number(v)) : null
     const data = {
       months,
-      price,
-      volume,
-      growth,
       rentalYield,
       dataThrough: endYm,
-      medianUnitPrice: medianRes.rows[0]?.median_unit_price ? Math.round(Number(medianRes.rows[0].median_unit_price)) : null,
+      variants: {
+        all: { price: sAll.price, volume: sAll.volume, growth: sAll.growth,
+               medianUnitPrice: roundOrNull(mr.median_unit_price), count12m: Number(mr.n || 0) },
+        offplan: { price: sOffplan.price, volume: sOffplan.volume, growth: sOffplan.growth,
+                   medianUnitPrice: roundOrNull(mr.median_unit_price_offplan), count12m: Number(mr.n_offplan || 0) },
+        ready: { price: sReady.price, volume: sReady.volume, growth: sReady.growth,
+                 medianUnitPrice: roundOrNull(mr.median_unit_price_ready), count12m: Number(mr.n_ready || 0) },
+      },
       recentTransactions: recentRes.rows.map(r => ({
         date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
         building: r.building_name || r.project_name || null,
@@ -662,6 +718,37 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
     return data
 }
 
+/**
+ * 把三口径 raw 数据按请求的 segment 组装成响应（老字段形状不变 + 口径元信息）。
+ * 样本护栏：请求口径近 12 个月样本 < SEGMENT_MIN_SAMPLE 时回退 'all'，
+ * priceSegment 告知前端实际生效口径（前端据此显示「样本不足已回退」）。
+ */
+function composeAreaInsights(raw: any, segment: MarketSegment) {
+  const variants = raw?.variants
+  if (!variants) return raw
+  const eff: MarketSegment =
+    segment !== 'all' && variants[segment]?.count12m >= SEGMENT_MIN_SAMPLE ? segment : 'all'
+  const v = variants[eff]
+  return {
+    months: raw.months,
+    price: v.price,
+    volume: v.volume,
+    growth: v.growth,
+    rentalYield: raw.rentalYield,   // 固定全口径
+    dataThrough: raw.dataThrough,
+    medianUnitPrice: v.medianUnitPrice,
+    segment,
+    priceSegment: eff,
+    segmentCounts12m: {
+      all: variants.all.count12m,
+      offplan: variants.offplan.count12m,
+      ready: variants.ready.count12m,
+    },
+    recentTransactions: raw.recentTransactions,
+    recentRentals: raw.recentRentals,
+  }
+}
+
 router.get('/area-insights', async (req: Request, res: Response) => {
   try {
     const areaId = String(req.query.areaId || '').trim()
@@ -675,12 +762,15 @@ router.get('/area-insights', async (req: Request, res: Response) => {
     // usage lens — default 'all' (the dialog shows everything, then filters); cache per usage.
     const usage = ['all','residential','commercial','hospitality','industrial','other'].includes(String(req.query.usage))
       ? String(req.query.usage) : 'all'
+    // 市场口径 —— 缺省走 DEFAULT_SEGMENT（散客=期房）；经纪端显式传 segment=all。
+    // 缓存存的是三口径 raw，按口径组装零成本（同一份缓存服务所有口径）。
+    const segment = parseSegment(req.query.segment)
     const cacheKey = `insights:${areaId}:${usage}`
     const cached = txCacheGet(cacheKey)
-    if (cached) return res.json(cached)
+    if (cached) return res.json(composeAreaInsights(cached, segment))
     const data = await loadAreaInsightsData(areaId, usage)
     txCacheSet(cacheKey, data)
-    res.json(data)
+    res.json(composeAreaInsights(data, segment))
   } catch (err) {
     console.error('[market/area-insights] error:', err)
     res.status(500).json({ error: 'internal error' })
@@ -818,10 +908,12 @@ function classifyAreas(rows: AreaMetricRow[]) {
 }
 
 async function loadAreaMetricRows(): Promise<AreaMetricRow[]> {
+  // 分级用与散客展示同一口径（默认期房；函数内部对样本不足的区自动回退全口径）
   const r = await pool.query(
     `SELECT id, name, transaction_count, capital_growth_pct,
             rental_yield_pct, median_unit_price, median_price_sqm
-       FROM get_dubai_area_metrics()`
+       FROM get_dubai_area_metrics('residential', $1)`,
+    [DEFAULT_SEGMENT]
   )
   return r.rows
 }

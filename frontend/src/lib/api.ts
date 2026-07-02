@@ -856,6 +856,11 @@ export interface AreaInsights {
   rentalYield: (number | null)[];
   dataThrough: string | null;
   medianUnitPrice?: number | null;   // median TOTAL transaction price (房子中位总价) for the usage
+  /** 请求的市场口径（散客默认 offplan） */
+  segment?: 'offplan' | 'ready' | 'all';
+  /** 价格/增长实际生效口径 —— 期房样本不足时后端回退 'all'，前端要如实标注 */
+  priceSegment?: 'offplan' | 'ready' | 'all';
+  segmentCounts12m?: { all: number; offplan: number; ready: number };
   recentTransactions: {
     date: string | null; building: string | null; rooms: string | null;
     sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
@@ -867,12 +872,14 @@ export interface AreaInsights {
     regType: 'new' | 'renew';
   }[];
 }
-export async function fetchAreaInsights(areaId: string, usage?: string): Promise<AreaInsights | null> {
+export async function fetchAreaInsights(areaId: string, usage?: string, segment?: string): Promise<AreaInsights | null> {
   try {
     // Backend default is 'all' — send the param for every non-'all' usage
     // (omitting it for 'residential' used to silently return all-usage data).
     const u = usage && usage !== 'all' ? `&usage=${encodeURIComponent(usage)}` : '';
-    const r = await fetch(`${API_URL}/market/area-insights?areaId=${encodeURIComponent(areaId)}${u}`);
+    // 市场口径：显式传（不传时后端按散客默认=期房）；经纪面可传 'all'
+    const s = segment ? `&segment=${encodeURIComponent(segment)}` : '';
+    const r = await fetch(`${API_URL}/market/area-insights?areaId=${encodeURIComponent(areaId)}${u}${s}`);
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
