@@ -633,12 +633,13 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
   const isActive = phase !== 'idle' && phase !== 'error'
 
   const handleTap = useCallback(() => {
+    if (textOpen) return // typing → voice button is inert (prevents misclicks)
     if (phase === 'idle' || phase === 'error') {
       activate()
     } else {
       deactivate()
     }
-  }, [phase, activate, deactivate])
+  }, [textOpen, phase, activate, deactivate])
 
   // While the TEXT panel is open, the pill must look neutral — voice phases
   // (listening/processing/speaking) leak in otherwise and show "聆听中/思考中",
@@ -658,7 +659,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
 
   return (
     <div className={cn(
-      'fixed bottom-20 right-0 z-50 md:bottom-6',
+      'fixed bottom-20 right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
       className
     )}>
       {/* Text-mode panel: absolutely positioned left of pill (independent of voice) */}
@@ -705,12 +706,13 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       {/* Pill button: tinted glass per state */}
       <motion.button
         onClick={handleTap}
-        disabled={phase === 'connecting'}
-        whileTap={{ scale: 0.95 }}
+        disabled={phase === 'connecting' || textOpen}
+        whileTap={textOpen ? undefined : { scale: 0.95 }}
         className={cn(
           'relative flex flex-col items-center gap-1 overflow-hidden flex-shrink-0',
           'rounded-l-2xl backdrop-blur-xl',
           'w-[52px] transition-all duration-300',
+          textOpen && 'opacity-40', // typing → voice pill inert + dimmed (no misclicks)
           isActive ? 'py-2.5 px-1.5' : 'py-3 px-1.5',
           effPhase === 'idle' && 'bg-gradient-to-b from-slate-200/90 to-slate-100/90 shadow-md border border-slate-300/50 hover:from-slate-200 hover:to-slate-100 hover:shadow-lg',
           effPhase === 'connecting' && 'bg-gradient-to-b from-slate-200/80 to-slate-100/80 shadow-md border border-slate-300/50',
@@ -806,23 +808,24 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         </AnimatePresence>
       </motion.button>
 
-      {/* "打字" chip: a labeled tab clipped to the top of the pill so it's obviously a
-          SEPARATE text-only entry (not voice). stopPropagation → never triggers voice. */}
+      {/* "打字" button: same glass style as the Luna pill, docked right and stacked
+          BELOW it (no overlap) so it reads as a matching, separate text-only entry.
+          stopPropagation → never triggers voice. */}
       {TEXT_MODE_ENABLED && (
       <button
         onClick={handleKeyboard}
         className={cn(
-          'absolute -top-3 right-1 z-20 flex items-center gap-1 rounded-full px-2 py-1',
-          'shadow-lg ring-1 backdrop-blur transition-all',
+          'flex w-[52px] flex-col items-center gap-0.5 rounded-l-2xl py-2 px-1.5 backdrop-blur-xl',
+          'shadow-md border transition-all duration-300',
           textOpen
-            ? 'bg-teal-500 text-white ring-teal-400'
-            : 'bg-slate-900/85 text-white ring-white/15 hover:bg-slate-900'
+            ? 'bg-gradient-to-b from-teal-200/90 to-emerald-100/90 border-teal-300/60'
+            : 'bg-gradient-to-b from-slate-200/90 to-slate-100/90 border-slate-300/50 hover:from-slate-200 hover:to-slate-100 hover:shadow-lg'
         )}
         aria-label={t('voice.text.open', { defaultValue: 'Type to Luna' })}
         title={t('voice.text.open', { defaultValue: 'Type to Luna' })}
       >
-        <Keyboard className={cn('h-3 w-3', textOpen ? 'text-white' : 'text-teal-300')} />
-        <span className="text-[9px] font-semibold leading-none">{typeLabel}</span>
+        <Keyboard className={cn('h-4 w-4', textOpen ? 'text-teal-700' : 'text-slate-500')} />
+        <span className={cn('text-[9px] font-semibold tracking-wide', textOpen ? 'text-teal-700' : 'text-slate-600')}>{typeLabel}</span>
       </button>
       )}
 
