@@ -29,6 +29,7 @@ import {
   MessageAttachment
 } from '../hooks/voice-assistant/types'
 import { AudioRecorder, AudioPlayer } from '../hooks/voice-assistant/audioUtils'
+import { buildBubbleAttachment } from '../hooks/voice-assistant/buildAttachment'
 import { voiceDebugLogger } from '../hooks/voice-assistant/debugLogger'
 import { trackEvent, visitorId } from '../lib/track'
 
@@ -268,6 +269,14 @@ interface VoiceAssistantContextType {
   // Navigate to project
   navigateToProject: (projectId: string) => void
 
+  // Text mode (方案 B): typed input, audio-free, separate from voice.
+  textOpen: boolean
+  openText: () => void
+  closeText: () => void
+  sendText: (text: string) => Promise<void>
+  textPending: boolean
+  lastExchange: { user: string; bubble: BubbleContent | null } | null
+
   // Hide the global Luna pill (e.g. during a collab live tour)
   hidden: boolean
   setHidden: (v: boolean) => void
@@ -287,6 +296,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const [hidden, setHidden] = useState(false)
   // Live caption of the USER's own speech (so they can see what they're saying)
   const [userTranscript, setUserTranscript] = useState<string>('')
+
+  // Text mode: only the LAST exchange is shown on screen (2 bubbles); the model still
+  // gets full multi-turn context via textHistoryRef.
+  const [textOpen, setTextOpen] = useState(false)
+  const [textPending, setTextPending] = useState(false)
+  const [lastExchange, setLastExchange] = useState<{ user: string; bubble: BubbleContent | null } | null>(null)
+  const textHistoryRef = useRef<{ role: 'user' | 'model'; text: string }[]>([])
 
   // Refs
   const sessionRef = useRef<any>(null)
@@ -418,6 +434,60 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     navigate(`/project/${projectId}`)
   }, [navigate])
 
+  // ─── Text mode (方案 B): typed, audio-free, independent of the voice session ───
+  // Opening text must NOT activate the mic (no activate() call here).
+  const openText = useCallback(() => setTextOpen(true), [])
+  const closeText = useCallback(() => setTextOpen(false), [])
+
+  const sendText = useCallback(async (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || textPending) return
+
+    setTextPending(true)
+    // Show the user's message immediately; Luna's reply fills in when it returns.
+    setLastExchange({ user: trimmed, bubble: null })
+
+    // Cap the context we feed the model (screen still shows only the last exchange).
+    const history = textHistoryRef.current.slice(-12)
+
+    try {
+      const response = await fetch(`${API_BASE}/api/voice/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, text: trimmed, language: currentLanguage })
+      })
+      const data = await response.json()
+      const steps: Array<{ name: string; result: any; mapAction?: MapAction }> =
+        Array.isArray(data.steps) ? data.steps : []
+
+      // Apply every step's map action; the attachment comes from the LAST step that yields one.
+      let attachment: MessageAttachment | undefined
+      for (const step of steps) {
+        if (step.mapAction) handleMapAction(step.mapAction)
+        const att = buildBubbleAttachment(step.name, step.result)
+        if (att) attachment = att
+      }
+
+      const reply: string = typeof data.reply === 'string' ? data.reply : ''
+      const bubble: BubbleContent = { text: reply, attachment, timestamp: Date.now() }
+
+      textHistoryRef.current = [
+        ...textHistoryRef.current,
+        { role: 'user', text: trimmed },
+        { role: 'model', text: reply }
+      ]
+      setLastExchange({ user: trimmed, bubble })
+    } catch (err) {
+      console.error('[Voice Text] send error:', err)
+      const reply = currentLanguage === 'zh'
+        ? '刚刚有点忙不过来，麻烦再说一次？'
+        : 'Something went wrong — please try again.'
+      setLastExchange({ user: trimmed, bubble: { text: reply, timestamp: Date.now() } })
+    } finally {
+      setTextPending(false)
+    }
+  }, [textPending, currentLanguage, handleMapAction])
+
   // Execute tool
   const executeTool = useCallback(async (toolName: string, params: any, callId: string) => {
     voiceDebugLogger.logToolCallStart(callId, toolName, params)
@@ -471,112 +541,16 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         handleMapAction(data.mapAction)
       }
 
-      // Create attachment from tool result
+      // Create attachment from tool result (shared with the text path — one mapping).
       if (data.result) {
-        if (toolName === 'search_projects' && data.result.projects?.length > 0) {
-          pendingAttachmentRef.current = {
-            type: 'projects',
-            projects: data.result.projects.map((p: any) => ({
-              id: p.id,
-              name: p.project_name,
-              developer: p.developer,
-              area: p.area,
-              minPrice: p.min_price ? parseFloat(p.min_price) : undefined,
-              maxPrice: p.max_price ? parseFloat(p.max_price) : undefined,
-              image: p.primary_image,
-              status: p.status,
-              rentalYield: p.rental_yield_pct,
-              priceGrowth: p.price_growth_pct,
-              unitTypes: (p.unit_types_in_budget || []).map((u: any) => ({
-                category: u.category,
-                bedrooms: u.bedrooms,
-                minPrice: u.min_price,
-                maxPrice: u.max_price,
-                minAreaSqft: u.min_area_sqft,
-                sampleFloorPlan: u.sample_floor_plan
-              }))
-            }))
-          }
-        } else if (toolName === 'navigate_to_project' && data.result?.projectId) {
-          // Show project with unit types + investment chart
-          pendingAttachmentRef.current = {
-            type: 'projects',
-            projects: [{
-              id: data.result.projectId,
-              name: data.result.projectName,
-              developer: data.result.developer,
-              area: data.result.area || '',
-              minPrice: data.result.minPrice ? parseFloat(data.result.minPrice) : undefined,
-              maxPrice: data.result.maxPrice ? parseFloat(data.result.maxPrice) : undefined,
-              image: data.result.image,
-              status: data.result.status,
-              unitTypes: (data.result.unitTypes || []).map((u: any) => ({
-                category: u.category,
-                bedrooms: u.bedrooms,
-                minPrice: u.price,
-                maxPrice: u.price,
-                minAreaSqft: u.area_sqft
-              }))
-            }],
-            investment: data.result.investment_5yr ? {
-              projectName: data.result.projectName,
-              purchasePrice: data.result.investment_5yr.purchase_price,
-              rentalIncome5yr: data.result.investment_5yr.rental_income_5yr,
-              appreciation5yr: data.result.investment_5yr.appreciation_5yr,
-              totalProfit5yr: data.result.investment_5yr.total_profit_5yr,
-              annualizedReturnPct: data.result.investment_5yr.annualized_return_pct,
-              growthPct: data.result.investment_5yr.area_growth_pct || 0
-            } : undefined
-          }
-          // Auto-navigate to project detail page after map fly animation
+        const attachment = buildBubbleAttachment(toolName, data.result, params)
+        if (attachment) pendingAttachmentRef.current = attachment
+
+        // navigate_to_project also auto-opens the detail page after the fly animation.
+        if (toolName === 'navigate_to_project' && data.result?.projectId) {
           setTimeout(() => {
             handleMapAction({ type: 'navigate', path: `/project/${data.result.projectId}` })
           }, 2500)
-        } else if (toolName === 'get_area_info') {
-          if (data.result.metrics) {
-            // Area has direct metrics
-            pendingAttachmentRef.current = {
-              type: 'area_info',
-              areaInfo: {
-                name: data.result.metrics.area_name || params.area_name,
-                rentalYield: data.result.metrics.rental_yield_pct,
-                priceGrowth: data.result.metrics.price_growth_pct,
-                transactionCount: data.result.metrics.sales_transaction_count,
-                medianPrice: data.result.metrics.median_price_sqm
-              }
-            }
-          } else if (data.result.nearby_benchmarks?.length > 0) {
-            // No direct metrics — use best nearby benchmark as reference
-            const best = data.result.nearby_benchmarks[0]
-            pendingAttachmentRef.current = {
-              type: 'area_info',
-              areaInfo: {
-                name: `${data.result.area?.name || params.area_name} (≈${best.name})`,
-                rentalYield: best.rental_yield_pct ? parseFloat(best.rental_yield_pct) : undefined,
-                priceGrowth: best.price_growth_pct ? parseFloat(best.price_growth_pct) : undefined,
-                transactionCount: best.sales_transaction_count,
-                medianPrice: best.median_price_sqm ? parseFloat(best.median_price_sqm) : undefined
-              }
-            }
-          }
-        } else if (toolName === 'compare_areas' && data.result.area1 && data.result.area2) {
-          pendingAttachmentRef.current = {
-            type: 'comparison',
-            comparison: {
-              area1: {
-                name: data.result.area1.area_name,
-                rentalYield: data.result.area1.rental_yield_pct,
-                priceGrowth: data.result.area1.price_growth_pct,
-                transactionCount: data.result.area1.sales_transaction_count
-              },
-              area2: {
-                name: data.result.area2.area_name,
-                rentalYield: data.result.area2.rental_yield_pct,
-                priceGrowth: data.result.area2.price_growth_pct,
-                transactionCount: data.result.area2.sales_transaction_count
-              }
-            }
-          }
         }
       }
 
@@ -1189,6 +1163,12 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       registerMapActionHandler,
       unregisterMapActionHandler,
       navigateToProject,
+      textOpen,
+      openText,
+      closeText,
+      sendText,
+      textPending,
+      lastExchange,
       hidden,
       setHidden
     }}>

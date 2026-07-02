@@ -59,8 +59,11 @@ Example responses:
 
 IMPORTANT: Always use the available tools to show information on the map. Don't just describe - demonstrate on the map.`
 
-// Convert tools format for SDK
-function convertToolsForSDK() {
+// Convert tools format for SDK.
+// Exported so the text-mode agent (/api/voice/text) feeds Gemini the SAME
+// declarations with the SDK's Type enum (the raw voiceAssistantTools use lowercase
+// type strings the REST schema rejects).
+export function convertToolsForSDK() {
   // The SDK expects tools with proper Schema types
   // We need to convert our string types to Type enum values
   const convertType = (type: string): Type => {

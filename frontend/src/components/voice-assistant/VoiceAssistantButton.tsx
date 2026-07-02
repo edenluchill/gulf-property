@@ -8,13 +8,13 @@
  * - No auto-fade: last bubble persists until deactivate
  */
 
-import { useCallback } from 'react'
-import { Loader2, MapPin, Building2, ExternalLink, Search, Globe, BarChart3, Compass } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Loader2, MapPin, Building2, ExternalLink, Search, Globe, BarChart3, Compass, Keyboard, X, Send } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { useVoiceAssistantContext } from '../../contexts/VoiceAssistantContext'
-import { VoicePhase, ProjectCard, AreaInfoCard, BubbleContent, Investment5yr } from '../../hooks/voice-assistant/types'
+import { VoicePhase, ProjectCard, AreaInfoCard, BubbleContent, Investment5yr, MessageAttachment } from '../../hooks/voice-assistant/types'
 import { cn } from '../../lib/utils'
 
 // ─── Helpers ───
@@ -353,6 +353,62 @@ function InvestmentChart({ inv, t }: { inv: Investment5yr; t: TFunction<'compone
   )
 }
 
+// ─── Bubble Attachment (project cards / area info / comparison / chart) ───
+// Shared by the voice response bubble AND the text-mode panel so both render cards
+// identically from the same MessageAttachment.
+
+function BubbleAttachmentView({
+  attachment,
+  onNavigateProject,
+  t
+}: {
+  attachment: MessageAttachment
+  onNavigateProject: (id: string) => void
+  t: TFunction<'components'>
+}) {
+  return (
+    <>
+      {/* Project cards + investment chart */}
+      {attachment.type === 'projects' && attachment.projects && (
+        <div className="space-y-1.5 mt-2">
+          {attachment.projects.slice(0, 2).map((project) => (
+            <CompactProjectCard key={project.id} project={project} onNavigate={onNavigateProject} />
+          ))}
+          {attachment.projects.length > 2 && (
+            <p className="text-center text-[10px] text-gray-400 pt-0.5">
+              {t('voice.moreProjects', { count: attachment.projects.length - 2 })}
+            </p>
+          )}
+          {attachment.projects.length === 1 && attachment.investment && (
+            <InvestmentChart inv={attachment.investment} t={t} />
+          )}
+        </div>
+      )}
+
+      {/* Area info */}
+      {attachment.type === 'area_info' && attachment.areaInfo && (
+        <div className="mt-2"><CompactAreaCard areaInfo={attachment.areaInfo} t={t} /></div>
+      )}
+
+      {/* Comparison */}
+      {attachment.type === 'comparison' && attachment.comparison && (
+        <div className="space-y-1.5 mt-2">
+          <CompactAreaCard areaInfo={attachment.comparison.area1} t={t} />
+          <div className="flex items-center justify-center">
+            <span className="text-[10px] font-medium text-gray-300 tracking-wider">VS</span>
+          </div>
+          <CompactAreaCard areaInfo={attachment.comparison.area2} t={t} />
+        </div>
+      )}
+
+      {/* Investment chart */}
+      {attachment.type === 'investment' && attachment.investment && (
+        <div className="mt-2"><InvestmentChart inv={attachment.investment} t={t} /></div>
+      )}
+    </>
+  )
+}
+
 // ─── Response Bubble (soft blue-white glass, distinct from plain white BG) ───
 
 function LunaBubble({
@@ -381,43 +437,149 @@ function LunaBubble({
           <p className="text-gray-800 leading-relaxed text-[13px]">{bubble.text}</p>
         )}
 
-        {/* Project cards + investment chart */}
-        {bubble.attachment?.type === 'projects' && bubble.attachment.projects && (
-          <div className="space-y-1.5 mt-2">
-            {bubble.attachment.projects.slice(0, 2).map((project) => (
-              <CompactProjectCard key={project.id} project={project} onNavigate={onNavigateProject} />
-            ))}
-            {bubble.attachment.projects.length > 2 && (
-              <p className="text-center text-[10px] text-gray-400 pt-0.5">
-                {t('voice.moreProjects', { count: bubble.attachment.projects.length - 2 })}
-              </p>
-            )}
-            {bubble.attachment.projects.length === 1 && bubble.attachment.investment && (
-              <InvestmentChart inv={bubble.attachment.investment} t={t} />
-            )}
+        {bubble.attachment && (
+          <BubbleAttachmentView attachment={bubble.attachment} onNavigateProject={onNavigateProject} t={t} />
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+// ─── Luna Text Panel (方案 B: typed input, audio-free) ───
+// Shows ONLY the last exchange (user msg + Luna reply). Reuses the same cards.
+
+function LunaTextPanel({
+  onNavigateProject,
+  t
+}: {
+  onNavigateProject: (id: string) => void
+  t: TFunction<'components'>
+}) {
+  const { lastExchange, sendText, closeText, textPending } = useVoiceAssistantContext()
+  const [input, setInput] = useState('')
+  const taRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-grow the textarea (capped) as the user types.
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`
+  }, [input])
+
+  const handleSend = useCallback(() => {
+    const v = input.trim()
+    if (!v || textPending) return
+    setInput('')
+    sendText(v)
+  }, [input, textPending, sendText])
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }, [handleSend])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+      className="w-72 max-w-[calc(100vw-5rem)]"
+    >
+      <div className="relative rounded-2xl bg-white/90 shadow-2xl shadow-blue-900/10 backdrop-blur-xl border border-blue-100/60 ring-1 ring-blue-50 overflow-hidden">
+        {/* Tail arrow */}
+        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-white/90 border-t border-r border-blue-100/60" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-blue-50">
+          <div className="flex items-center gap-1.5">
+            <LunaFace phase="idle" size={20} />
+            <span className="text-xs font-semibold text-slate-700">Luna</span>
           </div>
-        )}
+          <button
+            onClick={closeText}
+            className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
-        {/* Area info */}
-        {bubble.attachment?.type === 'area_info' && bubble.attachment.areaInfo && (
-          <div className="mt-2"><CompactAreaCard areaInfo={bubble.attachment.areaInfo} t={t} /></div>
-        )}
+        {/* Last exchange (only 2 bubbles) */}
+        <div className="px-3 py-2.5 space-y-2 max-h-[46vh] md:max-h-[calc(100vh-14rem)] overflow-y-auto">
+          {lastExchange ? (
+            <>
+              {/* User message (right, teal) */}
+              <div className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-emerald-600 px-3 py-1.5 text-[13px] leading-snug text-white">
+                  {lastExchange.user}
+                </div>
+              </div>
 
-        {/* Comparison */}
-        {bubble.attachment?.type === 'comparison' && bubble.attachment.comparison && (
-          <div className="space-y-1.5 mt-2">
-            <CompactAreaCard areaInfo={bubble.attachment.comparison.area1} t={t} />
-            <div className="flex items-center justify-center">
-              <span className="text-[10px] font-medium text-gray-300 tracking-wider">VS</span>
-            </div>
-            <CompactAreaCard areaInfo={bubble.attachment.comparison.area2} t={t} />
-          </div>
-        )}
+              {/* Luna reply (left) or typing indicator */}
+              {lastExchange.bubble ? (
+                <div className="flex justify-start">
+                  <div className="max-w-[92%] rounded-2xl rounded-bl-sm bg-gradient-to-br from-[#f0f4ff] to-white px-3 py-2 border border-blue-100/50">
+                    {lastExchange.bubble.text && (
+                      <p className="text-gray-800 leading-relaxed text-[13px]">{lastExchange.bubble.text}</p>
+                    )}
+                    {lastExchange.bubble.attachment && (
+                      <BubbleAttachmentView attachment={lastExchange.bubble.attachment} onNavigateProject={onNavigateProject} t={t} />
+                    )}
+                  </div>
+                </div>
+              ) : textPending ? (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-bl-sm bg-gradient-to-br from-[#f0f4ff] to-white px-3 py-2 border border-blue-100/50">
+                    <div className="flex gap-[3px]">
+                      {[0, 1, 2].map(i => (
+                        <motion.div
+                          key={i}
+                          className="w-[5px] h-[5px] rounded-full bg-indigo-300"
+                          animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                          transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-center text-[12px] text-gray-400 py-3">
+              {t('voice.text.placeholder', { defaultValue: 'Type to ask Luna anything about Dubai property' })}
+            </p>
+          )}
+        </div>
 
-        {/* Investment chart */}
-        {bubble.attachment?.type === 'investment' && bubble.attachment.investment && (
-          <div className="mt-2"><InvestmentChart inv={bubble.attachment.investment} t={t} /></div>
-        )}
+        {/* Composer */}
+        <div className="flex items-end gap-1.5 px-2.5 py-2 border-t border-blue-50">
+          <textarea
+            ref={taRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            rows={1}
+            placeholder={t('voice.text.inputPlaceholder', { defaultValue: '输入你的问题…' })}
+            className="flex-1 resize-none bg-transparent px-1.5 py-1 text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none max-h-[120px]"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || textPending}
+            className={cn(
+              'flex-shrink-0 rounded-full p-1.5 transition-colors',
+              input.trim() && !textPending
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'bg-gray-100 text-gray-300'
+            )}
+            aria-label="Send"
+          >
+            {textPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
     </motion.div>
   )
@@ -448,8 +610,16 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     activate,
     deactivate,
     navigateToProject,
+    textOpen,
+    openText,
     hidden
   } = useVoiceAssistantContext()
+
+  // Keyboard icon → open text mode. stopPropagation so it never triggers the voice tap.
+  const handleKeyboard = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    openText()
+  }, [openText])
 
   const isActive = phase !== 'idle' && phase !== 'error'
 
@@ -478,14 +648,23 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       'fixed bottom-20 right-0 z-50 md:bottom-6',
       className
     )}>
+      {/* Text-mode panel: absolutely positioned left of pill (independent of voice) */}
+      <AnimatePresence>
+        {textOpen && (
+          <div key="text-panel" className="absolute bottom-0 right-[56px]">
+            <LunaTextPanel onNavigateProject={navigateToProject} t={t} />
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Bubble area: absolutely positioned left of pill, bottom-aligned */}
       <AnimatePresence mode="wait">
-        {showThinkingBubble && (
+        {!textOpen && showThinkingBubble && (
           <div key="thinking-bubble" className="absolute bottom-0 right-[56px]">
             <ThinkingBubble toolStatus={toolStatus} />
           </div>
         )}
-        {showUserCaption && (
+        {!textOpen && showUserCaption && (
           <motion.div
             key="user-caption"
             initial={{ opacity: 0, x: 16 }}
@@ -499,7 +678,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             </div>
           </motion.div>
         )}
-        {showResponseBubble && !showUserCaption && (
+        {!textOpen && showResponseBubble && !showUserCaption && (
           <div key="response-bubble" className="absolute bottom-0 right-[56px]">
             <LunaBubble
               bubble={latestBubble}
@@ -613,6 +792,20 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
           )}
         </AnimatePresence>
       </motion.button>
+
+      {/* Keyboard mini-button: opens text mode. stopPropagation → never triggers voice. */}
+      <button
+        onClick={handleKeyboard}
+        className={cn(
+          'absolute -top-2 left-0 z-20 flex h-6 w-6 items-center justify-center rounded-full',
+          'bg-white/95 text-slate-500 shadow-md border border-slate-200/70',
+          'hover:text-slate-700 hover:shadow-lg transition-all',
+          textOpen && 'bg-emerald-600 text-white border-emerald-500'
+        )}
+        aria-label={t('voice.text.open', { defaultValue: 'Type to Luna' })}
+      >
+        <Keyboard className="h-3.5 w-3.5" />
+      </button>
 
     </div>
   )

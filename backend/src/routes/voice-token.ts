@@ -12,8 +12,9 @@ const router = Router()
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
-// System instruction generator based on language
-function getSystemInstruction(language: string): string {
+// System instruction generator based on language.
+// Exported so the text-mode agent (/api/voice/text) reuses the EXACT same prompt.
+export function getSystemInstruction(language: string): string {
   const langInstructions = language === 'zh'
     ? `语言: 用中文回复，简洁自然。`
     : `Language: Respond in English, be concise and natural.`
@@ -34,6 +35,37 @@ When user mentions ANY of these, IMMEDIATELY call the tool BEFORE responding:
 - "这个项目/区域怎么样"/"带我看看 X"/"介绍一下 X"/"X 值不值/好不好" → present_place(序列带看,最优先)
 - "这个盘报价合理吗/比片区贵吗" → project_value_check
 - "该租还是买" → rent_vs_buy ; "买房一共要花多少/有什么费用" → purchase_costs
+
+## 实体词表（口音/模糊音 → 真实实体；语音识别或打字都用这张表纠正）:
+中文/口音写法经常对不上真实英文名。听到或看到下面左边的说法，一律理解为右边的官方实体，并用官方英文名去调用工具。
+开发商:
+- 伊曼/艾玛/艾马/依玛尔/埃玛尔 → Emaar
+- 达马克/达马/迪马克/大马克 → DAMAC
+- 纳克希尔/纳希尔 → Nakheel
+- 索巴/索巴地产/苏巴/哈特兰 → Sobha（Sobha Realty / Sobha Hartland）
+- 迈拉斯/美睿思 → Meraas
+- 宾加提/宾哈提/滨海提 → Binghatti
+- 多瑙河/达努比 → Danube
+- 伊曼开发商 → Iman Developers
+区域:
+- 马瑞纳/码头/玛丽娜/迪拜码头 → Dubai Marina
+- 市中心/市区/唐城 → Downtown Dubai
+- 朱美拉村/JVC/村圈 → Jumeirah Village Circle (JVC)
+- 商业湾/商务湾 → Business Bay
+- 迪拜山/迪拜山庄/山丘 → Dubai Hills Estate
+- 棕榈岛/朱美拉棕榈 → Palm Jumeirah
+- 新棕榈岛/杰贝阿里棕榈 → Palm Jebel Ali
+- 达马克山/达马克山庄 → DAMAC Hills
+- 阿拉伯牧场/阿拉伯农场 → Arabian Ranches
+- 富尔詹/福尔占 → Al Furjan
+- 金融中心 → DIFC
+- 美丹/梅丹/马丹 → Meydan
+- 杰贝阿里/杰贝勒阿里 → Jebel Ali
+- 亚斯岛 → Yas Island
+- 城市漫步/城市步道 → City Walk
+- 国际城 → International City
+- 索巴哈特兰 → Sobha Hartland
+规则:名字没把握时先按上表归一;仍拿不准就直接用工具做模糊匹配(工具会自动 fuzzy match),或先确认一次"你说的是 X 对吗?";绝不凭空猜一个不存在的项目/区域名,也绝不编造实体。
 
 ## present_place（"带我看看/介绍 某项目或区域" 时必须调用它）:
 - 触发词："带我看看 X"/"介绍一下 X"/"X 怎么样/好不好/值不值"（X 是一个项目或区域）。即使客户说"待会/等下看看"，也立刻在【这一轮】调用——别答应了却拖到下一轮。
