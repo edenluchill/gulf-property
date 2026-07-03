@@ -242,21 +242,24 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   // （Palm Jebel Ali 的地块交易被 DLD 归非期房，只看期房会误显冷清）
   const volSeries = insights?.volumeAll ?? insights?.volume
   const insVol = volSeries?.length ? volSeries.slice(-12).reduce((a, b) => a + b, 0) : null
-  // When a specific usage is selected, show ONLY that usage's real data (the
-  // insights series). Never fall back to area.* (the map's combined 'all' value)
-  // — otherwise a usage with 0 transactions would wrongly show the 'all' price/
-  // growth. For 'all', use the precomputed area columns, falling back to insights.
+  // 当前市场口径（随地图筛选器；insights.segment = 请求口径，前端显式传=严格生效）
+  const seg = (insights?.segment ?? 'all') as 'offplan' | 'ready' | 'all'
+  const segActive = seg !== 'all'
+  // When a specific usage OR market segment is selected, show ONLY the insights
+  // series (strictly that lens). Never fall back to area.* — the map payload's
+  // area.* goes through the SQL per-area fallback in thin markets and would
+  // contradict the dialog's strict segment numbers.
   const pick = <T,>(a: T | null | undefined, b: T | null | undefined) =>
-    usageActive ? (b ?? null) : (a ?? b)
+    (usageActive || segActive) ? (b ?? null) : (a ?? b)
   const growthNow = pick(area.capitalAppreciation, lastNonNull(insights?.growth))
   const yieldNow = pick(area.rentalYield, lastNonNull(insights?.rentalYield))
   // Rent stability is residential-derived → only meaningful in the 'all' view.
   const stabilityNow = usageActive ? null : (area.rentStability ?? null)
   const medianPsm = pick(area.medianPriceSqm, lastNonNull(insights?.price))
   const txCount = pick(area.transactionCountAll ?? area.transactionCount, insVol)
-  // Single price value for the tile. For a specific usage, only its own median —
-  // never the area's combined avg. For 'all', median then avg fallback.
-  const priceDisplay = medianPsm ?? (usageActive ? null : (area.averagePrice ?? null))
+  // Single price value for the tile. For a specific usage/segment, only its own
+  // median — never the area's combined avg. For 'all', median then avg fallback.
+  const priceDisplay = medianPsm ?? ((usageActive || segActive) ? null : (area.averagePrice ?? null))
   // Median TOTAL transaction price (房子中位总价) — the headline buyers care about.
   const medianUnit = pick(area.medianUnitPrice, insights?.medianUnitPrice)
   const pctChip = (v: number | null | undefined) =>
@@ -290,30 +293,28 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
     )
   }
 
-  // 价格/增长的实际生效口径（insights 优先；地图 payload 的 priceSegment 兜底）。
-  // 期房口径要明标；请求期房但样本不足回退全部时也要如实说明——数字对不上别家网站
-  // 时，标注就是信任的来源。收益率/稳定性永远全口径，不标。
-  const effSeg = insights?.priceSegment ?? area.priceSegment ?? 'all'
-  const segFellBack = (insights?.segment === 'offplan' && insights?.priceSegment === 'all')
+  // 口径徽章 + 小样本警示。用户在地图筛选器主动选的口径（严格生效，不回退），
+  // 样本薄时如实警示而不是偷偷换口径——数字对不上别家网站时，标注就是信任的来源。
+  // 收益率/稳定性永远全口径，不标。
+  const segCount = segActive ? (insights?.segmentCounts12m?.[seg] ?? null) : null
+  const thinSample = segActive && segCount != null && segCount < 10
 
   return (
     <div>
-      {(effSeg !== 'all' || segFellBack) && (
+      {segActive && (
         <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
-          {effSeg !== 'all' && (
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">
-              {effSeg === 'offplan' ? (zh ? '仅统计期房成交' : 'Off-plan sales only') : (zh ? '仅统计现房成交' : 'Ready sales only')}
-              <InfoHint
-                title={zh ? '为什么只看期房' : 'Why off-plan only'}
-                text={zh
-                  ? '价格、增长与成交量仅统计期房（off-plan）成交。期房与现房是两个市场：现房中位价反映的是存量老盘，跟你关注的新盘不可比，混在一起会让期房增值失真。租金回报与稳定性基于全市场租约，不受影响。'
-                  : 'Price, growth and volume count off-plan sales only. Off-plan and ready are two different markets — the ready median reflects older existing stock, not new launches, and mixing them distorts off-plan appreciation. Rental yield & stability always use the full rental market.'}
-              />
-            </span>
-          )}
-          {segFellBack && (
-            <span className="text-[10px] text-slate-400">
-              {zh ? '该区期房成交较少，价格与增长按全部成交计算' : 'Few off-plan sales here — price & growth use all sales'}
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">
+            {seg === 'offplan' ? (zh ? '仅统计期房成交' : 'Off-plan sales only') : (zh ? '仅统计现房成交' : 'Ready sales only')}
+            <InfoHint
+              title={zh ? '口径说明' : 'About this basis'}
+              text={zh
+                ? `中位价与增长仅统计${seg === 'offplan' ? '期房（off-plan）' : '现房（ready）'}成交。期房与现房是两个市场，混在一起会互相失真；可用地图右上角的口径开关切换。租金回报、稳定性与成交量始终按全市场计算，不受口径影响。`
+                : `Median price & growth count ${seg === 'offplan' ? 'off-plan' : 'ready'} sales only. Off-plan and ready are two different markets — mixing them distorts both; switch basis from the map's top-right toggle. Rental yield, stability and volume always use the full market.`}
+            />
+          </span>
+          {thinSample && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200">
+              {zh ? `样本较少（12个月仅 ${segCount} 笔），仅供参考` : `Thin sample (${segCount} sales in 12m) — indicative only`}
             </span>
           )}
         </div>
@@ -357,10 +358,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
 
         <StatCard
           label={t('map:areaDialog.transactionCount')}
-          info={<InfoHint title={howTitle} text={zh ? '近 12 个月该区全部 DLD 成交（含期房、现房与地块）——反映真实活跃度。价格与增长另按期房口径计算。' : 'All DLD sales in the last 12 months (off-plan, ready and plots) — real market activity. Price & growth are computed on the off-plan basis separately.'} />}
+          info={<InfoHint title={howTitle} text={zh ? '近 12 个月该区全部 DLD 成交（含期房、现房与地块）——反映真实活跃度，不随口径筛选缩水。价格与增长按所选口径另行计算。' : 'All DLD sales in the last 12 months (off-plan, ready and plots) — real market activity, unaffected by the basis filter. Price & growth follow the selected basis separately.'} />}
           value={txCount != null ? txCount.toLocaleString() : '—'}
-          chip={effSeg === 'offplan' && insights?.segmentCounts12m?.offplan != null && !usageActive
-            ? `${zh ? '期房' : 'Off-plan'} ${insights.segmentCounts12m.offplan.toLocaleString()}` : null}
+          chip={seg !== 'all' && insights?.segmentCounts12m?.[seg] != null && !usageActive
+            ? `${seg === 'offplan' ? (zh ? '期房' : 'Off-plan') : (zh ? '现房' : 'Ready')} ${insights.segmentCounts12m[seg].toLocaleString()}` : null}
           chipClass="bg-violet-50 text-violet-700"
           loading={loading}
         >
@@ -441,7 +442,8 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
         <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
         {t('map:areaDialog.dldSource', { month: insights?.dataThrough || '—' })}
-        {effSeg === 'offplan' && <span>{zh ? '· 期房口径' : '· off-plan basis'}</span>}
+        {seg === 'offplan' && <span>{zh ? '· 期房口径' : '· off-plan basis'}</span>}
+        {seg === 'ready' && <span>{zh ? '· 现房口径' : '· ready basis'}</span>}
       </p>
     </div>
   )
@@ -469,13 +471,13 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
 
   // 切换区域时重置追加列表 + 回到成交 tab
   useEffect(() => { setExtra([]); setHasMore(true); setInternalTab('sales') }, [areaId])
+  // 口径/usage 切换拉到新 insights → 追加列表作废（分页 offset 按各口径独立计）
+  useEffect(() => { setExtra([]); setHasMore(true) }, [insights])
 
-  // 成交列表口径由后端决定（散客默认仅期房，专门取的期房 30 条；该区没有期房
-  // 成交时后端回退混合列表并用 txSegment 标注）。不给现房切换 tab——区域级现房
-  // 老盘存量价会误导"能卖多少"的判断。
+  // 成交列表口径随地图筛选器（后端按口径专取 30 条，txSegment 标注实际口径；
+  // 混合 top-30 里筛会漏掉更早的记录，所以必须服务端取）。
   const baseRows = insights?.recentTransactions || []
   const effFilter: MarketSegment = (insights?.txSegment as MarketSegment) ?? 'all'
-  const segFellBack = CONSUMER_SEGMENT === 'offplan' && effFilter === 'all' && baseRows.length > 0
   const rows = [...baseRows, ...extra]
   const rentRows = insights?.recentRentals || []
 
@@ -524,14 +526,9 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
           </div>
         )}
         <span className="inline-flex items-center gap-1.5">
-          {tab === 'sales' && effFilter === 'offplan' && (
+          {tab === 'sales' && effFilter !== 'all' && (
             <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-200">
-              {zh ? '仅期房成交' : 'Off-plan only'}
-            </span>
-          )}
-          {tab === 'sales' && segFellBack && (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-              {zh ? '该区近期无期房成交，显示全部' : 'No recent off-plan here — showing all'}
+              {effFilter === 'offplan' ? (zh ? '仅期房成交' : 'Off-plan only') : (zh ? '仅现房成交' : 'Ready only')}
             </span>
           )}
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">

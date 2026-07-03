@@ -5,6 +5,7 @@ import { DubaiArea } from '../types'
 import { getImageUrl } from '../lib/image-utils'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from './AreaInsightsPanel'
+import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 
 interface DeveloperSummary {
   name: string
@@ -19,6 +20,8 @@ interface AreaDetailDialogProps {
   area: DubaiArea | null
   projects: any[]
   isLoading: boolean
+  /** 市场口径（地图筛选器联动），缺省取全站默认 */
+  segment?: MarketSegment
 }
 
 // Usage filter — the dialog shows ALL property types by default; the user can
@@ -32,7 +35,7 @@ const USAGE_FILTER = [
   { v: 'other', zh: '其他', en: 'Other' },
 ]
 
-export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading }: AreaDetailDialogProps) {
+export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading, segment = CONSUMER_SEGMENT }: AreaDetailDialogProps) {
   const { t, i18n } = useTranslation(['map', 'common'])
   const zh = (i18n.language || 'en').startsWith('zh')
   const langKey = (i18n.language || 'en').split('-')[0] // 'zh-CN' → 'zh'
@@ -45,8 +48,8 @@ export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLo
   const [tab, setTab] = useState<'sales' | 'rentals' | 'projects'>('sales')
   useEffect(() => { setUsage('all'); setTab('sales') }, [area?.id])
 
-  // 四指标月度序列 + 近期成交（按 usage 口径,后端全区域预热,通常秒回）
-  const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage)
+  // 四指标月度序列 + 近期成交（按 usage + 市场口径,后端全区域预热,通常秒回）
+  const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage, segment)
 
   // Group projects by developer
   const developers: DeveloperSummary[] = useMemo(() => {

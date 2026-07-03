@@ -103,10 +103,12 @@ async function unsealWith(buf: ArrayBuffer, date: string): Promise<DubaiArea[]> 
  * decrypts client-side; tries today then yesterday (UTC) to survive the daily
  * key rollover at the midnight boundary / minor clock skew.
  */
-export async function fetchDubaiAreas(usage?: string): Promise<DubaiArea[]> {
+export async function fetchDubaiAreas(usage?: string, segment?: string): Promise<DubaiArea[]> {
   const u = usage && usage !== 'residential' ? `&usage=${encodeURIComponent(usage)}` : '';
+  // 市场口径（全部/期房/现房）——地图口径筛选器显式传；不传时服务端有自己的默认
+  const s = segment ? `&segment=${encodeURIComponent(segment)}` : '';
   try {
-    const response = await fetch(`${API_URL}/dubai/areas?sealed=1${u}`);
+    const response = await fetch(`${API_URL}/dubai/areas?sealed=1${u}${s}`);
     if (!response.ok) throw new Error(`areas ${response.status}`);
     const buf = await response.arrayBuffer();
     for (const date of [utcDate(0), utcDate(-1)]) {
@@ -863,8 +865,8 @@ export interface AreaInsights {
   /** 价格/增长实际生效口径 —— 期房样本不足时后端回退 'all'，前端要如实标注 */
   priceSegment?: 'offplan' | 'ready' | 'all';
   segmentCounts12m?: { all: number; offplan: number; ready: number };
-  /** 成交列表口径：'offplan' = 专取的期房 30 条；'all' = 该区无期房成交回退混合列表 */
-  txSegment?: 'offplan' | 'all';
+  /** 成交列表实际口径：offplan/ready = 该口径专取的 30 条；all = 混合列表（带标签） */
+  txSegment?: 'offplan' | 'ready' | 'all';
   recentTransactions: {
     date: string | null; building: string | null; rooms: string | null;
     sizeSqm: number | null; price: number | null; pricePerSqm: number | null;

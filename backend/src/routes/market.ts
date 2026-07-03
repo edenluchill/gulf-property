@@ -527,7 +527,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
       : `rc.dubai_area_id = $1`
 
-    const [salesRes, rentRes, recentRes, recentOffplanRes, recentRentRes, medianRes] = await Promise.all([
+    const [salesRes, rentRes, recentRes, recentOffplanRes, recentReadyRes, recentRentRes, medianRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据。
       // 一次扫描同时聚合 全部/期房/现房 三口径（FILTER 聚合）——不用二次查询做
       // 样本回退，缓存里三口径齐全，切口径零额外成本。
@@ -602,6 +602,21 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
           LIMIT 30`,
         [areaId, usage]
       ),
+      // 近期现房成交 30 条 —— 口径筛选器的「现房」视图用（同上，单独取）
+      pool.query(
+        `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
+                dt.procedure_area AS size_sqm, dt.actual_worth AS price,
+                round(dt.meter_sale_price) AS price_per_sqm,
+                'ready' AS sale_type
+           FROM dld_transactions dt
+           ${txJoin}
+          WHERE ${txWhere}
+            AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
+            AND dt.meter_sale_price > 0 AND NOT dt.is_offplan
+          ORDER BY dt.instance_date DESC
+          LIMIT 30`,
+        [areaId, usage]
+      ),
       // Recent rental contracts (new + renewal) for the same area
       pool.query(
         `SELECT rc.start_date AS date, rc.project_name, rc.property_subtype, rc.property_type,
@@ -658,7 +673,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
     if (!endYm) return {
       months: [], rentalYield: [], dataThrough: null,
       variants: { all: emptyVariant, offplan: emptyVariant, ready: emptyVariant },
-      recentTransactions: [], recentTransactionsOffplan: [], recentRentals: []
+      recentTransactions: [], recentTransactionsOffplan: [], recentTransactionsReady: [], recentRentals: []
     }
 
     const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
@@ -725,6 +740,7 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       },
       recentTransactions: recentRes.rows.map(mapTxRow),
       recentTransactionsOffplan: recentOffplanRes.rows.map(mapTxRow),
+      recentTransactionsReady: recentReadyRes.rows.map(mapTxRow),
       recentRentals: recentRentRes.rows.map(r => ({
         date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
         building: r.project_name || null,
@@ -740,20 +756,29 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
 
 /**
  * 把三口径 raw 数据按请求的 segment 组装成响应（老字段形状不变 + 口径元信息）。
- * 样本护栏：请求口径近 12 个月样本 < SEGMENT_MIN_SAMPLE 时回退 'all'，
- * priceSegment 告知前端实际生效口径（前端据此显示「样本不足已回退」）。
+ * strict=true（前端口径筛选器显式选择）：尊重用户选择，不做样本回退——薄样本
+ *   由前端凭 segmentCounts12m 出「样本少」警示。
+ * strict=false（未显式传 segment 的调用方，如 Luna 工具走服务端默认口径）：
+ *   保留样本护栏——近 12 个月样本 < SEGMENT_MIN_SAMPLE 回退 'all'，
+ *   priceSegment/txSegment 如实标注实际口径。
  */
-function composeAreaInsights(raw: any, segment: MarketSegment) {
+function composeAreaInsights(raw: any, segment: MarketSegment, strict = false) {
   const variants = raw?.variants
   if (!variants) return raw
   const eff: MarketSegment =
-    segment !== 'all' && variants[segment]?.count12m >= SEGMENT_MIN_SAMPLE ? segment : 'all'
+    segment === 'all' ? 'all'
+      : strict ? segment
+      : (variants[segment]?.count12m >= SEGMENT_MIN_SAMPLE ? segment : 'all')
   const v = variants[eff]
-  // 成交列表：期房口径给专门取的期房 30 条（混合 top-30 里筛会漏掉更早的期房）；
-  // 该区确实没有期房成交时回退混合列表，txSegment 如实标注给前端。
-  const offplanList = raw.recentTransactionsOffplan || []
-  const txSegment: 'offplan' | 'all' =
-    segment === 'offplan' && offplanList.length > 0 ? 'offplan' : 'all'
+  // 成交列表：各口径都有专门取的 30 条（混合 top-30 里筛会漏掉更早的记录）。
+  const lists: Record<'offplan' | 'ready' | 'all', any[]> = {
+    offplan: raw.recentTransactionsOffplan || [],
+    ready: raw.recentTransactionsReady || [],
+    all: raw.recentTransactions || [],
+  }
+  const txSegment: MarketSegment = strict
+    ? segment
+    : (segment === 'offplan' && lists.offplan.length > 0 ? 'offplan' : 'all')
   return {
     months: raw.months,
     price: v.price,
@@ -772,7 +797,7 @@ function composeAreaInsights(raw: any, segment: MarketSegment) {
       ready: variants.ready.count12m,
     },
     txSegment,
-    recentTransactions: txSegment === 'offplan' ? offplanList : raw.recentTransactions,
+    recentTransactions: lists[txSegment],
     recentRentals: raw.recentRentals,
   }
 }
@@ -790,15 +815,17 @@ router.get('/area-insights', async (req: Request, res: Response) => {
     // usage lens — default 'all' (the dialog shows everything, then filters); cache per usage.
     const usage = ['all','residential','commercial','hospitality','industrial','other'].includes(String(req.query.usage))
       ? String(req.query.usage) : 'all'
-    // 市场口径 —— 缺省走 DEFAULT_SEGMENT（散客=期房）；经纪端显式传 segment=all。
+    // 市场口径 —— 显式传 segment（前端筛选器）= strict 尊重选择不回退；
+    // 缺省调用（Luna 等）走 DEFAULT_SEGMENT + 样本护栏回退。
     // 缓存存的是三口径 raw，按口径组装零成本（同一份缓存服务所有口径）。
+    const strict = req.query.segment !== undefined
     const segment = parseSegment(req.query.segment)
     const cacheKey = `insights:${areaId}:${usage}`
     const cached = txCacheGet(cacheKey)
-    if (cached) return res.json(composeAreaInsights(cached, segment))
+    if (cached) return res.json(composeAreaInsights(cached, segment, strict))
     const data = await loadAreaInsightsData(areaId, usage)
     txCacheSet(cacheKey, data)
-    res.json(composeAreaInsights(data, segment))
+    res.json(composeAreaInsights(data, segment, strict))
   } catch (err) {
     console.error('[market/area-insights] error:', err)
     res.status(500).json({ error: 'internal error' })

@@ -30,6 +30,7 @@ import { getImageUrl } from '../lib/image-utils'
 import { trackEvent } from '../lib/track'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
+import { MarketSegment, loadSavedSegment, saveSegment, segmentLabel } from '../lib/marketSegment'
 import { PropertyFilters, DubaiArea, DubaiLandmark } from '../types'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
@@ -102,6 +103,10 @@ const METRIC_OPTIONS = [
 // ============================================================================
 // 手动版本：代码/数据「形状」变化时 bump（schema 改字段等）
 const MAP_DATA_VERSION = '20260517-dld-opendata-refresh'
+
+// 各市场口径的区域 payload 会话缓存（切口径 0ms 回切；数据版本变化时清空）。
+// 只有 'all' 落 localStorage（首屏），期房/现房仅内存——避免持久层塞 3 份大 payload。
+const areasSegmentCache = new Map<MarketSegment, DubaiArea[]>()
 
 // 所有需随数据失效的客户端缓存键
 const GULF_CACHE_KEYS = [
@@ -334,6 +339,15 @@ export default function MapPage() {
     localStorage.setItem('map-area-metric', next)
   }
 
+  // 市场口径筛选器（全部/期房/现房）——联动整张地图区域数字/着色 + 区域弹窗。
+  // 数据后端三口径全预算好按口径分 key 缓存，切换=取现成 payload，无重查询。
+  const [marketSegment, setMarketSegment] = useState<MarketSegment>(loadSavedSegment)
+  const lastAreasVersionRef = useRef(0)
+  const handleSegmentChange = (seg: MarketSegment) => {
+    setMarketSegment(seg)
+    saveSegment(seg)
+  }
+
 
   // POI state — persisted in localStorage (default: true)
   const [showPois] = useState(() => {
@@ -414,6 +428,11 @@ export default function MapPage() {
   // Area detail dialog state
   const [showAreaDialog, setShowAreaDialog] = useState(false)
   const [selectedArea, setSelectedArea] = useState<DubaiArea | null>(null)
+  // 切口径拉到新 payload 后，让打开中的区域弹窗/底部 sheet 拿到同口径的 area 对象
+  useEffect(() => {
+    setSelectedArea(prev => prev ? (dubaiAreas.find(a => a.id === prev.id) ?? prev) : prev)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dubaiAreas])
   const [areaProjects, setAreaProjects] = useState<any[]>([])
   const [isLoadingAreaProjects, setIsLoadingAreaProjects] = useState(false)
 
@@ -878,28 +897,59 @@ export default function MapPage() {
   useEffect(() => { setSheetUsage('all'); setSheetTab('market') }, [selectedArea?.id])
   // 移动端 sheet 的区域洞察（桌面 dialog 内部自取，后端缓存去重）
   const { insights: sheetInsights, loading: sheetInsightsLoading } = useAreaInsights(
-    showAreaSheet ? selectedArea?.id : undefined, sheetUsage
+    showAreaSheet ? selectedArea?.id : undefined, sheetUsage, marketSegment
   )
 
-  // Load Dubai areas & landmarks (only once, with caching)
+  // Load Dubai areas & landmarks (with caching)
+  // 区域数据按市场口径（marketSegment）取：'all' 走 localStorage 持久缓存（首屏），
+  // 期房/现房只进会话内存缓存（避免 localStorage 塞 3 份 ~600KB payload）。
+  // 切口径：内存命中 = 0ms；未命中拉一次（服务端按口径预渲染缓存，~200ms）。
   useEffect(() => {
     const DUBAI_CACHE_DURATION = 24 * 60 * 60 * 1000
+    let stale = false
 
-    const cachedDubaiAreas = localStorage.getItem('gulf_dubai_areas')
-    const cachedDubaiAreasTimestamp = localStorage.getItem('gulf_dubai_areas_timestamp')
-
-    if (cachedDubaiAreas && cachedDubaiAreasTimestamp &&
-        Date.now() - parseInt(cachedDubaiAreasTimestamp) < DUBAI_CACHE_DURATION) {
-      const areas = JSON.parse(cachedDubaiAreas)
-      setDubaiAreas(areas)
-    } else {
-      fetchDubaiAreas().then((data) => {
-        setDubaiAreas(data)
-        localStorage.setItem('gulf_dubai_areas', JSON.stringify(data))
-        localStorage.setItem('gulf_dubai_areas_timestamp', Date.now().toString())
-      })
+    // 数据版本变化（编辑器改动/每日刷新）→ 先清各口径缓存再取，保证拉到新数据
+    if (dubaiDataVersion !== lastAreasVersionRef.current) {
+      lastAreasVersionRef.current = dubaiDataVersion
+      areasSegmentCache.clear()
+      localStorage.removeItem('gulf_dubai_areas_v2')
+      localStorage.removeItem('gulf_dubai_areas_v2_timestamp')
     }
 
+    const mem = areasSegmentCache.get(marketSegment)
+    if (mem) {
+      setDubaiAreas(mem)
+    } else if (marketSegment === 'all') {
+      const cachedDubaiAreas = localStorage.getItem('gulf_dubai_areas_v2')
+      const cachedDubaiAreasTimestamp = localStorage.getItem('gulf_dubai_areas_v2_timestamp')
+      if (cachedDubaiAreas && cachedDubaiAreasTimestamp &&
+          Date.now() - parseInt(cachedDubaiAreasTimestamp) < DUBAI_CACHE_DURATION) {
+        const areas = JSON.parse(cachedDubaiAreas)
+        areasSegmentCache.set('all', areas)
+        setDubaiAreas(areas)
+      } else {
+        fetchDubaiAreas(undefined, 'all').then((data) => {
+          if (stale || !data.length) return
+          areasSegmentCache.set('all', data)
+          setDubaiAreas(data)
+          try {
+            localStorage.setItem('gulf_dubai_areas_v2', JSON.stringify(data))
+            localStorage.setItem('gulf_dubai_areas_v2_timestamp', Date.now().toString())
+          } catch { /* storage full — 内存缓存已够用 */ }
+        })
+      }
+    } else {
+      fetchDubaiAreas(undefined, marketSegment).then((data) => {
+        if (stale || !data.length) return
+        areasSegmentCache.set(marketSegment, data)
+        setDubaiAreas(data)
+      })
+    }
+    return () => { stale = true }
+  }, [dubaiDataVersion, marketSegment])
+
+  useEffect(() => {
+    const DUBAI_CACHE_DURATION = 24 * 60 * 60 * 1000
     const cachedDubaiLandmarks = localStorage.getItem('gulf_dubai_landmarks')
     const cachedDubaiLandmarksTimestamp = localStorage.getItem('gulf_dubai_landmarks_timestamp')
 
@@ -1409,6 +1459,22 @@ export default function MapPage() {
           {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
           <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] md:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+              {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state */}
+              <div className="flex border-b border-slate-100">
+                {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg, idx) => (
+                  <button
+                    key={seg}
+                    onClick={() => handleSegmentChange(seg)}
+                    className={`flex-1 h-7 px-1 text-[11px] font-semibold transition-colors ${
+                      marketSegment === seg
+                        ? seg === 'all' ? 'bg-slate-700 text-white' : 'bg-violet-600 text-white'
+                        : 'text-slate-500'
+                    } ${idx > 0 ? 'border-l border-slate-100' : ''}`}
+                  >
+                    {segmentLabel(seg, (i18n.language || 'en').startsWith('zh'))}
+                  </button>
+                ))}
+              </div>
               {/* Metrics row */}
               <div className="flex border-b border-slate-100">
                 {METRIC_OPTIONS.map((option, idx) => {
@@ -1484,6 +1550,23 @@ export default function MapPage() {
           {/* Floating Metric Panel - top-right */}
           <div data-testid="map-metric-panel" className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
             <div className="flex items-center gap-0.5 p-1">
+              {/* 市场口径筛选（全部/期房/现房）——切的是 DLD 数据口径，联动全图区域数字与弹窗 */}
+              <div className="mr-1 flex items-center rounded-md bg-slate-100 p-0.5">
+                {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg) => (
+                  <button
+                    key={seg}
+                    onClick={() => handleSegmentChange(seg)}
+                    className={`rounded px-2 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
+                      marketSegment === seg
+                        ? seg === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'bg-violet-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {segmentLabel(seg, (i18n.language || 'en').startsWith('zh'))}
+                  </button>
+                ))}
+              </div>
+              <div className="h-5 w-px bg-slate-200" />
               {METRIC_OPTIONS.map((option) => {
                 const isActive = areaMetric === option.value
                 return (
@@ -1657,6 +1740,7 @@ export default function MapPage() {
       <AreaDetailDialog
         isOpen={showAreaDialog}
         onClose={handleCloseArea}
+        segment={marketSegment}
         area={selectedArea}
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}

@@ -71,7 +71,7 @@ export default function TransactionsPage() {
   const [projectOpen, setProjectOpen] = useState(false)
   const [projectSuggestions, setProjectSuggestions] = useState<{ name: string; count: number }[]>([])
   const [rooms, setRooms] = useState('')
-  // 散客默认期房口径（lib/marketSegment.ts 单点配置；用户可随时切现房/全部）
+  // 默认口径走 lib/marketSegment.ts 单点配置（2026-07-02 起默认全部；用户可切期房/现房）
   const [type, setType] = useState<SaleType>(CONSUMER_SEGMENT)
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
   const [minPrice, setMinPrice] = useState('')  // 成交总价区间(AED)
