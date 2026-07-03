@@ -111,7 +111,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
   useEffect(() => {
     if (!requiresPlan || !activeRef.current) return
     saveMapResumeView(getView()) // 订阅/改回买家后回到刚才的视角
-    window.location.replace('/agent/plans')
+    window.location.replace('/agent/plans?from=map') // from=map → 选档页顶部解释为什么被带过来
   }, [requiresPlan, getView])
 
   // ── 匿名额度耗尽:第一次触发时强制刷新,把锁前已加载进内存的数据整页清掉。

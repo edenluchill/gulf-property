@@ -6,10 +6,10 @@
  * 视觉沿用 AboutPage 的深色高科技品牌风。设计稿: docs/stripe-billing-spec.md
  */
 import { Helmet } from 'react-helmet-async'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, Loader2, Flame, Lock } from 'lucide-react'
+import { ArrowRight, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, setMyRole, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
 
@@ -28,6 +28,9 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
   const L = (cn: string, en: string) => (zh ? cn : en)
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // 从地图被计量门送过来(?from=map)→ 顶部解释为什么来到这里
+  const fromMapGate = agentOnboarding && params.get('from') === 'map'
 
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -174,6 +177,22 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
       </Helmet>
 
       <section className="mx-auto max-w-6xl px-6 py-5 md:py-7">
+        {/* 从地图跳来的说明条:讲清楚规则(经纪身份订阅后使用),并给买家留出口 */}
+        {fromMapGate && (
+          <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm text-slate-200">
+            <Briefcase className="h-4 w-4 shrink-0 text-indigo-300" />
+            <span>
+              {L(
+                '你的账号是经纪身份 —— 经纪版(含不限时地图与数据)需选择套餐后使用,7 天免费试用、试用期取消零费用。',
+                'Your account is registered as an agent — agent access (incl. unlimited map & data) starts with a plan. 7-day free trial, cancel at no charge.'
+              )}
+            </span>
+            <button onClick={() => void backToBuyer()} disabled={switching}
+              className="font-medium text-teal-300 underline-offset-2 hover:underline disabled:opacity-60">
+              {L('我其实是买家 → 改回免费身份', "I'm actually a buyer → switch back (free)")}
+            </button>
+          </div>
+        )}
         <div className="text-center">
           {agentOnboarding ? (
             <>
