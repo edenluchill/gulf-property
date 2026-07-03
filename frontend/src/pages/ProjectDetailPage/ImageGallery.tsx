@@ -1,5 +1,7 @@
-import { Building2 } from 'lucide-react'
+import { useState } from 'react'
+import { Building2, Expand } from 'lucide-react'
 import { getImageUrl, getImageSrcSet } from '../../lib/image-utils'
+import { ImageLightbox } from '../../components/ImageLightbox'
 
 interface ImageGalleryProps {
   images: string[]
@@ -9,22 +11,29 @@ interface ImageGalleryProps {
 }
 
 /**
- * Mobile-only image gallery component
- * Shows all images in a vertical scroll layout
- * For desktop/tablet, use DesktopHeroGallery or TabletScrollGallery instead
+ * Mobile/tablet image gallery — vertical scroll of full-width images.
+ * 点击任意图进入 Lightbox 全屏画廊（pad 上经纪给客户看图的主要方式）。
  */
 export function ImageGallery({
   images,
   buildingName
 }: ImageGalleryProps) {
-  // Mobile: Show all images vertically scrollable
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index)
+    setLightboxOpen(true)
+  }
+
   return (
     <div className="space-y-3">
       {images && images.length > 0 ? (
         images.map((image, index) => (
           <div
             key={index}
-            className="relative w-full rounded-xl overflow-hidden bg-slate-100"
+            className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-slate-100"
+            onClick={() => openLightbox(index)}
           >
             <img
               src={getImageUrl(image, 'large')}
@@ -40,6 +49,10 @@ export function ImageGallery({
                 {index + 1} / {images.length}
               </div>
             )}
+            {/* 放大提示(触屏无 hover,常显轻量图标) */}
+            <div className="absolute bottom-2 right-2 rounded-full bg-black/45 p-1.5 text-white backdrop-blur-sm">
+              <Expand className="h-3.5 w-3.5" />
+            </div>
           </div>
         ))
       ) : (
@@ -47,6 +60,14 @@ export function ImageGallery({
           <Building2 className="h-16 w-16 text-slate-400" />
         </div>
       )}
+
+      <ImageLightbox
+        images={images || []}
+        initialIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        buildingName={buildingName}
+      />
     </div>
   )
 }

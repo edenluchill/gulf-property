@@ -787,24 +787,25 @@ export default function ProjectDetailPage() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={() => setShowMobileInfo(false)}
-                    className="fixed inset-0 bg-black/40 z-50"
+                    className="fixed inset-0 bg-black/40 z-[9999]"
                   />
 
-                  {/* Sheet */}
+                  {/* Sheet — z 必须盖过底部导航(MobileNav z-50,pad 上 h-20),否则
+                      分享/复制/收藏一行会被导航条压住(2026-07-03 真机 pad 反馈) */}
                   <motion.div
                     initial={{ y: '100%' }}
                     animate={{ y: 0 }}
                     exit={{ y: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                    className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[80vh] overflow-auto"
+                    className="fixed bottom-0 left-0 right-0 z-[10000] bg-white rounded-t-3xl max-h-[80vh] overflow-auto"
                   >
                     {/* Handle bar */}
                     <div className="sticky top-0 bg-white pt-3 pb-2">
                       <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto" />
                     </div>
 
-                    {/* Content */}
-                    <div className="p-5">
+                    {/* Content — 底部多留白,安全区/手势条不压按钮 */}
+                    <div className="p-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
                       {/* Header with close */}
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
