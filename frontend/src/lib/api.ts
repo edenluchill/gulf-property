@@ -138,8 +138,10 @@ export async function searchDubaiAreas(query: string): Promise<AreaSearchResult[
 
   try {
     const response = await fetch(`${API_URL}/dubai/areas/search?q=${encodeURIComponent(query)}`);
-    const results: AreaSearchResult[] = await response.json();
-    return results;
+    // 非 200(如计量门 429)返回 {success:false,...} —— 直接当数组用会让下游 .map 崩掉整棵树
+    if (!response.ok) return [];
+    const results = await response.json();
+    return Array.isArray(results) ? results : [];
   } catch (error) {
     console.error('Error searching Dubai areas:', error);
     return [];
@@ -152,8 +154,11 @@ export async function searchDubaiAreas(query: string): Promise<AreaSearchResult[
 export async function fetchDubaiLandmarks(): Promise<DubaiLandmark[]> {
   try {
     const response = await fetch(`${API_URL}/dubai/landmarks`);
-    const landmarks: DubaiLandmark[] = await response.json();
-    return landmarks;
+    // 非 200(如计量门 429)返回 {success:false,...} —— 曾把它当数组返回,
+    // MapPage 里 .map 直接白屏整站。永远只返回真数组。
+    if (!response.ok) return [];
+    const landmarks = await response.json();
+    return Array.isArray(landmarks) ? landmarks : [];
   } catch (error) {
     console.error('Error fetching Dubai landmarks:', error);
     return [];
