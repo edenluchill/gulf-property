@@ -8,8 +8,11 @@ import { useTourMode } from '../luna-tour/TourModeContext'
 import MapPage from '../pages/MapPage'
 import RoleSelectModal from './RoleSelectModal'
 import { isMapPath } from '../lib/isMapPath'
+import { useAppHeaderHidden } from '../hooks/useScrollChrome'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  // 手机/pad 下滑收起顶部导航(由各页面的滚动容器经 useScrollChrome 驱动)
+  const headerHidden = useAppHeaderHidden()
   // Luna Tour: hide all app chrome when a shared tour/demo is playing full-screen.
   const { active: tourMode } = useTourMode()
   // Collab viewer (/t/:code) is the CLIENT's immersive guided view — usually on a
@@ -47,8 +50,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`h-screen flex flex-col overflow-hidden ${chromeless ? 'bg-black' : 'bg-white'}`}>
-      {/* Header (hidden during full-screen tour / collab viewer) */}
-      {!chromeless && <Header />}
+      {/* Header (hidden during full-screen tour / collab viewer)。
+          手机/pad 下滑时用 grid-rows 0fr 平滑收起(既滑走也把高度还给内容);
+          只有页面滚回顶部才放出来(useScrollChrome 的规则)。 */}
+      {!chromeless && (
+        <div
+          className="shrink-0 grid transition-[grid-template-rows] duration-300 ease-out"
+          style={{ gridTemplateRows: headerHidden ? '0fr' : '1fr' }}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <Header />
+          </div>
+        </div>
+      )}
 
       {/* Main Content - pb-16 on mobile, pb-20 on tablet for bottom nav (no
           bottom padding when chromeless, so the map fills the screen). */}

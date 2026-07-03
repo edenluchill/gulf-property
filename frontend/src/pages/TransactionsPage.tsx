@@ -2,7 +2,7 @@
  * 成交记录查询页 (功能 B) —— 直接面向 DLD 真实成交数据
  * 多维筛选 → 聚合指标 + 月度趋势 + 明细分页
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import {
@@ -13,6 +13,7 @@ import DirhamSymbol from '../components/DirhamSymbol'
 import { formatMoneyCompact } from '../lib/money'
 import RentView from './TransactionsPage/RentView'
 import { CONSUMER_SEGMENT } from '../lib/marketSegment'
+import { useScrollChrome } from '../hooks/useScrollChrome'
 
 // 价格区间预设(成交总价 AED)。min/max 各一个下拉,避免手机上敲 7 位数字。
 const SALE_PRICE_STEPS = [500000, 1000000, 1500000, 2000000, 3000000, 5000000, 10000000, 20000000, 50000000]
@@ -62,6 +63,9 @@ function TrendChart({ trend }: { trend: TxSummary['trend'] }) {
 export default function TransactionsPage() {
   const { t, i18n } = useTranslation(['transactions', 'common'])
   const zh = i18n.language?.startsWith('zh')
+  // 手机/pad 下滑收起顶部导航,到顶才回来(全站统一滚动收纳机制)
+  const scrollChromeRef = useRef<HTMLDivElement>(null)
+  useScrollChrome(scrollChromeRef)
   const [mode, setMode] = useState<Mode>('sales')
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   const [area, setArea] = useState('')
@@ -150,7 +154,7 @@ export default function TransactionsPage() {
   const filterSummary = filterParts.length ? filterParts.join(' · ') : t('filter.summaryAll')
 
   return (
-    <div className="flex-1 overflow-auto pb-20 md:pb-8">
+    <div ref={scrollChromeRef} className="flex-1 overflow-auto pb-20 md:pb-8">
     <div className="container mx-auto px-4 py-3 md:py-6 max-w-6xl">
       <h1 className="text-xl md:text-2xl font-bold text-slate-800">{t('title')}</h1>
       <p className="mt-1 hidden md:block text-sm text-slate-500">

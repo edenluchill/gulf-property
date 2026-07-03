@@ -54,41 +54,8 @@ export default function Header() {
   // 路由变化时关闭下拉
   useEffect(() => { setOpenMenu(null) }, [location.pathname])
 
-  // Mobile scroll-to-hide state
-  const [mobileHidden, setMobileHidden] = useState(false)
-  const lastScrollY = useRef(0)
-  const ticking = useRef(false)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!ticking.current) {
-        window.requestAnimationFrame(() => {
-          const currentScrollY = window.scrollY
-          const scrollDelta = currentScrollY - lastScrollY.current
-
-          // Only trigger on significant scroll (> 5px)
-          if (Math.abs(scrollDelta) > 5) {
-            // Hide when scrolling down, show when scrolling up
-            // Also always show when near top (< 50px)
-            if (currentScrollY < 50) {
-              setMobileHidden(false)
-            } else if (scrollDelta > 0) {
-              setMobileHidden(true)  // Scrolling down
-            } else {
-              setMobileHidden(false) // Scrolling up
-            }
-          }
-
-          lastScrollY.current = currentScrollY
-          ticking.current = false
-        })
-        ticking.current = true
-      }
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+  // (旧的 window 滚动隐藏逻辑已删:app 根 h-screen overflow-hidden,window 从不
+  //  滚动,那套代码从未触发过。收纳现在由 Layout + hooks/useScrollChrome 驱动。)
 
   // Mobile language toggle
   const toggleLanguage = () => {
@@ -114,9 +81,7 @@ export default function Header() {
 
   return (
     <header
-      className={`${theme.header} backdrop-blur-xl backdrop-saturate-150 border-b sticky top-0 z-[1100] relative transition-transform duration-300 ease-out ${
-        mobileHidden ? '-translate-y-full xl:translate-y-0' : 'translate-y-0'
-      }`}
+      className={`${theme.header} backdrop-blur-xl backdrop-saturate-150 border-b sticky top-0 z-[1100] relative`}
     >
       {/* 浅色质感层：极淡顶部高光 + 渐隐冷灰 hairline（克制，不发光） */}
       <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">

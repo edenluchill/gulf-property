@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { useFavorites } from '../contexts/FavoritesContext'
@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button'
 import { Heart, MapPin, Building2, Trash2, Bed, Square, GitCompare, ChevronRight } from 'lucide-react'
 import { formatPrice } from '../lib/utils'
 import { ResidentialProject, UnitType } from '../types'
+import { useScrollChrome } from '../hooks/useScrollChrome'
 import { FavoriteProject } from '../lib/favorites'
 import { getCachedProject, cacheProject, isCacheStale } from '../lib/projectCache'
 
@@ -20,6 +21,9 @@ export default function FavoritesPage() {
   const { favorites, toggleProjectFavorite, toggleUnitTypeFavorite } = useFavorites()
   const [projectsWithDetails, setProjectsWithDetails] = useState<ProjectWithDetails[]>([])
   const [loading, setLoading] = useState(true)
+  // 手机/pad 下滑收起顶部导航(全站统一滚动收纳机制)
+  const scrollChromeRef = useRef<HTMLDivElement>(null)
+  useScrollChrome(scrollChromeRef)
 
   useEffect(() => {
     const fetchProjectDetails = async () => {
@@ -95,7 +99,7 @@ export default function FavoritesPage() {
   )
 
   return (
-    <div className="flex-1 bg-slate-50 pb-20 md:pb-8 overflow-auto">
+    <div ref={scrollChromeRef} className="flex-1 bg-slate-50 pb-20 md:pb-8 overflow-auto">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white py-8 md:py-12">
         <div className="container mx-auto px-4">

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Helmet } from 'react-helmet-async'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { useScrollChrome } from '../hooks/useScrollChrome'
 import { Button } from '../components/ui/button'
 import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed, Copy, Check, Share2 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
@@ -126,6 +127,9 @@ export default function ProjectDetailPage() {
 
   // Mobile info sheet state
   const [showMobileInfo, setShowMobileInfo] = useState(false)
+  // 手机/pad 下滑收起顶部导航+tab 栏,上滑先回 tab 栏(方便切户型/付款计划)。
+  // active=!!project:loading 态滚动容器还没挂载,等内容出来再接监听
+  const { secondaryHidden } = useScrollChrome(scrollContainerRef, !!project)
   const [deviceType, setDeviceType] = useState<DeviceType>(getDeviceType)
   const isMobile = deviceType === 'mobile'
   const isTablet = deviceType === 'tablet'
@@ -382,8 +386,8 @@ export default function ProjectDetailPage() {
       <div ref={scrollContainerRef} className="flex-1 bg-slate-50 overflow-auto">
       {/* Tabs Container */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        {/* Sticky TabsList */}
-        <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
+        {/* Sticky TabsList — 下滑随导航一起收起,上滑立即回来(useScrollChrome) */}
+        <div className={`sticky top-0 z-50 bg-white border-b shadow-sm transition-transform duration-300 ease-out ${secondaryHidden ? '-translate-y-full' : ''}`}>
           <div className="container mx-auto px-4">
             <div className="flex items-center h-12">
               {/* Back button - both mobile and desktop */}
