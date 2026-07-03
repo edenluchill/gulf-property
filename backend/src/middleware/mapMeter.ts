@@ -54,7 +54,18 @@ function sweep(map: Map<string, { at: number }>, ttl: number, cap = 2000): void 
   if (map.size >= cap) map.clear() // 极端情况下直接重置,宁可多查几次库
 }
 
+// 惰性过期清理:额度按天算,老行没用;每个进程每 24h 顺手清一次 7 天前的数据。
+let lastCleanupAt = 0
+function cleanupOldRows(): void {
+  if (Date.now() - lastCleanupAt < 24 * 3600_000) return
+  lastCleanupAt = Date.now()
+  pool.query(`DELETE FROM anon_map_usage WHERE day < current_date - 7`)
+    .then((r) => { if (r.rowCount) console.log(`[mapMeter] cleaned ${r.rowCount} old rows`) })
+    .catch((e) => console.error('[mapMeter] cleanup failed:', e))
+}
+
 async function recordMinute(keys: string[], day: string, minute: number): Promise<void> {
+  cleanupOldRows()
   const stamp = Number(day.replace(/-/g, '')) * 10_000 + minute
   const fresh = keys.filter((k) => lastRecorded.get(k) !== stamp)
   if (!fresh.length) return
