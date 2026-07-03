@@ -1415,7 +1415,7 @@ function MapViewMapLibre({
             prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'
           )
         }
-        className={`absolute top-28 right-4 z-[1000] hidden md:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-28 right-4 z-[1000] hidden xl:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           baseMap === 'dark'
             ? 'bg-slate-900/90 text-slate-100 ring-slate-700 hover:bg-slate-900'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1440,7 +1440,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={toggle3D}
-        className={`absolute top-28 right-24 z-[1000] hidden md:flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-28 right-24 z-[1000] hidden xl:flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
           pitched
             ? 'bg-emerald-500 text-white ring-emerald-400 hover:bg-emerald-500'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1455,7 +1455,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-        className={`absolute top-40 right-4 z-[1000] hidden md:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
+        className={`absolute top-40 right-4 z-[1000] hidden xl:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
           measureMode
             ? 'bg-blue-600 text-white ring-blue-700 hover:bg-blue-700'
             : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
@@ -1472,7 +1472,7 @@ function MapViewMapLibre({
           和左侧筛选/找房助手的纵向间距一致。样式对齐左侧 pill(rounded-full)。 */}
       {/* top 下移到 144px:上方指标控制卡 = 口径行(~28px)+指标行+POI行+选中指标标签行,
           116px 会压住第一个 pill(卫星)。控制卡再加行这里要跟着挪。 */}
-      <div data-testid="map-mobile-tools" className="md:hidden absolute top-[144px] right-3 z-[1000] flex flex-col items-end gap-2">
+      <div data-testid="map-mobile-tools" className="xl:hidden absolute top-[144px] right-3 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}

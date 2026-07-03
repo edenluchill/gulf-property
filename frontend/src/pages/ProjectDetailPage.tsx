@@ -28,7 +28,11 @@ type DeviceType = 'mobile' | 'tablet' | 'desktop'
 function getDeviceType(): DeviceType {
   const width = window.innerWidth
   if (width < 768) return 'mobile'
-  if (width < 1024) return 'tablet'
+  // pad 全走「往下滚动」的 tablet 布局（经纪大量用 iPad）：
+  //  - 1280 以下一律 tablet（旧阈值 1024 让 iPad Air/Pro 横屏 1180+ 掉进 desktop 布局）
+  //  - 触屏设备放宽到 1440（罩住 iPad Pro 12.9 横屏 1366）
+  const coarse = window.matchMedia('(pointer: coarse)').matches
+  if (width < 1280 || (coarse && width < 1440)) return 'tablet'
   return 'desktop'
 }
 

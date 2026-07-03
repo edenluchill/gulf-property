@@ -1506,8 +1506,10 @@ export default function MapPage() {
           {/* (移除了移动端「当前指标」指示器:右上指标条已高亮选中项,地图每个区也直接
               显示指标值,这个左上 pill 既冗余又会和筛选/找房助手按钮重叠。) */}
 
-          {/* Mobile: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位 */}
-          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] md:hidden">
+          {/* Mobile/Pad: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位。
+              断点 xl(1280):768~1280 的 iPad/窄窗口用桌面展开面板会和左侧筛选条重叠
+              (经纪大量用 pad),这套紧凑图标卡在 pad 上刚好。 */}
+          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] xl:hidden">
             <div className="bg-white shadow-lg rounded-xl overflow-hidden">
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state */}
               <div className="flex border-b border-slate-100">
@@ -1581,16 +1583,20 @@ export default function MapPage() {
                   <MapPin className="w-3.5 h-3.5" />
                 </button>
               </div>
-              {/* 移动端只有图标 → 客户分不清选了哪个指标(且两个 $ 图标长一样)。
-                  底部加一条当前选中指标的文字标签,横贯卡片宽度。 */}
-              {areaMetric !== 'none' && (() => {
+              {/* 只有图标分不清选了哪个指标(两个 $ 图标长一样)→ 底部常显一条文字标签:
+                  选中时显示指标名,未选时提示可点选,卡片高度稳定不跳动。 */}
+              {(() => {
                 const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
                 return active ? (
                   <div className="flex items-center justify-center gap-1 border-t border-slate-100 bg-primary/5 px-2 py-1 text-[11px] font-semibold text-primary">
                     <active.Icon className="w-3 h-3" />
                     <span className="whitespace-nowrap">{t(active.labelKey as any)}</span>
                   </div>
-                ) : null
+                ) : (
+                  <div className="flex items-center justify-center border-t border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-400">
+                    {(i18n.language || 'en').startsWith('zh') ? '点上方图标显示区域指标' : 'Tap an icon to show area metrics'}
+                  </div>
+                )
               })()}
             </div>
           </div>
@@ -1598,7 +1604,7 @@ export default function MapPage() {
           {/* Area fly-to removed — now controlled by AI voice assistant */}
 
           {/* Floating Metric Panel - top-right */}
-          <div data-testid="map-metric-panel" className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
+          <div data-testid="map-metric-panel" className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden xl:block">
             <div className="flex items-center gap-0.5 p-1">
               {/* 市场口径筛选（全部/期房/现房）——切的是 DLD 数据口径，联动全图区域数字与弹窗 */}
               <div className="mr-1 flex items-center rounded-md bg-slate-100 p-0.5">
@@ -1638,7 +1644,7 @@ export default function MapPage() {
           </div>
 
           {/* Floating POI Panel - below metrics */}
-          <div data-testid="map-poi-panel" className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden md:block">
+          <div data-testid="map-poi-panel" className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden xl:block">
             <div className="flex items-center gap-1.5 p-1.5">
               {/* Single Transit toggle */}
               <button
