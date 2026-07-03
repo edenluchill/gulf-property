@@ -191,33 +191,37 @@ const EXEMPT: MeterVerdict = { metered: false, exhausted: false, remaining: -1, 
 
 /**
  * 计一分钟 + 判定额度。中间件与心跳端点共用。
- * resolveToken:'always'(心跳,响应要区分买家/经纪)| 'onExhaust'(数据请求,
- * 只在额度耗尽时才花一次远程验签,常态零开销)。
+ *
+ * 判定顺序(有意为之):
+ *   分享码 → 登录身份(买家豁免 / 未订阅经纪【立即锁】)→ 内部号 → 匿名分钟额度
+ * 未订阅经纪不给每日宽限 —— 选了经纪就必须选套餐(7天试用零费用),这是产品规则;
+ * 且该判定在内部号豁免之前,内部浏览器上测试也能看到锁(owner/admin 按邮箱豁免)。
  */
-async function meter(req: Request, opts: { record: boolean; resolveToken: 'always' | 'onExhaust' }): Promise<MeterVerdict> {
-  // 1) 已知登录用户(本地验签或提前解析的 token)→ 买家豁免;未订阅经纪继续计量
+async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerdict> {
+  // 0) 有效分享码(经纪拉新回路 /r /t /v /cr,访客视角)→ 豁免
+  const shareCode = typeof req.headers['x-share-code'] === 'string' ? (req.headers['x-share-code'] as string) : ''
+  if (shareCode && (await isValidShareCode(shareCode))) return EXEMPT
+
+  // 1) 登录身份:本地验签的 ctx,或 Bearer 远程验签(缓存 5min,常态成本≈0)
   let userId = req.ctx?.userId || null
   let email = req.ctx?.email || null
-  if (!userId && req._deferredToken && opts.resolveToken === 'always') {
+  if (!userId && req._deferredToken) {
     const u = await resolveTokenUser(req._deferredToken)
     if (u) { userId = u.userId; email = u.email }
   }
-  let requiresPlan = false
   if (userId) {
-    if (req.ctx?.isAdmin) return EXEMPT
-    if (!(await agentNeedsPlan(userId, email))) return EXEMPT
-    requiresPlan = true // 经纪未订阅:和匿名同一套 10 分钟额度
+    if (req.ctx?.isAdmin || isAdminEmail(email) || isOwnerEmail(email)) return EXEMPT
+    if (!(await agentNeedsPlan(userId, email))) return EXEMPT // 买家/未选角色/已订阅经纪
+    // 经纪未订阅:立即锁(不给每日额度),前端引导去 /agent/plans
+    return { metered: true, exhausted: true, remaining: 0, requiresPlan: true }
   }
 
   const visitorId = req.ctx?.visitorId || null
-  // 2) 内部测试号 → 豁免(别把自己拦在地图外)
+  // 2) 内部测试号(匿名浏览)→ 豁免(别把自己拦在地图外)
   if (visitorId) {
     const internal = await internalVisitorIds()
     if (internal.includes(visitorId)) return EXEMPT
   }
-  // 3) 有效分享码(经纪拉新回路 /r /t /v /cr)→ 豁免
-  const shareCode = typeof req.headers['x-share-code'] === 'string' ? (req.headers['x-share-code'] as string) : ''
-  if (shareCode && (await isValidShareCode(shareCode))) return EXEMPT
 
   const { day, minute } = dubaiNow()
   const vKey = visitorId ? 'v:' + visitorId.slice(0, 100) : null
@@ -227,15 +231,7 @@ async function meter(req: Request, opts: { record: boolean; resolveToken: 'alway
 
   const { used, ipUsed } = await usedMinutes(vKey, ipK, day)
   const exhausted = used >= LIMIT_MIN || ipUsed >= LIMIT_MIN * IP_MULTIPLIER
-  // 4) 数据请求路径:耗尽时才解析 token(买家放行;未订阅经纪维持 429+requiresPlan)
-  if (exhausted && !userId && req._deferredToken && opts.resolveToken === 'onExhaust') {
-    const u = await resolveTokenUser(req._deferredToken)
-    if (u) {
-      if (isAdminEmail(u.email) || !(await agentNeedsPlan(u.userId, u.email))) return EXEMPT
-      requiresPlan = true
-    }
-  }
-  return { metered: true, exhausted, remaining: Math.max(0, LIMIT_MIN - used), requiresPlan }
+  return { metered: true, exhausted, remaining: Math.max(0, LIMIT_MIN - used), requiresPlan: false }
 }
 
 /**
@@ -245,13 +241,13 @@ async function meter(req: Request, opts: { record: boolean; resolveToken: 'alway
 export async function mapMeter(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (req.method === 'OPTIONS') return next()
   try {
-    const v = await meter(req, { record: true, resolveToken: 'onExhaust' })
+    const v = await meter(req, { record: true })
     if (!v.metered || !v.exhausted) return next()
     res.status(429).json({
       success: false,
       code: 'map_quota_exhausted',
       error: v.requiresPlan
-        ? '今天的试用时长已用完,选择套餐后即可不限时使用地图'
+        ? '选择套餐后即可不限时使用地图(7 天免费试用)'
         : '今天的免费探索时长已用完,登录后即可免费继续使用地图',
       requiresPlan: v.requiresPlan,
       remainingMinutes: 0,
@@ -269,7 +265,7 @@ export async function mapMeter(req: Request, res: Response, next: NextFunction):
  */
 export async function mapHeartbeat(req: Request, res: Response): Promise<void> {
   try {
-    const v = await meter(req, { record: true, resolveToken: 'always' })
+    const v = await meter(req, { record: true })
     if (!v.metered) {
       res.json({ success: true, unlimited: true })
       return

@@ -189,10 +189,10 @@ export default function MapMeterGuard({ active, getView }: Props) {
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
             <div className="text-4xl mb-2">💼</div>
             <h3 className="text-lg font-semibold text-slate-900">
-              {zh ? '今天的试用先到这里' : "That's today's trial time"}
+              {zh ? '选一档,解锁你的经纪工作台' : 'Pick a plan to unlock your workspace'}
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              {zh ? '经纪账号选择套餐后即可不限时使用 —— $25/月起,7 天免费试用:' : 'Agent accounts get unlimited access with a plan — from $25/mo, 7-day free trial:'}
+              {zh ? '经纪账号选择套餐后即可不限时使用 —— $25/月起,7 天免费试用,试用期取消零费用:' : 'Agent accounts get unlimited access with a plan — from $25/mo, 7-day free trial, cancel at no charge:'}
             </p>
             <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-left mx-auto w-fit">
               <li>✓ {zh ? '地图与市场数据不限时' : 'Unlimited map & market data'}</li>
@@ -216,7 +216,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-400">
-              {zh ? '明天试用额度也会刷新' : 'Trial quota refreshes tomorrow'}
+              {zh ? '7 天内取消不产生任何费用' : 'Cancel within 7 days at no charge'}
             </p>
           </div>
         </div>
