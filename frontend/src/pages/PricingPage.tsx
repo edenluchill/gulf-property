@@ -177,6 +177,15 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
       </Helmet>
 
       <section className="mx-auto max-w-6xl px-6 py-5 md:py-7">
+        {/* 无导航的选档页:只留一个品牌标识定位(不可点 —— 一个页面一个决定) */}
+        {agentOnboarding && (
+          <div className="mb-5 flex items-center justify-center gap-2 select-none">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: ACCENT }}>
+              <span className="text-sm font-black text-slate-900">P</span>
+            </span>
+            <span className="text-lg font-bold tracking-tight">Pinzos</span>
+          </div>
+        )}
         {/* 从地图跳来的说明条:讲清楚规则(经纪身份订阅后使用),并给买家留出口 */}
         {fromMapGate && (
           <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm text-slate-200">

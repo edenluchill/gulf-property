@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Map as MapIcon, TrendingUp, Building2, Sparkles, Radio, FileText, Mic,
   Upload, Database, KeyRound, Ruler, Layers, ArrowRight, Languages, ShieldCheck,
+  PenTool, PhoneCall, MousePointer2, Check, Users,
 } from 'lucide-react'
 
 const ACCENT = '#00E0B8'
@@ -60,8 +61,9 @@ export default function AboutPage() {
         '@type': 'SoftwareApplication', name: 'Pinzos', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: 'https://pinzos.com',
         description: 'Pinzos helps buyers and agents explore Dubai off-plan property: a satellite map with real DLD transactions/rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, real-time co-presence map tours, AI-guided Luna tours, and buyer-intent reports.',
         offers: [
-          { '@type': 'Offer', name: 'Explore', price: '0', priceCurrency: 'USD' },
-          { '@type': 'Offer', name: 'Agent', price: '99', priceCurrency: 'USD' },
+          { '@type': 'Offer', name: 'Buyers (Free)', price: '0', priceCurrency: 'USD' },
+          { '@type': 'Offer', name: 'Starter', price: '25', priceCurrency: 'USD' },
+          { '@type': 'Offer', name: 'Pro', price: '99', priceCurrency: 'USD' },
           { '@type': 'Offer', name: 'Founder', price: '699', priceCurrency: 'USD' },
         ],
         featureList: [
@@ -234,6 +236,25 @@ export default function AboutPage() {
         <Reveal delay={0.05} className="mt-12"><SubHead icon={<Radio className="h-4 w-4" />}>{L('经纪 · 招牌:实时海外带看', 'Agents · flagship: live overseas tours')}</SubHead></Reveal>
         <Reveal delay={0.1}><CoPresenceDiagram L={L} /></Reveal>
 
+        {/* 带看中的工具:画图标注 · 双向语音 · 详情同步 —— 像坐在客户身边一样讲盘 */}
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <Reveal delay={0.05}>
+            <Tile className="h-full"><TileHead icon={<PenTool />} title={L('地图上直接画', 'Draw right on the map')} />
+              <p className="text-sm text-slate-400">{L('圈小区、画箭头、标文字、落图钉 —— 你在地图上画的每一笔,客户手机上同步出现,像面对面拿笔讲盘。', 'Circle a community, draw arrows, drop pins and notes — every stroke appears live on the client\'s phone, like explaining with a pen in hand.')}</p>
+            </Tile>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <Tile className="h-full"><TileHead icon={<PhoneCall />} title={L('应用内语音通话', 'In-app voice call')} />
+              <p className="text-sm text-slate-400">{L('带看时直接开口讲,无需微信来回切换;客户在手机浏览器里就能听、能说。', 'Talk while you tour — no juggling WeChat calls; clients listen and speak right in their mobile browser.')}</p>
+            </Tile>
+          </Reveal>
+          <Reveal delay={0.15}>
+            <Tile className="h-full"><TileHead icon={<MousePointer2 />} title={L('项目详情同步翻页', 'Detail pages, in sync')} />
+              <p className="text-sm text-slate-400">{L('你点开哪个项目、翻到哪张户型图,客户屏幕同步跟随;客户也可以随时脱离自己看,再一键跟回。', 'Open a project or flip a floor plan — the client\'s screen follows; they can break off to explore and rejoin anytime.')}</p>
+            </Tile>
+          </Reveal>
+        </div>
+
         <div className="mt-12 grid gap-3 md:grid-cols-2">
           <Reveal><Tile><TileHead icon={<MapIcon />} title={L('Build Your Own Tour · 自建导览', 'Build Your Own Tour')} /><p className="text-sm text-slate-400">{L('经纪自己设计专属看房路线:挑项目、排顺序、配语音讲解与 5 年回报,一键生成可分享的自助导览;客户看了什么、问了什么自动回传。', 'Agents design their own tour: pick projects, set the order, add voice narration & 5-year ROI, then share a self-serve tour — every view and question flows back.')}</p></Tile></Reveal>
           <Reveal delay={0.08}><Tile><TileHead icon={<FileText />} title={L('买家意向报告', 'Buyer-intent reports')} /><p className="text-sm text-slate-400">{L('每次带看后自动生成:看了什么、问了什么,AI 判定意向 + 跟进话术。', 'Auto report per tour: viewed / asked, AI interest level + follow-up.')}</p></Tile></Reveal>
@@ -254,28 +275,56 @@ export default function AboutPage() {
         </Reveal>
       </Section>
 
-      {/* ═══ PRICING — summary only; full plans, quotas & checkout live on /pricing ═══ */}
+      {/* ═══ PRICING — 四档速览;完整额度与结账在 /pricing ═══ */}
       <Section id="pricing">
         <Reveal><Label tone={ACCENT}>// {L('定价', 'PRICING')}</Label>
           <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h2>
           <p className="mt-3 max-w-2xl text-slate-400">{L(
-            '买家与投资人永久免费使用地图、真实 DLD 数据与 Luna 助手;经纪按需订阅,解锁实时带看、Luna 导览与买家意向报告。',
-            'Buyers and investors use the map, real DLD data and Luna for free; agents subscribe to unlock live tours, Luna tours and buyer-intent reports.'
+            '买家与投资人永久免费使用地图、真实 DLD 数据与 Luna 助手;经纪 $25/月起,7 天免费试用,按月或按年付(年付送 2 个月),随时取消。',
+            'Buyers and investors use the map, real DLD data and Luna for free; agents from $25/mo with a 7-day free trial, billed monthly or yearly (2 months free), cancel anytime.'
           )}</p></Reveal>
-        <Reveal delay={0.08} className="mt-6">
-          <div className="flex flex-wrap gap-2.5">
-            {[{ n: L('探索版 · 免费', 'Explore · Free'), c: ACCENT }, { n: L('经纪版', 'Agent'), c: ACCENT }, { n: L('创始会员', 'Founder'), c: GOLD }].map((tier, i) => (
-              <span key={i} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-white" style={{ borderColor: `${tier.c}55`, background: `${tier.c}14` }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: tier.c }} />{tier.n}
-              </span>
-            ))}
-          </div>
-        </Reveal>
-        <Reveal delay={0.14} className="mt-7">
+        <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              n: L('买家 / 投资人', 'Buyers'), p: L('免费', 'Free'), per: '', c: ACCENT,
+              fs: [L('地图与市场数据不限时', 'Unlimited map & data'), L('收藏 · Luna 智能助手', 'Favorites · Luna AI'), L('5 年回报与黄金签证分析', '5-yr ROI & Golden Visa')],
+            },
+            {
+              n: L('启程版 Starter', 'Starter'), p: '$25', per: L('/月', '/mo'), c: ACCENT,
+              fs: [L('全部买家功能 + 客户 CRM', 'Everything free + client CRM'), L('意向报告 + AI 楼书解析', 'Intent reports + AI brochures'), L('买家线索(尽力推送)', 'Buyer leads (best effort)')],
+            },
+            {
+              n: L('专业版 Pro', 'Pro'), p: '$99', per: L('/月', '/mo'), c: ACCENT, hot: true,
+              fs: [L('实时带看 + 画图 + 语音', 'Live tours + drawing + voice'), L('Luna 智能导览', 'Luna AI tours'), L('线索优先推送 + 行为洞察', 'Priority leads + insights')],
+            },
+            {
+              n: L('创始会员 Founder', 'Founder'), p: '$699', per: L('/月', '/mo'), c: GOLD,
+              fs: [L('含 3 席共享积分池', '3 seats, shared pool'), L('White-label 品牌定制', 'White-label branding'), L('线索独占优先 · 优先支持', 'First pick of leads')],
+            },
+          ].map((tier, i) => (
+            <Reveal key={i} delay={i * 0.05}>
+              <div className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5"
+                style={{ borderColor: tier.hot ? ACCENT : tier.c === GOLD ? `${GOLD}66` : 'rgba(255,255,255,0.1)', boxShadow: tier.hot ? `0 0 34px -14px ${ACCENT}` : undefined }}>
+                {tier.hot && <span className="absolute -top-2.5 left-5 rounded-full px-2 py-0.5 text-[10px] font-bold text-slate-900" style={{ background: ACCENT }}>{L('最受欢迎', 'Most popular')}</span>}
+                <div className="text-sm font-semibold" style={{ color: tier.c }}>{tier.n}</div>
+                <div className="mt-1 flex items-end gap-1">
+                  <span className="text-2xl font-bold">{tier.p}</span>
+                  {tier.per && <span className="pb-0.5 text-xs text-slate-500">{tier.per}</span>}
+                </div>
+                <ul className="mt-3 flex-1 space-y-1.5 text-[13px] text-slate-300">
+                  {tier.fs.map((f, j) => (
+                    <li key={j} className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: tier.c }} /> {f}</li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <Reveal delay={0.14} className="mt-7 flex flex-wrap items-center gap-4">
           <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
-            {L('查看套餐与定价', 'See plans & pricing')} <ArrowRight className="h-4 w-4" />
+            {L('查看完整定价并开始试用', 'Full pricing & start free trial')} <ArrowRight className="h-4 w-4" />
           </Link>
-          <p className="mt-2.5 text-xs text-slate-500">{L('完整套餐、额度与结账都在定价页;订阅前需先登录经纪账号。', 'Full plans, quotas and checkout are on the pricing page; sign in to your agent account before subscribing.')}</p>
+          <span className="inline-flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5" /> {L('经纪档均含 7 天免费试用,试用期取消零费用', 'All agent plans include a 7-day free trial')}</span>
         </Reveal>
       </Section>
 

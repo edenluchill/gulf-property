@@ -36,7 +36,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // to /pricing etc. now only hides the map (instant) instead of tearing it down,
   // and switching back shows it exactly as the user left it (pan/zoom preserved).
   const onMap = isMapPath(path, loc.search)
-  const chromeless = tourMode || isCollabViewer
+  // 经纪选档页:付费决策页去掉全部导航(一个页面一个决定,页内自带 logo 与软出口)
+  const isPlansPage = path.startsWith('/agent/plans')
+  const chromeless = tourMode || isCollabViewer || isPlansPage
 
   // Lazily mount the map the first time a map route is seen, so a user who lands
   // directly on /pricing doesn't pay the map's init cost until they need it.

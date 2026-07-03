@@ -217,9 +217,9 @@ export default function Header() {
               label={isAgent ? t('nav:agentHub') : t('nav:becomeAgent')} accent
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
-            {/* 定价 / Pricing */}
-            <NavPill to="/pricing" active={location.pathname === '/pricing'} icon={Tag}
-              label={i18n.language?.startsWith('zh') ? '定价' : 'Pricing'}
+            {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位) */}
+            <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
+              label={i18n.language?.startsWith('zh') ? '关于' : 'About'}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {isAdmin && (
