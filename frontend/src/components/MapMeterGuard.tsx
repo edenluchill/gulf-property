@@ -14,11 +14,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Loader2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { API_BASE_URL } from '../lib/config'
 import { MAP_QUOTA_EVENT } from '../lib/track'
-import { setMyRole } from '../lib/billingApi'
 
 const HEARTBEAT_MS = 30_000
 const TOAST_DAY_KEY = 'map-meter-toast-day'
@@ -62,9 +61,8 @@ export default function MapMeterGuard({ active, getView }: Props) {
   const { signInWithGoogle, user } = useAuth()
   const [remaining, setRemaining] = useState<number | null>(null)
   const [exhausted, setExhausted] = useState(false)
-  // 登录经纪但没订阅 → 引导去选套餐(而不是登录);由服务端心跳/429 判定
+  // 登录经纪但没订阅 → 整页跳去 /agent/plans 选档;由服务端心跳/429 判定
   const [requiresPlan, setRequiresPlan] = useState(false)
-  const [switching, setSwitching] = useState(false)
   const [toastDismissed, setToastDismissed] = useState(false)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -108,18 +106,26 @@ export default function MapMeterGuard({ active, getView }: Props) {
     return () => window.removeEventListener(MAP_QUOTA_EVENT, onQuota)
   }, [])
 
-  // ── 锁真正生效:第一次触发时强制刷新,把锁前已加载进内存的数据整页清掉。
-  //    刷新后拦截器带着登录态从第一个请求就被服务端 429 → 只剩空底图,
+  // ── 未订阅经纪:整页跳去选档页。整页跳转本身就清掉了内存里已加载的地图数据
+  //    (回来 SPA 进地图会再次触发跳转,数据请求也全被服务端 429),没有刷新循环。
+  useEffect(() => {
+    if (!requiresPlan || !activeRef.current) return
+    saveMapResumeView(getView()) // 订阅/改回买家后回到刚才的视角
+    window.location.replace('/agent/plans')
+  }, [requiresPlan, getView])
+
+  // ── 匿名额度耗尽:第一次触发时强制刷新,把锁前已加载进内存的数据整页清掉。
+  //    刷新后拦截器带着身份从第一个请求就被服务端 429 → 只剩空底图 + 登录卡片,
   //    删 overlay / 改 filter 都拿不到任何数据。sessionStorage 防刷新循环。
   useEffect(() => {
-    if (!exhausted || !activeRef.current) return
+    if (!exhausted || requiresPlan || !activeRef.current) return
     try {
       if (sessionStorage.getItem(GATE_RELOAD_KEY)) return
       sessionStorage.setItem(GATE_RELOAD_KEY, '1')
-      saveMapResumeView(getView()) // 刷新后(以及登录/订阅后)回到刚才的视角
+      saveMapResumeView(getView()) // 刷新后(以及登录后)回到刚才的视角
       window.location.reload()
     } catch { /* storage 不可用就退化为只有 overlay */ }
-  }, [exhausted, getView])
+  }, [exhausted, requiresPlan, getView])
 
   const goLogin = useCallback((provider: 'google' | 'email') => {
     saveMapResumeView(getView())
@@ -127,16 +133,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
     else navigate('/login')
   }, [getView, navigate, signInWithGoogle])
 
-  // 选错身份的后悔药:改回买家(免费不限时),服务端清计量门后整页刷新恢复数据
-  const switchToBuyer = useCallback(async () => {
-    setSwitching(true)
-    const ok = await setMyRole('buyer')
-    if (!ok) { setSwitching(false); return }
-    try { sessionStorage.setItem('pinzos-role', 'buyer') } catch { /* noop */ }
-    window.location.reload()
-  }, [])
-
-  if (!active) return null
+  if (!active || requiresPlan) return null // 经纪未订阅走整页跳转,不渲染任何东西
 
   // ── 软提示(剩 ≤2 分钟,一天一次,可关)────────────────
   const today = new Date().toISOString().slice(0, 10)
@@ -152,14 +149,12 @@ export default function MapMeterGuard({ active, getView }: Props) {
       {showToast && (
         <div className="absolute bottom-6 left-4 z-[550] max-w-[300px] rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur px-4 py-3 flex items-start gap-3">
           <div className="text-sm text-slate-700 leading-relaxed">
-            {requiresPlan
-              ? (zh ? '试用时长快用完了 —— 选择套餐后不限时使用 ✨' : 'Trial time is almost up — pick a plan for unlimited access ✨')
-              : (zh ? '喜欢这张地图?登录后可以不限时使用,还能收藏项目 ✨' : 'Enjoying the map? Sign in to keep exploring without limits ✨')}
+            {zh ? '喜欢这张地图?登录后可以不限时使用,还能收藏项目 ✨' : 'Enjoying the map? Sign in to keep exploring without limits ✨'}
             <button
               className="ml-2 font-medium text-teal-600 hover:text-teal-700"
-              onClick={() => { dismissToast(); requiresPlan ? navigate('/agent/plans') : goLogin('email') }}
+              onClick={() => { dismissToast(); goLogin('email') }}
             >
-              {requiresPlan ? (zh ? '查看套餐' : 'See plans') : (zh ? '登录' : 'Sign in')}
+              {zh ? '登录' : 'Sign in'}
             </button>
           </div>
           <button aria-label="close" className="mt-0.5 text-slate-400 hover:text-slate-600" onClick={dismissToast}>
@@ -168,7 +163,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
         </div>
       )}
 
-      {exhausted && !requiresPlan && (
+      {exhausted && (
         <div className="absolute inset-0 z-[600] flex items-center justify-center bg-slate-900/45 backdrop-blur-[6px] p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
             <div className="text-4xl mb-2">🗺️</div>
@@ -204,44 +199,6 @@ export default function MapMeterGuard({ active, getView }: Props) {
         </div>
       )}
 
-      {/* 经纪身份但没订阅:引导选套餐(7天免费试用),留「改回买家」后悔药 */}
-      {exhausted && requiresPlan && (
-        <div className="absolute inset-0 z-[600] flex items-center justify-center bg-slate-900/45 backdrop-blur-[6px] p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
-            <div className="text-4xl mb-2">💼</div>
-            <h3 className="text-lg font-semibold text-slate-900">
-              {zh ? '选一档,解锁你的经纪工作台' : 'Pick a plan to unlock your workspace'}
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              {zh ? '经纪账号选择套餐后即可不限时使用 —— $25/月起,7 天免费试用,试用期取消零费用:' : 'Agent accounts get unlimited access with a plan — from $25/mo, 7-day free trial, cancel at no charge:'}
-            </p>
-            <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-left mx-auto w-fit">
-              <li>✓ {zh ? '地图与市场数据不限时' : 'Unlimited map & market data'}</li>
-              <li>✓ {zh ? '客户 CRM + 品牌化报告' : 'Client CRM + branded reports'}</li>
-              <li>✓ {zh ? '买家线索推送' : 'Buyer lead flow'}</li>
-            </ul>
-            <div className="mt-5 space-y-2">
-              <button
-                className="w-full h-11 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
-                onClick={() => navigate('/agent/plans')}
-              >
-                {zh ? '查看套餐(7 天免费试用)' : 'See plans (7-day free trial)'}
-              </button>
-              <button
-                disabled={switching}
-                className="w-full h-11 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
-                onClick={() => void switchToBuyer()}
-              >
-                {switching && <Loader2 className="h-4 w-4 animate-spin" />}
-                {zh ? '我其实是买家,改回免费身份' : "I'm actually a buyer — switch back (free)"}
-              </button>
-            </div>
-            <p className="mt-3 text-xs text-slate-400">
-              {zh ? '7 天内取消不产生任何费用' : 'Cancel within 7 days at no charge'}
-            </p>
-          </div>
-        </div>
-      )}
     </>
   )
 }
