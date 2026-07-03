@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3 } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
+import { useMyRole } from '../hooks/useMyRole'
 import UserMenu from './auth/UserMenu'
 import { FavoritesButton } from './favorites'
 import AboutSheet from './AboutSheet'
@@ -31,7 +32,10 @@ export default function Header() {
   const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
   const { user, loading, isAdmin } = useAuth()
   const { profile } = useUserProfile()
-  const isAgent = !!profile?.agent
+  const role = useMyRole()
+  // 经纪台入口:新角色系统 role=agent 或旧本地标志;买家(role=buyer)看「个人中心」
+  const isAgent = !!profile?.agent || role === 'agent'
+  const isBuyer = role === 'buyer' && !isAgent
 
   // About sheet state
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -212,10 +216,16 @@ export default function Header() {
               label={t('nav:transactions')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
-            {/* 经纪人入口：已开通 → 经纪台；未开通 → 成为经纪（强调色） */}
-            <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
-              label={isAgent ? t('nav:agentHub') : t('nav:becomeAgent')} accent
-              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+            {/* 身份入口:买家 → 个人中心;经纪 → 经纪台;未定/匿名 → 成为经纪(强调色) */}
+            {isBuyer ? (
+              <NavPill to="/profile" active={location.pathname === '/profile'} icon={UserRound}
+                label={i18n.language?.startsWith('zh') ? '个人中心' : 'Profile'}
+                idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+            ) : (
+              <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
+                label={isAgent ? t('nav:agentHub') : t('nav:becomeAgent')} accent
+                idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+            )}
 
             {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位) */}
             <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}

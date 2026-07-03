@@ -4,6 +4,7 @@ import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardLi
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
+import { useMyRole } from '../hooks/useMyRole'
 import { Sheet, SheetContent } from './ui/sheet'
 
 export default function MobileNav() {
@@ -12,7 +13,9 @@ export default function MobileNav() {
   const { t } = useTranslation(['common', 'nav', 'auth'])
   const { user, isAdmin } = useAuth()
   const { profile } = useUserProfile()
-  const isAgent = !!profile?.agent
+  const role = useMyRole()
+  const isAgent = !!profile?.agent || role === 'agent'
+  const isBuyer = role === 'buyer' && !isAgent
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [analysisSheetOpen, setAnalysisSheetOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
@@ -46,9 +49,12 @@ export default function MobileNav() {
   const navItems = [
     { path: '/map', label: t('nav:explore'), icon: MapPin },
     { path: 'analysis-menu', label: t('nav:analysis'), icon: LineChart, isAnalysisTrigger: true },
-    isAgent
-      ? { path: '/agent', label: t('nav:agentHub'), icon: Briefcase }
-      : { path: '/agent/join', label: t('nav:becomeAgent'), icon: Briefcase },
+    // 买家不显示经纪入口(他们有「我的」tab;想升级走个人中心/关于页),其余照旧
+    ...(isBuyer ? [] : [
+      isAgent
+        ? { path: '/agent', label: t('nav:agentHub'), icon: Briefcase }
+        : { path: '/agent/join', label: t('nav:becomeAgent'), icon: Briefcase },
+    ]),
     // Admin - only for whitelisted admin accounts
     ...(isAdmin ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
     // Login/Profile based on auth status
@@ -57,9 +63,7 @@ export default function MobileNav() {
       : { path: '/login', label: t('auth:login', 'Login'), icon: LogIn },
   ]
 
-  // Grid columns: the admin tab (whitelisted accounts only) is the 5th item;
-  // everyone else — guests and non-admin users — has 4.
-  const gridCols = isAdmin ? 'grid-cols-5' : 'grid-cols-4'
+  const gridCols = ({ 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' } as Record<number, string>)[navItems.length] || 'grid-cols-4'
 
   const handleNavClick = (item: typeof navItems[0], e: React.MouseEvent) => {
     if ('isAdminTrigger' in item && item.isAdminTrigger) {

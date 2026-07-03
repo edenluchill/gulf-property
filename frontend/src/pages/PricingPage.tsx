@@ -35,7 +35,7 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [cycle, setCycle] = useState<BillingInterval>('year') // 默认年付(送2个月,现金流/留存都更好)
+  const [cycle, setCycle] = useState<BillingInterval>('month') // 默认月付(低门槛;年付按钮用「送2个月」吸引)
   const [promo, setPromo] = useState<Promo>({ active: false })
   const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
   const [now, setNow] = useState(() => Date.now())
@@ -258,7 +258,7 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
               className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition ${cycle === 'year' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
               style={cycle === 'year' ? { background: ACCENT } : undefined}>
               {L('按年付', 'Yearly')}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'year' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('省 17%', 'save 17%')}</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'year' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('免费送 2 个月', '2 months free')}</span>
             </button>
           </div>
         </div>
@@ -267,8 +267,8 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
 
         <div className={`mt-4 grid items-stretch gap-3 md:grid-cols-2 ${agentOnboarding ? 'xl:grid-cols-3 mx-auto max-w-4xl' : 'xl:grid-cols-4'}`}>
           {tiers.map((t) => (
-            // 手机端把付费档排前(受众是经纪),桌面端保持 探索/启程/专业/创始 原序
-            <div key={t.id} className={`relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 xl:order-none ${t.id === 'agent' ? 'order-1' : t.id === 'rookie' ? 'order-2' : t.id === 'founder' ? 'order-3' : 'order-4'}`}
+            // 自然升序(便宜的在前),手机桌面一致 —— 低门槛档先入眼
+            <div key={t.id} className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5"
               style={{ borderColor: t.highlight ? ACCENT : t.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)', boxShadow: t.highlight ? `0 0 40px -16px ${ACCENT}` : undefined }}>
               {t.badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: t.edge }}>{t.badge}</span>}
               <div className="text-sm font-semibold" style={{ color: t.edge }}>{t.name}</div>

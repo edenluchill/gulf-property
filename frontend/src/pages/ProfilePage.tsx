@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
+import { useMyRole } from '../hooks/useMyRole'
+import { setMyRole } from '../lib/billingApi'
 import { Button } from '../components/ui/button'
 import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase, BarChart3 } from 'lucide-react'
 
@@ -10,7 +12,15 @@ export default function ProfilePage() {
   const { t } = useTranslation(['auth', 'common'])
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
+  const role = useMyRole()
   const [avatarError, setAvatarError] = useState(false)
+
+  // 买家 → 经纪的升级入口:记角色后去专属选档页(7天试用,付款即开通)
+  const becomeAgent = async () => {
+    await setMyRole('agent').catch(() => {})
+    try { sessionStorage.setItem('pinzos-role', 'agent') } catch { /* noop */ }
+    window.location.href = '/agent/plans'
+  }
 
   // Reset avatar error when user changes
   useEffect(() => {
@@ -34,11 +44,10 @@ export default function ProfilePage() {
     ...(isOwnerEmail(user.email)
       ? [{ icon: BarChart3, label: t('auth:profile.dashboard', '数据后台'), path: '/admin/analytics' }]
       : []),
-    {
-      icon: Briefcase,
-      label: t('auth:profile.agentPortal', '经纪人工作台'),
-      path: '/agent',
-    },
+    // 买家看到的是升级入口;经纪/未定角色照旧进工作台
+    role === 'buyer'
+      ? { icon: Briefcase, label: t('auth:profile.becomeAgent', '成为经纪(7 天免费试用)'), path: 'become-agent' }
+      : { icon: Briefcase, label: t('auth:profile.agentPortal', '经纪人工作台'), path: '/agent' },
     {
       icon: Heart,
       label: t('common:nav.favorites'),
@@ -105,7 +114,7 @@ export default function ProfilePage() {
           {menuItems.map((item, idx) => (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => (item.path === 'become-agent' ? void becomeAgent() : navigate(item.path))}
               className={`w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 transition-colors ${
                 idx > 0 ? 'border-t' : ''
               }`}

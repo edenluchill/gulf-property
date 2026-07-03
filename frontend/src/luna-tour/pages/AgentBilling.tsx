@@ -26,7 +26,7 @@ export default function AgentBilling() {
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [params, setParams] = useSearchParams()
-  const [cycle, setCycle] = useState<BillingInterval>('year') // 默认年付(送2个月)
+  const [cycle, setCycle] = useState<BillingInterval>('month') // 默认月付(低门槛)
   const [promo, setPromo] = useState<Promo>({ active: false })
   const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
   // Founder 团队席位
@@ -256,7 +256,7 @@ export default function AgentBilling() {
             <span className="text-xs text-slate-400">计费周期:</span>
             <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
               <button onClick={() => setCycle('month')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'month' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按月付</button>
-              <button onClick={() => setCycle('year')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'year' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按年付 · 省17%</button>
+              <button onClick={() => setCycle('year')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'year' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按年付 · 免费送2个月</button>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
