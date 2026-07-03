@@ -884,14 +884,15 @@ export default function MapPage() {
     const c = map.getCenter()
     return { longitude: c.lng, latitude: c.lat, zoom: map.getZoom() }
   }, [])
-  // 登录回来 → 一次性恢复离开时的视角(卡片承诺过「你刚才看的位置会原样保留」)。
+  // 整页刷新回来(登录跳转 / 计量锁的强制刷新)→ 一次性恢复离开时的视角
+  // (卡片承诺过「你刚才看的位置会原样保留」)。SPA 内导航地图常驻,视角天然保留。
   const resumedRef = useRef(false)
   useEffect(() => {
-    if (!user || resumedRef.current) return
+    if (resumedRef.current) return
     resumedRef.current = true
     const v = readMapResumeView()
     if (v) setFlyToLocation({ lat: v.latitude, lng: v.longitude, zoom: v.zoom })
-  }, [user])
+  }, [])
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)

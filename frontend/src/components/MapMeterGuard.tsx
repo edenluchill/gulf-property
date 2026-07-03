@@ -22,6 +22,9 @@ import { setMyRole } from '../lib/billingApi'
 
 const HEARTBEAT_MS = 30_000
 const TOAST_DAY_KEY = 'map-meter-toast-day'
+/** 触发锁时强制刷新一次的标记(防循环)。刷新后数据请求从第一个开始就被 429,
+ *  锁生效前已进内存的区域/项目数据被整页清掉 —— 删 overlay 也只剩空底图。 */
+const GATE_RELOAD_KEY = 'pinzos-gate-reloaded'
 /** 登录回来恢复地图现场用(AuthCallback 读 authReturnUrl 回跳,MapPage 读这个 key 恢复视角)。 */
 export const MAP_RESUME_KEY = 'pinzos:map-resume'
 
@@ -77,10 +80,15 @@ export default function MapMeterGuard({ active, getView }: Props) {
         if (!res.ok) return
         const j = await res.json()
         if (stop) return
-        if (j?.unlimited) { setExhausted(false); setRequiresPlan(false); return }
+        if (j?.unlimited) {
+          setExhausted(false); setRequiresPlan(false)
+          try { sessionStorage.removeItem(GATE_RELOAD_KEY) } catch { /* noop */ }
+          return
+        }
         if (typeof j?.remainingMinutes === 'number') setRemaining(j.remainingMinutes)
         setRequiresPlan(!!j?.requiresPlan)
         if (j?.exhausted) setExhausted(true)
+        else { try { sessionStorage.removeItem(GATE_RELOAD_KEY) } catch { /* noop */ } }
       } catch { /* 心跳失败无所谓,服务端数据门兜底 */ }
     }
     void beat()
@@ -99,6 +107,19 @@ export default function MapMeterGuard({ active, getView }: Props) {
     window.addEventListener(MAP_QUOTA_EVENT, onQuota)
     return () => window.removeEventListener(MAP_QUOTA_EVENT, onQuota)
   }, [])
+
+  // ── 锁真正生效:第一次触发时强制刷新,把锁前已加载进内存的数据整页清掉。
+  //    刷新后拦截器带着登录态从第一个请求就被服务端 429 → 只剩空底图,
+  //    删 overlay / 改 filter 都拿不到任何数据。sessionStorage 防刷新循环。
+  useEffect(() => {
+    if (!exhausted || !activeRef.current) return
+    try {
+      if (sessionStorage.getItem(GATE_RELOAD_KEY)) return
+      sessionStorage.setItem(GATE_RELOAD_KEY, '1')
+      saveMapResumeView(getView()) // 刷新后(以及登录/订阅后)回到刚才的视角
+      window.location.reload()
+    } catch { /* storage 不可用就退化为只有 overlay */ }
+  }, [exhausted, getView])
 
   const goLogin = useCallback((provider: 'google' | 'email') => {
     saveMapResumeView(getView())

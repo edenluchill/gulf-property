@@ -228,10 +228,21 @@ export const MAP_QUOTA_EVENT = 'pinzos:map-quota-exhausted'
 // 登录 token 的同步缓存(onAuthStateChange 维护,零 per-request 开销)。公共地图端点
 // 请求带上它,后端 mapMeter 才认得出「已登录买家/已订阅经纪」并豁免计量 —— 生产没配
 // SUPABASE_JWT_SECRET,不带头的话登录用户在这些端点上和匿名无异,满额会被误拦。
+//
+// authTokenReady:首屏数据请求必须等 getSession 落定再发。否则和 token 加载有竞态,
+// 抢跑的请求不带 Authorization → 被后端当匿名放行 → 该被锁的经纪把数据整页拉了下来
+// (锁形同虚设,删掉 overlay 就能继续用)。getSession 读本地缓存,只挡首屏几毫秒。
 let cachedAccessToken: string | null = null
+let authTokenReady: Promise<void> = Promise.resolve()
 function watchAuthToken(): void {
   try {
-    supabase.auth.getSession().then(({ data }) => { cachedAccessToken = data.session?.access_token || null })
+    let ready!: () => void
+    authTokenReady = new Promise<void>((r) => { ready = r })
+    supabase.auth.getSession()
+      .then(({ data }) => { cachedAccessToken = data.session?.access_token || null })
+      .catch(() => {})
+      .finally(() => ready())
+    setTimeout(ready, 3000) // 兜底:auth 卡住也绝不无限阻塞业务请求
     supabase.auth.onAuthStateChange((_event, session) => { cachedAccessToken = session?.access_token || null })
   } catch { /* auth 不可用就保持匿名语义 */ }
 }
@@ -241,12 +252,13 @@ function installApiAttribution(): void {
   if (w.__apiAttrInstalled || typeof w.fetch !== 'function') return
   w.__apiAttrInstalled = true
   const orig = w.fetch.bind(window)
-  w.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+  w.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     try {
       const url = typeof input === 'string' ? input
         : input instanceof URL ? input.href
         : (input as Request).url
       if (url && url.startsWith(API_BASE_URL)) {
+        await authTokenReady // 首屏必须先知道登录态,防止抢跑请求绕过计量门
         const headers = new Headers(
           init?.headers || (input instanceof Request ? input.headers : undefined)
         )
@@ -256,20 +268,18 @@ function installApiAttribution(): void {
         }
         const shareCode = shareCodeFromPath()
         if (shareCode && !headers.has('X-Share-Code')) headers.set('X-Share-Code', shareCode)
-        const req = input instanceof Request && !init
+        const res = await (input instanceof Request && !init
           ? orig(new Request(input, { headers }))
-          : orig(input as RequestInfo, { ...init, headers })
-        return req.then((res) => {
-          if (res.status === 429) {
-            // 地图额度用尽 → 广播给 overlay(requiresPlan 区分「去登录」还是「去选套餐」)。
-            res.clone().json().then((j) => {
-              if (j?.code === 'map_quota_exhausted') {
-                window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT, { detail: { requiresPlan: !!j.requiresPlan } }))
-              }
-            }).catch(() => {})
-          }
-          return res
-        })
+          : orig(input as RequestInfo, { ...init, headers }))
+        if (res.status === 429) {
+          // 地图额度用尽 → 广播给 overlay(requiresPlan 区分「去登录」还是「去选套餐」)。
+          res.clone().json().then((j) => {
+            if (j?.code === 'map_quota_exhausted') {
+              window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT, { detail: { requiresPlan: !!j.requiresPlan } }))
+            }
+          }).catch(() => {})
+        }
+        return res
       }
     } catch { /* fall through to the untouched original */ }
     return orig(input as RequestInfo, init)
