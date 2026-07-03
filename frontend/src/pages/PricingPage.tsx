@@ -102,7 +102,7 @@ export default function PricingPage() {
     {
       id: 'rookie', name: L('启程版', 'Starter'), price: bigPriceOf(priceOf('rookie', 25)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
-      badge: L('15 天免费试用', '15-day free trial'),
+      badge: L('7 天免费试用', '7-day free trial'),
       note: L('个人经纪起步 · 付款即开通', 'Solo agents · instant activation'),
       billed: billedLine(priceOf('rookie', 25)), priceWas: struckOf(priceOf('rookie', 25)),
       creditsMo: creditsOf('rookie') || 200,
@@ -111,13 +111,13 @@ export default function PricingPage() {
         L('客户 CRM + 买家意向报告 + AI 楼书解析', 'Client CRM + intent reports + AI brochures'),
         L('符合关注区域的买家线索(尽力推送)', 'Buyer leads for your focus areas (best effort)'),
       ],
-      cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('rookie') },
+      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('rookie') },
     },
     {
       id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf(priceOf('agent', 99)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT, highlight: true,
-      badge: L('最受欢迎 · 15 天免费', 'Most popular · 15 days free'),
-      note: L('15 天免费 · 需绑卡 · 提前取消不扣费', '15 days free · card required · cancel before billing'),
+      badge: L('最受欢迎 · 7 天免费', 'Most popular · 7 days free'),
+      note: L('7 天免费 · 需绑卡 · 提前取消不扣费', '7 days free · card required · cancel before billing'),
       billed: billedLine(priceOf('agent', 99)), priceWas: struckOf(priceOf('agent', 99)),
       creditsMo: creditsOf('agent') || 2500,
       features: [
@@ -125,7 +125,7 @@ export default function PricingPage() {
         L('实时海外带看 · Luna 智能导览 · 应用内语音', 'Live tours · Luna AI tours · in-app voice'),
         L('买家线索优先推送 + 客户行为洞察', 'Priority lead flow + behaviour insights'),
       ],
-      cta: { label: L('免费试用 15 天', 'Start 15-day free trial'), onClick: () => subscribe('agent') },
+      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('agent') },
     },
     {
       id: 'founder', name: L('创始会员', 'Founder'), price: bigPriceOf(priceOf('founder', 699)),
@@ -136,7 +136,7 @@ export default function PricingPage() {
       features: [
         L('专业版全部功能 · 买家线索独占优先', 'Everything in Pro · first pick of leads'),
         L('含 3 个席位共享积分池,+$49/席扩容', '3 seats sharing one credit pool, +$49/seat'),
-        L('White-label 品牌定制 · 优先支持 · 锁定创始价', 'White-label · priority support · locked price'),
+        L('White-label 品牌定制 · 自定义域名 · 优先支持', 'White-label · custom domain · priority support'),
       ],
       cta: { label: L('申请 Founder', 'Apply for Founder'), onClick: () => subscribe('founder') },
     },
@@ -274,7 +274,7 @@ export default function PricingPage() {
             ? L(`创始发布优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
                 `Founding Launch: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
             : L('价格以美元(USD)计,按月或按年付(年付送 2 个月)。', 'Prices in USD, billed monthly or yearly (yearly = 2 months free).')}
-          {L(' 15 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 15-day free trial, cancel before billing. Payments securely handled by Stripe.')}
+          {L(' 7 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 7-day free trial, cancel before billing. Payments securely handled by Stripe.')}
         </p>
 
         <div className="mt-2.5 text-center">

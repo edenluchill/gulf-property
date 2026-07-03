@@ -75,7 +75,7 @@ export default function AgentBilling() {
     { id: 'agent', name: '专业版 Pro', monthly: 99, edge: '#10b981',
       lines: ['2,500 积分/月', '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', '线索优先推送 + 行为洞察'] },
     { id: 'founder', name: '创始会员 Founder', monthly: 699, edge: '#E8C37E',
-      lines: ['15,000 积分/月 · 含 3 席共享', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', '线索独占优先 · 锁定创始价'] },
+      lines: ['15,000 积分/月 · 含 3 席共享', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', '线索独占优先 · 优先支持'] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
@@ -278,7 +278,7 @@ export default function AgentBilling() {
                 <button onClick={() => upgrade(p.id)} disabled={busy === p.id}
                   className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
                   style={{ background: p.edge }}>
-                  {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'founder' ? '升级到 Founder' : '免费试用 15 天')}
+                  {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'founder' ? '升级到 Founder' : '免费试用 7 天')}
                 </button>
               </div>
             ))}

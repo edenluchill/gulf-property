@@ -97,7 +97,7 @@ export default function RoleSelectModal() {
               {zh ? '我是地产经纪' : "I'm a real estate agent"}
             </div>
             <div className="mt-1 text-sm font-medium text-indigo-600">
-              {zh ? '$25/月起 · 15天免费试用' : 'From $25/mo · 15-day free trial'}
+              {zh ? '$25/月起 · 7天免费试用' : 'From $25/mo · 7-day free trial'}
             </div>
             <ul className="mt-2 space-y-1 text-xs text-slate-500">
               <li>· {zh ? '全部买家功能 + 客户 CRM' : 'Everything for buyers + client CRM'}</li>
