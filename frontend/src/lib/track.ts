@@ -272,16 +272,27 @@ function installApiAttribution(): void {
           ? orig(new Request(input, { headers }))
           : orig(input as RequestInfo, { ...init, headers }))
         if (res.status === 429) {
-          // 地图额度用尽 → 广播给 overlay(requiresPlan 区分「去登录」还是「去选套餐」)。
-          res.clone().json().then((j) => {
+          // 地图额度用尽:广播给 overlay/守卫(requiresPlan 区分「去登录」还是「去选套餐」),
+          // 然后把这个响应「抛成异常」—— 项目里所有数据 fetcher 都有 try/catch 安全回退,
+          // 而 {success:false} 错误对象一旦被当正常数据返回,下游 .map 会崩掉整棵 React 树
+          // (2026-07-03 白屏事故)。在这个唯一咽喉处拦掉,任何现在/将来的调用方都安全。
+          let quotaHit = false
+          try {
+            const j = await res.clone().json()
             if (j?.code === 'map_quota_exhausted') {
+              quotaHit = true
               window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT, { detail: { requiresPlan: !!j.requiresPlan } }))
             }
-          }).catch(() => {})
+          } catch { /* 非 JSON 的 429(如限流器)原样放行 */ }
+          if (quotaHit) throw new Error('map_quota_exhausted')
         }
         return res
       }
-    } catch { /* fall through to the untouched original */ }
+    } catch (err) {
+      // 配额异常必须穿透(让调用方 catch 走安全回退);其余 wrapper 内部错误
+      // 才降级为原始 fetch 重发(不带附加头,保底不影响业务)。
+      if ((err as Error)?.message === 'map_quota_exhausted') throw err
+    }
     return orig(input as RequestInfo, init)
   }
 }
