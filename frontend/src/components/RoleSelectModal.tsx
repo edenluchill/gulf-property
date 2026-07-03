@@ -19,7 +19,7 @@ const CACHE_KEY = 'pinzos-role' // sessionStorage:避免每次导航都打接口
 const QUIET_PREFIXES = ['/t/', '/v/', '/r/', '/cr/', '/factsheet/', '/auth/', '/login']
 
 export default function RoleSelectModal() {
-  const { user, loading } = useAuth()
+  const { user, loading, isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const { i18n } = useTranslation()
@@ -28,7 +28,7 @@ export default function RoleSelectModal() {
   const [saving, setSaving] = useState<'buyer' | 'agent' | null>(null)
 
   useEffect(() => {
-    if (loading || !user) { setOpen(false); return }
+    if (loading || !user || isAdmin) { setOpen(false); return } // 内部/owner 账号不问
     if (QUIET_PREFIXES.some((p) => location.pathname.startsWith(p))) return
     try {
       if (sessionStorage.getItem(CACHE_KEY)) return
