@@ -20,6 +20,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
 import { creditBalance, featureCatalog } from '../luna-tour/credits'
+import { clearAgentGate } from '../middleware/mapMeter'
 
 const router = Router()
 
@@ -686,6 +687,8 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   if (planId === 'rookie' && (sub.status === 'active' || sub.status === 'trialing')) {
     await autoApproveRookie(agentEmail, a.rows[0]?.display_name || null)
   }
+  // 订阅状态变了 → 地图计量的「经纪需付费」判定立即刷新(缓存按 userId,这里拿不到,全清,60s 内重建)
+  clearAgentGate()
 }
 
 export async function billingWebhookHandler(req: Request, res: Response): Promise<void> {

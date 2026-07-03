@@ -222,8 +222,19 @@ function shareCodeFromPath(): string | null {
   return m ? m[1] : null
 }
 
-/** 地图配额 429 → 全局事件,MapPage 的 overlay 监听它。 */
+/** 地图配额 429 → 全局事件,MapPage 的 overlay 监听它。detail.requiresPlan = 经纪未订阅。 */
 export const MAP_QUOTA_EVENT = 'pinzos:map-quota-exhausted'
+
+// 登录 token 的同步缓存(onAuthStateChange 维护,零 per-request 开销)。公共地图端点
+// 请求带上它,后端 mapMeter 才认得出「已登录买家/已订阅经纪」并豁免计量 —— 生产没配
+// SUPABASE_JWT_SECRET,不带头的话登录用户在这些端点上和匿名无异,满额会被误拦。
+let cachedAccessToken: string | null = null
+function watchAuthToken(): void {
+  try {
+    supabase.auth.getSession().then(({ data }) => { cachedAccessToken = data.session?.access_token || null })
+    supabase.auth.onAuthStateChange((_event, session) => { cachedAccessToken = session?.access_token || null })
+  } catch { /* auth 不可用就保持匿名语义 */ }
+}
 
 function installApiAttribution(): void {
   const w = window as unknown as { __apiAttrInstalled?: boolean; fetch: typeof fetch }
@@ -240,6 +251,9 @@ function installApiAttribution(): void {
           init?.headers || (input instanceof Request ? input.headers : undefined)
         )
         if (!headers.has('X-Visitor-Id')) headers.set('X-Visitor-Id', getVisitorId())
+        if (cachedAccessToken && !headers.has('Authorization')) {
+          headers.set('Authorization', `Bearer ${cachedAccessToken}`)
+        }
         const shareCode = shareCodeFromPath()
         if (shareCode && !headers.has('X-Share-Code')) headers.set('X-Share-Code', shareCode)
         const req = input instanceof Request && !init
@@ -247,9 +261,11 @@ function installApiAttribution(): void {
           : orig(input as RequestInfo, { ...init, headers })
         return req.then((res) => {
           if (res.status === 429) {
-            // 匿名地图额度用尽:后端返回 code=map_quota_exhausted → 广播给 overlay。
+            // 地图额度用尽 → 广播给 overlay(requiresPlan 区分「去登录」还是「去选套餐」)。
             res.clone().json().then((j) => {
-              if (j?.code === 'map_quota_exhausted') window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT))
+              if (j?.code === 'map_quota_exhausted') {
+                window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT, { detail: { requiresPlan: !!j.requiresPlan } }))
+              }
             }).catch(() => {})
           }
           return res
@@ -265,6 +281,7 @@ let installed = false
 export function installTracking(): void {
   if (installed || typeof window === 'undefined') return
   installed = true
+  watchAuthToken()
   installApiAttribution()
   const onHide = () => {
     if (document.visibilityState === 'hidden') void flush(true)

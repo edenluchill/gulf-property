@@ -11,6 +11,7 @@
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { requireAuth } from '../middleware/auth'
+import { clearAgentGate } from '../middleware/mapMeter'
 
 const router = Router()
 
@@ -53,6 +54,7 @@ router.post('/profile', requireAuth, async (req: Request, res: Response) => {
              updated_at = now()`,
       [u.id, u.email, role]
     )
+    clearAgentGate(u.id) // 角色变了 → 地图计量门立即按新角色判定
     res.json({ success: true, role })
   } catch (err) {
     console.error('[profile] POST failed:', err)

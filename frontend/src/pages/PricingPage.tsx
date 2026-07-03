@@ -11,13 +11,18 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { ArrowRight, Check, Loader2, Flame, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
+import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, setMyRole, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
 const GRID = 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)'
 
-export default function PricingPage() {
+/**
+ * agentOnboarding(route /agent/plans):选完「我是经纪」后落地的专属选档页。
+ * 只展示三个付费档(不放免费卡分流),文案讲解锁的能力而非付费义务;
+ * 底部留一条小字「先以买家身份逛逛」作为软出口(改回 buyer,免费)。
+ */
+export default function PricingPage({ agentOnboarding = false }: { agentOnboarding?: boolean }) {
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
   const L = (cn: string, en: string) => (zh ? cn : en)
@@ -87,7 +92,20 @@ export default function PricingPage() {
     if (error) { setErr(error); setBusy(null) }
   }
 
-  const tiers = [
+  // 软出口:其实是买家 → 改回免费身份,回地图
+  const [switching, setSwitching] = useState(false)
+  async function backToBuyer() {
+    setSwitching(true)
+    const ok = await setMyRole('buyer')
+    if (ok) {
+      try { sessionStorage.setItem('pinzos-role', 'buyer') } catch { /* noop */ }
+      window.location.href = '/'
+      return
+    }
+    setSwitching(false)
+  }
+
+  const allTiers = [
     {
       id: 'explore', name: L('探索版', 'Explore'), price: L('免费', 'Free'), edge: ACCENT,
       note: L('给买家 / 投资人', 'For buyers / investors'),
@@ -141,6 +159,8 @@ export default function PricingPage() {
       cta: { label: L('申请 Founder', 'Apply for Founder'), onClick: () => subscribe('founder') },
     },
   ]
+  // 经纪选档页不放免费卡(引导聚焦三个付费档);公共 /pricing 保持四卡
+  const tiers = agentOnboarding ? allTiers.filter((t) => t.id !== 'explore') : allTiers
 
   return (
     <div className="relative flex-1 overflow-y-auto bg-[#070b16] text-white" style={{ backgroundImage: GRID, backgroundSize: '34px 34px' }}>
@@ -155,12 +175,25 @@ export default function PricingPage() {
 
       <section className="mx-auto max-w-6xl px-6 py-5 md:py-7">
         <div className="text-center">
-          <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
-          <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
-          <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{L(
-            '$25 起步:地图不限时 + 客户线索。带海外客户实时看房、生成导览与意向报告。按月或按年付,随时取消。',
-            'From $25: unlimited map + buyer leads. Tour overseas clients live, generate tours and intent reports. Billed monthly or yearly, cancel anytime.'
-          )}</p>
+          {agentOnboarding ? (
+            <>
+              <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
+              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!你的经纪工作台已就绪', 'Welcome! Your agent workspace is ready')}</h1>
+              <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
+                '选一档解锁客户 CRM、品牌化报告与买家线索 —— 7 天免费试用,试用期内取消不产生任何费用。',
+                'Pick a plan to unlock client CRM, branded reports and buyer leads — 7-day free trial, cancel within the trial at no charge.'
+              )}</p>
+            </>
+          ) : (
+            <>
+              <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
+              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
+              <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{L(
+                '$25 起步:地图不限时 + 客户线索。带海外客户实时看房、生成导览与意向报告。按月或按年付,随时取消。',
+                'From $25: unlimited map + buyer leads. Tour overseas clients live, generate tours and intent reports. Billed monthly or yearly, cancel anytime.'
+              )}</p>
+            </>
+          )}
         </div>
 
         {/* ── 创始发布优惠条(纤细单行;限名额+限时均为 Stripe 真实 enforce)── */}
@@ -204,7 +237,7 @@ export default function PricingPage() {
 
         {err && <div className="mx-auto mt-4 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
 
-        <div className="mt-4 grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className={`mt-4 grid items-stretch gap-3 md:grid-cols-2 ${agentOnboarding ? 'xl:grid-cols-3 mx-auto max-w-4xl' : 'xl:grid-cols-4'}`}>
           {tiers.map((t) => (
             // 手机端把付费档排前(受众是经纪),桌面端保持 探索/启程/专业/创始 原序
             <div key={t.id} className={`relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 xl:order-none ${t.id === 'agent' ? 'order-1' : t.id === 'rookie' ? 'order-2' : t.id === 'founder' ? 'order-3' : 'order-4'}`}
@@ -277,10 +310,17 @@ export default function PricingPage() {
           {L(' 7 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 7-day free trial, cancel before billing. Payments securely handled by Stripe.')}
         </p>
 
-        <div className="mt-2.5 text-center">
+        <div className="mt-2.5 flex flex-col items-center gap-1.5 text-center">
           <Link to="/about" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-400 transition hover:text-white">
             {L('查看完整功能介绍', 'See all features')} <ArrowRight className="h-3.5 w-3.5" />
           </Link>
+          {agentOnboarding && (
+            <button onClick={() => void backToBuyer()} disabled={switching}
+              className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 transition hover:text-slate-300 disabled:opacity-60">
+              {switching && <Loader2 className="h-3 w-3 animate-spin" />}
+              {L('还没准备好?先以买家身份免费逛逛地图 →', 'Not ready yet? Explore the map free as a buyer →')}
+            </button>
+          )}
         </div>
       </section>
     </div>

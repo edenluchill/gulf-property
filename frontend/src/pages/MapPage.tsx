@@ -1370,9 +1370,9 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* 匿名地图限时:软提示 + 额度尽的温和 overlay(分享页/登录用户不启用) */}
+          {/* 地图限时:匿名 10min/天 + 未订阅经纪同额度(买家/订阅经纪由服务端心跳豁免;分享页不启用) */}
           <MapMeterGuard
-            active={!user && !tourCode && !isCollabViewerPath && isMapPath(location.pathname, location.search)}
+            active={!tourCode && !isCollabViewerPath && isMapPath(location.pathname, location.search)}
             getView={getMeterView}
           />
 

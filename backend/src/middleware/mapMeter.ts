@@ -21,6 +21,8 @@ import { createHash } from 'crypto'
 import pool from '../db/pool'
 import { clientIp } from './rateLimit'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
+import { isAdminEmail } from '../lib/adminEmails'
+import { isOwnerEmail } from './requireOwner'
 import { internalVisitorIds } from '../services/analyticsQueries'
 
 const LIMIT_MIN = Number(process.env.ANON_MAP_MINUTES_PER_DAY) || 10
@@ -44,8 +46,10 @@ const lastRecorded = new Map<string, number>() // key → day*10000+minute
 const usageCache = new Map<string, { used: number; ipUsed: number; at: number }>()
 /** 分享码校验缓存(5min)。 */
 const shareCodeCache = new Map<string, { ok: boolean; at: number }>()
-/** 额度耗尽时的远程 token 验证缓存(5min,存 hash 不存原 token)。 */
-const tokenCache = new Map<string, { ok: boolean; at: number }>()
+/** 远程 token → 用户 解析缓存(成功 5min / 失败 60s,存 hash 不存原 token)。 */
+const tokenCache = new Map<string, { user: { userId: string; email: string | null } | null; at: number }>()
+/** 「经纪未订阅需付费」判定缓存(60s,按 userId)。 */
+const agentGateCache = new Map<string, { gated: boolean; at: number }>()
 
 function sweep(map: Map<string, { at: number }>, ttl: number, cap = 2000): void {
   if (map.size < cap) return
@@ -115,48 +119,105 @@ async function isValidShareCode(code: string): Promise<boolean> {
 }
 
 /**
- * 额度耗尽时的最后一道核对:请求带了本地验不了的 Bearer(没配 JWT secret 或
- * 非 HS256)→ 远程验一次并缓存。真登录用户放行;伪造 token 不放行。
+ * Bearer token → 用户(远程验签,带缓存)。没配 JWT secret 时登录用户在公共端点
+ * 看起来是匿名 —— 这里是唯一能认出他们的路径。伪造 token 解析为 null,不放行。
  */
-async function isRealUserToken(token: string): Promise<boolean> {
-  if (!isSupabaseConfigured) return false
+async function resolveTokenUser(token: string): Promise<{ userId: string; email: string | null } | null> {
+  if (!isSupabaseConfigured) return null
   const h = createHash('sha256').update(token).digest('hex').slice(0, 32)
   const hit = tokenCache.get(h)
-  if (hit && Date.now() - hit.at < 300_000) return hit.ok
-  let ok = false
+  if (hit && Date.now() - hit.at < (hit.user ? 300_000 : 60_000)) return hit.user
+  let user: { userId: string; email: string | null } | null = null
   try {
     const { data, error } = await supabaseAdmin.auth.getUser(token)
-    ok = !error && !!data?.user
-  } catch {
-    ok = false
-  }
-  tokenCache.set(h, { ok, at: Date.now() })
+    if (!error && data?.user) user = { userId: data.user.id, email: (data.user.email || '').toLowerCase() || null }
+  } catch { /* 网络抖动 → 按匿名处理,60s 后重试 */ }
+  tokenCache.set(h, { user, at: Date.now() })
   sweep(tokenCache, 300_000)
-  return ok
+  return user
+}
+
+/**
+ * 登录用户是否要被计量:role=agent 且没有任何生效订阅(自己的/团队席位的/comp)
+ * → true(经纪必须选付费档才能不限时用地图)。买家/未选角色/owner/admin → false。
+ */
+async function agentNeedsPlan(userId: string, email: string | null): Promise<boolean> {
+  if (isOwnerEmail(email) || isAdminEmail(email)) return false
+  const hit = agentGateCache.get(userId)
+  if (hit && Date.now() - hit.at < 60_000) return hit.gated
+  let gated = false
+  const r = await pool.query<{ role: string | null }>(
+    `SELECT role FROM user_profiles WHERE user_id = $1`,
+    [userId]
+  )
+  if (r.rows[0]?.role === 'agent' && email) {
+    const a = await pool.query<{ id: string; billing_agent_id: string | null }>(
+      `SELECT id, billing_agent_id FROM lt_agents WHERE lower(email) = $1`,
+      [email]
+    )
+    const billingId = a.rows[0]?.billing_agent_id || a.rows[0]?.id
+    if (!billingId) {
+      gated = true // 选了经纪但还没走到任何订阅流程
+    } else {
+      const s = await pool.query(
+        `SELECT 1 FROM lt_subscriptions
+          WHERE agent_id = $1 AND status IN ('active','trialing') LIMIT 1`,
+        [billingId]
+      )
+      gated = !s.rows.length
+    }
+  } else if (r.rows[0]?.role === 'agent' && !email) {
+    gated = true
+  }
+  agentGateCache.set(userId, { gated, at: Date.now() })
+  sweep(agentGateCache, 60_000)
+  return gated
+}
+
+/** 角色/订阅变化后立刻生效(profile.ts 改角色、billing webhook 订阅生效时调)。 */
+export function clearAgentGate(userId?: string | null): void {
+  if (userId) agentGateCache.delete(userId)
+  else agentGateCache.clear()
 }
 
 interface MeterVerdict {
-  metered: boolean          // false = 豁免(登录/内部/分享码)
+  metered: boolean          // false = 豁免(买家/订阅经纪/内部/分享码)
   exhausted: boolean
   remaining: number
+  requiresPlan: boolean     // true = 登录的经纪但没订阅 → 前端引导去选套餐而非登录
 }
 
-/** 计一分钟 + 判定额度。中间件与心跳端点共用。 */
-async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerdict> {
-  // 1) 登录用户(本地验签成功)→ 豁免
-  if (req.ctx?.userId) return { metered: false, exhausted: false, remaining: -1 }
+const EXEMPT: MeterVerdict = { metered: false, exhausted: false, remaining: -1, requiresPlan: false }
+
+/**
+ * 计一分钟 + 判定额度。中间件与心跳端点共用。
+ * resolveToken:'always'(心跳,响应要区分买家/经纪)| 'onExhaust'(数据请求,
+ * 只在额度耗尽时才花一次远程验签,常态零开销)。
+ */
+async function meter(req: Request, opts: { record: boolean; resolveToken: 'always' | 'onExhaust' }): Promise<MeterVerdict> {
+  // 1) 已知登录用户(本地验签或提前解析的 token)→ 买家豁免;未订阅经纪继续计量
+  let userId = req.ctx?.userId || null
+  let email = req.ctx?.email || null
+  if (!userId && req._deferredToken && opts.resolveToken === 'always') {
+    const u = await resolveTokenUser(req._deferredToken)
+    if (u) { userId = u.userId; email = u.email }
+  }
+  let requiresPlan = false
+  if (userId) {
+    if (req.ctx?.isAdmin) return EXEMPT
+    if (!(await agentNeedsPlan(userId, email))) return EXEMPT
+    requiresPlan = true // 经纪未订阅:和匿名同一套 10 分钟额度
+  }
 
   const visitorId = req.ctx?.visitorId || null
   // 2) 内部测试号 → 豁免(别把自己拦在地图外)
   if (visitorId) {
     const internal = await internalVisitorIds()
-    if (internal.includes(visitorId)) return { metered: false, exhausted: false, remaining: -1 }
+    if (internal.includes(visitorId)) return EXEMPT
   }
   // 3) 有效分享码(经纪拉新回路 /r /t /v /cr)→ 豁免
   const shareCode = typeof req.headers['x-share-code'] === 'string' ? (req.headers['x-share-code'] as string) : ''
-  if (shareCode && (await isValidShareCode(shareCode))) {
-    return { metered: false, exhausted: false, remaining: -1 }
-  }
+  if (shareCode && (await isValidShareCode(shareCode))) return EXEMPT
 
   const { day, minute } = dubaiNow()
   const vKey = visitorId ? 'v:' + visitorId.slice(0, 100) : null
@@ -166,11 +227,15 @@ async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerd
 
   const { used, ipUsed } = await usedMinutes(vKey, ipK, day)
   const exhausted = used >= LIMIT_MIN || ipUsed >= LIMIT_MIN * IP_MULTIPLIER
-  if (exhausted && req._deferredToken && (await isRealUserToken(req._deferredToken))) {
-    // 真登录用户,只是 token 没法本地验签 → 豁免
-    return { metered: false, exhausted: false, remaining: -1 }
+  // 4) 数据请求路径:耗尽时才解析 token(买家放行;未订阅经纪维持 429+requiresPlan)
+  if (exhausted && !userId && req._deferredToken && opts.resolveToken === 'onExhaust') {
+    const u = await resolveTokenUser(req._deferredToken)
+    if (u) {
+      if (isAdminEmail(u.email) || !(await agentNeedsPlan(u.userId, u.email))) return EXEMPT
+      requiresPlan = true
+    }
   }
-  return { metered: true, exhausted, remaining: Math.max(0, LIMIT_MIN - used) }
+  return { metered: true, exhausted, remaining: Math.max(0, LIMIT_MIN - used), requiresPlan }
 }
 
 /**
@@ -180,12 +245,15 @@ async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerd
 export async function mapMeter(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (req.method === 'OPTIONS') return next()
   try {
-    const v = await meter(req, { record: true })
+    const v = await meter(req, { record: true, resolveToken: 'onExhaust' })
     if (!v.metered || !v.exhausted) return next()
     res.status(429).json({
       success: false,
       code: 'map_quota_exhausted',
-      error: '今天的免费探索时长已用完,登录后即可免费继续使用地图',
+      error: v.requiresPlan
+        ? '今天的试用时长已用完,选择套餐后即可不限时使用地图'
+        : '今天的免费探索时长已用完,登录后即可免费继续使用地图',
+      requiresPlan: v.requiresPlan,
       remainingMinutes: 0,
       limitMinutes: LIMIT_MIN,
     })
@@ -201,7 +269,7 @@ export async function mapMeter(req: Request, res: Response, next: NextFunction):
  */
 export async function mapHeartbeat(req: Request, res: Response): Promise<void> {
   try {
-    const v = await meter(req, { record: true })
+    const v = await meter(req, { record: true, resolveToken: 'always' })
     if (!v.metered) {
       res.json({ success: true, unlimited: true })
       return
@@ -212,9 +280,10 @@ export async function mapHeartbeat(req: Request, res: Response): Promise<void> {
       remainingMinutes: v.remaining,
       limitMinutes: LIMIT_MIN,
       exhausted: v.exhausted,
+      requiresPlan: v.requiresPlan,
     })
   } catch (err) {
     console.error('[mapHeartbeat] fail-open:', err)
-    res.json({ success: true, unlimited: false, remainingMinutes: LIMIT_MIN, limitMinutes: LIMIT_MIN, exhausted: false })
+    res.json({ success: true, unlimited: false, remainingMinutes: LIMIT_MIN, limitMinutes: LIMIT_MIN, exhausted: false, requiresPlan: false })
   }
 }

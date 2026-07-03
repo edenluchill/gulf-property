@@ -102,6 +102,8 @@ function App() {
         </Route>
         {/* Become-an-agent onboarding (no sidebar; flips the account to agent) */}
         <Route path="/agent/join" element={<AgentJoin />} />
+        {/* 选完「我是经纪」的专属选档页(只展示付费档,引导式文案) */}
+        <Route path="/agent/plans" element={<PricingPage agentOnboarding />} />
         {/* Legacy Luna paths → new agent hub */}
         <Route path="/luna/agent" element={<Navigate to="/agent" replace />} />
         <Route path="/luna/agent/*" element={<Navigate to="/agent" replace />} />

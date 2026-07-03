@@ -53,7 +53,7 @@ export default function RoleSelectModal() {
     if (!ok) return // 失败静默保留弹窗,下次点击重试
     try { sessionStorage.setItem(CACHE_KEY, role) } catch { /* noop */ }
     setOpen(false)
-    if (role === 'agent') navigate('/pricing')
+    if (role === 'agent') navigate('/agent/plans') // 专属选档页(不放免费卡,引导式)
   }
 
   if (!open) return null
