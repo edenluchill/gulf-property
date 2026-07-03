@@ -1484,9 +1484,10 @@ export default function MapPage() {
           )}
 
           {/* 区域搜索 + 筛选 pills，浮在地图左上。collab: 经纪和客户都保留全部工具
-              (客户要能自己搜/筛/逛 —— 跟随脱离后用 Free 态探索) */}
+              (客户要能自己搜/筛/逛 —— 跟随脱离后用 Free 态探索)。
+              pad(md~xl)保持上下两行(搜索/筛选),并限宽给右侧紧凑控制卡让位,防 chips 钻到卡下面 */}
           {(!tourCode || toolsRevealed) && (
-          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 md:flex-row">
+          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
             <AreaSearch
               onSelect={(a) => {
                 if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
@@ -1594,7 +1595,7 @@ export default function MapPage() {
                   </div>
                 ) : (
                   <div className="flex items-center justify-center border-t border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-400">
-                    {(i18n.language || 'en').startsWith('zh') ? '点上方图标显示区域指标' : 'Tap an icon to show area metrics'}
+                    {(i18n.language || 'en').startsWith('zh') ? '选择指标' : 'Pick metric'}
                   </div>
                 )
               })()}

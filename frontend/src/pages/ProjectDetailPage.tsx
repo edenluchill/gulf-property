@@ -683,6 +683,7 @@ export default function ProjectDetailPage() {
               <PaymentPlanTab
                 paymentPlan={project.payment_plan || []}
                 referencePrice={insights?.investment?.reference_price ?? project.starting_price ?? project.min_price}
+                units={project.units || []}
               />
             </div>
           </TabsContent>
