@@ -103,7 +103,9 @@ const METRIC_OPTIONS = [
 // Format: YYYYMMDD or any string. When changed, all cached data will be cleared.
 // ============================================================================
 // 手动版本：代码/数据「形状」变化时 bump（schema 改字段等）
-const MAP_DATA_VERSION = '20260517-dld-opendata-refresh'
+// 20260703: 曾有 bug 把计量门 429 错误对象写进 gulf_dubai_landmarks 缓存 → .map 崩整站;
+// bump 一次让所有受影响浏览器在下次加载时自动清掉毒缓存。
+const MAP_DATA_VERSION = '20260703-quota-cache-heal'
 
 // 各市场口径的区域 payload 会话缓存（切口径 0ms 回切；数据版本变化时清空）。
 // 只有 'all' 落 localStorage（首屏），期房/现房仅内存——避免持久层塞 3 份大 payload。
@@ -115,6 +117,7 @@ const GULF_CACHE_KEYS = [
   'gulf_residential_areas', 'gulf_residential_areas_timestamp',
   'gulf_residential_projects', 'gulf_residential_projects_timestamp',
   'gulf_dubai_areas', 'gulf_dubai_areas_timestamp',
+  'gulf_dubai_areas_v2', 'gulf_dubai_areas_v2_timestamp',
   'gulf_dubai_landmarks', 'gulf_dubai_landmarks_timestamp',
   'gulf_residential_mappins', 'gulf_residential_mappins_timestamp',
   'dubai_pois_cache',
@@ -941,11 +944,17 @@ export default function MapPage() {
     } else if (marketSegment === 'all') {
       const cachedDubaiAreas = localStorage.getItem('gulf_dubai_areas_v2')
       const cachedDubaiAreasTimestamp = localStorage.getItem('gulf_dubai_areas_v2_timestamp')
+      let areasFromCache: DubaiArea[] | null = null
       if (cachedDubaiAreas && cachedDubaiAreasTimestamp &&
           Date.now() - parseInt(cachedDubaiAreasTimestamp) < DUBAI_CACHE_DURATION) {
-        const areas = JSON.parse(cachedDubaiAreas)
-        areasSegmentCache.set('all', areas)
-        setDubaiAreas(areas)
+        try {
+          const parsed = JSON.parse(cachedDubaiAreas)
+          if (Array.isArray(parsed) && parsed.length) areasFromCache = parsed // 验形状,防毒缓存
+        } catch { /* 坏 JSON 当没有缓存 */ }
+      }
+      if (areasFromCache) {
+        areasSegmentCache.set('all', areasFromCache)
+        setDubaiAreas(areasFromCache)
       } else {
         fetchDubaiAreas(undefined, 'all').then((data) => {
           if (stale || !data.length) return
@@ -972,15 +981,31 @@ export default function MapPage() {
     const cachedDubaiLandmarks = localStorage.getItem('gulf_dubai_landmarks')
     const cachedDubaiLandmarksTimestamp = localStorage.getItem('gulf_dubai_landmarks_timestamp')
 
+    // 缓存必须验形状:曾有 bug 把 429 的 {success:false} 错误对象存了进来,
+    // 之后每次加载 .map 直接崩整站,刷新也救不回(毒在 localStorage)。
+    let cachedOk = false
     if (cachedDubaiLandmarks && cachedDubaiLandmarksTimestamp &&
         Date.now() - parseInt(cachedDubaiLandmarksTimestamp) < DUBAI_CACHE_DURATION) {
-      const landmarks = JSON.parse(cachedDubaiLandmarks)
-      setDubaiLandmarks(landmarks)
-    } else {
+      try {
+        const landmarks = JSON.parse(cachedDubaiLandmarks)
+        if (Array.isArray(landmarks) && landmarks.length) {
+          setDubaiLandmarks(landmarks)
+          cachedOk = true
+        }
+      } catch { /* 坏 JSON 当没有缓存 */ }
+    }
+    if (!cachedOk) {
+      localStorage.removeItem('gulf_dubai_landmarks')
       fetchDubaiLandmarks().then((data) => {
+        if (!Array.isArray(data)) return
         setDubaiLandmarks(data)
-        localStorage.setItem('gulf_dubai_landmarks', JSON.stringify(data))
-        localStorage.setItem('gulf_dubai_landmarks_timestamp', Date.now().toString())
+        // 只缓存非空成功结果:配额 429 时的空数组不该占着 24h 缓存位
+        if (data.length) {
+          try {
+            localStorage.setItem('gulf_dubai_landmarks', JSON.stringify(data))
+            localStorage.setItem('gulf_dubai_landmarks_timestamp', Date.now().toString())
+          } catch { /* storage full */ }
+        }
       })
     }
   }, [dubaiDataVersion])
