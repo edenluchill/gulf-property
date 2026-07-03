@@ -7,9 +7,29 @@
  */
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Loader2, MailCheck, Clock, ShieldX } from 'lucide-react'
+import { Loader2, MailCheck, Clock, ShieldX, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
+import { setMyRole } from '../../lib/billingApi'
+
+/** 自助开通:记角色为经纪 → 去选档页(付款成功 webhook 自动 approve,无需等审批)。 */
+function GoPlansButton() {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true)
+        await setMyRole('agent').catch(() => {})
+        try { sessionStorage.setItem('pinzos-role', 'agent') } catch { /* noop */ }
+        window.location.href = '/agent/plans'
+      }}
+      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>选择套餐,立即开通(7 天免费试用)<ArrowRight className="h-4 w-4" /></>}
+    </button>
+  )
+}
 
 const NAV = [
   { to: '/agent', end: true, label: '概览', icon: '📊' },
@@ -123,7 +143,8 @@ export default function AgentLayout() {
   if (status === 'pending') {
     return (
       <GateCard icon={<Clock className="h-6 w-6 text-amber-500" />} title="申请已提交">
-        <p>你的经纪账号正在审核中,开通后即可使用经纪台。我们会尽快处理。</p>
+        <p>你的经纪账号正在审核中。不想等?选择套餐即可立即开通全部经纪功能。</p>
+        <GoPlansButton />
         <div className="mt-3 text-xs text-slate-400">{user.email}</div>
         <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
       </GateCard>
@@ -132,7 +153,8 @@ export default function AgentLayout() {
   if (status === 'rejected') {
     return (
       <GateCard icon={<ShieldX className="h-6 w-6 text-rose-500" />} title="暂未开通">
-        <p>当前账号未获得经纪台使用权限。如有疑问请联系我们。</p>
+        <p>当前账号还没有经纪台使用权限。选择套餐即可立即开通,或联系我们了解详情。</p>
+        <GoPlansButton />
         <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
       </GateCard>
     )

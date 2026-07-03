@@ -199,10 +199,8 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
 
   const agent = await currentAgent(req)
   if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })
-  // Starter(rookie)自助开通:付款成功 webhook 自动 approve(轻验证);Pro/Founder 仍走人工审批。
-  if (!agent.approved && planId !== 'rookie') {
-    return res.status(403).json({ success: false, error: 'Agent not approved yet' })
-  }
+  // 自助开通:不再要求预先审批 —— 付款成功即 webhook 自动 approve(付费本身就是准入,
+  // owner 仍可在后台撤销)。审批流保留为质量管控工具,不再是购买前置。
 
   const price = await priceIdForPlan(planId, interval)
   if (!price) {
@@ -422,7 +420,7 @@ router.post('/team/invite', requireAuth, async (req: Request, res: Response) => 
       return res.status(409).json({ success: false, error: '对方已有自己的订阅,无需占用席位' })
     }
     await pool.query(`UPDATE lt_agents SET billing_agent_id = $2 WHERE id = $1`, [target, agent.id])
-    await autoApproveRookie(email, email.split('@')[0]) // founder 背书 → 准入直接放行
+    await autoApprovePaid(email, email.split('@')[0]) // founder 背书 → 准入直接放行
     await logPlanChange({
       agentId: agent.id, agentEmail: agent.email, action: 'seat_invited',
       toPlan: 'founder', metadata: { member: email },
@@ -562,8 +560,8 @@ async function logPlanChange(row: {
   }
 }
 
-/** Starter 付款即自动审批(轻验证);Pro/Founder 在 checkout 前就已人工审批。 */
-async function autoApproveRookie(email: string | null, name: string | null): Promise<void> {
+/** 付费订阅生效即自动审批(付费=准入;owner 后台可撤销),并把角色同步为经纪。 */
+async function autoApprovePaid(email: string | null, name: string | null): Promise<void> {
   if (!email) return
   try {
     await pool.query(
@@ -574,8 +572,15 @@ async function autoApproveRookie(email: string | null, name: string | null): Pro
        `,
       [email, name]
     )
+    // 买了经纪订阅的人就是经纪 —— role 同步,避免「买家身份持有经纪订阅」的错位
+    await pool.query(
+      `UPDATE user_profiles SET role = 'agent', updated_at = now()
+        WHERE lower(email) = lower($1) AND (role IS NULL OR role = 'buyer')`,
+      [email]
+    )
+    clearAgentGate()
   } catch (err) {
-    console.error('[billing] rookie auto-approve failed:', err)
+    console.error('[billing] paid auto-approve failed:', err)
   }
 }
 
@@ -683,9 +688,9 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
     }
   }
 
-  // Starter 生效 → 自动审批(经纪台准入)。
-  if (planId === 'rookie' && (sub.status === 'active' || sub.status === 'trialing')) {
-    await autoApproveRookie(agentEmail, a.rows[0]?.display_name || null)
+  // 付费订阅生效 → 自动审批(经纪台准入;任何档,含之前被拒的账号 —— 付费即准入)。
+  if (sub.status === 'active' || sub.status === 'trialing') {
+    await autoApprovePaid(agentEmail, a.rows[0]?.display_name || null)
   }
   // 订阅状态变了 → 地图计量的「经纪需付费」判定立即刷新(缓存按 userId,这里拿不到,全清,60s 内重建)
   clearAgentGate()
