@@ -216,6 +216,15 @@ export async function identifyVisitor(): Promise<void> {
  * fetch wrapper covers all call sites (current and future) with no per-call
  * change. Scoped to API_BASE_URL only; other origins are untouched. Idempotent.
  */
+/** 分享路由(/t /v /r /cr /factsheet)的 code —— 带给后端换取地图计量豁免(服务端验真)。 */
+function shareCodeFromPath(): string | null {
+  const m = window.location.pathname.match(/^\/(?:t|v|r|cr|factsheet)\/([\w-]{1,64})/)
+  return m ? m[1] : null
+}
+
+/** 地图配额 429 → 全局事件,MapPage 的 overlay 监听它。 */
+export const MAP_QUOTA_EVENT = 'pinzos:map-quota-exhausted'
+
 function installApiAttribution(): void {
   const w = window as unknown as { __apiAttrInstalled?: boolean; fetch: typeof fetch }
   if (w.__apiAttrInstalled || typeof w.fetch !== 'function') return
@@ -231,8 +240,20 @@ function installApiAttribution(): void {
           init?.headers || (input instanceof Request ? input.headers : undefined)
         )
         if (!headers.has('X-Visitor-Id')) headers.set('X-Visitor-Id', getVisitorId())
-        if (input instanceof Request && !init) return orig(new Request(input, { headers }))
-        return orig(input as RequestInfo, { ...init, headers })
+        const shareCode = shareCodeFromPath()
+        if (shareCode && !headers.has('X-Share-Code')) headers.set('X-Share-Code', shareCode)
+        const req = input instanceof Request && !init
+          ? orig(new Request(input, { headers }))
+          : orig(input as RequestInfo, { ...init, headers })
+        return req.then((res) => {
+          if (res.status === 429) {
+            // 匿名地图额度用尽:后端返回 code=map_quota_exhausted → 广播给 overlay。
+            res.clone().json().then((j) => {
+              if (j?.code === 'map_quota_exhausted') window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT))
+            }).catch(() => {})
+          }
+          return res
+        })
       }
     } catch { /* fall through to the untouched original */ }
     return orig(input as RequestInfo, init)

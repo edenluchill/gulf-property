@@ -43,12 +43,14 @@ import leadsRouter from './routes/leads'  // Lead capture + intent scoring (isol
 import favoritesRouter from './routes/favorites'  // Server-side favorites persistence + login merge (isolated)
 import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashboard queries (isolated)
 import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stripe 订阅计费 (isolated; docs/stripe-billing-spec.md)
+import profileRouter from './routes/profile'  // 用户角色 buyer/agent(登录后一次性选择)
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 import { perfMetrics } from './middleware/perfMetrics'  // per-request latency/status sampler
 import { attachContext } from './middleware/context'  // network-free identity (visitor + local-verified user)
 import { attribution } from './middleware/attribution'  // sampled who-called-what → api_calls
 import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (generous per-IP cap)
+import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图每日限时(服务端强制)
 import { startPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 
 const app: Application = express()
@@ -126,6 +128,14 @@ app.get('/health', async (_req: Request, res: Response) => {
   }
 })
 
+// 匿名地图限时:心跳(前端可见时 30s 一次,返回剩余分钟)+ 核心地图数据面的
+// 服务端强制(额度尽 → 429 map_quota_exhausted)。登录/内部号/有效分享码豁免。
+app.post('/api/usage/map-heartbeat', mapHeartbeat)
+app.use(
+  ['/api/dubai', '/api/dubai-pois', '/api/residential-projects', '/api/transport', '/api/custom-routes', '/api/market'],
+  mapMeter
+)
+
 // Routes
 app.use('/api/residential-projects', projectInsightsRouter)  // Detail-page insights (/:id/insights) — before main router
 app.use('/api/residential-projects', createResidentialProjectsRouter(pool))  // Residential projects API
@@ -167,6 +177,7 @@ app.use('/api/favorites', favoritesRouter)  // Server-side favorites persistence
 app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard queries (legacy path; ad-blockers eat "analytics")
 app.use('/api/admin/insights', adminAnalyticsRouter)   // ⭐ ad-blocker-resistant alias — the dashboard reads here now
 app.use('/api/billing', billingRouter)  // Stripe 订阅计费(webhook 已在 json parser 之前单独挂)
+app.use('/api/me', profileRouter)  // 用户角色 buyer/agent
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

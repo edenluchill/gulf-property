@@ -14,20 +14,33 @@
 import pool from '../db/pool'
 import { isOwnerEmail } from '../middleware/requireOwner'
 
-type PlanId = 'explore' | 'agent' | 'founder'
+type PlanId = 'explore' | 'rookie' | 'agent' | 'founder'
 
 // ── 功能目录(单一真相源)──────────────────────────────────
 // credits = 标准每次成本;minPlan = 至少需要的套餐(低于则需升级,与积分无关)。
+// Starter(rookie)可用报告/楼书(200分/月≈10份报告),live/luna tour 是 Pro 以上专属。
 export const FEATURES = {
-  reports: { label: '买家意向报告', credits: 20, minPlan: 'agent' as PlanId },   // 常用 → 最便宜
-  brochures: { label: 'AI 楼书解析', credits: 40, minPlan: 'agent' as PlanId },  // 常用 → 便宜
+  reports: { label: '买家意向报告', credits: 20, minPlan: 'rookie' as PlanId },   // 常用 → 最便宜
+  brochures: { label: 'AI 楼书解析', credits: 40, minPlan: 'rookie' as PlanId },  // 常用 → 便宜
   live_tours: { label: '实时带看', credits: 60, minPlan: 'agent' as PlanId },    // 居中
   luna_tours: { label: 'Luna 智能导览', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
 } as const
 
 export type Feature = keyof typeof FEATURES
 
-const PLAN_RANK: Record<string, number> = { explore: 0, agent: 1, founder: 2 }
+const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3 }
+
+/**
+ * 计费归属:Founder 席位成员(lt_agents.billing_agent_id 指向 founder)的
+ * 套餐/积分全部解析到 founder 头上 → 共享积分池、共享折扣。NULL = 自己。
+ */
+async function billingAgentOf(agentId: string): Promise<string> {
+  const r = await pool.query<{ billing_agent_id: string | null }>(
+    `SELECT billing_agent_id FROM lt_agents WHERE id = $1`,
+    [agentId]
+  )
+  return r.rows[0]?.billing_agent_id || agentId
+}
 
 interface PlanCfg { plan: string; status: string; creditsMonth: number; multiplier: number }
 
@@ -81,6 +94,7 @@ export async function checkCredits(agentId: string, feature: Feature): Promise<C
   if (await isOwner(agentId)) {
     return { allowed: true, cost: 0, balance: -1, creditsMonth: -1, used: 0, plan: 'founder', status: 'owner', owner: true }
   }
+  agentId = await billingAgentOf(agentId) // 席位成员 → founder 的套餐+共享池
   const p = await planFor(agentId)
   const cost = Math.round(f.credits * p.multiplier)
   // 套餐等级门:explore / 低于 minPlan → 需订阅(与积分无关)
@@ -98,6 +112,7 @@ export async function checkCredits(agentId: string, feature: Feature): Promise<C
 /** 成功执行某功能后扣积分(月度 upsert)。owner 不计费。 */
 export async function spend(agentId: string, feature: Feature): Promise<void> {
   if (await isOwner(agentId)) return
+  agentId = await billingAgentOf(agentId) // 席位成员扣 founder 的共享池
   const p = await planFor(agentId)
   const cost = Math.round(FEATURES[feature].credits * p.multiplier)
   if (cost <= 0) return
@@ -120,6 +135,7 @@ export async function creditBalance(agentId: string) {
   if (await isOwner(agentId)) {
     return { creditsMonth: -1, used: 0, balance: -1, plan: 'founder', status: 'owner', multiplier: 0.6, owner: true }
   }
+  agentId = await billingAgentOf(agentId) // 席位成员看到的是团队共享池
   const p = await planFor(agentId)
   const used = await usedThisMonth(agentId)
   return { creditsMonth: p.creditsMonth, used, balance: p.creditsMonth - used, plan: p.plan, status: p.status, multiplier: p.multiplier, owner: false }
@@ -135,9 +151,10 @@ export function featureCatalog() {
 /** 统一的"积分不足/需订阅"响应(402)。 */
 export function creditError(feature: Feature, c: CreditCheck): { status: number; body: Record<string, unknown> } {
   const label = FEATURES[feature].label
+  const minPlanName = FEATURES[feature].minPlan === 'agent' ? 'Pro 专业版' : 'Starter 启程版'
   const reason = c.reason === 'insufficient'
     ? `本月积分不足:${label}需 ${c.cost} 积分,当前余额 ${c.balance}。升级套餐或下月刷新。`
-    : `${label}需要订阅后使用,升级到 Agent 套餐即可解锁。`
+    : `${label}是 ${minPlanName} 及以上的功能,升级即可解锁。`
   return {
     status: 402,
     body: { success: false, error: reason, code: c.reason === 'insufficient' ? 'insufficient_credits' : 'subscription_required', feature, cost: c.cost, balance: c.balance, upgradeUrl: '/agent/billing' },

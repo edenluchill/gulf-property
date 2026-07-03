@@ -17,7 +17,7 @@ export interface AgentRow {
   requested_at: string
   decided_at: string | null
   // 订阅/用量(后台展示)
-  plan_id?: 'explore' | 'agent' | 'founder'
+  plan_id?: 'explore' | 'rookie' | 'agent' | 'founder'
   sub_status?: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   paid?: boolean
   current_period_end?: string | null
@@ -63,8 +63,8 @@ export async function rejectAgent(email: string): Promise<void> {
   await authed(`/${encodeURIComponent(email)}/reject`, { method: 'POST' })
 }
 
-/** Owner: 手动授予/撤销套餐(comp,不走 Stripe)。plan: explore|agent|founder|revoke */
-export async function setAgentPlan(email: string, plan: 'explore' | 'agent' | 'founder' | 'revoke'): Promise<void> {
+/** Owner: 手动授予/撤销套餐(comp,不走 Stripe)。plan: explore|rookie|agent|founder|revoke */
+export async function setAgentPlan(email: string, plan: 'explore' | 'rookie' | 'agent' | 'founder' | 'revoke'): Promise<void> {
   await authed(`/${encodeURIComponent(email)}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

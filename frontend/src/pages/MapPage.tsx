@@ -47,6 +47,7 @@ import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
 import { formatMoneyCompact } from '../lib/money'
 import { isMapPath } from '../lib/isMapPath'
+import MapMeterGuard, { readMapResumeView } from '../components/MapMeterGuard'
 import {
   fetchResidentialMapPins,
   fetchResidentialProjectsBatch,
@@ -875,6 +876,23 @@ export default function MapPage() {
     collabMapRef.current = map
   }, [])
 
+  // ── 匿名地图限时(MapMeterGuard)────────────────────────────────────────
+  // 命令式读当前视角(不进 state,perf 规则);登录跳转前存现场用。
+  const getMeterView = useCallback(() => {
+    const map = collabMapRef.current
+    if (!map) return null
+    const c = map.getCenter()
+    return { longitude: c.lng, latitude: c.lat, zoom: map.getZoom() }
+  }, [])
+  // 登录回来 → 一次性恢复离开时的视角(卡片承诺过「你刚才看的位置会原样保留」)。
+  const resumedRef = useRef(false)
+  useEffect(() => {
+    if (!user || resumedRef.current) return
+    resumedRef.current = true
+    const v = readMapResumeView()
+    if (v) setFlyToLocation({ lat: v.latitude, lng: v.longitude, zoom: v.zoom })
+  }, [user])
+
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
 
@@ -1303,8 +1321,8 @@ export default function MapPage() {
             // hide the marker sea, exactly the perf behaviour we want during sync.
             chromeless={!!tourCode && !toolsRevealed}
             tourActive={!!tourCode}
-            // Collab presenter gives the live map to the collab hooks via onMapReady.
-            onMapReady={collabActive ? handleCollabMapReady : undefined}
+            // Live map instance for collab hooks + meter guard (view save/restore).
+            onMapReady={handleCollabMapReady}
             // Tour: render ONLY the tour's 2-3 native pins (clickable, with details);
             // not the whole search-result marker sea (which stutters the camera).
             projects={tourCode ? tourPins : filteredMapPins}
@@ -1351,6 +1369,12 @@ export default function MapPage() {
               </div>
             </div>
           )}
+
+          {/* 匿名地图限时:软提示 + 额度尽的温和 overlay(分享页/登录用户不启用) */}
+          <MapMeterGuard
+            active={!user && !tourCode && !isCollabViewerPath && isMapPath(location.pathname, location.search)}
+            getView={getMeterView}
+          />
 
           {/* Luna Tour: shared session plays over this map; hides search UI below */}
           {tourCode && (

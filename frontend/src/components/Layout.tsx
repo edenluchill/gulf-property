@@ -6,6 +6,7 @@ import { FavoritesDrawer } from './favorites'
 import { VoiceAssistantButton } from './voice-assistant'
 import { useTourMode } from '../luna-tour/TourModeContext'
 import MapPage from '../pages/MapPage'
+import RoleSelectModal from './RoleSelectModal'
 import { isMapPath } from '../lib/isMapPath'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -69,6 +70,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Voice Assistant - Global, works on all pages (但 admin 后台不显示) */}
       {!chromeless && !isAdmin && <VoiceAssistantButton />}
+
+      {/* 登录后未选过用户类型(买家/经纪)→ 一次性选择;分享页/回调页内部自静音 */}
+      {!chromeless && <RoleSelectModal />}
 
       {/* Footer - Hidden on mobile, visible on desktop */}
       {/* <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">

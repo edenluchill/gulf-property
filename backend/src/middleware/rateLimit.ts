@@ -23,7 +23,7 @@ const WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS) || 60_000
 const MAX = Number(process.env.RATE_LIMIT_MAX) || 2000
 
 /** Real client IP behind Cloudflare (orange-cloud) + nginx. */
-function clientIp(req: Request): string {
+export function clientIp(req: Request): string {
   return (
     (req.headers['cf-connecting-ip'] as string) ||
     ((req.headers['x-forwarded-for'] as string) || '').split(',')[0].trim() ||

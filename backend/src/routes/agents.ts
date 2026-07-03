@@ -71,7 +71,7 @@ router.post('/:email/plan', optionalAuth, requireOwner, async (req: Request, res
   const email = decodeURIComponent(req.params.email || '').toLowerCase().trim()
   const plan = String(req.body?.plan || '')
   if (!email) return res.status(400).json({ success: false, error: 'email required' })
-  if (!['explore', 'agent', 'founder', 'revoke'].includes(plan)) {
+  if (!['explore', 'rookie', 'agent', 'founder', 'revoke'].includes(plan)) {
     return res.status(400).json({ success: false, error: 'invalid plan' })
   }
   try {
@@ -95,6 +95,17 @@ router.post('/:email/plan', optionalAuth, requireOwner, async (req: Request, res
         [agentId, plan]
       )
     }
+    // 手动 comp 也进变更审计(和 Stripe webhook 同一张表,一处看全)
+    await pool.query(
+      `INSERT INTO plan_change_log (agent_id, agent_email, action, to_plan, reason)
+         VALUES ($1, $2, $3, $4, $5)`,
+      [
+        agentId, email,
+        plan === 'revoke' || plan === 'explore' ? 'comp_revoked' : 'comp_granted',
+        plan === 'revoke' ? 'explore' : plan,
+        `manual by ${(req.user?.email as string) || 'owner'}`,
+      ]
+    ).catch((e) => console.error('[agents] comp audit failed:', e))
     res.json({ success: true })
   } catch (err) {
     console.error('[agents] set plan failed:', err)

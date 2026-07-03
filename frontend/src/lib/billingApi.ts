@@ -21,6 +21,7 @@ export interface BillingMe {
   plan: { id: string; name: string; limits: Record<string, number | boolean> }
   status: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   current_period_end: string | null
+  teamMember?: boolean // true = Founder 席位成员(套餐由团队承担)
   credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
 }
 
@@ -28,7 +29,7 @@ export interface FeatureCost {
   key: string
   label: string
   credits: number               // 标准每次成本
-  minPlan: 'explore' | 'agent' | 'founder'
+  minPlan: 'explore' | 'rookie' | 'agent' | 'founder'
 }
 export interface PlanCredits {
   id: string
@@ -106,11 +107,12 @@ export async function fetchBillingMe(): Promise<BillingMe | null> {
   }
 }
 
-export type BillingInterval = 'month' | 'quarter' | 'year'
+// 只卖月付/年付(年付=收10个月);历史季付订阅仍由 portal 管理。
+export type BillingInterval = 'month' | 'year'
+export type PaidPlanId = 'rookie' | 'agent' | 'founder'
 
-/** 开始订阅:跳转到 Stripe Checkout。interval=quarter 为季付(3月一付,单价不变)。
- *  返回错误信息(成功则直接跳转,不返回)。 */
-export async function startCheckout(planId: 'agent' | 'founder', interval: BillingInterval = 'month'): Promise<string | null> {
+/** 开始订阅:跳转到 Stripe Checkout。返回错误信息(成功则直接跳转,不返回)。 */
+export async function startCheckout(planId: PaidPlanId, interval: BillingInterval = 'month'): Promise<string | null> {
   try {
     const res = await authed('/checkout', { method: 'POST', body: JSON.stringify({ planId, interval }) })
     const j = await res.json().catch(() => ({}))
@@ -136,5 +138,122 @@ export async function openPortal(): Promise<string | null> {
     return j.error || `请求失败 (${res.status})`
   } catch {
     return '网络错误,请重试'
+  }
+}
+
+// ── Founder 团队席位 ─────────────────────────────────────────
+
+export interface TeamInfo {
+  role: 'owner' | 'member' | 'none'
+  members?: { id: string; email: string; display_name: string }[]
+  seatLimit?: number    // 总席位(含本人)
+  memberLimit?: number  // 可邀成员数
+  extraSeats?: number
+  owner?: { email: string; display_name: string } | null
+}
+
+export async function fetchTeam(): Promise<TeamInfo | null> {
+  try {
+    const res = await authed('/team')
+    if (!res.ok) return null
+    const j = await res.json()
+    return j.success ? (j as TeamInfo) : null
+  } catch {
+    return null
+  }
+}
+
+/** 邀请成员占一席(共享积分池)。返回错误信息,null = 成功。 */
+export async function inviteTeamMember(email: string): Promise<string | null> {
+  try {
+    const res = await authed('/team/invite', { method: 'POST', body: JSON.stringify({ email }) })
+    const j = await res.json().catch(() => ({}))
+    return res.ok ? null : j.error || `请求失败 (${res.status})`
+  } catch {
+    return '网络错误,请重试'
+  }
+}
+
+export async function removeTeamMember(memberId: string): Promise<string | null> {
+  try {
+    const res = await authed(`/team/${memberId}`, { method: 'DELETE' })
+    const j = await res.json().catch(() => ({}))
+    return res.ok ? null : j.error || `请求失败 (${res.status})`
+  } catch {
+    return '网络错误,请重试'
+  }
+}
+
+/** 调整加席数(Stripe 按比例计费,webhook 回写)。返回错误信息,null = 成功。 */
+export async function setExtraSeats(extraSeats: number): Promise<string | null> {
+  try {
+    const res = await authed('/seats', { method: 'POST', body: JSON.stringify({ extraSeats }) })
+    const j = await res.json().catch(() => ({}))
+    return res.ok ? null : j.error || `请求失败 (${res.status})`
+  } catch {
+    return '网络错误,请重试'
+  }
+}
+
+// ── 套餐变更审计(admin)─────────────────────────────────────
+
+export interface PlanChange {
+  id: number
+  agent_email: string | null
+  display_name: string | null
+  action: string
+  from_plan: string | null
+  to_plan: string | null
+  from_status: string | null
+  to_status: string | null
+  reason: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export async function fetchPlanChanges(opts: { limit?: number; email?: string } = {}): Promise<PlanChange[]> {
+  try {
+    const q = new URLSearchParams()
+    if (opts.limit) q.set('limit', String(opts.limit))
+    if (opts.email) q.set('email', opts.email)
+    const res = await authed(`/admin/plan-changes?${q.toString()}`)
+    if (!res.ok) return []
+    return (await res.json()).changes || []
+  } catch {
+    return []
+  }
+}
+
+// ── 用户角色(type:buyer/agent)────────────────────────────
+
+async function authHeaders(json = false): Promise<Record<string, string>> {
+  const headers: Record<string, string> = json ? { 'Content-Type': 'application/json' } : {}
+  const { data } = await supabase.auth.getSession()
+  const t = data.session?.access_token
+  if (t) headers.Authorization = `Bearer ${t}`
+  return headers
+}
+
+export async function fetchMyRole(): Promise<'buyer' | 'agent' | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/me/profile`, { headers: await authHeaders() })
+    if (!res.ok) return null
+    const j = await res.json()
+    return j.role || null
+  } catch {
+    return null
+  }
+}
+
+export async function setMyRole(role: 'buyer' | 'agent'): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/me/profile`, {
+      method: 'POST',
+      headers: await authHeaders(true),
+      body: JSON.stringify({ role }),
+    })
+    return res.ok
+  } catch {
+    return false
   }
 }
