@@ -167,6 +167,12 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
 
   return (
     <div className="relative flex-1 overflow-y-auto bg-[#070b16] text-white" style={{ backgroundImage: GRID, backgroundSize: '34px 34px' }}>
+      {/* 动效:入场浮现(交错)+ 价格切换弹跳。只动 opacity/transform,零重排 */}
+      <style>{`
+        @keyframes pz-fade-up { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
+        @keyframes pz-pop { from { opacity: .35; transform: scale(.94) } to { opacity: 1; transform: scale(1) } }
+        @media (prefers-reduced-motion: reduce) { .pz-anim { animation: none !important } }
+      `}</style>
       <Helmet>
         <title>{L('定价 — Pinzos 经纪订阅', 'Pricing — Pinzos for Agents')}</title>
         <meta name="description" content={L(
@@ -202,7 +208,7 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
             </button>
           </div>
         )}
-        <div className="text-center">
+        <div className="pz-anim text-center" style={{ animation: 'pz-fade-up .45s ease-out both' }}>
           {agentOnboarding ? (
             <>
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
@@ -247,15 +253,15 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
         )}
 
         {/* 月付 / 年付 切换(月单价不变,年付送 2 个月) */}
-        <div className="mt-5 flex justify-center">
+        <div className="pz-anim mt-5 flex justify-center" style={{ animation: 'pz-fade-up .45s ease-out both', animationDelay: '80ms' }}>
           <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] p-1 text-sm">
             <button onClick={() => setCycle('month')}
-              className={`rounded-full px-4 py-1.5 font-medium transition ${cycle === 'month' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
+              className={`rounded-full px-4 py-1.5 font-medium transition-all duration-200 active:scale-95 ${cycle === 'month' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
               style={cycle === 'month' ? { background: ACCENT } : undefined}>
               {L('按月付', 'Monthly')}
             </button>
             <button onClick={() => setCycle('year')}
-              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition ${cycle === 'year' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition-all duration-200 active:scale-95 ${cycle === 'year' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
               style={cycle === 'year' ? { background: ACCENT } : undefined}>
               {L('按年付', 'Yearly')}
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'year' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('免费送 2 个月', '2 months free')}</span>
@@ -266,14 +272,20 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
         {err && <div className="mx-auto mt-4 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
 
         <div className={`mt-4 grid items-stretch gap-3 md:grid-cols-2 ${agentOnboarding ? 'xl:grid-cols-3 mx-auto max-w-4xl' : 'xl:grid-cols-4'}`}>
-          {tiers.map((t) => (
-            // 自然升序(便宜的在前),手机桌面一致 —— 低门槛档先入眼
-            <div key={t.id} className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5"
-              style={{ borderColor: t.highlight ? ACCENT : t.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)', boxShadow: t.highlight ? `0 0 40px -16px ${ACCENT}` : undefined }}>
+          {tiers.map((t, ti) => (
+            // 自然升序(便宜的在前),手机桌面一致 —— 低门槛档先入眼;入场交错浮现+悬浮抬升
+            <div key={t.id} className="pz-anim relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 transition-transform duration-200 hover:-translate-y-1"
+              style={{
+                borderColor: t.highlight ? ACCENT : t.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)',
+                boxShadow: t.highlight ? `0 0 40px -16px ${ACCENT}` : undefined,
+                animation: 'pz-fade-up .5s ease-out both',
+                animationDelay: `${ti * 80}ms`,
+              }}>
               {t.badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: t.edge }}>{t.badge}</span>}
               <div className="text-sm font-semibold" style={{ color: t.edge }}>{t.name}</div>
               <div className="mt-1 flex items-end gap-2">
-                <span className="text-3xl font-bold">{t.price}</span>
+                {/* key=cycle:月/年切换时价格轻弹一下,肉眼能看到变化发生 */}
+                <span key={cycle} className="pz-anim text-3xl font-bold" style={{ animation: 'pz-pop .25s ease-out both' }}>{t.price}</span>
                 {t.priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{t.priceWas}</span>}
                 {t.per && <span className="pb-1 text-sm text-slate-500">{t.per}{L(' (USD)', ' (USD)')}</span>}
               </div>
@@ -295,7 +307,7 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
                 ))}
               </ul>
               <button onClick={t.cta.onClick} disabled={busy === t.id}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-60"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold text-slate-900 transition-all duration-150 hover:opacity-90 hover:shadow-lg active:scale-[0.97] disabled:opacity-60"
                 style={{ background: t.edge }}>
                 {busy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t.cta.label} <ArrowRight className="h-4 w-4" /></>}
               </button>
@@ -307,7 +319,8 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
         {feat.features.length > 0 && (() => {
           const founderMult = feat.plans.find((p) => p.id === 'founder')?.multiplier ?? 0.6
           return (
-            <div className="mx-auto mt-4 max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+            <div className="pz-anim mx-auto mt-4 max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
+              style={{ animation: 'pz-fade-up .5s ease-out both', animationDelay: '320ms' }}>
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wide text-slate-400" style={{ background: 'rgba(255,255,255,0.03)' }}>

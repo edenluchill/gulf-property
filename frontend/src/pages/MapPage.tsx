@@ -1510,35 +1510,37 @@ export default function MapPage() {
           {/* Mobile/Pad: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位。
               断点 xl(1280):768~1280 的 iPad/窄窗口用桌面展开面板会和左侧筛选条重叠
               (经纪大量用 pad),这套紧凑图标卡在 pad 上刚好。 */}
+          {/* 视觉:圆角 pill + 有意留白(不再是满铺色块+1px hairline 的"白缝拼贴"),
+              按钮 active:scale 按压反馈,选中态带柔和同色投影。 */}
           <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] xl:hidden">
-            <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+            <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state */}
-              <div className="flex border-b border-slate-100">
-                {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg, idx) => (
+              <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg) => (
                   <button
                     key={seg}
                     onClick={() => handleSegmentChange(seg)}
-                    className={`flex-1 h-7 px-1 text-[11px] font-semibold transition-colors ${
+                    className={`flex-1 rounded-md px-1.5 py-1 text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
                       marketSegment === seg
-                        ? seg === 'all' ? 'bg-slate-700 text-white' : 'bg-violet-600 text-white'
-                        : 'text-slate-500'
-                    } ${idx > 0 ? 'border-l border-slate-100' : ''}`}
+                        ? seg === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'bg-violet-600 text-white shadow-sm shadow-violet-600/30'
+                        : 'text-slate-500 hover:bg-white/70'
+                    }`}
                   >
                     {segmentLabel(seg, (i18n.language || 'en').startsWith('zh'))}
                   </button>
                 ))}
               </div>
               {/* Metrics row */}
-              <div className="flex border-b border-slate-100">
-                {METRIC_OPTIONS.map((option, idx) => {
+              <div className="flex gap-1">
+                {METRIC_OPTIONS.map((option) => {
                   const isActive = areaMetric === option.value
                   return (
                     <button
                       key={option.value}
                       onClick={() => handleMetricToggle(option.value)}
-                      className={`flex items-center justify-center w-8 h-8 transition-colors ${
-                        isActive ? 'bg-primary text-white' : 'text-slate-500'
-                      } ${idx > 0 ? 'border-l border-slate-100' : ''}`}
+                      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 active:scale-90 ${
+                        isActive ? 'bg-primary text-white shadow-sm shadow-primary/40' : 'text-slate-500 hover:bg-slate-100'
+                      }`}
                       title={t(option.labelKey as any)}
                     >
                       <option.Icon className="w-3.5 h-3.5" />
@@ -1548,11 +1550,11 @@ export default function MapPage() {
               </div>
               {/* 周边 POI:与指标行同款 5 个等宽图标按钮——交通/医院/学校/超市/更多。
                   「更多」开完整 POI 面板(分组选择)。窄屏放得下且和 desktop 对齐。 */}
-              <div className="flex">
+              <div className="flex gap-1">
                 <button
                   onClick={toggleTransit}
-                  className="flex w-8 h-8 items-center justify-center transition-colors"
-                  style={showTransit ? { backgroundColor: '#0891b2', color: 'white' } : { color: '#64748b' }}
+                  className="flex w-8 h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
+                  style={showTransit ? { backgroundColor: '#0891b2', color: 'white', boxShadow: '0 1px 6px -1px rgba(8,145,178,0.5)' } : { color: '#64748b' }}
                   title={t('map:transit')}
                   aria-label={t('map:transit')}
                 >
@@ -1564,8 +1566,8 @@ export default function MapPage() {
                     <button
                       key={btn.id}
                       onClick={() => togglePoiCategory(btn.id)}
-                      className="flex w-8 h-8 items-center justify-center border-l border-slate-100 transition-colors"
-                      style={enabled ? { backgroundColor: btn.color, color: 'white' } : { color: '#64748b' }}
+                      className="flex w-8 h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
+                      style={enabled ? { backgroundColor: btn.color, color: 'white', boxShadow: `0 1px 6px -1px ${btn.color}80` } : { color: '#64748b' }}
                       title={t(btn.labelKey as any)}
                       aria-label={t(btn.labelKey as any)}
                     >
@@ -1575,8 +1577,8 @@ export default function MapPage() {
                 })}
                 <button
                   onClick={() => setShowPoiPanel(true)}
-                  className={`flex w-8 h-8 items-center justify-center border-l border-slate-100 transition-colors ${
-                    showPoiPanel ? 'bg-slate-700 text-white' : 'text-slate-600'
+                  className={`flex w-8 h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+                    showPoiPanel ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                   title={t('map:poi.more')}
                   aria-label={t('map:poi.more')}
@@ -1589,12 +1591,12 @@ export default function MapPage() {
               {(() => {
                 const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
                 return active ? (
-                  <div className="flex items-center justify-center gap-1 border-t border-slate-100 bg-primary/5 px-2 py-1 text-[11px] font-semibold text-primary">
+                  <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
                     <active.Icon className="w-3 h-3" />
                     <span className="whitespace-nowrap">{t(active.labelKey as any)}</span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center border-t border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-400">
+                  <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-400">
                     {(i18n.language || 'en').startsWith('zh') ? '选择指标' : 'Pick metric'}
                   </div>
                 )
