@@ -686,6 +686,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     lunaGate,
     dismissGate,
     lunaQuota,
+    quotaExempt,
     textOpen,
     openText,
     hidden
@@ -721,7 +722,8 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
 
   const gate = preview?.gate ?? lunaGate
   const quota = preview?.quota ?? lunaQuota
-  const showGauge = quota.used > 0 || everActive
+  // Never show the energy gauge in a shared tour — it's unmetered there.
+  const showGauge = !quotaExempt && (quota.used > 0 || everActive)
 
   const handleTap = useCallback(() => {
     if (textOpen) return // typing → voice button is inert (prevents misclicks)

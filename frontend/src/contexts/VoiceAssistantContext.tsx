@@ -46,8 +46,8 @@ const CONVO_IDLE_MS = 5 * 60 * 1000
 // calendar day (persisted in localStorage). Anonymous gets a smaller budget → prompt
 // login; logged-in free tier gets a larger budget → prompt upgrade. Resets at Dubai
 // midnight.
-const ANON_DAILY_TOKENS = 120_000   // not-logged-in daily budget
-const FREE_DAILY_TOKENS = 400_000   // logged-in free tier daily budget
+const ANON_DAILY_TOKENS = 250_000   // not-logged-in daily budget (~10 min of voice; tune on real use)
+const FREE_DAILY_TOKENS = 700_000   // logged-in free tier daily budget (~2.5–3× anon)
 const LUNA_QUOTA_KEY = 'pinzos_luna_quota'  // { day: 'YYYY-MM-DD' (Dubai), tokens: number }
 // Dubai (GST, UTC+4, no DST) calendar day + ms until next Dubai midnight.
 const dubaiDayKey = () => new Date(Date.now() + 4*3600e3).toISOString().slice(0, 10)
@@ -294,6 +294,8 @@ interface VoiceAssistantContextType {
   dismissGate: () => void
   // Reactive gauge data (used / daily limit / remaining / percent used).
   lunaQuota: { used: number; limit: number; remaining: number; pct: number }
+  // True in a shared tour (/v/:code, /t/:code, ?toursession) — Luna is unmetered there.
+  quotaExempt: boolean
 
   // Text mode (方案 B): typed input, audio-free, separate from voice.
   textOpen: boolean
@@ -320,6 +322,15 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // gets FREE_DAILY_TOKENS/day. Usage accrues from Gemini Live usageMetadata deltas.
   const loggedInRef = useRef(false)
   loggedInRef.current = !!user
+  // Shared-tour exemption: when a recipient opens an agent-shared Luna Tour (/v/:code),
+  // collab live tour (/t/:code) or the homepage tour form (?toursession=), Luna must be
+  // FULLY unlimited — no quota, no login/upgrade prompt. That's the agent's demo, not a
+  // free-tier visitor burning their own allowance.
+  const quotaExemptRef = useRef(false)
+  quotaExemptRef.current =
+    location.pathname.startsWith('/v/') ||
+    location.pathname.startsWith('/t/') ||
+    new URLSearchParams(location.search).has('toursession')
   // Last CUMULATIVE totalTokenCount seen on the current WS connection (resets to 0 on
   // reconnect → we track deltas). onopen resets this.
   const lastConnTokensRef = useRef(0)
@@ -327,7 +338,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // Non-null → show the quota modal. reason: 'anon' (prompt login) | 'upgrade' (prompt pricing).
   const [lunaGate, setLunaGate] = useState<{ reason: 'anon' | 'upgrade'; resetMs: number } | null>(null)
   const dailyLimit = useCallback(() => (loggedInRef.current ? FREE_DAILY_TOKENS : ANON_DAILY_TOKENS), [])
-  const overLimit = useCallback(() => getDailyTokens() >= dailyLimit(), [dailyLimit])
+  const overLimit = useCallback(() => !quotaExemptRef.current && getDailyTokens() >= dailyLimit(), [dailyLimit])
   const openGate = useCallback(() => setLunaGate({ reason: loggedInRef.current ? 'upgrade' : 'anon', resetMs: msUntilDubaiReset() }), [])
   const dismissGate = useCallback(() => setLunaGate(null), [])
 
@@ -682,7 +693,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
     // Token metering: usageMetadata.totalTokenCount is CUMULATIVE per WS connection
     // (resets to 0 on reconnect). Track the delta and add it to the daily quota.
-    if (message.usageMetadata?.totalTokenCount != null) {
+    // Skipped entirely in a shared tour — that usage is the agent's demo, unmetered.
+    if (!quotaExemptRef.current && message.usageMetadata?.totalTokenCount != null) {
       const total = message.usageMetadata.totalTokenCount
       const delta = Math.max(0, total - lastConnTokensRef.current)
       lastConnTokensRef.current = total
@@ -1354,6 +1366,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       lunaGate,
       dismissGate,
       lunaQuota,
+      quotaExempt: quotaExemptRef.current,
       textOpen,
       openText,
       closeText,
