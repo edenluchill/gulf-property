@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, MapPin, Building2, ExternalLink, Search, Globe, BarChart3, Compass, Keyboard, X, Send } from 'lucide-react'
+import { Loader2, MapPin, Building2, ExternalLink, Search, Globe, BarChart3, Compass, Keyboard, X, Send, Zap, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -35,6 +35,29 @@ function formatPrice(price: number | undefined): string {
   return price.toString()
 }
 
+/** Compact token count: zh "万", en "k" (e.g. 12000 → "1.2万" / "12k"). */
+function formatTokens(n: number, zh: boolean): string {
+  if (zh) {
+    if (n >= 10000) return `${(n / 10000).toFixed(n % 10000 === 0 ? 0 : 1)}万`
+    return String(Math.round(n))
+  }
+  if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`
+  return String(Math.round(n))
+}
+
+/** Time until quota reset, e.g. "约 3 小时后恢复" (zh) / "back in ~3h" (en). */
+function formatReset(ms: number, zh: boolean): string {
+  const totalMin = Math.max(0, Math.round(ms / 60000))
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  if (zh) {
+    if (h > 0) return `约 ${h} 小时后恢复`
+    return `约 ${m} 分钟后恢复`
+  }
+  if (h > 0) return `back in ~${h}h`
+  return `back in ~${m}m`
+}
+
 /** Pick an icon for the tool status */
 function getToolIcon(toolStatus: string): typeof Search {
   if (toolStatus.includes('搜索') || toolStatus.includes('Search')) return Search
@@ -46,10 +69,30 @@ function getToolIcon(toolStatus: string): typeof Search {
 
 // ─── Luna Face SVG ───
 
-function LunaFace({ phase, size = 36 }: { phase: VoicePhase; size?: number }) {
+function LunaFace({ phase, size = 36, sleepy = false }: { phase: VoicePhase; size?: number; sleepy?: boolean }) {
   const skin = '#FFE0BD'
   const cheek = '#FFB6C1'
   const eye = '#3B3B3B'
+
+  // Resting Luna — used on the "out of energy" screen: closed content eyes, soft
+  // smile, a couple of drifting "z"s. Warmer than a blocked/error look.
+  if (sleepy) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="20" fill={skin} />
+        <path d="M4 22C4 12 13 4 24 4C35 4 44 12 44 22C44 22 40 14 24 14C8 14 4 22 4 22Z" fill="#5B4A3F" />
+        <ellipse cx="7" cy="24" rx="4" ry="6" fill="#5B4A3F" />
+        <ellipse cx="41" cy="24" rx="4" ry="6" fill="#5B4A3F" />
+        <circle cx="13" cy="31" r="4.5" fill={cheek} opacity="0.45" />
+        <circle cx="35" cy="31" r="4.5" fill={cheek} opacity="0.45" />
+        <path d="M13.5 24.5C15 27 19 27 20.5 24.5" stroke={eye} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M27.5 24.5C29 27 33 27 34.5 24.5" stroke={eye} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M20 32.5C21.5 34.5 26.5 34.5 28 32.5" stroke={eye} strokeWidth="1.7" strokeLinecap="round" fill="none" />
+        <text x="36" y="13" fontSize="8" fontWeight="700" fill="#34D399">z</text>
+        <text x="42" y="7" fontSize="5.5" fontWeight="700" fill="#6EE7B7">z</text>
+      </svg>
+    )
+  }
 
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
@@ -640,8 +683,9 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     deactivate,
     navigateToProject,
     dismissBubble,
-    lunaGated,
+    lunaGate,
     dismissGate,
+    lunaQuota,
     textOpen,
     openText,
     hidden
@@ -655,6 +699,29 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
   }, [openText])
 
   const isActive = phase !== 'idle' && phase !== 'error'
+
+  // DEV PREVIEW: ?lunaquota=gate-anon | gate-upgrade | gauge-low forces a state so the
+  // parent can screenshot each variant without burning real tokens. Read once on mount.
+  const [preview, setPreview] = useState<{
+    gate?: { reason: 'anon' | 'upgrade'; resetMs: number }
+    quota?: { used: number; limit: number; remaining: number; pct: number }
+  } | null>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const p = new URLSearchParams(window.location.search).get('lunaquota')
+    if (p === 'gate-anon') setPreview({ gate: { reason: 'anon', resetMs: 3 * 3600e3 } })
+    else if (p === 'gate-upgrade') setPreview({ gate: { reason: 'upgrade', resetMs: 3 * 3600e3 } })
+    else if (p === 'gauge-low') setPreview({ quota: { used: 114_000, limit: 120_000, remaining: 6_000, pct: 95 } })
+  }, [])
+
+  // Show the gauge once a conversation has been active this session OR the user has
+  // consumed some quota today (remaining < limit).
+  const [everActive, setEverActive] = useState(false)
+  useEffect(() => { if (isActive) setEverActive(true) }, [isActive])
+
+  const gate = preview?.gate ?? lunaGate
+  const quota = preview?.quota ?? lunaQuota
+  const showGauge = quota.used > 0 || everActive
 
   const handleTap = useCallback(() => {
     if (textOpen) return // typing → voice button is inert (prevents misclicks)
@@ -685,37 +752,99 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
 
   return (
     <>
-    {/* Anonymous 15-min cap → prompt login (captures the lead). */}
-    {lunaGated && (
-      <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/40 p-4" onClick={dismissGate}>
-        <div className="w-[330px] max-w-[90vw] rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-2">
-            <LunaFace phase="idle" size={28} />
-            <h3 className="text-base font-semibold text-slate-800">{zh ? '继续和 Luna 聊' : 'Keep chatting with Luna'}</h3>
+    {/* Daily energy spent → prompt login (anon) or upgrade (logged-in free). */}
+    <AnimatePresence>
+    {gate && (
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
+        onClick={dismissGate}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 14, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.97 }}
+          transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-[340px] max-w-[92vw] overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-slate-900/25"
+        >
+          {/* Hero: Luna resting in a soft energy halo */}
+          <div className="relative flex flex-col items-center bg-gradient-to-b from-emerald-50/90 to-white px-6 pt-7 pb-5">
+            <div className="pointer-events-none absolute -top-6 h-28 w-28 rounded-full bg-emerald-300/25 blur-2xl" />
+            <div className="relative rounded-full bg-white p-2 shadow-lg shadow-emerald-600/10 ring-1 ring-emerald-100/80">
+              <LunaFace phase="idle" sleepy size={46} />
+            </div>
+            <h3 className="mt-3 text-center text-[17px] font-bold text-balance text-slate-800">
+              {gate.reason === 'anon'
+                ? (zh ? '今日体验额度用完啦' : "That's today's free Luna")
+                : (zh ? '今日额度用完啦' : "Today's Luna is all used up")}
+            </h3>
+            {/* Depleted energy bar — the concept made visible */}
+            <div className="mt-3.5 w-full">
+              <div className="flex items-center justify-between text-[10px] font-medium text-slate-400">
+                <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-slate-300" fill="currentColor" />{zh ? '今日能量' : 'Daily energy'}</span>
+                <span className="tabular-nums">0 / {formatTokens(gate.reason === 'anon' ? 120000 : 400000, zh)}</span>
+              </div>
+              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-[4%] rounded-full bg-gradient-to-r from-amber-400 to-rose-400" />
+              </div>
+            </div>
           </div>
-          <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
-            {zh
-              ? '你的免费体验已用满 15 分钟。登录后可无限使用 Luna,并保存你的对话记录,方便随时回看。'
-              : "You've used your 15 free minutes. Log in for unlimited Luna — and to save your conversations so you can revisit them anytime."}
-          </p>
-          <button
-            onClick={() => { dismissGate(); navigate('/login') }}
-            className="mt-4 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-          >
-            {zh ? '登录 / 注册' : 'Log in / Sign up'}
-          </button>
-          <button onClick={dismissGate} className="mt-2 w-full text-xs text-slate-400 hover:text-slate-600">
-            {zh ? '稍后' : 'Later'}
-          </button>
-        </div>
-      </div>
+
+          {/* Body: when it comes back + the upsell */}
+          <div className="px-6 pb-6">
+            <div className="flex items-center justify-center gap-1.5 rounded-full bg-slate-50 py-1.5 text-[12px] font-medium text-slate-500">
+              <Clock className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-slate-600">{formatReset(gate.resetMs, zh)}</span>
+              <span className="text-slate-300">·</span>
+              <span className="text-slate-400">{zh ? '每日 0 点重置' : 'resets daily at 0:00'}</span>
+            </div>
+            <p className="mt-3 text-center text-[13px] leading-relaxed text-slate-500">
+              {gate.reason === 'anon'
+                ? (zh ? '登录后每天额度更高,还能保存对话、随时回看。' : 'Log in for a higher daily limit — and to save your chats.')
+                : (zh ? '升级套餐,享受更高每日额度,继续畅聊 Luna。' : 'Upgrade for a higher daily limit and keep chatting.')}
+            </p>
+            <button
+              onClick={() => { dismissGate(); navigate(gate.reason === 'anon' ? '/login' : '/pricing') }}
+              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-105 hover:shadow-emerald-500/40"
+            >
+              {gate.reason === 'anon'
+                ? (zh ? '登录 · 解锁更多额度' : 'Log in for more')
+                : (zh ? '升级 · 畅聊无限' : 'Upgrade')}
+            </button>
+            <button onClick={dismissGate} className="mt-2 w-full py-1 text-[12px] text-slate-400 transition hover:text-slate-600">
+              {zh ? '知道了' : 'Later'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
     )}
+    </AnimatePresence>
     <div className={cn(
       // Mobile: sit ABOVE the bottom nav bar (探索/分析/…) so the pill + 打字 button
       // (stacked below it) don't overlap it. Desktop: no nav → sit near the corner.
       'fixed bottom-28 right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
       className
     )}>
+      {/* Luna's daily energy — slim capsule docked to the right edge above the pill.
+          Only appears once some energy is spent / a conversation was active. */}
+      {showGauge && (() => {
+        const low = quota.pct >= 80
+        const remainPct = Math.min(100, Math.max(0, 100 - quota.pct))
+        return (
+          <div className="flex items-center gap-1.5 rounded-l-full border border-white/70 bg-white/85 py-1 pl-2.5 pr-2.5 shadow-md shadow-slate-900/[0.06] backdrop-blur-xl">
+            <Zap className={cn('h-3 w-3 shrink-0', low ? 'text-amber-500' : 'text-emerald-500')} fill="currentColor" />
+            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-200/70">
+              <div
+                className={cn('h-full rounded-full bg-gradient-to-r', low ? 'from-amber-400 to-rose-400' : 'from-emerald-400 to-teal-400')}
+                style={{ width: `${remainPct}%` }}
+              />
+            </div>
+            <span className={cn('text-[10px] font-semibold tabular-nums', low ? 'text-amber-600' : 'text-slate-500')}>
+              {formatTokens(quota.remaining, zh)}
+            </span>
+          </div>
+        )
+      })()}
+
       {/* Text-mode panel: absolutely positioned left of pill (independent of voice) */}
       <AnimatePresence>
         {TEXT_MODE_ENABLED && textOpen && (

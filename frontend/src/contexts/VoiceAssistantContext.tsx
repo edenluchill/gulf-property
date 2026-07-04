@@ -42,12 +42,19 @@ const AUTO_RECONNECT_BASE_MS = 1000
 // A conversation record ends after 5 min of no activity (or on page close); tap-close
 // only disconnects so a re-open within this window is the SAME record.
 const CONVO_IDLE_MS = 5 * 60 * 1000
-// Anonymous (not-logged-in) Luna usage cap. After this much cumulative Luna time we
-// stop and prompt login — so we capture the lead + can track their experience.
-const LUNA_ANON_LIMIT_MS = 15 * 60 * 1000
-const LUNA_USED_KEY = 'pinzos_luna_used_ms'
-const getLunaUsedMs = () => { try { return parseInt(localStorage.getItem(LUNA_USED_KEY) || '0', 10) || 0 } catch { return 0 } }
-const addLunaUsedMs = (ms: number) => { try { localStorage.setItem(LUNA_USED_KEY, String(getLunaUsedMs() + Math.max(0, Math.round(ms)))) } catch { /* ignore */ } }
+// TOKEN-based daily quota. Luna is metered by Gemini Live tokens consumed per Dubai
+// calendar day (persisted in localStorage). Anonymous gets a smaller budget → prompt
+// login; logged-in free tier gets a larger budget → prompt upgrade. Resets at Dubai
+// midnight.
+const ANON_DAILY_TOKENS = 120_000   // not-logged-in daily budget
+const FREE_DAILY_TOKENS = 400_000   // logged-in free tier daily budget
+const LUNA_QUOTA_KEY = 'pinzos_luna_quota'  // { day: 'YYYY-MM-DD' (Dubai), tokens: number }
+// Dubai (GST, UTC+4, no DST) calendar day + ms until next Dubai midnight.
+const dubaiDayKey = () => new Date(Date.now() + 4*3600e3).toISOString().slice(0, 10)
+const msUntilDubaiReset = () => { const s = Date.now() + 4*3600e3; return Math.ceil(s/86400e3)*86400e3 - s }
+const getDailyTokens = () => { try { const q = JSON.parse(localStorage.getItem(LUNA_QUOTA_KEY) || '{}'); return q.day === dubaiDayKey() ? (q.tokens || 0) : 0 } catch { return 0 } }
+const setDailyTokens = (n:number) => { try { localStorage.setItem(LUNA_QUOTA_KEY, JSON.stringify({ day: dubaiDayKey(), tokens: Math.max(0, Math.round(n)) })) } catch {} }
+const addDailyTokens = (delta:number) => setDailyTokens(getDailyTokens() + Math.max(0, delta))
 
 // Tool definitions
 const voiceTools = [
@@ -281,9 +288,12 @@ interface VoiceAssistantContextType {
   // Navigate to project
   navigateToProject: (projectId: string) => void
   dismissBubble: () => void
-  // Anonymous 15-min cap: true → show a "login to continue" prompt.
-  lunaGated: boolean
+  // Token-based daily quota gate. Non-null → show the modal; reason drives the CTA
+  // (anon → login, upgrade → pricing). resetMs = ms until the Dubai-midnight reset.
+  lunaGate: { reason: 'anon' | 'upgrade'; resetMs: number } | null
   dismissGate: () => void
+  // Reactive gauge data (used / daily limit / remaining / percent used).
+  lunaQuota: { used: number; limit: number; remaining: number; pct: number }
 
   // Text mode (方案 B): typed input, audio-free, separate from voice.
   textOpen: boolean
@@ -306,20 +316,20 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const { i18n } = useTranslation()
   const { user } = useAuth()
 
-  // Anonymous usage cap: logged-in = unlimited; anonymous accrues Luna active time
-  // (persisted in localStorage) and is gated at LUNA_ANON_LIMIT_MS → prompt login.
+  // Token-based daily quota: anonymous gets ANON_DAILY_TOKENS/day, logged-in free tier
+  // gets FREE_DAILY_TOKENS/day. Usage accrues from Gemini Live usageMetadata deltas.
   const loggedInRef = useRef(false)
   loggedInRef.current = !!user
-  const activeSinceRef = useRef<number | null>(null) // start of the current active period (null = idle)
-  const [lunaGated, setLunaGated] = useState(false)   // true → show the "login to continue" prompt
-  // Commit the elapsed active time of the current period into the anonymous usage
-  // counter (idempotent — no-op once committed). Called on every idle transition.
-  const commitActiveUsage = useCallback(() => {
-    if (activeSinceRef.current != null) {
-      if (!loggedInRef.current) addLunaUsedMs(Date.now() - activeSinceRef.current)
-      activeSinceRef.current = null
-    }
-  }, [])
+  // Last CUMULATIVE totalTokenCount seen on the current WS connection (resets to 0 on
+  // reconnect → we track deltas). onopen resets this.
+  const lastConnTokensRef = useRef(0)
+  const [quotaUsed, setQuotaUsed] = useState(() => getDailyTokens()) // reactive gauge value
+  // Non-null → show the quota modal. reason: 'anon' (prompt login) | 'upgrade' (prompt pricing).
+  const [lunaGate, setLunaGate] = useState<{ reason: 'anon' | 'upgrade'; resetMs: number } | null>(null)
+  const dailyLimit = useCallback(() => (loggedInRef.current ? FREE_DAILY_TOKENS : ANON_DAILY_TOKENS), [])
+  const overLimit = useCallback(() => getDailyTokens() >= dailyLimit(), [dailyLimit])
+  const openGate = useCallback(() => setLunaGate({ reason: loggedInRef.current ? 'upgrade' : 'anon', resetMs: msUntilDubaiReset() }), [])
+  const dismissGate = useCallback(() => setLunaGate(null), [])
 
   // Phase-based state
   const [phase, setPhase] = useState<VoicePhase>('idle')
@@ -403,12 +413,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     sessionRef.current?.close?.()
     sessionRef.current = null
     connectingRef.current = false
-    commitActiveUsage() // bank the anonymous active time before the record closes
     voiceDebugLogger.endSession()
     setPhase('idle')
     setLatestBubble(null) // clear any lingering reply so it doesn't block the map
     setToolStatus(null)
-  }, [commitActiveUsage])
+  }, [])
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
@@ -526,10 +535,6 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // conversation ends or drops).
   const dismissBubble = useCallback(() => setLatestBubble(null), [])
 
-  // True when an anonymous user has used up their free Luna time.
-  const overAnonLimit = useCallback(() => !loggedInRef.current && getLunaUsedMs() >= LUNA_ANON_LIMIT_MS, [])
-  const dismissGate = useCallback(() => setLunaGated(false), [])
-
   // ─── Text mode (方案 B): typed input over the SAME voice Live session ───
   // Reuses the working front-end Gemini Live pipeline (the backend /api/voice/text path
   // picks tools unreliably from the Hetzner region). We just don't open the mic or play
@@ -551,8 +556,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const sendText = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || textPending) return
-    if (overAnonLimit()) { setLunaGated(true); return } // anonymous free-time used up
-    if (activeSinceRef.current == null) activeSinceRef.current = Date.now()
+    if (overLimit()) { openGate(); return } // daily token quota used up
 
     const asstId = `a_${Date.now()}`
     turnAsstIdRef.current = asstId
@@ -591,7 +595,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       setTextPending(false)
       turnAsstIdRef.current = null
     }
-  }, [textPending, currentLanguage, resetIdleTimer, overAnonLimit])
+  }, [textPending, currentLanguage, resetIdleTimer, overLimit, openGate])
 
   // Execute tool
   const executeTool = useCallback(async (toolName: string, params: any, callId: string) => {
@@ -675,6 +679,17 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const handleMessage = useCallback(async (message: LiveServerMessage) => {
     // Any inbound model message = activity → push the idle finalize back.
     resetIdleTimer()
+
+    // Token metering: usageMetadata.totalTokenCount is CUMULATIVE per WS connection
+    // (resets to 0 on reconnect). Track the delta and add it to the daily quota.
+    if (message.usageMetadata?.totalTokenCount != null) {
+      const total = message.usageMetadata.totalTokenCount
+      const delta = Math.max(0, total - lastConnTokensRef.current)
+      lastConnTokensRef.current = total
+      if (delta > 0) { addDailyTokens(delta); setQuotaUsed(getDailyTokens()) }
+      // Over the daily budget → gate + end the conversation (no paid tier yet).
+      if (getDailyTokens() >= dailyLimit()) { openGate(); endConversationNow() }
+    }
     // Log the gap from the user's speech to Luna's first reply token (once per turn).
     const logReplyLatency = (kind: string) => {
       if (turnReplyLoggedRef.current || !turnUserFirstTsRef.current) return
@@ -925,7 +940,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [executeTool, scheduleBubbleFlush, flushBubble, resetIdleTimer])
+  }, [executeTool, scheduleBubbleFlush, flushBubble, resetIdleTimer, openGate, endConversationNow, dailyLimit])
 
   // Initialize audio player
   useEffect(() => {
@@ -999,10 +1014,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       console.log('[Voice] Already connected or connecting, skipping')
       return
     }
-    // Anonymous free-time cap → prompt login instead of opening.
-    if (overAnonLimit()) { setLunaGated(true); return }
-    // Start (or continue) the active period for usage accounting.
-    if (activeSinceRef.current == null) activeSinceRef.current = Date.now()
+    // Daily token quota used up → prompt login/upgrade instead of opening.
+    if (overLimit()) { openGate(); return }
 
     // A debug session may still be alive here because of (a) an auto-reconnect, or
     // (b) a tap-close whose idle window hasn't elapsed (user tapped to close + re-open).
@@ -1106,6 +1119,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
             console.log('[Voice] Connected!')
             connectingRef.current = false
             reconnectAttemptsRef.current = 0
+            // New connection → Gemini's cumulative token count restarts at 0.
+            lastConnTokensRef.current = 0
             voiceDebugLogger.logConnected(connectStart)
 
             // Text mode never opens the mic — it drives the session via sendClientContent.
@@ -1158,7 +1173,6 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
               // Intentional close (deactivate) OR reconnect-exhausted → just drop to
               // idle. The record persists; the idle timer (or pagehide) finalizes it,
               // so a re-open within CONVO_IDLE_MS resumes the SAME record.
-              commitActiveUsage()
               setPhase('idle')
               resetIdleTimer()
             }
@@ -1190,7 +1204,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         resetIdleTimer()
       }
     }
-  }, [currentLanguage, handleMessage, resetIdleTimer, overAnonLimit, commitActiveUsage])
+  }, [currentLanguage, handleMessage, resetIdleTimer, overLimit, openGate])
 
   // Mirror activate() into a ref so sendText (defined earlier) can call it without a
   // TDZ error — same pattern as startRecordingRef above.
@@ -1230,10 +1244,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     setLatestBubble(null)
     setToolStatus(null)
     setUserTranscript('')
-    commitActiveUsage() // bank anonymous active time for this period
     // Record lives on; finalizes after CONVO_IDLE_MS unless re-opened.
     resetIdleTimer()
-  }, [resetIdleTimer, commitActiveUsage])
+  }, [resetIdleTimer])
 
   // Mirror deactivate() into a ref so closeText (defined earlier) can call it TDZ-free.
   useEffect(() => {
@@ -1255,22 +1268,20 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('pagehide', onPageHide)
   }, [])
 
-  // Anonymous cap: cut Luna off mid-conversation once the 15-min free cap is hit.
+  // Keep the gauge in sync: refresh on mount and every 60s so a Dubai-midnight day
+  // rollover (quota reset) reflects in the UI without a page reload.
   useEffect(() => {
-    const id = setInterval(() => {
-      if (activeSinceRef.current != null && !loggedInRef.current) {
-        const projected = getLunaUsedMs() + (Date.now() - activeSinceRef.current)
-        if (projected >= LUNA_ANON_LIMIT_MS) {
-          endConversationNow() // commits usage + ends the conversation
-          setLunaGated(true)
-        }
-      }
-    }, 20_000)
+    setQuotaUsed(getDailyTokens())
+    const id = setInterval(() => setQuotaUsed(getDailyTokens()), 60_000)
     return () => clearInterval(id)
-  }, [endConversationNow])
+  }, [])
 
-  // Logging in lifts the gate (full unlimited access).
-  useEffect(() => { if (user) setLunaGated(false) }, [user])
+  // Logging in bumps the daily budget (anon → free tier). Re-evaluate: if the new
+  // limit isn't yet exceeded, lift the gate; refresh the gauge either way.
+  useEffect(() => {
+    if (!overLimit()) setLunaGate(null)
+    setQuotaUsed(getDailyTokens())
+  }, [user, overLimit])
 
   // Latest state + callbacks mirrored into a ref so the test hook below can read them
   // WITHOUT re-registering on every render (re-registering deleted/re-added
@@ -1319,6 +1330,15 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Gauge data, recomputed each render from the reactive used-tokens + current tier.
+  const quotaLimit = dailyLimit()
+  const lunaQuota = {
+    used: quotaUsed,
+    limit: quotaLimit,
+    remaining: Math.max(0, quotaLimit - quotaUsed),
+    pct: quotaLimit > 0 ? Math.min(100, Math.round(quotaUsed / quotaLimit * 100)) : 0,
+  }
+
   return (
     <VoiceAssistantContext.Provider value={{
       phase,
@@ -1331,8 +1351,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       unregisterMapActionHandler,
       navigateToProject,
       dismissBubble,
-      lunaGated,
+      lunaGate,
       dismissGate,
+      lunaQuota,
       textOpen,
       openText,
       closeText,
