@@ -1470,9 +1470,10 @@ function MapViewMapLibre({
       {/* 移动端:底图/3D/测距 直接平铺成独立 pill(工具还少,放出来更直观;后面加工具继续往下堆)。
           right-3 与上方指标+POI 面板右对齐;top-[84px] 给它一个 gap-2(~8px)的间距,
           和左侧筛选/找房助手的纵向间距一致。样式对齐左侧 pill(rounded-full)。 */}
-      {/* top 下移到 144px:上方指标控制卡 = 口径行(~28px)+指标行+POI行+选中指标标签行,
-          116px 会压住第一个 pill(卫星)。控制卡再加行这里要跟着挪。 */}
-      <div data-testid="map-mobile-tools" className="xl:hidden absolute top-[144px] right-3 z-[1000] flex flex-col items-end gap-2">
+      {/* top 下移到 164px:上方控制卡 20260703 改圆角 pill 布局(内边距+行间距)后高约
+          ~148px(top-3 起算),144px 会被压住。控制卡再改高度这里要跟着挪,
+          且改完必须 414/1180/1440 三档截图验证(2026-07-03 用户反馈两次撞坑)。 */}
+      <div data-testid="map-mobile-tools" className="xl:hidden absolute top-[164px] right-3 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
