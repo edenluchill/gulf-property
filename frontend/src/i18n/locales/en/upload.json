@@ -321,6 +321,8 @@
     "confirm": "Confirm Location"
   },
   "workspace": {
+    "sectionPdfs": "Source PDFs",
+    "pdfHint": "Download the originals to compare against the AI extraction",
     "addFiles": "Add files",
     "processingChip": "Processing {{percent}}%",
     "uploadingChip": "Uploading {{percent}}%",

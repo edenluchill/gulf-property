@@ -321,6 +321,8 @@
     "confirm": "确认位置"
   },
   "workspace": {
+    "sectionPdfs": "源 PDF",
+    "pdfHint": "点击下载原件,与 AI 提取结果对比",
     "addFiles": "补充文件",
     "processingChip": "处理中 {{percent}}%",
     "uploadingChip": "上传中 {{percent}}%",

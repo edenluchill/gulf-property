@@ -16,7 +16,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '../ui/card'
-import { Loader2, AlertTriangle } from 'lucide-react'
+import { Loader2, AlertTriangle, FileText, Download } from 'lucide-react'
 import { UnitTypeCard } from '../developer-upload/UnitTypeCard'
 import { ProjectBasicInfoSection } from '../developer-upload/ProjectBasicInfoSection'
 import { DateTimeProgressSection } from '../developer-upload/DateTimeProgressSection'
@@ -31,7 +31,7 @@ import LocationMapPickerModal from '../LocationMapPicker'
 import { API_BASE_URL } from '../../lib/config'
 import { PropertyFormData, groupUnitsByBuilding } from '../property-editor/types'
 
-type SectionId = 'basic' | 'dates' | 'images' | 'units' | 'amenities' | 'payment' | 'pricing'
+type SectionId = 'basic' | 'dates' | 'images' | 'units' | 'amenities' | 'payment' | 'pricing' | 'pdfs'
 
 export interface PropertyWorkspaceProps {
   formData: PropertyFormData
@@ -49,6 +49,8 @@ export interface PropertyWorkspaceProps {
   emptyUnitsMessage?: string
   /** Submit button label override (e.g. 更新项目 for the edit page) */
   submitLabel?: string
+  /** 源 PDF 下载链接(任务审核页传入)→ 作为独立「源 PDF」分区,不再顶部横幅占空间 */
+  pdfLinks?: { name: string; url: string }[]
 }
 
 export function PropertyWorkspace({
@@ -62,6 +64,7 @@ export function PropertyWorkspace({
   duplicateNames = [],
   emptyUnitsMessage,
   submitLabel,
+  pdfLinks = [],
 }: PropertyWorkspaceProps) {
   const { t } = useTranslation('upload')
   const [activeSection, setActiveSection] = useState<SectionId>('basic')
@@ -180,6 +183,15 @@ export function PropertyWorkspace({
       badge: formData.extractedPricing?.length || 0,
       status: (formData.extractedPricing?.length || 0) > 0 ? 'ok' : 'muted',
     },
+    // 源 PDF(仅任务审核页有):下载原件对比 AI 提取
+    ...(pdfLinks.length > 0
+      ? [{
+          id: 'pdfs' as const,
+          label: t('workspace.sectionPdfs', '源 PDF'),
+          badge: pdfLinks.length,
+          status: 'muted' as const,
+        }]
+      : []),
   ]
 
   const submitChips: ReadinessChip[] = [
@@ -400,6 +412,35 @@ export function PropertyWorkspace({
             pricing={formData.extractedPricing}
             isProcessing={isProcessing}
           />
+        )
+      case 'pdfs':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-1 bg-teal-500 rounded-full"></div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">{t('workspace.sectionPdfs', '源 PDF')}</h3>
+                <p className="text-sm text-gray-600">{t('workspace.pdfHint', '点击下载原件,与 AI 提取结果对比')}</p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {pdfLinks.map((pdf, i) => (
+                <a
+                  key={i}
+                  href={pdf.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 transition-colors hover:border-teal-300 hover:bg-teal-50"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-teal-600 shadow-sm">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{pdf.name}</span>
+                  <Download className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-teal-600" />
+                </a>
+              ))}
+            </div>
+          </div>
         )
     }
   }
