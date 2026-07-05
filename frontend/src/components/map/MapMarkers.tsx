@@ -12,33 +12,27 @@ import DirhamSymbol from '../DirhamSymbol'
 // Project Pin Marker - Premium teardrop style with thumbnail
 // ============================================================================
 
-export const ProjectPinMarker = memo(({ project, onClick, flashing }: { project: MapPinProject; onClick?: (p: MapPinProject) => void; flashing?: boolean }) => {
+export const ProjectPinMarker = memo(({ project, onClick, flashing, pixelOffset }: {
+  project: MapPinProject
+  onClick?: (p: MapPinProject) => void
+  flashing?: boolean
+  /** 两个项目几乎重叠时由父层算好的推开位移(px)，让两个 pin 都露出来 */
+  pixelOffset?: [number, number]
+}) => {
   const [isHovered, setIsHovered] = useState(false)
-  const [showBelow, setShowBelow] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const isSoldOut = project.status === 'sold-out'
 
-  // Check if marker is near top of viewport
-  const handleMouseEnter = useCallback(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      // 顶部 ~120px 是指标/POI 控制面板（z-1000，盖在悬浮卡上面），
-      // 卡片自身 ~210px：离顶 320px 内就改为向下弹，避免钻到面板底下
-      setShowBelow(rect.top < 320)
-    }
-    setIsHovered(true)
-  }, [])
-
-  const handleMouseLeave = useCallback(() => {
-    setIsHovered(false)
-  }, [])
+  const handleMouseEnter = useCallback(() => setIsHovered(true), [])
+  const handleMouseLeave = useCallback(() => setIsHovered(false), [])
 
   return (
     <Marker
       longitude={project.lng}
       latitude={project.lat}
       anchor="bottom"
+      offset={pixelOffset}
       // hover 时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
       // 不抬容器的话会被 DOM 顺序靠后的其他 pin 压住（客户反馈）
       style={{ zIndex: isHovered ? 300 : 2 }}
@@ -59,27 +53,28 @@ export const ProjectPinMarker = memo(({ project, onClick, flashing }: { project:
           filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
         }}
       >
-        {/* Hover peek — just a compact name pill. Full info lives in the click
-            card (ProjectPreviewCard); the old rich hover tooltip duplicated it. */}
+        {/* 项目名常显——合伙人要求 pin 上直接看到项目名（不再 hover 才出现）。
+            绝对定位在泪滴下方，不参与布局，pin 尖端仍精确落在坐标上。 */}
         <div
           style={{
             position: 'absolute',
+            top: '100%',
             left: '50%',
-            ...(showBelow ? { top: '100%', marginTop: '8px' } : { bottom: '100%', marginBottom: '8px' }),
             transform: 'translateX(-50%)',
-            background: 'rgba(15,23,42,0.92)',
-            color: '#fff',
-            borderRadius: '8px',
-            padding: '4px 9px',
-            fontSize: '12px',
-            fontWeight: 600,
+            marginTop: '1px',
+            padding: '1px 7px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.9)',
+            fontSize: '10.5px',
+            fontWeight: 700,
+            color: '#1e293b',
             whiteSpace: 'nowrap',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
+            maxWidth: '140px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            lineHeight: '15px',
             pointerEvents: 'none',
-            opacity: isHovered ? 1 : 0,
-            visibility: isHovered ? 'visible' : 'hidden',
-            transition: 'opacity 0.15s ease',
-            zIndex: 9999,
           }}
         >
           {project.name}

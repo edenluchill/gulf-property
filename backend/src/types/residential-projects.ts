@@ -24,7 +24,7 @@ export interface ResidentialProject {
   construction_progress?: number  // Percentage: 0-100
   
   // Status
-  status: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
+  status: 'upcoming' | 'selling' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
   
   // Pricing Summary
   min_price?: number
@@ -157,7 +157,7 @@ export interface SubmitProjectRequest {
   primaryImage?: string  // User-selected featured image for map pin display
 
   // Status
-  status?: 'upcoming' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
+  status?: 'upcoming' | 'selling' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
 
   amenities: string[]
   

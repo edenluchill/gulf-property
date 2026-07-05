@@ -90,6 +90,7 @@ export function CollapsibleDetails({ project, paymentPlan, amenities }: Collapsi
 
   const statusLabels: Record<string, string> = {
     'upcoming': t('common:status.upcoming'),
+    'selling': t('common:status.selling'),
     'under-construction': t('common:status.underConstruction'),
     'completed': t('common:status.completed'),
     'handed-over': t('common:status.handedOver'),
@@ -98,6 +99,7 @@ export function CollapsibleDetails({ project, paymentPlan, amenities }: Collapsi
 
   const statusColors: Record<string, string> = {
     'upcoming': 'bg-blue-100 text-blue-800',
+    'selling': 'bg-emerald-100 text-emerald-800',
     'under-construction': 'bg-yellow-100 text-yellow-800',
     'completed': 'bg-green-100 text-green-800',
     'handed-over': 'bg-green-100 text-green-800',

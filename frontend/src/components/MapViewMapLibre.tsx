@@ -1279,10 +1279,48 @@ function MapViewMapLibre({
           ? projects.map(project => (
               <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
             ))
-          : !mapMoving && clusterFeatures.map(f => {
+          : !mapMoving && clusterFeatures.flatMap(f => {
               const [lng, lat] = f.geometry.coordinates
               if (f.properties.cluster) {
-                return (
+                // ⭐ 两个项目挨得近时不缩成数字气泡——仍显示两个带主图+项目名的
+                // pin（合伙人要求），只在像素上把重叠的推开一点，双方都可点。
+                if (f.properties.point_count === 2) {
+                  const leaves = superclusterIndex.getLeaves(f.properties.cluster_id, 2)
+                  const map = mapRef.current?.getMap()
+                  let offsets: [number, number][] = [[0, 0], [0, 0]]
+                  if (map && leaves.length === 2) {
+                    const c0 = leaves[0].geometry.coordinates as [number, number]
+                    const c1 = leaves[1].geometry.coordinates as [number, number]
+                    const p0 = map.project(c0)
+                    const p1 = map.project(c1)
+                    const dx = p1.x - p0.x
+                    const dy = p1.y - p0.y
+                    const dist = Math.hypot(dx, dy)
+                    const MIN_SEP = 52 // 泪滴宽46px，留一点缝
+                    if (dist < MIN_SEP) {
+                      const ux = dist > 1 ? dx / dist : 1
+                      const uy = dist > 1 ? dy / dist : 0
+                      const push = (MIN_SEP - dist) / 2
+                      offsets = [
+                        [-ux * push, -uy * push],
+                        [ux * push, uy * push],
+                      ]
+                    }
+                  }
+                  return leaves.map((leaf, i) => {
+                    const project = leaf.properties.project as MapPinProject
+                    return (
+                      <ProjectPinMarker
+                        key={project.id}
+                        project={project}
+                        onClick={onProjectClick}
+                        flashing={flashProjectIds?.includes(project.id)}
+                        pixelOffset={offsets[i]}
+                      />
+                    )
+                  })
+                }
+                return [(
                   <ClusterBubble
                     key={`cluster-${f.properties.cluster_id}`}
                     count={f.properties.point_count}
@@ -1292,12 +1330,12 @@ function MapViewMapLibre({
                     lat={lat}
                     onClick={() => zoomToCluster(f.properties.cluster_id, lng, lat)}
                   />
-                )
+                )]
               }
               const project = f.properties.project as MapPinProject
-              return (
+              return [(
                 <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
-              )
+              )]
             })}
 
         {/* 测距：连线 + 顶点 */}

@@ -889,6 +889,7 @@ export default function ProjectDetailPage() {
                         {project.status && (
                           <div className={`rounded-xl p-3 ${
                             project.status === 'sold-out' ? 'bg-red-50' :
+                            project.status === 'selling' ? 'bg-emerald-50' :
                             project.status === 'completed' ? 'bg-green-50' :
                             project.status === 'under-construction' ? 'bg-blue-50' :
                             'bg-slate-50'
@@ -896,11 +897,13 @@ export default function ProjectDetailPage() {
                             <div className="text-slate-500 text-sm">{t('project:status', 'Status')}</div>
                             <div className={`text-lg font-semibold mt-1 ${
                               project.status === 'sold-out' ? 'text-red-700' :
+                              project.status === 'selling' ? 'text-emerald-700' :
                               project.status === 'completed' ? 'text-green-700' :
                               project.status === 'under-construction' ? 'text-blue-700' :
                               'text-slate-900'
                             }`}>
                               {project.status === 'sold-out' ? t('common:status.soldOut') :
+                               project.status === 'selling' ? t('common:status.selling') :
                                project.status === 'completed' ? t('common:status.completed') :
                                project.status === 'under-construction' ? t('common:status.underConstruction') :
                                project.status === 'upcoming' ? t('common:status.upcoming') :

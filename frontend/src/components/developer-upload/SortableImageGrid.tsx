@@ -129,20 +129,22 @@ const SortableImageItem = memo(function SortableImageItem({
         </div>
       )}
 
-      {/* Drag handle - only show if sortable */}
+      {/* Drag handle - only show if sortable.
+          Always visible (not hover-gated): on iPad/touch there is no hover, and
+          a tap opens the lightbox — hidden controls were unreachable there. */}
       {sortable && !isDragOverlay && (
         <div
           {...attributes}
           {...listeners}
-          className="absolute top-1 right-1 p-1 bg-white/90 rounded shadow cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity touch-none"
+          className="absolute top-1 right-1 p-1 bg-white/90 rounded shadow cursor-grab active:cursor-grabbing opacity-80 hover:opacity-100 transition-opacity touch-none"
         >
           <GripVertical className="h-4 w-4 text-gray-600" />
         </div>
       )}
 
-      {/* Action buttons - bottom */}
+      {/* Action buttons - bottom (always visible — see drag-handle note) */}
       {!isDragOverlay && (
-        <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-1 right-1 flex gap-1 opacity-90 hover:opacity-100 transition-opacity">
           {/* Enlarge for verification */}
           {onOpen && (
             <button
@@ -391,12 +393,35 @@ export function SortableImageGrid({
         gridContent
       )}
 
-      {/* Full-size verification lightbox (reuses the project gallery lightbox) */}
+      {/* Full-size verification lightbox (reuses the project gallery lightbox).
+          When primary selection is enabled, injects a "设为主图" button into the
+          lightbox top bar — pick the cover while comparing pages full-screen. */}
       <ImageLightbox
         images={displayImages}
         initialIndex={lightboxIndex ?? 0}
         isOpen={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}
+        renderAction={onPrimaryImageChange ? (idx) => {
+          const url = displayImages[idx]
+          if (!url) return null
+          const isPrimary = primaryImage === url
+          return (
+            <button
+              type="button"
+              onClick={() => handleSetPrimary(url)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold border transition-all duration-200 ${
+                isPrimary
+                  ? 'bg-amber-500 border-amber-400 text-white shadow-lg'
+                  : 'bg-black/30 border-white/15 text-white/80 backdrop-blur-md hover:border-amber-300 hover:text-amber-300'
+              }`}
+            >
+              <Star className={`h-4 w-4 ${isPrimary ? 'fill-white' : ''}`} />
+              {isPrimary
+                ? t('visualContent.isPrimary', '已是主图')
+                : t('visualContent.setPrimary', '设为主图')}
+            </button>
+          )
+        } : undefined}
       />
     </div>
   )

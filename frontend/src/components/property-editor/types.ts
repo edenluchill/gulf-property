@@ -41,7 +41,7 @@ export interface PropertyFormData {
   launchDate?: string
   handoverDate?: string
   constructionProgress?: number
-  status?: string  // 'upcoming' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
+  status?: string  // 'upcoming' | 'selling' | 'under-construction' | 'completed' | 'handed-over' | 'sold-out'
   description: string
   latitude?: number
   longitude?: number

@@ -9,6 +9,9 @@ interface ImageLightboxProps {
   isOpen: boolean
   onClose: () => void
   buildingName?: string
+  /** Optional action button(s) rendered in the top bar for the current image
+      (e.g. the review workspace injects a "set as primary" button). */
+  renderAction?: (currentIndex: number) => React.ReactNode
 }
 
 // Custom hook for momentum/inertia scrolling
@@ -72,7 +75,8 @@ export function ImageLightbox({
   initialIndex,
   isOpen,
   onClose,
-  buildingName = 'Image'
+  buildingName = 'Image',
+  renderAction
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({})
@@ -385,14 +389,17 @@ export function ImageLightbox({
             {buildingName}
           </div>
 
-          {/* Close button — thin, neutral */}
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/70 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
-            aria-label="Close gallery"
-          >
-            <X className="h-[18px] w-[18px]" />
-          </button>
+          <div className="flex items-center gap-2.5">
+            {renderAction?.(currentIndex)}
+            {/* Close button — thin, neutral */}
+            <button
+              onClick={onClose}
+              className="p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/70 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
+              aria-label="Close gallery"
+            >
+              <X className="h-[18px] w-[18px]" />
+            </button>
+          </div>
         </motion.div>
 
         {/* Scrollable main image area with momentum scrolling */}
@@ -519,14 +526,17 @@ export function ImageLightbox({
           {currentIndex + 1} / {images.length}
         </div>
 
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="p-2.5 rounded-full bg-white/20 backdrop-blur-sm hover:bg-red-500 text-white transition-all duration-200"
-          aria-label="Close gallery"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {renderAction?.(currentIndex)}
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="p-2.5 rounded-full bg-white/20 backdrop-blur-sm hover:bg-red-500 text-white transition-all duration-200"
+            aria-label="Close gallery"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </motion.div>
 
       {/* Main image area */}

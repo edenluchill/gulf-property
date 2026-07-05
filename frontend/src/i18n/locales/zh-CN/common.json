@@ -13,7 +13,8 @@
     "submit": "提交"
   },
   "status": {
-    "upcoming": "即将推出",
+    "upcoming": "即将开盘",
+    "selling": "在售中",
     "underConstruction": "建设中",
     "completed": "已完工",
     "handedOver": "已交付",

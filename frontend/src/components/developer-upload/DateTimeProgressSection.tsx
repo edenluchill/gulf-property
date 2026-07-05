@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Label } from '../ui/label'
 import { Slider } from '../ui/slider'
 import { DatePicker } from '../ui/date-picker'
-import { Calendar, Rocket, Home, Ban } from 'lucide-react'
+import { Calendar, Rocket, Home, Ban, Flame, HardHat, CheckCircle2 } from 'lucide-react'
 
 interface DateTimeProgressSectionProps {
   formData: {
@@ -28,27 +28,30 @@ export function DateTimeProgressSection({
     ? formData.constructionProgress
     : 0
 
-  // Check if project is sold out
-  const isSoldOut = formData.status === 'sold-out'
+  // 当前销售状态（旧数据可能没有 status，按进度给个合理默认高亮）
+  const currentStatus = formData.status
+    || (progressValue === 100 ? 'completed' : progressValue > 0 ? 'under-construction' : 'upcoming')
+  const isSoldOut = currentStatus === 'sold-out'
 
   const handleProgressChange = (value: number[]) => {
     onChange('constructionProgress', `${value[0]}`)
   }
 
-  const handleSoldOutToggle = (checked: boolean) => {
-    if (checked) {
-      onChange('status', 'sold-out')
-    } else {
-      // Reset to default status based on progress
-      if (progressValue === 100) {
-        onChange('status', 'completed')
-      } else if (progressValue > 0) {
-        onChange('status', 'under-construction')
-      } else {
-        onChange('status', 'upcoming')
-      }
-    }
-  }
+  // 销售状态选项（迪拜合伙人要求：即将开盘 / 已开盘在售中 / 建设中 / 已建成 / 已售罄）
+  const statusOptions: {
+    value: string
+    labelKey: string
+    fallback: string
+    icon: typeof Rocket
+    activeCls: string
+    iconActiveCls: string
+  }[] = [
+    { value: 'upcoming', labelKey: 'statusUpcoming', fallback: '即将开盘', icon: Rocket, activeCls: 'bg-blue-50 border-blue-400 text-blue-800 ring-2 ring-blue-200', iconActiveCls: 'text-blue-600' },
+    { value: 'selling', labelKey: 'statusSelling', fallback: '已开盘在售中', icon: Flame, activeCls: 'bg-emerald-50 border-emerald-400 text-emerald-800 ring-2 ring-emerald-200', iconActiveCls: 'text-emerald-600' },
+    { value: 'under-construction', labelKey: 'statusUnderConstruction', fallback: '建设中', icon: HardHat, activeCls: 'bg-amber-50 border-amber-400 text-amber-800 ring-2 ring-amber-200', iconActiveCls: 'text-amber-600' },
+    { value: 'completed', labelKey: 'statusCompleted', fallback: '已建成', icon: CheckCircle2, activeCls: 'bg-green-50 border-green-400 text-green-800 ring-2 ring-green-200', iconActiveCls: 'text-green-600' },
+    { value: 'sold-out', labelKey: 'statusSoldOut', fallback: '已售罄', icon: Ban, activeCls: 'bg-red-50 border-red-400 text-red-800 ring-2 ring-red-200', iconActiveCls: 'text-red-600' },
+  ]
 
   // Get progress color based on completion
   const getProgressColor = (progress: number) => {
@@ -120,35 +123,42 @@ export function DateTimeProgressSection({
         </div>
       </div>
 
-      {/* Sold Out Toggle */}
-      <div className="pt-4">
-        <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-          isSoldOut
-            ? 'bg-red-50 border-red-300 shadow-md'
-            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-        }`}>
-          <input
-            type="checkbox"
-            checked={isSoldOut}
-            onChange={(e) => handleSoldOutToggle(e.target.checked)}
-            disabled={isProcessing}
-            className="w-5 h-5 rounded border-2 border-gray-300 text-red-600 focus:ring-2 focus:ring-red-500"
-          />
-          <Ban className={`h-5 w-5 ${isSoldOut ? 'text-red-600' : 'text-gray-400'}`} />
-          <div className="flex-1">
-            <span className={`font-semibold ${isSoldOut ? 'text-red-800' : 'text-gray-700'}`}>
-              {t('dateProgress.soldOut', '已售罄 (Sold Out)')}
-            </span>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {t('dateProgress.soldOutHint', '勾选此项表示项目已售罄，将在地图和列表中显示售罄标签')}
-            </p>
+      {/* Sales Status Selector */}
+      <div className="pt-4 space-y-2">
+        <Label className="text-sm font-semibold">
+          {t('dateProgress.salesStatus', '销售状态')}
+        </Label>
+        <p className="text-xs text-gray-500">
+          {t('dateProgress.salesStatusHint', '选择项目当前销售状态，将在地图和列表中显示对应标签')}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {statusOptions.map(opt => {
+            const Icon = opt.icon
+            const isActive = currentStatus === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={isProcessing}
+                onClick={() => onChange('status', opt.value)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all active:scale-95 ${
+                  isActive
+                    ? opt.activeCls
+                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className={`h-4 w-4 ${isActive ? opt.iconActiveCls : 'text-gray-400'}`} />
+                {t(`dateProgress.${opt.labelKey}`, opt.fallback)}
+              </button>
+            )
+          })}
+        </div>
+        {isSoldOut && (
+          <div className="flex items-center gap-2 text-xs text-red-600 font-medium">
+            <Ban className="h-3.5 w-3.5" />
+            {t('dateProgress.soldOutHint', '将在地图和列表中显示售罄标签')}
           </div>
-          {isSoldOut && (
-            <span className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full">
-              SOLD OUT
-            </span>
-          )}
-        </label>
+        )}
       </div>
 
       {/* Construction Progress Slider */}

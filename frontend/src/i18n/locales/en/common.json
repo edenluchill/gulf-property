@@ -13,7 +13,8 @@
     "submit": "Submit"
   },
   "status": {
-    "upcoming": "Upcoming",
+    "upcoming": "Launching Soon",
+    "selling": "On Sale",
     "underConstruction": "Under Construction",
     "completed": "Completed",
     "handedOver": "Handed Over",

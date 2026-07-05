@@ -193,8 +193,8 @@ export default function AdminPropertyListPage() {
                 const thumbnail = project.project_images?.[0]
                 const progress = project.construction_progress || 0
                 const isSoldOut = project.status === 'sold-out'
-                const statusColor = isSoldOut ? 'red' : project.status === 'completed' ? 'green' : project.status === 'under-construction' ? 'blue' : 'yellow'
-                const statusText = isSoldOut ? t('common:status.soldOut') : project.status === 'completed' ? t('common:status.completed') : project.status === 'under-construction' ? t('common:status.underConstruction') : t('common:status.upcoming')
+                const statusColor = isSoldOut ? 'red' : project.status === 'selling' ? 'green' : project.status === 'completed' ? 'green' : project.status === 'under-construction' ? 'blue' : 'yellow'
+                const statusText = isSoldOut ? t('common:status.soldOut') : project.status === 'selling' ? t('common:status.selling') : project.status === 'completed' ? t('common:status.completed') : project.status === 'under-construction' ? t('common:status.underConstruction') : t('common:status.upcoming')
 
                 return (
                   <Card
