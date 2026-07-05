@@ -25,9 +25,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // 提交按钮等操作区,这里统一不渲染。
   const isAdmin = path.startsWith('/admin')
 
-  // Agent-branded shareable report (/r/:code) — a clean client-facing page with NO
-  // app chrome (no header/nav/Luna), but it must scroll (unlike the full-screen map).
-  if (path.startsWith('/r/') || path.startsWith('/cr/')) {
+  // Agent-branded shareable report (/r/:code), client report (/cr/:code) and
+  // payment-plan quote (/pp/:code) — clean client-facing pages with NO app
+  // chrome (no header/nav/Luna), but they must scroll (unlike the full-screen map).
+  if (path.startsWith('/r/') || path.startsWith('/cr/') || path.startsWith('/pp/')) {
     // h-screen + overflow-y-auto = a real scroll container (the parent is height-
     // constrained, so min-h-screen alone clips and won't scroll).
     return <div className="h-screen overflow-y-auto bg-slate-50">{children}</div>

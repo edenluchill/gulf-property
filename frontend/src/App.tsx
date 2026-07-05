@@ -5,6 +5,7 @@ import { trackEvent, installTracking } from './lib/track'
 import { installApiErrorCapture } from './lib/errorCapture'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectReportPage from './pages/ProjectReportPage'
+import PaymentPlanSharePage from './pages/PaymentPlanSharePage'  // 付款计划分享页 /pp/:code (客户免登录)
 import ClientReportPage from './pages/ClientReportPage'
 import FavoritesPage from './pages/FavoritesPage'
 import DeveloperPropertyUploadPageV2 from './pages/DeveloperPropertyUploadPageV2'
@@ -88,6 +89,8 @@ function App() {
         <Route path="/factsheet/:code" element={<FactSheet />} />
         {/* Agent-branded shareable per-project report */}
         <Route path="/r/:code" element={<ProjectReportPage />} />
+        {/* Shareable payment-plan quote (agent picks unit + types actual price) */}
+        <Route path="/pp/:code" element={<PaymentPlanSharePage />} />
         {/* Comprehensive client investment proposal (shareable, printable) */}
         <Route path="/cr/:code" element={<ClientReportPage />} />
         {/* Full-screen visual storyboard editor */}

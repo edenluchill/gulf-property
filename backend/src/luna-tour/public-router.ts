@@ -13,7 +13,7 @@
  *   → 401 { passcode_required:true } if passcode set and not matched (?pc=)
  */
 import { Router, Request, Response } from 'express'
-import { createHash } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
 import { getMarketEvidence } from './evidence'
@@ -391,6 +391,129 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
   } catch (err) {
     console.error('[luna] project-report error:', err)
     res.status(500).json({ error: 'report failed' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// 付款计划分享(/pp/:code)——经纪选户型 + 填实际报价,客户免登录查看。
+// 开发商开盘只给起价,不同楼层/朝向价格不同,所以总价由经纪手填。
+// ---------------------------------------------------------------------------
+
+/** Short, human-friendly random code (no ambiguous chars like 0/o/1/l). */
+function payShareCode(len = 6): string {
+  const alpha = 'abcdefghijkmnpqrstuvwxyz23456789'
+  const bytes = randomBytes(len)
+  let s = ''
+  for (let i = 0; i < len; i++) s += alpha[bytes[i] % alpha.length]
+  return s
+}
+
+/** 生成付款计划分享。body: { projectId, unitName?, bedrooms?, price, lang? } */
+router.post('/public/payplan', async (req: Request, res: Response) => {
+  try {
+    const { projectId, unitName, bedrooms, price, lang } = req.body || {}
+    const p = Number(price)
+    if (!projectId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(projectId))) {
+      return res.status(400).json({ error: 'invalid projectId' })
+    }
+    if (!Number.isFinite(p) || p < 10_000 || p > 5_000_000_000) {
+      return res.status(400).json({ error: 'invalid price' })
+    }
+    const proj = await pool.query(
+      `SELECT 1 FROM residential_projects WHERE id = $1 AND payment_plan IS NOT NULL`,
+      [projectId]
+    )
+    if (proj.rowCount === 0) return res.status(404).json({ error: 'project not found' })
+
+    // 创建者若是经纪(登录身份可识别时)→ 带上经纪品牌,增强客户信任
+    let agentId: string | null = null
+    const email = (req.ctx?.email || '').toLowerCase()
+    if (email) {
+      const a = await pool.query(`SELECT id FROM lt_agents WHERE lower(email) = $1 LIMIT 1`, [email])
+      agentId = a.rows[0]?.id || null
+    }
+
+    let code = payShareCode(6)
+    for (let i = 0; i < 8; i++) {
+      const { rowCount } = await pool.query(`SELECT 1 FROM lt_payment_shares WHERE share_code = $1`, [code])
+      if (rowCount === 0) break
+      code = i === 7 ? payShareCode(8) : payShareCode(6)
+    }
+
+    await pool.query(
+      `INSERT INTO lt_payment_shares (share_code, project_id, agent_id, unit_name, bedrooms, price, lang, created_by_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        code,
+        projectId,
+        agentId,
+        String(unitName || '').slice(0, 120) || null,
+        Number.isFinite(Number(bedrooms)) ? Math.round(Number(bedrooms)) : null,
+        Math.round(p),
+        lang === 'en' ? 'en' : 'zh',
+        email || null,
+      ]
+    )
+    res.json({ code })
+  } catch (err) {
+    console.error('[luna] payplan create error:', err)
+    res.status(500).json({ error: 'create failed' })
+  }
+})
+
+/** Public payment-plan quote → /pp/:code. */
+router.get('/public/payplan/:code', async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code)
+    const r = await pool.query(
+      `SELECT ps.project_id, ps.unit_name, ps.bedrooms, ps.price, ps.lang, ps.created_at,
+              a.display_name AS agent_name, a.photo_url AS agent_photo,
+              a.phone AS agent_phone, a.whatsapp AS agent_whatsapp
+         FROM lt_payment_shares ps
+         LEFT JOIN lt_agents a ON a.id = ps.agent_id
+        WHERE ps.share_code = $1 LIMIT 1`,
+      [code]
+    )
+    if (r.rowCount === 0) return res.status(404).json({ error: 'not found' })
+    const s = r.rows[0]
+    pool.query('UPDATE lt_payment_shares SET view_count=view_count+1 WHERE share_code=$1', [code]).catch(() => {})
+
+    const pr = await pool.query(
+      `SELECT id, project_name, developer, area, status, completion_date, handover_date,
+              primary_image, project_images, payment_plan
+         FROM residential_projects WHERE id = $1`,
+      [s.project_id]
+    )
+    if (pr.rowCount === 0) return res.status(404).json({ error: 'project not found' })
+    const project = pr.rows[0]
+
+    res.set('Cache-Control', 'public, max-age=300')
+    res.json({
+      share: {
+        unitName: s.unit_name,
+        bedrooms: s.bedrooms,
+        price: Number(s.price),
+        lang: s.lang,
+        createdAt: s.created_at,
+      },
+      project: {
+        id: project.id,
+        name: project.project_name,
+        developer: project.developer,
+        area: project.area,
+        status: project.status,
+        completionDate: project.completion_date,
+        handoverDate: project.handover_date,
+        image: project.primary_image || project.project_images?.[0] || null,
+        paymentPlan: project.payment_plan || [],
+      },
+      agent: s.agent_name
+        ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp }
+        : null,
+    })
+  } catch (err) {
+    console.error('[luna] payplan read error:', err)
+    res.status(500).json({ error: 'read failed' })
   }
 })
 

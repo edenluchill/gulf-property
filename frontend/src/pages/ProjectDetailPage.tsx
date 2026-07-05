@@ -688,6 +688,8 @@ export default function ProjectDetailPage() {
                 paymentPlan={project.payment_plan || []}
                 referencePrice={insights?.investment?.reference_price ?? project.starting_price ?? project.min_price}
                 units={project.units || []}
+                projectId={project.id}
+                projectName={project.project_name}
               />
             </div>
           </TabsContent>
