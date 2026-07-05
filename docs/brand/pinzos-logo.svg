@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 42 42">
+  <defs>
+    <linearGradient id="pinzosPin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="55%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(5,0)">
+    <path d="M16 1 C7.7 1 1 7.7 1 16 C1 26 16 41 16 41 C16 41 31 26 31 16 C31 7.7 24.3 1 16 1 Z" fill="url(#pinzosPin)"/>
+    <rect x="8.4" y="15.5" width="3.4" height="6.7" rx="1.1" fill="#ffffff" fill-opacity="0.9"/>
+    <rect x="13.9" y="12" width="3.4" height="10.2" rx="1.1" fill="#ffffff" fill-opacity="0.9"/>
+    <rect x="19.4" y="8.4" width="3.4" height="13.8" rx="1.1" fill="#fbbf24"/>
+  </g>
+</svg>
