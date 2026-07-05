@@ -145,6 +145,8 @@ interface MapViewMapLibreProps {
    *  so tapping to draw/place a mark doesn't ALSO open a POI/area/project panel
    *  (and so dismissing a panel doesn't re-select the feature underneath). */
   disableFeatureClicks?: boolean
+  /** 手机右上控制卡是否展开(MapPage 传入)——底图/3D/测距 pill 列跟着让位 */
+  topCardOpen?: boolean
 }
 
 function MapViewMapLibre({
@@ -174,7 +176,8 @@ function MapViewMapLibre({
   chromeless = false,
   tourActive = false,
   visible = true,
-  disableFeatureClicks = false
+  disableFeatureClicks = false,
+  topCardOpen = false
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -1483,73 +1486,18 @@ function MapViewMapLibre({
       </Map>
 
       {!chromeless && (<>
-      {/* 底图切换：地图 → 卫星 → 夜景 循环，放右上角（在指标条与 POI 按钮下方，避免重叠） */}
-      <button
-        type="button"
-        onClick={() =>
-          setBaseMap(prev =>
-            prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'
-          )
-        }
-        className={`absolute top-28 right-4 z-[1000] hidden xl:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
-          baseMap === 'dark'
-            ? 'bg-slate-900/90 text-slate-100 ring-slate-700 hover:bg-slate-900'
-            : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
-        }`}
-        title="切换底图：地图 / 卫星 / 夜景"
-        aria-label="切换底图"
+      {/* 底图/3D/测距 pill 列:全断点通用(2026-07-05 起桌面也走这套——桌面展开
+          长条面板已删,右上统一紧凑控制卡)。
+          top 规则:md+ 控制卡常开(高 ~148px,top-3 起算)→ 164px;
+          手机跟随控制卡收纳状态:收起(摘要药丸 ~40px)→ top-14,展开(卡+收起把手
+          ~160px)→ 184px。控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440
+          三档截图验证(2026-07-03 用户反馈两次撞坑)。 */}
+      <div
+        data-testid="map-mobile-tools"
+        className={`absolute right-3 z-[1000] flex flex-col items-end gap-2 transition-[top] duration-200 ${
+          topCardOpen ? 'top-[184px]' : 'top-14'
+        } md:top-[164px]`}
       >
-        <Globe
-          size={15}
-          className={
-            baseMap === 'satellite'
-              ? 'text-emerald-600'
-              : baseMap === 'dark'
-              ? 'text-emerald-400'
-              : 'text-slate-500'
-          }
-        />
-        {baseMap === 'vector' ? '地图' : baseMap === 'satellite' ? '卫星' : '夜景'}
-      </button>
-
-      {/* 3D 倾斜：独立于底图，地图/卫星/夜景都可用 */}
-      <button
-        type="button"
-        onClick={toggle3D}
-        className={`absolute top-28 right-24 z-[1000] hidden xl:flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur transition ${
-          pitched
-            ? 'bg-emerald-500 text-white ring-emerald-400 hover:bg-emerald-500'
-            : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
-        }`}
-        title={pitched ? '切回平视 (2D)' : '3D 倾斜视角'}
-        aria-label="切换 3D 倾斜视角"
-      >
-        3D
-      </button>
-
-      {/* 测距工具按钮 */}
-      <button
-        type="button"
-        onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-        className={`absolute top-40 right-4 z-[1000] hidden xl:flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur transition ${
-          measureMode
-            ? 'bg-blue-600 text-white ring-blue-700 hover:bg-blue-700'
-            : 'bg-white/95 text-slate-700 ring-slate-200 hover:bg-white'
-        }`}
-        title={measureMode ? '退出测距 (Esc)' : '测量两点距离'}
-        aria-label="测距工具"
-      >
-        <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
-        {measureMode ? '退出' : '测距'}
-      </button>
-
-      {/* 移动端:底图/3D/测距 直接平铺成独立 pill(工具还少,放出来更直观;后面加工具继续往下堆)。
-          right-3 与上方指标+POI 面板右对齐;top-[84px] 给它一个 gap-2(~8px)的间距,
-          和左侧筛选/找房助手的纵向间距一致。样式对齐左侧 pill(rounded-full)。 */}
-      {/* top 下移到 164px:上方控制卡 20260703 改圆角 pill 布局(内边距+行间距)后高约
-          ~148px(top-3 起算),144px 会被压住。控制卡再改高度这里要跟着挪,
-          且改完必须 414/1180/1440 三档截图验证(2026-07-03 用户反馈两次撞坑)。 */}
-      <div data-testid="map-mobile-tools" className="xl:hidden absolute top-[164px] right-3 z-[1000] flex flex-col items-end gap-2">
         <button
           type="button"
           onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}

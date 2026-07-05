@@ -38,7 +38,7 @@ import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart,
-  Clock, Award
+  Clock, Award, Layers, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
@@ -346,6 +346,9 @@ export default function MapPage() {
   // 市场口径筛选器（全部/期房/现房）——联动整张地图区域数字/着色 + 区域弹窗。
   // 数据后端三口径全预算好按口径分 key 缓存，切换=取现成 payload，无重查询。
   const [marketSegment, setMarketSegment] = useState<MarketSegment>(loadSavedSegment)
+  // 手机(<md)右上控制卡:默认收成一颗摘要药丸,点开展开;拖地图自动收起。
+  // pad/桌面(md+)始终展开(同一张紧凑卡,2026-07-05 起桌面也用它)。
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
   const lastAreasVersionRef = useRef(0)
   const handleSegmentChange = (seg: MarketSegment) => {
     setMarketSegment(seg)
@@ -1123,6 +1126,8 @@ export default function MapPage() {
 
   const handleMapBoundsChange = useCallback((bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, _zoom: number) => {
     setMapBounds(bounds)
+    // 手机上开始拖/缩地图 = 在探索 → 自动收起右上控制卡还视野(同值 setState 会被 React bail-out,无代价)
+    if (window.innerWidth < 768) setMobileControlsOpen(false)
   }, [])
 
   const handleRefreshMetadata = useCallback(async () => {
@@ -1372,6 +1377,7 @@ export default function MapPage() {
             showTransport={showTransport}
             voiceMeasure={voiceMeasure}
             onMeasureChange={handleMeasureChange}
+            topCardOpen={mobileControlsOpen}
             // Collab markup: while a draw tool is active, swallow feature clicks so
             // drawing/placing marks never opens a POI/area/project panel (and
             // closing a panel doesn't re-select the feature underneath).
@@ -1507,13 +1513,37 @@ export default function MapPage() {
           {/* (移除了移动端「当前指标」指示器:右上指标条已高亮选中项,地图每个区也直接
               显示指标值,这个左上 pill 既冗余又会和筛选/找房助手按钮重叠。) */}
 
-          {/* Mobile/Pad: Right side controls (metrics + POI combined) — 下移给顶部搜索条让位。
-              断点 xl(1280):768~1280 的 iPad/窄窗口用桌面展开面板会和左侧筛选条重叠
-              (经纪大量用 pad),这套紧凑图标卡在 pad 上刚好。 */}
+          {/* 右上控制卡(市场口径 + 指标 + POI):全断点统一用这张紧凑卡
+              (2026-07-05 起桌面也用,原 xl 展开长条已删——用户反馈紧凑卡更好看)。
+              手机(<md):默认收成摘要药丸,点开展开,拖地图自动收起还视野。 */}
           {/* 视觉:圆角 pill + 有意留白(不再是满铺色块+1px hairline 的"白缝拼贴"),
               按钮 active:scale 按压反馈,选中态带柔和同色投影。 */}
-          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] xl:hidden">
-            <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000]">
+            {/* 手机收起态:摘要药丸(当前口径·指标 + POI 激活小点) */}
+            {!mobileControlsOpen && (
+              <button
+                type="button"
+                onClick={() => setMobileControlsOpen(true)}
+                className="md:hidden flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-2 text-[13px] font-semibold text-slate-700 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-all active:scale-95"
+              >
+                <Layers className="h-4 w-4 text-slate-500" />
+                <span className="max-w-[40vw] truncate">
+                  {(() => {
+                    const zh = (i18n.language || 'en').startsWith('zh')
+                    const parts: string[] = []
+                    if (marketSegment !== 'all') parts.push(segmentLabel(marketSegment, zh))
+                    const m = METRIC_OPTIONS.find(o => o.value === areaMetric)
+                    if (m) parts.push(t(m.labelKey as any))
+                    return parts.length ? parts.join(' · ') : (zh ? '图层 · 指标' : 'Layers')
+                  })()}
+                </span>
+                {(showTransit || enabledPoiCategories.length > 0) && (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
+                )}
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              </button>
+            )}
+            <div className={`${mobileControlsOpen ? 'flex' : 'hidden md:flex'} flex-col gap-1 rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm`}>
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state */}
               <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
                 {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg) => (
@@ -1601,98 +1631,20 @@ export default function MapPage() {
                   </div>
                 )
               })()}
+              {/* 手机:收起把手(md+ 常开不显示) */}
+              <button
+                type="button"
+                onClick={() => setMobileControlsOpen(false)}
+                className="md:hidden flex items-center justify-center rounded-lg py-0.5 text-slate-400 transition-colors active:bg-slate-100"
+                aria-label="收起"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
           {/* Area fly-to removed — now controlled by AI voice assistant */}
-
-          {/* Floating Metric Panel - top-right */}
-          <div data-testid="map-metric-panel" className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden xl:block">
-            <div className="flex items-center gap-0.5 p-1">
-              {/* 市场口径筛选（全部/期房/现房）——切的是 DLD 数据口径，联动全图区域数字与弹窗 */}
-              <div className="mr-1 flex items-center rounded-md bg-slate-100 p-0.5">
-                {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg) => (
-                  <button
-                    key={seg}
-                    onClick={() => handleSegmentChange(seg)}
-                    className={`rounded px-2 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
-                      marketSegment === seg
-                        ? seg === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'bg-violet-600 text-white shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {segmentLabel(seg, (i18n.language || 'en').startsWith('zh'))}
-                  </button>
-                ))}
-              </div>
-              <div className="h-5 w-px bg-slate-200" />
-              {METRIC_OPTIONS.map((option) => {
-                const isActive = areaMetric === option.value
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => handleMetricToggle(option.value)}
-                    className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                      isActive
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <option.Icon className="w-3.5 h-3.5" />
-                    <span>{t(option.labelKey as any)}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Floating POI Panel - below metrics */}
-          <div data-testid="map-poi-panel" className="absolute top-16 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 z-[1000] hidden xl:block">
-            <div className="flex items-center gap-1.5 p-1.5">
-              {/* Single Transit toggle */}
-              <button
-                onClick={toggleTransit}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                  showTransit
-                    ? 'text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-                style={showTransit ? { backgroundColor: '#0891b2' } : undefined}
-              >
-                <TrainFront className="w-3.5 h-3.5" />
-                <span>{t('map:transit')}</span>
-              </button>
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              {QUICK_BUTTONS.map(btn => {
-                const enabled = enabledPoiCategories.includes(btn.id)
-                return (
-                  <button
-                    key={btn.id}
-                    onClick={() => togglePoiCategory(btn.id)}
-                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                      enabled
-                        ? 'text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                    }`}
-                    style={enabled ? { backgroundColor: btn.color } : undefined}
-                  >
-                    <btn.Icon className="w-3.5 h-3.5" />
-                    <span>{t(btn.labelKey as any)}</span>
-                  </button>
-                )
-              })}
-              <div className="w-px h-4 bg-slate-200 mx-0.5" />
-              <button
-                onClick={() => setShowPoiPanel(!showPoiPanel)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                  showPoiPanel ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{t('map:poi.more')}</span>
-              </button>
-            </div>
-          </div>
+          {/* (原桌面 xl 展开长条 metric/POI 面板已删——全断点统一上面的紧凑卡) */}
           </>)}
 
           {/* POI Full Panel - appears when "More" clicked */}
@@ -1704,7 +1656,7 @@ export default function MapPage() {
                 onClick={() => setShowPoiPanel(false)}
               />
               {/* 移动端:底部抽屉(全宽,不挤压顶部控件,与筛选 sheet 一致);桌面:右上浮动卡片 */}
-              <div className="fixed inset-x-0 bottom-0 w-full max-h-[65vh] rounded-t-2xl md:absolute md:inset-x-auto md:bottom-auto md:top-28 md:right-4 md:left-auto md:w-[280px] md:max-h-[400px] md:rounded-xl bg-white shadow-xl border border-slate-200/80 z-[1001] overflow-hidden">
+              <div className="fixed inset-x-0 bottom-0 w-full max-h-[65vh] rounded-t-2xl md:absolute md:inset-x-auto md:bottom-auto md:top-[172px] md:right-4 md:left-auto md:w-[280px] md:max-h-[400px] md:rounded-xl bg-white shadow-xl border border-slate-200/80 z-[1001] overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
                 <div className="flex items-center gap-2">
