@@ -1489,13 +1489,13 @@ function MapViewMapLibre({
       {/* 底图/3D/测距 pill 列:全断点通用(2026-07-05 起桌面也走这套——桌面展开
           长条面板已删,右上统一紧凑控制卡)。
           top 规则:md+ 控制卡常开(高 ~148px,top-3 起算)→ 164px;
-          手机跟随控制卡收纳状态:收起(摘要药丸 ~40px)→ top-14,展开(卡+收起把手
-          ~160px)→ 184px。控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440
-          三档截图验证(2026-07-03 用户反馈两次撞坑)。 */}
+          手机跟随控制卡收纳状态:收起(摘要药丸 ~40px)→ top-14,展开(手机版卡
+          缩一号+收起把手 ~145px)→ 164px。控制卡再改高度这里要跟着挪,且改完必须
+          414/1180/1440 三档截图验证(2026-07-03 用户反馈两次撞坑)。 */}
       <div
         data-testid="map-mobile-tools"
         className={`absolute right-3 z-[1000] flex flex-col items-end gap-2 transition-[top] duration-200 ${
-          topCardOpen ? 'top-[184px]' : 'top-14'
+          topCardOpen ? 'top-[164px]' : 'top-14'
         } md:top-[164px]`}
       >
         <button

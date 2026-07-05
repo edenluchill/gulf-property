@@ -346,9 +346,13 @@ export default function MapPage() {
   // 市场口径筛选器（全部/期房/现房）——联动整张地图区域数字/着色 + 区域弹窗。
   // 数据后端三口径全预算好按口径分 key 缓存，切换=取现成 payload，无重查询。
   const [marketSegment, setMarketSegment] = useState<MarketSegment>(loadSavedSegment)
-  // 手机(<md)右上控制卡:默认收成一颗摘要药丸,点开展开;拖地图自动收起。
-  // pad/桌面(md+)始终展开(同一张紧凑卡,2026-07-05 起桌面也用它)。
-  const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
+  // 手机(<md)右上控制卡:初始展开(用户要求,先让人看到有哪些控件),
+  // 拖地图自动收成摘要药丸,点药丸再展开。pad/桌面(md+)始终展开
+  // (同一张紧凑卡,2026-07-05 起桌面也用它)。
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(true)
+  // 地图初始加载也会触发 bounds change——挂载后 2.5s 内不算"用户在探索",
+  // 否则初始展开会被立刻自动收起。
+  const mountedAtRef = useRef(Date.now())
   const lastAreasVersionRef = useRef(0)
   const handleSegmentChange = (seg: MarketSegment) => {
     setMarketSegment(seg)
@@ -1126,8 +1130,9 @@ export default function MapPage() {
 
   const handleMapBoundsChange = useCallback((bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, _zoom: number) => {
     setMapBounds(bounds)
-    // 手机上开始拖/缩地图 = 在探索 → 自动收起右上控制卡还视野(同值 setState 会被 React bail-out,无代价)
-    if (window.innerWidth < 768) setMobileControlsOpen(false)
+    // 手机上开始拖/缩地图 = 在探索 → 自动收起右上控制卡还视野(同值 setState 会被 React bail-out,无代价)。
+    // 挂载后 2.5s 静默:初始加载的 bounds change 不算用户探索,保证「初始保持展开」。
+    if (window.innerWidth < 768 && Date.now() - mountedAtRef.current > 2500) setMobileControlsOpen(false)
   }, [])
 
   const handleRefreshMetadata = useCallback(async () => {
@@ -1543,14 +1548,15 @@ export default function MapPage() {
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
               </button>
             )}
-            <div className={`${mobileControlsOpen ? 'flex' : 'hidden md:flex'} flex-col gap-1 rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm`}>
+            {/* 手机(<md)整体缩一号(p/按钮/字号),pad/桌面保持原尺寸 */}
+            <div className={`${mobileControlsOpen ? 'flex' : 'hidden md:flex'} flex-col gap-1 rounded-2xl bg-white/95 p-1 md:p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm`}>
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state */}
               <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
                 {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg) => (
                   <button
                     key={seg}
                     onClick={() => handleSegmentChange(seg)}
-                    className={`flex-1 rounded-md px-1.5 py-1 text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
+                    className={`flex-1 rounded-md px-1.5 py-0.5 md:py-1 text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
                       marketSegment === seg
                         ? seg === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'bg-violet-600 text-white shadow-sm shadow-violet-600/30'
                         : 'text-slate-500 hover:bg-white/70'
@@ -1568,7 +1574,7 @@ export default function MapPage() {
                     <button
                       key={option.value}
                       onClick={() => handleMetricToggle(option.value)}
-                      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 active:scale-90 ${
+                      className={`flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-lg transition-all duration-150 active:scale-90 ${
                         isActive ? 'bg-primary text-white shadow-sm shadow-primary/40' : 'text-slate-500 hover:bg-slate-100'
                       }`}
                       title={t(option.labelKey as any)}
@@ -1583,7 +1589,7 @@ export default function MapPage() {
               <div className="flex gap-1">
                 <button
                   onClick={toggleTransit}
-                  className="flex w-8 h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
+                  className="flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
                   style={showTransit ? { backgroundColor: '#0891b2', color: 'white', boxShadow: '0 1px 6px -1px rgba(8,145,178,0.5)' } : { color: '#64748b' }}
                   title={t('map:transit')}
                   aria-label={t('map:transit')}
@@ -1596,7 +1602,7 @@ export default function MapPage() {
                     <button
                       key={btn.id}
                       onClick={() => togglePoiCategory(btn.id)}
-                      className="flex w-8 h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
+                      className="flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
                       style={enabled ? { backgroundColor: btn.color, color: 'white', boxShadow: `0 1px 6px -1px ${btn.color}80` } : { color: '#64748b' }}
                       title={t(btn.labelKey as any)}
                       aria-label={t(btn.labelKey as any)}
@@ -1607,7 +1613,7 @@ export default function MapPage() {
                 })}
                 <button
                   onClick={() => setShowPoiPanel(true)}
-                  className={`flex w-8 h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+                  className={`flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
                     showPoiPanel ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                   title={t('map:poi.more')}
@@ -1621,12 +1627,12 @@ export default function MapPage() {
               {(() => {
                 const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
                 return active ? (
-                  <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
+                  <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[11px] font-semibold text-primary">
                     <active.Icon className="w-3 h-3" />
                     <span className="whitespace-nowrap">{t(active.labelKey as any)}</span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-400">
+                  <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[11px] font-medium text-slate-400">
                     {(i18n.language || 'en').startsWith('zh') ? '选择指标' : 'Pick metric'}
                   </div>
                 )
