@@ -3,13 +3,16 @@ import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { identifyVisitor } from '../lib/track'
 import { clearFavorites } from '../lib/favorites'
-import { isAdminEmail } from '../lib/config'
+import { isAdminEmail, API_BASE_URL } from '../lib/config'
 
 interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
   isAdmin: boolean
+  /** 楼书上传权限:admin 隐含 true;其他人查服务端 upload_permissions 白名单。
+      null = 正在查(ProtectedRoute 会等,不要当 false 用)。 */
+  canUpload: boolean | null
   isConfigured: boolean
   signInWithOtp: (email: string) => Promise<{ error: AuthError | null }>
   verifyOtp: (email: string, token: string) => Promise<{ error: AuthError | null }>
@@ -25,6 +28,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [canUpload, setCanUpload] = useState<boolean | null>(false)
+
+  // 楼书上传权限:admin 直接 true;普通账号问服务端白名单(upload_permissions)
+  useEffect(() => {
+    if (!user) { setCanUpload(false); return }
+    if (isAdminEmail(user.email)) { setCanUpload(true); return }
+    let stale = false
+    setCanUpload(null)
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token
+        const r = await fetch(`${API_BASE_URL}/api/agents/can-upload`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        })
+        const j = await r.json()
+        if (!stale) setCanUpload(!!j.canUpload)
+      } catch {
+        if (!stale) setCanUpload(false)
+      }
+    })()
+    return () => { stale = true }
+  }, [user?.email])
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -142,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     isAdmin,
+    canUpload,
     isConfigured: isSupabaseConfigured,
     signInWithOtp,
     verifyOtp,

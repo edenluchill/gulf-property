@@ -30,7 +30,7 @@ export default function Header() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
-  const { user, loading, isAdmin } = useAuth()
+  const { user, loading, isAdmin, canUpload } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
   // 经纪台入口:新角色系统 role=agent 或旧本地标志;买家(role=buyer)看「个人中心」
@@ -67,11 +67,13 @@ export default function Header() {
   // 分组导航：地图(主) · 成交记录(直达) · 经纪人 · 管理(下拉)
   // 散客只保留「成交记录」(买家查真实 transaction/rent,有真实使用)。区域分析/AI报告/
   // 对比零使用已移除;对比/AI报告能力改在经纪台为客户生成(品牌化、可分享)。
+  // 完整 admin 菜单;单独授权的 uploader(帮忙上传楼书的伙伴)只看到上传相关
+  // 三项 —— 数据管理/地图编辑仍是 admin-only。
   const adminItems = [
-    { path: '/admin/analytics', label: t('nav:dataManagement'), icon: BarChart3, desc: '' },
+    ...(isAdmin ? [{ path: '/admin/analytics', label: t('nav:dataManagement'), icon: BarChart3, desc: '' }] : []),
     { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, desc: '' },
     { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, desc: '' },
-    { path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, desc: '' },
+    ...(isAdmin ? [{ path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, desc: '' }] : []),
     { path: '/admin/tasks', label: t('nav:taskManagement'), icon: ClipboardList, desc: '' },
   ]
 
@@ -197,7 +199,7 @@ export default function Header() {
               label={i18n.language?.startsWith('zh') ? '关于' : 'About'}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
-            {isAdmin && (
+            {(isAdmin || canUpload === true) && (
               <>
                 <span className={`mx-1 h-5 w-px ${theme.divider}`} />
                 <DropdownNav

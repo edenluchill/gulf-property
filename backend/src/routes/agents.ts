@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { requireAuth, optionalAuth } from '../middleware/auth'
 import { requireOwner, isOwnerEmail } from '../middleware/requireOwner'
+import { isAdminEmail } from '../lib/adminEmails'
 import { ensureAgent } from '../luna-tour/session-builder'
 
 const router = Router()
@@ -130,5 +131,65 @@ async function decide(req: Request, res: Response, status: 'approved' | 'rejecte
 
 router.post('/:email/approve', optionalAuth, requireOwner, (req, res) => decide(req, res, 'approved'))
 router.post('/:email/reject', optionalAuth, requireOwner, (req, res) => decide(req, res, 'rejected'))
+
+// ── 楼书上传权限(uploader)────────────────────────────────────────────────
+// 单独授权某个 email 能用「上传楼书 / 任务审核 / 项目管理」,但看不到
+// telemetry/分析后台(那些仍是 admin/owner)。admin 隐含拥有上传权限。
+
+/** 登录用户查自己有没有上传权限(前端 AuthContext 用)。 */
+router.get('/can-upload', requireAuth, async (req: Request, res: Response) => {
+  const email = (req.user?.email || req.ctx?.email || '').toLowerCase().trim()
+  if (!email) return res.json({ canUpload: false })
+  if (isAdminEmail(email) || isOwnerEmail(email)) return res.json({ canUpload: true })
+  try {
+    const { rows } = await pool.query(`SELECT 1 FROM upload_permissions WHERE email = $1`, [email])
+    res.json({ canUpload: rows.length > 0 })
+  } catch (err) {
+    console.error('[agents] can-upload failed:', err)
+    res.json({ canUpload: false })
+  }
+})
+
+router.get('/upload-permissions', optionalAuth, requireOwner, async (_req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT email, granted_by, created_at FROM upload_permissions ORDER BY created_at DESC`
+    )
+    res.json({ success: true, permissions: rows })
+  } catch (err) {
+    console.error('[agents] list upload-permissions failed:', err)
+    res.status(500).json({ success: false })
+  }
+})
+
+router.post('/upload-permissions', optionalAuth, requireOwner, async (req: Request, res: Response) => {
+  const email = String(req.body?.email || '').toLowerCase().trim()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ success: false, error: 'invalid email' })
+  }
+  try {
+    await pool.query(
+      `INSERT INTO upload_permissions (email, granted_by) VALUES ($1, $2)
+       ON CONFLICT (email) DO NOTHING`,
+      [email, (req.user?.email as string) || 'owner']
+    )
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[agents] grant upload failed:', err)
+    res.status(500).json({ success: false })
+  }
+})
+
+router.delete('/upload-permissions/:email', optionalAuth, requireOwner, async (req: Request, res: Response) => {
+  const email = decodeURIComponent(req.params.email || '').toLowerCase().trim()
+  if (!email) return res.status(400).json({ success: false })
+  try {
+    await pool.query(`DELETE FROM upload_permissions WHERE email = $1`, [email])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[agents] revoke upload failed:', err)
+    res.status(500).json({ success: false })
+  }
+})
 
 export default router

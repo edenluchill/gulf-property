@@ -59,7 +59,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           className="shrink-0 grid transition-[grid-template-rows] duration-300 ease-out"
           style={{ gridTemplateRows: headerHidden ? '0fr' : '1fr' }}
         >
-          <div className="min-h-0 overflow-hidden">
+          {/* overflow-hidden 只在收起时加:常驻会把 Header 里 absolute 的下拉
+              (管理菜单/用户菜单)整个裁掉——桌面端 header 从不收纳却一直被裁。 */}
+          <div className={`min-h-0 ${headerHidden ? 'overflow-hidden' : 'overflow-visible'}`}>
             <Header />
           </div>
         </div>

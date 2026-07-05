@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Check, X, Clock, History } from 'lucide-react'
-import { listAgents, approveAgent, rejectAgent, setAgentPlan, AgentRow } from '../../lib/agentApi'
+import { Loader2, Check, X, Clock, History, Upload, Plus } from 'lucide-react'
+import {
+  listAgents, approveAgent, rejectAgent, setAgentPlan, AgentRow,
+  listUploadPerms, grantUploadPerm, revokeUploadPerm, UploadPermRow,
+} from '../../lib/agentApi'
 import { fetchPlanChanges, type PlanChange } from '../../lib/billingApi'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -123,6 +126,84 @@ function PlanCell({ a, busy, onSet }: { a: AgentRow; busy: boolean; onSet: (plan
   )
 }
 
+/** 楼书上传权限:单独授权某个 email 用上传/审核/项目管理,不给分析后台。 */
+function UploadPermissions() {
+  const [rows, setRows] = useState<UploadPermRow[] | null>(null)
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const load = () => listUploadPerms().then(setRows).catch(() => setRows([]))
+  useEffect(() => { load() }, [])
+
+  const grant = async () => {
+    const email = input.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErr('请输入有效邮箱'); return }
+    setBusy(true); setErr(null)
+    try { await grantUploadPerm(email); setInput(''); await load() }
+    catch { setErr('授权失败,请重试') }
+    finally { setBusy(false) }
+  }
+
+  const revoke = async (email: string) => {
+    setBusy(true)
+    try { await revokeUploadPerm(email); await load() } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+        <Upload className="h-4 w-4 text-teal-500" />
+        <h3 className="text-sm font-semibold text-slate-800">楼书上传权限</h3>
+        <span className="text-xs text-slate-400">授权后可用「上传楼书 / 任务审核 / 项目管理」,看不到数据分析后台</span>
+      </div>
+      <div className="space-y-3 p-4">
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={input}
+            onChange={(e) => { setInput(e.target.value); setErr(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') grant() }}
+            placeholder="输入邮箱,如 someone@example.com"
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
+          />
+          <button
+            disabled={busy || !input.trim()}
+            onClick={grant}
+            className="flex items-center gap-1 rounded-lg bg-teal-500 px-3.5 py-2 text-sm font-medium text-white hover:bg-teal-600 disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" /> 授权
+          </button>
+        </div>
+        {err && <p className="text-xs text-rose-500">{err}</p>}
+        {rows == null ? (
+          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-teal-500" /></div>
+        ) : rows.length === 0 ? (
+          <p className="py-2 text-xs text-slate-400">还没有单独授权的账号(admin 本身就能上传)。</p>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {rows.map((r) => (
+              <div key={r.email} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="truncate font-medium text-slate-700">{r.email}</span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-[11px] text-slate-400">{String(r.created_at).slice(0, 10)} 授权</span>
+                  <button
+                    disabled={busy}
+                    onClick={() => revoke(r.email)}
+                    className="text-[11px] text-slate-400 hover:text-rose-500 disabled:opacity-50"
+                  >
+                    撤销
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Owner-only: approve/reject agents who requested access to the 经纪台. */
 export default function AgentApprovals() {
   const [rows, setRows] = useState<AgentRow[] | null>(null)
@@ -208,6 +289,9 @@ export default function AgentApprovals() {
           </div>
         )}
       </div>
+
+      {/* 楼书上传权限:非 admin 的帮手(如合伙人的伙伴)单独授权 */}
+      <UploadPermissions />
 
       {/* 套餐变更审计:升/降/取消(含客户留下的原因)/席位/手动赠送,一处看全 */}
       <PlanChangeLog />

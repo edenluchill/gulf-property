@@ -8,10 +8,12 @@ import LoginDialog from './LoginDialog'
 interface ProtectedRouteProps {
   children: ReactNode
   requireAdmin?: boolean
+  /** 上传楼书相关页:admin 或被单独授权(upload_permissions)的账号都可进 */
+  requireUploader?: boolean
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, loading, isAdmin, isConfigured } = useAuth()
+export default function ProtectedRoute({ children, requireAdmin = false, requireUploader = false }: ProtectedRouteProps) {
+  const { user, loading, isAdmin, canUpload, isConfigured } = useAuth()
   const { t } = useTranslation('auth')
   const [showLogin, setShowLogin] = useState(false)
 
@@ -71,8 +73,17 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
     )
   }
 
+  // 上传权限还在向服务端查询中 → 等结果,别闪「无权限」
+  if (requireUploader && !isAdmin && canUpload === null) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
+      </div>
+    )
+  }
+
   // If admin is required but user is not admin
-  if (requireAdmin && !isAdmin) {
+  if ((requireAdmin && !isAdmin) || (requireUploader && !isAdmin && !canUpload)) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center p-8 max-w-md">

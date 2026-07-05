@@ -71,3 +71,29 @@ export async function setAgentPlan(email: string, plan: 'explore' | 'rookie' | '
     body: JSON.stringify({ plan }),
   })
 }
+
+// ── 楼书上传权限(uploader)——admin 之外单独授权某个 email 能上传/审核楼书 ──
+export interface UploadPermRow {
+  email: string
+  granted_by: string | null
+  created_at: string
+}
+
+export async function listUploadPerms(): Promise<UploadPermRow[]> {
+  const res = await authed('/upload-permissions')
+  if (!res.ok) throw new Error(String(res.status))
+  return (await res.json()).permissions || []
+}
+
+export async function grantUploadPerm(email: string): Promise<void> {
+  const res = await authed('/upload-permissions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) throw new Error(String(res.status))
+}
+
+export async function revokeUploadPerm(email: string): Promise<void> {
+  await authed(`/upload-permissions/${encodeURIComponent(email)}`, { method: 'DELETE' })
+}

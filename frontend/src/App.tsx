@@ -121,7 +121,7 @@ function App() {
         <Route
           path="/developer/upload"
           element={
-            <ProtectedRoute requireAdmin>
+            <ProtectedRoute requireUploader>
               <DeveloperPropertyUploadPageV2 />
             </ProtectedRoute>
           }
@@ -141,7 +141,7 @@ function App() {
         <Route
           path="/admin/properties"
           element={
-            <ProtectedRoute requireAdmin>
+            <ProtectedRoute requireUploader>
               <AdminPropertyListPage />
             </ProtectedRoute>
           }
@@ -149,7 +149,7 @@ function App() {
         <Route
           path="/admin/property/edit/:id"
           element={
-            <ProtectedRoute requireAdmin>
+            <ProtectedRoute requireUploader>
               <AdminPropertyEditPage />
             </ProtectedRoute>
           }
@@ -157,7 +157,7 @@ function App() {
         <Route
           path="/admin/tasks"
           element={
-            <ProtectedRoute requireAdmin>
+            <ProtectedRoute requireUploader>
               <AdminTasksPage />
             </ProtectedRoute>
           }
@@ -165,7 +165,7 @@ function App() {
         <Route
           path="/admin/tasks/:jobId/review"
           element={
-            <ProtectedRoute requireAdmin>
+            <ProtectedRoute requireUploader>
               <AdminTaskReviewPage />
             </ProtectedRoute>
           }
