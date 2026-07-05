@@ -341,7 +341,9 @@ function MapViewMapLibre({
   }, [voiceAmenities])
   const showAmenities = !!voiceAmenities && !amenityClosed
 
-  const [hoveredAreaId, setHoveredAreaId] = useState<string | null>(null)
+  // hover 的区域走独立 hover 图层 + setFilter(命令式,只重算那一层),
+  // 不进 React state —— 见 area-fills Layer 上的注释。
+  const hoverAreaRef = useRef<string | number | null>(null)
   const boundsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 
@@ -453,6 +455,10 @@ function MapViewMapLibre({
     }
 
     setMapLoaded(true)
+
+    // DEV-only 调试句柄:perf/hover 自测脚本(scripts/_verify-*.mjs)用它直接
+    // 查 feature-state / queryRenderedFeatures,别在生产暴露。
+    if (import.meta.env.DEV) (window as unknown as { __map?: unknown }).__map = map
 
     // Signal "ready" once the first frame has actually settled (tiles + layers),
     // so the parent can fade out the load overlay. Fallback timer guarantees the
@@ -739,7 +745,7 @@ function MapViewMapLibre({
 
     const features = dubaiAreas
       .filter(area => area.boundary?.type === 'Polygon')
-      .map(area => {
+      .map((area, i) => {
         // 如果选择了指标，使用热力图颜色
         let fillColor = area.color || '#3b82f6'
         if (areaMetric !== 'none') {
@@ -749,7 +755,11 @@ function MapViewMapLibre({
 
         return {
           type: 'Feature' as const,
-          id: area.id,
+          // ⚠️ feature-state(hover 高亮)的渲染路径只认「数字」feature id ——
+          // uuid 字符串(含 promoteId 提升)时 getFeatureState 查得到但 paint
+          // 永远不命中,高亮静默失效(2026-07-05 排查半天的坑)。uuid 保留在
+          // properties.id 供点击查表。
+          id: i + 1,
           properties: {
             id: area.id,
             name: area.name,
@@ -867,10 +877,23 @@ function MapViewMapLibre({
     return { type: 'FeatureCollection' as const, features }
   }, [pois, showPois, mapLoaded])
 
-  // Hover handlers for areas and POIs
+  // Hover handlers for areas and POIs。feature-state 版:零 React 重渲染,
+  // 只改上一个/当前 feature 的状态。
+  const setAreaHover = useCallback((map: MaplibreMap, id: string | number | null) => {
+    if (hoverAreaRef.current === id) return
+    if (!map.getLayer('area-fill-hover')) { hoverAreaRef.current = null; return }
+    // 只过滤 hover 图层里的一个 feature —— 不触碰 area-fills 的 paint,
+    // 不触发 React 渲染;id 为空时用 -1(永不匹配)清空。
+    map.setFilter('area-fill-hover', ['==', ['id'], id == null ? -1 : id])
+    hoverAreaRef.current = id
+  }, [])
+
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const map = mapRef.current?.getMap()
     if (!map) return
+    // 拖动/缩放中不做 hover:地图在光标下滑动时区域边界会连续穿过光标,
+    // 高亮闪烁没意义还白做功
+    if (map.isMoving()) return
 
     if (e.features?.length) {
       const layerId = e.features[0].layer?.id
@@ -878,19 +901,23 @@ function MapViewMapLibre({
       map.getCanvas().style.cursor = 'pointer'
 
       if (layerId === 'area-fills') {
-        setHoveredAreaId(e.features[0].properties?.id || null)
+        // 数字 feature.id(见 areasGeoJson 注释),uuid 在 properties.id
+        setAreaHover(map, e.features[0].id ?? null)
       }
     } else {
+      // 空命中只复位光标,不清高亮:重绘瞬间 hit-test 会偶发 miss,光标扫过
+      // 区域间隙也会空命中——立即清除等于高亮闪烁。高亮保持到 hover 下一个
+      // 区域(setAreaHover 自动清上一个)或移出地图(handleMouseLeave)。
       map.getCanvas().style.cursor = ''
-      setHoveredAreaId(null)
     }
-  }, [])
+  }, [setAreaHover])
 
   const handleMouseLeave = useCallback(() => {
     const map = mapRef.current?.getMap()
-    if (map) map.getCanvas().style.cursor = ''
-    setHoveredAreaId(null)
-  }, [])
+    if (!map) return
+    map.getCanvas().style.cursor = ''
+    setAreaHover(map, null)
+  }, [setAreaHover])
 
   const handleMapClick = useCallback((e: MapLayerMouseEvent) => {
     // 测距模式：每次点击落一个点，不触发区域/POI 选择
@@ -990,7 +1017,11 @@ function MapViewMapLibre({
         onClick={handleMapClick}
       >
         {/* Area Polygons — always shown (soft default colours give customers
-            orientation via area names; the tour toggles a metric to reveal value) */}
+            orientation via area names; the tour toggles a metric to reveal value)。
+            ⚠️ hover 高亮走 feature-state(命令式),千万别把 hover id 塞进 paint
+            表达式:那会在每次 hover 变化时全量重估 fill-opacity + 重传所有区域的
+            paint buffer + 整个组件重渲染——拖动时地图在光标下滑过区域边界就会
+            打出 100-600ms 长帧(2026-07-05 实锤的"一卡一卡"根因)。 */}
         {mapLoaded && areasGeoJson && (
           <Source id="areas" type="geojson" data={areasGeoJson}>
             <Layer
@@ -998,12 +1029,19 @@ function MapViewMapLibre({
               type="fill"
               paint={{
                 'fill-color': ['get', 'color'],
-                'fill-opacity': [
-                  'case',
-                  ['==', ['get', 'id'], hoveredAreaId],
-                  ['*', ['get', 'opacity'], 0.7],  // hover: opacity * 0.7
-                  ['*', ['get', 'opacity'], 0.4]   // normal: soft (matches production)
-                ]
+                'fill-opacity': ['*', ['get', 'opacity'], 0.4]  // soft (matches production)
+              }}
+            />
+            {/* hover 高亮:独立图层 + setAreaHover 里 setFilter 切换,只画命中的
+                那一个区域(叠加 0.3x ≈ 原 hover 0.7x 的观感)。filter 初始 -1 =
+                不画任何东西。 */}
+            <Layer
+              id="area-fill-hover"
+              type="fill"
+              filter={['==', ['id'], -1]}
+              paint={{
+                'fill-color': ['get', 'color'],
+                'fill-opacity': ['*', ['get', 'opacity'], 0.3]
               }}
             />
           </Source>
