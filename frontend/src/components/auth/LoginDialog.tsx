@@ -280,6 +280,14 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
               </Button>
             </TabsContent>
           </Tabs>
+
+          {/* Legal consent — links open in a new tab so the sign-in flow isn't lost */}
+          <p className="mt-4 text-center text-xs leading-relaxed text-slate-400">
+            {t('legalPrefix', 'By signing in, you agree to our')}{' '}
+            <a href="/terms" target="_blank" rel="noopener" className="text-teal-600 hover:underline">{t('terms', 'Terms of Service')}</a>
+            {' '}{t('legalAnd', 'and')}{' '}
+            <a href="/privacy" target="_blank" rel="noopener" className="text-teal-600 hover:underline">{t('privacy', 'Privacy Policy')}</a>
+          </p>
         </div>
       </DialogContent>
     </Dialog>

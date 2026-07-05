@@ -462,6 +462,14 @@ export default function LoginPage() {
                         </svg>
                         {t('auth:continueWithGoogle', 'Continue with Google')}
                       </Button>
+
+                      {/* Legal consent — Google OAuth verification expects these links near sign-in */}
+                      <p className="text-center text-xs leading-relaxed text-slate-400">
+                        {t('auth:legalPrefix', 'By signing in, you agree to our')}{' '}
+                        <Link to="/terms" className="text-teal-600 hover:underline">{t('auth:terms', 'Terms of Service')}</Link>
+                        {' '}{t('auth:legalAnd', 'and')}{' '}
+                        <Link to="/privacy" className="text-teal-600 hover:underline">{t('auth:privacy', 'Privacy Policy')}</Link>
+                      </p>
                     </form>
                   ) : (
                     <form onSubmit={handleVerifyOtp} className="space-y-5">

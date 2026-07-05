@@ -338,6 +338,12 @@ export default function AboutPage() {
             <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>{L('打开地图探索', 'Open the map')} <ArrowRight className="h-4 w-4" /></Link>
             <Link to="/agent" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{L('经纪台', 'Agent console')}</Link>
           </div>
+          {/* legal footer — Google OAuth verification requires reachable policy links */}
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span>© {new Date().getFullYear()} FINDHOMEGO AI TECH INC.</span>
+            <Link to="/privacy" className="transition hover:text-slate-300">{L('隐私政策', 'Privacy Policy')}</Link>
+            <Link to="/terms" className="transition hover:text-slate-300">{L('服务条款', 'Terms of Service')}</Link>
+          </div>
         </Reveal>
       </section>
     </div>
