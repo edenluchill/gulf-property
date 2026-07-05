@@ -12,7 +12,7 @@ import Supercluster from 'supercluster'
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, X } from 'lucide-react'
+import { Globe, Ruler, X, Box } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON } from '../lib/api'
@@ -145,8 +145,6 @@ interface MapViewMapLibreProps {
    *  so tapping to draw/place a mark doesn't ALSO open a POI/area/project panel
    *  (and so dismissing a panel doesn't re-select the feature underneath). */
   disableFeatureClicks?: boolean
-  /** 手机右上控制卡是否展开(MapPage 传入)——底图/3D/测距 pill 列跟着让位 */
-  topCardOpen?: boolean
 }
 
 function MapViewMapLibre({
@@ -176,8 +174,7 @@ function MapViewMapLibre({
   chromeless = false,
   tourActive = false,
   visible = true,
-  disableFeatureClicks = false,
-  topCardOpen = false
+  disableFeatureClicks = false
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -1486,50 +1483,48 @@ function MapViewMapLibre({
       </Map>
 
       {!chromeless && (<>
-      {/* 底图/3D/测距 pill 列:全断点通用(2026-07-05 起桌面也走这套——桌面展开
-          长条面板已删,右上统一紧凑控制卡)。
-          top 规则:md+ 控制卡常开(高 ~148px,top-3 起算)→ 164px;
-          手机跟随控制卡收纳状态:收起(摘要药丸 ~40px)→ top-14,展开(手机版卡
-          缩一号+收起把手 ~145px)→ 164px。控制卡再改高度这里要跟着挪,且改完必须
-          414/1180/1440 三档截图验证(2026-07-03 用户反馈两次撞坑)。 */}
-      <div
-        data-testid="map-mobile-tools"
-        className={`absolute right-3 z-[1000] flex flex-col items-end gap-2 transition-[top] duration-200 ${
-          topCardOpen ? 'top-[164px]' : 'top-14'
-        } md:top-[164px]`}
-      >
-        <button
-          type="button"
-          onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium shadow-lg ring-1 backdrop-blur transition ${
-            baseMap === 'dark' ? 'bg-slate-900/90 text-slate-100 ring-slate-700' : 'bg-white/90 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
-          }`}
-          aria-label="切换底图"
-        >
-          <Globe size={15} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
-          {baseMap === 'vector' ? '地图' : baseMap === 'satellite' ? '卫星' : '夜景'}
-        </button>
-        <button
-          type="button"
-          onClick={toggle3D}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold shadow-lg ring-1 backdrop-blur transition ${
-            pitched ? 'bg-emerald-500 text-white ring-emerald-400' : 'bg-white/90 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
-          }`}
-          aria-label="切换 3D 倾斜视角"
-        >
-          <span className="text-[13px] font-bold leading-none">{pitched ? '平视' : '3D'}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium shadow-lg ring-1 backdrop-blur transition ${
-            measureMode ? 'bg-blue-600 text-white ring-blue-700' : 'bg-white/90 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
-          }`}
-          aria-label="测距工具"
-        >
-          <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
-          {measureMode ? '退出测距' : '测距'}
-        </button>
+      {/* 底图/3D/测距:合并成一张与右上控制卡同风格的竖排小卡(rounded-2xl 白卡
+          + 内部 rounded-lg 按钮),全断点通用。原来三颗独立 pill 宽度参差,
+          右缘不齐显乱(用户反馈)。
+          top 规则:控制卡常开(手机 ~145px / md+ ~148px,top-3 起算)→ 164px。
+          控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440 三档截图验证
+          (2026-07-03 用户反馈两次撞坑)。 */}
+      <div data-testid="map-mobile-tools" className="absolute right-3 top-[164px] z-[1000]">
+        <div className="flex flex-col gap-0.5 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+              baseMap === 'dark' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            aria-label="切换底图"
+          >
+            <Globe size={14} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
+            {baseMap === 'vector' ? '地图' : baseMap === 'satellite' ? '卫星' : '夜景'}
+          </button>
+          <button
+            type="button"
+            onClick={toggle3D}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+              pitched ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/40' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            aria-label="切换 3D 倾斜视角"
+          >
+            <Box size={14} className={pitched ? 'text-white' : 'text-slate-500'} />
+            {pitched ? '平视' : '3D'}
+          </button>
+          <button
+            type="button"
+            onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+              measureMode ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            aria-label="测距工具"
+          >
+            <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
+            {measureMode ? '退出' : '测距'}
+          </button>
+        </div>
       </div>
 
       {/* 测距状态条(极简,距离已画在地图线上) */}
