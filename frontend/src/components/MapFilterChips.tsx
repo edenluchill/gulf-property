@@ -154,10 +154,10 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
   const Chip = ({ id, base, active }: { id: string; base: string; active: string | null }) => (
     <button
       onClick={() => setOpen(open === id ? null : id)}
-      className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium ring-1 backdrop-blur transition-colors ${
+      className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium shadow-lg ring-1 backdrop-blur-sm transition-colors ${
         active
           ? 'bg-primary text-white ring-primary'
-          : 'bg-white/85 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
+          : 'bg-white/95 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
       }`}
     >
       {active || base}
@@ -296,7 +296,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
         {anyActive && (
           <button
             onClick={clearAll}
-            className="flex shrink-0 items-center gap-1 rounded-full bg-white/85 px-2.5 py-1.5 text-xs text-slate-500 ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700"
+            className="flex shrink-0 items-center gap-1 rounded-xl bg-white/95 px-2.5 py-1.5 text-xs text-slate-500 shadow-lg ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700"
           >
             <X className="h-3 w-3" /> {t('chips.clear')}
           </button>
@@ -306,11 +306,11 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       {/* ===== 移动端:单按钮 ===== */}
       <button
         onClick={() => setSheet(true)}
-        className={`md:hidden flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium shadow-lg ring-1 backdrop-blur transition-colors ${
-          anyActive ? 'bg-primary text-white ring-primary' : 'bg-white/90 text-slate-700 ring-slate-900/[0.06]'
+        className={`md:hidden flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur-sm transition-all active:scale-95 ${
+          anyActive ? 'bg-primary text-white ring-primary' : 'bg-white/95 text-slate-600 ring-slate-900/[0.06]'
         }`}
       >
-        <SlidersHorizontal className="h-4 w-4" />
+        <SlidersHorizontal className="h-3.5 w-3.5" />
         {t('chips.filter')}
         {anyActive && (
           <span className="ml-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-primary">

@@ -47,7 +47,8 @@ export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchRe
 
   return (
     <div ref={boxRef} className="relative">
-      <div className="flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur">
+      {/* 与地图右上控制卡同一套视觉语言:rounded-2xl / bg-white/95 / ring / shadow */}
+      <div className="flex items-center gap-1.5 rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
         <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
         <input
           value={q}
