@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { identifyVisitor } from '../lib/track'
+import { identifyVisitor, trackEvent } from '../lib/track'
 import { clearFavorites } from '../lib/favorites'
 import { isAdminEmail, API_BASE_URL } from '../lib/config'
 
@@ -29,6 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [canUpload, setCanUpload] = useState<boolean | null>(false)
+  // "为什么老被登出"排查埋点:区分用户点退出 vs SDK 自杀会话(refresh token 被
+  // reuse-detection 吊销、存储被清等)。manual:false 的 auth_signed_out 才是事故。
+  const manualSignOutRef = useRef(false)
+  const lastEmailRef = useRef<string | null>(null)
 
   // 楼书上传权限:admin 直接 true;普通账号问服务端白名单(upload_permissions)
   useEffect(() => {
@@ -72,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session)
         setUser(session?.user ?? null)
+        if (session?.user?.email) lastEmailRef.current = session.user.email
         checkAdminRole(session?.user ?? null)
         setLoading(false)
         // Link this browser's anonymous visitor_id to the account (backfills email).
@@ -84,7 +89,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // manual:false = the SDK ended the session on its own — that's the bug we
+        // hunt (refresh-token revocation / storage loss), keyed by who it hit.
+        trackEvent('auth_signed_out', {
+          manual: manualSignOutRef.current,
+          last_email: lastEmailRef.current || undefined,
+        })
+        manualSignOutRef.current = false
+        lastEmailRef.current = null
+      }
+      if (session?.user?.email) lastEmailRef.current = session.user.email
       setSession(session)
       setUser(session?.user ?? null)
       checkAdminRole(session?.user ?? null)
@@ -154,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    manualSignOutRef.current = true
     await supabase.auth.signOut()
     setUser(null)
     setSession(null)

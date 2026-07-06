@@ -41,6 +41,7 @@ export type AppEvent =
   // see failures real users hit (esp. mobile login) instead of losing them silently.
   | 'auth_failure'
   | 'api_error'
+  | 'auth_signed_out'
 
 // '/api/sync' (not '/api/events') — "events" is on ad-block keyword lists, which
 // silently eats real users' telemetry. The backend double-mounts both paths.

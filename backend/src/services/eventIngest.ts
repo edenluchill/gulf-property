@@ -32,6 +32,9 @@ export const ALLOWED_EVENTS = new Set([
   // ingest path — these just carry diagnostic fields in `payload`.
   'auth_failure', // OAuth/login callback failed (provider error, race, storage blocked, …)
   'api_error',    // a fetch to our API failed: network down, 5xx, timeout/429
+  'auth_signed_out', // session ended (payload: manual) — manual:false means the SDK killed it
+                     // (refresh-token reuse revocation, storage loss), the "why do I keep
+                     // getting logged out" investigation signal
 ])
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
