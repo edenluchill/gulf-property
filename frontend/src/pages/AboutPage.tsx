@@ -340,7 +340,7 @@ export default function AboutPage() {
           </div>
           {/* legal footer — Google OAuth verification requires reachable policy links */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span>© {new Date().getFullYear()} FINDHOMEGO AI TECH INC.</span>
+            <span>© {new Date().getFullYear()} Pinzos</span>
             <Link to="/privacy" className="transition hover:text-slate-300">{L('隐私政策', 'Privacy Policy')}</Link>
             <Link to="/terms" className="transition hover:text-slate-300">{L('服务条款', 'Terms of Service')}</Link>
           </div>

@@ -10,7 +10,9 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ShieldCheck, FileText } from 'lucide-react'
 
-const COMPANY = 'FINDHOMEGO AI TECH INC.'
+// Brand-only by owner decision (2026-07-06): no corporate entity named anywhere
+// in these pages — "Pinzos" is the contracting name throughout. Trade-off
+// accepted: the liability-cap clauses shield an unnamed operator.
 // Routed via Cloudflare Email Routing → owner inbox. Keep in sync with the
 // contact email on the Google OAuth consent screen.
 const CONTACT_EMAIL = 'support@pinzos.com'
@@ -41,7 +43,7 @@ function LegalShell({ icon, title, subtitle, canonical, children }: {
         <p className="mt-1 text-sm text-slate-400">{L('最后更新:2026年7月5日', 'Last updated: July 5, 2026')}</p>
         <div className="mt-8 space-y-8">{children}</div>
         <footer className="mt-12 border-t border-slate-200 pt-6 text-sm text-slate-500">
-          <p>© {new Date().getFullYear()} {COMPANY} · Pinzos</p>
+          <p>© {new Date().getFullYear()} Pinzos</p>
           <p className="mt-1 flex gap-4">
             <Link to="/privacy" className="text-teal-600 hover:underline">{L('隐私政策', 'Privacy Policy')}</Link>
             <Link to="/terms" className="text-teal-600 hover:underline">{L('服务条款', 'Terms of Service')}</Link>
@@ -84,8 +86,8 @@ export function PrivacyPolicyPage() {
     >
       <Sec title={L('1. 我们是谁', '1. Who we are')}>
         <p>{L(
-          `Pinzos(pinzos.com)是一个探索迪拜房产的交互式平台,由加拿大不列颠哥伦比亚省注册公司 ${COMPANY} 运营。本政策适用于 pinzos.com 及其子域名上的所有服务。`,
-          `Pinzos (pinzos.com) is an interactive platform for exploring Dubai property, operated by ${COMPANY}, a company registered in British Columbia, Canada. This policy covers all services on pinzos.com and its subdomains.`
+          'Pinzos(pinzos.com,下称「我们」)是一个探索迪拜房产的交互式平台。本政策适用于 pinzos.com 及其子域名上的所有服务。',
+          'Pinzos (pinzos.com, "we") is an interactive platform for exploring Dubai property. This policy covers all services on pinzos.com and its subdomains.'
         )}</p>
       </Sec>
 
@@ -165,7 +167,7 @@ export function PrivacyPolicyPage() {
       </Sec>
 
       <Sec title={L('11. 联系我们', '11. Contact')}>
-        <p>{COMPANY} · <a href={`mailto:${CONTACT_EMAIL}`} className="text-teal-600 hover:underline">{CONTACT_EMAIL}</a></p>
+        <p>Pinzos · <a href={`mailto:${CONTACT_EMAIL}`} className="text-teal-600 hover:underline">{CONTACT_EMAIL}</a></p>
       </Sec>
     </LegalShell>
   )
@@ -185,8 +187,8 @@ export function TermsPage() {
     >
       <Sec title={L('1. 接受条款', '1. Acceptance')}>
         <p>{L(
-          `Pinzos(pinzos.com)由 ${COMPANY}(加拿大不列颠哥伦比亚省)运营。访问或使用本平台即表示你同意本条款;不同意请停止使用。`,
-          `Pinzos (pinzos.com) is operated by ${COMPANY} (British Columbia, Canada). By accessing or using the platform you agree to these terms; if you do not agree, please stop using it.`
+          '本条款约定你与 Pinzos(pinzos.com,下称「我们」)之间关于使用本平台的权利义务。访问或使用本平台即表示你同意本条款;不同意请停止使用。',
+          'These terms govern your use of Pinzos (pinzos.com, "we"). By accessing or using the platform you agree to them; if you do not agree, please stop using it.'
         )}</p>
       </Sec>
 
