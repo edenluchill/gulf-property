@@ -9,7 +9,7 @@ import { Helmet } from 'react-helmet-async'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
 
@@ -208,9 +208,18 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       </Helmet>
 
       <section className="mx-auto max-w-6xl px-6 py-5 md:py-7">
-        {/* 无导航的选档页:只留一个品牌标识定位(不可点 —— 一个页面一个决定) */}
+        {/* 无导航的选档页:品牌标识 + 顶部显眼的「返回重选角色」——所有角色的
+            开通页都要有后退选项,选错身份不需要滚到页底找小字 */}
         {agentOnboarding && (
-          <div className="mb-5 flex items-center justify-center gap-2 select-none">
+          <div className="relative mb-5 flex items-center justify-center gap-2 select-none">
+            <button
+              onClick={reselectRole}
+              className="absolute left-0 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">{L('重新选择角色', 'Choose another role')}</span>
+              <span className="sm:hidden">{L('重选角色', 'Back')}</span>
+            </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: ACCENT }}>
               <span className="text-sm font-black text-slate-900">P</span>
             </span>
