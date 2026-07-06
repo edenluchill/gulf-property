@@ -691,6 +691,20 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   // 付费订阅生效 → 自动审批(经纪台准入;任何档,含之前被拒的账号 —— 付费即准入)。
   if (sub.status === 'active' || sub.status === 'trialing') {
     await autoApprovePaid(agentEmail, a.rows[0]?.display_name || null)
+
+    // 付费才定身份:选付费角色时前端不预写 role(没付款下次刷新还会再问,
+    // 免得被付费墙锁死)。订阅生效后这里按套餐落角色(前端回跳页兜底 INSERT)。
+    if (agentEmail) {
+      const ROLE_BY_PLAN: Record<string, string> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
+      const role = ROLE_BY_PLAN[planId]
+      if (role) {
+        await pool.query(
+          `UPDATE user_profiles SET role = $2, role_chosen_at = now(), updated_at = now()
+            WHERE lower(email) = lower($1)`,
+          [agentEmail, role]
+        ).catch((e) => console.error('[billing] role sync failed:', e))
+      }
+    }
   }
   // 订阅状态变了 → 地图计量的「经纪需付费」判定立即刷新(缓存按 userId,这里拿不到,全清,60s 内重建)
   clearAgentGate()

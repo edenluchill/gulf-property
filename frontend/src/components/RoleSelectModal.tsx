@@ -108,6 +108,13 @@ export default function RoleSelectModal() {
 
   const choose = async (card: typeof ROLE_CARDS[number]) => {
     if (saving) return
+    // 付费角色:先「不」落身份 —— 付款成功后才 set(webhook + 回跳页双保险)。
+    // 没付款的话下次进地图还会再弹本窗重新选,选错也不会被付费墙锁住。
+    if (card.paid) {
+      setOpen(false)
+      window.location.assign(card.next || '/')
+      return
+    }
     setSaving(card.id)
     const ok = await setMyRole(card.id)
     setSaving(null)
@@ -115,7 +122,7 @@ export default function RoleSelectModal() {
     try { sessionStorage.setItem(CACHE_KEY, card.id) } catch { /* noop */ }
     setOpen(false)
     // 整页跳转:切换身份后 Header/经纪台等所有角色态立即一致(SPA navigate 会留旧态)
-    window.location.assign(card.next || '/')
+    window.location.assign('/')
   }
 
   if (!open) return null

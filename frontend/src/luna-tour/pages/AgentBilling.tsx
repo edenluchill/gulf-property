@@ -12,9 +12,12 @@ import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   fetchBillingMe, fetchPromo, fetchFeatures, startCheckout, openPortal,
-  fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats,
-  type BillingMe, type BillingInterval, type Promo, type FeaturesInfo, type TeamInfo, type PaidPlanId,
+  fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
+  type BillingMe, type BillingInterval, type Promo, type FeaturesInfo, type TeamInfo, type PaidPlanId, type UserRole,
 } from '../../lib/billingApi'
+
+// 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
+const ROLE_BY_PLAN: Record<string, UserRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
 
 const STATUS_LABEL: Record<string, string> = {
   none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
@@ -45,6 +48,19 @@ export default function AgentBilling() {
   useEffect(() => {
     if (banner) { const t = setTimeout(() => setParams({}, { replace: true }), 6000); return () => clearTimeout(t) }
   }, [banner, setParams])
+
+  // 付款成功 → 按套餐落角色(选付费角色时不预写 role,付款成功才定身份)
+  const roleSetRef = useState(() => ({ done: false }))[0]
+  useEffect(() => {
+    if (banner === 'success' && me && ['active', 'trialing'].includes(me.status) && !roleSetRef.done) {
+      const r = ROLE_BY_PLAN[me.plan?.id || '']
+      if (r) {
+        roleSetRef.done = true
+        void setMyRole(r)
+        try { sessionStorage.setItem('pinzos-role', r) } catch { /* noop */ }
+      }
+    }
+  }, [banner, me, roleSetRef])
 
   // 付款成功 → 颁发认证勋章(自动弹出,可保存发朋友圈)
   const { user } = useAuth()
