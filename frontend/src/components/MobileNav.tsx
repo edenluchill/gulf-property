@@ -11,10 +11,11 @@ export default function MobileNav() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation(['common', 'nav', 'auth'])
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, canUpload } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
-  const isAgent = !!profile?.agent || role === 'agent'
+  // 与 Header 保持一致:agency(经纪公司)/developer(开发商,含销售工具)也走经纪台
+  const isAgent = !!profile?.agent || role === 'agent' || role === 'agency' || role === 'developer'
   const isBuyer = role === 'buyer' && !isAgent
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [analysisSheetOpen, setAnalysisSheetOpen] = useState(false)
@@ -26,11 +27,13 @@ export default function MobileNav() {
   }, [user?.user_metadata?.avatar_url])
 
   // Admin menu items
+  // 与 Header 同规则:uploader(白名单帮手/付费开发商)只看到上传相关三项,
+  // 数据管理/地图编辑仍 admin-only
   const adminItems = [
-    { path: '/admin/analytics', label: t('nav:dataManagement'), icon: BarChart3, description: t('nav:desc.dataManagement') },
+    ...(isAdmin ? [{ path: '/admin/analytics', label: t('nav:dataManagement'), icon: BarChart3, description: t('nav:desc.dataManagement') }] : []),
     { path: '/developer/upload', label: t('nav:uploadBrochure'), icon: Upload, description: t('nav:desc.uploadBrochure') },
     { path: '/admin/properties', label: t('nav:projectManagement'), icon: Building2, description: t('nav:desc.projectManagement') },
-    { path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, description: t('nav:desc.dubaiMapEditor') },
+    ...(isAdmin ? [{ path: '/admin/dubai', label: t('nav:dubaiMapEditor'), icon: MapPinned, description: t('nav:desc.dubaiMapEditor') }] : []),
     { path: '/admin/tasks', label: t('nav:taskManagement'), icon: ClipboardList, description: t('nav:desc.taskManagement') },
   ]
 
@@ -56,7 +59,7 @@ export default function MobileNav() {
         : { path: '/agent/join', label: t('nav:becomeAgent'), icon: Briefcase },
     ]),
     // Admin - only for whitelisted admin accounts
-    ...(isAdmin ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
+    ...((isAdmin || canUpload === true) ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
     // Login/Profile based on auth status
     user
       ? { path: '/profile', label: t('nav:profile'), icon: User }
