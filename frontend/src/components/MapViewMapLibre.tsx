@@ -351,6 +351,10 @@ function MapViewMapLibre({
   // 配合电影 flyTo 俯冲。pitchedRef 供 flyTo effect 读取(避免把 pitched 放进
   // effect deps 而触发重复飞行)。
   const CINEMATIC_PITCH = 60
+  // 指北针:针的旋转/倾斜走命令式 DOM transform(rotate/pitch 事件每帧触发,
+  // 铁律「高频相机值禁入 React state」)。单个小合成层元素的 transform 写入
+  // 零 layout 零 React 重渲染,2D/3D 通用。
+  const compassNeedleRef = useRef<HTMLSpanElement>(null)
   const [pitched, setPitched] = useState(false)
   const pitchedRef = useRef(false)
   const toggle3D = () => {
@@ -453,6 +457,20 @@ function MapViewMapLibre({
       map.on('pitchstart', hideMarkers)
       map.on('pitchend', revealMarkersSoon)
     }
+
+    // 指北针跟相机:bearing 转针、pitch 给一点 rotateX 立体倾斜(3D 视角下针
+    // 像贴在地面上)。rotate/pitch 每帧触发,但这里只写一个小元素的 transform
+    // (合成层),不进 React —— 见 compassNeedleRef 注释。tour 的 jumpTo 每帧
+    // 也会触发,同样廉价,顺带让导览时指北针也跟镜头。
+    const syncCompass = () => {
+      const el = compassNeedleRef.current
+      if (!el) return
+      el.style.transform =
+        `perspective(120px) rotateX(${(map.getPitch() * 0.75).toFixed(1)}deg) rotateZ(${(-map.getBearing()).toFixed(1)}deg)`
+    }
+    map.on('rotate', syncCompass)
+    map.on('pitch', syncCompass)
+    syncCompass()
 
     setMapLoaded(true)
 
@@ -1523,6 +1541,26 @@ function MapViewMapLibre({
           >
             <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
             {measureMode ? '退出' : '测距'}
+          </button>
+          <button
+            type="button"
+            onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-90"
+            aria-label="指北针,点击回正北"
+          >
+            {/* 针由 syncCompass 命令式旋转(bearing)+倾斜(pitch),不走 React state */}
+            <span
+              ref={compassNeedleRef}
+              className="inline-block will-change-transform"
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="11" fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
+                <polygon points="12,3 15.4,12 8.6,12" fill="#ef4444" />
+                <polygon points="8.6,12 15.4,12 12,21" fill="#94a3b8" />
+              </svg>
+            </span>
+            正北
           </button>
         </div>
       </div>

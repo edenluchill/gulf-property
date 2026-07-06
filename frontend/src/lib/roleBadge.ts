@@ -54,16 +54,24 @@ export const ROLE_BY_PLAN: Record<string, 'agent' | 'agency' | 'developer'> = {
 export function badgeForPlan(planId: string | undefined | null, status?: string | null, teamMember?: boolean): RoleBadge | null {
   if (!planId) return null
   if (status && !['active', 'trialing'].includes(status)) return null
-  if (teamMember) return MEMBER_BADGE
+  if (teamMember) return MEMBER_BADGES[planId] || MEMBER_BADGES.founder
   return BADGES[planId] || null
 }
 
-/** 团队成员勋章:身份是经纪人,归属写团队 */
-const MEMBER_BADGE: RoleBadge = {
-  planId: 'member', emoji: '💼',
-  titleZh: '认证经纪人', titleEn: 'Certified Agent',
-  subZh: 'PINZOS 认证 · 团队成员', subEn: 'PINZOS Certified · Team member',
-  from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
+/** 团队成员勋章:按团队套餐发(经纪公司团队=经纪人;开发商团队=开发商成员) */
+const MEMBER_BADGES: Record<string, RoleBadge> = {
+  founder: {
+    planId: 'member', emoji: '💼',
+    titleZh: '认证经纪人', titleEn: 'Certified Agent',
+    subZh: 'PINZOS 认证 · 团队成员', subEn: 'PINZOS Certified · Team member',
+    from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
+  },
+  developer: {
+    planId: 'member', emoji: '🏗️',
+    titleZh: '认证开发商', titleEn: 'Certified Developer',
+    subZh: 'PINZOS 认证 · 团队成员', subEn: 'PINZOS Certified · Team member',
+    from: '#451a03', to: '#d97706', accent: '#fde68a',
+  },
 }
 
 /** 画 1080×1350 朋友圈分享卡(纯 canvas,零依赖)。 */

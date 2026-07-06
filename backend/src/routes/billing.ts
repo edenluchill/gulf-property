@@ -40,7 +40,7 @@ function getStripe(): Stripe | null {
 export type BillingInterval = 'month' | 'year'
 
 const PAID_PLANS = ['rookie', 'agent', 'founder', 'developer'] as const
-const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3 }
+const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3, developer: 4 }
 
 // ── 套餐+周期 ↔ Stripe price 映射(env 优先,回退 DB 列)────────────────
 // 月付列 stripe_price_id / 年付列 stripe_price_id_year(scripts/setup-stripe-prices.ts 回填)。
@@ -323,22 +323,24 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 // 成员通过 lt_agents.billing_agent_id 指向 founder → credits.ts 共享积分池。
 // ============================================================
 
-/** 当前经纪的生效 founder 订阅(团队端点共用的守卫)。 */
-async function founderSubOf(agentId: string): Promise<{ subId: string; extraSeats: number; seats: number } | null> {
-  const { rows } = await pool.query<{ stripe_subscription_id: string | null; extra_seats: number }>(
-    `SELECT stripe_subscription_id, extra_seats FROM lt_subscriptions
-      WHERE agent_id = $1 AND plan_id = 'founder' AND status IN ('active','trialing')
+/** 当前经纪的生效"带席位套餐"订阅(经纪公司版/开发商版;团队端点共用的守卫)。 */
+async function teamSubOf(agentId: string): Promise<{ subId: string; extraSeats: number; seats: number; planId: string } | null> {
+  const { rows } = await pool.query<{ stripe_subscription_id: string | null; extra_seats: number; plan_id: string }>(
+    `SELECT stripe_subscription_id, extra_seats, plan_id FROM lt_subscriptions
+      WHERE agent_id = $1 AND plan_id IN ('founder','developer') AND status IN ('active','trialing')
       ORDER BY created_at DESC LIMIT 1`,
     [agentId]
   )
   if (!rows[0]) return null
   const lim = await pool.query<{ seats: number | null }>(
-    `SELECT (limits->>'seats')::int AS seats FROM lt_subscription_plans WHERE id = 'founder'`
+    `SELECT (limits->>'seats')::int AS seats FROM lt_subscription_plans WHERE id = $1`,
+    [rows[0].plan_id]
   )
   return {
     subId: rows[0].stripe_subscription_id || '',
     extraSeats: rows[0].extra_seats ?? 0,
     seats: Number(lim.rows[0]?.seats ?? 3),
+    planId: rows[0].plan_id,
   }
 }
 
@@ -358,7 +360,7 @@ router.get('/team', requireAuth, async (req: Request, res: Response) => {
       )
       return res.json({ success: true, role: 'member', owner: owner.rows[0] || null })
     }
-    const sub = await founderSubOf(agent.id)
+    const sub = await teamSubOf(agent.id)
     if (!sub) return res.json({ success: true, role: 'none' })
     const members = await pool.query<{ id: string; email: string; display_name: string }>(
       `SELECT id, email, display_name FROM lt_agents WHERE billing_agent_id = $1 ORDER BY created_at`,
@@ -390,7 +392,7 @@ router.post('/team/invite', requireAuth, async (req: Request, res: Response) => 
   }
   if (email === agent.email) return res.status(400).json({ success: false, error: '不需要邀请自己' })
   try {
-    const sub = await founderSubOf(agent.id)
+    const sub = await teamSubOf(agent.id)
     if (!sub) return res.status(403).json({ success: false, error: '团队席位是 Founder 创始版的功能' })
     const members = await pool.query<{ n: string }>(
       `SELECT count(*) AS n FROM lt_agents WHERE billing_agent_id = $1`,
@@ -420,10 +422,10 @@ router.post('/team/invite', requireAuth, async (req: Request, res: Response) => 
       return res.status(409).json({ success: false, error: '对方已有自己的订阅,无需占用席位' })
     }
     await pool.query(`UPDATE lt_agents SET billing_agent_id = $2 WHERE id = $1`, [target, agent.id])
-    await autoApprovePaid(email, email.split('@')[0]) // founder 背书 → 准入直接放行
+    await autoApprovePaid(email, email.split('@')[0]) // 团队(经纪公司/开发商)背书 → 准入直接放行
     await logPlanChange({
       agentId: agent.id, agentEmail: agent.email, action: 'seat_invited',
-      toPlan: 'founder', metadata: { member: email },
+      toPlan: sub.planId, metadata: { member: email },
     })
     res.json({ success: true })
   } catch (err) {
@@ -443,9 +445,10 @@ router.delete('/team/:memberId', requireAuth, async (req: Request, res: Response
       [req.params.memberId, agent.id]
     )
     if (!rows.length) return res.status(404).json({ success: false, error: '不是你团队的成员' })
+    const sub = await teamSubOf(agent.id)
     await logPlanChange({
       agentId: agent.id, agentEmail: agent.email, action: 'seat_removed',
-      toPlan: 'founder', metadata: { member: rows[0].email },
+      toPlan: sub?.planId || 'founder', metadata: { member: rows[0].email },
     })
     res.json({ success: true })
   } catch (err) {
@@ -463,7 +466,7 @@ router.post('/seats', requireAuth, async (req: Request, res: Response) => {
   const extra = Math.max(0, Math.min(50, Math.floor(Number(req.body?.extraSeats ?? NaN))))
   if (!Number.isFinite(extra)) return res.status(400).json({ success: false, error: 'extraSeats required' })
   try {
-    const sub = await founderSubOf(agent.id)
+    const sub = await teamSubOf(agent.id)
     if (!sub || !sub.subId) return res.status(403).json({ success: false, error: '加席是 Founder 创始版的功能' })
     const members = await pool.query<{ n: string }>(
       `SELECT count(*) AS n FROM lt_agents WHERE billing_agent_id = $1`,

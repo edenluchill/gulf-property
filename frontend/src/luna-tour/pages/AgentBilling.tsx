@@ -282,7 +282,7 @@ export default function AgentBilling() {
       )}
 
       {/* 升级选项(已是 founder 则不显示) */}
-      {planId !== 'founder' && !me?.teamMember && (
+      {planId !== 'founder' && planId !== 'developer' && !me?.teamMember && (
         <div>
           {promo.active && (
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm">

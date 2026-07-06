@@ -86,7 +86,10 @@ export default function RoleSelectPage() {
         // 竞态)→ 按套餐自动补落。不补的话:无角色 → 被送来本页 → 引导卡只有
         // "回地图" → 又被送回来,死循环。席位成员按 agent 算(不是经纪公司本体)。
         if (b) {
-          const r: UserRole = me.teamMember ? 'agent' : (ROLE_BY_PLAN[me.plan?.id || ''] || 'agent')
+          // 成员角色跟团队套餐走:开发商团队成员=developer(上传权限要认它),经纪公司团队成员=agent
+          const r: UserRole = me.teamMember
+            ? (me.plan?.id === 'developer' ? 'developer' : 'agent')
+            : (ROLE_BY_PLAN[me.plan?.id || ''] || 'agent')
           void setMyRole(r)
           try { sessionStorage.setItem('pinzos-role', r) } catch { /* noop */ }
         }
