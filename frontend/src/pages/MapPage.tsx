@@ -1591,10 +1591,16 @@ export default function MapPage() {
                   选中时显示指标名,未选时提示可点选,卡片高度稳定不跳动。 */}
               {(() => {
                 const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
+                // 租金回报永远是"现有房源出租"的全口径数据(期房自己没有租金),
+                // 选了期房/现房口径时标注清楚,免得读成"期房的ROI"。
+                const zhL = (i18n.language || 'en').startsWith('zh')
+                const yieldCaveat = active?.value === 'rentalYield' && marketSegment !== 'all'
+                  ? (zhL ? ' · 现楼出租参考' : ' · existing stock')
+                  : ''
                 return active ? (
                   <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[11px] font-semibold text-primary">
                     <active.Icon className="w-3 h-3" />
-                    <span className="whitespace-nowrap">{t(active.labelKey as any)}</span>
+                    <span className="whitespace-nowrap">{t(active.labelKey as any)}{yieldCaveat}</span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[11px] font-medium text-slate-400">

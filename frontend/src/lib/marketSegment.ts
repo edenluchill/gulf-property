@@ -15,7 +15,8 @@ export const CONSUMER_SEGMENT: MarketSegment = 'all'
 export function segmentLabel(seg: MarketSegment, zh: boolean): string {
   if (seg === 'offplan') return zh ? '期房' : 'Off-plan'
   if (seg === 'ready') return zh ? '现房' : 'Ready'
-  return zh ? '全部' : 'All'
+  // 「综合」而非「全部」:这是期房+现房合并后的综合口径,不是"未筛选"(2026-07-05 用户定的用词)
+  return zh ? '综合' : 'All'
 }
 
 /** 口径筛选器持久化（记住用户上次选择，跨会话） */
