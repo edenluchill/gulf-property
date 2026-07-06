@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { ArrowRight, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, setMyRole, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
+import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -99,17 +99,10 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     if (error) { setErr(error); setBusy(null) }
   }
 
-  // 软出口:其实是买家 → 改回免费身份,回地图
-  const [switching, setSwitching] = useState(false)
-  async function backToBuyer() {
-    setSwitching(true)
-    const ok = await setMyRole('buyer')
-    if (ok) {
-      try { sessionStorage.setItem('pinzos-role', 'buyer') } catch { /* noop */ }
-      window.location.href = '/'
-      return
-    }
-    setSwitching(false)
+  // 软出口:选错身份 → 回选择身份页重选(不直接改成买家)
+  const reselectRole = () => {
+    try { sessionStorage.removeItem('pinzos-role') } catch { /* noop */ }
+    window.location.assign('/choose-role')
   }
 
   const allTiers = [
@@ -234,9 +227,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 'Your account is registered as an agent — agent access (incl. unlimited map & data) starts with a plan. 7-day free trial, cancel at no charge.'
               )}
             </span>
-            <button onClick={() => void backToBuyer()} disabled={switching}
-              className="font-medium text-teal-300 underline-offset-2 hover:underline disabled:opacity-60">
-              {L('我其实是买家 → 改回免费身份', "I'm actually a buyer → switch back (free)")}
+            <button onClick={reselectRole}
+              className="font-medium text-teal-300 underline-offset-2 hover:underline">
+              {L('选错身份?重新选择角色 →', 'Wrong role? Choose again →')}
             </button>
           </div>
         )}
@@ -413,10 +406,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             {L('查看完整功能介绍', 'See all features')} <ArrowRight className="h-3.5 w-3.5" />
           </Link>
           {agentOnboarding && (
-            <button onClick={() => void backToBuyer()} disabled={switching}
-              className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 transition hover:text-slate-300 disabled:opacity-60">
-              {switching && <Loader2 className="h-3 w-3 animate-spin" />}
-              {L('还没准备好?先以买家身份免费逛逛地图 →', 'Not ready yet? Explore the map free as a buyer →')}
+            <button onClick={reselectRole}
+              className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 transition hover:text-slate-300">
+              {L('选错身份?重新选择角色 →', 'Wrong role? Choose again →')}
             </button>
           )}
         </div>

@@ -26,11 +26,11 @@ export default function UserMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // 「切换身份」:清角色缓存 → 重新弹出四角色选择
+  // 「切换身份」:清角色缓存 → 去选择身份页(/choose-role)
   const switchRole = () => {
     setIsOpen(false)
     try { sessionStorage.removeItem('pinzos-role') } catch { /* noop */ }
-    window.dispatchEvent(new Event('pinzos:role-select'))
+    window.location.assign('/choose-role')
   }
 
   // 认证勋章:按生效订阅推导(买家/无订阅 = null)。登录后拉一次。

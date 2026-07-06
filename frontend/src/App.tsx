@@ -29,6 +29,7 @@ import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
+import RoleSelectPage from './pages/RoleSelectPage'  // 四角色选择页(/choose-role)
 import { VoiceAssistantProvider } from './contexts/VoiceAssistantContext'
 import { TourModeProvider } from './luna-tour/TourModeContext'  // Luna Tour (isolated)
 import { useVersionCheck } from './hooks/useVersionCheck'  // 检测新前端版本（iPad 快照恢复等场景）
@@ -106,6 +107,8 @@ function App() {
         </Route>
         {/* Become-an-agent onboarding (no sidebar; flips the account to agent) */}
         <Route path="/agent/join" element={<AgentJoin />} />
+        {/* 选择身份(独立页面;首登无角色由 RoleSelectRedirect 送来) */}
+        <Route path="/choose-role" element={<RoleSelectPage />} />
         {/* 角色专属选档页(各角色只看到自己的套餐,无免费选项,引导式文案) */}
         <Route path="/agent/plans" element={<PricingPage agentOnboarding variant="agent" />} />
         <Route path="/agency/plans" element={<PricingPage agentOnboarding variant="agency" />} />
