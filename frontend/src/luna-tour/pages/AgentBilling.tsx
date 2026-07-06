@@ -110,11 +110,11 @@ export default function AgentBilling() {
 
   const PLANS: { id: PaidPlanId; name: string; monthly: number; lines: string[]; edge: string }[] = [
     { id: 'rookie', name: '启程版 Starter', monthly: 25, edge: '#0ea5e9',
-      lines: ['200 积分/月', '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', '买家线索(尽力推送)'] },
+      lines: ['200 积分/月', '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
     { id: 'agent', name: '专业版 Pro', monthly: 99, edge: '#10b981',
-      lines: ['2,500 积分/月', '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', '线索优先推送 + 行为洞察'] },
+      lines: ['2,500 积分/月', '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
     { id: 'founder', name: '创始会员 Founder', monthly: 699, edge: '#E8C37E',
-      lines: ['15,000 积分/月 · 含 3 席共享', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', '线索独占优先 · 优先支持'] },
+      lines: ['15,000 积分/月 · 含 3 席共享', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }

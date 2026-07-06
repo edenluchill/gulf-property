@@ -108,7 +108,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   const allTiers = [
     {
       id: 'explore', name: L('探索版', 'Explore'), price: L('免费', 'Free'), edge: ACCENT,
-      note: L('给买家 / 投资人', 'For buyers / investors'),
+      note: L('给买家', 'For buyers'),
       features: [
         L('交互式卫星地图 + 真实 DLD 成交/租约', 'Interactive map + real DLD data'),
         L('区域指标 + 项目详情 + 5 年投资分析', 'Area metrics + detail + 5-yr ROI'),
@@ -127,7 +127,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       features: [
         L('地图与市场数据不限时(全部买家功能)', 'Unlimited map & data (everything for buyers)'),
         L('客户 CRM + 买家意向报告 + AI 楼书解析', 'Client CRM + intent reports + AI brochures'),
-        L('符合关注区域的买家线索(尽力推送)', 'Buyer leads for your focus areas (best effort)'),
+        L('符合关注区域的 lead(尽力推送)', 'Leads for your focus areas (best effort)'),
       ],
       cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('rookie') },
     },
@@ -141,7 +141,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       features: [
         L('启程版全部功能', 'Everything in Starter'),
         L('实时海外带看 · Luna 智能导览 · 应用内语音', 'Live tours · Luna AI tours · in-app voice'),
-        L('买家线索优先推送 + 客户行为洞察', 'Priority lead flow + behaviour insights'),
+        L('Lead 优先推送 + 客户行为洞察', 'Priority lead flow + behaviour insights'),
       ],
       cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('agent') },
     },
@@ -158,7 +158,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       creditsMo: creditsOf('founder') || 15000, founderDiscount: true,
       features: [
-        L('专业版全部功能 · 买家线索独占优先分发', 'Everything in Pro · first pick of leads'),
+        L('专业版全部功能 · Lead 独占优先分发', 'Everything in Pro · first pick of leads'),
         L('含 3 个席位共享积分池,+$49/席无限扩容', '3 seats sharing one credit pool, +$49/seat'),
         L('White-label 品牌定制 · 自定义域名 · 优先支持', 'White-label · custom domain · priority support'),
       ],
@@ -176,7 +176,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       creditsMo: creditsOf('developer') || 5000,
       features: [
         L('上传楼书(AI 自动解析户型/价格/付款计划)', 'Upload brochures (AI parses units/prices/plans)'),
-        L('项目管理 + 楼盘曝光给全站买家与经纪', 'Project management + exposure to all buyers & agents'),
+        L('项目管理 + 楼盘全站曝光', 'Project management + sitewide exposure'),
         L('销售工具:客户 CRM · 实时带看 · 品牌报告', 'Sales tools: CRM · live tours · branded reports'),
       ],
       cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('developer') },
@@ -240,7 +240,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: GOLD }}>// {L('经纪公司工作台', 'AGENCY WORKSPACE')}</span>
                 <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!为你的团队开通 Pinzos', 'Welcome! Set up Pinzos for your team')}</h1>
                 <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                  '多席位共享一个积分池,买家线索独占优先分发,White-label 品牌定制 —— 开通后立即可为团队邀请席位。',
+                  '多席位共享一个积分池,lead 独占优先分发,White-label 品牌定制 —— 开通后立即可为团队邀请席位。',
                   'Multiple seats sharing one credit pool, first pick of buyer leads, white-label branding — invite your team right after activation.'
                 )}</p>
               </>
@@ -258,8 +258,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
               <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!你的经纪工作台已就绪', 'Welcome! Your agent workspace is ready')}</h1>
               <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                '选一档解锁客户 CRM、品牌化报告与买家线索 —— 7 天免费试用,试用期内取消不产生任何费用。',
-                'Pick a plan to unlock client CRM, branded reports and buyer leads — 7-day free trial, cancel within the trial at no charge.'
+                '选一档解锁客户 CRM、品牌化报告与 lead —— 7 天免费试用,试用期内取消不产生任何费用。',
+                'Pick a plan to unlock client CRM, branded reports and leads — 7-day free trial, cancel within the trial at no charge.'
               )}</p>
             </>
             )
@@ -268,8 +268,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
               <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
               <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{L(
-                '$25 起步:地图不限时 + 客户线索。带海外客户实时看房、生成导览与意向报告。按月或按年付,随时取消。',
-                'From $25: unlimited map + buyer leads. Tour overseas clients live, generate tours and intent reports. Billed monthly or yearly, cancel anytime.'
+                '$25 起步:地图不限时 + lead。带海外客户实时看房、生成导览与意向报告。按月或按年付,随时取消。',
+                'From $25: unlimited map + leads. Tour overseas clients live, generate tours and intent reports. Billed monthly or yearly, cancel anytime.'
               )}</p>
             </>
           )}
