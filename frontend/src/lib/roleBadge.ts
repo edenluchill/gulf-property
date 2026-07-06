@@ -44,6 +44,11 @@ const BADGES: Record<string, RoleBadge> = {
   },
 }
 
+/** 套餐 → 角色(付费才定身份的唯一映射;席位成员按 agent 算) */
+export const ROLE_BY_PLAN: Record<string, 'agent' | 'agency' | 'developer'> = {
+  rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer',
+}
+
 /** 生效订阅(active/trialing)→ 勋章;无订阅/免费档 → null */
 export function badgeForPlan(planId: string | undefined | null, status?: string | null): RoleBadge | null {
   if (!planId) return null

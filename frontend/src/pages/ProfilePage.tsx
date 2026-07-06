@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import { useMyRole } from '../hooks/useMyRole'
-import { setMyRole } from '../lib/billingApi'
+import { fetchBillingMe } from '../lib/billingApi'
+import { badgeForPlan, type RoleBadge } from '../lib/roleBadge'
+import RoleBadgeDialog from '../components/RoleBadgeDialog'
 import { Button } from '../components/ui/button'
 import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase, BarChart3 } from 'lucide-react'
 
@@ -16,10 +18,26 @@ export default function ProfilePage() {
   const [avatarError, setAvatarError] = useState(false)
 
   // 买家 → 经纪的升级入口:记角色后去专属选档页(7天试用,付款即开通)
+  // 成为经纪/换身份:走正规四角色流程(付款才落身份),不再预写 role
   const becomeAgent = async () => {
-    await setMyRole('agent').catch(() => {})
-    try { sessionStorage.setItem('pinzos-role', 'agent') } catch { /* noop */ }
-    window.location.href = '/agent/plans'
+    window.location.href = '/choose-role'
+  }
+
+  // 身份卡(手机端唯一的角色/勋章入口;桌面头像菜单也有同款)
+  const [profBadge, setProfBadge] = useState<RoleBadge | null>(null)
+  const [showBadgeDlg, setShowBadgeDlg] = useState(false)
+  useEffect(() => {
+    let stale = false
+    void fetchBillingMe()
+      .then((me) => { if (!stale && me) setProfBadge(badgeForPlan(me.plan?.id, me.status)) })
+      .catch(() => { /* 未付费 */ })
+    return () => { stale = true }
+  }, [])
+  const ROLE_CHIP: Record<string, { zh: string; emoji: string; cls: string }> = {
+    buyer: { zh: '买家', emoji: '🏠', cls: 'bg-teal-100 text-teal-700' },
+    agent: { zh: '经纪人', emoji: '🧑\u200d💼', cls: 'bg-indigo-100 text-indigo-700' },
+    agency: { zh: '经纪公司', emoji: '🏢', cls: 'bg-violet-100 text-violet-700' },
+    developer: { zh: '开发商', emoji: '🏗️', cls: 'bg-amber-100 text-amber-700' },
   }
 
   // Reset avatar error when user changes
@@ -98,6 +116,60 @@ export default function ProfilePage() {
 
       {/* Content */}
       <div className="container mx-auto px-4 py-6">
+        {/* 身份卡:当前角色 + 勋章/切换入口(手机端没有头像菜单,这里是唯一入口) */}
+        <div className="bg-white rounded-xl border p-4 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-slate-800">{t('auth:profile.identity', '我的身份')}</span>
+            {role && ROLE_CHIP[role] && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CHIP[role].cls}`}>
+                <span aria-hidden>{ROLE_CHIP[role].emoji}</span>
+                {ROLE_CHIP[role].zh}
+              </span>
+            )}
+            {profBadge && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+                style={{ background: `linear-gradient(90deg, ${profBadge.from}, ${profBadge.to})` }}
+              >
+                <span aria-hidden>{profBadge.emoji}</span>
+                {profBadge.titleZh}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {profBadge ? (
+              <>
+                <button
+                  onClick={() => setShowBadgeDlg(true)}
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  我的勋章(分享朋友圈)
+                </button>
+                <button
+                  onClick={() => navigate('/agent/billing')}
+                  className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600"
+                >
+                  订阅与套餐
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => { try { sessionStorage.removeItem('pinzos-role') } catch { /* noop */ } window.location.assign('/choose-role') }}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600"
+              >
+                切换身份
+              </button>
+            )}
+          </div>
+        </div>
+        {showBadgeDlg && profBadge && (
+          <RoleBadgeDialog
+            badge={profBadge}
+            name={user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pinzos'}
+            onClose={() => setShowBadgeDlg(false)}
+          />
+        )}
+
         {/* Status Card */}
         <div className="bg-white rounded-xl border p-4 mb-4">
           <div className="flex items-center gap-2 text-sm text-slate-600">

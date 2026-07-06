@@ -11,7 +11,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Loader2, ChevronRight, BadgeCheck } from 'lucide-react'
 import { fetchBillingMe, setMyRole, type UserRole } from '../lib/billingApi'
-import { badgeForPlan, type RoleBadge } from '../lib/roleBadge'
+import { badgeForPlan, ROLE_BY_PLAN, type RoleBadge } from '../lib/roleBadge'
+import { useAuth } from '../contexts/AuthContext'
 
 // 四个角色卡:可视化 emoji 徽章 + 专属配色,一眼分得开。不放价格。
 const ROLE_CARDS: {
@@ -67,6 +68,7 @@ const ROLE_CARDS: {
 export default function RoleSelectPage() {
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
+  const { user, loading: authLoading } = useAuth()
   const [saving, setSaving] = useState<UserRole | null>(null)
 
   // 已付费 → 身份由订阅决定,不给再切(切成买家还在扣费/切别的角色会重复购买,
@@ -76,7 +78,19 @@ export default function RoleSelectPage() {
   useEffect(() => {
     let stale = false
     void fetchBillingMe()
-      .then((me) => { if (!stale) setPaidBadge(me ? badgeForPlan(me.plan?.id, me.status) : null) })
+      .then((me) => {
+        if (stale || !me) return
+        const b = badgeForPlan(me.plan?.id, me.status)
+        setPaidBadge(b)
+        // 有生效订阅但 role 可能没落(席位成员被邀请、owner 手动赠送、webhook
+        // 竞态)→ 按套餐自动补落。不补的话:无角色 → 被送来本页 → 引导卡只有
+        // "回地图" → 又被送回来,死循环。席位成员按 agent 算(不是经纪公司本体)。
+        if (b) {
+          const r: UserRole = me.teamMember ? 'agent' : (ROLE_BY_PLAN[me.plan?.id || ''] || 'agent')
+          void setMyRole(r)
+          try { sessionStorage.setItem('pinzos-role', r) } catch { /* noop */ }
+        }
+      })
       .catch(() => { /* 未登录/失败 → 按未付费处理 */ })
       .finally(() => { if (!stale) setChecking(false) })
     return () => { stale = true }
@@ -97,6 +111,23 @@ export default function RoleSelectPage() {
     try { sessionStorage.setItem('pinzos-role', card.id) } catch { /* noop */ }
     // 整页跳转:角色态(Header/经纪台)处处即时一致
     window.location.assign('/')
+  }
+
+  // 匿名访问:选角色需要登录(否则点卡片静默失败,像坏了一样)
+  if (!authLoading && !user) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-slate-50 px-4">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
+          <h1 className="text-xl font-bold text-slate-900">{zh ? '请先登录' : 'Please sign in first'}</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            {zh ? '登录后即可选择你的身份,开启对应的工作台' : 'Sign in to choose your role and unlock your workspace'}
+          </p>
+          <a href="/login" className="mt-5 block rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+            {zh ? '去登录' : 'Sign in'}
+          </a>
+        </div>
+      </div>
+    )
   }
 
   if (checking) {

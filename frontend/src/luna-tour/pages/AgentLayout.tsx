@@ -133,7 +133,23 @@ export default function AgentLayout() {
     if (loading) return
     if (!user) { setStatus('none'); return }
     setStatus('loading')
-    fetchAgentStatus().then(setStatus)
+    // 付款成功回跳(?status=success)时 webhook 可能还没把审批落库 —— 轮询
+    // 最多 ~12s,别让刚付完钱的人卡在"审核中"门外(role/勋章逻辑都在门内)。
+    let stale = false
+    let tries = 0
+    const attempt = () => {
+      void fetchAgentStatus().then((s) => {
+        if (stale) return
+        setStatus(s)
+        const paidReturn = window.location.search.includes('status=success')
+        if (paidReturn && s !== 'approved' && tries < 6) {
+          tries += 1
+          setTimeout(attempt, 2000)
+        }
+      })
+    }
+    attempt()
+    return () => { stale = true }
   }, [user, loading])
 
   if (loading || (user && status === 'loading')) {
