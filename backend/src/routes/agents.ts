@@ -28,7 +28,27 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
        RETURNING status`,
       [email, req.user?.id ?? null, (req.user?.user_metadata?.name as string) ?? null]
     )
-    res.json({ status: rows[0]?.status ?? 'pending' })
+    let status = rows[0]?.status ?? 'pending'
+    // 付费即准入,团队成员同理:本人或所在团队有生效订阅 → 自动 approve。
+    // (原来被邀请的成员会卡在"审核中"门外——订阅在团队上,webhook 只 approve 付款人)
+    if (status !== 'approved') {
+      const sub = await pool.query(
+        `SELECT 1 FROM lt_agents la
+           JOIN lt_subscriptions s
+             ON s.agent_id = COALESCE(la.billing_agent_id, la.id)
+            AND s.status IN ('active','trialing')
+          WHERE lower(la.email) = $1 LIMIT 1`,
+        [email]
+      )
+      if (sub.rows.length > 0) {
+        await pool.query(
+          `UPDATE agents SET status = 'approved', decided_at = now(), decided_by = 'auto:subscription' WHERE email = $1`,
+          [email]
+        )
+        status = 'approved'
+      }
+    }
+    res.json({ status })
   } catch (err) {
     console.error('[agents] /me failed:', err)
     res.status(500).json({ status: 'error' })
@@ -67,12 +87,12 @@ router.get('/', optionalAuth, requireOwner, async (_req: Request, res: Response)
   }
 })
 
-// 所有者手动授予/撤销套餐(comp,不走 Stripe)。body { plan: 'explore'|'agent'|'founder'|'revoke' }
+// 所有者手动授予/撤销套餐(comp,不走 Stripe)。body { plan: 'explore'|'rookie'|'agent'|'founder'|'developer'|'revoke' }
 router.post('/:email/plan', optionalAuth, requireOwner, async (req: Request, res: Response) => {
   const email = decodeURIComponent(req.params.email || '').toLowerCase().trim()
   const plan = String(req.body?.plan || '')
   if (!email) return res.status(400).json({ success: false, error: 'email required' })
-  if (!['explore', 'rookie', 'agent', 'founder', 'revoke'].includes(plan)) {
+  if (!['explore', 'rookie', 'agent', 'founder', 'developer', 'revoke'].includes(plan)) {
     return res.status(400).json({ success: false, error: 'invalid plan' })
   }
   try {

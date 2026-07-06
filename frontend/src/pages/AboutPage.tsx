@@ -64,7 +64,7 @@ export default function AboutPage() {
           { '@type': 'Offer', name: 'Buyers (Free)', price: '0', priceCurrency: 'USD' },
           { '@type': 'Offer', name: 'Starter', price: '25', priceCurrency: 'USD' },
           { '@type': 'Offer', name: 'Pro', price: '99', priceCurrency: 'USD' },
-          { '@type': 'Offer', name: 'Founder', price: '699', priceCurrency: 'USD' },
+          { '@type': 'Offer', name: 'Agency', price: '699', priceCurrency: 'USD' },
         ],
         featureList: [
           'Satellite map of Dubai with 3D landmarks', 'Real DLD transactions and rental contracts',
@@ -298,7 +298,7 @@ export default function AboutPage() {
               fs: [L('实时带看 + 画图 + 语音', 'Live tours + drawing + voice'), L('Luna 智能导览', 'Luna AI tours'), L('线索优先推送 + 行为洞察', 'Priority leads + insights')],
             },
             {
-              n: L('创始会员 Founder', 'Founder'), p: '$699', per: L('/月', '/mo'), c: GOLD,
+              n: L('经纪公司版', 'Agency'), p: '$699', per: L('/月', '/mo'), c: GOLD,
               fs: [L('含 3 席共享积分池', '3 seats, shared pool'), L('White-label 品牌定制', 'White-label branding'), L('线索独占优先 · 优先支持', 'First pick of leads')],
             },
           ].map((tier, i) => (

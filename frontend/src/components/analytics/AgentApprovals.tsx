@@ -12,7 +12,7 @@ const STATUS_STYLE: Record<string, string> = {
   rejected: 'bg-slate-100 text-slate-500',
 }
 const STATUS_LABEL: Record<string, string> = { approved: '已开通', pending: '待审核', rejected: '已拒绝' }
-const PLAN_LABEL: Record<string, string> = { explore: '探索(免费)', rookie: '启程版', agent: '专业版', founder: '创始会员' }
+const PLAN_LABEL: Record<string, string> = { explore: '探索(免费)', rookie: '启程版', agent: '专业版', founder: '经纪公司版', developer: '开发商版' }
 const SUB_LABEL: Record<string, string> = { none: '未订阅', trialing: '试用中', active: '生效', past_due: '欠费', canceled: '已取消' }
 
 // 变更审计的动作 → 中文 + 颜色(downgrade/取消类标红,方便一眼扫到该回访的客户)
@@ -94,7 +94,7 @@ function PlanChangeLog() {
 }
 
 /** 一个经纪的套餐 + 本月用量 + 手动授予下拉。 */
-function PlanCell({ a, busy, onSet }: { a: AgentRow; busy: boolean; onSet: (plan: 'explore' | 'rookie' | 'agent' | 'founder' | 'revoke') => void }) {
+function PlanCell({ a, busy, onSet }: { a: AgentRow; busy: boolean; onSet: (plan: 'explore' | 'rookie' | 'agent' | 'founder' | 'developer' | 'revoke') => void }) {
   const plan = a.plan_id || 'explore'
   const sub = a.sub_status || 'none'
   const paid = a.paid
@@ -112,14 +112,15 @@ function PlanCell({ a, busy, onSet }: { a: AgentRow; busy: boolean; onSet: (plan
       <select
         disabled={busy}
         value=""
-        onChange={(e) => { const v = e.target.value as 'explore' | 'rookie' | 'agent' | 'founder' | 'revoke'; if (v) onSet(v) }}
+        onChange={(e) => { const v = e.target.value as 'explore' | 'rookie' | 'agent' | 'founder' | 'developer' | 'revoke'; if (v) onSet(v) }}
         className="rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-600 disabled:opacity-50"
         title="手动授予/撤销套餐(不走 Stripe)"
       >
         <option value="">授予…</option>
         <option value="rookie">赠 启程版</option>
         <option value="agent">赠 专业版</option>
-        <option value="founder">赠 创始会员</option>
+        <option value="founder">赠 经纪公司版</option>
+        <option value="developer">赠 开发商版</option>
         <option value="revoke">撤销赠送</option>
       </select>
     </div>

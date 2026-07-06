@@ -29,7 +29,7 @@ export default function ProfilePage() {
   useEffect(() => {
     let stale = false
     void fetchBillingMe()
-      .then((me) => { if (!stale && me) setProfBadge(badgeForPlan(me.plan?.id, me.status)) })
+      .then((me) => { if (!stale && me) setProfBadge(badgeForPlan(me.plan?.id, me.status, me.teamMember)) })
       .catch(() => { /* 未付费 */ })
     return () => { stale = true }
   }, [])

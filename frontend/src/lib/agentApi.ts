@@ -64,7 +64,7 @@ export async function rejectAgent(email: string): Promise<void> {
 }
 
 /** Owner: 手动授予/撤销套餐(comp,不走 Stripe)。plan: explore|rookie|agent|founder|revoke */
-export async function setAgentPlan(email: string, plan: 'explore' | 'rookie' | 'agent' | 'founder' | 'revoke'): Promise<void> {
+export async function setAgentPlan(email: string, plan: 'explore' | 'rookie' | 'agent' | 'founder' | 'developer' | 'revoke'): Promise<void> {
   await authed(`/${encodeURIComponent(email)}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

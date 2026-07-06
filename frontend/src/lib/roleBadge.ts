@@ -49,11 +49,21 @@ export const ROLE_BY_PLAN: Record<string, 'agent' | 'agency' | 'developer'> = {
   rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer',
 }
 
-/** 生效订阅(active/trialing)→ 勋章;无订阅/免费档 → null */
-export function badgeForPlan(planId: string | undefined | null, status?: string | null): RoleBadge | null {
+/** 生效订阅(active/trialing)→ 勋章;无订阅/免费档 → null。
+ *  teamMember=true(被邀请进团队的成员)→ 按「认证经纪人」发,不给公司勋章。 */
+export function badgeForPlan(planId: string | undefined | null, status?: string | null, teamMember?: boolean): RoleBadge | null {
   if (!planId) return null
   if (status && !['active', 'trialing'].includes(status)) return null
+  if (teamMember) return MEMBER_BADGE
   return BADGES[planId] || null
+}
+
+/** 团队成员勋章:身份是经纪人,归属写团队 */
+const MEMBER_BADGE: RoleBadge = {
+  planId: 'member', emoji: '💼',
+  titleZh: '认证经纪人', titleEn: 'Certified Agent',
+  subZh: 'PINZOS 认证 · 团队成员', subEn: 'PINZOS Certified · Team member',
+  from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
 }
 
 /** 画 1080×1350 朋友圈分享卡(纯 canvas,零依赖)。 */

@@ -35,7 +35,7 @@ export default function AgentBilling() {
   const [cycle, setCycle] = useState<BillingInterval>('month') // 默认月付(低门槛)
   const [promo, setPromo] = useState<Promo>({ active: false })
   const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
-  // Founder 团队席位
+  // 经纪公司版团队席位
   const [team, setTeam] = useState<TeamInfo | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [teamMsg, setTeamMsg] = useState<string | null>(null)
@@ -67,12 +67,12 @@ export default function AgentBilling() {
   const [showBadge, setShowBadge] = useState(false)
   const badgeShownRef = useState(() => ({ done: false }))[0]
   useEffect(() => {
-    if (banner === 'success' && me && !badgeShownRef.done && badgeForPlan(me.plan?.id, me.status)) {
+    if (banner === 'success' && me && !badgeShownRef.done && badgeForPlan(me.plan?.id, me.status, me.teamMember)) {
       badgeShownRef.done = true
       setShowBadge(true)
     }
   }, [banner, me, badgeShownRef])
-  const successBadge = me ? badgeForPlan(me.plan?.id, me.status) : null
+  const successBadge = me ? badgeForPlan(me.plan?.id, me.status, me.teamMember) : null
 
   async function upgrade(planId: PaidPlanId) {
     setErr(null); setBusy(planId)
@@ -113,7 +113,7 @@ export default function AgentBilling() {
       lines: ['200 积分/月', '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
     { id: 'agent', name: '专业版 Pro', monthly: 99, edge: '#10b981',
       lines: ['2,500 积分/月', '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
-    { id: 'founder', name: '创始会员 Founder', monthly: 699, edge: '#E8C37E',
+    { id: 'founder', name: '经纪公司版 Agency', monthly: 699, edge: '#E8C37E',
       lines: ['15,000 积分/月 · 含 3 席共享', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
@@ -126,7 +126,7 @@ export default function AgentBilling() {
     cycle === 'year' ? `$${monthly * 12}` : pct > 0 ? `$${monthly}` : ''
   const noteLabel = (monthly: number) =>
     promo.active
-      ? `创始价 -${promo.percentOff}% · 永久锁定`
+      ? `发布价 -${promo.percentOff}% · 永久锁定`
       : cycle === 'year' ? `省 $${monthly * 2}(送 2 个月)` : '按月付,随时取消'
 
   // 团队席位操作(founder 专用)
@@ -223,12 +223,12 @@ export default function AgentBilling() {
         )}
       </div>
 
-      {/* Founder 团队席位(owner 视角);成员看到归属提示 */}
+      {/* 经纪公司版团队席位(owner 视角);成员看到归属提示 */}
       {team?.role === 'member' && (
         <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Users className="h-4 w-4 text-amber-500" />
-            你在 <b>{team.owner?.display_name || team.owner?.email}</b> 的 Founder 团队中,套餐与积分由团队共享承担。
+            你在 <b>{team.owner?.display_name || team.owner?.email}</b> 的团队中,套餐与积分由团队共享承担。
           </div>
         </div>
       )}

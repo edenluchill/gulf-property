@@ -74,8 +74,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   const billedLine = (monthly: number) => {
     if (promo.active) {
       return cycle === 'year'
-        ? L('永久锁定创始价 · 已含送 2 个月 · 随时取消', 'Founding price locked forever · 2 months free included · cancel anytime')
-        : L('永久锁定创始价 · 按月付 · 随时取消', 'Founding price locked forever · billed monthly · cancel anytime')
+        ? L('永久锁定发布价 · 已含送 2 个月 · 随时取消', 'Launch price locked forever · 2 months free included · cancel anytime')
+        : L('永久锁定发布价 · 按月付 · 随时取消', 'Launch price locked forever · billed monthly · cancel anytime')
     }
     return cycle === 'year'
       ? L(`年度套餐 · 省 $${monthly * 2}(送 2 个月)· 随时取消`, `Yearly package · save $${monthly * 2} (2 months free) · cancel anytime`)
@@ -148,13 +148,11 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     {
       // agency 角色页把同一套餐展示为「经纪公司版」(多席位 + lead),套餐 id 仍是 founder
       id: 'founder',
-      name: variant === 'agency' ? L('经纪公司版', 'Agency') : L('创始会员', 'Founder'),
+      name: L('经纪公司版', 'Agency'),
       price: bigPriceOf(priceOf('founder', 699)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: GOLD,
       badge: L('团队 · 3 席', 'Team · 3 seats'), highlight: variant === 'agency',
-      note: variant === 'agency'
-        ? L('经纪公司 / 团队 · 付款即开通', 'Agencies & teams · instant activation')
-        : L('早期支持者 · 名额有限', 'Early supporters · limited'),
+      note: L('经纪公司 / 团队 · 付款即开通', 'Agencies & teams · instant activation'),
       billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       creditsMo: creditsOf('founder') || 15000, founderDiscount: true,
       features: [
@@ -162,10 +160,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('含 3 个席位共享积分池,+$49/席无限扩容', '3 seats sharing one credit pool, +$49/seat'),
         L('White-label 品牌定制 · 自定义域名 · 优先支持', 'White-label · custom domain · priority support'),
       ],
-      cta: {
-        label: variant === 'agency' ? L('开通经纪公司版', 'Activate Agency') : L('申请 Founder', 'Apply for Founder'),
-        onClick: () => subscribe('founder'),
-      },
+      cta: { label: L('开通经纪公司版', 'Activate Agency'), onClick: () => subscribe('founder') },
     },
     {
       id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf(priceOf('developer', 299)),
@@ -284,12 +279,12 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           )}
         </div>
 
-        {/* ── 创始发布优惠条(纤细单行;限名额+限时均为 Stripe 真实 enforce)── */}
+        {/* ── 发布限时优惠条(纤细单行;限名额+限时均为 Stripe 真实 enforce)── */}
         {promo.active && (
           <div className="mx-auto mt-5 flex max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border px-4 py-2 text-sm"
             style={{ borderColor: `${GOLD}66`, background: `linear-gradient(90deg, ${GOLD}22, ${ACCENT}12)`, boxShadow: `0 0 40px -22px ${GOLD}` }}>
             <span className="inline-flex items-center gap-1.5 font-bold" style={{ color: GOLD }}>
-              <Flame className="h-4 w-4" /> {L('创始发布优惠', 'Founding Launch')}
+              <Flame className="h-4 w-4" /> {L('发布限时优惠', 'Launch Offer')}
             </span>
             <span className="rounded-md px-1.5 py-0.5 text-xs font-extrabold text-slate-900" style={{ background: GOLD }}>-{promo.percentOff}%</span>
             {promo.forever && (
@@ -385,7 +380,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                   <tr className="text-[11px] uppercase tracking-wide text-slate-400" style={{ background: 'rgba(255,255,255,0.03)' }}>
                     <th className="px-4 py-1.5 text-left font-semibold" style={{ color: ACCENT }}>{L('积分消耗对照', 'WHAT CREDITS BUY')}</th>
                     <th className="px-4 py-1.5 text-right font-medium">{L('标准', 'Standard')}</th>
-                    <th className="px-4 py-1.5 text-right font-medium" style={{ color: GOLD }}>Founder ×{founderMult}</th>
+                    <th className="px-4 py-1.5 text-right font-medium" style={{ color: GOLD }}>{L('经纪公司版', 'Agency')} ×{founderMult}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -404,8 +399,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
 
         <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500">
           {promo.active
-            ? L(`创始发布优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
-                `Founding Launch: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
+            ? L(`发布限时优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
+                `Launch offer: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
             : L('价格以美元(USD)计,按月或按年付(年付送 2 个月)。', 'Prices in USD, billed monthly or yearly (yearly = 2 months free).')}
           {L(' 7 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 7-day free trial, cancel before billing. Payments securely handled by Stripe.')}
         </p>

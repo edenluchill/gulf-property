@@ -80,7 +80,7 @@ export default function RoleSelectPage() {
     void fetchBillingMe()
       .then((me) => {
         if (stale || !me) return
-        const b = badgeForPlan(me.plan?.id, me.status)
+        const b = badgeForPlan(me.plan?.id, me.status, me.teamMember)
         setPaidBadge(b)
         // 有生效订阅但 role 可能没落(席位成员被邀请、owner 手动赠送、webhook
         // 竞态)→ 按套餐自动补落。不补的话:无角色 → 被送来本页 → 引导卡只有

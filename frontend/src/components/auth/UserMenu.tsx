@@ -40,7 +40,7 @@ export default function UserMenu() {
     if (!user) { setBadge(null); return }
     let stale = false
     void fetchBillingMe()
-      .then((me) => { if (!stale && me) setBadge(badgeForPlan(me.plan?.id, me.status)) })
+      .then((me) => { if (!stale && me) setBadge(badgeForPlan(me.plan?.id, me.status, me.teamMember)) })
       .catch(() => { /* 匿名/失败 → 无勋章 */ })
     return () => { stale = true }
   }, [user?.email])
