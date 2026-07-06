@@ -22,7 +22,11 @@ const GRID = 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, tra
  * 只展示三个付费档(不放免费卡分流),文案讲解锁的能力而非付费义务;
  * 底部留一条小字「先以买家身份逛逛」作为软出口(改回 buyer,免费)。
  */
-export default function PricingPage({ agentOnboarding = false }: { agentOnboarding?: boolean }) {
+export default function PricingPage({ agentOnboarding = false, variant }: {
+  agentOnboarding?: boolean
+  /** 角色专属选档页:各角色只看到自己的套餐(agent=启程+专业 / agency=经纪公司版 / developer=开发商版) */
+  variant?: 'agent' | 'agency' | 'developer'
+}) {
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
   const L = (cn: string, en: string) => (zh ? cn : en)
@@ -87,7 +91,7 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
     return { d: Math.floor(s / 86400), h: Math.floor((s % 86400) / 3600), m: Math.floor((s % 3600) / 60), s: s % 60 }
   })()
 
-  async function subscribe(planId: 'rookie' | 'agent' | 'founder') {
+  async function subscribe(planId: 'rookie' | 'agent' | 'founder' | 'developer') {
     setErr(null)
     if (!user) { navigate('/agent'); return }   // 去经纪台登录(登录后回来再订阅)
     setBusy(planId)
@@ -149,21 +153,49 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
       cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('agent') },
     },
     {
-      id: 'founder', name: L('创始会员', 'Founder'), price: bigPriceOf(priceOf('founder', 699)),
-      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: GOLD, badge: L('团队 · 3 席', 'Team · 3 seats'),
-      note: L('早期支持者 · 名额有限', 'Early supporters · limited'),
+      // agency 角色页把同一套餐展示为「经纪公司版」(多席位 + lead),套餐 id 仍是 founder
+      id: 'founder',
+      name: variant === 'agency' ? L('经纪公司版', 'Agency') : L('创始会员', 'Founder'),
+      price: bigPriceOf(priceOf('founder', 699)),
+      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: GOLD,
+      badge: L('团队 · 3 席', 'Team · 3 seats'), highlight: variant === 'agency',
+      note: variant === 'agency'
+        ? L('经纪公司 / 团队 · 付款即开通', 'Agencies & teams · instant activation')
+        : L('早期支持者 · 名额有限', 'Early supporters · limited'),
       billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       creditsMo: creditsOf('founder') || 15000, founderDiscount: true,
       features: [
-        L('专业版全部功能 · 买家线索独占优先', 'Everything in Pro · first pick of leads'),
-        L('含 3 个席位共享积分池,+$49/席扩容', '3 seats sharing one credit pool, +$49/seat'),
+        L('专业版全部功能 · 买家线索独占优先分发', 'Everything in Pro · first pick of leads'),
+        L('含 3 个席位共享积分池,+$49/席无限扩容', '3 seats sharing one credit pool, +$49/seat'),
         L('White-label 品牌定制 · 自定义域名 · 优先支持', 'White-label · custom domain · priority support'),
       ],
-      cta: { label: L('申请 Founder', 'Apply for Founder'), onClick: () => subscribe('founder') },
+      cta: {
+        label: variant === 'agency' ? L('开通经纪公司版', 'Activate Agency') : L('申请 Founder', 'Apply for Founder'),
+        onClick: () => subscribe('founder'),
+      },
+    },
+    {
+      id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf(priceOf('developer', 299)),
+      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
+      badge: L('7 天免费试用', '7-day free trial'), highlight: variant === 'developer',
+      note: L('开发商 · 付款即开通', 'Developers · instant activation'),
+      billed: billedLine(priceOf('developer', 299)), priceWas: struckOf(priceOf('developer', 299)),
+      creditsMo: creditsOf('developer') || 5000,
+      features: [
+        L('上传楼书(AI 自动解析户型/价格/付款计划)', 'Upload brochures (AI parses units/prices/plans)'),
+        L('项目管理 + 楼盘曝光给全站买家与经纪', 'Project management + exposure to all buyers & agents'),
+        L('销售工具:客户 CRM · 实时带看 · 品牌报告', 'Sales tools: CRM · live tours · branded reports'),
+      ],
+      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('developer') },
     },
   ]
-  // 经纪选档页不放免费卡(引导聚焦三个付费档);公共 /pricing 保持四卡
-  const tiers = agentOnboarding ? allTiers.filter((t) => t.id !== 'explore') : allTiers
+  // 角色专属页:各自只看到自己的套餐(不显示免费/其他角色价格)。
+  // 公共 /pricing 保持原样(探索/启程/专业/创始),不展示开发商档。
+  const tiers = variant === 'agent' ? allTiers.filter((t) => t.id === 'rookie' || t.id === 'agent')
+    : variant === 'agency' ? allTiers.filter((t) => t.id === 'founder')
+    : variant === 'developer' ? allTiers.filter((t) => t.id === 'developer')
+    : agentOnboarding ? allTiers.filter((t) => t.id !== 'explore' && t.id !== 'developer')
+    : allTiers.filter((t) => t.id !== 'developer')
 
   return (
     <div className="relative flex-1 overflow-y-auto bg-[#070b16] text-white" style={{ backgroundImage: GRID, backgroundSize: '34px 34px' }}>
@@ -210,6 +242,25 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
         )}
         <div className="pz-anim text-center" style={{ animation: 'pz-fade-up .45s ease-out both' }}>
           {agentOnboarding ? (
+            variant === 'agency' ? (
+              <>
+                <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: GOLD }}>// {L('经纪公司工作台', 'AGENCY WORKSPACE')}</span>
+                <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!为你的团队开通 Pinzos', 'Welcome! Set up Pinzos for your team')}</h1>
+                <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
+                  '多席位共享一个积分池,买家线索独占优先分发,White-label 品牌定制 —— 开通后立即可为团队邀请席位。',
+                  'Multiple seats sharing one credit pool, first pick of buyer leads, white-label branding — invite your team right after activation.'
+                )}</p>
+              </>
+            ) : variant === 'developer' ? (
+              <>
+                <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('开发商工作台', 'DEVELOPER WORKSPACE')}</span>
+                <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!让你的楼盘被全站买家看到', 'Welcome! Put your projects in front of every buyer')}</h1>
+                <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
+                  '上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告)—— 7 天免费试用,试用期内取消不产生任何费用。',
+                  'Upload brochures, AI parses and lists them, with a full sales toolkit (CRM, live tours, branded reports) — 7-day free trial.'
+                )}</p>
+              </>
+            ) : (
             <>
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
               <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!你的经纪工作台已就绪', 'Welcome! Your agent workspace is ready')}</h1>
@@ -218,6 +269,7 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
                 'Pick a plan to unlock client CRM, branded reports and buyer leads — 7-day free trial, cancel within the trial at no charge.'
               )}</p>
             </>
+            )
           ) : (
             <>
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
@@ -271,7 +323,12 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
 
         {err && <div className="mx-auto mt-4 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-sm text-rose-300">{err}</div>}
 
-        <div className={`mt-4 grid items-stretch gap-3 md:grid-cols-2 ${agentOnboarding ? 'xl:grid-cols-3 mx-auto max-w-4xl' : 'xl:grid-cols-4'}`}>
+        <div className={`mt-4 grid items-stretch gap-3 ${
+          tiers.length === 1 ? 'mx-auto max-w-md'
+            : tiers.length === 2 ? 'mx-auto max-w-3xl md:grid-cols-2'
+            : agentOnboarding ? 'md:grid-cols-2 xl:grid-cols-3 mx-auto max-w-4xl'
+            : 'md:grid-cols-2 xl:grid-cols-4'
+        }`}>
           {tiers.map((t, ti) => (
             // 自然升序(便宜的在前),手机桌面一致 —— 低门槛档先入眼;入场交错浮现+悬浮抬升
             <div key={t.id} className="pz-anim relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 transition-transform duration-200 hover:-translate-y-1"
@@ -315,8 +372,8 @@ export default function PricingPage({ agentOnboarding = false }: { agentOnboardi
           ))}
         </div>
 
-        {/* 积分消耗表(成本来自后端 /features 配置,改配置自动同步) */}
-        {feat.features.length > 0 && (() => {
+        {/* 积分消耗表(成本来自后端 /features 配置,改配置自动同步)。角色专属单档页不放(列别档折扣反而困惑) */}
+        {!variant && feat.features.length > 0 && (() => {
           const founderMult = feat.plans.find((p) => p.id === 'founder')?.multiplier ?? 0.6
           return (
             <div className="pz-anim mx-auto mt-4 max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"

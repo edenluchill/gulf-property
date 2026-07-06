@@ -34,7 +34,8 @@ export default function Header() {
   const { profile } = useUserProfile()
   const role = useMyRole()
   // 经纪台入口:新角色系统 role=agent 或旧本地标志;买家(role=buyer)看「个人中心」
-  const isAgent = !!profile?.agent || role === 'agent'
+  // agency(经纪公司)/developer(开发商,含销售工具)也走经纪台
+  const isAgent = !!profile?.agent || role === 'agent' || role === 'agency' || role === 'developer'
   const isBuyer = role === 'buyer' && !isAgent
 
   // About sheet state

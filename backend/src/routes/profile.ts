@@ -40,8 +40,9 @@ router.post('/profile', requireAuth, async (req: Request, res: Response) => {
   const u = currentUser(req)
   if (!u) return res.status(401).json({ success: false, error: 'Auth required' })
   const role = String(req.body?.role || '')
-  if (!['buyer', 'agent'].includes(role)) {
-    return res.status(400).json({ success: false, error: 'role must be buyer or agent' })
+  // 四角色(2026-07-05):买家免费;agent/agency/developer 必须订阅(mapMeter 硬门禁)
+  if (!['buyer', 'agent', 'agency', 'developer'].includes(role)) {
+    return res.status(400).json({ success: false, error: 'invalid role' })
   }
   try {
     await pool.query(

@@ -39,7 +39,7 @@ function getStripe(): Stripe | null {
 // 只卖月付/年付(年付=收10个月,送2个月);历史季付(_Q)订阅 webhook 仍认得。
 export type BillingInterval = 'month' | 'year'
 
-const PAID_PLANS = ['rookie', 'agent', 'founder'] as const
+const PAID_PLANS = ['rookie', 'agent', 'founder', 'developer'] as const
 const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3 }
 
 // ── 套餐+周期 ↔ Stripe price 映射(env 优先,回退 DB 列)────────────────
@@ -214,8 +214,8 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       customer: customerId,
       line_items: [{ price, quantity: 1 }],
       subscription_data: {
-        // 7 天免费试用(需绑卡,试用期内取消不扣费)。自助档(Starter/Pro)都给。
-        trial_period_days: planId === 'rookie' || planId === 'agent' ? 7 : undefined,
+        // 7 天免费试用(需绑卡,试用期内取消不扣费)。自助档(Starter/Pro/开发商)都给。
+        trial_period_days: planId === 'rookie' || planId === 'agent' || planId === 'developer' ? 7 : undefined,
         metadata: { lt_agent_id: agent.id, plan_id: planId, interval },
       },
       payment_method_collection: 'always', // 试用也收卡

@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   const { rows } = await pool.query<PlanRow>(
     `SELECT id, name, COALESCE(price_usd_month,0) AS price_usd_month,
             stripe_price_id, stripe_price_id_year, stripe_price_id_seat
-       FROM lt_subscription_plans WHERE id IN ('rookie','agent','founder')`
+       FROM lt_subscription_plans WHERE id IN ('rookie','agent','founder','developer')`
   )
 
   for (const plan of rows) {
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
 
   const check = await pool.query(
     `SELECT id, stripe_price_id, stripe_price_id_year, stripe_price_id_seat
-       FROM lt_subscription_plans WHERE id IN ('rookie','agent','founder') ORDER BY price_usd_month`
+       FROM lt_subscription_plans WHERE id IN ('rookie','agent','founder','developer') ORDER BY price_usd_month`
   )
   console.log('\nFinal mapping:')
   console.table(check.rows)

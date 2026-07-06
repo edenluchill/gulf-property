@@ -5,21 +5,21 @@
  */
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchMyRole } from '../lib/billingApi'
+import { fetchMyRole, type UserRole } from '../lib/billingApi'
 
 const KEY = 'pinzos-role'
 
-export function useMyRole(): 'buyer' | 'agent' | null {
+export function useMyRole(): UserRole | null {
   const { user, loading } = useAuth()
-  const [role, setRole] = useState<'buyer' | 'agent' | null>(() => {
-    try { return (sessionStorage.getItem(KEY) as 'buyer' | 'agent' | null) || null } catch { return null }
+  const [role, setRole] = useState<UserRole | null>(() => {
+    try { return (sessionStorage.getItem(KEY) as UserRole | null) || null } catch { return null }
   })
 
   useEffect(() => {
     if (loading) return
     if (!user) { setRole(null); return }
     try {
-      const cached = sessionStorage.getItem(KEY) as 'buyer' | 'agent' | null
+      const cached = sessionStorage.getItem(KEY) as UserRole | null
       if (cached) { setRole(cached); return }
     } catch { /* noop */ }
     let stale = false

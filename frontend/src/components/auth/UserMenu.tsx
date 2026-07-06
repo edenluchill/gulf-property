@@ -1,15 +1,31 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LogOut, Settings, ChevronDown } from 'lucide-react'
+import { LogOut, Settings, ChevronDown, Medal } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
+import { fetchBillingMe } from '../../lib/billingApi'
+import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
+import RoleBadgeDialog from '../RoleBadgeDialog'
 
 export default function UserMenu() {
-  const { t } = useTranslation('auth')
+  const { t, i18n } = useTranslation('auth')
+  const zh = !!i18n.language?.startsWith('zh')
   const { user, isAdmin, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // 认证勋章:按生效订阅推导(买家/无订阅 = null)。登录后拉一次。
+  const [badge, setBadge] = useState<RoleBadge | null>(null)
+  const [showBadge, setShowBadge] = useState(false)
+  useEffect(() => {
+    if (!user) { setBadge(null); return }
+    let stale = false
+    void fetchBillingMe()
+      .then((me) => { if (!stale && me) setBadge(badgeForPlan(me.plan?.id, me.status)) })
+      .catch(() => { /* 匿名/失败 → 无勋章 */ })
+    return () => { stale = true }
+  }, [user?.email])
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -107,10 +123,30 @@ export default function UserMenu() {
                   Admin
                 </span>
               )}
+              {/* 认证勋章:购买套餐后颁发,点开可生成朋友圈分享图 */}
+              {badge && (
+                <button
+                  onClick={() => { setShowBadge(true); setIsOpen(false) }}
+                  className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-transform active:scale-95"
+                  style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
+                >
+                  <span aria-hidden>{badge.emoji}</span>
+                  {zh ? badge.titleZh : badge.titleEn}
+                </button>
+              )}
             </div>
 
             {/* Menu items */}
             <div className="py-1">
+              {badge && (
+                <button
+                  onClick={() => { setShowBadge(true); setIsOpen(false) }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Medal className="w-4 h-4 text-amber-500" />
+                  {zh ? '我的勋章(分享朋友圈)' : 'My badge (share it)'}
+                </button>
+              )}
               {/* 数据管理 / analytics moved into the header Admin dropdown — see Header.tsx */}
               {isAdmin && (
                 <Link
@@ -134,6 +170,15 @@ export default function UserMenu() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 勋章分享弹窗 */}
+      {showBadge && badge && (
+        <RoleBadgeDialog
+          badge={badge}
+          name={user.user_metadata?.full_name || userEmail.split('@')[0]}
+          onClose={() => setShowBadge(false)}
+        />
+      )}
     </div>
   )
 }

@@ -25,7 +25,11 @@ import { isAdminEmail } from '../lib/adminEmails'
 import { isOwnerEmail } from './requireOwner'
 import { internalVisitorIds } from '../services/analyticsQueries'
 
-const LIMIT_MIN = Number(process.env.ANON_MAP_MINUTES_PER_DAY) || 10
+// 注意别写 `Number(env) || 10`:0 是 falsy,会让「额度设 0」悄悄变回 10。
+const LIMIT_MIN = (() => {
+  const n = Number(process.env.ANON_MAP_MINUTES_PER_DAY)
+  return Number.isFinite(n) && n >= 0 ? n : 10
+})()
 const IP_MULTIPLIER = 3 // 共享 IP(办公室/移动网络)宽容倍数
 
 // ── 迪拜时区的"今天/第几分钟"(UAE 无夏令时,固定 UTC+4)────────────
@@ -150,7 +154,9 @@ async function agentNeedsPlan(userId: string, email: string | null): Promise<boo
     `SELECT role FROM user_profiles WHERE user_id = $1`,
     [userId]
   )
-  if (r.rows[0]?.role === 'agent' && email) {
+  // agent/agency/developer 三个从业者角色都必须订阅(买家/未选角色免费)
+  const PAID_ROLES = ['agent', 'agency', 'developer']
+  if (PAID_ROLES.includes(r.rows[0]?.role || '') && email) {
     const a = await pool.query<{ id: string; billing_agent_id: string | null }>(
       `SELECT id, billing_agent_id FROM lt_agents WHERE lower(email) = $1`,
       [email]
@@ -166,7 +172,7 @@ async function agentNeedsPlan(userId: string, email: string | null): Promise<boo
       )
       gated = !s.rows.length
     }
-  } else if (r.rows[0]?.role === 'agent' && !email) {
+  } else if (PAID_ROLES.includes(r.rows[0]?.role || '') && !email) {
     gated = true
   }
   agentGateCache.set(userId, { gated, at: Date.now() })

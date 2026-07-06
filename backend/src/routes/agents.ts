@@ -136,14 +136,28 @@ router.post('/:email/reject', optionalAuth, requireOwner, (req, res) => decide(r
 // 单独授权某个 email 能用「上传楼书 / 任务审核 / 项目管理」,但看不到
 // telemetry/分析后台(那些仍是 admin/owner)。admin 隐含拥有上传权限。
 
-/** 登录用户查自己有没有上传权限(前端 AuthContext 用)。 */
+/** 登录用户查自己有没有上传权限(前端 AuthContext 用)。
+ *  可上传 = admin/owner | upload_permissions 白名单 | 开发商角色且订阅生效。 */
 router.get('/can-upload', requireAuth, async (req: Request, res: Response) => {
   const email = (req.user?.email || req.ctx?.email || '').toLowerCase().trim()
   if (!email) return res.json({ canUpload: false })
   if (isAdminEmail(email) || isOwnerEmail(email)) return res.json({ canUpload: true })
   try {
     const { rows } = await pool.query(`SELECT 1 FROM upload_permissions WHERE email = $1`, [email])
-    res.json({ canUpload: rows.length > 0 })
+    if (rows.length > 0) return res.json({ canUpload: true })
+    // 开发商套餐含「上传楼书」:role=developer + active/trialing 订阅
+    const dev = await pool.query(
+      `SELECT 1
+         FROM user_profiles up
+         JOIN lt_agents la ON lower(la.email) = $1
+         JOIN lt_subscriptions s
+           ON s.agent_id = COALESCE(la.billing_agent_id, la.id)
+          AND s.status IN ('active','trialing')
+        WHERE lower(up.email) = $1 AND up.role = 'developer'
+        LIMIT 1`,
+      [email]
+    )
+    res.json({ canUpload: dev.rows.length > 0 })
   } catch (err) {
     console.error('[agents] can-upload failed:', err)
     res.json({ canUpload: false })

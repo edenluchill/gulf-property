@@ -7,6 +7,9 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Check, ExternalLink, Users, UserPlus, X } from 'lucide-react'
+import { badgeForPlan } from '../../lib/roleBadge'
+import RoleBadgeDialog from '../../components/RoleBadgeDialog'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   fetchBillingMe, fetchPromo, fetchFeatures, startCheckout, openPortal,
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats,
@@ -43,6 +46,18 @@ export default function AgentBilling() {
     if (banner) { const t = setTimeout(() => setParams({}, { replace: true }), 6000); return () => clearTimeout(t) }
   }, [banner, setParams])
 
+  // 付款成功 → 颁发认证勋章(自动弹出,可保存发朋友圈)
+  const { user } = useAuth()
+  const [showBadge, setShowBadge] = useState(false)
+  const badgeShownRef = useState(() => ({ done: false }))[0]
+  useEffect(() => {
+    if (banner === 'success' && me && !badgeShownRef.done && badgeForPlan(me.plan?.id, me.status)) {
+      badgeShownRef.done = true
+      setShowBadge(true)
+    }
+  }, [banner, me, badgeShownRef])
+  const successBadge = me ? badgeForPlan(me.plan?.id, me.status) : null
+
   async function upgrade(planId: PaidPlanId) {
     setErr(null); setBusy(planId)
     const error = await startCheckout(planId, cycle)  // 成功跳转 Stripe
@@ -57,6 +72,14 @@ export default function AgentBilling() {
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
   }
+
+  const badgeDialog = showBadge && successBadge ? (
+    <RoleBadgeDialog
+      badge={successBadge}
+      name={user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Pinzos'}
+      onClose={() => setShowBadge(false)}
+    />
+  ) : null
 
   const planId = me?.plan.id || 'explore'
   const status = me?.status || 'none'
@@ -118,6 +141,7 @@ export default function AgentBilling() {
 
   return (
     <div className="space-y-6">
+      {badgeDialog}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">订阅与用量</h1>
         <p className="mt-1 text-sm text-slate-500">管理你的套餐、查看本月额度。支付由 Stripe 安全处理。</p>

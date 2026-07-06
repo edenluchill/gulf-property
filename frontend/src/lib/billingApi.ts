@@ -109,7 +109,7 @@ export async function fetchBillingMe(): Promise<BillingMe | null> {
 
 // 只卖月付/年付(年付=收10个月);历史季付订阅仍由 portal 管理。
 export type BillingInterval = 'month' | 'year'
-export type PaidPlanId = 'rookie' | 'agent' | 'founder'
+export type PaidPlanId = 'rookie' | 'agent' | 'founder' | 'developer'
 
 /** 开始订阅:跳转到 Stripe Checkout。返回错误信息(成功则直接跳转,不返回)。 */
 export async function startCheckout(planId: PaidPlanId, interval: BillingInterval = 'month'): Promise<string | null> {
@@ -234,7 +234,9 @@ async function authHeaders(json = false): Promise<Record<string, string>> {
   return headers
 }
 
-export async function fetchMyRole(): Promise<'buyer' | 'agent' | null> {
+export type UserRole = 'buyer' | 'agent' | 'agency' | 'developer'
+
+export async function fetchMyRole(): Promise<UserRole | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/me/profile`, { headers: await authHeaders() })
     if (!res.ok) return null
@@ -245,7 +247,7 @@ export async function fetchMyRole(): Promise<'buyer' | 'agent' | null> {
   }
 }
 
-export async function setMyRole(role: 'buyer' | 'agent'): Promise<boolean> {
+export async function setMyRole(role: UserRole): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/me/profile`, {
       method: 'POST',
