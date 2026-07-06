@@ -1542,28 +1542,40 @@ function MapViewMapLibre({
             <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
             {measureMode ? '退出' : '测距'}
           </button>
-          <button
-            type="button"
-            onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-90"
-            aria-label="指北针,点击回正北"
-          >
-            {/* 针由 syncCompass 命令式旋转(bearing)+倾斜(pitch),不走 React state */}
-            <span
-              ref={compassNeedleRef}
-              className="inline-block will-change-transform"
-              style={{ transformStyle: 'preserve-3d' }}
-            >
-              <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="11" fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
-                <polygon points="12,3 15.4,12 8.6,12" fill="#ef4444" />
-                <polygon points="8.6,12 15.4,12 12,21" fill="#94a3b8" />
-              </svg>
-            </span>
-            正北
-          </button>
         </div>
       </div>
+
+      {/* 指北针:左上角独立圆盘(Google Earth 式),搜索/筛选下方。
+          盘面(N 标 + 刻度 + 红针)由 syncCompass 命令式跟随相机——bearing 反向
+          旋转、pitch 给 rotateX 立体倾斜,2D/3D 通用;每帧只写这一个小合成层
+          元素的 transform,零 React 重渲染(铁律:高频相机值禁入 state)。
+          点击 easeTo 回正北(俯仰保留,3D 由右侧按钮管)。
+          top 对齐左上搜索栈:手机/pad 搜索+筛选两行(~104px)、xl 单行(~52px)。 */}
+      <button
+        type="button"
+        onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
+        className="absolute left-3 top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
+        aria-label="指北针,点击回正北"
+      >
+        <span
+          ref={compassNeedleRef}
+          className="block will-change-transform"
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          <svg width={44} height={44} viewBox="0 0 48 48" aria-hidden="true">
+            {/* 刻度环:E/S/W 短刻度,N 用大字标(用户要求盘面大而显眼) */}
+            <circle cx="24" cy="24" r="21.5" fill="none" stroke="#e2e8f0" strokeWidth="1.5" />
+            <text x="24" y="14" textAnchor="middle" fontSize="12" fontWeight="800" fill="#ef4444" fontFamily="system-ui, sans-serif">N</text>
+            <line x1="43" y1="24" x2="38.5" y2="24" stroke="#64748b" strokeWidth="2" />
+            <line x1="24" y1="43" x2="24" y2="38.5" stroke="#64748b" strokeWidth="2" />
+            <line x1="5" y1="24" x2="9.5" y2="24" stroke="#64748b" strokeWidth="2" />
+            {/* 指针:红北灰南 + 中轴点 */}
+            <polygon points="24,15.5 29,25.5 19,25.5" fill="#ef4444" />
+            <polygon points="19,25.5 29,25.5 24,35.5" fill="#94a3b8" />
+            <circle cx="24" cy="25.5" r="2.5" fill="#334155" />
+          </svg>
+        </span>
+      </button>
 
       {/* 测距状态条(极简,距离已画在地图线上) */}
       {measureMode && (
