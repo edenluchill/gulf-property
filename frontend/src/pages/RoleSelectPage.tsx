@@ -7,10 +7,11 @@
  * 规则:选前不显示价格;买家即选即用;付费角色(经纪/经纪公司/开发商)
  * 先「不」落身份,付款成功才 set(webhook + 回跳页),没付款下次还会再问。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Loader2, ChevronRight } from 'lucide-react'
-import { setMyRole, type UserRole } from '../lib/billingApi'
+import { AlertTriangle, Loader2, ChevronRight, BadgeCheck } from 'lucide-react'
+import { fetchBillingMe, setMyRole, type UserRole } from '../lib/billingApi'
+import { badgeForPlan, type RoleBadge } from '../lib/roleBadge'
 
 // 四个角色卡:可视化 emoji 徽章 + 专属配色,一眼分得开。不放价格。
 const ROLE_CARDS: {
@@ -68,6 +69,19 @@ export default function RoleSelectPage() {
   const zh = !!i18n.language?.startsWith('zh')
   const [saving, setSaving] = useState<UserRole | null>(null)
 
+  // 已付费 → 身份由订阅决定,不给再切(切成买家还在扣费/切别的角色会重复购买,
+  // 都是坑)。变更身份 = 先去订阅页调整/取消套餐。未登录/未付费 → 正常四选一。
+  const [paidBadge, setPaidBadge] = useState<RoleBadge | null>(null)
+  const [checking, setChecking] = useState(true)
+  useEffect(() => {
+    let stale = false
+    void fetchBillingMe()
+      .then((me) => { if (!stale) setPaidBadge(me ? badgeForPlan(me.plan?.id, me.status) : null) })
+      .catch(() => { /* 未登录/失败 → 按未付费处理 */ })
+      .finally(() => { if (!stale) setChecking(false) })
+    return () => { stale = true }
+  }, [])
+
   const choose = async (card: typeof ROLE_CARDS[number]) => {
     if (saving) return
     // 付费角色:先不落身份 —— 付款成功后才 set(webhook + 回跳页双保险)。
@@ -83,6 +97,51 @@ export default function RoleSelectPage() {
     try { sessionStorage.setItem('pinzos-role', card.id) } catch { /* noop */ }
     // 整页跳转:角色态(Header/经纪台)处处即时一致
     window.location.assign('/')
+  }
+
+  if (checking) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-slate-50">
+        <Loader2 className="h-7 w-7 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+
+  // 已付费:身份跟着套餐走,给引导而不是四张卡
+  if (paidBadge) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-3xl bg-white p-7 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
+          <span
+            className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl text-[34px] shadow-md"
+            style={{ background: `linear-gradient(135deg, ${paidBadge.from}, ${paidBadge.to})` }}
+            aria-hidden
+          >
+            {paidBadge.emoji}
+          </span>
+          <h1 className="mt-4 flex items-center justify-center gap-1.5 text-xl font-bold text-slate-900">
+            <BadgeCheck className="h-5 w-5 text-teal-500" />
+            {zh ? paidBadge.titleZh : paidBadge.titleEn}
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            {zh
+              ? '你已开通对应套餐,身份由订阅决定。如需变更身份,请先在「订阅与套餐」里调整或取消当前套餐。'
+              : 'Your role follows your active subscription. To change it, adjust or cancel your plan first.'}
+          </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <a
+              href="/agent/billing"
+              className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+            >
+              {zh ? '管理订阅与套餐' : 'Manage subscription'}
+            </a>
+            <a href="/" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100">
+              {zh ? '回到地图' : 'Back to the map'}
+            </a>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

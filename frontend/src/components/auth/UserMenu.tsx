@@ -163,14 +163,25 @@ export default function UserMenu() {
 
             {/* Menu items */}
             <div className="py-1">
-              {/* 切换身份:选错角色的自助出口(重新弹四角色选择) */}
-              <button
-                onClick={switchRole}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-                {zh ? '切换身份' : 'Switch role'}
-              </button>
+              {/* 未付费:可自由切换身份;已付费:身份由订阅决定 → 引导去订阅页调整 */}
+              {badge ? (
+                <a
+                  href="/agent/billing"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <ArrowLeftRight className="w-4 h-4 text-slate-400" />
+                  {zh ? '订阅与套餐' : 'Subscription & plan'}
+                </a>
+              ) : (
+                <button
+                  onClick={switchRole}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <ArrowLeftRight className="w-4 h-4 text-slate-400" />
+                  {zh ? '切换身份' : 'Switch role'}
+                </button>
+              )}
               {badge && (
                 <button
                   onClick={() => { setShowBadge(true); setIsOpen(false) }}
