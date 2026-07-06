@@ -1,19 +1,37 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LogOut, Settings, ChevronDown, Medal } from 'lucide-react'
+import { LogOut, Settings, ChevronDown, Medal, ArrowLeftRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchBillingMe } from '../../lib/billingApi'
 import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../RoleBadgeDialog'
+import { useMyRole } from '../../hooks/useMyRole'
+
+// 账户菜单里的角色小徽章(与角色选择卡同一套颜色/emoji)
+const ROLE_CHIP: Record<string, { zh: string; en: string; emoji: string; cls: string }> = {
+  buyer: { zh: '买家', en: 'Buyer', emoji: '🏠', cls: 'bg-teal-100 text-teal-700' },
+  agent: { zh: '经纪人', en: 'Agent', emoji: '🧑\u200d💼', cls: 'bg-indigo-100 text-indigo-700' },
+  agency: { zh: '经纪公司', en: 'Agency', emoji: '🏢', cls: 'bg-violet-100 text-violet-700' },
+  developer: { zh: '开发商', en: 'Developer', emoji: '🏗️', cls: 'bg-amber-100 text-amber-700' },
+}
 
 export default function UserMenu() {
   const { t, i18n } = useTranslation('auth')
   const zh = !!i18n.language?.startsWith('zh')
   const { user, isAdmin, signOut } = useAuth()
+  const role = useMyRole()
+  const roleChip = role ? ROLE_CHIP[role] : null
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // 「切换身份」:清角色缓存 → 重新弹出四角色选择
+  const switchRole = () => {
+    setIsOpen(false)
+    try { sessionStorage.removeItem('pinzos-role') } catch { /* noop */ }
+    window.dispatchEvent(new Event('pinzos:role-select'))
+  }
 
   // 认证勋章:按生效订阅推导(买家/无订阅 = null)。登录后拉一次。
   const [badge, setBadge] = useState<RoleBadge | null>(null)
@@ -119,8 +137,15 @@ export default function UserMenu() {
                 </div>
               </div>
               {isAdmin && (
-                <span className="inline-block mt-2 px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-medium rounded-full">
+                <span className="inline-block mt-2 mr-1.5 px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-medium rounded-full">
                   Admin
+                </span>
+              )}
+              {/* 当前角色徽章(买家/经纪人/经纪公司/开发商) */}
+              {roleChip && (
+                <span className={`inline-flex items-center gap-1 mt-2 mr-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${roleChip.cls}`}>
+                  <span aria-hidden>{roleChip.emoji}</span>
+                  {zh ? roleChip.zh : roleChip.en}
                 </span>
               )}
               {/* 认证勋章:购买套餐后颁发,点开可生成朋友圈分享图 */}
@@ -138,6 +163,14 @@ export default function UserMenu() {
 
             {/* Menu items */}
             <div className="py-1">
+              {/* 切换身份:选错角色的自助出口(重新弹四角色选择) */}
+              <button
+                onClick={switchRole}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <ArrowLeftRight className="w-4 h-4 text-slate-400" />
+                {zh ? '切换身份' : 'Switch role'}
+              </button>
               {badge && (
                 <button
                   onClick={() => { setShowBadge(true); setIsOpen(false) }}

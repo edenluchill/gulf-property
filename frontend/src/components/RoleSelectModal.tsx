@@ -9,9 +9,9 @@
  * 分享页/回调页。
  */
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Loader2, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Loader2, ChevronRight, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchMyRole, setMyRole, type UserRole } from '../lib/billingApi'
 
@@ -74,11 +74,19 @@ const ROLE_CARDS: {
 export default function RoleSelectModal() {
   const { user, loading, isAdmin } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
   const [open, setOpen] = useState(false)
+  // 切换身份打开的弹窗可以关闭(反悔不换);首登 onboarding 强制选,不给关闭
+  const [dismissable, setDismissable] = useState(false)
   const [saving, setSaving] = useState<UserRole | null>(null)
+
+  // 头像菜单「切换身份」→ 重新弹出本弹窗(已有角色也弹)
+  useEffect(() => {
+    const reopen = () => { setDismissable(true); setOpen(true) }
+    window.addEventListener('pinzos:role-select', reopen)
+    return () => window.removeEventListener('pinzos:role-select', reopen)
+  }, [])
 
   useEffect(() => {
     if (loading || !user || isAdmin) { setOpen(false); return } // 内部/owner 账号不问
@@ -106,14 +114,25 @@ export default function RoleSelectModal() {
     if (!ok) return // 失败静默保留弹窗,下次点击重试
     try { sessionStorage.setItem(CACHE_KEY, card.id) } catch { /* noop */ }
     setOpen(false)
-    if (card.next) navigate(card.next) // 付费角色 → 各自专属选档页
+    // 整页跳转:切换身份后 Header/经纪台等所有角色态立即一致(SPA navigate 会留旧态)
+    window.location.assign(card.next || '/')
   }
 
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center overflow-y-auto bg-slate-900/55 p-4 backdrop-blur-sm">
-      <div className="my-auto w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl sm:p-7">
+      <div className="relative my-auto w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl sm:p-7">
+        {dismissable && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="absolute right-4 top-4 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            aria-label="close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
         <h2 className="text-center text-xl font-bold text-slate-900 sm:text-2xl">
           {zh ? '你是哪种身份?' : 'Which one are you?'}
         </h2>
@@ -126,7 +145,7 @@ export default function RoleSelectModal() {
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           <span>
             {zh
-              ? '请选择符合你真实身份的角色 —— 角色决定你能使用的功能,选错会缺少对应功能(之后如需调整可联系我们)。'
+              ? '请选择符合你真实身份的角色 —— 角色决定你能使用的功能,选错会缺少对应功能(之后可在头像菜单随时切换)。'
               : 'Pick the role that matches you — your role decides which features you get. Choosing wrong means missing tools (contact us later to adjust).'}
           </span>
         </div>
@@ -159,18 +178,13 @@ export default function RoleSelectModal() {
                     <span key={i} className="block text-[11px] leading-relaxed text-slate-400">· {b}</span>
                   ))}
                 </span>
-                {c.paid && (
-                  <span className="mt-1.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                    {zh ? '需订阅开通' : 'Subscription required'}
-                  </span>
-                )}
               </span>
             </button>
           ))}
         </div>
 
         <p className="mt-4 text-center text-[11px] text-slate-400">
-          {zh ? '买家免费使用;专业角色选完后进入对应的开通页' : 'Buyers are free; professional roles continue to their activation page'}
+          {zh ? '选完之后,随时可以在右上角头像菜单里「切换身份」' : 'You can switch your role anytime from the avatar menu (top right)'}
         </p>
       </div>
     </div>
