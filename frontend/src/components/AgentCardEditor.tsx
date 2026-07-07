@@ -7,6 +7,7 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
+  const [email, setEmail] = useState('')
   const [photo, setPhoto] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -16,7 +17,7 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     lunaFetch('/profile').then((r) => r.json()).then((j) => {
       const a = j?.agent
-      if (a) { setName(a.display_name || ''); setPhone(a.phone || ''); setWhatsapp(a.whatsapp || ''); setPhoto(a.photo_url || null) }
+      if (a) { setName(a.display_name || ''); setPhone(a.phone || ''); setWhatsapp(a.whatsapp || ''); setEmail(a.public_email || ''); setPhoto(a.photo_url || null) }
     }).catch(() => {})
   }, [])
 
@@ -38,10 +39,12 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
   const save = async () => {
     setSaving(true)
     try {
-      await lunaFetch('/profile', {
+      const r = await lunaFetch('/profile', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: name, phone, whatsapp }),
+        body: JSON.stringify({ display_name: name, phone, whatsapp, public_email: email }),
       })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { alert(j?.error || '保存失败'); return }
       setSaved(true); setTimeout(onClose, 700)
     } catch { alert('保存失败') } finally { setSaving(false) }
   }
@@ -73,7 +76,11 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
           <Field label="姓名" value={name} onChange={setName} placeholder="您的姓名" />
           <Field label="电话" value={phone} onChange={setPhone} placeholder="+971 50 123 4567" />
           <Field label="WhatsApp" value={whatsapp} onChange={setWhatsapp} placeholder="971501234567（只数字）" />
+          <Field label="邮箱（展示给客户,可空）" value={email} onChange={setEmail} placeholder="you@agency.com" />
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          这张名片会作为落款出现在你的 Sales Offer 报价单与品牌报告上。
+        </p>
 
         <button onClick={save} disabled={saving} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 py-2.5 font-semibold text-white hover:bg-teal-600 disabled:opacity-60">
           {saved ? <><Check className="h-4 w-4" />已保存</> : saving ? '保存中…' : '保存'}

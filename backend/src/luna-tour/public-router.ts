@@ -571,6 +571,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
               ps.plan_snapshot, ps.lang, ps.created_at,
               a.display_name AS agent_name, a.photo_url AS agent_photo,
               a.phone AS agent_phone, a.whatsapp AS agent_whatsapp,
+              a.public_email AS agent_public_email,
               a.email AS agent_email, a.billing_agent_id AS agent_billing_id
          FROM lt_payment_shares ps
          LEFT JOIN lt_agents a ON a.id = ps.agent_id
@@ -652,7 +653,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         paymentPlan: project.payment_plan || [],
       },
       agent: s.agent_name
-        ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp, tier: agentTier }
+        ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp, email: s.agent_public_email || null, tier: agentTier }
         : null,
     })
   } catch (err) {

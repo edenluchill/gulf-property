@@ -490,7 +490,7 @@ router.get('/project-reports', async (req: Request, res: Response) => {
 router.get('/profile', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
-    const r = await pool.query('SELECT display_name, phone, whatsapp, photo_url FROM lt_agents WHERE id=$1', [agentId])
+    const r = await pool.query('SELECT display_name, phone, whatsapp, photo_url, public_email FROM lt_agents WHERE id=$1', [agentId])
     res.json({ success: true, agent: r.rows[0] || null })
   } catch (err) {
     console.error('[agent/profile get] error:', err)
@@ -502,16 +502,27 @@ router.get('/profile', async (req: Request, res: Response) => {
 router.post('/profile', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
-    const { display_name, phone, whatsapp, photo_url } = req.body || {}
+    const { display_name, phone, whatsapp, photo_url, public_email } = req.body || {}
+    // 公开邮箱:传了就整体覆盖(传空串 = 清掉不显示);格式不像邮箱则拒
+    let pubEmail: string | null | undefined = undefined
+    if (public_email !== undefined) {
+      const v = String(public_email || '').trim().slice(0, 160)
+      if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        return res.status(400).json({ success: false, error: '邮箱格式不正确' })
+      }
+      pubEmail = v || null
+    }
     await pool.query(
       `UPDATE lt_agents SET
          display_name = COALESCE(NULLIF($2,''), display_name),
          phone = COALESCE($3, phone), whatsapp = COALESCE($4, whatsapp),
-         photo_url = COALESCE(NULLIF($5,''), photo_url), updated_at = now()
+         photo_url = COALESCE(NULLIF($5,''), photo_url),
+         public_email = CASE WHEN $6 THEN $7 ELSE public_email END,
+         updated_at = now()
        WHERE id = $1`,
-      [agentId, display_name ?? '', phone ?? null, whatsapp ?? null, photo_url ?? '']
+      [agentId, display_name ?? '', phone ?? null, whatsapp ?? null, photo_url ?? '', pubEmail !== undefined, pubEmail ?? null]
     )
-    const r = await pool.query('SELECT display_name, phone, whatsapp, photo_url FROM lt_agents WHERE id=$1', [agentId])
+    const r = await pool.query('SELECT display_name, phone, whatsapp, photo_url, public_email FROM lt_agents WHERE id=$1', [agentId])
     res.json({ success: true, agent: r.rows[0] })
   } catch (err) {
     console.error('[agent/profile] error:', err)

@@ -9,6 +9,7 @@ import DirhamSymbol from '../../components/DirhamSymbol'
 import { API_BASE_URL } from '../../lib/config'
 import { useAuth } from '../../contexts/AuthContext'
 import MoneyInput from '../../components/MoneyInput'
+import AgentCardEditor from '../../components/AgentCardEditor'
 
 interface SalesOfferDialogProps {
   open: boolean
@@ -72,6 +73,8 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
   const [priceInput, setPriceInput] = useState<string>('')
   const [sharing, setSharing] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // 名片落款(姓名/头像/电话/邮箱)就地可改——用户反馈入口藏在 /profile 太隐蔽
+  const [cardOpen, setCardOpen] = useState(false)
 
   // 付款周期(可谈):null = 项目默认;点「调整」导入默认计划开编。
   // 间隔优先级:interval_months > 相邻 milestone_date 差 > 空。
@@ -478,6 +481,20 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
           </section>
 
           {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</div>}
+
+          {/* 落款名片:报价单以经纪名片(姓名/头像/电话/邮箱+认证章)落款 */}
+          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5">
+            <span className="text-xs text-slate-500">
+              {zh ? '报价单将以你的名片落款(姓名 / 头像 / 电话 / 邮箱 + 认证章)' : 'The offer is signed with your card (name, photo, phone, email + stamp)'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCardOpen(true)}
+              className="shrink-0 text-xs font-semibold text-teal-700 underline-offset-2 hover:underline"
+            >
+              {zh ? '编辑名片' : 'Edit card'}
+            </button>
+          </div>
         </div>
 
         {/* 底部操作:生成成功直接跳 /pp/:code 看成果 */}
@@ -505,6 +522,9 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
         </>
         )}
       </div>
+
+      {/* 名片编辑(z-[10001],叠在本弹窗之上) */}
+      {cardOpen && <AgentCardEditor onClose={() => setCardOpen(false)} />}
     </div>,
     document.body
   )
