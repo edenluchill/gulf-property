@@ -20,6 +20,7 @@ export default function AgentReport() {
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState('')
   const [history, setHistory] = useState<any[]>([])
+  const [offers, setOffers] = useState<any[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const canRun = !!(clientName.trim() || oneLiner.trim())
@@ -27,6 +28,8 @@ export default function AgentReport() {
 
   const loadHistory = () => { lunaFetch('/client-reports').then((r) => r.json()).then((j) => setHistory(j.reports || [])).catch(() => {}) }
   useEffect(() => { loadHistory() }, [])
+  // Sales Offer 报价单生成记录(在项目详情页生成;60 天有效,过期行保留)
+  useEffect(() => { lunaFetch('/payplans').then((r) => r.json()).then((j) => setOffers(j.offers || [])).catch(() => {}) }, [])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   const run = async () => {
@@ -126,6 +129,38 @@ export default function AgentReport() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Sales Offer 报价单记录(在项目详情页「生成 Sales Offer」产出;60 天有效) */}
+      {offers.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-bold text-slate-700">我的 Sales Offer 报价单({offers.length})</h2>
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {offers.map((o) => {
+              const u = `${window.location.origin}/pp/${o.share_code}`
+              return (
+                <div key={o.share_code} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-slate-800">{o.project_name}</span>
+                      {o.unit_name && <span className="truncate text-xs text-slate-400">{o.unit_name}</span>}
+                      {o.expired && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">已过期</span>}
+                    </div>
+                    <div className="truncate text-xs text-slate-400">
+                      AED {Number(o.price).toLocaleString('en-US')}
+                      {o.original_price && ` (原价 ${Number(o.original_price).toLocaleString('en-US')})`}
+                      {' · '}{String(o.created_at).slice(0, 10)}
+                      {o.view_count ? ` · 浏览 ${o.view_count}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title="复制链接" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
+                  <a href={u} target="_blank" rel="noreferrer" title="打开" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">报价单有效期 60 天(5 积分/份);过期后客户打开会提示联系你获取最新报价。</p>
         </div>
       )}
     </div>

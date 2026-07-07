@@ -142,21 +142,13 @@ router.post('/project-reports', async (req: Request, res: Response) => {
     const agentId = await currentAgentId(req)
     const projectId = String(req.body?.projectId || '').trim()
     if (!projectId) return res.status(400).json({ success: false, error: 'projectId required' })
-    // 经纪可选的测算口径:户型 + 该户型价格(报告页 5 年测算按此价计算)
-    const unitType = typeof req.body?.unitType === 'string' && req.body.unitType.trim() ? req.body.unitType.trim().slice(0, 120) : null
-    const upRaw = Number(req.body?.unitPrice)
-    const unitPrice = Number.isFinite(upRaw) && upRaw > 0 ? Math.round(upRaw) : null
     const p = await pool.query('SELECT id, project_name FROM residential_projects WHERE id=$1', [projectId])
     if (p.rowCount === 0) return res.status(404).json({ success: false, error: 'project not found' })
 
     const existing = await pool.query('SELECT share_code FROM lt_project_reports WHERE agent_id=$1 AND project_id=$2', [agentId, projectId])
     let code: string
     if (existing.rowCount && existing.rows[0]) {
-      code = existing.rows[0].share_code // 复用已生成的报告 — 不计额度;但更新测算口径
-      await pool.query(
-        'UPDATE lt_project_reports SET unit_type=$3, unit_price=$4, updated_at=now() WHERE agent_id=$1 AND project_id=$2',
-        [agentId, projectId, unitType, unitPrice]
-      )
+      code = existing.rows[0].share_code // 复用已生成的报告 — 不计额度
     } else {
       // 新建报告才走配额门 + 计量(共享 demo 经纪豁免)
       const loggedIn = isLoggedIn(req)
@@ -166,8 +158,8 @@ router.post('/project-reports', async (req: Request, res: Response) => {
       }
       code = await uniqueReportCode()
       await pool.query(
-        'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title, unit_type, unit_price) VALUES ($1,$2,$3,$4,$5,$6)',
-        [agentId, projectId, code, p.rows[0].project_name, unitType, unitPrice]
+        'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title) VALUES ($1,$2,$3,$4)',
+        [agentId, projectId, code, p.rows[0].project_name]
       )
       if (loggedIn) await spend(agentId, 'reports').catch(() => {})
     }
@@ -450,6 +442,28 @@ router.get('/client-reports/:code/status', async (req: Request, res: Response) =
     res.json({ success: true, status: r.rows[0].status, progress: r.rows[0].progress, clientName: r.rows[0].client_name })
   } catch (err) {
     res.status(500).json({ success: false })
+  }
+})
+
+/** List this agent's Sales Offer 报价单生成记录(60 天有效,过期行保留可查)。 */
+router.get('/payplans', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const r = await pool.query(
+      `SELECT ps.share_code, ps.unit_name, ps.price, ps.original_price, ps.view_count, ps.created_at,
+              (ps.created_at < now() - interval '60 days') AS expired,
+              rp.project_name
+         FROM lt_payment_shares ps
+         JOIN residential_projects rp ON rp.id = ps.project_id
+        WHERE ps.agent_id = $1
+        ORDER BY ps.created_at DESC
+        LIMIT 200`,
+      [agentId]
+    )
+    res.json({ success: true, offers: r.rows })
+  } catch (err) {
+    console.error('[agent/payplans list] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
   }
 })
 

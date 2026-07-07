@@ -24,9 +24,8 @@ export const FEATURES = {
   brochures: { label: 'AI 楼书解析', credits: 40, minPlan: 'rookie' as PlanId },  // 常用 → 便宜
   live_tours: { label: '实时带看', credits: 60, minPlan: 'agent' as PlanId },    // 居中
   luna_tours: { label: 'Luna 智能导览', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
-  // Sales Offer 报价单:纯 DB 写入无 AI 成本 → 不扣积分,只做套餐门
-  // (2026-07-06 用户定:订阅经纪专属;spend() 对 0 积分是 no-op)。
-  payplan: { label: 'Sales Offer 报价单', credits: 0, minPlan: 'rookie' as PlanId },
+  // Sales Offer 报价单:5 分/份(2026-07-07 用户定),60 天有效(过期页转联系顾问)
+  payplan: { label: 'Sales Offer 报价单', credits: 5, minPlan: 'rookie' as PlanId },
 } as const
 
 export type Feature = keyof typeof FEATURES

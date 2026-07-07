@@ -129,7 +129,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('客户 CRM:档案 · 热度评分 · 活动时间线 · 跟进记录 · 交易管道', 'Client CRM: profiles · heat score · timeline · notes · pipeline'),
         L('买家意向报告:客户看了哪些盘、停留多久、意向多强', 'Intent reports: what they viewed, how long, how hot'),
         L('AI 楼书解析:上传开发商 PDF,户型/价格/付款计划自动成库', 'AI brochures: upload a PDF, units/prices/plans auto-extracted'),
-        L('付款计划生成器:选户型填成交价,一键分享客户', 'Payment-plan builder: pick a unit, type the price, share in one tap'),
+        L('Sales Offer 报价单:选户型填报价,认证盖章+优惠标注,链接/PDF 发客户(60 天有效)', 'Sales Offers: pick a unit, set your quote — stamped, discount-marked, link/PDF, valid 60 days'),
         L('品牌报告页:带你头像与联系方式的项目投资报告(5年ROI+真实成交)', 'Branded report page: your face & contact on a 5-yr ROI report'),
         L('符合关注区域的 lead(尽力推送)', 'Leads for your focus areas (best effort)'),
       ],
@@ -185,7 +185,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('项目管理:开盘状态 · 图册主图 · 详情页随时可改', 'Project management: sales status, gallery, details — edit anytime'),
         L('楼盘全站曝光:地图 pin · 搜索 · Luna AI 主动推荐给买家', 'Sitewide exposure: map pins, search, Luna AI recommends you to buyers'),
         L('销售工具全套:客户 CRM · 实时海外带看 · 应用内语音', 'Full sales toolkit: CRM · live overseas tours · in-app voice'),
-        L('品牌报告页 + 付款计划生成器,置业顾问人手一份', 'Branded reports + payment-plan builder for every sales rep'),
+        L('品牌报告页 + Sales Offer 报价单,置业顾问人手一份', 'Branded reports + Sales Offers for every sales rep'),
         L('含 5 个席位共享 20,000 积分池,+$49/席无限扩容', '5 seats sharing 20,000 credits, +$49/seat unlimited'),
         L('买家行为数据:谁在看你的盘、看了多久、意向多强', 'Buyer behaviour data: who views your projects, how long, how hot'),
       ],
@@ -204,7 +204,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       L('客户 CRM:档案 · 热度评分 · 时间线 · 跟进 · 管道', 'Client CRM: profiles, heat score, timeline, notes, pipeline'),
       L('实时海外带看 + 应用内语音,一场会议签下海外客户', 'Live overseas tours + in-app voice — close remote buyers in one call'),
       L('品牌报告页:5年 ROI + 真实 DLD 成交做信任背书', 'Branded reports: 5-yr ROI backed by real DLD transactions'),
-      L('付款计划生成器:按客户实价一键出计划、一键分享', 'Payment-plan builder: real price in, shareable plan out'),
+      L('Sales Offer 报价单:实价+可调付款周期,认证盖章一键发客户', 'Sales Offers: your price + negotiable schedule, stamped & shareable'),
     ]},
     { title: L('团队与席位', 'Team & seats'), items: [
       L('含 5 个席位,置业顾问人手一号', '5 seats included — one for every sales rep'),
@@ -239,7 +239,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     ]},
     { title: L('品牌与转化', 'Brand & closing'), items: [
       L('品牌报告页:你的头像+联系方式+项目 ROI', 'Branded report pages with your face & contact'),
-      L('付款计划生成器,一键分享客户', 'Payment-plan builder, share in one tap'),
+      L('Sales Offer 报价单:优惠标注+认证盖章,链接/PDF 发客户', 'Sales Offers: discount-marked & stamped, link or PDF'),
       L('AI 楼书解析:PDF 秒变结构化户型库', 'AI brochure parsing: PDF to structured units'),
       variant === 'agency'
         ? L('White-label 品牌定制 + 自定义域名', 'White-label + custom domain')

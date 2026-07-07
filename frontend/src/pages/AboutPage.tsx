@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Map as MapIcon, TrendingUp, Building2, Sparkles, Radio, FileText, Mic,
   Upload, Database, KeyRound, Ruler, Layers, ArrowRight, Languages, ShieldCheck,
-  PenTool, PhoneCall, MousePointer2, Check, Users,
+  PenTool, PhoneCall, MousePointer2, Check, Users, BadgeCheck,
 } from 'lucide-react'
 
 const ACCENT = '#00E0B8'
@@ -261,9 +261,10 @@ export default function AboutPage() {
           </Reveal>
         </div>
 
-        <div className="mt-12 grid gap-3 md:grid-cols-2">
-          <Reveal><Tile><TileHead icon={<MapIcon />} title={L('Build Your Own Tour · 自建导览', 'Build Your Own Tour')} /><p className="text-sm text-slate-400">{L('经纪自己设计专属看房路线:挑项目、排顺序、配语音讲解与 5 年回报,一键生成可分享的自助导览;客户看了什么、问了什么自动回传。', 'Agents design their own tour: pick projects, set the order, add voice narration & 5-year ROI, then share a self-serve tour — every view and question flows back.')}</p></Tile></Reveal>
-          <Reveal delay={0.08}><Tile><TileHead icon={<FileText />} title={L('买家意向报告', 'Buyer-intent reports')} /><p className="text-sm text-slate-400">{L('每次带看后自动生成:看了什么、问了什么,AI 判定意向 + 跟进话术。', 'Auto report per tour: viewed / asked, AI interest level + follow-up.')}</p></Tile></Reveal>
+        <div className="mt-12 grid gap-3 md:grid-cols-3">
+          <Reveal><Tile className="h-full"><TileHead icon={<MapIcon />} title={L('Build Your Own Tour · 自建导览', 'Build Your Own Tour')} /><p className="text-sm text-slate-400">{L('经纪自己设计专属看房路线:挑项目、排顺序、配语音讲解与 5 年回报,一键生成可分享的自助导览;客户看了什么、问了什么自动回传。', 'Agents design their own tour: pick projects, set the order, add voice narration & 5-year ROI, then share a self-serve tour — every view and question flows back.')}</p></Tile></Reveal>
+          <Reveal delay={0.08}><Tile className="h-full"><TileHead icon={<FileText />} title={L('买家意向报告', 'Buyer-intent reports')} /><p className="text-sm text-slate-400">{L('每次带看后自动生成:看了什么、问了什么,AI 判定意向 + 跟进话术。', 'Auto report per tour: viewed / asked, AI interest level + follow-up.')}</p></Tile></Reveal>
+          <Reveal delay={0.16}><Tile className="h-full"><TileHead icon={<BadgeCheck />} title={L('Sales Offer 报价单', 'Sales Offers')} /><p className="text-sm text-slate-400">{L('选户型、填实际报价、调付款周期,生成开发商级正式报价单:优惠标注 + Pinzos 认证盖章,链接 / PDF 一键发客户。', 'Pick a unit, set your quote, tune the schedule — a developer-grade offer with discount line & your Pinzos certification stamp, sent as link or PDF.')}</p></Tile></Reveal>
         </div>
 
         <Reveal delay={0.1} className="mt-3">
@@ -293,7 +294,7 @@ export default function AboutPage() {
           {[
             {
               n: L('启程版 Starter', 'Starter'), p: '$25', per: L('/月', '/mo'), c: ACCENT,
-              fs: [L('全部买家功能 + 客户 CRM', 'Everything free + client CRM'), L('意向报告 + AI 楼书解析', 'Intent reports + AI brochures'), L('买家线索(尽力推送)', 'Buyer leads (best effort)')],
+              fs: [L('全部买家功能 + 客户 CRM', 'Everything free + client CRM'), L('Sales Offer 报价单 + AI 楼书解析', 'Sales Offers + AI brochures'), L('买家线索(尽力推送)', 'Buyer leads (best effort)')],
             },
             {
               n: L('专业版 Pro', 'Pro'), p: '$99', per: L('/月', '/mo'), c: ACCENT, hot: true,

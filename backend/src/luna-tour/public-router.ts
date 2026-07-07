@@ -511,7 +511,8 @@ router.post('/public/payplan', optionalAuth, async (req: Request, res: Response)
     const cleanUnitName = String(unitName || '').slice(0, 120) || null
 
     // 去重:同经纪 + 同项目 + 同参数的报价单直接复用已有链接(经纪来回点
-    // "重新生成"不炸表;参数任一变化才建新行)。
+    // "重新生成"不炸表也不重复扣分;参数任一变化才建新行)。只复用未过期的
+    // ——过期报价单是历史记录,重新生成应给一份新的 60 天有效期。
     const dup = await pool.query<{ share_code: string }>(
       `SELECT share_code FROM lt_payment_shares
         WHERE agent_id = $1 AND project_id = $2 AND price = $3
@@ -519,6 +520,7 @@ router.post('/public/payplan', optionalAuth, async (req: Request, res: Response)
           AND original_price IS NOT DISTINCT FROM $5
           AND plan_snapshot IS NOT DISTINCT FROM $6::jsonb
           AND unit_snapshot IS NOT DISTINCT FROM $7::jsonb
+          AND created_at > now() - interval '60 days'
         ORDER BY created_at DESC LIMIT 1`,
       [agentId, projectId, Math.round(p), cleanUnitName, origPrice,
         planSnapshot ? JSON.stringify(planSnapshot) : null,
@@ -577,6 +579,24 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
     )
     if (r.rowCount === 0) return res.status(404).json({ error: 'not found' })
     const s = r.rows[0]
+
+    // 60 天过期(2026-07-07 用户定):行保留作生成记录,页面转"联系顾问获取
+    // 最新报价"——价格本就随时调整,过期反而是经纪的回访机会。
+    const ageDays = (Date.now() - new Date(s.created_at).getTime()) / 86_400_000
+    if (ageDays > 60) {
+      const pn = await pool.query<{ project_name: string }>(
+        `SELECT project_name FROM residential_projects WHERE id = $1`, [s.project_id]
+      )
+      return res.status(410).json({
+        expired: true,
+        lang: s.lang,
+        projectName: pn.rows[0]?.project_name || null,
+        agent: s.agent_name
+          ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp }
+          : null,
+      })
+    }
+
     pool.query('UPDATE lt_payment_shares SET view_count=view_count+1 WHERE share_code=$1', [code]).catch(() => {})
 
     const pr = await pool.query(

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, Loader2, Printer, BadgeCheck, Share2, Check } from 'lucide-react'
+import { Phone, MessageCircle, Loader2, Printer, BadgeCheck, Share2, Check, Clock } from 'lucide-react'
 import { PaymentPlan } from '../types'
 import { normalizePaymentPlan } from '../lib/paymentPlan'
 
@@ -51,10 +51,18 @@ const aed = (n: number) =>
  * 免责、户型图、页脚。不用 app 风格的卡片/图表/全屏 hero(2026-07-07 用户
  * 反馈:要像正式文件,不像 app 页面)。
  */
+interface ExpiredData {
+  expired: true
+  lang: string
+  projectName: string | null
+  agent: { name: string; photo: string | null; phone: string | null; whatsapp: string | null } | null
+}
+
 export default function PaymentPlanSharePage() {
   const { code } = useParams()
   const [d, setD] = useState<PayShareData | null>(null)
-  const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [expired, setExpired] = useState<ExpiredData | null>(null)
+  const [state, setState] = useState<'loading' | 'ok' | 'expired' | 'error'>('loading')
   const [copied, setCopied] = useState(false)
 
   // 分享给客户:移动端唤起系统分享,桌面/不支持时复制链接
@@ -74,17 +82,67 @@ export default function PaymentPlanSharePage() {
 
   useEffect(() => {
     fetch(`${API}/api/luna/public/payplan/${code}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((j: PayShareData) => {
-        setD(j); setState('ok')
-        const zh2 = j.share?.lang !== 'en'
-        if (j.project?.name) document.title = `${j.project.name} · ${zh2 ? '报价单' : 'Sales Offer'}`
+      .then(async (r) => {
+        if (r.ok) {
+          const j: PayShareData = await r.json()
+          setD(j); setState('ok')
+          const zh2 = j.share?.lang !== 'en'
+          if (j.project?.name) document.title = `${j.project.name} · ${zh2 ? '报价单' : 'Sales Offer'}`
+          return
+        }
+        // 410 = 报价单已过期(60 天有效):行保留,页面转"联系顾问"
+        if (r.status === 410) {
+          const j: ExpiredData = await r.json()
+          setExpired(j); setState('expired')
+          return
+        }
+        setState('error')
       })
       .catch(() => setState('error'))
   }, [code])
 
   if (state === 'loading') {
     return <div className="flex min-h-screen items-center justify-center bg-slate-100"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
+  }
+  if (state === 'expired' && expired) {
+    const ezh = expired.lang !== 'en'
+    const a = expired.agent
+    const href = a?.whatsapp ? `https://wa.me/${a.whatsapp.replace(/[^0-9]/g, '')}` : a?.phone ? `tel:${a.phone}` : undefined
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl ring-1 ring-slate-900/5">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+            <Clock className="h-6 w-6 text-slate-400" />
+          </div>
+          <h1 className="mt-4 text-lg font-bold text-slate-900">
+            {ezh ? '该报价已过期' : 'This offer has expired'}
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+            {ezh
+              ? `报价单有效期 60 天${expired.projectName ? `。${expired.projectName} 的价格与房源可能已更新` : ''},请联系您的顾问获取最新报价。`
+              : `Offers are valid for 60 days${expired.projectName ? ` — prices for ${expired.projectName} may have changed` : ''}. Contact your consultant for a fresh quote.`}
+          </p>
+          {a && (
+            <div className="mt-6 flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-left">
+              {a.photo
+                ? <img src={a.photo} alt={a.name} className="h-11 w-11 rounded-full object-cover ring-2 ring-white" />
+                : <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-500 text-lg font-bold text-white">{(a.name || '?').slice(0, 1)}</div>}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-slate-900">{a.name}</div>
+                {a.phone && <div className="text-xs text-slate-400">{a.phone}</div>}
+              </div>
+              {href && (
+                <a href={href} className="flex shrink-0 items-center gap-1.5 rounded-full bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">
+                  {a.whatsapp ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+                  {ezh ? '获取最新报价' : 'Get a new quote'}
+                </a>
+              )}
+            </div>
+          )}
+          <div className="mt-6 text-[11px] text-slate-300">Powered by <span className="font-semibold text-slate-400">Pinzos</span> · pinzos.com</div>
+        </div>
+      </div>
+    )
   }
   if (state === 'error' || !d) {
     return <div className="flex min-h-screen items-center justify-center bg-slate-100 text-slate-400">页面不存在或已失效 / This link is no longer available</div>
