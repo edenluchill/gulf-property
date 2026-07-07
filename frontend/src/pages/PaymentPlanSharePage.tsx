@@ -1,8 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { Phone, MessageCircle, Loader2, Printer, BadgeCheck, Share2, Check, Clock } from 'lucide-react'
 import { PaymentPlan } from '../types'
-import { normalizePaymentPlan } from '../lib/paymentPlan'
+import { normalizePaymentPlan, monthGap } from '../lib/paymentPlan'
+
+/** 信头用的静态品牌 mark(与 Header 的 pin+数据柱同源,无动效) */
+function PinzosMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 42" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="ppPin" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#2dd4bf" />
+          <stop offset="55%" stopColor="#0d9488" />
+          <stop offset="100%" stopColor="#0f766e" />
+        </linearGradient>
+      </defs>
+      <path d="M16 1 C7.7 1 1 7.7 1 16 C1 26 16 41 16 41 C16 41 31 26 31 16 C31 7.7 24.3 1 16 1 Z" fill="url(#ppPin)" />
+      <rect x="8.4" y="15.5" width="3.4" height="6.7" rx="1.1" fill="#ffffff" fillOpacity="0.9" />
+      <rect x="13.9" y="12" width="3.4" height="10.2" rx="1.1" fill="#ffffff" fillOpacity="0.9" />
+      <rect x="19.4" y="8.4" width="3.4" height="13.8" rx="1.1" fill="#fbbf24" />
+    </svg>
+  )
+}
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -64,6 +84,14 @@ export default function PaymentPlanSharePage() {
   const [expired, setExpired] = useState<ExpiredData | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'expired' | 'error'>('loading')
   const [copied, setCopied] = useState(false)
+
+  // 在线验证 QR(打印件上客户可扫码回到本页核真——纸质报价单的防伪信任感)
+  const [qr, setQr] = useState<string | null>(null)
+  useEffect(() => {
+    QRCode.toDataURL(window.location.href, { margin: 0, width: 160, color: { dark: '#0f172a', light: '#ffffff' } })
+      .then(setQr)
+      .catch(() => { /* QR 失败不影响文档 */ })
+  }, [code])
 
   // 分享给客户:移动端唤起系统分享,桌面/不支持时复制链接
   const shareOffer = async () => {
@@ -163,6 +191,10 @@ export default function PaymentPlanSharePage() {
     : null
   const unitLabel = share.unitName || bedsLabel
   const quoteDate = share.createdAt ? String(share.createdAt).slice(0, 10) : ''
+  // 有效期至 = 生成 + 60 天(与后端 410 口径一致);明示时效本身就是信任要素
+  const validUntil = share.createdAt
+    ? new Date(new Date(share.createdAt).getTime() + 60 * 86_400_000).toISOString().slice(0, 10)
+    : ''
   const completion = String(project.handoverDate || project.completionDate || '').slice(0, 10)
 
   // 分期表行:优先用经纪谈定的自定义周期快照,否则项目默认计划;
@@ -178,18 +210,26 @@ export default function PaymentPlanSharePage() {
           : (m.months != null && m.months > 0 ? (zh ? `${m.months} 个月后` : `${m.months} months later`) : ''),
         amount: (Number(m.pct) || 0) / 100 * price,
       }))
-    : plan
-        .slice()
-        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
-        .map((m, i) => ({
-          idx: i + 1,
-          name: m.milestone_name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
-          pct: Number(m.percentage) || 0,
-          date: m.milestone_date
-            ? String(m.milestone_date).slice(0, 10)
-            : (m.interval_description || (m.interval_months ? (zh ? `${m.interval_months} 个月后` : `${m.interval_months} months later`) : '')),
-          amount: (Number(m.percentage) || 0) / 100 * price,
-        }))
+    : (() => {
+        // 项目默认计划同样按月间隔渲染(不用日历死日期——常已过期,客户也
+        // 更好理解"签约后几个月",2026-07-07 用户定):interval_months 优先,
+        // 否则相邻 milestone_date 差换算。
+        const sorted = plan.slice().sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+        return sorted.map((m, i) => {
+          const gap = i === 0 ? 0 : (Number(m.interval_months) || monthGap(sorted[i - 1]?.milestone_date, m.milestone_date))
+          return {
+            idx: i + 1,
+            name: m.milestone_name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
+            pct: Number(m.percentage) || 0,
+            date: i === 0
+              ? (zh ? '签约时' : 'At booking')
+              : (gap != null && gap > 0
+                ? (zh ? `${gap} 个月后` : `${gap} months later`)
+                : (m.interval_description || '')),
+            amount: (Number(m.percentage) || 0) / 100 * price,
+          }
+        })
+      })()
 
   // 附加费用(迪拜通行标准;以开发商/DLD 实际收费为准)
   const dldFee = price * 0.04 + 40
@@ -226,48 +266,65 @@ export default function PaymentPlanSharePage() {
              上一页留大片空白,2026-07-07 用户反馈);打印时限高提升塞入概率 */
           .pp-plan { break-inside: avoid }
           .pp-plan img { max-height: 165mm !important }
+          /* 水印:print 用 fixed → 每一页都盖 */
+          .pp-watermark { position: fixed !important; top: 40% !important; left: 15% !important; transform: rotate(-24deg) !important }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact }
         }
         @page { margin: 14mm 12mm }
       `}</style>
 
       {/* A4 文档 */}
-      <div className="pp-sheet mx-auto max-w-[860px] bg-white px-5 py-8 shadow-xl ring-1 ring-slate-900/5 sm:px-12 sm:py-12">
+      <div className="pp-sheet relative mx-auto max-w-[860px] overflow-hidden bg-white px-5 py-8 shadow-xl ring-1 ring-slate-900/5 sm:px-12 sm:py-12">
 
-        {/* ── 文档头:标题 + Ref/日期 | 顾问落款 ── */}
-        <div className="flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-5">
+        {/* 纸面暗水印:防篡改的机构感;print 时 fixed → 每页都有 */}
+        <div className="pp-watermark pointer-events-none absolute left-1/2 top-[38%] -translate-x-1/2 -rotate-[24deg] select-none font-serif text-[120px] font-bold tracking-[0.2em] text-slate-900/[0.025]">
+          PINZOS
+        </div>
+
+        {/* ── 信头:品牌区(机构出品的第一眼)── */}
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <PinzosMark className="h-9 w-9" />
+            <div>
+              <div className="font-serif text-2xl font-semibold leading-none tracking-[-0.015em] text-slate-900">Pinzos</div>
+              <div className="mt-1 text-[10px] tracking-wide text-slate-400">{zh ? '迪拜买房新方式' : 'A New Way to Buy Off-Plan in Dubai'} · pinzos.com</div>
+            </div>
+          </div>
+          <div className="text-right text-[10px] leading-relaxed text-slate-400">
+            {zh ? '数据来源' : 'Data source'}<br />
+            <span className="font-semibold text-slate-500">Dubai Land Department (DLD)</span>
+          </div>
+        </div>
+        {/* 经典信头双线:细线 + 粗线 */}
+        <div className="relative mt-4 border-t border-slate-300" />
+        <div className="relative mt-[3px] border-t-2 border-slate-900" />
+
+        {/* ── 标题 + 元数据 ── */}
+        <div className="relative mt-6 flex items-end justify-between gap-4">
           <div>
             <h1 className="font-serif text-3xl font-bold tracking-tight text-slate-900">Sales Offer</h1>
             {zh && <div className="mt-0.5 text-sm font-medium text-slate-500">购房报价单</div>}
-            <div className="mt-3 space-y-0.5 text-xs text-slate-500">
-              <div>Ref No: <span className="font-medium text-slate-700">SO-{share.code?.toUpperCase()}</span></div>
-              {quoteDate && <div>{zh ? '日期' : 'Date'}: <span className="font-medium text-slate-700">{quoteDate}</span></div>}
-            </div>
           </div>
-          {agent && (
-            <div className="flex shrink-0 items-center gap-3 text-right">
-              {/* 认证盖章:按 Pinzos 段位(订阅档)显示,像公司章一样斜盖在落款旁 */}
-              {agent.tier && TIER_STAMP[agent.tier] && (
-                <div className="pointer-events-none -rotate-6 select-none rounded-md border-2 border-teal-600/60 px-2 py-1 text-center leading-tight text-teal-700/90">
-                  <div className="flex items-center justify-center gap-0.5 text-[8px] font-bold tracking-[0.22em]">
-                    PINZOS<BadgeCheck className="h-2.5 w-2.5" />
-                  </div>
-                  <div className="text-[11px] font-extrabold tracking-wide">
-                    {zh ? TIER_STAMP[agent.tier].zh : TIER_STAMP[agent.tier].en}
-                  </div>
-                </div>
+          <table className="shrink-0 text-[11px]">
+            <tbody>
+              <tr>
+                <td className="pr-3 text-right text-slate-400">Ref No</td>
+                <td className="text-right font-semibold text-slate-700">SO-{share.code?.toUpperCase()}</td>
+              </tr>
+              {quoteDate && (
+                <tr>
+                  <td className="pr-3 text-right text-slate-400">{zh ? '报价日期' : 'Date'}</td>
+                  <td className="text-right font-semibold text-slate-700">{quoteDate}</td>
+                </tr>
               )}
-              <div>
-                <div className="flex items-center justify-end gap-1 text-[10px] font-semibold uppercase tracking-wide text-teal-700">
-                  <BadgeCheck className="h-3.5 w-3.5" />{zh ? '您的置业顾问' : 'Sales Executive'}
-                </div>
-                <div className="text-sm font-bold text-slate-900">{agent.name}</div>
-                {agent.phone && <div className="text-xs text-slate-500">{agent.phone}</div>}
-                {agent.email && <div className="text-xs text-slate-500">{agent.email}</div>}
-              </div>
-              {agent.photo && <img src={agent.photo} alt={agent.name} className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-200" />}
-            </div>
-          )}
+              {validUntil && (
+                <tr>
+                  <td className="pr-3 text-right text-slate-400">{zh ? '有效期至' : 'Valid until'}</td>
+                  <td className="text-right font-semibold text-teal-700">{validUntil}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
         {/* 敬语(样本:Dear Customer, taking into consideration…) */}
@@ -313,8 +370,8 @@ export default function PaymentPlanSharePage() {
             </tr>
             {discount && (
               <tr>
-                <td className={`${td} bg-rose-50/60 font-semibold text-rose-700`}>{zh ? `专属优惠 ${discount.pct}%` : `Discount ${discount.pct}%`}</td>
-                <td className={`${td} bg-rose-50/60 text-right font-semibold text-rose-700`}>− {aed(discount.amount)}</td>
+                <td className={`${td} font-semibold text-rose-700`}>{zh ? `专属优惠 ${discount.pct}%` : `Discount ${discount.pct}%`}</td>
+                <td className={`${td} text-right font-semibold text-rose-700`}>− {aed(discount.amount)}</td>
               </tr>
             )}
             <tr>
@@ -399,10 +456,47 @@ export default function PaymentPlanSharePage() {
           </div>
         )}
 
-        {/* ── 页脚 ── */}
-        <div className="mt-10 border-t border-slate-200 pt-4 text-center text-[11px] leading-relaxed text-slate-400">
-          {agent?.name && <div>{zh ? '生成人' : 'Generated by'} — {agent.name}{quoteDate ? ` · ${quoteDate}` : ''}{agent.phone ? ` · ${agent.phone}` : ''}{agent.email ? ` · ${agent.email}` : ''}</div>}
-          <div className="mt-0.5">Powered by <span className="font-semibold text-slate-500">Pinzos</span> · pinzos.com</div>
+        {/* ── 签名盖章区:顾问落款 + 认证章 + 在线验证 QR(中式文件的信任仪式)── */}
+        <div className="pp-avoid relative mt-10 border-t-2 border-slate-900 pt-5">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            {/* 左:在线验证(扫码回本页核真 = 纸质件防伪) */}
+            <div className="flex items-start gap-3.5">
+              {qr && <img src={qr} alt="Verify QR" className="h-[72px] w-[72px] rounded-md border border-slate-200 p-1" />}
+              <div className="text-[11px] leading-relaxed text-slate-500">
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-700">{zh ? '在线验证' : 'Verify online'}</div>
+                <div className="mt-1">{zh ? '扫码核验本报价单真伪与时效' : 'Scan to verify this offer'}</div>
+                <div className="font-medium text-teal-700">pinzos.com/pp/{share.code}</div>
+                {quoteDate && <div className="mt-1 text-slate-400">{zh ? `由 Pinzos 平台出具 · ${quoteDate}` : `Issued via Pinzos · ${quoteDate}`}</div>}
+              </div>
+            </div>
+
+            {/* 右:顾问签名卡 + 认证章(章盖在签名旁) */}
+            {agent && (
+              <div className="flex items-center gap-4">
+                {agent.tier && TIER_STAMP[agent.tier] && (
+                  <div className="pointer-events-none -rotate-[8deg] select-none rounded-md border-[3px] border-double border-teal-700/70 px-2.5 py-1.5 text-center leading-tight text-teal-700/90">
+                    <div className="flex items-center justify-center gap-0.5 text-[8px] font-bold tracking-[0.24em]">
+                      PINZOS<BadgeCheck className="h-2.5 w-2.5" />
+                    </div>
+                    <div className="text-[12px] font-extrabold tracking-wide">
+                      {zh ? TIER_STAMP[agent.tier].zh : TIER_STAMP[agent.tier].en}
+                    </div>
+                  </div>
+                )}
+                <div className="text-right">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{zh ? '您的置业顾问' : 'Sales Executive'}</div>
+                  <div className="font-serif text-lg font-bold text-slate-900">{agent.name}</div>
+                  {agent.phone && <div className="text-xs text-slate-500">{agent.phone}</div>}
+                  {agent.email && <div className="text-xs text-slate-500">{agent.email}</div>}
+                </div>
+                {agent.photo && <img src={agent.photo} alt={agent.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-200" />}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 text-center text-[10px] tracking-wide text-slate-300">
+          Powered by <span className="font-semibold text-slate-400">Pinzos</span> · pinzos.com
         </div>
       </div>
 

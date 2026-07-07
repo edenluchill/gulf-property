@@ -5,6 +5,7 @@ import { X, Check, Loader2, BadgePercent, FileText, Plus, Trash2, RotateCcw, Sli
 import { PaymentPlan, UnitType } from '../../types'
 import { useTranslation } from 'react-i18next'
 import { formatMoneyCompact } from '../../lib/money'
+import { monthGap } from '../../lib/paymentPlan'
 import DirhamSymbol from '../../components/DirhamSymbol'
 import { API_BASE_URL } from '../../lib/config'
 import { useAuth } from '../../contexts/AuthContext'
@@ -29,15 +30,6 @@ interface SalesOfferDialogProps {
  *  gap = 距上一期的月数(第 1 期恒为签约时)——付款节奏谈的是间隔而非
  *  日历日期(2026-07-07 用户定),项目默认计划里的实际日期导入时换算成间隔。 */
 interface PlanRow { name: string; pct: string; gap: string }
-
-/** 两个日期差多少个月(粗粒度,30.44 天/月),解析失败返回 null */
-function monthGap(a?: string | null, b?: string | null): number | null {
-  if (!a || !b) return null
-  const da = new Date(a).getTime()
-  const db = new Date(b).getTime()
-  if (!Number.isFinite(da) || !Number.isFinite(db)) return null
-  return Math.max(0, Math.round((db - da) / (30.44 * 24 * 3600 * 1000)))
-}
 
 /** 周期条配色(与付款计划 tab 的分段条同族) */
 const BAR_COLORS = ['#2dd4bf', '#4ade80', '#38bdf8', '#818cf8', '#a78bfa', '#fbbf24', '#2dd4bf', '#34d399', '#60a5fa', '#c084fc']
