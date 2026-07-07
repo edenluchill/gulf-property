@@ -115,6 +115,10 @@ export function installApiErrorCapture(): void {
     } catch (err) {
       // Network-level failure (offline, DNS, reset, CORS). Report, then rethrow
       // so the caller's own error handling is completely unaffected.
+      // 例外:map_quota_exhausted 是 track.ts 把配额 429 抛成的异常——是计量门
+      // 正常工作,不是故障。记成 api_error 会让错误监控常年有红,真问题被淹
+      // (429 撞墙本身服务端 mapMeter 有账,UI 由 MapMeterGuard/GlobalQuotaGate 接)。
+      if (err instanceof Error && err.message === 'map_quota_exhausted') throw err
       if (mine && !isTelemetry) {
         const endpoint = endpointOf(url)
         const signature = `${method} ${endpoint} network`

@@ -82,6 +82,12 @@ function cleanEvent(raw: unknown): CleanEvent | null {
     if (s.length <= MAX_PAYLOAD_BYTES) payload = s
   }
 
+  // Dev-session noise gate: local dev (vite 5173/5174 → localhost:3000 API) also
+  // ships error events into the PRODUCTION app_events — 2026-07-07 巡检时错误监控
+  // 里 1/3 是自测错误,真客户问题被淹。localhost 出现在 url/stack 即弃(真实客户
+  // 的 url 永远是 api.pinzos.com / www.pinzos.com 资产)。
+  if (eventType === 'api_error' && /localhost|127\.0\.0\.1/.test(payload)) return null
+
   return { event_type: eventType, visitor_id: visitorId, session_id: sessionId, project_id: projectId, payload, path }
 }
 
