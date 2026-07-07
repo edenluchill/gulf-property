@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle, Activity, UserMinus, Heart, Phone, ShieldCheck } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle, Activity, UserMinus, Heart, Phone, ShieldCheck, Handshake } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
@@ -30,6 +30,7 @@ import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import AgentRuns from '../components/analytics/AgentRuns'
 import AgentClientsOverview from '../components/analytics/AgentClientsOverview'
+import RevenueShare from '../components/analytics/RevenueShare'
 import { fetchActiveAlerts, ActiveAlert } from '../lib/analyticsApi'
 
 const RANGES = [
@@ -53,6 +54,7 @@ const TABS = [
   { id: 'collab', label: '实时带看', Icon: MapIcon },
   { id: 'agents', label: '经纪审批', Icon: UserCheck },
   { id: 'agentclients', label: '经纪客户', Icon: Users },
+  { id: 'revenue', label: '分成对账', Icon: Handshake },
   { id: 'errors', label: '错误监控', Icon: AlertTriangle },
   { id: 'guardian', label: '看护', Icon: ShieldCheck },
   { id: 'perf', label: '性能负载', Icon: Activity },
@@ -84,7 +86,7 @@ export default function AdminAnalytics() {
   // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<'overview' | 'visitors' | 'lost' | 'search' | 'luna' | 'collab' | 'agents' | 'agentclients' | 'errors' | 'guardian' | 'perf'>('overview')
+  const [tab, setTab] = useState<'overview' | 'visitors' | 'lost' | 'search' | 'luna' | 'collab' | 'agents' | 'agentclients' | 'revenue' | 'errors' | 'guardian' | 'perf'>('overview')
   const [openCollab, setOpenCollab] = useState<string | null>(null)
   // Active perf alerts → cross-dashboard red banner. Polled every 30s.
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
@@ -485,6 +487,8 @@ export default function AdminAnalytics() {
           {tab === 'agentclients' && <AgentClientsOverview days={days} />}
 
           {/* ── 错误监控(登录失败 + API 异常)──────────────────────────────── */}
+          {tab === 'revenue' && <RevenueShare />}
+
           {tab === 'errors' && <ErrorMonitor days={days} />}
 
           {/* ── 看护(cx-guardian 自治巡检记录)──────────────────────────── */}

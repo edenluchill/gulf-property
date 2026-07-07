@@ -319,12 +319,13 @@ export const fetchCollabSessions = () => authedGet<CollabSessionRow[]>(`/collab`
 export const fetchCollabReport = (code: string) =>
   authedGet<{ report: CollabReport | null }>(`/collab/${encodeURIComponent(code)}`)
 
-async function authedPost<T>(path: string): Promise<T> {
+async function authedPost<T>(path: string, body?: Record<string, unknown>): Promise<T> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${BASE}${path}`, { method: 'POST', headers })
+  if (body) headers['Content-Type'] = 'application/json'
+  const res = await fetch(`${BASE}${path}`, { method: 'POST', headers, body: body ? JSON.stringify(body) : undefined })
   if (res.status === 403 || res.status === 401) throw new ForbiddenError()
   if (!res.ok) throw new Error(`${res.status}`)
   const json = await res.json()
@@ -405,6 +406,39 @@ export interface PerfData {
   endpoints?: PerfEndpointStat[]
 }
 export interface ActiveAlert { id: number; created_at: string; kind: string; message: string }
+
+// ── 分成对账(FINDHOMEGO 25% / 运营方 75%)──────────────
+export interface MonthShare {
+  month: string
+  currency: string
+  txn_count: number
+  gross_cents: number
+  refund_cents: number
+  fee_cents: number
+  net_cents: number
+  share_findhomego_cents: number
+  share_operator_cents: number
+  current: boolean
+  settlement: {
+    settled_at: string
+    settled_by: string | null
+    note: string | null
+    net_cents: number
+    share_findhomego_cents: number
+  } | null
+}
+export interface RevenueShareData {
+  configured: boolean
+  livemode: boolean | null
+  share_rate: number
+  months: MonthShare[]
+}
+export const fetchRevenueShare = (months = 12) =>
+  authedGet<RevenueShareData>(`/revenue-share?months=${months}`)
+export const settleRevenueMonth = (month: string, currency: string, note?: string) =>
+  authedPost<MonthShare>(`/revenue-share/settle`, { month, currency, note: note || undefined })
+export const unsettleRevenueMonth = (month: string, currency: string) =>
+  authedPost<{ ok: boolean }>(`/revenue-share/unsettle`, { month, currency })
 
 export const fetchPerf = (minutes = 180) => authedGet<PerfData>(`/perf?minutes=${minutes}`)
 export const fetchActiveAlerts = () => authedGet<{ alerts: ActiveAlert[] }>(`/perf/alerts/active`)

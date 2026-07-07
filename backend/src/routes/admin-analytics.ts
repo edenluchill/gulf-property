@@ -13,6 +13,7 @@ import { summarizeLunaSession } from '../services/lunaSummary'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
 import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
+import { getRevenueShare, settleMonth, unsettleMonth } from '../services/revenueShare'
 
 const router = Router()
 
@@ -157,5 +158,26 @@ router.get('/perf/alerts/active', wrap(async () => ({ alerts: await perf.getActi
 router.post('/perf/alerts/:id/ack', wrap(async (req) => ({
   ok: await perf.ackAlert(Number(req.params.id)),
 })))
+
+// ── 分成对账(FINDHOMEGO 25% / 运营方 75%,按 Stripe 实收净额)──────────
+router.get('/revenue-share', wrap((req) =>
+  getRevenueShare(Math.min(24, Math.max(1, Number(req.query.months) || 12)))
+))
+
+// 标记某月已线下转账结算(锁定当时的 Stripe 数字做快照)。
+router.post('/revenue-share/settle', wrap((req) =>
+  settleMonth(
+    String(req.body?.month || ''),
+    String(req.body?.currency || 'usd'),
+    req.user?.email || null,
+    req.body?.note ? String(req.body.note).slice(0, 500) : null,
+  )
+))
+
+// 撤销结算标记(误点/转错)。
+router.post('/revenue-share/unsettle', wrap(async (req) => {
+  await unsettleMonth(String(req.body?.month || ''), String(req.body?.currency || 'usd'))
+  return { ok: true }
+}))
 
 export default router
