@@ -51,7 +51,7 @@ import { attachContext } from './middleware/context'  // network-free identity (
 import { attribution } from './middleware/attribution'  // sampled who-called-what → api_calls
 import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (generous per-IP cap)
 import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图每日限时(服务端强制)
-import { startPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
+import { startPerfFlusher, stopPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 
 const app: Application = express()
 const PORT = process.env.PORT || 3000
@@ -212,8 +212,12 @@ const server = app.listen(PORT, async () => {
   await taskManager.recoverInterruptedTasks()
 
   // Start perf monitor (60s rollups into perf_minute + threshold alerting).
-  // PERF_FLUSHER_DISABLED=1 → 本地开发起服务连生产库时不覆写线上 perf_minute/报警。
-  if (process.env.PERF_FLUSHER_DISABLED !== '1') startPerfFlusher()
+  // 只在生产容器跑(compose 里 NODE_ENV=production):本地 dev 连的是同一个生产库,
+  // 第二个 flusher 的空 sink 会每分钟把线上刚开的报警 resolve 掉(2026-07-07 实锤
+  // 的「报警开了就被关」churn)。PERF_FLUSHER_DISABLED=1 是生产上的手动逃生阀。
+  if (process.env.NODE_ENV === 'production' && process.env.PERF_FLUSHER_DISABLED !== '1') {
+    startPerfFlusher()
+  }
 })
 
 // Extend timeouts for large file uploads (10 minutes)
@@ -224,6 +228,7 @@ server.timeout = 600000          // 10 minutes for request timeout
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM signal received: closing HTTP server')
+  stopPerfFlusher() // 部署替换窗口里旧实例不许再动报警/perf_minute
   await pool.end()
   process.exit(0)
 })
