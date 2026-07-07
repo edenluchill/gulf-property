@@ -248,12 +248,13 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   ]
 
   // 角色专属页:各自只看到自己的套餐(不显示免费/其他角色价格)。
-  // 公共 /pricing 保持原样(探索/启程/专业/创始),不展示开发商档。
+  // 公共 /pricing 展示四个付费档(启程/专业/经纪公司/开发商),不再放买家免费卡
+  // (2026-07-06 用户定:买家本来就免费用,定价页只讲付费档;免费在标题里说)。
   const tiers = variant === 'agent' ? allTiers.filter((t) => t.id === 'rookie' || t.id === 'agent')
     : variant === 'agency' ? allTiers.filter((t) => t.id === 'founder')
     : variant === 'developer' ? allTiers.filter((t) => t.id === 'developer')
     : agentOnboarding ? allTiers.filter((t) => t.id !== 'explore' && t.id !== 'developer')
-    : allTiers.filter((t) => t.id !== 'developer')
+    : allTiers.filter((t) => t.id !== 'explore')
 
   return (
     <div className="relative flex-1 overflow-y-auto bg-[#070b16] text-white" style={{ backgroundImage: GRID, backgroundSize: '34px 34px' }}>
@@ -264,10 +265,10 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         @media (prefers-reduced-motion: reduce) { .pz-anim { animation: none !important } }
       `}</style>
       <Helmet>
-        <title>{L('定价 — Pinzos 经纪订阅', 'Pricing — Pinzos for Agents')}</title>
+        <title>{L('定价 — Pinzos 订阅', 'Pricing — Pinzos Plans')}</title>
         <meta name="description" content={L(
-          'Pinzos 经纪订阅:买家免费;经纪 $99/月含实时海外带看、Luna 智能导览与买家意向报告;Founder $699/月 10× 额度。',
-          'Pinzos for agents: free for buyers; Agent $99/mo with live overseas tours, Luna AI tours and buyer-intent reports; Founder $699/mo with 10× quota.'
+          'Pinzos 订阅:买家免费;经纪 $25/月起,专业版 $99/月含实时海外带看、Luna 智能导览与买家意向报告;经纪公司版 $699/月 3 席;开发商版 $999/月含楼书上传与 5 席。',
+          'Pinzos plans: free for buyers; agents from $25/mo, Pro $99/mo with live overseas tours, Luna AI tours and buyer-intent reports; Agency $699/mo with 3 seats; Developer $999/mo with brochure uploads and 5 seats.'
         )} />
         <link rel="canonical" href="https://pinzos.com/pricing" />
       </Helmet>
@@ -340,10 +341,10 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           ) : (
             <>
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
-              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h1>
+              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪与开发商按量选档', 'Free for buyers. Plans for agents & developers.')}</h1>
               <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{L(
-                '$25 起步:地图不限时 + lead。带海外客户实时看房、生成导览与意向报告。按月或按年付,随时取消。',
-                'From $25: unlimited map + leads. Tour overseas clients live, generate tours and intent reports. Billed monthly or yearly, cancel anytime.'
+                '买家直接打开地图就能用。经纪 $25 起:地图不限时 + lead,带海外客户实时看房、生成导览与意向报告;开发商版含楼书上传与 5 席。按月或按年付,随时取消。',
+                'Buyers just open the map — free. Agents from $25: unlimited map + leads, live overseas tours, intent reports; Developer plan adds brochure uploads & 5 seats. Billed monthly or yearly, cancel anytime.'
               )}</p>
             </>
           )}

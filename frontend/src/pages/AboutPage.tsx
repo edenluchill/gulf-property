@@ -82,7 +82,7 @@ export default function AboutPage() {
   return (
     <div className="relative flex-1 overflow-y-auto bg-[#070b16] text-white" style={{ backgroundImage: GRID, backgroundSize: '34px 34px' }}>
       <Helmet>
-        <title>{L('Pinzos — 迪拜期房的全新购买方式 | 功能与定价', 'Pinzos — Features & Pricing: The New Way to Buy Dubai Off-Plan')}</title>
+        <title>{L('Pinzos — 迪拜买房新方式 | 功能与定价', 'Pinzos — Pin Projects on the Map, See Value Before You Buy')}</title>
         <meta name="description" content={L(
           'Pinzos 是迪拜期房的交互式平台:卫星地图 + 真实 DLD 成交/租约/区域指标、AI 楼书解析、5 年回报与黄金签证分析,以及面向经纪与开发商的实时地图带看、Luna AI 导览、买家意向报告。',
           'Pinzos is an interactive Dubai off-plan platform: a satellite map with real DLD transactions, rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, plus tools for agents & developers — real-time co-presence map tours, AI-guided Luna tours, and buyer-intent reports.'
@@ -103,8 +103,14 @@ export default function AboutPage() {
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} /> {L('迪拜期房 · 真实数据 · AI 驱动', 'DUBAI OFF-PLAN · REAL DATA · AI')}
             </span>
             <h1 className="mt-5 text-4xl font-bold leading-[1.08] md:text-5xl xl:text-6xl">
-              {L('买卖迪拜期房的', 'A smarter way to buy & sell')}<br /><span style={{ color: ACCENT }}>{L('全新方式', 'Dubai off-plan')}</span>
+              {L('迪拜买房', 'Pin projects on the map,')}<br /><span style={{ color: ACCENT }}>{L('新方式', 'see value before you buy')}</span>
             </h1>
+            {/* 英文 slogan(用户定):pin 双关品牌名 Pinzos;英文版 h1 本身就是 slogan,只在中文页加这行 */}
+            {zh && (
+              <p className="mt-4 font-mono text-[13px] font-semibold tracking-[0.14em] text-slate-300">
+                PIN PROJECTS ON THE MAP<span style={{ color: ACCENT }}> · </span>SEE VALUE BEFORE YOU BUY
+              </p>
+            )}
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-300/90">
               {L('一张交互式卫星地图,装下迪拜每个区的真实成交、租金与回报;AI 读懂开发商楼书;经纪带海外客户实时在地图上看房、生成导览与意向报告。',
                 'One interactive satellite map with every district\'s real transactions, rents and returns; AI that reads developer brochures; and agents who guide overseas clients live on the map.')}
@@ -278,17 +284,13 @@ export default function AboutPage() {
       {/* ═══ PRICING — 四档速览;完整额度与结账在 /pricing ═══ */}
       <Section id="pricing">
         <Reveal><Label tone={ACCENT}>// {L('定价', 'PRICING')}</Label>
-          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('买家免费,经纪按量选档', 'Free for buyers. Plans for agents.')}</h2>
+          <h2 className="mt-3 text-3xl font-bold md:text-4xl">{L('买家免费,经纪与开发商按量选档', 'Free for buyers. Plans for agents & developers.')}</h2>
           <p className="mt-3 max-w-2xl text-slate-400">{L(
-            '买家与投资人永久免费使用地图、真实 DLD 数据与 Luna 助手;经纪 $25/月起,7 天免费试用,按月或按年付(年付送 2 个月),随时取消。',
-            'Buyers and investors use the map, real DLD data and Luna for free; agents from $25/mo with a 7-day free trial, billed monthly or yearly (2 months free), cancel anytime.'
+            '买家与投资人永久免费使用地图、真实 DLD 数据与 Luna 助手;经纪 $25/月起、开发商版含 5 席与楼书上传,7 天免费试用,按月或按年付(年付送 2 个月),随时取消。',
+            'Buyers and investors use the map, real DLD data and Luna for free; agents from $25/mo, a Developer plan with 5 seats & brochure uploads, 7-day free trial, billed monthly or yearly (2 months free), cancel anytime.'
           )}</p></Reveal>
         <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[
-            {
-              n: L('买家 / 投资人', 'Buyers'), p: L('免费', 'Free'), per: '', c: ACCENT,
-              fs: [L('地图与市场数据不限时', 'Unlimited map & data'), L('收藏 · Luna 智能助手', 'Favorites · Luna AI'), L('5 年回报与黄金签证分析', '5-yr ROI & Golden Visa')],
-            },
             {
               n: L('启程版 Starter', 'Starter'), p: '$25', per: L('/月', '/mo'), c: ACCENT,
               fs: [L('全部买家功能 + 客户 CRM', 'Everything free + client CRM'), L('意向报告 + AI 楼书解析', 'Intent reports + AI brochures'), L('买家线索(尽力推送)', 'Buyer leads (best effort)')],
@@ -300,6 +302,10 @@ export default function AboutPage() {
             {
               n: L('经纪公司版', 'Agency'), p: '$699', per: L('/月', '/mo'), c: GOLD,
               fs: [L('含 3 席共享积分池', '3 seats, shared pool'), L('White-label 品牌定制', 'White-label branding'), L('线索独占优先 · 优先支持', 'First pick of leads')],
+            },
+            {
+              n: L('开发商版', 'Developer'), p: '$999', per: L('/月', '/mo'), c: GOLD,
+              fs: [L('楼书上传 · AI 解析分钟级上架', 'Upload brochures, AI lists them in minutes'), L('楼盘全站曝光 + Luna 主动推荐', 'Sitewide exposure + Luna recommends you'), L('含 5 席共享 2 万积分池', '5 seats, 20k shared credits')],
             },
           ].map((tier, i) => (
             <Reveal key={i} delay={i * 0.05}>
