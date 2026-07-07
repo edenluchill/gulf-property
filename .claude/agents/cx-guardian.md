@@ -30,7 +30,25 @@ tools: Bash, Read, Edit, Write, Grep, Glob
    ```
    （`/admin/...` 是 owner 自己 dashboard 的噪音，跳过。）
 
-3. **看正在流失的高意向客户**（优化方向）：
+3. **前端崩溃检测**（render_crash 是整页白屏,最高优先级）：
+   ```bash
+   cd backend && npx ts-node scripts/db-query.ts "SELECT created_at, visitor_id, payload->>'path' p, payload->>'message' msg, left(payload->>'stack',150) stack FROM app_events WHERE event_type='api_error' AND payload->>'kind'='render_crash' AND created_at > now() - interval '48 hours' ORDER BY created_at DESC LIMIT 15"
+   ```
+   同一 message 多访客多天 = 真崩溃。生产 stack 是压缩名,用 message + 崩溃开始日期对照当天上线的功能定位(例:2026-07-07 修的 "No cluster with the specified id" = supercluster 旧 cluster_id 查重建索引,守卫模式照抄 MapViewMapLibre)。
+
+4. **慢端点排行**(客户在硬等的接口;HIGH_LATENCY 报警的根源):
+   ```bash
+   cd backend && npx ts-node scripts/db-query.ts "SELECT regexp_replace(path,'[0-9a-f]{8}-[0-9a-f-]{27,}',':id','g') p, count(*) calls, round(avg(duration_ms)) avg_ms, round(percentile_cont(0.95) within group (order by duration_ms)) p95 FROM api_calls WHERE created_at > now() - interval '24 hours' GROUP BY 1 HAVING count(*)>10 AND percentile_cont(0.95) within group (order by duration_ms)>1500 ORDER BY p95 DESC LIMIT 10"
+   ```
+   p95>1500ms 且调用多 = 该修。首选套 microCache(services/microCache.ts,cached/prime/invalidate)+ 数据近静态时加预热(范式:routes/project-insights.ts 的 warmAllProjectInsights)。
+
+5. **性能报警核查**:
+   ```bash
+   cd backend && npx ts-node scripts/db-query.ts "SELECT kind, count(*) cnt, max(created_at) latest FROM perf_alerts WHERE created_at > now() - interval '48 hours' GROUP BY kind"
+   ```
+   SLOW_QUERIES 爆发时先查 perf_minute 对应分钟的 req——**req=0 而 query_count 高 = 内部预热/批任务,不是客户流量**;这种要给源头包 `beginMaintenance()/endMaintenance()`(services/perfSink.ts),不是去优化查询。req 正常则找慢端点(上一步)。
+
+6. **看正在流失的高意向客户**（优化方向）：
    ```bash
    cd backend && npx ts-node -e "import('./src/services/analyticsQueries').then(async m=>{const r=await m.getLostCustomers(30);console.log(JSON.stringify(r.map(x=>({id:x.visitor_id.slice(0,8),score:x.score,silent:x.days_silent,why:x.reasons})),null,1));process.exit(0)})"
    ```
@@ -62,6 +80,13 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 
 ## 优化（巡检没急活时做）
 按策略文档优先级推进，每次挑一个、小步、可验证、可回滚。改完同样要 type-check + 部署 + 验证。涉及前端 UI 的优化，用 `frontend/scripts/screenshot.mjs` 自截图核对。
+
+## 修完必须收尾(让 dashboard 只剩新问题)
+- **收起已修复问题的历史噪音**:修复验证通过后,把对应的旧 app_events 错误行删掉(带 message/时间双条件,只删部署时间点之前的),这样错误监控 tab 再出现同类 = 新 regression,一眼可见。
+- 摄入层已有两道降噪(别重复报告它们挡掉的东西):localhost 来源的 api_error 摄入即弃(eventIngest);map_quota_exhausted 不记 api_error(errorCapture,是计量门正常工作)。
+- perf_alerts 恢复后自动 resolve,无需手动;若有 resolved_at IS NULL 的陈年报警且根源已修,UPDATE resolved_at 收掉。
+- 本地起后端连生产库自测时**必须带 `PERF_FLUSHER_DISABLED=1`**,否则覆写线上 perf_minute/报警。
+- 修复过程/根因/验证证据写进 docs/reports/(YYYY-MM-DD-*.md),agent_runs 的 actions 里带 commit+deploy_tag+verify。
 
 ## 每轮必须产出的报告（中文）
 1. **被 block 的客户**：几个、谁(visitor 前8位+意向分)、撞到什么、根因。
