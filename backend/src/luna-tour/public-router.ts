@@ -16,8 +16,11 @@ import { Router, Request, Response } from 'express'
 import { createHash, randomBytes } from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
+import { optionalAuth } from '../middleware/auth'
+import { checkCredits, spend, creditError } from './credits'
 import { getMarketEvidence } from './evidence'
 import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
+import { calculateInvestment5yr } from '../services/investment-calculator'
 
 const router = Router()
 
@@ -339,7 +342,7 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
   try {
     const code = String(req.params.code)
     const rr = await pool.query(
-      `SELECT pr.project_id, pr.title,
+      `SELECT pr.project_id, pr.title, pr.unit_type, pr.unit_price,
               a.display_name AS agent_name, a.photo_url AS agent_photo,
               a.phone AS agent_phone, a.whatsapp AS agent_whatsapp, a.brand AS agent_brand
          FROM lt_project_reports pr JOIN lt_agents a ON a.id = pr.agent_id
@@ -365,6 +368,15 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
       getProjectTransactions(rep.project_id).catch(() => null),
     ])
 
+    // 经纪生成报告时选了户型/价格 → 5 年测算按该价格重算(收益率/增长仍取区域口径)
+    const unitPrice = rep.unit_price != null ? Number(rep.unit_price) : null
+    if (unitPrice && unitPrice > 0 && insights?.investment) {
+      const y = Number(insights.investment.area_yield_pct) || 0
+      const g = Number(insights.investment.area_growth_pct) || 0
+      const inv2 = calculateInvestment5yr(unitPrice, y, g)
+      if (inv2) insights.investment = { ...insights.investment, ...inv2, reference_price: unitPrice }
+    }
+
     // Area supply pipeline (the new signal) for the project's matched area.
     let supply: any = null
     const areaId = insights?.area?.id
@@ -378,7 +390,7 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
 
     res.set('Cache-Control', 'public, max-age=600')
     res.json({
-      report: { title: rep.title },
+      report: { title: rep.title, unitType: rep.unit_type || null, unitPrice },
       agent: {
         name: rep.agent_name, photo: rep.agent_photo,
         phone: rep.agent_phone, whatsapp: rep.agent_whatsapp, brand: rep.agent_brand || {},
@@ -408,10 +420,34 @@ function payShareCode(len = 6): string {
   return s
 }
 
-/** 生成付款计划分享。body: { projectId, unitName?, bedrooms?, price, lang? } */
-router.post('/public/payplan', async (req: Request, res: Response) => {
+/** 户型快照字段白名单(客户端传来的展示值,只收敛类型与长度,不回查户型表:
+ *  报价单要的是"生成那一刻"的快照,户型价格/图后续改动不应影响已发出的 offer)。 */
+function sanitizeUnitSnapshot(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null
+  const u = raw as Record<string, unknown>
+  const str = (v: unknown, max = 200) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
+  const num = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null)
+  const snap = {
+    name: str(u.name, 120),
+    bedrooms: num(u.bedrooms) ?? (u.bedrooms === 0 ? 0 : null),
+    area: str(u.area, 40),                 // 保留原字符串(可能带 "sq.ft" 等)
+    builtUpArea: str(u.builtUpArea, 40),
+    balconyArea: str(u.balconyArea, 40),
+    view: str(u.view, 120),
+    floorPlanImage: str(u.floorPlanImage, 500),
+    image: str(u.image, 500),
+  }
+  return Object.values(snap).some((v) => v != null) ? snap : null
+}
+
+/** 生成付款计划 Sales Offer。body: { projectId, unitName?, bedrooms?, price, originalPrice?, unit?, lang? }
+ *  2026-07-06 起为订阅经纪专属(minPlan rookie,owner 豁免)——不再匿名可建。
+ *  optionalAuth 必带:attachContext 只在配了 SUPABASE_JWT_SECRET 时本地填
+ *  ctx.email,否则 token 挂在 _deferredToken 上——不远程回退就会把已登录
+ *  用户 401(2026-07-07 实锤)。 */
+router.post('/public/payplan', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { projectId, unitName, bedrooms, price, lang } = req.body || {}
+    const { projectId, unitName, bedrooms, price, originalPrice, unit, lang } = req.body || {}
     const p = Number(price)
     if (!projectId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(projectId))) {
       return res.status(400).json({ error: 'invalid projectId' })
@@ -419,19 +455,31 @@ router.post('/public/payplan', async (req: Request, res: Response) => {
     if (!Number.isFinite(p) || p < 10_000 || p > 5_000_000_000) {
       return res.status(400).json({ error: 'invalid price' })
     }
+
+    // 订阅门:登录 → lt_agents → checkCredits(套餐门,0 积分)。
+    const email = (req.ctx?.email || '').toLowerCase()
+    if (!email) {
+      return res.status(401).json({ error: '请先登录经纪账户', code: 'login_required' })
+    }
+    const a = await pool.query(`SELECT id FROM lt_agents WHERE lower(email) = $1 LIMIT 1`, [email])
+    const agentId: string | null = a.rows[0]?.id || null
+    if (!agentId) {
+      return res.status(402).json({
+        success: false, error: 'Sales Offer 报价单是订阅经纪功能,选择套餐即可解锁。',
+        code: 'subscription_required', upgradeUrl: '/pricing',
+      })
+    }
+    const check = await checkCredits(agentId, 'payplan')
+    if (!check.allowed) {
+      const e = creditError('payplan', check)
+      return res.status(e.status).json(e.body)
+    }
+
     const proj = await pool.query(
       `SELECT 1 FROM residential_projects WHERE id = $1 AND payment_plan IS NOT NULL`,
       [projectId]
     )
     if (proj.rowCount === 0) return res.status(404).json({ error: 'project not found' })
-
-    // 创建者若是经纪(登录身份可识别时)→ 带上经纪品牌,增强客户信任
-    let agentId: string | null = null
-    const email = (req.ctx?.email || '').toLowerCase()
-    if (email) {
-      const a = await pool.query(`SELECT id FROM lt_agents WHERE lower(email) = $1 LIMIT 1`, [email])
-      agentId = a.rows[0]?.id || null
-    }
 
     let code = payShareCode(6)
     for (let i = 0; i < 8; i++) {
@@ -440,9 +488,13 @@ router.post('/public/payplan', async (req: Request, res: Response) => {
       code = i === 7 ? payShareCode(8) : payShareCode(6)
     }
 
+    // 原价:仅在有效且高于实际报价时保留(分享页据此渲染折扣行;≤ 报价则无意义)
+    const op = Number(originalPrice)
+    const origPrice = Number.isFinite(op) && op > p && op <= 5_000_000_000 ? Math.round(op) : null
+
     await pool.query(
-      `INSERT INTO lt_payment_shares (share_code, project_id, agent_id, unit_name, bedrooms, price, lang, created_by_email)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      `INSERT INTO lt_payment_shares (share_code, project_id, agent_id, unit_name, bedrooms, price, original_price, unit_snapshot, lang, created_by_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
         code,
         projectId,
@@ -450,10 +502,13 @@ router.post('/public/payplan', async (req: Request, res: Response) => {
         String(unitName || '').slice(0, 120) || null,
         Number.isFinite(Number(bedrooms)) ? Math.round(Number(bedrooms)) : null,
         Math.round(p),
+        origPrice,
+        sanitizeUnitSnapshot(unit),
         lang === 'en' ? 'en' : 'zh',
         email || null,
       ]
     )
+    await spend(agentId, 'payplan')  // credits 0 → no-op,留着与其它功能一致
     res.json({ code })
   } catch (err) {
     console.error('[luna] payplan create error:', err)
@@ -466,7 +521,8 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
   try {
     const code = String(req.params.code)
     const r = await pool.query(
-      `SELECT ps.project_id, ps.unit_name, ps.bedrooms, ps.price, ps.lang, ps.created_at,
+      `SELECT ps.project_id, ps.unit_name, ps.bedrooms, ps.price, ps.original_price, ps.unit_snapshot,
+              ps.lang, ps.created_at,
               a.display_name AS agent_name, a.photo_url AS agent_photo,
               a.phone AS agent_phone, a.whatsapp AS agent_whatsapp
          FROM lt_payment_shares ps
@@ -493,6 +549,9 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         unitName: s.unit_name,
         bedrooms: s.bedrooms,
         price: Number(s.price),
+        originalPrice: s.original_price != null ? Number(s.original_price) : null,
+        unitSnapshot: s.unit_snapshot || null,
+        code,
         lang: s.lang,
         createdAt: s.created_at,
       },

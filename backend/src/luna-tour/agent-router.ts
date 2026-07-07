@@ -142,13 +142,21 @@ router.post('/project-reports', async (req: Request, res: Response) => {
     const agentId = await currentAgentId(req)
     const projectId = String(req.body?.projectId || '').trim()
     if (!projectId) return res.status(400).json({ success: false, error: 'projectId required' })
+    // 经纪可选的测算口径:户型 + 该户型价格(报告页 5 年测算按此价计算)
+    const unitType = typeof req.body?.unitType === 'string' && req.body.unitType.trim() ? req.body.unitType.trim().slice(0, 120) : null
+    const upRaw = Number(req.body?.unitPrice)
+    const unitPrice = Number.isFinite(upRaw) && upRaw > 0 ? Math.round(upRaw) : null
     const p = await pool.query('SELECT id, project_name FROM residential_projects WHERE id=$1', [projectId])
     if (p.rowCount === 0) return res.status(404).json({ success: false, error: 'project not found' })
 
     const existing = await pool.query('SELECT share_code FROM lt_project_reports WHERE agent_id=$1 AND project_id=$2', [agentId, projectId])
     let code: string
     if (existing.rowCount && existing.rows[0]) {
-      code = existing.rows[0].share_code // 复用已生成的报告 — 不计额度
+      code = existing.rows[0].share_code // 复用已生成的报告 — 不计额度;但更新测算口径
+      await pool.query(
+        'UPDATE lt_project_reports SET unit_type=$3, unit_price=$4, updated_at=now() WHERE agent_id=$1 AND project_id=$2',
+        [agentId, projectId, unitType, unitPrice]
+      )
     } else {
       // 新建报告才走配额门 + 计量(共享 demo 经纪豁免)
       const loggedIn = isLoggedIn(req)
@@ -158,8 +166,8 @@ router.post('/project-reports', async (req: Request, res: Response) => {
       }
       code = await uniqueReportCode()
       await pool.query(
-        'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title) VALUES ($1,$2,$3,$4)',
-        [agentId, projectId, code, p.rows[0].project_name]
+        'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title, unit_type, unit_price) VALUES ($1,$2,$3,$4,$5,$6)',
+        [agentId, projectId, code, p.rows[0].project_name, unitType, unitPrice]
       )
       if (loggedIn) await spend(agentId, 'reports').catch(() => {})
     }

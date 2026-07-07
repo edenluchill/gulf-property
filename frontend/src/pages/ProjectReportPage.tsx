@@ -8,7 +8,7 @@ import { trackEvent } from '../lib/track'
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 interface ReportData {
-  report: { title: string | null }
+  report: { title: string | null; unitType?: string | null; unitPrice?: number | null }
   agent: { name: string; photo: string | null; phone: string | null; whatsapp: string | null; brand: any }
   project: any
   insights: any
@@ -41,6 +41,9 @@ export default function ProjectReportPage() {
 
   const { agent, project, insights, transactions, supply } = d
   const inv = insights?.investment
+  // 后端字段是 purchase_price/reference_price(经纪选了户型价则已按其重算)
+  const buy: number | null = inv ? (inv.purchase_price ?? inv.reference_price ?? null) : null
+  const unitType = d.report?.unitType || null
   const area = insights?.area
   const sales = transactions?.sales || []
   const wa = agent.whatsapp || agent.phone
@@ -83,7 +86,7 @@ export default function ProjectReportPage() {
         <Section>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <Stat label="起售价" value={<D v={project.starting_price || project.min_price} />} />
-            <Stat label="户型" value={project.min_bedrooms != null ? `${project.min_bedrooms}${project.max_bedrooms && project.max_bedrooms !== project.min_bedrooms ? `–${project.max_bedrooms}` : ''} 居` : '—'} />
+            <Stat label="户型" value={unitType || (project.min_bedrooms != null ? `${project.min_bedrooms}${project.max_bedrooms && project.max_bedrooms !== project.min_bedrooms ? `–${project.max_bedrooms}` : ''} 居` : '—')} />
             <Stat label="区域均价/㎡" value={area?.median_price_sqm != null ? <D v={area.median_price_sqm} /> : '—'} />
             <Stat label="租金回报" value={area?.rental_yield_pct != null ? <span className="text-emerald-600">{Number(area.rental_yield_pct).toFixed(1)}%</span> : '—'} />
           </div>
@@ -95,7 +98,7 @@ export default function ProjectReportPage() {
             {/* Headline */}
             <div className="mb-3 flex items-end justify-between gap-3 rounded-xl bg-teal-50 px-4 py-3">
               <div>
-                <div className="text-[11px] text-teal-700/70">投入 <DirhamSymbol size="0.7em" />{M(inv.buy)},5 年预计总回报</div>
+                <div className="text-[11px] text-teal-700/70">投入 <DirhamSymbol size="0.7em" />{M(buy)}{unitType ? `(${unitType})` : ''},5 年预计总回报</div>
                 <div className="text-2xl font-extrabold text-teal-700"><DirhamSymbol size="0.7em" className="text-teal-500" />{M(inv.total_profit_5yr)}</div>
               </div>
               <div className="text-right">
@@ -105,12 +108,13 @@ export default function ProjectReportPage() {
             </div>
 
             {/* How it's made — money flow bar */}
-            <FlowBar buy={inv.buy} appr={inv.appreciation_5yr} rent={inv.rental_income_5yr} fmt={M} />
+            {buy != null && <FlowBar buy={buy} appr={inv.appreciation_5yr} rent={inv.rental_income_5yr} fmt={M} />}
 
             {/* Evidence */}
             <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
               <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
               <span>
+                {unitType ? <>测算标的：{unitType}。</> : null}
                 测算依据：{project.area || '该区域'} 近 12 个月真实 DLD 成交
                 {sales.length ? `（${sales.length}+ 笔可比）` : ''} —— 租金回报 {area?.rental_yield_pct != null ? `${Number(area.rental_yield_pct).toFixed(1)}%` : '—'}、
                 年增长 {area?.price_growth_pct != null ? `${Number(area.price_growth_pct).toFixed(1)}%` : '—'}。
