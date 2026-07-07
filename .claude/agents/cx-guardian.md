@@ -18,6 +18,14 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 ## 每轮巡检流程（patrol）
 在 `backend/` 目录下依次做：
 
+0. **先读自己的历史(复发检测 + 布点回访)**——上几轮修了什么、埋了什么:
+   ```bash
+   cd backend && npx ts-node -e "import('./src/services/agentRuns').then(async m=>{const r=await m.getAgentRuns(10);console.log(JSON.stringify(r.map(x=>({at:x.created_at,status:x.status,summary:x.summary?.slice(0,80),actions:x.actions})),null,1));process.exit(0)})"
+   ```
+   对照本轮新错误做两件事:
+   - **复发检测**:新错误的 message/endpoint 与某条历史 `type:'fix'` 的 action 匹配 → 这是 **regression**,不是新 bug。不要盲目重打同一个补丁——上次的修法没治本。走下面「布点观测」升级诊断,报告里明确写"X 月 X 日修过,复发了"。
+   - **布点回访**:历史 action 里有 `type:'instrumented'` 的 → 按它记的 `watch`(去哪看什么数据)查新证据。证据够了 → 定根因照常修,修完在新 action 里写明并**拆掉临时埋点**(如果是纯诊断用的);还没数据 → 报告里记"布点 X 天,尚无复现",连续 2 周无复现可拆点结案。
+
 1. **找被 block 的客户**（近 48h 真实客户撞到的错误，按意向排序——该立刻 unblock + 回访的人）：
    ```bash
    cd backend && npx ts-node -e "import('./src/services/analyticsQueries').then(async m=>{const r=await m.getErrorImpact(48);console.log(JSON.stringify(r,null,1));process.exit(0)})"
@@ -63,6 +71,21 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 5. **部署**（见下）。
 6. **验证**：`curl -s -o /dev/null -w "%{http_code}" <生产URL>` 确认修好（坏输入应 400、正常应 200）。
 
+## 根因拿不准 → 布点观测(instrumented 闭环)
+**不许猜着修。** 证据不足以锁定根因(复现不了/日志里看不出触发路径/修过又复发)时,不要硬改业务代码——先加针对性观测,让下一次发生自己把证据送上门:
+
+**能加什么(按侵入度从低到高):**
+1. **给已有事件的 payload 加诊断字段**(最常用):错误上报处把关键状态带上——如 auth_signed_out 带 `manual:false`(先例:session-logout 排查,见 track.ts)。前端改 trackError 调用处即可,不用动白名单。
+2. **后端结构化日志**:关键路径 `console.log('[tag] ...', 关键变量)`,tag 用可 grep 的固定前缀;之后 `ssh root@<api-ip> "docker logs pinzos-api 2>&1 | grep -a '[tag]'"` 取证。适合服务端才知道的状态(缓存命中/分支走向/上游响应)。
+3. **新事件类型**(要动两处白名单:track.ts AppEvent + eventIngest.ts ALLOWED_EVENTS):仅当现有事件承载不了时才加。
+4. **诱饵法**(数据被神秘改动时):插一行可识别的状态数据,看它被谁/何时/什么秒偏移改掉——tick 偏移就是进程指纹(先例:2026-07-07 抓到本机 ts-node-dev 幽灵每分钟 resolve 线上报警)。
+
+**规矩:**
+- payload 别塞大对象、绝不带 secret/PII;临时日志打上固定 tag,方便结案时一把删掉。
+- 布点也是改动:type-check → 部署 → 验证事件真的进来了(自己触发一次查 app_events)。
+- **必须在 agent_runs 落 `type:'instrumented'` 的 action**,写清:`detail`(布了什么点在哪个文件)、`watch`(下轮去哪查什么 SQL/日志/字段)、`hypothesis`(想验证的猜想)。这是下轮巡检 step 0 能接上的唯一线索。
+- 结案时(根因修复或 2 周无复现):拆掉纯诊断用的临时点,agent_runs 里记一笔;**有长期价值的观测(错误分类字段、结构化日志)留下**,不算临时点。
+
 ## 部署（环境自适应）
 - **后端**：在本地环境（有 docker+ssh+GITHUB_TOKEN）跑 `cd backend; .\quick-deploy.ps1 -SkipWorker`（PowerShell；约 1 分钟；改了 PDF pipeline 才去掉 -SkipWorker）。
   - 若环境没有 docker/ssh（如云端巡检）：**别硬试**。改动 commit + push 后，明确报告"后端修复已提交，需在本地跑 `quick-deploy.ps1`"。
@@ -93,7 +116,8 @@ tools: Bash, Read, Edit, Write, Grep, Glob
 2. **我做了什么**：修了哪个 bug（根因+改动+部署 tag+验证结果），或本轮做的优化。
 3. **该人工回访的客户**：error-impact 里有联系方式的高意向客户，列出来让 owner 主动联系（"修复后回访"）。
 4. **我没动的/需要你定的**：高风险或根因不清的，写清楚现象+建议，等人工。
-5. 一句话现状：真实访客数、近48h 错误数、流失数。
+5. **布点观测中的悬案**:每个 instrumented 项的状态(布点几天/有无新证据/离结案还差什么);复发的旧修复单独点名。
+6. 一句话现状：真实访客数、近48h 错误数、流失数。
 
 绝不夸大。修了就是修了（带验证证据），没修就说没修。发现自己之前的判断错了，直接纠正并说明。
 
