@@ -1,141 +1,85 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { PaymentPlan, UnitType } from '../../types'
 import { useTranslation } from 'react-i18next'
-import { Share2, Check, Copy, Loader2, Pencil } from 'lucide-react'
+import { Pencil, FileText, ArrowRight, Lock, Crown } from 'lucide-react'
 import PaymentTimeline from '../../components/project/PaymentTimeline'
 import PaymentChart from '../../components/project/PaymentChart'
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../../components/DirhamSymbol'
-import { API_BASE_URL } from '../../lib/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { normalizePaymentPlan } from '../../lib/paymentPlan'
+import MoneyInput from '../../components/MoneyInput'
+import { fetchBillingMe, fetchMyRole, type BillingMe, type UserRole } from '../../lib/billingApi'
+import SalesOfferDialog from './SalesOfferDialog'
 
 interface PaymentPlanTabProps {
   paymentPlan: PaymentPlan[]
   referencePrice?: number
   units?: UnitType[]
-  /** 传入后启用「转发给客户」分享(生成 /pp/:code 公开页) */
+  /** 传入后启用经纪的 Sales Offer 生成入口(弹窗) */
   projectId?: string
   projectName?: string
 }
 
 /**
- * 付款计划(经纪工作流,合伙人需求 2026-07-05):
- *   1. 选户型(按居室分组,不再铺 30+ 个药丸)
- *   2. 填总价 —— 开发商开盘只给起价,楼层/朝向不同价格不同,经纪手填实际报价
- *   3. 图表 + 每期明细即时按该价换算
- *   4. 一键生成客户可看的分享页 /pp/:code(免登录)
+ * 付款计划 = 给客户的计算器(2026-07-07 用户定的分离理念):
+ *   - 客户:填总价 → 图表 + 每期明细即时换算。不放户型选择,保持干净。
+ *   - 经纪(订阅,rookie+/owner):底部多一个「生成 Sales Offer」入口按钮,
+ *     点开 SalesOfferDialog 弹窗选户型 + 填报价 → 生成正式报价单 /pp/:code。
  */
 export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projectId, projectName }: PaymentPlanTabProps) {
   const { t, i18n } = useTranslation(['project', 'common'])
   const zh = (i18n.language || 'en').startsWith('zh')
-  const { session } = useAuth()
+  const { user } = useAuth()
 
   // JSONB 两种历史键名(camelCase / snake_case)→ 统一成 PaymentPlan
   const plan = useMemo(() => normalizePaymentPlan(paymentPlan), [paymentPlan])
 
-  // 有报价的户型,按居室分组(组内按价升序)
-  const priced = useMemo(
-    () => units.filter((u) => (u.price ?? 0) > 0).sort((a, b) => (a.price! - b.price!)),
-    [units]
-  )
-  const groups = useMemo(() => {
-    const m = new Map<number, UnitType[]>()
-    for (const u of priced) {
-      const b = u.bedrooms ?? -1
-      if (!m.has(b)) m.set(b, [])
-      m.get(b)!.push(u)
-    }
-    return [...m.entries()].sort((a, b) => a[0] - b[0])
-  }, [priced])
-
-  const [selBeds, setSelBeds] = useState<number | 'ref'>('ref')
-  const [selUnitId, setSelUnitId] = useState<string>('')
-  // 经纪手填的实际报价(纯数字字符串);空 = 跟随所选户型/起价
+  // 计算器:客户手填总价(空 = 跟随起价)
   const [priceInput, setPriceInput] = useState<string>('')
-  const [share, setShare] = useState<{ url: string } | null>(null)
-  const [sharing, setSharing] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const bedsLabel = (b: number) => (b === 0 ? (zh ? '工作室' : 'Studio') : zh ? `${b} 居` : `${b} BR`)
-
-  const groupUnits = selBeds === 'ref' ? [] : (groups.find(([b]) => b === selBeds)?.[1] || [])
-  const selUnit = groupUnits.find((u) => u.id === selUnitId) || null
-
-  // 基准价:具体户型 > 组内最低 > 起价。
-  // Number():price 经 PG numeric 返回可能是字符串("1800000.00"),不转的话
-  // toLocaleString 静默失效,输入框会显示原始串。
-  const basePrice = Math.round(Number(
-    selBeds === 'ref'
-      ? (referencePrice || 0)
-      : (selUnit?.price || groupUnits[0]?.price || referencePrice || 0)
-  ) || 0)
+  const basePrice = Math.round(Number(referencePrice) || 0)
   const typedPrice = parseInt(priceInput.replace(/[^0-9]/g, ''), 10)
   const activePrice = Number.isFinite(typedPrice) && typedPrice > 0 ? typedPrice : basePrice
   const priceEdited = Number.isFinite(typedPrice) && typedPrice > 0 && typedPrice !== basePrice
 
-  const pick = (beds: number | 'ref', unitId = '') => {
-    setSelBeds(beds)
-    setSelUnitId(unitId)
-    setPriceInput('')   // 换户型 → 回到该户型报价
-    setShare(null)      // 参数变了,旧链接作废
-    setCopied(false)
-  }
+  // Sales Offer 入口(从业者角色可见,买家不可见)。铁律:按钮只开弹窗,
+  // 绝不因异步的订阅状态偷偷 redirect——权限三态(null=加载中/true/false)
+  // 交给弹窗内部渲染(没权限 = 弹窗内升级引导卡,去不去付费页用户自己点);
+  // 服务端 401/402 是最终防线。2026-07-07 事故:billing 未加载完点击被
+  // 直接甩到 /pricing,owner 也中招。
+  const [billing, setBilling] = useState<BillingMe | null>(null)
+  const [billingLoaded, setBillingLoaded] = useState(false)
+  const [role, setRole] = useState<UserRole | null>(null)
+  useEffect(() => {
+    if (!user) { setBilling(null); setRole(null); setBillingLoaded(true); return }
+    let stale = false
+    setBillingLoaded(false)
+    fetchBillingMe().then((b) => { if (!stale) { setBilling(b); setBillingLoaded(true) } })
+    fetchMyRole().then((r) => { if (!stale) setRole(r) })
+    return () => { stale = true }
+  }, [user])
+  const canOffer = !!billing && (
+    billing.credits?.balance === -1 ||
+    (['rookie', 'agent', 'founder', 'developer'].includes(billing.plan?.id || '') &&
+      ['active', 'trialing'].includes(billing.status))
+  )
+  /** null = 还在查(弹窗转圈),true/false = 已确定 */
+  const entitled: boolean | null = billingLoaded ? canOffer : null
+  const showOfferEntry = canOffer || (!!role && ['agent', 'agency', 'developer'].includes(role))
+  const [offerOpen, setOfferOpen] = useState(false)
 
-  const onPriceChange = (v: string) => {
-    setPriceInput(v.replace(/[^0-9]/g, '').slice(0, 11))
-    setShare(null)
-    setCopied(false)
-  }
-
-  const unitShareLabel = selUnit?.unit_type_name
-    || (selBeds !== 'ref' ? bedsLabel(selBeds as number) : '')
-
-  const createShare = async () => {
-    if (!projectId || !activePrice || sharing) return
-    setSharing(true)
-    try {
-      const headers: HeadersInit = { 'Content-Type': 'application/json' }
-      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
-      const r = await fetch(`${API_BASE_URL}/api/luna/public/payplan`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          projectId,
-          unitName: unitShareLabel || undefined,
-          bedrooms: selUnit?.bedrooms ?? (selBeds !== 'ref' ? selBeds : undefined),
-          price: activePrice,
-          lang: zh ? 'zh' : 'en',
-        }),
-      })
-      const j = await r.json()
-      if (!r.ok || !j.code) throw new Error(j.error || 'failed')
-      const url = `${window.location.origin}/pp/${j.code}`
-      setShare({ url })
-      // 移动端直接唤起系统分享;失败/桌面 → 链接留在面板里复制
-      if (navigator.share) {
-        navigator.share({
-          title: `${projectName || ''} ${zh ? '付款计划' : 'Payment Plan'}`.trim(),
-          url,
-        }).catch(() => {})
-      }
-    } catch {
-      alert(zh ? '生成分享链接失败,请重试' : 'Failed to create share link, please retry')
-    } finally {
-      setSharing(false)
-    }
-  }
-
-  const copyLink = async () => {
-    if (!share) return
-    try {
-      await navigator.clipboard.writeText(share.url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch { /* clipboard 不可用时用户可长按链接复制 */ }
-  }
+  // 弹窗打开时若上次 billing 拉取失败(瞬时网络/后端抖动)→ 重查一次,
+  // 别让有权限的经纪因为一次抖动看到升级卡
+  useEffect(() => {
+    if (!offerOpen || !user || billing) return
+    let stale = false
+    setBillingLoaded(false)
+    fetchBillingMe().then((b) => { if (!stale) { setBilling(b); setBillingLoaded(true) } })
+    return () => { stale = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerOpen])
 
   if (plan.length === 0) {
     return (
@@ -156,83 +100,48 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('project:paymentPlanTab.title')}</CardTitle>
+        {/* 经纪的 Sales Offer 入口放标题行右侧(显眼,2026-07-07 用户定位置)。
+            软色调贴卡片风格(纯黑块被反馈"格格不入");未订阅经纪也可见,
+            带「会员」标识点击去升级;买家看不到。 */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle>{t('project:paymentPlanTab.title')}</CardTitle>
+          {projectId && showOfferEntry && (
+            /* 高级低调:白底细描边(与卡片族一致),金色「会员」标常驻。
+               点击一律开弹窗(权限由弹窗内部处理),绝不 redirect */
+            <button
+              type="button"
+              onClick={() => setOfferOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/10 transition hover:shadow hover:ring-slate-900/20 active:scale-95"
+            >
+              {entitled === false ? <Lock className="h-4 w-4 text-slate-400" /> : <FileText className="h-4 w-4 text-slate-500" />}
+              {zh ? '生成 Sales Offer' : 'Sales Offer'}
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-100 to-yellow-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200/70">
+                <Crown className="h-2.5 w-2.5" />{zh ? '会员' : 'PRO'}
+              </span>
+              {entitled !== false && <ArrowRight className="h-4 w-4 text-slate-400" />}
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* ① 选户型:按居室分组(代替原来 30+ 药丸墙) */}
-        {(groups.length > 0 || (referencePrice || 0) > 0) && (
-          <div>
-            <div className="mb-2 flex items-baseline gap-2">
-              <span className="text-sm font-semibold text-slate-800">{zh ? '① 选户型' : '① Unit type'}</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(referencePrice || 0) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => pick('ref')}
-                  className={`rounded-full px-3.5 py-2 text-sm font-semibold transition-colors ${
-                    selBeds === 'ref' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {zh ? '起价' : 'From'}
-                  <span className={selBeds === 'ref' ? 'ml-1.5 opacity-90' : 'ml-1.5 text-slate-400'}>
-                    <DirhamSymbol size="0.8em" />{formatMoneyCompact(referencePrice!, i18n.language)}
-                  </span>
-                </button>
-              )}
-              {groups.map(([beds, us]) => (
-                <button
-                  key={beds}
-                  type="button"
-                  onClick={() => pick(beds)}
-                  className={`rounded-full px-3.5 py-2 text-sm font-semibold transition-colors ${
-                    selBeds === beds ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {bedsLabel(beds)}
-                  <span className={selBeds === beds ? 'ml-1.5 opacity-90' : 'ml-1.5 text-slate-400'}>
-                    <DirhamSymbol size="0.8em" />{formatMoneyCompact(us[0].price!, i18n.language)}{zh ? ' 起' : '+'}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* 具体户型(可选,同居室多个型号时) */}
-            {groupUnits.length > 1 && (
-              <select
-                value={selUnitId}
-                onChange={(e) => { setSelUnitId(e.target.value); setPriceInput(''); setShare(null); setCopied(false) }}
-                className="mt-2 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-              >
-                <option value="">{zh ? `全部${bedsLabel(selBeds as number)}(按最低价计算)` : `Any ${bedsLabel(selBeds as number)} (lowest price)`}</option>
-                {groupUnits.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.unit_type_name || bedsLabel(u.bedrooms)} — {formatMoneyCompact(u.price!, i18n.language)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
-
-        {/* ② 填总价:开发商只给起价,实际报价经纪手填 */}
+        {/* 总价:开发商只公布起价,客户/经纪可改成实际报价即时换算 */}
         <div>
           <div className="mb-2 flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">{zh ? '② 填总价' : '② Total price'}</span>
+            <span className="text-sm font-semibold text-slate-800">{zh ? '总价' : 'Total price'}</span>
             {priceEdited && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                 <Pencil className="h-3 w-3" />{zh ? '已改为实际报价' : 'Custom quote'}
               </span>
             )}
           </div>
+          {/* 空值 = 跟随起价(placeholder 灰显起价,值永不隐性回退——回退会
+              让输入框删不完,2026-07-07 用户实锤) */}
           <div className="flex max-w-md items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white focus-within:border-primary">
             <span className="flex items-center pl-3.5 pr-1 text-slate-400"><DirhamSymbol size="1em" /></span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={priceInput ? Number(priceInput).toLocaleString('en-US') : (basePrice ? basePrice.toLocaleString('en-US') : '')}
-              onChange={(e) => onPriceChange(e.target.value)}
-              placeholder={zh ? '输入总价' : 'Enter total price'}
+            <MoneyInput
+              value={priceInput}
+              onChange={setPriceInput}
+              placeholder={basePrice > 0 ? basePrice.toLocaleString('en-US') : (zh ? '输入总价' : 'Enter total price')}
               className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
             />
             {activePrice > 0 && (
@@ -243,57 +152,29 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
           </div>
           <p className="mt-1.5 max-w-md text-[11px] leading-relaxed text-slate-400">
             {zh
-              ? '开发商开盘只公布起价——不同楼层、朝向价格不同。可直接改成给客户的实际报价,下方每期金额即时换算。'
+              ? '开发商开盘只公布起价——不同楼层、朝向价格不同。改成实际报价,下方每期金额即时换算。'
               : 'Developers only publish starting prices — floors and orientations vary. Type the actual quote and every installment below updates instantly.'}
           </p>
         </div>
 
-        {/* ③ 付款时间线(hover 看每期/累计金额) */}
+        {/* 付款时间线(hover 看每期/累计金额) */}
         {activePrice > 0 && (
           <PaymentChart paymentPlan={plan} price={activePrice} lang={i18n.language} />
         )}
 
         <PaymentTimeline paymentPlan={plan} referencePrice={activePrice || undefined} lang={i18n.language} />
 
-        {/* ④ 转发给客户:生成免登录分享页 /pp/:code */}
-        {projectId && activePrice > 0 && (
-          <div className="rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50/80 to-emerald-50/60 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-slate-800">{zh ? '转发给客户' : 'Share with client'}</div>
-                <div className="mt-0.5 text-xs text-slate-500">
-                  {zh
-                    ? `生成专属页面:${unitShareLabel || (zh ? '该项目' : '')} · 总价 ${formatMoneyCompact(activePrice, i18n.language)} · 每期应付明细,客户免登录查看`
-                    : `A clean page with unit, total price and every installment — no login needed`}
-                </div>
-              </div>
-              <Button
-                onClick={createShare}
-                disabled={sharing}
-                className="shrink-0 bg-teal-600 hover:bg-teal-700"
-              >
-                {sharing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Share2 className="mr-1.5 h-4 w-4" />}
-                {share ? (zh ? '重新生成' : 'Regenerate') : (zh ? '生成分享链接' : 'Create share link')}
-              </Button>
-            </div>
-            {share && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
-                <a href={share.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm font-medium text-teal-700 underline-offset-2 hover:underline">
-                  {share.url}
-                </a>
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  className={`flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                    copied ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? (zh ? '已复制' : 'Copied') : (zh ? '复制' : 'Copy')}
-                </button>
-              </div>
-            )}
-          </div>
+        {projectId && (
+          <SalesOfferDialog
+            open={offerOpen}
+            onClose={() => setOfferOpen(false)}
+            projectId={projectId}
+            projectName={projectName}
+            units={units}
+            referencePrice={referencePrice}
+            paymentPlan={plan}
+            entitled={entitled}
+          />
         )}
       </CardContent>
     </Card>

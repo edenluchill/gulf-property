@@ -7,8 +7,9 @@ import { useMyRole } from '../hooks/useMyRole'
 import { fetchBillingMe } from '../lib/billingApi'
 import { badgeForPlan, type RoleBadge } from '../lib/roleBadge'
 import RoleBadgeDialog from '../components/RoleBadgeDialog'
+import AgentCardEditor from '../components/AgentCardEditor'
 import { Button } from '../components/ui/button'
-import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase, BarChart3 } from 'lucide-react'
+import { User, LogOut, Heart, Settings, ChevronRight, Mail, Briefcase, BarChart3, Contact } from 'lucide-react'
 
 export default function ProfilePage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -26,6 +27,8 @@ export default function ProfilePage() {
   // 身份卡(手机端唯一的角色/勋章入口;桌面头像菜单也有同款)
   const [profBadge, setProfBadge] = useState<RoleBadge | null>(null)
   const [showBadgeDlg, setShowBadgeDlg] = useState(false)
+  // 经纪名片编辑(报价单/品牌报告的落款:姓名/头像/电话/WhatsApp)
+  const [showCardEditor, setShowCardEditor] = useState(false)
   useEffect(() => {
     let stale = false
     void fetchBillingMe()
@@ -66,6 +69,10 @@ export default function ProfilePage() {
     role === 'buyer'
       ? { icon: Briefcase, label: t('auth:profile.becomeAgent', '成为经纪(7 天免费试用)'), path: 'become-agent' }
       : { icon: Briefcase, label: t('auth:profile.agentPortal', '经纪人工作台'), path: '/agent' },
+    // 从业者:报价单/品牌报告上的落款名片(姓名/头像/电话)在这配置
+    ...(role && role !== 'buyer'
+      ? [{ icon: Contact, label: t('auth:profile.agentCard', '经纪名片(报价单落款)'), path: 'edit-card' }]
+      : []),
     {
       icon: Heart,
       label: t('common:nav.favorites'),
@@ -169,6 +176,7 @@ export default function ProfilePage() {
             onClose={() => setShowBadgeDlg(false)}
           />
         )}
+        {showCardEditor && <AgentCardEditor onClose={() => setShowCardEditor(false)} />}
 
         {/* Status Card */}
         <div className="bg-white rounded-xl border p-4 mb-4">
@@ -186,7 +194,7 @@ export default function ProfilePage() {
           {menuItems.map((item, idx) => (
             <button
               key={item.path}
-              onClick={() => (item.path === 'become-agent' ? void becomeAgent() : navigate(item.path))}
+              onClick={() => (item.path === 'become-agent' ? void becomeAgent() : item.path === 'edit-card' ? setShowCardEditor(true) : navigate(item.path))}
               className={`w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 transition-colors ${
                 idx > 0 ? 'border-t' : ''
               }`}

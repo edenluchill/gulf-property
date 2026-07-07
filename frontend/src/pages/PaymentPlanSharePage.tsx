@@ -1,34 +1,76 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, MapPin, Loader2, CalendarClock, BadgeCheck } from 'lucide-react'
+import { Phone, MessageCircle, Loader2, Printer, BadgeCheck, Share2, Check } from 'lucide-react'
 import { PaymentPlan } from '../types'
-import PaymentChart from '../components/project/PaymentChart'
-import PaymentTimeline from '../components/project/PaymentTimeline'
-import { formatMoneyCompact } from '../lib/money'
-import DirhamSymbol from '../components/DirhamSymbol'
 import { normalizePaymentPlan } from '../lib/paymentPlan'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
+interface UnitSnapshot {
+  name: string | null
+  bedrooms: number | null
+  area: string | number | null
+  builtUpArea: string | number | null
+  balconyArea: string | number | null
+  view: string | null
+  floorPlanImage: string | null
+  image: string | null
+}
+
 interface PayShareData {
-  share: { unitName: string | null; bedrooms: number | null; price: number; lang: string; createdAt: string }
+  share: {
+    unitName: string | null; bedrooms: number | null; price: number
+    originalPrice: number | null; unitSnapshot: UnitSnapshot | null
+    planSnapshot: Array<{ name: string; pct: number; months: number | null }> | null
+    code: string; lang: string; createdAt: string
+  }
   project: {
     id: string; name: string; developer: string | null; area: string | null; status: string | null
     completionDate: string | null; handoverDate: string | null; image: string | null
     paymentPlan: PaymentPlan[]
   }
-  agent: { name: string; photo: string | null; phone: string | null; whatsapp: string | null } | null
+  agent: { name: string; photo: string | null; phone: string | null; whatsapp: string | null; tier: string | null } | null
 }
 
+/** Pinzos 段位 → 报价单认证盖章文案(lib/roleBadge.ts 同族口径) */
+const TIER_STAMP: Record<string, { zh: string; en: string }> = {
+  rookie: { zh: '认证经纪人', en: 'CERTIFIED AGENT' },
+  agent: { zh: '金牌经纪人 PRO', en: 'CERTIFIED PRO AGENT' },
+  founder: { zh: '认证经纪公司', en: 'CERTIFIED AGENCY' },
+  developer: { zh: '认证开发商', en: 'CERTIFIED DEVELOPER' },
+}
+
+const aed = (n: number) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 /**
- * 付款计划分享页(/pp/:code)——客户免登录查看。
- * 经纪在项目详情页选户型 + 填实际报价生成;页面语言跟随生成时的语言。
- * 无 app 导航(Layout 对 /pp/ 隐藏 chrome),干净、可转发、可截图。
+ * Sales Offer 报价单(/pp/:code)——客户免登录查看,可「保存 PDF」。
+ * 版式对齐开发商正式 Sales Offer PDF(IMAN/MERAAS 样本):灰底上一张居中
+ * 白色 A4 文档 —— 顶部标题+Ref/日期+顾问落款、单元明细边框表(含折扣行)、
+ * SCHEDULE OF INSTALLMENT PAYMENTS 分期表、ADDITIONAL COST 附加费表、
+ * 免责、户型图、页脚。不用 app 风格的卡片/图表/全屏 hero(2026-07-07 用户
+ * 反馈:要像正式文件,不像 app 页面)。
  */
 export default function PaymentPlanSharePage() {
   const { code } = useParams()
   const [d, setD] = useState<PayShareData | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [copied, setCopied] = useState(false)
+
+  // 分享给客户:移动端唤起系统分享,桌面/不支持时复制链接
+  const shareOffer = async () => {
+    const url = window.location.href
+    const title = document.title
+    if (navigator.share) {
+      navigator.share({ title, url }).catch(() => { /* 用户取消 */ })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard 不可用时用户可从地址栏复制 */ }
+  }
 
   useEffect(() => {
     fetch(`${API}/api/luna/public/payplan/${code}`)
@@ -36,23 +78,25 @@ export default function PaymentPlanSharePage() {
       .then((j: PayShareData) => {
         setD(j); setState('ok')
         const zh2 = j.share?.lang !== 'en'
-        if (j.project?.name) document.title = `${j.project.name} · ${zh2 ? '付款计划' : 'Payment Plan'}`
+        if (j.project?.name) document.title = `${j.project.name} · ${zh2 ? '报价单' : 'Sales Offer'}`
       })
       .catch(() => setState('error'))
   }, [code])
 
   if (state === 'loading') {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
+    return <div className="flex min-h-screen items-center justify-center bg-slate-100"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
   }
   if (state === 'error' || !d) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-400">页面不存在或已失效 / This link is no longer available</div>
+    return <div className="flex min-h-screen items-center justify-center bg-slate-100 text-slate-400">页面不存在或已失效 / This link is no longer available</div>
   }
 
   const { share, project, agent } = d
   const zh = share.lang !== 'en'
-  const lang = zh ? 'zh' : 'en'
   const plan = normalizePaymentPlan(project.paymentPlan)
   const price = share.price
+  const orig = share.originalPrice && share.originalPrice > price ? share.originalPrice : null
+  const discount = orig ? { amount: orig - price, pct: Math.round(((orig - price) / orig) * 1000) / 10 } : null
+  const snap = share.unitSnapshot
   const contactHref = agent?.whatsapp
     ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}`
     : agent?.phone ? `tel:${agent.phone}` : undefined
@@ -61,100 +105,272 @@ export default function PaymentPlanSharePage() {
     : null
   const unitLabel = share.unitName || bedsLabel
   const quoteDate = share.createdAt ? String(share.createdAt).slice(0, 10) : ''
+  const completion = String(project.handoverDate || project.completionDate || '').slice(0, 10)
+
+  // 分期表行:优先用经纪谈定的自定义周期快照,否则项目默认计划;
+  // 金额按报价换算(样本表头 Percentage / Date / Amount (AED))
+  const rows = share.planSnapshot?.length
+    ? share.planSnapshot.map((m, i) => ({
+        idx: i + 1,
+        name: m.name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
+        pct: Number(m.pct) || 0,
+        // months = 距上一期的月数(谈的是间隔不是日历日期)
+        date: i === 0
+          ? (zh ? '签约时' : 'At booking')
+          : (m.months != null && m.months > 0 ? (zh ? `${m.months} 个月后` : `${m.months} months later`) : ''),
+        amount: (Number(m.pct) || 0) / 100 * price,
+      }))
+    : plan
+        .slice()
+        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+        .map((m, i) => ({
+          idx: i + 1,
+          name: m.milestone_name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
+          pct: Number(m.percentage) || 0,
+          date: m.milestone_date
+            ? String(m.milestone_date).slice(0, 10)
+            : (m.interval_description || (m.interval_months ? (zh ? `${m.interval_months} 个月后` : `${m.interval_months} months later`) : '')),
+          amount: (Number(m.percentage) || 0) / 100 * price,
+        }))
+
+  // 附加费用(迪拜通行标准;以开发商/DLD 实际收费为准)
+  const dldFee = price * 0.04 + 40
+  const adminFee = 3150
+
+  // 单元明细行(有值才显示)
+  const unitRows: [string, string][] = []
+  if (unitLabel) unitRows.push([zh ? '户型' : 'Unit Type', unitLabel])
+  if (snap?.builtUpArea) unitRows.push([zh ? '室内面积 (Sq.Ft)' : 'Internal Area (Sq.Ft)', String(snap.builtUpArea)])
+  if (snap?.balconyArea) unitRows.push([zh ? '阳台面积 (Sq.Ft)' : 'Balcony Area (Sq.Ft)', String(snap.balconyArea)])
+  if (snap?.area) unitRows.push([zh ? '总面积 (Sq.Ft)' : 'Total Area (Sq.Ft)', String(snap.area)])
+  if (snap?.view) unitRows.push([zh ? '景观' : 'View', snap.view])
+
+  const th = 'border border-slate-300 bg-slate-800 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-white'
+  const td = 'border border-slate-200 px-3 py-2 text-[13px] text-slate-700'
+  const sectionTitle = 'mt-8 mb-3 text-center text-[13px] font-bold uppercase tracking-[0.18em] text-slate-800'
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-16 text-slate-900">
-      {/* Hero:项目身份 */}
-      <div className="relative h-48 w-full overflow-hidden bg-slate-800 sm:h-60">
-        {project.image && <img src={project.image} alt={project.name} className="h-full w-full object-cover" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
-        {/* pb-12:给下方 -mt-7 上叠的报价卡留位,别盖住开发商名 */}
-        <div className="absolute bottom-0 left-0 right-0 mx-auto max-w-xl px-5 pb-12 text-white">
-          <div className="flex items-center gap-1.5 text-xs opacity-90"><MapPin className="h-3.5 w-3.5" />{project.area || (zh ? '迪拜' : 'Dubai')}</div>
-          <h1 className="mt-0.5 text-2xl font-bold leading-tight sm:text-3xl">{project.name}</h1>
-          {project.developer && <div className="mt-0.5 text-sm opacity-80">{project.developer}</div>}
+    <div className="min-h-screen bg-slate-200/80 py-6 pb-28 text-slate-900 sm:py-10 print:bg-white print:py-0 print:pb-0">
+      {/* 打印(存 PDF):
+          1. app 根是 h-screen overflow-hidden、页面在内层容器滚动(window 从不滚)
+             —— 不放开这条链,打印只会得到"一屏"且把内层滚动条一起印出来
+             (2026-07-07 实锤)。print 时把 #root 下所有容器高度/overflow 放开,
+             内容才能自然流式分页。
+          2. 表格行不跨页断;户型图独占一页(对齐样本 PDF 的第二页 UNIT PLAN)。 */}
+      <style>{`
+        @media print {
+          html, body { height: auto !important; overflow: visible !important }
+          #root, #root div { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important }
+          .pp-no-print { display: none !important }
+          .pp-sheet { box-shadow: none !important; max-width: none !important; padding: 0 !important; --tw-ring-shadow: none !important }
+          .pp-sheet tr, .pp-avoid { break-inside: avoid }
+          /* 户型图:放得下就接着排,放不下才整块搬下一页(强制另起一页会在
+             上一页留大片空白,2026-07-07 用户反馈);打印时限高提升塞入概率 */
+          .pp-plan { break-inside: avoid }
+          .pp-plan img { max-height: 165mm !important }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact }
+        }
+        @page { margin: 14mm 12mm }
+      `}</style>
+
+      {/* A4 文档 */}
+      <div className="pp-sheet mx-auto max-w-[860px] bg-white px-5 py-8 shadow-xl ring-1 ring-slate-900/5 sm:px-12 sm:py-12">
+
+        {/* ── 文档头:标题 + Ref/日期 | 顾问落款 ── */}
+        <div className="flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-5">
+          <div>
+            <h1 className="font-serif text-3xl font-bold tracking-tight text-slate-900">Sales Offer</h1>
+            {zh && <div className="mt-0.5 text-sm font-medium text-slate-500">购房报价单</div>}
+            <div className="mt-3 space-y-0.5 text-xs text-slate-500">
+              <div>Ref No: <span className="font-medium text-slate-700">SO-{share.code?.toUpperCase()}</span></div>
+              {quoteDate && <div>{zh ? '日期' : 'Date'}: <span className="font-medium text-slate-700">{quoteDate}</span></div>}
+            </div>
+          </div>
+          {agent && (
+            <div className="flex shrink-0 items-center gap-3 text-right">
+              {/* 认证盖章:按 Pinzos 段位(订阅档)显示,像公司章一样斜盖在落款旁 */}
+              {agent.tier && TIER_STAMP[agent.tier] && (
+                <div className="pointer-events-none -rotate-6 select-none rounded-md border-2 border-teal-600/60 px-2 py-1 text-center leading-tight text-teal-700/90">
+                  <div className="flex items-center justify-center gap-0.5 text-[8px] font-bold tracking-[0.22em]">
+                    PINZOS<BadgeCheck className="h-2.5 w-2.5" />
+                  </div>
+                  <div className="text-[11px] font-extrabold tracking-wide">
+                    {zh ? TIER_STAMP[agent.tier].zh : TIER_STAMP[agent.tier].en}
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className="flex items-center justify-end gap-1 text-[10px] font-semibold uppercase tracking-wide text-teal-700">
+                  <BadgeCheck className="h-3.5 w-3.5" />{zh ? '您的置业顾问' : 'Sales Executive'}
+                </div>
+                <div className="text-sm font-bold text-slate-900">{agent.name}</div>
+                {agent.phone && <div className="text-xs text-slate-500">{agent.phone}</div>}
+              </div>
+              {agent.photo && <img src={agent.photo} alt={agent.name} className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-200" />}
+            </div>
+          )}
+        </div>
+
+        {/* 敬语(样本:Dear Customer, taking into consideration…) */}
+        <p className="mt-5 text-[13px] leading-relaxed text-slate-600">
+          {zh
+            ? '尊敬的客户,您好!结合您的购房需求,我们为您推荐以下单元,报价与付款安排如下。'
+            : 'Dear Customer, taking into consideration the points discussed, we believe the unit details below align with your requirements.'}
+        </p>
+
+        {/* ── 项目行 ── */}
+        <table className="pp-avoid mt-5 w-full border-collapse">
+          <thead>
+            <tr>
+              <th className={th}>{zh ? '项目' : 'Project'}</th>
+              <th className={th}>{zh ? '开发商' : 'Developer'}</th>
+              <th className={th}>{zh ? '区域' : 'Area'}</th>
+              {completion && <th className={th}>{zh ? '预计交付' : 'Est. Completion'}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className={`${td} font-semibold`}>{project.name}</td>
+              <td className={td}>{project.developer || '—'}</td>
+              <td className={td}>{project.area || 'Dubai'}</td>
+              {completion && <td className={td}>{completion}</td>}
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── 单元明细 + 价格(折扣行样式对齐样本:Discount → Total Selling Price)── */}
+        <div className={sectionTitle}>{zh ? '单元明细 · Unit Details' : 'Unit Details'}</div>
+        <table className="pp-avoid w-full border-collapse">
+          <tbody>
+            {unitRows.map(([k, v]) => (
+              <tr key={k}>
+                <td className={`${td} w-1/2 bg-slate-50 font-medium text-slate-500`}>{k}</td>
+                <td className={`${td} text-right font-semibold`}>{v}</td>
+              </tr>
+            ))}
+            <tr>
+              <td className={`${td} bg-slate-50 font-medium text-slate-500`}>{zh ? '售价 (AED)' : 'Selling Price (AED)'}</td>
+              <td className={`${td} text-right font-semibold ${discount ? 'text-slate-400 line-through' : ''}`}>{aed(orig || price)}</td>
+            </tr>
+            {discount && (
+              <tr>
+                <td className={`${td} bg-rose-50/60 font-semibold text-rose-700`}>{zh ? `专属优惠 ${discount.pct}%` : `Discount ${discount.pct}%`}</td>
+                <td className={`${td} bg-rose-50/60 text-right font-semibold text-rose-700`}>− {aed(discount.amount)}</td>
+              </tr>
+            )}
+            <tr>
+              <td className={`${td} bg-slate-800 text-sm font-bold text-white`}>{zh ? '成交总价 (AED)' : 'Total Selling Price (AED)'}</td>
+              <td className={`${td} bg-slate-800 text-right text-base font-extrabold text-white`}>{aed(price)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          * {zh ? '价格与房源随时可能调整,恕不另行通知。' : 'Prices and availability are subject to change without notice.'}
+        </p>
+
+        {/* ── 分期付款表 ── */}
+        {rows.length > 0 && (
+          <>
+            <div className={sectionTitle}>{zh ? '分期付款安排 · Schedule of Installment Payments' : 'Schedule of Installment Payments'}</div>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className={`${th} w-8 text-center`}>#</th>
+                  <th className={th}>{zh ? '付款节点' : 'Payment Terms'}</th>
+                  <th className={`${th} w-20 text-right`}>%</th>
+                  <th className={`${th} w-28`}>{zh ? '时间' : 'Date'}</th>
+                  <th className={`${th} w-32 text-right`}>{zh ? '金额 (AED)' : 'Amount (AED)'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.idx} className="even:bg-slate-50/60">
+                    <td className={`${td} text-center text-slate-400`}>{r.idx}</td>
+                    <td className={td}>{r.name}</td>
+                    <td className={`${td} text-right`}>{r.pct.toFixed(2)} %</td>
+                    <td className={`${td} text-slate-500`}>{r.date || '—'}</td>
+                    <td className={`${td} text-right font-semibold`}>{aed(r.amount)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className={`${td} bg-slate-800 font-bold text-white`} colSpan={4}>{zh ? '合计 · Purchase Price' : 'Purchase Price'}</td>
+                  <td className={`${td} bg-slate-800 text-right font-extrabold text-white`}>{aed(price)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* ── 附加费用 ── */}
+        <div className={sectionTitle}>{zh ? '附加费用 · Additional Cost' : 'Additional Cost'}</div>
+        <table className="pp-avoid w-full border-collapse">
+          <thead>
+            <tr>
+              <th className={th}>{zh ? '项目' : 'Description'}</th>
+              <th className={`${th} w-32 text-right`}>{zh ? '金额 (AED)' : 'Total Amount (AED)'}</th>
+              <th className={th}>{zh ? '说明' : 'Remarks'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className={td}>{zh ? 'DLD 注册费(4% + 40)' : 'Oqood / DLD Registration (4% + 40)'}</td>
+              <td className={`${td} text-right font-semibold`}>{aed(dldFee)}</td>
+              <td className={`${td} text-slate-500`}>{zh ? '预订时由买家支付' : 'Payable by the Buyer at time of booking'}</td>
+            </tr>
+            <tr>
+              <td className={td}>{zh ? '行政费(Admin Charges)' : 'Admin Charges'}</td>
+              <td className={`${td} text-right font-semibold`}>{aed(adminFee)}</td>
+              <td className={`${td} text-slate-500`}>{zh ? '预订时由买家支付' : 'Payable by the Buyer at time of booking'}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          * {zh
+            ? '按迪拜通行标准估算,以开发商与迪拜土地局(DLD)实际收费为准;最终价格与付款节点以开发商购房合同(SPA)为准。'
+            : 'Estimated per standard Dubai practice; actual amounts per the developer and the DLD. Final prices and milestones per the developer’s SPA.'}
+        </p>
+
+        {/* ── 户型图(UNIT PLAN;打印时整块不拆,能塞进当前页就不翻页)── */}
+        {snap?.floorPlanImage && (
+          <div className="pp-plan">
+            <div className={sectionTitle}>{zh ? '户型图 · Unit Plan' : 'Unit Plan'}</div>
+            <div className="border border-slate-200 p-2">
+              <img src={snap.floorPlanImage} alt={unitLabel || 'Unit plan'} className="mx-auto block max-h-[560px] w-auto max-w-full" loading="lazy" />
+            </div>
+          </div>
+        )}
+
+        {/* ── 页脚 ── */}
+        <div className="mt-10 border-t border-slate-200 pt-4 text-center text-[11px] leading-relaxed text-slate-400">
+          {agent?.name && <div>{zh ? '生成人' : 'Generated by'} — {agent.name}{quoteDate ? ` · ${quoteDate}` : ''}{agent.phone ? ` · ${agent.phone}` : ''}</div>}
+          <div className="mt-0.5">Powered by <span className="font-semibold text-slate-500">Pinzos</span> · pinzos.com</div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-xl px-4">
-        {/* 报价卡:户型 + 总价 */}
-        {/* relative:hero 的 <img> 是 replaced content,会画在后续静态兄弟的背景之上 */}
-        <div className="relative -mt-7 rounded-2xl bg-white p-5 shadow-lg ring-1 ring-slate-900/[0.06]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-teal-600">
-                {zh ? '付款计划' : 'Payment Plan'}
-              </div>
-              {unitLabel && (
-                <div className="mt-1 inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  <span className="truncate">{unitLabel}</span>
-                </div>
-              )}
-            </div>
-            {quoteDate && (
-              <div className="shrink-0 text-right text-[11px] leading-tight text-slate-400">
-                {zh ? '报价日期' : 'Quoted'}<br />{quoteDate}
-              </div>
-            )}
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-slate-400"><DirhamSymbol size="1.4em" /></span>
-            <span className="text-4xl font-extrabold tracking-tight text-slate-900">{price.toLocaleString('en-US')}</span>
-          </div>
-          <div className="mt-1 text-xs text-slate-400">
-            {zh ? `总价 ≈ ${formatMoneyCompact(price, 'zh')} 迪拉姆,分期明细见下方` : `Total price · every installment is broken down below`}
-          </div>
-        </div>
-
-        {/* 时间线图表 */}
-        {plan.length > 0 && (
-          <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.05]">
-            <div className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-800">
-              <CalendarClock className="h-4 w-4 text-teal-600" />
-              {zh ? '付款时间线' : 'Payment timeline'}
-            </div>
-            <PaymentChart paymentPlan={plan} price={price} lang={lang} />
-          </div>
-        )}
-
-        {/* 每期明细 */}
-        {plan.length > 0 && (
-          <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.05]">
-            <div className="mb-3 text-sm font-bold text-slate-800">{zh ? '每期应付' : 'Installments'}</div>
-            <PaymentTimeline paymentPlan={plan} referencePrice={price} lang={lang} />
-          </div>
-        )}
-
-        {/* 顾问卡:信任 + 一键联系 */}
-        {agent && (
-          <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.05]">
-            {agent.photo
-              ? <img src={agent.photo} alt={agent.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-teal-100" />
-              : <div className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-500 text-xl font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-teal-600">
-                <BadgeCheck className="h-3.5 w-3.5" />{zh ? '您的专属顾问' : 'Your consultant'}
-              </div>
-              <div className="truncate text-base font-bold">{agent.name}</div>
-              {agent.phone && <div className="text-xs text-slate-400">{agent.phone}</div>}
-            </div>
-            {contactHref && (
-              <a href={contactHref} className="flex shrink-0 items-center gap-1.5 rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-600">
-                {agent.whatsapp ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-                {zh ? '咨询' : 'Contact'}
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* 免责声明 + 品牌 */}
-        <p className="mt-5 text-center text-[11px] leading-relaxed text-slate-400">
-          {zh
-            ? '以上金额按顾问提供的报价换算,仅供参考;最终价格与付款节点以开发商购房合同(SPA)为准。'
-            : 'Amounts are based on the quote provided by your consultant, for reference only. Final prices and milestones are subject to the developer’s SPA.'}
-        </p>
-        <div className="mt-2 text-center text-[11px] text-slate-300">
-          Powered by <span className="font-semibold text-slate-400">Pinzos</span> · pinzos.com
+      {/* 操作条(不进 PDF):保存 PDF + 一键联系顾问 */}
+      <div className="pp-no-print fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-[860px] flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={shareOffer}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+            {copied ? (zh ? '链接已复制' : 'Link copied') : (zh ? '分享给客户' : 'Share')}
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <Printer className="h-4 w-4" />{zh ? '保存 PDF / 打印' : 'Save as PDF'}
+          </button>
+          {contactHref && (
+            <a href={contactHref} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+              {agent?.whatsapp ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+              {zh ? '咨询顾问' : 'Contact'}
+            </a>
+          )}
         </div>
       </div>
     </div>

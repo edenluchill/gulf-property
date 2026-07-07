@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Building2, Mail, ArrowLeft, Loader2, CheckCircle, TrendingUp, Shield, BarChart3, ArrowUpRight } from 'lucide-react'
@@ -11,6 +11,17 @@ export default function LoginPage() {
   const { t } = useTranslation(['auth', 'common'])
   const navigate = useNavigate()
   const { signInWithOtp, verifyOtp, signInWithGoogle } = useAuth()
+
+  // ?returnTo=/agent 等入口(经纪台登录门等)登录后回跳。只接受站内路径。
+  // Google/magic-link 走整页跳转 → 经 /auth/callback 回来,那边读的是
+  // sessionStorage.authReturnUrl,所以这里两个通道都要写。
+  const [searchParams] = useSearchParams()
+  const rawReturnTo = searchParams.get('returnTo') || ''
+  const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') ? rawReturnTo : '/'
+  useEffect(() => {
+    if (returnTo === '/') return
+    try { sessionStorage.setItem('authReturnUrl', returnTo) } catch { /* storage 被禁则回首页 */ }
+  }, [returnTo])
 
   const [email, setEmail] = useState('')
   const [otpCode, setOtpCode] = useState('')
@@ -59,7 +70,8 @@ export default function LoginPage() {
       } else {
         setStep('success')
         setTimeout(() => {
-          navigate('/')
+          try { sessionStorage.removeItem('authReturnUrl') } catch { /* noop */ }
+          navigate(returnTo)
         }, 1500)
       }
     } catch (err: any) {

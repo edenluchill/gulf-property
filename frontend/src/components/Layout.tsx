@@ -28,11 +28,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Agent-branded shareable report (/r/:code), client report (/cr/:code) and
   // payment-plan quote (/pp/:code) — clean client-facing pages with NO app
   // chrome (no header/nav/Luna), but they must scroll (unlike the full-screen map).
-  if (path.startsWith('/r/') || path.startsWith('/cr/') || path.startsWith('/pp/')) {
-    // h-screen + overflow-y-auto = a real scroll container (the parent is height-
-    // constrained, so min-h-screen alone clips and won't scroll).
-    return <div className="h-screen overflow-y-auto bg-slate-50">{children}</div>
-  }
+  // ⚠️ 只算 flag,early-return 必须放在下面所有 hooks 之后:站内导航进出 /pp
+  // (报价单生成后 navigate 过去)会让同一个 Layout 实例换分支,提前 return 会
+  // 跳过 useState/useEffect → "Rendered fewer hooks"(2026-07-07 实锤;以前
+  // /pp 只被新标签页打开所以从没触发)。
+  const bareSharePage = path.startsWith('/r/') || path.startsWith('/cr/') || path.startsWith('/pp/')
 
   // The WebGL map is EXPENSIVE to create/destroy. Instead of mounting it per-route
   // (which re-initialised maplibre on every tab switch — the source of the jank),
@@ -48,6 +48,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // directly on /pricing doesn't pay the map's init cost until they need it.
   const [mapMounted, setMapMounted] = useState(onMap)
   useEffect(() => { if (onMap) setMapMounted(true) }, [onMap])
+
+  if (bareSharePage) {
+    // h-screen + overflow-y-auto = a real scroll container (the parent is height-
+    // constrained, so min-h-screen alone clips and won't scroll).
+    return <div className="h-screen overflow-y-auto bg-slate-50">{children}</div>
+  }
 
   return (
     <div className={`h-screen flex flex-col overflow-hidden ${chromeless ? 'bg-black' : 'bg-white'}`}>

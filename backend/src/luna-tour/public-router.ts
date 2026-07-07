@@ -17,10 +17,10 @@ import { createHash, randomBytes } from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
 import { optionalAuth } from '../middleware/auth'
+import { isOwnerEmail } from '../middleware/requireOwner'
 import { checkCredits, spend, creditError } from './credits'
 import { getMarketEvidence } from './evidence'
 import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
-import { calculateInvestment5yr } from '../services/investment-calculator'
 
 const router = Router()
 
@@ -342,7 +342,7 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
   try {
     const code = String(req.params.code)
     const rr = await pool.query(
-      `SELECT pr.project_id, pr.title, pr.unit_type, pr.unit_price,
+      `SELECT pr.project_id, pr.title,
               a.display_name AS agent_name, a.photo_url AS agent_photo,
               a.phone AS agent_phone, a.whatsapp AS agent_whatsapp, a.brand AS agent_brand
          FROM lt_project_reports pr JOIN lt_agents a ON a.id = pr.agent_id
@@ -368,15 +368,6 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
       getProjectTransactions(rep.project_id).catch(() => null),
     ])
 
-    // 经纪生成报告时选了户型/价格 → 5 年测算按该价格重算(收益率/增长仍取区域口径)
-    const unitPrice = rep.unit_price != null ? Number(rep.unit_price) : null
-    if (unitPrice && unitPrice > 0 && insights?.investment) {
-      const y = Number(insights.investment.area_yield_pct) || 0
-      const g = Number(insights.investment.area_growth_pct) || 0
-      const inv2 = calculateInvestment5yr(unitPrice, y, g)
-      if (inv2) insights.investment = { ...insights.investment, ...inv2, reference_price: unitPrice }
-    }
-
     // Area supply pipeline (the new signal) for the project's matched area.
     let supply: any = null
     const areaId = insights?.area?.id
@@ -390,7 +381,7 @@ router.get('/public/project-report/:code', async (req: Request, res: Response) =
 
     res.set('Cache-Control', 'public, max-age=600')
     res.json({
-      report: { title: rep.title, unitType: rep.unit_type || null, unitPrice },
+      report: { title: rep.title },
       agent: {
         name: rep.agent_name, photo: rep.agent_photo,
         phone: rep.agent_phone, whatsapp: rep.agent_whatsapp, brand: rep.agent_brand || {},
@@ -440,14 +431,37 @@ function sanitizeUnitSnapshot(raw: unknown): Record<string, unknown> | null {
   return Object.values(snap).some((v) => v != null) ? snap : null
 }
 
-/** 生成付款计划 Sales Offer。body: { projectId, unitName?, bedrooms?, price, originalPrice?, unit?, lang? }
+/** 自定义付款周期(可谈):[{name, pct, months}],months = 距上一期的月数
+ *  (首期 0 = 签约时;null = 未填)。比例合计必须 ≈100 才接受。
+ *  经纪在弹窗里从项目默认计划改出来的快照;无效返回 null 由调用方 400。 */
+function sanitizePlanSnapshot(raw: unknown): Array<{ name: string; pct: number; months: number | null }> | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 40) return null
+  const rows = raw
+    .map((r) => {
+      const o = (r || {}) as Record<string, unknown>
+      const pct = Number(o.pct)
+      const months = Number(o.months)
+      return {
+        name: typeof o.name === 'string' ? o.name.trim().slice(0, 120) : '',
+        pct: Math.round(pct * 100) / 100,
+        months: Number.isFinite(months) && months >= 0 && months <= 240 ? Math.round(months) : null,
+      }
+    })
+    .filter((r) => Number.isFinite(r.pct) && r.pct > 0 && r.pct <= 100)
+  if (rows.length === 0) return null
+  const total = rows.reduce((s, r) => s + r.pct, 0)
+  if (Math.abs(total - 100) > 0.51) return null
+  return rows
+}
+
+/** 生成付款计划 Sales Offer。body: { projectId, unitName?, bedrooms?, price, originalPrice?, unit?, plan?, lang? }
  *  2026-07-06 起为订阅经纪专属(minPlan rookie,owner 豁免)——不再匿名可建。
  *  optionalAuth 必带:attachContext 只在配了 SUPABASE_JWT_SECRET 时本地填
  *  ctx.email,否则 token 挂在 _deferredToken 上——不远程回退就会把已登录
  *  用户 401(2026-07-07 实锤)。 */
 router.post('/public/payplan', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { projectId, unitName, bedrooms, price, originalPrice, unit, lang } = req.body || {}
+    const { projectId, unitName, bedrooms, price, originalPrice, unit, plan, lang } = req.body || {}
     const p = Number(price)
     if (!projectId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(projectId))) {
       return res.status(400).json({ error: 'invalid projectId' })
@@ -481,6 +495,39 @@ router.post('/public/payplan', optionalAuth, async (req: Request, res: Response)
     )
     if (proj.rowCount === 0) return res.status(404).json({ error: 'project not found' })
 
+    // 原价:仅在有效且高于实际报价时保留(分享页据此渲染折扣行;≤ 报价则无意义)
+    const op = Number(originalPrice)
+    const origPrice = Number.isFinite(op) && op > p && op <= 5_000_000_000 ? Math.round(op) : null
+
+    // 自定义付款周期:传了就必须合法(合计 100%),否则明确报错而非静默丢弃
+    let planSnapshot: ReturnType<typeof sanitizePlanSnapshot> = null
+    if (plan != null) {
+      planSnapshot = sanitizePlanSnapshot(plan)
+      if (!planSnapshot) {
+        return res.status(400).json({ error: '付款周期不合法:各期比例合计需为 100%' })
+      }
+    }
+    const unitSnap = sanitizeUnitSnapshot(unit)
+    const cleanUnitName = String(unitName || '').slice(0, 120) || null
+
+    // 去重:同经纪 + 同项目 + 同参数的报价单直接复用已有链接(经纪来回点
+    // "重新生成"不炸表;参数任一变化才建新行)。
+    const dup = await pool.query<{ share_code: string }>(
+      `SELECT share_code FROM lt_payment_shares
+        WHERE agent_id = $1 AND project_id = $2 AND price = $3
+          AND unit_name IS NOT DISTINCT FROM $4
+          AND original_price IS NOT DISTINCT FROM $5
+          AND plan_snapshot IS NOT DISTINCT FROM $6::jsonb
+          AND unit_snapshot IS NOT DISTINCT FROM $7::jsonb
+        ORDER BY created_at DESC LIMIT 1`,
+      [agentId, projectId, Math.round(p), cleanUnitName, origPrice,
+        planSnapshot ? JSON.stringify(planSnapshot) : null,
+        unitSnap ? JSON.stringify(unitSnap) : null]
+    )
+    if (dup.rows[0]?.share_code) {
+      return res.json({ code: dup.rows[0].share_code, reused: true })
+    }
+
     let code = payShareCode(6)
     for (let i = 0; i < 8; i++) {
       const { rowCount } = await pool.query(`SELECT 1 FROM lt_payment_shares WHERE share_code = $1`, [code])
@@ -488,22 +535,19 @@ router.post('/public/payplan', optionalAuth, async (req: Request, res: Response)
       code = i === 7 ? payShareCode(8) : payShareCode(6)
     }
 
-    // 原价:仅在有效且高于实际报价时保留(分享页据此渲染折扣行;≤ 报价则无意义)
-    const op = Number(originalPrice)
-    const origPrice = Number.isFinite(op) && op > p && op <= 5_000_000_000 ? Math.round(op) : null
-
     await pool.query(
-      `INSERT INTO lt_payment_shares (share_code, project_id, agent_id, unit_name, bedrooms, price, original_price, unit_snapshot, lang, created_by_email)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      `INSERT INTO lt_payment_shares (share_code, project_id, agent_id, unit_name, bedrooms, price, original_price, unit_snapshot, plan_snapshot, lang, created_by_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         code,
         projectId,
         agentId,
-        String(unitName || '').slice(0, 120) || null,
+        cleanUnitName,
         Number.isFinite(Number(bedrooms)) ? Math.round(Number(bedrooms)) : null,
         Math.round(p),
         origPrice,
-        sanitizeUnitSnapshot(unit),
+        unitSnap,
+        planSnapshot ? JSON.stringify(planSnapshot) : null,
         lang === 'en' ? 'en' : 'zh',
         email || null,
       ]
@@ -521,10 +565,11 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
   try {
     const code = String(req.params.code)
     const r = await pool.query(
-      `SELECT ps.project_id, ps.unit_name, ps.bedrooms, ps.price, ps.original_price, ps.unit_snapshot,
-              ps.lang, ps.created_at,
+      `SELECT ps.project_id, ps.agent_id, ps.unit_name, ps.bedrooms, ps.price, ps.original_price, ps.unit_snapshot,
+              ps.plan_snapshot, ps.lang, ps.created_at,
               a.display_name AS agent_name, a.photo_url AS agent_photo,
-              a.phone AS agent_phone, a.whatsapp AS agent_whatsapp
+              a.phone AS agent_phone, a.whatsapp AS agent_whatsapp,
+              a.email AS agent_email, a.billing_agent_id AS agent_billing_id
          FROM lt_payment_shares ps
          LEFT JOIN lt_agents a ON a.id = ps.agent_id
         WHERE ps.share_code = $1 LIMIT 1`,
@@ -543,6 +588,25 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
     if (pr.rowCount === 0) return res.status(404).json({ error: 'project not found' })
     const project = pr.rows[0]
 
+    // 经纪段位 → 报价单上的认证盖章(rookie=认证经纪人 / agent=金牌PRO /
+    // founder=认证经纪公司 / developer=认证开发商;owner 视同 founder;
+    // 席位成员看团队的套餐)。查当前生效订阅,无订阅 = 不盖章。
+    let agentTier: string | null = null
+    if (s.agent_id) {
+      if (isOwnerEmail(s.agent_email)) {
+        agentTier = 'founder'
+      } else {
+        const billingId = s.agent_billing_id || s.agent_id
+        const sub = await pool.query<{ plan_id: string }>(
+          `SELECT plan_id FROM lt_subscriptions
+             WHERE agent_id = $1 AND status IN ('active','trialing')
+             ORDER BY created_at DESC LIMIT 1`,
+          [billingId]
+        )
+        agentTier = sub.rows[0]?.plan_id || null
+      }
+    }
+
     res.set('Cache-Control', 'public, max-age=300')
     res.json({
       share: {
@@ -551,6 +615,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         price: Number(s.price),
         originalPrice: s.original_price != null ? Number(s.original_price) : null,
         unitSnapshot: s.unit_snapshot || null,
+        planSnapshot: s.plan_snapshot || null,
         code,
         lang: s.lang,
         createdAt: s.created_at,
@@ -567,7 +632,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         paymentPlan: project.payment_plan || [],
       },
       agent: s.agent_name
-        ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp }
+        ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp, tier: agentTier }
         : null,
     })
   } catch (err) {

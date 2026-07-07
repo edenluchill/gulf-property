@@ -6,8 +6,8 @@
  * (or the owner) reaches the console; 'pending'/'rejected' see a status screen.
  */
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
-import { Loader2, MailCheck, Clock, ShieldX, ArrowRight } from 'lucide-react'
+import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Loader2, LogIn, Clock, ShieldX, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 import { setMyRole } from '../../lib/billingApi'
@@ -39,45 +39,22 @@ const NAV = [
   { to: '/agent/billing', end: false, label: '订阅', icon: '💳' },
 ]
 
-/** Sign in so the agent's tours/clients are scoped to their own account (else
- *  everything runs on the shared demo agent). Magic-link email — no password. */
+/** Signed-in identity in the sidebar. Unauthenticated users never reach the
+ *  sidebar (LoginGate intercepts), so the old inline email form here was dead
+ *  code — login is unified on /login (Google + 邮箱验证码), see LoginGate. */
 function AgentAuthBox() {
-  const { user, signInWithOtp, signOut } = useAuth()
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  if (user) {
+  const { user, signOut } = useAuth()
+  if (!user) {
     return (
       <div className="mt-4 px-2 text-xs">
-        <div className="text-slate-500 truncate" title={user.email || ''}>✅ {user.email}</div>
-        <button onClick={() => signOut()} className="mt-1 text-slate-400 hover:text-slate-600 hover:underline">退出登录</button>
+        <Link to="/login?returnTo=%2Fagent" className="text-emerald-600 hover:underline">登录账户 →</Link>
       </div>
     )
   }
   return (
     <div className="mt-4 px-2 text-xs">
-      <div className="text-amber-600 mb-1">⚠ 未登录(数据存到共享 demo)</div>
-      {sent ? (
-        <div className="text-slate-500">已发送登录链接到 {email},去邮箱点开。</div>
-      ) : (
-        <>
-          <input
-            className="w-full border rounded px-2 py-1 mb-1"
-            placeholder="邮箱登录(存到你的账户)"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button
-            disabled={!/.+@.+\..+/.test(email)}
-            onClick={async () => {
-              const { error } = await signInWithOtp(email.trim())
-              if (!error) setSent(true)
-            }}
-            className="w-full bg-emerald-500 text-white rounded px-2 py-1 disabled:opacity-50"
-          >
-            发送登录链接
-          </button>
-        </>
-      )}
+      <div className="text-slate-500 truncate" title={user.email || ''}>✅ {user.email}</div>
+      <button onClick={() => signOut()} className="mt-1 text-slate-400 hover:text-slate-600 hover:underline">退出登录</button>
     </div>
   )
 }
@@ -95,32 +72,18 @@ function GateCard({ icon, title, children }: { icon: React.ReactNode; title: str
   )
 }
 
+/** 未登录门:不再内嵌邮箱表单(曾与 /login 重复、且没有 Google 登录)——
+ *  统一跳 /login,带 returnTo 登录后直接回经纪台。 */
 function LoginGate() {
-  const { signInWithOtp } = useAuth()
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
   return (
-    <GateCard icon={<MailCheck className="h-6 w-6 text-emerald-600" />} title="经纪登录">
-      {sent ? (
-        <p>已发送登录链接到 <span className="font-medium text-slate-700">{email}</span>,去邮箱点开即可。</p>
-      ) : (
-        <>
-          <p className="mb-3">用邮箱登录,申请使用经纪台。</p>
-          <input
-            className="mb-2 w-full rounded-lg border px-3 py-2 text-sm"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button
-            disabled={!/.+@.+\..+/.test(email)}
-            onClick={async () => { const { error } = await signInWithOtp(email.trim()); if (!error) setSent(true) }}
-            className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            发送登录链接
-          </button>
-        </>
-      )}
+    <GateCard icon={<LogIn className="h-6 w-6 text-emerald-600" />} title="经纪登录">
+      <p className="mb-4">登录后即可申请使用经纪台,支持 Google 一键登录或邮箱验证码。</p>
+      <Link
+        to="/login?returnTo=%2Fagent"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+      >
+        前往登录 <ArrowRight className="h-4 w-4" />
+      </Link>
     </GateCard>
   )
 }
