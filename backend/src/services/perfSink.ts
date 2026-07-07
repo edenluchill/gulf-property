@@ -55,11 +55,14 @@ function bucketFor(sec: number): Bucket {
   return b
 }
 
-export function recordRequest(status: number, ms: number): void {
+/** skipLatency: 长连接(上传/SSE)只计次数与错误率,不进延迟分位/慢请求计数 —
+ *  它们的耗时是设计如此,混入会在低流量窗口把 p95 报警顶爆(见 perfMetrics)。 */
+export function recordRequest(status: number, ms: number, skipLatency = false): void {
   const b = bucketFor(nowSec())
   b.req++
   if (status >= 500) b.err5++
   else if (status >= 400) b.err4++
+  if (skipLatency) return
   if (ms >= SLOW_REQ_MS) b.slowReq++
   if (b.lat.length < LAT_CAP) b.lat.push(ms)
 }

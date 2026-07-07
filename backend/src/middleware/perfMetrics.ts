@@ -11,6 +11,15 @@ import { recordRequest, recordEndpoint, incConcurrency, decConcurrency } from '.
 // Health checks and the metrics endpoints themselves would skew the numbers.
 const IGNORE = new Set(['/health'])
 
+// 天生长连接的路径:大文件上传(几十秒-几分钟)和 SSE 进度流。它们的耗时是
+// 设计如此,不是"慢"——混进 p95 会在低流量时把 HIGH_LATENCY 报警顶爆
+// (2026-07-07 实锤:一条 142s 上传把 5 请求窗口的 p95 干到 142083ms 误报)。
+// 仍计 req/错误率/并发,只是不进延迟分位样本。
+const LONG_LIVED_PREFIXES = ['/api/upload', '/api/r2-upload', '/api/langgraph-progress']
+function isLongLived(path: string): boolean {
+  return LONG_LIVED_PREFIXES.some((p) => path.startsWith(p))
+}
+
 /**
  * Stable, low-cardinality key for the per-endpoint table. Prefer the matched
  * Express route template (baseUrl + route.path → "/api/residential-projects/:id",
@@ -45,7 +54,8 @@ export function perfMetrics(req: Request, res: Response, next: NextFunction): vo
     try {
       decConcurrency()
       const ms = Number(process.hrtime.bigint() - start) / 1e6
-      recordRequest(res.statusCode, ms)
+      // 长连接不进全局延迟分位(报警口径);端点表仍记真实耗时(展示用,诚实)。
+      recordRequest(res.statusCode, ms, isLongLived(req.path))
       recordEndpoint(endpointKey(req), res.statusCode, ms)
     } catch {
       /* telemetry must never throw into the request lifecycle */
