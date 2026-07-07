@@ -10,6 +10,7 @@
  */
 import pool from '../db/pool'
 import { calculateInvestment5yr, calculatePaybackYears, Investment5yr } from './investment-calculator'
+import { cached, prime, invalidate } from './microCache'
 
 // Key Dubai hubs for rough commute estimates (lng, lat).
 const HUBS: { hub: string; lng: number; lat: number }[] = [
@@ -50,7 +51,31 @@ function minsEstimate(distanceM: number): number {
   return Math.max(1, Math.round((distanceM * 1.4) / 1000 / 45 * 60))
 }
 
+// 缓存:构建一次要 ~8.5s(resolve_project_development ~1.3s + get_development_metrics
+// ~7.1s,DLD 全表聚合)。2026-07-07 生产实测该端点 avg 7.8s / p95 15s,是 HIGH_LATENCY
+// 报警的主源。项目只有 ~21 个且底层是周更快照 → 进程内缓存 + 定时预热(见
+// routes/project-insights.ts 的 warm loop),用户请求永远打热缓存。
+const INSIGHTS_TTL_MS = 7 * 60 * 60 * 1000 // 预热每 6h 一轮,7h TTL 让热度无缝衔接
+
 export async function getProjectInsights(projectId: string): Promise<ProjectInsights | null> {
+  return cached(`proj-insights:${projectId}`, INSIGHTS_TTL_MS, () => buildProjectInsights(projectId))
+}
+
+/** 强制重建并原子换入两份缓存(insights + transactions)。预热器/项目编辑后调用。 */
+export async function refreshProjectInsightsCache(projectId: string): Promise<void> {
+  const data = await buildProjectInsights(projectId)
+  prime(`proj-insights:${projectId}`, data)
+  projTxCache.delete(projectId)
+  await getProjectTransactions(projectId) // 重建自身缓存
+}
+
+/** 项目数据被编辑时让缓存立即失效(下一个请求走冷加载拿到新数据)。 */
+export function invalidateProjectInsights(projectId: string): void {
+  invalidate(`proj-insights:${projectId}`)
+  projTxCache.delete(projectId)
+}
+
+async function buildProjectInsights(projectId: string): Promise<ProjectInsights | null> {
   const projRes = await pool.query(
     `SELECT id, project_name, area, latitude, longitude, min_price, starting_price
        FROM residential_projects WHERE id = $1`,
@@ -311,9 +336,10 @@ export interface ProjectTx {
 
 const titleCaseDev = (s: string) => s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
 
-// Per-project cache (1h). DLD data is a periodic snapshot, so repeat opens of the
+// Per-project cache. DLD data is a periodic snapshot, so repeat opens of the
 // same project should be instant instead of re-running the spatial resolve + scans.
-const PROJ_TX_TTL_MS = 60 * 60 * 1000
+// 7h(与 insights 一致):预热每 6h 强刷,TTL 略长保证用户永远命中。
+const PROJ_TX_TTL_MS = 7 * 60 * 60 * 1000
 const projTxCache = new Map<string, { at: number; data: ProjectTx }>()
 
 /**

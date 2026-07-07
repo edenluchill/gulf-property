@@ -12,6 +12,7 @@ import {
 } from '../types/residential-projects'
 import { isR2PdfCacheUrl } from '../services/r2-storage'
 import { requireAuth } from '../middleware/auth'
+import { invalidateProjectInsights } from '../services/projectInsights'
 
 const MONTH_NAMES: Record<string, number> = {
   january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
@@ -1174,6 +1175,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
 
       await client.query('COMMIT')
       console.log('🎉 Project updated successfully')
+      invalidateProjectInsights(id) // 价格/户型可能变了,别让详情页 insights 端 7h 旧缓存
 
       res.json({
         success: true,

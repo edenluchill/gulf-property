@@ -64,10 +64,23 @@ export function recordRequest(status: number, ms: number): void {
   if (b.lat.length < LAT_CAP) b.lat.push(ms)
 }
 
+/**
+ * Maintenance window flag — background warmers (area-insights / project-insights)
+ * intentionally run hundreds of >500ms aggregate queries every few hours. Counting
+ * those as "slow queries" fired the SLOW_QUERIES alarm ~50×/day with req=0 and
+ * drowned out real incidents. While depth > 0, queries still count into
+ * query_count but NOT into the alarm-driving slowQuery counter. Trade-off: a real
+ * user slow query during the few-minute warm window is also uncounted — acceptable
+ * vs. a permanently red alarm channel.
+ */
+let maintenanceDepth = 0
+export function beginMaintenance(): void { maintenanceDepth++ }
+export function endMaintenance(): void { if (maintenanceDepth > 0) maintenanceDepth-- }
+
 export function recordQuery(ms: number): void {
   const b = bucketFor(nowSec())
   b.query++
-  if (ms >= SLOW_QUERY_MS) b.slowQuery++
+  if (ms >= SLOW_QUERY_MS && maintenanceDepth === 0) b.slowQuery++
 }
 
 export function incConcurrency(): void {

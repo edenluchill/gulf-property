@@ -80,6 +80,12 @@ export function acceptsGzip(acceptEncoding: string | undefined): boolean {
   return /\bgzip\b/.test(acceptEncoding || '')
 }
 
+/** Directly install a value (fresh TTL). Lets warmers compute first, swap after —
+ *  the old entry keeps serving while the refresh runs, nobody waits on a cold miss. */
+export function prime<T>(key: string, data: T): void {
+  store.set(key, { at: Date.now(), data })
+}
+
 /** Drop entries. No arg → clear all. With prefix → clear keys starting with it. */
 export function invalidate(prefix?: string): void {
   if (!prefix) { store.clear(); return }

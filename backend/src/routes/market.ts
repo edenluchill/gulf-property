@@ -11,6 +11,7 @@ import pool from '../db/pool'
 import { findAreaByName } from '../services/area-matcher'
 import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
 import { DEFAULT_SEGMENT, SEGMENT_MIN_SAMPLE, parseSegment, MarketSegment } from '../lib/marketSegment'
+import { beginMaintenance, endMaintenance } from '../services/perfSink'
 
 const router = Router()
 
@@ -838,6 +839,7 @@ let warmingInsights = false
 async function warmAreaInsights() {
   if (warmingInsights) return
   warmingInsights = true
+  beginMaintenance() // 预热的慢查询不进 SLOW_QUERIES 报警(见 perfSink)
   try {
     const r = await pool.query(`SELECT id FROM dubai_areas WHERE visible = true`)
     let ok = 0
@@ -859,6 +861,7 @@ async function warmAreaInsights() {
     console.error('[market] insights warm failed:', e)
   } finally {
     warmingInsights = false
+    endMaintenance()
   }
 }
 setTimeout(warmAreaInsights, 30_000)

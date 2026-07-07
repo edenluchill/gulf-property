@@ -7,6 +7,7 @@ import { VoiceAssistantButton } from './voice-assistant'
 import { useTourMode } from '../luna-tour/TourModeContext'
 import MapPage from '../pages/MapPage'
 import RoleSelectModal from './RoleSelectModal'
+import GlobalQuotaGate from './GlobalQuotaGate'
 import { isMapPath } from '../lib/isMapPath'
 import { useAppHeaderHidden } from '../hooks/useScrollChrome'
 
@@ -98,6 +99,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 登录后未选过用户类型(买家/经纪)→ 一次性选择;分享页/回调页内部自静音 */}
       {!chromeless && <RoleSelectModal />}
+
+      {/* 非地图页撞上配额 429 → 登录引导(地图页由 MapMeterGuard 处理) */}
+      {!chromeless && <GlobalQuotaGate />}
 
       {/* Footer - Hidden on mobile, visible on desktop */}
       {/* <footer className="hidden md:block bg-slate-900/50 backdrop-blur-sm border-t border-slate-800/50 text-slate-400 py-12">

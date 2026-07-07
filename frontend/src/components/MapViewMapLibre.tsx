@@ -652,8 +652,18 @@ function MapViewMapLibre({
   }, [mapLoaded, recomputeClusters])
 
   const zoomToCluster = useCallback((clusterId: number, lng: number, lat: number) => {
-    const expansionZoom = Math.min(superclusterIndex.getClusterExpansionZoom(clusterId), 18)
-    mapRef.current?.getMap()?.flyTo({ center: [lng, lat], zoom: expansionZoom, duration: 600 })
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    // cluster_id 来自渲染时的 clusterFeatures state;projects 一变 superclusterIndex
+    // 立即重建而 state 要等 recompute,旧 id 查新索引 supercluster 会直接 throw
+    // ("No cluster with the specified id")。摔回「往里放大两级」,体验等价。
+    let expansionZoom: number
+    try {
+      expansionZoom = Math.min(superclusterIndex.getClusterExpansionZoom(clusterId), 18)
+    } catch {
+      expansionZoom = Math.min(map.getZoom() + 2, 18)
+    }
+    map.flyTo({ center: [lng, lat], zoom: expansionZoom, duration: 600 })
   }, [superclusterIndex])
 
   // Warm the browser HTTP cache with the satellite tiles for the NEXT 1-2 zoom
@@ -1341,40 +1351,49 @@ function MapViewMapLibre({
                 // ⭐ 两个项目挨得近时不缩成数字气泡——仍显示两个带主图+项目名的
                 // pin（合伙人要求），只在像素上把重叠的推开一点，双方都可点。
                 if (f.properties.point_count === 2) {
-                  const leaves = superclusterIndex.getLeaves(f.properties.cluster_id, 2)
-                  const map = mapRef.current?.getMap()
-                  let offsets: [number, number][] = [[0, 0], [0, 0]]
-                  if (map && leaves.length === 2) {
-                    const c0 = leaves[0].geometry.coordinates as [number, number]
-                    const c1 = leaves[1].geometry.coordinates as [number, number]
-                    const p0 = map.project(c0)
-                    const p1 = map.project(c1)
-                    const dx = p1.x - p0.x
-                    const dy = p1.y - p0.y
-                    const dist = Math.hypot(dx, dy)
-                    const MIN_SEP = 52 // 泪滴宽46px，留一点缝
-                    if (dist < MIN_SEP) {
-                      const ux = dist > 1 ? dx / dist : 1
-                      const uy = dist > 1 ? dy / dist : 0
-                      const push = (MIN_SEP - dist) / 2
-                      offsets = [
-                        [-ux * push, -uy * push],
-                        [ux * push, uy * push],
-                      ]
+                  // clusterFeatures(state,moveEnd 才刷新)可能还指着上一个索引的
+                  // cluster_id —— projects 一变 superclusterIndex 同帧重建,旧 id 查询
+                  // 会 throw 崩掉整棵树(生产 render_crash "No cluster with the
+                  // specified id")。stale 就先渲染普通气泡,下一帧 recompute 自愈。
+                  let leaves: ReturnType<typeof superclusterIndex.getLeaves> = []
+                  try {
+                    leaves = superclusterIndex.getLeaves(f.properties.cluster_id, 2)
+                  } catch { /* stale cluster id — fall through to the bubble below */ }
+                  if (leaves.length === 2) {
+                    const map = mapRef.current?.getMap()
+                    let offsets: [number, number][] = [[0, 0], [0, 0]]
+                    if (map) {
+                      const c0 = leaves[0].geometry.coordinates as [number, number]
+                      const c1 = leaves[1].geometry.coordinates as [number, number]
+                      const p0 = map.project(c0)
+                      const p1 = map.project(c1)
+                      const dx = p1.x - p0.x
+                      const dy = p1.y - p0.y
+                      const dist = Math.hypot(dx, dy)
+                      const MIN_SEP = 52 // 泪滴宽46px，留一点缝
+                      if (dist < MIN_SEP) {
+                        const ux = dist > 1 ? dx / dist : 1
+                        const uy = dist > 1 ? dy / dist : 0
+                        const push = (MIN_SEP - dist) / 2
+                        offsets = [
+                          [-ux * push, -uy * push],
+                          [ux * push, uy * push],
+                        ]
+                      }
                     }
+                    return leaves.map((leaf, i) => {
+                      const project = leaf.properties.project as MapPinProject
+                      return (
+                        <ProjectPinMarker
+                          key={project.id}
+                          project={project}
+                          onClick={onProjectClick}
+                          flashing={flashProjectIds?.includes(project.id)}
+                          pixelOffset={offsets[i]}
+                        />
+                      )
+                    })
                   }
-                  return leaves.map((leaf, i) => {
-                    const project = leaf.properties.project as MapPinProject
-                    return (
-                      <ProjectPinMarker
-                        key={project.id}
-                        project={project}
-                        onClick={onProjectClick}
-                        flashing={flashProjectIds?.includes(project.id)}
-                        pixelOffset={offsets[i]}
-                      />
-                    )
-                  })
                 }
                 return [(
                   <ClusterBubble

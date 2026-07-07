@@ -212,7 +212,8 @@ const server = app.listen(PORT, async () => {
   await taskManager.recoverInterruptedTasks()
 
   // Start perf monitor (60s rollups into perf_minute + threshold alerting).
-  startPerfFlusher()
+  // PERF_FLUSHER_DISABLED=1 → 本地开发起服务连生产库时不覆写线上 perf_minute/报警。
+  if (process.env.PERF_FLUSHER_DISABLED !== '1') startPerfFlusher()
 })
 
 // Extend timeouts for large file uploads (10 minutes)
