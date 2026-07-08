@@ -47,6 +47,7 @@ import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
 import { formatMoneyCompact } from '../lib/money'
 import { isMapPath } from '../lib/isMapPath'
+import { parseCameraParam, serializeCameraParam } from '../lib/map/cameraUrl'
 import MapMeterGuard, { readMapResumeView } from '../components/MapMeterGuard'
 import {
   fetchResidentialMapPins,
@@ -897,6 +898,15 @@ export default function MapPage() {
     if (v) setFlyToLocation({ lat: v.latitude, lng: v.longitude, zoom: v.zoom })
   }, [])
 
+  // 相机深链恢复:App 首挂载时解析一次 ?v=(地图非受控,只喂 initialViewState)。
+  // ref 而非 state:值终生不变,不参与任何渲染更新。登录回跳的 resume flyTo
+  // (上面)在地图加载后才触发,天然覆盖深链视角,优先级正确。
+  const initialCameraRef = useRef(
+    isMapPath(window.location.pathname, window.location.search)
+      ? parseCameraParam(window.location.search)
+      : null
+  )
+
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
 
@@ -1123,6 +1133,20 @@ export default function MapPage() {
 
   const handleMapBoundsChange = useCallback((bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, _zoom: number) => {
     setMapBounds(bounds)
+  }, [])
+
+  // ── 相机深链(?v=zoom_lat_lng[_pitch_bearing]) ───────────────────────────
+  // 相机停稳(150ms debounce,MapViewMapLibre 内)后把视角写进 URL,任何地图
+  // 视角可直接复制分享。走 history.replaceState:不经 React Router,零重渲染
+  // 零导航;只在纯地图路由('/'、'/map')写——/v/ /t/ 分享链接和 ?toursession
+  // 的 URL 是会话链接,不能被相机参数污染。
+  const handleCameraIdle = useCallback((cam: { lng: number; lat: number; zoom: number; pitch: number; bearing: number }) => {
+    const { pathname, search, hash } = window.location
+    if (pathname !== '/' && pathname !== '/map') return
+    const params = new URLSearchParams(search)
+    if (params.has('toursession')) return
+    params.set('v', serializeCameraParam(cam))
+    window.history.replaceState(window.history.state, '', `${pathname}?${params.toString()}${hash}`)
   }, [])
 
   const handleRefreshMetadata = useCallback(async () => {
@@ -1355,6 +1379,10 @@ export default function MapPage() {
             // No bounds-driven re-fetch during a tour: the cinematic camera moves
             // constantly; reacting to it would re-render the whole map each frame.
             onBoundsChange={tourCode ? undefined : handleMapBoundsChange}
+            // 相机深链:停稳才写 URL(150ms debounce 同拍),tour 时相机每帧都
+            // 在动且 URL 是会话链接,禁写。
+            onCameraIdle={tourCode ? undefined : handleCameraIdle}
+            initialView={initialCameraRef.current ?? undefined}
             onReady={() => setMapReady(true)}
             onProjectClick={handleProjectClick}
             onAreaClick={handleAreaClick}

@@ -145,6 +145,11 @@ interface MapViewMapLibreProps {
    *  so tapping to draw/place a mark doesn't ALSO open a POI/area/project panel
    *  (and so dismissing a panel doesn't re-select the feature underneath). */
   disableFeatureClicks?: boolean
+  /** 相机深链:URL ?v= 解析出的初始相机(只在首挂载生效,地图非受控)。 */
+  initialView?: { longitude: number; latitude: number; zoom: number; pitch?: number; bearing?: number }
+  /** 相机停稳后回调一次(与 onBoundsChange 同一个 150ms debounce,不新增高频
+   *  路径)。MapPage 用它把相机写进 URL(history.replaceState,零重渲染)。 */
+  onCameraIdle?: (cam: { lng: number; lat: number; zoom: number; pitch: number; bearing: number }) => void
 }
 
 function MapViewMapLibre({
@@ -174,7 +179,9 @@ function MapViewMapLibre({
   chromeless = false,
   tourActive = false,
   visible = true,
-  disableFeatureClicks = false
+  disableFeatureClicks = false,
+  initialView,
+  onCameraIdle
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   const mapRef = useRef<MapRef>(null)
@@ -355,8 +362,9 @@ function MapViewMapLibre({
   // 铁律「高频相机值禁入 React state」)。单个小合成层元素的 transform 写入
   // 零 layout 零 React 重渲染,2D/3D 通用。
   const compassNeedleRef = useRef<HTMLSpanElement>(null)
-  const [pitched, setPitched] = useState(false)
-  const pitchedRef = useRef(false)
+  // 深链恢复的相机自带俯角时,3D 按钮状态要对得上(否则显示"3D"实际已倾斜)
+  const [pitched, setPitched] = useState(() => (initialView?.pitch ?? 0) >= 30)
+  const pitchedRef = useRef((initialView?.pitch ?? 0) >= 30)
   const toggle3D = () => {
     const map = mapRef.current?.getMap()
     if (!map) return
@@ -729,6 +737,11 @@ function MapViewMapLibre({
     if (mapLoaded) schedulePrefetch()
   }, [mapLoaded, schedulePrefetch])
 
+  // ref-held so 换了个 onCameraIdle 回调不用重建 handleMoveEnd(与
+  // onMeasureChangeRef 同款范式)
+  const onCameraIdleRef = useRef(onCameraIdle)
+  onCameraIdleRef.current = onCameraIdle
+
   const handleMoveEnd = useCallback(() => {
     // The cinematic tour drives the camera via jumpTo EVERY FRAME, and jumpTo
     // fires `moveend` each time — so without this guard the supercluster recompute
@@ -745,9 +758,17 @@ function MapViewMapLibre({
     boundsTimeoutRef.current = setTimeout(() => {
       recomputeClusters()
       schedulePrefetch()
-      if (!onBoundsChange) return
       const map = mapRef.current?.getMap()
       if (!map) return
+      // 相机停稳快照(深链写 URL 用):与 bounds 同一节拍,每次手势最多一次
+      if (onCameraIdleRef.current) {
+        const c = map.getCenter()
+        onCameraIdleRef.current({
+          lng: c.lng, lat: c.lat, zoom: map.getZoom(),
+          pitch: map.getPitch(), bearing: map.getBearing(),
+        })
+      }
+      if (!onBoundsChange) return
       const bounds = map.getBounds()
       onBoundsChange({
         minLat: bounds.getSouth(),
@@ -1015,7 +1036,7 @@ function MapViewMapLibre({
       )}
       <Map
         ref={mapRef}
-        initialViewState={INITIAL_VIEW}
+        initialViewState={initialView ?? INITIAL_VIEW}
         onMoveEnd={handleMoveEnd}
         onLoad={handleMapLoad}
         attributionControl={false}

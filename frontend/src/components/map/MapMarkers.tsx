@@ -19,10 +19,16 @@ export const ProjectPinMarker = memo(({ project, onClick, flashing, pixelOffset 
   /** 两个项目几乎重叠时由父层算好的推开位移(px)，让两个 pin 都露出来 */
   pixelOffset?: [number, number]
 }) => {
+  const { i18n } = useTranslation()
   const [isHovered, setIsHovered] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const isSoldOut = project.status === 'sold-out'
+  // 起价直接标在 pin 名下(竞品对比结论:名字+价格双行,不点开就能比价)。
+  // 售罄盘不显示起价(有 SOLD 角标,"起价"语义已失效)。纯静态 DOM,
+  // 不引入任何 hover/相机高频路径,符合地图 perf 铁律。
+  const lang = i18n.language || 'en'
+  const showPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
 
   const handleMouseEnter = useCallback(() => setIsHovered(true), [])
   const handleMouseLeave = useCallback(() => setIsHovered(false), [])
@@ -54,7 +60,8 @@ export const ProjectPinMarker = memo(({ project, onClick, flashing, pixelOffset 
         }}
       >
         {/* 项目名常显——合伙人要求 pin 上直接看到项目名（不再 hover 才出现）。
-            绝对定位在泪滴下方，不参与布局，pin 尖端仍精确落在坐标上。 */}
+            绝对定位在泪滴下方，不参与布局，pin 尖端仍精确落在坐标上。
+            第二行 = 起价（有价才显示），中文「≥120万」/英文「From 1.2M」。 */}
         <div
           style={{
             position: 'absolute',
@@ -62,22 +69,57 @@ export const ProjectPinMarker = memo(({ project, onClick, flashing, pixelOffset 
             left: '50%',
             transform: 'translateX(-50%)',
             marginTop: '1px',
-            padding: '1px 7px',
-            borderRadius: 999,
+            padding: showPrice ? '2px 8px 3px' : '1px 7px',
+            borderRadius: showPrice ? 10 : 999,
             background: 'rgba(255,255,255,0.9)',
-            fontSize: '10.5px',
-            fontWeight: 700,
-            color: '#1e293b',
-            whiteSpace: 'nowrap',
             maxWidth: '140px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
             boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-            lineHeight: '15px',
             pointerEvents: 'none',
+            textAlign: 'center',
           }}
         >
-          {project.name}
+          <div
+            style={{
+              fontSize: '10.5px',
+              fontWeight: 700,
+              color: '#1e293b',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              lineHeight: '15px',
+            }}
+          >
+            {project.name}
+          </div>
+          {showPrice && (
+            <div
+              style={{
+                fontSize: '10px',
+                fontWeight: 800,
+                color: '#0d9488',
+                whiteSpace: 'nowrap',
+                lineHeight: '13px',
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'center',
+                gap: '2px',
+              }}
+            >
+              {lang.startsWith('zh') ? (
+                <>
+                  <span style={{ fontWeight: 600 }}>≥</span>
+                  <DirhamSymbol size="0.75em" />
+                  <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontWeight: 600 }}>From</span>
+                  <DirhamSymbol size="0.75em" />
+                  <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Teardrop pin with image */}
