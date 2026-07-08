@@ -102,7 +102,10 @@ export default function MobileNav() {
               ? isAdminActive
               : isAnalysisTrigger
                 ? isAnalysisActive
-                : (location.pathname === path || (path === '/profile' && location.pathname.startsWith('/profile')))
+                : (location.pathname === path ||
+                   (path === '/profile' && location.pathname.startsWith('/profile')) ||
+                   // 经纪台各子 tab(/agent/clients 等)也点亮「经纪台」
+                   (path === '/agent' && location.pathname.startsWith('/agent')))
 
             if (isTrigger) {
               return (

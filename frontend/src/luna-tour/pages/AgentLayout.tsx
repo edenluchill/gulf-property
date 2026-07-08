@@ -1,13 +1,14 @@
 /**
- * Luna Tour — agent dashboard shell (route: /agent/*).
+ * Luna Tour — agent console gate (route: /agent/*).
  *
- * Left sidebar tabs + an <Outlet/> for the active tab. GATED server-side by
- * approval: login (Supabase magic-link) → /api/agents/me → only 'approved'
- * (or the owner) reaches the console; 'pending'/'rejected' see a status screen.
+ * 2026-07-07 起经纪台归入「个人中心」外壳(pages/profile/ProfileShell):
+ * 侧栏 tab / 滚动容器 / 未登录门都由 shell 提供,这里只剩审批门 ——
+ * /api/agents/me → 'approved'(或 owner)放行 <Outlet/>,
+ * 'pending'/'rejected' 显示状态卡 + 自助开通入口。
  */
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router-dom'
-import { Loader2, LogIn, Clock, ShieldX, ArrowRight } from 'lucide-react'
+import { Outlet } from 'react-router-dom'
+import { Loader2, Clock, ShieldX, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 import { setMyRole } from '../../lib/billingApi'
@@ -31,60 +32,16 @@ function GoPlansButton() {
   )
 }
 
-const NAV = [
-  { to: '/agent', end: true, label: '概览', icon: '📊' },
-  { to: '/agent/clients', end: false, label: '客户', icon: '👥' },
-  { to: '/agent/tour', end: false, label: '生成导览', icon: '🎬' },
-  { to: '/agent/report', end: false, label: '快速提案', icon: '📄' },
-  { to: '/agent/billing', end: false, label: '订阅', icon: '💳' },
-]
-
-/** Signed-in identity in the sidebar. Unauthenticated users never reach the
- *  sidebar (LoginGate intercepts), so the old inline email form here was dead
- *  code — login is unified on /login (Google + 邮箱验证码), see LoginGate. */
-function AgentAuthBox() {
-  const { user, signOut } = useAuth()
-  if (!user) {
-    return (
-      <div className="mt-4 px-2 text-xs">
-        <Link to="/login?returnTo=%2Fagent" className="text-emerald-600 hover:underline">登录账户 →</Link>
-      </div>
-    )
-  }
-  return (
-    <div className="mt-4 px-2 text-xs">
-      <div className="text-slate-500 truncate" title={user.email || ''}>✅ {user.email}</div>
-      <button onClick={() => signOut()} className="mt-1 text-slate-400 hover:text-slate-600 hover:underline">退出登录</button>
-    </div>
-  )
-}
-
-/** Centered status card for the gate states (login / pending / rejected). */
+/** Centered status card for the gate states (pending / rejected). */
 function GateCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
+    <div className="flex justify-center py-16">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50">{icon}</div>
         <h2 className="text-lg font-bold text-slate-900">{title}</h2>
         <div className="mt-2 text-sm text-slate-500">{children}</div>
       </div>
     </div>
-  )
-}
-
-/** 未登录门:不再内嵌邮箱表单(曾与 /login 重复、且没有 Google 登录)——
- *  统一跳 /login,带 returnTo 登录后直接回经纪台。 */
-function LoginGate() {
-  return (
-    <GateCard icon={<LogIn className="h-6 w-6 text-emerald-600" />} title="经纪登录">
-      <p className="mb-4">登录后即可申请使用经纪台,支持 Google 一键登录或邮箱验证码。</p>
-      <Link
-        to="/login?returnTo=%2Fagent"
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
-      >
-        前往登录 <ArrowRight className="h-4 w-4" />
-      </Link>
-    </GateCard>
   )
 }
 
@@ -115,87 +72,28 @@ export default function AgentLayout() {
     return () => { stale = true }
   }, [user, loading])
 
+  // 未登录由 ProfileShell 的登录门拦截,这里只处理登录后的审批状态。
   if (loading || (user && status === 'loading')) {
-    return <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
+    return <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
   }
-  if (!user) return <LoginGate />
   if (status === 'pending') {
     return (
       <GateCard icon={<Clock className="h-6 w-6 text-amber-500" />} title="申请已提交">
         <p>你的经纪账号正在审核中。不想等?选择套餐即可立即开通全部经纪功能。</p>
         <GoPlansButton />
-        <div className="mt-3 text-xs text-slate-400">{user.email}</div>
+        {user && <div className="mt-3 text-xs text-slate-400">{user.email}</div>}
         <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
       </GateCard>
     )
   }
-  if (status === 'rejected') {
+  if (status !== 'approved') {
     return (
       <GateCard icon={<ShieldX className="h-6 w-6 text-rose-500" />} title="暂未开通">
         <p>当前账号还没有经纪台使用权限。选择套餐即可立即开通,或联系我们了解详情。</p>
         <GoPlansButton />
-        <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
       </GateCard>
     )
   }
-  if (status !== 'approved') return <LoginGate />
 
-  return (
-    // own scroll container (Layout's <main> is overflow-hidden); overflow-y-scroll
-    // always reserves the scrollbar gutter so content width never shifts between tabs.
-    <div className="flex-1 overflow-y-scroll">
-      <div className="max-w-6xl mx-auto p-4 md:p-6">
-      <div className="flex gap-6">
-        {/* sidebar */}
-        <aside className="w-48 shrink-0 hidden md:block">
-          <div className="sticky top-6">
-            <div className="px-2 mb-4">
-              <div className="font-bold text-lg">Luna 经纪台</div>
-              <div className="text-xs text-slate-400">demo 经纪账户</div>
-            </div>
-            <nav className="space-y-1">
-              {NAV.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  end={n.end}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      isActive ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
-                    }`
-                  }
-                >
-                  <span>{n.icon}</span>
-                  <span>{n.label}</span>
-                </NavLink>
-              ))}
-            </nav>
-            <AgentAuthBox />
-          </div>
-        </aside>
-
-        {/* mobile tabs */}
-        <div className="md:hidden fixed top-16 left-0 right-0 z-10 bg-white border-b flex">
-          {NAV.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.end}
-              className={({ isActive }) =>
-                `flex-1 text-center py-2 text-sm font-medium ${isActive ? 'text-emerald-700 border-b-2 border-emerald-500' : 'text-slate-500'}`
-              }
-            >
-              {n.icon} {n.label}
-            </NavLink>
-          ))}
-        </div>
-
-        {/* content */}
-        <main className="flex-1 min-w-0 md:pt-0 pt-12">
-          <Outlet />
-        </main>
-      </div>
-      </div>
-    </div>
-  )
+  return <Outlet />
 }

@@ -21,7 +21,8 @@ import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import ComparePage from './pages/ComparePage'
-import ProfilePage from './pages/ProfilePage'
+import ProfileShell from './pages/profile/ProfileShell'  // 个人中心外壳(/profile + /agent/* 共用侧栏)
+import ProfileHome from './pages/profile/ProfileHome'  // 个人资料 tab
 import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
@@ -97,13 +98,18 @@ function App() {
         <Route path="/cr/:code" element={<ClientReportPage />} />
         {/* Full-screen visual storyboard editor */}
         <Route path="/agent/tour/:id/edit" element={<TourEditor />} />
-        {/* Agent hub — sidebar tabs + nested routes (gated to agent accounts) */}
-        <Route path="/agent" element={<AgentLayout />}>
-          <Route index element={<AgentOverview />} />
-          <Route path="clients" element={<AgentClients />} />
-          <Route path="tour" element={<AgentTours />} />
-          <Route path="report" element={<AgentReport />} />
-          <Route path="billing" element={<AgentBilling />} />
+        {/* 个人中心(统一外壳:左侧栏 = 个人资料 + 经纪台各 tab)。
+            /profile 与 /agent/* 共用 ProfileShell,URL 不变(深链/Stripe 回跳照旧);
+            经纪台审批门(AgentLayout)只包 /agent 子路由。 */}
+        <Route element={<ProfileShell />}>
+          <Route path="/profile" element={<ProfileHome />} />
+          <Route path="/agent" element={<AgentLayout />}>
+            <Route index element={<AgentOverview />} />
+            <Route path="clients" element={<AgentClients />} />
+            <Route path="tour" element={<AgentTours />} />
+            <Route path="report" element={<AgentReport />} />
+            <Route path="billing" element={<AgentBilling />} />
+          </Route>
         </Route>
         {/* Become-an-agent onboarding (no sidebar; flips the account to agent) */}
         <Route path="/agent/join" element={<AgentJoin />} />
@@ -137,7 +143,6 @@ function App() {
         <Route path="/langgraph/test" element={<LangGraphTestPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
         <Route
           path="/admin/dubai"
           element={
