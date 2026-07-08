@@ -28,34 +28,35 @@ await page.waitForTimeout(800)
 // ── hover tooltip:找一个没卡的项目圆点,悬停出名字 ──
 const pins = (await (await fetch('http://127.0.0.1:3000/api/residential-projects/map-pins')).json()).data
 const shown = await page.evaluate(() => [...document.querySelectorAll('.maplibregl-marker')].map(m => m.textContent || ''))
-// 找「当前视口内且没有卡片」的圆点(jumpTo居中会让它自动得卡,tooltip就被正确抑制)
-const hidden = await page.evaluate((pins) => {
+// 找「视口内、没卡片、裸露」的圆点们;逐个悬停(带微移重试),任一出提示即 PASS
+const candidates = await page.evaluate((pins) => {
   const m = window.__map, r = m.getCanvas().getBoundingClientRect()
   const texts = [...document.querySelectorAll('.maplibregl-marker')].map(x => x.textContent || '')
+  const out = []
   for (const p of pins) {
     if (texts.some(t => t.includes(p.name.slice(0, 10)))) continue
     const pt = m.project([p.lng, p.lat])
     if (pt.x > 60 && pt.x < r.width - 60 && pt.y > 120 && pt.y < r.height - 60) {
-      // 圆点必须裸露(没被别的卡片/地标 DOM 压住),否则鼠标事件到不了画布
       const el = document.elementFromPoint(r.left + pt.x, r.top + pt.y)
-      if (el && el.tagName === 'CANVAS')
-        return { name: p.name, x: r.left + pt.x, y: r.top + pt.y }
+      if (el && el.tagName === 'CANVAS') out.push({ name: p.name, x: r.left + pt.x, y: r.top + pt.y })
     }
   }
-  return null
+  return out
 }, pins)
-if (hidden) {
-  const pt = { x: hidden.x, y: hidden.y }
-  await page.mouse.move(pt.x, pt.y)
-  await page.waitForTimeout(400)
-  const tipText = await page.evaluate(() => {
-    const tips = [...document.querySelectorAll('div')].filter(d => d.style.willChange === 'transform' && d.style.display === 'block')
-    return tips.map(t => t.textContent).join('|')
-  })
-  check('悬停圆点出名字提示', tipText.includes(hidden.name.slice(0, 8)), `tip="${tipText}" expect~"${hidden.name}"`)
-} else {
-  check('存在被隐藏的项目(供tooltip测试)', false)
+let tipHit = ''
+for (const c of candidates.slice(0, 4)) {
+  for (const [dx, dy] of [[0, 0], [1, 1], [-1, 0]]) {
+    await page.mouse.move(c.x + dx, c.y + dy)
+    await page.waitForTimeout(250)
+    const tip = await page.evaluate(() => {
+      const tips = [...document.querySelectorAll('div')].filter(d => d.style.willChange === 'transform' && d.style.display === 'block')
+      return tips.map(t => t.textContent).join('|')
+    })
+    if (tip.includes(c.name.slice(0, 8))) { tipHit = `${c.name} → "${tip}"`; break }
+  }
+  if (tipHit) break
 }
+check('悬停圆点出名字提示', !!tipHit, tipHit || `candidates=${candidates.length} none tipped`)
 
 // ── UI禁区:所有可见卡片矩形不与右上面板(x>W-270,y<230)相交 ──
 const overlaps = await page.evaluate(() => {

@@ -648,6 +648,16 @@ function MapViewMapLibre({
   // 点圆点弹出的卡(始终强制显示,优先级最高);点空白地图清除
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
+  // 小屏(<768):自动卡走紧凑版(无照片,盒子小一半→一屏放得下 6-8 张),
+  // 选中卡仍是完整版。响应式跟随窗口变化(旋转/分屏)。
+  const [narrowScreen, setNarrowScreen] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setNarrowScreen(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // 屏幕空间贪心碰撞:优先 选中卡 > Luna正在讲的 > 起价高的(贵盘更值得展示),
   // 放得下就摆,挤了就藏。只在相机停稳后跑(和 bounds 同一个 debounce),
   // 每次手势最多一次,16~几百个项目都只是常数个 map.project 调用。
@@ -658,9 +668,11 @@ function MapViewMapLibre({
     if (!map) return
     const canvas = map.getCanvas()
     const W = canvas.clientWidth, H = canvas.clientHeight
-    const CARD_W = 196, CARD_H = 78 // 含尾巴+卡间距的占位盒
     const isNarrow = W < 768
-    const MAX_CARDS = isNarrow ? 8 : 14 // 小屏卡片少给几张,别糊满
+    // 占位盒:小屏自动卡=紧凑版(124px 药丸),选中卡永远完整版
+    const boxFor = (isSelected: boolean) =>
+      isNarrow && !isSelected ? { w: 138, h: 56 } : { w: 196, h: 78 }
+    const MAX_CARDS = isNarrow ? 12 : 14
     // UI 禁区:右上指标控制卡 + 其下的底图/3D/测距工具卡(都是浮在地图上的
     // DOM 面板)。卡片钻到面板底下显示一半很难看——把这两块矩形当成已占用。
     // 面板尺寸改了要跟着调(粗略矩形即可,宁大勿小)。
@@ -684,9 +696,10 @@ function MapViewMapLibre({
     for (const p of sorted) {
       if (ids.length >= MAX_CARDS) break
       const pt = map.project([p.lng, p.lat])
-      // 卡片锚在圆点上方:x±CARD_W/2,y-10-CARD_H ~ y-10
-      const rect = { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
       const isSelected = p.id === selectedProjectId
+      // 卡片锚在圆点上方:x±w/2,y-10-h ~ y-10
+      const { w: CARD_W, h: CARD_H } = boxFor(isSelected)
+      const rect = { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
       // 整卡放不进视口(贴边会被裁一半)就只留圆点;选中卡例外(用户点的,
       // 哪怕贴边也要给看)。
       const inView = rect.x0 >= 4 && rect.x1 <= W - 4 && rect.y0 >= 4 && rect.y1 <= H - 4
@@ -1478,6 +1491,8 @@ function MapViewMapLibre({
                   onClick={onProjectClick}
                   flashing={flashProjectIds?.includes(id)}
                   selected={id === selectedProjectId}
+                  // 小屏自动卡走紧凑版;选中卡(点了圆点)永远完整版带照片
+                  compact={narrowScreen && id !== selectedProjectId}
                 />
               )
             })}
