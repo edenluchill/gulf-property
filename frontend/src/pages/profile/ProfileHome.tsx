@@ -155,15 +155,18 @@ export default function ProfileHome() {
           to="/favorites"
         />
 
-        {badge ? (
-          <ActionCard
-            icon={<CreditCard className="h-5 w-5 text-emerald-600" />}
-            tint="bg-emerald-50"
-            title={L('订阅与套餐', 'Subscription & plan')}
-            desc={L('管理套餐、发票与付款方式', 'Manage plan, invoices and payment method')}
-            to="/agent/billing"
-          />
-        ) : (
+        {/* 订阅与套餐:通用入口(未订阅看到的是升级选项) */}
+        <ActionCard
+          icon={<CreditCard className="h-5 w-5 text-emerald-600" />}
+          tint="bg-emerald-50"
+          title={L('订阅与套餐', 'Subscription & plan')}
+          desc={badge
+            ? L('管理套餐、发票与付款方式', 'Manage plan, invoices and payment method')
+            : L('查看套餐与升级选项', 'View plans and upgrade options')}
+          to="/agent/billing"
+        />
+
+        {!badge && (
           <ActionCard
             icon={<ArrowLeftRight className="h-5 w-5 text-slate-600" />}
             tint="bg-slate-100"

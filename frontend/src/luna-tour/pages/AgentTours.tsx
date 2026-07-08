@@ -361,7 +361,7 @@ export default function AgentTours() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-1">生成导览</h1>
+      <h1 className="text-2xl font-bold mb-1">AI 导览</h1>
       <p className="text-sm text-slate-500 mb-6">填客户信息 → 搜索或 AI 匹配楼盘 → 一键生成（分享码 / 标题自动生成）</p>
 
       {/* create */}

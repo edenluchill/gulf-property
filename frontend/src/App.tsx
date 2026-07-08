@@ -103,12 +103,13 @@ function App() {
             经纪台审批门(AgentLayout)只包 /agent 子路由。 */}
         <Route element={<ProfileShell />}>
           <Route path="/profile" element={<ProfileHome />} />
+          {/* 订阅与套餐是通用页(买家也能看升级选项),不进经纪审批门 */}
+          <Route path="/agent/billing" element={<AgentBilling />} />
           <Route path="/agent" element={<AgentLayout />}>
             <Route index element={<AgentOverview />} />
             <Route path="clients" element={<AgentClients />} />
             <Route path="tour" element={<AgentTours />} />
             <Route path="report" element={<AgentReport />} />
-            <Route path="billing" element={<AgentBilling />} />
           </Route>
         </Route>
         {/* Become-an-agent onboarding (no sidebar; flips the account to agent) */}

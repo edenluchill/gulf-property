@@ -59,7 +59,7 @@ export default function AgentReport() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-1 text-2xl font-bold">客户投资提案</h1>
+      <h1 className="mb-1 text-2xl font-bold">秒出提案</h1>
       <p className="mb-6 text-sm text-slate-500">填客户画像 → 生成一份用真实 DLD 数据 + 市场政策趋势的综合提案，可分享链接、可存 PDF 发给客户。</p>
 
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

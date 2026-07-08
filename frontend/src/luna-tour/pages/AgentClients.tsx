@@ -113,7 +113,7 @@ export default function AgentClients() {
         <>
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">客户</h1>
+              <h1 className="text-2xl font-bold">客户雷达</h1>
               <p className="text-sm text-slate-500">按热度排序，第一时间知道该追谁。</p>
             </div>
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white"><Plus className="h-4 w-4" />新建客户</button>

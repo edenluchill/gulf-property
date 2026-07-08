@@ -86,4 +86,28 @@ for (const [path, out] of [
 }
 await mobile.close()
 
+// 买家视角:经纪工作台上锁 + 订阅 tab 仍可见
+const buyer = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
+page = await buyer.newPage()
+await page.addInitScript((session) => {
+  localStorage.setItem('pinzos-auth', JSON.stringify(session))
+  localStorage.setItem('pinzos-lang', 'zh-CN')
+  sessionStorage.setItem('pinzos-role', 'buyer')
+}, mockSession)
+await page.route('**/api/**', (route) =>
+  route.fulfill({ json: { success: true, items: [], role: 'buyer' } }))
+await page.route('**/api/billing/me', (route) =>
+  route.fulfill({ json: {
+    success: true, approved: false,
+    plan: { id: 'explore', name: '探索', limits: {} },
+    status: 'none', current_period_end: null, teamMember: false,
+    credits: { month: 0, used: 0, balance: 0 },
+  } }))
+await page.route('**/api/agents/me', (route) => route.fulfill({ json: { status: 'none' } }))
+await page.goto(BASE + '/profile', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(3500)
+await page.screenshot({ path: 'shot-profile-buyer.png' })
+console.log('saved: shot-profile-buyer.png')
+await buyer.close()
+
 await browser.close()

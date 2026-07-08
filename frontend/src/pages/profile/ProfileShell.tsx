@@ -1,17 +1,19 @@
 /**
  * ProfileShell — 个人中心统一外壳(路由 /profile 与 /agent/* 共用的 layout route)。
  *
- * 左侧栏 = 身份卡 + 分组 tab(个人资料 / 经纪台各功能);手机端为顶部横向 tab。
+ * 左侧栏 = 身份小卡 + 通用 tab(个人资料/订阅与套餐)+「经纪工作台」独立深色模块
+ * (只有经纪能展开;非经纪显示上锁,点击去开通)。手机端为顶部横向 tab。
  * URL 方案不变:/agent/* 深链、Stripe 回跳(/agent/billing?status=success)、
  * 底部导航全部照旧 —— 只是视觉上统一归入「个人中心」一个页面。
- * 经纪台的审批门(登录/审核中/未开通)仍由 AgentLayout 在内容区处理。
+ * 经纪台的审批门(登录/审核中/未开通)仍由 AgentLayout 在内容区处理;
+ * 订阅与套餐(/agent/billing)是通用页,不在审批门内。
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Users, Clapperboard,
-  FileText, CreditCard, ArrowRight, ShieldCheck,
+  Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
+  CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -32,17 +34,21 @@ export type ProfileShellContext = { badge: RoleBadge | null }
 
 type Tab = { to: string; end?: boolean; zh: string; en: string; icon: typeof UserRound }
 
+// 通用组:所有登录用户可见(订阅页自己按套餐渲染,买家看到的是升级选项)
 const ACCOUNT_TABS: Tab[] = [
   { to: '/profile', end: true, zh: '个人资料', en: 'Profile', icon: UserRound },
-]
-
-const AGENT_TABS: Tab[] = [
-  { to: '/agent', end: true, zh: '概览', en: 'Overview', icon: LayoutDashboard },
-  { to: '/agent/clients', zh: '客户', en: 'Clients', icon: Users },
-  { to: '/agent/tour', zh: '生成导览', en: 'Tours', icon: Clapperboard },
-  { to: '/agent/report', zh: '快速提案', en: 'Proposals', icon: FileText },
   { to: '/agent/billing', zh: '订阅与套餐', en: 'Billing', icon: CreditCard },
 ]
+
+// 经纪工作台(经纪专属模块;名字要让人想点开用)
+const AGENT_TABS: Tab[] = [
+  { to: '/agent', end: true, zh: '工作台', en: 'Dashboard', icon: LayoutDashboard },
+  { to: '/agent/clients', zh: '客户雷达', en: 'Client radar', icon: Radar },
+  { to: '/agent/tour', zh: 'AI 导览', en: 'AI tours', icon: Wand2 },
+  { to: '/agent/report', zh: '秒出提案', en: 'Instant proposals', icon: Zap },
+]
+
+const AGENT_NAV_OPEN_KEY = 'pz-agent-nav-open'
 
 export default function ProfileShell() {
   const { i18n } = useTranslation()
@@ -55,6 +61,21 @@ export default function ProfileShell() {
   // 与 Header/MobileNav 同规则:agency/developer 也走经纪台
   const isAgent = !!profile?.agent || role === 'agent' || role === 'agency' || role === 'developer'
   const roleChip = role ? ROLE_CHIP[role] : null
+
+  // 当前是否在经纪工作台的功能页(订阅页除外——它是通用 tab)
+  const onAgentWorkspace = location.pathname.startsWith('/agent') && !location.pathname.startsWith('/agent/billing')
+
+  // 经纪工作台展开状态(记住上次选择;进入工作台路由时强制展开)
+  const [agentOpen, setAgentOpen] = useState(() => {
+    try { return localStorage.getItem(AGENT_NAV_OPEN_KEY) !== '0' } catch { return true }
+  })
+  useEffect(() => { if (onAgentWorkspace) setAgentOpen(true) }, [onAgentWorkspace])
+  const toggleAgentOpen = () => {
+    setAgentOpen((v) => {
+      try { localStorage.setItem(AGENT_NAV_OPEN_KEY, v ? '0' : '1') } catch { /* noop */ }
+      return !v
+    })
+  }
 
   // 认证勋章(付费订阅推导;买家/无订阅 = null)
   const [badge, setBadge] = useState<RoleBadge | null>(null)
@@ -73,8 +94,6 @@ export default function ProfileShell() {
 
   const [avatarError, setAvatarError] = useState(false)
   useEffect(() => { setAvatarError(false) }, [user?.user_metadata?.avatar_url])
-
-  const tabs: Tab[] = [...ACCOUNT_TABS, ...(isAgent ? AGENT_TABS : [])]
 
   if (loading) {
     return (
@@ -95,8 +114,8 @@ export default function ProfileShell() {
           </div>
           <h2 className="text-lg font-bold text-slate-900">{L('登录个人中心', 'Sign in')}</h2>
           <p className="mt-2 text-sm text-slate-500">
-            {L('登录后管理你的资料、收藏与经纪台。支持 Google 一键登录或邮箱验证码。',
-               'Sign in to manage your profile, favorites and agent console.')}
+            {L('登录后管理你的资料、收藏与经纪工作台。支持 Google 一键登录或邮箱验证码。',
+               'Sign in to manage your profile, favorites and agent workspace.')}
           </p>
           <Link
             to={`/login?returnTo=${returnTo}`}
@@ -117,25 +136,33 @@ export default function ProfileShell() {
       isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100/80'
     }`
 
+  // 手机端 tab 顺序:个人资料 → 工作台各功能(经纪)→ 订阅
+  const mobileTabs: Tab[] = [ACCOUNT_TABS[0], ...(isAgent ? AGENT_TABS : []), ACCOUNT_TABS[1]]
+  const isAgentTab = (tab: Tab) => AGENT_TABS.some((t) => t.to === tab.to)
+
   return (
     // 自带滚动容器(Layout 的 <main> 是 overflow-hidden);overflow-y-scroll 常驻
     // 滚动条槽位,切 tab 时内容宽度不跳。
     <div ref={scrollRef} className="flex-1 overflow-y-scroll bg-slate-50">
-      {/* 手机/pad:顶部横向 tab(sticky,下滑随导航一起收起) */}
+      {/* 手机/pad:顶部横向 tab(sticky,下滑随导航一起收起)。经纪功能 pill 用深色区分 */}
       <div
         className={`md:hidden sticky top-0 z-20 border-b border-slate-200/70 bg-slate-50/95 backdrop-blur transition-transform duration-300 ease-out ${
           secondaryHidden ? '-translate-y-full' : ''
         }`}
       >
         <div className="flex gap-1 overflow-x-auto px-3 py-2 [-webkit-overflow-scrolling:touch]">
-          {tabs.map((tab) => (
+          {mobileTabs.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               end={tab.end}
               className={({ isActive }) =>
                 `flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-                  isActive ? 'bg-teal-500 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200'
+                  isActive
+                    ? 'bg-teal-500 text-white shadow-sm'
+                    : isAgentTab(tab)
+                      ? 'bg-slate-900 text-slate-200'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200'
                 }`
               }
             >
@@ -151,99 +178,116 @@ export default function ProfileShell() {
           {/* 桌面左侧栏 */}
           <aside className="hidden w-60 shrink-0 md:block">
             <div className="sticky top-6 space-y-4">
-              {/* 身份卡 */}
-              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
-                <div className="flex items-center gap-3">
-                  {avatarUrl && !avatarError ? (
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      crossOrigin="anonymous"
-                      onError={() => setAvatarError(true)}
-                      className="h-11 w-11 rounded-full object-cover ring-2 ring-teal-500/20"
-                    />
-                  ) : (
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-500 text-base font-semibold text-white">
-                      {(user.email || 'U').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-900">{displayName}</div>
-                    <div className="truncate text-xs text-slate-500" title={user.email || ''}>{user.email}</div>
+              {/* 身份小卡(紧凑;详细信息在「个人资料」hero 里) */}
+              <div className="flex items-center gap-2.5 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.06]">
+                {avatarUrl && !avatarError ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                    onError={() => setAvatarError(true)}
+                    className="h-9 w-9 rounded-full object-cover ring-2 ring-teal-500/20"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-500 text-sm font-semibold text-white">
+                    {(user.email || 'U').charAt(0).toUpperCase()}
                   </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {isAdmin && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-[11px] font-medium text-teal-700">
-                      <ShieldCheck className="h-3 w-3" /> Admin
-                    </span>
-                  )}
-                  {roleChip && (
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${roleChip.cls}`}>
-                      <span aria-hidden>{roleChip.emoji}</span>
-                      {zh ? roleChip.zh : roleChip.en}
-                    </span>
-                  )}
-                  {badge && (
-                    <span
-                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-                      style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
-                    >
-                      <span aria-hidden>{badge.emoji}</span>
-                      {zh ? badge.titleZh : badge.titleEn}
-                    </span>
-                  )}
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-slate-900">{displayName}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                    {isAdmin && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-teal-100 px-1.5 py-px text-[10px] font-medium text-teal-700">
+                        <ShieldCheck className="h-2.5 w-2.5" /> Admin
+                      </span>
+                    )}
+                    {roleChip && (
+                      <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${roleChip.cls}`}>
+                        <span aria-hidden>{roleChip.emoji}</span>
+                        {zh ? roleChip.zh : roleChip.en}
+                      </span>
+                    )}
+                    {badge && (
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-semibold text-white"
+                        style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
+                      >
+                        <span aria-hidden>{badge.emoji}</span>
+                        {zh ? badge.titleZh : badge.titleEn}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* tab 分组 */}
-              <nav className="space-y-4">
-                <div>
-                  <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    {L('我的账户', 'Account')}
-                  </div>
-                  <div className="space-y-0.5">
-                    {ACCOUNT_TABS.map((tab) => (
-                      <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
-                        <tab.icon className="h-4 w-4" />
-                        {zh ? tab.zh : tab.en}
-                      </NavLink>
-                    ))}
-                  </div>
-                </div>
-
-                {isAgent ? (
-                  <div>
-                    <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      {L('经纪台', 'Agent console')}
-                    </div>
-                    <div className="space-y-0.5">
-                      {AGENT_TABS.map((tab) => (
-                        <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
-                          <tab.icon className="h-4 w-4" />
-                          {zh ? tab.zh : tab.en}
-                        </NavLink>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  /* 买家:升级入口(不显示经纪台 tab) */
-                  <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 p-4 ring-1 ring-amber-200/60">
-                    <div className="text-sm font-semibold text-slate-900">{L('成为经纪', 'Become an agent')}</div>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                      {L('解锁经纪台:客户管理、AI 导览、品牌提案。7 天免费试用。',
-                         'Unlock the agent console: CRM, AI tours, branded proposals. 7-day free trial.')}
-                    </p>
-                    <Link
-                      to="/choose-role"
-                      className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-95"
-                    >
-                      {L('了解详情', 'Learn more')} <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                )}
+              {/* 通用 tab(所有用户) */}
+              <nav className="space-y-0.5">
+                {ACCOUNT_TABS.map((tab) => (
+                  <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
+                    <tab.icon className="h-4 w-4" />
+                    {zh ? tab.zh : tab.en}
+                  </NavLink>
+                ))}
               </nav>
+
+              {/* 经纪工作台:独立深色模块,一眼区分"这是经纪专用" */}
+              <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-md ring-1 ring-slate-900/20">
+                {isAgent ? (
+                  <>
+                    <button
+                      onClick={toggleAgentOpen}
+                      className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-emerald-500 shadow-sm">
+                        <Briefcase className="h-4 w-4 text-white" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-white">{L('经纪工作台', 'Agent workspace')}</span>
+                        <span className="block text-[10px] font-medium uppercase tracking-wider text-teal-300/90">
+                          {L('经纪专属', 'Agents only')}
+                        </span>
+                      </span>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${agentOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {agentOpen && (
+                      <div className="space-y-0.5 px-2 pb-2.5">
+                        {AGENT_TABS.map((tab) => (
+                          <NavLink
+                            key={tab.to}
+                            to={tab.to}
+                            end={tab.end}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                isActive ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                              }`
+                            }
+                          >
+                            <tab.icon className="h-4 w-4" />
+                            {zh ? tab.zh : tab.en}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* 非经纪:上锁,点击去开通(不可展开) */
+                  <Link to="/choose-role" className="group flex w-full items-center gap-2.5 px-3.5 py-3 transition hover:bg-white/[0.04]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                      <Lock className="h-4 w-4 text-slate-300" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold text-white">{L('经纪工作台', 'Agent workspace')}</span>
+                      <span className="block truncate text-[11px] text-slate-400">
+                        {L('客户雷达 · AI 导览 · 秒出提案', 'Client radar · AI tours · Instant proposals')}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm transition group-hover:opacity-95">
+                      {L('去解锁', 'Unlock')}
+                    </span>
+                  </Link>
+                )}
+              </div>
 
               {/* 退出 */}
               <button

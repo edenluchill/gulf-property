@@ -53,7 +53,7 @@ export default function AgentOverview() {
   return (
     <div>
       <div className="mb-5">
-        <h1 className="text-2xl font-bold mb-1">经纪台</h1>
+        <h1 className="text-2xl font-bold mb-1">经纪工作台</h1>
         <p className="text-sm text-slate-500">两种带客户看房的方式 — 选一个开始</p>
       </div>
 
