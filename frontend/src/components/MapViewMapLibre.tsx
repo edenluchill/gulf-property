@@ -183,6 +183,8 @@ function MapViewMapLibre({
   onCameraIdle
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
+  // 地图自有控件的双语文案(原来中文硬编码,英文界面也显示中文——2026-07-08 修)
+  const isZhUi = (i18n.language || 'en').startsWith('zh')
   const mapRef = useRef<MapRef>(null)
 
   // Persistent map: when the container un-hides (display:none → shown), maplibre
@@ -351,6 +353,12 @@ function MapViewMapLibre({
   // 不进 React state —— 见 area-fills Layer 上的注释。
   const hoverAreaRef = useRef<string | number | null>(null)
   const boundsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 圆点 hover 名字提示:单个小 DOM 元素命令式定位/显隐(mousemove 每次只写
+  // 这一个元素的 style/text,与指北针同款范式,零 React 重渲染)。
+  const dotTipRef = useRef<HTMLDivElement>(null)
+  // 该项目的卡片已经在屏上时不出提示(名字重复)——recomputeCards 的结果
+  // 存一份 ref 供高频 mousemove 读,不订阅 state。
+  const visibleCardIdsRef = useRef<string[]>([])
 
 
   // 3D 倾斜视角：独立于底图(地图/卫星/夜景都可用)。开启后相机俯角看,
@@ -625,7 +633,7 @@ function MapViewMapLibre({
     type: 'FeatureCollection' as const,
     features: projects.map(p => ({
       type: 'Feature' as const,
-      properties: { id: p.id, soldOut: p.status === 'sold-out' ? 1 : 0 },
+      properties: { id: p.id, name: p.name, soldOut: p.status === 'sold-out' ? 1 : 0 },
       geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
     })),
   }), [projects])
@@ -651,7 +659,16 @@ function MapViewMapLibre({
     const canvas = map.getCanvas()
     const W = canvas.clientWidth, H = canvas.clientHeight
     const CARD_W = 196, CARD_H = 78 // 含尾巴+卡间距的占位盒
-    const MAX_CARDS = 14
+    const isNarrow = W < 768
+    const MAX_CARDS = isNarrow ? 8 : 14 // 小屏卡片少给几张,别糊满
+    // UI 禁区:右上指标控制卡 + 其下的底图/3D/测距工具卡(都是浮在地图上的
+    // DOM 面板)。卡片钻到面板底下显示一半很难看——把这两块矩形当成已占用。
+    // 面板尺寸改了要跟着调(粗略矩形即可,宁大勿小)。
+    const uiBlocks: { x0: number; y0: number; x1: number; y1: number }[] = [
+      { x0: W - (isNarrow ? 190 : 270), y0: 0, x1: W, y1: isNarrow ? 200 : 230 }, // 指标卡
+      { x0: W - 110, y0: isNarrow ? 200 : 230, x1: W, y1: 340 }, // 底图/3D/测距竖卡
+      { x0: 0, y0: 0, x1: isNarrow ? W : 840, y1: 56 }, // 顶部搜索+筛选行
+    ]
     const flash = new Set(flashProjectIds ?? [])
     const sorted = [...projects].sort((a, b) => {
       if (a.id === selectedProjectId) return -1
@@ -667,15 +684,22 @@ function MapViewMapLibre({
     for (const p of sorted) {
       if (ids.length >= MAX_CARDS) break
       const pt = map.project([p.lng, p.lat])
-      if (pt.x < -40 || pt.x > W + 40 || pt.y < -40 || pt.y > H + 40) continue
       // 卡片锚在圆点上方:x±CARD_W/2,y-10-CARD_H ~ y-10
       const rect = { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
+      const isSelected = p.id === selectedProjectId
+      // 整卡放不进视口(贴边会被裁一半)就只留圆点;选中卡例外(用户点的,
+      // 哪怕贴边也要给看)。
+      const inView = rect.x0 >= 4 && rect.x1 <= W - 4 && rect.y0 >= 4 && rect.y1 <= H - 4
+      if (!inView && !isSelected) continue
+      if (isSelected && (pt.x < -40 || pt.x > W + 40 || pt.y < -40 || pt.y > H + 40)) continue
       const hit = placed.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
+        || uiBlocks.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
       // 选中卡永远显示(即使和别的卡打架——别的卡是自动层,它是用户点的)
-      if (hit && p.id !== selectedProjectId) continue
+      if (hit && !isSelected) continue
       placed.push(rect)
       ids.push(p.id)
     }
+    visibleCardIdsRef.current = ids
     // 集合没变就不 setState,省一次整棵 marker 子树的 re-render
     setVisibleCardIds(prev => (prev.length === ids.length && prev.every((v, i) => v === ids[i]) ? prev : ids))
     // flashKey(字符串)代替 flashProjectIds(每次 render 新数组)进 deps,
@@ -950,36 +974,60 @@ function MapViewMapLibre({
     hoverAreaRef.current = id
   }, [])
 
+  // 圆点名字提示的显隐(命令式,不进 React)
+  const setDotTip = useCallback((name: string | null, x?: number, y?: number) => {
+    const el = dotTipRef.current
+    if (!el) return
+    if (!name) { el.style.display = 'none'; return }
+    el.textContent = name
+    el.style.display = 'block'
+    el.style.transform = `translate(${Math.round(x! - 0)}px, ${Math.round(y! - 34)}px) translateX(-50%)`
+  }, [])
+
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const map = mapRef.current?.getMap()
     if (!map) return
     // 拖动/缩放中不做 hover:地图在光标下滑动时区域边界会连续穿过光标,
     // 高亮闪烁没意义还白做功
-    if (map.isMoving()) return
+    if (map.isMoving()) { setDotTip(null); return }
 
     if (e.features?.length) {
       const layerId = e.features[0].layer?.id
       // Change cursor for clickable layers
       map.getCanvas().style.cursor = 'pointer'
 
-      if (layerId === 'area-fills') {
-        // 数字 feature.id(见 areasGeoJson 注释),uuid 在 properties.id
-        setAreaHover(map, e.features[0].id ?? null)
+      if (layerId === 'project-dots') {
+        // 悬停圆点出项目名(该项目卡片已在屏上就不重复出)
+        const props = e.features[0].properties || {}
+        const pid = String(props.id ?? '')
+        if (pid && !visibleCardIdsRef.current.includes(pid)) {
+          setDotTip(String(props.name ?? ''), e.point.x, e.point.y)
+        } else {
+          setDotTip(null)
+        }
+      } else {
+        setDotTip(null)
+        if (layerId === 'area-fills') {
+          // 数字 feature.id(见 areasGeoJson 注释),uuid 在 properties.id
+          setAreaHover(map, e.features[0].id ?? null)
+        }
       }
     } else {
       // 空命中只复位光标,不清高亮:重绘瞬间 hit-test 会偶发 miss,光标扫过
       // 区域间隙也会空命中——立即清除等于高亮闪烁。高亮保持到 hover 下一个
       // 区域(setAreaHover 自动清上一个)或移出地图(handleMouseLeave)。
       map.getCanvas().style.cursor = ''
+      setDotTip(null)
     }
-  }, [setAreaHover])
+  }, [setAreaHover, setDotTip])
 
   const handleMouseLeave = useCallback(() => {
     const map = mapRef.current?.getMap()
     if (!map) return
     map.getCanvas().style.cursor = ''
     setAreaHover(map, null)
-  }, [setAreaHover])
+    setDotTip(null)
+  }, [setAreaHover, setDotTip])
 
   const handleMapClick = useCallback((e: MapLayerMouseEvent) => {
     // 测距模式：每次点击落一个点，不触发区域/POI 选择
@@ -1053,7 +1101,13 @@ function MapViewMapLibre({
   }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks])
 
   return (
-    <div className={`h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
+    <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
+      {/* 圆点 hover 名字提示(命令式定位,坐标 = e.point 相对地图容器) */}
+      <div
+        ref={dotTipRef}
+        className="pointer-events-none absolute left-0 top-0 z-[900] whitespace-nowrap rounded-full bg-slate-900/85 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg ring-1 ring-white/15 backdrop-blur-sm"
+        style={{ display: 'none', willChange: 'transform' }}
+      />
       {/* While a markup tool is active, DOM markers (projects/clusters/landmarks)
           must not eat the pointer — otherwise a tap over a pin opens its panel
           instead of drawing, and you can't draw over a pin. GL-layer features
@@ -1552,7 +1606,7 @@ function MapViewMapLibre({
             aria-label="切换底图"
           >
             <Globe size={14} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
-            {baseMap === 'vector' ? '地图' : baseMap === 'satellite' ? '卫星' : '夜景'}
+            {baseMap === 'vector' ? (isZhUi ? '地图' : 'Map') : baseMap === 'satellite' ? (isZhUi ? '卫星' : 'Satellite') : (isZhUi ? '夜景' : 'Dark')}
           </button>
           <button
             type="button"
@@ -1563,7 +1617,7 @@ function MapViewMapLibre({
             aria-label="切换 3D 倾斜视角"
           >
             <Box size={14} className={pitched ? 'text-white' : 'text-slate-500'} />
-            {pitched ? '平视' : '3D'}
+            {pitched ? (isZhUi ? '平视' : '2D') : '3D'}
           </button>
           <button
             type="button"
@@ -1574,7 +1628,7 @@ function MapViewMapLibre({
             aria-label="测距工具"
           >
             <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
-            {measureMode ? '退出' : '测距'}
+            {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
           </button>
         </div>
       </div>
@@ -1616,10 +1670,10 @@ function MapViewMapLibre({
         <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
           <span className="font-medium text-slate-700">
             {measurePoints.length === 0
-              ? '点地图设中心点'
+              ? (isZhUi ? '点地图设中心点' : 'Tap map to set center')
               : measurePoints.length === 1
-                ? '已设中心 · 点击添加地点'
-                : `中心 + ${measureSpokeKms.length} 个地点`}
+                ? (isZhUi ? '已设中心 · 点击添加地点' : 'Center set · tap to add places')
+                : (isZhUi ? `中心 + ${measureSpokeKms.length} 个地点` : `Center + ${measureSpokeKms.length} places`)}
           </span>
           {measurePoints.length > 0 && (
             <button
@@ -1627,7 +1681,7 @@ function MapViewMapLibre({
               onClick={() => setMeasurePoints([])}
               className="font-semibold text-blue-600"
             >
-              清除
+              {isZhUi ? '清除' : 'Clear'}
             </button>
           )}
         </div>

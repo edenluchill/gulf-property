@@ -26,6 +26,8 @@ interface Props {
   filters: PropertyFilters
   setFilters: (updater: (f: PropertyFilters) => PropertyFilters) => void
   developers: string[]
+  /** 付款结构档位(如 "80/20"),由 MapPage 从 pins 去重而来;空数组则不显示该筛选 */
+  paymentPlans?: string[]
 }
 
 type PriceKey = 'price0' | 'price1' | 'price2' | 'price3' | 'price4' | 'price5' | 'price6'
@@ -61,7 +63,7 @@ const HANDOVER_OPTS: { year: number | null; plus?: boolean }[] = [
   { year: HANDOVER_BASE + 5, plus: true },
 ]
 
-export default function MapFilterChips({ filters, setFilters, developers }: Props) {
+export default function MapFilterChips({ filters, setFilters, developers, paymentPlans = [] }: Props) {
   const { t } = useTranslation('filter')
   const [open, setOpen] = useState<string | null>(null)   // 桌面 popover
   const [sheet, setSheet] = useState(false)                // 移动端抽屉
@@ -96,6 +98,7 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
     return s ? statusText(s.key) : null
   })()
   const devLabel = filters.developer || null
+  const payLabel = filters.paymentPlan || null
   // 交房年份当前选中态:从 completionDateStart/End 反推。具体年两端都设,「及以后」仅 start。
   const handoverLabel = (() => {
     const s = filters.completionDateStart
@@ -110,13 +113,14 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
     if (plus) return s === `${year}-01-01` && !e
     return s === `${year}-01-01` && e === `${year}-12-31`
   }
-  const activeCount = [priceLabel, bedLabel, statusLabel, devLabel, handoverLabel].filter(Boolean).length
+  const activeCount = [priceLabel, bedLabel, statusLabel, devLabel, handoverLabel, payLabel].filter(Boolean).length
   const anyActive = activeCount > 0
 
   const clearAll = () => setFilters(f => ({
     ...f, minPrice: undefined, maxPrice: undefined,
     minBedrooms: undefined, status: undefined, developer: undefined,
     completionDateStart: undefined, completionDateEnd: undefined,
+    paymentPlan: undefined,
   }))
 
   // ---- 筛选 = 主应用真正的"搜索"。下面四个 handler 既改 filter 又埋点,
@@ -136,6 +140,10 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
   const applyDeveloper = (d: string) => {
     setFilters(f => ({ ...f, developer: d }))
     trackEvent('search', { query: d, kind: 'developer' })
+  }
+  const applyPayment = (label: string | undefined) => {
+    setFilters(f => ({ ...f, paymentPlan: label }))
+    if (label) trackEvent('search', { query: label, kind: 'payment' })
   }
   const applyHandover = (year: number | null, plus?: boolean) => {
     if (year === null) {
@@ -266,6 +274,23 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
             </Pop>
           )}
         </div>
+        {paymentPlans.length > 0 && (
+          <div className="relative shrink-0">
+            <Chip id="payment" base={t('chips.payment')} active={payLabel} />
+            {open === 'payment' && (
+              <Pop>
+                <Opt sel={!filters.paymentPlan} on={() => applyPayment(undefined)}>
+                  {t('chips.any')}
+                </Opt>
+                {paymentPlans.map(p => (
+                  <Opt key={p} sel={filters.paymentPlan === p} on={() => applyPayment(p)}>
+                    {p}
+                  </Opt>
+                ))}
+              </Pop>
+            )}
+          </div>
+        )}
         <div className="relative shrink-0">
           <Chip id="dev" base={t('chips.developer')} active={devLabel} />
           {open === 'dev' && (
@@ -376,6 +401,21 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
                   ))}
                 </div>
               </Section>
+
+              {paymentPlans.length > 0 && (
+                <Section icon={Wallet} title={t('chips.payment')} hint={t('chips.paymentHint')}>
+                  <div className="flex flex-wrap gap-2">
+                    <SheetRow label={t('chips.any')} isDefault
+                      sel={!filters.paymentPlan}
+                      on={() => applyPayment(undefined)} />
+                    {paymentPlans.map(p => (
+                      <SheetRow key={p} label={p}
+                        sel={filters.paymentPlan === p}
+                        on={() => applyPayment(p)} />
+                    ))}
+                  </div>
+                </Section>
+              )}
 
               <Section icon={Building2} title={t('chips.developer')}
                 hint={filters.developer ? t('chips.selected', { name: filters.developer }) : undefined}>

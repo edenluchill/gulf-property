@@ -94,6 +94,8 @@
     "refresh": "Refresh filter data",
     "tagArea": "Area",
     "tagDeveloper": "Developer",
-    "tagProject": "Project"
+    "tagProject": "Project",
+    "payment": "Payment",
+    "paymentHint": "construction / handover split"
   }
 }

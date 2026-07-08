@@ -354,6 +354,8 @@ export interface MapPinProject {
   lng: number
   image: string | null
   completionDate: string | null
+  /** 付款结构档位 "建设期/交付"(如 "80/20"),后端从 payment_plan 推导;无数据为 null */
+  paymentPlan?: string | null
 }
 
 /**

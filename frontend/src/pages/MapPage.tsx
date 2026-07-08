@@ -1088,6 +1088,13 @@ export default function MapPage() {
   }, []) // Load once on mount
 
   // Filter map pins based on current filters
+  // 付款结构档位选项:从 pins 去重(如 80/20、50/50),按建设期占比降序
+  const paymentPlanOptions = useMemo(() => {
+    const set = new Set<string>()
+    mapPins.forEach(p => { if (p.paymentPlan) set.add(p.paymentPlan) })
+    return [...set].sort((a, b) => parseInt(b) - parseInt(a))
+  }, [mapPins])
+
   const filteredMapPins = useMemo(() => {
     if (!mapPins.length) return []
 
@@ -1108,6 +1115,9 @@ export default function MapPage() {
 
       // Status filter
       if (filters.status && pin.status !== filters.status) return false
+
+      // 付款结构档位("80/20" 建设期/交付,后端从 payment_plan 推导)
+      if (filters.paymentPlan && pin.paymentPlan !== filters.paymentPlan) return false
 
       // Completion / handover date filter (交房年份) — also powers FilterDialog's date range pickers.
       // completionDateStart/End are YYYY-MM-DD; compare against the pin's completion date (date part only).
@@ -1525,6 +1535,7 @@ export default function MapPage() {
               filters={filters}
               setFilters={setFilters}
               developers={developers}
+              paymentPlans={paymentPlanOptions}
             />
           </div>
           )}

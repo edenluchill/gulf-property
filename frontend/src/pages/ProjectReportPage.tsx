@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, BadgeCheck, TrendingUp, Building2, MapPin, Loader2, Info } from 'lucide-react'
+import { Phone, MessageCircle, BadgeCheck, TrendingUp, Building2, MapPin, Loader2, Info, Printer } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
 import DirhamSymbol from '../components/DirhamSymbol'
 import { trackEvent } from '../lib/track'
@@ -8,7 +8,7 @@ import { trackEvent } from '../lib/track'
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 interface ReportData {
-  report: { title: string | null; unitType?: string | null; unitPrice?: number | null }
+  report: { title: string | null }
   agent: { name: string; photo: string | null; phone: string | null; whatsapp: string | null; brand: any }
   project: any
   insights: any
@@ -41,9 +41,6 @@ export default function ProjectReportPage() {
 
   const { agent, project, insights, transactions, supply } = d
   const inv = insights?.investment
-  // 后端字段是 purchase_price/reference_price(经纪选了户型价则已按其重算)
-  const buy: number | null = inv ? (inv.purchase_price ?? inv.reference_price ?? null) : null
-  const unitType = d.report?.unitType || null
   const area = insights?.area
   const sales = transactions?.sales || []
   const wa = agent.whatsapp || agent.phone
@@ -53,10 +50,29 @@ export default function ProjectReportPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-slate-900">
+      {/* 导出 PDF = 浏览器打印(与报价单 /pp/:code 同范式):隐藏交互件、
+          分块不跨页断、保留配色。经纪拿它当项目 brochure 发客户。 */}
+      <style>{`
+        @media print {
+          html, body { height: auto !important; overflow: visible !important }
+          #root, #root div { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important }
+          .rp-no-print { display: none !important }
+          .rp-avoid { break-inside: avoid }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact }
+        }
+        @page { margin: 12mm }
+      `}</style>
       {/* Hero */}
       <div className="relative h-52 w-full overflow-hidden bg-slate-800 sm:h-64">
         {project.primary_image && <img src={project.primary_image} alt={project.project_name} className="h-full w-full object-cover" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+        <button
+          type="button"
+          onClick={() => { trackEvent('report_action', { action: 'pdf_export', code }); window.print() }}
+          className="rp-no-print absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-lg backdrop-blur hover:bg-white"
+        >
+          <Printer className="h-3.5 w-3.5" /> 保存 PDF
+        </button>
         <div className="absolute bottom-0 left-0 right-0 mx-auto max-w-xl px-5 pb-4 text-white">
           <div className="flex items-center gap-1.5 text-xs opacity-90"><MapPin className="h-3.5 w-3.5" />{project.area || '迪拜'}</div>
           <h1 className="mt-0.5 text-2xl font-bold leading-tight sm:text-3xl">{project.project_name}</h1>
@@ -86,7 +102,7 @@ export default function ProjectReportPage() {
         <Section>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <Stat label="起售价" value={<D v={project.starting_price || project.min_price} />} />
-            <Stat label="户型" value={unitType || (project.min_bedrooms != null ? `${project.min_bedrooms}${project.max_bedrooms && project.max_bedrooms !== project.min_bedrooms ? `–${project.max_bedrooms}` : ''} 居` : '—')} />
+            <Stat label="户型" value={project.min_bedrooms != null ? `${project.min_bedrooms}${project.max_bedrooms && project.max_bedrooms !== project.min_bedrooms ? `–${project.max_bedrooms}` : ''} 居` : '—'} />
             <Stat label="区域均价/㎡" value={area?.median_price_sqm != null ? <D v={area.median_price_sqm} /> : '—'} />
             <Stat label="租金回报" value={area?.rental_yield_pct != null ? <span className="text-emerald-600">{Number(area.rental_yield_pct).toFixed(1)}%</span> : '—'} />
           </div>
@@ -98,7 +114,7 @@ export default function ProjectReportPage() {
             {/* Headline */}
             <div className="mb-3 flex items-end justify-between gap-3 rounded-xl bg-teal-50 px-4 py-3">
               <div>
-                <div className="text-[11px] text-teal-700/70">投入 <DirhamSymbol size="0.7em" />{M(buy)}{unitType ? `(${unitType})` : ''},5 年预计总回报</div>
+                <div className="text-[11px] text-teal-700/70">投入 <DirhamSymbol size="0.7em" />{M(inv.buy)},5 年预计总回报</div>
                 <div className="text-2xl font-extrabold text-teal-700"><DirhamSymbol size="0.7em" className="text-teal-500" />{M(inv.total_profit_5yr)}</div>
               </div>
               <div className="text-right">
@@ -108,13 +124,12 @@ export default function ProjectReportPage() {
             </div>
 
             {/* How it's made — money flow bar */}
-            {buy != null && <FlowBar buy={buy} appr={inv.appreciation_5yr} rent={inv.rental_income_5yr} fmt={M} />}
+            <FlowBar buy={inv.buy} appr={inv.appreciation_5yr} rent={inv.rental_income_5yr} fmt={M} />
 
             {/* Evidence */}
             <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
               <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
               <span>
-                {unitType ? <>测算标的：{unitType}。</> : null}
                 测算依据：{project.area || '该区域'} 近 12 个月真实 DLD 成交
                 {sales.length ? `（${sales.length}+ 笔可比）` : ''} —— 租金回报 {area?.rental_yield_pct != null ? `${Number(area.rental_yield_pct).toFixed(1)}%` : '—'}、
                 年增长 {area?.price_growth_pct != null ? `${Number(area.price_growth_pct).toFixed(1)}%` : '—'}。
@@ -179,7 +194,7 @@ export default function ProjectReportPage() {
 
       {/* Sticky contact */}
       {wa && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
+        <div className="rp-no-print fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
           <a href={contactHref} className="mx-auto flex max-w-xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white shadow-sm hover:bg-teal-600">
             {agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}咨询 {agent.name} 了解更多
           </a>
@@ -248,7 +263,7 @@ function TrendChart({ months, price }: { months: string[]; price: (number | null
 
 function Section({ title, icon, badge, children }: { title?: string; icon?: React.ReactNode; badge?: string; children: React.ReactNode }) {
   return (
-    <div className="mt-3.5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.04]">
+    <div className="rp-avoid mt-3.5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.04]">
       {title && (
         <div className="mb-3 flex items-center gap-2">
           {icon}<h3 className="text-sm font-bold text-slate-800">{title}</h3>

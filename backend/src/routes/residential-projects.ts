@@ -120,6 +120,36 @@ function transformPaymentPlanToJson(paymentPlan: any[] | undefined): any[] {
   })
 }
 
+// 从 payment_plan milestones 推导付款结构标签「建设期/交付」(如 "80/20"、"50/50")。
+// 交付里程碑按名字识别(handover/completion/交房…),没识别到就把最后一期当交付;
+// 百分比总和不在 95~105 的脏数据(楼书解析不全)不出标签。取 5 的倍数对齐
+// 常见档位,供地图筛选用。
+function derivePaymentSplit(plan: unknown): string | null {
+  if (!Array.isArray(plan) || plan.length === 0) return null
+  let total = 0
+  let handover = 0
+  let matched = false
+  for (const m of plan) {
+    const pct = Number((m as { percentage?: unknown })?.percentage)
+    if (!isFinite(pct) || pct <= 0) continue
+    total += pct
+    const name = String((m as { milestone?: unknown })?.milestone ?? '').toLowerCase()
+    if (/handover|completion|possession|交房|交付|完工|完成/.test(name)) {
+      handover += pct
+      matched = true
+    }
+  }
+  if (total < 95 || total > 105) return null
+  if (!matched) {
+    const withPct = (plan as { percentage?: unknown }[]).filter(m => isFinite(Number(m?.percentage)) && Number(m?.percentage) > 0)
+    const last = withPct[withPct.length - 1]
+    if (!last) return null
+    handover = Number(last.percentage)
+  }
+  const h = Math.min(95, Math.max(5, Math.round((handover / total) * 100 / 5) * 5))
+  return `${100 - h}/${h}`
+}
+
 export function createResidentialProjectsRouter(pool: Pool): Router {
   const router = Router()
 
@@ -145,6 +175,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           latitude,
           longitude,
           completion_date,
+          payment_plan,
           COALESCE(primary_image, project_images[1]) as first_image
         FROM residential_projects
         WHERE verified = true
@@ -167,7 +198,8 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           lat: row.latitude,
           lng: row.longitude,
           image: row.first_image || null,
-          completionDate: row.completion_date || null
+          completionDate: row.completion_date || null,
+          paymentPlan: derivePaymentSplit(row.payment_plan)
         }))
       })
     } catch (error) {

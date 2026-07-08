@@ -120,6 +120,8 @@ export interface PropertyFilters {
   maxCompletionPercent?: number
   status?: 'upcoming' | 'under-construction' | 'completed' | 'handed-over'
   amenities?: string[]
+  /** 付款结构档位筛选,如 "80/20"(建设期/交付),来自 map-pins 的 paymentPlan */
+  paymentPlan?: string
   
   // Search
   searchQuery?: string

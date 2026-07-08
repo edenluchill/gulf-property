@@ -94,6 +94,8 @@
     "refresh": "刷新筛选数据",
     "tagArea": "区域",
     "tagDeveloper": "开发商",
-    "tagProject": "项目"
+    "tagProject": "项目",
+    "payment": "付款",
+    "paymentHint": "建设期 / 交付比例"
   }
 }
