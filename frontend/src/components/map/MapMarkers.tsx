@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, memo } from 'react'
+import { useState, memo } from 'react'
 import { Marker } from 'react-map-gl/maplibre'
 import { Building2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -9,308 +9,138 @@ import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../DirhamSymbol'
 
 // ============================================================================
-// Project Pin Marker - Premium teardrop style with thumbnail
+// Project Card Marker — ARO 式双层模型的「信息层」。
+// 真值层 = MapViewMapLibre 里的 GL 圆点(所有项目永不消失);这张照片卡只在
+// 屏幕空间放得下时显示(父层做碰撞检测),点圆点必弹本卡,点本卡进详情。
+// 深色玻璃底 + 缩略图 + 项目名 + 起价,下缘小尾巴指向圆点。
 // ============================================================================
 
-export const ProjectPinMarker = memo(({ project, onClick, flashing, pixelOffset }: {
+export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }: {
   project: MapPinProject
   onClick?: (p: MapPinProject) => void
   flashing?: boolean
-  /** 两个项目几乎重叠时由父层算好的推开位移(px)，让两个 pin 都露出来 */
-  pixelOffset?: [number, number]
+  /** 点圆点弹出的那张卡:抬高层级并加高亮描边,和自动展示的卡区分 */
+  selected?: boolean
 }) => {
   const { i18n } = useTranslation()
-  const [isHovered, setIsHovered] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const isSoldOut = project.status === 'sold-out'
-  // 起价直接标在 pin 名下(竞品对比结论:名字+价格双行,不点开就能比价)。
-  // 售罄盘不显示起价(有 SOLD 角标,"起价"语义已失效)。纯静态 DOM,
-  // 不引入任何 hover/相机高频路径,符合地图 perf 铁律。
   const lang = i18n.language || 'en'
-  const showPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
-
-  const handleMouseEnter = useCallback(() => setIsHovered(true), [])
-  const handleMouseLeave = useCallback(() => setIsHovered(false), [])
+  const isZh = lang.startsWith('zh')
+  const isSoldOut = project.status === 'sold-out'
+  const hasPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
 
   return (
     <Marker
       longitude={project.lng}
       latitude={project.lat}
       anchor="bottom"
-      offset={pixelOffset}
-      // hover 时把整个 marker 容器抬到最上层——悬浮卡是 marker 的子元素，
-      // 不抬容器的话会被 DOM 顺序靠后的其他 pin 压住（客户反馈）
-      style={{ zIndex: isHovered ? 300 : 2 }}
+      // 卡片底部(尾巴尖)落在项目坐标上方一点,给 GL 圆点留出位置
+      offset={[0, -10]}
+      style={{ zIndex: selected ? 300 : flashing ? 200 : 4 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(project)
       }}
     >
       <div
-        ref={containerRef}
-        className="cursor-pointer transition-all duration-200 hover:scale-110 hover:z-[100]"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.25))',
-        }}
+        className="group cursor-pointer transition-transform duration-150 hover:scale-[1.04]"
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
-        {/* 项目名常显——合伙人要求 pin 上直接看到项目名（不再 hover 才出现）。
-            绝对定位在泪滴下方，不参与布局，pin 尖端仍精确落在坐标上。
-            第二行 = 起价（有价才显示），中文「≥120万」/英文「From 1.2M」。 */}
+        {/* Luna 正在讲这个项目时的呼吸环 */}
+        {flashing && (
+          <span
+            className="animate-ping"
+            style={{
+              position: 'absolute', inset: '4px',
+              borderRadius: 14,
+              background: 'rgba(16,185,129,0.35)',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
         <div
+          className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.4)] backdrop-blur-[6px]"
           style={{
-            position: 'absolute',
-            top: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            marginTop: '1px',
-            padding: showPrice ? '2px 8px 3px' : '1px 7px',
-            borderRadius: showPrice ? 10 : 999,
-            background: 'rgba(255,255,255,0.9)',
-            maxWidth: '140px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-            pointerEvents: 'none',
-            textAlign: 'center',
+            background: 'rgba(15,23,42,0.80)',
+            border: selected ? '1.5px solid #2DD4BF' : '1px solid rgba(255,255,255,0.14)',
           }}
         >
+          {/* 缩略图 */}
           <div
             style={{
-              fontSize: '10.5px',
-              fontWeight: 700,
-              color: '#1e293b',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              lineHeight: '15px',
-            }}
-          >
-            {project.name}
-          </div>
-          {showPrice && (
-            <div
-              style={{
-                fontSize: '10px',
-                fontWeight: 800,
-                color: '#0d9488',
-                whiteSpace: 'nowrap',
-                lineHeight: '13px',
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'center',
-                gap: '2px',
-              }}
-            >
-              {lang.startsWith('zh') ? (
-                <>
-                  <span style={{ fontWeight: 600 }}>≥</span>
-                  <DirhamSymbol size="0.75em" />
-                  <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
-                </>
-              ) : (
-                <>
-                  <span style={{ fontWeight: 600 }}>From</span>
-                  <DirhamSymbol size="0.75em" />
-                  <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Teardrop pin with image */}
-        <div
-          style={{
-            position: 'relative',
-            width: '46px',
-            height: '58px',
-          }}
-        >
-          {/* Flash ring — pulses when Luna is talking about THIS project, so the
-              customer can see on the map which one she means. */}
-          {flashing && (
-            <span
-              className="animate-ping"
-              style={{
-                position: 'absolute',
-                top: '1px',
-                left: '4px',
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                background: 'rgba(16,185,129,0.55)',
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-          {/* Teardrop shape SVG background - premium dark gradient */}
-          <svg
-            viewBox="0 0 46 58"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-            }}
-          >
-            <defs>
-              <linearGradient id={`pinGrad-${project.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#1e293b" />
-                <stop offset="50%" stopColor="#334155" />
-                <stop offset="100%" stopColor="#1e293b" />
-              </linearGradient>
-            </defs>
-            {/* Teardrop path */}
-            <path
-              d="M23 0C10.3 0 0 10.3 0 23c0 8.5 6.5 17 13 23.5 3.5 3.5 7 7 10 11.5 3-4.5 6.5-8 10-11.5 6.5-6.5 13-15 13-23.5C46 10.3 35.7 0 23 0z"
-              fill={`url(#pinGrad-${project.id})`}
-              stroke="rgba(255,255,255,0.3)"
-              strokeWidth="1.5"
-            />
-            {/* Inner highlight */}
-            <path
-              d="M23 3C12 3 3 12 3 23c0 7 5.5 14.5 11 20"
-              fill="none"
-              stroke="rgba(255,255,255,0.15)"
-              strokeWidth="1"
-              strokeLinecap="round"
-            />
-          </svg>
-
-          {/* Circular image inside teardrop */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '7px',
-              left: '7px',
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              border: '2px solid rgba(255,255,255,0.8)',
-              background: '#1e293b',
+              width: 44, height: 44, borderRadius: 9, overflow: 'hidden',
+              flexShrink: 0, background: '#1e293b',
             }}
           >
             {project.image ? (
               <img
                 src={getImageUrl(project.image, 'thumbnail')}
                 alt={project.name}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 loading="lazy"
               />
             ) : (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
-                }}
-              >
-                <Building2 style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.7)' }} />
+              <div style={{
+                width: '100%', height: '100%', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+              }}>
+                <Building2 style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.65)' }} />
               </div>
             )}
           </div>
-
-          {/* Sold Out badge - small red circle at top-right */}
-          {isSoldOut && (
+          {/* 名称 + 起价 */}
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
-                position: 'absolute',
-                top: '2px',
-                right: '-2px',
-                background: '#dc2626',
-                color: '#fff',
-                fontSize: '7px',
-                fontWeight: 700,
-                padding: '2px 4px',
-                borderRadius: '4px',
-                border: '1.5px solid #fff',
-                lineHeight: 1,
-                letterSpacing: '0.02em',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                fontSize: 12, fontWeight: 700, color: '#fff',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                maxWidth: 118, lineHeight: '16px',
               }}
             >
-              SOLD
+              {project.name}
             </div>
-          )}
+            {isSoldOut ? (
+              <div style={{
+                fontSize: 10, fontWeight: 800, color: '#f87171',
+                lineHeight: '14px', letterSpacing: '0.03em',
+              }}>
+                {isZh ? '已售罄' : 'SOLD OUT'}
+              </div>
+            ) : hasPrice ? (
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: 3,
+                fontSize: 11.5, fontWeight: 800, color: '#2DD4BF', lineHeight: '15px',
+              }}>
+                <span style={{ fontWeight: 600, fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>
+                  {isZh ? '起' : 'From'}
+                </span>
+                <DirhamSymbol size="0.8em" />
+                <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.5)', lineHeight: '14px' }}>
+                {isZh ? '价格待定' : 'Price TBA'}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </Marker>
-  )
-})
-
-// ============================================================================
-// Cluster Bubble - round count badge for grouped project pins (supercluster).
-// Click zooms in to split the group apart so every pin becomes reachable.
-// ============================================================================
-
-export const ClusterBubble = memo(({ count, minPrice, maxPrice, lng, lat, onClick }: {
-  count: number; minPrice: number | null; maxPrice: number | null; lng: number; lat: number; onClick: () => void
-}) => {
-  const { i18n } = useTranslation()
-  const lang = i18n.language || 'en'
-  const isZh = lang.startsWith('zh')
-  // Count circle grows a touch with group size.
-  const circle = count >= 100 ? 30 : count >= 25 ? 27 : count >= 10 ? 25 : 22
-  const hasPrice = minPrice != null && isFinite(minPrice) && minPrice > 0
-  // Show a real range when min/max meaningfully differ; else a single figure.
-  const hasRange = hasPrice && maxPrice != null && isFinite(maxPrice) && maxPrice > minPrice! * 1.02
-  return (
-    <Marker longitude={lng} latitude={lat} anchor="center" style={{ zIndex: 3 }}
-      onClick={(e) => { e.originalEvent.stopPropagation(); onClick() }}>
-      <div
-        className="group flex cursor-pointer select-none items-center gap-1.5 rounded-full py-[3px] pl-[3px] pr-3 shadow-[0_6px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/10 transition-transform hover:scale-105"
-        style={{ background: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(6px)' }}
-      >
-        {/* count badge — solid brand teal, the part the user said is fine */}
-        <span
-          className="flex items-center justify-center rounded-full font-bold leading-none text-white"
+        {/* 指向圆点的小尾巴 */}
+        <div
           style={{
-            width: circle, height: circle,
-            background: 'linear-gradient(135deg, #00E0B8 0%, #0d9488 100%)',
-            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4)',
-            fontSize: count >= 100 ? 12.5 : 12,
-            color: '#06302b',
+            width: 10, height: 10, marginTop: -5,
+            background: 'rgba(15,23,42,0.80)',
+            borderRight: '1px solid rgba(255,255,255,0.14)',
+            borderBottom: '1px solid rgba(255,255,255,0.14)',
+            transform: 'rotate(45deg)',
           }}
-        >
-          {count}
-        </span>
-        {/* price range — or N/A when the group has no priced project */}
-        <span className="flex items-baseline gap-0.5 whitespace-nowrap leading-none text-white">
-          {hasPrice ? (
-            <>
-              <DirhamSymbol size="0.78em" className="text-[#00E0B8]" />
-              <span className="text-[12px] font-bold tracking-tight">{formatMoneyCompact(minPrice!, lang)}</span>
-              {hasRange && (
-                <>
-                  <span className="mx-[3px] text-[12px] font-semibold text-slate-400">~</span>
-                  <span className="text-[12px] font-bold tracking-tight">{formatMoneyCompact(maxPrice!, lang)}</span>
-                </>
-              )}
-            </>
-          ) : (
-            <span className="text-[11px] font-medium text-slate-300">{isZh ? '暂无报价' : 'N/A'}</span>
-          )}
-        </span>
+        />
       </div>
     </Marker>
   )
 })
 
 // ============================================================================
-// Landmark Marker - 3D 扣图建筑立在地图上（与项目 teardrop pin 明确区分）
+// Landmark Marker - 3D 扣图建筑立在地图上（与项目卡片明确区分）
 // ============================================================================
 
 // 本地扣图资源：frontend/public/landmarks/<slug>.png（透明背景 3D 微缩建筑）。
@@ -330,8 +160,8 @@ export const LandmarkMarker = memo(({ landmark, onClick }: {
   const isXl = landmark.size === 'xlarge'
   const cutoutH = isXl ? 132 : landmark.size === 'large' ? 64 : landmark.size === 'small' ? 42 : 52
   const pinSize = isXl ? 64 : landmark.size === 'large' ? 48 : landmark.size === 'small' ? 32 : 40
-  // xlarge 是城市天际线主地标(哈利法塔)：抬到其它地标(zIndex 1)和项目 pin(zIndex 2)
-  // 之上,保证它永远不被旁边的图标/标签盖住。仍在悬浮卡(300)之下。
+  // xlarge 是城市天际线主地标(哈利法塔)：抬到其它地标(zIndex 1)和项目卡(zIndex 4)
+  // 之上,保证它永远不被旁边的图标/标签盖住。仍在选中卡(300)之下。
   const zIndex = isXl ? 5 : 1
 
   const langKey = i18n.language?.split('-')[0]
@@ -342,8 +172,8 @@ export const LandmarkMarker = memo(({ landmark, onClick }: {
       longitude={landmark.location.lng}
       latitude={landmark.location.lat}
       anchor="bottom"
-      // 普通地标垫在项目 pin（zIndex 2）和悬浮卡（300）下面；xlarge 主地标(哈利法塔)
-      // 抬高到最上(zIndex 5)以免被旁边图标/标签盖住。
+      // 普通地标垫在项目卡（zIndex 4）和选中卡（300）下面；xlarge 主地标(哈利法塔)
+      // 抬高到 5 以免被旁边图标/标签盖住。
       style={{ zIndex }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()

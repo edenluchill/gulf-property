@@ -8,7 +8,6 @@ import Map, {
   Layer,
   MapRef
 } from 'react-map-gl/maplibre'
-import Supercluster from 'supercluster'
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +22,7 @@ import {
   formatMetricValue, getMetricRawValue, calculatePercentiles, getHeatmapColor
 } from '../lib/map/metrics'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
-import { ProjectPinMarker, ClusterBubble, LandmarkMarker } from './map/MapMarkers'
+import { ProjectCardMarker, LandmarkMarker } from './map/MapMarkers'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
 import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
@@ -617,62 +616,76 @@ function MapViewMapLibre({
     }
   }, [mapLoaded, tourActive, dubaiLandmarks, i18n.language])
 
-  // ─── Project pin clustering (supercluster) ────────────────────────────────
-  // Group overlapping project pins into a count bubble so the back pins stay
-  // reachable; clicking a bubble zooms in to split them apart. Recomputed only
-  // when the camera settles (moveEnd) — markers are geo-anchored so they pan
-  // correctly without per-frame work.
-  const superclusterIndex = useMemo(() => {
-    // Aggregate the price RANGE across each cluster so the bubble shows
-    // "min–max" (minPrice=Infinity / maxPrice=0 = no priced project in the group).
-    const idx = new Supercluster<{ project: MapPinProject }, { minPrice: number; maxPrice: number }>({
-      radius: 56, maxZoom: 16,
-      map: (props) => ({
-        minPrice: props.project?.minPrice ?? Infinity,
-        maxPrice: props.project?.maxPrice ?? props.project?.minPrice ?? 0,
-      }),
-      reduce: (acc, props) => {
-        if (props.minPrice < acc.minPrice) acc.minPrice = props.minPrice
-        if (props.maxPrice > acc.maxPrice) acc.maxPrice = props.maxPrice
-      },
-    })
-    idx.load(projects.map(p => ({
+  // ─── 项目双层展示(ARO 式) ─────────────────────────────────────────────
+  // 真值层:GL 圆点,所有项目任何缩放级别永不消失(WebGL circle layer,零 DOM
+  // 零 React,平移缩放随 GL 帧走,天然丝滑)。在售=品牌青,售罄=灰。
+  // 信息层:照片卡片(ProjectCardMarker),屏幕空间放得下才显示(下方碰撞检测,
+  // moveEnd 150ms debounce 时算一次),点圆点必弹卡,点卡进详情。
+  const projectDotsGeoJson = useMemo(() => ({
+    type: 'FeatureCollection' as const,
+    features: projects.map(p => ({
       type: 'Feature' as const,
-      properties: { project: p },
+      properties: { id: p.id, soldOut: p.status === 'sold-out' ? 1 : 0 },
       geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-    })))
-    return idx
+    })),
+  }), [projects])
+
+  // 注意:react-map-gl 的 <Map> 组件遮蔽了内置 Map,这里用 globalThis.Map
+  const projectById = useMemo(() => {
+    const m = new globalThis.Map<string, MapPinProject>()
+    projects.forEach(p => m.set(p.id, p))
+    return m
   }, [projects])
 
-  const [clusterFeatures, setClusterFeatures] = useState<any[]>([])
-  const recomputeClusters = useCallback(() => {
+  // 点圆点弹出的卡(始终强制显示,优先级最高);点空白地图清除
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+
+  // 屏幕空间贪心碰撞:优先 选中卡 > Luna正在讲的 > 起价高的(贵盘更值得展示),
+  // 放得下就摆,挤了就藏。只在相机停稳后跑(和 bounds 同一个 debounce),
+  // 每次手势最多一次,16~几百个项目都只是常数个 map.project 调用。
+  const [visibleCardIds, setVisibleCardIds] = useState<string[]>([])
+  const flashKey = flashProjectIds?.join(',') ?? ''
+  const recomputeCards = useCallback(() => {
     const map = mapRef.current?.getMap()
     if (!map) return
-    const b = map.getBounds()
-    const zoom = Math.round(map.getZoom())
-    setClusterFeatures(
-      superclusterIndex.getClusters([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], zoom)
-    )
-  }, [superclusterIndex])
+    const canvas = map.getCanvas()
+    const W = canvas.clientWidth, H = canvas.clientHeight
+    const CARD_W = 196, CARD_H = 78 // 含尾巴+卡间距的占位盒
+    const MAX_CARDS = 14
+    const flash = new Set(flashProjectIds ?? [])
+    const sorted = [...projects].sort((a, b) => {
+      if (a.id === selectedProjectId) return -1
+      if (b.id === selectedProjectId) return 1
+      const fa = flash.has(a.id) ? 1 : 0, fb = flash.has(b.id) ? 1 : 0
+      if (fa !== fb) return fb - fa
+      const sa = a.status === 'sold-out' ? 1 : 0, sb = b.status === 'sold-out' ? 1 : 0
+      if (sa !== sb) return sa - sb // 售罄的靠后
+      return (b.minPrice ?? -1) - (a.minPrice ?? -1)
+    })
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = []
+    const ids: string[] = []
+    for (const p of sorted) {
+      if (ids.length >= MAX_CARDS) break
+      const pt = map.project([p.lng, p.lat])
+      if (pt.x < -40 || pt.x > W + 40 || pt.y < -40 || pt.y > H + 40) continue
+      // 卡片锚在圆点上方:x±CARD_W/2,y-10-CARD_H ~ y-10
+      const rect = { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
+      const hit = placed.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
+      // 选中卡永远显示(即使和别的卡打架——别的卡是自动层,它是用户点的)
+      if (hit && p.id !== selectedProjectId) continue
+      placed.push(rect)
+      ids.push(p.id)
+    }
+    // 集合没变就不 setState,省一次整棵 marker 子树的 re-render
+    setVisibleCardIds(prev => (prev.length === ids.length && prev.every((v, i) => v === ids[i]) ? prev : ids))
+    // flashKey(字符串)代替 flashProjectIds(每次 render 新数组)进 deps,
+    // 避免父层无关渲染反复重建本回调
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, selectedProjectId, flashKey])
 
   useEffect(() => {
-    if (mapLoaded) recomputeClusters()
-  }, [mapLoaded, recomputeClusters])
-
-  const zoomToCluster = useCallback((clusterId: number, lng: number, lat: number) => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    // cluster_id 来自渲染时的 clusterFeatures state;projects 一变 superclusterIndex
-    // 立即重建而 state 要等 recompute,旧 id 查新索引 supercluster 会直接 throw
-    // ("No cluster with the specified id")。摔回「往里放大两级」,体验等价。
-    let expansionZoom: number
-    try {
-      expansionZoom = Math.min(superclusterIndex.getClusterExpansionZoom(clusterId), 18)
-    } catch {
-      expansionZoom = Math.min(map.getZoom() + 2, 18)
-    }
-    map.flyTo({ center: [lng, lat], zoom: expansionZoom, duration: 600 })
-  }, [superclusterIndex])
+    if (mapLoaded && !tourActive) recomputeCards()
+  }, [mapLoaded, tourActive, recomputeCards])
 
   // Warm the browser HTTP cache with the satellite tiles for the NEXT 1-2 zoom
   // levels over the current viewport, so a subsequent zoom-in shows sharp tiles
@@ -756,7 +769,7 @@ function MapViewMapLibre({
     // (markers stay hidden until ~180ms after a gesture settles anyway).
     if (boundsTimeoutRef.current) clearTimeout(boundsTimeoutRef.current)
     boundsTimeoutRef.current = setTimeout(() => {
-      recomputeClusters()
+      recomputeCards()
       schedulePrefetch()
       const map = mapRef.current?.getMap()
       if (!map) return
@@ -777,7 +790,7 @@ function MapViewMapLibre({
         maxLng: bounds.getEast(),
       }, map.getZoom())
     }, 150)
-  }, [onBoundsChange, recomputeClusters, schedulePrefetch, tourActive])
+  }, [onBoundsChange, recomputeCards, schedulePrefetch, tourActive])
 
   // Area polygons GeoJSON - 支持热力图
   const areasGeoJson = useMemo(() => {
@@ -978,9 +991,23 @@ function MapViewMapLibre({
     // 画笔/标记工具激活时：完全吞掉要素点击，画画不误开 POI/区域/项目面板
     if (disableFeatureClicks) return
 
-    if (!e.features?.length) return
+    // 点空白地图:收起点圆点弹出的卡
+    if (!e.features?.length) {
+      setSelectedProjectId(null)
+      return
+    }
 
-    // Prioritize: POI > Station > Area
+    // Prioritize: Project dot > POI > Station > Area
+    // 项目圆点(真值层)点击 = 弹出该项目的照片卡(ARO 式:点点必有卡)
+    const dotFeature = e.features.find(f => f.layer?.id === 'project-dots')
+    if (dotFeature) {
+      const pid = dotFeature.properties?.id
+      if (pid) {
+        setSelectedProjectId(String(pid))
+        return
+      }
+    }
+
     const poiFeature = e.features.find(f => f.layer?.id === 'poi-circles')
     const stationFeature = e.features.find(f => f.layer?.id === 'transport-stations-bg')
     const areaFeature = e.features.find(f => f.layer?.id === 'area-fills')
@@ -1057,6 +1084,7 @@ function MapViewMapLibre({
             : (areaMetric === 'none' ? MAP_STYLE_LABELED : MAP_STYLE_CLEAN)
         }
         interactiveLayerIds={mapLoaded ? [
+          ...(projectDotsGeoJson.features.length ? ['project-dots'] : []),
           ...(areasGeoJson ? ['area-fills'] : []),
           ...(showTransport && transportGeoJSON ? ['transport-stations-bg'] : []),
           ...(poiGeoJson.features.length ? ['poi-circles'] : [])
@@ -1349,6 +1377,25 @@ function MapViewMapLibre({
           </Source>
         )}
 
+        {/* 项目真值层:GL 圆点,所有项目永不消失(在售=品牌青,售罄=灰)。
+            WebGL 层零 DOM,缩放平移随 GL 帧,任何手势中都稳定可见——这正是
+            「点永远都在,卡片才是 optional」的分层。点击在 handleMapClick。 */}
+        {mapLoaded && projectDotsGeoJson.features.length > 0 && (
+          <Source id="project-dots-src" type="geojson" data={projectDotsGeoJson}>
+            <Layer
+              id="project-dots"
+              type="circle"
+              paint={{
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 5.5, 16, 8],
+                'circle-color': ['case', ['==', ['get', 'soldOut'], 1], '#94a3b8', '#00E0B8'],
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1.5,
+                'circle-opacity': 0.95
+              }}
+            />
+          </Source>
+        )}
+
         {/* Landmarks 永远显示——tour 和首页必须是同一张地图（客户要求）。
             只有 ~15 个，运镜逐帧重定位它们开销可忽略，不触发 Perf rule R2。
             Clusters（可能几百个）才是会抖动 flyTo 的 marker 海，tour 时仍隐藏；
@@ -1359,79 +1406,26 @@ function MapViewMapLibre({
         {!tourActive && !mapMoving && dubaiLandmarks.map(lm => (
           <LandmarkMarker key={lm.id} landmark={lm} onClick={onLandmarkClick} />
         ))}
-        {/* Tour mode: render the 2-3 tour pins directly (no clustering). Normal
-            mode: render supercluster output — count bubbles + single pins, but
-            only while the camera is settled (mapMoving guard). */}
+        {/* 信息层:照片卡片(可选层)。tour 模式 2-3 个 tour 房源全展示;
+            普通模式只显示 recomputeCards 碰撞检测选出的那批(挤了就藏,
+            点圆点强制弹出)。手势中(mapMoving)隐藏,与地标同一规则——
+            真值层圆点是 GL 的,手势中依然全程可见,项目"点"永不丢失。 */}
         {tourActive
           ? projects.map(project => (
-              <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
+              <ProjectCardMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
             ))
-          : !mapMoving && clusterFeatures.flatMap(f => {
-              const [lng, lat] = f.geometry.coordinates
-              if (f.properties.cluster) {
-                // ⭐ 两个项目挨得近时不缩成数字气泡——仍显示两个带主图+项目名的
-                // pin（合伙人要求），只在像素上把重叠的推开一点，双方都可点。
-                if (f.properties.point_count === 2) {
-                  // clusterFeatures(state,moveEnd 才刷新)可能还指着上一个索引的
-                  // cluster_id —— projects 一变 superclusterIndex 同帧重建,旧 id 查询
-                  // 会 throw 崩掉整棵树(生产 render_crash "No cluster with the
-                  // specified id")。stale 就先渲染普通气泡,下一帧 recompute 自愈。
-                  let leaves: ReturnType<typeof superclusterIndex.getLeaves> = []
-                  try {
-                    leaves = superclusterIndex.getLeaves(f.properties.cluster_id, 2)
-                  } catch { /* stale cluster id — fall through to the bubble below */ }
-                  if (leaves.length === 2) {
-                    const map = mapRef.current?.getMap()
-                    let offsets: [number, number][] = [[0, 0], [0, 0]]
-                    if (map) {
-                      const c0 = leaves[0].geometry.coordinates as [number, number]
-                      const c1 = leaves[1].geometry.coordinates as [number, number]
-                      const p0 = map.project(c0)
-                      const p1 = map.project(c1)
-                      const dx = p1.x - p0.x
-                      const dy = p1.y - p0.y
-                      const dist = Math.hypot(dx, dy)
-                      const MIN_SEP = 52 // 泪滴宽46px，留一点缝
-                      if (dist < MIN_SEP) {
-                        const ux = dist > 1 ? dx / dist : 1
-                        const uy = dist > 1 ? dy / dist : 0
-                        const push = (MIN_SEP - dist) / 2
-                        offsets = [
-                          [-ux * push, -uy * push],
-                          [ux * push, uy * push],
-                        ]
-                      }
-                    }
-                    return leaves.map((leaf, i) => {
-                      const project = leaf.properties.project as MapPinProject
-                      return (
-                        <ProjectPinMarker
-                          key={project.id}
-                          project={project}
-                          onClick={onProjectClick}
-                          flashing={flashProjectIds?.includes(project.id)}
-                          pixelOffset={offsets[i]}
-                        />
-                      )
-                    })
-                  }
-                }
-                return [(
-                  <ClusterBubble
-                    key={`cluster-${f.properties.cluster_id}`}
-                    count={f.properties.point_count}
-                    minPrice={isFinite(f.properties.minPrice) ? f.properties.minPrice : null}
-                    maxPrice={f.properties.maxPrice > 0 ? f.properties.maxPrice : null}
-                    lng={lng}
-                    lat={lat}
-                    onClick={() => zoomToCluster(f.properties.cluster_id, lng, lat)}
-                  />
-                )]
-              }
-              const project = f.properties.project as MapPinProject
-              return [(
-                <ProjectPinMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
-              )]
+          : !mapMoving && visibleCardIds.map(id => {
+              const project = projectById.get(id)
+              if (!project) return null
+              return (
+                <ProjectCardMarker
+                  key={id}
+                  project={project}
+                  onClick={onProjectClick}
+                  flashing={flashProjectIds?.includes(id)}
+                  selected={id === selectedProjectId}
+                />
+              )
             })}
 
         {/* 测距：连线 + 顶点 */}
