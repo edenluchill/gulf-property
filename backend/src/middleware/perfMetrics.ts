@@ -57,6 +57,11 @@ export function perfMetrics(req: Request, res: Response, next: NextFunction): vo
       // 长连接不进全局延迟分位(报警口径);端点表仍记真实耗时(展示用,诚实)。
       recordRequest(res.statusCode, ms, isLongLived(req.path))
       recordEndpoint(endpointKey(req), res.statusCode, ms)
+      // 诊断埋点(2026-07-08):p95 报警多次被 70-98s 的神秘请求触发,但 morgan 里
+      // 无踪影(疑似 client-abort 只走 'close')。>10s 一律留名,让下一次自己招供。
+      if (ms > 10_000) {
+        console.log(`[perf] slow-request ${Math.round(ms)}ms ${req.method} ${String(req.originalUrl).slice(0, 140)} status=${res.statusCode} aborted=${!res.writableFinished}`)
+      }
     } catch {
       /* telemetry must never throw into the request lifecycle */
     }
