@@ -92,6 +92,17 @@ export default function ProfileShell() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const { secondaryHidden } = useScrollChrome(scrollRef, !loading)
 
+  // 手机 tab 栏:切页后把当前 tab 滚进视野(否则在订阅等靠右 tab 上,
+  // 用户看到的 pill 栏里没有任何高亮,像"没有当前页")。
+  // 依赖必须含 loading/user:auth 加载期间 tab 栏还没渲染,只依赖 pathname
+  // 会错过首次渲染(直接深链进来时永远不定位)。
+  const tabBarRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (loading || !user) return
+    const el = tabBarRef.current?.querySelector('[aria-current="page"]')
+    if (el) el.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [location.pathname, loading, user])
+
   const [avatarError, setAvatarError] = useState(false)
   useEffect(() => { setAvatarError(false) }, [user?.user_metadata?.avatar_url])
 
@@ -150,26 +161,30 @@ export default function ProfileShell() {
           secondaryHidden ? '-translate-y-full' : ''
         }`}
       >
-        <div className="flex gap-1 overflow-x-auto px-3 py-2 [-webkit-overflow-scrolling:touch]">
-          {mobileTabs.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end={tab.end}
-              className={({ isActive }) =>
-                `flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-                  isActive
-                    ? 'bg-teal-500 text-white shadow-sm'
-                    : isAgentTab(tab)
-                      ? 'bg-slate-900 text-slate-200'
-                      : 'bg-white text-slate-600 ring-1 ring-slate-200'
-                }`
-              }
-            >
-              <tab.icon className="h-4 w-4" />
-              {zh ? tab.zh : tab.en}
-            </NavLink>
-          ))}
+        <div className="relative">
+          <div ref={tabBarRef} className="flex gap-1 overflow-x-auto px-3 py-2 pr-8 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {mobileTabs.map((tab) => (
+              <NavLink
+                key={tab.to}
+                to={tab.to}
+                end={tab.end}
+                className={({ isActive }) =>
+                  `flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
+                    isActive
+                      ? 'bg-teal-500 text-white shadow-sm'
+                      : isAgentTab(tab)
+                        ? 'bg-slate-900 text-slate-200'
+                        : 'bg-white text-slate-600 ring-1 ring-slate-200'
+                  }`
+                }
+              >
+                <tab.icon className="h-4 w-4" />
+                {zh ? tab.zh : tab.en}
+              </NavLink>
+            ))}
+          </div>
+          {/* 右缘渐隐:提示 tab 栏可横滑 */}
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-50 to-transparent" />
         </div>
       </div>
 

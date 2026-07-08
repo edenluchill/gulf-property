@@ -11,9 +11,9 @@ import { badgeForPlan } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import {
-  fetchBillingMe, fetchPromo, fetchFeatures, startCheckout, openPortal,
+  fetchBillingMe, fetchPromo, fetchFeatures, fetchPlans, startCheckout, openPortal,
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
-  type BillingMe, type BillingInterval, type Promo, type FeaturesInfo, type TeamInfo, type PaidPlanId, type UserRole,
+  type BillingMe, type BillingInterval, type Promo, type FeaturesInfo, type TeamInfo, type PaidPlanId, type UserRole, type BillingPlan,
 } from '../../lib/billingApi'
 
 // 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
@@ -40,8 +40,11 @@ export default function AgentBilling() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [teamMsg, setTeamMsg] = useState<string | null>(null)
 
+  // 套餐目录(价格以后端/Stripe 为准,硬编码只是兜底,防止价格改了页面还显示旧价)
+  const [catalog, setCatalog] = useState<BillingPlan[]>([])
+
   const refresh = () => fetchBillingMe().then((m) => { setMe(m); setLoading(false) })
-  useEffect(() => { refresh(); fetchPromo().then(setPromo); fetchFeatures().then(setFeat); fetchTeam().then(setTeam) }, [])
+  useEffect(() => { refresh(); fetchPromo().then(setPromo); fetchFeatures().then(setFeat); fetchTeam().then(setTeam); fetchPlans().then(setCatalog) }, [])
 
   // Checkout 回跳提示(?status=success|cancel),读后清掉 query
   const banner = params.get('status')
@@ -108,13 +111,22 @@ export default function AgentBilling() {
   // 我的套餐折扣(Founder<1),用来在消耗表显示实扣
   const myMult = Number(feat.plans.find((p) => p.id === planId)?.multiplier ?? 1)
 
+  // 月价优先取后端目录(与 Stripe 一致);积分额度同理
+  const catMonthly = (id: string, fallback: number) => {
+    const n = Number(catalog.find((p) => p.id === id)?.price_usd_month)
+    return Number.isFinite(n) && n > 0 ? n : fallback
+  }
+  const catCredits = (id: string, fallback: number) => {
+    const n = Number(catalog.find((p) => p.id === id)?.limits?.credits_month)
+    return Number.isFinite(n) && n > 0 ? n : fallback
+  }
   const PLANS: { id: PaidPlanId; name: string; monthly: number; lines: string[]; edge: string }[] = [
-    { id: 'rookie', name: '启程版 Starter', monthly: 25, edge: '#0ea5e9',
-      lines: ['200 积分/月', '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
-    { id: 'agent', name: '专业版 Pro', monthly: 99, edge: '#10b981',
-      lines: ['2,500 积分/月', '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
-    { id: 'founder', name: '经纪公司版 Agency', monthly: 699, edge: '#E8C37E',
-      lines: ['15,000 积分/月 · 含 3 席共享', '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
+    { id: 'rookie', name: '启程版 Starter', monthly: catMonthly('rookie', 25), edge: '#0ea5e9',
+      lines: [`${catCredits('rookie', 200).toLocaleString()} 积分/月`, '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
+    { id: 'agent', name: '专业版 Pro', monthly: catMonthly('agent', 99), edge: '#10b981',
+      lines: [`${catCredits('agent', 2500).toLocaleString()} 积分/月`, '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
+    { id: 'founder', name: '经纪公司版 Agency', monthly: catMonthly('founder', 699), edge: '#E8C37E',
+      lines: [`${catCredits('founder', 15000).toLocaleString()} 积分/月 · 含 3 席共享`, '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }

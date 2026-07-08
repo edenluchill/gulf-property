@@ -1,13 +1,13 @@
 /**
- * Luna Tour — agent "概览" tab (route: /agent).
+ * Luna Tour — agent "工作台" tab (route: /agent).
  *
- * Aggregate engagement across the agent's tours + the hottest leads, with a
- * shortcut into the generator. Read-only; reuses /api/luna/agent/sessions.
+ * 两个核心动作(实时带看 / Luna 导览)+ 该追谁(客户雷达 CRM 的热度 Top5,
+ * 不再用旧 tour-session 榜)+ Luna 导览表现汇总。
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Radio, Sparkles, ArrowRight } from 'lucide-react'
-import { lunaFetch } from '../lunaApi'
+import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
+import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
 
 interface SessionRow {
   id: string
@@ -22,19 +22,42 @@ interface SessionRow {
   lead_score: number
 }
 
+const STAGE_CHIP: Record<string, { label: string; cls: string }> = {
+  new: { label: '新客', cls: 'bg-blue-50 text-blue-600' },
+  engaged: { label: '互动中', cls: 'bg-teal-50 text-teal-600' },
+  viewing: { label: '看房', cls: 'bg-amber-50 text-amber-600' },
+  offer: { label: '报价', cls: 'bg-purple-50 text-purple-600' },
+  closed: { label: '成交', cls: 'bg-emerald-50 text-emerald-600' },
+  lost: { label: '流失', cls: 'bg-slate-100 text-slate-400' },
+}
+const stageChip = (s?: PipelineStage | null) => (s ? STAGE_CHIP[s] : null)
+
+const heatTone = (h: number) =>
+  h >= 70 ? 'text-red-500' : h >= 40 ? 'text-amber-500' : 'text-slate-400'
+
+const ago = (iso?: string | null) => {
+  if (!iso) return ''
+  const m = (Date.now() - new Date(iso).getTime()) / 60000
+  if (m < 1) return '刚刚'
+  if (m < 60) return `${Math.round(m)} 分钟前`
+  if (m < 1440) return `${Math.round(m / 60)} 小时前`
+  return `${Math.round(m / 1440)} 天前`
+}
+const isOverdue = (iso?: string | null) => !!iso && new Date(iso).getTime() <= Date.now()
+
 export default function AgentOverview() {
   const [sessions, setSessions] = useState<SessionRow[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     ;(async () => {
-      try {
-        const r = await lunaFetch(`/sessions`)
-        const d = await r.json()
-        setSessions(d.sessions || [])
-      } catch {
-        setSessions([])
-      }
+      const [sess, cls] = await Promise.all([
+        lunaFetch(`/sessions`).then((r) => r.json()).then((d) => d.sessions || []).catch(() => []),
+        getClients({}).catch(() => []),
+      ])
+      setSessions(sess)
+      setClients(cls)
       setLoading(false)
     })()
   }, [])
@@ -48,7 +71,8 @@ export default function AgentOverview() {
     }),
     { opens: 0, completes: 0, cta: 0, loves: 0 }
   )
-  const hot = [...sessions].sort((a, b) => b.lead_score - a.lead_score).slice(0, 5)
+  // 该追谁:客户雷达(CRM)按热度排,而不是旧 tour-session 榜
+  const hot = [...clients].sort((a, b) => (b.heat ?? 0) - (a.heat ?? 0)).slice(0, 5)
 
   return (
     <div>
@@ -106,49 +130,71 @@ export default function AgentOverview() {
         </Link>
       </div>
 
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-500">整体表现</h2>
+      {/* 该追谁:客户雷达热度 Top5 */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-semibold">该追谁</h2>
+        <Link to="/agent/clients" className="text-sm text-emerald-600 hover:underline">
+          客户雷达 →
+        </Link>
       </div>
+      {loading ? (
+        <div className="mb-8 text-sm text-slate-400">加载中…</div>
+      ) : hot.length === 0 ? (
+        <div className="mb-8 text-sm text-slate-400">
+          还没有客户。<Link to="/agent/clients" className="text-emerald-600 hover:underline">去客户雷达建第一个 →</Link>
+        </div>
+      ) : (
+        <div className="mb-8 space-y-2">
+          {hot.map((c) => {
+            const chip = stageChip(c.pipeline_stage)
+            const overdue = isOverdue(c.next_followup_at)
+            return (
+              <Link
+                key={c.id}
+                to="/agent/clients"
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300 hover:shadow"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-emerald-100 text-sm font-semibold text-teal-700">
+                  {(c.name || '?').charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">{c.name}</span>
+                    {chip && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>{chip.label}</span>}
+                    {overdue && (
+                      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">
+                        <CalendarClock className="h-3 w-3" />跟进过期
+                      </span>
+                    )}
+                  </div>
+                  <div className="truncate text-xs text-slate-400">
+                    {c.budget ? `预算 ${c.budget} · ` : ''}{c.last_activity_at ? `活跃 ${ago(c.last_activity_at)}` : '暂无活动'}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Flame className={`h-4 w-4 ${heatTone(c.heat ?? 0)}`} />
+                  <span className={`text-lg font-bold ${heatTone(c.heat ?? 0)}`}>{Math.round(c.heat ?? 0)}</span>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
 
-      {/* aggregate cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+      {/* Luna 导览表现(只统计已分享导览的互动) */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-500">Luna 导览表现</h2>
+        {sessions.length > 0 && (
+          <Link to="/agent/tour" className="text-xs text-slate-400 hover:text-emerald-600 hover:underline">全部导览 →</Link>
+        )}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card label="导览数" v={loading ? '…' : sessions.length} />
         <Card label="总打开" v={loading ? '…' : tot.opens} />
         <Card label="完看" v={loading ? '…' : tot.completes} />
         <Card label="联系经纪" v={loading ? '…' : tot.cta} accent />
         <Card label="❤️ 收藏" v={loading ? '…' : tot.loves} />
       </div>
-
-      {/* hottest leads */}
-      <div className="font-semibold mb-3">最热客户</div>
-      {loading ? (
-        <div className="text-sm text-slate-400">加载中…</div>
-      ) : hot.length === 0 ? (
-        <div className="text-sm text-slate-400">
-          还没有导览。<Link to="/agent/tour" className="text-emerald-600 hover:underline">去生成一个 →</Link>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {hot.map((s) => (
-            <div key={s.id} className="rounded-xl border border-slate-200 bg-white shadow-sm p-3 flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{s.title}</div>
-                <div className="text-xs text-slate-500 truncate">
-                  {s.client_name ? `客户 ${s.client_name} · ` : ''}
-                  <a className="text-emerald-600 hover:underline" href={`/?toursession=${s.share_code}`} target="_blank" rel="noreferrer">
-                    /?toursession={s.share_code} ↗
-                  </a>
-                </div>
-              </div>
-              <div className="text-xs text-slate-500 shrink-0">打开 {s.opens} · 联系 {s.cta_clicks}</div>
-              <div className="text-center shrink-0 w-14">
-                <div className="text-lg font-bold text-emerald-600">{Math.round(s.lead_score)}</div>
-                <div className="text-[11px] text-slate-400">热度</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

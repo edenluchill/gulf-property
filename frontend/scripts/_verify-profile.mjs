@@ -78,6 +78,7 @@ page = await setupPage(mobile)
 for (const [path, out] of [
   ['/profile', 'shot-profile-mobile.png'],
   ['/agent', 'shot-agent-mobile.png'],
+  ['/agent/billing', 'shot-billing-mobile.png'],
 ]) {
   await page.goto(BASE + path, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(3500)
