@@ -48,6 +48,13 @@ export function perfMetrics(req: Request, res: Response, next: NextFunction): vo
   let counted = false
   incConcurrency()
 
+  // ⚠️ 必须在入口(app 级中间件、进任何子路由之前)算好长连接判断:进入挂载在
+  // /api/r2-upload 的子路由时 Express 会临时把 req.url 剥成 /start,而 done() 跑在
+  // 异步的 res.on('finish') 里——那时 req.path 可能已不是完整路径,前缀匹配失效,
+  // 上传请求就漏回 p95 样本(2026-07-09 实测:一次 2665ms 上传顶爆 HIGH_LATENCY,
+  // 排除逻辑明明已部署却没生效,根因即此)。这里锁定,done() 只读闭包变量。
+  const longLived = isLongLived(req.path)
+
   const done = () => {
     if (counted) return
     counted = true
@@ -55,7 +62,7 @@ export function perfMetrics(req: Request, res: Response, next: NextFunction): vo
       decConcurrency()
       const ms = Number(process.hrtime.bigint() - start) / 1e6
       // 长连接不进全局延迟分位(报警口径);端点表仍记真实耗时(展示用,诚实)。
-      recordRequest(res.statusCode, ms, isLongLived(req.path))
+      recordRequest(res.statusCode, ms, longLived)
       recordEndpoint(endpointKey(req), res.statusCode, ms)
       // 诊断埋点(2026-07-08):p95 报警多次被 70-98s 的神秘请求触发,但 morgan 里
       // 无踪影(疑似 client-abort 只走 'close')。>10s 一律留名,让下一次自己招供。
