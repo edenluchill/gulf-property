@@ -140,7 +140,8 @@ async function ensureCustomer(
 router.get('/plans', async (_req: Request, res: Response) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, COALESCE(price_usd_month, 0) AS price_usd_month, limits
+      `SELECT id, name, COALESCE(price_usd_month, 0) AS price_usd_month,
+              COALESCE(price_usd_year, COALESCE(price_usd_month, 0) * 10) AS price_usd_year, limits
          FROM lt_subscription_plans
         ORDER BY COALESCE(price_usd_month, 0) ASC`
     )

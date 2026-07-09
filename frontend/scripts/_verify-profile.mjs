@@ -52,6 +52,16 @@ async function setupPage(ctx) {
     } }))
   await page.route('**/api/agents/me', (route) =>
     route.fulfill({ json: { status: 'approved' } }))
+  // 套餐目录(年付实收价:rookie=249)
+  await page.route('**/api/billing/plans', (route) =>
+    route.fulfill({ json: { success: true, plans: [
+      { id: 'explore', name: 'Explore', price_usd_month: '0', price_usd_year: '0', limits: {} },
+      { id: 'rookie', name: 'Starter', price_usd_month: '25', price_usd_year: '249', limits: { credits_month: 200 } },
+      { id: 'agent', name: 'Agent', price_usd_month: '99', price_usd_year: '990', limits: { credits_month: 2500 } },
+      { id: 'founder', name: 'Agency', price_usd_month: '699', price_usd_year: '6990', limits: { credits_month: 15000 } },
+    ] } }))
+  await page.route('**/api/billing/features', (route) =>
+    route.fulfill({ json: { success: true, features: [], plans: [] } }))
   // 经纪名片(平铺展示用)
   await page.route('**/api/luna/agent/profile', (route) =>
     route.fulfill({ json: { success: true, agent: {
@@ -82,6 +92,11 @@ for (const [path, out] of [
   await page.screenshot({ path: out })
   console.log('saved:', out)
 }
+// 里程碑庆祝框:付款成功回跳(?status=success)自动弹
+await page.goto(BASE + '/agent/billing?status=success', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(3500)
+await page.screenshot({ path: 'shot-celebrate.png' })
+console.log('saved: shot-celebrate.png')
 await desktop.close()
 
 // 手机 (iPhone 14 Pro 尺寸)
@@ -117,10 +132,26 @@ await page.route('**/api/billing/me', (route) =>
     credits: { month: 0, used: 0, balance: 0 },
   } }))
 await page.route('**/api/agents/me', (route) => route.fulfill({ json: { status: 'none' } }))
+await page.route('**/api/billing/plans', (route) =>
+  route.fulfill({ json: { success: true, plans: [
+    { id: 'explore', name: 'Explore', price_usd_month: '0', price_usd_year: '0', limits: {} },
+    { id: 'rookie', name: 'Starter', price_usd_month: '25', price_usd_year: '249', limits: { credits_month: 200 } },
+    { id: 'agent', name: 'Agent', price_usd_month: '99', price_usd_year: '990', limits: { credits_month: 2500 } },
+    { id: 'founder', name: 'Agency', price_usd_month: '699', price_usd_year: '6990', limits: { credits_month: 15000 } },
+  ] } }))
+await page.route('**/api/billing/features', (route) => route.fulfill({ json: { success: true, features: [], plans: [] } }))
 await page.goto(BASE + '/profile', { waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(3500)
 await page.screenshot({ path: 'shot-profile-buyer.png' })
 console.log('saved: shot-profile-buyer.png')
+
+// 买家看订阅页 + 切年付,验证 rookie 年付 = $249
+await page.goto(BASE + '/agent/billing', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(3000)
+const yearBtn = page.locator('button', { hasText: '按年付' }).first()
+if (await yearBtn.count()) { await yearBtn.click(); await page.waitForTimeout(600) }
+await page.screenshot({ path: 'shot-billing-year.png' })
+console.log('saved: shot-billing-year.png')
 await buyer.close()
 
 await browser.close()

@@ -22,9 +22,21 @@ interface PlanRow {
   id: string
   name: string
   price_usd_month: string
+  price_usd_year: string | null
   stripe_price_id: string | null
   stripe_price_id_year: string | null
   stripe_price_id_seat: string | null
+}
+
+/** 该 Stripe price 的美元金额(用于判断已配置的年付价是否 = 目标价)。 */
+async function priceUsd(stripe: Stripe, priceId: string | null): Promise<number | null> {
+  if (!priceId) return null
+  try {
+    const p = await stripe.prices.retrieve(priceId)
+    return typeof p.unit_amount === 'number' ? p.unit_amount / 100 : null
+  } catch {
+    return null
+  }
 }
 
 async function ensureProduct(stripe: Stripe, planId: string, name: string): Promise<string> {
@@ -65,18 +77,25 @@ async function main(): Promise<void> {
   console.log(`Stripe mode: ${key.startsWith('sk_live') ? 'LIVE' : 'test'}`)
 
   const { rows } = await pool.query<PlanRow>(
-    `SELECT id, name, COALESCE(price_usd_month,0) AS price_usd_month,
+    `SELECT id, name, COALESCE(price_usd_month,0) AS price_usd_month, price_usd_year,
             stripe_price_id, stripe_price_id_year, stripe_price_id_seat
        FROM lt_subscription_plans WHERE id IN ('rookie','agent','founder','developer')`
   )
 
   for (const plan of rows) {
     const usd = Number(plan.price_usd_month)
-    console.log(`\n[${plan.id}] $${usd}/mo`)
+    // 年付价:DB 显式列优先(rookie=249),否则 month×10(送 2 个月)
+    const yearUsd = plan.price_usd_year != null ? Number(plan.price_usd_year) : usd * 10
+    console.log(`\n[${plan.id}] $${usd}/mo · $${yearUsd}/yr`)
     const envMonth = process.env[`STRIPE_PRICE_${plan.id.toUpperCase()}`]
     const envYear = process.env[`STRIPE_PRICE_${plan.id.toUpperCase()}_Y`]
+    if (envYear) {
+      console.warn(`  ⚠ STRIPE_PRICE_${plan.id.toUpperCase()}_Y 环境变量已设,年付价由 env 决定,DB/脚本改价不生效——改价请改 env 后重启`)
+    }
     const needMonth = !envMonth && !plan.stripe_price_id
-    const needYear = !envYear && !plan.stripe_price_id_year
+    // 年付:若未配置,或已配置但金额 ≠ 目标价(改价),则重新对齐
+    const currentYearUsd = await priceUsd(stripe, plan.stripe_price_id_year)
+    const needYear = !envYear && (!plan.stripe_price_id_year || currentYearUsd !== yearUsd)
     const needSeat = plan.id === 'founder' && !process.env.STRIPE_PRICE_FOUNDER_SEAT && !plan.stripe_price_id_seat
     if (!needMonth && !needYear && !needSeat) {
       console.log('  already configured (env/DB) — skip')
@@ -89,8 +108,12 @@ async function main(): Promise<void> {
       console.log(`  ✓ stripe_price_id = ${id}`)
     }
     if (needYear) {
-      // 年付 = 收 10 个月(送 2 个月)
-      const id = await ensurePrice(stripe, productId, usd * 10, 'year', `${plan.id}-year`)
+      // 改价时:Stripe price 不可改金额,新建一个目标价的 price 并把 DB 指过去
+      // (旧 price 自动 archive 不影响已订阅老用户,新订阅走新价)。
+      if (currentYearUsd != null && currentYearUsd !== yearUsd) {
+        console.log(`  ↻ 年付改价 $${currentYearUsd} → $${yearUsd},新建 price`)
+      }
+      const id = await ensurePrice(stripe, productId, yearUsd, 'year', `${plan.id}-year`)
       await pool.query(`UPDATE lt_subscription_plans SET stripe_price_id_year = $2 WHERE id = $1`, [plan.id, id])
       console.log(`  ✓ stripe_price_id_year = ${id}`)
     }

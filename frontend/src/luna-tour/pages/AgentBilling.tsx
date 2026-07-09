@@ -96,6 +96,8 @@ export default function AgentBilling() {
     <RoleBadgeDialog
       badge={successBadge}
       name={user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Pinzos'}
+      // 付款成功回跳(?status=success)自动弹 = 里程碑庆祝框;手动点勋章不庆祝
+      celebrate={banner === 'success'}
       onClose={() => setShowBadge(false)}
     />
   ) : null
@@ -120,26 +122,37 @@ export default function AgentBilling() {
     const n = Number(catalog.find((p) => p.id === id)?.limits?.credits_month)
     return Number.isFinite(n) && n > 0 ? n : fallback
   }
-  const PLANS: { id: PaidPlanId; name: string; monthly: number; lines: string[]; edge: string }[] = [
-    { id: 'rookie', name: '启程版 Starter', monthly: catMonthly('rookie', 25), edge: '#0ea5e9',
+  // 年付实收价优先取后端目录(rookie=249,与 Stripe 一致),缺省回退 month×10
+  const catYear = (id: string, monthly: number) => {
+    const n = Number(catalog.find((p) => p.id === id)?.price_usd_year)
+    return Number.isFinite(n) && n > 0 ? n : monthly * 10
+  }
+  type PlanCard = { id: PaidPlanId; name: string; monthly: number; yearly: number; lines: string[]; edge: string }
+  const PLANS: PlanCard[] = [
+    { id: 'rookie', name: '启程版 Starter', monthly: catMonthly('rookie', 25), yearly: catYear('rookie', catMonthly('rookie', 25)), edge: '#0ea5e9',
       lines: [`${catCredits('rookie', 200).toLocaleString()} 积分/月`, '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
-    { id: 'agent', name: '专业版 Pro', monthly: catMonthly('agent', 99), edge: '#10b981',
+    { id: 'agent', name: '专业版 Pro', monthly: catMonthly('agent', 99), yearly: catYear('agent', catMonthly('agent', 99)), edge: '#10b981',
       lines: [`${catCredits('agent', 2500).toLocaleString()} 积分/月`, '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
-    { id: 'founder', name: '经纪公司版 Agency', monthly: catMonthly('founder', 699), edge: '#E8C37E',
+    { id: 'founder', name: '经纪公司版 Agency', monthly: catMonthly('founder', 699), yearly: catYear('founder', catMonthly('founder', 699)), edge: '#E8C37E',
       lines: [`${catCredits('founder', 15000).toLocaleString()} 积分/月 · 含 3 席共享`, '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
-  const cycleTotal = (monthly: number) => (cycle === 'year' ? monthly * 10 : monthly)
-  const priceLabel = (monthly: number) =>
-    `${fmtUsd(cycleTotal(monthly) * (1 - pct))} / ${cycle === 'year' ? '年' : '月'}`
-  // 划掉锚点:年付锚满 12 个月,月付仅在有优惠时锚原月价
-  const struckLabel = (monthly: number) =>
-    cycle === 'year' ? `$${monthly * 12}` : pct > 0 ? `$${monthly}` : ''
-  const noteLabel = (monthly: number) =>
-    promo.active
-      ? `发布价 -${promo.percentOff}% · 永久锁定`
-      : cycle === 'year' ? `省 $${monthly * 2}(送 2 个月)` : '按月付,随时取消'
+  const cycleTotal = (p: PlanCard) => (cycle === 'year' ? p.yearly : p.monthly)
+  const priceLabel = (p: PlanCard) =>
+    `${fmtUsd(cycleTotal(p) * (1 - pct))} / ${cycle === 'year' ? '年' : '月'}`
+  // 划掉锚点:年付锚满 12 个月(月付连交一年),月付仅在有优惠时锚原月价
+  const struckLabel = (p: PlanCard) =>
+    cycle === 'year' ? `$${p.monthly * 12}` : pct > 0 ? `$${p.monthly}` : ''
+  const noteLabel = (p: PlanCard) => {
+    if (promo.active) return `发布价 -${promo.percentOff}% · 永久锁定`
+    if (cycle === 'year') {
+      const save = Math.round(p.monthly * 12 - p.yearly)
+      const monthsFree = p.monthly > 0 ? Math.round(save / p.monthly) : 0
+      return save > 0 ? `省 $${save}${monthsFree > 0 ? `(≈${monthsFree} 个月免费)` : ''}` : '按年付,随时取消'
+    }
+    return '按月付,随时取消'
+  }
 
   // 团队席位操作(founder 专用)
   async function invite() {
@@ -318,10 +331,10 @@ export default function AgentBilling() {
                   <div className="font-bold text-slate-900">{p.name}</div>
                   <div className="text-right">
                     <div className="flex items-baseline justify-end gap-1.5">
-                      {struckLabel(p.monthly) && <span className="text-xs text-slate-400 line-through">{struckLabel(p.monthly)}</span>}
-                      <span className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p.monthly)}</span>
+                      {struckLabel(p) && <span className="text-xs text-slate-400 line-through">{struckLabel(p)}</span>}
+                      <span className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p)}</span>
                     </div>
-                    <div className="text-[10px] text-slate-400">{noteLabel(p.monthly)}</div>
+                    <div className="text-[10px] text-slate-400">{noteLabel(p)}</div>
                   </div>
                 </div>
                 <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">

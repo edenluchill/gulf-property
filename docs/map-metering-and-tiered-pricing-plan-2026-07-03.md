@@ -1,7 +1,11 @@
 # 地图计量 + 三档经纪定价 + 买家免费体系 — 设计方案
 
 日期:2026-07-03
-状态:设计稿(待拍板后实施)
+状态:✅ 已全量实施并上线(同日)。后端 quick-deploy 完成、前端已 push(Pages 自动部署)、
+DB 迁移已跑(map-metering-tiered-pricing.sql)、Stripe prices/portal 已配置
+(scripts/setup-stripe-prices.ts / setup-stripe-portal.ts,幂等可重跑)。
+实施与设计的差异:Founder 加席实现为 Stripe 订阅第二 line item(quantity),
+comp 手动授予也进 plan_change_log,admin 变更记录挂在「经纪审批」tab 底部。
 关联:`docs/stripe-billing-spec.md`、`backend/src/luna-tour/credits.ts`、`backend/src/routes/billing.ts`
 
 ---

@@ -9,11 +9,12 @@ const url = process.env.SHOT_URL || 'http://localhost:5174/'
 const browser = await chromium.launch({ headless: process.env.HEADED !== '1' ? true : false })
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 850 } })
 const page = await ctx.newPage()
-await page.addInitScript(() => {
+await page.addInitScript(([metric, poiCats]) => {
   localStorage.setItem('pinzos-lang', 'zh-CN')
   localStorage.setItem('map-base', 'satellite')
-  localStorage.setItem('map-area-metric', 'none')
-})
+  localStorage.setItem('map-area-metric', metric)
+  if (poiCats) localStorage.setItem('map-poi-categories', poiCats)
+}, [process.env.PROFILE_METRIC || 'none', process.env.PROFILE_POI_CATS || ''])
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
 await page.waitForTimeout(13000) // let it fully settle
 

@@ -46,9 +46,6 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [reportUrl, setReportUrl] = useState<string | null>(null)
   const [genningReport, setGenningReport] = useState(false)
-  const [showReportDialog, setShowReportDialog] = useState(false)
-  const [reportUnitId, setReportUnitId] = useState<string>('') // '' = 整盘(起售价)
-  const [reportPrice, setReportPrice] = useState<string>('')
   const [showCardEditor, setShowCardEditor] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const { isProjectFavorite, toggleProjectFavorite } = useFavorites()
@@ -170,16 +167,8 @@ export default function ProjectDetailPage() {
     }
   }
 
-  // Agent-branded shareable report: pick unit + price in a dialog, then generate /r/:code.
-  const openReportDialog = () => {
-    if (!project) return
-    setReportUnitId('')
-    const p = project.starting_price || project.min_price
-    setReportPrice(p ? String(Math.round(p)) : '')
-    setShowReportDialog(true)
-  }
-
-  const handleGenerateReport = async (unitType: string | null, unitPrice: number | null) => {
+  // Agent-branded shareable report: generate (or fetch) a /r/:code link + copy it.
+  const handleGenerateReport = async () => {
     if (!project || genningReport) return
     trackEvent('report_action', { action: 'generate' }, { project_id: project.id })
     setGenningReport(true)
@@ -188,12 +177,11 @@ export default function ProjectDetailPage() {
       const r = await lunaFetch('/project-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: project.id, unitType, unitPrice }),
+        body: JSON.stringify({ projectId: project.id }),
       })
       const j = await r.json()
       if (j?.shareCode) {
         const url = `${window.location.origin}/r/${j.shareCode}`
-        setShowReportDialog(false)
         setReportUrl(url)
         try { await navigator.clipboard.writeText(url) } catch { /* ignore */ }
       } else {
@@ -453,14 +441,6 @@ export default function ProjectDetailPage() {
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <Button
-                        size="sm"
-                        className="h-9 bg-teal-500 px-2.5 text-white hover:bg-teal-600"
-                        onClick={openReportDialog}
-                        disabled={genningReport}
-                      >
-                        <Share2 className="mr-1 h-4 w-4" />{genningReport ? '…' : '报告'}
-                      </Button>
-                      <Button
                         variant="outline"
                         size="icon"
                         className="h-9 w-9"
@@ -528,7 +508,7 @@ export default function ProjectDetailPage() {
                       <Button
                         size="sm"
                         className="h-10 bg-teal-500 px-3 text-white hover:bg-teal-600"
-                        onClick={openReportDialog}
+                        onClick={handleGenerateReport}
                         disabled={genningReport}
                       >
                         <Share2 className="mr-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
@@ -615,15 +595,6 @@ export default function ProjectDetailPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="bg-teal-500 text-white hover:bg-teal-600"
-                          onClick={openReportDialog}
-                          disabled={genningReport}
-                        >
-                          <Share2 className="h-4 w-4 mr-2" />{genningReport ? '生成中…' : '客户报告'}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setShowCardEditor(true)}>名片</Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -750,66 +721,6 @@ export default function ProjectDetailPage() {
             <TransactionsTab projectId={project.id} />
           </TabsContent>
         </Tabs>
-
-        {/* Report generator dialog — pick unit type + price, ROI in /r/:code uses them */}
-        {showReportDialog && (
-          <div className="fixed inset-0 z-[10001] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => !genningReport && setShowReportDialog(false)}>
-            <div className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="mb-1 flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-900">生成客户报告</h3>
-                <button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" onClick={() => setShowReportDialog(false)}><X className="h-4 w-4" /></button>
-              </div>
-              <p className="mb-4 text-xs text-slate-500">选择户型和价格,报告中的 5 年投资测算将按此计算。</p>
-
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">户型</label>
-              <select
-                value={reportUnitId}
-                onChange={(e) => {
-                  const id = e.target.value
-                  setReportUnitId(id)
-                  const u = (project.units || []).find((x: any) => String(x.id) === id)
-                  const p = u?.price || project.starting_price || project.min_price
-                  if (p) setReportPrice(String(Math.round(p)))
-                }}
-                className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-teal-400 focus:outline-none"
-              >
-                <option value="">整盘(按起售价)</option>
-                {(project.units || []).map((u: any) => (
-                  <option key={u.id} value={u.id}>
-                    {u.unit_type_name}{u.bedrooms != null ? ` · ${u.bedrooms === 0 ? 'Studio' : `${u.bedrooms}居`}` : ''}{u.price ? ` · ${formatPrice(u.price)}` : ''}
-                  </option>
-                ))}
-              </select>
-
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">价格(AED)</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={reportPrice}
-                onChange={(e) => setReportPrice(e.target.value)}
-                placeholder="如 1500000"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-teal-400 focus:outline-none"
-              />
-              <div className="mt-1 h-4 text-xs text-slate-400">{Number(reportPrice) > 0 ? formatPrice(Number(reportPrice)) : ''}</div>
-
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setShowReportDialog(false)} disabled={genningReport}>取消</Button>
-                <Button
-                  className="flex-1 bg-teal-500 text-white hover:bg-teal-600"
-                  disabled={genningReport || !(Number(reportPrice) > 0)}
-                  onClick={() => {
-                    const u = (project.units || []).find((x: any) => String(x.id) === reportUnitId)
-                    const price = Number(reportPrice)
-                    handleGenerateReport(u?.unit_type_name || null, price > 0 ? price : null)
-                  }}
-                >
-                  {genningReport ? '生成中…' : '生成并复制链接'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Generated shareable report link */}
         {reportUrl && (

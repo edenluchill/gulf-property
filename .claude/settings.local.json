@@ -120,7 +120,11 @@
       "PowerShell($key=\"$env:USERPROFILE\\\\.ssh\\\\Pinzos_ed25519\"; $ip=\"46.224.149.244\"; ssh -i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -o LogLevel=ERROR root@$ip \"docker exec pinzos-api grep -rl event dist/luna-tour/ 2>/dev/null; echo ===; docker exec pinzos-api cat dist/luna-tour/public-router.js 2>/dev/null | grep -c event; echo ===IMAGE===; docker inspect pinzos-api --format '{{.Image}}' 2>/dev/null; docker images ghcr.io/edenluchill/pinzos-backend --format '{{.Tag}} {{.CreatedSince}}'\")",
       "PowerShell($key=\"$env:USERPROFILE\\\\.ssh\\\\Pinzos_ed25519\"; $ip=\"46.224.149.244\"; ssh -i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -o LogLevel=ERROR root@$ip \"docker exec pinzos-api grep -c 'public/v/:code/event\\\\|ALLOWED_EVENTS\\\\|lt_engagement_events' dist/luna-tour/public-router.js\")",
       "Skill(update-config)",
-      "Skill(deep-research)"
+      "Skill(deep-research)",
+      "Skill(schedule)",
+      "Skill(dataviz)",
+      "Skill(artifact-design)",
+      "Skill(stripe:connect-recommend)"
     ],
     "deny": [
       "Read(**/.env)",

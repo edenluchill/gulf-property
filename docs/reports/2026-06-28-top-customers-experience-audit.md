@@ -96,3 +96,23 @@
 - 本地 JWT 验签 5 例单测全过（有效/过期/错签/alg=none/垃圾）。前后端 tsc 0 error。
 - 生产（tag `20260628-155834`）：favorites 无 auth→401（鉴权未坏）；项目详情读→200 **且**记入 api_calls(带 visitor_id/status/82ms)；map-pins→200 但**未记录**(采样正确跳过)。
 - ⚠️ **要激活提速**：需在两台服务器 compose env 加 `SUPABASE_JWT_SECRET`（Supabase dashboard→Settings→API→JWT Secret）。未配也正常运行（走远程回退），只是没拿到本地验签的提速。
+
+## 6. dashboard 接入新数据 + 失去的客户面板（第四轮）✅ 已上线
+
+> 问题：前三轮采的数据（8 个 intent 事件 + api_calls）dashboard 还没消费；且无流失识别。用户要求：dashboard 好用、与 action event 重叠要智能识别、能分析行为/体验、识别失去的客户。
+
+### 6.1 重叠的本质 → 智能折叠
+两数据源是**不同抽象层**：`app_events`=意图层（做了什么），`api_calls`=请求层（取了什么数据）。重叠 OK，做**折叠**而非删：`getVisitorDetail` 的统一时间线以**意图事件为主轴**；2s 内有对应意图的 api 调用折叠掉；无对应的 business-read（insights/market/compare）作为**「隐性研究」**单独成行（`source=api`，淡色渲染）——这是 app_events 看不到的"沉默高强度研究"信号，并计入 `research` 评分。
+
+### 6.2 实施
+- **评分 intent 化**：`quickScore` 加权 contact(18)>favorite(8)>report(8)>research(1.5)；`stageFrom` 加 `lost`（曾 warm+ 但沉默 >30d）。
+- **概览**：加「收藏」「尝试联系」两张 KPI。
+- **访客明细**：新事件计入评分；时间线渲染 10 类新事件 + 淡色 api 研究行（智能折叠后的）。
+- **失去的客户面板**（`getLostCustomers` + `/lost` 端点 + `LostCustomers.tsx` + 「流失」tab）：曾有意向但沉默 ≥7d，带原因标签 —— `bug_hit`（故障后流失，关联 api_error/auth_failure，⭐最该跟进）/ `no_contact`（研究深却没联系，漏斗断点）/ `cooling`。点行复用 VisitorDrawer 看明细。
+
+### 6.3 验证 & 部署
+- 前后端 tsc 0 error。真实数据测 `getLostCustomers` 识别出 8ded682d（score 30 / 沉默 10d / no_contact）。
+- 后端已部署（tag `20260628-161530`）；`/lost`、`/overview` 端点 403（admin 守卫，已挂载）。commit `2e0db9d` push → 前端 Cloudflare Pages 自动部署。
+
+### 6.4 完整闭环
+四轮下来：采集（intent 事件 + api 归因）→ 绑定（visitor/user 全链路）→ 展示（统一时间线智能折叠 + 流失识别）。最初"修复客户遇到的问题"的 area-insights 500，现在能通过「失去的客户·bug_hit」自动暴露"哪个故障赶走了哪些高意向客户"。仍未做：行为自动转 lead（leads 仍只来自 Luna 语音）。

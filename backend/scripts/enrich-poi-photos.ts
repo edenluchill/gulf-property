@@ -12,7 +12,7 @@
 import 'dotenv/config'
 import pool from '../src/db/pool'
 
-const CATEGORIES = ['school', 'university', 'hospital', 'clinic']
+const CATEGORIES = ['school', 'university', 'hospital', 'clinic', 'mall', 'park', 'bank', 'police', 'fire_station', 'mosque', 'gym', 'cinema']
 const UA = 'Mozilla/5.0 (compatible; PinzosPropertyBot/1.0; +https://pinzos.com)'
 const LIMIT = (() => {
   const i = process.argv.indexOf('--limit')

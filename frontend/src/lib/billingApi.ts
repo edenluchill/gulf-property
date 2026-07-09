@@ -13,6 +13,7 @@ export interface BillingPlan {
   id: string
   name: string
   price_usd_month: number | string
+  price_usd_year?: number | string // 年付实收价(rookie=249;缺省时前端回退 month×10)
   limits: Record<string, number | boolean>
 }
 

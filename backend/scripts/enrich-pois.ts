@@ -23,7 +23,7 @@ import { GoogleGenAI } from '@google/genai'
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 const MODEL = 'gemini-3.5-flash'
 
-const CATEGORIES = ['school', 'university', 'hospital', 'clinic']
+const CATEGORIES = ['school', 'university', 'hospital', 'clinic', 'mall', 'park', 'bank', 'police', 'fire_station', 'mosque', 'gym', 'cinema']
 const WIKI_API = 'https://en.wikipedia.org/w/api.php'
 const UA = 'PinzosPropertyBot/1.0 (https://pinzos.com; data enrichment)'
 
