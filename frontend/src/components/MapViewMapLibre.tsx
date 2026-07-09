@@ -22,8 +22,7 @@ import {
   formatMetricValue, getMetricRawValue, calculatePercentiles, getHeatmapColor
 } from '../lib/map/metrics'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
-import { ProjectCardMarker, LandmarkMarker } from './map/MapMarkers'
-import ProjectCarousel, { CAROUSEL_STEP } from './map/ProjectCarousel'
+import { ProjectCardMarker, ProjectPricePill, LandmarkMarker } from './map/MapMarkers'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
 import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
@@ -150,9 +149,6 @@ interface MapViewMapLibreProps {
   /** 相机停稳后回调一次(与 onBoundsChange 同一个 150ms debounce,不新增高频
    *  路径)。MapPage 用它把相机写进 URL(history.replaceState,零重渲染)。 */
   onCameraIdle?: (cam: { lng: number; lat: number; zoom: number; pitch: number; bearing: number }) => void
-  /** 手机底部项目卡片轨的高度(px);>0 时 MapPage 把 Luna 药丸抬高同等高度,
-   *  免得被卡片轨盖住。0 = 轨道不显示。 */
-  onMobileBarHeight?: (px: number) => void
 }
 
 function MapViewMapLibre({
@@ -184,8 +180,7 @@ function MapViewMapLibre({
   visible = true,
   disableFeatureClicks = false,
   initialView,
-  onCameraIdle,
-  onMobileBarHeight
+  onCameraIdle
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   // 地图自有控件的双语文案(原来中文硬编码,英文界面也显示中文——2026-07-08 修)
@@ -663,65 +658,6 @@ function MapViewMapLibre({
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  // ── 手机底部卡片轨(Airbnb/Zillow 模式)状态 ─────────────────────────────
-  const carouselRef = useRef<HTMLDivElement>(null)
-  const [carouselActiveId, setCarouselActiveId] = useState<string | null>(null)
-  const carouselActiveIdRef = useRef<string | null>(null)
-  carouselActiveIdRef.current = carouselActiveId
-  // activeId 变化来源:'tap'(点圆点/卡)要把轨道滚到该卡;'scroll'(滑轨道)不
-  // 回滚(会和用户手势打架),只推地图
-  const activeSourceRef = useRef<'tap' | 'scroll'>('tap')
-  const carouselShown = narrowScreen && !tourActive && !chromeless && projects.length > 0
-  // 底部偏移常量:轨道贴在导航栏(h-16=64px)上方;药丸抬升量给足余量
-  const CAROUSEL_BOTTOM = 70
-  const CAROUSEL_LIFT = 86
-
-  // 报告轨道高度给父层(抬 Luna 药丸);轨道消失时归零
-  useEffect(() => {
-    onMobileBarHeight?.(carouselShown ? CAROUSEL_LIFT : 0)
-    return () => onMobileBarHeight?.(0)
-  }, [carouselShown, onMobileBarHeight])
-
-  // activeId 变化:高亮对应圆点(命令式 setFilter,零重渲染)+ 轻推地图居中该
-  // 项目(保持缩放);来源非 scroll 时把轨道滚到该卡。
-  useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    if (map.getLayer('project-dots-active')) {
-      map.setFilter('project-dots-active', ['==', ['get', 'id'], carouselActiveId ?? '__none__'])
-    }
-    if (!carouselActiveId) return
-    const p = projectById.get(carouselActiveId)
-    if (!p) return
-    if (activeSourceRef.current !== 'scroll' && carouselRef.current) {
-      const idx = projects.findIndex(x => x.id === carouselActiveId)
-      if (idx >= 0) carouselRef.current.scrollTo({ left: idx * CAROUSEL_STEP, behavior: 'smooth' })
-    }
-    // 轻推地图把该项目挪到屏幕中心(圆点常被顶部/右上面板压住,居中露出来)
-    map.easeTo({ center: [p.lng, p.lat], duration: 380, essential: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carouselActiveId])
-
-  // 轨道滑动停稳(120ms debounce)→ 取当前居中卡 → 激活(推地图+高亮),不回滚
-  useEffect(() => {
-    if (!carouselShown) return
-    const el = carouselRef.current
-    if (!el) return
-    let t: ReturnType<typeof setTimeout> | null = null
-    const onScroll = () => {
-      if (t) clearTimeout(t)
-      t = setTimeout(() => {
-        const idx = Math.round(el.scrollLeft / CAROUSEL_STEP)
-        const id = projects[idx]?.id
-        if (id && id !== carouselActiveIdRef.current) {
-          activeSourceRef.current = 'scroll'
-          setCarouselActiveId(id)
-        }
-      }, 120)
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => { el.removeEventListener('scroll', onScroll); if (t) clearTimeout(t) }
-  }, [carouselShown, projects])
 
   // 屏幕空间贪心碰撞:优先 选中卡 > Luna正在讲的 > 起价高的(贵盘更值得展示),
   // 放得下就摆,挤了就藏。只在相机停稳后跑(和 bounds 同一个 debounce),
@@ -734,12 +670,13 @@ function MapViewMapLibre({
     const canvas = map.getCanvas()
     const W = canvas.clientWidth, H = canvas.clientHeight
     const isNarrow = W < 768
-    // 小屏用底部卡片轨,不铺浮动卡——直接清空,省掉整套碰撞检测
-    if (isNarrow) { setVisibleCardIds(prev => (prev.length ? [] : prev)); return }
-    // 占位盒:小屏自动卡=紧凑版(124px 药丸),选中卡永远完整版
+    // 手机:每个项目显示小价签(pill,~88px),点开的那个才是完整照片卡;
+    // 桌面:全是完整照片卡。价签小 → 一屏能优雅摆下很多个。
+    // 价签占位盒贴合实际尺寸(价签本体 ~52px),留一点点缝就好——盒子太大会把
+    // 邻近但不真重叠的价签误判为碰撞而藏掉(只剩一两个)。
     const boxFor = (isSelected: boolean) =>
-      isNarrow && !isSelected ? { w: 138, h: 56 } : { w: 196, h: 78 }
-    const MAX_CARDS = isNarrow ? 12 : 14
+      isNarrow ? (isSelected ? { w: 200, h: 80 } : { w: 58, h: 24 }) : { w: 196, h: 78 }
+    const MAX_CARDS = isNarrow ? 22 : 14
     // UI 禁区:右上指标控制卡 + 其下的底图/3D/测距工具卡(都是浮在地图上的
     // DOM 面板)。卡片钻到面板底下显示一半很难看——把这两块矩形当成已占用。
     // 面板尺寸改了要跟着调(粗略矩形即可,宁大勿小)。
@@ -762,19 +699,23 @@ function MapViewMapLibre({
     const ids: string[] = []
     for (const p of sorted) {
       if (ids.length >= MAX_CARDS) break
-      const pt = map.project([p.lng, p.lat])
       const isSelected = p.id === selectedProjectId
-      // 卡片锚在圆点上方:x±w/2,y-10-h ~ y-10
+      const pt = map.project([p.lng, p.lat])
       const { w: CARD_W, h: CARD_H } = boxFor(isSelected)
-      const rect = { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
-      // 整卡放不进视口(贴边会被裁一半)就只留圆点;选中卡例外(用户点的,
+      // 手机价签锚在圆点正中(pill 覆盖圆点);卡片(桌面全部 + 手机选中态)锚在
+      // 圆点上方一点。
+      const centered = isNarrow && !isSelected
+      const rect = centered
+        ? { x0: pt.x - CARD_W / 2, y0: pt.y - CARD_H / 2, x1: pt.x + CARD_W / 2, y1: pt.y + CARD_H / 2 }
+        : { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
+      // 整块放不进视口(贴边会被裁一半)就只留圆点;选中卡例外(用户点的,
       // 哪怕贴边也要给看)。
       const inView = rect.x0 >= 4 && rect.x1 <= W - 4 && rect.y0 >= 4 && rect.y1 <= H - 4
       if (!inView && !isSelected) continue
       if (isSelected && (pt.x < -40 || pt.x > W + 40 || pt.y < -40 || pt.y > H + 40)) continue
       const hit = placed.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
         || uiBlocks.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
-      // 选中卡永远显示(即使和别的卡打架——别的卡是自动层,它是用户点的)
+      // 选中(展开卡)永远显示(即使和别的价签打架——它是用户点的)
       if (hit && !isSelected) continue
       placed.push(rect)
       ids.push(p.id)
@@ -1119,24 +1060,19 @@ function MapViewMapLibre({
     // 画笔/标记工具激活时：完全吞掉要素点击，画画不误开 POI/区域/项目面板
     if (disableFeatureClicks) return
 
-    // 点空白地图:桌面收起浮动卡;手机保留卡片轨的选中态(不清)
+    // 点空白地图:收起展开的卡/选中态
     if (!e.features?.length) {
-      if (!narrowScreen) setSelectedProjectId(null)
+      setSelectedProjectId(null)
       return
     }
 
     // Prioritize: Project dot > POI > Station > Area
+    // 点圆点(真值层)= 选中该项目:手机展开成照片卡,桌面弹浮动卡
     const dotFeature = e.features.find(f => f.layer?.id === 'project-dots')
     if (dotFeature) {
       const pid = dotFeature.properties?.id
       if (pid) {
-        // 手机:激活底部卡片轨里对应的卡(滚到中间+高亮);桌面:弹浮动照片卡
-        if (narrowScreen) {
-          activeSourceRef.current = 'tap'
-          setCarouselActiveId(String(pid))
-        } else {
-          setSelectedProjectId(String(pid))
-        }
+        setSelectedProjectId(String(pid))
         return
       }
     }
@@ -1183,7 +1119,7 @@ function MapViewMapLibre({
       const area = dubaiAreas.find(a => a.id === areaId)
       if (area) onAreaClick(area)
     }
-  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks, narrowScreen])
+  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks])
 
   return (
     <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
@@ -1532,20 +1468,6 @@ function MapViewMapLibre({
                 'circle-opacity': 0.95
               }}
             />
-            {/* 手机卡片轨当前卡对应的圆点:放大白环高亮(filter 命令式切换,
-                见 carouselActiveId effect;初始 __none__ 不匹配任何 id) */}
-            <Layer
-              id="project-dots-active"
-              type="circle"
-              filter={['==', ['get', 'id'], '__none__']}
-              paint={{
-                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 8, 12, 10, 16, 13],
-                'circle-color': '#00E0B8',
-                'circle-stroke-color': '#ffffff',
-                'circle-stroke-width': 3,
-                'circle-opacity': 1
-              }}
-            />
           </Source>
         )}
 
@@ -1567,19 +1489,27 @@ function MapViewMapLibre({
           ? projects.map(project => (
               <ProjectCardMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
             ))
-          // 手机不铺浮动卡(改底部卡片轨);桌面按碰撞检测铺
-          : narrowScreen
-          ? null
           : !mapMoving && visibleCardIds.map(id => {
               const project = projectById.get(id)
               if (!project) return null
+              const isSel = id === selectedProjectId
+              // 手机:选中的展开成照片卡,其余是小价签;桌面:全是照片卡
+              if (narrowScreen && !isSel) {
+                return (
+                  <ProjectPricePill
+                    key={id}
+                    project={project}
+                    onClick={(p) => setSelectedProjectId(p.id)}
+                  />
+                )
+              }
               return (
                 <ProjectCardMarker
                   key={id}
                   project={project}
                   onClick={onProjectClick}
                   flashing={flashProjectIds?.includes(id)}
-                  selected={id === selectedProjectId}
+                  selected={isSel}
                 />
               )
             })}
@@ -1826,19 +1756,6 @@ function MapViewMapLibre({
         </div>
       )}
 
-      {/* 手机底部项目卡片轨(Airbnb/Zillow):地图只留圆点,卡片全在这条横滑轨里,
-          带图/名/价/户型。滑动/点圆点与地图三向联动(见上方 carousel 逻辑)。 */}
-      {carouselShown && (
-        <div className="pointer-events-none absolute inset-x-0 z-[600]" style={{ bottom: CAROUSEL_BOTTOM }}>
-          <ProjectCarousel
-            projects={projects}
-            activeId={carouselActiveId}
-            scrollRef={carouselRef}
-            onOpen={(p) => onProjectClick?.(p)}
-            onActivate={(id) => { activeSourceRef.current = 'tap'; setCarouselActiveId(id) }}
-          />
-        </div>
-      )}
       </>)}
     </div>
   )

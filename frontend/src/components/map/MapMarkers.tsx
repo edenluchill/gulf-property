@@ -140,6 +140,61 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }:
 })
 
 // ============================================================================
+// Project Price Pill — 手机地图上的小价签(Zillow 式)。默认态:小巧的价格
+// 药丸,一屏能优雅地摆很多个;点一下 → 展开成带照片的完整卡(ProjectCardMarker
+// selected 态)。没报价的项目不给价签(保持 GL 圆点),更干净。
+// ============================================================================
+export const ProjectPricePill = memo(({ project, onClick }: {
+  project: MapPinProject
+  onClick?: (p: MapPinProject) => void
+}) => {
+  const { i18n } = useTranslation()
+  const lang = i18n.language || 'en'
+  const isSoldOut = project.status === 'sold-out'
+  const hasPrice = project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
+
+  // 无报价项目:显示紧凑的品牌青药丸(白色建筑图标),读起来明确是"一个项目"
+  // (而非丢失在区域标签里的小圆点);有报价:白底价格药丸。
+  return (
+    <Marker
+      longitude={project.lng}
+      latitude={project.lat}
+      anchor="center"
+      style={{ zIndex: 3 }}
+      onClick={(e) => {
+        e.originalEvent.stopPropagation()
+        onClick?.(project)
+      }}
+    >
+      <div
+        className="flex cursor-pointer items-center gap-0.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-transform active:scale-95"
+        style={{
+          padding: hasPrice && !isSoldOut ? '3px 8px' : '4px',
+          background: isSoldOut ? 'rgba(100,116,139,0.95)'
+            : hasPrice ? 'rgba(255,255,255,0.97)'
+            : 'linear-gradient(135deg,#0d9488,#0f766e)',
+          border: isSoldOut ? '1px solid rgba(255,255,255,0.5)'
+            : hasPrice ? '1px solid rgba(13,148,136,0.35)'
+            : '1.5px solid rgba(255,255,255,0.9)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {isSoldOut ? (
+          <span className="px-1.5 text-[10.5px] font-bold text-white">{lang.startsWith('zh') ? '售罄' : 'Sold'}</span>
+        ) : hasPrice ? (
+          <span className="flex items-baseline gap-0.5 text-[11px] font-extrabold leading-none text-teal-700">
+            <DirhamSymbol size="0.72em" className="text-teal-500" />
+            {formatMoneyCompact(project.minPrice!, lang)}
+          </span>
+        ) : (
+          <Building2 style={{ width: 13, height: 13, color: '#fff' }} strokeWidth={2.5} />
+        )}
+      </div>
+    </Marker>
+  )
+})
+
+// ============================================================================
 // Landmark Marker - 3D 扣图建筑立在地图上（与项目卡片明确区分）
 // ============================================================================
 

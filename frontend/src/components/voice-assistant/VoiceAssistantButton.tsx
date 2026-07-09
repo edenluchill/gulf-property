@@ -689,8 +689,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     quotaExempt,
     textOpen,
     openText,
-    hidden,
-    pillLift
+    hidden
   } = useVoiceAssistantContext()
   const navigate = useNavigate()
 
@@ -821,17 +820,12 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       </motion.div>
     )}
     </AnimatePresence>
-    <div
-      className={cn(
+    <div className={cn(
       // Mobile: sit ABOVE the bottom nav bar (探索/分析/…) so the pill + 打字 button
       // (stacked below it) don't overlap it. Desktop: no nav → sit near the corner.
       'fixed bottom-28 right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
       className
-    )}
-      // Lift above the mobile map's bottom project carousel when it's open
-      // (pillLift px). Transform doesn't fight the bottom-* classes.
-      style={pillLift ? { transform: `translateY(-${pillLift}px)`, transition: 'transform 0.2s ease' } : undefined}
-    >
+    )}>
       {/* Luna's daily energy — slim capsule docked to the right edge above the pill.
           Only appears once some energy is spent / a conversation was active. */}
       {showGauge && (() => {
