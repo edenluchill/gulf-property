@@ -11,7 +11,7 @@ import Map, {
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, X, Box, CreditCard } from 'lucide-react'
+import { Globe, Ruler, X, Box, Eye, EyeOff } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON } from '../lib/api'
@@ -1098,6 +1098,9 @@ function MapViewMapLibre({
     if (dotFeature) {
       const pid = dotFeature.properties?.id
       if (pid) {
+        // 触屏 tap 会先合成一次 mousemove 弹出悬停名字提示,随后卡片也带名字
+        // → 名字重复。选中即弹卡,提示冗余,立刻清掉(桌面 hover 仍照常)。
+        setDotTip(null)
         setSelectedProjectId(String(pid))
         return
       }
@@ -1145,7 +1148,7 @@ function MapViewMapLibre({
       const area = dubaiAreas.find(a => a.id === areaId)
       if (area) onAreaClick(area)
     }
-  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks])
+  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks, setDotTip])
 
   return (
     <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
@@ -1679,17 +1682,20 @@ function MapViewMapLibre({
             <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
             {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
           </button>
-          {/* 卡片显示开关:关掉后地图只剩圆点(更清爽),点圆点仍弹单张卡 */}
+          {/* 项目卡片显示/隐藏开关:眼睛图标 = 可见性语义,一眼就懂。
+              显示态=青底睁眼「项目」;隐藏态=灰底闭眼「已隐藏」,地图只剩圆点。 */}
           <button
             type="button"
             onClick={toggleShowCards}
             className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
-              showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'text-slate-600 hover:bg-slate-100'
+              showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'bg-slate-200 text-slate-500'
             }`}
-            aria-label="切换项目卡片显示"
+            aria-label={showCards ? '隐藏项目卡片' : '显示项目卡片'}
           >
-            <CreditCard size={14} className={showCards ? 'text-white' : 'text-slate-500'} />
-            {isZhUi ? '卡片' : 'Cards'}
+            {showCards
+              ? <Eye size={14} className="text-white" />
+              : <EyeOff size={14} className="text-slate-500" />}
+            {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
           </button>
         </div>
       </div>

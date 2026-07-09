@@ -438,6 +438,24 @@ export default function ProjectDetailPage() {
                           {project.area}
                         </span>
                       </div>
+                      {/* Investment highlights — 收益率/回报率(蕾姐反馈这里以前能看到) */}
+                      {insights?.investment && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          {insights.area?.rental_yield_pct != null && (
+                            <span className="rounded-full bg-teal-50 px-2 py-0.5 font-medium text-teal-700">
+                              {i18n.language?.startsWith('zh') ? '回报' : 'Yield'} {insights.area.rental_yield_pct}%
+                            </span>
+                          )}
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                            {i18n.language?.startsWith('zh') ? '5年年化' : '5yr'} {insights.investment.annualized_return_pct}%
+                          </span>
+                          {insights.investment.payback_years != null && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                              {i18n.language?.startsWith('zh') ? `回本 ${insights.investment.payback_years} 年` : `${insights.investment.payback_years}y payback`}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <Button
@@ -503,6 +521,24 @@ export default function ProjectDetailPage() {
                           {project.area}
                         </span>
                       </div>
+                      {/* Investment highlights — 收益率/回报率(蕾姐反馈这里以前能看到) */}
+                      {insights?.investment && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                          {insights.area?.rental_yield_pct != null && (
+                            <span className="rounded-full bg-teal-50 px-2 py-0.5 font-medium text-teal-700">
+                              {i18n.language?.startsWith('zh') ? '回报' : 'Yield'} {insights.area.rental_yield_pct}%
+                            </span>
+                          )}
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                            {i18n.language?.startsWith('zh') ? '5年年化' : '5yr'} {insights.investment.annualized_return_pct}%
+                          </span>
+                          {insights.investment.payback_years != null && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                              {i18n.language?.startsWith('zh') ? `回本 ${insights.investment.payback_years} 年` : `${insights.investment.payback_years}y payback`}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <Button
