@@ -83,11 +83,11 @@ export default function ProfileHome() {
 
   return (
     <div className="space-y-4">
-      {/* ── 身份 hero:头像 + 全部账号信息直接可见 ── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg md:p-7">
+      {/* ── 身份 hero:头像 + 账号信息(横排紧凑,避免与下方名片重复堆叠) ── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg md:p-7">
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+        <div className="relative flex items-center gap-4 text-left">
           {avatarUrl && !avatarError ? (
             <img
               src={avatarUrl}
@@ -95,20 +95,20 @@ export default function ProfileHome() {
               referrerPolicy="no-referrer"
               crossOrigin="anonymous"
               onError={() => setAvatarError(true)}
-              className="h-20 w-20 shrink-0 rounded-full ring-4 ring-white/15 md:h-24 md:w-24"
+              className="h-16 w-16 shrink-0 rounded-full ring-4 ring-white/15 md:h-24 md:w-24"
             />
           ) : (
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-teal-500 ring-4 ring-white/15 md:h-24 md:w-24">
-              <User className="h-10 w-10 text-white md:h-12 md:w-12" />
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-teal-500 ring-4 ring-white/15 md:h-24 md:w-24">
+              <User className="h-8 w-8 text-white md:h-12 md:w-12" />
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-bold">{displayName}</h1>
-            <div className="mt-1 flex items-center justify-center gap-1.5 text-sm text-slate-300 sm:justify-start">
+            <h1 className="truncate text-xl font-bold md:text-2xl">{displayName}</h1>
+            <div className="mt-1 flex items-center gap-1.5 text-sm text-slate-300">
               <Mail className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{user.email}</span>
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-400 sm:justify-start">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
               {joined && (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="h-3 w-3" />
@@ -137,11 +137,16 @@ export default function ProfileHome() {
         {/* ── 经纪名片:字段直接平铺,编辑才开弹窗 ── */}
         {isPro ? (
           <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                <Contact className="h-4 w-4 text-indigo-500" />
-                {L('经纪名片', 'Agent card')}
-              </h2>
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                  <Contact className="h-4 w-4 text-indigo-500" />
+                  {L('经纪名片', 'Agent card')}
+                </h2>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {L('对客户展示的联系方式', 'Contact info shown to clients')}
+                </p>
+              </div>
               <button
                 onClick={() => setShowCardEditor(true)}
                 className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
   CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
+  Menu, X, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -21,6 +22,7 @@ import { useMyRole } from '../../hooks/useMyRole'
 import { fetchBillingMe, type BillingMe } from '../../lib/billingApi'
 import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
 import { useScrollChrome } from '../../hooks/useScrollChrome'
+import { Sheet, SheetContent } from '../../components/ui/sheet'
 
 // 角色小徽章(与 UserMenu / 角色选择卡同一套颜色/emoji)
 const ROLE_CHIP: Record<string, { zh: string; en: string; emoji: string; cls: string }> = {
@@ -93,20 +95,13 @@ export default function ProfileShell() {
     return () => { stale = true }
   }, [user?.email])
 
+  // 手机端板块菜单(汉堡 → 底部 Sheet;换页自动关)
+  const [menuOpen, setMenuOpen] = useState(false)
+  useEffect(() => { setMenuOpen(false) }, [location.pathname])
+
   // 滚动收纳:手机/pad 下滑收顶部导航(app 根不滚动,必须容器驱动)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const { secondaryHidden } = useScrollChrome(scrollRef, !loading)
-
-  // 手机 tab 栏:切页后把当前 tab 滚进视野(否则在订阅等靠右 tab 上,
-  // 用户看到的 pill 栏里没有任何高亮,像"没有当前页")。
-  // 依赖必须含 loading/user:auth 加载期间 tab 栏还没渲染,只依赖 pathname
-  // 会错过首次渲染(直接深链进来时永远不定位)。
-  const tabBarRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (loading || !user) return
-    const el = tabBarRef.current?.querySelector('[aria-current="page"]')
-    if (el) el.scrollIntoView({ inline: 'center', block: 'nearest' })
-  }, [location.pathname, loading, user])
 
   const [avatarError, setAvatarError] = useState(false)
   useEffect(() => { setAvatarError(false) }, [user?.user_metadata?.avatar_url])
@@ -152,46 +147,132 @@ export default function ProfileShell() {
       isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100/80'
     }`
 
-  // 手机端 tab 顺序:个人资料 → 工作台各功能(经纪)→ 订阅
+  // 手机端全部可达板块(个人资料 → 工作台各功能(经纪)→ 订阅),
+  // 用于顶栏标题识别 + 菜单 Sheet 列表。
   const mobileTabs: Tab[] = [ACCOUNT_TABS[0], ...(isAgent ? AGENT_TABS : []), ACCOUNT_TABS[1]]
-  const isAgentTab = (tab: Tab) => AGENT_TABS.some((t) => t.to === tab.to)
+
+  // 当前板块(最长前缀匹配;/agent/billing 优先于 /agent)
+  const currentTab = mobileTabs
+    .filter((t) => location.pathname === t.to || location.pathname.startsWith(t.to + '/'))
+    .sort((a, b) => b.to.length - a.to.length)[0] ?? mobileTabs[0]
+
+  const sheetRowCls = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition ${
+      isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-700 active:bg-slate-100'
+    }`
 
   return (
     // 自带滚动容器(Layout 的 <main> 是 overflow-hidden);overflow-y-scroll 常驻
     // 滚动条槽位,切 tab 时内容宽度不跳。
     <div ref={scrollRef} className="flex-1 overflow-y-scroll bg-slate-50">
-      {/* 手机/pad:顶部横向 tab(sticky,下滑随导航一起收起)。经纪功能 pill 用深色区分 */}
+      {/* 手机/pad:极简顶栏 —— 当前板块名 + 汉堡菜单(点开底部 Sheet 选板块)。
+          替代原横滑 pill 排:账户页横滑 tab 不是行业做法,菜单归一更干净。 */}
       <div
-        className={`md:hidden sticky top-0 z-20 border-b border-slate-200/70 bg-slate-50/95 backdrop-blur transition-transform duration-300 ease-out ${
+        className={`md:hidden sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-slate-200/70 bg-slate-50/95 px-4 py-2.5 backdrop-blur transition-transform duration-300 ease-out ${
           secondaryHidden ? '-translate-y-full' : ''
         }`}
       >
-        <div className="relative">
-          <div ref={tabBarRef} className="flex gap-1 overflow-x-auto px-3 py-2 pr-8 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {mobileTabs.map((tab) => (
-              <NavLink
-                key={tab.to}
-                to={tab.to}
-                end={tab.end}
-                className={({ isActive }) =>
-                  `flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
-                    isActive
-                      ? 'bg-teal-500 text-white shadow-sm'
-                      : isAgentTab(tab)
-                        ? 'bg-slate-900 text-slate-200'
-                        : 'bg-white text-slate-600 ring-1 ring-slate-200'
-                  }`
-                }
-              >
-                <tab.icon className="h-4 w-4" />
-                {zh ? tab.zh : tab.en}
-              </NavLink>
-            ))}
-          </div>
-          {/* 右缘渐隐:提示 tab 栏可横滑 */}
-          <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-50 to-transparent" />
+        <div className="flex min-w-0 items-center gap-2">
+          <currentTab.icon className="h-4 w-4 shrink-0 text-teal-600" />
+          <span className="truncate text-[15px] font-bold text-slate-900">
+            {zh ? currentTab.zh : currentTab.en}
+          </span>
         </div>
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-slate-600 ring-1 ring-slate-200 transition active:scale-95"
+        >
+          <Menu className="h-4 w-4" />
+          {L('菜单', 'Menu')}
+        </button>
       </div>
+
+      {/* 板块菜单 Sheet(手机) */}
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side="bottom" className="h-auto max-h-[88vh] rounded-t-2xl md:hidden">
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="h-1 w-10 rounded-full bg-slate-300" />
+          </div>
+          {/* 身份行 + 关闭 */}
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 pb-4 pt-1">
+            {avatarUrl && !avatarError ? (
+              <img
+                src={avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={() => setAvatarError(true)}
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-teal-500/20"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-500 text-sm font-semibold text-white">
+                {(user.email || 'U').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-bold text-slate-900">{displayName}</div>
+              <div className="truncate text-xs text-slate-400">{user.email}</div>
+            </div>
+            <button
+              onClick={() => setMenuOpen(false)}
+              className="-mr-1 rounded-full p-2 text-slate-400 transition hover:bg-slate-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4 overflow-y-auto px-3 pb-8 pt-3">
+            {/* 账户组 */}
+            <div>
+              <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                {L('账户', 'Account')}
+              </div>
+              {ACCOUNT_TABS.map((tab) => (
+                <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
+                  <tab.icon className="h-[18px] w-[18px]" />
+                  <span className="flex-1">{zh ? tab.zh : tab.en}</span>
+                  <ChevronRight className="h-4 w-4 text-slate-300" />
+                </NavLink>
+              ))}
+            </div>
+
+            {/* 经纪工作台组 */}
+            <div>
+              <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                {L('经纪工作台', 'Agent workspace')}
+              </div>
+              {isAgent ? (
+                AGENT_TABS.map((tab) => (
+                  <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
+                    <tab.icon className="h-[18px] w-[18px]" />
+                    <span className="flex-1">{zh ? tab.zh : tab.en}</span>
+                    <ChevronRight className="h-4 w-4 text-slate-300" />
+                  </NavLink>
+                ))
+              ) : (
+                <Link to="/choose-role" className="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium text-slate-700 transition active:bg-slate-100">
+                  <Lock className="h-[18px] w-[18px] text-slate-400" />
+                  <span className="flex-1">{L('解锁经纪工作台', 'Unlock agent workspace')}</span>
+                  <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                    {L('去解锁', 'Unlock')}
+                  </span>
+                </Link>
+              )}
+            </div>
+
+            {/* 退出登录(显眼,置于菜单底部) */}
+            <div className="border-t border-slate-100 pt-2">
+              <button
+                onClick={() => void signOut()}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-semibold text-red-500 transition active:bg-red-50"
+              >
+                <LogOut className="h-[18px] w-[18px]" />
+                {L('退出登录', 'Sign out')}
+              </button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div className="mx-auto max-w-6xl p-4 md:p-6">
         <div className="flex gap-6">
