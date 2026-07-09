@@ -15,82 +15,18 @@ import DirhamSymbol from '../DirhamSymbol'
 // 深色玻璃底 + 缩略图 + 项目名 + 起价,下缘小尾巴指向圆点。
 // ============================================================================
 
-export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, compact }: {
+export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }: {
   project: MapPinProject
   onClick?: (p: MapPinProject) => void
   flashing?: boolean
   /** 点圆点弹出的那张卡:抬高层级并加高亮描边,和自动展示的卡区分 */
   selected?: boolean
-  /** 手机紧凑版:去照片只留名字+起价两行小药丸(小屏一屏能放下更多张);
-   *  选中卡不走紧凑(点了就给看全的)。 */
-  compact?: boolean
 }) => {
   const { i18n } = useTranslation()
   const lang = i18n.language || 'en'
   const isZh = lang.startsWith('zh')
   const isSoldOut = project.status === 'sold-out'
   const hasPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
-
-  if (compact) {
-    return (
-      <Marker
-        longitude={project.lng}
-        latitude={project.lat}
-        anchor="bottom"
-        offset={[0, -9]}
-        style={{ zIndex: flashing ? 200 : 4 }}
-        onClick={(e) => {
-          e.originalEvent.stopPropagation()
-          onClick?.(project)
-        }}
-      >
-        <div className="cursor-pointer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {flashing && (
-            <span
-              className="animate-ping"
-              style={{ position: 'absolute', inset: '2px', borderRadius: 10, background: 'rgba(16,185,129,0.35)', pointerEvents: 'none' }}
-            />
-          )}
-          <div
-            className="rounded-lg px-2 py-1 text-center shadow-[0_4px_14px_rgba(0,0,0,0.38)] backdrop-blur-[5px]"
-            style={{ background: 'rgba(15,23,42,0.80)', border: '1px solid rgba(255,255,255,0.14)', maxWidth: 124 }}
-          >
-            <div
-              style={{
-                fontSize: 10.5, fontWeight: 700, color: '#fff', lineHeight: '14px',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}
-            >
-              {project.name}
-            </div>
-            {isSoldOut ? (
-              <div style={{ fontSize: 9, fontWeight: 800, color: '#f87171', lineHeight: '12px' }}>
-                {isZh ? '已售罄' : 'SOLD OUT'}
-              </div>
-            ) : hasPrice ? (
-              <div style={{
-                display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 2,
-                fontSize: 10, fontWeight: 800, color: '#2DD4BF', lineHeight: '13px',
-              }}>
-                <span style={{ fontWeight: 600, fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>{isZh ? '起' : 'From'}</span>
-                <DirhamSymbol size="0.75em" />
-                <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
-              </div>
-            ) : null}
-          </div>
-          <div
-            style={{
-              width: 8, height: 8, marginTop: -4,
-              background: 'rgba(15,23,42,0.80)',
-              borderRight: '1px solid rgba(255,255,255,0.14)',
-              borderBottom: '1px solid rgba(255,255,255,0.14)',
-              transform: 'rotate(45deg)',
-            }}
-          />
-        </div>
-      </Marker>
-    )
-  }
 
   return (
     <Marker

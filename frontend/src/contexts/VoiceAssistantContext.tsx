@@ -308,6 +308,10 @@ interface VoiceAssistantContextType {
   // Hide the global Luna pill (e.g. during a collab live tour)
   hidden: boolean
   setHidden: (v: boolean) => void
+  // Lift the global Luna pill up by N px (e.g. so it clears the mobile map's
+  // bottom project carousel). 0 = default position.
+  pillLift: number
+  setPillLift: (v: number) => void
 }
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null)
@@ -347,6 +351,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const [latestBubble, setLatestBubble] = useState<BubbleContent | null>(null)
   const [toolStatus, setToolStatus] = useState<string | null>(null)
   const [hidden, setHidden] = useState(false)
+  const [pillLift, setPillLift] = useState(0)
   // Live caption of the USER's own speech (so they can see what they're saying)
   const [userTranscript, setUserTranscript] = useState<string>('')
 
@@ -1374,7 +1379,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       textPending,
       textThread,
       hidden,
-      setHidden
+      setHidden,
+      pillLift,
+      setPillLift
     }}>
       {children}
     </VoiceAssistantContext.Provider>

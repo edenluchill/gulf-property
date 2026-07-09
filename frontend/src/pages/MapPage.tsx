@@ -756,6 +756,11 @@ export default function MapPage() {
     return () => setLunaHidden(false)
   }, [collabActive, setLunaHidden])
 
+  // 手机底部卡片轨显示时,把 Luna 药丸抬高同等高度,免得被轨道盖住。
+  const setPillLift = voiceContext.setPillLift
+  const handleMobileBarHeight = useCallback((px: number) => setPillLift(px), [setPillLift])
+  useEffect(() => () => setPillLift(0), [setPillLift])
+
   // In-app voice (Agora) — presenter starts a call, viewer joins; cost guards
   // (30min/session, 3h/day/agent) are enforced server-side.
   const voice = useCollabVoice({
@@ -1392,6 +1397,7 @@ export default function MapPage() {
             // 相机深链:停稳才写 URL(150ms debounce 同拍),tour 时相机每帧都
             // 在动且 URL 是会话链接,禁写。
             onCameraIdle={tourCode ? undefined : handleCameraIdle}
+            onMobileBarHeight={tourCode ? undefined : handleMobileBarHeight}
             initialView={initialCameraRef.current ?? undefined}
             onReady={() => setMapReady(true)}
             onProjectClick={handleProjectClick}

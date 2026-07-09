@@ -18,7 +18,7 @@ check('存在被碰撞隐藏的项目(卡片 optional 生效)', !!hidden, hidden
 
 if (hidden) {
   // 把它挪到屏幕中心再点它的圆点(GL 层,点屏幕坐标)
-  await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat] }), [hidden.lng, hidden.lat])
+  await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 13 }), [hidden.lng, hidden.lat])
   await page.waitForTimeout(800) // moveend debounce + 卡片重算
   const pt = await page.evaluate(([lng, lat]) => {
     const p = window.__map.project([lng, lat])
@@ -31,18 +31,27 @@ if (hidden) {
     [...document.querySelectorAll('.maplibregl-marker')].some(m => (m.textContent || '').includes(name.slice(0, 10))), hidden.name)
   check('点圆点弹出该项目卡片', cardVisible, hidden.name)
 
-  // 点这张卡 → 进详情
+  // 点这张卡 → 进详情(按 box 中心坐标点,避开 playwright 对合成层 marker 的
+  // actionability 抽风;卡已验证可见+稳定)
   if (cardVisible) {
-    const card = page.locator('.maplibregl-marker', { hasText: hidden.name.slice(0, 10) }).first()
-    await card.click()
+    // 取实时 box 点卡片上部(缩略图/名字区,y+15),避开下方尾巴+透明间隙;
+    // playwright locator.click 对合成层 marker 会抽风,用 mouse.click 坐标
+    const cbox = await page.evaluate((nm) => {
+      const el = [...document.querySelectorAll('.maplibregl-marker')].find(m => (m.textContent || '').includes(nm.slice(0, 10)))
+      const r = el.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + 15 }
+    }, hidden.name)
+    await page.mouse.click(cbox.x, cbox.y)
     await page.waitForTimeout(2000)
     check('点卡片进详情页', new URL(page.url()).pathname.startsWith('/project/'), page.url())
     await page.goBack()
-    await page.waitForTimeout(1500)
+    // 持久地图返回后 __map 需一拍重新可用
+    await page.waitForFunction(() => !!window.__map, { timeout: 8000 }).catch(() => {})
+    await page.waitForTimeout(800)
   }
 
   // 点空白(海面)收起选中卡
-  await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat] }), [hidden.lng, hidden.lat])
+  await page.evaluate(([lng, lat]) => window.__map.jumpTo({ center: [lng, lat], zoom: 13 }), [hidden.lng, hidden.lat])
   await page.waitForTimeout(800)
   const pt2 = await page.evaluate(([lng, lat]) => {
     const p = window.__map.project([lng, lat])
@@ -59,8 +68,14 @@ if (hidden) {
   console.log(`INFO  点空白后卡片状态: ${stillThere ? '仍显示(可能被自动层选中)' : '已收起'}`)
 }
 
-// GL 圆点数量 = 项目数(真值层永不丢)
-const dotCount = await page.evaluate(() => window.__map.querySourceFeatures('project-dots-src').length)
+// GL 圆点数量 = 项目数(真值层永不丢)。querySourceFeatures 只返回视口内瓦片
+// 的要素,先缩到全迪拜再数。用源数据长度更稳。
+await page.evaluate(() => window.__map.jumpTo({ center: [55.20, 25.10], zoom: 9 }))
+await page.waitForTimeout(1000)
+const dotCount = await page.evaluate(() => {
+  const src = window.__map.getSource('project-dots-src')
+  return src?._data?.features?.length ?? window.__map.querySourceFeatures('project-dots-src').length
+})
 check('真值层圆点覆盖全部项目', dotCount >= pins.length * 0.9, `dots=${dotCount} pins=${pins.length}`)
 
 await browser.close()

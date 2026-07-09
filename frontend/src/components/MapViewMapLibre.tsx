@@ -23,6 +23,7 @@ import {
 } from '../lib/map/metrics'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
 import { ProjectCardMarker, LandmarkMarker } from './map/MapMarkers'
+import ProjectCarousel, { CAROUSEL_STEP } from './map/ProjectCarousel'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
 import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
@@ -149,6 +150,9 @@ interface MapViewMapLibreProps {
   /** 相机停稳后回调一次(与 onBoundsChange 同一个 150ms debounce,不新增高频
    *  路径)。MapPage 用它把相机写进 URL(history.replaceState,零重渲染)。 */
   onCameraIdle?: (cam: { lng: number; lat: number; zoom: number; pitch: number; bearing: number }) => void
+  /** 手机底部项目卡片轨的高度(px);>0 时 MapPage 把 Luna 药丸抬高同等高度,
+   *  免得被卡片轨盖住。0 = 轨道不显示。 */
+  onMobileBarHeight?: (px: number) => void
 }
 
 function MapViewMapLibre({
@@ -180,7 +184,8 @@ function MapViewMapLibre({
   visible = true,
   disableFeatureClicks = false,
   initialView,
-  onCameraIdle
+  onCameraIdle,
+  onMobileBarHeight
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   // 地图自有控件的双语文案(原来中文硬编码,英文界面也显示中文——2026-07-08 修)
@@ -648,8 +653,8 @@ function MapViewMapLibre({
   // 点圆点弹出的卡(始终强制显示,优先级最高);点空白地图清除
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
-  // 小屏(<768):自动卡走紧凑版(无照片,盒子小一半→一屏放得下 6-8 张),
-  // 选中卡仍是完整版。响应式跟随窗口变化(旋转/分屏)。
+  // 小屏(<768):不在地图上铺浮动卡片(必然被碰撞挤到只剩一两张),改用
+  // 底部横滑卡片轨(见下方 carousel)。响应式跟随窗口(旋转/分屏)。
   const [narrowScreen, setNarrowScreen] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -657,6 +662,66 @@ function MapViewMapLibre({
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  // ── 手机底部卡片轨(Airbnb/Zillow 模式)状态 ─────────────────────────────
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const [carouselActiveId, setCarouselActiveId] = useState<string | null>(null)
+  const carouselActiveIdRef = useRef<string | null>(null)
+  carouselActiveIdRef.current = carouselActiveId
+  // activeId 变化来源:'tap'(点圆点/卡)要把轨道滚到该卡;'scroll'(滑轨道)不
+  // 回滚(会和用户手势打架),只推地图
+  const activeSourceRef = useRef<'tap' | 'scroll'>('tap')
+  const carouselShown = narrowScreen && !tourActive && !chromeless && projects.length > 0
+  // 底部偏移常量:轨道贴在导航栏(h-16=64px)上方;药丸抬升量给足余量
+  const CAROUSEL_BOTTOM = 70
+  const CAROUSEL_LIFT = 86
+
+  // 报告轨道高度给父层(抬 Luna 药丸);轨道消失时归零
+  useEffect(() => {
+    onMobileBarHeight?.(carouselShown ? CAROUSEL_LIFT : 0)
+    return () => onMobileBarHeight?.(0)
+  }, [carouselShown, onMobileBarHeight])
+
+  // activeId 变化:高亮对应圆点(命令式 setFilter,零重渲染)+ 轻推地图居中该
+  // 项目(保持缩放);来源非 scroll 时把轨道滚到该卡。
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    if (map.getLayer('project-dots-active')) {
+      map.setFilter('project-dots-active', ['==', ['get', 'id'], carouselActiveId ?? '__none__'])
+    }
+    if (!carouselActiveId) return
+    const p = projectById.get(carouselActiveId)
+    if (!p) return
+    if (activeSourceRef.current !== 'scroll' && carouselRef.current) {
+      const idx = projects.findIndex(x => x.id === carouselActiveId)
+      if (idx >= 0) carouselRef.current.scrollTo({ left: idx * CAROUSEL_STEP, behavior: 'smooth' })
+    }
+    // 轻推地图把该项目挪到屏幕中心(圆点常被顶部/右上面板压住,居中露出来)
+    map.easeTo({ center: [p.lng, p.lat], duration: 380, essential: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carouselActiveId])
+
+  // 轨道滑动停稳(120ms debounce)→ 取当前居中卡 → 激活(推地图+高亮),不回滚
+  useEffect(() => {
+    if (!carouselShown) return
+    const el = carouselRef.current
+    if (!el) return
+    let t: ReturnType<typeof setTimeout> | null = null
+    const onScroll = () => {
+      if (t) clearTimeout(t)
+      t = setTimeout(() => {
+        const idx = Math.round(el.scrollLeft / CAROUSEL_STEP)
+        const id = projects[idx]?.id
+        if (id && id !== carouselActiveIdRef.current) {
+          activeSourceRef.current = 'scroll'
+          setCarouselActiveId(id)
+        }
+      }, 120)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => { el.removeEventListener('scroll', onScroll); if (t) clearTimeout(t) }
+  }, [carouselShown, projects])
 
   // 屏幕空间贪心碰撞:优先 选中卡 > Luna正在讲的 > 起价高的(贵盘更值得展示),
   // 放得下就摆,挤了就藏。只在相机停稳后跑(和 bounds 同一个 debounce),
@@ -669,6 +734,8 @@ function MapViewMapLibre({
     const canvas = map.getCanvas()
     const W = canvas.clientWidth, H = canvas.clientHeight
     const isNarrow = W < 768
+    // 小屏用底部卡片轨,不铺浮动卡——直接清空,省掉整套碰撞检测
+    if (isNarrow) { setVisibleCardIds(prev => (prev.length ? [] : prev)); return }
     // 占位盒:小屏自动卡=紧凑版(124px 药丸),选中卡永远完整版
     const boxFor = (isSelected: boolean) =>
       isNarrow && !isSelected ? { w: 138, h: 56 } : { w: 196, h: 78 }
@@ -1052,19 +1119,24 @@ function MapViewMapLibre({
     // 画笔/标记工具激活时：完全吞掉要素点击，画画不误开 POI/区域/项目面板
     if (disableFeatureClicks) return
 
-    // 点空白地图:收起点圆点弹出的卡
+    // 点空白地图:桌面收起浮动卡;手机保留卡片轨的选中态(不清)
     if (!e.features?.length) {
-      setSelectedProjectId(null)
+      if (!narrowScreen) setSelectedProjectId(null)
       return
     }
 
     // Prioritize: Project dot > POI > Station > Area
-    // 项目圆点(真值层)点击 = 弹出该项目的照片卡(ARO 式:点点必有卡)
     const dotFeature = e.features.find(f => f.layer?.id === 'project-dots')
     if (dotFeature) {
       const pid = dotFeature.properties?.id
       if (pid) {
-        setSelectedProjectId(String(pid))
+        // 手机:激活底部卡片轨里对应的卡(滚到中间+高亮);桌面:弹浮动照片卡
+        if (narrowScreen) {
+          activeSourceRef.current = 'tap'
+          setCarouselActiveId(String(pid))
+        } else {
+          setSelectedProjectId(String(pid))
+        }
         return
       }
     }
@@ -1111,7 +1183,7 @@ function MapViewMapLibre({
       const area = dubaiAreas.find(a => a.id === areaId)
       if (area) onAreaClick(area)
     }
-  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks])
+  }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks, narrowScreen])
 
   return (
     <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
@@ -1460,6 +1532,20 @@ function MapViewMapLibre({
                 'circle-opacity': 0.95
               }}
             />
+            {/* 手机卡片轨当前卡对应的圆点:放大白环高亮(filter 命令式切换,
+                见 carouselActiveId effect;初始 __none__ 不匹配任何 id) */}
+            <Layer
+              id="project-dots-active"
+              type="circle"
+              filter={['==', ['get', 'id'], '__none__']}
+              paint={{
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 8, 12, 10, 16, 13],
+                'circle-color': '#00E0B8',
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 3,
+                'circle-opacity': 1
+              }}
+            />
           </Source>
         )}
 
@@ -1481,6 +1567,9 @@ function MapViewMapLibre({
           ? projects.map(project => (
               <ProjectCardMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
             ))
+          // 手机不铺浮动卡(改底部卡片轨);桌面按碰撞检测铺
+          : narrowScreen
+          ? null
           : !mapMoving && visibleCardIds.map(id => {
               const project = projectById.get(id)
               if (!project) return null
@@ -1491,8 +1580,6 @@ function MapViewMapLibre({
                   onClick={onProjectClick}
                   flashing={flashProjectIds?.includes(id)}
                   selected={id === selectedProjectId}
-                  // 小屏自动卡走紧凑版;选中卡(点了圆点)永远完整版带照片
-                  compact={narrowScreen && id !== selectedProjectId}
                 />
               )
             })}
@@ -1736,6 +1823,20 @@ function MapViewMapLibre({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* 手机底部项目卡片轨(Airbnb/Zillow):地图只留圆点,卡片全在这条横滑轨里,
+          带图/名/价/户型。滑动/点圆点与地图三向联动(见上方 carousel 逻辑)。 */}
+      {carouselShown && (
+        <div className="pointer-events-none absolute inset-x-0 z-[600]" style={{ bottom: CAROUSEL_BOTTOM }}>
+          <ProjectCarousel
+            projects={projects}
+            activeId={carouselActiveId}
+            scrollRef={carouselRef}
+            onOpen={(p) => onProjectClick?.(p)}
+            onActivate={(id) => { activeSourceRef.current = 'tap'; setCarouselActiveId(id) }}
+          />
         </div>
       )}
       </>)}
