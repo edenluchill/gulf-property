@@ -802,7 +802,17 @@ function convertAssignmentToAggregatedData(
   });
   
   console.log(`   ✅ Merged ${mergedUnits.length} units with complete information`);
-  
+
+  // ⭐ 2026-07-09 跨 PDF 同户型去重(按 类别+面积+去卧室词后的 type-code):
+  // 上传"含户型图的 brochure" + "单独 floor-plans PDF"时,同一户型两处都出现,
+  // 但 AI 命名偶有出入("1 BEDROOM TYPE 07" vs "TYPE 07")导致 mergeSameNameUnits
+  // 按名合并失败 → 重复户型。面积是强唯一键:同类别+同面积+同 type-code 必是同户型,
+  // 合并并取更完整的名字 + 图片并集(去重)。area=0 或键不同的原样保留。
+  const dedupedUnits = dedupeUnitsByAreaCategory(mergedUnits);
+  if (dedupedUnits.length < mergedUnits.length) {
+    console.log(`   🔗 Cross-PDF dedup: ${mergedUnits.length} → ${dedupedUnits.length} units (merged same category+area)`);
+  }
+
   // 合并payment plans
   const finalPaymentPlans = assignmentResult.paymentPlans && assignmentResult.paymentPlans.length > 0
     ? assignmentResult.paymentPlans
@@ -875,7 +885,7 @@ function convertAssignmentToAggregatedData(
   return {
     ...originalData,
     ...mergedBasicInfo,  // ⭐ 项目基本信息
-    units: mergedUnits,
+    units: dedupedUnits,
     paymentPlans: finalPaymentPlans,
     amenities: uniqueAmenities,  // ⭐ 合并后的配套设施
     images: {
@@ -888,6 +898,71 @@ function convertAssignmentToAggregatedData(
     // ⭐ 原始价格数据（用于前端验证和调试）
     extractedPricing: extractedPricing.length > 0 ? extractedPricing : undefined,
   };
+}
+
+/**
+ * 跨 PDF 同户型去重(同类别 + 同面积 + 去卧室词后 type-code 相同 → 同户型)。
+ * 合并时取更完整的名字(最长 typeName,通常带卧室前缀)+ 图片并集(按 URL 去重)。
+ * area<=0 或键唯一的原样保留。安全:三键齐同才合并,不同户型极难碰撞。
+ */
+function dedupeUnitsByAreaCategory(units: any[]): any[] {
+  // 名字去掉卧室/户型词与非字母数字,留纯 type-code(如 "1 BEDROOM TYPE 07" → "TYPE07")
+  const typeCode = (name: string): string =>
+    (name || '')
+      .toUpperCase()
+      .replace(/\b(STUDIO|STUDIOS|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|\d+)\s*(BEDROOM|BEDROOMS|BED|BR)\b/g, ' ')
+      .replace(/\b(BEDROOM|BEDROOMS|APARTMENT|APARTMENTS|STUDIO|STUDIOS|PENTHOUSE|DUPLEX|TOWNHOUSE|VILLA|VILLAS|UNIT|RESIDENCE|RESIDENCES)\b/g, ' ')
+      .replace(/[^A-Z0-9]/g, '');
+
+  const uniq = (arr: any[]): any[] => {
+    const seen = new Set<string>();
+    return (arr || []).filter((x) => {
+      const k = String(x);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+
+  const groups = new Map<string, any[]>();
+  const passthrough: any[] = [];
+  for (const u of units) {
+    const area = Math.round(Number(u.area) || 0);
+    const cat = String(u.category || '').toUpperCase().replace(/\s+/g, '');
+    const code = typeCode(u.typeName || u.name || '');
+    // area<=0 或无 type-code → 不参与面积去重(避免把没面积的空壳全并一起)
+    if (area <= 0 || !code) { passthrough.push(u); continue; }
+    const key = `${cat}__${area}__${code}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(u);
+  }
+
+  const merged: any[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) { merged.push(group[0]); continue; }
+    // 取名字最完整的(最长 typeName)作为主,合并所有图片
+    const primary = [...group].sort((a, b) =>
+      String(b.typeName || b.name || '').length - String(a.typeName || a.name || '').length
+    )[0];
+    const floorPlanImages = uniq(group.flatMap((g) => g.floorPlanImages || []));
+    const renderingImages = uniq(group.flatMap((g) => g.renderingImages || []));
+    const interiorImages = uniq(group.flatMap((g) => g.interiorImages || []));
+    const balconyImages = uniq(group.flatMap((g) => g.balconyImages || []));
+    console.log(`   🔗 Merged ${group.length} dupes → "${primary.typeName}" (${group.map((g) => g.typeName).join(' / ')})`);
+    merged.push({
+      ...primary,
+      floorPlanImage: floorPlanImages[0] || primary.floorPlanImage,
+      floorPlanImages,
+      renderingImages,
+      interiorImages,
+      balconyImages,
+      // 价格/描述等取有值的
+      price: group.map((g) => g.price).find((p) => p != null) ?? primary.price,
+      description: group.map((g) => g.description).find((d) => d) ?? primary.description,
+    });
+  }
+
+  return [...merged, ...passthrough];
 }
 
 /**
