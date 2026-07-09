@@ -15,12 +15,16 @@ import DirhamSymbol from '../DirhamSymbol'
 // 深色玻璃底 + 缩略图 + 项目名 + 起价,下缘小尾巴指向圆点。
 // ============================================================================
 
-export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }: {
+export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, compact, below }: {
   project: MapPinProject
   onClick?: (p: MapPinProject) => void
   flashing?: boolean
   /** 点圆点弹出的那张卡:抬高层级并加高亮描边,和自动展示的卡区分 */
   selected?: boolean
+  /** 手机紧凑卡:小一号(小图+名+价),盒≈本体尺寸,一屏能塞更多且不溢出面板 */
+  compact?: boolean
+  /** 碰撞检测决定翻到圆点下方(躲开顶部/右上面板):锚点+尾巴方向翻转 */
+  below?: boolean
 }) => {
   const { i18n } = useTranslation()
   const lang = i18n.language || 'en'
@@ -28,13 +32,32 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }:
   const isSoldOut = project.status === 'sold-out'
   const hasPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
 
+  const thumb = compact ? 34 : 44
+  const glass = 'rgba(15,23,42,0.82)'
+  const border = selected ? '1.5px solid #2DD4BF' : '1px solid rgba(255,255,255,0.14)'
+  const tail = (
+    <div
+      style={{
+        width: compact ? 8 : 10, height: compact ? 8 : 10,
+        marginTop: below ? 0 : (compact ? -4 : -5),
+        marginBottom: below ? (compact ? -4 : -5) : 0,
+        background: glass,
+        borderRight: below ? 'none' : '1px solid rgba(255,255,255,0.14)',
+        borderBottom: below ? 'none' : '1px solid rgba(255,255,255,0.14)',
+        borderLeft: below ? '1px solid rgba(255,255,255,0.14)' : 'none',
+        borderTop: below ? '1px solid rgba(255,255,255,0.14)' : 'none',
+        transform: 'rotate(45deg)',
+      }}
+    />
+  )
+
   return (
     <Marker
       longitude={project.lng}
       latitude={project.lat}
-      anchor="bottom"
-      // 卡片底部(尾巴尖)落在项目坐标上方一点,给 GL 圆点留出位置
-      offset={[0, -10]}
+      // 上方摆卡=anchor bottom(卡在点上方);翻到下方=anchor top
+      anchor={below ? 'top' : 'bottom'}
+      offset={[0, below ? 8 : -8]}
       style={{ zIndex: selected ? 300 : flashing ? 200 : 4 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
@@ -57,17 +80,20 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }:
             }}
           />
         )}
+        {below && tail}
         <div
-          className="flex items-center gap-2 rounded-xl py-1 pl-1 pr-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.4)] backdrop-blur-[6px]"
+          className="flex items-center rounded-xl shadow-[0_6px_20px_rgba(0,0,0,0.4)] backdrop-blur-[6px]"
           style={{
-            background: 'rgba(15,23,42,0.80)',
-            border: selected ? '1.5px solid #2DD4BF' : '1px solid rgba(255,255,255,0.14)',
+            gap: compact ? 6 : 8,
+            padding: compact ? '3px 8px 3px 3px' : '4px 10px 4px 4px',
+            background: glass,
+            border,
           }}
         >
           {/* 缩略图 */}
           <div
             style={{
-              width: 44, height: 44, borderRadius: 9, overflow: 'hidden',
+              width: thumb, height: thumb, borderRadius: compact ? 7 : 9, overflow: 'hidden',
               flexShrink: 0, background: '#1e293b',
             }}
           >
@@ -84,7 +110,7 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }:
                 alignItems: 'center', justifyContent: 'center',
                 background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
               }}>
-                <Building2 style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.65)' }} />
+                <Building2 style={{ width: compact ? 15 : 18, height: compact ? 15 : 18, color: 'rgba(255,255,255,0.65)' }} />
               </div>
             )}
           </div>
@@ -92,103 +118,40 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected }:
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: 12, fontWeight: 700, color: '#fff',
+                fontSize: compact ? 11 : 12, fontWeight: 700, color: '#fff',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                maxWidth: 118, lineHeight: '16px',
+                maxWidth: compact ? 88 : 118, lineHeight: compact ? '14px' : '16px',
               }}
             >
               {project.name}
             </div>
             {isSoldOut ? (
               <div style={{
-                fontSize: 10, fontWeight: 800, color: '#f87171',
-                lineHeight: '14px', letterSpacing: '0.03em',
+                fontSize: compact ? 9.5 : 10, fontWeight: 800, color: '#f87171',
+                lineHeight: compact ? '13px' : '14px', letterSpacing: '0.03em',
               }}>
                 {isZh ? '已售罄' : 'SOLD OUT'}
               </div>
             ) : hasPrice ? (
               <div style={{
                 display: 'flex', alignItems: 'baseline', gap: 3,
-                fontSize: 11.5, fontWeight: 800, color: '#2DD4BF', lineHeight: '15px',
+                fontSize: compact ? 10.5 : 11.5, fontWeight: 800, color: '#2DD4BF',
+                lineHeight: compact ? '14px' : '15px',
               }}>
-                <span style={{ fontWeight: 600, fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>
+                <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: 'rgba(255,255,255,0.55)' }}>
                   {isZh ? '起' : 'From'}
                 </span>
                 <DirhamSymbol size="0.8em" />
                 <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
               </div>
             ) : (
-              <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.5)', lineHeight: '14px' }}>
+              <div style={{ fontSize: compact ? 9.5 : 10, fontWeight: 600, color: 'rgba(255,255,255,0.5)', lineHeight: compact ? '13px' : '14px' }}>
                 {isZh ? '价格待定' : 'Price TBA'}
               </div>
             )}
           </div>
         </div>
-        {/* 指向圆点的小尾巴 */}
-        <div
-          style={{
-            width: 10, height: 10, marginTop: -5,
-            background: 'rgba(15,23,42,0.80)',
-            borderRight: '1px solid rgba(255,255,255,0.14)',
-            borderBottom: '1px solid rgba(255,255,255,0.14)',
-            transform: 'rotate(45deg)',
-          }}
-        />
-      </div>
-    </Marker>
-  )
-})
-
-// ============================================================================
-// Project Price Pill — 手机地图上的小价签(Zillow 式)。默认态:小巧的价格
-// 药丸,一屏能优雅地摆很多个;点一下 → 展开成带照片的完整卡(ProjectCardMarker
-// selected 态)。没报价的项目不给价签(保持 GL 圆点),更干净。
-// ============================================================================
-export const ProjectPricePill = memo(({ project, onClick }: {
-  project: MapPinProject
-  onClick?: (p: MapPinProject) => void
-}) => {
-  const { i18n } = useTranslation()
-  const lang = i18n.language || 'en'
-  const isSoldOut = project.status === 'sold-out'
-  const hasPrice = project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
-
-  // 无报价项目:显示紧凑的品牌青药丸(白色建筑图标),读起来明确是"一个项目"
-  // (而非丢失在区域标签里的小圆点);有报价:白底价格药丸。
-  return (
-    <Marker
-      longitude={project.lng}
-      latitude={project.lat}
-      anchor="center"
-      style={{ zIndex: 3 }}
-      onClick={(e) => {
-        e.originalEvent.stopPropagation()
-        onClick?.(project)
-      }}
-    >
-      <div
-        className="flex cursor-pointer items-center gap-0.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-transform active:scale-95"
-        style={{
-          padding: hasPrice && !isSoldOut ? '3px 8px' : '4px',
-          background: isSoldOut ? 'rgba(100,116,139,0.95)'
-            : hasPrice ? 'rgba(255,255,255,0.97)'
-            : 'linear-gradient(135deg,#0d9488,#0f766e)',
-          border: isSoldOut ? '1px solid rgba(255,255,255,0.5)'
-            : hasPrice ? '1px solid rgba(13,148,136,0.35)'
-            : '1.5px solid rgba(255,255,255,0.9)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {isSoldOut ? (
-          <span className="px-1.5 text-[10.5px] font-bold text-white">{lang.startsWith('zh') ? '售罄' : 'Sold'}</span>
-        ) : hasPrice ? (
-          <span className="flex items-baseline gap-0.5 text-[11px] font-extrabold leading-none text-teal-700">
-            <DirhamSymbol size="0.72em" className="text-teal-500" />
-            {formatMoneyCompact(project.minPrice!, lang)}
-          </span>
-        ) : (
-          <Building2 style={{ width: 13, height: 13, color: '#fff' }} strokeWidth={2.5} />
-        )}
+        {!below && tail}
       </div>
     </Marker>
   )

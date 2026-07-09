@@ -11,7 +11,7 @@ import Map, {
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, X, Box } from 'lucide-react'
+import { Globe, Ruler, X, Box, CreditCard } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON } from '../lib/api'
@@ -22,7 +22,7 @@ import {
   formatMetricValue, getMetricRawValue, calculatePercentiles, getHeatmapColor
 } from '../lib/map/metrics'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
-import { ProjectCardMarker, ProjectPricePill, LandmarkMarker } from './map/MapMarkers'
+import { ProjectCardMarker, LandmarkMarker } from './map/MapMarkers'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
 import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTourHandle'
@@ -213,6 +213,18 @@ function MapViewMapLibre({
     setBaseMapState(prev => {
       const next = typeof v === 'function' ? (v as (p: BaseMap) => BaseMap)(prev) : v
       try { localStorage.setItem('map-base', next) } catch { /* ignore */ }
+      return next
+    })
+  }
+  // 卡片显示开关(右侧工具卡里切换,持久化)。关掉后地图只剩圆点,更清爽;
+  // 点圆点仍能弹出单张卡。默认开。
+  const [showCards, setShowCardsState] = useState<boolean>(
+    () => localStorage.getItem('map-cards') !== '0'
+  )
+  const toggleShowCards = () => {
+    setShowCardsState(prev => {
+      const next = !prev
+      try { localStorage.setItem('map-cards', next ? '1' : '0') } catch { /* ignore */ }
       return next
     })
   }
@@ -648,8 +660,8 @@ function MapViewMapLibre({
   // 点圆点弹出的卡(始终强制显示,优先级最高);点空白地图清除
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
-  // 小屏(<768):不在地图上铺浮动卡片(必然被碰撞挤到只剩一两张),改用
-  // 底部横滑卡片轨(见下方 carousel)。响应式跟随窗口(旋转/分屏)。
+  // 断点:手机(<768)用紧凑卡(小图+名+价,盒≈本体尺寸,一屏能塞更多);
+  // 桌面/pad 用完整卡。响应窗口变化。
   const [narrowScreen, setNarrowScreen] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -658,33 +670,46 @@ function MapViewMapLibre({
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-
   // 屏幕空间贪心碰撞:优先 选中卡 > Luna正在讲的 > 起价高的(贵盘更值得展示),
   // 放得下就摆,挤了就藏。只在相机停稳后跑(和 bounds 同一个 debounce),
   // 每次手势最多一次,16~几百个项目都只是常数个 map.project 调用。
   const [visibleCardIds, setVisibleCardIds] = useState<string[]>([])
+  // 翻到圆点下方的卡 id(recompute 决定,渲染读取切换锚点/尾巴方向)
+  const belowIdsRef = useRef<Record<string, true>>({})
   const flashKey = flashProjectIds?.join(',') ?? ''
   const recomputeCards = useCallback(() => {
     const map = mapRef.current?.getMap()
     if (!map) return
+    // 卡片开关关掉时:只显示用户点开的那一张(selected),其余只剩 GL 圆点。
+    if (!showCards) {
+      const only = selectedProjectId ? [selectedProjectId] : []
+      visibleCardIdsRef.current = only
+      setVisibleCardIds(prev => (prev.length === only.length && prev.every((v, i) => v === only[i]) ? prev : only))
+      return
+    }
     const canvas = map.getCanvas()
     const W = canvas.clientWidth, H = canvas.clientHeight
     const isNarrow = W < 768
-    // 手机:每个项目显示小价签(pill,~88px),点开的那个才是完整照片卡;
-    // 桌面:全是完整照片卡。价签小 → 一屏能优雅摆下很多个。
-    // 价签占位盒贴合实际尺寸(价签本体 ~52px),留一点点缝就好——盒子太大会把
-    // 邻近但不真重叠的价签误判为碰撞而藏掉(只剩一两个)。
-    const boxFor = (isSelected: boolean) =>
-      isNarrow ? (isSelected ? { w: 200, h: 80 } : { w: 58, h: 24 }) : { w: 196, h: 78 }
-    const MAX_CARDS = isNarrow ? 22 : 14
-    // UI 禁区:右上指标控制卡 + 其下的底图/3D/测距工具卡(都是浮在地图上的
-    // DOM 面板)。卡片钻到面板底下显示一半很难看——把这两块矩形当成已占用。
-    // 面板尺寸改了要跟着调(粗略矩形即可,宁大勿小)。
-    const uiBlocks: { x0: number; y0: number; x1: number; y1: number }[] = [
-      { x0: W - (isNarrow ? 190 : 270), y0: 0, x1: W, y1: isNarrow ? 200 : 230 }, // 指标卡
-      { x0: W - 110, y0: isNarrow ? 200 : 230, x1: W, y1: 340 }, // 底图/3D/测距竖卡
-      { x0: 0, y0: 0, x1: isNarrow ? W : 840, y1: 56 }, // 顶部搜索+筛选行
-    ]
+    // 碰撞盒≈卡片本体实际尺寸(手机紧凑卡 ~132×48,桌面完整卡 ~190×64),
+    // 这样"放得下"就真的不会溢出到面板/邻卡上。防拥挤轻松:盒略小于本体留 ~10%
+    // 交叠余量(稍挤没关系,用户要求)。放不下上方就试下方,躲开顶部/右上面板。
+    const CARD_W = isNarrow ? 120 : 172
+    const CARD_H = isNarrow ? 46 : 60
+    const MAX_CARDS = 40
+    // UI 禁区:卡片不钻到这些不透明浮层底下(否则被遮一半很难看)。按断点给出
+    // 各浮层的粗略footprint——顶部搜索/筛选、右上指标卡、右侧工具竖卡、右下 Luna 球。
+    // 只挡最影响观感的顶部浮层(搜索栏 + 右上指标卡,都不透明、面积大,卡钻底下
+    // 像坏了)。右侧工具竖卡、右下 Luna 球不挡——卡片跟它们轻微交叠可接受(用户
+    // 说稍挤没关系),换取多显示卡片。
+    const uiBlocks: { x0: number; y0: number; x1: number; y1: number }[] = isNarrow
+      ? [
+          { x0: 0, y0: 0, x1: 300, y1: 122 },        // 搜索栏 + 筛选按钮
+          { x0: 196, y0: 0, x1: W, y1: 208 },         // 指标卡
+        ]
+      : [
+          { x0: 0, y0: 0, x1: 560, y1: 56 },          // 搜索+筛选行
+          { x0: W - 270, y0: 0, x1: W, y1: 235 },      // 指标卡
+        ]
     const flash = new Set(flashProjectIds ?? [])
     const sorted = [...projects].sort((a, b) => {
       if (a.id === selectedProjectId) return -1
@@ -697,36 +722,37 @@ function MapViewMapLibre({
     })
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = []
     const ids: string[] = []
+    const below: Record<string, true> = {}   // 记录哪些卡翻到了圆点下方(渲染要用)
+    const overlaps = (r: { x0: number; y0: number; x1: number; y1: number }) =>
+      placed.some(q => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0)
+        || uiBlocks.some(q => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0)
     for (const p of sorted) {
       if (ids.length >= MAX_CARDS) break
       const isSelected = p.id === selectedProjectId
       const pt = map.project([p.lng, p.lat])
-      const { w: CARD_W, h: CARD_H } = boxFor(isSelected)
-      // 手机价签锚在圆点正中(pill 覆盖圆点);卡片(桌面全部 + 手机选中态)锚在
-      // 圆点上方一点。
-      const centered = isNarrow && !isSelected
-      const rect = centered
-        ? { x0: pt.x - CARD_W / 2, y0: pt.y - CARD_H / 2, x1: pt.x + CARD_W / 2, y1: pt.y + CARD_H / 2 }
-        : { x0: pt.x - CARD_W / 2, y0: pt.y - 10 - CARD_H, x1: pt.x + CARD_W / 2, y1: pt.y - 10 }
-      // 整块放不进视口(贴边会被裁一半)就只留圆点;选中卡例外(用户点的,
-      // 哪怕贴边也要给看)。
-      const inView = rect.x0 >= 4 && rect.x1 <= W - 4 && rect.y0 >= 4 && rect.y1 <= H - 4
-      if (!inView && !isSelected) continue
-      if (isSelected && (pt.x < -40 || pt.x > W + 40 || pt.y < -40 || pt.y > H + 40)) continue
-      const hit = placed.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
-        || uiBlocks.some(r => rect.x0 < r.x1 && rect.x1 > r.x0 && rect.y0 < r.y1 && rect.y1 > r.y0)
-      // 选中(展开卡)永远显示(即使和别的价签打架——它是用户点的)
-      if (hit && !isSelected) continue
+      // 只要圆点在视口内(留一点边距)就考虑摆卡——卡片贴边可轻微裁切
+      const dotIn = pt.x >= -10 && pt.x <= W + 10 && pt.y >= 8 && pt.y <= H + 10
+      if (!dotIn && !isSelected) continue
+      const half = CARD_W / 2
+      const above = { x0: pt.x - half, y0: pt.y - 8 - CARD_H, x1: pt.x + half, y1: pt.y - 8 }
+      const belowRect = { x0: pt.x - half, y0: pt.y + 8, x1: pt.x + half, y1: pt.y + 8 + CARD_H }
+      let rect = above
+      if (overlaps(above)) {
+        // 上方被面板/邻卡占了 → 试下方
+        if (!overlaps(belowRect)) { rect = belowRect; below[p.id] = true }
+        else if (!isSelected) continue // 上下都放不下 → 只留圆点(选中卡强制上方)
+      }
       placed.push(rect)
       ids.push(p.id)
     }
     visibleCardIdsRef.current = ids
+    belowIdsRef.current = below
     // 集合没变就不 setState,省一次整棵 marker 子树的 re-render
     setVisibleCardIds(prev => (prev.length === ids.length && prev.every((v, i) => v === ids[i]) ? prev : ids))
     // flashKey(字符串)代替 flashProjectIds(每次 render 新数组)进 deps,
     // 避免父层无关渲染反复重建本回调
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, selectedProjectId, flashKey])
+  }, [projects, selectedProjectId, flashKey, showCards])
 
   useEffect(() => {
     if (mapLoaded && !tourActive) recomputeCards()
@@ -1492,24 +1518,15 @@ function MapViewMapLibre({
           : !mapMoving && visibleCardIds.map(id => {
               const project = projectById.get(id)
               if (!project) return null
-              const isSel = id === selectedProjectId
-              // 手机:选中的展开成照片卡,其余是小价签;桌面:全是照片卡
-              if (narrowScreen && !isSel) {
-                return (
-                  <ProjectPricePill
-                    key={id}
-                    project={project}
-                    onClick={(p) => setSelectedProjectId(p.id)}
-                  />
-                )
-              }
               return (
                 <ProjectCardMarker
                   key={id}
                   project={project}
                   onClick={onProjectClick}
                   flashing={flashProjectIds?.includes(id)}
-                  selected={isSel}
+                  selected={id === selectedProjectId}
+                  compact={narrowScreen}
+                  below={!!belowIdsRef.current[id]}
                 />
               )
             })}
@@ -1661,6 +1678,18 @@ function MapViewMapLibre({
           >
             <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
             {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
+          </button>
+          {/* 卡片显示开关:关掉后地图只剩圆点(更清爽),点圆点仍弹单张卡 */}
+          <button
+            type="button"
+            onClick={toggleShowCards}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+              showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            aria-label="切换项目卡片显示"
+          >
+            <CreditCard size={14} className={showCards ? 'text-white' : 'text-slate-500'} />
+            {isZhUi ? '卡片' : 'Cards'}
           </button>
         </div>
       </div>
