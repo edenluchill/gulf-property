@@ -17,6 +17,7 @@
  * - Accurate multi-unit extraction via cropping
  */
 
+import sharp from 'sharp';
 import {
   PageMetadata,
   PageType,
@@ -25,7 +26,9 @@ import {
   UnitPageInfo,
 } from '../types/page-metadata';
 import type { ImageUrls } from '../../services/r2-storage';
-import { classifyPage } from './page-classifier.agent';
+import { uploadToPdfCache } from '../../services/r2-storage';
+import { generateImageVariantsFromBuffer, IMAGE_VARIANTS } from '../../utils/pdf/image-processor';
+import { classifyPage, type ClassificationResult } from './page-classifier.agent';
 import { extractUnitDetails } from './unit-detail-extractor.agent';
 import { extractAmenities } from './amenity-extractor.agent';
 import { extractProjectInfo } from './project-info-extractor.agent';
@@ -60,16 +63,36 @@ export async function analyzePageWithAI(
   chunkIndex: number,
   _jobId?: string,
   imageUrls?: ImageUrls,
-  _pdfHash?: string,  // 保留参数兼容性，但不再使用
+  pdfHash?: string,   // ⭐ 多户型裁剪上传 R2 需要(caller 已传 chunk.pdfHash)
   pageText?: string,  // ⭐ PDF 文本层内容（辅助分类与提取）
-  precomputedClassification?: import('./page-classifier.agent').ClassificationResult  // ⭐ 批量分类结果（跳过 Phase 1）
-): Promise<PageMetadata> {
+  precomputedClassification?: ClassificationResult  // ⭐ 批量分类结果（跳过 Phase 1）
+): Promise<PageMetadata | PageMetadata[]> {
 
   try {
     // ============ Phase 1: Lightweight Classification ============
     // ⚡ 批量分类已覆盖时直接复用；否则单页分类（含降级路径）
     const classification = precomputedClassification
       ?? await classifyPage(imageUrl, pageNumber, pageText);
+
+    // ============ ⭐ 一页多户型(2/4/8 均衡等分)→ 裁成多张,各成独立户型 ============
+    if (
+      classification.pageType === PageType.UNIT_ANCHOR &&
+      classification.multiUnit &&
+      pdfHash
+    ) {
+      try {
+        const multi = await buildMultiUnitPages(
+          imageUrl, imageUrls, pageNumber, pdfSource, chunkIndex, pdfHash, classification.multiUnit
+        );
+        if (multi.length > 0) {
+          console.log(`   ✂️  Page ${pageNumber}: split into ${multi.length} unit crops (${classification.multiUnit.layout})`);
+          return multi;
+        }
+      } catch (err) {
+        // 裁剪失败不阻断:退回单页单户型(下面的常规路径)
+        console.warn(`   ⚠️  Multi-unit crop failed on page ${pageNumber}, falling back to single page:`, (err as Error).message);
+      }
+    }
 
     // ============ Phase 2: Conditional Detailed Extraction ============
     let unitInfo: UnitPageInfo | undefined = undefined;
@@ -261,6 +284,158 @@ export async function analyzePageWithAI(
     console.error(`   Error analyzing page ${pageNumber}:`, error);
     return createFallback(pageNumber, pdfSource, chunkIndex, imageUrl, imageUrls);
   }
+}
+
+// ============================================================
+// 多户型均衡等分裁剪(2/4/8)
+// ============================================================
+
+interface Region { x: number; y: number; width: number; height: number }
+
+/**
+ * 按 count + layout 把 W×H 整页均衡等分成 count 块,行主序(左→右、上→下)。
+ * horizontal=一排 N 列;vertical=一列 N 行;grid=2 行 ×(count/2)列(4=2×2,8=2×4)。
+ */
+function computeEvenRegions(W: number, H: number, count: number, layout: string): Region[] {
+  const regions: Region[] = [];
+  if (layout === 'horizontal') {
+    const w = Math.floor(W / count);
+    for (let i = 0; i < count; i++) regions.push({ x: i * w, y: 0, width: i === count - 1 ? W - i * w : w, height: H });
+  } else if (layout === 'vertical') {
+    const h = Math.floor(H / count);
+    for (let i = 0; i < count; i++) regions.push({ x: 0, y: i * h, width: W, height: i === count - 1 ? H - i * h : h });
+  } else {
+    // grid: 2 行 × cols 列
+    const rows = 2;
+    const cols = count / 2;
+    const w = Math.floor(W / cols);
+    const h = Math.floor(H / rows);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        regions.push({
+          x: c * w, y: r * h,
+          width: c === cols - 1 ? W - c * w : w,
+          height: r === rows - 1 ? H - r * h : h,
+        });
+      }
+    }
+  }
+  return regions;
+}
+
+/** 把一个裁剪 buffer 生成多尺寸变体并上传 R2,返回 ImageUrls。 */
+async function uploadCropVariants(
+  cropBuffer: Buffer, pdfHash: string, pageNumber: number, cropIndex: number
+): Promise<ImageUrls> {
+  const variants = await generateImageVariantsFromBuffer(cropBuffer);
+  const urls: Partial<ImageUrls> = {};
+  for (const v of IMAGE_VARIANTS) {
+    const buf = variants.get(v.name);
+    if (!buf) continue;
+    const filename = `p${pageNumber}_u${cropIndex}_${v.name}.jpg`;
+    urls[v.name] = await uploadToPdfCache(buf, pdfHash, filename);
+  }
+  return urls as ImageUrls;
+}
+
+/**
+ * 一页多户型 → 裁成 count 张,每张成独立的 UNIT_ANCHOR PageMetadata。
+ * 每块并行跑 extractUnitDetails 拿各自 specs(失败退回名字兜底)。
+ */
+async function buildMultiUnitPages(
+  imageUrl: string,
+  imageUrls: ImageUrls | undefined,
+  pageNumber: number,
+  pdfSource: string,
+  chunkIndex: number,
+  pdfHash: string,
+  multiUnit: NonNullable<ClassificationResult['multiUnit']>
+): Promise<PageMetadata[]> {
+  // 用最高清的原图裁,保证清晰度
+  const src = imageUrls?.original || imageUrl;
+  const res = await fetch(src);
+  if (!res.ok) throw new Error(`fetch original failed: ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const meta = await sharp(buf).metadata();
+  const W = meta.width || 0;
+  const H = meta.height || 0;
+  if (!W || !H) throw new Error('image has no dimensions');
+
+  const regions = computeEvenRegions(W, H, multiUnit.count, multiUnit.layout);
+
+  return Promise.all(regions.map(async (r, i) => {
+    // ⭐ 每个 crop 一个微小分数页码(N, N.001, N.002…):PageRegistry 去重、边界范围、
+    // assign-images 全按页码比较,分数页码让同页多户型互不覆盖、各自成独立边界/户型;
+    // crop0 保持原整数页码(与非多户型页一致);id/文件名仍用整数基页,保持稳定。
+    const cropPage = pageNumber + i * 0.001;
+    const cropBuf = await sharp(buf)
+      .extract({ left: r.x, top: r.y, width: r.width, height: r.height })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    const cropUrls = await uploadCropVariants(cropBuf, pdfHash, pageNumber, i);
+
+    const u = multiUnit.units[i];
+    // 每块单独抽 specs(只喂裁剪图,不喂整页文本以免混入邻块面积表)
+    let unitInfo: UnitPageInfo;
+    try {
+      const details = await extractUnitDetails(cropUrls.large, u.unitTypeName, pageNumber);
+      unitInfo = {
+        unitTypeName: u.unitTypeName,
+        unitCategory: u.unitCategory || deriveCategory(u.unitTypeName),
+        hasDetailedSpecs: Object.keys(details.specs || {}).length > 0,
+        specs: details.specs,
+        features: details.features,
+        description: details.description,
+        hasFloorPlan: true,
+        roleInUnit: 'main',
+      };
+    } catch {
+      unitInfo = {
+        unitTypeName: u.unitTypeName,
+        unitCategory: u.unitCategory || deriveCategory(u.unitTypeName),
+        hasDetailedSpecs: false,
+        hasFloorPlan: true,
+        roleInUnit: 'main',
+      };
+    }
+
+    const image: PageImage = {
+      imageId: `page_${pageNumber}_u${i}_img_0`,
+      imagePath: cropUrls.large,
+      imageUrls: cropUrls,
+      pageNumber: cropPage,
+      category: ImageCategory.FLOOR_PLAN,
+      confidence: 0.9,
+      shouldUse: true,
+      features: { isFullPage: false, hasDimensions: true, hasScale: false },
+    };
+
+    const metadata: PageMetadata = {
+      pageNumber: cropPage,
+      pdfSource,
+      chunkIndex,
+      pageType: PageType.UNIT_ANCHOR,
+      subTypes: [],
+      confidence: 0.9,
+      content: { textDensity: 'sparse', hasTable: false, hasDiagram: true, hasMarketingText: false, marketingTexts: [] },
+      images: [image],
+      unitInfo,
+      boundaryMarkers: { isSectionStart: false, isSectionEnd: false, isUnitStart: true, isUnitEnd: false, startMarkerText: u.unitTypeName },
+      multiUnitSource: {
+        originalPageNumber: pageNumber,
+        originalImageUrl: src,
+        cropIndex: i,
+        totalCrops: regions.length,
+        bbox: {
+          xPercent: (r.x / W) * 100,
+          yPercent: (r.y / H) * 100,
+          widthPercent: (r.width / W) * 100,
+          heightPercent: (r.height / H) * 100,
+        },
+      },
+    };
+    return metadata;
+  }));
 }
 
 // ============================================================

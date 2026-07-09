@@ -32,6 +32,14 @@ export interface ClassificationResult {
     isFullPage: boolean;
     hasDimensions: boolean;
   };
+  // ⭐ 2026-07-09 一页多户型(仅 2/4/8 均衡等分):同一 unit_anchor 页并排等大画了
+  // 多个户型平面图 → page-analyzer 会几何等分裁成多张,每张成独立户型。
+  // units 必须按阅读顺序(左→右、上→下),数量=count;不满足则不返回(退回单户型)。
+  multiUnit?: {
+    count: number;                        // 2 | 4 | 8
+    layout: 'horizontal' | 'vertical' | 'grid';  // 横排/纵排/网格(4=2×2,8=4×2)
+    units: { unitTypeName: string; unitCategory?: string }[];
+  };
 }
 
 // 兼容旧代码的导出（已废弃）
@@ -127,6 +135,13 @@ const PAGE_TYPE_CRITERIA = `## 页面类型
 
 **示例：** 1-Bedroom Floor Plan, Type A, B-1B-B.2
 
+**⭐ 一页多户型(仅规整等分)：** 若同一页**并排等大**画了 **2 / 4 / 8** 个户型平面图
+(如左右两个 "STUDIO TYPE 01" 和 "STUDIO TYPE 02",或 2×2 网格),返回 multiUnit：
+- count = 户型个数(只能是 2/4/8)
+- layout = horizontal(左右一排)/ vertical(上下一列)/ grid(2×2 或 4×2 网格)
+- units = 每个户型的名字,**严格按阅读顺序**(左→右,再上→下),数量必须等于 count
+- ⚠️ 只在户型**等大规整排列**时返回;若数量不是 2/4/8、大小不一、或读不全名字 → **不要返回 multiUnit**(当普通单户型处理,只填一个 unitTypeName)
+
 ### unit_rendering（户型外观效果图）
 - 单个户型/别墅/联排的**外观**3D渲染图
 - 艺术效果图，不是平面图，没有房间标签
@@ -203,6 +218,9 @@ const CLASSIFICATION_JSON_SHAPE = `{
   }
 }
 
+一页多户型时额外加(否则整个省略 multiUnit 字段)：
+"multiUnit": { "count": 2, "layout": "horizontal", "units": [ {"unitTypeName":"STUDIO TYPE 02","unitCategory":"Studio"}, {"unitTypeName":"STUDIO TYPE 01","unitCategory":"Studio"} ] }
+
 imageInfo.category 只能从以下枚举中选（禁止其他值）：
 floor_plan | unit_exterior | unit_interior_living | unit_interior_bedroom | unit_interior_kitchen | unit_interior_bathroom | unit_balcony | building_exterior | building_aerial | building_entrance | location_map | master_plan | amenity_pool | amenity_gym | amenity_garden | amenity_lounge | amenity_other | logo | diagram | unknown
 
@@ -243,6 +261,31 @@ function toClassificationResult(parsed: any): ClassificationResult {
       isUnitStart: false,
     },
     imageInfo: parsed.imageInfo,
+    multiUnit: parseMultiUnit(parsed.multiUnit),
+  };
+}
+
+/**
+ * 校验多户型切分:只接受 2/4/8 均衡等分、且每个户型名字齐全的情况;
+ * 任何不满足(数量非 2/4/8、layout 非法、名字不全)一律返回 undefined → 退回单户型,
+ * 避免把不规则版式切坏(用户要求先只做规整等分)。
+ */
+function parseMultiUnit(raw: any): ClassificationResult['multiUnit'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const count = Number(raw.count);
+  const layout = raw.layout;
+  if (![2, 4, 8].includes(count)) return undefined;
+  if (!['horizontal', 'vertical', 'grid'].includes(layout)) return undefined;
+  const units = Array.isArray(raw.units) ? raw.units : [];
+  const named = units.filter((u: any) => u && typeof u.unitTypeName === 'string' && u.unitTypeName.trim());
+  if (named.length !== count) return undefined; // 名字必须齐全,否则退回单户型
+  return {
+    count,
+    layout,
+    units: named.map((u: any) => ({
+      unitTypeName: String(u.unitTypeName).trim(),
+      unitCategory: u.unitCategory ? String(u.unitCategory) : undefined,
+    })),
   };
 }
 

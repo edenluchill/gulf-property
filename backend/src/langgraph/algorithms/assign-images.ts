@@ -84,7 +84,6 @@ export function assignImagesByBoundaries(
     };
 
     let totalImagesAssigned = 0;
-    let filteredOutCount = 0;
     const sourcePagesSet = new Set<number>();  // ⭐ 用于去重
 
     pages.forEach((page, pIdx) => {
@@ -98,13 +97,9 @@ export function assignImagesByBoundaries(
       if (!belongs) return;
 
       // 分配图片（基于AI标记的类别）
+      // 2026-07-09:不再因 shouldUse===false 丢弃户型图片(用户要"别删",交给
+      // admin 在审核页决定);shouldUse 仅作展示提示透传,不影响归属。
       page.images.forEach(img => {
-        // ⭐ Filter out images marked as shouldUse: false
-        if (img.shouldUse === false) {
-          filteredOutCount++;
-          return;  // Skip this image
-        }
-
         totalImagesAssigned++;
         assignment.allImages.push(img);
         sourcePagesSet.add(page.pageNumber);  // ⭐ 记录来源页码
@@ -140,10 +135,6 @@ export function assignImagesByBoundaries(
 
     // ⭐ 转换Set为排序后的数组
     assignment.sourcePages = Array.from(sourcePagesSet).sort((a, b) => a - b);
-
-    if (filteredOutCount > 0) {
-      console.log(`   🗑️  Filtered out ${filteredOutCount} images marked as not useful`);
-    }
 
     console.log(`   ✓ ${boundary.unitTypeName}: ${totalImagesAssigned} images (${assignment.floorPlanImages.length} floor plans, ${assignment.renderingImages.length} renderings, ${assignment.interiorImages.length} interiors) from pages [${assignment.sourcePages.join(', ')}]`);
 

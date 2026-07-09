@@ -20,55 +20,34 @@ import { UnitBoundary, ProjectImages } from '../types/assignment-result';
  */
 export function extractProjectImages(
   pages: PageMetadata[],
-  boundaries: UnitBoundary[]
+  _boundaries: UnitBoundary[]  // 保留签名兼容;新策略不再按边界过滤
 ): ProjectImages {
-  
+
   console.log('\n🏢 Extracting project images (marketing gallery)...');
 
-  // ⭐ 页码按PDF各自从1开始，范围判断必须带pdfSource
-  const isInsideBoundary = (page: PageMetadata) => boundaries.some(b =>
-    page.pdfSource === b.pdfSource &&
-    page.pageNumber >= b.startPage && page.pageNumber <= b.endPage
-  );
+  // ⭐ 2026-07-09 改:概览 = 所有页的所有图片,只排除户型平面图(FLOOR_PLAN),按
+  //    imagePath 去重。用户诉求:抽图别删非户型照片;户型效果图/内景同时保留在
+  //    户型和概览,概览显示"除户型平面图外的所有图",admin 在审核页自己决定删不删。
+  //    不再因 shouldUse===false 硬丢(交给 admin 隐藏);平面图仍只进户型不进概览。
+  const allImages = pages.flatMap(p => p.images);
+  const nonFloorPlan = allImages.filter(img => img.category !== ImageCategory.FLOOR_PLAN);
+  const uniqueImages = deduplicateByImagePath(nonFloorPlan);
 
-  // ⭐ 角标带户型名的效果图页是户型内容，不进项目图库
-  const hasUnitLabel = (page: PageMetadata) => page.unitInfo?.roleInUnit === 'supplementary';
+  console.log(`   All images: ${allImages.length}, non-floorplan: ${nonFloorPlan.length}, unique: ${uniqueImages.length}`);
 
-  // 策略1: 不在任何户型边界内的页面（排除已被户型标签认领的页）
-  const outsideBoundaryPages = pages.filter(page => !isInsideBoundary(page) && !hasUnitLabel(page));
-
-  // 策略2: 即使在边界内，但明确是项目级别的图片
-  // ⚠️ 边界内的页只收严格项目类别（UNKNOWN/UNIT_EXTERIOR 不算——那些是户型效果图）
-  const projectTypeImages = pages.flatMap(p => {
-    const inside = isInsideBoundary(p) || hasUnitLabel(p);
-    return p.images.filter(img =>
-      inside ? isStrictProjectLevelImage(img.category) : isProjectLevelImage(img.category)
-    );
-  });
-  
-  console.log(`   Pages outside unit boundaries: ${outsideBoundaryPages.length}`);
-  console.log(`   Project-level images (all pages): ${projectTypeImages.length}`);
-  
-  // 收集所有项目图片（去重）
-  const allProjectImages = [
-    ...outsideBoundaryPages.flatMap(p => p.images),
-    ...projectTypeImages,
-  ];
-  
-  // ⭐ NEW: Filter out images marked as shouldUse: false
-  const usefulImages = allProjectImages.filter(img => img.shouldUse !== false);
-  const filteredCount = allProjectImages.length - usefulImages.length;
-  
-  if (filteredCount > 0) {
-    console.log(`   🗑️  Filtered out ${filteredCount} images marked as not useful`);
-  }
-  
-  // 去重（按imageId）
-  const uniqueImages = deduplicateByImageId(usefulImages);
-  
-  console.log(`   Total unique project images: ${uniqueImages.length}`);
-  
-  // 按类别分组（更宽松）
+  // 按类别分组;户型效果图/内景/阳台归入 gallery(renderingImages)与项目外观同展示。
+  // ⭐ 任何非平面图都必须落进某个桶,否则会被静默丢弃(用户明确要"别删")。
+  const bucketed = new Set<ImageCategory>([
+    ImageCategory.LOGO,
+    ImageCategory.BUILDING_AERIAL,
+    ImageCategory.LOCATION_MAP,
+    ImageCategory.MASTER_PLAN,
+    ImageCategory.AMENITY_POOL, ImageCategory.AMENITY_GYM, ImageCategory.AMENITY_GARDEN,
+    ImageCategory.AMENITY_LOUNGE, ImageCategory.AMENITY_OTHER,
+    ImageCategory.BUILDING_EXTERIOR, ImageCategory.BUILDING_ENTRANCE, ImageCategory.DIAGRAM,
+    ImageCategory.UNIT_EXTERIOR, ImageCategory.UNIT_INTERIOR_LIVING, ImageCategory.UNIT_INTERIOR_BEDROOM,
+    ImageCategory.UNIT_INTERIOR_KITCHEN, ImageCategory.UNIT_INTERIOR_BATHROOM, ImageCategory.UNIT_BALCONY,
+  ]);
   const result: ProjectImages = {
     coverImages: extractByCategory(uniqueImages, [ImageCategory.LOGO]),
     aerialImages: extractByCategory(uniqueImages, [ImageCategory.BUILDING_AERIAL]),
@@ -81,12 +60,19 @@ export function extractProjectImages(
       ImageCategory.AMENITY_LOUNGE,
       ImageCategory.AMENITY_OTHER,
     ]),
-    renderingImages: extractByCategory(uniqueImages, [
-      ImageCategory.BUILDING_EXTERIOR,
-      ImageCategory.BUILDING_ENTRANCE,
-      ImageCategory.DIAGRAM,  // ⭐ 添加图表
-      ImageCategory.UNKNOWN,  // ⭐ 未分类的也收集（可能是有用的marketing图片）
-    ]),
+    // 项目外观 + 户型效果图/内景/阳台 + 图表 + 未匹配到具名桶的一切(兜底,防丢弃)
+    renderingImages: uniqueImages.filter(img =>
+      img.category === ImageCategory.BUILDING_EXTERIOR ||
+      img.category === ImageCategory.BUILDING_ENTRANCE ||
+      img.category === ImageCategory.DIAGRAM ||
+      img.category === ImageCategory.UNIT_EXTERIOR ||
+      img.category === ImageCategory.UNIT_INTERIOR_LIVING ||
+      img.category === ImageCategory.UNIT_INTERIOR_BEDROOM ||
+      img.category === ImageCategory.UNIT_INTERIOR_KITCHEN ||
+      img.category === ImageCategory.UNIT_INTERIOR_BATHROOM ||
+      img.category === ImageCategory.UNIT_BALCONY ||
+      !bucketed.has(img.category)  // 兜底:UNKNOWN/ICON 等未具名分类也收进 gallery
+    ),
   };
   
   const total = 
@@ -109,58 +95,6 @@ export function extractProjectImages(
 }
 
 /**
- * 判断是否为项目级别图片
- * 
- * ⭐ 策略：宽松收集，避免遗漏项目图片
- * - 明确的项目级别category
- * - UNKNOWN也收集（可能是有价值的项目图片）
- * - UNIT_EXTERIOR也收集（AI可能混淆项目外观和户型外观）
- */
-function isProjectLevelImage(category: ImageCategory): boolean {
-  const projectCategories = [
-    // 项目图片
-    ImageCategory.BUILDING_EXTERIOR,
-    ImageCategory.BUILDING_AERIAL,
-    ImageCategory.BUILDING_ENTRANCE,
-    ImageCategory.LOCATION_MAP,
-    ImageCategory.MASTER_PLAN,
-    ImageCategory.LOGO,
-    ImageCategory.DIAGRAM,
-    ImageCategory.ICON,  // ⭐ 添加：可能是项目图标
-    // 配套设施也算项目级别
-    ImageCategory.AMENITY_POOL,
-    ImageCategory.AMENITY_GYM,
-    ImageCategory.AMENITY_GARDEN,
-    ImageCategory.AMENITY_LOUNGE,
-    ImageCategory.AMENITY_OTHER,
-    // ⭐ 宽松策略：包含可能被误分类的category
-    ImageCategory.UNKNOWN,  // ⭐ 关键：很多项目图片可能被分类为UNKNOWN
-    ImageCategory.UNIT_EXTERIOR,  // ⭐ AI可能混淆项目外观和户型外观
-  ];
-  
-  return projectCategories.includes(category);
-}
-
-/**
- * 严格项目级别类别（用于户型边界内的页面——不含UNKNOWN/UNIT_EXTERIOR）
- */
-function isStrictProjectLevelImage(category: ImageCategory): boolean {
-  const strictCategories = [
-    ImageCategory.BUILDING_EXTERIOR,
-    ImageCategory.BUILDING_AERIAL,
-    ImageCategory.BUILDING_ENTRANCE,
-    ImageCategory.LOCATION_MAP,
-    ImageCategory.MASTER_PLAN,
-    ImageCategory.AMENITY_POOL,
-    ImageCategory.AMENITY_GYM,
-    ImageCategory.AMENITY_GARDEN,
-    ImageCategory.AMENITY_LOUNGE,
-    ImageCategory.AMENITY_OTHER,
-  ];
-  return strictCategories.includes(category);
-}
-
-/**
  * 按类别提取图片
  */
 function extractByCategory(
@@ -172,11 +106,11 @@ function extractByCategory(
 
 /**
  * 去重图片（按imagePath - 避免同一页面的重复图片）
- * 
+ *
  * ⚡ FIX: 同一页可能被AI识别为多个类别(rendering, aerial, exterior)
  * 但它们的imagePath都是同一个文件,应该去重
  */
-function deduplicateByImageId(images: PageImage[]): PageImage[] {
+function deduplicateByImagePath(images: PageImage[]): PageImage[] {
   const seen = new Set<string>();
   return images.filter(img => {
     // ⚡ 按imagePath去重,而不是imageId
