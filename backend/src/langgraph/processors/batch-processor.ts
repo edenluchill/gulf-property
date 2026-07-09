@@ -812,6 +812,10 @@ function convertAssignmentToAggregatedData(
   if (dedupedUnits.length < mergedUnits.length) {
     console.log(`   🔗 Cross-PDF dedup: ${mergedUnits.length} → ${dedupedUnits.length} units (merged same category+area)`);
   }
+  // ⭐ 同名消歧:去重后仍撞名的是"不同户型撞名"(如 Chelsea 的 TYPE A1 在 1BR/2BR/3BR
+  // 各一个,面积不同,bare 编码没带卧室前缀)。加类别(仍冲突再加面积)前缀,保证提交后
+  // 户型名唯一,不被当成重复/覆盖。
+  disambiguateUnitNames(dedupedUnits);
 
   // 合并payment plans
   const finalPaymentPlans = assignmentResult.paymentPlans && assignmentResult.paymentPlans.length > 0
@@ -963,6 +967,37 @@ function dedupeUnitsByAreaCategory(units: any[]): any[] {
   }
 
   return [...merged, ...passthrough];
+}
+
+/**
+ * 同名消歧(原地改 typeName/name/id):去重后仍同名的是"不同户型撞名"
+ * (bare 编码如 "TYPE A1" 在多个卧室档各一个)。先加类别前缀("1BR TYPE A1"),
+ * 若同类别内仍撞名(同名同类别不同面积,罕见)再加面积。已唯一的不动。
+ */
+function disambiguateUnitNames(units: any[]): void {
+  const norm = (s: string) => (s || '').toUpperCase().trim();
+  const countBy = (arr: any[], keyFn: (u: any) => string) => {
+    const m = new Map<string, number>();
+    for (const u of arr) m.set(keyFn(u), (m.get(keyFn(u)) || 0) + 1);
+    return m;
+  };
+  const rename = (u: any, name: string) => { u.typeName = name; u.name = name; u.id = name; };
+
+  const nameCount = countBy(units, (u) => norm(u.typeName || u.name));
+  for (const u of units) {
+    const nm = u.typeName || u.name || '';
+    if ((nameCount.get(norm(nm)) || 0) <= 1) continue; // 已唯一
+    const cat = String(u.category || '').trim();
+    if (cat && !norm(nm).includes(norm(cat))) rename(u, `${cat} ${nm}`);
+  }
+  // 加类别后再查一轮:同类别内仍撞名的加面积
+  const nameCount2 = countBy(units, (u) => norm(u.typeName || u.name));
+  for (const u of units) {
+    const nm = u.typeName || u.name || '';
+    if ((nameCount2.get(norm(nm)) || 0) <= 1) continue;
+    const area = Math.round(Number(u.area) || 0);
+    if (area > 0 && !norm(nm).includes(String(area))) rename(u, `${nm} (${area} sqft)`);
+  }
 }
 
 /**

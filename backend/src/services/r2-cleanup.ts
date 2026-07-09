@@ -10,8 +10,11 @@ import {
   S3Client,
   ListObjectsV2Command,
   DeleteObjectsCommand,
-  CopyObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
+import { createHash } from 'crypto';
 
 const r2Client = new S3Client({
   region: 'auto',
@@ -23,36 +26,55 @@ const r2Client = new S3Client({
 });
 const R2_BUCKET = process.env.R2_BUCKET_NAME || '';
 
+async function streamToBuffer(body: any): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const c of body) chunks.push(Buffer.from(c));
+  return Buffer.concat(chunks);
+}
+
 /**
- * 永久归档:把 pending-pdfs/{jobId}/* 复制到 pdf-archive/{jobId}/*(永不自动清理)。
- * 处理成功后调用 → 源 PDF 永久保留,供 pipeline 改进后重跑验证/优化。
- * 幂等(已归档的 Copy 覆盖同 key,无副作用);不删 pending(pending 照常清理)。
- * 返回归档的 R2 key 列表。失败不抛(非致命,只记 warn)。
+ * 永久归档(按内容 hash 去重):把 pending-pdfs/{jobId}/* 归档到
+ * **pdf-archive/{sha256}.pdf**(永不自动清理)。同一 PDF 被多个 job 重复上传时
+ * 只存一份(内容 hash 相同 → 同一 key)。处理成功后调用,供 pipeline 改进后重跑验证。
+ * 幂等(已存在则跳过);不删 pending(pending 照常清理)。失败不抛(非致命)。
+ * 返回 [{ hash, key, name }]。
  */
-export async function archivePdfsForJob(jobId: string): Promise<string[]> {
+export async function archivePdfsForJob(
+  jobId: string
+): Promise<{ hash: string; key: string; name: string }[]> {
   const prefix = `pending-pdfs/${jobId}/`;
+  const archived: { hash: string; key: string; name: string }[] = [];
   try {
     const list = await r2Client.send(
       new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: prefix })
     );
     const keys = (list.Contents || []).map((o) => o.Key).filter(Boolean) as string[];
-    const archived: string[] = [];
     for (const key of keys) {
-      const dest = `pdf-archive/${jobId}/${key.slice(prefix.length)}`;
-      await r2Client.send(
-        new CopyObjectCommand({
-          Bucket: R2_BUCKET,
-          CopySource: `${R2_BUCKET}/${encodeURIComponent(key)}`,
-          Key: dest,
-        })
+      const name = key.slice(prefix.length);
+      if (!name || !/\.pdf$/i.test(name)) continue; // 只归档 PDF(跳过占位 _.pdf 等非 PDF)
+      const bytes = await streamToBuffer(
+        (await r2Client.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }))).Body
       );
-      archived.push(dest);
+      const hash = createHash('sha256').update(bytes).digest('hex');
+      const dest = `pdf-archive/${hash}.pdf`;
+      // 已存在(同内容)→ 跳过,保证唯一
+      let exists = false;
+      try { await r2Client.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: dest })); exists = true; } catch { /* not found */ }
+      if (!exists) {
+        await r2Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET, Key: dest, Body: bytes, ContentType: 'application/pdf',
+          Metadata: { originalName: encodeURIComponent(name), firstJob: jobId },
+        }));
+      }
+      archived.push({ hash, key: dest, name });
     }
-    if (archived.length > 0) console.log(`📦 Archived ${archived.length} source PDF(s) for job ${jobId} → pdf-archive/`);
+    if (archived.length > 0) {
+      console.log(`📦 Archived ${archived.length} source PDF(s) for job ${jobId} → pdf-archive/{hash}.pdf (content-deduped)`);
+    }
     return archived;
   } catch (e) {
     console.warn(`⚠️  archivePdfsForJob(${jobId}) failed (non-fatal):`, (e as Error).message);
-    return [];
+    return archived;
   }
 }
 
