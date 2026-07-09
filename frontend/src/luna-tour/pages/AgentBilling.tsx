@@ -132,7 +132,7 @@ export default function AgentBilling() {
     { id: 'rookie', name: '启程版 Starter', monthly: catMonthly('rookie', 25), yearly: catYear('rookie', catMonthly('rookie', 25)), edge: '#0ea5e9',
       lines: [`${catCredits('rookie', 200).toLocaleString()} 积分/月`, '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
     { id: 'agent', name: '专业版 Pro', monthly: catMonthly('agent', 99), yearly: catYear('agent', catMonthly('agent', 99)), edge: '#10b981',
-      lines: [`${catCredits('agent', 2500).toLocaleString()} 积分/月`, '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
+      lines: [`${catCredits('agent', 1200).toLocaleString()} 积分/月`, '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
     { id: 'founder', name: '经纪公司版 Agency', monthly: catMonthly('founder', 699), yearly: catYear('founder', catMonthly('founder', 699)), edge: '#E8C37E',
       lines: [`${catCredits('founder', 15000).toLocaleString()} 积分/月 · 含 3 席共享`, '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
   ]
