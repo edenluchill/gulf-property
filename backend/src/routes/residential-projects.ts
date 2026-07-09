@@ -637,6 +637,20 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       const finalProjectImages = projectImages
       const finalFloorPlanImages = floorPlanImages
 
+      // ⭐ 幂等提交(2026-07-09):同名项目重提 = 替换,不再追加。此前每次 submit 都
+      // INSERT 新项目记录 → 重复上传/重新提交会产生两条项目+两套户型(The Willows 实锤)。
+      // 先删同名旧项目(及其户型),把旧项目的收藏迁到新项目,再插新的。
+      const oldProjects = await client.query(
+        `SELECT id FROM residential_projects WHERE project_name = $1`,
+        [data.projectName]
+      )
+      const oldProjectIds: string[] = oldProjects.rows.map((r: any) => r.id)
+      if (oldProjectIds.length > 0) {
+        await client.query(`DELETE FROM project_unit_types WHERE project_id = ANY($1)`, [oldProjectIds])
+        await client.query(`DELETE FROM residential_projects WHERE id = ANY($1)`, [oldProjectIds])
+        console.log(`♻️  Replacing existing project "${data.projectName}" — removed ${oldProjectIds.length} old record(s)`)
+      }
+
       // 1. Insert main project (including payment_plan as JSONB)
       const paymentPlanJson = transformPaymentPlanToJson(data.paymentPlan)
       console.log(`💰 Payment plan: ${paymentPlanJson.length} milestones`)
@@ -702,6 +716,20 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
 
       const projectId = projectResult.rows[0].id
       console.log('✅ Project created with ID:', projectId)
+
+      // 收藏迁移:旧项目被替换后,把指向旧 id 的收藏改到新项目,避免断了用户收藏。
+      // (user_favorites 无 FK 约束,删旧项目不会级联,需手动迁。)
+      if (oldProjectIds.length > 0) {
+        try {
+          const moved = await client.query(
+            `UPDATE user_favorites SET project_id = $1 WHERE project_id = ANY($2)`,
+            [projectId, oldProjectIds]
+          )
+          if (moved.rowCount) console.log(`   ⭐ Migrated ${moved.rowCount} favorite(s) to new project id`)
+        } catch (e) {
+          console.warn('   ⚠️  favorite migration skipped:', (e as Error).message)
+        }
+      }
 
       // 2. Insert unit types
       if (data.unitTypes && Array.isArray(data.unitTypes) && data.unitTypes.length > 0) {

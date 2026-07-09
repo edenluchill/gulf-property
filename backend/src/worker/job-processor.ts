@@ -167,11 +167,18 @@ export async function processJob(job: PendingJob): Promise<void> {
       });
       console.log(`   [100%] Processing complete!`);
 
-      // NOTE: We intentionally keep the raw PDFs in R2 after success now, so the
-      // admin can download them on the review page to compare against the AI
-      // extraction. They're cleaned up when the task is submitted/deleted (see
-      // admin-tasks DELETE /:jobId and DELETE /:jobId/pdfs), with the manual
-      // scripts/cleanup-pending-pdfs.ts as a backstop for abandoned tasks.
+      // ⭐ 永久归档源 PDF(2026-07-09):成功处理后把 pending-pdfs/ 的原始 PDF 复制到
+      // pdf-archive/(永不自动清理),供以后 pipeline 改进时重跑验证/优化。非致命。
+      try {
+        const { archivePdfsForJob } = await import('../services/r2-cleanup');
+        await archivePdfsForJob(jobId);
+      } catch (e) {
+        console.warn(`   ⚠️  PDF archive skipped for ${jobId}:`, (e as Error).message);
+      }
+
+      // NOTE: pending-pdfs/ 的原始 PDF 处理后暂留(审核页可下载对比),提交/删任务时
+      // 清理(admin-tasks DELETE /:jobId 与 /:jobId/pdfs),scripts/cleanup-pending-pdfs.ts
+      // 作为孤儿兜底。永久副本已在 pdf-archive/,清 pending 不影响重跑验证。
 
       console.log(`\n✅ Job ${jobId} completed successfully`);
       console.log(`   Processing time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
