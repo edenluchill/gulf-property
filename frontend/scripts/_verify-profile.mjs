@@ -57,7 +57,7 @@ async function setupPage(ctx) {
     route.fulfill({ json: { success: true, plans: [
       { id: 'explore', name: 'Explore', price_usd_month: '0', price_usd_year: '0', limits: {} },
       { id: 'rookie', name: 'Starter', price_usd_month: '25', price_usd_year: '249', limits: { credits_month: 200 } },
-      { id: 'agent', name: 'Agent', price_usd_month: '99', price_usd_year: '990', limits: { credits_month: 2500 } },
+      { id: 'agent', name: 'Agent', price_usd_month: '49', price_usd_year: '490', limits: { credits_month: 2500 } },
       { id: 'founder', name: 'Agency', price_usd_month: '699', price_usd_year: '6990', limits: { credits_month: 15000 } },
     ] } }))
   await page.route('**/api/billing/features', (route) =>
@@ -136,7 +136,7 @@ await page.route('**/api/billing/plans', (route) =>
   route.fulfill({ json: { success: true, plans: [
     { id: 'explore', name: 'Explore', price_usd_month: '0', price_usd_year: '0', limits: {} },
     { id: 'rookie', name: 'Starter', price_usd_month: '25', price_usd_year: '249', limits: { credits_month: 200 } },
-    { id: 'agent', name: 'Agent', price_usd_month: '99', price_usd_year: '990', limits: { credits_month: 2500 } },
+    { id: 'agent', name: 'Agent', price_usd_month: '49', price_usd_year: '490', limits: { credits_month: 2500 } },
     { id: 'founder', name: 'Agency', price_usd_month: '699', price_usd_year: '6990', limits: { credits_month: 15000 } },
   ] } }))
 await page.route('**/api/billing/features', (route) => route.fulfill({ json: { success: true, features: [], plans: [] } }))
@@ -145,9 +145,11 @@ await page.waitForTimeout(3500)
 await page.screenshot({ path: 'shot-profile-buyer.png' })
 console.log('saved: shot-profile-buyer.png')
 
-// 买家看订阅页 + 切年付,验证 rookie 年付 = $249
+// 买家看订阅页:月付视图(验证 Pro=$49/月),再切年付(rookie=$249、Pro=$490)
 await page.goto(BASE + '/agent/billing', { waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(3000)
+await page.screenshot({ path: 'shot-billing-month.png' })
+console.log('saved: shot-billing-month.png')
 const yearBtn = page.locator('button', { hasText: '按年付' }).first()
 if (await yearBtn.count()) { await yearBtn.click(); await page.waitForTimeout(600) }
 await page.screenshot({ path: 'shot-billing-year.png' })

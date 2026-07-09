@@ -89,11 +89,15 @@ async function main(): Promise<void> {
     console.log(`\n[${plan.id}] $${usd}/mo · $${yearUsd}/yr`)
     const envMonth = process.env[`STRIPE_PRICE_${plan.id.toUpperCase()}`]
     const envYear = process.env[`STRIPE_PRICE_${plan.id.toUpperCase()}_Y`]
+    if (envMonth) {
+      console.warn(`  ⚠ STRIPE_PRICE_${plan.id.toUpperCase()} 环境变量已设,月付价由 env 决定,DB/脚本改价不生效——改价请改 env 后重启`)
+    }
     if (envYear) {
       console.warn(`  ⚠ STRIPE_PRICE_${plan.id.toUpperCase()}_Y 环境变量已设,年付价由 env 决定,DB/脚本改价不生效——改价请改 env 后重启`)
     }
-    const needMonth = !envMonth && !plan.stripe_price_id
-    // 年付:若未配置,或已配置但金额 ≠ 目标价(改价),则重新对齐
+    // 月付/年付:若未配置,或已配置但金额 ≠ 目标价(改价),则重新对齐
+    const currentMonthUsd = await priceUsd(stripe, plan.stripe_price_id)
+    const needMonth = !envMonth && (!plan.stripe_price_id || currentMonthUsd !== usd)
     const currentYearUsd = await priceUsd(stripe, plan.stripe_price_id_year)
     const needYear = !envYear && (!plan.stripe_price_id_year || currentYearUsd !== yearUsd)
     const needSeat = plan.id === 'founder' && !process.env.STRIPE_PRICE_FOUNDER_SEAT && !plan.stripe_price_id_seat
@@ -103,6 +107,11 @@ async function main(): Promise<void> {
     }
     const productId = await ensureProduct(stripe, plan.id, plan.name)
     if (needMonth) {
+      // 改价时:Stripe price 不可改金额,新建目标价 price 并把 DB 指过去
+      // (旧 price 自动 archive 不影响已订阅老用户,新订阅走新价)。
+      if (currentMonthUsd != null && currentMonthUsd !== usd) {
+        console.log(`  ↻ 月付改价 $${currentMonthUsd} → $${usd},新建 price`)
+      }
       const id = await ensurePrice(stripe, productId, usd, 'month', `${plan.id}-month`)
       await pool.query(`UPDATE lt_subscription_plans SET stripe_price_id = $2 WHERE id = $1`, [plan.id, id])
       console.log(`  ✓ stripe_price_id = ${id}`)
