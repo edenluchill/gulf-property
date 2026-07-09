@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
 import { useMyRole } from '../../hooks/useMyRole'
-import { fetchBillingMe } from '../../lib/billingApi'
+import { fetchBillingMe, type BillingMe } from '../../lib/billingApi'
 import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
 import { useScrollChrome } from '../../hooks/useScrollChrome'
 
@@ -30,7 +30,7 @@ const ROLE_CHIP: Record<string, { zh: string; en: string; emoji: string; cls: st
   developer: { zh: '开发商', en: 'Developer', emoji: '🏗️', cls: 'bg-amber-100 text-amber-700' },
 }
 
-export type ProfileShellContext = { badge: RoleBadge | null }
+export type ProfileShellContext = { badge: RoleBadge | null; me: BillingMe | null }
 
 type Tab = { to: string; end?: boolean; zh: string; en: string; icon: typeof UserRound }
 
@@ -77,13 +77,18 @@ export default function ProfileShell() {
     })
   }
 
-  // 认证勋章(付费订阅推导;买家/无订阅 = null)
+  // 订阅信息 + 认证勋章(付费订阅推导;买家/无订阅勋章 = null)
+  const [me, setMe] = useState<BillingMe | null>(null)
   const [badge, setBadge] = useState<RoleBadge | null>(null)
   useEffect(() => {
-    if (!user) { setBadge(null); return }
+    if (!user) { setMe(null); setBadge(null); return }
     let stale = false
     void fetchBillingMe()
-      .then((me) => { if (!stale && me) setBadge(badgeForPlan(me.plan?.id, me.status, me.teamMember)) })
+      .then((m) => {
+        if (stale || !m) return
+        setMe(m)
+        setBadge(badgeForPlan(m.plan?.id, m.status, m.teamMember))
+      })
       .catch(() => { /* 未付费 */ })
     return () => { stale = true }
   }, [user?.email])
@@ -318,7 +323,7 @@ export default function ProfileShell() {
           {/* 内容区(个人资料 / 经纪台各 tab)。context 给 ProfileHome 复用勋章,
               避免同一份 billing/me 拉两遍。 */}
           <main className="min-w-0 flex-1">
-            <Outlet context={{ badge } satisfies ProfileShellContext} />
+            <Outlet context={{ badge, me } satisfies ProfileShellContext} />
           </main>
         </div>
       </div>

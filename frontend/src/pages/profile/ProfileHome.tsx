@@ -1,35 +1,63 @@
 /**
  * ProfileHome — 个人中心「个人资料」tab(ProfileShell 的 index 路由)。
- * 身份 hero + 功能卡片(勋章分享 / 经纪名片 / 收藏 / 订阅 / 切换身份 / 后台)。
- * 勋章数据由 ProfileShell 经 Outlet context 下发,不重复拉 billing/me。
+ *
+ * 全平铺(用户 2026-07-08 定的规则):头像/身份/名片/订阅/收藏所有信息
+ * 直接可见,不藏在"点进去"的入口卡后面。编辑动作(名片/勋章分享)才开弹窗。
+ * 订阅数据由 ProfileShell 经 Outlet context 下发,不重复拉 billing/me。
  */
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  User, Mail, Medal, Contact, Heart, CreditCard, ArrowLeftRight,
-  BarChart3, ChevronRight, Sparkles, CalendarDays,
+  User, Mail, Contact, Heart, ArrowLeftRight, BarChart3, CalendarDays,
+  Sparkles, ArrowRight, Pencil, Phone, MessageCircle, LogOut, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOwnerEmail } from '../../lib/config'
 import { useMyRole } from '../../hooks/useMyRole'
+import { getProjectCount, getFavoriteCount } from '../../lib/favorites'
+import { lunaFetch } from '../../luna-tour/lunaApi'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import AgentCardEditor from '../../components/AgentCardEditor'
 import type { ProfileShellContext } from './ProfileShell'
+
+interface AgentCard {
+  display_name?: string | null
+  phone?: string | null
+  whatsapp?: string | null
+  public_email?: string | null
+  photo_url?: string | null
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
+}
 
 export default function ProfileHome() {
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const role = useMyRole()
-  const { badge } = useOutletContext<ProfileShellContext>()
+  const { badge, me } = useOutletContext<ProfileShellContext>()
 
   const [showBadgeDlg, setShowBadgeDlg] = useState(false)
   const [showCardEditor, setShowCardEditor] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   useEffect(() => { setAvatarError(false) }, [user?.user_metadata?.avatar_url])
+
+  // 经纪名片:直接平铺展示(编辑才开弹窗;关闭后重拉,让改动立刻可见)
+  const isPro = !!role && role !== 'buyer'
+  const [card, setCard] = useState<AgentCard | null>(null)
+  const loadCard = () => {
+    lunaFetch('/profile').then((r) => r.json()).then((j) => setCard(j?.agent || null)).catch(() => {})
+  }
+  useEffect(() => { if (isPro) loadCard() }, [isPro])
+
+  // 收藏数(本地同步,登录时已 merge 云端)
+  const favProjects = getProjectCount()
+  const favTotal = getFavoriteCount()
 
   if (!user) return null // ProfileShell 已拦未登录
 
@@ -44,35 +72,22 @@ export default function ProfileHome() {
     window.location.assign('/choose-role')
   }
 
-  /** 统一的功能卡片:图标 + 标题 + 描述 + 右箭头 */
-  function ActionCard({ icon, tint, title, desc, onClick, to }: {
-    icon: React.ReactNode; tint: string; title: string; desc: string
-    onClick?: () => void; to?: string
-  }) {
-    const inner = (
-      <>
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tint}`}>{icon}</div>
-        <div className="min-w-0 flex-1 text-left">
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <div className="mt-0.5 truncate text-xs text-slate-500">{desc}</div>
-        </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-400" />
-      </>
-    )
-    const cls = 'group flex w-full items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:shadow-md hover:ring-slate-900/10'
-    return to
-      ? <Link to={to} className={cls}>{inner}</Link>
-      : <button onClick={onClick} className={cls}>{inner}</button>
-  }
+  // 订阅展示(me 为空 = 拉取失败,当 Explore 免费档展示)
+  const planName = me?.plan?.name || 'Explore'
+  const status = me?.status || 'none'
+  const isPaid = status === 'active' || status === 'trialing'
+  const cMonth = me?.credits?.month ?? 0
+  const cBalance = me?.credits?.balance ?? 0
+  const cUsed = me?.credits?.used ?? 0
+  const unlimited = cMonth < 0
 
   return (
     <div className="space-y-4">
-      {/* 身份 hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg md:p-8">
-        {/* 质感光斑 */}
+      {/* ── 身份 hero:头像 + 全部账号信息直接可见 ── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg md:p-7">
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="relative flex items-center gap-4 md:gap-5">
+        <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
           {avatarUrl && !avatarError ? (
             <img
               src={avatarUrl}
@@ -80,20 +95,20 @@ export default function ProfileHome() {
               referrerPolicy="no-referrer"
               crossOrigin="anonymous"
               onError={() => setAvatarError(true)}
-              className="h-16 w-16 rounded-full ring-4 ring-white/15 md:h-20 md:w-20"
+              className="h-20 w-20 shrink-0 rounded-full ring-4 ring-white/15 md:h-24 md:w-24"
             />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-500 ring-4 ring-white/15 md:h-20 md:w-20">
-              <User className="h-8 w-8 text-white md:h-10 md:w-10" />
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-teal-500 ring-4 ring-white/15 md:h-24 md:w-24">
+              <User className="h-10 w-10 text-white md:h-12 md:w-12" />
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold md:text-2xl">{displayName}</h1>
-            <div className="mt-1 flex items-center gap-1.5 text-sm text-slate-300">
+            <h1 className="truncate text-2xl font-bold">{displayName}</h1>
+            <div className="mt-1 flex items-center justify-center gap-1.5 text-sm text-slate-300 sm:justify-start">
               <Mail className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{user.email}</span>
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-400 sm:justify-start">
               {joined && (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="h-3 w-3" />
@@ -102,89 +117,185 @@ export default function ProfileHome() {
               )}
               <span>{L('登录方式', 'Via')}: {user.app_metadata?.provider === 'google' ? 'Google' : (user.app_metadata?.provider || 'Email')}</span>
             </div>
+            {/* 勋章:直接常显(手机也显示),点开生成朋友圈分享图 */}
+            {badge && (
+              <button
+                onClick={() => setShowBadgeDlg(true)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/20 transition active:scale-95"
+                style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
+              >
+                <span aria-hidden>{badge.emoji}</span>
+                {zh ? badge.titleZh : badge.titleEn}
+                <span className="text-white/70">· {L('分享', 'Share')}</span>
+              </button>
+            )}
           </div>
-          {/* 勋章(有则常显,点开分享) */}
-          {badge && (
-            <button
-              onClick={() => setShowBadgeDlg(true)}
-              className="hidden shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/20 transition active:scale-95 sm:inline-flex"
-              style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
-            >
-              <span aria-hidden>{badge.emoji}</span>
-              {zh ? badge.titleZh : badge.titleEn}
-            </button>
-          )}
         </div>
       </div>
 
-      {/* 功能卡片 */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {badge ? (
-          <ActionCard
-            icon={<Medal className="h-5 w-5 text-amber-600" />}
-            tint="bg-amber-50"
-            title={L('我的勋章', 'My badge')}
-            desc={L('生成认证勋章分享图,发朋友圈 / WhatsApp', 'Share your certification badge')}
-            onClick={() => setShowBadgeDlg(true)}
-          />
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* ── 经纪名片:字段直接平铺,编辑才开弹窗 ── */}
+        {isPro ? (
+          <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Contact className="h-4 w-4 text-indigo-500" />
+                {L('经纪名片', 'Agent card')}
+              </h2>
+              <button
+                onClick={() => setShowCardEditor(true)}
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+              >
+                <Pencil className="h-3 w-3" />
+                {L('编辑', 'Edit')}
+              </button>
+            </div>
+            <div className="flex items-start gap-4">
+              {card?.photo_url ? (
+                <img src={card.photo_url} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-indigo-100" />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xl font-bold text-indigo-300">
+                  {(card?.display_name || displayName || '?').charAt(0)}
+                </div>
+              )}
+              <dl className="min-w-0 flex-1 space-y-1.5 text-sm">
+                <div className="font-semibold text-slate-900">{card?.display_name || <Empty L={L} />}</div>
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {card?.phone || <Empty L={L} />}
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {card?.whatsapp ? `WhatsApp ${card.whatsapp}` : <Empty L={L} />}
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {card?.public_email || <span className="text-slate-400">{L('展示邮箱未填(可空)', 'Public email not set')}</span>}
+                </div>
+              </dl>
+            </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+              {L('这张名片会作为落款出现在你的 Sales Offer 报价单与品牌报告上。', 'Shown as your signature on Sales Offers and branded reports.')}
+            </p>
+          </section>
         ) : (
-          <ActionCard
-            icon={<Sparkles className="h-5 w-5 text-orange-600" />}
-            tint="bg-orange-50"
-            title={role === 'buyer' ? L('成为经纪(7 天免费试用)', 'Become an agent (7-day trial)') : L('选择身份与套餐', 'Choose role & plan')}
-            desc={L('解锁经纪台:客户管理、AI 导览、品牌提案', 'Unlock CRM, AI tours and branded proposals')}
-            onClick={switchRole}
-          />
+          /* 买家:成为经纪 CTA(唯一保留的引导卡) */
+          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 p-5 ring-1 ring-amber-200/60">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                <Sparkles className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-bold text-slate-900">{L('成为经纪(7 天免费试用)', 'Become an agent (7-day trial)')}</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  {L('解锁经纪工作台:客户雷达、AI 导览、秒出提案、实时带看。', 'Unlock client radar, AI tours, instant proposals and live tours.')}
+                </p>
+                <button
+                  onClick={switchRole}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-95"
+                >
+                  {L('了解详情', 'Learn more')} <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </section>
         )}
 
-        {role && role !== 'buyer' && (
-          <ActionCard
-            icon={<Contact className="h-5 w-5 text-indigo-600" />}
-            tint="bg-indigo-50"
-            title={L('经纪名片', 'Agent card')}
-            desc={L('报价单 / 品牌报告上的落款:姓名、头像、电话', 'Your signature on quotes & branded reports')}
-            onClick={() => setShowCardEditor(true)}
-          />
-        )}
+        {/* ── 订阅与用量:套餐/状态/积分直接可见 ── */}
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <BarChart3 className="h-4 w-4 text-emerald-500" />
+              {L('订阅与用量', 'Subscription & usage')}
+            </h2>
+            <Link
+              to="/agent/billing"
+              className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600 hover:underline"
+            >
+              {isPaid ? L('管理订阅', 'Manage') : L('查看套餐', 'View plans')} <ChevronRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400">{L('当前套餐', 'Current plan')}</div>
+              <div className="text-lg font-bold text-slate-900">{planName}</div>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+              {zh ? (STATUS_LABEL[status] || status) : status}
+            </span>
+          </div>
+          <div className="mt-4">
+            <div className="mb-1 flex items-baseline justify-between text-sm">
+              <span className="text-slate-500">{L('本月积分', 'Credits this month')}</span>
+              <span className="font-semibold text-slate-900">
+                {unlimited ? L('无限', 'Unlimited') : <>{L('剩', 'Left')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }}
+              />
+            </div>
+            {me?.current_period_end && (
+              <div className="mt-1.5 text-[11px] text-slate-400">
+                {status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Renews ')}
+                {new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
 
-        <ActionCard
-          icon={<Heart className="h-5 w-5 text-rose-500" />}
-          tint="bg-rose-50"
-          title={L('我的收藏', 'Favorites')}
-          desc={L('收藏的项目,跨设备同步', 'Saved projects, synced across devices')}
-          to="/favorites"
-        />
+      {/* ── 我的收藏:数量直接可见 ── */}
+      <Link
+        to="/favorites"
+        className="group flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:shadow-md"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50">
+          <Heart className="h-5 w-5 text-rose-500" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-slate-900">
+            {L('我的收藏', 'Favorites')}
+            <span className="ml-2 text-rose-500">{favProjects}</span>
+            <span className="ml-1 text-xs font-normal text-slate-400">
+              {L(`个项目${favTotal > favProjects ? ` · ${favTotal} 条收藏` : ''}`, ` projects`)}
+            </span>
+          </div>
+          <div className="text-xs text-slate-400">{L('跨设备同步', 'Synced across devices')}</div>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5" />
+      </Link>
 
-        {/* 订阅与套餐:通用入口(未订阅看到的是升级选项) */}
-        <ActionCard
-          icon={<CreditCard className="h-5 w-5 text-emerald-600" />}
-          tint="bg-emerald-50"
-          title={L('订阅与套餐', 'Subscription & plan')}
-          desc={badge
-            ? L('管理套餐、发票与付款方式', 'Manage plan, invoices and payment method')
-            : L('查看套餐与升级选项', 'View plans and upgrade options')}
-          to="/agent/billing"
-        />
-
+      {/* ── 账户操作:flat 一行 ── */}
+      <div className="flex flex-wrap items-center gap-2">
         {!badge && (
-          <ActionCard
-            icon={<ArrowLeftRight className="h-5 w-5 text-slate-600" />}
-            tint="bg-slate-100"
-            title={L('切换身份', 'Switch role')}
-            desc={L('买家 / 经纪人 / 经纪公司 / 开发商', 'Buyer / Agent / Agency / Developer')}
+          <button
             onClick={switchRole}
-          />
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-slate-50"
+          >
+            <ArrowLeftRight className="h-4 w-4 text-slate-400" />
+            {L('切换身份', 'Switch role')}
+          </button>
         )}
-
         {isOwnerEmail(user.email) && (
-          <ActionCard
-            icon={<BarChart3 className="h-5 w-5 text-blue-600" />}
-            tint="bg-blue-50"
-            title={L('数据后台', 'Analytics dashboard')}
-            desc={L('客户行为 / 错误监控 / 性能负载', 'Behaviour, errors & performance')}
+          <button
             onClick={() => navigate('/admin/analytics')}
-          />
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-slate-50"
+          >
+            <BarChart3 className="h-4 w-4 text-blue-500" />
+            {L('数据后台', 'Analytics')}
+          </button>
         )}
+        {/* 桌面侧栏有退出,但手机端没有侧栏 —— 这里是手机唯一退出入口 */}
+        <button
+          onClick={() => void signOut()}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-red-500 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-red-50 md:hidden"
+        >
+          <LogOut className="h-4 w-4" />
+          {L('退出登录', 'Sign out')}
+        </button>
       </div>
 
       {/* 弹窗 */}
@@ -195,7 +306,13 @@ export default function ProfileHome() {
           onClose={() => setShowBadgeDlg(false)}
         />
       )}
-      {showCardEditor && <AgentCardEditor onClose={() => setShowCardEditor(false)} />}
+      {showCardEditor && (
+        <AgentCardEditor onClose={() => { setShowCardEditor(false); loadCard() }} />
+      )}
     </div>
   )
+}
+
+function Empty({ L }: { L: (a: string, b: string) => string }) {
+  return <span className="text-slate-400">{L('未填写', 'Not set')}</span>
 }

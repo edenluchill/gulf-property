@@ -52,6 +52,18 @@ async function setupPage(ctx) {
     } }))
   await page.route('**/api/agents/me', (route) =>
     route.fulfill({ json: { status: 'approved' } }))
+  // 经纪名片(平铺展示用)
+  await page.route('**/api/luna/agent/profile', (route) =>
+    route.fulfill({ json: { success: true, agent: {
+      display_name: 'Eden Lu', phone: '+971 50 123 4567',
+      whatsapp: '971501234567', public_email: 'eden@pinzos.com', photo_url: null,
+    } } }))
+  // 现役指标(工作台"该追谁"用)
+  await page.route('**/api/luna/agent/clients**', (route) =>
+    route.fulfill({ json: { success: true, clients: [
+      { id: 'c1', name: '陈先生', budget: '300万', heat: 82, pipeline_stage: 'viewing', last_activity_at: new Date(Date.now() - 3600e3).toISOString(), next_followup_at: new Date(Date.now() - 3600e3).toISOString() },
+      { id: 'c2', name: '王女士', budget: '500万', heat: 45, pipeline_stage: 'engaged', last_activity_at: new Date(Date.now() - 8 * 3600e3).toISOString(), next_followup_at: null },
+    ] } }))
   return page
 }
 
