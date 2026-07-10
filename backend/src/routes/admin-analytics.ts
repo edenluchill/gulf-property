@@ -14,6 +14,9 @@ import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
 import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
 import { getRevenueShare, settleMonth, unsettleMonth } from '../services/revenueShare'
+import {
+  getSubscribers, getSubscriptionSummary, getTourScripts, getSalesOffers, getBuyerReports,
+} from '../services/adminBizQueries'
 
 const router = Router()
 
@@ -139,6 +142,16 @@ router.get('/collab/:code', wrap(async (req) => {
   const report = await getCollabReport(String(req.params.code))
   return { report }
 }))
+
+// ── 订阅客户(B 端:谁订阅了我们)+ 功能记录 ─────────────────
+router.get('/subscribers', wrap(async () => ({
+  subscribers: await getSubscribers(),
+  summary: await getSubscriptionSummary(),
+})))
+
+router.get('/feature-log/tours', wrap((req) => getTourScripts(Math.min(300, Number(req.query.limit) || 100))))
+router.get('/feature-log/sales-offers', wrap((req) => getSalesOffers(Math.min(300, Number(req.query.limit) || 100))))
+router.get('/feature-log/reports', wrap((req) => getBuyerReports(Math.min(300, Number(req.query.limit) || 100))))
 
 // ── 性能 / 负载监控 ───────────────────────────────────────
 // Full panel: live in-memory snapshot + minute rollups + alert history.
