@@ -7,10 +7,10 @@
  * 再变(退款/争议)会显示差异提醒。双方 admin 都可见。
  */
 import { useEffect, useState } from 'react'
-import { Loader2, Handshake, Banknote, PiggyBank, CheckCircle2, Undo2, FlaskConical } from 'lucide-react'
+import { Loader2, Handshake, Banknote, PiggyBank, CheckCircle2, Undo2, FlaskConical, Crown, Clock, Gift } from 'lucide-react'
 import {
-  fetchRevenueShare, settleRevenueMonth, unsettleRevenueMonth,
-  RevenueShareData, MonthShare,
+  fetchRevenueShare, settleRevenueMonth, unsettleRevenueMonth, fetchSubscribers,
+  RevenueShareData, MonthShare, SubscriptionSummary,
 } from '../../lib/analyticsApi'
 import StatCard from './StatCard'
 
@@ -156,6 +156,7 @@ function MonthRow({ m, onChanged }: { m: MonthShare; onChanged: () => void }) {
 export default function RevenueShare() {
   const [data, setData] = useState<RevenueShareData | null>(null)
   const [failed, setFailed] = useState(false)
+  const [subs, setSubs] = useState<SubscriptionSummary | null>(null)
 
   const load = () => {
     fetchRevenueShare(12)
@@ -163,6 +164,7 @@ export default function RevenueShare() {
       .catch(() => setFailed(true))
   }
   useEffect(load, [])
+  useEffect(() => { fetchSubscribers().then((r) => setSubs(r.summary)).catch(() => {}) }, [])
 
   if (failed) {
     return <p className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-900/[0.06]">分成数据加载失败,刷新重试。</p>
@@ -214,6 +216,32 @@ export default function RevenueShare() {
         <StatCard label="本月 FINDHOMEGO 应得" value={cur ? fmtMoney(cur.share_findhomego_cents, cur.currency) : '—'} icon={<PiggyBank className="h-4 w-4" />} />
         <StatCard label="待结算(FINDHOMEGO)" value={pendingShare != null ? fmtMoney(pendingShare, currencies[0] || 'usd') : unsettled.length ? `${unsettled.length} 个月` : '$0.00'} icon={<Handshake className="h-4 w-4" />} hint={unsettled.length ? `${unsettled.length} 个已完结月未结算` : '全部结清'} />
         <StatCard label="已结算月份" value={done.filter((m) => m.settlement).length} icon={<CheckCircle2 className="h-4 w-4" />} />
+      </div>
+
+      {/* 订阅概况:真实营收走 Stripe;当前无真实收入时,这里让 owner 看到订阅盘子。 */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-800">订阅概况(当前)</h3>
+          <span className="text-xs text-slate-400">详情见「订阅」tab</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl bg-emerald-50 px-3 py-2.5 ring-1 ring-emerald-100">
+            <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-700"><Crown className="h-3 w-3" /> 真付费</div>
+            <div className="mt-0.5 text-xl font-bold text-emerald-800">{subs?.paid ?? '—'}</div>
+          </div>
+          <div className="rounded-xl bg-sky-50 px-3 py-2.5 ring-1 ring-sky-100">
+            <div className="flex items-center gap-1 text-[11px] font-medium text-sky-700"><Clock className="h-3 w-3" /> 试用中</div>
+            <div className="mt-0.5 text-xl font-bold text-sky-800">{subs?.trialing ?? '—'}</div>
+          </div>
+          <div className="rounded-xl bg-violet-50 px-3 py-2.5 ring-1 ring-violet-100">
+            <div className="flex items-center gap-1 text-[11px] font-medium text-violet-700"><Gift className="h-3 w-3" /> 手动赠送</div>
+            <div className="mt-0.5 text-xl font-bold text-violet-800">{subs?.comp ?? '—'}</div>
+          </div>
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+          分成只按 Stripe <b>实收净额</b>算 —— 手动赠送、试用未扣款都<b>不计入营收</b>。
+          {data.livemode === false ? ' 当前 Stripe 为测试模式,尚无真实收入;切 Live 后真付费订阅会产生实收进入上方对账。' : ''}
+        </p>
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">

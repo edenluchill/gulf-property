@@ -26,13 +26,13 @@
 
 ## 执行阶段(每阶段独立 type-check + 部署 + 截图验证)
 
-- [ ] **P1 后端数据层**:新增 订阅列表查询(getSubscribers)+ 功能记录各分区查询(getTourScripts/getSalesOffers/getBuyerReports;luna/collab 已有)。加 analytics 路由端点 + 前端 analyticsApi。
-- [ ] **P2 「订阅」tab**:前端新建 Subscriptions 组件(付费列表主角 + 待审批小区,合并 AgentApprovals),接 getSubscribers。删「经纪客户」tab + AgentClientsOverview。
-- [ ] **P3 「功能记录」tab**:前端新建 FeatureLog 组件(左侧 5 分区切换),移除 Luna对话/实时带看独立 tab(内容搬进去)。
-- [ ] **P4 「客户」tab**:合并 Visitors + LostCustomers 为一个组件(左侧分区 全部/流失)。
-- [ ] **P5 概览增强**:加商业化 KPI 行(订阅数/付费/试用/MRR预估/本月新订阅)。
-- [ ] **P6 分成对账优化**:0 营收态显示订阅 MRR 预估 + 订阅数 + 口径,不再一片空。
-- [ ] **P7 审查 P2 修复**:quickScore hasContact 要真实信号;getAgentClientsOverview 热度 SUM→MAX(若保留);结算加 livemode 守卫;短码前后端统一;经纪客户/看护 tab 时间范围。
+- [x] **P1 后端数据层**:新增 订阅列表查询(getSubscribers)+ 功能记录各分区查询(getTourScripts/getSalesOffers/getBuyerReports;luna/collab 已有)。加 analytics 路由端点 + 前端 analyticsApi。
+- [x] **P2 「订阅」tab**:前端新建 Subscriptions 组件(付费列表主角 + 待审批小区,合并 AgentApprovals),接 getSubscribers。删「经纪客户」tab + AgentClientsOverview。
+- [x] **P3 「功能记录」tab**:前端新建 FeatureLog 组件(左侧 5 分区切换),移除 Luna对话/实时带看独立 tab(内容搬进去)。
+- [x] **P4 「客户」tab**:合并 Visitors + LostCustomers 为一个组件(左侧分区 全部/流失)。
+- [x] **P5 概览增强**:加商业化 KPI 行(订阅数/付费/试用/MRR预估/本月新订阅)。
+- [x] **P6 分成对账优化**:0 营收态显示订阅 MRR 预估 + 订阅数 + 口径,不再一片空。
+- [x] **P7 审查 P2 修复**:quickScore hasContact 要真实信号;getAgentClientsOverview 热度 SUM→MAX(若保留);结算加 livemode 守卫;短码前后端统一;经纪客户/看护 tab 时间范围。
 
 ## 原则
 - 每阶段独立可部署,做完即部署验证,不攒大爆炸。

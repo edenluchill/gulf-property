@@ -11,13 +11,13 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
-  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchTimeseries,
+  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchTimeseries, fetchSubscribers,
   ForbiddenError,
-  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, RecentSearch, Timeseries, Granularity,
+  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, RecentSearch, Timeseries, Granularity, SubscriptionSummary,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
 import TrendChart from '../components/analytics/TrendChart'
@@ -79,6 +79,7 @@ export default function AdminAnalytics() {
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
   const [tab, setTab] = useState<TabId>('overview')
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
+  const [subSummary, setSubSummary] = useState<SubscriptionSummary | null>(null)
 
   const isOwner = isOwnerEmail(user?.email)
 
@@ -105,6 +106,16 @@ export default function AdminAnalytics() {
       })
     return () => { alive = false }
   }, [days, isOwner])
+
+  // 订阅 summary(概览商业化 KPI + 订阅 tab 共用口径),与大盘独立加载。
+  useEffect(() => {
+    if (!isOwner) return
+    let alive = true
+    fetchSubscribers()
+      .then((r) => alive && setSubSummary(r.summary))
+      .catch(() => { /* keep null */ })
+    return () => { alive = false }
+  }, [isOwner])
 
   useEffect(() => {
     if (!isOwner) return
@@ -240,6 +251,18 @@ export default function AdminAnalytics() {
           {/* ── 概览 ──────────────────────────────────────────────────── */}
           {tab === 'overview' && (
             <div className="space-y-5">
+              {/* 商业化:一眼看到订阅盘子(详情在「订阅」tab) */}
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <CreditCard className="h-3.5 w-3.5" /> 商业化 · 订阅
+                </div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <StatCard label="已订阅" value={subSummary?.subscribed ?? '—'} icon={<CreditCard className="h-4 w-4" />} hint={`共 ${subSummary?.total_accounts ?? '—'} 个经纪账户`} />
+                  <StatCard label="真付费" value={subSummary?.paid ?? '—'} icon={<Crown className="h-4 w-4" />} hint="走 Stripe 扣款" />
+                  <StatCard label="试用 / 赠送" value={subSummary ? `${subSummary.trialing} / ${subSummary.comp}` : '—'} icon={<Gift className="h-4 w-4" />} />
+                  <StatCard label="待审批" value={subSummary?.pending_approval ?? '—'} icon={<Clock className="h-4 w-4" />} hint="付费即自动准入" />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
                 <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
                 <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />

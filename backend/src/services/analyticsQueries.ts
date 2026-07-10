@@ -330,7 +330,7 @@ export async function getVisitors({ from, to }: Range, limit = 200) {
     .map((r) => {
       const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna_opens)
       const favorites = Number(r.favorites), contacts = Number(r.contacts), reports = Number(r.reports)
-      const score = quickScore({ views, searches, luna, hasContact: !!r.user_email || contacts > 0, favorites, contacts, reports })
+      const score = quickScore({ views, searches, luna, hasContact: contacts > 0, favorites, contacts, reports })
       return {
         identity: r.identity as string,
         visitor_id: r.visitor_id as string,
@@ -555,7 +555,7 @@ export async function getLostCustomers(limit = 100) {
     .map((r) => {
       const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna)
       const favorites = Number(r.favorites), contacts = Number(r.contacts), errors = Number(r.errors)
-      const score = quickScore({ views, searches, luna, hasContact: !!r.user_email || contacts > 0, favorites, contacts })
+      const score = quickScore({ views, searches, luna, hasContact: contacts > 0, favorites, contacts })
       const lastSeen = new Date(r.last_seen).getTime()
       const daysSilent = Math.floor((Date.now() - lastSeen) / 86_400_000)
       // Did a failure happen right before they vanished (within 1h of last activity)?
@@ -849,7 +849,7 @@ export async function getErrorImpact(hours = 48) {
     .map((r) => {
       const views = Number(r.views), searches = Number(r.searches), luna = Number(r.luna)
       const favorites = Number(r.favorites), contacts = Number(r.contacts)
-      const score = quickScore({ views, searches, luna, hasContact: !!r.user_email || contacts > 0, favorites, contacts })
+      const score = quickScore({ views, searches, luna, hasContact: contacts > 0, favorites, contacts })
       return {
         identity: (r.user_email as string) || (r.visitor_id as string),
         visitor_id: r.visitor_id as string,

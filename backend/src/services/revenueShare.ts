@@ -151,6 +151,8 @@ export async function settleMonth(
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('bad month')
   bustCache()
   const data = await getRevenueShare(24)
+  // livemode 守卫:测试模式的数字不能被锁成结算快照写进账本(切 Live 后会污染对账)。
+  if (data.livemode === false) throw new Error('Stripe 测试模式数据不可结算')
   const m = data.months.find((x) => x.month === month && x.currency === currency.toLowerCase())
   if (!m) throw new Error('month not found in Stripe data')
   await pool.query(
