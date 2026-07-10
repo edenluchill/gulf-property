@@ -4,32 +4,31 @@
  * allow-list: this page checks isOwnerEmail (UX), and every /api/admin/analytics
  * call is enforced server-side via requireOwner against the verified Supabase
  * token. No secret key. See docs/analytics-dashboard-spec.md §3 / §12.
+ *
+ * 2026-07-09 重构(docs/admin-dashboard-refactor-plan-2026-07-09.md):12→9 tab。
+ * 客户(访客+流失合并)/ 功能记录(Luna导览/对话/带看/SalesOffer/报告合并)/
+ * 订阅(谁付费,原经纪审批弱化)。删「经纪客户」。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, Map as MapIcon, UserCheck, AlertTriangle, Activity, UserMinus, Heart, Phone, ShieldCheck, Handshake } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
-  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchSessions, fetchTimeseries, fetchCollabSessions,
-  backfillSessionSummaries,
+  fetchOverview, fetchSearches, fetchLuna, fetchTutorial, fetchLeads, fetchTimeseries,
   ForbiddenError,
-  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, SessionRow, SessionFilters, RecentSearch, Timeseries, Granularity, CollabSessionRow,
+  Overview, DailyPoint, Counted, LunaStats, FunnelStep, Lead, RecentSearch, Timeseries, Granularity,
 } from '../lib/analyticsApi'
 import StatCard from '../components/analytics/StatCard'
 import TrendChart from '../components/analytics/TrendChart'
 import TopList from '../components/analytics/TopList'
 import Funnel from '../components/analytics/Funnel'
-import LeadTable from '../components/analytics/LeadTable'
-import SessionViewer from '../components/analytics/SessionViewer'
-import CollabReportModal from '../components/analytics/CollabReport'
+import Customers from '../components/analytics/Customers'
+import FeatureLog from '../components/analytics/FeatureLog'
 import AgentApprovals from '../components/analytics/AgentApprovals'
-import Visitors from '../components/analytics/Visitors'
-import LostCustomers from '../components/analytics/LostCustomers'
 import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import AgentRuns from '../components/analytics/AgentRuns'
-import AgentClientsOverview from '../components/analytics/AgentClientsOverview'
 import RevenueShare from '../components/analytics/RevenueShare'
 import { fetchActiveAlerts, ActiveAlert } from '../lib/analyticsApi'
 
@@ -47,18 +46,17 @@ const GRANS: { label: string; v: Granularity }[] = [
 
 const TABS = [
   { id: 'overview', label: '概览', Icon: LayoutDashboard },
-  { id: 'visitors', label: '访客明细', Icon: Users },
-  { id: 'lost', label: '流失', Icon: UserMinus },
+  { id: 'customers', label: '客户', Icon: Users },
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
-  { id: 'luna', label: 'Luna 对话', Icon: Mic },
-  { id: 'collab', label: '实时带看', Icon: MapIcon },
-  { id: 'agents', label: '经纪审批', Icon: UserCheck },
-  { id: 'agentclients', label: '经纪客户', Icon: Users },
+  { id: 'features', label: '功能记录', Icon: Sparkles },
+  { id: 'subscriptions', label: '订阅', Icon: CreditCard },
   { id: 'revenue', label: '分成对账', Icon: Handshake },
   { id: 'errors', label: '错误监控', Icon: AlertTriangle },
   { id: 'guardian', label: '看护', Icon: ShieldCheck },
   { id: 'perf', label: '性能负载', Icon: Activity },
 ] as const
+
+type TabId = typeof TABS[number]['id']
 
 interface DashData {
   overview: Overview
@@ -69,8 +67,6 @@ interface DashData {
   luna: LunaStats
   funnel: FunnelStep[]
   leads: Lead[]
-  sessions: SessionRow[]
-  collab: CollabSessionRow[]
 }
 
 export default function AdminAnalytics() {
@@ -78,23 +74,11 @@ export default function AdminAnalytics() {
   const [days, setDays] = useState(30)
   const [data, setData] = useState<DashData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [openSession, setOpenSession] = useState<string | null>(null)
-  // Access is owner-email gated; the server enforces it against the verified
-  // Supabase token. `forbidden` flips if the server rejects despite our check.
   const [forbidden, setForbidden] = useState(false)
-  // Search-volume chart granularity (day/week/month), fetched independently so
-  // toggling it doesn't refetch the whole dashboard.
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<'overview' | 'visitors' | 'lost' | 'search' | 'luna' | 'collab' | 'agents' | 'agentclients' | 'revenue' | 'errors' | 'guardian' | 'perf'>('overview')
-  const [openCollab, setOpenCollab] = useState<string | null>(null)
-  // Active perf alerts → cross-dashboard red banner. Polled every 30s.
+  const [tab, setTab] = useState<TabId>('overview')
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
-  // Luna 对话 list: filterable + AI-summary backfill, fetched independently of the
-  // big dashboard load so filtering doesn't refetch everything.
-  const [sessionFilters, setSessionFilters] = useState<SessionFilters>({})
-  const [sessionList, setSessionList] = useState<SessionRow[] | null>(null)
-  const [backfilling, setBackfilling] = useState(false)
 
   const isOwner = isOwnerEmail(user?.email)
 
@@ -103,15 +87,14 @@ export default function AdminAnalytics() {
     let alive = true
     setLoading(true)
     Promise.all([
-      fetchOverview(days), fetchSearches(days), fetchLuna(days),
-      fetchTutorial(days), fetchLeads(), fetchSessions(), fetchCollabSessions(),
+      fetchOverview(days), fetchSearches(days), fetchLuna(days), fetchTutorial(days), fetchLeads(),
     ])
-      .then(([ov, se, lu, tu, le, ss, cb]) => {
+      .then(([ov, se, lu, tu, le]) => {
         if (!alive) return
         setData({
           overview: ov.overview, daily: ov.daily,
           terms: se.terms, projects: se.projects, recent: se.recent,
-          luna: lu, funnel: tu, leads: le, sessions: ss, collab: cb,
+          luna: lu, funnel: tu, leads: le,
         })
         setLoading(false)
       })
@@ -145,25 +128,6 @@ export default function AdminAnalytics() {
     return () => { alive = false; clearInterval(id) }
   }, [isOwner])
 
-  // Luna session list — refetch on filter change (independent of the big load).
-  useEffect(() => {
-    if (!isOwner) return
-    let alive = true
-    fetchSessions(sessionFilters)
-      .then((ss) => alive && setSessionList(ss))
-      .catch(() => { /* keep last list */ })
-    return () => { alive = false }
-  }, [isOwner, sessionFilters])
-
-  const runBackfillSummaries = async () => {
-    setBackfilling(true)
-    try {
-      await backfillSessionSummaries()
-      const ss = await fetchSessions(sessionFilters)
-      setSessionList(ss)
-    } catch { /* ignore */ } finally { setBackfilling(false) }
-  }
-
   const visitorTrend = useMemo(
     () => (data?.daily || []).map((d) => ({ day: d.day, value: d.visitors })),
     [data]
@@ -181,7 +145,6 @@ export default function AdminAnalytics() {
     )
   }
 
-  // Not logged in → prompt to sign in (login carries them back here).
   if (!user) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
@@ -199,7 +162,6 @@ export default function AdminAnalytics() {
     )
   }
 
-  // Logged in but not an owner (or the server rejected the token) → no access.
   if (!isOwner || forbidden) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
@@ -216,7 +178,6 @@ export default function AdminAnalytics() {
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50">
-      {/* Sticky header: title + time range + tab nav (one clean band) */}
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-slate-50/85 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4">
           <div className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -238,7 +199,6 @@ export default function AdminAnalytics() {
               ))}
             </div>
           </div>
-          {/* Tabs — underline style, horizontal-scroll on mobile (scrollbar hidden) */}
           <nav className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map((tb) => (
               <button
@@ -256,7 +216,6 @@ export default function AdminAnalytics() {
         </div>
       </header>
 
-      {/* Active perf-alert red banner — visible on every tab, click → 性能负载 */}
       {perfAlerts.length > 0 && (
         <button
           onClick={() => setTab('perf')}
@@ -278,10 +237,9 @@ export default function AdminAnalytics() {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* ── Overview ──────────────────────────────────────────────────── */}
+          {/* ── 概览 ──────────────────────────────────────────────────── */}
           {tab === 'overview' && (
             <div className="space-y-5">
-              {/* KPI strip — only on 概览, not every tab */}
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
                 <StatCard label="独立访客" value={data.overview.visitors} icon={<Users className="h-4 w-4" />} hint={`共 ${data.overview.events} 次事件 · 去重`} />
                 <StatCard label="项目浏览" value={data.overview.property_views} icon={<Building2 className="h-4 w-4" />} />
@@ -302,18 +260,10 @@ export default function AdminAnalytics() {
             </div>
           )}
 
-          {/* ── Visitors (the per-user view) ──────────────────────────────── */}
-          {tab === 'visitors' && (
-            <div className="space-y-5">
-              <Visitors days={days} />
-              <LeadTable leads={data.leads} />
-            </div>
-          )}
+          {/* ── 客户(访客明细 + 流失 合并)─────────────────────────────── */}
+          {tab === 'customers' && <Customers days={days} leads={data.leads} />}
 
-          {/* ── 流失客户 ──────────────────────────────────────────────────── */}
-          {tab === 'lost' && <LostCustomers days={days} />}
-
-          {/* ── Search & projects ─────────────────────────────────────────── */}
+          {/* ── 搜索 & 项目 ───────────────────────────────────────────── */}
           {tab === 'search' && (
             <div className="space-y-5">
               <TrendChart
@@ -363,145 +313,26 @@ export default function AdminAnalytics() {
             </div>
           )}
 
-          {/* ── Luna ──────────────────────────────────────────────────────── */}
-          {tab === 'luna' && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <StatCard label="会话数" value={data.luna.sessions} icon={<Mic className="h-4 w-4" />} />
-                <StatCard label="平均时长" value={`${Math.round(data.luna.avg_duration_ms / 1000)}s`} />
-                <StatCard label="平均轮次" value={data.luna.avg_turns} hint={`${data.luna.total_tool_calls} 次工具调用`} />
-                <StatCard label="出错会话" value={data.luna.error_sessions} />
-              </div>
-              {/* 筛选:搜索(摘要/访客) + 仅出错 + 补全 AI 摘要 */}
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  defaultValue={sessionFilters.q || ''}
-                  onKeyDown={(e) => { if (e.key === 'Enter') setSessionFilters((f) => ({ ...f, q: (e.target as HTMLInputElement).value })) }}
-                  placeholder="搜索摘要 / 访客… (回车)"
-                  className="w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-teal-400"
-                />
-                <button
-                  onClick={() => setSessionFilters((f) => ({ ...f, errored: !f.errored }))}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
-                    sessionFilters.errored ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  ⚠️ 仅出错
-                </button>
-                {(sessionFilters.q || sessionFilters.errored || sessionFilters.tool) && (
-                  <button onClick={() => setSessionFilters({})} className="text-xs text-slate-400 hover:text-slate-600">清除筛选</button>
-                )}
-                <button
-                  onClick={runBackfillSummaries}
-                  disabled={backfilling}
-                  className="ml-auto rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-teal-700 disabled:opacity-50"
-                >
-                  {backfilling ? '生成中…' : '补全 AI 摘要'}
-                </button>
-              </div>
-              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
-                <div className="border-b border-slate-100 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-slate-800">最近 Luna 对话</h3>
-                </div>
-                {(sessionList ?? data.sessions).length === 0 ? (
-                  <p className="px-4 py-6 text-xs text-slate-400">没有符合条件的对话。</p>
-                ) : (
-                  <div className="divide-y divide-slate-50">
-                    {(sessionList ?? data.sessions).map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => setOpenSession(s.session_id)}
-                        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm text-slate-700">
-                            {s.created_at.slice(0, 16).replace('T', ' ')}
-                            {' · '}
-                            <span className={s.email ? 'text-slate-700' : 'text-slate-400'}>
-                              {s.email || (s.short_id ? `#${s.short_id}` : '匿名')}
-                            </span>
-                          </div>
-                          {s.summary ? (
-                            <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">{s.summary}</div>
-                          ) : (
-                            <div className="mt-0.5 text-xs italic text-slate-300">暂无摘要</div>
-                          )}
-                          <div className="mt-0.5 text-xs text-slate-400">
-                            {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具
-                            {s.had_error ? ' · ⚠️ 有错误' : ''}
-                          </div>
-                        </div>
-                        <span className="shrink-0 text-xs text-slate-400">
-                          {s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : '—'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* ── 功能记录(Luna导览/对话/带看/SalesOffer/报告)──────────── */}
+          {tab === 'features' && <FeatureLog />}
 
-          {/* ── 实时带看(collab)──────────────────────────────────────────── */}
-          {tab === 'collab' && (
-            <div className="space-y-5">
-              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
-                <div className="border-b border-slate-100 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-slate-800">最近实时带看</h3>
-                  <p className="text-xs text-slate-400">点开生成买家意向报告 + 跟进话术</p>
-                </div>
-                {data.collab.length === 0 ? (
-                  <p className="px-4 py-6 text-xs text-slate-400">还没有带看记录。</p>
-                ) : (
-                  <div className="divide-y divide-slate-50">
-                    {data.collab.map((c) => (
-                      <button
-                        key={c.code}
-                        onClick={() => setOpenCollab(c.code)}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm text-slate-700">
-                            {(c.last_event_at || c.created_at).slice(0, 16).replace('T', ' ')}
-                            {c.name ? ` · ${c.name}` : ''}
-                            <span className="ml-1 font-mono text-xs text-slate-400">{c.code}</span>
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            {c.chat_count} 条聊天 · {c.event_count} 事件 · 峰值 {c.peak_participants} 人
-                          </div>
-                        </div>
-                        <span className="shrink-0 text-xs text-teal-500">查看报告 →</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* ── 订阅(谁付费,原经纪审批弱化)──────────────────────────── */}
+          {tab === 'subscriptions' && <AgentApprovals />}
 
-          {/* ── 经纪审批 ──────────────────────────────────────────────────── */}
-          {tab === 'agents' && <AgentApprovals />}
-
-          {/* ── 经纪客户(跨经纪总览,仅 owner)──────────────────────────── */}
-          {tab === 'agentclients' && <AgentClientsOverview days={days} />}
-
-          {/* ── 错误监控(登录失败 + API 异常)──────────────────────────────── */}
+          {/* ── 分成对账 ──────────────────────────────────────────────── */}
           {tab === 'revenue' && <RevenueShare />}
 
+          {/* ── 错误监控 ──────────────────────────────────────────────── */}
           {tab === 'errors' && <ErrorMonitor days={days} />}
 
-          {/* ── 看护(cx-guardian 自治巡检记录)──────────────────────────── */}
+          {/* ── 看护(cx-guardian 自治巡检记录)──────────────────────── */}
           {tab === 'guardian' && <AgentRuns days={days} />}
 
-          {/* ── 性能负载(实时 KPI + 趋势 + 告警)──────────────────────────── */}
+          {/* ── 性能负载 ──────────────────────────────────────────────── */}
           {tab === 'perf' && <PerfMonitor />}
         </div>
       )}
       </main>
-
-      {openSession && <SessionViewer sessionId={openSession} onClose={() => setOpenSession(null)} />}
-      {openCollab && <CollabReportModal code={openCollab} onClose={() => setOpenCollab(null)} />}
     </div>
   )
 }

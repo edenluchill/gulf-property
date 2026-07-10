@@ -443,3 +443,51 @@ export const unsettleRevenueMonth = (month: string, currency: string) =>
 export const fetchPerf = (minutes = 180) => authedGet<PerfData>(`/perf?minutes=${minutes}`)
 export const fetchActiveAlerts = () => authedGet<{ alerts: ActiveAlert[] }>(`/perf/alerts/active`)
 export const ackAlert = (id: number) => authedPost<{ ok: boolean }>(`/perf/alerts/${id}/ack`)
+
+// ── 订阅客户(B 端:谁订阅了我们)+ 功能记录 ─────────────────────────
+export interface Subscriber {
+  agent_id: string
+  email: string | null
+  display_name: string | null
+  role: string | null
+  agent_since: string
+  plan_id: string | null
+  plan_name: string | null
+  status: string                 // active / trialing / none
+  paid: boolean                  // 真付费 vs 手动赠送
+  approval_status: string | null // pending/approved/rejected/null
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  credits_month: number          // -1 = 无限
+  credits_used: number
+  is_internal: boolean
+}
+export interface SubscriptionSummary {
+  total_accounts: number
+  subscribed: number
+  paid: number
+  trialing: number
+  comp: number
+  pending_approval: number
+}
+export const fetchSubscribers = () =>
+  authedGet<{ subscribers: Subscriber[]; summary: SubscriptionSummary }>(`/subscribers`)
+
+export interface TourScriptRow {
+  id: string | number; title: string; share_code: string | null; status: string | null
+  language: string | null; total_ms: number | null; edited_by_agent: boolean
+  agent_email: string | null; agent_name: string | null; created_at: string
+}
+export interface SalesOfferRow {
+  id: string | number; share_code: string | null; project_name: string; unit_name: string | null
+  bedrooms: string | number | null; price: number | null; original_price: number | null
+  lang: string | null; agent_name: string | null; created_by_email: string | null
+  view_count: number; created_at: string
+}
+export interface BuyerReportRow {
+  id: string | number; share_code: string | null; title: string; status: string | null
+  kind: 'client' | 'project'; view_count: number; agent_name: string | null; created_at: string
+}
+export const fetchFeatureTours = (limit = 100) => authedGet<TourScriptRow[]>(`/feature-log/tours?limit=${limit}`)
+export const fetchFeatureSalesOffers = (limit = 100) => authedGet<SalesOfferRow[]>(`/feature-log/sales-offers?limit=${limit}`)
+export const fetchFeatureReports = (limit = 100) => authedGet<BuyerReportRow[]>(`/feature-log/reports?limit=${limit}`)
