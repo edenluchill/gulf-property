@@ -265,7 +265,12 @@
 
 ---
 
-### ✅ T8+T9(2026-07-10):浅色烫金证书 + 选角色收集姓名/头像
+### ✅ 证书 v2 学院派纸质文凭(2026-07-10,用户嫌 v1 烫金太丑):
+- `drawCertificate` 重画成真大学毕业证(参考 SFU/MIT)—— **羊皮纸纤维质感 + 暗角 + 隐纹"P"水印**、深酒红(#6E1518)雕版双线边框 + 四角菱形、顶部纹章、大写强字间距衬线校名 PINZOS、斜体人名(过长自动缩)、斜体角色称号、表彰正文、Issued Month Year、**红蜡凸印(scalloped)+ 手写签名 + 认证机构**、底部编号。全 Georgia 衬线,配色仅酒红/墨/灰褐(去掉所有金色渐变)。头像可选(细酒红双环)。
+- `RoleBadgeDialog` 放大到 `max-w-lg`、精致克制标题栏(酒红细线 + 认证已颁发/我的认证证书)、暖灰底衬托纸质、加载骨架。
+- 中英双语截图验证,质感专业可分享。
+
+### ✅ T8+T9(2026-07-10):浅色烫金证书(已被 v2 学院派文凭替代)+ 选角色收集姓名/头像
 - **T8 证书**:`roleBadge.ts` 新增 async `drawCertificate()` —— 米白底 + 金色双描边 + 四角菱形 + 圆形头像(金环,`lt_agents.photo_url`,`crossOrigin='anonymous'` 失败退首字母)+ 兹认证 + 真名(衬线,过长自动缩)+ 角色称号(金)+ 金印 ✓ VERIFIED + 证书编号(按 name+plan 派生稳定 `PZ-YYYY-NNNNNN`)+ 认证日期 + pinzos.com。替换旧 `drawBadgeCard`。`RoleBadgeDialog` 改 async 渲染 + 拉 `/profile` 用真名/头像;下载名 `pinzos-certificate-*`;标题「我的认证证书」。双语截图验证。
   - **注意**:头像若生产不显示 = R2 未对图片 GET 返回 ACAO;已优雅兜底(退首字母)。要真显示需 R2 CORS 允许站点源 GET。
 - **T9 onboarding**:`RoleSelectPage` 选付费角色不再直接跳付款,先弹 `CertInfoStep`——姓名(必填,预填)+ 可选头像(复用 `/avatar`),存 `display_name` 再跳 plans。付款成功颁发的证书用这份信息。双语。

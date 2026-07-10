@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Download, Check } from 'lucide-react'
+import { X, Download, Check, Loader2 } from 'lucide-react'
 import { RoleBadge, drawCertificate } from '../lib/roleBadge'
 import { lunaFetch } from '../luna-tour/lunaApi'
 
@@ -51,67 +51,51 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
   }
 
   return (
-    <div className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="my-auto w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        {/* 庆祝顶栏(里程碑):恭喜入驻 —— 只在订阅成功刚颁发时显示 */}
-        {celebrate && (
-          <div
-            className="relative px-5 pb-4 pt-5 text-center text-white"
-            style={{ background: `linear-gradient(135deg, ${badge.from}, ${badge.to})` }}
-          >
-            <button onClick={onClose} className="absolute right-3 top-3 rounded-full p-1.5 text-white/70 hover:bg-white/15">
+    <div className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="my-auto w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10" onClick={(e) => e.stopPropagation()}>
+        {/* 精致标题栏(克制,不抢证书):一条酒红细线点题 */}
+        <div className="relative border-b border-slate-100 px-6 py-4">
+          <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: '#6E1518' }} />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-[17px] font-bold text-slate-900">
+                {celebrate ? (zh ? '认证已颁发 🎉' : 'Certificate issued 🎉') : (zh ? '我的认证证书' : 'My certificate')}
+              </h3>
+              <p className="mt-0.5 truncate text-xs text-slate-500">
+                {celebrate
+                  ? (zh ? '晒出你的官方认证,让客户第一时间认可你' : 'Show off your official certification to clients')
+                  : (zh ? '保存后即可分享给客户 / 朋友圈' : 'Save it to share with clients')}
+              </p>
+            </div>
+            <button onClick={onClose} className="shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100">
               <X className="h-4 w-4" />
             </button>
-            <div className="text-3xl">🎉</div>
-            <h3 className="mt-1 text-lg font-extrabold leading-tight">
-              {zh ? '恭喜入驻 Pinzos！' : `Welcome to Pinzos!`}
-            </h3>
-            <p className="mt-1 text-sm font-medium text-white/90">
-              {zh
-                ? `你已成为迪拜更专业的经纪人`
-                : `You're now a more professional Dubai agent`}
-            </p>
-            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold ring-1 ring-white/25">
-              <span aria-hidden>{badge.emoji}</span>
-              {zh ? badge.titleZh : badge.titleEn}
-            </div>
           </div>
-        )}
+        </div>
 
-        <div className="p-5">
-          {!celebrate && (
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">{zh ? '我的认证证书' : 'My certificate'}</h3>
-              <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
-                <X className="h-4 w-4" />
-              </button>
+        {/* 证书预览(大图,暖灰底衬托纸质) */}
+        <div className="bg-slate-100/70 px-6 py-6">
+          <canvas ref={canvasRef} className="hidden" />
+          {dataUrl ? (
+            <img src={dataUrl} alt="certificate" className="mx-auto w-full max-w-[440px] rounded-md shadow-xl ring-1 ring-black/10" />
+          ) : (
+            <div className="mx-auto flex aspect-[4/5] w-full max-w-[440px] items-center justify-center rounded-md bg-white/60 ring-1 ring-black/5">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
             </div>
           )}
-          {celebrate && (
-            <p className="mb-3 text-center text-sm text-slate-500">
-              {zh ? '晒出你的认证,让客户第一时间认可你 👇' : 'Show off your certification to clients 👇'}
-            </p>
-          )}
+        </div>
 
-          {/* 隐藏的绘制画布 + 预览图 */}
-          <canvas ref={canvasRef} className="hidden" />
-          {dataUrl && (
-            <img src={dataUrl} alt="badge" className="w-full rounded-2xl shadow-lg ring-1 ring-slate-900/10" />
-          )}
-
+        {/* 操作 */}
+        <div className="border-t border-slate-100 p-4">
           <button
             onClick={save}
             disabled={!dataUrl}
-            className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 ${
-              saved ? 'bg-green-600' : 'bg-slate-900 hover:bg-slate-800'
+            className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 ${
+              saved ? 'bg-emerald-600' : 'bg-slate-900 hover:bg-slate-800'
             }`}
           >
             {saved ? <Check className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-            {saved
-              ? (zh ? '已保存' : 'Saved')
-              : celebrate
-                ? (zh ? '保存并分享朋友圈' : 'Save & share')
-                : (zh ? '保存图片(发朋友圈)' : 'Save image (share it!)')}
+            {saved ? (zh ? '已保存' : 'Saved') : (zh ? '保存图片' : 'Save image')}
           </button>
           <p className="mt-2 text-center text-[11px] text-slate-400">
             {zh ? '保存后即可分享到朋友圈 / WhatsApp Status' : 'Share to WeChat Moments / WhatsApp Status'}
