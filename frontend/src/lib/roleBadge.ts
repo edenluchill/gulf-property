@@ -74,96 +74,182 @@ const MEMBER_BADGES: Record<string, RoleBadge> = {
   },
 }
 
-/** 画 1080×1350 朋友圈分享卡(纯 canvas,零依赖)。 */
-export function drawBadgeCard(
+// ── 证书配色(浅色烫金奖状)────────────────────────────────
+const GOLD = '#C9A227'
+const GOLD_DK = '#A67C1A'
+const GOLD_LT = '#E7CC77'
+const INK = '#1e2a35'
+
+/** 稳定的证书编号(按持有人 + 档位派生,不随每次生成变化)。 */
+function certNumber(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return String(h % 1000000).padStart(6, '0')
+}
+
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
+/** 圆角矩形描边路径。 */
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+/** 四角小菱形装饰。 */
+function corner(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(Math.PI / 4)
+  ctx.fillStyle = GOLD
+  ctx.fillRect(-s / 2, -s / 2, s, s)
+  ctx.restore()
+}
+
+/**
+ * 画一张「浅色烫金认证奖状」(1080×1350 竖版,朋友圈/WhatsApp Status 用)。
+ * 米白底 + 金色双描边 + 圆形头像 + 持有人真名 + 角色称号 + 证书编号 + 金印。
+ * 头像来自 lt_agents.photo_url(可空;跨域需 R2 CORS,失败则用首字母兜底)。
+ */
+export async function drawCertificate(
   canvas: HTMLCanvasElement,
   badge: RoleBadge,
-  opts: { name: string; zh: boolean }
-): void {
-  const W = 1080
-  const H = 1350
+  opts: { name: string; zh: boolean; photoUrl?: string | null; dateStr?: string }
+): Promise<void> {
+  const W = 1080, H = 1350
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const { name, zh } = opts
+  ctx.textAlign = 'center'
 
-  // 背景:角色专属深色渐变 + 细网格质感
-  const bg = ctx.createLinearGradient(0, 0, W, H)
-  bg.addColorStop(0, badge.from)
-  bg.addColorStop(1, badge.to)
+  // 背景:暖象牙渐变
+  const bg = ctx.createLinearGradient(0, 0, 0, H)
+  bg.addColorStop(0, '#FCF9F1')
+  bg.addColorStop(1, '#F4EDDD')
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, W, H)
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)'
-  ctx.lineWidth = 1
-  for (let x = 0; x <= W; x += 54) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
-  for (let y = 0; y <= H; y += 54) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
+
+  // 金色双描边边框 + 四角菱形
+  roundRect(ctx, 44, 44, W - 88, H - 88, 18)
+  ctx.strokeStyle = GOLD
+  ctx.lineWidth = 8
+  ctx.stroke()
+  roundRect(ctx, 64, 64, W - 128, H - 128, 12)
+  ctx.strokeStyle = `${GOLD_DK}88`
+  ctx.lineWidth = 2
+  ctx.stroke()
+  for (const [cxp, cyp] of [[92, 92], [W - 92, 92], [92, H - 92], [W - 92, H - 92]]) corner(ctx, cxp, cyp, 16)
 
   // 顶部品牌
-  ctx.textAlign = 'center'
-  ctx.fillStyle = 'rgba(255,255,255,0.92)'
-  ctx.font = '600 44px Georgia, serif'
-  ctx.fillText('Pinzos', W / 2, 120)
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'
-  ctx.font = '500 26px system-ui, sans-serif'
-  ctx.fillText(zh ? '迪拜期房购买新方式' : 'A new way to buy off-plan in Dubai', W / 2, 164)
+  ctx.fillStyle = INK
+  ctx.font = '600 50px Georgia, "Times New Roman", serif'
+  ctx.fillText('Pinzos', W / 2, 168)
+  ctx.fillStyle = GOLD_DK
+  ctx.font = '600 25px system-ui, sans-serif'
+  ctx.fillText(spread(zh ? '官方认证' : 'OFFICIAL CERTIFICATION', zh ? 8 : 6), W / 2, 210)
 
-  // 徽章圆:外光晕 + 双层圆 + emoji
-  const cx = W / 2
-  const cy = 520
-  const glow = ctx.createRadialGradient(cx, cy, 60, cx, cy, 330)
-  glow.addColorStop(0, `${badge.accent}55`)
-  glow.addColorStop(1, 'transparent')
-  ctx.fillStyle = glow
-  ctx.fillRect(cx - 340, cy - 340, 680, 680)
+  // 圆形头像(或首字母金圆)
+  const cx = W / 2, cyA = 400, r = 112
+  const img = opts.photoUrl ? await loadImage(opts.photoUrl) : null
+  // 金环
+  ctx.beginPath(); ctx.arc(cx, cyA, r + 10, 0, Math.PI * 2)
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 6; ctx.stroke()
+  if (img) {
+    ctx.save()
+    ctx.beginPath(); ctx.arc(cx, cyA, r, 0, Math.PI * 2); ctx.clip()
+    // cover 裁剪
+    const s = Math.max((2 * r) / img.width, (2 * r) / img.height)
+    const dw = img.width * s, dh = img.height * s
+    ctx.drawImage(img, cx - dw / 2, cyA - dh / 2, dw, dh)
+    ctx.restore()
+  } else {
+    const g = ctx.createLinearGradient(cx, cyA - r, cx, cyA + r)
+    g.addColorStop(0, GOLD_LT); g.addColorStop(1, GOLD)
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.arc(cx, cyA, r, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = '700 96px Georgia, serif'
+    ctx.textBaseline = 'middle'
+    ctx.fillText((name || 'P').charAt(0).toUpperCase(), cx, cyA + 6)
+    ctx.textBaseline = 'alphabetic'
+  }
 
-  ctx.beginPath()
-  ctx.arc(cx, cy, 208, 0, Math.PI * 2)
-  ctx.strokeStyle = badge.accent
-  ctx.lineWidth = 6
-  ctx.stroke()
+  // 认证引导语
+  ctx.fillStyle = '#8a8270'
+  ctx.font = '500 27px system-ui, sans-serif'
+  ctx.fillText(zh ? '兹  认  证' : 'THIS CERTIFIES THAT', W / 2, 620)
 
-  ctx.beginPath()
-  ctx.arc(cx, cy, 184, 0, Math.PI * 2)
-  const inner = ctx.createLinearGradient(cx, cy - 184, cx, cy + 184)
-  inner.addColorStop(0, 'rgba(255,255,255,0.16)')
-  inner.addColorStop(1, 'rgba(255,255,255,0.04)')
-  ctx.fillStyle = inner
-  ctx.fill()
+  // 持有人真名(衬线大字,过长自动缩)
+  ctx.fillStyle = INK
+  let nameSize = 82
+  ctx.font = `700 ${nameSize}px Georgia, "PingFang SC", "Microsoft YaHei", serif`
+  while (ctx.measureText(name).width > W - 260 && nameSize > 40) {
+    nameSize -= 4
+    ctx.font = `700 ${nameSize}px Georgia, "PingFang SC", "Microsoft YaHei", serif`
+  }
+  ctx.fillText(name, W / 2, 720)
 
-  ctx.font = '190px system-ui, "Segoe UI Emoji", "Apple Color Emoji", sans-serif'
+  // 角色称号(金色)
+  ctx.fillStyle = GOLD_DK
+  ctx.font = '600 42px system-ui, "PingFang SC", sans-serif'
+  ctx.fillText(zh ? badge.titleZh : badge.titleEn, W / 2, 792)
+
+  // 金色分隔线 + 中心菱形
+  ctx.strokeStyle = `${GOLD}aa`; ctx.lineWidth = 2
+  ctx.beginPath(); ctx.moveTo(W / 2 - 200, 850); ctx.lineTo(W / 2 - 22, 850); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(W / 2 + 22, 850); ctx.lineTo(W / 2 + 200, 850); ctx.stroke()
+  corner(ctx, W / 2, 850, 12)
+
+  // 认证等级副标题
+  ctx.fillStyle = '#a49c88'
+  ctx.font = '500 28px system-ui, "PingFang SC", sans-serif'
+  ctx.fillText(zh ? badge.subZh : badge.subEn, W / 2, 902)
+
+  // 金印章(圆形烫金 stamp)
+  const sy = 1030, sr = 66
+  ctx.beginPath(); ctx.arc(cx, sy, sr, 0, Math.PI * 2)
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 4; ctx.stroke()
+  ctx.beginPath(); ctx.arc(cx, sy, sr - 10, 0, Math.PI * 2)
+  ctx.strokeStyle = `${GOLD_DK}99`; ctx.lineWidth = 1.5; ctx.stroke()
+  ctx.fillStyle = GOLD_DK
+  ctx.font = '700 44px system-ui, "Segoe UI Symbol", sans-serif'
   ctx.textBaseline = 'middle'
-  ctx.fillText(badge.emoji, cx, cy + 12)
+  ctx.fillText('✓', cx, sy + 3)
   ctx.textBaseline = 'alphabetic'
+  ctx.font = '600 15px system-ui, sans-serif'
+  ctx.fillText(spread('VERIFIED', 3), cx, sy + sr + 30)
 
-  // 称号
-  ctx.fillStyle = '#ffffff'
-  ctx.font = '800 88px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif'
-  ctx.fillText(zh ? badge.titleZh : badge.titleEn, W / 2, 880)
-  ctx.fillStyle = badge.accent
-  ctx.font = '600 36px system-ui, sans-serif'
-  ctx.fillText(zh ? badge.subZh : badge.subEn, W / 2, 944)
+  // 证书编号 + 日期
+  const d = opts.dateStr ? null : new Date()
+  const dateStr = opts.dateStr || (d ? `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}` : '')
+  const year = dateStr.slice(0, 4)
+  const no = certNumber(`${name}|${badge.planId}`)
+  ctx.fillStyle = '#8a8270'
+  ctx.font = '500 26px system-ui, sans-serif'
+  ctx.fillText(`No. PZ-${year}-${no}    ·    ${(zh ? '认证日期 ' : 'Issued ') + dateStr}`, W / 2, 1200)
 
-  // 分隔线
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.moveTo(W / 2 - 190, 1000)
-  ctx.lineTo(W / 2 + 190, 1000)
-  ctx.stroke()
-
-  // 持有人 + 日期
-  ctx.fillStyle = 'rgba(255,255,255,0.9)'
-  ctx.font = '600 44px system-ui, "PingFang SC", sans-serif'
-  ctx.fillText(name, W / 2, 1076)
-  const d = new Date()
-  const dateStr = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-  ctx.fillStyle = 'rgba(255,255,255,0.5)'
-  ctx.font = '500 30px system-ui, sans-serif'
-  ctx.fillText((zh ? '认证日期 ' : 'Certified on ') + dateStr, W / 2, 1130)
-
-  // 底部
-  ctx.fillStyle = 'rgba(255,255,255,0.65)'
-  ctx.font = '600 32px system-ui, sans-serif'
+  // 底部域名
+  ctx.fillStyle = GOLD_DK
+  ctx.font = '600 30px Georgia, serif'
   ctx.fillText('pinzos.com', W / 2, 1262)
+}
+
+/** 字间距(canvas 无原生 letter-spacing,手动拉开)。 */
+function spread(s: string, px: number): string {
+  // 用细空格近似字间距(简单可靠,跨平台一致)
+  return s.split('').join(String.fromCharCode(0x2009).repeat(Math.max(1, Math.round(px / 4))))
 }

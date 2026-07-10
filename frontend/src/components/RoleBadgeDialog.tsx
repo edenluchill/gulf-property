@@ -1,11 +1,12 @@
 /**
- * RoleBadgeDialog — 「我的勋章」:预览认证勋章 + 一键保存发朋友圈的分享图。
- * canvas 生成 1080×1350 PNG(drawBadgeCard),零依赖。
+ * RoleBadgeDialog — 「我的认证证书」:预览浅色烫金奖状 + 一键保存分享。
+ * canvas 生成 1080×1350 PNG(drawCertificate),含真名 + 头像 + 证书编号,零依赖。
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Download, Check } from 'lucide-react'
-import { RoleBadge, drawBadgeCard } from '../lib/roleBadge'
+import { RoleBadge, drawCertificate } from '../lib/roleBadge'
+import { lunaFetch } from '../luna-tour/lunaApi'
 
 export default function RoleBadgeDialog({ badge, name, onClose, celebrate = false }: {
   badge: RoleBadge
@@ -19,19 +20,31 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  // 证书用经纪名片的真名 + 头像(比 Google metadata 更正式);拿不到就退回传入的 name。
+  const [profile, setProfile] = useState<{ name?: string; photoUrl?: string | null }>({})
+  useEffect(() => {
+    let stale = false
+    lunaFetch('/profile').then((r) => r.json()).then((j) => {
+      if (stale || !j?.agent) return
+      setProfile({ name: j.agent.display_name || undefined, photoUrl: j.agent.photo_url || null })
+    }).catch(() => {})
+    return () => { stale = true }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawBadgeCard(canvas, badge, { name, zh })
-    try { setDataUrl(canvas.toDataURL('image/png')) } catch { /* noop */ }
-  }, [badge, name, zh])
+    let stale = false
+    void drawCertificate(canvas, badge, { name: profile.name || name, zh, photoUrl: profile.photoUrl })
+      .then(() => { if (!stale) { try { setDataUrl(canvas.toDataURL('image/png')) } catch { /* tainted */ } } })
+    return () => { stale = true }
+  }, [badge, name, zh, profile.name, profile.photoUrl])
 
   const save = () => {
     if (!dataUrl) return
     const a = document.createElement('a')
     a.href = dataUrl
-    a.download = `pinzos-badge-${badge.planId}.png`
+    a.download = `pinzos-certificate-${badge.planId}.png`
     a.click()
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -68,7 +81,7 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
         <div className="p-5">
           {!celebrate && (
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">{zh ? '我的认证勋章' : 'My certification badge'}</h3>
+              <h3 className="text-base font-bold text-slate-900">{zh ? '我的认证证书' : 'My certificate'}</h3>
               <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
                 <X className="h-4 w-4" />
               </button>

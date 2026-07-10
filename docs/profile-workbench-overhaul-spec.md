@@ -255,6 +255,11 @@
 
 ---
 
+### ✅ T8+T9(2026-07-10):浅色烫金证书 + 选角色收集姓名/头像
+- **T8 证书**:`roleBadge.ts` 新增 async `drawCertificate()` —— 米白底 + 金色双描边 + 四角菱形 + 圆形头像(金环,`lt_agents.photo_url`,`crossOrigin='anonymous'` 失败退首字母)+ 兹认证 + 真名(衬线,过长自动缩)+ 角色称号(金)+ 金印 ✓ VERIFIED + 证书编号(按 name+plan 派生稳定 `PZ-YYYY-NNNNNN`)+ 认证日期 + pinzos.com。替换旧 `drawBadgeCard`。`RoleBadgeDialog` 改 async 渲染 + 拉 `/profile` 用真名/头像;下载名 `pinzos-certificate-*`;标题「我的认证证书」。双语截图验证。
+  - **注意**:头像若生产不显示 = R2 未对图片 GET 返回 ACAO;已优雅兜底(退首字母)。要真显示需 R2 CORS 允许站点源 GET。
+- **T9 onboarding**:`RoleSelectPage` 选付费角色不再直接跳付款,先弹 `CertInfoStep`——姓名(必填,预填)+ 可选头像(复用 `/avatar`),存 `display_name` 再跳 plans。付款成功颁发的证书用这份信息。双语。
+
 ### ✅ T10 — 经纪台页面 i18n(2026-07-10 完成):
 - 5 页(`AgentBilling`/`AgentOverview`/`AgentReport`/`AgentClients`/`AgentTours`)正文全部抽成 `L(zh,en)` 双语(共 ~200+ 处)。子组件各自加 `useTranslation` hook;模块级 label map(STAGES/KINDS/OUTCOMES 等)加 `en` 字段;时间/金额 helper 加 zh 参数。
 - **后端 label 也补英文**:`credits.ts` FEATURES 加 `labelEn`,`featureCatalog()` 返回;`/features` 和 `/ledger` 都带上;AgentBilling「积分这样花」的功能名不再是后端中文。需 quick-deploy。

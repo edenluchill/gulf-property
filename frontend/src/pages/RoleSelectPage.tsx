@@ -7,12 +7,13 @@
  * 规则:选前不显示价格;买家即选即用;付费角色(经纪/经纪公司/开发商)
  * 先「不」落身份,付款成功才 set(webhook + 回跳页),没付款下次还会再问。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Loader2, ChevronRight, BadgeCheck } from 'lucide-react'
+import { AlertTriangle, Loader2, ChevronRight, BadgeCheck, Upload, ArrowRight, ArrowLeft } from 'lucide-react'
 import { fetchBillingMe, setMyRole, type UserRole } from '../lib/billingApi'
 import { badgeForPlan, ROLE_BY_PLAN, type RoleBadge } from '../lib/roleBadge'
 import { useAuth } from '../contexts/AuthContext'
+import { lunaFetch } from '../luna-tour/lunaApi'
 
 // 四个角色卡:可视化 emoji 徽章 + 专属配色,一眼分得开。不放价格。
 const ROLE_CARDS: {
@@ -70,6 +71,8 @@ export default function RoleSelectPage() {
   const zh = !!i18n.language?.startsWith('zh')
   const { user, loading: authLoading } = useAuth()
   const [saving, setSaving] = useState<UserRole | null>(null)
+  // 选付费角色后先收集「认证信息」(姓名 + 可选头像)→ 再进付款,证书用这份信息。
+  const [pending, setPending] = useState<typeof ROLE_CARDS[number] | null>(null)
 
   // 已付费 → 身份由订阅决定,不给再切(切成买家还在扣费/切别的角色会重复购买,
   // 都是坑)。变更身份 = 先去订阅页调整/取消套餐。未登录/未付费 → 正常四选一。
@@ -101,10 +104,9 @@ export default function RoleSelectPage() {
 
   const choose = async (card: typeof ROLE_CARDS[number]) => {
     if (saving) return
-    // 付费角色:先不落身份 —— 付款成功后才 set(webhook + 回跳页双保险)。
-    // 没付款的话下次进来还会再问,选错也不会被付费墙锁住。
+    // 付费角色:先收集认证信息(姓名/头像)→ 再去付款。不落身份(付款成功才 set)。
     if (card.paid) {
-      window.location.assign(card.next || '/')
+      setPending(card)
       return
     }
     setSaving(card.id)
@@ -178,6 +180,11 @@ export default function RoleSelectPage() {
     )
   }
 
+  // 已选付费角色 → 收集认证信息(姓名 + 可选头像),再进付款
+  if (pending) {
+    return <CertInfoStep card={pending} zh={zh} defaultName={user?.user_metadata?.full_name || user?.user_metadata?.name || ''} onBack={() => setPending(null)} />
+  }
+
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50">
       <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
@@ -233,6 +240,112 @@ export default function RoleSelectPage() {
         <p className="mt-5 text-center text-[11px] text-slate-400">
           {zh ? '选完之后,随时可以在右上角头像菜单里「切换身份」回到本页' : 'You can switch your role anytime from the avatar menu (top right)'}
         </p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * CertInfoStep — 选付费角色后「完善认证信息」:姓名(必填,预填)+ 可选头像。
+ * 保存进 lt_agents(display_name / photo_url,复用经纪名片接口),再跳到对应付款页。
+ * 付款成功后颁发的证书就用这份姓名 + 头像。
+ */
+function CertInfoStep({ card, zh, defaultName, onBack }: {
+  card: typeof ROLE_CARDS[number]
+  zh: boolean
+  defaultName: string
+  onBack: () => void
+}) {
+  const L = (a: string, b: string) => (zh ? a : b)
+  const [name, setName] = useState(defaultName)
+  const [photo, setPhoto] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // 预填已有名片(若之前填过)
+  useEffect(() => {
+    let stale = false
+    lunaFetch('/profile').then((r) => r.json()).then((j) => {
+      if (stale || !j?.agent) return
+      if (j.agent.display_name) setName((n) => n || j.agent.display_name)
+      if (j.agent.photo_url) setPhoto(j.agent.photo_url)
+    }).catch(() => {})
+    return () => { stale = true }
+  }, [])
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert(L('请上传 JPG / PNG / WEBP 图片', 'Please upload a JPG / PNG / WEBP image')); return }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', f)
+      const r = await lunaFetch('/avatar', { method: 'POST', body: fd })
+      const j = await r.json()
+      if (j?.photoUrl) setPhoto(`${j.photoUrl}?t=${Date.now()}`)
+      else alert(L('上传失败', 'Upload failed'))
+    } catch { alert(L('上传失败', 'Upload failed')) } finally { setUploading(false) }
+  }
+
+  const cont = async () => {
+    if (!name.trim()) { alert(L('请填写姓名(将印在你的认证证书上)', 'Please enter your name (it appears on your certificate)')); return }
+    setSaving(true)
+    try {
+      await lunaFetch('/profile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: name.trim() }),
+      }).catch(() => {})
+    } finally {
+      // 无论保存成功与否都进入付款(名字已尽力保存;付款成功才落身份)
+      window.location.assign(card.next || '/')
+    }
+  }
+
+  return (
+    <div className="flex flex-1 items-center justify-center overflow-y-auto bg-slate-50 px-4 py-8">
+      <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="text-center">
+          <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br text-[34px] shadow-md ${card.grad}`} aria-hidden>
+            {card.emoji}
+          </span>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">{L('完善认证信息', 'Complete your certification')}</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            {L('填写将印在你专属认证证书上的信息 —— 客户会看到。', 'This appears on your official certificate — clients will see it.')}
+          </p>
+        </div>
+
+        {/* 头像(可选) */}
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <button onClick={() => fileRef.current?.click()} className="group relative">
+            {photo
+              ? <img src={photo} alt="" className="h-24 w-24 rounded-full object-cover ring-2 ring-amber-200" />
+              : <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 text-3xl font-bold text-slate-400">{(name || '?').slice(0, 1).toUpperCase()}</div>}
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+              {uploading ? <Loader2 className="h-6 w-6 animate-spin text-white" /> : <Upload className="h-6 w-6 text-white" />}
+            </div>
+          </button>
+          <button onClick={() => fileRef.current?.click()} className="text-xs font-medium text-teal-600">
+            {uploading ? L('上传中…', 'Uploading…') : L('上传头像(可选)', 'Upload photo (optional)')}
+          </button>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={onPick} />
+        </div>
+
+        {/* 姓名(必填) */}
+        <label className="mt-5 block">
+          <span className="text-xs font-medium text-slate-500">{L('姓名(证书署名)', 'Name (on certificate)')}</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={L('您的姓名', 'Your name')}
+            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100" />
+        </label>
+
+        <button onClick={cont} disabled={saving}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{L('继续选择套餐', 'Continue to plans')} <ArrowRight className="h-4 w-4" /></>}
+        </button>
+        <button onClick={onBack} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100">
+          <ArrowLeft className="h-4 w-4" /> {L('返回重选身份', 'Back')}
+        </button>
       </div>
     </div>
   )
