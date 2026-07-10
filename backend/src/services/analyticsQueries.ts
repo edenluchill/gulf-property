@@ -13,27 +13,39 @@ export interface Range {
   to: string
 }
 
-// ── Internal-traffic exclusion ───────────────────────────────────────────────
-// ~70% of raw events are OUR OWN testing (owner + colleague test accounts). If we
-// don't strip them, every metric, intent score and lost-customer list is about us,
-// not real customers. INTERNAL_EMAILS = owner allow-list + test accounts (env-tunable).
+// ── Non-customer traffic exclusion ───────────────────────────────────────────
+// The owner dashboard is about REAL CUSTOMERS (prospective buyers). Two kinds of
+// traffic are NOT customers and must never pollute leads / visitors / lost / errors:
+//   1. Our own testing (~70% of raw events): owner + colleague test accounts.
+//   2. Registered AGENTS/agencies/developers — they SELL homes, they are not leads.
+//      (This is the fix for "付费经纪被当 lead 推给别的经纪" — an agent browsing the
+//       map must not become a prospect. See docs/reports/2026-07-09-admin-dashboard-audit.md)
+// INTERNAL_EMAILS = owner allow-list + explicit test accounts (env-tunable); the
+// agent set is derived live from lt_agents + user_profiles (role <> 'buyer').
 const INTERNAL_EMAILS = [
   ...(process.env.OWNER_EMAILS || 'lzp6529@gmail.com').split(','),
-  ...(process.env.ANALYTICS_INTERNAL_EMAILS || 'shelldubai26@gmail.com').split(','),
+  ...(process.env.ANALYTICS_INTERNAL_EMAILS || 'shelldubai26@gmail.com,edenlu1995@gmail.com').split(','),
 ].map((s) => s.trim().toLowerCase()).filter(Boolean)
 
 let _internalCache: { ids: string[]; at: number } | null = null
 /**
- * Every visitor_id that has EVER been tied to an internal/test email — so even the
- * pre-login anonymous browsing of an internal person (same browser, identified
- * later) is excluded. Cached 60s; effectively free per call. Empty array is safe:
- * `visitor_id <> ALL('{}')` is TRUE, i.e. excludes nothing.
+ * Every visitor_id that has EVER been tied to a NON-CUSTOMER email — internal/test
+ * accounts OR a registered agent/agency/developer — so even the pre-login anonymous
+ * browsing of such a person (same browser, identified later) is excluded. Cached 60s;
+ * effectively free per call. Empty array is safe: `visitor_id <> ALL('{}')` is TRUE,
+ * i.e. excludes nothing. Name kept as `internalVisitorIds` for its many call sites;
+ * semantically it now means "not a real customer".
  */
 export async function internalVisitorIds(): Promise<string[]> {
   if (_internalCache && Date.now() - _internalCache.at < 60_000) return _internalCache.ids
   const { rows } = await pool.query(
     `SELECT DISTINCT visitor_id FROM app_events
-      WHERE visitor_id IS NOT NULL AND lower(user_email) = ANY($1::text[])`,
+      WHERE visitor_id IS NOT NULL AND (
+        lower(user_email) = ANY($1::text[])
+        OR lower(user_email) IN (SELECT lower(email) FROM lt_agents WHERE email IS NOT NULL)
+        OR lower(user_email) IN (SELECT lower(email) FROM user_profiles
+                                   WHERE role IS NOT NULL AND role <> 'buyer')
+      )`,
     [INTERNAL_EMAILS]
   )
   const ids = rows.map((r) => r.visitor_id as string)
@@ -61,8 +73,9 @@ export async function getOverview({ from, to }: Range) {
   const leads = await pool.query(
     `SELECT COUNT(*) AS total,
             COUNT(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS new_in_range
-       FROM leads`,
-    [from, to]
+       FROM leads
+      WHERE visitor_id <> ALL($3::text[])`,
+    [from, to, internal]
   )
   const luna = await pool.query(
     `SELECT COUNT(*) AS sessions
@@ -113,27 +126,31 @@ export async function getTimeseries(
 ) {
   const gran = GRANULARITIES.has(granularity) ? granularity : 'day'
   const evt = TIMESERIES_EVENTS.has(eventType) ? eventType : 'search'
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT to_char(date_trunc($3, created_at), 'YYYY-MM-DD') AS bucket,
             COUNT(*) AS count
        FROM app_events
       WHERE event_type = $4 AND created_at >= $1 AND created_at < $2
+        AND visitor_id <> ALL($5::text[])
       GROUP BY 1 ORDER BY 1`,
-    [from, to, gran, evt]
+    [from, to, gran, evt, internal]
   )
   return { event: evt, granularity: gran, points: rows.map((r) => ({ bucket: r.bucket, count: Number(r.count) })) }
 }
 
 /** Individual recent searches (what was actually searched + when + who). */
 export async function getRecentSearches({ from, to }: Range, limit = 60) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT created_at, payload->>'query' AS query, payload->>'kind' AS kind, visitor_id
        FROM app_events
       WHERE event_type = 'search'
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'query','') <> ''
+        AND visitor_id <> ALL($4::text[])
       ORDER BY created_at DESC LIMIT $3`,
-    [from, to, limit]
+    [from, to, limit, internal]
   )
   return rows
 }
@@ -197,27 +214,31 @@ export async function getLunaStats({ from, to }: Range) {
 
 /** Tutorial funnel: reach count per step (works once tutorial_step is emitted). */
 export async function getTutorialFunnel({ from, to }: Range) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT payload->>'step' AS step, COUNT(DISTINCT visitor_id) AS visitors
        FROM app_events
       WHERE event_type = 'tutorial_step'
         AND created_at >= $1 AND created_at < $2
         AND payload->>'step' IS NOT NULL
+        AND visitor_id <> ALL($3::text[])
       GROUP BY 1 ORDER BY MIN(created_at)`,
-    [from, to]
+    [from, to, internal]
   )
   return rows.map((r) => ({ step: r.step, visitors: Number(r.visitors) }))
 }
 
-/** Leads, hottest first. */
+/** Leads, hottest first. Excludes non-customers (internal + registered agents). */
 export async function getLeads(limit = 100) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT id, created_at, visitor_id, name, email, phone, whatsapp,
             source, intent, lead_score, status, last_seen_at
        FROM leads
+      WHERE visitor_id <> ALL($2::text[])
       ORDER BY lead_score DESC, created_at DESC
       LIMIT $1`,
-    [limit]
+    [limit, internal]
   )
   return rows
 }
@@ -679,6 +700,7 @@ export async function backfillLunaSummaries(limit = 30): Promise<number> {
 
 /** Headline error counters + a small daily trend for the window. */
 export async function getErrorOverview({ from, to }: Range) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT
         COUNT(*) FILTER (WHERE event_type = 'auth_failure')                       AS auth_failures,
@@ -688,8 +710,9 @@ export async function getErrorOverview({ from, to }: Range) {
        FROM app_events
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
-        AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'`,
-    [from, to]
+        AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
+        AND visitor_id <> ALL($3::text[])`,
+    [from, to, internal]
   )
   const daily = await pool.query(
     `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
@@ -699,8 +722,9 @@ export async function getErrorOverview({ from, to }: Range) {
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
+        AND visitor_id <> ALL($3::text[])
       GROUP BY 1 ORDER BY 1`,
-    [from, to]
+    [from, to, internal]
   )
   const r = rows[0]
   return {
@@ -723,6 +747,7 @@ export async function getErrorOverview({ from, to }: Range) {
  *   api_error    → "METHOD endpoint → status" (path only, query stripped client-side)
  */
 export async function getErrorGroups({ from, to }: Range, limit = 40) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT
         event_type,
@@ -740,10 +765,11 @@ export async function getErrorGroups({ from, to }: Range, limit = 40) {
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
+        AND visitor_id <> ALL($4::text[])
       GROUP BY event_type, signature
       ORDER BY count DESC, last_seen DESC
       LIMIT $3`,
-    [from, to, limit]
+    [from, to, limit, internal]
   )
   return rows.map((r) => ({
     event_type: r.event_type as 'auth_failure' | 'api_error',
@@ -757,15 +783,17 @@ export async function getErrorGroups({ from, to }: Range, limit = 40) {
 
 /** Most recent raw error events (the drill-down feed). */
 export async function getRecentErrors({ from, to }: Range, limit = 100) {
+  const internal = await internalVisitorIds()
   const { rows } = await pool.query(
     `SELECT id, created_at, event_type, visitor_id, user_email, path, ua, payload
        FROM app_events
       WHERE event_type IN ('auth_failure','api_error')
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
+        AND visitor_id <> ALL($4::text[])
       ORDER BY created_at DESC
       LIMIT $3`,
-    [from, to, limit]
+    [from, to, limit, internal]
   )
   return rows.map((r) => ({
     id: Number(r.id),
