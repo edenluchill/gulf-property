@@ -135,27 +135,65 @@ function goldGrad(ctx: CanvasRenderingContext2D, y0: number, y1: number): Canvas
   return g
 }
 
-/** 正多边形路径(只建路径)。 */
-function polyPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, n: number, rot: number) {
+/** 一朵郁金香/花苞(线稿,尖底圆顶三瓣;s=大小,ang=朝向)。 */
+function tulipBud(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, ang: number, lw: number) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+  // 外轮廓(尖底 → 圆顶)
   ctx.beginPath()
-  for (let i = 0; i < n; i++) {
-    const a = rot + (i * 2 * Math.PI) / n
-    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-  }
-  ctx.closePath()
+  ctx.moveTo(0, 0)
+  ctx.bezierCurveTo(-s * 0.66, -s * 0.35, -s * 0.52, -s * 1.18, 0, -s * 1.38)
+  ctx.bezierCurveTo(s * 0.52, -s * 1.18, s * 0.66, -s * 0.35, 0, 0)
+  ctx.stroke()
+  // 三瓣分隔
+  ctx.beginPath(); ctx.moveTo(0, -s * 0.12); ctx.lineTo(0, -s * 1.24); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(-s * 0.34, -s * 0.5, -s * 0.3, -s * 1.02, -s * 0.13, -s * 1.28); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(s * 0.34, -s * 0.5, s * 0.3, -s * 1.02, s * 0.13, -s * 1.28); ctx.stroke()
+  ctx.restore()
+}
+
+/** 一片叶子(线稿,细长带中脉)。 */
+function leaf(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, ang: number, side: number, lw: number) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+  const w = len * 0.24 * side
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.quadraticCurveTo(w, -len * 0.4, 0, -len)
+  ctx.quadraticCurveTo(-w * 0.15, -len * 0.4, 0, 0)
+  ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -len * 0.92); ctx.stroke() // 中脉
+  ctx.restore()
 }
 
 /**
- * khatam 八芒星(伊斯兰几何 najma):两正方形叠加旋转45° + 外圆 + 内八边形。纯线稿。
- * 迪拜/阿拉伯象征性花纹 —— 作淡金水印(单个、干净、对称,不加杂线)。
+ * 金色花枝装饰(优雅线稿):一根弧形主茎从左下扫向右上,顶端三朵郁金香花苞 + 几片叶。
+ * 按用户手绘的走向。半透明金,作装饰而不抢文字/二维码。
  */
-function khatam(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, alpha: number) {
-  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.2; ctx.lineJoin = 'miter'
-  polyPath(ctx, cx, cy, r, 4, -Math.PI / 2); ctx.stroke()
-  polyPath(ctx, cx, cy, r, 4, -Math.PI / 4); ctx.stroke()
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
-  polyPath(ctx, cx, cy, r * 0.55, 8, Math.PI / 8); ctx.stroke()
+function floralSpray(ctx: CanvasRenderingContext2D, W: number, H: number, alpha: number) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = goldGrad(ctx, H * 0.3, H); ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  const node = { x: W * 0.74, y: H * 0.5 }   // 花与主茎汇合处(右侧偏上)
+  // 主茎:node → 底部 → 左下角(大弧线)
+  ctx.lineWidth = 2.4
+  ctx.beginPath()
+  ctx.moveTo(node.x, node.y)
+  ctx.bezierCurveTo(W * 0.72, H * 0.78, W * 0.5, H * 0.94, W * 0.08, H * 0.95)
+  ctx.stroke()
+  // 主茎上的叶
+  leaf(ctx, W * 0.62, H * 0.86, 66, -Math.PI * 0.62, 1, 1.8)
+  leaf(ctx, W * 0.44, H * 0.92, 58, -Math.PI * 0.52, -1, 1.8)
+  leaf(ctx, W * 0.7, H * 0.68, 58, -Math.PI * 0.72, 1, 1.8)
+  // 三支花梗 + 花苞(向右上扇开)
+  const blooms: [number, number, number][] = [
+    [W * 0.70, H * 0.40, -Math.PI * 0.16],
+    [W * 0.77, H * 0.36, -Math.PI * 0.06],
+    [W * 0.855, H * 0.31, Math.PI * 0.02],
+  ]
+  for (const [bx, by, ang] of blooms) {
+    ctx.lineWidth = 2.2
+    ctx.beginPath(); ctx.moveTo(node.x, node.y)
+    ctx.quadraticCurveTo((node.x + bx) / 2 + 10, (node.y + by) / 2, bx, by)
+    ctx.stroke()
+    tulipBud(ctx, bx, by, 42, ang, 2.2)
+  }
   ctx.restore()
 }
 
@@ -236,9 +274,7 @@ function paper(ctx: CanvasRenderingContext2D, W: number, H: number) {
     ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.stroke()
   }
-  // 单个淡金 khatam 八芒星水印(迪拜象征;干净对称,不加杂线)
-  const cx = W / 2, cy = H * 0.52
-  khatam(ctx, cx, cy, 250, 0.05)
+  const cx = W / 2
   const v = ctx.createRadialGradient(cx, H / 2, H * 0.42, cx, H / 2, H * 0.92)
   v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(80,64,36,0.11)')
   ctx.fillStyle = v; ctx.fillRect(0, 0, W, H)
@@ -262,6 +298,9 @@ export async function drawCertificate(
   const cx = W / 2
 
   paper(ctx, W, H)
+
+  // 金色花枝装饰(左下扫向右上,顶端三朵郁金香花苞;半透明,不抢文字/二维码)
+  floralSpray(ctx, W, H, 0.42)
 
   // 边框:烫金双线 + 四角小菱形 + 角内短饰线
   ctx.strokeStyle = goldGrad(ctx, 40, H - 40)
