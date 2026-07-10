@@ -93,7 +93,27 @@ export function assignImagesByBoundaries(
         page.pdfSource === boundary.pdfSource &&
         page.pageNumber >= boundary.startPage &&
         page.pageNumber <= boundary.endPage;
-      const belongs = claimed === bIdx || (claimed === undefined && inRange);
+
+      // ⭐ 2026-07-10 串图守卫:一个"整页锚点/平面图页"若自身带明确户型名(main 角色),
+      // 只能归属同名边界,绝不能被范围兜底扫进【不同名】的相邻户型。
+      // (背景:营销楼书里"分隔页+单户型"的整页 page.26 明明是 STUDIO TYPE 01,却被
+      //  section 首页范围规则扫进了 STUDIO TYPE 02 → 串图。见
+      //  docs/reports/2026-07-09-floorplan-crossmix-binghatti-wraith.md)
+      // 只在"有冲突名字"时拦截;无名的孤儿平面图页仍按范围/孤儿吸收归属(不破坏 PJA 版式)。
+      const ownName =
+        (page.pageType === PageType.UNIT_ANCHOR || page.pageType === PageType.UNIT_FLOORPLAN_ONLY) &&
+        page.unitInfo?.roleInUnit === 'main' &&
+        page.unitInfo.unitTypeName
+          ? normalize(page.unitInfo.unitTypeName)
+          : '';
+      const bKey = boundaryKeys[bIdx];
+      const ownNameConflicts =
+        !!ownName && ownName.length >= 3 && !!bKey &&
+        !(ownName === bKey || bKey.includes(ownName) || ownName.includes(bKey));
+
+      const belongs =
+        claimed === bIdx ||
+        (claimed === undefined && inRange && !ownNameConflicts);
       if (!belongs) return;
 
       // 分配图片（基于AI标记的类别）

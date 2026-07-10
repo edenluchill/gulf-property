@@ -139,8 +139,15 @@ const PAGE_TYPE_CRITERIA = `## 页面类型
 (如左右两个 "STUDIO TYPE 01" 和 "STUDIO TYPE 02",或 2×2 网格),返回 multiUnit：
 - count = 户型个数(只能是 2/4/8)
 - layout = horizontal(左右一排)/ vertical(上下一列)/ grid(2×2 或 4×2 网格)
-- units = 每个户型的名字,**严格按阅读顺序**(左→右,再上→下),数量必须等于 count
+- units = 每个户型的名字,**严格按阅读顺序**(左→右,再上→下),数量必须等于 count；
+  units[i] 必须对应几何上第 i 块(横排=第 i 列、竖排=第 i 行),名字要读**那一块自己**印的户型标签,别按序号臆测
 - ⚠️ 只在户型**等大规整排列**时返回;若数量不是 2/4/8、大小不一、或读不全名字 → **不要返回 multiUnit**(当普通单户型处理,只填一个 unitTypeName)
+
+**⭐ 组合页(装饰系列名 + 单个户型图)：** 有些营销楼书一页里一半是深色"系列名"色块
+(如 "STUDIOS"、"ONE BEDROOM APARTMENTS"),另一半是**一个真实户型平面图**。
+只要页面里有**真实平面图**(墙线+房间标签+面积表),就必须分类为 **unit_anchor**,
+unitTypeName 读**那张平面图自己**印的户型标签(如 "STUDIO TYPE 01"),
+**禁止**用旁边的深色系列名当户型名,**禁止**设 isSectionStart(这不是分隔页,是户型页)。
 
 ### unit_rendering（户型外观效果图）
 - 单个户型/别墅/联排的**外观**3D渲染图
@@ -173,10 +180,13 @@ const PAGE_TYPE_CRITERIA = `## 页面类型
 每一页都独立判断 hasPricingTable 和 hasPaymentPlan 两个布尔值（与 pageType 无关，两者可同时为 true）。
 
 ### section_divider（分隔页）
-- 只有标题，没有实质内容
+- 只有标题，没有实质内容（**没有平面图、没有房间标签、没有面积表**）
 - shouldUse: false
-- ⭐ 标题可能是户型/系列名（如 "BLUE HORIZON"、"THE BEACH COLLECTION"、"3-BEDROOM TOWNHOUSE"）——
-  必须设 isSectionStart: true 并把标题原文填进 startMarkerText，后续页面靠它归属户型
+- ⭐ 常见形态：整页深色/满版底色，只居中放一个大系列名（如 "STUDIOS"、"ONE BEDROOM
+  APARTMENTS"、"APARTMENTS"、"PENTHOUSES"、"THE BEACH COLLECTION"、"BLUE HORIZON"）。
+  这类**纯系列名封面页**一律 section_divider（**绝不是 unit_anchor**，别因为写了 "STUDIO"/"BEDROOM" 就当户型图）
+- ⭐ 必须设 isSectionStart: true 并把标题原文填进 startMarkerText，后续页面靠它归属户型
+- ⚠️ 但若这一页**同时含有真实平面图**（半版色块+半版户型图），那是**组合页 → unit_anchor**（见上），不是分隔页
 
 ### 其他类型
 - project_cover: 封面
@@ -218,8 +228,9 @@ const CLASSIFICATION_JSON_SHAPE = `{
   }
 }
 
-一页多户型时额外加(否则整个省略 multiUnit 字段)：
-"multiUnit": { "count": 2, "layout": "horizontal", "units": [ {"unitTypeName":"STUDIO TYPE 02","unitCategory":"Studio"}, {"unitTypeName":"STUDIO TYPE 01","unitCategory":"Studio"} ] }
+一页多户型时额外加(否则整个省略 multiUnit 字段)。units 顺序 = 物理阅读顺序(左→右),
+读每块自己印的标签,别按序号猜。若左边那块印的是 TYPE 02、右边印 TYPE 01,就照实填 [TYPE 02, TYPE 01]：
+"multiUnit": { "count": 2, "layout": "horizontal", "units": [ {"unitTypeName":"STUDIO TYPE 01","unitCategory":"Studio"}, {"unitTypeName":"STUDIO TYPE 02","unitCategory":"Studio"} ] }
 
 imageInfo.category 只能从以下枚举中选（禁止其他值）：
 floor_plan | unit_exterior | unit_interior_living | unit_interior_bedroom | unit_interior_kitchen | unit_interior_bathroom | unit_balcony | building_exterior | building_aerial | building_entrance | location_map | master_plan | amenity_pool | amenity_gym | amenity_garden | amenity_lounge | amenity_other | logo | diagram | unknown
