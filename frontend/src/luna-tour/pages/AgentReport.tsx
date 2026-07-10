@@ -21,6 +21,7 @@ export default function AgentReport() {
   const [err, setErr] = useState('')
   const [history, setHistory] = useState<any[]>([])
   const [offers, setOffers] = useState<any[]>([])
+  const [projReports, setProjReports] = useState<any[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const canRun = !!(clientName.trim() || oneLiner.trim())
@@ -30,6 +31,8 @@ export default function AgentReport() {
   useEffect(() => { loadHistory() }, [])
   // Sales Offer 报价单生成记录(在项目详情页生成;60 天有效,过期行保留)
   useEffect(() => { lunaFetch('/payplans').then((r) => r.json()).then((j) => setOffers(j.offers || [])).catch(() => {}) }, [])
+  // 项目品牌报告 /r/ 生成记录(在项目详情页生成)
+  useEffect(() => { lunaFetch('/project-reports').then((r) => r.json()).then((j) => setProjReports(j.reports || [])).catch(() => {}) }, [])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   const run = async () => {
@@ -161,6 +164,30 @@ export default function AgentReport() {
             })}
           </div>
           <p className="mt-2 text-[11px] text-slate-400">报价单有效期 60 天(5 积分/份);过期后客户打开会提示联系你获取最新报价。</p>
+        </div>
+      )}
+
+      {/* 项目品牌报告记录(在项目详情页「生成品牌报告」产出,/r/:code) */}
+      {projReports.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-bold text-slate-700">我的项目报告({projReports.length})</h2>
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+            {projReports.map((r) => {
+              const u = `${window.location.origin}/r/${r.share_code}`
+              return (
+                <div key={r.share_code} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-800">{r.project_name || r.title || '项目报告'}</div>
+                    <div className="truncate text-xs text-slate-400">
+                      {r.area ? `${r.area} · ` : ''}{String(r.created_at).slice(0, 10)}{r.view_count ? ` · 浏览 ${r.view_count}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title="复制链接" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
+                  <a href={u} target="_blank" rel="noreferrer" title="打开" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>

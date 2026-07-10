@@ -179,7 +179,7 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       metadata: { uploadedAt: Date.now(), workerMode: true, directUpload: true },
     });
 
-    await spend(agentId, 'brochures').catch(() => {});
+    await spend(agentId, 'brochures', { type: 'brochure', id: String(jobId), label: pdfNames[0] }).catch(() => {});
     console.log(`📋 Task created from direct upload: ${jobId} (${pdfNames.length} file(s))`);
     res.json({
       success: true,

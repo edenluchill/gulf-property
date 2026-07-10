@@ -130,23 +130,39 @@ export async function checkCredits(agentId: string, feature: Feature): Promise<C
   }
 }
 
-/** 成功执行某功能后扣积分(月度 upsert)。owner 不计费。 */
-export async function spend(agentId: string, feature: Feature): Promise<void> {
-  if (await isUnlimited(agentId)) return
-  agentId = await billingAgentOf(agentId) // 席位成员扣 founder 的共享池
-  const p = await planFor(agentId)
-  const cost = Math.round(FEATURES[feature].credits * p.multiplier)
-  if (cost <= 0) return
+/** 逐笔流水关联对象(可选):让「使用记录」能点回原件、显示项目/客户名。 */
+export interface SpendRef { type?: string; id?: string; label?: string }
+
+/**
+ * 成功执行某功能后扣积分(月度聚合 upsert)+ 记一行逐笔流水(lt_credit_ledger)。
+ * owner/无限白名单不计费,但仍记一行 credits=0 的流水,方便他们也能看历史。
+ * actorAgentId = 实际操作人;计费落到 billingAgentOf(founder 共享池)。
+ */
+export async function spend(actorAgentId: string, feature: Feature, ref?: SpendRef): Promise<void> {
+  const unlimited = await isUnlimited(actorAgentId)
+  const billingId = await billingAgentOf(actorAgentId) // 席位成员扣 founder 的共享池
+  const p = await planFor(billingId)
+  const cost = unlimited ? 0 : Math.round(FEATURES[feature].credits * p.multiplier)
+
+  // 逐笔流水:总是记一行(含 owner/无限的 0),历史可查、可点回原件。失败不阻断主流程。
+  await pool.query(
+    `INSERT INTO lt_credit_ledger (agent_id, actor_agent_id, feature, credits, ref_type, ref_id, ref_label)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [billingId, actorAgentId, feature, cost, ref?.type ?? null, ref?.id ?? null, ref?.label ?? null]
+  ).catch((e) => console.error('[credits] ledger insert failed:', e))
+
+  if (unlimited || cost <= 0) return
+
   const upd = await pool.query(
     `UPDATE lt_usage_counters SET credits_used = credits_used + $2
        WHERE agent_id = $1 AND period_month = date_trunc('month', now())::date`,
-    [agentId, cost]
+    [billingId, cost]
   )
   if (!upd.rowCount) {
     await pool.query(
       `INSERT INTO lt_usage_counters (agent_id, period_month, credits_used)
          VALUES ($1, date_trunc('month', now())::date, $2)`,
-      [agentId, cost]
+      [billingId, cost]
     )
   }
 }

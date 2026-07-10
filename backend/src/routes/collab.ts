@@ -235,7 +235,7 @@ router.post('/rooms', async (req, res) => {
   const room =
     (typeof wantCode === 'string' && wantCode.trim() ? ensureRoomWithCode(wantCode, creatorName) : null) ||
     createRoom(creatorName).room
-  if (agentId) await spend(agentId, 'live_tours').catch(() => {})
+  if (agentId) await spend(agentId, 'live_tours', { type: 'live', id: room.code, label: creatorName }).catch(() => {})
   res.json({ code: room.code, url: `${SHARE_BASE_URL}/${room.code}` })
 })
 

@@ -110,7 +110,7 @@ router.post(
       }
       const quota = await checkCredits(agentId, 'brochures');
       if (!quota.allowed) { const e = creditError('brochures', quota); res.status(e.status).json(e.body); return; }
-      await spend(agentId, 'brochures').catch(() => {});
+      await spend(agentId, 'brochures', { type: 'brochure', label: files[0]?.originalname }).catch(() => {});
 
       // Calculate total file size
       const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);

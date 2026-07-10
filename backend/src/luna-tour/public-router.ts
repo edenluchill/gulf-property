@@ -554,7 +554,7 @@ router.post('/public/payplan', optionalAuth, async (req: Request, res: Response)
         email || null,
       ]
     )
-    await spend(agentId, 'payplan')  // credits 0 → no-op,留着与其它功能一致
+    await spend(agentId, 'payplan', { type: 'payplan', id: code, label: cleanUnitName || undefined })
     res.json({ code })
   } catch (err) {
     console.error('[luna] payplan create error:', err)

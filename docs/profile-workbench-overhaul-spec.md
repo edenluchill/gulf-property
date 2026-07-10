@@ -232,11 +232,31 @@
 
 ### ✅ T1(2026-07-09):新建 `frontend/src/hooks/useResetOnBFCache.ts`(pageshow+persisted 重置),接进 `AgentBilling`(升级+门户)与 `PricingPage`(订阅)。type-check 通过。待随前端批次 push 自动部署 + 真机点一次确认。
 
-### 🚧 T2(2026-07-09 进行中):
+### ✅ T2(2026-07-09 完成,已上生产 commit 0a25c3c):
 - tailwind 新增 `ink` 色板(`#1e2a35` 一类「柔和石板深带青灰」),见 `frontend/tailwind.config.js`。
 - 新建共享基元 `frontend/src/luna-tour/ui/Panel.tsx`:`Panel`/`InkPanel`/`SectionHeader`/`StatCard`。
-- **已改样板**:`AgentOverview`(工作台)hero 从纯黑改 ink-800 + 青调,KPI/区块头换共享组件;`ProfileShell` 左侧「经纪工作台」深色模块从 `slate-900` 渐变改 `ink-800`。
-- **待铺开**:`AgentBilling`/`AgentClients`/`AgentTours`/`AgentReport` 用共享基元统一卡片;**桌面 Header 顶部橙色「经纪台」高亮胶囊要收进青调**(现在还是高饱和橙,和新体系冲突)。
+- `AgentOverview`(工作台)hero 从纯黑改 ink-800 + 青调;`ProfileShell` 左侧「经纪工作台」深色模块改 `ink-800`。
+- `AgentClients`/`AgentTours`/`AgentReport` 主卡片统一 `ring-2xl`;纯黑控件(filter pill/按钮)改 ink。
+- 桌面 `Header` 顶部「经纪台」高亮胶囊 `accentGrad` 从橙(amber/orange)改青(teal→cyan)。
+- **注**:Founder/Agency 档卡的金色 `#E8C37E` 是套餐品牌色,刻意保留。
 
-### ✅ T3(2026-07-09):`MobileNav` 重写。底栏 = 探索 / **收藏** / 成交记录 / [管理(admin/uploader)] / 我的。移除底栏「经纪台」(工作台改从「我的」进);拆掉「分析」Sheet,收藏+成交提为一级 tab。type-check 通过,截图验证 OK。
+### ✅ T3(2026-07-09,已上生产 commit 0a25c3c):`MobileNav` 重写。底栏 = 探索 / **收藏** / 成交记录 / [管理(admin/uploader)] / 我的。移除底栏「经纪台」(工作台改从「我的」进);拆掉「分析」Sheet,收藏+成交提为一级 tab。
   - 决策(默认已定):成交记录保留为一级 tab(不再埋 Sheet)。如不想要可再砍。
+
+### ✅ T4+T5(2026-07-10):逐笔积分流水 + 使用记录 tab + 补齐项目报告列表。
+- **DB**:新建 `backend/src/db/credit-ledger.sql` → `lt_credit_ledger`(agent_id 计费归属 / actor_agent_id 操作人 / feature / credits / ref_type/ref_id/ref_label / created_at)。已在生产库建表。
+- **credits.ts**:`spend(actor, feature, ref?)` 每次记一行流水(含 owner/无限的 0);签名向后兼容。
+- **call sites 全带 ref**:project_report/client_report/tour/payplan/live/brochure(agent-router/public-router/collab/r2-upload/langgraph-progress)。
+- **端点** `GET /api/luna/agent/ledger?feature=&limit=`:**席位成员只看自己(actor_agent_id=我);团队 owner(billing_agent_id IS NULL)看整个池(agent_id=我,带操作人名)**——用户定的规则。
+- **前端**:新 `AgentUsage.tsx`(`/agent/usage`,**双语**),能量条 + 流水时间线 + feature 筛选 + owner 见操作人列 + 可点回 /r /cr /pp /tour。
+- **tab**:ProfileShell `USAGE_TAB` **只在付费(active/trialing)后显示**(用户要求);路由常在。
+- **T5**:AgentReport 补上「我的项目报告」列表(用已存在的 `/project-reports` 端点,零后端)。
+- **注意**:历史不可回填,只从上线起记录。
+
+---
+
+### 🆕 T10 — 经纪台/profile 页面 i18n(硬编码中文,切 EN 仍中文)(用户 2026-07-10 报)
+- **现象**:Header/侧栏是 i18n(英文正常),但 `AgentBilling`/`AgentOverview`/`AgentReport`/`AgentClients`/`AgentTours` 页面**正文全是硬编码中文**,切 EN 不变。截图见订阅页。
+- **方案**:这些页当初只写中文。逐页把正文抽成 `L(zh,en)` 双语(参照 ProfileShell/AgentUsage 的 `L()` 模式,或走 i18n key)。工作量中等(AgentBilling 文案最多:套餐名/功能行/积分消耗表)。
+- **新页已双语**:`AgentUsage` 从一开始就是双语,不欠新债。
+- 优先级:P1(用户已撞到)。建议下一批做。

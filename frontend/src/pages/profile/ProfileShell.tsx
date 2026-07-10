@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
   CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
-  Menu, X, ChevronRight,
+  Menu, X, ChevronRight, Receipt,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -49,6 +49,8 @@ const AGENT_TABS: Tab[] = [
   { to: '/agent/tour', zh: 'AI 导览', en: 'AI tours', icon: Wand2 },
   { to: '/agent/report', zh: '秒出提案', en: 'Instant proposals', icon: Zap },
 ]
+// 使用记录:只在付费后显示(有积分消耗才有意义;免费/未订阅不显示)
+const USAGE_TAB: Tab = { to: '/agent/usage', zh: '使用记录', en: 'Usage', icon: Receipt }
 
 const AGENT_NAV_OPEN_KEY = 'pz-agent-nav-open'
 
@@ -147,9 +149,13 @@ export default function ProfileShell() {
       isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100/80'
     }`
 
+  // 使用记录 tab 只在付费(active/trialing)后出现;免费/未订阅不显示。
+  const isPaid = !!me && ['active', 'trialing'].includes(me.status)
+  const agentTabs: Tab[] = isPaid ? [...AGENT_TABS, USAGE_TAB] : AGENT_TABS
+
   // 手机端全部可达板块(个人资料 → 工作台各功能(经纪)→ 订阅),
   // 用于顶栏标题识别 + 菜单 Sheet 列表。
-  const mobileTabs: Tab[] = [ACCOUNT_TABS[0], ...(isAgent ? AGENT_TABS : []), ACCOUNT_TABS[1]]
+  const mobileTabs: Tab[] = [ACCOUNT_TABS[0], ...(isAgent ? agentTabs : []), ACCOUNT_TABS[1]]
 
   // 当前板块(最长前缀匹配;/agent/billing 优先于 /agent)
   const currentTab = mobileTabs
@@ -242,7 +248,7 @@ export default function ProfileShell() {
                 {L('经纪工作台', 'Agent workspace')}
               </div>
               {isAgent ? (
-                AGENT_TABS.map((tab) => (
+                agentTabs.map((tab) => (
                   <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
                     <tab.icon className="h-[18px] w-[18px]" />
                     <span className="flex-1">{zh ? tab.zh : tab.en}</span>
@@ -353,7 +359,7 @@ export default function ProfileShell() {
                     </button>
                     {agentOpen && (
                       <div className="space-y-0.5 px-2 pb-2.5">
-                        {AGENT_TABS.map((tab) => (
+                        {agentTabs.map((tab) => (
                           <NavLink
                             key={tab.to}
                             to={tab.to}

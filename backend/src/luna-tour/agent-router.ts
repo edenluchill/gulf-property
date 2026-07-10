@@ -24,7 +24,7 @@ import { buildClientReport } from './auto-report'
 import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
-import { checkCredits, spend, creditError, creditBalance } from './credits'
+import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
 
 const router = Router()
 
@@ -161,7 +161,7 @@ router.post('/project-reports', async (req: Request, res: Response) => {
         'INSERT INTO lt_project_reports (agent_id, project_id, share_code, title) VALUES ($1,$2,$3,$4)',
         [agentId, projectId, code, p.rows[0].project_name]
       )
-      if (loggedIn) await spend(agentId, 'reports').catch(() => {})
+      if (loggedIn) await spend(agentId, 'reports', { type: 'project_report', id: code, label: p.rows[0].project_name }).catch(() => {})
     }
     res.json({ success: true, shareCode: code, url: `/r/${code}` })
   } catch (err) {
@@ -364,7 +364,7 @@ router.post('/client-reports', async (req: Request, res: Response) => {
        VALUES ($1,$2,$3,$4,'generating',$5,$6) RETURNING id`,
       [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress()), clientId]
     )
-    if (loggedIn) await spend(agentId, 'reports').catch(() => {})
+    if (loggedIn) await spend(agentId, 'reports', { type: 'client_report', id: code, label: clientName || undefined }).catch(() => {})
     // fire-and-forget background build
     generateClientReport(r.rows[0].id, client, oneLiner)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
@@ -407,7 +407,7 @@ router.post('/client-reports/compare', async (req: Request, res: Response) => {
        VALUES ($1,$2,$3,$4,'generating',$5,$6,'compare') RETURNING id`,
       [agentId, code, clientName, `对比 ${projectIds.length} 个项目`, JSON.stringify(initialProgress()), clientId]
     )
-    if (loggedIn) await spend(agentId, 'reports').catch(() => {})
+    if (loggedIn) await spend(agentId, 'reports', { type: 'client_report', id: code, label: clientName || `对比 ${projectIds.length} 个项目` }).catch(() => {})
     generateCompareReport(r.rows[0].id, clientName, projectIds, profile)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
   } catch (err) {
@@ -555,6 +555,48 @@ router.get('/usage', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[luna] usage error:', err)
     res.status(500).json({ error: 'usage failed' })
+  }
+})
+
+/**
+ * 逐笔积分使用记录(「使用记录」tab)。
+ * 展示规则(用户定):席位成员只看自己(actor_agent_id=我);
+ * 团队 owner(billing_agent_id IS NULL)看整个共享池(agent_id=我,带操作人名字)。
+ * query: ?feature=luna_tours&limit=100
+ */
+router.get('/ledger', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    // 我是席位成员吗?成员 → billing_agent_id 指向 founder。
+    const me = await pool.query<{ billing_agent_id: string | null }>(
+      `SELECT billing_agent_id FROM lt_agents WHERE id = $1`, [agentId]
+    )
+    const isMember = !!me.rows[0]?.billing_agent_id
+    // 成员:仅自己;owner/独立:整个计费归属池(agent_id = 我 = founder 池)
+    const scopeCol = isMember ? 'l.actor_agent_id' : 'l.agent_id'
+
+    const feature = typeof req.query.feature === 'string' ? req.query.feature : null
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200))
+    const params: unknown[] = [agentId]
+    let where = `${scopeCol} = $1`
+    if (feature) { params.push(feature); where += ` AND l.feature = $${params.length}` }
+    params.push(limit)
+
+    const { rows } = await pool.query(
+      `SELECT l.id, l.feature, l.credits, l.ref_type, l.ref_id, l.ref_label, l.created_at,
+              l.actor_agent_id, a.display_name AS actor_name
+         FROM lt_credit_ledger l
+         LEFT JOIN lt_agents a ON a.id = l.actor_agent_id
+        WHERE ${where}
+        ORDER BY l.created_at DESC
+        LIMIT $${params.length}`,
+      params
+    )
+    // pool=true → 展示"操作人"列(owner 看团队);feature 目录给前端做图标/中文名
+    res.json({ success: true, pool: !isMember, entries: rows, features: featureCatalog() })
+  } catch (err) {
+    console.error('[luna] ledger error:', err)
+    res.status(500).json({ success: false, error: 'ledger failed' })
   }
 })
 
@@ -774,7 +816,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
         if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
         const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
-        if (loggedIn) await spend(agentId, 'luna_tours').catch(() => {}) // count only real agents
+        if (loggedIn) await spend(agentId, 'luna_tours', { type: 'tour', id: shareCode, label: title }).catch(() => {}) // count only real agents
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
         console.error('[luna] agent create (bg) error:', err)

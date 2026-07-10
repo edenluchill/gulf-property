@@ -158,3 +158,33 @@ export async function getClientReportStatus(code: string): Promise<ClientReportS
   const r = await lunaFetch(`/client-reports/${code}/status`)
   return (await r.json()) as ClientReportStatus
 }
+
+// ── 使用记录(逐笔积分流水)────────────────────────────────
+export interface LedgerEntry {
+  id: number
+  feature: string
+  credits: number
+  ref_type: string | null
+  ref_id: string | null
+  ref_label: string | null
+  created_at: string
+  actor_agent_id: string | null
+  actor_name: string | null
+}
+export interface LedgerFeature { key: string; label: string; credits: number; minPlan: string }
+export interface LedgerResponse {
+  success: boolean
+  /** true = 团队 owner 视角(整个共享池,显示操作人列);false = 只看自己 */
+  pool: boolean
+  entries: LedgerEntry[]
+  features: LedgerFeature[]
+}
+
+/** 使用记录:席位成员只看自己,团队 owner 看整个池。 */
+export async function fetchLedger(feature?: string, limit = 200): Promise<LedgerResponse> {
+  const qs = new URLSearchParams()
+  if (feature) qs.set('feature', feature)
+  qs.set('limit', String(limit))
+  const r = await lunaFetch(`/ledger?${qs.toString()}`)
+  return (await r.json()) as LedgerResponse
+}
