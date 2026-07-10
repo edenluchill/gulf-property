@@ -339,38 +339,29 @@ export default function ProfileShell() {
                 ))}
               </nav>
 
-              {/* 经纪工作台:独立深色模块,一眼区分"这是经纪专用"(柔和石板深 ink) */}
-              <div className="overflow-hidden rounded-2xl bg-ink-800 shadow-md ring-1 ring-black/20">
+              {/* 经纪工作台:浅色分组卡(与页面协调;左侧青色竖条 + 标签头点明"经纪专属") */}
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
                 {isAgent ? (
                   <>
                     <button
                       onClick={toggleAgentOpen}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-slate-50"
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-emerald-500 shadow-sm">
-                        <Briefcase className="h-4 w-4 text-white" />
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 ring-1 ring-teal-100">
+                        <Briefcase className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-white">{L('经纪工作台', 'Agent workspace')}</span>
-                        <span className="block text-[10px] font-medium uppercase tracking-wider text-teal-300/90">
+                        <span className="block text-[13px] font-bold text-slate-900">{L('经纪工作台', 'Agent workspace')}</span>
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-teal-600">
                           {L('经纪专属', 'Agents only')}
                         </span>
                       </span>
                       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${agentOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {agentOpen && (
-                      <div className="space-y-0.5 px-2 pb-2.5">
+                      <div className="space-y-0.5 border-t border-slate-100 p-1.5">
                         {agentTabs.map((tab) => (
-                          <NavLink
-                            key={tab.to}
-                            to={tab.to}
-                            end={tab.end}
-                            className={({ isActive }) =>
-                              `flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                                isActive ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                              }`
-                            }
-                          >
+                          <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
                             <tab.icon className="h-4 w-4" />
                             {zh ? tab.zh : tab.en}
                           </NavLink>
@@ -379,15 +370,15 @@ export default function ProfileShell() {
                     )}
                   </>
                 ) : (
-                  /* 非经纪:上锁,点击去开通(不可展开) */
-                  <Link to="/choose-role" className="group flex w-full items-center gap-2.5 px-3.5 py-3 transition hover:bg-white/[0.04]">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                      <Lock className="h-4 w-4 text-slate-300" />
+                  /* 非经纪:上锁,点击去开通 */
+                  <Link to="/choose-role" className="group flex w-full items-center gap-2.5 px-3 py-2.5 transition hover:bg-slate-50">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                      <Lock className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold text-white">{L('经纪工作台', 'Agent workspace')}</span>
+                      <span className="block text-[13px] font-bold text-slate-900">{L('经纪工作台', 'Agent workspace')}</span>
                       <span className="block truncate text-[11px] text-slate-400">
-                        {L('客户雷达 · AI 导览 · 秒出提案', 'Client radar · AI tours · Instant proposals')}
+                        {L('客户雷达 · AI 导览 · 秒出提案', 'Client radar · AI tours · proposals')}
                       </span>
                     </span>
                     <span className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm transition group-hover:opacity-95">

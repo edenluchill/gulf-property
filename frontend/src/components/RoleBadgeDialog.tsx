@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { motion } from 'framer-motion'
 import { X, Download, Check, Loader2 } from 'lucide-react'
 import { RoleBadge, drawCertificate } from '../lib/roleBadge'
 import { lunaFetch, registerCertificate } from '../luna-tour/lunaApi'
@@ -54,57 +55,92 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
   }
 
   return (
-    <div className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-md" onClick={onClose}>
-      <div className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10" onClick={(e) => e.stopPropagation()}>
-        {/* 精致标题栏(克制,不抢证书):一条酒红细线点题 */}
-        <div className="relative border-b border-slate-100 px-6 py-4">
-          <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: '#6E1518' }} />
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="truncate text-[17px] font-bold text-slate-900">
-                {celebrate ? (zh ? '认证已颁发 🎉' : 'Certificate issued 🎉') : (zh ? '我的认证证书' : 'My certificate')}
-              </h3>
-              <p className="mt-0.5 truncate text-xs text-slate-500">
-                {celebrate
-                  ? (zh ? '晒出你的官方认证,让客户第一时间认可你' : 'Show off your official certification to clients')
-                  : (zh ? '保存后即可分享给客户 / 朋友圈' : 'Save it to share with clients')}
-              </p>
-            </div>
-            <button onClick={onClose} className="shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+    // 电影感揭幕:极暗聚光背景 + 金色光晕 + 入场动画 + 一次性扫光
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[1300] flex flex-col items-center justify-center overflow-y-auto px-4 py-8"
+      style={{ background: 'radial-gradient(120% 90% at 50% 40%, #12121c 0%, #08080d 60%, #050507 100%)' }}
+      onClick={onClose}
+    >
+      {/* 金色聚光光晕 */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }}
+        className="pointer-events-none absolute left-1/2 top-[42%] h-[70vh] w-[70vh] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[90px]"
+        style={{ background: 'radial-gradient(circle, rgba(199,160,80,0.28), rgba(199,160,80,0.06) 45%, transparent 70%)' }}
+      />
 
-        {/* 证书预览(大图,暖灰底衬托纸质) */}
-        <div className="bg-slate-100/70 px-6 py-6">
-          <canvas ref={canvasRef} className="hidden" />
+      {/* 关闭 */}
+      <button onClick={onClose} className="absolute right-4 top-4 z-10 rounded-full p-2 text-white/40 transition hover:bg-white/10 hover:text-white/80">
+        <X className="h-5 w-5" />
+      </button>
+
+      <div className="relative flex w-full max-w-3xl flex-col items-center" onClick={(e) => e.stopPropagation()}>
+        {/* 眉标 */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className="mb-4 text-center"
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#C7A050]">
+            {celebrate ? (zh ? '认证已颁发' : 'Certificate Issued') : (zh ? '官方认证证书' : 'Official Certificate')}
+          </div>
+          {celebrate && (
+            <div className="mt-1 text-lg font-bold text-white">
+              {zh ? '恭喜,你已获得官方认证 🎉' : 'Congratulations — you’re officially certified 🎉'}
+            </div>
+          )}
+        </motion.div>
+
+        {/* 证书舞台 */}
+        <canvas ref={canvasRef} className="hidden" />
+        <div className="relative w-full overflow-hidden rounded-lg">
           {dataUrl ? (
-            <img src={dataUrl} alt="certificate" className="mx-auto w-full rounded-md shadow-xl ring-1 ring-black/10" />
+            <>
+              <motion.img
+                key={dataUrl}
+                src={dataUrl}
+                alt="certificate"
+                initial={{ opacity: 0, scale: 0.92, y: 24 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+                className="w-full rounded-lg shadow-[0_40px_120px_-20px_rgba(0,0,0,0.8)] ring-1 ring-[#C7A050]/25"
+              />
+              {/* 一次性金色扫光 */}
+              <motion.div
+                key={`sheen-${dataUrl}`}
+                initial={{ x: '-130%' }} animate={{ x: '130%' }}
+                transition={{ delay: 0.5, duration: 1, ease: 'easeInOut' }}
+                className="pointer-events-none absolute inset-y-0 w-1/2 -skew-x-12"
+                style={{ background: 'linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent)' }}
+              />
+            </>
           ) : (
-            <div className="mx-auto flex aspect-[1.42/1] w-full items-center justify-center rounded-md bg-white/60 ring-1 ring-black/5">
-              <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
+            <div className="flex aspect-[1.42/1] w-full items-center justify-center rounded-lg bg-white/[0.03] ring-1 ring-white/10">
+              <Loader2 className="h-7 w-7 animate-spin text-white/30" />
             </div>
           )}
         </div>
 
-        {/* 操作 */}
-        <div className="border-t border-slate-100 p-4">
+        {/* 操作(浮于暗底,克制精致)*/}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+          className="mt-6 flex w-full max-w-sm flex-col items-center gap-2"
+        >
           <button
             onClick={save}
             disabled={!dataUrl}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 ${
-              saved ? 'bg-emerald-600' : 'bg-slate-900 hover:bg-slate-800'
+            className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold shadow-lg transition-all active:scale-[0.98] disabled:opacity-40 ${
+              saved ? 'bg-emerald-500 text-white' : 'text-[#1C2B4A]'
             }`}
+            style={saved ? undefined : { background: 'linear-gradient(180deg, #EBD592, #C7A050)' }}
           >
             {saved ? <Check className="h-4 w-4" /> : <Download className="h-4 w-4" />}
             {saved ? (zh ? '已保存' : 'Saved') : (zh ? '保存图片' : 'Save image')}
           </button>
-          <p className="mt-2 text-center text-[11px] text-slate-400">
+          <p className="text-center text-[11px] text-white/40">
             {zh ? '保存后即可分享到朋友圈 / WhatsApp Status' : 'Share to WeChat Moments / WhatsApp Status'}
           </p>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   )
 }
