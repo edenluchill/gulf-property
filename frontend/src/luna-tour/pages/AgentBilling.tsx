@@ -10,6 +10,7 @@ import { Loader2, Check, ExternalLink, Users, UserPlus, X } from 'lucide-react'
 import { badgeForPlan } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import { useAuth } from '../../contexts/AuthContext'
+import { useResetOnBFCache } from '../../hooks/useResetOnBFCache'
 import {
   fetchBillingMe, fetchPromo, fetchFeatures, fetchPlans, startCheckout, openPortal,
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
@@ -31,6 +32,8 @@ export default function AgentBilling() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  // 跳 Stripe 后按「后退」时,页面从 bfcache 恢复会保留 busy → spinner 卡死。重置。
+  useResetOnBFCache(() => setBusy(null))
   const [params, setParams] = useSearchParams()
   const [cycle, setCycle] = useState<BillingInterval>('month') // 默认月付(低门槛)
   const [promo, setPromo] = useState<Promo>({ active: false })

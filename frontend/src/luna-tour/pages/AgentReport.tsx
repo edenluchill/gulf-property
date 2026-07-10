@@ -62,7 +62,7 @@ export default function AgentReport() {
       <h1 className="mb-1 text-2xl font-bold">秒出提案</h1>
       <p className="mb-6 text-sm text-slate-500">填客户画像 → 生成一份用真实 DLD 数据 + 市场政策趋势的综合提案，可分享链接、可存 PDF 发给客户。</p>
 
-      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="grid gap-3 md:grid-cols-2">
           <input className="rounded-lg border px-3 py-2 text-sm" placeholder="客户名字（如 陈先生）" value={clientName} onChange={(e) => setClientName(e.target.value)} />
           <input className="rounded-lg border px-3 py-2 text-sm" placeholder="客户画像（如「预算300万, 重5年回报, 想地铁近」）" value={oneLiner} onChange={(e) => setOneLiner(e.target.value)} />
@@ -79,7 +79,7 @@ export default function AgentReport() {
 
       {/* Progress */}
       {(phase === 'generating' || phase === 'ready') && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
           <div className="space-y-3">
             {steps.map((s) => (
               <div key={s.key} className="flex items-center gap-3 text-sm">
@@ -110,7 +110,7 @@ export default function AgentReport() {
       {history.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-3 text-sm font-bold text-slate-700">我的客户报告（{history.length}）</h2>
-          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             {history.map((h) => {
               const u = `${window.location.origin}/cr/${h.share_code}`
               return (
@@ -136,7 +136,7 @@ export default function AgentReport() {
       {offers.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-3 text-sm font-bold text-slate-700">我的 Sales Offer 报价单({offers.length})</h2>
-          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             {offers.map((o) => {
               const u = `${window.location.origin}/pp/${o.share_code}`
               return (

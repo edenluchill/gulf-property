@@ -332,8 +332,8 @@ export default function ProfileShell() {
                 ))}
               </nav>
 
-              {/* 经纪工作台:独立深色模块,一眼区分"这是经纪专用" */}
-              <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-md ring-1 ring-slate-900/20">
+              {/* 经纪工作台:独立深色模块,一眼区分"这是经纪专用"(柔和石板深 ink) */}
+              <div className="overflow-hidden rounded-2xl bg-ink-800 shadow-md ring-1 ring-black/20">
                 {isAgent ? (
                   <>
                     <button

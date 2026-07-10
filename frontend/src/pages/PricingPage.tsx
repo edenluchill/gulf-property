@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, ArrowLeft, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
+import { useResetOnBFCache } from '../hooks/useResetOnBFCache'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -39,6 +40,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  // 跳 Stripe Checkout 后按「后退」从 bfcache 恢复会保留 busy → spinner 卡死。重置。
+  useResetOnBFCache(() => setBusy(null))
   const [cycle, setCycle] = useState<BillingInterval>('month') // 默认月付(低门槛;年付按钮用「送2个月」吸引)
   const [promo, setPromo] = useState<Promo>({ active: false })
   const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })

@@ -52,6 +52,15 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // 「柔和石板深(带青灰)」—— 经纪工作台等深色面统一用它,替代刺眼的纯黑 slate-900。
+        // 和站点白底青调过渡自然;强调色仍走 teal/emerald。
+        ink: {
+          950: "#12191f",
+          900: "#16212b",
+          800: "#1e2a35", // 主深色面
+          700: "#26333f",
+          600: "#31404d",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

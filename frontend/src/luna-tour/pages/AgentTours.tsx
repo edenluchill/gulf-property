@@ -365,7 +365,7 @@ export default function AgentTours() {
       <p className="text-sm text-slate-500 mb-6">填客户信息 → 搜索或 AI 匹配楼盘 → 一键生成（分享码 / 标题自动生成）</p>
 
       {/* create */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 mb-8 shadow-sm">
+      <div className="rounded-2xl bg-white p-4 mb-8 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center justify-between mb-3">
           <div className="font-semibold">生成新导览</div>
           {usage && usage.limit >= 0 && (
@@ -535,7 +535,7 @@ export default function AgentTours() {
       <div className="font-semibold mb-3">我的导览 {loading ? '…' : `(${sessions.length})`}</div>
       <div className="space-y-3">
         {sessions.map((s) => (
-          <div key={s.id} className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div key={s.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             <div className="p-4 flex flex-wrap items-center gap-4">
               <div className="flex-1 min-w-[180px]">
                 <div className="font-semibold">{s.title}</div>
@@ -575,7 +575,7 @@ export default function AgentTours() {
               </a>
               <Link
                 to={`/agent/tour/${s.id}/edit`}
-                className="text-sm text-white bg-slate-800 hover:bg-slate-900 rounded-lg px-3 py-1.5"
+                className="text-sm text-white bg-ink-700 hover:bg-ink-800 rounded-lg px-3 py-1.5"
                 title="可视化时间线编辑器"
               >
                 🎬 编辑器

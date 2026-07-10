@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
 import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
+import { SectionHeader, StatCard } from '../ui/Panel'
 
 interface SessionRow {
   id: string
@@ -86,21 +87,21 @@ export default function AgentOverview() {
         {/* 1. Live co-presence tour */}
         <Link
           to="/?livetour=1"
-          className="group relative overflow-hidden rounded-2xl bg-slate-900 p-5 text-white shadow-sm ring-1 ring-slate-900/10 transition hover:shadow-xl hover:-translate-y-0.5"
+          className="group relative overflow-hidden rounded-2xl bg-ink-800 p-5 text-white shadow-md ring-1 ring-black/20 transition hover:shadow-xl hover:-translate-y-0.5"
         >
-          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-20 blur-2xl" style={{ background: '#00E0B8' }} />
+          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-25 blur-2xl" style={{ background: '#14b8a6' }} />
           <div className="relative">
-            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'rgba(0,224,184,0.15)' }}>
-              <Radio className="h-6 w-6" style={{ color: '#00E0B8' }} />
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-400/15">
+              <Radio className="h-6 w-6 text-teal-300" />
             </div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold">实时带看</h2>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold" style={{ color: '#00E0B8' }}>LIVE</span>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-teal-300">LIVE</span>
             </div>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-300">
               和客户实时同屏看房 — 镜头同步跟随、地图上一起圈点项目、语音通话、Luna 现场答数据。最适合一对一深度沟通。
             </p>
-            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: '#00E0B8' }}>
+            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-teal-300">
               开始带看 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </span>
           </div>
@@ -109,7 +110,7 @@ export default function AgentOverview() {
         {/* 2. Luna async self-serve tour */}
         <Link
           to="/agent/tour"
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white shadow-sm ring-1 ring-emerald-600/20 transition hover:shadow-xl hover:-translate-y-0.5"
+          className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 p-5 text-white shadow-md ring-1 ring-emerald-600/20 transition hover:shadow-xl hover:-translate-y-0.5"
         >
           <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/20 opacity-40 blur-2xl" />
           <div className="relative">
@@ -131,12 +132,10 @@ export default function AgentOverview() {
       </div>
 
       {/* 该追谁:客户雷达热度 Top5 */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold">该追谁</h2>
-        <Link to="/agent/clients" className="text-sm text-emerald-600 hover:underline">
-          客户雷达 →
-        </Link>
-      </div>
+      <SectionHeader
+        title="该追谁"
+        action={<Link to="/agent/clients" className="text-sm text-emerald-600 hover:underline">客户雷达 →</Link>}
+      />
       {loading ? (
         <div className="mb-8 text-sm text-slate-400">加载中…</div>
       ) : hot.length === 0 ? (
@@ -182,28 +181,18 @@ export default function AgentOverview() {
       )}
 
       {/* Luna 导览表现(只统计已分享导览的互动) */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-500">Luna 导览表现</h2>
-        {sessions.length > 0 && (
-          <Link to="/agent/tour" className="text-xs text-slate-400 hover:text-emerald-600 hover:underline">全部导览 →</Link>
-        )}
-      </div>
+      <SectionHeader
+        muted
+        title="Luna 导览表现"
+        action={sessions.length > 0 ? <Link to="/agent/tour" className="text-xs text-slate-400 hover:text-emerald-600 hover:underline">全部导览 →</Link> : undefined}
+      />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card label="导览数" v={loading ? '…' : sessions.length} />
-        <Card label="总打开" v={loading ? '…' : tot.opens} />
-        <Card label="完看" v={loading ? '…' : tot.completes} />
-        <Card label="联系经纪" v={loading ? '…' : tot.cta} accent />
-        <Card label="❤️ 收藏" v={loading ? '…' : tot.loves} />
+        <StatCard label="导览数" value={loading ? '…' : sessions.length} />
+        <StatCard label="总打开" value={loading ? '…' : tot.opens} />
+        <StatCard label="完看" value={loading ? '…' : tot.completes} />
+        <StatCard label="联系经纪" value={loading ? '…' : tot.cta} accent />
+        <StatCard label="❤️ 收藏" value={loading ? '…' : tot.loves} />
       </div>
-    </div>
-  )
-}
-
-function Card({ label, v, accent }: { label: string; v: number | string; accent?: boolean }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 text-center">
-      <div className={`text-2xl font-bold ${accent ? 'text-emerald-600' : ''}`}>{v}</div>
-      <div className="text-xs text-slate-400 mt-1">{label}</div>
     </div>
   )
 }

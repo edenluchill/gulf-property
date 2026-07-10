@@ -169,7 +169,7 @@ function FilterTab({ active, onClick, children }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${active ? 'bg-ink-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
     >
       {children}
     </button>
@@ -270,7 +270,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
   return (
     <div>
       <button onClick={onBack} className="mb-4 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ChevronLeft className="h-4 w-4" />返回客户列表</button>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center gap-4">
           <img src={client.avatar_url || AVA(client.name)} alt={client.name} className="h-16 w-16 rounded-full bg-slate-100 ring-1 ring-slate-200" />
           <div className="flex-1">
@@ -367,7 +367,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
       <FollowupForm clientId={client.id} onSaved={refresh} />
 
       {/* activity timeline */}
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="mb-3 text-sm font-bold text-slate-700">活动时间线</div>
         {timeline.length === 0 ? (
           <div className="py-6 text-center text-sm text-slate-400">还没有跟进或客户行为记录。</div>

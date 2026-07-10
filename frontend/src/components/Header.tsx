@@ -22,7 +22,8 @@ const theme = {
   tagline: 'text-slate-500',
   divider: 'bg-slate-200',
   primaryGrad: 'from-teal-500 to-emerald-500 shadow-teal-500/20',
-  accentGrad: 'from-amber-500 to-orange-500 shadow-amber-500/20',
+  // 经纪台/成为经纪入口:收进青调(原高饱和橙太刺眼、和站点不一致);比主青稍深一档保留入口区分度
+  accentGrad: 'from-teal-600 to-cyan-600 shadow-teal-600/20',
   panel: 'border-slate-200/80 bg-white/95 text-slate-700'
 }
 
