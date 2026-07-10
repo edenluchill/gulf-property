@@ -1503,15 +1503,28 @@ function MapViewMapLibre({
             「点永远都在,卡片才是 optional」的分层。点击在 handleMapClick。 */}
         {mapLoaded && projectDotsGeoJson.features.length > 0 && (
           <Source id="project-dots-src" type="geojson" data={projectDotsGeoJson}>
+            {/* 柔光底(在售项目才发光,售罄不发光):比主点大一圈 + circle-blur,
+                营造"发光宝石"质感,取代之前一个廉价扁平绿点。 */}
+            <Layer
+              id="project-dots-glow"
+              type="circle"
+              paint={{
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 12, 16, 17],
+                'circle-color': ['case', ['==', ['get', 'soldOut'], 1], '#94a3b8', '#2DD4BF'],
+                'circle-blur': 1,
+                'circle-opacity': ['case', ['==', ['get', 'soldOut'], 1], 0, 0.35]
+              }}
+            />
+            {/* 主点:实心青 + 2px 白环 + 一圈极淡深描边收边,像高级地图的定位珠。 */}
             <Layer
               id="project-dots"
               type="circle"
               paint={{
-                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 5.5, 16, 8],
-                'circle-color': ['case', ['==', ['get', 'soldOut'], 1], '#94a3b8', '#00E0B8'],
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4.5, 12, 6, 16, 8.5],
+                'circle-color': ['case', ['==', ['get', 'soldOut'], 1], '#94a3b8', '#0FB5A4'],
                 'circle-stroke-color': '#ffffff',
-                'circle-stroke-width': 1.5,
-                'circle-opacity': 0.95
+                'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 14, 2.2],
+                'circle-opacity': 1
               }}
             />
           </Source>

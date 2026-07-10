@@ -33,21 +33,31 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
   const hasPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
 
   const thumb = compact ? 36 : 44
-  // 白卡 + 青色点缀,和站点(teal/light)风格一致;强阴影保证在卫星/浅色底图上也清晰。
+  const uiFont = "'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+  // 白卡 + 青色点缀,和站点(teal/light)风格一致。
   const cardBg = '#ffffff'
-  // 干净的 CSS 三角小尾巴(取代原来带双描边的旋转方块"小嘴")。与卡片同色、
-  // marginTop:-1 融进卡底,只露出很小一段箭头指向圆点。
-  const tailSize = compact ? 6 : 7
+  // 边框/尾巴同色:选中=青(#14b8a6),平时=极淡墨。尾巴用「旋转方块 + 朝外两条边」
+  // 而非纯三角——这样描边能沿着卡片轮廓一路包到小尖,选中青框不再"漏掉下面那个 peak"。
+  const strokeCol = selected ? '#14b8a6' : 'rgba(15,23,42,0.10)'
+  const strokeW = selected ? 2 : 1
+  const sq = compact ? 11 : 12   // 旋转方块边长;露出的尖高 ≈ sq/2*√2
+  // 阴影统一放在最外层 wrapper 的 filter: drop-shadow —— 它沿「卡片+尾巴」的合并
+  // 轮廓投影,尾巴也有影子(box-shadow 只包卡身、尾巴会"飘")。
+  const shadow = selected
+    ? 'drop-shadow(0 6px 14px rgba(20,184,166,0.30)) drop-shadow(0 2px 4px rgba(15,23,42,0.18))'
+    : 'drop-shadow(0 7px 16px rgba(15,23,42,0.22)) drop-shadow(0 1px 2px rgba(15,23,42,0.16))'
   const tail = (
     <div
       style={{
-        width: 0, height: 0,
-        borderLeft: `${tailSize}px solid transparent`,
-        borderRight: `${tailSize}px solid transparent`,
-        ...(below
-          ? { borderBottom: `${tailSize + 1}px solid ${cardBg}`, marginBottom: -1 }
-          : { borderTop: `${tailSize + 1}px solid ${cardBg}`, marginTop: -1 }),
-        filter: 'drop-shadow(0 2px 2px rgba(15,23,42,0.14))',
+        width: sq, height: sq, background: cardBg, transform: 'rotate(45deg)',
+        // 朝下的尖 = 右下两条边描边;朝上(below)= 左上两条边。另两条边留空 +
+        // 白底,恰好被卡身盖住,形成"开口"让描边从卡片连到尖。
+        borderRight: below ? 'none' : `${strokeW}px solid ${strokeCol}`,
+        borderBottom: below ? 'none' : `${strokeW}px solid ${strokeCol}`,
+        borderTop: below ? `${strokeW}px solid ${strokeCol}` : 'none',
+        borderLeft: below ? `${strokeW}px solid ${strokeCol}` : 'none',
+        borderRadius: below ? '2px 0 0 0' : '0 0 2px 0',
+        ...(below ? { marginBottom: -sq / 2 } : { marginTop: -sq / 2 }),
       }}
     />
   )
@@ -58,16 +68,22 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
       latitude={project.lat}
       // 上方摆卡=anchor bottom(卡在点上方);翻到下方=anchor top
       anchor={below ? 'top' : 'bottom'}
-      offset={[0, below ? 6 : -6]}
+      offset={[0, below ? 4 : -4]}
       style={{ zIndex: selected ? 300 : flashing ? 200 : 4 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
         onClick?.(project)
       }}
     >
+      {/* wrapper:统一 drop-shadow(含尾巴)+ 出现动画(从圆点方向淡入上浮);
+          hover 缩放放在卡身,避免和入场动画的 transform 打架。 */}
       <div
-        className="group cursor-pointer transition-transform duration-150 hover:scale-[1.04]"
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          filter: shadow, cursor: 'pointer', fontFamily: uiFont,
+          animation: 'mapCardIn 0.16s cubic-bezier(0.22,0.61,0.36,1)',
+          transformOrigin: below ? 'top center' : 'bottom center',
+        }}
       >
         {/* Luna 正在讲这个项目时的呼吸环 */}
         {flashing && (
@@ -83,16 +99,13 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
         )}
         {below && tail}
         <div
-          className="flex items-center"
+          className="flex items-center transition-transform duration-150 hover:scale-[1.035]"
           style={{
             gap: compact ? 8 : 10,
             padding: compact ? '4px 11px 4px 4px' : '5px 13px 5px 5px',
             background: cardBg,
             borderRadius: 14,
-            border: selected ? '2px solid #14b8a6' : '1px solid rgba(15,23,42,0.06)',
-            boxShadow: selected
-              ? '0 8px 24px rgba(20,184,166,0.28), 0 2px 6px rgba(15,23,42,0.14)'
-              : '0 8px 22px rgba(15,23,42,0.20), 0 1px 3px rgba(15,23,42,0.12)',
+            border: `${strokeW}px solid ${strokeCol}`,
           }}
         >
           {/* 缩略图 */}
@@ -125,8 +138,8 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
               style={{
                 fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: '#0f172a',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                maxWidth: compact ? 96 : 124, lineHeight: compact ? '15px' : '16px',
-                letterSpacing: '-0.01em',
+                maxWidth: compact ? 96 : 128, lineHeight: compact ? '15px' : '16px',
+                letterSpacing: '-0.012em',
               }}
             >
               {project.name}
@@ -143,6 +156,7 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
                 display: 'flex', alignItems: 'baseline', gap: 3,
                 fontSize: compact ? 11 : 12, fontWeight: 800, color: '#0d9488',
                 lineHeight: compact ? '15px' : '16px',
+                fontVariantNumeric: 'tabular-nums',
               }}>
                 <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: '#94a3b8' }}>
                   {isZh ? '起' : 'From'}

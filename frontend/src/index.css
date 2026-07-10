@@ -58,8 +58,19 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Inter = premium UI font (Latin + tabular numerals); CJK falls back to
+       system 苹方/雅黑 so 中文 area/project 名依旧清晰。 */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      'PingFang SC', 'Microsoft YaHei', 'Roboto', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/* 地图项目卡片出现动画:从圆点方向轻微上浮+放大淡入(纯 transform/opacity,
+   GPU 合成,一次性;卡片手势中隐藏,不在拖动帧里跑,零 perf 影响)。 */
+@keyframes mapCardIn {
+  from { opacity: 0; transform: translateY(3px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
 }
 
 /* Shimmer animation for progress bar */
