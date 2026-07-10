@@ -32,21 +32,22 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
   const isSoldOut = project.status === 'sold-out'
   const hasPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
 
-  const thumb = compact ? 34 : 44
-  const glass = 'rgba(15,23,42,0.82)'
-  const border = selected ? '1.5px solid #2DD4BF' : '1px solid rgba(255,255,255,0.14)'
+  const thumb = compact ? 36 : 44
+  // 白卡 + 青色点缀,和站点(teal/light)风格一致;强阴影保证在卫星/浅色底图上也清晰。
+  const cardBg = '#ffffff'
+  // 干净的 CSS 三角小尾巴(取代原来带双描边的旋转方块"小嘴")。与卡片同色、
+  // marginTop:-1 融进卡底,只露出很小一段箭头指向圆点。
+  const tailSize = compact ? 6 : 7
   const tail = (
     <div
       style={{
-        width: compact ? 8 : 10, height: compact ? 8 : 10,
-        marginTop: below ? 0 : (compact ? -4 : -5),
-        marginBottom: below ? (compact ? -4 : -5) : 0,
-        background: glass,
-        borderRight: below ? 'none' : '1px solid rgba(255,255,255,0.14)',
-        borderBottom: below ? 'none' : '1px solid rgba(255,255,255,0.14)',
-        borderLeft: below ? '1px solid rgba(255,255,255,0.14)' : 'none',
-        borderTop: below ? '1px solid rgba(255,255,255,0.14)' : 'none',
-        transform: 'rotate(45deg)',
+        width: 0, height: 0,
+        borderLeft: `${tailSize}px solid transparent`,
+        borderRight: `${tailSize}px solid transparent`,
+        ...(below
+          ? { borderBottom: `${tailSize + 1}px solid ${cardBg}`, marginBottom: -1 }
+          : { borderTop: `${tailSize + 1}px solid ${cardBg}`, marginTop: -1 }),
+        filter: 'drop-shadow(0 2px 2px rgba(15,23,42,0.14))',
       }}
     />
   )
@@ -57,7 +58,7 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
       latitude={project.lat}
       // 上方摆卡=anchor bottom(卡在点上方);翻到下方=anchor top
       anchor={below ? 'top' : 'bottom'}
-      offset={[0, below ? 8 : -8]}
+      offset={[0, below ? 6 : -6]}
       style={{ zIndex: selected ? 300 : flashing ? 200 : 4 }}
       onClick={(e) => {
         e.originalEvent.stopPropagation()
@@ -74,27 +75,31 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
             className="animate-ping"
             style={{
               position: 'absolute', inset: '4px',
-              borderRadius: 14,
-              background: 'rgba(16,185,129,0.35)',
+              borderRadius: 16,
+              background: 'rgba(20,184,166,0.30)',
               pointerEvents: 'none',
             }}
           />
         )}
         {below && tail}
         <div
-          className="flex items-center rounded-xl shadow-[0_6px_20px_rgba(0,0,0,0.4)] backdrop-blur-[6px]"
+          className="flex items-center"
           style={{
-            gap: compact ? 6 : 8,
-            padding: compact ? '3px 8px 3px 3px' : '4px 10px 4px 4px',
-            background: glass,
-            border,
+            gap: compact ? 8 : 10,
+            padding: compact ? '4px 11px 4px 4px' : '5px 13px 5px 5px',
+            background: cardBg,
+            borderRadius: 14,
+            border: selected ? '2px solid #14b8a6' : '1px solid rgba(15,23,42,0.06)',
+            boxShadow: selected
+              ? '0 8px 24px rgba(20,184,166,0.28), 0 2px 6px rgba(15,23,42,0.14)'
+              : '0 8px 22px rgba(15,23,42,0.20), 0 1px 3px rgba(15,23,42,0.12)',
           }}
         >
           {/* 缩略图 */}
           <div
             style={{
-              width: thumb, height: thumb, borderRadius: compact ? 7 : 9, overflow: 'hidden',
-              flexShrink: 0, background: '#1e293b',
+              width: thumb, height: thumb, borderRadius: 10, overflow: 'hidden',
+              flexShrink: 0, background: '#e2e8f0',
             }}
           >
             {project.image ? (
@@ -108,26 +113,27 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
               <div style={{
                 width: '100%', height: '100%', display: 'flex',
                 alignItems: 'center', justifyContent: 'center',
-                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                background: 'linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%)',
               }}>
-                <Building2 style={{ width: compact ? 15 : 18, height: compact ? 15 : 18, color: 'rgba(255,255,255,0.65)' }} />
+                <Building2 style={{ width: compact ? 16 : 18, height: compact ? 16 : 18, color: '#0d9488' }} />
               </div>
             )}
           </div>
           {/* 名称 + 起价 */}
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, paddingRight: 1 }}>
             <div
               style={{
-                fontSize: compact ? 11 : 12, fontWeight: 700, color: '#fff',
+                fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: '#0f172a',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                maxWidth: compact ? 88 : 118, lineHeight: compact ? '14px' : '16px',
+                maxWidth: compact ? 96 : 124, lineHeight: compact ? '15px' : '16px',
+                letterSpacing: '-0.01em',
               }}
             >
               {project.name}
             </div>
             {isSoldOut ? (
               <div style={{
-                fontSize: compact ? 9.5 : 10, fontWeight: 800, color: '#f87171',
+                fontSize: compact ? 9.5 : 10, fontWeight: 800, color: '#dc2626',
                 lineHeight: compact ? '13px' : '14px', letterSpacing: '0.03em',
               }}>
                 {isZh ? '已售罄' : 'SOLD OUT'}
@@ -135,17 +141,17 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
             ) : hasPrice ? (
               <div style={{
                 display: 'flex', alignItems: 'baseline', gap: 3,
-                fontSize: compact ? 10.5 : 11.5, fontWeight: 800, color: '#2DD4BF',
-                lineHeight: compact ? '14px' : '15px',
+                fontSize: compact ? 11 : 12, fontWeight: 800, color: '#0d9488',
+                lineHeight: compact ? '15px' : '16px',
               }}>
-                <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: 'rgba(255,255,255,0.55)' }}>
+                <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: '#94a3b8' }}>
                   {isZh ? '起' : 'From'}
                 </span>
                 <DirhamSymbol size="0.8em" />
                 <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
               </div>
             ) : (
-              <div style={{ fontSize: compact ? 9.5 : 10, fontWeight: 600, color: 'rgba(255,255,255,0.5)', lineHeight: compact ? '13px' : '14px' }}>
+              <div style={{ fontSize: compact ? 9.5 : 10, fontWeight: 600, color: '#94a3b8', lineHeight: compact ? '13px' : '14px' }}>
                 {isZh ? '价格待定' : 'Price TBA'}
               </div>
             )}

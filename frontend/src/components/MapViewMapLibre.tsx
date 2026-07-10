@@ -776,16 +776,32 @@ function MapViewMapLibre({
     const seen = prefetchedRef.current
     if (seen.size > 1500) seen.clear()
     const urls: string[] = []
-    for (const z of [z0 + 1, z0 + 2]) {
+    // 面板外的一圈瓦片(pan-ahead ring)——向左/右/上/下拖到 edge 时最先需要的就是它们。
+    // 之前只 warm 了当前视口的更深 zoom(zoom-in 用),从不 warm 同级相邻瓦片,
+    // 所以每次拖到边缘都撞冷瓦片、"load 方块然后卡几下"。把当前视口按 ~0.9 屏
+    // 向四周扩一圈,同级(z0)预取,是消除边缘卡顿的关键。
+    const dLng = b.getEast() - b.getWest()
+    const dLat = b.getNorth() - b.getSouth()
+    const west = b.getWest() - dLng * 0.9
+    const east = b.getEast() + dLng * 0.9
+    const north = Math.min(85, b.getNorth() + dLat * 0.9)
+    const south = Math.max(-85, b.getSouth() - dLat * 0.9)
+    // 各 pass:[zoom, 经度左, 经度右, 纬度北, 纬度南, 该 pass 瓦片上限]
+    const passes: Array<[number, number, number, number, number, number]> = [
+      [z0, west, east, north, south, 80],            // 同级四周一圈(pan-ahead,主力)
+      [z0 + 1, b.getWest(), b.getEast(), b.getNorth(), b.getSouth(), 24], // 下一级视口内(zoom-in 锐化)
+    ]
+    for (const [z, wLng, eLng, nLat, sLat, cap] of passes) {
       if (z < 1 || z > 19) continue
       const n = 2 ** z
-      const xMin = Math.floor(((b.getWest() + 180) / 360) * n)
-      const xMax = Math.floor(((b.getEast() + 180) / 360) * n)
-      const yMin = lat2tileY(b.getNorth(), z)
-      const yMax = lat2tileY(b.getSouth(), z)
-      if ((xMax - xMin + 1) * (yMax - yMin + 1) > 40) continue
-      for (let x = xMin; x <= xMax && urls.length < 40; x++) {
-        for (let y = yMin; y <= yMax && urls.length < 40; y++) {
+      const xMin = Math.floor(((wLng + 180) / 360) * n)
+      const xMax = Math.floor(((eLng + 180) / 360) * n)
+      const yMin = lat2tileY(nLat, z)
+      const yMax = lat2tileY(sLat, z)
+      if ((xMax - xMin + 1) * (yMax - yMin + 1) > cap * 2) continue
+      let added = 0
+      for (let x = xMin; x <= xMax && added < cap; x++) {
+        for (let y = yMin; y <= yMax && added < cap; y++) {
           if (y < 0 || y >= n) continue
           const xx = ((x % n) + n) % n
           // Esri World Imagery tile order is {z}/{y}/{x}
@@ -793,6 +809,7 @@ function MapViewMapLibre({
           if (seen.has(url)) continue
           seen.add(url)
           urls.push(url)
+          added++
         }
       }
     }
