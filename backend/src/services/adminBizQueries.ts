@@ -29,11 +29,34 @@ export interface Subscriber {
 }
 
 /**
+ * 自愈对账:凡有生效订阅(active/trialing)的经纪,agents 审批状态强制 approved。
+ *
+ * webhook 的 autoApprovePaid 是主路径(付款成功即批);这个兜底修复两类不一致——
+ * ① 订阅是该逻辑上线前就有的历史数据;② webhook 偶发把 agents 那步吞错(被 catch)。
+ * 保证 owner 打开「订阅」后台时,绝不会看到「lt_subscriptions 已付费、agents 却待审批」
+ * 的矛盾(付费即准入)。幂等、轻量(只 UPDATE 不一致的少数行);email 大小写不敏感匹配。
+ */
+export async function reconcilePaidApprovals(): Promise<number> {
+  const r = await pool.query(
+    `UPDATE agents SET status = 'approved', decided_at = now(), decided_by = 'reconcile:paid'
+      WHERE status <> 'approved'
+        AND EXISTS (
+          SELECT 1 FROM lt_agents la
+            JOIN lt_subscriptions s ON s.agent_id = la.id
+           WHERE lower(la.email) = lower(agents.email)
+             AND s.status IN ('active','trialing')
+        )`
+  )
+  return r.rowCount ?? 0
+}
+
+/**
  * Every registered agent account with its live subscription (if any), plan, real-
  * paid flag, approval status and this-month credit usage. Subscribed置顶、真付费再置顶。
  * Owner/internal rows kept (labelled) so the list is complete.
  */
 export async function getSubscribers(): Promise<Subscriber[]> {
+  await reconcilePaidApprovals().catch(() => { /* 自愈失败不阻塞列表 */ })
   const { rows } = await pool.query(
     `SELECT
         a.id                                   AS agent_id,
