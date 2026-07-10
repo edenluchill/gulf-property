@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LogOut, Settings, ChevronDown, Medal, ArrowLeftRight, UserRound } from 'lucide-react'
@@ -226,13 +227,15 @@ export default function UserMenu() {
         )}
       </AnimatePresence>
 
-      {/* 勋章分享弹窗 */}
-      {showBadge && badge && (
+      {/* 勋章分享弹窗:必须 portal 到 body —— Header 有 backdrop-filter,会成为
+          后代 fixed 元素的定位参照系,导致对话框被压进 Header 高度里(只剩顶部一条)。 */}
+      {showBadge && badge && createPortal(
         <RoleBadgeDialog
           badge={badge}
           name={user.user_metadata?.full_name || userEmail.split('@')[0]}
           onClose={() => setShowBadge(false)}
-        />
+        />,
+        document.body
       )}
     </div>
   )
