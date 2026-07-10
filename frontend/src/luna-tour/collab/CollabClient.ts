@@ -78,6 +78,10 @@ export class CollabClient {
   private kindHandlers = new Map<MsgKind, Set<MsgHandler>>()
   private stateHandlers = new Set<(s: ConnState) => void>()
 
+  /** 终止性关闭原因(不再重连):主持人结束 / 被踢 / 房间不存在(已结束或链接失效)。null = 正常。 */
+  terminalReason: 'ended' | 'kicked' | 'not_found' | null = null
+  private terminalHandlers = new Set<(r: 'ended' | 'kicked' | 'not_found') => void>()
+
   constructor(opts: CollabClientOpts) {
     this.code = opts.code
     this.name = opts.name
@@ -111,6 +115,11 @@ export class CollabClient {
   onState(cb: (s: ConnState) => void): () => void {
     this.stateHandlers.add(cb)
     return () => this.stateHandlers.delete(cb)
+  }
+  /** 订阅终止性关闭(主持人结束/被踢/房间不存在):UI 用它显示「本次带看已结束」。 */
+  onTerminal(cb: (r: 'ended' | 'kicked' | 'not_found') => void): () => void {
+    this.terminalHandlers.add(cb)
+    return () => this.terminalHandlers.delete(cb)
   }
 
   // ── lifecycle ────────────────────────────────────────────────────────────
@@ -220,6 +229,22 @@ export class CollabClient {
       return
     }
     if (msg.k === 'pong') return
+
+    // 终止性关闭:主持人结束 / 被踢 / 房间不存在 → 停止自动重连(否则会傻傻重连一个
+    // 已不存在的房间)+ 通知 UI 显示「本次带看已结束」。
+    if (msg.k === 'ended' || msg.k === 'kicked') {
+      this.terminalReason = msg.k === 'kicked' ? 'kicked' : 'ended'
+      this.shouldReconnect = false
+      this.dispatch(msg)
+      this.terminalHandlers.forEach((cb) => cb(this.terminalReason!))
+      return
+    }
+    if (msg.k === 'error' && msg.reason === 'room_not_found') {
+      this.terminalReason = 'not_found'
+      this.shouldReconnect = false
+      this.terminalHandlers.forEach((cb) => cb('not_found'))
+      return
+    }
 
     if (msg.k === 'sync') {
       this.connId = msg.connId

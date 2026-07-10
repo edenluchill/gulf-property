@@ -274,3 +274,41 @@ test('disconnect() prevents reconnect', async () => {
   assert.equal(sockets.length, 1, 'no reconnect after disconnect')
   assert.equal(c.state, 'closed')
 })
+
+// ── S1.5 防偷听:viewer 终止性关闭(结束/踢出/旧链接)→ onTerminal + 停止重连 ──
+test('terminal ended → terminalReason + fires onTerminal + no reconnect', () => {
+  const s = new FakeSocket()
+  const c = makeClient(s)
+  const seen: string[] = []
+  c.onTerminal((r) => seen.push(r))
+  c.connect(); s.open()
+  s.recv({ k: 'ended' })
+  assert.equal(c.terminalReason, 'ended')
+  assert.deepEqual(seen, ['ended'])
+  s.serverDrop(1006) // 非正常断开:普通情况会重连,但 terminal 后必须停在 closed
+  assert.equal(c.state, 'closed', 'terminal stops auto-reconnect')
+})
+
+test('terminal kicked → terminalReason=kicked', () => {
+  const s = new FakeSocket()
+  const c = makeClient(s)
+  const seen: string[] = []
+  c.onTerminal((r) => seen.push(r))
+  c.connect(); s.open()
+  s.recv({ k: 'kicked' })
+  assert.equal(c.terminalReason, 'kicked')
+  assert.deepEqual(seen, ['kicked'])
+})
+
+test('terminal room_not_found (old link) → terminalReason=not_found + no reconnect', () => {
+  const s = new FakeSocket()
+  const c = makeClient(s)
+  const seen: string[] = []
+  c.onTerminal((r) => seen.push(r))
+  c.connect(); s.open()
+  s.recv({ k: 'error', reason: 'room_not_found' })
+  assert.equal(c.terminalReason, 'not_found')
+  assert.deepEqual(seen, ['not_found'])
+  s.serverDrop(1006)
+  assert.equal(c.state, 'closed', 'old-link viewer does not reconnect a dead room')
+})

@@ -46,6 +46,8 @@ export interface CollabBarProps {
   offMap?: boolean
   onReturnToMap?: () => void
   onExit?: () => void
+  /** presenter-only:点参与者头像可踢出(自己以外)。 */
+  onKick?: (connId: string) => void
 }
 
 function mmss(s: number): string {
@@ -81,6 +83,7 @@ export default function CollabBar({
   offMap,
   onReturnToMap,
   onExit,
+  onKick,
 }: CollabBarProps) {
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
@@ -124,16 +127,34 @@ export default function CollabBar({
           <span className="mx-0.5 h-4 w-px shrink-0 bg-white/10" />
           {/* participant dots */}
           <div className="flex shrink-0 -space-x-1.5">
-            {participants.slice(0, 5).map((p) => (
-              <div
-                key={p.connId}
-                title={`${p.name}${p.connId === myConnId ? '（你）' : ''} · ${p.role === 'presenter' ? '经纪' : '客户'}`}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-slate-900/80"
-                style={{ backgroundColor: dotColor(p.connId) }}
-              >
-                {initial(p.name)}
-              </div>
-            ))}
+            {participants.slice(0, 5).map((p) => {
+              const label = `${p.name}${p.connId === myConnId ? '（你）' : ''} · ${p.role === 'presenter' ? '经纪' : '客户'}`
+              const canKick = !!onKick && p.role === 'viewer' && p.connId !== myConnId
+              if (!canKick) {
+                return (
+                  <div
+                    key={p.connId}
+                    title={label}
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-slate-900/80"
+                    style={{ backgroundColor: dotColor(p.connId) }}
+                  >
+                    {initial(p.name)}
+                  </div>
+                )
+              }
+              return (
+                <button
+                  key={p.connId}
+                  onClick={() => { if (window.confirm(`把「${p.name}」移出这场带看?`)) onKick!(p.connId) }}
+                  title={`${label} · 点击移出`}
+                  className="group relative flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-slate-900/80 transition hover:ring-rose-400"
+                  style={{ backgroundColor: dotColor(p.connId) }}
+                >
+                  {initial(p.name)}
+                  <span className="pointer-events-none absolute -right-1 -top-1 hidden h-3 w-3 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold leading-none text-white group-hover:flex">×</span>
+                </button>
+              )
+            })}
             {participants.length === 0 && (
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-600 text-[11px] font-bold text-white ring-2 ring-slate-900/80">
                 ·

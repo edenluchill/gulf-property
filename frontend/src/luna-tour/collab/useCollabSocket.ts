@@ -30,6 +30,8 @@ export interface CollabSocketApi {
   /** the live client — pass to useCollabPresenter / useCollabFollow */
   client: CollabClient | null
   send: (msg: ClientMsg) => void
+  /** 终止性关闭原因(主持人结束/被踢/房间不存在)→ 页面显示「本次带看已结束」。null=正常。 */
+  endedReason: 'ended' | 'kicked' | 'not_found' | null
 }
 
 export function useCollabSocket(opts: UseCollabSocketOpts): CollabSocketApi {
@@ -41,13 +43,16 @@ export function useCollabSocket(opts: UseCollabSocketOpts): CollabSocketApi {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [messages, setMessages] = useState<ChatEntry[]>([])
   const [state, setState] = useState<ConnState>('idle')
+  const [endedReason, setEndedReason] = useState<'ended' | 'kicked' | 'not_found' | null>(null)
 
   useEffect(() => {
     if (!enabled || !code) return
+    setEndedReason(null) // 新会话:清掉上一场的结束态
     const client = new CollabClient({ code, name, role, url: collabWsUrl() })
     clientRef.current = client
 
     const offState = client.onState(setState)
+    const offTerminal = client.onTerminal(setEndedReason)
     const offSync = client.on('sync', (m) => {
       if (m.k !== 'sync') return
       setConnId(m.connId)
@@ -77,6 +82,7 @@ export function useCollabSocket(opts: UseCollabSocketOpts): CollabSocketApi {
     client.connect()
     return () => {
       offState()
+      offTerminal()
       offSync()
       offJoin()
       offLeave()
@@ -98,7 +104,8 @@ export function useCollabSocket(opts: UseCollabSocketOpts): CollabSocketApi {
       state,
       client: clientRef.current,
       send,
+      endedReason,
     }),
-    [connId, presenterConnId, participants, messages, state, send]
+    [connId, presenterConnId, participants, messages, state, send, endedReason]
   )
 }

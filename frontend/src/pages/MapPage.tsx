@@ -862,6 +862,13 @@ export default function MapPage() {
     }
   }, [viewerCode, location.pathname, navigate, setSearchParams, collab])
 
+  // viewer:带看被结束/踢出/链接失效后点「知道了」→ 退出会话回地图(不再重连不存在的房间)。
+  const handleEndedAck = useCallback(() => {
+    setViewerCode(undefined)
+    try { sessionStorage.removeItem('collabViewerCode') } catch { /* ignore */ }
+    if (location.pathname.startsWith('/t/')) navigate('/')
+  }, [location.pathname, navigate])
+
   // Guard against closing/refreshing the tab mid-tour — a native "Leave site?"
   // prompt. (In-app navigation no longer drops the session, so this is the main
   // accidental-exit vector left.)
@@ -1490,6 +1497,28 @@ export default function MapPage() {
             />
           )}
 
+          {/* viewer:带看被结束 / 被踢 / 链接失效 → 全屏提示,不再白屏/傻等 */}
+          {collabMode === 'viewer' && collab.endedReason && (
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onClick={handleEndedAck}>
+              <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl">👋</div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {collab.endedReason === 'kicked' ? '你已离开本次带看' : '本次带看已结束'}
+                </h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  {collab.endedReason === 'kicked'
+                    ? '经纪已将你移出这场带看。'
+                    : collab.endedReason === 'not_found'
+                      ? '这条链接已失效,或带看已经结束了。'
+                      : '经纪结束了这场带看,感谢参与!'}
+                </p>
+                <button onClick={handleEndedAck} className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
+                  知道了
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Collab: participant dots + chat + Free pill */}
           {collabActive && (
             <CollabBar
@@ -1508,6 +1537,7 @@ export default function MapPage() {
               offMap={!isMapPath(location.pathname, location.search)}
               onReturnToMap={() => navigate('/')}
               onExit={handleExitCollab}
+              onKick={collabMode === 'presenter' ? collab.kick : undefined}
             />
           )}
 

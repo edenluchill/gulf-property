@@ -143,9 +143,10 @@ export interface PongMsg {
 /** presenter 结束整场带看(server 删房,旧链接立即失效) / 踢人。 */
 export interface EndMsg { k: 'end'; seq: number }
 export interface KickMsg { k: 'kick'; seq: number; connId: string }
-/** server → 客户:带看已被主持人结束 / 你被踢出。 */
+/** server → 客户:带看已被主持人结束 / 你被踢出 / 房间不存在(已结束或链接失效)。 */
 export interface EndedMsg { k: 'ended' }
 export interface KickedMsg { k: 'kicked' }
+export interface ErrorMsg { k: 'error'; reason: string }
 
 export type ServerMsg =
   | CamMsg
@@ -162,6 +163,7 @@ export type ServerMsg =
   | PongMsg
   | EndedMsg
   | KickedMsg
+  | ErrorMsg
 
 /** Anything the client may send. */
 export type ClientMsg =

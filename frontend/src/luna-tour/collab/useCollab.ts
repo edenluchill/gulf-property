@@ -60,6 +60,8 @@ export interface CollabApi {
   endTour: () => void
   /** presenter:踢掉某个参与者 */
   kick: (connId: string) => void
+  /** viewer:带看被主持人结束 / 被踢 / 房间不存在(旧链接) → 页面显示提示。null=正常。 */
+  endedReason: 'ended' | 'kicked' | 'not_found' | null
 }
 
 export function useCollab(opts: UseCollabOpts): CollabApi {
@@ -159,6 +161,7 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
       sendMapAction,
       endTour,
       kick,
+      endedReason: socket.endedReason,
     }),
     [
       active,
@@ -177,6 +180,7 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
       sendMapAction,
       endTour,
       kick,
+      socket.endedReason,
     ]
   )
 }
