@@ -20,6 +20,8 @@ import {
   getRoomByCode,
   joinRoom,
   leave,
+  endRoom,
+  kickParticipant,
   nextSeq,
   pushReliable,
   fanout,
@@ -169,6 +171,26 @@ export function initCollabWebSocket(server: Server): void {
       // hello 之前的其它消息一律忽略
       if (!room || !me) return
 
+      // ── 主持人结束带看:落库 + 删房 + 通知在场(旧 link 立即失效,防偷听)──
+      if (msg.k === 'end') {
+        if (me.connId === room.presenterConnId) {
+          const ended = endRoom(room.code)
+          if (ended) void flushRoom(ended)
+        }
+        return
+      }
+      // ── 主持人踢人 ──────────────────────────────────
+      if (msg.k === 'kick' && typeof msg.connId === 'string') {
+        if (me.connId === room.presenterConnId && msg.connId !== me.connId) {
+          if (kickParticipant(room, msg.connId)) {
+            const leaveMsg = { k: 'leave', seq: nextSeq(room), connId: msg.connId }
+            pushReliable(room, leaveMsg)
+            fanout(room, leaveMsg)
+          }
+        }
+        return
+      }
+
       // ── 高频不可靠:cam(只认 presenter)/ cur ──────
       if (msg.k === 'cam') {
         if (me.connId !== room.presenterConnId) return // 非 presenter 的 cam 忽略
@@ -228,13 +250,13 @@ router.post('/rooms', async (req, res) => {
     const q = await checkCredits(agentId, 'live_tours')
     if (!q.allowed) { const e = creditError('live_tours', q); return res.status(e.status).json(e.body) }
   }
-  const { name, code: wantCode } = req.body || {}
+  const { name } = req.body || {}
   const creatorName = typeof name === 'string' ? name : undefined
-  // 经纪稳定 code(前端按 agent 身份派生):同一 code 永远复用/复活同一房间,
-  // 让经纪与客户始终用同一条链接。非法/缺省则回退随机 code。
-  const room =
-    (typeof wantCode === 'string' && wantCode.trim() ? ensureRoomWithCode(wantCode, creatorName) : null) ||
-    createRoom(creatorName).room
+  // 每次开始带看都新建随机 code(一场一码):**不再复用「按经纪派生的稳定 code」**——
+  // 那会让所有客户共用同一条永久链接,上一位客户能拿旧链接进来偷听下一场。
+  // 断线/刷新重连仍能复活「当次这场」的房间(前端把 code 存进 ?host,走 WS hello presenter
+  // 分支的 ensureRoomWithCode 复活);经纪主动结束(k:'end')后该 code 立即失效。
+  const room = createRoom(creatorName).room
   if (agentId) await spend(agentId, 'live_tours', { type: 'live', id: room.code, label: creatorName }).catch(() => {})
   res.json({ code: room.code, url: `${SHARE_BASE_URL}/${room.code}` })
 })

@@ -56,6 +56,10 @@ export interface CollabApi {
   sendSelect: (kind: SelectKind, id: string, tab?: string) => void
   sendChat: (text: string) => void
   sendMapAction: (action: unknown) => void
+  /** presenter:结束整场带看(服务端删房,旧链接立即失效,防偷听) */
+  endTour: () => void
+  /** presenter:踢掉某个参与者 */
+  kick: (connId: string) => void
 }
 
 export function useCollab(opts: UseCollabOpts): CollabApi {
@@ -130,6 +134,14 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
     [mode, socket]
   )
 
+  // presenter:结束带看 / 踢人(只有 presenter 发出才被服务端接受)
+  const endTour = useCallback(() => {
+    if (mode === 'presenter') socket.send({ k: 'end', seq: 0 })
+  }, [mode, socket])
+  const kick = useCallback((connId: string) => {
+    if (mode === 'presenter') socket.send({ k: 'kick', seq: 0, connId })
+  }, [mode, socket])
+
   return useMemo(
     () => ({
       active,
@@ -145,6 +157,8 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
       sendSelect,
       sendChat,
       sendMapAction,
+      endTour,
+      kick,
     }),
     [
       active,
@@ -161,6 +175,8 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
       sendSelect,
       sendChat,
       sendMapAction,
+      endTour,
+      kick,
     ]
   )
 }

@@ -13,7 +13,7 @@ import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
-import { createCollabRoom, deriveHostCode, getCollabRoom } from '../luna-tour/collab/collabApi'
+import { createCollabRoom, getCollabRoom } from '../luna-tour/collab/collabApi'
 import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
 import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
@@ -788,19 +788,16 @@ export default function MapPage() {
   // Start a tour (owner only): create a room, enter presenter mode.
   const handleStartTour = useCallback(async () => {
     try {
-      // Stable per-agent code → the agent (and their clients) always use the SAME
-      // link; the server revives that room on reconnect so old links never die.
-      const seed = user?.id || user?.email || ''
-      const stable = seed ? deriveHostCode(seed) : undefined
-      const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined, stable)
+      // 一场一码:每次开始带看都新建随机 code(不再用「按经纪派生的稳定 code」)。
+      // 上一场的链接不会复用到这一场 → 上一位客户拿旧链接进不来(防偷听)。
+      // ?host=code 存的是「当次这场」的 code:刷新/断线重连仍复活同一场房间。
+      const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined)
       setPresenterCode(code)
-      // Persist the room in the URL (?host=code) so a refresh re-enters presenter
-      // mode and rejoins the SAME room (server reclaims the camera on reconnect).
       setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('host', code); return n }, { replace: true })
     } catch (e) {
       console.error('[collab] failed to create room', e)
     }
-  }, [user?.id, user?.email, setSearchParams])
+  }, [user?.email, setSearchParams])
 
   // Presenter refresh / deep-link (?host=code): re-enter presenter mode and rejoin
   // the existing room (no new room created). Runs once.
@@ -857,11 +854,13 @@ export default function MapPage() {
       try { sessionStorage.removeItem('collabViewerCode') } catch { /* ignore */ }
       if (location.pathname.startsWith('/t/')) navigate('/')
     } else {
+      // 通知服务端结束这场带看:删房 + 踢掉所有 viewer,旧链接立即失效(不再等 10min 空房 GC)。
+      collab.endTour()
       setPresenterCode(undefined)
       // drop ?host so a later refresh doesn't rejoin the ended tour
       setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('host'); return n }, { replace: true })
     }
-  }, [viewerCode, location.pathname, navigate, setSearchParams])
+  }, [viewerCode, location.pathname, navigate, setSearchParams, collab])
 
   // Guard against closing/refreshing the tab mid-tour — a native "Leave site?"
   // prompt. (In-app navigation no longer drops the session, so this is the main

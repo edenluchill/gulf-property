@@ -164,6 +164,38 @@ export function leave(room: Room, connId: string): void {
   }
 }
 
+/**
+ * 主持人结束带看:立即让 code 失效(从 codeToId/rooms 删 → 之后 getRoomByCode 拿不到,
+ * viewer 再拿旧 link 进来只会 room_not_found)+ 通知在场所有人 {k:'ended'} 并关连接。
+ * 返回被结束的 room(供调用方 flushRoom 落库供报告),无此房返回 null。
+ * 这是「防偷听」的关键:一场带看结束后旧链接立刻作废,不再靠 10 分钟空房 GC。
+ */
+export function endRoom(code: string): Room | null {
+  const room = getRoomByCode(code)
+  if (!room) return null
+  rooms.delete(room.id)
+  codeToId.delete(room.code)
+  const bye = JSON.stringify({ k: 'ended' })
+  for (const p of room.participants.values()) {
+    try { p.ws.send(bye) } catch { /* 坏连接忽略 */ }
+    try { p.ws.close() } catch { /* noop */ }
+  }
+  return room
+}
+
+/**
+ * 主持人踢人:通知被踢者 {k:'kicked'} + 关连接 + 从房间移除。
+ * 返回是否踢成功(connId 不在房间返回 false)。
+ */
+export function kickParticipant(room: Room, connId: string): boolean {
+  const p = room.participants.get(connId)
+  if (!p) return false
+  try { p.ws.send(JSON.stringify({ k: 'kicked' })) } catch { /* noop */ }
+  try { p.ws.close() } catch { /* noop */ }
+  leave(room, connId)
+  return true
+}
+
 export function nextSeq(room: Room): number {
   room.seq += 1
   return room.seq
