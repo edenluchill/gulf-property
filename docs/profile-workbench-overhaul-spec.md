@@ -255,8 +255,8 @@
 
 ---
 
-### 🆕 T10 — 经纪台/profile 页面 i18n(硬编码中文,切 EN 仍中文)(用户 2026-07-10 报)
-- **现象**:Header/侧栏是 i18n(英文正常),但 `AgentBilling`/`AgentOverview`/`AgentReport`/`AgentClients`/`AgentTours` 页面**正文全是硬编码中文**,切 EN 不变。截图见订阅页。
-- **方案**:这些页当初只写中文。逐页把正文抽成 `L(zh,en)` 双语(参照 ProfileShell/AgentUsage 的 `L()` 模式,或走 i18n key)。工作量中等(AgentBilling 文案最多:套餐名/功能行/积分消耗表)。
-- **新页已双语**:`AgentUsage` 从一开始就是双语,不欠新债。
-- 优先级:P1(用户已撞到)。建议下一批做。
+### ✅ T10 — 经纪台页面 i18n(2026-07-10 完成):
+- 5 页(`AgentBilling`/`AgentOverview`/`AgentReport`/`AgentClients`/`AgentTours`)正文全部抽成 `L(zh,en)` 双语(共 ~200+ 处)。子组件各自加 `useTranslation` hook;模块级 label map(STAGES/KINDS/OUTCOMES 等)加 `en` 字段;时间/金额 helper 加 zh 参数。
+- **后端 label 也补英文**:`credits.ts` FEATURES 加 `labelEn`,`featureCatalog()` 返回;`/features` 和 `/ledger` 都带上;AgentBilling「积分这样花」的功能名不再是后端中文。需 quick-deploy。
+- 顺手:AgentClients 的 compare 价格按语言用 `formatMoneyCompact(...,zh?'zh':'en')`,英文不再看到万/亿。
+- `GenerationProgress` 无中文正文(已确认)。EN 版订阅页/工作台截图验证全英文。

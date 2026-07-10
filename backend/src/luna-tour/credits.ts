@@ -38,12 +38,12 @@ function emailUnlimited(email?: string | null): boolean {
 // credits = 标准每次成本;minPlan = 至少需要的套餐(低于则需升级,与积分无关)。
 // Starter(rookie)可用报告/楼书(200分/月≈10份报告),live/luna tour 是 Pro 以上专属。
 export const FEATURES = {
-  reports: { label: '买家意向报告', credits: 20, minPlan: 'rookie' as PlanId },   // 常用 → 最便宜
-  brochures: { label: 'AI 楼书解析', credits: 40, minPlan: 'rookie' as PlanId },  // 常用 → 便宜
-  live_tours: { label: '实时带看', credits: 60, minPlan: 'agent' as PlanId },    // 居中
-  luna_tours: { label: 'Luna 智能导览', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
+  reports: { label: '买家意向报告', labelEn: 'Buyer proposal', credits: 20, minPlan: 'rookie' as PlanId },   // 常用 → 最便宜
+  brochures: { label: 'AI 楼书解析', labelEn: 'AI brochure parsing', credits: 40, minPlan: 'rookie' as PlanId },  // 常用 → 便宜
+  live_tours: { label: '实时带看', labelEn: 'Live tour', credits: 60, minPlan: 'agent' as PlanId },    // 居中
+  luna_tours: { label: 'Luna 智能导览', labelEn: 'Luna AI tour', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
   // Sales Offer 报价单:5 分/份(2026-07-07 用户定),60 天有效(过期页转联系顾问)
-  payplan: { label: 'Sales Offer 报价单', credits: 5, minPlan: 'rookie' as PlanId },
+  payplan: { label: 'Sales Offer 报价单', labelEn: 'Sales offer', credits: 5, minPlan: 'rookie' as PlanId },
 } as const
 
 export type Feature = keyof typeof FEATURES
@@ -181,7 +181,7 @@ export async function creditBalance(agentId: string) {
 /** 功能目录(给 /api/billing/features → 价格页/台内自动渲染消耗表)。 */
 export function featureCatalog() {
   return (Object.keys(FEATURES) as Feature[]).map((key) => ({
-    key, label: FEATURES[key].label, credits: FEATURES[key].credits, minPlan: FEATURES[key].minPlan,
+    key, label: FEATURES[key].label, labelEn: FEATURES[key].labelEn, credits: FEATURES[key].credits, minPlan: FEATURES[key].minPlan,
   }))
 }
 

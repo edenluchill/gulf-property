@@ -5,6 +5,7 @@
  * 数据来自 /api/billing/me。设计稿: docs/stripe-billing-spec.md
  */
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Check, ExternalLink, Users, UserPlus, X } from 'lucide-react'
 import { badgeForPlan } from '../../lib/roleBadge'
@@ -20,14 +21,16 @@ import {
 // 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
 const ROLE_BY_PLAN: Record<string, UserRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
 
-const STATUS_LABEL: Record<string, string> = {
-  none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
-}
-
 // 升级卡只展示比当前档更高的档
 const PLAN_ORDER: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3 }
 
 export default function AgentBilling() {
+  const { i18n } = useTranslation()
+  const zh = !!i18n.language?.startsWith('zh')
+  const L = (a: string, b: string) => (zh ? a : b)
+  const STATUS_LABEL: Record<string, string> = {
+    none: L('未订阅', 'Not subscribed'), trialing: L('试用中', 'Trial'), active: L('生效中', 'Active'), past_due: L('续费失败', 'Renewal failed'), canceled: L('已取消', 'Canceled'),
+  }
   const [me, setMe] = useState<BillingMe | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -132,29 +135,29 @@ export default function AgentBilling() {
   }
   type PlanCard = { id: PaidPlanId; name: string; monthly: number; yearly: number; lines: string[]; edge: string }
   const PLANS: PlanCard[] = [
-    { id: 'rookie', name: '启程版 Starter', monthly: catMonthly('rookie', 25), yearly: catYear('rookie', catMonthly('rookie', 25)), edge: '#0ea5e9',
-      lines: [`${catCredits('rookie', 200).toLocaleString()} 积分/月`, '地图/数据不限时 + 客户 CRM', '意向报告 + AI 楼书解析', 'Lead(尽力推送)'] },
-    { id: 'agent', name: '专业版 Pro', monthly: catMonthly('agent', 99), yearly: catYear('agent', catMonthly('agent', 99)), edge: '#10b981',
-      lines: [`${catCredits('agent', 1200).toLocaleString()} 积分/月`, '实时带看 + Luna 智能导览', '应用内语音 + AI 楼书解析', 'Lead 优先推送 + 行为洞察'] },
-    { id: 'founder', name: '经纪公司版 Agency', monthly: catMonthly('founder', 699), yearly: catYear('founder', catMonthly('founder', 699)), edge: '#E8C37E',
-      lines: [`${catCredits('founder', 15000).toLocaleString()} 积分/月 · 含 3 席共享`, '积分消耗 ×0.6(省40%)', 'White-label + 自定义域名', 'Lead 独占优先 · 优先支持'] },
+    { id: 'rookie', name: L('启程版 Starter', 'Starter'), monthly: catMonthly('rookie', 25), yearly: catYear('rookie', catMonthly('rookie', 25)), edge: '#0ea5e9',
+      lines: [L(`${catCredits('rookie', 200).toLocaleString()} 积分/月`, `${catCredits('rookie', 200).toLocaleString()} credits/mo`), L('地图/数据不限时 + 客户 CRM', 'Unlimited map & data + client CRM'), L('意向报告 + AI 楼书解析', 'Intent reports + AI brochure parsing'), L('Lead(尽力推送)', 'Leads (best-effort)')] },
+    { id: 'agent', name: L('专业版 Pro', 'Pro'), monthly: catMonthly('agent', 99), yearly: catYear('agent', catMonthly('agent', 99)), edge: '#10b981',
+      lines: [L(`${catCredits('agent', 1200).toLocaleString()} 积分/月`, `${catCredits('agent', 1200).toLocaleString()} credits/mo`), L('实时带看 + Luna 智能导览', 'Live tours + Luna AI tour'), L('应用内语音 + AI 楼书解析', 'In-app voice + AI brochure parsing'), L('Lead 优先推送 + 行为洞察', 'Priority leads + behavior insights')] },
+    { id: 'founder', name: L('经纪公司版 Agency', 'Agency'), monthly: catMonthly('founder', 699), yearly: catYear('founder', catMonthly('founder', 699)), edge: '#E8C37E',
+      lines: [L(`${catCredits('founder', 15000).toLocaleString()} 积分/月 · 含 3 席共享`, `${catCredits('founder', 15000).toLocaleString()} credits/mo · 3 shared seats`), L('积分消耗 ×0.6(省40%)', 'Credit cost ×0.6 (save 40%)'), L('White-label + 自定义域名', 'White-label + custom domain'), L('Lead 独占优先 · 优先支持', 'Exclusive lead priority · priority support')] },
   ]
   const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
   const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
   const cycleTotal = (p: PlanCard) => (cycle === 'year' ? p.yearly : p.monthly)
   const priceLabel = (p: PlanCard) =>
-    `${fmtUsd(cycleTotal(p) * (1 - pct))} / ${cycle === 'year' ? '年' : '月'}`
+    `${fmtUsd(cycleTotal(p) * (1 - pct))} / ${cycle === 'year' ? L('年', 'yr') : L('月', 'mo')}`
   // 划掉锚点:年付锚满 12 个月(月付连交一年),月付仅在有优惠时锚原月价
   const struckLabel = (p: PlanCard) =>
     cycle === 'year' ? `$${p.monthly * 12}` : pct > 0 ? `$${p.monthly}` : ''
   const noteLabel = (p: PlanCard) => {
-    if (promo.active) return `发布价 -${promo.percentOff}% · 永久锁定`
+    if (promo.active) return L(`发布价 -${promo.percentOff}% · 永久锁定`, `Launch price -${promo.percentOff}% · locked forever`)
     if (cycle === 'year') {
       const save = Math.round(p.monthly * 12 - p.yearly)
       const monthsFree = p.monthly > 0 ? Math.round(save / p.monthly) : 0
-      return save > 0 ? `省 $${save}${monthsFree > 0 ? `(≈${monthsFree} 个月免费)` : ''}` : '按年付,随时取消'
+      return save > 0 ? L(`省 $${save}${monthsFree > 0 ? `(≈${monthsFree} 个月免费)` : ''}`, `Save $${save}${monthsFree > 0 ? ` (≈${monthsFree} months free)` : ''}`) : L('按年付,随时取消', 'Billed yearly, cancel anytime')
     }
-    return '按月付,随时取消'
+    return L('按月付,随时取消', 'Billed monthly, cancel anytime')
   }
 
   // 团队席位操作(founder 专用)
@@ -164,7 +167,7 @@ export default function AgentBilling() {
     const error = await inviteTeamMember(inviteEmail.trim())
     setBusy(null)
     if (error) { setTeamMsg(error); return }
-    setInviteEmail(''); setTeamMsg('已加入团队 ✓')
+    setInviteEmail(''); setTeamMsg(L('已加入团队 ✓', 'Added to team ✓'))
     fetchTeam().then(setTeam)
   }
   async function removeMember(id: string) {
@@ -179,7 +182,7 @@ export default function AgentBilling() {
     const error = await setExtraSeats(next)
     setBusy(null)
     if (error) { setTeamMsg(error); return }
-    setTeamMsg('席位已调整,账单按比例计费 ✓')
+    setTeamMsg(L('席位已调整,账单按比例计费 ✓', 'Seats updated, billed pro-rata ✓'))
     setTimeout(() => fetchTeam().then(setTeam), 1500) // 等 webhook 镜像
   }
 
@@ -187,19 +190,19 @@ export default function AgentBilling() {
     <div className="space-y-6">
       {badgeDialog}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">订阅与用量</h1>
-        <p className="mt-1 text-sm text-slate-500">管理你的套餐、查看本月额度。支付由 Stripe 安全处理。</p>
+        <h1 className="text-2xl font-bold text-slate-900">{L('订阅与用量', 'Subscription & usage')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{L('管理你的套餐、查看本月额度。支付由 Stripe 安全处理。', 'Manage your plan and view this month’s credits. Payments are handled securely by Stripe.')}</p>
       </div>
 
-      {banner === 'success' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">✅ 订阅成功!额度已更新。</div>}
-      {banner === 'cancel' && <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">已取消结账,未产生费用。</div>}
+      {banner === 'success' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{L('✅ 订阅成功!额度已更新。', '✅ Subscription complete! Your credits are updated.')}</div>}
+      {banner === 'cancel' && <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">{L('已取消结账,未产生费用。', 'Checkout canceled, no charge was made.')}</div>}
       {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{err}</div>}
 
       {/* 当前套餐 */}
       <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xs text-slate-400">当前套餐</div>
+            <div className="text-xs text-slate-400">{L('当前套餐', 'Current plan')}</div>
             <div className="text-xl font-bold text-slate-900">{me?.plan.name || 'Explore'}</div>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-medium ${isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -208,34 +211,34 @@ export default function AgentBilling() {
         </div>
         {me?.current_period_end && (
           <div className="mt-2 text-xs text-slate-400">
-            {status === 'canceled' ? '有效期至 ' : '下次续费 '}{new Date(me.current_period_end).toLocaleDateString('zh-CN')}
+            {status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Next renewal ')}{new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
           </div>
         )}
 
         {/* 本月积分余额 */}
         <div className="mt-5">
           <div className="mb-1 flex items-baseline justify-between">
-            <span className="text-sm text-slate-500">本月积分余额</span>
+            <span className="text-sm text-slate-500">{L('本月积分余额', 'Credits this month')}</span>
             <span className="text-sm font-semibold text-slate-900">
-              {unlimited ? '无限' : <>剩 <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+              {unlimited ? L('无限', 'Unlimited') : <>{L('剩', '')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
             </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div className="h-full rounded-full bg-emerald-500 transition-all"
               style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }} />
           </div>
-          <div className="mt-1 text-[11px] text-slate-400">每月 1 日刷新,未用完不累积。</div>
+          <div className="mt-1 text-[11px] text-slate-400">{L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}</div>
         </div>
 
         {/* 积分消耗表(成本来自后端配置,自动同步) */}
         {feat.features.length > 0 && (
           <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-            <div className="mb-2 text-xs font-semibold text-slate-600">积分这样花{myMult < 1 ? `(你的套餐 ×${myMult},已含折扣)` : ''}</div>
+            <div className="mb-2 text-xs font-semibold text-slate-600">{L('积分这样花', 'How credits are spent')}{myMult < 1 ? L(`(你的套餐 ×${myMult},已含折扣)`, ` (your plan ×${myMult}, discount applied)`) : ''}</div>
             <div className="grid gap-1.5 sm:grid-cols-2">
               {feat.features.map((f) => (
                 <div key={f.key} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">{f.label}</span>
-                  <span className="font-medium text-slate-800">{Math.round(f.credits * myMult)} 积分{f.key === 'live_tours' ? '/场' : ''}</span>
+                  <span className="text-slate-600">{zh ? f.label : (f.labelEn || f.label)}</span>
+                  <span className="font-medium text-slate-800">{Math.round(f.credits * myMult)} {L('积分', 'credits')}{f.key === 'live_tours' ? L('/场', '/session') : ''}</span>
                 </div>
               ))}
             </div>
@@ -246,7 +249,7 @@ export default function AgentBilling() {
           <button onClick={manage} disabled={busy === 'portal'}
             className="mt-5 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">
             {busy === 'portal' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-            管理订阅 / 改套餐 / 取消
+            {L('管理订阅 / 改套餐 / 取消', 'Manage / change plan / cancel')}
           </button>
         )}
       </div>
@@ -256,7 +259,7 @@ export default function AgentBilling() {
         <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Users className="h-4 w-4 text-amber-500" />
-            你在 <b>{team.owner?.display_name || team.owner?.email}</b> 的团队中,套餐与积分由团队共享承担。
+            {L('你在 ', 'You’re on ')}<b>{team.owner?.display_name || team.owner?.email}</b>{L(' 的团队中,套餐与积分由团队共享承担。', '’s team — the plan and credits are shared across the team.')}
           </div>
         </div>
       )}
@@ -265,13 +268,13 @@ export default function AgentBilling() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-amber-500" />
-              <span className="font-bold text-slate-900">团队席位</span>
+              <span className="font-bold text-slate-900">{L('团队席位', 'Team seats')}</span>
               <span className="text-xs text-slate-400">
-                {1 + (team.members?.length || 0)} / {team.seatLimit} 席(含你自己)· 共享积分池
+                {1 + (team.members?.length || 0)} / {team.seatLimit} {L('席(含你自己)· 共享积分池', 'seats (incl. you) · shared credit pool')}
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">加席 $49/席/月:</span>
+              <span className="text-slate-400">{L('加席 $49/席/月:', 'Add seat $49/seat/mo:')}</span>
               <button onClick={() => changeSeats(Math.max(0, (team.extraSeats || 0) - 1))} disabled={busy === 'seats' || (team.extraSeats || 0) === 0}
                 className="h-6 w-6 rounded border border-slate-200 font-bold text-slate-600 disabled:opacity-40">−</button>
               <span className="w-5 text-center font-semibold">{team.extraSeats || 0}</span>
@@ -285,25 +288,25 @@ export default function AgentBilling() {
             {(team.members || []).map((m) => (
               <div key={m.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="text-slate-700">{m.display_name} <span className="text-xs text-slate-400">{m.email}</span></span>
-                <button onClick={() => removeMember(m.id)} disabled={busy === `rm-${m.id}`} title="移出团队"
+                <button onClick={() => removeMember(m.id)} disabled={busy === `rm-${m.id}`} title={L('移出团队', 'Remove from team')}
                   className="text-slate-300 transition hover:text-rose-500">
                   {busy === `rm-${m.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                 </button>
               </div>
             ))}
             {(team.members?.length || 0) === 0 && (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">还没有成员 —— 邀请同事共享 15,000 积分/月和 ×0.6 折扣。</div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">{L('还没有成员 —— 邀请同事共享 15,000 积分/月和 ×0.6 折扣。', 'No members yet — invite colleagues to share 15,000 credits/mo and the ×0.6 discount.')}</div>
             )}
           </div>
           <div className="mt-3 flex gap-2">
             <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void invite() }}
-              placeholder="同事邮箱(登录后自动进入团队)"
+              placeholder={L('同事邮箱(登录后自动进入团队)', 'Colleague email (auto-joins on sign-in)')}
               className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-emerald-400" />
             <button onClick={() => void invite()} disabled={busy === 'invite' || !inviteEmail.trim()}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-50">
               {busy === 'invite' ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              邀请
+              {L('邀请', 'Invite')}
             </button>
           </div>
         </div>
@@ -314,17 +317,17 @@ export default function AgentBilling() {
         <div>
           {promo.active && (
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm">
-              <span className="font-bold text-amber-700">🔥 创始优惠 -{promo.percentOff}%</span>
-              <span className="text-amber-700">订阅即永久锁定此价</span>
-              {promo.seatsRemaining != null && <span className="text-amber-600">· 限 {promo.seatsTotal} 席,仅剩 {promo.seatsRemaining}</span>}
+              <span className="font-bold text-amber-700">{L('🔥 创始优惠 -', '🔥 Founding offer -')}{promo.percentOff}%</span>
+              <span className="text-amber-700">{L('订阅即永久锁定此价', 'Subscribe to lock this price forever')}</span>
+              {promo.seatsRemaining != null && <span className="text-amber-600">{L(`· 限 ${promo.seatsTotal} 席,仅剩 ${promo.seatsRemaining}`, `· ${promo.seatsTotal} seats only, ${promo.seatsRemaining} left`)}</span>}
             </div>
           )}
           {/* 月付 / 年付 切换 */}
           <div className="mb-3 flex items-center gap-2">
-            <span className="text-xs text-slate-400">计费周期:</span>
+            <span className="text-xs text-slate-400">{L('计费周期:', 'Billing cycle:')}</span>
             <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
-              <button onClick={() => setCycle('month')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'month' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按月付</button>
-              <button onClick={() => setCycle('year')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'year' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>按年付 · 免费送2个月</button>
+              <button onClick={() => setCycle('month')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'month' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>{L('按月付', 'Monthly')}</button>
+              <button onClick={() => setCycle('year')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'year' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>{L('按年付 · 免费送2个月', 'Yearly · 2 months free')}</button>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -346,7 +349,7 @@ export default function AgentBilling() {
                 <button onClick={() => upgrade(p.id)} disabled={busy === p.id}
                   className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
                   style={{ background: p.edge }}>
-                  {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'founder' ? '升级到 Founder' : '免费试用 7 天')}
+                  {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'founder' ? L('升级到 Founder', 'Upgrade to Founder') : L('免费试用 7 天', 'Start 7-day free trial'))}
                 </button>
               </div>
             ))}

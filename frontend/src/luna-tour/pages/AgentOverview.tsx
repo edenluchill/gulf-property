@@ -5,6 +5,7 @@
  * 不再用旧 tour-session 榜)+ Luna 导览表现汇总。
  */
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
 import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
@@ -23,30 +24,34 @@ interface SessionRow {
   lead_score: number
 }
 
-const STAGE_CHIP: Record<string, { label: string; cls: string }> = {
-  new: { label: '新客', cls: 'bg-blue-50 text-blue-600' },
-  engaged: { label: '互动中', cls: 'bg-teal-50 text-teal-600' },
-  viewing: { label: '看房', cls: 'bg-amber-50 text-amber-600' },
-  offer: { label: '报价', cls: 'bg-purple-50 text-purple-600' },
-  closed: { label: '成交', cls: 'bg-emerald-50 text-emerald-600' },
-  lost: { label: '流失', cls: 'bg-slate-100 text-slate-400' },
+const STAGE_CHIP: Record<string, { label: string; en: string; cls: string }> = {
+  new: { label: '新客', en: 'New', cls: 'bg-blue-50 text-blue-600' },
+  engaged: { label: '互动中', en: 'Engaged', cls: 'bg-teal-50 text-teal-600' },
+  viewing: { label: '看房', en: 'Viewing', cls: 'bg-amber-50 text-amber-600' },
+  offer: { label: '报价', en: 'Offer', cls: 'bg-purple-50 text-purple-600' },
+  closed: { label: '成交', en: 'Closed', cls: 'bg-emerald-50 text-emerald-600' },
+  lost: { label: '流失', en: 'Lost', cls: 'bg-slate-100 text-slate-400' },
 }
 const stageChip = (s?: PipelineStage | null) => (s ? STAGE_CHIP[s] : null)
 
 const heatTone = (h: number) =>
   h >= 70 ? 'text-red-500' : h >= 40 ? 'text-amber-500' : 'text-slate-400'
 
-const ago = (iso?: string | null) => {
+const ago = (iso: string | null | undefined, zh: boolean) => {
   if (!iso) return ''
   const m = (Date.now() - new Date(iso).getTime()) / 60000
-  if (m < 1) return '刚刚'
-  if (m < 60) return `${Math.round(m)} 分钟前`
-  if (m < 1440) return `${Math.round(m / 60)} 小时前`
-  return `${Math.round(m / 1440)} 天前`
+  if (m < 1) return zh ? '刚刚' : 'just now'
+  if (m < 60) return zh ? `${Math.round(m)} 分钟前` : `${Math.round(m)} min ago`
+  if (m < 1440) return zh ? `${Math.round(m / 60)} 小时前` : `${Math.round(m / 60)} h ago`
+  return zh ? `${Math.round(m / 1440)} 天前` : `${Math.round(m / 1440)} d ago`
 }
 const isOverdue = (iso?: string | null) => !!iso && new Date(iso).getTime() <= Date.now()
 
 export default function AgentOverview() {
+  const { i18n } = useTranslation()
+  const zh = !!i18n.language?.startsWith('zh')
+  const L = (a: string, b: string) => (zh ? a : b)
+
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,8 +83,8 @@ export default function AgentOverview() {
   return (
     <div>
       <div className="mb-5">
-        <h1 className="text-2xl font-bold mb-1">经纪工作台</h1>
-        <p className="text-sm text-slate-500">两种带客户看房的方式 — 选一个开始</p>
+        <h1 className="text-2xl font-bold mb-1">{L('经纪工作台', 'Agent workbench')}</h1>
+        <p className="text-sm text-slate-500">{L('两种带客户看房的方式 — 选一个开始', 'Two ways to show clients around — pick one to start')}</p>
       </div>
 
       {/* The two hero actions — the heart of the agent console */}
@@ -95,14 +100,14 @@ export default function AgentOverview() {
               <Radio className="h-6 w-6 text-teal-300" />
             </div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">实时带看</h2>
+              <h2 className="text-lg font-bold">{L('实时带看', 'Live tour')}</h2>
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-teal-300">LIVE</span>
             </div>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-300">
-              和客户实时同屏看房 — 镜头同步跟随、地图上一起圈点项目、语音通话、Luna 现场答数据。最适合一对一深度沟通。
+              {L('和客户实时同屏看房 — 镜头同步跟随、地图上一起圈点项目、语音通话、Luna 现场答数据。最适合一对一深度沟通。', 'Tour properties with your client on a shared screen — synced camera, mark projects together on the map, voice call, and Luna answers data live. Best for one-on-one deep conversations.')}
             </p>
             <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-teal-300">
-              开始带看 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              {L('开始带看', 'Start tour')} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </span>
           </div>
         </Link>
@@ -118,14 +123,14 @@ export default function AgentOverview() {
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Luna 智能导览</h2>
+              <h2 className="text-lg font-bold">{L('Luna 智能导览', 'Luna AI tour')}</h2>
               <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold">AI</span>
             </div>
             <p className="mt-1.5 text-sm leading-relaxed text-white/90">
-              为客户生成一条可分享的自助看房导览 — AI 精选房源、语音讲解、5 年回报测算,客户随时打开自己看,行为还会回传给你。
+              {L('为客户生成一条可分享的自助看房导览 — AI 精选房源、语音讲解、5 年回报测算,客户随时打开自己看,行为还会回传给你。', 'Generate a shareable self-guided tour for your client — AI-picked properties, voice narration, and 5-year return projections. Clients open it anytime, and their activity flows back to you.')}
             </p>
             <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-white">
-              生成导览 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              {L('生成导览', 'Generate tour')} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </span>
           </div>
         </Link>
@@ -133,14 +138,14 @@ export default function AgentOverview() {
 
       {/* 该追谁:客户雷达热度 Top5 */}
       <SectionHeader
-        title="该追谁"
-        action={<Link to="/agent/clients" className="text-sm text-emerald-600 hover:underline">客户雷达 →</Link>}
+        title={L('该追谁', 'Who to chase')}
+        action={<Link to="/agent/clients" className="text-sm text-emerald-600 hover:underline">{L('客户雷达 →', 'Client radar →')}</Link>}
       />
       {loading ? (
-        <div className="mb-8 text-sm text-slate-400">加载中…</div>
+        <div className="mb-8 text-sm text-slate-400">{L('加载中…', 'Loading…')}</div>
       ) : hot.length === 0 ? (
         <div className="mb-8 text-sm text-slate-400">
-          还没有客户。<Link to="/agent/clients" className="text-emerald-600 hover:underline">去客户雷达建第一个 →</Link>
+          {L('还没有客户。', 'No clients yet. ')}<Link to="/agent/clients" className="text-emerald-600 hover:underline">{L('去客户雷达建第一个 →', 'Add your first in Client radar →')}</Link>
         </div>
       ) : (
         <div className="mb-8 space-y-2">
@@ -159,15 +164,15 @@ export default function AgentOverview() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">{c.name}</span>
-                    {chip && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>{chip.label}</span>}
+                    {chip && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>{L(chip.label, chip.en)}</span>}
                     {overdue && (
                       <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">
-                        <CalendarClock className="h-3 w-3" />跟进过期
+                        <CalendarClock className="h-3 w-3" />{L('跟进过期', 'Follow-up overdue')}
                       </span>
                     )}
                   </div>
                   <div className="truncate text-xs text-slate-400">
-                    {c.budget ? `预算 ${c.budget} · ` : ''}{c.last_activity_at ? `活跃 ${ago(c.last_activity_at)}` : '暂无活动'}
+                    {c.budget ? `${L('预算', 'Budget')} ${c.budget} · ` : ''}{c.last_activity_at ? `${L('活跃', 'Active')} ${ago(c.last_activity_at, zh)}` : L('暂无活动', 'No activity')}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -183,15 +188,15 @@ export default function AgentOverview() {
       {/* Luna 导览表现(只统计已分享导览的互动) */}
       <SectionHeader
         muted
-        title="Luna 导览表现"
-        action={sessions.length > 0 ? <Link to="/agent/tour" className="text-xs text-slate-400 hover:text-emerald-600 hover:underline">全部导览 →</Link> : undefined}
+        title={L('Luna 导览表现', 'Luna tour performance')}
+        action={sessions.length > 0 ? <Link to="/agent/tour" className="text-xs text-slate-400 hover:text-emerald-600 hover:underline">{L('全部导览 →', 'All tours →')}</Link> : undefined}
       />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard label="导览数" value={loading ? '…' : sessions.length} />
-        <StatCard label="总打开" value={loading ? '…' : tot.opens} />
-        <StatCard label="完看" value={loading ? '…' : tot.completes} />
-        <StatCard label="联系经纪" value={loading ? '…' : tot.cta} accent />
-        <StatCard label="❤️ 收藏" value={loading ? '…' : tot.loves} />
+        <StatCard label={L('导览数', 'Tours')} value={loading ? '…' : sessions.length} />
+        <StatCard label={L('总打开', 'Total opens')} value={loading ? '…' : tot.opens} />
+        <StatCard label={L('完看', 'Completed')} value={loading ? '…' : tot.completes} />
+        <StatCard label={L('联系经纪', 'Contacted')} value={loading ? '…' : tot.cta} accent />
+        <StatCard label={L('❤️ 收藏', '❤️ Saved')} value={loading ? '…' : tot.loves} />
       </div>
     </div>
   )

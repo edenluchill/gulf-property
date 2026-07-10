@@ -8,6 +8,7 @@
  * — backend operates on the demo agent. Delete luna-tour/ + the routes to remove.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { lunaFetch } from '../lunaApi'
 import GenerationProgress from './GenerationProgress'
@@ -62,6 +63,10 @@ interface FlowBeat {
 }
 
 export default function AgentTours() {
+  const { i18n } = useTranslation()
+  const zh = !!i18n.language?.startsWith('zh')
+  const L = (a: string, b: string) => (zh ? a : b)
+
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -186,9 +191,9 @@ export default function AgentTours() {
       })
       const d = await r.json()
       if (!r.ok) {
-        setMatchMsg(`❌ ${d.error || '匹配失败'}`)
+        setMatchMsg(`❌ ${d.error || L('匹配失败', 'Match failed')}`)
       } else if (!d.matches?.length) {
-        setMatchMsg('没有匹配到合适的楼盘,试试补充一句画像。')
+        setMatchMsg(L('没有匹配到合适的楼盘,试试补充一句画像。', 'No suitable projects matched — try adding a line about the client.'))
       } else {
         const hits: ProjectHit[] = d.matches.map((m: { id: string; project_name: string; area: string | null }) => ({
           id: m.id,
@@ -201,10 +206,10 @@ export default function AgentTours() {
         }))
         setPicked(hits)
         setReasons(Object.fromEntries(d.matches.map((m: { id: string; reason: string }) => [m.id, m.reason])))
-        setMatchMsg(`✨ AI 匹配了 ${hits.length} 个,可继续增删`)
+        setMatchMsg(L(`✨ AI 匹配了 ${hits.length} 个,可继续增删`, `✨ AI matched ${hits.length} project${hits.length === 1 ? '' : 's'} — add or remove as you like`))
       }
     } catch (e) {
-      setMatchMsg(`❌ ${e instanceof Error ? e.message : '网络错误'}`)
+      setMatchMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
     }
     setMatching(false)
   }
@@ -239,7 +244,7 @@ export default function AgentTours() {
           if (d.status === 'failed') {
             stopTimers()
             setGenPhase('error')
-            setGenError(d.error || '生成失败')
+            setGenError(d.error || L('生成失败', 'Generation failed'))
             return
           }
           if (d.status === 'ready') {
@@ -299,7 +304,7 @@ export default function AgentTours() {
       if (!r.ok) {
         stopTimers()
         setGenPhase('error')
-        setGenError(d.error || '生成失败')
+        setGenError(d.error || L('生成失败', 'Generation failed'))
       } else {
         // generation runs in the background — poll for structure + audio.
         setGenShareCode(d.shareCode || null)
@@ -313,13 +318,13 @@ export default function AgentTours() {
     } catch (e) {
       stopTimers()
       setGenPhase('error')
-      setGenError(e instanceof Error ? e.message : '网络错误')
+      setGenError(e instanceof Error ? e.message : L('网络错误', 'Network error'))
     }
     setCreating(false)
   }
 
   const deleteTour = async (sid: string, t: string) => {
-    if (!window.confirm(`删除导览「${t}」?此操作不可恢复。`)) return
+    if (!window.confirm(L(`删除导览「${t}」?此操作不可恢复。`, `Delete tour "${t}"? This cannot be undone.`))) return
     try {
       const r = await lunaFetch(`/sessions/${sid}`, { method: 'DELETE' })
       if (r.ok) load()
@@ -361,16 +366,16 @@ export default function AgentTours() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-1">AI 导览</h1>
-      <p className="text-sm text-slate-500 mb-6">填客户信息 → 搜索或 AI 匹配楼盘 → 一键生成（分享码 / 标题自动生成）</p>
+      <h1 className="text-2xl font-bold mb-1">{L('AI 导览', 'AI Tours')}</h1>
+      <p className="text-sm text-slate-500 mb-6">{L('填客户信息 → 搜索或 AI 匹配楼盘 → 一键生成（分享码 / 标题自动生成）', 'Enter client info → search or AI-match projects → generate in one click (share code / title auto-generated)')}</p>
 
       {/* create */}
       <div className="rounded-2xl bg-white p-4 mb-8 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-semibold">生成新导览</div>
+          <div className="font-semibold">{L('生成新导览', 'Generate a new tour')}</div>
           {usage && usage.limit >= 0 && (
             <span className={`text-xs ${usage.used >= usage.limit ? 'text-rose-500' : 'text-slate-400'}`}>
-              本月 {usage.used}/{usage.limit} · {usage.plan} 套餐
+              {L(`本月 ${usage.used}/${usage.limit} · ${usage.plan} 套餐`, `This month ${usage.used}/${usage.limit} · ${usage.plan} plan`)}
             </span>
           )}
         </div>
@@ -379,31 +384,31 @@ export default function AgentTours() {
         <div className="grid gap-3 md:grid-cols-2">
           <input
             className="border rounded-lg px-3 py-2 text-sm"
-            placeholder="客户名字 (如 陈先生)"
+            placeholder={L('客户名字 (如 陈先生)', 'Client name (e.g. Mr. Chen)')}
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
           />
           <input
             className="border rounded-lg px-3 py-2 text-sm"
-            placeholder="客户一句话画像 (如「香港投资客, 预算300万, 重回报」)"
+            placeholder={L('客户一句话画像 (如「香港投资客, 预算300万, 重回报」)', 'One-line client profile (e.g. "Hong Kong investor, budget 3M, yield-focused")')}
             value={oneLiner}
             onChange={(e) => setOneLiner(e.target.value)}
           />
         </div>
         <div className="mt-2 flex items-center gap-2 text-sm">
-          <span className="text-slate-500">语言</span>
+          <span className="text-slate-500">{L('语言', 'Language')}</span>
           <select
             className="border rounded-lg px-2 py-1.5 text-sm"
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
           >
-            <option value="">AI 按客户自动判断</option>
+            <option value="">{L('AI 按客户自动判断', 'AI auto-detect from client')}</option>
             <option value="zh">中文</option>
             <option value="en">English</option>
             <option value="ar">العربية</option>
             <option value="ru">Русский</option>
           </select>
-          <span className="text-xs text-slate-400">旁白 + 语音都用此语言生成</span>
+          <span className="text-xs text-slate-400">{L('旁白 + 语音都用此语言生成', 'Narration + voice are generated in this language')}</span>
         </div>
 
         {/* AI match */}
@@ -413,9 +418,9 @@ export default function AgentTours() {
             disabled={!canMatch || matching}
             onClick={aiMatch}
             className="border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            title={canMatch ? '' : '先填客户名字或一句话画像'}
+            title={canMatch ? '' : L('先填客户名字或一句话画像', 'Enter a client name or one-line profile first')}
           >
-            {matching ? 'AI 匹配中…' : '✨ AI 智能匹配房源'}
+            {matching ? L('AI 匹配中…', 'AI matching…') : L('✨ AI 智能匹配房源', '✨ AI smart-match projects')}
           </button>
           {matchMsg && <span className="text-sm text-slate-600">{matchMsg}</span>}
         </div>
@@ -425,16 +430,16 @@ export default function AgentTours() {
           <div className="relative">
             <input
               className="border rounded-lg px-3 py-2 text-sm w-full"
-              placeholder="或手动搜索楼盘 (名字 / 区域 / 开发商)，点选加入 →"
+              placeholder={L('或手动搜索楼盘 (名字 / 区域 / 开发商)，点选加入 →', 'Or search projects manually (name / area / developer), click to add →')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             {(searching || results.length > 0) && query.trim() && (
               <div className="absolute z-20 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
                 {searching && results.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-400">搜索中…</div>
+                  <div className="px-3 py-2 text-sm text-slate-400">{L('搜索中…', 'Searching…')}</div>
                 ) : results.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-400">没有匹配的楼盘</div>
+                  <div className="px-3 py-2 text-sm text-slate-400">{L('没有匹配的楼盘', 'No matching projects')}</div>
                 ) : (
                   results.map((p) => {
                     const already = picked.some((x) => x.id === p.id)
@@ -457,7 +462,7 @@ export default function AgentTours() {
                             {[p.area, p.developer].filter(Boolean).join(' · ') || 'Dubai'}
                           </div>
                         </div>
-                        {already && <span className="text-xs text-emerald-600 shrink-0">已加入</span>}
+                        {already && <span className="text-xs text-emerald-600 shrink-0">{L('已加入', 'Added')}</span>}
                       </button>
                     )
                   })
@@ -476,13 +481,13 @@ export default function AgentTours() {
                 >
                   <span className="text-emerald-700 font-medium text-xs tabular-nums">{i + 1}</span>
                   <span className="truncate max-w-[160px]">{p.project_name}</span>
-                  <button type="button" onClick={() => moveProject(i, -1)} disabled={i === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title="前移">
+                  <button type="button" onClick={() => moveProject(i, -1)} disabled={i === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title={L('前移', 'Move up')}>
                     ↑
                   </button>
-                  <button type="button" onClick={() => moveProject(i, 1)} disabled={i === picked.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title="后移">
+                  <button type="button" onClick={() => moveProject(i, 1)} disabled={i === picked.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title={L('后移', 'Move down')}>
                     ↓
                   </button>
-                  <button type="button" onClick={() => removeProject(p.id)} className="text-slate-400 hover:text-red-500 px-0.5" title="移除">
+                  <button type="button" onClick={() => removeProject(p.id)} className="text-slate-400 hover:text-red-500 px-0.5" title={L('移除', 'Remove')}>
                     ✕
                   </button>
                 </div>
@@ -505,13 +510,16 @@ export default function AgentTours() {
           )}
 
           <div className="text-xs text-slate-400 mt-2">
-            已选 {picked.length} 个楼盘{picked.length < 2 ? '（至少 2 个才能生成）' : ' · 顺序即导览顺序'}
+            {L(
+              `已选 ${picked.length} 个楼盘${picked.length < 2 ? '（至少 2 个才能生成）' : ' · 顺序即导览顺序'}`,
+              `${picked.length} project${picked.length === 1 ? '' : 's'} selected${picked.length < 2 ? ' (need at least 2 to generate)' : ' · order = tour order'}`
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 mt-4">
           <button disabled={creating || genPhase === 'building' || picked.length < 2} onClick={create} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-            {genPhase === 'building' ? '生成中…' : genPhase === 'ready' ? '再生成一个' : '生成导览'}
+            {genPhase === 'building' ? L('生成中…', 'Generating…') : genPhase === 'ready' ? L('再生成一个', 'Generate another') : L('生成导览', 'Generate tour')}
           </button>
           {createMsg && <span className="text-sm">{createMsg}</span>}
         </div>
@@ -528,11 +536,11 @@ export default function AgentTours() {
           />
         )}
 
-        <div className="text-xs text-slate-400 mt-2">分享码与标题自动生成，生成后可在「流程」里编辑标题和文案。</div>
+        <div className="text-xs text-slate-400 mt-2">{L('分享码与标题自动生成，生成后可在「流程」里编辑标题和文案。', 'Share code and title are auto-generated; after generation you can edit the title and copy under "Flow".')}</div>
       </div>
 
       {/* sessions */}
-      <div className="font-semibold mb-3">我的导览 {loading ? '…' : `(${sessions.length})`}</div>
+      <div className="font-semibold mb-3">{L('我的导览', 'My tours')} {loading ? '…' : `(${sessions.length})`}</div>
       <div className="space-y-3">
         {sessions.map((s) => (
           <div key={s.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
@@ -540,67 +548,67 @@ export default function AgentTours() {
               <div className="flex-1 min-w-[180px]">
                 <div className="font-semibold">{s.title}</div>
                 <div className="text-xs text-slate-500">
-                  {s.client_name ? `客户 ${s.client_name} · ` : ''}
+                  {s.client_name ? L(`客户 ${s.client_name} · `, `Client ${s.client_name} · `) : ''}
                   <a className="text-emerald-600 hover:underline" href={`/?toursession=${s.share_code}`} target="_blank" rel="noreferrer">
                     /?toursession={s.share_code} ↗
                   </a>
                 </div>
               </div>
-              <Stat label="打开" v={s.opens} />
-              <Stat label="完看" v={s.completes} />
-              <Stat label="联系" v={s.cta_clicks} />
+              <Stat label={L('打开', 'Opens')} v={s.opens} />
+              <Stat label={L('完看', 'Completed')} v={s.completes} />
+              <Stat label={L('联系', 'Contact')} v={s.cta_clicks} />
               <Stat label="❤️" v={s.loves} />
-              <Stat label="停留" v={fmtDwell(s.total_dwell_ms)} />
+              <Stat label={L('停留', 'Dwell')} v={fmtDwell(s.total_dwell_ms)} />
               <div className="text-center">
                 <div className="text-lg font-bold text-emerald-600">{Math.round(s.lead_score)}</div>
-                <div className="text-[11px] text-slate-400">热度</div>
+                <div className="text-[11px] text-slate-400">{L('热度', 'Heat')}</div>
               </div>
               <a
                 href={`/?toursession=${s.share_code}&edit=1`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-3 py-1.5"
-                title="边看边在特定点暂停留言,回来用 AI 应用"
+                title={L('边看边在特定点暂停留言,回来用 AI 应用', 'Pause at specific points to leave notes, then apply them with AI')}
               >
-                预览批注
+                {L('预览批注', 'Preview & annotate')}
               </a>
               <a
                 href={`/factsheet/${s.share_code}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5"
-                title="可核验的数据事实清单(可打印/存 PDF 给客户)"
+                title={L('可核验的数据事实清单(可打印/存 PDF 给客户)', 'Verifiable data fact sheet (printable / save as PDF for the client)')}
               >
-                事实清单
+                {L('事实清单', 'Fact sheet')}
               </a>
               <Link
                 to={`/agent/tour/${s.id}/edit`}
                 className="text-sm text-white bg-ink-700 hover:bg-ink-800 rounded-lg px-3 py-1.5"
-                title="可视化时间线编辑器"
+                title={L('可视化时间线编辑器', 'Visual timeline editor')}
               >
-                🎬 编辑器
+                {L('🎬 编辑器', '🎬 Editor')}
               </Link>
               <FlowToggle sessionId={s.id} onSaved={load} />
               <button onClick={() => openEvents(s.id)} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
-                {eventsId === s.id ? '收起' : '行为'}
+                {eventsId === s.id ? L('收起', 'Collapse') : L('行为', 'Activity')}
               </button>
-              <button onClick={() => deleteTour(s.id, s.title)} className="text-sm text-rose-400 hover:text-rose-600 border border-rose-200 rounded-lg px-3 py-1.5" title="删除整个导览">
-                删除
+              <button onClick={() => deleteTour(s.id, s.title)} className="text-sm text-rose-400 hover:text-rose-600 border border-rose-200 rounded-lg px-3 py-1.5" title={L('删除整个导览', 'Delete the entire tour')}>
+                {L('删除', 'Delete')}
               </button>
             </div>
             {eventsId === s.id && insights && (
               <div className="border-t border-slate-100 p-4 bg-indigo-50/40">
-                <div className="text-xs font-semibold text-indigo-700 mb-2">📊 洞察</div>
+                <div className="text-xs font-semibold text-indigo-700 mb-2">{L('📊 洞察', '📊 Insights')}</div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-2">
-                  <span>观看 <b>{insights.plays}</b></span>
-                  <span>完看 <b>{insights.completes}</b></span>
-                  {insights.completionPct != null && <span>完看率 <b>{insights.completionPct}%</b></span>}
+                  <span>{L('观看', 'Views')} <b>{insights.plays}</b></span>
+                  <span>{L('完看', 'Completed')} <b>{insights.completes}</b></span>
+                  {insights.completionPct != null && <span>{L('完看率', 'Completion rate')} <b>{insights.completionPct}%</b></span>}
                 </div>
                 {insights.props.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {insights.props.map((p, i) => (
                       <span key={i} className="text-xs bg-white border border-slate-200 rounded px-2 py-0.5">
-                        {p.name}: 停留 <b>{fmtMin(p.dwell_ms)}</b>{p.loves > 0 ? ` · ❤️${p.loves}` : ''}
+                        {p.name}: {L('停留', 'dwell')} <b>{fmtMin(p.dwell_ms)}</b>{p.loves > 0 ? ` · ❤️${p.loves}` : ''}
                       </span>
                     ))}
                   </div>
@@ -613,13 +621,13 @@ export default function AgentTours() {
             {eventsId === s.id && (
               <div className="border-t border-slate-100 p-4 bg-slate-50/50 max-h-72 overflow-y-auto">
                 {events.length === 0 ? (
-                  <div className="text-sm text-slate-400">暂无行为数据</div>
+                  <div className="text-sm text-slate-400">{L('暂无行为数据', 'No activity data yet')}</div>
                 ) : (
                   <ul className="space-y-1.5 text-xs">
                     {events.map((e, i) => (
                       <li key={i} className="flex items-center gap-2">
                         <span className="text-slate-400 tabular-nums">{new Date(e.created_at).toLocaleString()}</span>
-                        <span className="font-medium">{EVENT_ZH[e.event_type] || e.event_type}</span>
+                        <span className="font-medium">{L(EVENT_ZH[e.event_type] || e.event_type, EVENT_EN[e.event_type] || e.event_type)}</span>
                         {e.project_name && <span className="text-slate-500">· {e.project_name}</span>}
                         {e.dwell_ms != null && <span className="text-slate-400">· {fmtDwell(e.dwell_ms)}</span>}
                         <span className="text-slate-300 ml-auto">{e.visitor_id.slice(0, 8)}</span>
@@ -631,7 +639,7 @@ export default function AgentTours() {
             )}
           </div>
         ))}
-        {!loading && sessions.length === 0 && <div className="text-sm text-slate-400">还没有导览，用上面的表单生成一个。</div>}
+        {!loading && sessions.length === 0 && <div className="text-sm text-slate-400">{L('还没有导览，用上面的表单生成一个。', 'No tours yet — use the form above to generate one.')}</div>}
       </div>
     </div>
   )
@@ -659,6 +667,10 @@ function AutoTextarea({ value, onChange }: { value: string; onChange: (v: string
 
 /** Toggle + inline editor for a session's tour flow (title + per-beat narration). */
 function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => void }) {
+  const { i18n } = useTranslation()
+  const zh = !!i18n.language?.startsWith('zh')
+  const L = (a: string, b: string) => (zh ? a : b)
+
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [title, setTitle] = useState('')
@@ -712,7 +724,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     }
   }
   const deleteStop = async (actIndex: number, name: string) => {
-    if (!window.confirm(`删除停靠点「${name}」?(可在保存的版本里回滚)`)) return
+    if (!window.confirm(L(`删除停靠点「${name}」?(可在保存的版本里回滚)`, `Delete stop "${name}"? (can be rolled back from a saved version)`))) return
     try {
       const r = await lunaFetch(`/sessions/${sessionId}/delete-stop`, {
         method: 'POST',
@@ -740,7 +752,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
         setPlaceQ('')
         setPlaceResults([])
         await reload()
-        setMsg(`✅ 已加入地点「${p.name}」(可在该段加海景视频/改旁白,语音后台生成)`)
+        setMsg(L(`✅ 已加入地点「${p.name}」(可在该段加海景视频/改旁白,语音后台生成)`, `✅ Added place "${p.name}" (add a sea-view video / edit narration for this beat; voice is generated in the background)`))
         onSaved()
       }
     } catch {
@@ -802,7 +814,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
       const up = await lunaFetch(`/media-upload`, { method: 'POST', body: fd })
       const ud = await up.json()
       if (!up.ok || !ud.url) {
-        alert(ud.error || '上传失败(视频/图,≤60MB)')
+        alert(ud.error || L('上传失败(视频/图,≤60MB)', 'Upload failed (video/image, ≤60MB)'))
       } else {
         const r = await lunaFetch(`/sessions/${sessionId}/beat-media`, {
           method: 'POST',
@@ -819,7 +831,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
         }
       }
     } catch {
-      alert('上传出错')
+      alert(L('上传出错', 'Upload error'))
     }
     setMediaUploading(false)
   }
@@ -852,7 +864,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   const reviseWithAI = async () => {
     const entries = Object.entries(comments).filter(([, v]) => v.trim())
     if (!entries.length) {
-      setMsg('先在某段下面写一句修改意见,例如「短一点」「强调海景」')
+      setMsg(L('先在某段下面写一句修改意见,例如「短一点」「强调海景」', 'First write a note under a beat, e.g. "shorter" or "emphasize the sea view"'))
       return
     }
     setRevising(true)
@@ -869,16 +881,16 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
       )
       const r = await lunaFetch(`/sessions/${sessionId}/revise`, { method: 'POST' })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || '改稿失败'}`)
-      else if (!d.applied) setMsg(`ℹ️ ${d.message || 'AI 未产生改动'}`)
+      if (!r.ok) setMsg(`❌ ${d.error || L('改稿失败', 'Revision failed')}`)
+      else if (!d.applied) setMsg(`ℹ️ ${d.message || L('AI 未产生改动', 'AI made no changes')}`)
       else {
         setComments({})
         await reload()
-        setMsg(`✅ AI 改了 ${d.applied} 段（语音正在后台重生成）`)
+        setMsg(L(`✅ AI 改了 ${d.applied} 段（语音正在后台重生成）`, `✅ AI revised ${d.applied} beat${d.applied === 1 ? '' : 's'} (voice is regenerating in the background)`))
         onSaved()
       }
     } catch (e) {
-      setMsg(`❌ ${e instanceof Error ? e.message : '网络错误'}`)
+      setMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
     }
     setRevising(false)
   }
@@ -895,13 +907,13 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
         body: JSON.stringify({ title, narration }),
       })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || '保存失败'}`)
+      if (!r.ok) setMsg(`❌ ${d.error || L('保存失败', 'Save failed')}`)
       else {
-        setMsg('✅ 已保存')
+        setMsg(L('✅ 已保存', '✅ Saved'))
         onSaved()
       }
     } catch (e) {
-      setMsg(`❌ ${e instanceof Error ? e.message : '网络错误'}`)
+      setMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
     }
     setSaving(false)
   }
@@ -909,20 +921,20 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
   return (
     <>
       <button onClick={toggle} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
-        {open ? '收起' : '流程'}
+        {open ? L('收起', 'Collapse') : L('流程', 'Flow')}
       </button>
       {open && (
         <div className="w-full border-t border-slate-100 mt-2 pt-4">
           {loading ? (
-            <div className="text-sm text-slate-400">加载流程中…</div>
+            <div className="text-sm text-slate-400">{L('加载流程中…', 'Loading flow…')}</div>
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">标题</label>
+                <label className="block text-xs text-slate-400 mb-1">{L('标题', 'Title')}</label>
                 <input className="border rounded-lg px-3 py-2 text-sm w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               {beats.length === 0 ? (
-                <div className="text-sm text-slate-400">没有可编辑的脚本。</div>
+                <div className="text-sm text-slate-400">{L('没有可编辑的脚本。', 'No editable script.')}</div>
               ) : (
                 beats.map((b, i) => {
                   const prevGroup = i > 0 ? beats[i - 1].group : null
@@ -942,16 +954,16 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                           </span>
                           {(b.actIndex ?? -1) >= 0 && (
                             <span className="flex items-center gap-0.5">
-                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title="上移" onClick={() => moveStop(b.actIndex!, -1)}>↑</button>
-                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title="下移" onClick={() => moveStop(b.actIndex!, 1)}>↓</button>
-                              <button className="text-[11px] text-rose-300 hover:text-rose-600 px-1" title="删除这个停靠点" onClick={() => deleteStop(b.actIndex!, b.group)}>✕</button>
+                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title={L('上移', 'Move up')} onClick={() => moveStop(b.actIndex!, -1)}>↑</button>
+                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title={L('下移', 'Move down')} onClick={() => moveStop(b.actIndex!, 1)}>↓</button>
+                              <button className="text-[11px] text-rose-300 hover:text-rose-600 px-1" title={L('删除这个停靠点', 'Delete this stop')} onClick={() => deleteStop(b.actIndex!, b.group)}>✕</button>
                             </span>
                           )}
                         </div>
                       )}
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5 mt-1.5 shrink-0 w-12 text-center">
-                          {KIND_ZH[b.kind] || b.kind}
+                          {L(KIND_ZH[b.kind] || b.kind, KIND_EN[b.kind] || b.kind)}
                         </span>
                         <div className="flex-1 min-w-0">
                           {/* storyboard chips: what the camera does + which cards show + timing */}
@@ -965,10 +977,10 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                               <span key={`o${o.idx}`} className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">
                                 🃏 {o.label}
                                 {o.at > 0 ? ` @${o.at}s` : ''}
-                                <button className="px-0.5 hover:text-amber-900 disabled:opacity-30" disabled={o.dur <= 0} onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: Math.max(0, o.dur - 1) * 1000 }])} title="缩短显示">−</button>
+                                <button className="px-0.5 hover:text-amber-900 disabled:opacity-30" disabled={o.dur <= 0} onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: Math.max(0, o.dur - 1) * 1000 }])} title={L('缩短显示', 'Shorten display')}>−</button>
                                 <span className="tabular-nums">{o.dur}s</span>
-                                <button className="px-0.5 hover:text-amber-900" onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: (o.dur + 1) * 1000 }])} title="延长显示">+</button>
-                                <button className="px-0.5 text-rose-400 hover:text-rose-600" onClick={() => editOverlays(b.id, [{ index: o.idx, remove: true }])} title="移除这张卡">×</button>
+                                <button className="px-0.5 hover:text-amber-900" onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: (o.dur + 1) * 1000 }])} title={L('延长显示', 'Extend display')}>+</button>
+                                <button className="px-0.5 text-rose-400 hover:text-rose-600" onClick={() => editOverlays(b.id, [{ index: o.idx, remove: true }])} title={L('移除这张卡', 'Remove this card')}>×</button>
                               </span>
                             ))}
                             {b.seconds ? <span className="text-[10px] text-slate-400">⏱ ~{b.seconds}s</span> : null}
@@ -980,20 +992,20 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                                 setMediaCap('')
                               }}
                             >
-                              ➕ 视频/图
+                              {L('➕ 视频/图', '➕ Video/Image')}
                             </button>
                           </div>
                           {mediaOpen === b.id && (
                             <div className="mb-1 flex flex-wrap items-center gap-1.5 bg-indigo-50/60 border border-indigo-100 rounded-md p-1.5">
                               <input
                                 className="flex-1 min-w-[180px] text-xs border border-slate-300 rounded px-2 py-1"
-                                placeholder="视频/图片直链 (https://…/clip.mp4 或 …/photo.jpg)"
+                                placeholder={L('视频/图片直链 (https://…/clip.mp4 或 …/photo.jpg)', 'Direct video/image link (https://…/clip.mp4 or …/photo.jpg)')}
                                 value={mediaUrl}
                                 onChange={(e) => setMediaUrl(e.target.value)}
                               />
                               <input
                                 className="w-28 text-xs border border-slate-300 rounded px-2 py-1"
-                                placeholder="说明(可选)"
+                                placeholder={L('说明(可选)', 'Caption (optional)')}
                                 value={mediaCap}
                                 onChange={(e) => setMediaCap(e.target.value)}
                               />
@@ -1002,10 +1014,10 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                                 disabled={mediaUploading || !/^https?:\/\/\S+/i.test(mediaUrl.trim())}
                                 onClick={() => addMedia(b.id)}
                               >
-                                加链接
+                                {L('加链接', 'Add link')}
                               </button>
                               <label className="text-xs bg-white border border-indigo-300 text-indigo-600 rounded px-2.5 py-1 cursor-pointer hover:border-indigo-500">
-                                {mediaUploading ? '上传中…' : '或上传文件'}
+                                {mediaUploading ? L('上传中…', 'Uploading…') : L('或上传文件', 'Or upload a file')}
                                 <input
                                   type="file"
                                   accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp"
@@ -1023,7 +1035,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                           <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />
                           <input
                             className="mt-1 w-full text-xs border border-dashed border-slate-300 rounded-md px-2 py-1.5 placeholder:text-slate-300 focus:border-emerald-400 focus:outline-none"
-                            placeholder="💬 给 AI 的修改意见（如 短一点 / 强调海景 / 这个数字改成…）"
+                            placeholder={L('💬 给 AI 的修改意见（如 短一点 / 强调海景 / 这个数字改成…）', '💬 Note for AI (e.g. shorter / emphasize sea view / change this number to…)')}
                             value={comments[b.id] || ''}
                             onChange={(e) => setComments((c) => ({ ...c, [b.id]: e.target.value }))}
                           />
@@ -1035,10 +1047,10 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
               )}
               {/* E3 — add a place stop (beach / landmark / any POI) */}
               <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/40 p-2.5">
-                <div className="text-xs font-semibold text-indigo-700 mb-1.5">➕ 加地点停靠(海滩 / 地标 / 任意 POI)</div>
+                <div className="text-xs font-semibold text-indigo-700 mb-1.5">{L('➕ 加地点停靠(海滩 / 地标 / 任意 POI)', '➕ Add a place stop (beach / landmark / any POI)')}</div>
                 <input
                   className="w-full text-sm border border-slate-300 rounded px-2 py-1.5"
-                  placeholder="搜地点名(如 JBR / Marina Beach / Burj Khalifa)…"
+                  placeholder={L('搜地点名(如 JBR / Marina Beach / Burj Khalifa)…', 'Search a place name (e.g. JBR / Marina Beach / Burj Khalifa)…')}
                   value={placeQ}
                   onChange={(e) => setPlaceQ(e.target.value)}
                 />
@@ -1057,24 +1069,24 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                     ))}
                   </div>
                 )}
-                <div className="text-[11px] text-slate-400 mt-1">加入后会作为一个停靠点(镜头飞过去),可在该段加海景视频、改旁白。</div>
+                <div className="text-[11px] text-slate-400 mt-1">{L('加入后会作为一个停靠点(镜头飞过去),可在该段加海景视频、改旁白。', 'Once added it becomes a stop (the camera flies to it); you can add a sea-view video and edit the narration for that beat.')}</div>
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
                 <button disabled={saving || revising} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-                  {saving ? '保存中…' : '保存修改'}
+                  {saving ? L('保存中…', 'Saving…') : L('保存修改', 'Save changes')}
                 </button>
                 <button
                   disabled={saving || revising}
                   onClick={reviseWithAI}
                   className="bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
-                  {revising ? 'AI 改稿中…' : '✨ 用 AI 应用评论'}
+                  {revising ? L('AI 改稿中…', 'AI revising…') : L('✨ 用 AI 应用评论', '✨ Apply notes with AI')}
                 </button>
                 {msg && <span className="text-sm">{msg}</span>}
               </div>
               <span className="text-xs text-slate-400">
-                直接改文字＝手动改；或在每段下写一句意见,点「用 AI 应用评论」让 AI 重写那几段（改动可在保存的版本里回滚）。改文案后该段语音会自动重生成。
+                {L('直接改文字＝手动改；或在每段下写一句意见,点「用 AI 应用评论」让 AI 重写那几段（改动可在保存的版本里回滚）。改文案后该段语音会自动重生成。', 'Edit the text directly to change it manually; or write a note under a beat and click "Apply notes with AI" to have AI rewrite those beats (changes can be rolled back from a saved version). After editing copy, that beat\'s voice regenerates automatically.')}
               </span>
             </div>
           )}
@@ -1102,6 +1114,15 @@ const KIND_ZH: Record<string, string> = {
   beat: '段落',
 }
 
+const KIND_EN: Record<string, string> = {
+  intro: 'Intro',
+  arrival: 'Arrival',
+  life: 'Life',
+  numbers: 'Numbers',
+  outro: 'Outro',
+  beat: 'Beat',
+}
+
 const EVENT_ZH: Record<string, string> = {
   open: '打开链接',
   tour_play: '开始观看',
@@ -1112,4 +1133,16 @@ const EVENT_ZH: Record<string, string> = {
   tour_replay: '重看',
   cta_whatsapp: '点击联系经纪',
   feedback: '点了 ❤️',
+}
+
+const EVENT_EN: Record<string, string> = {
+  open: 'Opened link',
+  tour_play: 'Started watching',
+  property_dwell: 'Dwelled on project',
+  chart_view: 'Viewed investment chart',
+  property_view: 'Actively viewed project',
+  tour_complete: 'Completed the tour',
+  tour_replay: 'Replayed',
+  cta_whatsapp: 'Clicked to contact agent',
+  feedback: 'Tapped ❤️',
 }

@@ -6,12 +6,17 @@
  * generation progress; on ready gives a /cr/:code link to send the client.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Check, ExternalLink, Copy, Sparkles } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
 
 interface Step { key: string; label: string; done: boolean }
 
 export default function AgentReport() {
+  const { i18n } = useTranslation()
+  const zh = !!i18n.language?.startsWith('zh')
+  const L = (a: string, b: string) => (zh ? a : b)
+
   const [clientName, setClientName] = useState('')
   const [oneLiner, setOneLiner] = useState('')
   const [phase, setPhase] = useState<'idle' | 'generating' | 'ready' | 'error'>('idle')
@@ -43,18 +48,18 @@ export default function AgentReport() {
         body: JSON.stringify({ client: clientName.trim() ? { name: clientName.trim() } : {}, one_liner: oneLiner }),
       })
       const d = await r.json()
-      if (!d.shareCode) { setErr(d.error || '生成失败，请确认已登录'); setPhase('error'); return }
+      if (!d.shareCode) { setErr(d.error || L('生成失败，请确认已登录', 'Generation failed — please make sure you’re signed in')); setPhase('error'); return }
       setShareCode(d.shareCode)
       pollRef.current = setInterval(async () => {
         try {
           const s = await (await lunaFetch(`/client-reports/${d.shareCode}/status`)).json()
           if (s.progress) setSteps(s.progress)
           if (s.status === 'ready') { clearInterval(pollRef.current!); setPhase('ready'); loadHistory() }
-          else if (s.status === 'error') { clearInterval(pollRef.current!); setErr('生成失败'); setPhase('error') }
+          else if (s.status === 'error') { clearInterval(pollRef.current!); setErr(L('生成失败', 'Generation failed')); setPhase('error') }
         } catch { /* keep polling */ }
       }, 1500)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '网络错误'); setPhase('error')
+      setErr(e instanceof Error ? e.message : L('网络错误', 'Network error')); setPhase('error')
     }
   }
 
@@ -62,19 +67,19 @@ export default function AgentReport() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-1 text-2xl font-bold">秒出提案</h1>
-      <p className="mb-6 text-sm text-slate-500">填客户画像 → 生成一份用真实 DLD 数据 + 市场政策趋势的综合提案，可分享链接、可存 PDF 发给客户。</p>
+      <h1 className="mb-1 text-2xl font-bold">{L('秒出提案', 'Instant proposals')}</h1>
+      <p className="mb-6 text-sm text-slate-500">{L('填客户画像 → 生成一份用真实 DLD 数据 + 市场政策趋势的综合提案，可分享链接、可存 PDF 发给客户。', 'Enter a client profile → generate a comprehensive proposal backed by real DLD data plus market policy and trends. Share the link or save it as a PDF for your client.')}</p>
 
       <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="grid gap-3 md:grid-cols-2">
-          <input className="rounded-lg border px-3 py-2 text-sm" placeholder="客户名字（如 陈先生）" value={clientName} onChange={(e) => setClientName(e.target.value)} />
-          <input className="rounded-lg border px-3 py-2 text-sm" placeholder="客户画像（如「预算300万, 重5年回报, 想地铁近」）" value={oneLiner} onChange={(e) => setOneLiner(e.target.value)} />
+          <input className="rounded-lg border px-3 py-2 text-sm" placeholder={L('客户名字（如 陈先生）', 'Client name (e.g. Mr. Chen)')} value={clientName} onChange={(e) => setClientName(e.target.value)} />
+          <input className="rounded-lg border px-3 py-2 text-sm" placeholder={L('客户画像（如「预算300万, 重5年回报, 想地铁近」）', 'Client profile (e.g. “Budget AED 3M, focus on 5-year return, wants metro nearby”)')} value={oneLiner} onChange={(e) => setOneLiner(e.target.value)} />
         </div>
         <div className="mt-3 flex items-center gap-3">
           <button disabled={!canRun || phase === 'generating'} onClick={run}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {phase === 'generating' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {phase === 'generating' ? '生成中…' : '生成投资提案'}
+            {phase === 'generating' ? L('生成中…', 'Generating…') : L('生成投资提案', 'Generate investment proposal')}
           </button>
           {err && <span className="text-sm text-red-500">❌ {err}</span>}
         </div>
@@ -92,18 +97,18 @@ export default function AgentReport() {
                 <span className={s.done ? 'text-slate-700' : 'text-slate-400'}>{s.label}</span>
               </div>
             ))}
-            {!steps.length && <div className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />正在启动…</div>}
+            {!steps.length && <div className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />{L('正在启动…', 'Starting…')}</div>}
           </div>
 
           {phase === 'ready' && (
             <div className="mt-5 border-t border-slate-100 pt-4">
-              <div className="mb-2 text-sm font-semibold text-slate-800">✅ 提案已生成，可直接发给客户：</div>
+              <div className="mb-2 text-sm font-semibold text-slate-800">✅ {L('提案已生成，可直接发给客户：', 'Proposal ready — send it straight to your client:')}</div>
               <div className="flex items-center gap-2">
                 <input readOnly value={url} className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600" />
                 <button onClick={copy} className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">{copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}</button>
-                <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-600"><ExternalLink className="h-4 w-4" />打开</a>
+                <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-600"><ExternalLink className="h-4 w-4" />{L('打开', 'Open')}</a>
               </div>
-              <p className="mt-2 text-[11px] text-slate-400">客户打开后可点「保存 PDF」。链接公开，无需登录。</p>
+              <p className="mt-2 text-[11px] text-slate-400">{L('客户打开后可点「保存 PDF」。链接公开，无需登录。', 'Once open, your client can tap “Save PDF.” The link is public — no sign-in required.')}</p>
             </div>
           )}
         </div>
@@ -112,7 +117,7 @@ export default function AgentReport() {
       {/* History — past client proposals, findable + re-shareable */}
       {history.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-3 text-sm font-bold text-slate-700">我的客户报告（{history.length}）</h2>
+          <h2 className="mb-3 text-sm font-bold text-slate-700">{L('我的客户报告', 'My client reports')}（{history.length}）</h2>
           <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             {history.map((h) => {
               const u = `${window.location.origin}/cr/${h.share_code}`
@@ -120,14 +125,14 @@ export default function AgentReport() {
                 <div key={h.share_code} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-slate-800">{h.client_name || '未命名客户'}</span>
-                      {h.status === 'generating' && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600">生成中</span>}
-                      {h.status === 'error' && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-600">失败</span>}
+                      <span className="truncate text-sm font-semibold text-slate-800">{h.client_name || L('未命名客户', 'Unnamed client')}</span>
+                      {h.status === 'generating' && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600">{L('生成中', 'Generating')}</span>}
+                      {h.status === 'error' && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-600">{L('失败', 'Failed')}</span>}
                     </div>
-                    <div className="truncate text-xs text-slate-400">{h.brief || '—'} · {String(h.created_at).slice(0, 10)}{h.view_count ? ` · 浏览 ${h.view_count}` : ''}</div>
+                    <div className="truncate text-xs text-slate-400">{h.brief || '—'} · {String(h.created_at).slice(0, 10)}{h.view_count ? ` · ${L('浏览', 'Views')} ${h.view_count}` : ''}</div>
                   </div>
-                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title="复制链接" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
-                  <a href={u} target="_blank" rel="noreferrer" title="打开" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
+                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title={L('复制链接', 'Copy link')} className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
+                  <a href={u} target="_blank" rel="noreferrer" title={L('打开', 'Open')} className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
                 </div>
               )
             })}
@@ -138,7 +143,7 @@ export default function AgentReport() {
       {/* Sales Offer 报价单记录(在项目详情页「生成 Sales Offer」产出;60 天有效) */}
       {offers.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-3 text-sm font-bold text-slate-700">我的 Sales Offer 报价单({offers.length})</h2>
+          <h2 className="mb-3 text-sm font-bold text-slate-700">{L('我的 Sales Offer 报价单', 'My Sales Offers')}({offers.length})</h2>
           <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             {offers.map((o) => {
               const u = `${window.location.origin}/pp/${o.share_code}`
@@ -148,42 +153,42 @@ export default function AgentReport() {
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-semibold text-slate-800">{o.project_name}</span>
                       {o.unit_name && <span className="truncate text-xs text-slate-400">{o.unit_name}</span>}
-                      {o.expired && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">已过期</span>}
+                      {o.expired && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{L('已过期', 'Expired')}</span>}
                     </div>
                     <div className="truncate text-xs text-slate-400">
                       AED {Number(o.price).toLocaleString('en-US')}
-                      {o.original_price && ` (原价 ${Number(o.original_price).toLocaleString('en-US')})`}
+                      {o.original_price && ` (${L('原价', 'was')} ${Number(o.original_price).toLocaleString('en-US')})`}
                       {' · '}{String(o.created_at).slice(0, 10)}
-                      {o.view_count ? ` · 浏览 ${o.view_count}` : ''}
+                      {o.view_count ? ` · ${L('浏览', 'Views')} ${o.view_count}` : ''}
                     </div>
                   </div>
-                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title="复制链接" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
-                  <a href={u} target="_blank" rel="noreferrer" title="打开" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
+                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title={L('复制链接', 'Copy link')} className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
+                  <a href={u} target="_blank" rel="noreferrer" title={L('打开', 'Open')} className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
                 </div>
               )
             })}
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">报价单有效期 60 天(5 积分/份);过期后客户打开会提示联系你获取最新报价。</p>
+          <p className="mt-2 text-[11px] text-slate-400">{L('报价单有效期 60 天(5 积分/份);过期后客户打开会提示联系你获取最新报价。', 'Sales offers are valid for 60 days (5 credits each). After they expire, clients who open the link are prompted to contact you for an updated quote.')}</p>
         </div>
       )}
 
       {/* 项目品牌报告记录(在项目详情页「生成品牌报告」产出,/r/:code) */}
       {projReports.length > 0 && (
         <div className="mt-8">
-          <h2 className="mb-3 text-sm font-bold text-slate-700">我的项目报告({projReports.length})</h2>
+          <h2 className="mb-3 text-sm font-bold text-slate-700">{L('我的项目报告', 'My project reports')}({projReports.length})</h2>
           <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             {projReports.map((r) => {
               const u = `${window.location.origin}/r/${r.share_code}`
               return (
                 <div key={r.share_code} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-800">{r.project_name || r.title || '项目报告'}</div>
+                    <div className="truncate text-sm font-semibold text-slate-800">{r.project_name || r.title || L('项目报告', 'Project report')}</div>
                     <div className="truncate text-xs text-slate-400">
-                      {r.area ? `${r.area} · ` : ''}{String(r.created_at).slice(0, 10)}{r.view_count ? ` · 浏览 ${r.view_count}` : ''}
+                      {r.area ? `${r.area} · ` : ''}{String(r.created_at).slice(0, 10)}{r.view_count ? ` · ${L('浏览', 'Views')} ${r.view_count}` : ''}
                     </div>
                   </div>
-                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title="复制链接" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
-                  <a href={u} target="_blank" rel="noreferrer" title="打开" className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
+                  <button onClick={() => { navigator.clipboard?.writeText(u) }} title={L('复制链接', 'Copy link')} className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><Copy className="h-4 w-4" /></button>
+                  <a href={u} target="_blank" rel="noreferrer" title={L('打开', 'Open')} className="flex-shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /></a>
                 </div>
               )
             })}
