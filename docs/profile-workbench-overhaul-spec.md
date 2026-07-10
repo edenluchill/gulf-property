@@ -215,6 +215,12 @@
 
 ---
 
+### ✅ 计费/名字修复(2026-07-10,用户报):
+- **名字 bug 根因**:`ensureAgent`(每个登录请求都跑)`ON CONFLICT DO UPDATE SET display_name=EXCLUDED` → **每次页面加载都把 display_name 重置回 Google 名**,经纪填的专业名(证书署名)存了又被冲掉。修:conflict 时不再动 display_name(只首次 INSERT 兜底 Google 名)。改证书署名/名字相关先查这条。
+- **取消订阅体验**:billing `/me` 打开时**向 Stripe 拉实时状态自愈**(`syncLatestSubFromStripe`→复用 `upsertSubscription`;修「取消了 DB 没更新」,不只靠 webhook);返回 `cancel_at_period_end` + `credits_reset_at`(下月1日UTC)。前端 AgentBilling:状态区分 试用中/生效中/**已取消(可用至X)+恢复订阅** ;显示下次积分刷新日;`current_period_end` 按 trial/canceling/renewal 分文案。
+- **删内嵌套餐卡**(用户嫌碍眼):AgentBilling 底部三张升级卡全删(连同 PLANS/价格helper/promo/cycle/catalog 全清),改**右上「升级套餐」按钮 + 一条克制入口 → /agent/plans**。
+- 纯前端+后端,quick-deploy。
+
 ## 已定决策(2026-07-09 用户拍板)
 
 - **执行顺序**:先做 **T2+T3**(视觉统一 + 手机导航)。其余按 spec 顺序。

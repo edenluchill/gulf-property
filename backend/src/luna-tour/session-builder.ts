@@ -295,10 +295,14 @@ export async function ensureAgent(opts: {
   brand?: Record<string, unknown>
   authUserId?: string
 }): Promise<string> {
+  // ⚠️ 关键:ON CONFLICT 时**绝不覆盖 display_name** —— 这里每个登录请求都会跑,
+  // 之前用 EXCLUDED.display_name 覆盖会把经纪自己填的专业名(证书署名)每次页面加载
+  // 都重置回 Google 名字。display_name 只在首次 INSERT 时用 Google 名兜底,之后由
+  // 经纪自己在名片/onboarding 里改,ensureAgent 不再动它。
   const res = await pool.query<{ id: string }>(
     `INSERT INTO lt_agents (email, display_name, phone, whatsapp, photo_url, brand, auth_user_id, onboarding_done)
      VALUES ($1,$2,$3,$4,$5,$6,$7,true)
-     ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name,
+     ON CONFLICT (email) DO UPDATE SET
        auth_user_id = COALESCE(lt_agents.auth_user_id, EXCLUDED.auth_user_id)
      RETURNING id`,
     [opts.email, opts.displayName, opts.phone ?? null, opts.whatsapp ?? null, opts.photoUrl ?? null, JSON.stringify(opts.brand ?? {}), opts.authUserId ?? null]

@@ -6,23 +6,20 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
-import { Loader2, Check, ExternalLink, Users, UserPlus, X } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Loader2, ExternalLink, Users, UserPlus, X, ArrowUpRight } from 'lucide-react'
 import { badgeForPlan } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import { useResetOnBFCache } from '../../hooks/useResetOnBFCache'
 import {
-  fetchBillingMe, fetchPromo, fetchFeatures, fetchPlans, startCheckout, openPortal,
+  fetchBillingMe, fetchFeatures, openPortal,
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
-  type BillingMe, type BillingInterval, type Promo, type FeaturesInfo, type TeamInfo, type PaidPlanId, type UserRole, type BillingPlan,
+  type BillingMe, type FeaturesInfo, type TeamInfo, type UserRole,
 } from '../../lib/billingApi'
 
 // 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
 const ROLE_BY_PLAN: Record<string, UserRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
-
-// 升级卡只展示比当前档更高的档
-const PLAN_ORDER: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3 }
 
 export default function AgentBilling() {
   const { i18n } = useTranslation()
@@ -38,19 +35,14 @@ export default function AgentBilling() {
   // 跳 Stripe 后按「后退」时,页面从 bfcache 恢复会保留 busy → spinner 卡死。重置。
   useResetOnBFCache(() => setBusy(null))
   const [params, setParams] = useSearchParams()
-  const [cycle, setCycle] = useState<BillingInterval>('month') // 默认月付(低门槛)
-  const [promo, setPromo] = useState<Promo>({ active: false })
   const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
   // 经纪公司版团队席位
   const [team, setTeam] = useState<TeamInfo | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [teamMsg, setTeamMsg] = useState<string | null>(null)
 
-  // 套餐目录(价格以后端/Stripe 为准,硬编码只是兜底,防止价格改了页面还显示旧价)
-  const [catalog, setCatalog] = useState<BillingPlan[]>([])
-
   const refresh = () => fetchBillingMe().then((m) => { setMe(m); setLoading(false) })
-  useEffect(() => { refresh(); fetchPromo().then(setPromo); fetchFeatures().then(setFeat); fetchTeam().then(setTeam); fetchPlans().then(setCatalog) }, [])
+  useEffect(() => { refresh(); fetchFeatures().then(setFeat); fetchTeam().then(setTeam) }, [])
 
   // Checkout 回跳提示(?status=success|cancel),读后清掉 query
   const banner = params.get('status')
@@ -83,11 +75,6 @@ export default function AgentBilling() {
   }, [banner, me, badgeShownRef])
   const successBadge = me ? badgeForPlan(me.plan?.id, me.status, me.teamMember) : null
 
-  async function upgrade(planId: PaidPlanId) {
-    setErr(null); setBusy(planId)
-    const error = await startCheckout(planId, cycle)  // 成功跳转 Stripe
-    if (error) { setErr(error); setBusy(null) }
-  }
   async function manage() {
     setErr(null); setBusy('portal')
     const error = await openPortal()
@@ -119,46 +106,10 @@ export default function AgentBilling() {
   // 我的套餐折扣(Founder<1),用来在消耗表显示实扣
   const myMult = Number(feat.plans.find((p) => p.id === planId)?.multiplier ?? 1)
 
-  // 月价优先取后端目录(与 Stripe 一致);积分额度同理
-  const catMonthly = (id: string, fallback: number) => {
-    const n = Number(catalog.find((p) => p.id === id)?.price_usd_month)
-    return Number.isFinite(n) && n > 0 ? n : fallback
-  }
-  const catCredits = (id: string, fallback: number) => {
-    const n = Number(catalog.find((p) => p.id === id)?.limits?.credits_month)
-    return Number.isFinite(n) && n > 0 ? n : fallback
-  }
-  // 年付实收价优先取后端目录(rookie=249,与 Stripe 一致),缺省回退 month×10
-  const catYear = (id: string, monthly: number) => {
-    const n = Number(catalog.find((p) => p.id === id)?.price_usd_year)
-    return Number.isFinite(n) && n > 0 ? n : monthly * 10
-  }
-  type PlanCard = { id: PaidPlanId; name: string; monthly: number; yearly: number; lines: string[]; edge: string }
-  const PLANS: PlanCard[] = [
-    { id: 'rookie', name: L('启程版 Starter', 'Starter'), monthly: catMonthly('rookie', 25), yearly: catYear('rookie', catMonthly('rookie', 25)), edge: '#0ea5e9',
-      lines: [L(`${catCredits('rookie', 200).toLocaleString()} 积分/月`, `${catCredits('rookie', 200).toLocaleString()} credits/mo`), L('地图/数据不限时 + 客户 CRM', 'Unlimited map & data + client CRM'), L('意向报告 + AI 楼书解析', 'Intent reports + AI brochure parsing'), L('Lead(尽力推送)', 'Leads (best-effort)')] },
-    { id: 'agent', name: L('专业版 Pro', 'Pro'), monthly: catMonthly('agent', 99), yearly: catYear('agent', catMonthly('agent', 99)), edge: '#10b981',
-      lines: [L(`${catCredits('agent', 1200).toLocaleString()} 积分/月`, `${catCredits('agent', 1200).toLocaleString()} credits/mo`), L('实时带看 + Luna 智能导览', 'Live tours + Luna AI tour'), L('应用内语音 + AI 楼书解析', 'In-app voice + AI brochure parsing'), L('Lead 优先推送 + 行为洞察', 'Priority leads + behavior insights')] },
-    { id: 'founder', name: L('经纪公司版 Agency', 'Agency'), monthly: catMonthly('founder', 699), yearly: catYear('founder', catMonthly('founder', 699)), edge: '#E8C37E',
-      lines: [L(`${catCredits('founder', 15000).toLocaleString()} 积分/月 · 含 3 席共享`, `${catCredits('founder', 15000).toLocaleString()} credits/mo · 3 shared seats`), L('积分消耗 ×0.6(省40%)', 'Credit cost ×0.6 (save 40%)'), L('White-label + 自定义域名', 'White-label + custom domain'), L('Lead 独占优先 · 优先支持', 'Exclusive lead priority · priority support')] },
-  ]
-  const pct = promo.active ? (promo.percentOff || 0) / 100 : 0
-  const fmtUsd = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
-  const cycleTotal = (p: PlanCard) => (cycle === 'year' ? p.yearly : p.monthly)
-  const priceLabel = (p: PlanCard) =>
-    `${fmtUsd(cycleTotal(p) * (1 - pct))} / ${cycle === 'year' ? L('年', 'yr') : L('月', 'mo')}`
-  // 划掉锚点:年付锚满 12 个月(月付连交一年),月付仅在有优惠时锚原月价
-  const struckLabel = (p: PlanCard) =>
-    cycle === 'year' ? `$${p.monthly * 12}` : pct > 0 ? `$${p.monthly}` : ''
-  const noteLabel = (p: PlanCard) => {
-    if (promo.active) return L(`发布价 -${promo.percentOff}% · 永久锁定`, `Launch price -${promo.percentOff}% · locked forever`)
-    if (cycle === 'year') {
-      const save = Math.round(p.monthly * 12 - p.yearly)
-      const monthsFree = p.monthly > 0 ? Math.round(save / p.monthly) : 0
-      return save > 0 ? L(`省 $${save}${monthsFree > 0 ? `(≈${monthsFree} 个月免费)` : ''}`, `Save $${save}${monthsFree > 0 ? ` (≈${monthsFree} months free)` : ''}`) : L('按年付,随时取消', 'Billed yearly, cancel anytime')
-    }
-    return L('按月付,随时取消', 'Billed monthly, cancel anytime')
-  }
+  // 升级入口:非顶档 + 非席位成员才显示(→ 角色专属选档页)
+  const canUpgrade = planId !== 'founder' && planId !== 'developer' && !me?.teamMember
+  const canceling = !!me?.cancel_at_period_end
+  const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(zh ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '')
 
   // 团队席位操作(founder 专用)
   async function invite() {
@@ -189,9 +140,17 @@ export default function AgentBilling() {
   return (
     <div className="space-y-6">
       {badgeDialog}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">{L('订阅与用量', 'Subscription & usage')}</h1>
-        <p className="mt-1 text-sm text-slate-500">{L('管理你的套餐、查看本月额度。支付由 Stripe 安全处理。', 'Manage your plan and view this month’s credits. Payments are handled securely by Stripe.')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{L('订阅与用量', 'Subscription & usage')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{L('管理你的套餐、查看本月额度。支付由 Stripe 安全处理。', 'Manage your plan and view this month’s credits. Payments are handled securely by Stripe.')}</p>
+        </div>
+        {canUpgrade && (
+          <Link to="/agent/plans"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+            {L('升级套餐', 'Upgrade')} <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        )}
       </div>
 
       {banner === 'success' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{L('✅ 订阅成功!额度已更新。', '✅ Subscription complete! Your credits are updated.')}</div>}
@@ -205,14 +164,28 @@ export default function AgentBilling() {
             <div className="text-xs text-slate-400">{L('当前套餐', 'Current plan')}</div>
             <div className="text-xl font-bold text-slate-900">{me?.plan.name || 'Explore'}</div>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-medium ${isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-            {STATUS_LABEL[status] || status}
+          <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+            canceling ? 'bg-amber-50 text-amber-700' : isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {canceling ? L('已取消', 'Canceling') : (STATUS_LABEL[status] || status)}
           </span>
         </div>
         {me?.current_period_end && (
-          <div className="mt-2 text-xs text-slate-400">
-            {status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Next renewal ')}{new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
+          <div className={`mt-2 text-xs ${canceling ? 'font-medium text-amber-600' : 'text-slate-400'}`}>
+            {canceling
+              ? L(`已取消订阅 —— 到期前仍可正常使用,可用至 ${fmtDate(me.current_period_end)}`, `Subscription canceled — you keep full access until ${fmtDate(me.current_period_end)}`)
+              : status === 'canceled'
+                ? L('有效期至 ', 'Valid until ') + fmtDate(me.current_period_end)
+                : status === 'trialing'
+                  ? L('免费试用至 ', 'Free trial until ') + fmtDate(me.current_period_end)
+                  : L('下次续费 ', 'Next renewal ') + fmtDate(me.current_period_end)}
           </div>
+        )}
+        {canceling && (
+          <button onClick={manage} disabled={busy === 'portal'}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:underline disabled:opacity-60">
+            {busy === 'portal' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{L('恢复订阅', 'Resume subscription')}
+          </button>
         )}
 
         {/* 本月积分余额 */}
@@ -227,7 +200,11 @@ export default function AgentBilling() {
             <div className="h-full rounded-full bg-emerald-500 transition-all"
               style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }} />
           </div>
-          <div className="mt-1 text-[11px] text-slate-400">{L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}</div>
+          <div className="mt-1 text-[11px] text-slate-400">
+            {me?.credits_reset_at
+              ? L(`${fmtDate(me.credits_reset_at)} 刷新额度,未用完不累积。`, `Credits reset ${fmtDate(me.credits_reset_at)}; unused don’t roll over.`)
+              : L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}
+          </div>
         </div>
 
         {/* 积分消耗表(成本来自后端配置,自动同步) */}
@@ -312,49 +289,18 @@ export default function AgentBilling() {
         </div>
       )}
 
-      {/* 升级选项(已是 founder 则不显示) */}
-      {planId !== 'founder' && planId !== 'developer' && !me?.teamMember && (
-        <div>
-          {promo.active && (
-            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm">
-              <span className="font-bold text-amber-700">{L('🔥 创始优惠 -', '🔥 Founding offer -')}{promo.percentOff}%</span>
-              <span className="text-amber-700">{L('订阅即永久锁定此价', 'Subscribe to lock this price forever')}</span>
-              {promo.seatsRemaining != null && <span className="text-amber-600">{L(`· 限 ${promo.seatsTotal} 席,仅剩 ${promo.seatsRemaining}`, `· ${promo.seatsTotal} seats only, ${promo.seatsRemaining} left`)}</span>}
-            </div>
-          )}
-          {/* 月付 / 年付 切换 */}
-          <div className="mb-3 flex items-center gap-2">
-            <span className="text-xs text-slate-400">{L('计费周期:', 'Billing cycle:')}</span>
-            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
-              <button onClick={() => setCycle('month')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'month' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>{L('按月付', 'Monthly')}</button>
-              <button onClick={() => setCycle('year')} className={`rounded-md px-2.5 py-1 font-medium ${cycle === 'year' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>{L('按年付 · 免费送2个月', 'Yearly · 2 months free')}</button>
-            </div>
+      {/* 升级引导(非顶档):不再内嵌套餐卡,改一条克制的入口 → 专属选档页 */}
+      {canUpgrade && (
+        <Link to="/agent/plans"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06] transition hover:ring-slate-300">
+          <div>
+            <div className="font-semibold text-slate-900">{L('需要更多额度与功能?', 'Need more credits and features?')}</div>
+            <div className="mt-0.5 text-sm text-slate-500">{L('查看专业版 / 经纪公司版 —— 更大积分池、实时带看、Lead 优先。', 'See Pro / Agency — bigger credit pool, live tours, priority leads.')}</div>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {PLANS.filter((p) => (PLAN_ORDER[p.id] ?? 0) > (PLAN_ORDER[planId] ?? 0)).map((p) => (
-              <div key={p.id} className="flex flex-col rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
-                <div className="flex items-baseline justify-between">
-                  <div className="font-bold text-slate-900">{p.name}</div>
-                  <div className="text-right">
-                    <div className="flex items-baseline justify-end gap-1.5">
-                      {struckLabel(p) && <span className="text-xs text-slate-400 line-through">{struckLabel(p)}</span>}
-                      <span className="text-sm font-semibold" style={{ color: p.edge }}>{priceLabel(p)}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400">{noteLabel(p)}</div>
-                  </div>
-                </div>
-                <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">
-                  {p.lines.map((l, i) => (<li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: p.edge }} /> {l}</li>))}
-                </ul>
-                <button onClick={() => upgrade(p.id)} disabled={busy === p.id}
-                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-                  style={{ background: p.edge }}>
-                  {busy === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (p.id === 'founder' ? L('升级到 Founder', 'Upgrade to Founder') : L('免费试用 7 天', 'Start 7-day free trial'))}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+            {L('查看套餐', 'View plans')} <ArrowUpRight className="h-4 w-4" />
+          </span>
+        </Link>
       )}
     </div>
   )

@@ -21,6 +21,7 @@ import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
 import { creditBalance, featureCatalog } from '../luna-tour/credits'
 import { clearAgentGate } from '../middleware/mapMeter'
+import { sendAlertEmail } from '../services/notify'
 
 const router = Router()
 
@@ -132,6 +133,54 @@ async function ensureCustomer(
     customer.id,
   ])
   return customer.id
+}
+
+/** 渲染"新订阅"通知邮件:带 Pinzos logo 的品牌化 HTML + 纯文本兜底。 */
+function renderSubscriptionEmail(d: {
+  who: string
+  planName: string
+  amount: number
+  ccy: string
+  intervalCn: string
+  trialing: boolean
+  subId: string
+}): { subject: string; text: string; html: string } {
+  const stripeUrl = `https://dashboard.stripe.com/subscriptions/${d.subId}`
+  const priceLine = `$${d.amount} ${d.ccy} / ${d.intervalCn}`
+  const statusText = d.trialing ? '7 天免费试用中(7 天后首次扣款)' : '已立即扣款'
+  const statusColor = d.trialing ? '#0284c7' : '#16a34a'
+  const subject = `🎉 新订阅:${d.planName} — ${d.who}`
+  const text = `${d.who} 刚订阅了 ${d.planName}(${priceLine}),${statusText}。\n\nStripe 订阅详情:${stripeUrl}`
+  const row = (label: string, value: string, color = '#0f172a') =>
+    `<tr><td style="padding:11px 0;border-top:1px solid #eef0f2;color:#64748b;font-size:14px;">${label}</td>` +
+    `<td style="padding:11px 0;border-top:1px solid #eef0f2;text-align:right;color:${color};font-size:14px;font-weight:600;">${value}</td></tr>`
+  const html = `<div style="background:#f4f5f7;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;">
+    <tr><td>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.08);">
+        <tr><td style="padding:20px 28px;border-bottom:1px solid #eef0f2;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:middle;"><img src="https://www.pinzos.com/icon-192.png" width="30" height="30" alt="Pinzos" style="display:block;border-radius:7px;"></td>
+            <td style="vertical-align:middle;padding-left:10px;font-size:18px;font-weight:700;color:#0f172a;letter-spacing:-0.01em;">Pinzos</td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="padding:28px;">
+          <div style="font-size:12px;font-weight:700;color:#0d9488;letter-spacing:0.06em;">🎉 新订阅</div>
+          <div style="font-size:22px;font-weight:700;color:#0f172a;margin-top:8px;line-height:1.3;word-break:break-all;">${d.who}</div>
+          <div style="font-size:15px;color:#475569;margin-top:4px;">订阅了 <b style="color:#0f172a;">${d.planName}</b></div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+            ${row('套餐', d.planName)}
+            ${row('价格', priceLine)}
+            ${row('状态', statusText, statusColor)}
+          </table>
+          <a href="${stripeUrl}" style="display:block;margin-top:24px;background:#0d9488;color:#ffffff;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-size:15px;font-weight:600;">在 Stripe 查看订阅 →</a>
+        </td></tr>
+      </table>
+      <div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px;">Pinzos · 迪拜期房购买新方式</div>
+    </td></tr>
+  </table>
+</div>`
+  return { subject, text, html }
 }
 
 // ============================================================
@@ -267,6 +316,30 @@ router.post('/portal', requireAuth, async (req: Request, res: Response) => {
 // ============================================================
 // GET /me — 当前套餐 + 状态 + 本月用量
 // ============================================================
+/**
+ * 打开账单页时向 Stripe 拉最新订阅状态自愈到 DB(webhook 可能漏/延迟 → 正规 SaaS 不能只靠 webhook)。
+ * 拿该经纪最近一条有 stripe_subscription_id 的订阅,retrieve 后走 upsertSubscription 同步
+ * (status / cancel_at_period_end / current_period_end)。best-effort,失败不阻断 /me。
+ */
+async function syncLatestSubFromStripe(agentId: string): Promise<void> {
+  const stripe = getStripe()
+  if (!stripe) return
+  const r = await pool.query<{ stripe_subscription_id: string | null }>(
+    `SELECT stripe_subscription_id FROM lt_subscriptions
+       WHERE agent_id = $1 AND stripe_subscription_id IS NOT NULL
+       ORDER BY created_at DESC LIMIT 1`,
+    [agentId]
+  )
+  const subId = r.rows[0]?.stripe_subscription_id
+  if (!subId) return
+  try {
+    const sub = await stripe.subscriptions.retrieve(subId)
+    await upsertSubscription(sub)
+  } catch (e) {
+    console.warn('[billing] lazy sync failed:', (e as Error).message)
+  }
+}
+
 router.get('/me', requireAuth, async (req: Request, res: Response) => {
   const agent = await currentAgent(req)
   if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })
@@ -278,12 +351,17 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       [agent.id]
     )
     const billingId = b.rows[0]?.billing_agent_id || agent.id
+
+    // 先向 Stripe 拉实时状态自愈(修「取消了但 DB 没更新」)。
+    await syncLatestSubFromStripe(billingId).catch(() => { /* best-effort */ })
+
     const sub = await pool.query<{
       plan_id: string
       status: string
       current_period_end: Date | null
+      cancel_at_period_end: boolean
     }>(
-      `SELECT plan_id, status, current_period_end FROM lt_subscriptions
+      `SELECT plan_id, status, current_period_end, cancel_at_period_end FROM lt_subscriptions
          WHERE agent_id = $1 AND status IN ('active', 'trialing', 'past_due')
          ORDER BY created_at DESC LIMIT 1`,
       [billingId]
@@ -300,12 +378,18 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     // 积分制:本月余额(creditsMonth - 已花),-1 = 无限(owner)
     const credits = await creditBalance(agent.id)
 
+    // 下次积分重置 = 下月 1 日 0 点 UTC(lt_usage_counters 按 period_month 分行,新月归零)。
+    const now = new Date()
+    const creditsResetAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+
     res.json({
       success: true,
       approved: agent.approved,
       plan: { id: planId, name: planRow.rows[0]?.name || 'Explore', limits },
       status,
       current_period_end: sub.rows[0]?.current_period_end || null,
+      cancel_at_period_end: !!sub.rows[0]?.cancel_at_period_end, // true = 已约定期末取消,期内仍可用
+      credits_reset_at: creditsResetAt,
       teamMember: billingId !== agent.id, // true = founder 席位成员(套餐由团队承担)
       credits: {
         month: credits.creditsMonth,   // 月额度(-1=无限)
@@ -743,6 +827,32 @@ export async function billingWebhookHandler(req: Request, res: Response): Promis
               : session.subscription.id
           const sub = await stripe.subscriptions.retrieve(subId)
           await upsertSubscription(sub)
+          // Notify owner + partner of a new subscription (best-effort; no-op if email unconfigured).
+          try {
+            const item = sub.items.data[0]
+            const priceId = item?.price?.id
+            let planName = '套餐'
+            if (priceId) {
+              const { rows } = await pool.query<{ name: string }>(
+                `SELECT name FROM lt_subscription_plans WHERE stripe_price_id = $1 OR stripe_price_id_year = $1 LIMIT 1`,
+                [priceId]
+              )
+              planName = rows[0]?.name || (await planForPriceId(priceId)) || '套餐'
+            }
+            const interval = item?.price?.recurring?.interval || 'month'
+            const { subject, text, html } = renderSubscriptionEmail({
+              who: session.customer_details?.email || session.customer_email || '未知邮箱',
+              planName,
+              amount: (item?.price?.unit_amount ?? 0) / 100,
+              ccy: (item?.price?.currency || 'usd').toUpperCase(),
+              intervalCn: interval === 'year' ? '年' : '月',
+              trialing: sub.status === 'trialing',
+              subId: sub.id,
+            })
+            await sendAlertEmail(subject, text, html)
+          } catch (e) {
+            console.error('[billing] subscribe notify failed:', e)
+          }
         }
         break
       }

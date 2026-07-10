@@ -22,6 +22,8 @@ export interface BillingMe {
   plan: { id: string; name: string; limits: Record<string, number | boolean> }
   status: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   current_period_end: string | null
+  cancel_at_period_end?: boolean // true = 已约定期末取消,期内仍可用
+  credits_reset_at?: string | null // 下次积分重置时间(下月 1 日)
   teamMember?: boolean // true = Founder 席位成员(套餐由团队承担)
   credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
 }
