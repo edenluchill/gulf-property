@@ -109,12 +109,13 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
                 transition={{ type: 'spring', stiffness: 120, damping: 18 }}
                 className="w-full rounded-lg shadow-[0_40px_120px_-20px_rgba(0,0,0,0.8)] ring-1 ring-[#C7A050]/25"
               />
-              {/* 一次性金色扫光(同理不加 key)*/}
+              {/* 一次性金色扫光:必须彻底划出画面(x 到 220% 让 w-1/2 的它完全移出
+                  overflow-hidden 容器),否则停在右侧会露出一条渐变残边。 */}
               <motion.div
-                initial={{ x: '-130%' }} animate={{ x: '130%' }}
+                initial={{ x: '-130%' }} animate={{ x: '220%' }}
                 transition={{ delay: 0.5, duration: 1, ease: 'easeInOut' }}
                 className="pointer-events-none absolute inset-y-0 w-1/2 -skew-x-12"
-                style={{ background: 'linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent)' }}
+                style={{ background: 'linear-gradient(105deg, transparent, rgba(255,255,255,0.3), transparent)' }}
               />
             </>
           ) : (

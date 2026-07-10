@@ -215,7 +215,44 @@ async function drawQR(ctx: CanvasRenderingContext2D, url: string, x: number, y: 
   } catch { return false }
 }
 
-/** 微暖白安全纸:细纤维 + guilloche 玫瑰花纹 + 轻暗角。 */
+/**
+ * 一支海枣椰(date palm)棕榈叶 —— 迪拜/阿联酋最具象征性的植物。
+ * 弯曲叶轴 + 两侧成对小叶,越往叶尖越短。用作淡金水印 + 角饰。
+ */
+function palmFrond(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, len: number, baseAngle: number, bend: number,
+  color: string, alpha: number, lw = 1.4
+) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = 'round'
+  const ex = x + Math.cos(baseAngle) * len, ey = y + Math.sin(baseAngle) * len
+  const perp = baseAngle + Math.PI / 2
+  const cxp = (x + ex) / 2 + Math.cos(perp) * bend, cyp = (y + ey) / 2 + Math.sin(perp) * bend
+  // 叶轴(二次贝塞尔)
+  ctx.lineWidth = lw * 1.6
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(cxp, cyp, ex, ey); ctx.stroke()
+  // 成对小叶 —— 填充的细长叶片(比线条更丰满,像真棕榈叶)
+  const N = 30
+  for (let i = 1; i < N; i++) {
+    const t = i / N
+    const px = (1 - t) * (1 - t) * x + 2 * (1 - t) * t * cxp + t * t * ex
+    const py = (1 - t) * (1 - t) * y + 2 * (1 - t) * t * cyp + t * t * ey
+    const tx = 2 * (1 - t) * (cxp - x) + 2 * t * (ex - cxp)
+    const ty = 2 * (1 - t) * (cyp - y) + 2 * t * (ey - cyp)
+    const ta = Math.atan2(ty, tx)
+    const ll = len * 0.24 * (1 - t * 0.62)   // 叶尖渐短
+    for (const s of [-1, 1]) {
+      const la = ta + s * (Math.PI / 2.9)     // 小叶朝斜前方(自然)
+      const mx = px + Math.cos(la) * ll * 0.5, my = py + Math.sin(la) * ll * 0.5
+      ctx.save(); ctx.translate(mx, my); ctx.rotate(la)
+      ctx.beginPath(); ctx.ellipse(0, 0, ll * 0.52, ll * 0.085 + 0.6, 0, 0, Math.PI * 2); ctx.fill()
+      ctx.restore()
+    }
+  }
+  ctx.restore()
+}
+
+/** 微暖白安全纸:细纤维 + 淡金棕榈叶花环水印 + 极淡 guilloche + 轻暗角。 */
 function paper(ctx: CanvasRenderingContext2D, W: number, H: number) {
   const g = ctx.createLinearGradient(0, 0, 0, H)
   g.addColorStop(0, '#FCFAF4'); g.addColorStop(1, '#F3ECDC')
@@ -226,11 +263,15 @@ function paper(ctx: CanvasRenderingContext2D, W: number, H: number) {
     ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.stroke()
   }
-  // guilloche 玫瑰花纹(层叠;证券底纹质感)
+  // 极淡 guilloche(留一点证券底纹质感,但不抢戏)
   const cx = W / 2, cy = H * 0.52
-  guilloche(ctx, cx, cy, 300, 44, 24, 0.05)
-  guilloche(ctx, cx, cy, 230, 36, 20, 0.05)
-  guilloche(ctx, cx, cy, 150, 28, 16, 0.045)
+  guilloche(ctx, cx, cy, 250, 40, 20, 0.03)
+  guilloche(ctx, cx, cy, 160, 30, 15, 0.028)
+  // 淡金色海枣椰花环水印(迪拜象征):两支从底部中心向上外张成弧,像花环框住下半,
+  // 中心留白给文字。优雅、独特、有辨识度。
+  const wy = H * 0.94
+  palmFrond(ctx, cx - 18, wy, H * 0.6, -Math.PI * 0.72, H * 0.26, GOLD, 0.08, 1.5)
+  palmFrond(ctx, cx + 18, wy, H * 0.6, -Math.PI * 0.28, -H * 0.26, GOLD, 0.08, 1.5)
   const v = ctx.createRadialGradient(cx, H / 2, H * 0.42, cx, H / 2, H * 0.92)
   v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(80,64,36,0.11)')
   ctx.fillStyle = v; ctx.fillRect(0, 0, W, H)
@@ -266,6 +307,11 @@ export async function drawCertificate(
     ctx.beginPath(); ctx.moveTo(x + sx * 26, y); ctx.lineTo(x + sx * 64, y); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(x, y + sy * 26); ctx.lineTo(x, y + sy * 64); ctx.stroke()
   }
+
+  // 顶部两角:淡金海枣椰叶饰(迪拜象征;优雅点缀,向中心内弯)
+  palmFrond(ctx, 118, 92, 190, -Math.PI * 0.06, 40, GOLD, 0.4, 1.3)
+  palmFrond(ctx, W - 118, 92, 190, -Math.PI * 0.94, -40, GOLD, 0.4, 1.3)
+
   ctx.textAlign = 'center'
 
   // 顶部权威徽记
