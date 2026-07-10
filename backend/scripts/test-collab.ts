@@ -224,6 +224,37 @@ async function run(): Promise<void> {
   await presenterLeave
   ok(true, 'leave fanned out to presenter')
 
+  // ── 9. 防偷听:presenter 踢人 + 结束带看即失效(旧 code 进不去)──
+  console.log('9. anti-eavesdrop: kick + end invalidates the code')
+  // 一个 viewer 加入(在场),presenter 踢掉它
+  const viewer3 = await connect(wsUrl)
+  const v3JoinSeen = waitFor(presenter, m => m.k === 'join' && m.who?.role === 'viewer', 'presenter sees viewer3 join')
+  viewer3.send(JSON.stringify({ k: 'hello', code, name: '偷听者', role: 'viewer' }))
+  const v3Sync = await waitFor(viewer3, m => m.k === 'sync', 'viewer3 sync')
+  const viewer3ConnId = v3Sync.connId
+  await v3JoinSeen
+  const v3Kicked = waitFor(viewer3, m => m.k === 'kicked', 'viewer3 receives kicked', 2000)
+  const v3Closed = new Promise<void>((resolve) => viewer3.once('close', () => resolve()))
+  presenter.send(JSON.stringify({ k: 'kick', connId: viewer3ConnId }))
+  await v3Kicked
+  ok(true, 'kicked viewer received {k:kicked}')
+  await v3Closed
+  ok(true, 'kicked viewer connection closed')
+
+  // presenter 结束带看 → 房间删,code 立即失效
+  presenter.send(JSON.stringify({ k: 'end' }))
+  await new Promise((r) => setTimeout(r, 250)) // 给 server 处理 end + 删房
+  const afterEnd = await (await fetch(`${base}/api/collab/rooms/${code}`)).json() as { exists: boolean }
+  ok(afterEnd.exists === false, 'after end: GET /rooms/:code exists=false (code invalidated)')
+
+  // 上一位客户拿旧 code 再进 → room_not_found(偷听被挡)
+  const eavesdropper = await connect(wsUrl)
+  const denied = waitFor(eavesdropper, m => m.k === 'error' && m.reason === 'room_not_found', 'eavesdropper denied', 2000)
+  eavesdropper.send(JSON.stringify({ k: 'hello', code, name: '偷听者2', role: 'viewer' }))
+  await denied
+  ok(true, 'old link → room_not_found (eavesdrop blocked)')
+  eavesdropper.close()
+
   // ── 收尾 ────────────────────────────────────────
   presenter.close()
   await new Promise<void>((resolve) => server.close(() => resolve()))
