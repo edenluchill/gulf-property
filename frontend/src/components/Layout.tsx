@@ -33,7 +33,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // (报价单生成后 navigate 过去)会让同一个 Layout 实例换分支,提前 return 会
   // 跳过 useState/useEffect → "Rendered fewer hooks"(2026-07-07 实锤;以前
   // /pp 只被新标签页打开所以从没触发)。
-  const bareSharePage = path.startsWith('/r/') || path.startsWith('/cr/') || path.startsWith('/pp/')
+  const bareSharePage = path.startsWith('/r/') || path.startsWith('/cr/') || path.startsWith('/pp/') || path.startsWith('/verify/')
 
   // The WebGL map is EXPENSIVE to create/destroy. Instead of mounting it per-route
   // (which re-initialised maplibre on every tab switch — the source of the jank),

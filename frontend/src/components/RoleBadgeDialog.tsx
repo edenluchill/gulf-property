@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Download, Check, Loader2 } from 'lucide-react'
 import { RoleBadge, drawCertificate } from '../lib/roleBadge'
-import { lunaFetch } from '../luna-tour/lunaApi'
+import { lunaFetch, registerCertificate } from '../luna-tour/lunaApi'
 
 export default function RoleBadgeDialog({ badge, name, onClose, celebrate = false }: {
   badge: RoleBadge
@@ -22,12 +22,15 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
   const [saved, setSaved] = useState(false)
   // 证书用经纪名片的真名 + 头像(比 Google metadata 更正式);拿不到就退回传入的 name。
   const [profile, setProfile] = useState<{ name?: string; photoUrl?: string | null }>({})
+  // 登记可验证凭证 → 拿到 credentialId(证书二维码指向 /verify/:id)
+  const [credentialId, setCredentialId] = useState<string | undefined>(undefined)
   useEffect(() => {
     let stale = false
     lunaFetch('/profile').then((r) => r.json()).then((j) => {
       if (stale || !j?.agent) return
       setProfile({ name: j.agent.display_name || undefined, photoUrl: j.agent.photo_url || null })
     }).catch(() => {})
+    registerCertificate().then((id) => { if (!stale && id) setCredentialId(id) }).catch(() => {})
     return () => { stale = true }
   }, [])
 
@@ -35,10 +38,10 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
     const canvas = canvasRef.current
     if (!canvas) return
     let stale = false
-    void drawCertificate(canvas, badge, { name: profile.name || name, zh, photoUrl: profile.photoUrl })
+    void drawCertificate(canvas, badge, { name: profile.name || name, zh, photoUrl: profile.photoUrl, credentialId })
       .then(() => { if (!stale) { try { setDataUrl(canvas.toDataURL('image/png')) } catch { /* tainted */ } } })
     return () => { stale = true }
-  }, [badge, name, zh, profile.name, profile.photoUrl])
+  }, [badge, name, zh, profile.name, profile.photoUrl, credentialId])
 
   const save = () => {
     if (!dataUrl) return

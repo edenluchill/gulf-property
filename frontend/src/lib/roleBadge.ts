@@ -3,6 +3,7 @@
  * 设计稿: docs/role-onboarding-badges-plan-2026-07-05.md
  * 展示:UserMenu 常显 + 「我的勋章」弹窗可生成发朋友圈的分享图(canvas)。
  */
+import QRCode from 'qrcode'
 
 export interface RoleBadge {
   planId: string
@@ -201,6 +202,19 @@ function sealMedal(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   ctx.fillText(spread('PINZOS', 2), cx, cy + r * 0.34)
 }
 
+/** 画一个真实可扫的二维码(navy on 浅底,链接到公开验证页)。 */
+async function drawQR(ctx: CanvasRenderingContext2D, url: string, x: number, y: number, size: number): Promise<boolean> {
+  try {
+    const durl = await QRCode.toDataURL(url, { margin: 1, width: size * 3, color: { dark: '#1C2B4A', light: '#FAF6EC' } })
+    const img = await new Promise<HTMLImageElement | null>((res) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = durl
+    })
+    if (!img) return false
+    ctx.drawImage(img, x, y, size, size)
+    return true
+  } catch { return false }
+}
+
 /** 微暖白安全纸:细纤维 + guilloche 玫瑰花纹 + 轻暗角。 */
 function paper(ctx: CanvasRenderingContext2D, W: number, H: number) {
   const g = ctx.createLinearGradient(0, 0, 0, H)
@@ -230,7 +244,7 @@ function paper(ctx: CanvasRenderingContext2D, W: number, H: number) {
 export async function drawCertificate(
   canvas: HTMLCanvasElement,
   badge: RoleBadge,
-  opts: { name: string; zh?: boolean; photoUrl?: string | null; dateStr?: string }
+  opts: { name: string; zh?: boolean; photoUrl?: string | null; dateStr?: string; credentialId?: string }
 ): Promise<void> {
   const W = 1600, H = 1130
   canvas.width = W; canvas.height = H
@@ -303,27 +317,29 @@ export async function drawCertificate(
   const y4 = opts.dateStr ? opts.dateStr.slice(0, 4) : String(d.getFullYear())
   const mi = opts.dateStr ? Number(opts.dateStr.slice(5, 7)) - 1 : d.getMonth()
   const dateDisp = `${MONTHS_EN[mi] || ''} ${y4}`
-  const no = certNumber(`${name}|${badge.planId}`)
+  const credentialId = opts.credentialId || `PZ-${y4}-${certNumber(`${name}|${badge.planId}`)}`
 
-  // 底部三栏:日期 | 金色认证徽章 | 凭证编号 + 验证链接
-  sealMedal(ctx, cx, 942, 90)
+  // 底部三栏:日期 | 金色认证徽章 | 二维码 + 凭证编号(可扫验证)
+  sealMedal(ctx, cx, 942, 88)
 
-  const lx = 322
+  const lx = 300
   ctx.strokeStyle = goldGrad(ctx, 906, 912); ctx.lineWidth = 1
-  ctx.beginPath(); ctx.moveTo(lx - 130, 908); ctx.lineTo(lx + 130, 908); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(lx - 120, 908); ctx.lineTo(lx + 120, 908); ctx.stroke()
   ctx.textAlign = 'center'
   ctx.fillStyle = goldGrad(ctx, 932, 948); ctx.font = `600 15px ${SANS}`
   ctx.fillText(spread('DATE OF ISSUE', 2), lx, 944)
-  ctx.fillStyle = NAVY; ctx.font = `italic 400 29px ${SERIF}`
+  ctx.fillStyle = NAVY; ctx.font = `italic 400 30px ${SERIF}`
   ctx.fillText(dateDisp, lx, 986)
 
-  const rx = W - 322
-  ctx.strokeStyle = goldGrad(ctx, 906, 912); ctx.lineWidth = 1
-  ctx.beginPath(); ctx.moveTo(rx - 130, 908); ctx.lineTo(rx + 130, 908); ctx.stroke()
-  ctx.fillStyle = goldGrad(ctx, 932, 948); ctx.font = `600 15px ${SANS}`
-  ctx.fillText(spread('CREDENTIAL ID', 2), rx, 944)
-  ctx.fillStyle = NAVY; ctx.font = `700 26px ${SERIF}`
-  ctx.fillText(`PZ-${y4}-${no}`, rx, 984)
+  // 右栏:真实二维码(扫码到公开验证页)+ 凭证编号
+  const rx = W - 300
+  const origin = (typeof window !== 'undefined' && window.location?.origin) || 'https://pinzos.com'
+  const verifyUrl = `${origin}/verify/${credentialId}`
+  const qrSize = 108
+  const ok = await drawQR(ctx, verifyUrl, rx - qrSize / 2, 858, qrSize)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = NAVY; ctx.font = `700 22px ${SERIF}`
+  ctx.fillText(credentialId, rx, 998)
   ctx.fillStyle = MUTE; ctx.font = `400 15px ${SANS}`
-  ctx.fillText('Verify at pinzos.com/verify', rx, 1010)
+  ctx.fillText(ok ? 'Scan to verify · pinzos.com/verify' : 'Verify at pinzos.com/verify', rx, 1022)
 }

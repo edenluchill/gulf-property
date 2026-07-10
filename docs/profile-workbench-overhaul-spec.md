@@ -221,6 +221,11 @@
 - **删内嵌套餐卡**(用户嫌碍眼):AgentBilling 底部三张升级卡全删(连同 PLANS/价格helper/promo/cycle/catalog 全清),改**右上「升级套餐」按钮 + 一条克制入口 → /agent/plans**。
 - 纯前端+后端,quick-deploy。
 
+### ✅ 证书 v5 去廉价感 + 逐档头衔 + 真二维码验证(2026-07-10):
+- **去廉价感**:guilloche 玫瑰花纹安全底纹(证券质感)+ 金色改烫金渐变(上亮下暗)+ 顶部桂冠星徽记 + 边框角饰 + 印章加桂冠。
+- **逐档专业头衔**(RoleBadge 加 `certTitle`,与短 chip titleEn 分开):Starter=Certified Property Agent / Pro=Senior Certified Advisor / Agency=Accredited Brokerage Partner / Developer=Accredited Development Partner。后端 CERT_TITLES 同源。
+- **真二维码 + 可验证**(闭环):证书右下真 QR(qrcode 库)→ `${origin}/verify/{credentialId}`。新表 `lt_certificates`(credential_id 由 姓名|档位 hash 派生,前后端同算法);登记 `POST /api/luna/agent/certificate`(RoleBadgeDialog 打开时调);公开查 `GET /api/luna/public/certificate/:code`;新公开页 `/verify/:code`(VerifyPage,bareSharePage,始终英文,绿盾+持有人+头衔+编号+日期)。改凭证/头衔看 roleBadge.certNumber + 后端 certHash(必须同算法)。
+
 ### ✅ 证书 v4 横版数字凭证(2026-07-10,用户嫌 v3 蜡印/签名山寨):
 - 上网 research(Accredible/Certifier)后重做:**横版 1600×1130、始终英文**(无论 app 语言)。
 - 参考 AWS/Credly 现代数字凭证:navy(#1C2B4A)+ gold(#B08A3C)on ivory 安全纸(细纤维+中心隐纹同心圆+暗角);机构 masthead PINZOS + 副标 + 金 rule;姓名衬线主视觉+金下划线;称号大写金衬线;一句正文。

@@ -688,4 +688,24 @@ router.get('/public/client-report/:code', async (req: Request, res: Response) =>
   }
 })
 
+/** 公开凭证验证:/verify/:code 页据此展示「✓ 有效凭证 · 持有人 · 称号 · 日期」。 */
+router.get('/public/certificate/:code', async (req: Request, res: Response) => {
+  try {
+    const r = await pool.query<{ credential_id: string; holder_name: string; cert_title: string; plan_id: string; issued_at: Date }>(
+      `SELECT credential_id, holder_name, cert_title, plan_id, issued_at FROM lt_certificates WHERE credential_id = $1`,
+      [String(req.params.code || '').toUpperCase()]
+    )
+    if (!r.rowCount) return res.json({ success: true, valid: false })
+    const c = r.rows[0]
+    res.json({
+      success: true, valid: true,
+      credentialId: c.credential_id, holderName: c.holder_name, certTitle: c.cert_title,
+      planId: c.plan_id, issuedAt: c.issued_at,
+    })
+  } catch (err) {
+    console.error('[luna] certificate verify error:', err)
+    res.status(500).json({ success: false, error: 'verify failed' })
+  }
+})
+
 export default router

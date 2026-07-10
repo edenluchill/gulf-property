@@ -229,3 +229,12 @@ export async function convertLead(id: number): Promise<string | null> {
   const j = await r.json().catch(() => ({}))
   return r.ok ? (j.clientId as string) : null
 }
+
+/** 登记可验证证书(打开证书弹窗时调用),返回 credentialId(PZ-YYYY-NNNNNN)。 */
+export async function registerCertificate(): Promise<string | null> {
+  try {
+    const r = await lunaFetch('/certificate', { method: 'POST' })
+    const j = await r.json().catch(() => ({}))
+    return r.ok && j.credentialId ? (j.credentialId as string) : null
+  } catch { return null }
+}

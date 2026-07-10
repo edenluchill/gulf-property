@@ -547,6 +547,46 @@ router.post('/avatar', multer({ storage: multer.memoryStorage(), limits: { fileS
   }
 })
 
+// ── 可验证证书登记(证书二维码 → 公开 /verify 页)──────────────
+// credential_id 由 姓名|档位 派生(与前端 roleBadge.certNumber 同算法)。
+const CERT_TITLES: Record<string, string> = {
+  rookie: 'Certified Property Agent',
+  agent: 'Senior Certified Advisor',
+  founder: 'Accredited Brokerage Partner',
+  developer: 'Accredited Development Partner',
+}
+function certHash(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return String(h % 1000000).padStart(6, '0')
+}
+
+/** 登记/更新当前经纪的认证凭证(打开证书弹窗时前端调用;幂等)。返回 credentialId。 */
+router.post('/certificate', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const a = await pool.query<{ display_name: string | null }>('SELECT display_name FROM lt_agents WHERE id=$1', [agentId])
+    const name = (a.rows[0]?.display_name || 'Agent').trim()
+    const sub = await pool.query<{ plan_id: string }>(
+      `SELECT plan_id FROM lt_subscriptions WHERE agent_id=$1 AND status IN ('active','trialing') ORDER BY created_at DESC LIMIT 1`,
+      [agentId]
+    )
+    const plan = sub.rows[0]?.plan_id || 'rookie'
+    const title = CERT_TITLES[plan] || 'Certified Property Agent'
+    const credentialId = `PZ-${new Date().getFullYear()}-${certHash(`${name}|${plan}`)}`
+    await pool.query(
+      `INSERT INTO lt_certificates (credential_id, agent_id, holder_name, plan_id, cert_title)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (credential_id) DO UPDATE SET holder_name=EXCLUDED.holder_name, cert_title=EXCLUDED.cert_title, plan_id=EXCLUDED.plan_id`,
+      [credentialId, agentId, name, plan, title]
+    )
+    res.json({ success: true, credentialId, holderName: name, certTitle: title })
+  } catch (err) {
+    console.error('[agent/certificate] error:', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
 /** This agent's monthly usage (for the dashboard quota meter). */
 router.get('/usage', async (req: Request, res: Response) => {
   try {

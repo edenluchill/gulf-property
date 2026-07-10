@@ -6,6 +6,7 @@ import { installApiErrorCapture } from './lib/errorCapture'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectReportPage from './pages/ProjectReportPage'
 import PaymentPlanSharePage from './pages/PaymentPlanSharePage'  // 付款计划分享页 /pp/:code (客户免登录)
+import VerifyPage from './pages/VerifyPage'  // 公开凭证验证页 /verify/:code (证书二维码落地)
 import ClientReportPage from './pages/ClientReportPage'
 import FavoritesPage from './pages/FavoritesPage'
 import DeveloperPropertyUploadPageV2 from './pages/DeveloperPropertyUploadPageV2'
@@ -96,6 +97,8 @@ function App() {
         <Route path="/r/:code" element={<ProjectReportPage />} />
         {/* Shareable payment-plan quote (agent picks unit + types actual price) */}
         <Route path="/pp/:code" element={<PaymentPlanSharePage />} />
+        {/* 公开凭证验证页(证书二维码/链接落地) */}
+        <Route path="/verify/:code" element={<VerifyPage />} />
         {/* Comprehensive client investment proposal (shareable, printable) */}
         <Route path="/cr/:code" element={<ClientReportPage />} />
         {/* Full-screen visual storyboard editor */}
