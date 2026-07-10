@@ -221,6 +221,13 @@
 - **删内嵌套餐卡**(用户嫌碍眼):AgentBilling 底部三张升级卡全删(连同 PLANS/价格helper/promo/cycle/catalog 全清),改**右上「升级套餐」按钮 + 一条克制入口 → /agent/plans**。
 - 纯前端+后端,quick-deploy。
 
+### ✅ 证书 v4 横版数字凭证(2026-07-10,用户嫌 v3 蜡印/签名山寨):
+- 上网 research(Accredible/Certifier)后重做:**横版 1600×1130、始终英文**(无论 app 语言)。
+- 参考 AWS/Credly 现代数字凭证:navy(#1C2B4A)+ gold(#B08A3C)on ivory 安全纸(细纤维+中心隐纹同心圆+暗角);机构 masthead PINZOS + 副标 + 金 rule;姓名衬线主视觉+金下划线;称号大写金衬线;一句正文。
+- **删假蜡印 + 删假手写签名**(用户质疑"谁的签名");底部三栏:DATE OF ISSUE | 干净金色 CERTIFIED·PINZOS 币章(星+币缘点,非卡通)| **CREDENTIAL ID + "Verify at pinzos.com/verify"**(现代凭证用验证链接取代签名,更可信)。
+- `RoleBadgeDialog` 放大到 `max-w-2xl` 适配横版;skeleton 改 aspect-[1.42/1]。
+- 证书**不再放头像**(专业凭证不放照片,更正规)。改证书样式看 roleBadge.ts drawCertificate + sealMedal/paper/star helpers。
+
 ## 已定决策(2026-07-09 用户拍板)
 
 - **执行顺序**:先做 **T2+T3**(视觉统一 + 手机导航)。其余按 spec 顺序。

@@ -74,27 +74,19 @@ const MEMBER_BADGES: Record<string, RoleBadge> = {
   },
 }
 
-// ── 学院派纸质文凭配色(参考 SFU / MIT 毕业证)────────────────
-const BURG = '#6E1518'   // 深酒红(校名/人名/印章/分隔线)
-const INK = '#33302A'    // 暖墨色(正文)
-const MUTE = '#8A8270'   // 灰褐(次要文字)
+// ── 证书配色(navy + gold on ivory —— 官方、可信;非山寨金卡)──────
+const NAVY = '#1C2B4A'   // 深藏青(机构名/人名/日期/编号)
+const GOLD = '#B08A3C'   // 沉稳金(称号/印章/边线)
+const MUTE = '#7A7469'   // 灰褐(次要文字)
 const SERIF = 'Georgia, "Times New Roman", "PingFang SC", "Microsoft YaHei", serif'
+const SANS = '"Helvetica Neue", Arial, "PingFang SC", system-ui, sans-serif'
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-/** 稳定的证书编号(按持有人 + 档位派生,不随每次生成变化)。 */
+/** 稳定的凭证编号(按持有人 + 档位派生,不随每次生成变化)。 */
 function certNumber(seed: string): string {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
   return String(h % 1000000).padStart(6, '0')
-}
-
-function loadImage(url: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
-    img.src = url
-  })
 }
 
 /** 字间距(canvas 无原生 letter-spacing,用细空格近似拉开)。 */
@@ -102,15 +94,12 @@ function spread(s: string, n: number): string {
   return s.split('').join(String.fromCharCode(0x2009).repeat(Math.max(1, n)))
 }
 
-/** 居中自动换行(latin 按词、CJK 按字),返回实际行数。 */
+/** 居中自动换行(按词),返回行数。 */
 function wrapCentered(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, maxW: number, lh: number): number {
-  const cjk = /[一-鿿]/.test(text)
-  const tokens = cjk ? text.split('') : text.split(' ')
-  const glue = cjk ? '' : ' '
   const lines: string[] = []
   let cur = ''
-  for (const t of tokens) {
-    const trial = cur ? cur + glue + t : t
+  for (const t of text.split(' ')) {
+    const trial = cur ? cur + ' ' + t : t
     if (ctx.measureText(trial).width > maxW && cur) { lines.push(cur); cur = t } else cur = trial
   }
   if (cur) lines.push(cur)
@@ -118,194 +107,153 @@ function wrapCentered(ctx: CanvasRenderingContext2D, text: string, cx: number, y
   return lines.length
 }
 
-/** 羊皮纸纤维质感 + 暗角 + 隐纹章。 */
-function parchment(ctx: CanvasRenderingContext2D, W: number, H: number, emblemFn: () => void) {
-  const g = ctx.createLinearGradient(0, 0, W, H)
-  g.addColorStop(0, '#F5EEDB'); g.addColorStop(0.5, '#EFE7CF'); g.addColorStop(1, '#E7DCBE')
+/** 五角星。 */
+function star(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
+  ctx.beginPath()
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5
+    const rad = i % 2 === 0 ? r : r * 0.42
+    const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+  }
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill()
+}
+
+/** 干净的金色认证徽章(双环 + 币缘点 + 星 + CERTIFIED / PINZOS);非卡通蜡印。 */
+function sealMedal(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.fillStyle = 'rgba(176,138,60,0.05)'
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
+  ctx.lineWidth = 1
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2); ctx.stroke()
+  ctx.fillStyle = GOLD
+  const dots = 48
+  for (let i = 0; i < dots; i++) {
+    const a = (2 * Math.PI * i) / dots
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r * 0.91, cy + Math.sin(a) * r * 0.91, 1.5, 0, Math.PI * 2); ctx.fill()
+  }
+  star(ctx, cx, cy - r * 0.26, r * 0.2, GOLD)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = NAVY
+  ctx.font = `700 ${Math.round(r * 0.19)}px ${SANS}`
+  ctx.fillText(spread('CERTIFIED', 2), cx, cy + r * 0.14)
+  ctx.fillStyle = GOLD
+  ctx.font = `600 ${Math.round(r * 0.14)}px ${SANS}`
+  ctx.fillText(spread('PINZOS', 2), cx, cy + r * 0.46)
+}
+
+/** 微暖白安全纸:细纤维 + 中心隐纹同心圆 + 轻暗角。 */
+function paper(ctx: CanvasRenderingContext2D, W: number, H: number) {
+  const g = ctx.createLinearGradient(0, 0, 0, H)
+  g.addColorStop(0, '#FCFAF4'); g.addColorStop(1, '#F4EEE0')
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
-  // 纤维:大量极淡短线
-  for (let i = 0; i < 5200; i++) {
-    const x = Math.random() * W, y = Math.random() * H
-    const a = Math.random() * Math.PI, len = 2 + Math.random() * 7
-    ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(120,100,60,0.05)' : 'rgba(255,250,235,0.06)'
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * W, y = Math.random() * H, a = Math.random() * Math.PI, len = 2 + Math.random() * 6
+    ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(120,100,60,0.035)' : 'rgba(255,252,244,0.05)'
     ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.stroke()
   }
-  // 隐纹章(浅底纹)
-  ctx.save(); ctx.globalAlpha = 0.05; emblemFn(); ctx.restore()
-  // 暗角
-  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.34, W / 2, H / 2, H * 0.72)
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(90,70,40,0.14)')
+  ctx.strokeStyle = 'rgba(176,138,60,0.045)'; ctx.lineWidth = 1
+  for (let rr = 70; rr < 430; rr += 15) { ctx.beginPath(); ctx.arc(W / 2, H * 0.5, rr, 0, Math.PI * 2); ctx.stroke() }
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 0.9)
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(80,64,36,0.10)')
   ctx.fillStyle = v; ctx.fillRect(0, 0, W, H)
 }
 
-/** 纹章徽记(顶部小奖章 + 隐纹章共用):环 + 衬线 P + 两道横杠(呼应 Pinzos)。 */
-function emblem(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {
-  ctx.strokeStyle = color; ctx.fillStyle = color
-  ctx.lineWidth = r * 0.06
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
-  ctx.lineWidth = r * 0.03
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2); ctx.stroke()
-  ctx.font = `700 ${r * 0.9}px ${SERIF}`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('P', cx, cy - r * 0.04)
-  ctx.textBaseline = 'alphabetic'
-}
-
-/** 红蜡凸印。 */
-function waxSeal(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  const pts = 44
-  ctx.beginPath()
-  for (let i = 0; i < pts * 2; i++) {
-    const ang = (Math.PI * i) / pts
-    const rad = i % 2 === 0 ? r : r * 0.9
-    const x = cx + Math.cos(ang) * rad, y = cy + Math.sin(ang) * rad
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-  }
-  ctx.closePath()
-  const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r)
-  g.addColorStop(0, '#A8342F'); g.addColorStop(1, '#7A1C1C')
-  ctx.fillStyle = g; ctx.fill()
-  ctx.strokeStyle = 'rgba(255,220,200,0.25)'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2); ctx.stroke()
-  ctx.strokeStyle = 'rgba(60,10,10,0.35)'; ctx.lineWidth = 1.5
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2); ctx.stroke()
-  ctx.fillStyle = 'rgba(255,225,205,0.9)'
-  ctx.font = `700 ${r * 0.7}px ${SERIF}`
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('P', cx, cy - r * 0.02)
-  ctx.textBaseline = 'alphabetic'
-}
-
-/** 手写体签名(贝塞尔涂鸦 + 下划线)。 */
-function signature(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
-  ctx.strokeStyle = '#2C2A3A'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(x, y)
-  ctx.bezierCurveTo(x + w * 0.12, y - 34, x + w * 0.22, y + 20, x + w * 0.33, y - 8)
-  ctx.bezierCurveTo(x + w * 0.44, y - 32, x + w * 0.5, y + 22, x + w * 0.62, y - 4)
-  ctx.bezierCurveTo(x + w * 0.72, y - 26, x + w * 0.86, y + 14, x + w, y - 12)
-  ctx.stroke()
-  ctx.lineWidth = 1
-  ctx.beginPath(); ctx.moveTo(x - 6, y + 22); ctx.lineTo(x + w + 6, y + 22); ctx.strokeStyle = '#4a4436'; ctx.stroke()
-}
-
-const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-
 /**
- * 画一张学院派纸质认证文凭(1080×1350 竖版,朋友圈/WhatsApp Status 用)。
- * 羊皮纸纤维质感 + 深酒红衬线校名 + 斜体人名 + 红蜡凸印 + 手写签名。
- * 参考真实大学毕业证(SFU / MIT)。头像可选(lt_agents.photo_url;跨域失败退首字母)。
+ * 画一张横版专业认证证书(1600×1130,始终英文)。
+ * 参考现代数字凭证(AWS/Credly)的可信做法:机构标识居中 + 姓名/称号衬线主视觉
+ * + 唯一凭证编号 + 「Verify at …」验证链接 取代不可信的手写签名。navy+gold 官方配色。
  */
 export async function drawCertificate(
   canvas: HTMLCanvasElement,
   badge: RoleBadge,
-  opts: { name: string; zh: boolean; photoUrl?: string | null; dateStr?: string }
+  opts: { name: string; zh?: boolean; photoUrl?: string | null; dateStr?: string }
 ): Promise<void> {
-  const W = 1080, H = 1350
+  const W = 1600, H = 1130
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  const { name, zh } = opts
+  const name = opts.name
   const cx = W / 2
 
-  // 纸 + 质感 + 隐纹章
-  parchment(ctx, W, H, () => emblem(ctx, cx, H / 2, 300, BURG))
+  paper(ctx, W, H)
 
-  // 边框:双细线 + 四角小菱形(经典雕版感)
-  ctx.strokeStyle = BURG
-  ctx.lineWidth = 3; ctx.strokeRect(56, 56, W - 112, H - 112)
-  ctx.lineWidth = 1; ctx.strokeRect(70, 70, W - 140, H - 140)
-  ctx.fillStyle = BURG
-  for (const [x, y] of [[70, 70], [W - 70, 70], [70, H - 70], [W - 70, H - 70]]) {
-    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-7, -7, 14, 14); ctx.restore()
+  // 边框:金色双细线 + 四角小菱形
+  ctx.strokeStyle = GOLD
+  ctx.lineWidth = 2.5; ctx.strokeRect(46, 46, W - 92, H - 92)
+  ctx.lineWidth = 1; ctx.strokeRect(58, 58, W - 116, H - 116)
+  ctx.fillStyle = GOLD
+  for (const [x, y] of [[58, 58], [W - 58, 58], [58, H - 58], [W - 58, H - 58]]) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-6, -6, 12, 12); ctx.restore()
   }
   ctx.textAlign = 'center'
 
-  // 顶部纹章
-  emblem(ctx, cx, 168, 46, BURG)
-
-  // 校名(大号衬线大写 + 强字间距)
-  ctx.fillStyle = BURG
-  ctx.font = `700 88px ${SERIF}`
-  ctx.fillText(spread('PINZOS', 6), cx, 300)
-  ctx.fillStyle = MUTE
-  ctx.font = `600 25px ${SERIF}`
-  ctx.fillText(spread(zh ? '迪拜房地产专业认证' : 'DUBAI REAL ESTATE CERTIFICATION', zh ? 3 : 2), cx, 344)
-  // 短分隔线
-  ctx.strokeStyle = BURG; ctx.lineWidth = 1.5
-  ctx.beginPath(); ctx.moveTo(cx - 90, 372); ctx.lineTo(cx + 90, 372); ctx.stroke()
+  // 机构标识(masthead)
+  ctx.fillStyle = NAVY
+  ctx.font = `700 72px ${SERIF}`
+  ctx.fillText(spread('PINZOS', 6), cx, 158)
+  ctx.fillStyle = GOLD
+  ctx.font = `600 22px ${SANS}`
+  ctx.fillText(spread('DUBAI REAL ESTATE CERTIFICATION', 3), cx, 200)
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.moveTo(cx - 70, 228); ctx.lineTo(cx + 70, 228); ctx.stroke()
 
   // 引导语
   ctx.fillStyle = MUTE
-  ctx.font = `600 26px ${SERIF}`
-  ctx.fillText(spread(zh ? '兹证明' : 'THIS IS TO CERTIFY THAT', zh ? 4 : 2), cx, 452)
+  ctx.font = `600 22px ${SANS}`
+  ctx.fillText(spread('THIS CERTIFICATE IS PROUDLY PRESENTED TO', 2), cx, 312)
 
-  // 可选头像(细酒红双环);有头像则人名下移
-  const img = opts.photoUrl ? await loadImage(opts.photoUrl) : null
-  let nameY = 560
-  if (img) {
-    const py = 560, pr = 80
-    ctx.save()
-    ctx.beginPath(); ctx.arc(cx, py, pr, 0, Math.PI * 2); ctx.clip()
-    const s = Math.max((2 * pr) / img.width, (2 * pr) / img.height)
-    ctx.drawImage(img, cx - (img.width * s) / 2, py - (img.height * s) / 2, img.width * s, img.height * s)
-    ctx.restore()
-    ctx.strokeStyle = BURG; ctx.lineWidth = 3
-    ctx.beginPath(); ctx.arc(cx, py, pr + 6, 0, Math.PI * 2); ctx.stroke()
-    ctx.lineWidth = 1
-    ctx.beginPath(); ctx.arc(cx, py, pr + 12, 0, Math.PI * 2); ctx.stroke()
-    nameY = 720
-  }
+  // 姓名(衬线主视觉,过长自动缩)+ 金色下划线
+  ctx.fillStyle = NAVY
+  let ns = 84
+  ctx.font = `700 ${ns}px ${SERIF}`
+  while (ctx.measureText(name).width > W - 520 && ns > 40) { ns -= 4; ctx.font = `700 ${ns}px ${SERIF}` }
+  ctx.fillText(name, cx, 415)
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5
+  const uw = Math.min(W - 560, Math.max(320, ctx.measureText(name).width + 140))
+  ctx.beginPath(); ctx.moveTo(cx - uw / 2, 448); ctx.lineTo(cx + uw / 2, 448); ctx.stroke()
 
-  // 持有人真名(斜体衬线,过长自动缩)
-  ctx.fillStyle = INK
-  let ns = 88
-  ctx.font = `italic 700 ${ns}px ${SERIF}`
-  while (ctx.measureText(name).width > W - 300 && ns > 44) { ns -= 4; ctx.font = `italic 700 ${ns}px ${SERIF}` }
-  ctx.fillText(name, cx, nameY)
-
-  // 认证为
+  // 授予的称号
   ctx.fillStyle = MUTE
   ctx.font = `italic 400 27px ${SERIF}`
-  ctx.fillText(zh ? '获认证为' : 'has been certified as a', cx, nameY + 56)
+  ctx.fillText('in recognition of attaining the professional designation of', cx, 512)
+  ctx.fillStyle = GOLD
+  ctx.font = `700 44px ${SERIF}`
+  ctx.fillText(spread((badge.titleEn || 'Certified Agent').toUpperCase(), 1), cx, 574)
 
-  // 角色称号(斜体酒红)
-  ctx.fillStyle = BURG
-  ctx.font = `italic 600 46px ${SERIF}`
-  ctx.fillText(zh ? badge.titleZh : badge.titleEn, cx, nameY + 116)
-
-  // 表彰正文(2 行)
+  // 一句正文
   ctx.fillStyle = MUTE
-  ctx.font = `400 25px ${SERIF}`
-  const body = zh
-    ? '以表彰其在 Pinzos 平台通过认证的专业地位 —— 迪拜期房购买的全新方式。'
-    : 'In recognition of their verified professional standing on Pinzos — the modern way to buy off-plan property in Dubai.'
-  wrapCentered(ctx, body, cx, nameY + 180, W - 300, 38)
+  ctx.font = `400 22px ${SANS}`
+  wrapCentered(ctx, 'Verified for professional standing on Pinzos, Dubai’s modern off-plan real-estate platform.', cx, 636, W - 360, 32)
 
-  // 日期(斜体)
+  // 日期
   const d = new Date()
   const y4 = opts.dateStr ? opts.dateStr.slice(0, 4) : String(d.getFullYear())
   const mi = opts.dateStr ? Number(opts.dateStr.slice(5, 7)) - 1 : d.getMonth()
-  const dateDisp = zh ? `${y4} 年 ${mi + 1} 月` : `${MONTHS_EN[mi] || ''} ${y4}`
-  ctx.fillStyle = INK
-  ctx.font = `italic 400 30px ${SERIF}`
-  ctx.fillText((zh ? '认证于 ' : 'Issued ') + dateDisp, cx, 1058)
-
-  // 红蜡凸印(左) + 手写签名(右)
-  waxSeal(ctx, 322, 1170, 74)
-  signature(ctx, 600, 1150, 240)
-  ctx.textAlign = 'center'
-  ctx.fillStyle = INK
-  ctx.font = `700 22px ${SERIF}`
-  ctx.fillText('Pinzos', 720, 1200)
-  ctx.fillStyle = MUTE
-  ctx.font = `500 18px ${SERIF}`
-  ctx.fillText(zh ? '认证机构' : 'Certification Authority', 720, 1224)
-
-  // 底:编号 + 域名
+  const dateDisp = `${MONTHS_EN[mi] || ''} ${y4}`
   const no = certNumber(`${name}|${badge.planId}`)
-  ctx.fillStyle = MUTE
-  ctx.font = `400 22px ${SERIF}`
-  ctx.fillText(`No. PZ-${y4}-${no}   ·   pinzos.com`, cx, 1264)
+
+  // 底部三栏:日期 | 金色认证徽章 | 凭证编号 + 验证链接
+  sealMedal(ctx, cx, 930, 86)
+
+  const lx = 320
+  ctx.strokeStyle = NAVY; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(lx - 130, 900); ctx.lineTo(lx + 130, 900); ctx.stroke()
+  ctx.textAlign = 'center'
+  ctx.fillStyle = GOLD; ctx.font = `600 15px ${SANS}`
+  ctx.fillText(spread('DATE OF ISSUE', 2), lx, 936)
+  ctx.fillStyle = NAVY; ctx.font = `italic 400 30px ${SERIF}`
+  ctx.fillText(dateDisp, lx, 978)
+
+  const rx = W - 320
+  ctx.strokeStyle = NAVY; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(rx - 130, 900); ctx.lineTo(rx + 130, 900); ctx.stroke()
+  ctx.fillStyle = GOLD; ctx.font = `600 15px ${SANS}`
+  ctx.fillText(spread('CREDENTIAL ID', 2), rx, 936)
+  ctx.fillStyle = NAVY; ctx.font = `700 27px ${SERIF}`
+  ctx.fillText(`PZ-${y4}-${no}`, rx, 976)
+  ctx.fillStyle = MUTE; ctx.font = `400 16px ${SANS}`
+  ctx.fillText('Verify at pinzos.com/verify', rx, 1004)
 }

@@ -52,7 +52,7 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
 
   return (
     <div className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-md" onClick={onClose}>
-      <div className="my-auto w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10" onClick={(e) => e.stopPropagation()}>
+      <div className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10" onClick={(e) => e.stopPropagation()}>
         {/* 精致标题栏(克制,不抢证书):一条酒红细线点题 */}
         <div className="relative border-b border-slate-100 px-6 py-4">
           <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: '#6E1518' }} />
@@ -77,9 +77,9 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
         <div className="bg-slate-100/70 px-6 py-6">
           <canvas ref={canvasRef} className="hidden" />
           {dataUrl ? (
-            <img src={dataUrl} alt="certificate" className="mx-auto w-full max-w-[440px] rounded-md shadow-xl ring-1 ring-black/10" />
+            <img src={dataUrl} alt="certificate" className="mx-auto w-full rounded-md shadow-xl ring-1 ring-black/10" />
           ) : (
-            <div className="mx-auto flex aspect-[4/5] w-full max-w-[440px] items-center justify-center rounded-md bg-white/60 ring-1 ring-black/5">
+            <div className="mx-auto flex aspect-[1.42/1] w-full items-center justify-center rounded-md bg-white/60 ring-1 ring-black/5">
               <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
             </div>
           )}
