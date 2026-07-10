@@ -16,6 +16,24 @@ import { isOwnerEmail } from '../middleware/requireOwner'
 
 type PlanId = 'explore' | 'rookie' | 'agent' | 'founder'
 
+// ── 无限额度白名单 ────────────────────────────────────────
+// 与 OWNER(计费/结算/审批特权)和 ADMIN(数据后台/PII 访问)刻意解耦:
+// 这里只赋予"不计费 + 无限积分",不带任何后台或审批权限。内部运营员工
+// (帮忙上传楼书/生成报告)放这里最合适。
+// ⭐ 手动给某人开无限:把邮箱加进下面数组(或设 UNLIMITED_EMAILS env,逗号分隔),
+//    然后部署 API(quick-deploy.ps1 -SkipWorker)。要发"定量"积分而非无限,
+//    改用 scripts/grant-credits.ts。
+const UNLIMITED_EMAILS = (process.env.UNLIMITED_EMAILS || 'shelldubai26@gmail.com')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
+function emailUnlimited(email?: string | null): boolean {
+  if (!email) return false
+  const e = email.toLowerCase()
+  return isOwnerEmail(e) || UNLIMITED_EMAILS.includes(e)
+}
+
 // ── 功能目录(单一真相源)──────────────────────────────────
 // credits = 标准每次成本;minPlan = 至少需要的套餐(低于则需升级,与积分无关)。
 // Starter(rookie)可用报告/楼书(200分/月≈10份报告),live/luna tour 是 Pro 以上专属。
@@ -73,9 +91,10 @@ async function usedThisMonth(agentId: string): Promise<number> {
   return Number(r.rows[0]?.u ?? 0)
 }
 
-async function isOwner(agentId: string): Promise<boolean> {
+/** owner 或无限白名单 → 无限额度、免计费。 */
+async function isUnlimited(agentId: string): Promise<boolean> {
   const a = await pool.query<{ email: string | null }>(`SELECT email FROM lt_agents WHERE id = $1`, [agentId])
-  return isOwnerEmail(a.rows[0]?.email)
+  return emailUnlimited(a.rows[0]?.email)
 }
 
 export interface CreditCheck {
@@ -93,7 +112,7 @@ export interface CreditCheck {
 /** 检查某功能是否可用(套餐门 + 积分余额),不扣费。 */
 export async function checkCredits(agentId: string, feature: Feature): Promise<CreditCheck> {
   const f = FEATURES[feature]
-  if (await isOwner(agentId)) {
+  if (await isUnlimited(agentId)) {
     return { allowed: true, cost: 0, balance: -1, creditsMonth: -1, used: 0, plan: 'founder', status: 'owner', owner: true }
   }
   agentId = await billingAgentOf(agentId) // 席位成员 → founder 的套餐+共享池
@@ -113,7 +132,7 @@ export async function checkCredits(agentId: string, feature: Feature): Promise<C
 
 /** 成功执行某功能后扣积分(月度 upsert)。owner 不计费。 */
 export async function spend(agentId: string, feature: Feature): Promise<void> {
-  if (await isOwner(agentId)) return
+  if (await isUnlimited(agentId)) return
   agentId = await billingAgentOf(agentId) // 席位成员扣 founder 的共享池
   const p = await planFor(agentId)
   const cost = Math.round(FEATURES[feature].credits * p.multiplier)
@@ -134,7 +153,7 @@ export async function spend(agentId: string, feature: Feature): Promise<void> {
 
 /** 当前余额(给 /me 与后台展示)。 */
 export async function creditBalance(agentId: string) {
-  if (await isOwner(agentId)) {
+  if (await isUnlimited(agentId)) {
     return { creditsMonth: -1, used: 0, balance: -1, plan: 'founder', status: 'owner', multiplier: 0.6, owner: true }
   }
   agentId = await billingAgentOf(agentId) // 席位成员看到的是团队共享池
