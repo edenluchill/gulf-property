@@ -69,7 +69,9 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
   const active = mode !== 'browse'
   const role = mode === 'presenter' ? 'presenter' : 'viewer'
 
-  const socket = useCollabSocket({ code: code ?? '', name, role, enabled: active && !!code })
+  // viewer 必须先填名(身份门)才连 —— name 为空不连,避免一堆匿名「访客」进带看、
+  // 报告无法归属到人。presenter 的 name 恒有,不受影响。
+  const socket = useCollabSocket({ code: code ?? '', name, role, enabled: active && !!code && !!name.trim() })
 
   // presenter samples + broadcasts its camera; viewers pass active=false.
   useCollabPresenter({ getMap, client: socket.client, active: active && mode === 'presenter' })

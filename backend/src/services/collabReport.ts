@@ -44,6 +44,8 @@ export interface CollabReport {
   projects: { id: string; name: string | null; area: string | null }[]
   luna_actions: { type: string; count: number }[]
   chat: CollabChatMsg[]
+  /** 客户进带看时自报的称呼 + 选填联系方式(S2 身份门)—— 供经纪跟进有兴趣的人。 */
+  contacts: { name: string; phone?: string; whatsapp?: string }[]
   truncated: boolean
   ai: CollabAi | null
 }
@@ -90,6 +92,7 @@ export async function getCollabReport(code: string): Promise<CollabReport | null
 
   // ── 确定性派生 ────────────────────────────────────
   const chat: CollabChatMsg[] = []
+  const contacts: CollabReport['contacts'] = []
   const areas: string[] = []
   const projectIds: string[] = []
   const lunaCount = new Map<string, number>()
@@ -103,6 +106,13 @@ export async function getCollabReport(code: string): Promise<CollabReport | null
           name: String(e.name || ''),
           text: String(e.text || ''),
           at: typeof e.at === 'number' ? e.at : null,
+        })
+        break
+      case 'identify':
+        contacts.push({
+          name: String(e.name || '客户'),
+          ...(e.phone ? { phone: String(e.phone) } : {}),
+          ...(e.whatsapp ? { whatsapp: String(e.whatsapp) } : {}),
         })
         break
       case 'goto':
@@ -169,6 +179,7 @@ export async function getCollabReport(code: string): Promise<CollabReport | null
     projects,
     luna_actions: Array.from(lunaCount.entries()).map(([type, count]) => ({ type, count })),
     chat,
+    contacts,
     truncated,
     ai: null,
   }

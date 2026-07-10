@@ -13,8 +13,9 @@ import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
-import { createCollabRoom, getCollabRoom } from '../luna-tour/collab/collabApi'
+import { createCollabRoom, getCollabRoom, identifyCollab } from '../luna-tour/collab/collabApi'
 import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
+import CollabIdentityGate from '../luna-tour/collab/CollabIdentityGate'
 import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
 import CollabDrawToolbar from '../luna-tour/collab/CollabDrawToolbar'
@@ -222,6 +223,12 @@ export default function MapPage() {
     }).catch(() => {})
   }, [isCollabViewerPath])
   const [presenterCode, setPresenterCode] = useState<string | undefined>(undefined)
+  // 客户身份门(S2):viewer 进带看前先填称呼(+ 选填联系方式),否则不连 WS
+  // (useCollab 的 enabled 已加 !!name)。填过就记住(sessionStorage),跨页/刷新不再问。
+  const [viewerName, setViewerName] = useState<string>(() => {
+    try { return sessionStorage.getItem('collabViewerName') || '' } catch { return '' }
+  })
+
   const collabMode: CollabMode = viewerCode ? 'viewer' : presenterCode ? 'presenter' : 'browse'
   const collabCode = viewerCode || presenterCode
   const collabActive = collabMode !== 'browse'
@@ -710,7 +717,7 @@ export default function MapPage() {
   const collab = useCollab({
     mode: collabMode,
     code: collabCode,
-    name: collabMode === 'presenter' ? (user?.email?.split('@')[0] || 'Ahmed') : '访客',
+    name: collabMode === 'presenter' ? (user?.email?.split('@')[0] || 'Ahmed') : viewerName,
     getMap: getCollabMap,
     flyTo: collabFlyTo,
     onRemoteSelect: handleRemoteSelect,
@@ -861,6 +868,15 @@ export default function MapPage() {
       setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('host'); return n }, { replace: true })
     }
   }, [viewerCode, location.pathname, navigate, setSearchParams, collab])
+
+  // 客户身份门提交(S2):记住称呼(→ 连 WS 用真名)+ 选填联系方式上报后端(供报告/跟进)。
+  const handleViewerIdentify = useCallback((name: string, phone: string, whatsapp: string) => {
+    setViewerName(name)
+    try { sessionStorage.setItem('collabViewerName', name) } catch { /* ignore */ }
+    if (viewerCode && (phone || whatsapp)) {
+      void identifyCollab(viewerCode, { name, phone: phone || undefined, whatsapp: whatsapp || undefined })
+    }
+  }, [viewerCode])
 
   // viewer:带看被结束/踢出/链接失效后点「知道了」→ 退出会话回地图(不再重连不存在的房间)。
   const handleEndedAck = useCallback(() => {
@@ -1494,6 +1510,15 @@ export default function MapPage() {
               onCopyShare={handleCopyShare}
               hasViewer={hasViewer}
               onDismiss={() => setGuideDismissed(true)}
+            />
+          )}
+
+          {/* S2 客户身份门:viewer 没填称呼 → 先填名(+选填联系方式)才连 WS 进带看 */}
+          {collabMode === 'viewer' && !viewerName.trim() && !collab.endedReason && (
+            <CollabIdentityGate
+              presenterName={collabPeerName}
+              defaultName={user?.user_metadata?.full_name || ''}
+              onEnter={handleViewerIdentify}
             />
           )}
 

@@ -231,6 +231,7 @@ export interface CollabReport {
   projects: { id: string; name: string | null; area: string | null }[]
   luna_actions: { type: string; count: number }[]
   chat: CollabChatMsg[]
+  contacts: { name: string; phone?: string; whatsapp?: string }[]
   truncated: boolean
   ai: CollabAi | null
 }

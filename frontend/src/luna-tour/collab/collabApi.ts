@@ -67,3 +67,18 @@ export async function getCollabRoom(code: string): Promise<RoomInfo> {
   if (!res.ok) return { exists: false, participants: 0 }
   return res.json()
 }
+
+/** POST /api/collab/rooms/:code/identify —— 客户进带看时自报称呼(+选填联系方式),
+ *  存进房间事件日志供意向报告归属到人。best-effort,失败不阻塞进入。 */
+export async function identifyCollab(
+  code: string,
+  info: { name: string; phone?: string; whatsapp?: string }
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/collab/rooms/${encodeURIComponent(code)}/identify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(info),
+    })
+  } catch { /* 联系方式上报失败不影响进入带看 */ }
+}

@@ -224,6 +224,22 @@ async function run(): Promise<void> {
   await presenterLeave
   ok(true, 'leave fanned out to presenter')
 
+  // ── 8.5 客户身份门(S2):identify → 进事件日志 + 广播给房间 ──
+  console.log('8.5. identify reaches the room')
+  const namedViewer = await connect(wsUrl)
+  namedViewer.send(JSON.stringify({ k: 'hello', code, name: '陈先生', role: 'viewer' }))
+  await waitFor(namedViewer, m => m.k === 'sync', 'named viewer sync')
+  const presenterIdentify = waitFor(presenter, m => m.k === 'identify' && m.name === '陈先生', 'presenter sees identify', 2000)
+  const idRes = await fetch(`${base}/api/collab/rooms/${code}/identify`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: '陈先生', phone: '+971 50 111 2222', whatsapp: 'chen-wx' }),
+  })
+  ok(idRes.ok, 'POST identify returns 200')
+  const idEvt = await presenterIdentify
+  ok(idEvt.phone === '+971 50 111 2222', 'identify carries phone into the room event')
+  namedViewer.close()
+  await waitFor(presenter, m => m.k === 'leave', 'presenter sees named viewer leave')
+
   // ── 9. 防偷听:presenter 踢人 + 结束带看即失效(旧 code 进不去)──
   console.log('9. anti-eavesdrop: kick + end invalidates the code')
   // 一个 viewer 加入(在场),presenter 踢掉它

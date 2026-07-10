@@ -270,6 +270,24 @@ router.get('/rooms/:code', (req, res) => {
   })
 })
 
+// POST /api/collab/rooms/:code/identify —— 客户进带看自报称呼(+选填联系方式),
+// 进事件日志(k:'identify')供带看后意向报告归属到人 + 经纪跟进。
+router.post('/rooms/:code/identify', (req, res) => {
+  const room = getRoomByCode(req.params.code)
+  if (!room) { res.status(404).json({ ok: false, error: 'room_not_found' }); return }
+  const { name, phone, whatsapp } = req.body || {}
+  const ev: Record<string, unknown> = {
+    k: 'identify',
+    seq: nextSeq(room),
+    name: String(name || '').slice(0, 60),
+  }
+  if (phone) ev.phone = String(phone).slice(0, 40)
+  if (whatsapp) ev.whatsapp = String(whatsapp).slice(0, 80)
+  pushReliable(room, ev as unknown as Parameters<typeof pushReliable>[1])
+  fanout(room, ev)
+  res.json({ ok: true })
+})
+
 // 健康检查(照抄 voice-chat)
 router.get('/health', (_req, res) => {
   res.json({

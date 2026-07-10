@@ -123,6 +123,20 @@ export default function CollabReport({ code, onClose }: { code: string; onClose:
                     {report.participants.map((p) => `${p.name}${p.role === 'presenter' ? '(经纪)' : ''}`).join('、')}
                   </Fact>
                 )}
+                {report.contacts.length > 0 && (
+                  <Fact icon={<Users className="h-4 w-4 text-emerald-500" />} title={`买家联系方式 (${report.contacts.length})`}>
+                    <div className="space-y-1">
+                      {report.contacts.map((c, i) => (
+                        <div key={i} className="text-sm">
+                          <span className="font-medium text-slate-700">{c.name}</span>
+                          {c.phone && <span className="ml-2 text-slate-500">📞 {c.phone}</span>}
+                          {c.whatsapp && <span className="ml-2 text-slate-500">💬 {c.whatsapp}</span>}
+                          {!c.phone && !c.whatsapp && <span className="ml-2 text-slate-400">(未留联系方式)</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </Fact>
+                )}
               </div>
 
               {/* 聊天记录 */}
