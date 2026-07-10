@@ -3,6 +3,7 @@
  * canvas 生成 1080×1350 PNG(drawCertificate),含真名 + 头像 + 证书编号,零依赖。
  */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { X, Download, Check, Loader2 } from 'lucide-react'
@@ -54,7 +55,9 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
     setTimeout(() => setSaved(false), 2500)
   }
 
-  return (
+  // 全屏 modal 必须 portal 到 body:Header 等祖先的 backdrop-filter/transform 会成为
+  // fixed 定位参照系,否则从头像菜单等处触发时 modal 会被压成一条(见 memory)。
+  return createPortal(
     // 电影感揭幕:极暗聚光背景 + 金色光晕 + 入场动画 + 一次性扫光
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -95,8 +98,10 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
         <div className="relative w-full overflow-hidden rounded-lg">
           {dataUrl ? (
             <>
+              {/* 无 key:证书分多次异步补画(名字/头像/二维码)会多次 setDataUrl,
+                  加 key 会重挂载 → 入场动画重放(闪多下)。不加 key = 只首次揭幕一次,
+                  后续补数据静默换 src。 */}
               <motion.img
-                key={dataUrl}
                 src={dataUrl}
                 alt="certificate"
                 initial={{ opacity: 0, scale: 0.92, y: 24 }}
@@ -104,9 +109,8 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
                 transition={{ type: 'spring', stiffness: 120, damping: 18 }}
                 className="w-full rounded-lg shadow-[0_40px_120px_-20px_rgba(0,0,0,0.8)] ring-1 ring-[#C7A050]/25"
               />
-              {/* 一次性金色扫光 */}
+              {/* 一次性金色扫光(同理不加 key)*/}
               <motion.div
-                key={`sheen-${dataUrl}`}
                 initial={{ x: '-130%' }} animate={{ x: '130%' }}
                 transition={{ delay: 0.5, duration: 1, ease: 'easeInOut' }}
                 className="pointer-events-none absolute inset-y-0 w-1/2 -skew-x-12"
@@ -141,6 +145,7 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
           </p>
         </motion.div>
       </div>
-    </motion.div>
+    </motion.div>,
+    document.body
   )
 }
