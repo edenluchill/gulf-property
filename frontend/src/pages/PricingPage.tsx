@@ -139,11 +139,11 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('rookie') },
     },
     {
-      id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf(priceOf('agent', 99)),
+      id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf(priceOf('agent', 49)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT, highlight: true,
       badge: L('最受欢迎 · 7 天免费', 'Most popular · 7 days free'),
       note: L('7 天免费 · 需绑卡 · 提前取消不扣费', '7 days free · card required · cancel before billing'),
-      billed: billedLine(priceOf('agent', 99)), priceWas: struckOf(priceOf('agent', 99)),
+      billed: billedLine(priceOf('agent', 49)), priceWas: struckOf(priceOf('agent', 49)),
       creditsMo: creditsOf('agent') || 2500,
       features: [
         L('启程版全部功能,积分池 ×12.5(200 → 2,500)', 'Everything in Starter, 12.5× the credits (200 → 2,500)'),
@@ -270,8 +270,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       <Helmet>
         <title>{L('定价 — Pinzos 订阅', 'Pricing — Pinzos Plans')}</title>
         <meta name="description" content={L(
-          'Pinzos 订阅:买家免费;经纪 $25/月起,专业版 $99/月含实时海外带看、Luna 智能导览与买家意向报告;经纪公司版 $699/月 3 席;开发商版 $999/月含楼书上传与 5 席。',
-          'Pinzos plans: free for buyers; agents from $25/mo, Pro $99/mo with live overseas tours, Luna AI tours and buyer-intent reports; Agency $699/mo with 3 seats; Developer $999/mo with brochure uploads and 5 seats.'
+          'Pinzos 订阅:买家免费;经纪 $25/月起,专业版 $49/月含实时海外带看、Luna 智能导览与买家意向报告;经纪公司版 $699/月 3 席;开发商版 $999/月含楼书上传与 5 席。',
+          'Pinzos plans: free for buyers; agents from $25/mo, Pro $49/mo with live overseas tours, Luna AI tours and buyer-intent reports; Agency $699/mo with 3 seats; Developer $999/mo with brochure uploads and 5 seats.'
         )} />
         <link rel="canonical" href="https://pinzos.com/pricing" />
       </Helmet>

@@ -63,7 +63,7 @@ export default function AboutPage() {
         offers: [
           { '@type': 'Offer', name: 'Buyers (Free)', price: '0', priceCurrency: 'USD' },
           { '@type': 'Offer', name: 'Starter', price: '25', priceCurrency: 'USD' },
-          { '@type': 'Offer', name: 'Pro', price: '99', priceCurrency: 'USD' },
+          { '@type': 'Offer', name: 'Pro', price: '49', priceCurrency: 'USD' },
           { '@type': 'Offer', name: 'Agency', price: '699', priceCurrency: 'USD' },
         ],
         featureList: [
@@ -297,7 +297,7 @@ export default function AboutPage() {
               fs: [L('全部买家功能 + 客户 CRM', 'Everything free + client CRM'), L('Sales Offer 报价单 + AI 楼书解析', 'Sales Offers + AI brochures'), L('买家线索(尽力推送)', 'Buyer leads (best effort)')],
             },
             {
-              n: L('专业版 Pro', 'Pro'), p: '$99', per: L('/月', '/mo'), c: ACCENT, hot: true,
+              n: L('专业版 Pro', 'Pro'), p: '$49', per: L('/月', '/mo'), c: ACCENT, hot: true,
               fs: [L('实时带看 + 画图 + 语音', 'Live tours + drawing + voice'), L('Luna 智能导览', 'Luna AI tours'), L('线索优先推送 + 行为洞察', 'Priority leads + insights')],
             },
             {
