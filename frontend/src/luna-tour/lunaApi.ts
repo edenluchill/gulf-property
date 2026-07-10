@@ -188,3 +188,44 @@ export async function fetchLedger(feature?: string, limit = 200): Promise<Ledger
   const r = await lunaFetch(`/ledger?${qs.toString()}`)
   return (await r.json()) as LedgerResponse
 }
+
+// ── 共享线索池 + 认领 ────────────────────────────────────
+export interface Lead {
+  id: number
+  name: string | null
+  email: string | null
+  phone: string | null
+  whatsapp: string | null
+  source: string | null
+  intent: { areas?: string[]; project_ids?: string[]; searches?: number; property_views?: number; opened_luna?: boolean } | null
+  lead_score: number
+  status: string
+  last_seen_at: string | null
+  created_at: string
+  assigned_agent_id: string | null
+  assigned_at: string | null
+  converted_client_id: string | null
+}
+
+/** 线索池:未认领 + 我已认领(未转客户)的。 */
+export async function fetchLeads(): Promise<Lead[]> {
+  const r = await lunaFetch('/leads')
+  const j = await r.json()
+  return (j.leads || []) as Lead[]
+}
+/** 认领(已被别人领走返回 false)。 */
+export async function claimLead(id: number): Promise<boolean> {
+  const r = await lunaFetch(`/leads/${id}/claim`, { method: 'POST' })
+  return r.ok
+}
+/** 释放回池子。 */
+export async function releaseLead(id: number): Promise<boolean> {
+  const r = await lunaFetch(`/leads/${id}/release`, { method: 'POST' })
+  return r.ok
+}
+/** 转为客户(进 CRM),返回新 client id。 */
+export async function convertLead(id: number): Promise<string | null> {
+  const r = await lunaFetch(`/leads/${id}/convert`, { method: 'POST' })
+  const j = await r.json().catch(() => ({}))
+  return r.ok ? (j.clientId as string) : null
+}

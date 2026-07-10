@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
   CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
-  Menu, X, ChevronRight, Receipt,
+  Menu, X, ChevronRight, Receipt, Inbox,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -46,6 +46,7 @@ const ACCOUNT_TABS: Tab[] = [
 const AGENT_TABS: Tab[] = [
   { to: '/agent', end: true, zh: '工作台', en: 'Dashboard', icon: LayoutDashboard },
   { to: '/agent/clients', zh: '客户雷达', en: 'Client radar', icon: Radar },
+  { to: '/agent/leads', zh: '线索', en: 'Leads', icon: Inbox },
   { to: '/agent/tour', zh: 'AI 导览', en: 'AI tours', icon: Wand2 },
   { to: '/agent/report', zh: '秒出提案', en: 'Instant proposals', icon: Zap },
 ]

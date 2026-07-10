@@ -600,6 +600,109 @@ router.get('/ledger', async (req: Request, res: Response) => {
   }
 })
 
+// ── 共享线索池 + 认领(shared leads pool + claim)──────────────────────
+// 单一经纪公司运营,不做自动分发:所有经纪看到未认领池,认领归自己,再转客户。
+
+/** 线索池:未认领的 + 我已认领的(未转客户的)。按分数高→低。 */
+router.get('/leads', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const { rows } = await pool.query(
+      `SELECT id, name, email, phone, whatsapp, source, intent, lead_score, status,
+              last_seen_at, created_at, assigned_agent_id, assigned_at, converted_client_id
+         FROM leads
+        WHERE converted_client_id IS NULL
+          AND (assigned_agent_id IS NULL OR assigned_agent_id = $1)
+        ORDER BY (assigned_agent_id = $1) ASC, lead_score DESC, created_at DESC
+        LIMIT 200`,
+      [agentId]
+    )
+    res.json({ success: true, leads: rows })
+  } catch (err) {
+    console.error('[luna] leads list error:', err)
+    res.status(500).json({ success: false, error: 'leads failed' })
+  }
+})
+
+/** 认领一条线索(仅未认领时;并发下已被别人领走则 409)。 */
+router.post('/leads/:id/claim', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const r = await pool.query(
+      `UPDATE leads SET assigned_agent_id = $1, assigned_at = now()
+         WHERE id = $2 AND assigned_agent_id IS NULL
+       RETURNING id`,
+      [agentId, req.params.id]
+    )
+    if (!r.rowCount) return res.status(409).json({ success: false, error: '该线索已被认领' })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[luna] lead claim error:', err)
+    res.status(500).json({ success: false, error: 'claim failed' })
+  }
+})
+
+/** 释放(退回池子);仅退我自己认领的。 */
+router.post('/leads/:id/release', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    await pool.query(
+      `UPDATE leads SET assigned_agent_id = NULL, assigned_at = NULL
+         WHERE id = $2 AND assigned_agent_id = $1 AND converted_client_id IS NULL`,
+      [agentId, req.params.id]
+    )
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'release failed' })
+  }
+})
+
+/** 转为客户:从线索建 lt_clients,回填 converted_client_id + 标记 qualified。 */
+router.post('/leads/:id/convert', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    // 只能转未被别人认领的(未认领或我认领的)且未转过的线索
+    const lead = await pool.query<{
+      id: number; name: string | null; email: string | null; phone: string | null;
+      whatsapp: string | null; intent: Record<string, unknown> | null; lead_score: number;
+    }>(
+      `SELECT id, name, email, phone, whatsapp, intent, lead_score FROM leads
+        WHERE id = $2 AND converted_client_id IS NULL
+          AND (assigned_agent_id IS NULL OR assigned_agent_id = $1)`,
+      [agentId, req.params.id]
+    )
+    if (!lead.rowCount) return res.status(404).json({ success: false, error: '线索不存在或已转/被他人认领' })
+    const l = lead.rows[0]
+    const name = (l.name || l.email || l.phone || '新客户').toString().slice(0, 120)
+    // 意向摘要 → 客户备注(区域/项目/搜索/研究痕迹)
+    const it = l.intent || {}
+    const parts: string[] = []
+    const areas = Array.isArray((it as Record<string, unknown>).areas) ? (it as { areas: unknown[] }).areas : []
+    if (areas.length) parts.push(`关注区域: ${areas.slice(0, 5).join(', ')}`)
+    const pv = (it as Record<string, unknown>).property_views
+    if (pv) parts.push(`浏览房源 ${pv} 次`)
+    if ((it as Record<string, unknown>).opened_luna) parts.push('用过 Luna')
+    const notes = `由线索转入。${parts.join(' · ')}`.slice(0, 500)
+
+    const c = await pool.query(
+      `INSERT INTO lt_clients (agent_id, name, email, phone, whatsapp, notes, lead_score)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [agentId, name, l.email, l.phone, l.whatsapp, notes, l.lead_score || 0]
+    )
+    const clientId = c.rows[0].id
+    await pool.query(
+      `UPDATE leads SET assigned_agent_id = $1, assigned_at = COALESCE(assigned_at, now()),
+              converted_client_id = $3, status = 'qualified'
+         WHERE id = $2`,
+      [agentId, req.params.id, clientId]
+    )
+    res.json({ success: true, clientId })
+  } catch (err) {
+    console.error('[luna] lead convert error:', err)
+    res.status(500).json({ success: false, error: 'convert failed' })
+  }
+})
+
 /** List the agent's sessions with engagement rollups (read-only). */
 router.get('/sessions', async (req: Request, res: Response) => {
   try {

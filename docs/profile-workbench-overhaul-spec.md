@@ -221,6 +221,16 @@
 - **T2 深色调**:**柔和石板深(带青灰)**,约 `#1e2a35` 一类,不用纯黑 slate-900,和白底青调过渡自然。
 - **T8 证书质感**:**浅色烫金奖状**——米白/象牙底 + 金色双描边 + 花体标题 + 圆形头像 + 认证编号 + 印章,像大学毕业证书/获奖证书。**先出真实生成图给用户看**再决定要不要深色版。
 
+### ✅ T7(2026-07-10):共享线索池 + 认领(用户定:不做自动分发)
+- **DB**:`leads` 加 `assigned_agent_id` / `assigned_at` / `converted_client_id`(迁移 `leads-assignment.sql`,已跑生产)。
+- **端点**:`GET /agent/leads`(未认领 + 我已认领,按分数)、`POST /agent/leads/:id/claim`(并发已领返 409)、`/release`、`/convert`(建 `lt_clients` + 回填 converted_client_id + status=qualified)。
+- **前端**:新 tab `线索`(`/agent/leads`,Inbox,插在客户雷达后),双语;卡片显示联系方式 + 意向 chips(区域/看房次数/用过 Luna)+ 热度;认领 / 释放 / 转为客户(转完跳客户雷达)。
+- 现状生产仅 3 条 lead;以后要按区域/轮询/优先/独占分发,在此基础加规则。
+
+### ✅ live-tour 弹窗修复(2026-07-10,用户报):`CollabPresenterGuide`(实时带看已开启弹窗)原中文硬编码 → 双语;**删掉多余的「用 WhatsApp 发给客户」按钮**,复制链接作主操作。
+
+### ⏭️ T6(Luna token 落库)—— 用户定:跳过(计费口径是积分/功能,已由 T4 覆盖;token 价值低)。
+
 ## 仍待拍板
 
 - **T3**:「分析」Sheet 里的成交记录去留 / 放哪(做 T3 时一并问)。
