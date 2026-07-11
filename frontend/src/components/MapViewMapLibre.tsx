@@ -706,10 +706,10 @@ function MapViewMapLibre({
     // 说稍挤没关系),换取多显示卡片。
     const uiBlocks: { x0: number; y0: number; x1: number; y1: number }[] = isNarrow
       ? [
-          // 手机布局(2026-07-11):左边一竖列筛选 chips、底部一条搜索 dock、左下指北针。
+          // 手机布局(2026-07-11):左边一竖列筛选图标钮、底部一条搜索 dock、左下指北针。
           // 三者都不透明,卡钻底下等于看不见。
-          { x0: 0, y0: 0, x1: 186, y1: 306 },         // 竖排筛选 chips(含选中变长 + 「清除」)
-          { x0: 196, y0: 0, x1: W, y1: 208 },         // 指标卡
+          { x0: 0, y0: 0, x1: 68, y1: 344 },          // 竖排筛选图标钮(6 项 + 「清除」,44px 一颗)
+          { x0: W - 196, y0: 0, x1: W, y1: 208 },     // 指标卡(固定 184 宽 + 右 12)
           { x0: 0, y0: H - 70, x1: W - 60, y1: H },   // 底部搜索 dock
           { x0: 0, y0: H - 124, x1: 76, y1: H - 62 }, // 指北针
         ]
@@ -1684,55 +1684,66 @@ function MapViewMapLibre({
           top 规则:控制卡常开(手机 ~145px / md+ ~148px,top-3 起算)→ 164px。
           控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440 三档截图验证
           (2026-07-03 用户反馈两次撞坑)。 */}
-      <div data-testid="map-mobile-tools" className="absolute right-3 top-[164px] z-[1000]">
+      {/* 卡宽锁死 w-[60px]:原来按钮是「图标+文字横排」,文字一长(英文 Satellite/Measure)
+          整张卡就变宽、右缘乱跳,中英文两副样子(2026-07-11 用户反馈)。改成图标在上、
+          小字在下、居中,文字 nowrap+截断 —— 中英文一样宽,名字还留着(不逼客户猜图标)。 */}
+      <div data-testid="map-mobile-tools" className="absolute right-3 top-[164px] z-[1000] w-[60px]">
         <div className="flex flex-col gap-0.5 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
           <button
             type="button"
             onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
               baseMap === 'dark' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换底图"
           >
-            <Globe size={14} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
-            {baseMap === 'vector' ? (isZhUi ? '地图' : 'Map') : baseMap === 'satellite' ? (isZhUi ? '卫星' : 'Satellite') : (isZhUi ? '夜景' : 'Dark')}
+            <Globe size={16} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+              {baseMap === 'vector' ? (isZhUi ? '地图' : 'Map') : baseMap === 'satellite' ? (isZhUi ? '卫星' : 'Satellite') : (isZhUi ? '夜景' : 'Dark')}
+            </span>
           </button>
           <button
             type="button"
             onClick={toggle3D}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
               pitched ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换 3D 倾斜视角"
           >
-            <Box size={14} className={pitched ? 'text-white' : 'text-slate-500'} />
-            {pitched ? (isZhUi ? '平视' : '2D') : '3D'}
+            <Box size={16} className={pitched ? 'text-white' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+              {pitched ? (isZhUi ? '平视' : '2D') : '3D'}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
               measureMode ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="测距工具"
           >
-            <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
-            {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
+            <Ruler size={16} className={measureMode ? 'text-white' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+              {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
+            </span>
           </button>
           {/* 项目卡片显示/隐藏开关:眼睛图标 = 可见性语义,一眼就懂。
               显示态=青底睁眼「项目」;隐藏态=灰底闭眼「已隐藏」,地图只剩圆点。 */}
           <button
             type="button"
             onClick={toggleShowCards}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
               showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'bg-slate-200 text-slate-500'
             }`}
             aria-label={showCards ? '隐藏项目卡片' : '显示项目卡片'}
           >
             {showCards
-              ? <Eye size={14} className="text-white" />
-              : <EyeOff size={14} className="text-slate-500" />}
-            {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
+              ? <Eye size={16} className="text-white" />
+              : <EyeOff size={16} className="text-slate-500" />}
+            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+              {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
+            </span>
           </button>
         </div>
       </div>

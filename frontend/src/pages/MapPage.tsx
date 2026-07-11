@@ -1629,15 +1629,19 @@ export default function MapPage() {
               不好看,尺寸缩小后不需要收纳)。 */}
           {/* 视觉:圆角 pill + 有意留白(不再是满铺色块+1px hairline 的"白缝拼贴"),
               按钮 active:scale 按压反馈,选中态带柔和同色投影。 */}
-          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000]">
+          {/* 卡片宽度锁死(w-[184px]/md w-[212px]):以前是内容撑宽,切到英文所有文案变长
+              → 卡跟着变宽、口径 tab 还折行,整块 UI 抖一下且很难看(2026-07-11 用户反馈)。
+              现在 5 个图标按钮的行决定了宽度,文字一律 nowrap + 截断,中英文一样宽。 */}
+          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] w-[184px] md:w-[212px]">
             <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 md:p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
-              {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state */}
-              <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5">
+              {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state。
+                  三等分 + 不折行:英文 "Off-plan" 比中文长得多,不锁死就会换行。 */}
+              <div className="grid grid-cols-3 gap-0.5 rounded-lg bg-slate-100 p-0.5">
                 {(['all', 'offplan', 'ready'] as MarketSegment[]).map((seg) => (
                   <button
                     key={seg}
                     onClick={() => handleSegmentChange(seg)}
-                    className={`flex-1 rounded-md px-1.5 py-0.5 md:py-1 text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
+                    className={`min-w-0 truncate whitespace-nowrap rounded-md px-1 py-0.5 md:py-1 text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
                       marketSegment === seg
                         ? seg === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'bg-violet-600 text-white shadow-sm shadow-violet-600/30'
                         : 'text-slate-500 hover:bg-white/70'
@@ -1647,8 +1651,8 @@ export default function MapPage() {
                   </button>
                 ))}
               </div>
-              {/* Metrics row */}
-              <div className="flex gap-1">
+              {/* Metrics row(卡宽固定,5 颗按钮均分铺满) */}
+              <div className="flex justify-between gap-1">
                 {METRIC_OPTIONS.map((option) => {
                   const isActive = areaMetric === option.value
                   return (
@@ -1667,7 +1671,7 @@ export default function MapPage() {
               </div>
               {/* 周边 POI:与指标行同款 5 个等宽图标按钮——交通/医院/学校/超市/更多。
                   「更多」开完整 POI 面板(分组选择)。窄屏放得下且和 desktop 对齐。 */}
-              <div className="flex gap-1">
+              <div className="flex justify-between gap-1">
                 <button
                   onClick={toggleTransit}
                   className="flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
@@ -1715,8 +1719,8 @@ export default function MapPage() {
                   : ''
                 return active ? (
                   <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[11px] font-semibold text-primary">
-                    <active.Icon className="w-3 h-3" />
-                    <span className="whitespace-nowrap">{t(active.labelKey as any)}{yieldCaveat}</span>
+                    <active.Icon className="w-3 h-3 shrink-0" />
+                    <span className="truncate whitespace-nowrap">{t(active.labelKey as any)}{yieldCaveat}</span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[11px] font-medium text-slate-400">

@@ -7,7 +7,7 @@
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, X, Tag, BedDouble, Hammer, CalendarClock, Wallet, Building2 } from 'lucide-react'
 import { PropertyFilters } from '../types'
 import { trackEvent } from '../lib/track'
 
@@ -140,26 +140,40 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
     trackEvent('search', { query: plus ? `${year}+` : String(year), kind: 'handover' })
   }
 
-  // ---- chips 构件(全断点共用) ----
-  // 手机竖排时标签可能很长(如价格区间),截断收窄,保证左侧只占一条窄带。
-  const Chip = ({ id, base, active }: { id: string; base: string; active: string | null }) => (
+  // ---- chips 构件 ----
+  // 手机:**纯图标方块,固定 44×44**。文字进按钮 → 中英文宽度不一样,整列参差不齐
+  // (2026-07-11 用户反馈:中文还行,英文很难看)。名字在点开后的下拉标题里给,
+  // 选中态 = 主色填充 + 右上角小圆点。
+  // md+:仍是带文字的 chip(横排一行,宽度不敏感)。
+  const Chip = ({ id, base, active, Icon }: { id: string; base: string; active: string | null; Icon: typeof Wallet }) => (
     <button
       onClick={() => setOpen(open === id ? null : id)}
-      className={`flex max-w-[42vw] items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur-sm transition-colors md:max-w-none md:py-1.5 ${
+      aria-label={base}
+      title={base}
+      className={`relative flex h-11 w-11 items-center justify-center rounded-xl shadow-lg ring-1 backdrop-blur-sm transition-colors active:scale-95 md:h-auto md:w-auto md:gap-1 md:px-3 md:py-1.5 md:text-xs md:font-medium ${
         active
           ? 'bg-primary text-white ring-primary'
           : 'bg-white/95 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
       }`}
     >
-      <span className="truncate">{active || base}</span>
-      <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
+      <Icon className="h-[18px] w-[18px] md:hidden" />
+      {/* 选中了但只有图标 → 右上角一颗小圆点,扫一眼就知道这项有筛选在生效 */}
+      {active && (
+        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-white md:hidden" />
+      )}
+      <span className="hidden md:inline">{active || base}</span>
+      <ChevronDown className="hidden h-3 w-3 shrink-0 opacity-70 md:block" />
     </button>
   )
   // 手机:从 chip 右侧飞出(竖排 chips 在左边缘,往下开会盖住其它 chip);桌面:往下开。
   const POP_POS = 'absolute z-[1001] left-full top-0 ml-1.5 md:left-0 md:top-9 md:ml-0'
-  const Pop = ({ children }: { children: React.ReactNode }) => (
-    <div className={`${POP_POS} w-44 overflow-hidden rounded-xl bg-white/95 p-1 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
-      {children}
+  // 手机是纯图标按钮,所以下拉必须自报家门:顶部一行标题(桌面 chip 上已有文字,不重复)。
+  const Pop = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className={`${POP_POS} w-44 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
+      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 md:hidden">
+        {title}
+      </div>
+      <div className="p-1">{children}</div>
     </div>
   )
   const Opt = ({ on, sel, children }: { on: () => void; sel: boolean; children: React.ReactNode }) => (
@@ -184,9 +198,9 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
       {/* ===== chips:手机竖排贴左,md+ 横排 ===== */}
       <div className="flex flex-col items-start gap-1.5 md:flex-row md:flex-wrap md:items-center">
         <div className="relative shrink-0">
-          <Chip id="price" base={t('chips.price')} active={priceLabel} />
+          <Chip id="price" base={t('chips.price')} active={priceLabel} Icon={Tag} />
           {open === 'price' && (
-            <Pop>
+            <Pop title={t('chips.price')}>
               {PRICE_RANGES.map(r => (
                 <Opt key={r.key}
                   sel={r.min === filters.minPrice && r.max === filters.maxPrice}
@@ -198,9 +212,9 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
           )}
         </div>
         <div className="relative shrink-0">
-          <Chip id="beds" base={t('chips.beds')} active={bedLabel} />
+          <Chip id="beds" base={t('chips.beds')} active={bedLabel} Icon={BedDouble} />
           {open === 'beds' && (
-            <Pop>
+            <Pop title={t('chips.beds')}>
               {BEDS.map(b => (
                 <Opt key={b.key} sel={filters.minBedrooms === b.v}
                   on={() => applyBeds(b)}>
@@ -211,9 +225,9 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
           )}
         </div>
         <div className="relative shrink-0">
-          <Chip id="status" base={t('chips.status')} active={statusLabel} />
+          <Chip id="status" base={t('chips.status')} active={statusLabel} Icon={Hammer} />
           {open === 'status' && (
-            <Pop>
+            <Pop title={t('chips.status')}>
               {STATUS.map(s => (
                 <Opt key={s.key} sel={filters.status === s.v && !!s.v}
                   on={() => applyStatus(s)}>
@@ -224,9 +238,9 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
           )}
         </div>
         <div className="relative shrink-0">
-          <Chip id="handover" base={t('chips.handover')} active={handoverLabel} />
+          <Chip id="handover" base={t('chips.handover')} active={handoverLabel} Icon={CalendarClock} />
           {open === 'handover' && (
-            <Pop>
+            <Pop title={t('chips.handover')}>
               {HANDOVER_OPTS.map(o => (
                 <Opt key={o.year ?? 'any'} sel={handoverSel(o.year, o.plus)}
                   on={() => applyHandover(o.year, o.plus)}>
@@ -238,9 +252,9 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
         </div>
         {paymentPlans.length > 0 && (
           <div className="relative shrink-0">
-            <Chip id="payment" base={t('chips.payment')} active={payLabel} />
+            <Chip id="payment" base={t('chips.payment')} active={payLabel} Icon={Wallet} />
             {open === 'payment' && (
-              <Pop>
+              <Pop title={t('chips.payment')}>
                 <Opt sel={!filters.paymentPlan} on={() => applyPayment(undefined)}>
                   {t('chips.any')}
                 </Opt>
@@ -254,11 +268,16 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
           </div>
         )}
         <div className="relative shrink-0">
-          <Chip id="dev" base={t('chips.developer')} active={devLabel} />
+          <Chip id="dev" base={t('chips.developer')} active={devLabel} Icon={Building2} />
           {open === 'dev' && (
             <div className={`${POP_POS} w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
+              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 md:hidden">
+                {t('chips.developer')}
+              </div>
+              {/* autoFocus 只在桌面:手机上一点开就弹键盘,把下拉挤没了 */}
               <input
-                autoFocus value={devQuery} onChange={e => setDevQuery(e.target.value)}
+                autoFocus={typeof window !== 'undefined' && window.innerWidth >= 768}
+                value={devQuery} onChange={e => setDevQuery(e.target.value)}
                 placeholder={t('chips.searchDeveloper')}
                 className="w-full border-b border-slate-100 bg-transparent px-3 py-2 text-xs focus:outline-none"
               />
@@ -283,9 +302,12 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
         {anyActive && (
           <button
             onClick={clearAll}
-            className="flex shrink-0 items-center gap-1 rounded-xl bg-white/95 px-2.5 py-1.5 text-xs text-slate-500 shadow-lg ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700"
+            aria-label={t('chips.clear')}
+            title={t('chips.clear')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/95 text-slate-500 shadow-lg ring-1 ring-slate-900/[0.06] transition-colors active:scale-95 hover:bg-white hover:text-slate-700 md:h-auto md:w-auto md:gap-1 md:px-2.5 md:py-1.5 md:text-xs"
           >
-            <X className="h-3 w-3" /> {t('chips.clear')}
+            <X className="h-[18px] w-[18px] md:h-3 md:w-3" />
+            <span className="hidden md:inline">{t('chips.clear')}</span>
           </button>
         )}
       </div>
