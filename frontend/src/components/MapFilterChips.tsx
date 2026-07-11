@@ -1,26 +1,15 @@
 /**
- * 地图筛选。
- * - 桌面(md+):内联 chips + 小 popover,即点即用。
- * - 移动端:单个「筛选」按钮 → 底部抽屉(bottom sheet),大按钮、可滚、不与右侧控件抢位。
+ * 地图筛选 —— 全断点都是「即点即用」的 chips + popover,没有藏起来的抽屉。
+ * - 桌面(md+):横排 chips,popover 往下开。
+ * - 移动端:同一批 chips 竖排贴左边缘(2026-07-11 用户要求:手机也要像桌面一样
+ *   直接看到/点到每个筛选项,不再是一个「筛选」按钮开底部抽屉),popover 往右飞出,
+ *   不压地图中间。搜索框此时在底部 dock(见 MapPage)。
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, X, SlidersHorizontal, Wallet, BedDouble, Hammer, Building2, Check, CalendarClock } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { PropertyFilters } from '../types'
 import { trackEvent } from '../lib/track'
-
-// 按开发商名生成稳定的彩色头像配色（让长列表一眼可区分）
-const AVATAR_PALETTE = [
-  'bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700',
-  'bg-emerald-100 text-emerald-700', 'bg-sky-100 text-sky-700',
-  'bg-violet-100 text-violet-700', 'bg-fuchsia-100 text-fuchsia-700',
-  'bg-teal-100 text-teal-700', 'bg-orange-100 text-orange-700',
-]
-const avatarColor = (name: string) => {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length]
-}
 
 interface Props {
   filters: PropertyFilters
@@ -65,8 +54,7 @@ const HANDOVER_OPTS: { year: number | null; plus?: boolean }[] = [
 
 export default function MapFilterChips({ filters, setFilters, developers, paymentPlans = [] }: Props) {
   const { t } = useTranslation('filter')
-  const [open, setOpen] = useState<string | null>(null)   // 桌面 popover
-  const [sheet, setSheet] = useState(false)                // 移动端抽屉
+  const [open, setOpen] = useState<string | null>(null)   // 当前展开的 chip popover
   const [devQuery, setDevQuery] = useState('')
   const ref = useRef<HTMLDivElement | null>(null)
 
@@ -158,22 +146,25 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
     trackEvent('search', { query: plus ? `${year}+` : String(year), kind: 'handover' })
   }
 
-  // ---- 桌面构件 ----
+  // ---- chips 构件(全断点共用) ----
+  // 手机竖排时标签可能很长(如价格区间),截断收窄,保证左侧只占一条窄带。
   const Chip = ({ id, base, active }: { id: string; base: string; active: string | null }) => (
     <button
       onClick={() => setOpen(open === id ? null : id)}
-      className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium shadow-lg ring-1 backdrop-blur-sm transition-colors ${
+      className={`flex max-w-[42vw] items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur-sm transition-colors md:max-w-none md:py-1.5 ${
         active
           ? 'bg-primary text-white ring-primary'
           : 'bg-white/95 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
       }`}
     >
-      {active || base}
-      <ChevronDown className="h-3 w-3 opacity-70" />
+      <span className="truncate">{active || base}</span>
+      <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
     </button>
   )
+  // 手机:从 chip 右侧飞出(竖排 chips 在左边缘,往下开会盖住其它 chip);桌面:往下开。
+  const POP_POS = 'absolute z-[1001] left-full top-0 ml-1.5 md:left-0 md:top-9 md:ml-0'
   const Pop = ({ children }: { children: React.ReactNode }) => (
-    <div className="absolute left-0 top-9 z-[1001] w-44 overflow-hidden rounded-xl bg-white/95 p-1 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
+    <div className={`${POP_POS} w-44 overflow-hidden rounded-xl bg-white/95 p-1 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
       {children}
     </div>
   )
@@ -188,39 +179,10 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
     </button>
   )
 
-  // ---- 移动端抽屉构件 ----
-  // 选项排:真选项选中→实心 primary;"不限"=重置,选中时只做淡描边(不抢视线)
-  const SheetRow = ({ label, sel, isDefault, on }: { label: string; sel: boolean; isDefault?: boolean; on: () => void }) => (
-    <button
-      onClick={on}
-      className={`rounded-full px-4 py-2 text-sm font-medium ring-1 transition-colors ${
-        sel && !isDefault ? 'bg-primary text-white ring-primary shadow-sm'
-          : sel && isDefault ? 'bg-primary/5 text-primary ring-primary/30'
-          : 'bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100'
-      }`}
-    >
-      {label}
-    </button>
-  )
-  const Section = ({ icon: Icon, title, hint, children }: {
-    icon: typeof Wallet; title: string; hint?: string; children: React.ReactNode
-  }) => (
-    <section>
-      <div className="mb-2.5 flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-4 w-4" />
-        </span>
-        <span className="text-sm font-semibold text-slate-900">{title}</span>
-        {hint && <span className="text-xs text-slate-400">{hint}</span>}
-      </div>
-      {children}
-    </section>
-  )
-
   return (
     <div ref={ref} className="contents">
-      {/* ===== 桌面:内联 chips ===== */}
-      <div className="hidden md:flex flex-wrap items-center gap-1.5">
+      {/* ===== chips:手机竖排贴左,md+ 横排 ===== */}
+      <div className="flex flex-col items-start gap-1.5 md:flex-row md:flex-wrap md:items-center">
         <div className="relative shrink-0">
           <Chip id="price" base={t('chips.price')} active={priceLabel} />
           {open === 'price' && (
@@ -294,7 +256,7 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
         <div className="relative shrink-0">
           <Chip id="dev" base={t('chips.developer')} active={devLabel} />
           {open === 'dev' && (
-            <div className="absolute left-0 top-9 z-[1001] w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl">
+            <div className={`${POP_POS} w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
               <input
                 autoFocus value={devQuery} onChange={e => setDevQuery(e.target.value)}
                 placeholder={t('chips.searchDeveloper')}
@@ -327,163 +289,6 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
           </button>
         )}
       </div>
-
-      {/* ===== 移动端:单按钮 ===== */}
-      <button
-        onClick={() => setSheet(true)}
-        className={`md:hidden flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-semibold shadow-lg ring-1 backdrop-blur-sm transition-all active:scale-95 ${
-          anyActive ? 'bg-primary text-white ring-primary' : 'bg-white/95 text-slate-600 ring-slate-900/[0.06]'
-        }`}
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        {t('chips.filter')}
-        {anyActive && (
-          <span className="ml-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-primary">
-            {activeCount}
-          </span>
-        )}
-      </button>
-
-      {/* ===== 移动端:底部抽屉 ===== */}
-      {sheet && (
-        <div className="md:hidden fixed inset-0 z-[2000]">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => setSheet(false)} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-3xl bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-3 shadow-2xl">
-            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">{t('chips.filterListings')}</h3>
-              <button onClick={() => setSheet(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <Section icon={Wallet} title={t('chips.price')} hint={t('chips.aed')}>
-                <div className="flex flex-wrap gap-2">
-                  {PRICE_RANGES.map(r => (
-                    <SheetRow key={r.key} label={priceText(r.key)}
-                      isDefault={r.key === 'price0'}
-                      sel={r.min === filters.minPrice && r.max === filters.maxPrice}
-                      on={() => applyPrice(r)} />
-                  ))}
-                </div>
-              </Section>
-
-              <Section icon={BedDouble} title={t('chips.beds')}>
-                <div className="flex flex-wrap gap-2">
-                  {BEDS.map(b => (
-                    <SheetRow key={b.key} label={bedText(b)}
-                      isDefault={b.v === undefined}
-                      sel={filters.minBedrooms === b.v}
-                      on={() => applyBeds(b)} />
-                  ))}
-                </div>
-              </Section>
-
-              <Section icon={Hammer} title={t('chips.status')} hint={t('chips.constructionProgress')}>
-                <div className="flex flex-wrap gap-2">
-                  {STATUS.map(s => (
-                    <SheetRow key={s.key} label={statusText(s.key)}
-                      isDefault={!s.v}
-                      sel={s.v ? filters.status === s.v : !filters.status}
-                      on={() => applyStatus(s)} />
-                  ))}
-                </div>
-              </Section>
-
-              <Section icon={CalendarClock} title={t('chips.handover')} hint={t('chips.handoverHint')}>
-                <div className="flex flex-wrap gap-2">
-                  {HANDOVER_OPTS.map(o => (
-                    <SheetRow key={o.year ?? 'any'} label={handoverOptLabel(o)}
-                      isDefault={o.year === null}
-                      sel={handoverSel(o.year, o.plus)}
-                      on={() => applyHandover(o.year, o.plus)} />
-                  ))}
-                </div>
-              </Section>
-
-              {paymentPlans.length > 0 && (
-                <Section icon={Wallet} title={t('chips.payment')} hint={t('chips.paymentHint')}>
-                  <div className="flex flex-wrap gap-2">
-                    <SheetRow label={t('chips.any')} isDefault
-                      sel={!filters.paymentPlan}
-                      on={() => applyPayment(undefined)} />
-                    {paymentPlans.map(p => (
-                      <SheetRow key={p} label={p}
-                        sel={filters.paymentPlan === p}
-                        on={() => applyPayment(p)} />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              <Section icon={Building2} title={t('chips.developer')}
-                hint={filters.developer ? t('chips.selected', { name: filters.developer }) : undefined}>
-                <div className="relative mb-2">
-                  <input
-                    value={devQuery} onChange={e => setDevQuery(e.target.value)}
-                    placeholder={t('chips.searchDeveloper')}
-                    className="w-full rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div className="max-h-52 space-y-1 overflow-y-auto pr-0.5">
-                  <button
-                    onClick={() => { setFilters(f => ({ ...f, developer: undefined })); setDevQuery('') }}
-                    className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-sm transition-colors ${
-                      !filters.developer ? 'bg-primary/5 ring-1 ring-primary/30' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                      <X className="h-4 w-4" />
-                    </span>
-                    <span className={`flex-1 ${!filters.developer ? 'font-semibold text-primary' : 'text-slate-700'}`}>
-                      {t('chips.anyAllDevelopers')}
-                    </span>
-                  </button>
-                  {developers
-                    .filter(d => d.toLowerCase().includes(devQuery.toLowerCase()))
-                    .slice(0, 60)
-                    .map(d => {
-                      const on = filters.developer === d
-                      return (
-                        <button key={d}
-                          onClick={() => applyDeveloper(d)}
-                          className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-sm transition-colors ${
-                            on ? 'bg-primary/5 ring-1 ring-primary/30' : 'hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarColor(d)}`}>
-                            {d.trim().charAt(0).toUpperCase()}
-                          </span>
-                          <span className={`flex-1 truncate ${on ? 'font-semibold text-primary' : 'text-slate-700'}`}>
-                            {d}
-                          </span>
-                          {on && <Check className="h-4 w-4 shrink-0 text-primary" />}
-                        </button>
-                      )
-                    })}
-                </div>
-              </Section>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={clearAll}
-                disabled={!anyActive}
-                className="flex-1 rounded-2xl bg-slate-100 py-3 text-sm font-medium text-slate-600 disabled:opacity-40"
-              >
-                {t('chips.clearAll')}
-              </button>
-              <button
-                onClick={() => setSheet(false)}
-                className="flex-[2] rounded-2xl bg-primary py-3 text-sm font-semibold text-white"
-              >
-                {t('chips.viewResults')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

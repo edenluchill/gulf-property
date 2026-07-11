@@ -1579,13 +1579,18 @@ export default function MapPage() {
           {/* 区域搜索 + 筛选 pills，浮在地图左上。collab: 经纪和客户都保留全部工具
               (客户要能自己搜/筛/逛 —— 跟随脱离后用 Free 态探索)。
               pad(md~xl)保持上下两行(搜索/筛选),并限宽给右侧紧凑控制卡让位,防 chips 钻到卡下面 */}
-          {(!tourCode || toolsRevealed) && (
+          {(!tourCode || toolsRevealed) && (<>
+          {/* 左上:筛选。手机(<md)竖排贴左边缘一列,每个筛选项直接可点(不再是「筛选」
+              单按钮开抽屉 —— 2026-07-11 用户要求手机和桌面一样即点即用),popover 往右
+              飞出,地图中间不被压。md+ 保持搜索在上、chips 横排在下。 */}
           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
-            <AreaSearch
-              onSelect={(a) => {
-                if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
-              }}
-            />
+            <div className="hidden md:block">
+              <AreaSearch
+                onSelect={(a) => {
+                  if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
+                }}
+              />
+            </div>
             <MapFilterChips
               filters={filters}
               setFilters={setFilters}
@@ -1593,7 +1598,17 @@ export default function MapPage() {
               paymentPlans={paymentPlanOptions}
             />
           </div>
-          )}
+
+          {/* 手机:搜索沉到底部 dock(拇指区,底栏之上),结果向上展开。
+              右侧留出 Luna 药丸的宽度,别钻到它下面。 */}
+          <div className="md:hidden absolute left-3 right-[68px] bottom-3 z-[1002]">
+            <AreaSearch
+              onSelect={(a) => {
+                if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
+              }}
+            />
+          </div>
+          </>)}
 
 
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}

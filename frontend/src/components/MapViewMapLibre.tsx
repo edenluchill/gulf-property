@@ -1738,11 +1738,12 @@ function MapViewMapLibre({
           旋转、pitch 给 rotateX 立体倾斜,2D/3D 通用;每帧只写这一个小合成层
           元素的 transform,零 React 重渲染(铁律:高频相机值禁入 state)。
           点击 easeTo 回正北(俯仰保留,3D 由右侧按钮管)。
-          top 对齐左上搜索栈:手机/pad 搜索+筛选两行(~104px)、xl 单行(~52px)。 */}
+          位置:手机(<md)左上是竖排筛选 chips 那一列,指北针让位到左下角、搜索 dock 之上;
+          md+ 左上是搜索+筛选两行(~104px)→ top-[112px];xl 单行(~52px)→ top-[68px]。 */}
       <button
         type="button"
         onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
-        className="absolute left-3 top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
+        className="absolute left-3 bottom-[68px] md:bottom-auto md:top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
         aria-label="指北针,点击回正北"
       >
         <span

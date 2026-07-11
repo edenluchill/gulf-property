@@ -46,16 +46,17 @@ export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchRe
   }
 
   return (
-    <div ref={boxRef} className="relative">
+    // 手机:铺满底部 dock(MapPage 把它放在底栏上方);md+:左上角紧凑框。
+    <div ref={boxRef} className="relative w-full md:w-auto">
       {/* 与地图右上控制卡同一套视觉语言:rounded-2xl / bg-white/95 / ring / shadow */}
-      <div className="flex items-center gap-1.5 rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
-        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      <div className="flex items-center gap-2 rounded-2xl bg-white/95 px-3.5 py-2.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:gap-1.5 md:px-3 md:py-2">
+        <Search className="h-4 w-4 shrink-0 text-slate-400 md:h-3.5 md:w-3.5" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
           placeholder={zh ? '搜索区域…' : 'Search area…'}
-          className="w-32 bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none md:w-44"
+          className="w-full min-w-0 flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none md:w-44 md:flex-none md:text-xs"
         />
         {q && (
           <button
@@ -69,7 +70,8 @@ export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchRe
       </div>
 
       {open && (loading || results.length > 0) && (
-        <div className="absolute left-0 top-full z-[1003] mt-1.5 w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur">
+        // 手机在底部 → 结果向上展开;md+ 在顶部 → 向下展开
+        <div className="absolute left-0 bottom-full z-[1003] mb-1.5 max-h-64 w-full overflow-y-auto rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur md:bottom-auto md:top-full md:mb-0 md:mt-1.5 md:w-60">
           {loading && results.length === 0 && (
             <div className="px-3 py-2 text-xs text-slate-400">{zh ? '搜索中…' : 'Searching…'}</div>
           )}
