@@ -821,11 +821,11 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     )}
     </AnimatePresence>
     <div className={cn(
-      // Mobile: 紧贴底部导航栏上方(bottom-[76px] = nav h-16 + 12),和地图左下角的
-      // 搜索图标处在同一条线上 —— 原来是 bottom-28(112px),浮在半空,跟别的
-      // 底部控件对不齐,看着"不匹配"(2026-07-11 用户反馈)。
-      // Desktop: 没有底栏 → 贴角落。
-      'fixed bottom-[76px] right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
+      // 紧贴底部导航栏上方,和地图左下角的搜索图标同一条基线(原来 bottom-28 浮在
+      // 半空,跟别的底部控件对不齐 —— 2026-07-11 用户反馈"不匹配")。
+      // ⚠️ 底栏是 xl:hidden 且 h-16 md:h-20 —— 所以要按 nav 实际高度分三档:
+      //   <md : nav 64 → 76px      md~lg(平板): nav 80 → 92px      xl+: 无 nav → 24px
+      'fixed bottom-[76px] md:bottom-[92px] xl:bottom-6 right-0 z-50 flex flex-col items-end gap-1.5',
       className
     )}>
       {/* Luna's daily energy — slim capsule docked to the right edge above the pill.

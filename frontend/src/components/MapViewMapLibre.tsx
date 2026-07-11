@@ -1679,50 +1679,50 @@ function MapViewMapLibre({
           整张卡就变宽、右缘乱跳,中英文两副样子(2026-07-11 用户反馈)。改成图标在上、
           小字在下、居中,文字 nowrap+截断 —— 中英文一样宽,名字还留着(不逼客户猜图标)。 */}
       <div data-testid="map-mobile-tools" className="absolute right-2 top-[124px] z-[1000] w-9">
-        <div className="flex flex-col items-center gap-0 rounded-2xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
           <button
             type="button"
             onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
               baseMap === 'dark' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换底图"
           >
-            <Globe size={16} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
+            <Globe size={15} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
           </button>
           <button
             type="button"
             onClick={toggle3D}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
               pitched ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换 3D 倾斜视角"
           >
-            <Box size={16} className={pitched ? 'text-white' : 'text-slate-500'} />
+            <Box size={15} className={pitched ? 'text-white' : 'text-slate-500'} />
           </button>
           <button
             type="button"
             onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
               measureMode ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="测距工具"
           >
-            <Ruler size={16} className={measureMode ? 'text-white' : 'text-slate-500'} />
+            <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
           </button>
           {/* 项目卡片显示/隐藏开关:眼睛图标 = 可见性语义,一眼就懂。
               显示态=青底睁眼「项目」;隐藏态=灰底闭眼「已隐藏」,地图只剩圆点。 */}
           <button
             type="button"
             onClick={toggleShowCards}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
               showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'bg-slate-200 text-slate-500'
             }`}
             aria-label={showCards ? '隐藏项目卡片' : '显示项目卡片'}
           >
             {showCards
-              ? <Eye size={16} className="text-white" />
-              : <EyeOff size={16} className="text-slate-500" />}
+              ? <Eye size={15} className="text-white" />
+              : <EyeOff size={15} className="text-slate-500" />}
           </button>
         </div>
       </div>

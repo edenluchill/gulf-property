@@ -147,10 +147,14 @@ export default function MapFilterChips({ filters, setFilters, developers, leadin
       onClick={() => setOpen(open === id ? null : id)}
       aria-label={active ? `${base}: ${active}` : base}
       title={active ? `${base}: ${active}` : base}
-      className={`relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
+      className={`relative flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
         active
+          // 有筛选值 → 主色填充(和右上 panel 里的选中态同款)
           ? 'bg-primary text-white shadow-sm shadow-primary/40 md:ring-primary'
-          : 'text-slate-600 hover:bg-slate-100 md:bg-white/95 md:text-slate-700 md:ring-slate-900/[0.06] md:hover:bg-white'
+          : open === id
+            // 正在展开这颗的下拉 → 浅底,让人看得出在编辑哪一项
+            ? 'bg-slate-200 text-slate-900 md:bg-white md:text-slate-900 md:ring-slate-300'
+            : 'text-slate-600 hover:bg-slate-100 md:bg-white/95 md:text-slate-700 md:ring-slate-900/[0.06] md:hover:bg-white'
       }`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0 md:hidden" />
@@ -194,10 +198,10 @@ export default function MapFilterChips({ filters, setFilters, developers, leadin
       {/* ⚠️ relative z-[1001] 不能删:这张卡有 backdrop-blur → 自成层叠上下文,卡本身
           若不给 z-index(=auto),就会整体排在遮罩(z-1000)下面 —— 连带里面弹出的
           下拉一起被遮罩吃掉点击,真机上「筛选选项点了没反应」(2026-07-11 实测)。 */}
-      <div className="relative z-[1001] flex w-9 flex-col items-center gap-0 rounded-2xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
+      <div className="relative z-[1001] flex w-9 flex-col items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
         {/* 指北针(手机上并进这张卡,和筛选融为一体);md+ 也一起排进 chip 行 */}
         {leading}
-        {leading && <span className="my-0.5 h-px w-4 shrink-0 bg-slate-200/80 md:hidden" />}
+        {leading && <span className="h-px w-4 shrink-0 bg-slate-200/80 md:hidden" />}
         <div className="relative shrink-0">
           <Chip id="price" base={t('chips.price')} active={priceLabel} Icon={Tag} />
           {open === 'price' && (
