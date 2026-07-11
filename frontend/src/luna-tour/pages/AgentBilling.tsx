@@ -62,9 +62,11 @@ export default function AgentBilling() {
   }, [banner, me, funnelRef])
 
   // 付款成功 → 按套餐落角色(选付费角色时不预写 role,付款成功才定身份)
+  // ⚠️ 只在还没有 role 时兜底。否则开发商买 Pro(plan=agent)会被这里改写成 agent,
+  // 而楼书上传要求 role='developer' → 一付钱就丢上传权限。服务端 webhook 也有同款守卫。
   const roleSetRef = useState(() => ({ done: false }))[0]
   useEffect(() => {
-    if (banner === 'success' && me && ['active', 'trialing'].includes(me.status) && !roleSetRef.done) {
+    if (banner === 'success' && me && !me.role && ['active', 'trialing'].includes(me.status) && !roleSetRef.done) {
       const r = ROLE_BY_PLAN[me.plan?.id || '']
       if (r) {
         roleSetRef.done = true

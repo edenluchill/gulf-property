@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, BadgeCheck } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
@@ -30,6 +30,7 @@ import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import AgentRuns from '../components/analytics/AgentRuns'
 import RevenueShare from '../components/analytics/RevenueShare'
+import DeveloperVerification from '../components/analytics/DeveloperVerification'
 import { fetchActiveAlerts, ActiveAlert } from '../lib/analyticsApi'
 
 const RANGES = [
@@ -50,6 +51,7 @@ const TABS = [
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
   { id: 'features', label: '功能记录', Icon: Sparkles },
   { id: 'subscriptions', label: '订阅', Icon: CreditCard },
+  { id: 'devverify', label: '开发商验证', Icon: BadgeCheck },
   { id: 'revenue', label: '分成对账', Icon: Handshake },
   { id: 'errors', label: '错误监控', Icon: AlertTriangle },
   { id: 'guardian', label: '看护', Icon: ShieldCheck },
@@ -341,6 +343,9 @@ export default function AdminAnalytics() {
 
           {/* ── 订阅(谁付费,原经纪审批弱化)──────────────────────────── */}
           {tab === 'subscriptions' && <AgentApprovals />}
+
+          {/* ── 开发商验证(批准 → 30 天 / 600 积分试用)────────────────── */}
+          {tab === 'devverify' && <DeveloperVerification />}
 
           {/* ── 分成对账 ──────────────────────────────────────────────── */}
           {tab === 'revenue' && <RevenueShare />}

@@ -29,6 +29,10 @@ export interface BillingMe {
   credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
   /** 免绑卡试用 (2026-07-11)。used=true → 不能再开,CTA 回落「立即订阅」。 */
   trial?: { active: boolean; used: boolean; endsAt: string | null; daysLeft: number | null }
+  /** 开发商验证:通过后试用延到 30 天 / 600 积分。 */
+  developer?: { verified: boolean; verification: 'pending' | 'approved' | 'rejected' | null }
+  /** 当前身份;付款回跳的 role 兜底只在它为空时才写(别把 developer 改写成 agent)。 */
+  role?: UserRole | null
 }
 
 export interface FeatureCost {
@@ -135,6 +139,61 @@ export async function startCheckout(
       return null
     }
     return j.error || `请求失败 (${res.status})`
+  } catch {
+    return '网络错误,请重试'
+  }
+}
+
+// ── 开发商验证 → 30 天 / 600 积分试用 ──────────────────────
+export interface DeveloperVerification {
+  id: number
+  agent_id: string
+  email: string
+  company: string
+  website: string | null
+  note: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  decided_by: string | null
+  decided_at: string | null
+  created_at: string
+  display_name: string | null
+  developer_verified_at: string | null
+  trial_ends_at: string | null
+  trial_credits: number | null
+}
+
+/** 申请开发商验证(通过后 owner 一键把试用延到 30 天 / 600 积分)。 */
+export async function requestDeveloperVerification(
+  body: { company: string; website?: string; note?: string }
+): Promise<string | null> {
+  try {
+    const res = await authed('/developer/verify-request', { method: 'POST', body: JSON.stringify(body) })
+    const j = await res.json().catch(() => ({}))
+    return res.ok && j.success ? null : (j.error || `请求失败 (${res.status})`)
+  } catch {
+    return '网络错误,请重试'
+  }
+}
+
+/** admin:开发商验证列表。 */
+export async function fetchDeveloperVerifications(): Promise<DeveloperVerification[]> {
+  try {
+    const res = await authed('/admin/developer-verifications')
+    if (!res.ok) return []
+    return (await res.json()).verifications || []
+  } catch {
+    return []
+  }
+}
+
+/** admin:批 / 拒。批 → 换发一条 30 天 / 600 积分的新试用 + 落 developer 角色。 */
+export async function decideDeveloperVerification(id: number, action: 'approve' | 'reject'): Promise<string | null> {
+  try {
+    const res = await authed(`/admin/developer-verifications/${id}/decide`, {
+      method: 'POST', body: JSON.stringify({ action }),
+    })
+    const j = await res.json().catch(() => ({}))
+    return res.ok && j.success ? null : (j.error || `请求失败 (${res.status})`)
   } catch {
     return '网络错误,请重试'
   }

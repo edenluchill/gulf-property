@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Sparkles, ArrowRight } from 'lucide-react'
 import { fetchBillingMe, type BillingMe } from '../lib/billingApi'
+import DeveloperVerifyCard from './DeveloperVerifyCard'
 
 export default function TrialBanner() {
   const { i18n } = useTranslation()
@@ -17,9 +18,14 @@ export default function TrialBanner() {
   const L = (a: string, b: string) => (zh ? a : b)
   const [me, setMe] = useState<BillingMe | null>(null)
 
-  useEffect(() => { void fetchBillingMe().then(setMe) }, [])
+  const load = () => { void fetchBillingMe().then(setMe) }
+  useEffect(load, [])
 
-  if (!me?.trial?.active) return null
+  if (!me) return null
+
+  // 开发商未验证 → 引导去拿 30 天 / 600 分(与试用条共用这一份 /me,不重复请求)
+  const devCard = <DeveloperVerifyCard me={me} onDone={load} />
+  if (!me.trial?.active) return devCard
 
   const days = me.trial.daysLeft ?? 0
   const balance = me.credits?.balance ?? 0
@@ -28,6 +34,8 @@ export default function TrialBanner() {
   const pct = month > 0 ? Math.max(0, Math.min(100, (balance / month) * 100)) : 0
 
   return (
+    <>
+    {devCard}
     <div
       className={`mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-2.5 text-sm ${
         urgent
@@ -67,5 +75,6 @@ export default function TrialBanner() {
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>
+    </>
   )
 }

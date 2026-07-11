@@ -173,6 +173,8 @@ router.get('/can-upload', requireAuth, async (req: Request, res: Response) => {
          JOIN lt_subscriptions s
            ON s.agent_id = COALESCE(la.billing_agent_id, la.id)
           AND s.status IN ('active','trialing')
+          -- 免绑卡试用过期后没有 webhook 关它,sweep 有 5min 窗口 → 这里带即时过期谓词
+          AND (s.source <> 'free_trial' OR s.current_period_end > now())
         WHERE lower(up.email) = $1 AND up.role = 'developer'
         LIMIT 1`,
       [email]

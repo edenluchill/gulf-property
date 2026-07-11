@@ -292,7 +292,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   // (2026-07-06 用户定:买家本来就免费用,定价页只讲付费档;免费在标题里说)。
   const tiers = variant === 'agent' ? allTiers.filter((t) => t.id === 'rookie' || t.id === 'agent')
     : variant === 'agency' ? allTiers.filter((t) => t.id === 'founder')
-    : variant === 'developer' ? allTiers.filter((t) => t.id === 'developer')
+    // 开发商也给一个便宜入口:Pro $49(与经纪同价)—— 不是每个开发商一上来就要 $999/5 席,
+    // 小开发商先用 Pro 的销售工具(楼书上传按 role=developer 判定,不看套餐档次)
+    : variant === 'developer' ? allTiers.filter((t) => t.id === 'agent' || t.id === 'developer')
     : agentOnboarding ? allTiers.filter((t) => t.id !== 'explore' && t.id !== 'developer')
     : allTiers.filter((t) => t.id !== 'explore')
 

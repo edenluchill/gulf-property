@@ -50,8 +50,14 @@ export type Feature = keyof typeof FEATURES
 
 const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3, developer: 4 }
 
-/** 免绑卡试用的积分池(与套餐自身的 credits_month 解耦,见 planFor)。 */
+/**
+ * 免绑卡试用的积分池默认值(与套餐自身的 credits_month 解耦,见 planFor)。
+ * 单条试用可以在 lt_subscriptions.trial_credits 上覆盖 —— 已验证开发商拿 600
+ * (楼书解析 40 分/份,200 分只够 5 份,而我们最想要的就是他们把楼盘全传上来)。
+ */
 export const TRIAL_CREDITS = Number(process.env.FREE_TRIAL_CREDITS || 200)
+export const DEV_TRIAL_CREDITS = Number(process.env.DEV_TRIAL_CREDITS || 600)
+export const DEV_TRIAL_DAYS = Number(process.env.DEV_TRIAL_DAYS || 30)
 
 /**
  * 计费归属:Founder 席位成员(lt_agents.billing_agent_id 指向 founder)的
@@ -65,7 +71,14 @@ async function billingAgentOf(agentId: string): Promise<string> {
   return r.rows[0]?.billing_agent_id || agentId
 }
 
-interface PlanCfg { plan: string; status: string; creditsMonth: number; multiplier: number; freeTrial: boolean }
+interface PlanCfg {
+  plan: string
+  status: string
+  creditsMonth: number
+  multiplier: number
+  freeTrial: boolean
+  trialStart: Date | null   // 试用起点(用量按它算,不按自然月 —— 见 usedFor)
+}
 
 /**
  * 该经纪当前生效套餐 + 积分参数(无生效订阅 → explore)。
@@ -75,8 +88,8 @@ interface PlanCfg { plan: string; status: string; creditsMonth: number; multipli
  * 但钱相关的门不能容忍这 5 分钟窗口 → 这里再加一道即时的过期谓词。
  */
 async function planFor(agentId: string): Promise<PlanCfg> {
-  const sub = await pool.query<{ plan_id: string; status: string; source: string }>(
-    `SELECT plan_id, status, source FROM lt_subscriptions
+  const sub = await pool.query<{ plan_id: string; status: string; source: string; trial_credits: number | null; created_at: Date }>(
+    `SELECT plan_id, status, source, trial_credits, created_at FROM lt_subscriptions
        WHERE agent_id = $1 AND status IN ('active','trialing')
          AND (source <> 'free_trial' OR current_period_end > now())
        ORDER BY created_at DESC LIMIT 1`,
@@ -87,10 +100,14 @@ async function planFor(agentId: string): Promise<PlanCfg> {
   const freeTrial = sub.rows[0]?.source === 'free_trial'
 
   // 免绑卡试用:给 Pro 档的**功能权限**(否则试不到实时带看/Luna 导览这些
-  // minPlan='agent' 的旗舰功能,试用就没意义了),但积分独立锁死在 200 —— 不吃
-  // Pro 的 1200。200 分 ≈ 2 场实时带看 或 2 次 Luna 导览,够尝到味道,不够白嫖。
+  // minPlan='agent' 的旗舰功能,试用就没意义了),但积分独立锁死 —— 不吃 Pro 的 1200。
+  // 积分池按行取(已验证开发商 600,其余默认 200):200 ≈ 2 场实时带看 或 2 次 Luna 导览。
   if (freeTrial) {
-    return { plan, status, creditsMonth: TRIAL_CREDITS, multiplier: 1, freeTrial: true }
+    const cm = sub.rows[0]?.trial_credits ?? TRIAL_CREDITS
+    return {
+      plan, status, creditsMonth: Number(cm), multiplier: 1, freeTrial: true,
+      trialStart: sub.rows[0]?.created_at ?? null,
+    }
   }
 
   const lim = await pool.query<{ cm: number | null; mult: number | null }>(
@@ -98,7 +115,10 @@ async function planFor(agentId: string): Promise<PlanCfg> {
        FROM lt_subscription_plans WHERE id = $1`,
     [plan]
   )
-  return { plan, status, creditsMonth: Number(lim.rows[0]?.cm ?? 0), multiplier: Number(lim.rows[0]?.mult ?? 1), freeTrial }
+  return {
+    plan, status, creditsMonth: Number(lim.rows[0]?.cm ?? 0),
+    multiplier: Number(lim.rows[0]?.mult ?? 1), freeTrial, trialStart: null,
+  }
 }
 
 async function usedThisMonth(agentId: string): Promise<number> {
@@ -108,6 +128,27 @@ async function usedThisMonth(agentId: string): Promise<number> {
     [agentId]
   )
   return Number(r.rows[0]?.u ?? 0)
+}
+
+/**
+ * 该套餐口径下的「已用积分」。
+ *
+ * ⚠️ 付费订阅按自然月(lt_usage_counters 按 period_month 分行,新月自动归零),
+ * 但**试用不能按自然月算** —— 7 天试用从月底开始就会跨月,一到月初 credits_used
+ * 归零 → 200 分白送第二遍;30 天的开发商试用必然跨月,600 直接变 1200。
+ * 试用用量改按「试用开始至今」的逐笔流水累计,与日历月无关。
+ * (credits > 0 排除掉转化时写的负数 trial_reset 补偿行。)
+ */
+async function usedFor(agentId: string, p: PlanCfg): Promise<number> {
+  if (p.freeTrial && p.trialStart) {
+    const r = await pool.query<{ u: string }>(
+      `SELECT COALESCE(SUM(credits), 0) AS u FROM lt_credit_ledger
+         WHERE agent_id = $1 AND created_at >= $2 AND credits > 0`,
+      [agentId, p.trialStart]
+    )
+    return Number(r.rows[0]?.u ?? 0)
+  }
+  return usedThisMonth(agentId)
 }
 
 /** owner 或无限白名单 → 无限额度、免计费。 */
@@ -142,7 +183,7 @@ export async function checkCredits(agentId: string, feature: Feature): Promise<C
   if (PLAN_RANK[p.plan] < (PLAN_RANK[f.minPlan] ?? 1)) {
     return { allowed: false, cost, balance: 0, creditsMonth: p.creditsMonth, used: 0, plan: p.plan, status: p.status, reason: 'subscription_required', owner: false, freeTrial: p.freeTrial }
   }
-  const used = await usedThisMonth(agentId)
+  const used = await usedFor(agentId, p)
   const balance = p.creditsMonth - used
   return {
     allowed: balance >= cost, cost, balance, creditsMonth: p.creditsMonth, used,
@@ -195,7 +236,7 @@ export async function creditBalance(agentId: string) {
   }
   agentId = await billingAgentOf(agentId) // 席位成员看到的是团队共享池
   const p = await planFor(agentId)
-  const used = await usedThisMonth(agentId)
+  const used = await usedFor(agentId, p)
   return { creditsMonth: p.creditsMonth, used, balance: p.creditsMonth - used, plan: p.plan, status: p.status, multiplier: p.multiplier, owner: false, freeTrial: p.freeTrial }
 }
 
