@@ -19,14 +19,38 @@ function recipients(): string[] {
   return raw.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
+/** 技术/错误告警收件人 —— 默认技术方(Eden);env ALERT_EMAIL_TECH 逗号分隔可覆盖。 */
+export function techAlertRecipients(): string[] {
+  const raw = process.env.ALERT_EMAIL_TECH || 'lzp6529@gmail.com'
+  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/** 订阅/商业通知收件人 —— 默认运营方(shell);env ALERT_EMAIL_OPS 逗号分隔可覆盖。 */
+export function opsAlertRecipients(): string[] {
+  const raw = process.env.ALERT_EMAIL_OPS || 'shelldubai26@gmail.com'
+  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/**
+ * 未显式指定收件人时,按主题自动分流:
+ *   • 订阅 / 商业通知(新订阅、付费成功、试用…)→ 运营方(shell)
+ *   • 其余(接口报错 / 性能告警 / 登录失败…)→ 技术方(Eden)
+ * 用户 2026-07-11 要求:订阅归 shell,技术错误归我。宁可漏判成技术方(收到总比漏好)。
+ */
+function autoRoute(subject: string): string[] {
+  const isOps = /订阅|付费|试用|subscription|trial|payment|🎉/i.test(subject)
+  return isOps ? opsAlertRecipients() : techAlertRecipients()
+}
+
 export function isEmailConfigured(): boolean {
   return !!process.env.RESEND_API_KEY && recipients().length > 0
 }
 
-export async function sendAlertEmail(subject: string, text: string): Promise<boolean> {
+export async function sendAlertEmail(subject: string, text: string, html?: string, to?: string[]): Promise<boolean> {
   const key = process.env.RESEND_API_KEY
-  const to = recipients()
-  if (!key || to.length === 0) {
+  // 显式 to 优先;否则按主题分流(订阅→shell,错误/性能→Eden)。
+  const recipientList = to && to.length ? to : autoRoute(subject)
+  if (!key || recipientList.length === 0) {
     console.warn(`[notify] email not configured (RESEND_API_KEY/ALERT_EMAIL) — skipping: ${subject}`)
     return false
   }
@@ -39,9 +63,10 @@ export async function sendAlertEmail(subject: string, text: string): Promise<boo
       },
       body: JSON.stringify({
         from: FROM,
-        to,
+        to: recipientList,
         subject,
-        text,
+        text, // plain-text fallback for clients that don't render HTML
+        ...(html ? { html } : {}),
       }),
     })
     if (!res.ok) {
