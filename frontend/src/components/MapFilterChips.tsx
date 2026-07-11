@@ -145,22 +145,20 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
   // (2026-07-11 用户反馈:中文还行,英文很难看)。名字在点开后的下拉标题里给,
   // 选中态 = 主色填充 + 右上角小圆点。
   // md+:仍是带文字的 chip(横排一行,宽度不敏感)。
+  // 手机:卡内无边框图标按钮(卡本身出阴影,不再各自浮起);选中=主色填充(和右上
+  // panel 内按钮同款),不用再挂小圆点。md+:仍是带文字、自带阴影的独立 chip。
   const Chip = ({ id, base, active, Icon }: { id: string; base: string; active: string | null; Icon: typeof Wallet }) => (
     <button
       onClick={() => setOpen(open === id ? null : id)}
       aria-label={base}
       title={base}
-      className={`relative flex h-11 w-11 items-center justify-center rounded-xl shadow-lg ring-1 backdrop-blur-sm transition-colors active:scale-95 md:h-auto md:w-auto md:gap-1 md:px-3 md:py-1.5 md:text-xs md:font-medium ${
+      className={`relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
         active
-          ? 'bg-primary text-white ring-primary'
-          : 'bg-white/95 text-slate-700 ring-slate-900/[0.06] hover:bg-white'
+          ? 'bg-primary text-white shadow-sm shadow-primary/40 md:ring-primary'
+          : 'text-slate-600 hover:bg-slate-100 md:bg-white/95 md:text-slate-700 md:ring-slate-900/[0.06] md:hover:bg-white'
       }`}
     >
       <Icon className="h-[18px] w-[18px] md:hidden" />
-      {/* 选中了但只有图标 → 右上角一颗小圆点,扫一眼就知道这项有筛选在生效 */}
-      {active && (
-        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-white md:hidden" />
-      )}
       <span className="hidden md:inline">{active || base}</span>
       <ChevronDown className="hidden h-3 w-3 shrink-0 opacity-70 md:block" />
     </button>
@@ -169,11 +167,11 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
   const POP_POS = 'absolute z-[1001] left-full top-0 ml-1.5 md:left-0 md:top-9 md:ml-0'
   // 手机是纯图标按钮,所以下拉必须自报家门:顶部一行标题(桌面 chip 上已有文字,不重复)。
   const Pop = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className={`${POP_POS} w-44 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
+    <div className={`${POP_POS} animate-filter-pop w-44 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
       <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 md:hidden">
         {title}
       </div>
-      <div className="p-1">{children}</div>
+      <div className="filter-pop-list p-1">{children}</div>
     </div>
   )
   const Opt = ({ on, sel, children }: { on: () => void; sel: boolean; children: React.ReactNode }) => (
@@ -195,8 +193,10 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
         <div className="fixed inset-0 z-[1000]" onClick={() => setOpen(null)} />
       )}
 
-      {/* ===== chips:手机竖排贴左,md+ 横排 ===== */}
-      <div className="flex flex-col items-start gap-1.5 md:flex-row md:flex-wrap md:items-center">
+      {/* ===== chips:手机竖排收进「一张整合卡」(和右上指标卡/工具卡同款
+           rounded-2xl+白95+柔和 ring+阴影),内部按钮无边框;md+ 化整为零,恢复
+           透明横排、每个 chip 自带阴影。 ===== */}
+      <div className="flex flex-col items-stretch gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
         <div className="relative shrink-0">
           <Chip id="price" base={t('chips.price')} active={priceLabel} Icon={Tag} />
           {open === 'price' && (
@@ -270,7 +270,7 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
         <div className="relative shrink-0">
           <Chip id="dev" base={t('chips.developer')} active={devLabel} Icon={Building2} />
           {open === 'dev' && (
-            <div className={`${POP_POS} w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
+            <div className={`${POP_POS} animate-filter-pop w-60 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>
               <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 md:hidden">
                 {t('chips.developer')}
               </div>
@@ -281,7 +281,7 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
                 placeholder={t('chips.searchDeveloper')}
                 className="w-full border-b border-slate-100 bg-transparent px-3 py-2 text-xs focus:outline-none"
               />
-              <div className="max-h-56 overflow-y-auto p-1">
+              <div className="filter-pop-list max-h-56 overflow-y-auto p-1">
                 <Opt sel={!filters.developer}
                   on={() => { setFilters(f => ({ ...f, developer: undefined })); setDevQuery('') }}>
                   {t('chips.any')}
@@ -304,7 +304,7 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
             onClick={clearAll}
             aria-label={t('chips.clear')}
             title={t('chips.clear')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/95 text-slate-500 shadow-lg ring-1 ring-slate-900/[0.06] transition-colors active:scale-95 hover:bg-white hover:text-slate-700 md:h-auto md:w-auto md:gap-1 md:px-2.5 md:py-1.5 md:text-xs"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 active:scale-90 hover:bg-slate-100 hover:text-slate-700 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:bg-white/95 md:px-2.5 md:py-1.5 md:text-xs md:shadow-lg md:ring-1 md:ring-slate-900/[0.06] md:hover:bg-white"
           >
             <X className="h-[18px] w-[18px] md:h-3 md:w-3" />
             <span className="hidden md:inline">{t('chips.clear')}</span>

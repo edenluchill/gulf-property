@@ -73,6 +73,46 @@
   to   { opacity: 1; transform: translateY(0)   scale(1); }
 }
 
+/* 地图筛选 popover 弹出:高级缓入(位移+放大+淡入,GPU 合成,easeOutQuint 收尾)。
+   手机从 chip 右侧飞出(origin 左),桌面从 chip 下方展开(origin 上)。 */
+@keyframes filterPopIn {
+  from { opacity: 0; transform: translateX(-7px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+@keyframes filterPopInDown {
+  from { opacity: 0; transform: translateY(-7px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.animate-filter-pop {
+  animation: filterPopIn 0.19s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: left center;
+  will-change: transform, opacity;
+}
+@media (min-width: 768px) {
+  .animate-filter-pop {
+    animation-name: filterPopInDown;
+    transform-origin: top left;
+  }
+}
+/* 选项行逐条上浮淡入(仅前几条 stagger,长列表如开发商到第 7 条起统一,避免拖沓)。 */
+@keyframes filterOptIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.filter-pop-list > * {
+  animation: filterOptIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.filter-pop-list > *:nth-child(1) { animation-delay: 0.03s; }
+.filter-pop-list > *:nth-child(2) { animation-delay: 0.06s; }
+.filter-pop-list > *:nth-child(3) { animation-delay: 0.09s; }
+.filter-pop-list > *:nth-child(4) { animation-delay: 0.12s; }
+.filter-pop-list > *:nth-child(5) { animation-delay: 0.15s; }
+.filter-pop-list > *:nth-child(6) { animation-delay: 0.17s; }
+.filter-pop-list > *:nth-child(n+7) { animation-delay: 0.19s; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-filter-pop, .filter-pop-list > * { animation: none; }
+}
+
 /* Shimmer animation for progress bar */
 @keyframes shimmer {
   0% {
