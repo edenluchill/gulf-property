@@ -690,11 +690,14 @@ function MapViewMapLibre({
     const canvas = map.getCanvas()
     const W = canvas.clientWidth, H = canvas.clientHeight
     const isNarrow = W < 768
-    // 碰撞盒≈卡片本体实际尺寸(手机紧凑卡 ~132×48,桌面完整卡 ~190×64),
-    // 这样"放得下"就真的不会溢出到面板/邻卡上。防拥挤轻松:盒略小于本体留 ~10%
-    // 交叠余量(稍挤没关系,用户要求)。放不下上方就试下方,躲开顶部/右上面板。
-    const CARD_W = isNarrow ? 120 : 172
-    const CARD_H = isNarrow ? 46 : 60
+    // 碰撞盒 = 卡片本体的「最大可能尺寸」+ 小间隙,任何语言都不许 overlap(用户硬要求)。
+    // 卡名被 maxWidth(桌面128/手机96)+ellipsis 钳制,所以卡宽有确定上限:
+    //   桌面 = 边框2 + 左pad5 + 缩略图44 + gap10 + (name128+pad1) + 右pad13 = 203
+    //   手机 = 边框2 + 左pad4 + 缩略图36 + gap8  + (name96 +pad1) + 右pad11 = 158
+    // 盒取此上限 + ~9px 间隙 → 无论中英/长短名,实际卡(居中于圆点,永不超上限)都塞得进盒内。
+    // 高含尾巴(桌面 body56+尾8≈64 / 手机 46+8≈54)。放不下上方就试下方,躲开顶部/右上面板。
+    const CARD_W = isNarrow ? 166 : 212
+    const CARD_H = isNarrow ? 58 : 68
     const MAX_CARDS = 40
     // UI 禁区:卡片不钻到这些不透明浮层底下(否则被遮一半很难看)。按断点给出
     // 各浮层的粗略footprint——顶部搜索/筛选、右上指标卡、右侧工具竖卡、右下 Luna 球。
