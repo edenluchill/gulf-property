@@ -153,6 +153,20 @@ function derivePaymentSplit(plan: unknown): string | null {
 export function createResidentialProjectsRouter(pool: Pool): Router {
   const router = Router()
 
+  // `id` is a residential_projects UUID. Without this guard a malformed id goes
+  // straight into `WHERE id = $1`, Postgres throws on the uuid cast, and the
+  // handler's catch turns it into a 500 — a server error for what is really a
+  // bad request. Same defect the area-insights route was fixed for on 2026-06-28;
+  // these three /:id routes still had it (GET returned 500 for /not-a-uuid).
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  router.param('id', (_req: Request, res: Response, next, id: string) => {
+    if (!UUID_RE.test(id)) {
+      res.status(404).json({ error: 'Project not found' })
+      return
+    }
+    next()
+  })
+
   // ============================================================================
   // GET /api/residential-projects/map-pins
   // Returns all projects as individual pins for map view (no clustering)

@@ -149,6 +149,58 @@ export function window(seconds: number): Window {
   }
 }
 
+// ───────────────────────── 5xx incidents (NOT sampled) ──────────────────────
+// A 5xx is an EVENT, not a state: it happened, a real customer ate it, and it
+// never "un-happens". So every single one is captured here in full (no sampling
+// — api_calls samples, and sampling is exactly how the worst failures stayed
+// invisible), keyed by (route template, status). perfMonitor drains this each
+// tick into a perf_alerts incident that ONLY a human can close, after finding
+// the root cause. See db/perf-alerts-incidents.sql.
+export interface ErrorHit {
+  signature: string        // "POST /api/billing/checkout|500"
+  endpoint: string
+  status: number
+  count: number
+  firstAt: string
+  lastAt: string
+  sampleUrl: string
+  victims: string[]        // emails / visitor ids that ate the error
+}
+
+const MAX_ERROR_SIGS = 100  // cardinality guard
+const errorHits = new Map<string, ErrorHit>()
+
+export function recordError(
+  endpoint: string,
+  status: number,
+  originalUrl: string,
+  who: string | null,
+): void {
+  const signature = `${endpoint}|${status}`
+  const now = new Date().toISOString()
+  let hit = errorHits.get(signature)
+  if (!hit) {
+    if (errorHits.size >= MAX_ERROR_SIGS) return
+    hit = {
+      signature, endpoint, status, count: 0,
+      firstAt: now, lastAt: now,
+      sampleUrl: originalUrl.slice(0, 300),
+      victims: [],
+    }
+    errorHits.set(signature, hit)
+  }
+  hit.count++
+  hit.lastAt = now
+  if (who && !hit.victims.includes(who) && hit.victims.length < 10) hit.victims.push(who)
+}
+
+/** Hand over everything captured since the last call; the sink starts empty again. */
+export function drainErrors(): ErrorHit[] {
+  const out = [...errorHits.values()]
+  errorHits.clear()
+  return out
+}
+
 // ───────────────────────── per-endpoint (path) tracking ─────────────────────
 // Separate, bounded structure: one record per normalized route template
 // ("GET /api/dubai/areas"), each holding a small ring of minute buckets. This

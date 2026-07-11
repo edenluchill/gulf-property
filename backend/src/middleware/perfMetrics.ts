@@ -6,7 +6,7 @@
  * Fail-safe: any error here is swallowed so telemetry can't break a request.
  */
 import { Request, Response, NextFunction } from 'express'
-import { recordRequest, recordEndpoint, incConcurrency, decConcurrency } from '../services/perfSink'
+import { recordRequest, recordEndpoint, recordError, incConcurrency, decConcurrency } from '../services/perfSink'
 
 // Health checks and the metrics endpoints themselves would skew the numbers.
 const IGNORE = new Set(['/health'])
@@ -62,8 +62,15 @@ export function perfMetrics(req: Request, res: Response, next: NextFunction): vo
       decConcurrency()
       const ms = Number(process.hrtime.bigint() - start) / 1e6
       // 长连接不进全局延迟分位(报警口径);端点表仍记真实耗时(展示用,诚实)。
+      const key = endpointKey(req)
       recordRequest(res.statusCode, ms, longLived)
-      recordEndpoint(endpointKey(req), res.statusCode, ms)
+      recordEndpoint(key, res.statusCode, ms)
+      // Every 5xx is captured whole — who ate it and on which URL. Unsampled:
+      // this is the record that has to survive long enough to be root-caused.
+      if (res.statusCode >= 500) {
+        const who = req.ctx?.email || req.ctx?.visitorId || null
+        recordError(key, res.statusCode, String(req.originalUrl), who)
+      }
       // 诊断埋点(2026-07-08):p95 报警多次被 70-98s 的神秘请求触发,但 morgan 里
       // 无踪影(疑似 client-abort 只走 'close')。>10s 一律留名,让下一次自己招供。
       if (ms > 10_000) {

@@ -106,10 +106,63 @@ async function flushMinute(w: sink.Window, ps: PoolStats): Promise<void> {
   )
 }
 
-async function reconcileAlerts(rules: RuleResult[]): Promise<void> {
-  // Current active (unresolved) alerts keyed by kind.
+/**
+ * 5xx incidents. A 5xx is an event, not a state — it does not "recover", so
+ * these are NEVER auto-resolved. One open incident per (endpoint, status);
+ * repeat hits accumulate into it instead of spamming new rows. It stays open
+ * until a human hits 「标记已解决」 on the dashboard, which is the only thing
+ * that should mean "root cause found and fixed".
+ *
+ * This replaces the old behaviour, where HIGH_ERROR_RATE auto-closed as soon as
+ * the 3-min error RATE fell back under 5% — which at 3 req/min just meant nobody
+ * had touched the broken endpoint lately. 2026-07-09: /api/billing/checkout 500ed
+ * on a paying customer three times, and the alert closed itself 3 minutes later.
+ */
+async function ingestErrorIncidents(): Promise<void> {
+  for (const hit of sink.drainErrors()) {
+    const victims = hit.victims.length ? hit.victims.join(', ') : '匿名'
+    const message = `${hit.endpoint} 返回 ${hit.status}（${hit.count} 次,受影响: ${victims}）`
+    // Open a new incident, or fold repeat hits into the open one.
+    const upd = await pool.query(
+      `UPDATE perf_alerts
+          SET detail = jsonb_set(
+                jsonb_set(coalesce(detail,'{}'::jsonb), '{count}',
+                          to_jsonb(coalesce((detail->>'count')::int, 0) + $2)),
+                '{lastAt}', to_jsonb($3::text)),
+              message = $4
+        WHERE kind = 'API_5XX' AND signature = $1 AND resolved_at IS NULL
+        RETURNING id`,
+      [hit.signature, hit.count, hit.lastAt, message]
+    )
+    if ((upd.rowCount ?? 0) > 0) continue
+
+    const ins = await pool.query(
+      `INSERT INTO perf_alerts (kind, severity, metric, threshold, window_s, message, signature, detail)
+       VALUES ('API_5XX','error',$1,0,$2,$3,$4,$5) RETURNING id`,
+      [
+        hit.status, EVAL_WINDOW_S, message, hit.signature,
+        JSON.stringify({
+          endpoint: hit.endpoint, status: hit.status, count: hit.count,
+          firstAt: hit.firstAt, lastAt: hit.lastAt,
+          sampleUrl: hit.sampleUrl, victims: hit.victims,
+        }),
+      ]
+    )
+    const ok = await sendAlertEmail(
+      `🚨 Pinzos 接口报错: ${hit.endpoint} → ${hit.status}`,
+      `${message}\n\n请求: ${hit.sampleUrl}\n首次: ${hit.firstAt}\n\n` +
+        `这条不会自动恢复——查清根因、修好之后到 dashboard 手动关闭。\n${APP_URL}/admin/analytics\n\n— 性能监控自动发出`
+    )
+    if (ok) await pool.query(`UPDATE perf_alerts SET emailed = true WHERE id = $1`, [ins.rows[0].id])
+  }
+}
+
+async function reconcileAlerts(rules: RuleResult[], hasTraffic: boolean): Promise<void> {
+  // Current active (unresolved) STATE alerts keyed by kind. API_5XX incidents are
+  // excluded: they are not state, they never auto-resolve, and several can be open
+  // at once (one per endpoint).
   const { rows } = await pool.query(
-    `SELECT id, kind FROM perf_alerts WHERE resolved_at IS NULL`
+    `SELECT id, kind FROM perf_alerts WHERE resolved_at IS NULL AND kind <> 'API_5XX'`
   )
   const active = new Map<string, number>()
   for (const r of rows) active.set(r.kind, Number(r.id))
@@ -130,8 +183,12 @@ async function reconcileAlerts(rules: RuleResult[]): Promise<void> {
       if (ok) {
         await pool.query(`UPDATE perf_alerts SET emailed = true WHERE id = $1`, [ins.rows[0].id])
       }
-    } else if (!rule.breached && isActive) {
-      // Recovered → resolve + email.
+    } else if (!rule.breached && isActive && hasTraffic) {
+      // Recovered → resolve + email. `hasTraffic` is the point: without it, an
+      // empty 3-min window (nobody on the site) reads as "not breached" and
+      // silently closes the alert. Every HIGH_LATENCY alert this week "recovered"
+      // that way — the site just went quiet, the 8.8s query was still there.
+      // Recovery now has to be demonstrated under real traffic, or not at all.
       await pool.query(`UPDATE perf_alerts SET resolved_at = now() WHERE id = $1`, [active.get(rule.kind)])
       await sendAlertEmail(
         `✅ Pinzos 性能恢复: ${rule.kind}`,
@@ -148,7 +205,9 @@ async function tick(): Promise<void> {
     const w = sink.window(EVAL_WINDOW_S)
     const ps = poolStats()
     await flushMinute(sink.window(60), ps)
-    await reconcileAlerts(evaluateRules(w, ps))
+    await ingestErrorIncidents()
+    // A window with too few requests proves nothing — it can't clear an alert.
+    await reconcileAlerts(evaluateRules(w, ps), w.req >= 5)
   } catch (err) {
     console.error('[perfMonitor] tick failed:', err)
   }
@@ -216,7 +275,8 @@ export async function getPerfRollups(minutes = 180) {
 /** Recent alerts (active + recently resolved), newest first. */
 export async function getRecentAlerts(limit = 50) {
   const { rows } = await pool.query(
-    `SELECT id, created_at, resolved_at, kind, severity, metric, threshold, window_s, message, emailed
+    `SELECT id, created_at, resolved_at, kind, severity, metric, threshold, window_s, message, emailed,
+            signature, detail
        FROM perf_alerts
       ORDER BY (resolved_at IS NULL) DESC, created_at DESC
       LIMIT $1`,
@@ -233,6 +293,8 @@ export async function getRecentAlerts(limit = 50) {
     window_s: r.window_s != null ? Number(r.window_s) : null,
     message: r.message as string,
     emailed: !!r.emailed,
+    signature: (r.signature as string) || null,
+    detail: r.detail || null,
     active: r.resolved_at == null,
   }))
 }
