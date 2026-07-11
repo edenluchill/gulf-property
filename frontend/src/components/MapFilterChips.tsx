@@ -15,6 +15,8 @@ interface Props {
   filters: PropertyFilters
   setFilters: (updater: (f: PropertyFilters) => PropertyFilters) => void
   developers: string[]
+  /** 卡内最上面的额外按钮(指北针)——手机上和筛选融成一张卡 */
+  leading?: React.ReactNode
 }
 
 type PriceKey = 'price0' | 'price1' | 'price2' | 'price3' | 'price4' | 'price5' | 'price6'
@@ -50,7 +52,7 @@ const HANDOVER_OPTS: { year: number | null; plus?: boolean }[] = [
   { year: HANDOVER_BASE + 5, plus: true },
 ]
 
-export default function MapFilterChips({ filters, setFilters, developers }: Props) {
+export default function MapFilterChips({ filters, setFilters, developers, leading }: Props) {
   const { t } = useTranslation('filter')
   const [open, setOpen] = useState<string | null>(null)   // 当前展开的 chip popover
   const [devQuery, setDevQuery] = useState('')
@@ -145,20 +147,13 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       onClick={() => setOpen(open === id ? null : id)}
       aria-label={active ? `${base}: ${active}` : base}
       title={active ? `${base}: ${active}` : base}
-      className={`relative flex w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 md:w-auto md:flex-row md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
+      className={`relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
         active
           ? 'bg-primary text-white shadow-sm shadow-primary/40 md:ring-primary'
           : 'text-slate-600 hover:bg-slate-100 md:bg-white/95 md:text-slate-700 md:ring-slate-900/[0.06] md:hover:bg-white'
       }`}
     >
-      <Icon className="h-[18px] w-[18px] shrink-0 md:hidden" />
-      {/* 手机是图标钮,选中的值必须写出来,否则客户不知道自己筛了什么
-          (2026-07-11 用户:"选了 bed 2 要有显示")。未选中不占位,卡不跳高。 */}
-      {active && (
-        <span className="w-full truncate whitespace-nowrap text-center text-[9px] font-bold leading-none md:hidden">
-          {active}
-        </span>
-      )}
+      <Icon className="h-3.5 w-3.5 shrink-0 md:hidden" />
       <span className="hidden md:inline">{active || base}</span>
       <ChevronDown className="hidden h-3 w-3 shrink-0 opacity-70 md:block" />
     </button>
@@ -199,7 +194,10 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
       {/* ⚠️ relative z-[1001] 不能删:这张卡有 backdrop-blur → 自成层叠上下文,卡本身
           若不给 z-index(=auto),就会整体排在遮罩(z-1000)下面 —— 连带里面弹出的
           下拉一起被遮罩吃掉点击,真机上「筛选选项点了没反应」(2026-07-11 实测)。 */}
-      <div className="relative z-[1001] flex w-[62px] flex-col items-stretch gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
+      <div className="relative z-[1001] flex w-10 flex-col items-center gap-0.5 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
+        {/* 指北针(手机上并进这张卡,和筛选融为一体);md+ 也一起排进 chip 行 */}
+        {leading}
+        {leading && <span className="h-px w-5 shrink-0 bg-slate-200/80 md:hidden" />}
         <div className="relative shrink-0">
           <Chip id="price" base={t('chips.price')} active={priceLabel} Icon={Tag} />
           {open === 'price' && (
@@ -292,15 +290,30 @@ export default function MapFilterChips({ filters, setFilters, developers }: Prop
             onClick={clearAll}
             aria-label={t('chips.clear')}
             title={t('chips.clear')}
-            className="flex w-full shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-100 px-1 py-1.5 text-slate-500 transition-all duration-150 active:scale-90 hover:bg-slate-200 hover:text-slate-700 md:w-auto md:flex-row md:gap-1 md:rounded-xl md:bg-white/95 md:px-2.5 md:py-1.5 md:text-xs md:shadow-lg md:ring-1 md:ring-slate-900/[0.06] md:hover:bg-white"
+            className="hidden shrink-0 items-center gap-1 rounded-xl bg-white/95 px-2.5 py-1.5 text-xs text-slate-500 shadow-lg ring-1 ring-slate-900/[0.06] hover:bg-white hover:text-slate-700 md:flex"
           >
-            <X className="h-[18px] w-[18px] shrink-0 md:h-3 md:w-3" />
-            {/* 手机:图标下写「清除 n」,一眼知道现在有几项筛选在生效 */}
-            <span className="text-[9px] font-bold leading-none md:hidden">{activeCount}</span>
-            <span className="hidden md:inline">{t('chips.clear')}</span>
+            <X className="h-3 w-3" /> {t('chips.clear')}
           </button>
         )}
       </div>
+
+      {/* 手机:按钮缩到 32px 后塞不下值了 → 卡下方挂一条「已选」摘要,
+          写明当前筛了什么(2居+ · 100–200万),点 ✕ 一键清空。宽度固定、超长截断,
+          不会因为中英文/长开发商名把布局撑坏。 */}
+      {anyActive && (
+        <div className="mt-1 flex w-[132px] items-center gap-1 rounded-xl bg-primary/95 px-2 py-1 shadow-lg ring-1 ring-primary/30 backdrop-blur-sm md:hidden">
+          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold leading-tight text-white">
+            {[bedLabel, priceLabel, statusLabel, handoverLabel, devLabel].filter(Boolean).join(' · ')}
+          </span>
+          <button
+            onClick={clearAll}
+            aria-label={t('chips.clear')}
+            className="shrink-0 rounded-full p-0.5 text-white/80 transition-transform active:scale-90 hover:bg-white/20 hover:text-white"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

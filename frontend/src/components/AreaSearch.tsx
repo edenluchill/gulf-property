@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Search, X, MapPin } from 'lucide-react'
 import { searchDubaiAreas, AreaSearchResult } from '../lib/api'
 
-export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchResult) => void }) {
+export default function AreaSearch({ onSelect, autoFocus }: { onSelect: (area: AreaSearchResult) => void; autoFocus?: boolean }) {
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
   const [q, setQ] = useState('')
@@ -58,6 +58,7 @@ export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchRe
       <div className="flex items-center gap-2 rounded-2xl bg-white/95 px-3.5 py-2.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:gap-1.5 md:px-3 md:py-2">
         <Search className="h-4 w-4 shrink-0 text-slate-400 md:h-3.5 md:w-3.5" />
         <input
+          autoFocus={autoFocus}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpen(true)}

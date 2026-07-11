@@ -44,6 +44,7 @@ import {
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
+import MapCompassButton from '../components/MapCompassButton'
 import { GuidedTourPayload } from '../hooks/voice-assistant/types'
 import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
@@ -287,6 +288,8 @@ export default function MapPage() {
   }, [tourCode])
   const [filters, setFilters] = useState<PropertyFilters>({})
   const keyboardInset = useKeyboardInset()   // 手机软键盘高度,给底部搜索 dock 让位
+  const [liveMap, setLiveMap] = useState<MaplibreMap | null>(null)  // 给指北针按钮订阅相机
+  const [searchOpen, setSearchOpen] = useState(false)                // 手机:搜索默认收成一颗图标
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [mapPins, setMapPins] = useState<MapPinProject[]>([])
@@ -903,6 +906,7 @@ export default function MapPage() {
   // taps「自己看」in the session bar. No gesture→Free wiring here anymore.
   const handleCollabMapReady = useCallback((map: MaplibreMap) => {
     collabMapRef.current = map
+    setLiveMap(map)   // 指北针按钮(收在左上筛选卡里)要订阅 rotate/pitch
   }, [])
 
   // ── 匿名地图限时(MapMeterGuard)────────────────────────────────────────
@@ -1592,6 +1596,7 @@ export default function MapPage() {
               filters={filters}
               setFilters={setFilters}
               developers={developers}
+              leading={<MapCompassButton map={liveMap} />}
             />
           </div>
 
@@ -1604,15 +1609,40 @@ export default function MapPage() {
               就会压住导航栏(2026-07-11 真机实锤;桌面两者相等所以测不出来)。
               nav 高 h-16(64px)→ 76px 起,和 nav 永远差 12px。
               键盘弹起时再抬到键盘之上(fixed 贴的是布局视口底边,直接加 keyboardInset)。 */}
+          {/* 手机默认只是左下角一颗搜索图标(不常年占一条),点开才展开输入框——
+              2026-07-11 用户要求。展开时铺到底部 dock,结果向上开。 */}
           <div
-            className="md:hidden fixed left-3 right-[68px] z-[1002] transition-[bottom] duration-150"
-            style={{ bottom: 76 + keyboardInset }}
+            className="md:hidden fixed left-2 z-[1002] transition-[bottom] duration-150"
+            style={{ bottom: 76 + keyboardInset, right: searchOpen ? 62 : undefined }}
           >
-            <AreaSearch
-              onSelect={(a) => {
-                if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
-              }}
-            />
+            {searchOpen ? (
+              <div className="flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <AreaSearch
+                    autoFocus
+                    onSelect={(a) => {
+                      if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
+                      setSearchOpen(false)
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => setSearchOpen(false)}
+                  aria-label={t('common:close', { defaultValue: 'Close' })}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/95 text-slate-500 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform active:scale-90"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label={(i18n.language || 'en').startsWith('zh') ? '搜索区域' : 'Search area'}
+                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/95 text-slate-600 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform active:scale-90"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            )}
           </div>
           </>)}
 
@@ -1631,7 +1661,7 @@ export default function MapPage() {
           {/* 卡片宽度锁死(w-[184px]/md w-[212px]):以前是内容撑宽,切到英文所有文案变长
               → 卡跟着变宽、口径 tab 还折行,整块 UI 抖一下且很难看(2026-07-11 用户反馈)。
               现在 5 个图标按钮的行决定了宽度,文字一律 nowrap + 截断,中英文一样宽。 */}
-          <div data-testid="map-mobile-controls" className="absolute top-3 right-2 z-[1000] w-[184px] md:w-[212px]">
+          <div data-testid="map-mobile-controls" className="absolute top-2 right-2 z-[1000] w-[148px] md:w-[212px]">
             <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 md:p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state。
                   三等分 + 不折行:英文 "Off-plan" 比中文长得多,不锁死就会换行。 */}
@@ -1640,7 +1670,7 @@ export default function MapPage() {
                   <button
                     key={seg}
                     onClick={() => handleSegmentChange(seg)}
-                    className={`min-w-0 truncate whitespace-nowrap rounded-md px-1 py-0.5 md:py-1 text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
+                    className={`min-w-0 truncate whitespace-nowrap rounded-md px-0.5 py-0.5 tracking-tight md:px-1 md:py-1 md:tracking-normal text-[9px] md:text-[11px] font-semibold transition-all duration-150 active:scale-90 ${
                       marketSegment === seg
                         ? seg === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'bg-violet-600 text-white shadow-sm shadow-violet-600/30'
                         : 'text-slate-500 hover:bg-white/70'
@@ -1658,12 +1688,12 @@ export default function MapPage() {
                     <button
                       key={option.value}
                       onClick={() => handleMetricToggle(option.value)}
-                      className={`flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-lg transition-all duration-150 active:scale-90 ${
+                      className={`flex items-center justify-center w-6 h-6 md:w-8 md:h-8 rounded-lg transition-all duration-150 active:scale-90 ${
                         isActive ? 'bg-primary text-white shadow-sm shadow-primary/40' : 'text-slate-500 hover:bg-slate-100'
                       }`}
                       title={t(option.labelKey as any)}
                     >
-                      <option.Icon className="w-3.5 h-3.5" />
+                      <option.Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                     </button>
                   )
                 })}
@@ -1673,12 +1703,12 @@ export default function MapPage() {
               <div className="flex justify-between gap-1">
                 <button
                   onClick={toggleTransit}
-                  className="flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
+                  className="flex w-6 h-6 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
                   style={showTransit ? { backgroundColor: '#0891b2', color: 'white', boxShadow: '0 1px 6px -1px rgba(8,145,178,0.5)' } : { color: '#64748b' }}
                   title={t('map:transit')}
                   aria-label={t('map:transit')}
                 >
-                  <TrainFront className="w-3.5 h-3.5" />
+                  <TrainFront className="w-3 h-3 md:w-3.5 md:h-3.5" />
                 </button>
                 {QUICK_BUTTONS.map((btn) => {
                   const enabled = enabledPoiCategories.includes(btn.id)
@@ -1686,24 +1716,24 @@ export default function MapPage() {
                     <button
                       key={btn.id}
                       onClick={() => togglePoiCategory(btn.id)}
-                      className="flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
+                      className="flex w-6 h-6 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 hover:bg-slate-100"
                       style={enabled ? { backgroundColor: btn.color, color: 'white', boxShadow: `0 1px 6px -1px ${btn.color}80` } : { color: '#64748b' }}
                       title={t(btn.labelKey as any)}
                       aria-label={t(btn.labelKey as any)}
                     >
-                      <btn.Icon className="w-3.5 h-3.5" />
+                      <btn.Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                     </button>
                   )
                 })}
                 <button
                   onClick={() => setShowPoiPanel(true)}
-                  className={`flex w-7 h-7 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+                  className={`flex w-6 h-6 md:w-8 md:h-8 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
                     showPoiPanel ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                   title={t('map:poi.more')}
                   aria-label={t('map:poi.more')}
                 >
-                  <MapPin className="w-3.5 h-3.5" />
+                  <MapPin className="w-3 h-3 md:w-3.5 md:h-3.5" />
                 </button>
               </div>
               {/* 只有图标分不清选了哪个指标(两个 $ 图标长一样)→ 底部常显一条文字标签:
@@ -1717,12 +1747,12 @@ export default function MapPage() {
                   ? (zhL ? ' · 现楼出租参考' : ' · existing stock')
                   : ''
                 return active ? (
-                  <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[11px] font-semibold text-primary">
+                  <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-semibold text-primary">
                     <active.Icon className="w-3 h-3 shrink-0" />
                     <span className="truncate whitespace-nowrap">{t(active.labelKey as any)}{yieldCaveat}</span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[11px] font-medium text-slate-400">
+                  <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-medium text-slate-400">
                     {(i18n.language || 'en').startsWith('zh') ? '选择指标' : 'Pick metric'}
                   </div>
                 )

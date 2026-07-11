@@ -377,10 +377,10 @@ function MapViewMapLibre({
   // 配合电影 flyTo 俯冲。pitchedRef 供 flyTo effect 读取(避免把 pitched 放进
   // effect deps 而触发重复飞行)。
   const CINEMATIC_PITCH = 60
-  // 指北针:针的旋转/倾斜走命令式 DOM transform(rotate/pitch 事件每帧触发,
+  // (指北针已并入左上筛选卡,见 MapCompassButton)
+  // 旧注释保留下面这段是为了说明范式:高频相机值一律走命令式 DOM,不进 state。
   // 铁律「高频相机值禁入 React state」)。单个小合成层元素的 transform 写入
   // 零 layout 零 React 重渲染,2D/3D 通用。
-  const compassNeedleRef = useRef<HTMLSpanElement>(null)
   // 深链恢复的相机自带俯角时,3D 按钮状态要对得上(否则显示"3D"实际已倾斜)
   const [pitched, setPitched] = useState(() => (initialView?.pitch ?? 0) >= 30)
   const pitchedRef = useRef((initialView?.pitch ?? 0) >= 30)
@@ -485,19 +485,8 @@ function MapViewMapLibre({
       map.on('pitchend', revealMarkersSoon)
     }
 
-    // 指北针跟相机:bearing 转针、pitch 给一点 rotateX 立体倾斜(3D 视角下针
-    // 像贴在地面上)。rotate/pitch 每帧触发,但这里只写一个小元素的 transform
-    // (合成层),不进 React —— 见 compassNeedleRef 注释。tour 的 jumpTo 每帧
-    // 也会触发,同样廉价,顺带让导览时指北针也跟镜头。
-    const syncCompass = () => {
-      const el = compassNeedleRef.current
-      if (!el) return
-      el.style.transform =
-        `perspective(120px) rotateX(${(map.getPitch() * 0.75).toFixed(1)}deg) rotateZ(${(-map.getBearing()).toFixed(1)}deg)`
-    }
-    map.on('rotate', syncCompass)
-    map.on('pitch', syncCompass)
-    syncCompass()
+    // (指北针的相机跟随已搬到 components/MapCompassButton —— 它自己订阅 rotate/pitch,
+    //  同样是命令式 DOM transform,不进 React。)
 
     setMapLoaded(true)
 
@@ -708,12 +697,12 @@ function MapViewMapLibre({
       ? [
           // 手机布局(2026-07-11):左边一竖列筛选图标钮、底部一条搜索 dock、左下指北针。
           // 三者都不透明,卡钻底下等于看不见。
-          { x0: 0, y0: 0, x1: 74, y1: 300 },          // 左侧筛选卡(w-62 + left-2;5 项 + 「清除」)
-          { x0: W - 192, y0: 0, x1: W, y1: 208 },     // 指标卡(固定 184 宽 + 右 8)
+          { x0: 0, y0: 0, x1: 60, y1: 300 },          // 左侧筛选卡(w-40 + left-2;指北针 + 5 项)
+          { x0: W - 156, y0: 0, x1: W, y1: 170 },     // 指标卡(固定 148 宽 + 右 8)
           // 底部搜索 dock + 指北针都是 fixed(贴可见视口),而这里的 H 是地图容器高度
           // (100vh,比可见区高一截)→ 禁区往上多留一点,吸收这个差值。
           { x0: 0, y0: H - 96, x1: W - 60, y1: H },   // 底部搜索 dock
-          { x0: 0, y0: H - 168, x1: 76, y1: H - 90 }, // 指北针
+          { x0: 0, y0: H - 130, x1: 60, y1: H - 90 }, // (指北针已并入左卡;这块留给底部搜索图标的呼吸区)
         ]
       : [
           { x0: 0, y0: 0, x1: 560, y1: 56 },          // 搜索+筛选行
@@ -1689,44 +1678,44 @@ function MapViewMapLibre({
       {/* 卡宽锁死 w-[60px]:原来按钮是「图标+文字横排」,文字一长(英文 Satellite/Measure)
           整张卡就变宽、右缘乱跳,中英文两副样子(2026-07-11 用户反馈)。改成图标在上、
           小字在下、居中,文字 nowrap+截断 —— 中英文一样宽,名字还留着(不逼客户猜图标)。 */}
-      <div data-testid="map-mobile-tools" className="absolute right-2 top-[164px] z-[1000] w-[60px]">
+      <div data-testid="map-mobile-tools" className="absolute right-2 top-[128px] z-[1000] w-[56px]">
         <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
           <button
             type="button"
             onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
-            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 transition-all duration-150 active:scale-90 ${
               baseMap === 'dark' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换底图"
           >
-            <Globe size={14} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
+            <Globe size={12} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[9px] font-semibold leading-none tracking-tight">
               {baseMap === 'vector' ? (isZhUi ? '地图' : 'Map') : baseMap === 'satellite' ? (isZhUi ? '卫星' : 'Satellite') : (isZhUi ? '夜景' : 'Dark')}
             </span>
           </button>
           <button
             type="button"
             onClick={toggle3D}
-            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 transition-all duration-150 active:scale-90 ${
               pitched ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换 3D 倾斜视角"
           >
-            <Box size={14} className={pitched ? 'text-white' : 'text-slate-500'} />
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
+            <Box size={12} className={pitched ? 'text-white' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[9px] font-semibold leading-none tracking-tight">
               {pitched ? (isZhUi ? '平视' : '2D') : '3D'}
             </span>
           </button>
           <button
             type="button"
             onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 transition-all duration-150 active:scale-90 ${
               measureMode ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="测距工具"
           >
-            <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
+            <Ruler size={12} className={measureMode ? 'text-white' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[9px] font-semibold leading-none tracking-tight">
               {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
             </span>
           </button>
@@ -1735,53 +1724,22 @@ function MapViewMapLibre({
           <button
             type="button"
             onClick={toggleShowCards}
-            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 ${
+            className={`flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-1 transition-all duration-150 active:scale-90 ${
               showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'bg-slate-200 text-slate-500'
             }`}
             aria-label={showCards ? '隐藏项目卡片' : '显示项目卡片'}
           >
             {showCards
-              ? <Eye size={14} className="text-white" />
-              : <EyeOff size={14} className="text-slate-500" />}
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
+              ? <Eye size={12} className="text-white" />
+              : <EyeOff size={12} className="text-slate-500" />}
+            <span className="w-full truncate whitespace-nowrap text-center text-[9px] font-semibold leading-none tracking-tight">
               {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
             </span>
           </button>
         </div>
       </div>
 
-      {/* 指北针:左上角独立圆盘(Google Earth 式),搜索/筛选下方。
-          盘面(N 标 + 刻度 + 红针)由 syncCompass 命令式跟随相机——bearing 反向
-          旋转、pitch 给 rotateX 立体倾斜,2D/3D 通用;每帧只写这一个小合成层
-          元素的 transform,零 React 重渲染(铁律:高频相机值禁入 state)。
-          点击 easeTo 回正北(俯仰保留,3D 由右侧按钮管)。
-          位置:手机(<md)左上是竖排筛选 chips 那一列,指北针让位到左下角、搜索 dock 之上;
-          md+ 左上是搜索+筛选两行(~104px)→ top-[112px];xl 单行(~52px)→ top-[68px]。 */}
-      <button
-        type="button"
-        onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
-        className="fixed left-2 bottom-[140px] md:absolute md:bottom-auto md:top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
-        aria-label="指北针,点击回正北"
-      >
-        <span
-          ref={compassNeedleRef}
-          className="block will-change-transform"
-          style={{ transformStyle: 'preserve-3d' }}
-        >
-          <svg width={44} height={44} viewBox="0 0 48 48" aria-hidden="true">
-            {/* 刻度环:E/S/W 短刻度,N 用大字标(用户要求盘面大而显眼) */}
-            <circle cx="24" cy="24" r="21.5" fill="none" stroke="#e2e8f0" strokeWidth="1.5" />
-            <text x="24" y="14" textAnchor="middle" fontSize="12" fontWeight="800" fill="#ef4444" fontFamily="system-ui, sans-serif">N</text>
-            <line x1="43" y1="24" x2="38.5" y2="24" stroke="#64748b" strokeWidth="2" />
-            <line x1="24" y1="43" x2="24" y2="38.5" stroke="#64748b" strokeWidth="2" />
-            <line x1="5" y1="24" x2="9.5" y2="24" stroke="#64748b" strokeWidth="2" />
-            {/* 指针:红北灰南 + 中轴点 */}
-            <polygon points="24,15.5 29,25.5 19,25.5" fill="#ef4444" />
-            <polygon points="19,25.5 29,25.5 24,35.5" fill="#94a3b8" />
-            <circle cx="24" cy="25.5" r="2.5" fill="#334155" />
-          </svg>
-        </span>
-      </button>
+      {/* 指北针已并进左上筛选卡(components/MapCompassButton),不再单独浮在地图上 —— 2026-07-11 */}
 
       {/* 测距状态条(极简,距离已画在地图线上) */}
       {measureMode && (
