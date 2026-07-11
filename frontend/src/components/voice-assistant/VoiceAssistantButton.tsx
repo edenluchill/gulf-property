@@ -821,9 +821,11 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
     )}
     </AnimatePresence>
     <div className={cn(
-      // Mobile: sit ABOVE the bottom nav bar (探索/分析/…) so the pill + 打字 button
-      // (stacked below it) don't overlap it. Desktop: no nav → sit near the corner.
-      'fixed bottom-28 right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
+      // Mobile: 紧贴底部导航栏上方(bottom-[76px] = nav h-16 + 12),和地图左下角的
+      // 搜索图标处在同一条线上 —— 原来是 bottom-28(112px),浮在半空,跟别的
+      // 底部控件对不齐,看着"不匹配"(2026-07-11 用户反馈)。
+      // Desktop: 没有底栏 → 贴角落。
+      'fixed bottom-[76px] right-0 z-50 md:bottom-6 flex flex-col items-end gap-1.5',
       className
     )}>
       {/* Luna's daily energy — slim capsule docked to the right edge above the pill.
