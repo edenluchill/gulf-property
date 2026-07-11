@@ -710,8 +710,10 @@ function MapViewMapLibre({
           // 三者都不透明,卡钻底下等于看不见。
           { x0: 0, y0: 0, x1: 68, y1: 344 },          // 竖排筛选图标钮(6 项 + 「清除」,44px 一颗)
           { x0: W - 196, y0: 0, x1: W, y1: 208 },     // 指标卡(固定 184 宽 + 右 12)
-          { x0: 0, y0: H - 70, x1: W - 60, y1: H },   // 底部搜索 dock
-          { x0: 0, y0: H - 124, x1: 76, y1: H - 62 }, // 指北针
+          // 底部搜索 dock + 指北针都是 fixed(贴可见视口),而这里的 H 是地图容器高度
+          // (100vh,比可见区高一截)→ 禁区往上多留一点,吸收这个差值。
+          { x0: 0, y0: H - 96, x1: W - 60, y1: H },   // 底部搜索 dock
+          { x0: 0, y0: H - 168, x1: 76, y1: H - 90 }, // 指北针
         ]
       : [
           { x0: 0, y0: 0, x1: 560, y1: 56 },          // 搜索+筛选行
@@ -1758,7 +1760,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
-        className="absolute left-3 bottom-[68px] md:bottom-auto md:top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
+        className="fixed left-3 bottom-[140px] md:absolute md:bottom-auto md:top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
         aria-label="指北针,点击回正北"
       >
         <span

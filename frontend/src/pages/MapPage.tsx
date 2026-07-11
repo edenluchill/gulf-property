@@ -1603,11 +1603,16 @@ export default function MapPage() {
 
           {/* 手机:搜索沉到底部 dock(拇指区,底栏之上),结果向上展开。
               右侧留出 Luna 药丸的宽度,别钻到它下面。
-              键盘弹起时整条抬到键盘之上(底栏 h-20 也在键盘下,所以减掉它的高度)——
-              页面根 overflow-hidden 不滚动,浏览器不会自己把它顶上来。 */}
+
+              ⚠️ 必须用 fixed,不能用 absolute:MobileNav / Luna 都是 fixed(贴可见视口底边),
+              而地图容器在 h-screen(=100vh)里 —— 手机浏览器的 100vh 是「工具栏收起时」的
+              大视口,比实际可见区高一截,容器底边其实伸到导航栏下面。用 absolute 贴容器底
+              就会压住导航栏(2026-07-11 真机实锤;桌面两者相等所以测不出来)。
+              nav 高 h-16(64px)→ 76px 起,和 nav 永远差 12px。
+              键盘弹起时再抬到键盘之上(fixed 贴的是布局视口底边,直接加 keyboardInset)。 */}
           <div
-            className="md:hidden absolute left-3 right-[68px] z-[1002] transition-[bottom] duration-150"
-            style={{ bottom: 12 + Math.max(0, keyboardInset - 80) }}
+            className="md:hidden fixed left-3 right-[68px] z-[1002] transition-[bottom] duration-150"
+            style={{ bottom: 76 + keyboardInset }}
           >
             <AreaSearch
               onSelect={(a) => {
