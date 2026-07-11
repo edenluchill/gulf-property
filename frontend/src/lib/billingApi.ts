@@ -6,6 +6,7 @@
  */
 import { API_BASE_URL } from './config'
 import { supabase } from './supabase'
+import { trackEvent } from './track'
 
 const BASE = `${API_BASE_URL}/api/billing`
 
@@ -26,6 +27,8 @@ export interface BillingMe {
   credits_reset_at?: string | null // 下次积分重置时间(下月 1 日)
   teamMember?: boolean // true = Founder 席位成员(套餐由团队承担)
   credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
+  /** 免绑卡试用 (2026-07-11)。used=true → 不能再开,CTA 回落「立即订阅」。 */
+  trial?: { active: boolean; used: boolean; endsAt: string | null; daysLeft: number | null }
 }
 
 export interface FeatureCost {
@@ -116,8 +119,15 @@ export type BillingInterval = 'month' | 'year'
 export type PaidPlanId = 'rookie' | 'agent' | 'founder' | 'developer'
 
 /** 开始订阅:跳转到 Stripe Checkout。返回错误信息(成功则直接跳转,不返回)。 */
-export async function startCheckout(planId: PaidPlanId, interval: BillingInterval = 'month'): Promise<string | null> {
+export async function startCheckout(
+  planId: PaidPlanId,
+  interval: BillingInterval = 'month',
+  opts?: { hadTrial?: boolean }
+): Promise<string | null> {
   try {
+    // 埋在跳走之前(immediate):checkout_start 与 checkout_success 的差值
+    // = 「绑卡这一步吓跑了多少人」,这是我们此前无法回答的那个问题。
+    trackEvent('checkout_start', { plan_id: planId, cycle: interval, had_trial: !!opts?.hadTrial }, { immediate: true })
     const res = await authed('/checkout', { method: 'POST', body: JSON.stringify({ planId, interval }) })
     const j = await res.json().catch(() => ({}))
     if (res.ok && j.url) {
@@ -127,6 +137,27 @@ export async function startCheckout(planId: PaidPlanId, interval: BillingInterva
     return j.error || `请求失败 (${res.status})`
   } catch {
     return '网络错误,请重试'
+  }
+}
+
+export type TrialRole = 'agent' | 'agency' | 'developer'
+export interface TrialStarted { plan: string; endsAt: string; days: number; credits: number }
+
+/**
+ * 免绑卡试用:不跳 Stripe、不收卡,直接开通 7 天 Starter(200 积分)。
+ * 成功返回试用信息;失败返回 { error, code }(trial_used / already_subscribed / not_agent)。
+ */
+export async function startFreeTrial(role: TrialRole): Promise<{ trial?: TrialStarted; error?: string; code?: string }> {
+  try {
+    const res = await authed('/trial/start', { method: 'POST', body: JSON.stringify({ role }) })
+    const j = await res.json().catch(() => ({}))
+    if (res.ok && j.success) {
+      trackEvent('trial_start', { plan_id: j.trial?.plan, role }, { immediate: true })
+      return { trial: j.trial as TrialStarted }
+    }
+    return { error: j.error || `请求失败 (${res.status})`, code: j.code }
+  } catch {
+    return { error: '网络错误,请重试' }
   }
 }
 

@@ -200,6 +200,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* 兜底:未知路径回地图,别留白屏。此前没有 catch-all —— /undefined(30 天 19 个
+            真人,站外坏链接)、拼错的 URL、过期分享全都渲染成一片空白然后人就走了。 */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
     </VoiceAssistantProvider>

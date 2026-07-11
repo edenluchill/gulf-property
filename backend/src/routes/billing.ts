@@ -19,7 +19,7 @@ import pool from '../db/pool'
 import { requireAuth, requireAdmin } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
-import { creditBalance, featureCatalog } from '../luna-tour/credits'
+import { creditBalance, featureCatalog, resetCreditsOnConversion } from '../luna-tour/credits'
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
 
@@ -264,11 +264,12 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       customer: customerId,
       line_items: [{ price, quantity: 1 }],
       subscription_data: {
-        // 7 天免费试用(需绑卡,试用期内取消不扣费)。自助档(Starter/Pro/开发商)都给。
-        trial_period_days: planId === 'rookie' || planId === 'agent' || planId === 'developer' ? 7 : undefined,
+        // 2026-07-11:Stripe 侧不再给 trial_period_days。试用改走「免绑卡试用」
+        // (POST /trial/start,7 天 200 积分,零摩擦),到这一步的人是真心要付费的
+        // → 立即扣款生效。留着 Stripe trial 会让"免绑卡试 7 天 + 绑卡再送 7 天"变成 14 天白嫖。
         metadata: { lt_agent_id: agent.id, plan_id: planId, interval },
       },
-      payment_method_collection: 'always', // 试用也收卡
+      payment_method_collection: 'always',
       allow_promotion_codes: true, // 无自动折扣;有促销码可手填
       client_reference_id: agent.id,
       success_url: `${APP_URL}/agent/billing?status=success`,
@@ -278,6 +279,111 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[billing] checkout failed:', err)
     res.status(500).json({ success: false, error: 'Checkout failed' })
+  }
+})
+
+// ============================================================
+// POST /trial/start — 免绑卡试用(2026-07-11)
+//
+// 从业者角色(经纪/经纪公司/开发商)零摩擦开 7 天 Starter 试用:不跳 Stripe、不收卡。
+// 试用行 source='free_trial',plan=rookie(200 积分)。到期/积分用完 → 回落 explore。
+// 插进 lt_subscriptions 之后,下面这些全是免费搭车的:
+//   credits.planFor → 200 积分 / mapMeter.agentNeedsPlan → 地图解锁 / agents.ts → 自动审批
+// ============================================================
+const TRIAL_DAYS = Number(process.env.FREE_TRIAL_DAYS || 7)
+// 试用发 Pro(agent)档的**功能权限** —— 发 Starter 的话实时带看/Luna 导览
+// (minPlan='agent')试不到,旗舰功能试不到的试用等于没试。
+// 积分不吃 Pro 的 1200:credits.planFor 对 free_trial 硬锁 TRIAL_CREDITS=200。
+const TRIAL_PLAN = 'agent'
+const TRIAL_ROLES = ['agent', 'agency', 'developer'] as const
+
+router.post('/trial/start', requireAuth, async (req: Request, res: Response) => {
+  const agent = await currentAgent(req)
+  if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })
+
+  try {
+    // 角色:选付费角色时前端不预写 role(见 RoleSelectPage) → 允许请求带上想要的角色。
+    // 开试用是足够强的意图信号,这里把 role 落定。
+    const prof = await pool.query<{ role: string | null }>(
+      `SELECT role FROM user_profiles WHERE lower(email) = lower($1)`,
+      [agent.email]
+    )
+    const wanted = String(req.body?.role || '')
+    const existing = prof.rows[0]?.role || ''
+    const role = (TRIAL_ROLES as readonly string[]).includes(existing)
+      ? existing
+      : (TRIAL_ROLES as readonly string[]).includes(wanted) ? wanted : ''
+    if (!role) {
+      return res.status(403).json({ success: false, code: 'not_agent', error: '免费试用面向经纪/经纪公司/开发商。' })
+    }
+
+    // 一人一次(靠 lt_agents 上的戳,不靠订阅行 —— 删掉行就能反复重开)
+    const a = await pool.query<{ free_trial_started_at: Date | null }>(
+      `SELECT free_trial_started_at FROM lt_agents WHERE id = $1`,
+      [agent.id]
+    )
+    if (a.rows[0]?.free_trial_started_at) {
+      return res.status(409).json({ success: false, code: 'trial_used', error: '免费试用已用过,订阅即可继续使用。' })
+    }
+
+    // 已有生效订阅(含团队席位/comp 授予)→ 没必要试用
+    const billingRow = await pool.query<{ billing_agent_id: string | null }>(
+      `SELECT billing_agent_id FROM lt_agents WHERE id = $1`,
+      [agent.id]
+    )
+    const billingId = billingRow.rows[0]?.billing_agent_id || agent.id
+    const live = await pool.query(
+      `SELECT 1 FROM lt_subscriptions
+        WHERE agent_id = $1 AND status IN ('active','trialing')
+          AND (source <> 'free_trial' OR current_period_end > now())
+        LIMIT 1`,
+      [billingId]
+    )
+    if (live.rows.length) {
+      return res.status(409).json({ success: false, code: 'already_subscribed', error: '你已有生效的套餐。' })
+    }
+
+    const endsAt = new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString()
+    await pool.query(
+      `INSERT INTO lt_subscriptions (agent_id, plan_id, status, source, current_period_end)
+         VALUES ($1, $2, 'trialing', 'free_trial', $3)`,
+      [agent.id, TRIAL_PLAN, endsAt]
+    )
+    await pool.query(`UPDATE lt_agents SET free_trial_started_at = now() WHERE id = $1`, [agent.id])
+
+    // role 落定。⚠️ 必须 upsert:选付费角色的用户前端不预写 role,可能连 user_profiles
+    // 行都还没有 —— autoApprovePaid 里那句 UPDATE 会是空操作。这里按 user_id(主键)写。
+    const userId = req.user?.id || req.ctx?.userId
+    if (userId) {
+      await pool.query(
+        `INSERT INTO user_profiles (user_id, email, role, role_chosen_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (user_id) DO UPDATE
+           SET role = EXCLUDED.role,
+               email = COALESCE(EXCLUDED.email, user_profiles.email),
+               role_chosen_at = now(),
+               updated_at = now()`,
+        [userId, agent.email, role]
+      )
+    }
+
+    // 试用即准入(与付费同款):审批门放行
+    await autoApprovePaid(agent.email, agent.name, role)
+    clearAgentGate(userId)
+    await logPlanChange({
+      agentId: agent.id, agentEmail: agent.email, action: 'free_trial_started',
+      fromPlan: 'explore', toPlan: TRIAL_PLAN, fromStatus: 'none', toStatus: 'trialing',
+      metadata: { role, days: TRIAL_DAYS },
+    })
+
+    const credits = await creditBalance(agent.id)
+    res.json({
+      success: true,
+      trial: { plan: TRIAL_PLAN, endsAt, days: TRIAL_DAYS, credits: credits.creditsMonth },
+    })
+  } catch (err) {
+    console.error('[billing] trial/start failed:', err)
+    res.status(500).json({ success: false, error: '开通试用失败,请重试' })
   }
 })
 
@@ -360,9 +466,11 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       status: string
       current_period_end: Date | null
       cancel_at_period_end: boolean
+      source: string
     }>(
-      `SELECT plan_id, status, current_period_end, cancel_at_period_end FROM lt_subscriptions
+      `SELECT plan_id, status, current_period_end, cancel_at_period_end, source FROM lt_subscriptions
          WHERE agent_id = $1 AND status IN ('active', 'trialing', 'past_due')
+           AND (source <> 'free_trial' OR current_period_end > now())
          ORDER BY created_at DESC LIMIT 1`,
       [billingId]
     )
@@ -382,11 +490,29 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     const now = new Date()
     const creditsResetAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
+    // 免绑卡试用状态(试用是个人的 → 看 agent.id,不是团队的 billingId)。
+    // used=true 的人不能再开试用,定价页 CTA 要回落成「立即订阅」。
+    const ftRow = await pool.query<{ free_trial_started_at: Date | null }>(
+      `SELECT free_trial_started_at FROM lt_agents WHERE id = $1`,
+      [agent.id]
+    )
+    const onFreeTrial = sub.rows[0]?.source === 'free_trial' && status === 'trialing'
+    const trialEnd = onFreeTrial ? sub.rows[0]?.current_period_end || null : null
+    const trial = {
+      active: onFreeTrial,
+      used: !!ftRow.rows[0]?.free_trial_started_at,
+      endsAt: trialEnd,
+      daysLeft: trialEnd
+        ? Math.max(0, Math.ceil((new Date(trialEnd).getTime() - now.getTime()) / 86400_000))
+        : null,
+    }
+
     res.json({
       success: true,
       approved: agent.approved,
       plan: { id: planId, name: planRow.rows[0]?.name || 'Explore', limits },
       status,
+      trial,
       current_period_end: sub.rows[0]?.current_period_end || null,
       cancel_at_period_end: !!sub.rows[0]?.cancel_at_period_end, // true = 已约定期末取消,期内仍可用
       credits_reset_at: creditsResetAt,
@@ -648,8 +774,11 @@ async function logPlanChange(row: {
   }
 }
 
-/** 付费订阅生效即自动审批(付费=准入;owner 后台可撤销),并把角色同步为经纪。 */
-async function autoApprovePaid(email: string | null, name: string | null): Promise<void> {
+/**
+ * 订阅(付费或免绑卡试用)生效即自动审批(=准入;owner 后台可撤销),并把角色同步。
+ * role 默认 'agent';免绑卡试用会传入用户选的 agency/developer。
+ */
+async function autoApprovePaid(email: string | null, name: string | null, role = 'agent'): Promise<void> {
   if (!email) return
   try {
     await pool.query(
@@ -660,11 +789,11 @@ async function autoApprovePaid(email: string | null, name: string | null): Promi
        `,
       [email, name]
     )
-    // 买了经纪订阅的人就是经纪 —— role 同步,避免「买家身份持有经纪订阅」的错位
+    // 持有经纪订阅的人就是经纪 —— role 同步,避免「买家身份持有经纪订阅」的错位
     await pool.query(
-      `UPDATE user_profiles SET role = 'agent', updated_at = now()
+      `UPDATE user_profiles SET role = $2, role_chosen_at = COALESCE(role_chosen_at, now()), updated_at = now()
         WHERE lower(email) = lower($1) AND (role IS NULL OR role = 'buyer')`,
-      [email]
+      [email, role]
     )
     clearAgentGate()
   } catch (err) {
@@ -728,6 +857,21 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   )
   const prev = prevQ.rows[0] || null
 
+  // ── 免绑卡试用 → 付费转化 ────────────────────────────────
+  // 试用行的 stripe_subscription_id 是 NULL,匹配不上下面的 ON CONFLICT(它按
+  // stripe_subscription_id 去重)→ 不删的话同一个 agent 会留下两行订阅。
+  // ⚠️ 只在订阅真正生效时删:subscription.created 可能先带 incomplete 状态(3DS 验证中),
+  //    那时就删会在付款还没成功时干掉人家的试用 —— 付款再失败就两头空。
+  const live = sub.status === 'active' || sub.status === 'trialing'
+  let cameFromTrial = false
+  if (live) {
+    const ft = await pool.query(
+      `DELETE FROM lt_subscriptions WHERE agent_id = $1 AND source = 'free_trial' RETURNING id`,
+      [agentId]
+    )
+    cameFromTrial = (ft.rowCount ?? 0) > 0
+  }
+
   await pool.query(
     `INSERT INTO lt_subscriptions
        (agent_id, plan_id, status, stripe_customer_id, stripe_subscription_id, current_period_end, extra_seats, cancel_at_period_end)
@@ -750,7 +894,10 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   }
   const reason = cancellationReason(sub)
   if (!prev) {
-    await logPlanChange({ ...base, action: sub.status === 'trialing' ? 'trial_started' : 'subscribed' })
+    const action = cameFromTrial
+      ? 'trial_converted'                                       // 免绑卡试用 → 掏钱(最想看的那个数)
+      : sub.status === 'trialing' ? 'trial_started' : 'subscribed'
+    await logPlanChange({ ...base, action, fromPlan: cameFromTrial ? TRIAL_PLAN : null })
   } else {
     if (prev.plan_id !== planId) {
       const up = (PLAN_RANK[planId] ?? 0) > (PLAN_RANK[prev.plan_id] ?? 0)
@@ -774,6 +921,11 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
         metadata: { fromSeats: prev.extra_seats ?? 0, toSeats: extraSeats },
       })
     }
+  }
+
+  // 免绑卡试用 → 付费:把试用期花掉的积分清零,否则同月内「付了钱余额还是空的」。
+  if (live && cameFromTrial) {
+    await resetCreditsOnConversion(agentId).catch((e) => console.error('[billing] trial credit reset failed:', e))
   }
 
   // 付费订阅生效 → 自动审批(经纪台准入;任何档,含之前被拒的账号 —— 付费即准入)。

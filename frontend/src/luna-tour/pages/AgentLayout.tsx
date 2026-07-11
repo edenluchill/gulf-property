@@ -12,6 +12,7 @@ import { Loader2, Clock, ShieldX, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 import { setMyRole } from '../../lib/billingApi'
+import TrialBanner from '../../components/TrialBanner'
 
 /** 自助开通:记角色为经纪 → 去选档页(付款成功 webhook 自动 approve,无需等审批)。 */
 function GoPlansButton() {
@@ -27,7 +28,7 @@ function GoPlansButton() {
       }}
       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
     >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>选择套餐,立即开通(7 天免费试用)<ArrowRight className="h-4 w-4" /></>}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>免费试用 7 天,无需信用卡<ArrowRight className="h-4 w-4" /></>}
     </button>
   )
 }
@@ -95,5 +96,11 @@ export default function AgentLayout() {
     )
   }
 
-  return <Outlet />
+  // 试用没有信用卡兜底,到期就是真的停 —— 剩余天数/积分常驻在眼前,别等撞 402 才知道。
+  return (
+    <>
+      <TrialBanner />
+      <Outlet />
+    </>
+  )
 }

@@ -165,9 +165,14 @@ async function agentNeedsPlan(userId: string, email: string | null): Promise<boo
     if (!billingId) {
       gated = true // 选了经纪但还没走到任何订阅流程
     } else {
+      // 免绑卡试用(source='free_trial')过期后没有 Stripe webhook 来关它 —— sweep 每 5
+      // 分钟翻状态,但地图门不能容忍那个窗口 → 这里直接带过期谓词。
+      // ⚠️ 只对 free_trial 判过期:后台 comp 授予(agents.ts,100 年期)也没有 stripe id。
       const s = await pool.query(
         `SELECT 1 FROM lt_subscriptions
-          WHERE agent_id = $1 AND status IN ('active','trialing') LIMIT 1`,
+          WHERE agent_id = $1 AND status IN ('active','trialing')
+            AND (source <> 'free_trial' OR current_period_end > now())
+          LIMIT 1`,
         [billingId]
       )
       gated = !s.rows.length

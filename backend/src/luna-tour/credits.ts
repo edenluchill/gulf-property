@@ -14,7 +14,7 @@
 import pool from '../db/pool'
 import { isOwnerEmail } from '../middleware/requireOwner'
 
-type PlanId = 'explore' | 'rookie' | 'agent' | 'founder'
+type PlanId = 'explore' | 'rookie' | 'agent' | 'founder' | 'developer'
 
 // ── 无限额度白名单 ────────────────────────────────────────
 // 与 OWNER(计费/结算/审批特权)和 ADMIN(数据后台/PII 访问)刻意解耦:
@@ -48,7 +48,10 @@ export const FEATURES = {
 
 export type Feature = keyof typeof FEATURES
 
-const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3 }
+const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3, developer: 4 }
+
+/** 免绑卡试用的积分池(与套餐自身的 credits_month 解耦,见 planFor)。 */
+export const TRIAL_CREDITS = Number(process.env.FREE_TRIAL_CREDITS || 200)
 
 /**
  * 计费归属:Founder 席位成员(lt_agents.billing_agent_id 指向 founder)的
@@ -62,24 +65,40 @@ async function billingAgentOf(agentId: string): Promise<string> {
   return r.rows[0]?.billing_agent_id || agentId
 }
 
-interface PlanCfg { plan: string; status: string; creditsMonth: number; multiplier: number }
+interface PlanCfg { plan: string; status: string; creditsMonth: number; multiplier: number; freeTrial: boolean }
 
-/** 该经纪当前生效套餐 + 积分参数(无生效订阅 → explore)。 */
+/**
+ * 该经纪当前生效套餐 + 积分参数(无生效订阅 → explore)。
+ *
+ * 免绑卡试用(source='free_trial')没有 Stripe webhook 来关它,过期必须由我们判定。
+ * freeTrialSweep 每 5 分钟把过期行翻成 canceled(让 DB 状态对所有读取方都是真的),
+ * 但钱相关的门不能容忍这 5 分钟窗口 → 这里再加一道即时的过期谓词。
+ */
 async function planFor(agentId: string): Promise<PlanCfg> {
-  const sub = await pool.query<{ plan_id: string; status: string }>(
-    `SELECT plan_id, status FROM lt_subscriptions
+  const sub = await pool.query<{ plan_id: string; status: string; source: string }>(
+    `SELECT plan_id, status, source FROM lt_subscriptions
        WHERE agent_id = $1 AND status IN ('active','trialing')
+         AND (source <> 'free_trial' OR current_period_end > now())
        ORDER BY created_at DESC LIMIT 1`,
     [agentId]
   )
   const plan = sub.rows[0]?.plan_id || 'explore'
   const status = sub.rows[0]?.status || 'none'
+  const freeTrial = sub.rows[0]?.source === 'free_trial'
+
+  // 免绑卡试用:给 Pro 档的**功能权限**(否则试不到实时带看/Luna 导览这些
+  // minPlan='agent' 的旗舰功能,试用就没意义了),但积分独立锁死在 200 —— 不吃
+  // Pro 的 1200。200 分 ≈ 2 场实时带看 或 2 次 Luna 导览,够尝到味道,不够白嫖。
+  if (freeTrial) {
+    return { plan, status, creditsMonth: TRIAL_CREDITS, multiplier: 1, freeTrial: true }
+  }
+
   const lim = await pool.query<{ cm: number | null; mult: number | null }>(
     `SELECT (limits->>'credits_month')::int AS cm, (limits->>'cost_multiplier')::float AS mult
        FROM lt_subscription_plans WHERE id = $1`,
     [plan]
   )
-  return { plan, status, creditsMonth: Number(lim.rows[0]?.cm ?? 0), multiplier: Number(lim.rows[0]?.mult ?? 1) }
+  return { plan, status, creditsMonth: Number(lim.rows[0]?.cm ?? 0), multiplier: Number(lim.rows[0]?.mult ?? 1), freeTrial }
 }
 
 async function usedThisMonth(agentId: string): Promise<number> {
@@ -107,26 +126,28 @@ export interface CreditCheck {
   status: string
   reason?: 'subscription_required' | 'insufficient'
   owner: boolean
+  freeTrial: boolean    // true = 当前跑在免绑卡试用上(402 文案要改成"订阅即恢复")
 }
 
 /** 检查某功能是否可用(套餐门 + 积分余额),不扣费。 */
 export async function checkCredits(agentId: string, feature: Feature): Promise<CreditCheck> {
   const f = FEATURES[feature]
   if (await isUnlimited(agentId)) {
-    return { allowed: true, cost: 0, balance: -1, creditsMonth: -1, used: 0, plan: 'founder', status: 'owner', owner: true }
+    return { allowed: true, cost: 0, balance: -1, creditsMonth: -1, used: 0, plan: 'founder', status: 'owner', owner: true, freeTrial: false }
   }
   agentId = await billingAgentOf(agentId) // 席位成员 → founder 的套餐+共享池
   const p = await planFor(agentId)
   const cost = Math.round(f.credits * p.multiplier)
   // 套餐等级门:explore / 低于 minPlan → 需订阅(与积分无关)
   if (PLAN_RANK[p.plan] < (PLAN_RANK[f.minPlan] ?? 1)) {
-    return { allowed: false, cost, balance: 0, creditsMonth: p.creditsMonth, used: 0, plan: p.plan, status: p.status, reason: 'subscription_required', owner: false }
+    return { allowed: false, cost, balance: 0, creditsMonth: p.creditsMonth, used: 0, plan: p.plan, status: p.status, reason: 'subscription_required', owner: false, freeTrial: p.freeTrial }
   }
   const used = await usedThisMonth(agentId)
   const balance = p.creditsMonth - used
   return {
     allowed: balance >= cost, cost, balance, creditsMonth: p.creditsMonth, used,
     plan: p.plan, status: p.status, reason: balance >= cost ? undefined : 'insufficient', owner: false,
+    freeTrial: p.freeTrial,
   }
 }
 
@@ -170,12 +191,36 @@ export async function spend(actorAgentId: string, feature: Feature, ref?: SpendR
 /** 当前余额(给 /me 与后台展示)。 */
 export async function creditBalance(agentId: string) {
   if (await isUnlimited(agentId)) {
-    return { creditsMonth: -1, used: 0, balance: -1, plan: 'founder', status: 'owner', multiplier: 0.6, owner: true }
+    return { creditsMonth: -1, used: 0, balance: -1, plan: 'founder', status: 'owner', multiplier: 0.6, owner: true, freeTrial: false }
   }
   agentId = await billingAgentOf(agentId) // 席位成员看到的是团队共享池
   const p = await planFor(agentId)
   const used = await usedThisMonth(agentId)
-  return { creditsMonth: p.creditsMonth, used, balance: p.creditsMonth - used, plan: p.plan, status: p.status, multiplier: p.multiplier, owner: false }
+  return { creditsMonth: p.creditsMonth, used, balance: p.creditsMonth - used, plan: p.plan, status: p.status, multiplier: p.multiplier, owner: false, freeTrial: p.freeTrial }
+}
+
+/**
+ * 订阅生效时把试用期已花的积分清零 —— 否则同月内「付了钱余额还是空的」。
+ * 不直接抹掉历史:写一条负数补偿流水,使用记录里能看到「订阅生效 · 试用积分清零」。
+ */
+export async function resetCreditsOnConversion(agentId: string): Promise<void> {
+  const u = await pool.query<{ credits_used: number }>(
+    `SELECT credits_used FROM lt_usage_counters
+       WHERE agent_id = $1 AND period_month = date_trunc('month', now())::date`,
+    [agentId]
+  )
+  const used = Number(u.rows[0]?.credits_used ?? 0)
+  if (used <= 0) return
+  await pool.query(
+    `INSERT INTO lt_credit_ledger (agent_id, actor_agent_id, feature, credits, ref_type, ref_label)
+       VALUES ($1, $1, 'trial_reset', $2, 'billing', '订阅生效 · 试用期积分清零')`,
+    [agentId, -used]
+  )
+  await pool.query(
+    `UPDATE lt_usage_counters SET credits_used = 0
+       WHERE agent_id = $1 AND period_month = date_trunc('month', now())::date`,
+    [agentId]
+  )
 }
 
 /** 功能目录(给 /api/billing/features → 价格页/台内自动渲染消耗表)。 */
@@ -189,11 +234,21 @@ export function featureCatalog() {
 export function creditError(feature: Feature, c: CreditCheck): { status: number; body: Record<string, unknown> } {
   const label = FEATURES[feature].label
   const minPlanName = FEATURES[feature].minPlan === 'agent' ? 'Pro 专业版' : 'Starter 启程版'
-  const reason = c.reason === 'insufficient'
-    ? `本月积分不足:${label}需 ${c.cost} 积分,当前余额 ${c.balance}。升级套餐或下月刷新。`
-    : `${label}是 ${minPlanName} 及以上的功能,升级即可解锁。`
+  let reason: string
+  if (c.reason === 'insufficient') {
+    // 试用期烧完的人是最热的线索 —— 别拿"下月刷新"打发他,告诉他订阅立刻恢复。
+    reason = c.freeTrial
+      ? `试用积分已用完:${label}需 ${c.cost} 积分,当前余额 ${c.balance}。订阅后积分立即恢复。`
+      : `本月积分不足:${label}需 ${c.cost} 积分,当前余额 ${c.balance}。升级套餐或下月刷新。`
+  } else {
+    reason = `${label}是 ${minPlanName} 及以上的功能,升级即可解锁。`
+  }
   return {
     status: 402,
-    body: { success: false, error: reason, code: c.reason === 'insufficient' ? 'insufficient_credits' : 'subscription_required', feature, cost: c.cost, balance: c.balance, upgradeUrl: '/agent/billing' },
+    body: {
+      success: false, error: reason,
+      code: c.reason === 'insufficient' ? 'insufficient_credits' : 'subscription_required',
+      feature, cost: c.cost, balance: c.balance, freeTrial: c.freeTrial, upgradeUrl: '/agent/billing',
+    },
   }
 }

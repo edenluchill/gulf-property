@@ -12,6 +12,7 @@ import { badgeForPlan } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import { useResetOnBFCache } from '../../hooks/useResetOnBFCache'
+import { trackEvent } from '../../lib/track'
 import {
   fetchBillingMe, fetchFeatures, openPortal,
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
@@ -49,6 +50,16 @@ export default function AgentBilling() {
   useEffect(() => {
     if (banner) { const t = setTimeout(() => setParams({}, { replace: true }), 6000); return () => clearTimeout(t) }
   }, [banner, setParams])
+
+  // 漏斗闭环:checkout_start 打在跳走前,这里打回来的那一端。
+  // 两者的差值 = 「在 Stripe 绑卡页放弃了多少人」。
+  const funnelRef = useState(() => ({ done: false }))[0]
+  useEffect(() => {
+    if (!banner || !me || funnelRef.done) return
+    funnelRef.done = true
+    if (banner === 'success') trackEvent('checkout_success', { plan_id: me.plan?.id }, { immediate: true })
+    if (banner === 'cancel') trackEvent('checkout_abandon', { plan_id: me.plan?.id }, { immediate: true })
+  }, [banner, me, funnelRef])
 
   // 付款成功 → 按套餐落角色(选付费角色时不预写 role,付款成功才定身份)
   const roleSetRef = useState(() => ({ done: false }))[0]

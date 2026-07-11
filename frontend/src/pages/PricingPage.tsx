@@ -11,8 +11,9 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { ArrowRight, ArrowLeft, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, fetchPromo, fetchFeatures, startCheckout, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo } from '../lib/billingApi'
+import { fetchPlans, fetchPromo, fetchFeatures, fetchBillingMe, startCheckout, startFreeTrial, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo, type BillingMe, type PaidPlanId, type TrialRole } from '../lib/billingApi'
 import { useResetOnBFCache } from '../hooks/useResetOnBFCache'
+import { trackEvent } from '../lib/track'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -46,8 +47,14 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   const [promo, setPromo] = useState<Promo>({ active: false })
   const [feat, setFeat] = useState<FeaturesInfo>({ features: [], plans: [] })
   const [now, setNow] = useState(() => Date.now())
+  const [me, setMe] = useState<BillingMe | null>(null)
 
   useEffect(() => { fetchPlans().then(setPlans); fetchPromo().then(setPromo); fetchFeatures().then(setFeat) }, [])
+  // 试用资格:已用过 / 已有生效套餐 → CTA 回落「立即订阅」
+  useEffect(() => { if (user) void fetchBillingMe().then(setMe) }, [user])
+  useEffect(() => {
+    trackEvent('pricing_view', { variant: variant || (agentOnboarding ? 'onboarding' : 'public'), from: params.get('from') || null })
+  }, [variant, agentOnboarding, params])
   const creditsOf = (id: string) => feat.plans.find((p) => p.id === id)?.creditsMonth ?? 0
   // 倒计时心跳(仅在有截止时间时跑)
   useEffect(() => {
@@ -94,13 +101,43 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     return { d: Math.floor(s / 86400), h: Math.floor((s % 86400) / 3600), m: Math.floor((s % 3600) / 60), s: s % 60 }
   })()
 
-  async function subscribe(planId: 'rookie' | 'agent' | 'founder' | 'developer') {
+  // ── 免绑卡试用 (2026-07-11) ────────────────────────────────
+  // 主 CTA = 零摩擦试用(不跳 Stripe、不收卡);「直接订阅」降级为次要链接。
+  // 已用过试用 / 已有生效套餐 → 主 CTA 回落成「立即订阅」。
+  const ROLE_BY_PLAN: Record<string, TrialRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
+  const hasPlan = me?.status === 'active' || me?.status === 'trialing'
+  const canTrial = !me || (!me.trial?.used && !hasPlan)  // 未登录也按"能试用"展示(点了先去登录)
+
+  async function subscribe(planId: PaidPlanId) {
     setErr(null)
     if (!user) { navigate('/agent'); return }   // 去经纪台登录(登录后回来再订阅)
+    trackEvent('plan_select', { plan_id: planId, cycle, action: 'subscribe' })
     setBusy(planId)
-    const error = await startCheckout(planId, cycle)  // 成功则跳转 Stripe,不返回
+    const error = await startCheckout(planId, cycle, { hadTrial: !!me?.trial?.used })  // 成功则跳转 Stripe,不返回
     if (error) { setErr(error); setBusy(null) }
   }
+
+  async function beginTrial(planId: PaidPlanId) {
+    setErr(null)
+    if (!user) { navigate('/agent'); return }   // 先登录,回来再开
+    trackEvent('plan_select', { plan_id: planId, cycle, action: 'trial' })
+    setBusy(planId)
+    const r = await startFreeTrial(ROLE_BY_PLAN[planId] || 'agent')
+    if (r.trial) { window.location.assign('/agent'); return }  // 直接进工作台开始用
+    // 试用已用过 / 已有套餐 → 别把人卡在这,直接转去订阅
+    if (r.code === 'trial_used' || r.code === 'already_subscribed') {
+      const error = await startCheckout(planId, cycle, { hadTrial: true })
+      if (error) { setErr(error); setBusy(null) }
+      return
+    }
+    setErr(r.error || null)
+    setBusy(null)
+  }
+
+  /** 主 CTA:能试用 → 免绑卡试用;否则 → 订阅。 */
+  const ctaFor = (planId: PaidPlanId) => canTrial
+    ? { label: L('免费试用 7 天 · 无需信用卡', 'Try free for 7 days · no card'), onClick: () => beginTrial(planId) }
+    : { label: L('立即订阅', 'Subscribe now'), onClick: () => subscribe(planId) }
 
   // 软出口:选错身份 → 回选择身份页重选(不直接改成买家)
   const reselectRole = () => {
@@ -123,7 +160,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     {
       id: 'rookie', name: L('启程版', 'Starter'), price: bigPriceOf(priceOf('rookie', 25)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
-      badge: L('7 天免费试用', '7-day free trial'),
+      badge: canTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('个人经纪起步', 'Solo agents'),
       note: L('个人经纪起步 · 付款即开通', 'Solo agents · instant activation'),
       billed: billedLine(priceOf('rookie', 25)), priceWas: struckOf(priceOf('rookie', 25)),
       creditsMo: creditsOf('rookie') || 200,
@@ -136,17 +173,17 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('品牌报告页:带你头像与联系方式的项目投资报告(5年ROI+真实成交)', 'Branded report page: your face & contact on a 5-yr ROI report'),
         L('符合关注区域的 lead(尽力推送)', 'Leads for your focus areas (best effort)'),
       ],
-      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('rookie') },
+      cta: ctaFor('rookie'),
     },
     {
       id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf(priceOf('agent', 49)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT, highlight: true,
-      badge: L('最受欢迎 · 7 天免费', 'Most popular · 7 days free'),
-      note: L('7 天免费 · 需绑卡 · 提前取消不扣费', '7 days free · card required · cancel before billing'),
+      badge: canTrial ? L('最受欢迎 · 7 天免费 · 免绑卡', 'Most popular · 7 days free · no card') : L('最受欢迎', 'Most popular'),
+      note: L('全部专业功能 · 随时取消', 'Every pro feature · cancel anytime'),
       billed: billedLine(priceOf('agent', 49)), priceWas: struckOf(priceOf('agent', 49)),
-      creditsMo: creditsOf('agent') || 2500,
+      creditsMo: creditsOf('agent') || 1200,
       features: [
-        L('启程版全部功能,积分池 ×12.5(200 → 2,500)', 'Everything in Starter, 12.5× the credits (200 → 2,500)'),
+        L('启程版全部功能,积分池 ×6(200 → 1,200)', 'Everything in Starter, 6× the credits (200 → 1,200)'),
         L('实时海外带看:与客户同屏看地图和楼盘,你动他也动', 'Live overseas tours: same screen, you move, they follow'),
         L('应用内语音:带看中直接通话,不用切微信/电话', 'In-app voice: talk during the tour, no app switching'),
         L('Luna AI 智能导览:自动飞盘讲盘,中英双语', 'Luna AI tours: auto fly-through with narration, EN/中文'),
@@ -154,7 +191,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('Lead 优先推送(排在启程版之前)', 'Priority lead flow (ahead of Starter)'),
         L('客户行为洞察:谁在看、看了多久、何时该跟进', 'Behaviour insights: who is browsing, for how long, when to follow up'),
       ],
-      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('agent') },
+      cta: ctaFor('agent'),
     },
     {
       // agency 角色页把同一套餐展示为「经纪公司版」(多席位 + lead),套餐 id 仍是 founder
@@ -174,7 +211,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('White-label 品牌定制 · 自定义域名', 'White-label branding · custom domain'),
         L('优先支持(直连产品团队)', 'Priority support (direct line to the team)'),
       ],
-      cta: { label: L('开通经纪公司版', 'Activate Agency'), onClick: () => subscribe('founder') },
+      cta: ctaFor('founder'),
     },
     {
       id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf(priceOf('developer', 999)),
@@ -192,7 +229,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('含 5 个席位共享 20,000 积分池,+$49/席无限扩容', '5 seats sharing 20,000 credits, +$49/seat unlimited'),
         L('买家行为数据:谁在看你的盘、看了多久、意向多强', 'Buyer behaviour data: who views your projects, how long, how hot'),
       ],
-      cta: { label: L('免费试用 7 天', 'Start 7-day free trial'), onClick: () => subscribe('developer') },
+      cta: ctaFor('developer'),
     },
   ]
   // 完整功能全景(onboarding 页原地铺开;经纪/经纪公司一套,开发商一套)
@@ -301,8 +338,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             <Briefcase className="h-4 w-4 shrink-0 text-indigo-300" />
             <span>
               {L(
-                '你的账号是经纪身份 —— 经纪版(含不限时地图与数据)需选择套餐后使用,7 天免费试用、试用期取消零费用。',
-                'Your account is registered as an agent — agent access (incl. unlimited map & data) starts with a plan. 7-day free trial, cancel at no charge.'
+                '你的账号是经纪身份 —— 经纪版(含不限时地图与数据)需选择套餐后使用。可以先免费试用 7 天,无需信用卡。',
+                'Your account is registered as an agent — agent access (incl. unlimited map & data) starts with a plan. Start with a free 7-day trial, no credit card needed.'
               )}
             </span>
             <button onClick={reselectRole}
@@ -327,8 +364,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('开发商工作台', 'DEVELOPER WORKSPACE')}</span>
                 <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!让你的楼盘被全站买家看到', 'Welcome! Put your projects in front of every buyer')}</h1>
                 <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                  '上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位 —— 7 天免费试用,试用期内取消不产生任何费用。',
-                  'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included — 7-day free trial.'
+                  '上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位 —— 先免费试用 7 天,不需要信用卡。',
+                  'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included — try free for 7 days, no credit card.'
                 )}</p>
               </>
             ) : (
@@ -336,8 +373,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
               <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!你的经纪工作台已就绪', 'Welcome! Your agent workspace is ready')}</h1>
               <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                '选一档解锁客户 CRM、品牌化报告与 lead —— 7 天免费试用,试用期内取消不产生任何费用。',
-                'Pick a plan to unlock client CRM, branded reports and leads — 7-day free trial, cancel within the trial at no charge.'
+                '客户 CRM、品牌化报告、实时带看、Luna 导览 —— 先免费用 7 天,不需要信用卡。',
+                'Client CRM, branded reports, live tours, Luna AI tours — try it free for 7 days. No credit card.'
               )}</p>
             </>
             )
@@ -439,6 +476,20 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 style={{ background: t.edge }}>
                 {busy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t.cta.label} <ArrowRight className="h-4 w-4" /></>}
               </button>
+              {/* 试用到底给什么,说清楚 —— 试用发的是 Pro 档功能 + 200 积分,
+                  经纪公司/开发商的席位不在试用里,别让人以为 $699 的东西白拿 7 天 */}
+              {canTrial && t.id !== 'explore' && (
+                <>
+                  <p className="mt-1.5 text-center text-[11px] leading-snug text-slate-500">
+                    {L('试用含全部专业功能 + 200 积分 · 不收卡 · 到期自动停止',
+                       'Trial: all Pro features + 200 credits · no card · auto-stops')}
+                  </p>
+                  <button onClick={() => subscribe(t.id as PaidPlanId)} disabled={busy === t.id}
+                    className="mt-1 text-center text-[11px] text-slate-500 underline-offset-2 transition hover:text-slate-300 hover:underline disabled:opacity-60">
+                    {L('或直接订阅 →', 'Or subscribe now →')}
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -476,7 +527,10 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             ? L(`发布限时优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
                 `Launch offer: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
             : L('价格以美元(USD)计,按月或按年付(年付送 2 个月)。', 'Prices in USD, billed monthly or yearly (yearly = 2 months free).')}
-          {L(' 7 天免费试用,提前取消不扣费。支付由 Stripe 安全处理。', ' 7-day free trial, cancel before billing. Payments securely handled by Stripe.')}
+          {canTrial
+            ? L(' 7 天免费试用无需信用卡 —— 到期自动停止,不会自动扣款。支付由 Stripe 安全处理。',
+                ' The 7-day free trial needs no credit card — it just stops at the end, nothing is charged. Payments securely handled by Stripe.')
+            : L(' 支付由 Stripe 安全处理。', ' Payments securely handled by Stripe.')}
         </p>
 
         {/* 完整功能全景:直接铺在付费页里(卖点信息宁多勿少,不外链) */}

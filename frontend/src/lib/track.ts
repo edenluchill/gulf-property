@@ -42,6 +42,16 @@ export type AppEvent =
   | 'auth_failure'
   | 'api_error'
   | 'auth_signed_out'
+  // 商业化漏斗 (2026-07-11) — 定价页→付款这一段此前是全盲的。
+  // checkout_start 与 checkout_success 的差值 = 「绑卡吓跑了多少人」的唯一真答案。
+  | 'pricing_view'
+  | 'plan_select'
+  | 'trial_start'
+  | 'checkout_start'
+  | 'checkout_success'
+  | 'checkout_abandon'
+  | 'paywall_hit'
+  | 'map_gate_hit'
 
 // '/api/sync' (not '/api/events') — "events" is on ad-block keyword lists, which
 // silently eats real users' telemetry. The backend double-mounts both paths.
@@ -272,6 +282,14 @@ function installApiAttribution(): void {
         const res = await (input instanceof Request && !init
           ? orig(new Request(input, { headers }))
           : orig(input as RequestInfo, { ...init, headers }))
+        // 402 付费墙:埋一条就走,绝不改变响应(调用方各自弹窗/三态渲染)。
+        // 埋在这个唯一咽喉处 → 所有现在和将来的付费功能自动被覆盖。
+        if (res.status === 402) {
+          try {
+            const j = await res.clone().json()
+            trackEvent('paywall_hit', { code: j?.code, feature: j?.feature, free_trial: !!j?.freeTrial }, { immediate: true })
+          } catch { /* 非 JSON 的 402 → 不埋,别影响业务 */ }
+        }
         if (res.status === 429) {
           // 地图额度用尽:广播给 overlay/守卫(requiresPlan 区分「去登录」还是「去选套餐」),
           // 然后把这个响应「抛成异常」—— 项目里所有数据 fetcher 都有 try/catch 安全回退,
@@ -282,6 +300,7 @@ function installApiAttribution(): void {
             const j = await res.clone().json()
             if (j?.code === 'map_quota_exhausted') {
               quotaHit = true
+              trackEvent('map_gate_hit', { requires_plan: !!j.requiresPlan }, { immediate: true })
               window.dispatchEvent(new CustomEvent(MAP_QUOTA_EVENT, { detail: { requiresPlan: !!j.requiresPlan } }))
             }
           } catch { /* 非 JSON 的 429(如限流器)原样放行 */ }

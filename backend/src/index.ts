@@ -52,6 +52,7 @@ import { attribution } from './middleware/attribution'  // sampled who-called-wh
 import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (generous per-IP cap)
 import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图每日限时(服务端强制)
 import { startPerfFlusher, stopPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
+import { startFreeTrialSweep } from './services/freeTrialSweep'  // 免绑卡试用到期 → canceled
 import { primeJwks } from './lib/jwks'  // Supabase 签名公钥 → 登录请求本地验签(零远程调用)
 
 const app: Application = express()
@@ -223,6 +224,9 @@ const server = app.listen(PORT, async () => {
   if (process.env.NODE_ENV === 'production' && process.env.PERF_FLUSHER_DISABLED !== '1') {
     startPerfFlusher()
   }
+
+  // 免绑卡试用到期清理(同款生产门:本地 dev 连的是生产库,后台写库任务不许在本地跑)
+  startFreeTrialSweep()
 })
 
 // Extend timeouts for large file uploads (10 minutes)

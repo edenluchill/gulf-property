@@ -33,6 +33,17 @@ export const ALLOWED_EVENTS = new Set([
   'auth_failure', // OAuth/login callback failed (provider error, race, storage blocked, …)
   'api_error',    // a fetch to our API failed: network down, 5xx, timeout/429
   'auth_signed_out', // session ended (payload: manual) — manual:false means the SDK killed it
+  // 商业化漏斗 (2026-07-11) — 在此之前我们对「定价页 → 付款」这一段是全盲的:
+  // 只能拿 page_view 的 path 反推,「绑卡吓跑了多少人」在数据上根本无法回答。
+  // checkout_start 与 checkout_success 的差值就是那个答案。
+  'pricing_view',     // 打开定价页            (payload: variant, from)
+  'plan_select',      // 点了某档的 CTA        (payload: plan_id, cycle, action)
+  'trial_start',      // 开出免绑卡试用        (payload: plan_id, role)
+  'checkout_start',   // 跳去 Stripe 前        (payload: plan_id, cycle, had_trial)
+  'checkout_success', // 付款回跳成功          (payload: plan_id)
+  'checkout_abandon', // 从 Stripe 取消回跳    (payload: plan_id)
+  'paywall_hit',      // 撞到 402              (payload: code, feature, free_trial)
+  'map_gate_hit',     // 撞到 429 地图门       (payload: requires_plan)
                      // (refresh-token reuse revocation, storage loss), the "why do I keep
                      // getting logged out" investigation signal
 ])
