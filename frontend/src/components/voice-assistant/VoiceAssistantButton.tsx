@@ -722,8 +722,10 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
 
   const gate = preview?.gate ?? lunaGate
   const quota = preview?.quota ?? lunaQuota
-  // Never show the energy gauge in a shared tour — it's unmetered there.
-  const showGauge = !quotaExempt && (quota.used > 0 || everActive)
+  // 能量条不再给客户看(2026-07-11 用户:"客户看着有点压力")——聊两句就冒出一条
+  // 剩余额度进度条,像在催人省着用。额度限制本身照常生效(用完仍会弹「Luna 小睡」
+  // 引导登录/升级),只是不把计量表摆在脸上。preview 模式(勋章/演示)仍可显示。
+  const showGauge = !!preview && !quotaExempt && (quota.used > 0 || everActive)
 
   const handleTap = useCallback(() => {
     if (textOpen) return // typing → voice button is inert (prevents misclicks)
