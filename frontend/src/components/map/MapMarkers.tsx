@@ -35,10 +35,13 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
   const thumb = compact ? 36 : 44
   const uiFont = "'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif"
   // 白卡 + 青色点缀,和站点(teal/light)风格一致。
-  const cardBg = '#ffffff'
+  // 深色玻璃卡(2026-07-11):UI 控件(筛选/指标/工具卡)都是白卡,项目卡以前也是白卡
+  // → 两者撞衫,客户分不清"这是按钮还是房子"(用户反馈)。项目卡=地图上的内容,
+  // 改成深色玻璃;控件=系统 chrome,继续白色。语义分层,不靠位置去猜。
+  const cardBg = selected ? 'rgba(13,148,136,0.94)' : 'rgba(15,23,42,0.86)'
   // 边框/尾巴同色:选中=青(#14b8a6),平时=极淡墨。尾巴用「旋转方块 + 朝外两条边」
   // 而非纯三角——这样描边能沿着卡片轮廓一路包到小尖,选中青框不再"漏掉下面那个 peak"。
-  const strokeCol = selected ? '#14b8a6' : 'rgba(15,23,42,0.10)'
+  const strokeCol = selected ? '#5eead4' : 'rgba(255,255,255,0.18)'
   const strokeW = selected ? 2 : 1
   const sq = compact ? 11 : 12   // 旋转方块边长;露出的尖高 ≈ sq/2*√2
   // 阴影统一放在最外层 wrapper 的 filter: drop-shadow —— 它沿「卡片+尾巴」的合并
@@ -104,6 +107,8 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
             gap: compact ? 8 : 10,
             padding: compact ? '4px 11px 4px 4px' : '5px 13px 5px 5px',
             background: cardBg,
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             borderRadius: 14,
             border: `${strokeW}px solid ${strokeCol}`,
           }}
@@ -136,7 +141,7 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
           <div style={{ minWidth: 0, paddingRight: 1 }}>
             <div
               style={{
-                fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: '#0f172a',
+                fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: '#f8fafc',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 maxWidth: compact ? 96 : 128, lineHeight: compact ? '15px' : '16px',
                 letterSpacing: '-0.012em',
@@ -146,7 +151,7 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
             </div>
             {isSoldOut ? (
               <div style={{
-                fontSize: compact ? 9.5 : 10, fontWeight: 800, color: '#dc2626',
+                fontSize: compact ? 9.5 : 10, fontWeight: 800, color: '#fda4af',
                 lineHeight: compact ? '13px' : '14px', letterSpacing: '0.03em',
               }}>
                 {isZh ? '已售罄' : 'SOLD OUT'}
@@ -154,18 +159,18 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
             ) : hasPrice ? (
               <div style={{
                 display: 'flex', alignItems: 'baseline', gap: 3,
-                fontSize: compact ? 11 : 12, fontWeight: 800, color: '#0d9488',
+                fontSize: compact ? 11 : 12, fontWeight: 800, color: '#5eead4',
                 lineHeight: compact ? '15px' : '16px',
                 fontVariantNumeric: 'tabular-nums',
               }}>
-                <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: '#94a3b8' }}>
+                <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: 'rgba(226,232,240,0.7)' }}>
                   {isZh ? '起' : 'From'}
                 </span>
                 <DirhamSymbol size="0.8em" />
                 <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
               </div>
             ) : (
-              <div style={{ fontSize: compact ? 9.5 : 10, fontWeight: 600, color: '#94a3b8', lineHeight: compact ? '13px' : '14px' }}>
+              <div style={{ fontSize: compact ? 9.5 : 10, fontWeight: 600, color: 'rgba(226,232,240,0.65)', lineHeight: compact ? '13px' : '14px' }}>
                 {isZh ? '价格待定' : 'Price TBA'}
               </div>
             )}
