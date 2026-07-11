@@ -28,5 +28,26 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rent_area_projkey
     (COALESCE(NULLIF(project_name, ''), '__AREA__'))
   );
 
+-- ---------------------------------------------------------------------------
+-- 同一类 bug 的第二处:GET /market/rent/projects?area=...
+--
+-- loadRentProjects(market-rent.ts) 按 UPPER(project_name) 聚合租约。
+-- 只有 idx_rent_upper_area_name 一个索引能用,其余谓词(usage_type /
+-- annual_amount / property_area)只能回表过滤 → bitmap 退化成 lossy:
+--   Rows Removed by Index Recheck: 2,191,873    ← 回表重查 220 万行
+--   Heap Blocks: exact=29889 lossy=65624
+-- 大区(JABAL ALI FIRST,14.5 万条)实测 5391ms;真实匿名客户几乎每天撞到。
+--
+-- 部分索引把谓词写进 WHERE、把 mode() 要的 project_name 放进 INCLUDE:
+--   5391ms → 362ms;生产端到端 0.2s。
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rent_area_projlist
+  ON dld_rent_contracts (UPPER(area_name), UPPER(project_name), start_date)
+  INCLUDE (project_name)
+  WHERE usage_type = 'Residential'
+    AND annual_amount > 0
+    AND property_area > 0
+    AND project_name IS NOT NULL
+    AND project_name <> '';
+
 ANALYZE dld_transactions;
 ANALYZE dld_rent_contracts;
