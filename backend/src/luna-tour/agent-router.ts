@@ -68,7 +68,7 @@ async function demoAgentId(): Promise<string> {
     phone: '+971500000000',
     whatsapp: '971500000000',
     photoUrl: 'https://i.pravatar.cc/200?img=12',
-    brand: { title: 'Emaar 认证顾问', whatsapp: '971500000000', accent: '#00E0B8' },
+    brand: { title: 'Emaar 置业顾问', whatsapp: '971500000000', accent: '#00E0B8' },
   })
 }
 
@@ -90,7 +90,7 @@ async function currentAgentId(req: Request): Promise<string> {
             email: user.email,
             displayName: (user.user_metadata?.name as string) || user.email.split('@')[0],
             authUserId: user.id,
-            brand: { title: '认证顾问', accent: '#00E0B8' },
+            brand: { title: '置业顾问', accent: '#00E0B8' },
           })
         }
       } catch {

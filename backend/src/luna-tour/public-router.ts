@@ -609,8 +609,8 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
     if (pr.rowCount === 0) return res.status(404).json({ error: 'project not found' })
     const project = pr.rows[0]
 
-    // 经纪段位 → 报价单上的认证盖章(rookie=认证经纪人 / agent=金牌PRO /
-    // founder=认证经纪公司 / developer=认证开发商;owner 视同 founder;
+    // 经纪段位 → 报价单上的会员盖章(前端 TIER_STAMP 映射文字:rookie=会员 /
+    // agent=金牌会员 / founder=公司会员 / developer=开发商会员;owner 视同 founder;
     // 席位成员看团队的套餐)。查当前生效订阅,无订阅 = 不盖章。
     let agentTier: string | null = null
     if (s.agent_id) {

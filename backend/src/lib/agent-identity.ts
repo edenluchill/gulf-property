@@ -19,7 +19,7 @@ export async function resolveAgentId(req: { headers: Record<string, unknown> }):
         email: user.email,
         displayName: (user.user_metadata?.name as string) || user.email.split('@')[0],
         authUserId: user.id,
-        brand: { title: '认证顾问', accent: '#00E0B8' },
+        brand: { title: '置业顾问', accent: '#00E0B8' },
       })
     }
   } catch {

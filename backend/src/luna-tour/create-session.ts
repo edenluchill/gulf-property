@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     phone: '+971500000000',
     whatsapp: '971500000000',
     photoUrl: 'https://i.pravatar.cc/200?img=12',
-    brand: { title: 'Emaar 认证顾问', whatsapp: '971500000000', accent: '#00E0B8' },
+    brand: { title: 'Emaar 置业顾问', whatsapp: '971500000000', accent: '#00E0B8' },
   })
 
   console.log(`Generating session "${shareCode}" for ${projectIds.length} properties...`)

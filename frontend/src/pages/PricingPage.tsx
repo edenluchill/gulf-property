@@ -132,7 +132,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         L('客户 CRM:档案 · 热度评分 · 活动时间线 · 跟进记录 · 交易管道', 'Client CRM: profiles · heat score · timeline · notes · pipeline'),
         L('买家意向报告:客户看了哪些盘、停留多久、意向多强', 'Intent reports: what they viewed, how long, how hot'),
         L('AI 楼书解析:上传开发商 PDF,户型/价格/付款计划自动成库', 'AI brochures: upload a PDF, units/prices/plans auto-extracted'),
-        L('Sales Offer 报价单:选户型填报价,认证盖章+优惠标注,链接/PDF 发客户(60 天有效)', 'Sales Offers: pick a unit, set your quote — stamped, discount-marked, link/PDF, valid 60 days'),
+        L('Sales Offer 报价单:选户型填报价,品牌盖章+优惠标注,链接/PDF 发客户(60 天有效)', 'Sales Offers: pick a unit, set your quote — stamped, discount-marked, link/PDF, valid 60 days'),
         L('品牌报告页:带你头像与联系方式的项目投资报告(5年ROI+真实成交)', 'Branded report page: your face & contact on a 5-yr ROI report'),
         L('符合关注区域的 lead(尽力推送)', 'Leads for your focus areas (best effort)'),
       ],
@@ -242,7 +242,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     ]},
     { title: L('品牌与转化', 'Brand & closing'), items: [
       L('品牌报告页:你的头像+联系方式+项目 ROI', 'Branded report pages with your face & contact'),
-      L('Sales Offer 报价单:优惠标注+认证盖章,链接/PDF 发客户', 'Sales Offers: discount-marked & stamped, link or PDF'),
+      L('Sales Offer 报价单:优惠标注+品牌盖章,链接/PDF 发客户', 'Sales Offers: discount-marked & stamped, link or PDF'),
       L('AI 楼书解析:PDF 秒变结构化户型库', 'AI brochure parsing: PDF to structured units'),
       variant === 'agency'
         ? L('White-label 品牌定制 + 自定义域名', 'White-label + custom domain')

@@ -52,12 +52,12 @@ interface PayShareData {
   agent: { name: string; photo: string | null; phone: string | null; whatsapp: string | null; email: string | null; tier: string | null } | null
 }
 
-/** Pinzos 段位 → 报价单认证盖章文案(lib/roleBadge.ts 同族口径) */
+/** Pinzos 段位 → 报价单会员盖章文案(lib/roleBadge.ts 同族口径;平台会员身份,非官方/职业认证) */
 const TIER_STAMP: Record<string, { zh: string; en: string }> = {
-  rookie: { zh: '认证经纪人', en: 'CERTIFIED AGENT' },
-  agent: { zh: '金牌经纪人 PRO', en: 'CERTIFIED PRO AGENT' },
-  founder: { zh: '认证经纪公司', en: 'CERTIFIED AGENCY' },
-  developer: { zh: '认证开发商', en: 'CERTIFIED DEVELOPER' },
+  rookie: { zh: '会员', en: 'MEMBER' },
+  agent: { zh: '金牌会员', en: 'PRO MEMBER' },
+  founder: { zh: '公司会员', en: 'AGENCY PARTNER' },
+  developer: { zh: '开发商会员', en: 'DEVELOPER PARTNER' },
 }
 
 const aed = (n: number) =>

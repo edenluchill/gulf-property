@@ -98,7 +98,7 @@ async function currentAgent(
     email,
     displayName: name,
     authUserId: req.user?.id,
-    brand: { title: '认证顾问', accent: '#00E0B8' },
+    brand: { title: '置业顾问', accent: '#00E0B8' },
   })
   let approved = isOwnerEmail(email)
   if (!approved) {
@@ -490,7 +490,7 @@ router.post('/team/invite', requireAuth, async (req: Request, res: Response) => 
         error: `席位已满(${memberLimit} 名成员)。可在团队页购买加席。`,
       })
     }
-    const target = await ensureAgent({ email, displayName: email.split('@')[0], brand: { title: '认证顾问', accent: '#00E0B8' } })
+    const target = await ensureAgent({ email, displayName: email.split('@')[0], brand: { title: '置业顾问', accent: '#00E0B8' } })
     if (target === agent.id) return res.status(400).json({ success: false, error: '不需要邀请自己' })
     const t = await pool.query<{ billing_agent_id: string | null }>(
       `SELECT billing_agent_id FROM lt_agents WHERE id = $1`,

@@ -229,7 +229,7 @@ function AgentStamp({ agent }: { agent: any }) {
         : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
       <div className="leading-tight">
         <div className="text-[11px] font-semibold text-slate-700">{agent.name}</div>
-        <div className="flex items-center gap-0.5 text-[9px] text-emerald-600"><BadgeCheck className="h-2.5 w-2.5" />DLD 认证</div>
+        <div className="flex items-center gap-0.5 text-[9px] text-emerald-600"><BadgeCheck className="h-2.5 w-2.5" />Pinzos 会员</div>
       </div>
     </div>
   )

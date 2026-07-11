@@ -248,7 +248,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
             </h3>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
               {zh
-                ? '订阅任意经纪套餐($25/月起)即可生成带认证盖章与优惠标注的正式报价单,链接 / PDF 一键发客户。'
+                ? '订阅任意经纪套餐($25/月起)即可生成带品牌盖章与优惠标注的正式报价单,链接 / PDF 一键发客户。'
                 : 'Subscribe to any agent plan (from $25/mo) to create formal offers with your certification stamp — link or PDF.'}
             </p>
             <div className="mt-6 flex items-center justify-center gap-3">
@@ -477,7 +477,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
           {/* 落款名片:报价单以经纪名片(姓名/头像/电话/邮箱+认证章)落款 */}
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5">
             <span className="text-xs text-slate-500">
-              {zh ? '报价单将以你的名片落款(姓名 / 头像 / 电话 / 邮箱 + 认证章)' : 'The offer is signed with your card (name, photo, phone, email + stamp)'}
+              {zh ? '报价单将以你的名片落款(姓名 / 头像 / 电话 / 邮箱 + 品牌章)' : 'The offer is signed with your card (name, photo, phone, email + stamp)'}
             </span>
             <button
               type="button"

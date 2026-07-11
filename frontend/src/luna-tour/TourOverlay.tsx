@@ -603,7 +603,7 @@ export default function TourOverlay({
         {data!.agent.photo_url && <img src={data!.agent.photo_url} alt={data!.agent.name} />}
         <div>
           <div className="nm">{data!.agent.name}</div>
-          <div className="ti">{(data!.agent.brand?.title as string) || '认证顾问'}</div>
+          <div className="ti">{(data!.agent.brand?.title as string) || '置业顾问'}</div>
         </div>
       </div>
 
@@ -722,7 +722,7 @@ export default function TourOverlay({
         <GreetingScreen
           agentName={data.agent.name}
           agentPhoto={data.agent.photo_url ?? undefined}
-          agentTitle={(data.agent.brand?.title as string) || '认证顾问'}
+          agentTitle={(data.agent.brand?.title as string) || '置业顾问'}
           clientName={data.session.client_name ?? undefined}
           propertyCount={data.properties.length}
           accent={accent}
