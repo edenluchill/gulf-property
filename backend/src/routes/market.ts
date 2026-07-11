@@ -12,6 +12,7 @@ import { findAreaByName } from '../services/area-matcher'
 import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
 import { DEFAULT_SEGMENT, SEGMENT_MIN_SAMPLE, parseSegment, MarketSegment } from '../lib/marketSegment'
 import { beginMaintenance, endMaintenance } from '../services/perfSink'
+import { cached, prime } from '../services/microCache'
 
 const router = Router()
 
@@ -206,6 +207,15 @@ function txCacheSet(key: string, data: any) {
   }
   txCache.set(key, { at: Date.now(), data })
 }
+
+// area-insights lives in microCache (TTL + single-flight), keyed by area AND usage.
+const INSIGHTS_TTL_MS = 6 * 60 * 60 * 1000
+const insightsKey = (areaId: string, usage: string) => `mkt:insights:${areaId}:${usage}`
+// Only 'all' is worth prewarming: the frontend OMITS the usage param for its
+// default lens (api.ts) and this route maps a missing param to 'all', so every
+// ordinary area click reads insights:<id>:all. No caller ever asks for
+// usage=residential. The rare explicit lenses fall back to single-flight.
+const WARM_USAGES = ['all'] as const
 
 /** Persistent precomputed default (market_cache, refreshed daily). Null if absent/error. */
 async function txPrecomputed(key: string): Promise<any | null> {
@@ -821,11 +831,14 @@ router.get('/area-insights', async (req: Request, res: Response) => {
     // 缓存存的是三口径 raw，按口径组装零成本（同一份缓存服务所有口径）。
     const strict = req.query.segment !== undefined
     const segment = parseSegment(req.query.segment)
-    const cacheKey = `insights:${areaId}:${usage}`
-    const cached = txCacheGet(cacheKey)
-    if (cached) return res.json(composeAreaInsights(cached, segment, strict))
-    const data = await loadAreaInsightsData(areaId, usage)
-    txCacheSet(cacheKey, data)
+    // Single-flight matters here: the map dialog fires several area-insights calls
+    // at once, and on a cold key N concurrent misses would each run the full
+    // aggregate in parallel. They now share ONE query.
+    const data = await cached(
+      insightsKey(areaId, usage),
+      INSIGHTS_TTL_MS,
+      () => loadAreaInsightsData(areaId, usage),
+    )
     res.json(composeAreaInsights(data, segment, strict))
   } catch (err) {
     console.error('[market/area-insights] error:', err)
@@ -843,20 +856,20 @@ async function warmAreaInsights() {
   try {
     const r = await pool.query(`SELECT id FROM dubai_areas WHERE visible = true`)
     let ok = 0
+    const want = r.rows.length * WARM_USAGES.length
     for (const row of r.rows) {
-      try {
-        // Warm the SAME key the request path reads: `insights:${id}:${usage}`.
-        // (Previously warmed `insights:${id}` — a key nothing ever looked up, so
-        //  every first area click was a cold DB miss. That cold-miss storm is what
-        //  saturated the pool under load — see docs/reports/2026-06-27-api-load-test.md.)
-        const data = await loadAreaInsightsData(row.id, 'all')
-        txCache.delete(`insights:${row.id}:all`)  // 重置插入序，刷新 TTL
-        txCacheSet(`insights:${row.id}:all`, data)
-        ok++
-      } catch { /* 单区域失败不影响整轮 */ }
+      // Warm the SAME keys the request path reads (insightsKey), or the warm round
+      // is a no-op that only burns DB while starving live requests.
+      for (const usage of WARM_USAGES) {
+        try {
+          const data = await loadAreaInsightsData(row.id, usage)
+          prime(insightsKey(row.id, usage), data)  // 刷新 TTL
+          ok++
+        } catch { /* 单区域/单口径失败不影响整轮 */ }
+      }
       await new Promise(resolve => setTimeout(resolve, 250))  // 让出 DB
     }
-    console.log(`[market] area insights warmed: ${ok}/${r.rows.length}`)
+    console.log(`[market] area insights warmed: ${ok}/${want} (${WARM_USAGES.join(',')})`)
   } catch (e) {
     console.error('[market] insights warm failed:', e)
   } finally {
