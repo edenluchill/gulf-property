@@ -200,7 +200,7 @@ export default function UserMenu() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <Medal className="w-4 h-4 text-amber-500" />
-                  {zh ? '我的勋章(分享朋友圈)' : 'My badge (share it)'}
+                  {zh ? '我的会员卡(分享朋友圈)' : 'My membership card (share it)'}
                 </button>
               )}
               {/* 数据管理 / analytics moved into the header Admin dropdown — see Header.tsx */}

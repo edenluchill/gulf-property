@@ -49,7 +49,7 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
     if (!dataUrl) return
     const a = document.createElement('a')
     a.href = dataUrl
-    a.download = `pinzos-certificate-${badge.planId}.png`
+    a.download = `pinzos-membership-${badge.planId}.png`
     a.click()
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -84,11 +84,11 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
           className="mb-4 text-center"
         >
           <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#C7A050]">
-            {celebrate ? (zh ? '认证已颁发' : 'Certificate Issued') : (zh ? '官方认证证书' : 'Official Certificate')}
+            {celebrate ? (zh ? '欢迎入驻' : 'Welcome Aboard') : (zh ? '我的会员卡' : 'My Membership')}
           </div>
           {celebrate && (
             <div className="mt-1 text-lg font-bold text-white">
-              {zh ? '恭喜,你已获得官方认证 🎉' : 'Congratulations — you’re officially certified 🎉'}
+              {zh ? '恭喜入驻,欢迎成为 Pinzos 会员 🎉' : 'Welcome aboard — you’re now a Pinzos member 🎉'}
             </div>
           )}
         </motion.div>

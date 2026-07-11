@@ -23,30 +23,30 @@ export interface RoleBadge {
 const BADGES: Record<string, RoleBadge> = {
   rookie: {
     planId: 'rookie', emoji: '💼',
-    titleZh: '认证经纪人', titleEn: 'Certified Agent',
-    certTitle: 'Certified Property Agent',
-    subZh: 'PINZOS 认证 · 启程', subEn: 'PINZOS Certified · Starter',
+    titleZh: '经纪会员', titleEn: 'Agent Member',
+    certTitle: 'Pinzos Member',
+    subZh: 'PINZOS 会员 · 启程', subEn: 'PINZOS Member · Starter',
     from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
   },
   agent: {
     planId: 'agent', emoji: '🏅',
     titleZh: '金牌经纪人 PRO', titleEn: 'Pro Agent',
-    certTitle: 'Senior Certified Advisor',
-    subZh: 'PINZOS 认证 · 专业版', subEn: 'PINZOS Certified · Pro',
+    certTitle: 'Pinzos Pro Member',
+    subZh: 'PINZOS 会员 · 专业版', subEn: 'PINZOS Member · Pro',
     from: '#1e1b4b', to: '#4338ca', accent: '#fbbf24',
   },
   founder: {
     planId: 'founder', emoji: '🏢',
-    titleZh: '认证经纪公司', titleEn: 'Certified Agency',
-    certTitle: 'Accredited Brokerage Partner',
-    subZh: 'PINZOS 认证 · 经纪公司', subEn: 'PINZOS Certified · Agency',
+    titleZh: '经纪公司会员', titleEn: 'Agency Member',
+    certTitle: 'Pinzos Agency Partner',
+    subZh: 'PINZOS 会员 · 经纪公司', subEn: 'PINZOS Member · Agency',
     from: '#2e1065', to: '#7c3aed', accent: '#e9d5ff',
   },
   developer: {
     planId: 'developer', emoji: '🏗️',
-    titleZh: '认证开发商', titleEn: 'Certified Developer',
-    certTitle: 'Accredited Development Partner',
-    subZh: 'PINZOS 认证 · 开发商', subEn: 'PINZOS Certified · Developer',
+    titleZh: '开发商会员', titleEn: 'Developer Member',
+    certTitle: 'Pinzos Developer Partner',
+    subZh: 'PINZOS 会员 · 开发商', subEn: 'PINZOS Member · Developer',
     from: '#451a03', to: '#d97706', accent: '#fde68a',
   },
 }
@@ -69,16 +69,16 @@ export function badgeForPlan(planId: string | undefined | null, status?: string 
 const MEMBER_BADGES: Record<string, RoleBadge> = {
   founder: {
     planId: 'member', emoji: '💼',
-    titleZh: '认证经纪人', titleEn: 'Certified Agent',
-    certTitle: 'Certified Property Agent',
-    subZh: 'PINZOS 认证 · 团队成员', subEn: 'PINZOS Certified · Team member',
+    titleZh: '经纪会员', titleEn: 'Agent Member',
+    certTitle: 'Pinzos Team Member',
+    subZh: 'PINZOS 会员 · 团队成员', subEn: 'PINZOS Member · Team',
     from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
   },
   developer: {
     planId: 'member', emoji: '🏗️',
-    titleZh: '认证开发商', titleEn: 'Certified Developer',
-    certTitle: 'Accredited Development Partner',
-    subZh: 'PINZOS 认证 · 团队成员', subEn: 'PINZOS Certified · Team member',
+    titleZh: '开发商会员', titleEn: 'Developer Member',
+    certTitle: 'Pinzos Developer Member',
+    subZh: 'PINZOS 会员 · 团队成员', subEn: 'PINZOS Member · Team',
     from: '#451a03', to: '#d97706', accent: '#fde68a',
   },
 }
@@ -149,6 +149,92 @@ function guilloche(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: num
   ctx.stroke(); ctx.restore()
 }
 
+/** 螺旋卷须(对数螺旋,filigree 灵魂):从 (cx,cy) 半径 r0→r1、角度扫 sweep。 */
+function volute(ctx: CanvasRenderingContext2D, cx: number, cy: number, r0: number, r1: number, a0: number, sweep: number, lw: number) {
+  ctx.lineWidth = lw; ctx.beginPath()
+  const steps = 64
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const a = a0 + sweep * t
+    const r = r0 * Math.pow(r1 / r0, t)
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+  }
+  ctx.stroke()
+}
+
+/** 一片细长卷叶(火焰/佩斯利形,带尖 + 内凹回弯 + 细中脉);x,y=叶柄,ang=朝向,len=长,side=弯向。 */
+function scrollLeaf(ctx: CanvasRenderingContext2D, x: number, y: number, len: number, ang: number, side: number) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang)
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.bezierCurveTo(len * 0.30 * side, -len * 0.10, len * 0.46 * side, -len * 0.52, len * 0.10 * side, -len)  // 外缘鼓 → 尖
+  ctx.bezierCurveTo(len * 0.20 * side, -len * 0.5, len * 0.02 * side, -len * 0.20, 0, 0)                       // 内缘回弯(凹)
+  ctx.closePath(); ctx.fill()
+  // 细中脉(深金一道,提气免得像实心虫)
+  ctx.strokeStyle = 'rgba(90,66,24,0.55)'; ctx.lineWidth = Math.max(0.8, len * 0.03)
+  ctx.beginPath(); ctx.moveTo(0, 0)
+  ctx.bezierCurveTo(len * 0.14 * side, -len * 0.4, len * 0.12 * side, -len * 0.7, len * 0.10 * side, -len * 0.94)
+  ctx.stroke()
+  ctx.restore()
+}
+
+/** 小花(5 瓣水滴 + 花心);线稿 + 花心实心。 */
+function rosette(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, lw: number) {
+  ctx.lineWidth = lw
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(a)
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.bezierCurveTo(-r * 0.34, -r * 0.5, -r * 0.24, -r, 0, -r)
+    ctx.bezierCurveTo(r * 0.24, -r, r * 0.34, -r * 0.5, 0, 0)
+    ctx.stroke()
+    ctx.restore()
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.18, 0, Math.PI * 2); ctx.fill()
+}
+
+/**
+ * 阿拉伯卷草花纹(线条美,参考用户给的 filigree):一条主 S 卷藤两端收成螺旋卷,
+ * 分出次级小卷,点缀卷叶与一朵小花。克制、流畅、留白干净(不堆密)。
+ * 画在 (ox,oy) 局部坐标,sc 缩放,fx/fy 镜像(±1),用于对称放到两角。
+ */
+function flourish(ctx: CanvasRenderingContext2D, ox: number, oy: number, sc: number, fx: number, fy: number, alpha: number) {
+  ctx.save(); ctx.globalAlpha = alpha
+  ctx.translate(ox, oy); ctx.scale(sc * fx, sc * fy)
+  const gg = ctx.createLinearGradient(0, -160, 0, 20)
+  gg.addColorStop(0, '#D9B968'); gg.addColorStop(1, '#9A7628')
+  ctx.strokeStyle = gg; ctx.fillStyle = gg; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+
+  // 主 S 藤:从内(0,0)向外上扬,末端收成大螺旋卷
+  ctx.lineWidth = 2.4
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.bezierCurveTo(72, -6, 150, -32, 205, -92)
+  ctx.stroke()
+  volute(ctx, 214, -128, 42, 7, Math.PI * 0.25, Math.PI * 1.7, 2.4)   // 末端大卷
+
+  // 次级下卷(主藤起点分出,向左下收卷)
+  ctx.lineWidth = 2
+  ctx.beginPath(); ctx.moveTo(36, -3); ctx.bezierCurveTo(18, -30, 34, -64, 70, -62); ctx.stroke()
+  volute(ctx, 70, -62, 18, 3.5, Math.PI * 1.5, Math.PI * 1.55, 2)
+
+  // 中段上卷小须(从主藤凸侧抽出)
+  ctx.lineWidth = 1.7
+  ctx.beginPath(); ctx.moveTo(128, -26); ctx.bezierCurveTo(152, -36, 166, -62, 148, -84); ctx.stroke()
+  volute(ctx, 148, -84, 13, 2.6, 0, Math.PI * 1.4, 1.7)
+
+  // 卷叶(沿藤外侧单侧生长,细长优雅,不成对)
+  scrollLeaf(ctx, 74, -12, 54, -Math.PI * 0.70, 1)
+  scrollLeaf(ctx, 132, -48, 46, -Math.PI * 0.34, -1)
+
+  // 小花(藤起点上方作焦点,远离叶片)
+  rosette(ctx, 26, -44, 14, 1.5)
+
+  ctx.restore()
+}
+
 /** 一支金桂冠(沿弧排小叶片)。 */
 function laurel(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, a0: number, a1: number, side: number, leafR: number) {
   ctx.fillStyle = GOLD
@@ -196,7 +282,7 @@ function sealMedal(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   ctx.textAlign = 'center'
   ctx.fillStyle = NAVY
   ctx.font = `700 ${Math.round(r * 0.185)}px ${SANS}`
-  ctx.fillText(spread('CERTIFIED', 2), cx, cy + r * 0.06)
+  ctx.fillText(spread('MEMBER', 2), cx, cy + r * 0.06)
   ctx.fillStyle = gg
   ctx.font = `600 ${Math.round(r * 0.13)}px ${SANS}`
   ctx.fillText(spread('PINZOS', 2), cx, cy + r * 0.34)
@@ -266,6 +352,10 @@ export async function drawCertificate(
     ctx.beginPath(); ctx.moveTo(x + sx * 26, y); ctx.lineTo(x + sx * 64, y); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(x, y + sy * 26); ctx.lineTo(x, y + sy * 64); ctx.stroke()
   }
+  // 阿拉伯卷草花纹:顶部两角对称,向内下方流动(留白区,不压 crest/文字)
+  flourish(ctx, 150, 150, 0.85, 1, -1, 0.62)
+  flourish(ctx, W - 150, 150, 0.85, -1, -1, 0.62)
+
   ctx.textAlign = 'center'
 
   // 顶部权威徽记
@@ -277,14 +367,14 @@ export async function drawCertificate(
   ctx.fillText(spread('PINZOS', 6), cx, 232)
   ctx.fillStyle = goldGrad(ctx, 254, 278)
   ctx.font = `600 22px ${SANS}`
-  ctx.fillText(spread('DUBAI REAL ESTATE CERTIFICATION', 3), cx, 274)
+  ctx.fillText(spread('AGENT PARTNER NETWORK', 3), cx, 274)
   ctx.strokeStyle = goldGrad(ctx, 296, 302); ctx.lineWidth = 1.5
   ctx.beginPath(); ctx.moveTo(cx - 165, 300); ctx.lineTo(cx + 165, 300); ctx.stroke()
 
   // 引导语
   ctx.fillStyle = MUTE
   ctx.font = `600 21px ${SANS}`
-  ctx.fillText(spread('THIS CERTIFICATE IS PROUDLY PRESENTED TO', 2), cx, 372)
+  ctx.fillText(spread('PINZOS PROUDLY WELCOMES', 2), cx, 372)
 
   // 姓名(衬线主视觉,过长自动缩)+ 烫金下划线
   ctx.fillStyle = NAVY
@@ -299,7 +389,7 @@ export async function drawCertificate(
   // 授予的称号(逐档不同头衔;过长自动缩)
   ctx.fillStyle = MUTE
   ctx.font = `italic 400 26px ${SERIF}`
-  ctx.fillText('in recognition of attaining the professional designation of', cx, 556)
+  ctx.fillText('welcomed to the Pinzos platform as a', cx, 556)
   const title = spread((badge.certTitle || 'Certified Agent').toUpperCase(), 1)
   let ts = 44
   ctx.font = `700 ${ts}px ${SERIF}`
@@ -310,7 +400,7 @@ export async function drawCertificate(
   // 一句正文
   ctx.fillStyle = MUTE
   ctx.font = `400 21px ${SANS}`
-  wrapCentered(ctx, 'Verified for professional standing on Pinzos, Dubai’s modern off-plan real-estate platform.', cx, 668, W - 340, 30)
+  wrapCentered(ctx, 'A valued member of Pinzos, Dubai’s modern off-plan real-estate platform.', cx, 668, W - 340, 30)
 
   // 日期
   const d = new Date()
@@ -327,7 +417,7 @@ export async function drawCertificate(
   ctx.beginPath(); ctx.moveTo(lx - 120, 908); ctx.lineTo(lx + 120, 908); ctx.stroke()
   ctx.textAlign = 'center'
   ctx.fillStyle = goldGrad(ctx, 932, 948); ctx.font = `600 15px ${SANS}`
-  ctx.fillText(spread('DATE OF ISSUE', 2), lx, 944)
+  ctx.fillText(spread('MEMBER SINCE', 2), lx, 944)
   ctx.fillStyle = NAVY; ctx.font = `italic 400 30px ${SERIF}`
   ctx.fillText(dateDisp, lx, 986)
 
@@ -341,5 +431,5 @@ export async function drawCertificate(
   ctx.fillStyle = NAVY; ctx.font = `700 22px ${SERIF}`
   ctx.fillText(credentialId, rx, 998)
   ctx.fillStyle = MUTE; ctx.font = `400 15px ${SANS}`
-  ctx.fillText(ok ? 'Scan to verify · pinzos.com/verify' : 'Verify at pinzos.com/verify', rx, 1022)
+  ctx.fillText(ok ? 'Scan to view · pinzos.com' : 'pinzos.com', rx, 1022)
 }

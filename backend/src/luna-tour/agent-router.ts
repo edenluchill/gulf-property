@@ -550,10 +550,10 @@ router.post('/avatar', multer({ storage: multer.memoryStorage(), limits: { fileS
 // ── 可验证证书登记(证书二维码 → 公开 /verify 页)──────────────
 // credential_id 由 姓名|档位 派生(与前端 roleBadge.certNumber 同算法)。
 const CERT_TITLES: Record<string, string> = {
-  rookie: 'Certified Property Agent',
-  agent: 'Senior Certified Advisor',
-  founder: 'Accredited Brokerage Partner',
-  developer: 'Accredited Development Partner',
+  rookie: 'Pinzos Member',
+  agent: 'Pinzos Pro Member',
+  founder: 'Pinzos Agency Partner',
+  developer: 'Pinzos Developer Partner',
 }
 function certHash(seed: string): string {
   let h = 0
@@ -572,7 +572,7 @@ router.post('/certificate', async (req: Request, res: Response) => {
       [agentId]
     )
     const plan = sub.rows[0]?.plan_id || 'rookie'
-    const title = CERT_TITLES[plan] || 'Certified Property Agent'
+    const title = CERT_TITLES[plan] || 'Pinzos Member'
     const credentialId = `PZ-${new Date().getFullYear()}-${certHash(`${name}|${plan}`)}`
     await pool.query(
       `INSERT INTO lt_certificates (credential_id, agent_id, holder_name, plan_id, cert_title)

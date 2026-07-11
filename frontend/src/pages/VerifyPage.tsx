@@ -34,13 +34,13 @@ export default function VerifyPage() {
         {/* 品牌条 */}
         <div className="flex items-center justify-center gap-2 border-b border-slate-100 py-4">
           <span className="text-lg font-bold tracking-[0.2em] text-[#1C2B4A]">PINZOS</span>
-          <span className="text-[11px] font-medium uppercase tracking-wider text-[#B08A3C]">Credential Verification</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[#B08A3C]">Membership</span>
         </div>
 
         {state === 'loading' && (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-slate-400">
             <Loader2 className="h-7 w-7 animate-spin" />
-            <span className="text-sm">Verifying credential…</span>
+            <span className="text-sm">Loading membership…</span>
           </div>
         )}
 
@@ -49,9 +49,9 @@ export default function VerifyPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-50">
               <ShieldX className="h-7 w-7 text-rose-500" />
             </div>
-            <div className="text-lg font-bold text-slate-900">Credential not found</div>
+            <div className="text-lg font-bold text-slate-900">Membership not found</div>
             <p className="text-sm text-slate-500">
-              We couldn’t verify a Pinzos credential with this ID{code ? ` (${code})` : ''}. It may be mistyped or no longer active.
+              We couldn’t find a Pinzos membership with this ID{code ? ` (${code})` : ''}. It may be mistyped or no longer active.
             </p>
           </div>
         )}
@@ -61,28 +61,28 @@ export default function VerifyPage() {
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
               <ShieldCheck className="h-8 w-8 text-emerald-600" />
             </div>
-            <div className="mt-3 text-sm font-semibold uppercase tracking-wider text-emerald-600">Verified Credential</div>
+            <div className="mt-3 text-sm font-semibold uppercase tracking-wider text-emerald-600">Active Member</div>
             <div className="mt-5 text-2xl font-bold text-[#1C2B4A]">{cert.holderName}</div>
             <div className="mt-1 text-base font-semibold text-[#B08A3C]">{cert.certTitle}</div>
             <div className="mx-auto my-5 h-px w-24 bg-slate-200" />
             <dl className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <dt className="text-slate-400">Credential ID</dt>
+                <dt className="text-slate-400">Member ID</dt>
                 <dd className="font-semibold text-slate-800">{cert.credentialId}</dd>
               </div>
               {issued && (
                 <div className="flex items-center justify-between">
-                  <dt className="text-slate-400">Issued</dt>
+                  <dt className="text-slate-400">Member since</dt>
                   <dd className="font-semibold text-slate-800">{issued}</dd>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <dt className="text-slate-400">Issued by</dt>
-                <dd className="font-semibold text-slate-800">Pinzos · Dubai Real Estate Certification</dd>
+                <dt className="text-slate-400">Platform</dt>
+                <dd className="font-semibold text-slate-800">Pinzos · Dubai off-plan real estate</dd>
               </div>
             </dl>
             <p className="mt-6 text-[11px] text-slate-400">
-              This confirms an active Pinzos platform certification for Dubai off-plan real estate.
+              Confirms an active membership on the Pinzos platform. Membership is a platform status — not a regulatory or professional certification.
             </p>
           </div>
         )}

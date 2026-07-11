@@ -207,13 +207,13 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       L('客户 CRM:档案 · 热度评分 · 时间线 · 跟进 · 管道', 'Client CRM: profiles, heat score, timeline, notes, pipeline'),
       L('实时海外带看 + 应用内语音,一场会议签下海外客户', 'Live overseas tours + in-app voice — close remote buyers in one call'),
       L('品牌报告页:5年 ROI + 真实 DLD 成交做信任背书', 'Branded reports: 5-yr ROI backed by real DLD transactions'),
-      L('Sales Offer 报价单:实价+可调付款周期,认证盖章一键发客户', 'Sales Offers: your price + negotiable schedule, stamped & shareable'),
+      L('Sales Offer 报价单:实价+可调付款周期,品牌盖章一键发客户', 'Sales Offers: your price + negotiable schedule, stamped & shareable'),
     ]},
     { title: L('团队与席位', 'Team & seats'), items: [
       L('含 5 个席位,置业顾问人手一号', '5 seats included — one for every sales rep'),
       L('全团队共享 20,000 积分池,+$49/席无限扩容', 'Team shares 20,000 credits, +$49/seat unlimited'),
       L('一键邀请/移除成员,一张账单', 'Invite/remove in one click, one bill'),
-      L('成员自动获得认证开发商勋章', 'Every member gets the Certified Developer badge'),
+      L('成员自动获得开发商会员卡', 'Every member gets a Developer membership card'),
     ]},
     { title: L('数据与洞察', 'Data & insights'), items: [
       L('谁在看你的盘、看了多久、意向多强', 'Who views your projects, how long, how hot'),

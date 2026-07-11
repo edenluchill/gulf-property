@@ -290,7 +290,7 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
   }
 
   const cont = async () => {
-    if (!name.trim()) { alert(L('请填写姓名(将印在你的认证证书上)', 'Please enter your name (it appears on your certificate)')); return }
+    if (!name.trim()) { alert(L('请填写姓名(将印在你的会员卡上)', 'Please enter your name (it appears on your membership card)')); return }
     setSaving(true)
     try {
       await lunaFetch('/profile', {
@@ -310,9 +310,9 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
           <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br text-[34px] shadow-md ${card.grad}`} aria-hidden>
             {card.emoji}
           </span>
-          <h1 className="mt-4 text-xl font-bold text-slate-900">{L('完善认证信息', 'Complete your certification')}</h1>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">{L('完善会员信息', 'Complete your membership')}</h1>
           <p className="mt-1.5 text-sm text-slate-500">
-            {L('填写将印在你专属认证证书上的信息 —— 客户会看到。', 'This appears on your official certificate — clients will see it.')}
+            {L('填写将印在你专属会员卡上的信息 —— 客户会看到。', 'This appears on your Pinzos membership card — clients will see it.')}
           </p>
         </div>
 
@@ -334,7 +334,7 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
 
         {/* 姓名(必填) */}
         <label className="mt-5 block">
-          <span className="text-xs font-medium text-slate-500">{L('姓名(证书署名)', 'Name (on certificate)')}</span>
+          <span className="text-xs font-medium text-slate-500">{L('姓名(会员卡署名)', 'Name (on membership card)')}</span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder={L('您的姓名', 'Your name')}
             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100" />
         </label>
