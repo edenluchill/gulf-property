@@ -13,11 +13,17 @@ import StatCard from './StatCard'
 import TrendChart from './TrendChart'
 
 const KIND_LABEL: Record<string, string> = {
+  API_5XX: '接口报错',
   HIGH_LATENCY: '延迟过高',
-  HIGH_ERROR_RATE: '错误率过高',
+  HIGH_ERROR_RATE: '错误率过高',  // 已废弃的旧规则,历史记录里还有
   SLOW_QUERIES: '慢查询过多',
   DB_POOL_SATURATION: '连接池打满',
 }
+
+// 事故(incident)≠ 状态告警。5xx 是发生过的事,不会"恢复"——它只能被人查清根因后
+// 关闭。状态告警(延迟/连接池)才有"当前是否还超阈值"这回事。两者的关闭语义不同,
+// UI 必须说不同的话,否则「已恢复」就是在骗人。
+const INCIDENT_KINDS = new Set(['API_5XX'])
 
 /** ISO minute → "MM-DD HH:MM" (TrendChart slices off the first 5 chars). */
 function fmtMinute(iso: string): string {
@@ -178,32 +184,53 @@ export default function PerfMonitor() {
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="border-b border-slate-100 px-4 py-3">
           <h3 className="text-sm font-semibold text-slate-800">告警记录</h3>
-          <p className="text-xs text-slate-400">超过阈值自动开启 + 邮件；恢复自动关闭。也可手动标记已解决。</p>
+          <p className="text-xs text-slate-400">
+            <span className="text-rose-500">接口报错</span> = 事故,永不自动关闭,必须查清根因后手动关。
+            延迟/连接池 = 状态,有流量且回到阈值内才会自动关。
+          </p>
         </div>
         {alerts.length === 0 ? (
           <p className="px-4 py-6 text-xs text-slate-400">暂无告警 — 一切正常 ✅</p>
         ) : (
           <div className="divide-y divide-slate-50">
-            {alerts.map((a) => (
+            {alerts.map((a) => {
+              const incident = INCIDENT_KINDS.has(a.kind)
+              const rootCause = (a.detail?.rootCause as string) || ''
+              return (
               <div key={a.id} className="flex items-start justify-between gap-3 px-4 py-3">
                 <div className="flex min-w-0 items-start gap-2">
                   {a.active
                     ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
                     : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />}
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className={`text-sm font-medium ${a.active ? 'text-rose-700' : 'text-slate-600'}`}>
                         {KIND_LABEL[a.kind] || a.kind}
                       </span>
                       {a.active
-                        ? <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-600">进行中</span>
-                        : <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">已恢复</span>}
+                        ? (
+                          <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-600">
+                            {incident ? '待查根因' : '进行中'}
+                          </span>
+                        )
+                        : (
+                          // 事故被关掉 = 有人查清并修了。状态告警被关掉 = 指标回落。
+                          // 这两件事完全不同,别都叫「已恢复」。
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                            {incident ? '已定位并修复' : '已恢复'}
+                          </span>
+                        )}
                       {a.emailed && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">已邮件</span>}
                     </div>
                     <p className="truncate text-xs text-slate-500">{a.message}</p>
+                    {rootCause && (
+                      <p className="mt-0.5 truncate text-[11px] text-emerald-700" title={rootCause}>
+                        根因:{rootCause}
+                      </p>
+                    )}
                     <p className="text-[10px] text-slate-400">
                       {a.created_at.slice(0, 16).replace('T', ' ')}
-                      {a.resolved_at ? ` → ${a.resolved_at.slice(11, 16)} 恢复` : ''}
+                      {a.resolved_at ? ` → ${a.resolved_at.slice(11, 16)} ${incident ? '关闭' : '恢复'}` : ''}
                     </p>
                   </div>
                 </div>
@@ -213,11 +240,12 @@ export default function PerfMonitor() {
                     disabled={acking === a.id}
                     className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
                   >
-                    {acking === a.id ? '...' : '标记已解决'}
+                    {acking === a.id ? '...' : incident ? '已查清根因,关闭' : '标记已解决'}
                   </button>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

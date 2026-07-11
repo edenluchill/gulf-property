@@ -17,10 +17,10 @@ import { sendAlertEmail } from './notify'
 
 // ── Tunable thresholds (env-overridable) ────────────────────────────────────
 const P95_MS = Number(process.env.PERF_P95_MS) || 2000
-const ERR_PCT = Number(process.env.PERF_ERR_PCT) || 5
+// 5xx 不设"错误率"阈值 —— 见 evaluateRules 上方注释。任何一个 5xx 都开事故。
+const ERR_PCT = 0
 const SLOWQ_3MIN = Number(process.env.PERF_SLOWQ_3MIN) || 60
 const POOL_WAIT = Number(process.env.PERF_POOL_WAIT) || 1
-const MIN_SAMPLE = 30 // min requests in window before rate rules can fire
 const EVAL_WINDOW_S = 180
 
 const APP_URL = process.env.APP_URL || 'https://www.pinzos.com'
@@ -52,8 +52,14 @@ function poolStats(): PoolStats {
   }
 }
 
+// NOTE: there is deliberately no HIGH_ERROR_RATE rule. A 5xx rate is a state, and
+// treating errors as state is what let real bugs close themselves: at 3 req/min,
+// "the rate fell back under 5%" only ever meant "nobody hit the broken endpoint
+// again". Worse, a rate threshold *hides* sparse errors — one 500 an hour never
+// reaches 5%, so it never even alerts. Every 5xx now opens an API_5XX incident
+// instead (ingestErrorIncidents): per endpoint, with the victim and the failing
+// URL, and it stays open until someone finds the root cause.
 function evaluateRules(w: sink.Window, ps: PoolStats): RuleResult[] {
-  const rateReady = w.req >= MIN_SAMPLE
   return [
     {
       kind: 'HIGH_LATENCY',
@@ -61,13 +67,6 @@ function evaluateRules(w: sink.Window, ps: PoolStats): RuleResult[] {
       metric: w.p95,
       threshold: P95_MS,
       message: `p95 延迟 ${w.p95}ms 超过阈值 ${P95_MS}ms（近 3 分钟，${w.req} 请求）`,
-    },
-    {
-      kind: 'HIGH_ERROR_RATE',
-      breached: rateReady && w.errPct > ERR_PCT,
-      metric: w.errPct,
-      threshold: ERR_PCT,
-      message: `5xx 错误率 ${w.errPct}% 超过阈值 ${ERR_PCT}%（近 3 分钟，${w.err5}/${w.req}）`,
     },
     {
       kind: 'SLOW_QUERIES',

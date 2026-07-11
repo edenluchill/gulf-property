@@ -387,6 +387,9 @@ export interface PerfAlert {
   window_s: number | null
   message: string
   emailed: boolean
+  /** 事故(API_5XX)的现场:失败 URL、受害客户、次数,以及关闭时补的 rootCause/fix。 */
+  detail: Record<string, unknown> | null
+  signature: string | null
   active: boolean
 }
 export interface PerfEndpointStat {
