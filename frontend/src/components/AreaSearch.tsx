@@ -16,8 +16,12 @@ export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchRe
   const [loading, setLoading] = useState(false)
   const boxRef = useRef<HTMLDivElement | null>(null)
   const tRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 选中某个区域后会把区域名回填进输入框,那次 q 变化不该再触发一轮搜索——
+  // 否则结果回来又把刚关掉的下拉重新弹开(选完还杵着一个列表,很怪)。
+  const skipNextRef = useRef(false)
 
   useEffect(() => {
+    if (skipNextRef.current) { skipNextRef.current = false; return }
     if (tRef.current) clearTimeout(tRef.current)
     const query = q.trim()
     if (query.length < 2) { setResults([]); return }
@@ -41,8 +45,10 @@ export default function AreaSearch({ onSelect }: { onSelect: (area: AreaSearchRe
 
   const pick = (a: AreaSearchResult) => {
     onSelect(a)
+    skipNextRef.current = true
     setQ(a.name)
     setOpen(false)
+    if (tRef.current) clearTimeout(tRef.current)   // debounce 里可能还压着一轮请求
   }
 
   return (

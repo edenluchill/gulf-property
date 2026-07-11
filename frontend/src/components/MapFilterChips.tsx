@@ -5,7 +5,7 @@
  *   直接看到/点到每个筛选项,不再是一个「筛选」按钮开底部抽屉),popover 往右飞出,
  *   不压地图中间。搜索框此时在底部 dock(见 MapPage)。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, X } from 'lucide-react'
 import { PropertyFilters } from '../types'
@@ -56,7 +56,6 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
   const { t } = useTranslation('filter')
   const [open, setOpen] = useState<string | null>(null)   // 当前展开的 chip popover
   const [devQuery, setDevQuery] = useState('')
-  const ref = useRef<HTMLDivElement | null>(null)
 
   const priceText = (key: PriceKey) => t(`chips.${key}`)
   const bedText = (b: { key: string; v: number | undefined }) =>
@@ -67,14 +66,9 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
   const handoverOptLabel = (o: { year: number | null; plus?: boolean }) =>
     o.year === null ? t('chips.any') : o.plus ? t('chips.yearPlus', { y: o.year }) : String(o.year)
 
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(null)
-    }
-    window.addEventListener('mousedown', onDown)
-    return () => window.removeEventListener('mousedown', onDown)
-  }, [])
-
+  // 关掉下拉靠下面那层遮罩(见 render),不要再挂 window mousedown:
+  // 它会在 mousedown 阶段就 setOpen(null) → 遮罩当场消失 → 紧接着的 click 落到地图上,
+  // 把区域给选中了(弹出区域面板盖住底部搜索)。点地图只应该关下拉。
   const priceLabel = (() => {
     const r = PRICE_RANGES.find(r => r.min === filters.minPrice && r.max === filters.maxPrice)
     return r && r.key !== 'price0' ? priceText(r.key) : null
@@ -180,7 +174,13 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
   )
 
   return (
-    <div ref={ref} className="contents">
+    <div className="contents">
+      {/* 下拉打开时的透明遮罩:点地图只关下拉,不会顺手把区域给选中了(会弹出区域面板,
+          盖住底部搜索)。chips(父层 z-1002)和 popover(z-1001)都在它之上,照常可点。 */}
+      {open && (
+        <div className="fixed inset-0 z-[1000]" onClick={() => setOpen(null)} />
+      )}
+
       {/* ===== chips:手机竖排贴左,md+ 横排 ===== */}
       <div className="flex flex-col items-start gap-1.5 md:flex-row md:flex-wrap md:items-center">
         <div className="relative shrink-0">

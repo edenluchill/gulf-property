@@ -43,6 +43,7 @@ import {
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
+import { useKeyboardInset } from '../hooks/useKeyboardInset'
 import { GuidedTourPayload } from '../hooks/voice-assistant/types'
 import { useVoiceAssistantContext } from '../contexts/VoiceAssistantContext'
 import { formatPrice } from '../lib/utils'
@@ -285,6 +286,7 @@ export default function MapPage() {
     }
   }, [tourCode])
   const [filters, setFilters] = useState<PropertyFilters>({})
+  const keyboardInset = useKeyboardInset()   // 手机软键盘高度,给底部搜索 dock 让位
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [mapPins, setMapPins] = useState<MapPinProject[]>([])
@@ -1600,8 +1602,13 @@ export default function MapPage() {
           </div>
 
           {/* 手机:搜索沉到底部 dock(拇指区,底栏之上),结果向上展开。
-              右侧留出 Luna 药丸的宽度,别钻到它下面。 */}
-          <div className="md:hidden absolute left-3 right-[68px] bottom-3 z-[1002]">
+              右侧留出 Luna 药丸的宽度,别钻到它下面。
+              键盘弹起时整条抬到键盘之上(底栏 h-20 也在键盘下,所以减掉它的高度)——
+              页面根 overflow-hidden 不滚动,浏览器不会自己把它顶上来。 */}
+          <div
+            className="md:hidden absolute left-3 right-[68px] z-[1002] transition-[bottom] duration-150"
+            style={{ bottom: 12 + Math.max(0, keyboardInset - 80) }}
+          >
             <AreaSearch
               onSelect={(a) => {
                 if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
