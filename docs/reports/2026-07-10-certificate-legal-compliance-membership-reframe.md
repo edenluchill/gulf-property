@@ -38,6 +38,17 @@
 - `backend/src/luna-tour/agent-router.ts`:`CERT_TITLES` 逐档改成 Pinzos Member 系列（与前端同源;verify 页展示用）。需 `quick-deploy.ps1 -SkipWorker` 部署。
 - 注:`lt_certificates` 已有旧行 cert_title 是老头衔;弹窗打开会重新 upsert(视 ON CONFLICT 是否更新 cert_title 决定是否需回填,生产仅 3-6 行)。
 
+## 第二轮:客户侧残留清扫（commit d1fee3b,2026-07-11 已上生产）
+第一轮只改了欢迎卡链路;复查发现更暴露的**客户面向文件**仍带认证头衔,全部清掉:
+- **Sales Offer 报价单盖章**（`PaymentPlanSharePage.tsx` TIER_STAMP,发给客户的正式报价单）:
+  CERTIFIED AGENT/AGENCY/DEVELOPER → MEMBER / PRO MEMBER / AGENCY PARTNER / DEVELOPER PARTNER
+- **客户报告经纪徽标**（`ClientReportPage.tsx`）:「✓ DLD 认证」（冒用迪拜土地局!)→「Pinzos 会员」
+- **带看页默认头衔**（`TourOverlay.tsx` + 后端 `agent-identity/billing/agent-router/create-session/seed-demo-session` 的 brand.title 默认值):认证顾问 / Emaar 认证顾问 → 置业顾问
+- PricingPage / SalesOfferDialog:认证盖章 / 认证章 → 品牌盖章 / 品牌章
+- `public-router.ts` 盖章注释同步
+
+**教训:「认证」散落在多处客户面向文件(报价单/报告/带看/默认头衔),不止欢迎卡;以后加任何客户可见头衔都要走会员口径。**
+
 ## 待办 / 后续
 - 用户确认卡片后:前端 push（Cloudflare 自动）+ 后端 quick-deploy。
 - "欢迎页"是否要独立整屏页(解锁清单 + 进工作台),还是庆祝弹窗即可 —— 待用户定。
