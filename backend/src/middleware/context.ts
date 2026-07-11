@@ -15,7 +15,8 @@
  * and public endpoints free of any auth latency.
  */
 import { Request, Response, NextFunction } from 'express'
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, timingSafeEqual, verify as cryptoVerify } from 'crypto'
+import { getSigningKey } from '../lib/jwks'
 import { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { isAdminEmail } from '../lib/adminEmails'
@@ -60,22 +61,46 @@ interface JwtClaims {
 }
 
 /**
- * Verify a Supabase access token locally (HS256 only). Returns the claims if the
- * signature is valid and the token isn't expired, else null. Returning null for
- * anything non-HS256 (e.g. asymmetric ES256/RS256 projects) or any parse error
- * is intentional: the caller defers to the remote check, so we're never wrong,
- * only sometimes slower.
+ * Verify a Supabase access token locally. Handles both signing schemes:
+ *
+ *   ES256/RS256 — the current Supabase key system. Verified against the public
+ *     key from the project's JWKS (cached in memory by lib/jwks; no secret is
+ *     stored anywhere). This is the path that actually runs here: this project
+ *     issues ES256 tokens, which is why the old HS256-only fast path never once
+ *     engaged in production and every logged-in request paid a 141-494ms remote
+ *     auth.getUser() round-trip instead.
+ *   HS256 — legacy shared-secret projects, kept for compatibility.
+ *
+ * Returns null on anything it can't verify (unknown kid, bad signature, expired,
+ * parse error). The caller then defers to the remote check, so a null is only
+ * ever slower, never wrong.
  */
-export function verifyJwtLocal(token: string, secret: string): JwtClaims | null {
+export function verifyJwtLocal(token: string, secret?: string): JwtClaims | null {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return null
     const [h, p, sig] = parts
     const header = JSON.parse(b64urlToBuf(h).toString('utf8'))
-    if (header.alg !== 'HS256') return null  // only the symmetric fast-path; others defer
-    const expected = createHmac('sha256', secret).update(`${h}.${p}`).digest()
+    const signed = Buffer.from(`${h}.${p}`)
     const actual = b64urlToBuf(sig)
-    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null
+
+    if (header.alg === 'ES256' || header.alg === 'RS256') {
+      if (typeof header.kid !== 'string') return null
+      const key = getSigningKey(header.kid)
+      if (!key) return null // key not cached yet → defer to remote this once
+      // A JWS ECDSA signature is raw r||s, not DER — hence dsaEncoding.
+      const ok = header.alg === 'ES256'
+        ? cryptoVerify('sha256', signed, { key, dsaEncoding: 'ieee-p1363' }, actual)
+        : cryptoVerify('sha256', signed, key, actual)
+      if (!ok) return null
+    } else if (header.alg === 'HS256') {
+      if (!secret) return null
+      const expected = createHmac('sha256', secret).update(signed).digest()
+      if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null
+    } else {
+      return null
+    }
+
     const claims = JSON.parse(b64urlToBuf(p).toString('utf8')) as JwtClaims
     if (typeof claims.exp === 'number' && Date.now() / 1000 >= claims.exp) return null  // expired
     return claims
@@ -121,20 +146,20 @@ export function attachContext(req: Request, _res: Response, next: NextFunction):
   const token = extractBearerToken(req)
   if (!token || !isSupabaseConfigured) return next()
 
-  const secret = process.env.SUPABASE_JWT_SECRET
-  if (secret) {
-    const claims = verifyJwtLocal(token, secret)
-    if (claims?.sub) {
-      const minimalUser = {
-        id: claims.sub,
-        email: claims.email,
-        app_metadata: claims.app_metadata || {},
-        user_metadata: claims.user_metadata || {},
-      } as unknown as User
-      applyUser(req, minimalUser, 'local')
-      req.ctx!.visitorId = visitorId
-      return next()
-    }
+  // No config gate: ES256 tokens verify against the cached JWKS public key, so the
+  // fast path needs no secret at all. SUPABASE_JWT_SECRET is only consulted for
+  // legacy HS256 projects, and is optional.
+  const claims = verifyJwtLocal(token, process.env.SUPABASE_JWT_SECRET)
+  if (claims?.sub) {
+    const minimalUser = {
+      id: claims.sub,
+      email: claims.email,
+      app_metadata: claims.app_metadata || {},
+      user_metadata: claims.user_metadata || {},
+    } as unknown as User
+    applyUser(req, minimalUser, 'local')
+    req.ctx!.visitorId = visitorId
+    return next()
   }
   // No secret, or local verify didn't apply (non-HS256 / invalid) → let guards
   // decide whether a remote check is worth it for their endpoint.

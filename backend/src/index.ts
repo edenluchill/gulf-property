@@ -52,6 +52,7 @@ import { attribution } from './middleware/attribution'  // sampled who-called-wh
 import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (generous per-IP cap)
 import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图每日限时(服务端强制)
 import { startPerfFlusher, stopPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
+import { primeJwks } from './lib/jwks'  // Supabase 签名公钥 → 登录请求本地验签(零远程调用)
 
 const app: Application = express()
 const PORT = process.env.PORT || 3000
@@ -201,6 +202,10 @@ const server = app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`)
+
+  // 签名公钥必须在开始收请求前进内存:attachContext 是同步的,拿不到 key 就
+  // 只能退回远程校验(能用,但每个登录请求多付 141-494ms)。
+  await primeJwks()
 
   // Initialize WebSocket server for voice chat
   initVoiceChatWebSocket(server)
