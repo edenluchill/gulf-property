@@ -7,7 +7,7 @@
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, X, Tag, BedDouble, Hammer, CalendarClock, Wallet, Building2 } from 'lucide-react'
+import { ChevronDown, X, Tag, BedDouble, Hammer, CalendarClock, Building2 } from 'lucide-react'
 import { PropertyFilters } from '../types'
 import { trackEvent } from '../lib/track'
 
@@ -15,8 +15,6 @@ interface Props {
   filters: PropertyFilters
   setFilters: (updater: (f: PropertyFilters) => PropertyFilters) => void
   developers: string[]
-  /** 付款结构档位(如 "80/20"),由 MapPage 从 pins 去重而来;空数组则不显示该筛选 */
-  paymentPlans?: string[]
 }
 
 type PriceKey = 'price0' | 'price1' | 'price2' | 'price3' | 'price4' | 'price5' | 'price6'
@@ -52,7 +50,7 @@ const HANDOVER_OPTS: { year: number | null; plus?: boolean }[] = [
   { year: HANDOVER_BASE + 5, plus: true },
 ]
 
-export default function MapFilterChips({ filters, setFilters, developers, paymentPlans = [] }: Props) {
+export default function MapFilterChips({ filters, setFilters, developers }: Props) {
   const { t } = useTranslation('filter')
   const [open, setOpen] = useState<string | null>(null)   // 当前展开的 chip popover
   const [devQuery, setDevQuery] = useState('')
@@ -80,7 +78,6 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
     return s ? statusText(s.key) : null
   })()
   const devLabel = filters.developer || null
-  const payLabel = filters.paymentPlan || null
   // 交房年份当前选中态:从 completionDateStart/End 反推。具体年两端都设,「及以后」仅 start。
   const handoverLabel = (() => {
     const s = filters.completionDateStart
@@ -95,7 +92,7 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
     if (plus) return s === `${year}-01-01` && !e
     return s === `${year}-01-01` && e === `${year}-12-31`
   }
-  const activeCount = [priceLabel, bedLabel, statusLabel, devLabel, handoverLabel, payLabel].filter(Boolean).length
+  const activeCount = [priceLabel, bedLabel, statusLabel, devLabel, handoverLabel].filter(Boolean).length
   const anyActive = activeCount > 0
 
   const clearAll = () => setFilters(f => ({
@@ -123,10 +120,6 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
     setFilters(f => ({ ...f, developer: d }))
     trackEvent('search', { query: d, kind: 'developer' })
   }
-  const applyPayment = (label: string | undefined) => {
-    setFilters(f => ({ ...f, paymentPlan: label }))
-    if (label) trackEvent('search', { query: label, kind: 'payment' })
-  }
   const applyHandover = (year: number | null, plus?: boolean) => {
     if (year === null) {
       setFilters(f => ({ ...f, completionDateStart: undefined, completionDateEnd: undefined }))
@@ -147,18 +140,25 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
   // md+:仍是带文字的 chip(横排一行,宽度不敏感)。
   // 手机:卡内无边框图标按钮(卡本身出阴影,不再各自浮起);选中=主色填充(和右上
   // panel 内按钮同款),不用再挂小圆点。md+:仍是带文字、自带阴影的独立 chip。
-  const Chip = ({ id, base, active, Icon }: { id: string; base: string; active: string | null; Icon: typeof Wallet }) => (
+  const Chip = ({ id, base, active, Icon }: { id: string; base: string; active: string | null; Icon: typeof Tag }) => (
     <button
       onClick={() => setOpen(open === id ? null : id)}
-      aria-label={base}
-      title={base}
-      className={`relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
+      aria-label={active ? `${base}: ${active}` : base}
+      title={active ? `${base}: ${active}` : base}
+      className={`relative flex w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 transition-all duration-150 active:scale-90 md:w-auto md:flex-row md:gap-1 md:rounded-xl md:px-3 md:py-1.5 md:text-xs md:font-medium md:shadow-lg md:ring-1 md:backdrop-blur-sm ${
         active
           ? 'bg-primary text-white shadow-sm shadow-primary/40 md:ring-primary'
           : 'text-slate-600 hover:bg-slate-100 md:bg-white/95 md:text-slate-700 md:ring-slate-900/[0.06] md:hover:bg-white'
       }`}
     >
-      <Icon className="h-[18px] w-[18px] md:hidden" />
+      <Icon className="h-[18px] w-[18px] shrink-0 md:hidden" />
+      {/* 手机是图标钮,选中的值必须写出来,否则客户不知道自己筛了什么
+          (2026-07-11 用户:"选了 bed 2 要有显示")。未选中不占位,卡不跳高。 */}
+      {active && (
+        <span className="w-full truncate whitespace-nowrap text-center text-[9px] font-bold leading-none md:hidden">
+          {active}
+        </span>
+      )}
       <span className="hidden md:inline">{active || base}</span>
       <ChevronDown className="hidden h-3 w-3 shrink-0 opacity-70 md:block" />
     </button>
@@ -196,7 +196,10 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
       {/* ===== chips:手机竖排收进「一张整合卡」(和右上指标卡/工具卡同款
            rounded-2xl+白95+柔和 ring+阴影),内部按钮无边框;md+ 化整为零,恢复
            透明横排、每个 chip 自带阴影。 ===== */}
-      <div className="flex flex-col items-stretch gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
+      {/* ⚠️ relative z-[1001] 不能删:这张卡有 backdrop-blur → 自成层叠上下文,卡本身
+          若不给 z-index(=auto),就会整体排在遮罩(z-1000)下面 —— 连带里面弹出的
+          下拉一起被遮罩吃掉点击,真机上「筛选选项点了没反应」(2026-07-11 实测)。 */}
+      <div className="relative z-[1001] flex w-[62px] flex-col items-stretch gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
         <div className="relative shrink-0">
           <Chip id="price" base={t('chips.price')} active={priceLabel} Icon={Tag} />
           {open === 'price' && (
@@ -250,23 +253,8 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
             </Pop>
           )}
         </div>
-        {paymentPlans.length > 0 && (
-          <div className="relative shrink-0">
-            <Chip id="payment" base={t('chips.payment')} active={payLabel} Icon={Wallet} />
-            {open === 'payment' && (
-              <Pop title={t('chips.payment')}>
-                <Opt sel={!filters.paymentPlan} on={() => applyPayment(undefined)}>
-                  {t('chips.any')}
-                </Opt>
-                {paymentPlans.map(p => (
-                  <Opt key={p} sel={filters.paymentPlan === p} on={() => applyPayment(p)}>
-                    {p}
-                  </Opt>
-                ))}
-              </Pop>
-            )}
-          </div>
-        )}
+        {/* 付款计划筛选已移除(2026-07-11 用户要求):付款结构仍在项目详情里看得到,
+            只是不再作为地图筛选项——少一颗按钮,左侧更短。 */}
         <div className="relative shrink-0">
           <Chip id="dev" base={t('chips.developer')} active={devLabel} Icon={Building2} />
           {open === 'dev' && (
@@ -304,9 +292,11 @@ export default function MapFilterChips({ filters, setFilters, developers, paymen
             onClick={clearAll}
             aria-label={t('chips.clear')}
             title={t('chips.clear')}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 active:scale-90 hover:bg-slate-100 hover:text-slate-700 md:h-auto md:w-auto md:gap-1 md:rounded-xl md:bg-white/95 md:px-2.5 md:py-1.5 md:text-xs md:shadow-lg md:ring-1 md:ring-slate-900/[0.06] md:hover:bg-white"
+            className="flex w-full shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-100 px-1 py-1.5 text-slate-500 transition-all duration-150 active:scale-90 hover:bg-slate-200 hover:text-slate-700 md:w-auto md:flex-row md:gap-1 md:rounded-xl md:bg-white/95 md:px-2.5 md:py-1.5 md:text-xs md:shadow-lg md:ring-1 md:ring-slate-900/[0.06] md:hover:bg-white"
           >
-            <X className="h-[18px] w-[18px] md:h-3 md:w-3" />
+            <X className="h-[18px] w-[18px] shrink-0 md:h-3 md:w-3" />
+            {/* 手机:图标下写「清除 n」,一眼知道现在有几项筛选在生效 */}
+            <span className="text-[9px] font-bold leading-none md:hidden">{activeCount}</span>
             <span className="hidden md:inline">{t('chips.clear')}</span>
           </button>
         )}

@@ -708,8 +708,8 @@ function MapViewMapLibre({
       ? [
           // 手机布局(2026-07-11):左边一竖列筛选图标钮、底部一条搜索 dock、左下指北针。
           // 三者都不透明,卡钻底下等于看不见。
-          { x0: 0, y0: 0, x1: 68, y1: 344 },          // 竖排筛选图标钮(6 项 + 「清除」,44px 一颗)
-          { x0: W - 196, y0: 0, x1: W, y1: 208 },     // 指标卡(固定 184 宽 + 右 12)
+          { x0: 0, y0: 0, x1: 74, y1: 300 },          // 左侧筛选卡(w-62 + left-2;5 项 + 「清除」)
+          { x0: W - 192, y0: 0, x1: W, y1: 208 },     // 指标卡(固定 184 宽 + 右 8)
           // 底部搜索 dock + 指北针都是 fixed(贴可见视口),而这里的 H 是地图容器高度
           // (100vh,比可见区高一截)→ 禁区往上多留一点,吸收这个差值。
           { x0: 0, y0: H - 96, x1: W - 60, y1: H },   // 底部搜索 dock
@@ -1689,8 +1689,8 @@ function MapViewMapLibre({
       {/* 卡宽锁死 w-[60px]:原来按钮是「图标+文字横排」,文字一长(英文 Satellite/Measure)
           整张卡就变宽、右缘乱跳,中英文两副样子(2026-07-11 用户反馈)。改成图标在上、
           小字在下、居中,文字 nowrap+截断 —— 中英文一样宽,名字还留着(不逼客户猜图标)。 */}
-      <div data-testid="map-mobile-tools" className="absolute right-3 top-[164px] z-[1000] w-[60px]">
-        <div className="flex flex-col gap-0.5 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+      <div data-testid="map-mobile-tools" className="absolute right-2 top-[164px] z-[1000] w-[60px]">
+        <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
           <button
             type="button"
             onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
@@ -1699,8 +1699,8 @@ function MapViewMapLibre({
             }`}
             aria-label="切换底图"
           >
-            <Globe size={16} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
-            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+            <Globe size={14} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
               {baseMap === 'vector' ? (isZhUi ? '地图' : 'Map') : baseMap === 'satellite' ? (isZhUi ? '卫星' : 'Satellite') : (isZhUi ? '夜景' : 'Dark')}
             </span>
           </button>
@@ -1712,8 +1712,8 @@ function MapViewMapLibre({
             }`}
             aria-label="切换 3D 倾斜视角"
           >
-            <Box size={16} className={pitched ? 'text-white' : 'text-slate-500'} />
-            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+            <Box size={14} className={pitched ? 'text-white' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
               {pitched ? (isZhUi ? '平视' : '2D') : '3D'}
             </span>
           </button>
@@ -1725,8 +1725,8 @@ function MapViewMapLibre({
             }`}
             aria-label="测距工具"
           >
-            <Ruler size={16} className={measureMode ? 'text-white' : 'text-slate-500'} />
-            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+            <Ruler size={14} className={measureMode ? 'text-white' : 'text-slate-500'} />
+            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
               {measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}
             </span>
           </button>
@@ -1741,9 +1741,9 @@ function MapViewMapLibre({
             aria-label={showCards ? '隐藏项目卡片' : '显示项目卡片'}
           >
             {showCards
-              ? <Eye size={16} className="text-white" />
-              : <EyeOff size={16} className="text-slate-500" />}
-            <span className="w-full truncate whitespace-nowrap text-center text-[10px] font-semibold leading-tight">
+              ? <Eye size={14} className="text-white" />
+              : <EyeOff size={14} className="text-slate-500" />}
+            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-semibold leading-tight">
               {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
             </span>
           </button>
@@ -1760,7 +1760,7 @@ function MapViewMapLibre({
       <button
         type="button"
         onClick={() => mapRef.current?.getMap()?.easeTo({ bearing: 0, duration: 500, essential: true })}
-        className="fixed left-3 bottom-[140px] md:absolute md:bottom-auto md:top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
+        className="fixed left-2 bottom-[140px] md:absolute md:bottom-auto md:top-[112px] md:left-4 xl:top-[68px] z-[1000] flex h-12 w-12 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform duration-150 active:scale-90"
         aria-label="指北针,点击回正北"
       >
         <span

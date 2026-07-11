@@ -1113,13 +1113,8 @@ export default function MapPage() {
   }, []) // Load once on mount
 
   // Filter map pins based on current filters
-  // 付款结构档位选项:从 pins 去重(如 80/20、50/50),按建设期占比降序
-  const paymentPlanOptions = useMemo(() => {
-    const set = new Set<string>()
-    mapPins.forEach(p => { if (p.paymentPlan) set.add(p.paymentPlan) })
-    return [...set].sort((a, b) => parseInt(b) - parseInt(a))
-  }, [mapPins])
-
+  // (付款结构档位选项已随「付款计划」筛选一起移除 —— 2026-07-11 用户要求;
+  //  付款结构本身仍在项目详情/报价单里展示,只是不再作为地图筛选维度。)
   const filteredMapPins = useMemo(() => {
     if (!mapPins.length) return []
 
@@ -1585,7 +1580,7 @@ export default function MapPage() {
           {/* 左上:筛选。手机(<md)竖排贴左边缘一列,每个筛选项直接可点(不再是「筛选」
               单按钮开抽屉 —— 2026-07-11 用户要求手机和桌面一样即点即用),popover 往右
               飞出,地图中间不被压。md+ 保持搜索在上、chips 横排在下。 */}
-          <div className="absolute top-3 left-3 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
+          <div className="absolute top-3 left-2 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
             <div className="hidden md:block">
               <AreaSearch
                 onSelect={(a) => {
@@ -1597,7 +1592,6 @@ export default function MapPage() {
               filters={filters}
               setFilters={setFilters}
               developers={developers}
-              paymentPlans={paymentPlanOptions}
             />
           </div>
 
@@ -1637,7 +1631,7 @@ export default function MapPage() {
           {/* 卡片宽度锁死(w-[184px]/md w-[212px]):以前是内容撑宽,切到英文所有文案变长
               → 卡跟着变宽、口径 tab 还折行,整块 UI 抖一下且很难看(2026-07-11 用户反馈)。
               现在 5 个图标按钮的行决定了宽度,文字一律 nowrap + 截断,中英文一样宽。 */}
-          <div data-testid="map-mobile-controls" className="absolute top-3 right-3 z-[1000] w-[184px] md:w-[212px]">
+          <div data-testid="map-mobile-controls" className="absolute top-3 right-2 z-[1000] w-[184px] md:w-[212px]">
             <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 md:p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state。
                   三等分 + 不折行:英文 "Off-plan" 比中文长得多,不锁死就会换行。 */}
