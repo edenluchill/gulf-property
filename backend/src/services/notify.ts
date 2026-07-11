@@ -25,17 +25,17 @@ export function techAlertRecipients(): string[] {
   return raw.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-/** 订阅/商业通知收件人 —— 默认运营方(shell);env ALERT_EMAIL_OPS 逗号分隔可覆盖。 */
+/** 订阅/商业通知收件人 —— shell + Eden(你也要看谁订阅了);env ALERT_EMAIL_OPS 逗号分隔可覆盖。 */
 export function opsAlertRecipients(): string[] {
-  const raw = process.env.ALERT_EMAIL_OPS || 'shelldubai26@gmail.com'
+  const raw = process.env.ALERT_EMAIL_OPS || 'shelldubai26@gmail.com,lzp6529@gmail.com'
   return raw.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
 /**
  * 未显式指定收件人时,按主题自动分流:
- *   • 订阅 / 商业通知(新订阅、付费成功、试用…)→ 运营方(shell)
- *   • 其余(接口报错 / 性能告警 / 登录失败…)→ 技术方(Eden)
- * 用户 2026-07-11 要求:订阅归 shell,技术错误归我。宁可漏判成技术方(收到总比漏好)。
+ *   • 订阅 / 商业通知(新订阅、付费成功、试用…)→ shell + Eden(shell 只收这类 business)
+ *   • 其余(接口报错 / 性能告警 / 登录失败…)→ 只 Eden
+ * 用户 2026-07-11:你「全收」(错误+订阅都收),shell「只收 business」。宁可漏判成只发你(收到总比漏好)。
  */
 function autoRoute(subject: string): string[] {
   const isOps = /订阅|付费|试用|subscription|trial|payment|🎉/i.test(subject)
