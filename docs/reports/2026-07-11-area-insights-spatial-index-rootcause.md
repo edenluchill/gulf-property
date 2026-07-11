@@ -219,7 +219,89 @@ Execution: 5391ms (JABAL ALI FIRST, 14.5 万条)
 
 ---
 
-## 11. 元教训
+## 11. 追加:监控系统本身是坏的(已重构)
+
+用户点破:「为什么 tm 5xx 也有恢复机制?所有问题不都得 investigate root cause 避免未来再发生嘛?」
+
+**他是对的。5xx 是事件,不是状态——它不会"恢复"。**
+
+### 旧设计的病
+
+`reconcileAlerts` 把所有规则当状态机,`!breached` 就 `resolved_at = now()`。
+对 5xx 而言 `!breached` 的真实含义是「最近 3 分钟错误率掉回 5% 以下」——在 3 请求/分钟的流量下,**只要没人再点那个坏接口,错误率自然归零,bug 一行没改,告警自己关了**。
+
+三个病:
+
+| 病 | 后果 |
+|---|---|
+| 错误按 `kind` 糊成一条 | billing/checkout 挂了和 voice/token 挂了合并成同一条,看不出哪个接口/哪个客户/什么错 |
+| 用错误**率**而非**数** | 2/39 = 5.1% 才勉强报;错得不够密集则**永远不报** |
+| 延迟告警的"恢复" | = 没人用了,p95 自然回落 |
+
+**实锤**:`2026-07-09 12:34「5xx 5.1% (2/39)」自动已恢复`。
+那 2 条 500 是 **`/api/billing/checkout` 挂了,撞的是 `admin@yesir.ai` —— 一个正在付款的客户**,连试 3 次全失败。系统的反应是标记"已恢复",然后忘掉。
+
+### 新语义(已上线)
+
+- **`API_5XX` 事故**:按 `(接口模板, 状态码)` 立案,存现场(`originalUrl` / 受害客户 / 次数 / 首末次);重复命中折叠计数不刷屏;**永不自动恢复**,只能人工在 dashboard「标记已解决」= 已定位根因并修复。**5xx 全量采集不采样**(采样正是最严重的故障隐身的原因)。
+- **状态型告警**(延迟/错误率)自动恢复加 `hasTraffic` 门:窗口内 <5 请求**不允许关闭告警**。「没人用」不再等于「已恢复」。
+- `perf_alerts` 加 `signature` / `detail` 列 + 未解决唯一索引。
+
+### 用新系统当场抓到一个真 bug(已修)
+
+`GET /api/residential-projects/not-a-uuid` → **500**。
+三个 `/:id` 路由都没有 uuid 校验,非法 id 直接进 `WHERE id = $1` → Postgres 转型报错 → 被 catch 成 500(和 2026-06-28 area-insights 那个坑同一类,当时只修了 area-insights)。
+
+`router.param('id')` 加 UUID 守卫 → 404。**已验证 500 → 404**,事故 #666 按新流程闭环关闭(附 rootCause / fix 落库)。
+
+验证记录:
+```
+事故 #666  GET /api/residential-projects/:id|500
+  4 次命中折叠成 1 条(不刷屏)
+  sampleUrl: /api/residential-projects/not-a-uuid
+  victims:   4 个访客 id
+  状态:     未解决 → 修复后人工关闭,附根因
+```
+
+---
+
+## 12. 追加:每个登录请求白付 141-494ms(**待修,需要你提供一个值**)
+
+dashboard 上「各接口速度」里那个 ~200ms 地板不是错觉:
+
+- **1-2ms**:`GET /`、`favicon`、`area-insights`(缓存命中)——**不需要登录的**
+- **200-460ms**:`/api/me/profile`、`/api/billing/me`、`/api/admin/*`、`/api/sync`(p95 **1000ms**)——**全是要鉴权的**
+
+### 根因
+
+`middleware/context.ts` 的设计本来是对的:
+
+- 配了 `SUPABASE_JWT_SECRET` → 本地 Node crypto 验签 HS256,**零网络**
+- 没配 → token 挂 `_deferredToken` → guards 回退 `supabaseAdmin.auth.getUser(token)` = **每个登录请求远程调一次 Supabase**
+
+**生产容器的环境变量里根本没有 `SUPABASE_JWT_SECRET`** —— 服务器 `/opt/pinzos/docker-compose.yml` 只映射了 `SUPABASE_URL` 和 `SUPABASE_SERVICE_ROLE_KEY`。这个优化**从来没被激活过**。
+
+实测(从 API 服务器上打):
+```
+DB 往返(同机房):           1 ms      ← 不是 DB 的锅
+Supabase auth.getUser 远程:  141-494 ms  ← 就是它
+```
+
+这和 memory 里记的 [[agent-approval-and-auth]] 是**同一个坑**:「.env 有值但 compose 没映射」。
+
+### 修法(需要你)
+
+我不能读 `.env`(你自己设的硬规则,已被 deny 拦下,这是对的)。需要:
+
+1. 从 Supabase 后台取 JWT Secret:`Project Settings → API → JWT Settings → JWT Secret`
+2. 加进服务器 `/opt/pinzos/docker-compose.yml` 的 environment:`- SUPABASE_JWT_SECRET=...`
+3. `docker compose up -d` 重启
+
+**预期收益:所有登录接口砍掉 141-494ms,`/api/sync` 的 p95 从 1000ms → ~200ms。** 代码不用改一行,已经写好了。
+
+---
+
+## 13. 元教训
 
 - 先看 `max_ms` 不要只看 p95 —— p95 会被低流量稀释,`max_ms` 不会
 - `req` 少而 `query_count` 多的那一分钟 = 后台任务在饿死前台请求,这是个可复用的诊断指纹
