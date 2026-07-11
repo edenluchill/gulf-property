@@ -194,10 +194,10 @@ export default function MapFilterChips({ filters, setFilters, developers, leadin
       {/* ⚠️ relative z-[1001] 不能删:这张卡有 backdrop-blur → 自成层叠上下文,卡本身
           若不给 z-index(=auto),就会整体排在遮罩(z-1000)下面 —— 连带里面弹出的
           下拉一起被遮罩吃掉点击,真机上「筛选选项点了没反应」(2026-07-11 实测)。 */}
-      <div className="relative z-[1001] flex w-10 flex-col items-center gap-0.5 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
+      <div className="relative z-[1001] flex w-9 flex-col items-center gap-0 rounded-2xl bg-white/95 p-0.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:w-auto md:flex-row md:flex-wrap md:items-center md:gap-1.5 md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:ring-0 md:backdrop-blur-none">
         {/* 指北针(手机上并进这张卡,和筛选融为一体);md+ 也一起排进 chip 行 */}
         {leading}
-        {leading && <span className="h-px w-5 shrink-0 bg-slate-200/80 md:hidden" />}
+        {leading && <span className="my-0.5 h-px w-4 shrink-0 bg-slate-200/80 md:hidden" />}
         <div className="relative shrink-0">
           <Chip id="price" base={t('chips.price')} active={priceLabel} Icon={Tag} />
           {open === 'price' && (

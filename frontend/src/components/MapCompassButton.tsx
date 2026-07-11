@@ -37,8 +37,8 @@ export default function MapCompassButton({ map }: { map: MaplibreMap | null }) {
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-all duration-150 active:scale-90 hover:bg-slate-100"
     >
       <span ref={needleRef} className="block will-change-transform" style={{ transformStyle: 'preserve-3d' }}>
-        <svg width={18} height={18} viewBox="0 0 48 48" aria-hidden="true">
-          <circle cx="24" cy="24" r="21" fill="none" stroke="#e2e8f0" strokeWidth="2.5" />
+        <svg width={30} height={30} viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="22" fill="none" stroke="#e2e8f0" strokeWidth="2" />
           <text x="24" y="15" textAnchor="middle" fontSize="14" fontWeight="800" fill="#ef4444" fontFamily="system-ui, sans-serif">N</text>
           <polygon points="24,16 30,26 18,26" fill="#ef4444" />
           <polygon points="18,26 30,26 24,36" fill="#94a3b8" />
