@@ -20,6 +20,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
 import { creditBalance, featureCatalog, resetCreditsOnConversion, DEV_TRIAL_CREDITS, DEV_TRIAL_DAYS } from '../luna-tour/credits'
+import { claimFreeTrial, TRIAL_DAYS, TRIAL_PLAN, TRIAL_ROLES } from '../services/freeTrial'
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
 
@@ -290,13 +291,6 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
 // 插进 lt_subscriptions 之后,下面这些全是免费搭车的:
 //   credits.planFor → 200 积分 / mapMeter.agentNeedsPlan → 地图解锁 / agents.ts → 自动审批
 // ============================================================
-const TRIAL_DAYS = Number(process.env.FREE_TRIAL_DAYS || 7)
-// 试用发 Pro(agent)档的**功能权限** —— 发 Starter 的话实时带看/Luna 导览
-// (minPlan='agent')试不到,旗舰功能试不到的试用等于没试。
-// 积分不吃 Pro 的 1200:credits.planFor 对 free_trial 硬锁 TRIAL_CREDITS=200。
-const TRIAL_PLAN = 'agent'
-const TRIAL_ROLES = ['agent', 'agency', 'developer'] as const
-
 router.post('/trial/start', requireAuth, async (req: Request, res: Response) => {
   const agent = await currentAgent(req)
   if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })
@@ -317,39 +311,19 @@ router.post('/trial/start', requireAuth, async (req: Request, res: Response) => 
       return res.status(403).json({ success: false, code: 'not_agent', error: '免费试用面向经纪/经纪公司/开发商。' })
     }
 
-    // 一人一次(靠 lt_agents 上的戳,不靠订阅行 —— 删掉行就能反复重开)
-    const a = await pool.query<{ free_trial_started_at: Date | null }>(
-      `SELECT free_trial_started_at FROM lt_agents WHERE id = $1`,
-      [agent.id]
-    )
-    if (a.rows[0]?.free_trial_started_at) {
-      return res.status(409).json({ success: false, code: 'trial_used', error: '免费试用已用过,订阅即可继续使用。' })
-    }
-
-    // 已有生效订阅(含团队席位/comp 授予)→ 没必要试用
+    // 席位成员的套餐由团队承担 → 生效订阅要按计费主体查
     const billingRow = await pool.query<{ billing_agent_id: string | null }>(
       `SELECT billing_agent_id FROM lt_agents WHERE id = $1`,
       [agent.id]
     )
     const billingId = billingRow.rows[0]?.billing_agent_id || agent.id
-    const live = await pool.query(
-      `SELECT 1 FROM lt_subscriptions
-        WHERE agent_id = $1 AND status IN ('active','trialing')
-          AND (source <> 'free_trial' OR current_period_end > now())
-        LIMIT 1`,
-      [billingId]
-    )
-    if (live.rows.length) {
-      return res.status(409).json({ success: false, code: 'already_subscribed', error: '你已有生效的套餐。' })
-    }
 
-    const endsAt = new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString()
-    await pool.query(
-      `INSERT INTO lt_subscriptions (agent_id, plan_id, status, source, current_period_end)
-         VALUES ($1, $2, 'trialing', 'free_trial', $3)`,
-      [agent.id, TRIAL_PLAN, endsAt]
-    )
-    await pool.query(`UPDATE lt_agents SET free_trial_started_at = now() WHERE id = $1`, [agent.id])
+    // 领取:原子占位 + DB 唯一索引兜底(并发/双击只有一个能成功)
+    const claim = await claimFreeTrial(agent.id, billingId)
+    if (!claim.ok) {
+      return res.status(409).json({ success: false, code: claim.code, error: claim.error })
+    }
+    const endsAt = claim.endsAt
 
     // role 落定。⚠️ 必须 upsert:选付费角色的用户前端不预写 role,可能连 user_profiles
     // 行都还没有 —— autoApprovePaid 里那句 UPDATE 会是空操作。这里按 user_id(主键)写。

@@ -10,6 +10,7 @@
 import pool from '../src/db/pool'
 import { checkCredits, spend, creditBalance, resetCreditsOnConversion, TRIAL_CREDITS, DEV_TRIAL_CREDITS } from '../src/luna-tour/credits'
 import { expireFreeTrials } from '../src/services/freeTrialSweep'
+import { claimFreeTrial } from '../src/services/freeTrial'
 
 const agentIds: string[] = []
 let failures = 0
@@ -165,6 +166,38 @@ async function main() {
     `SELECT credits FROM lt_credit_ledger WHERE agent_id=$1 AND feature='trial_reset'`, [p]
   )
   check('E6 负数补偿流水(不抹历史)', led.rows[0]?.credits === -100, JSON.stringify(led.rows))
+
+  // ══ G. 防重复领取(并发 / 双击)═══════════════════════════
+  g('G. 一人一次 · 并发安全')
+  const r = await mkAgent('race')
+
+  // 5 个请求同时领 —— 模拟双击按钮 / 重放。只允许一个成功。
+  const results = await Promise.all(Array.from({ length: 5 }, () => claimFreeTrial(r)))
+  const wins = results.filter((x) => x.ok).length
+  check('G1 并发领取 5 次,只有 1 次成功', wins === 1, `成功 ${wins} 次`)
+  check('G2 其余全部返回 trial_used',
+    results.filter((x) => !x.ok).every((x) => !x.ok && x.code === 'trial_used'))
+  const trialRows = await pool.query(
+    `SELECT 1 FROM lt_subscriptions WHERE agent_id=$1 AND source='free_trial'`, [r]
+  )
+  check('G3 数据库里只有一行试用(唯一索引兜底)', trialRows.rowCount === 1, `${trialRows.rowCount} 行`)
+  check('G4 积分池没有翻倍', (await creditBalance(r)).creditsMonth === TRIAL_CREDITS)
+
+  // 领过的人再领 → 拒
+  const again = await claimFreeTrial(r)
+  check('G5 领过的人再领 → trial_used', !again.ok && again.code === 'trial_used')
+
+  // 已有订阅的人来领 → 拒(不是 trial_used,是 already_subscribed)
+  const s = await mkAgent('subscribed')
+  await pool.query(
+    `INSERT INTO lt_subscriptions (agent_id, plan_id, status, source, stripe_subscription_id, current_period_end)
+       VALUES ($1,'agent','active','stripe',$2, now() + interval '30 days')`,
+    [s, `sub_race_${Date.now()}`]
+  )
+  const sub = await claimFreeTrial(s)
+  check('G6 已订阅的人领 → already_subscribed', !sub.ok && sub.code === 'already_subscribed')
+  check('G7 被拒后试用戳没被误打(他以后退订了还能领)',
+    !(await pool.query<{ t: Date | null }>(`SELECT free_trial_started_at AS t FROM lt_agents WHERE id=$1`, [s])).rows[0]?.t)
 
   // ══ F. 回归:绝不能误伤的东西 ══════════════════════════════
   g('F. 回归')

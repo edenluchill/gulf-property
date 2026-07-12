@@ -11,8 +11,11 @@
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Gift, ArrowRight, Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Gift, ArrowRight, Loader2, Clock } from 'lucide-react'
 import { startFreeTrial, type BillingMe, type TrialRole } from '../lib/billingApi'
+
+const WORKER_ROLES = ['agent', 'agency', 'developer']
 
 export default function TrialClaimCard({ me, compact = false }: { me: BillingMe | null; compact?: boolean }) {
   const { i18n } = useTranslation()
@@ -21,6 +24,33 @@ export default function TrialClaimCard({ me, compact = false }: { me: BillingMe 
 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  // 试用结束了 —— 必须说一声。否则用户只会发现功能突然全 402、地图被锁,
+  // 却没有任何地方解释发生了什么(静默失效是最糟的体验)。
+  const expired =
+    !!me && !me.trial?.active && !!me.trial?.used && me.status === 'none' &&
+    !!me.role && WORKER_ROLES.includes(me.role)
+
+  if (expired) {
+    return (
+      <div className={`${compact ? 'mb-4' : 'mt-4'} rounded-xl border border-slate-200 bg-slate-50 px-4 py-3`}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Clock className="h-4 w-4 shrink-0 text-slate-400" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-slate-900">{L('免费试用已结束', 'Your free trial has ended')}</div>
+            <div className="mt-0.5 text-[12.5px] leading-snug text-slate-500">
+              {L('订阅后积分立即恢复,客户 CRM、实时带看、Luna 导览与地图数据继续可用。',
+                 'Subscribe and your credits come back right away — CRM, live tours, Luna and the map data all resume.')}
+            </div>
+          </div>
+          <Link to="/agent/plans"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-slate-800">
+            {L('查看套餐', 'See plans')}<ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   if (!me?.trial?.eligible) return null
 

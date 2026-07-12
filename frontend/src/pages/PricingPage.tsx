@@ -108,9 +108,15 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   const hasPlan = me?.status === 'active' || me?.status === 'trialing'
   const canTrial = !me || (!me.trial?.used && !hasPlan)  // 未登录也按"能试用"展示(点了先去登录)
 
+  // 未登录 → 带 returnTo 去登录,登录完回到**这一页**继续(原来跳 /agent 要绕好几跳)
+  const goLogin = () => {
+    const back = encodeURIComponent(location.pathname + location.search)
+    navigate(`/login?returnTo=${back}`)
+  }
+
   async function subscribe(planId: PaidPlanId) {
     setErr(null)
-    if (!user) { navigate('/agent'); return }   // 去经纪台登录(登录后回来再订阅)
+    if (!user) { goLogin(); return }
     trackEvent('plan_select', { plan_id: planId, cycle, action: 'subscribe' })
     setBusy(planId)
     const error = await startCheckout(planId, cycle, { hadTrial: !!me?.trial?.used })  // 成功则跳转 Stripe,不返回
@@ -119,7 +125,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
 
   async function beginTrial(planId: PaidPlanId) {
     setErr(null)
-    if (!user) { navigate('/agent'); return }   // 先登录,回来再开
+    if (!user) { goLogin(); return }            // 登录完回到这一页,再点一次即可
     trackEvent('plan_select', { plan_id: planId, cycle, action: 'trial' })
     setBusy(planId)
     const r = await startFreeTrial(ROLE_BY_PLAN[planId] || 'agent')
