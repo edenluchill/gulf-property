@@ -19,6 +19,7 @@ import { getProjectCount, getFavoriteCount } from '../../lib/favorites'
 import { lunaFetch } from '../../luna-tour/lunaApi'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import AgentCardEditor from '../../components/AgentCardEditor'
+import TrialClaimCard from '../../components/TrialClaimCard'
 import type { ProfileShellContext } from './ProfileShell'
 
 interface AgentCard {
@@ -229,26 +230,37 @@ export default function ProfileHome() {
               {zh ? (STATUS_LABEL[status] || status) : status}
             </span>
           </div>
-          <div className="mt-4">
-            <div className="mb-1 flex items-baseline justify-between text-sm">
-              <span className="text-slate-500">{L('本月积分', 'Credits this month')}</span>
-              <span className="font-semibold text-slate-900">
-                {unlimited ? L('无限', 'Unlimited') : <>{L('剩', 'Left')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
-              </span>
+          {/* 买家没有积分体系 —— 给他看「剩 0/0」像是坏了。讲他真正拥有的东西。 */}
+          {role === 'buyer' ? (
+            <div className="mt-4 text-sm text-slate-500">
+              {L('地图、260+ 区域真实成交与租金数据、Luna 语音助手 —— 买家不限时免费使用。',
+                 'The map, real DLD sales & rent data across 260+ areas, and Luna — free and unlimited for buyers.')}
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }}
-              />
-            </div>
-            {me?.current_period_end && (
-              <div className="mt-1.5 text-[11px] text-slate-400">
-                {status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Renews ')}
-                {new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
+          ) : (
+            <div className="mt-4">
+              <div className="mb-1 flex items-baseline justify-between text-sm">
+                <span className="text-slate-500">{L('本月积分', 'Credits this month')}</span>
+                <span className="font-semibold text-slate-900">
+                  {unlimited ? L('无限', 'Unlimited') : <>{L('剩', 'Left')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+                </span>
               </div>
-            )}
-          </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }}
+                />
+              </div>
+              {me?.current_period_end && (
+                <div className="mt-1.5 text-[11px] text-slate-400">
+                  {status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Renews ')}
+                  {new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 老用户从没走过 choose-role → plans 那条路,产品里没别的地方告诉他能白拿 7 天 */}
+          <TrialClaimCard me={me} />
         </section>
       </div>
 

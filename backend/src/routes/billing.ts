@@ -640,14 +640,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     )
     const onFreeTrial = sub.rows[0]?.source === 'free_trial' && status === 'trialing'
     const trialEnd = onFreeTrial ? sub.rows[0]?.current_period_end || null : null
-    const trial = {
-      active: onFreeTrial,
-      used: !!ftRow.rows[0]?.free_trial_started_at,
-      endsAt: trialEnd,
-      daysLeft: trialEnd
-        ? Math.max(0, Math.ceil((new Date(trialEnd).getTime() - now.getTime()) / 86400_000))
-        : null,
-    }
+    const trialUsed = !!ftRow.rows[0]?.free_trial_started_at
 
     // 当前身份(前端付款回跳的 role 兜底要用:只在没有 role 时才写,
     // 否则开发商买 Pro 会被兜底改写成 agent → 丢掉楼书上传权限)
@@ -655,6 +648,23 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       `SELECT role FROM user_profiles WHERE lower(email) = lower($1)`,
       [agent.email]
     )
+    const myRole = roleRow.rows[0]?.role || null
+
+    // 「还没领免费试用」—— 老用户(选完角色就走 / 早于试用上线注册的)在产品里
+    // 看不到任何入口,只会看到一张"未订阅 · 剩 0/0 积分"的死卡片。前端据此
+    // 在个人中心和经纪台顶部长出「一键领取」。
+    const trial = {
+      active: onFreeTrial,
+      used: trialUsed,
+      eligible:
+        !trialUsed &&
+        status === 'none' &&                                        // 没有任何生效订阅
+        !!myRole && TRIAL_ROLES.includes(myRole as typeof TRIAL_ROLES[number]),
+      endsAt: trialEnd,
+      daysLeft: trialEnd
+        ? Math.max(0, Math.ceil((new Date(trialEnd).getTime() - now.getTime()) / 86400_000))
+        : null,
+    }
 
     // 开发商验证状态(前端据此展示「申请验证 → 30 天/600 分」入口或"审核中"）
     const dv = await pool.query<{ status: string }>(
@@ -673,7 +683,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       status,
       trial,
       developer,
-      role: roleRow.rows[0]?.role || null,
+      role: myRole,
       current_period_end: sub.rows[0]?.current_period_end || null,
       cancel_at_period_end: !!sub.rows[0]?.cancel_at_period_end, // true = 已约定期末取消,期内仍可用
       credits_reset_at: creditsResetAt,

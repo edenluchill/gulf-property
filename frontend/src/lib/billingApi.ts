@@ -28,7 +28,14 @@ export interface BillingMe {
   teamMember?: boolean // true = Founder 席位成员(套餐由团队承担)
   credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
   /** 免绑卡试用 (2026-07-11)。used=true → 不能再开,CTA 回落「立即订阅」。 */
-  trial?: { active: boolean; used: boolean; endsAt: string | null; daysLeft: number | null }
+  trial?: {
+    active: boolean
+    used: boolean
+    /** 从业者角色 + 无生效订阅 + 没用过 → 产品里长出「一键领取」入口 */
+    eligible: boolean
+    endsAt: string | null
+    daysLeft: number | null
+  }
   /** 开发商验证:通过后试用延到 30 天 / 600 积分。 */
   developer?: { verified: boolean; verification: 'pending' | 'approved' | 'rejected' | null }
   /** 当前身份;付款回跳的 role 兜底只在它为空时才写(别把 developer 改写成 agent)。 */

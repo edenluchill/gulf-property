@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom'
 import { Sparkles, ArrowRight } from 'lucide-react'
 import { fetchBillingMe, type BillingMe } from '../lib/billingApi'
 import DeveloperVerifyCard from './DeveloperVerifyCard'
+import TrialClaimCard from './TrialClaimCard'
 
 export default function TrialBanner() {
   const { i18n } = useTranslation()
@@ -25,7 +26,10 @@ export default function TrialBanner() {
 
   // 开发商未验证 → 引导去拿 30 天 / 600 分(与试用条共用这一份 /me,不重复请求)
   const devCard = <DeveloperVerifyCard me={me} onDone={load} />
-  if (!me.trial?.active) return devCard
+  if (!me.trial?.active) {
+    // 还没领试用的老用户:经纪台里也要能一键领(不是只有 /agent/plans 那一条路)
+    return <>{devCard}<TrialClaimCard me={me} compact /></>
+  }
 
   const days = me.trial.daysLeft ?? 0
   const balance = me.credits?.balance ?? 0
