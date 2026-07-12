@@ -305,10 +305,9 @@ export default function PaymentPlanSharePage() {
 
         {/* ── 标题 + 元数据 ── */}
         <div className="relative mt-6 flex items-end justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-3xl font-bold tracking-tight text-slate-900">Sales Offer</h1>
-            {zh && <div className="mt-0.5 text-sm font-medium text-slate-500">购房报价单</div>}
-          </div>
+          {/* 只留 Sales Offer 抬头:中文副标题「购房报价单」是给外行的注解,
+              削弱信头分量(2026-07-12 用户定) */}
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-slate-900">Sales Offer</h1>
           <table className="shrink-0 text-[11px]">
             <tbody>
               <tr>
@@ -331,15 +330,12 @@ export default function PaymentPlanSharePage() {
           </table>
         </div>
 
-        {/* 敬语(样本:Dear Customer, taking into consideration…) */}
-        <p className="mt-5 text-[13px] leading-relaxed text-slate-600">
-          {zh
-            ? '尊敬的客户,您好!结合您的购房需求,我们为您推荐以下单元,报价与付款安排如下。'
-            : 'Dear Customer, taking into consideration the points discussed, we believe the unit details below align with your requirements.'}
-        </p>
+        {/* 不放泛泛的敬语:样本 PDF 的 "Dear Customer…" 是配合抬头写明收件人的,
+            我们没有客户姓名 → 那句就成了对空气说话的套话,反而不专业(2026-07-12 用户定)。
+            信头之后直接进正文。 */}
 
         {/* ── 项目行 ── */}
-        <table className="pp-avoid mt-5 w-full border-collapse">
+        <table className="pp-avoid mt-7 w-full border-collapse">
           <thead>
             <tr>
               <th className={th}>{zh ? '项目' : 'Project'}</th>
