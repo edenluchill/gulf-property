@@ -142,12 +142,24 @@ export const FavoritePickerOverlaySchema = OverlayBase.extend({
   property_ids: z.array(z.string()),
 })
 
+/**
+ * ⚠️ `agent` 容忍非字符串。
+ *
+ * tour-generator **没有用 responseSchema**（只有 responseMimeType + prompt 里的一段
+ * 散文描述），所以模型可以自由决定字段类型 —— 实测它给 `agent` 回了个 `true`
+ * （它把「要不要显示经纪」理解成了布尔）。这会让**整个剧本 schema parse 失败，
+ * 一次生成（含重试）全部作废**。
+ *
+ * 根治是给 tour-generator 加真正的 responseSchema（全字段 required + 允许 null，
+ * 见 docs/reports/2026-07-12-gemini-model-lineup.md）。在那之前先别让一个布尔值
+ * 炸掉整场生成 —— agent 名字反正是前端从 session 自己取的，这个字段本来就没在用。
+ */
 export const CtaOverlaySchema = OverlayBase.extend({
   type: z.literal('cta'),
-  agent: z.string().optional(),
-  channel: z.string().optional(),
-  prefill: z.string().optional(),
-  text: z.string().optional(),
+  agent: z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional()),
+  channel: z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional()),
+  prefill: z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional()),
+  text: z.preprocess((v) => (typeof v === 'string' ? v : undefined), z.string().optional()),
 })
 
 // E3 — real footage (sea view / interior) the agent attaches to a beat.

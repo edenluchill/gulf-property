@@ -153,12 +153,33 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  duration_ms + outro.duration_ms (transition_out durations are NOT summed).',
     `- total_ms must be within ±${Math.round(TOTAL_DURATION_TOLERANCE * 100)}% of ${targetMs} ms.`,
     '',
+    'CAMERA GRAMMAR (hard rules — a wandering camera is the #1 thing that makes',
+    'this feel like a tech demo instead of a sales tour):',
+    '- ⛔ NO camera motion may exceed 4000 ms. Ever. A long flight over empty',
+    '  desert teaches the viewer NOTHING — it is dead air. If two points are far',
+    '  apart, use a SHORT flyover (≤4000 ms) — the path auto-zooms out, that IS',
+    '  the "up over the city and back down" move. Do not stretch it.',
+    '- ⛔ orbit degrees must be ≤ 120 and duration ≤ 4000 ms. A 180° 7-second orbit',
+    '  around an off-plan plot is 7 seconds of staring at sand.',
+    '- Move the camera ONLY when the spatial relationship IS the message (going to',
+    '  a place, showing how close the metro is). NEVER move the camera while the',
+    '  narration is explaining a NUMBER — hold still and let them read.',
+    '- Vary beat lengths. Do NOT make every beat the same length; that metronome',
+    '  rhythm is exactly what makes it feel like software instead of film.',
+    '',
     'COMPOSITION GUIDANCE:',
-    '- intro: cinematic city swoop (a keyframe with high pitch), a title overlay',
-    '  with the client name, progress_dots, and highlight_all_pins.',
-    '- arrival beat: flyTo + orbit around the property; property_card overlay.',
-    '- life beat: distance_line / amenity_spokes overlays for that property.',
-    '- numbers beat: roi_card overlay using that property\'s investment numbers.',
+    '- intro: a short establishing move (≤4000 ms) + title overlay with the client',
+    '  name, progress_dots, and highlight_all_pins.',
+    '- arrival beat: ONE short flyover (≤4000 ms) to the property, then a SHORT',
+    '  orbit (≤120°, ≤4000 ms).',
+    '  ⭐ The property_card overlay MUST have at_ms = 0 — it appears the INSTANT',
+    '  the beat starts, and stays for the whole beat. The viewer must never be',
+    '  looking at a moving map with no information on screen.',
+    '- life beat: distance_line / amenity_spokes overlays for that property. The',
+    '  camera MAY fly to the amenity (metro/school) and back — that is exactly the',
+    '  case where motion carries the message. Keep each leg ≤4000 ms.',
+    '- numbers beat: roi_card overlay, at_ms = 0. Camera HOLDS STILL (no motion at',
+    '  all, or a very slow ≤4000 ms drift). Numbers are read, not flown over.',
     '- outro: pull back, highlight_all_pins + favorite_picker + cta.',
     '',
     'PROPERTY DATA:',
@@ -219,6 +240,43 @@ function overlayPropertyRefs(o: Overlay): string[] {
   return []
 }
 
+/**
+ * ⭐ 镜头硬约束 —— **在代码里 clamp，不要指望 prompt**。
+ *
+ * 实测 demo 的 arrival beat：flyover **8000ms** + orbit **180° / 7000ms**。
+ * 也就是说客户到了一个项目，先看 8 秒钟的飞行（画面里是一片模糊的沙地），
+ * 再绕着一栋**还没盖的楼**转 7 秒。**卡片要到第 8 秒才出现**。
+ * 15 秒里有 8 秒是纯粹的虚无。
+ *
+ * 规则（依据见 docs/reports/2026-07-12-buyer-commitment-guided-tour-research.md §6）：
+ *   · 任何镜头运动 ≤ 4000ms（Cesium 给**每一次**飞行的硬上限是 3 秒）
+ *   · orbit ≤ 120°（180° 是在绕着空地转圈）
+ *   · **property_card / roi_card 一律 at_ms = 0** —— 观众绝不能对着一张移动的、
+ *     没有任何信息的地图发呆
+ *
+ * LLM 会违反 prompt。代码不会。
+ */
+const MAX_CAM_MS = 4000
+const MAX_ORBIT_DEG = 120
+
+export function clampCinematography(beat: Beat): void {
+  for (const c of beat.camera) {
+    if (c.duration_ms > MAX_CAM_MS) c.duration_ms = MAX_CAM_MS
+    const anyC = c as unknown as { type?: string; degrees?: number }
+    if (anyC.type === 'orbit' && typeof anyC.degrees === 'number' && Math.abs(anyC.degrees) > MAX_ORBIT_DEG) {
+      anyC.degrees = anyC.degrees < 0 ? -MAX_ORBIT_DEG : MAX_ORBIT_DEG
+    }
+  }
+  for (const o of beat.overlays) {
+    // 信息卡从第一帧就在 —— 它是这一拍的主角,不是迟到的注脚
+    if ((o.type === 'property_card' || o.type === 'roi_card') && o.at_ms > 0) {
+      const wanted = beat.duration_ms - 0
+      o.duration_ms = Math.min(o.duration_ms ?? wanted, wanted)
+      o.at_ms = 0
+    }
+  }
+}
+
 function withinBeat(beat: Beat): string[] {
   const errs: string[] = []
   const limit = beat.duration_ms
@@ -253,6 +311,10 @@ export function validateTourScript(
     ...script.acts.flatMap((a) => a.beats),
     script.outro,
   ]
+
+  // ⭐ 先 clamp 再校验 —— 修掉 LLM 的运镜（8 秒飞行、180° 绕圈、迟到 8 秒的卡片），
+  //    而不是把它当成错误退回去重试（那样只是白烧一次 LLM 调用，它下次照样犯）。
+  for (const beat of allBeats) clampCinematography(beat)
 
   for (const act of script.acts) {
     if (!validIds.has(act.property_id)) {

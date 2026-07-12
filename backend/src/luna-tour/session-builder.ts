@@ -21,8 +21,10 @@ import { generateTourScript } from './tour-generator'
 import { generateSessionAudio } from './audio-pipeline'
 import { TourInput, TourProperty, TourConfig } from './tour-script.types'
 
-const PLACEHOLDER_YIELD_PCT = 6.5
-const PLACEHOLDER_GROWTH_PCT = 7
+// ⚠️ 这里曾经有两个常量:PLACEHOLDER_YIELD_PCT = 6.5 / PLACEHOLDER_GROWTH_PCT = 7。
+// 它们让**每一份 tour 的每一个项目**都播报同一组编造的数字(73% / 6.5% / 15年),
+// 而 AI 把它当事实讲给客户听。已删除 —— 见 buildProperty 的注释。
+// **绝不要把它们加回来。** 没有真实数据就少讲一拍。
 
 const AMENITY_SPECS = [
   { cat: 'metro_station', zh: '地铁', emoji: '🚇', ideal: 1.5, zero: 5, weight: 0.25 },
@@ -63,42 +65,124 @@ interface NearbyResult {
   tier: string
 }
 
-async function fetchNearby(client: PoolClient, lng: number, lat: number): Promise<NearbyResult> {
-  const cats = AMENITY_SPECS.map((s) => s.cat)
-  const { rows } = await client.query<{ category: string; name: string; km: string; lng: string; lat: string }>(
-    `SELECT DISTINCT ON (category) category, name,
-            ST_Distance(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)/1000 AS km,
-            ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat
-       FROM dubai_pois
-      WHERE category = ANY($3::text[]::poi_category[])
-      ORDER BY category, ST_Distance(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography) ASC`,
-    [lng, lat, cats]
-  )
-  const byCat = new Map(rows.map((r) => [r.category, r]))
+/**
+ * POI 的名字能不能说给这位客户听。
+ *
+ * 🔴 1,817 个 amenity POI 里有 196 个**只有阿拉伯语名**。它们原样进了中文旁白和
+ *    地图标签 —— demo 里那句「🚇 地铁（صيدلية لايف）」就是这么来的
+ *    （而且 صيدلية لايف 是「Life Pharmacy」,一家**药房**被标成了地铁站）。
+ *
+ * 名字不是这场 tour 的语言 → **丢掉名字,只说「🚇 地铁 0.9 公里」**。
+ * 还是真的,只是不荒谬。宁可少说一个专名,也不能对着客户念一串他看不懂的阿拉伯字。
+ */
+function nameUsable(name: string | null | undefined, lang: string): boolean {
+  const n = (name || '').trim()
+  if (!n) return false
+  if (/[؀-ۿ]/.test(n)) return false                  // 阿拉伯字母 → 一律不用
+  if (lang.startsWith('zh')) return /[一-龥a-zA-Z]/.test(n)  // 中文 tour:中文或拉丁名都行
+  return /[a-zA-Z]/.test(n)                                     // 英文 tour:必须有拉丁字母
+}
+
+async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 'zh'): Promise<NearbyResult> {
   let score = 0
   const amenities: NearbyResult['amenities'] = []
   const distances: NearbyResult['distances'] = []
+
+  // 🔴 **按每个品类自己的 `zero` 半径卡死**。
+  //    旧实现只有 `ORDER BY distance ASC`,**没有任何距离上限** —— 于是
+  //    Palm Jebel Ali 的「最近地铁」是 11 公里外的东西,「最近学校」13 公里外,
+  //    照样被当成「配套」讲给客户听。`zero` 字段一直存在,但只用来算分,从不用来过滤。
+  //    （而前端的同名实现是卡了 10km 的 → 地图上画的和旁白说的根本不是同一份数据。）
   for (const s of AMENITY_SPECS) {
-    const hit = byCat.get(s.cat)
-    if (!hit) continue
+    const { rows } = await client.query<{ name: string; km: string; lng: string; lat: string }>(
+      `SELECT name,
+              ST_Distance(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)/1000 AS km,
+              ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat
+         FROM dubai_pois
+        WHERE category = $3::poi_category
+          AND ST_DWithin(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $4)
+        ORDER BY ST_Distance(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography) ASC
+        LIMIT 1`,
+      [lng, lat, s.cat, s.zero * 1000]
+    )
+    const hit = rows[0]
+    if (!hit) continue   // 半径内根本没有 → 这个品类**整个不提**,不是硬凑一个远的上来
+
     const km = Number(parseFloat(hit.km).toFixed(2))
     const sub = Math.max(0, Math.min(1, (s.zero - km) / (s.zero - s.ideal)))
     score += s.weight * sub
     amenities.push({ label: s.zh, distance_km: km })
-    distances.push({ label: `${s.emoji} ${s.zh}（${hit.name}）`, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
+
+    // 名字能用就带上专名,不能用就只说品类 + 距离(仍然是真的)
+    const label = nameUsable(hit.name, lang)
+      ? `${s.emoji} ${s.zh}（${hit.name}）`
+      : `${s.emoji} ${s.zh}`
+    distances.push({ label, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
   }
+
   const score100 = Math.round(score * 100)
   return { distances, amenities, score: score100, tier: tierOf(score100) }
 }
 
-function buildProperty(row: ProjectRow, real: NearbyResult): TourProperty {
+/**
+ * 该坐标所在区域的**真实**回报/涨幅（来自 DLD，地图一直在用的那个函数）。
+ * 拿不到就返回 null —— 调用方必须**整个省略 investment**，绝不发合成常量。
+ */
+async function areaMetricsAt(client: PoolClient, lng: number, lat: number): Promise<{ yield_pct: number; growth_pct: number } | null> {
+  try {
+    // ⚠️ dubai_areas.boundary 是 **geography** —— ST_Contains 只吃 geometry，
+    //    直接传 geography 会报 ParseFuncOrColumn，然后被 catch 静默吞掉 → 永远返回 null
+    //    （也就是：投资数字永远不会出现）。必须显式 ::geometry。
+    const { rows } = await client.query<{ y: string | null; g: string | null }>(
+      `SELECT m.rental_yield_pct AS y, m.capital_growth_pct AS g
+         FROM dubai_areas a
+         JOIN get_dubai_area_metrics(NULL,NULL,NULL) m ON m.id = a.id
+        WHERE a.boundary IS NOT NULL
+          AND ST_Contains(a.boundary::geometry, ST_SetSRID(ST_MakePoint($1,$2),4326))
+        LIMIT 1`,
+      [lng, lat]
+    )
+    const y = rows[0]?.y != null ? Number(rows[0].y) : null
+    const g = rows[0]?.g != null ? Number(rows[0].g) : null
+    if (y == null || g == null || !Number.isFinite(y) || !Number.isFinite(g)) return null
+    return { yield_pct: y, growth_pct: g }
+  } catch { return null }
+}
+
+/**
+ * 🔴 `metrics` = 该项目所在区域的**真实** DLD 回报/涨幅。**拿不到就传 null。**
+ *
+ * 旧实现用的是两个写死的常量：
+ *     PLACEHOLDER_YIELD_PCT  = 6.5
+ *     PLACEHOLDER_GROWTH_PCT = 7
+ * 于是**每一份 tour、每一个项目**的快照都是 `growth 73 / yield 6.5 / payback 15`
+ * ——16 条快照一模一样。而 AI 把它当事实播报给客户：
+ *     「预计五年后价值可达 310万9593 迪拉姆，增长率高达 73%」
+ *
+ * 最讽刺的是 prompt 里写着「NEVER invent or estimate any number」，**而且它被严格
+ * 遵守了** —— 造假发生在这里，在 TypeScript 里，然后被当作 ground truth 喂给模型。
+ * **模型没有幻觉。它在忠实地为我们的造假洗白。**
+ *
+ * 现在：区域有真数据就用真的；**没有就整个省略 investment**，那一拍的数字直接不讲。
+ * 宁可少一拍，也不能对着客户编一个五年回报。
+ */
+function buildProperty(
+  row: ProjectRow,
+  real: NearbyResult,
+  metrics: { yield_pct: number; growth_pct: number } | null
+): TourProperty {
   const lng = num(row.longitude)!
   const lat = num(row.latitude)!
   const minPrice = num(row.min_price)
   const maxPrice = num(row.max_price)
   const purchasePrice = minPrice ?? maxPrice ?? 0
-  const inv = calculateInvestment5yr(purchasePrice, PLACEHOLDER_YIELD_PCT, PLACEHOLDER_GROWTH_PCT)
-  const payback = calculatePaybackYears(PLACEHOLDER_YIELD_PCT)
+
+  // 价格和区域数据**都**得有，才谈得上投资测算。缺任何一个 → investment: undefined。
+  const inv = metrics && purchasePrice > 0
+    ? calculateInvestment5yr(purchasePrice, metrics.yield_pct, metrics.growth_pct)
+    : null
+  const payback = metrics ? calculatePaybackYears(metrics.yield_pct) : null
+
   const imgs = Array.isArray(row.project_images) ? (row.project_images as unknown[]) : []
   const image = row.primary_image ?? (typeof imgs[0] === 'string' ? (imgs[0] as string) : undefined)
 
@@ -112,13 +196,13 @@ function buildProperty(row: ProjectRow, real: NearbyResult): TourProperty {
     coords: [lng, lat],
     min_price: minPrice,
     max_price: maxPrice,
-    investment: inv
+    investment: inv && metrics
       ? {
           buy: inv.purchase_price,
           future: inv.purchase_price + inv.total_profit_5yr,
           years: 5,
           growth_pct: Math.round((inv.total_profit_5yr / inv.purchase_price) * 100),
-          yield_pct: PLACEHOLDER_YIELD_PCT,
+          yield_pct: metrics.yield_pct,
           payback_years: payback ?? undefined,
         }
       : undefined,
@@ -192,10 +276,20 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       throw new Error(`Need ≥2 usable projects with coords; got ${ordered.length} of ${input.projectIds.length}`)
     }
 
+    // tour 的语言 —— POI 名字要按它过滤（阿语名不能念给中文客户听）
+    const lang = input.config?.language || DEFAULT_CONFIG.language
+
     const properties: TourProperty[] = []
     for (const row of ordered) {
-      const real = await fetchNearby(client, num(row.longitude)!, num(row.latitude)!)
-      properties.push(buildProperty(row, real))
+      const lng = num(row.longitude)!
+      const lat = num(row.latitude)!
+      // 真实的区域回报/涨幅（DLD）+ 半径内、名字能读的 POI。两者都可能是 null/空 ——
+      // 那就少讲一拍，绝不编。
+      const [real, metrics] = await Promise.all([
+        fetchNearby(client, lng, lat, lang),
+        areaMetricsAt(client, lng, lat),
+      ])
+      properties.push(buildProperty(row, real, metrics))
     }
 
     const config: TourConfig = { ...DEFAULT_CONFIG, ...input.config }

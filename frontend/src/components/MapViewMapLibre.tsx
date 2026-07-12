@@ -216,6 +216,32 @@ function MapViewMapLibre({
       return next
     })
   }
+
+  /**
+   * 🔴 Luna Tour 期间**强制 dark 矢量底图**。
+   *
+   * baseMap 默认是 'satellite'(见上),于是每个第一次打开 tour 的客户看到的都是卫星图。
+   * 这对**期房**是灾难性的:
+   *   ① 项目还没盖 —— 卫星图上那块地就是**一片沙子**。我们把客户带过去说「这是您的家」。
+   *      (本文件第 41 行的注释自己就承认卫星图「看着像多年前的空地」。)
+   *   ② 卫星瓦片在 zoom 16+ 没有分辨率 → **糊成一片泥浆**。
+   * 而 tour 剧本里本来就写着 `map_style: "dark"` —— 只是从没被执行过。
+   *
+   * 用 setBaseMapState 而不是 setBaseMap:**不写 localStorage**,别改用户自己的底图偏好。
+   * 退出 tour 时恢复原样。
+   */
+  const preTourBaseRef = useRef<BaseMap | null>(null)
+  useEffect(() => {
+    if (tourActive) {
+      if (preTourBaseRef.current === null) preTourBaseRef.current = baseMap
+      setBaseMapState('dark')
+    } else if (preTourBaseRef.current !== null) {
+      setBaseMapState(preTourBaseRef.current)
+      preTourBaseRef.current = null
+    }
+    // baseMap 故意不进依赖:只在进出 tour 时切,不跟随用户在 tour 中的操作(tour 里也切不了)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourActive])
   // 卡片显示开关(右侧工具卡里切换,持久化)。关掉后地图只剩圆点,更清爽;
   // 点圆点仍能弹出单张卡。默认开。
   const [showCards, setShowCardsState] = useState<boolean>(
@@ -444,6 +470,31 @@ function MapViewMapLibre({
 
     // 底图切换后 style 重建，重新注入自定义图标
     map.on('style.load', () => { addCustomIcons(map) })
+
+    // 🔴 天空 + 大气雾 —— **地平线永远不能裸露**。
+    //
+    // Luna Tour 的开场是高空俯瞰(pitch 高、zoom 远),而 MapLibre 默认不画天空:
+    // 地图就是一块**悬在黑色虚空里的、边缘呈锯齿状的平面**(瓦片没加载完的地方直接是洞)。
+    // 那一眼就把整个产品出卖了 —— 它看起来像个没做完的 demo。
+    // 加了 sky 之后地图与天空自然衔接,锯齿边被雾吃掉。
+    const ensureSky = () => {
+      try {
+        if (!map.getLayer('lt-sky')) {
+          map.addLayer({
+            id: 'lt-sky',
+            type: 'sky',
+            paint: {
+              'sky-type': 'atmosphere',
+              'sky-atmosphere-sun-intensity': 6,
+              'sky-atmosphere-color': 'rgba(24, 42, 56, 1)',
+              'sky-atmosphere-halo-color': 'rgba(0, 224, 184, 0.28)',
+            },
+          } as never)
+        }
+      } catch { /* 老 style / 不支持 sky 时静默跳过 —— 不能因为装饰把地图搞挂 */ }
+    }
+    ensureSky()
+    map.on('style.load', ensureSky)   // 换底图后 style 重建 → 天空也要重新加
 
     // Landmark cutouts scale with zoom so they feel painted on the map (not a
     // fixed-size overlay floating above it). Update the CSS var only on ZOOMEND,
@@ -879,8 +930,10 @@ function MapViewMapLibre({
   }, [onBoundsChange, recomputeCards, schedulePrefetch, tourActive])
 
   // Area polygons GeoJSON - 支持热力图
+  // 🔴 tour 期间必须隐藏:那些半透明的粉/灰色块盖在项目上,是纯噪音 ——
+  //    客户是来看房子的,不是来看行政区划的。在组件内部拦掉,不依赖调用方记得传对。
   const areasGeoJson = useMemo(() => {
-    if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded) return null
+    if (!showDubaiLayer || tourActive || !dubaiAreas.length || !mapLoaded) return null
 
     // 计算分位数用于热力图
     let percentiles = { p25: 0, p50: 0, p75: 0 }
@@ -919,13 +972,14 @@ function MapViewMapLibre({
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric])
+  }, [dubaiAreas, showDubaiLayer, tourActive, mapLoaded, areaMetric])
 
   // Area labels GeoJSON - 区域名称 + 指标值（同一图层）
   // 指标值和名称必须在同一个 symbol，否则两个 layer 的碰撞检测会互相
   // 淘汰：看指标时区域名就消失了（客户反馈）。合并后名字+数值永远一起显示。
   const areaLabelsGeoJson = useMemo(() => {
-    if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded) return null
+    // 🔴 tour 期间隐藏:「巴沙一区」「巴沙高地（特科姆）」这些标签跟这场带看毫无关系
+    if (!showDubaiLayer || tourActive || !dubaiAreas.length || !mapLoaded) return null
 
     const langKey = i18n.language?.split('-')[0]
     const lang = i18n.language || 'en'
@@ -994,7 +1048,7 @@ function MapViewMapLibre({
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric])
+  }, [dubaiAreas, showDubaiLayer, tourActive, mapLoaded, i18n.language, areaMetric])
 
   // POI GeoJSON for WebGL rendering (no limit needed - symbol layers are fast)
   const poiGeoJson = useMemo(() => {

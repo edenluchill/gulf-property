@@ -14,7 +14,9 @@
 import pool from '../db/pool'
 import { createSession, ensureAgent } from './session-builder'
 
-const SHARE_CODE = 'demo'
+// 支持种两份:`npx ts-node -T src/luna-tour/seed-demo-session.ts en` → demo-en(英文)
+const LANG = (process.argv[2] === 'en' ? 'en' : 'zh') as 'en' | 'zh'
+const SHARE_CODE = LANG === 'en' ? 'demo-en' : 'demo'
 const DEMO_AGENT_EMAIL = 'demo-agent@luna.tour'
 
 // Curated demo projects — 3 rich-data residential_projects (images + units +
@@ -86,10 +88,13 @@ async function main(): Promise<void> {
   const res = await createSession({
     shareCode: SHARE_CODE,
     projectIds,
-    title: 'David 为陈先生精选的 3 个家',
+    title: LANG === 'en' ? 'David’s 3 picks for Mr. Chen' : 'David 为陈先生精选的 3 个家',
     agentId,
     clientId,
-    client: { persona: 'investor', name: '陈先生', goal: 'investment', nationality: '香港' },
+    client: LANG === 'en'
+      ? { persona: 'investor', name: 'Mr. Chen', goal: 'investment', nationality: 'Hong Kong' }
+      : { persona: 'investor', name: '陈先生', goal: 'investment', nationality: '香港' },
+    config: { language: LANG },
     awaitAudio: true, // CLI: wait so the seed command finishes with audio ready
   })
   if (res.warnings.length) res.warnings.forEach((w) => console.log(`     ! ${w}`))
