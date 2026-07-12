@@ -328,7 +328,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
 
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <button onClick={genReport} disabled={phase === 'generating'} className="flex items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-3 font-semibold text-white hover:bg-teal-600 disabled:opacity-60">
-            {phase === 'generating' ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}{L('生成投资提案', 'Investment proposal')}
+            {phase === 'generating' ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}{L('生成分析报告', 'Fit report')}
           </button>
           <button onClick={() => setShowCompare(true)} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50">
             <Scale className="h-5 w-5 text-teal-500" />{L('生成对比报告', 'Compare report')}

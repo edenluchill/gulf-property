@@ -194,7 +194,7 @@ export default function ProfileHome() {
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-bold text-slate-900">{L('成为经纪(7 天免费试用)', 'Become an agent (7-day trial)')}</h2>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  {L('解锁经纪工作台:客户雷达、AI 导览、秒出提案、实时带看。', 'Unlock client radar, AI tours, instant proposals and live tours.')}
+                  {L('解锁经纪工作台:客户雷达、AI 导览、客户分析报告、实时带看。', 'Unlock client radar, AI tours, client fit reports and live tours.')}
                 </p>
                 <button
                   onClick={switchRole}

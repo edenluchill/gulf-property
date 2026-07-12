@@ -391,7 +391,7 @@ export default function ProfileShell() {
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px] font-bold text-slate-900">{L('经纪工作台', 'Agent workspace')}</span>
                       <span className="block truncate text-[11px] text-slate-400">
-                        {L('客户雷达 · AI 导览 · 秒出提案', 'Client radar · AI tours · proposals')}
+                        {L('客户雷达 · AI 导览 · 分析报告', 'Client radar · AI tours · fit reports')}
                       </span>
                     </span>
                     <span className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm transition group-hover:opacity-95">
