@@ -7,6 +7,8 @@ import pool from '../db/pool'
 import { buildClientReport } from './auto-report'
 import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
 import { analyzeProperties } from '../services/property-analyzer'
+import { projectUnits, scoreUnits, analyzeFit } from './client-fit-analyzer'
+import type { ExtractedProfile } from './client-profile-coach'
 
 const STEPS = [
   { key: 'match', label: '匹配最优项目' },
@@ -103,21 +105,12 @@ function netCalc(proj: any) {
            dld_fee: dldFee, agent_fee: agentFee, net_profit: netProfit, net_annualized_pct: netAnnualized }
 }
 
-/** The project's unit types (for "适合户型"), cheapest first. */
-async function projectUnits(projectId: string) {
-  try {
-    const r = await pool.query(
-      `SELECT unit_type_name, bedrooms, area, price, price_per_sqft FROM project_unit_types
-        WHERE project_id=$1 AND price IS NOT NULL ORDER BY price ASC LIMIT 8`, [projectId]
-    )
-    return r.rows.map((u) => ({
-      name: u.unit_type_name, bedrooms: u.bedrooms,
-      area: u.area != null ? Number(u.area) : null,
-      price: u.price != null ? Number(u.price) : null,
-      price_per_sqft: u.price_per_sqft != null ? Number(u.price_per_sqft) : null,
-    }))
-  } catch { return [] }
-}
+// ⚠️ 「适合的户型」曾经是**假的** —— 旧实现就是 `ORDER BY price ASC LIMIT 8`,
+//    也就是「最便宜的 8 个」,客户的预算/几居/家庭人数**一个都没参与**。标题在撒谎。
+//    而且它只 SELECT 了 5 个字段,把 100% 填充的 features/bathrooms/balcony/floor_plan
+//    全丢了 → AI 想「特点对特点」也无米下锅。
+//    现在 projectUnits + scoreUnits 搬到 client-fit-analyzer.ts,取全特征 + 按客户画像
+//    真打分。见该文件顶部的数据现实说明。
 
 /** 5-axis radar scores (0–100) — an at-a-glance investment rating. */
 function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0): { k: string; v: number }[] {
@@ -192,14 +185,57 @@ async function enrichProperty(p: any) {
   }
 }
 
-export async function generateClientReport(reportId: string, client: Record<string, unknown>, oneLiner: string) {
+/**
+ * ⭐ 给一个已 enrich 的项目挂上「两层论证」+ 按客户画像打过分的户型。
+ *
+ * 这是整份报告的**价值所在** —— 不是数据罗列,是「为什么这个适合你」。
+ * best-effort:AI 挂了就只带打过分的户型(规则分仍然有效),报告照出。
+ */
+async function attachFit(enriched: any, profile: ExtractedProfile) {
+  const scored = scoreUnits(enriched.units || [], profile)
+  const fit = await analyzeFit(profile, enriched, scored).catch(() => null)
+  return { ...enriched, units: scored, fit }
+}
+
+/**
+ * 生成客户分析报告。
+ *
+ * @param profile  结构化客户画像(来自 client-profile-coach)。**这是「为什么适合他」
+ *                 的全部依据** —— 没有它,AI 只能写放之四海皆准的套话。
+ * @param projectIds 经纪**手选**的项目。经纪心里早知道要推哪个 —— 他缺的不是「选哪个」,
+ *                 是「怎么说服客户这个值得」。不传才回落到 AI 选盘(matchProperties)。
+ */
+export async function generateClientReport(
+  reportId: string,
+  client: Record<string, unknown>,
+  oneLiner: string,
+  profile: ExtractedProfile = {},
+  projectIds?: string[]
+) {
   try {
-    // 1) Match + base projection + AI scenarios (existing builder)
-    const report = await buildClientReport(client, oneLiner, 3)
+    // 1) 项目:经纪手选优先;没选才让 AI 推荐(可选兵器,给不确定推什么的新人)
+    let report: any
+    if (projectIds?.length) {
+      const r = await pool.query(
+        `SELECT id, project_name AS name, area, min_price, primary_image
+           FROM residential_projects WHERE id = ANY($1::uuid[])`,
+        [projectIds]
+      )
+      const byId = new Map(r.rows.map((row) => [row.id, row]))
+      report = {
+        client, brief: oneLiner,
+        properties: projectIds.map((id) => byId.get(id)).filter(Boolean)
+          .map((row: any) => ({ id: row.id, name: row.name, area: row.area, min_price: row.min_price, primary_image: row.primary_image, projection: null })),
+      }
+    } else {
+      report = await buildClientReport(client, oneLiner, 3)
+    }
     await mark(reportId, 'match')
 
     // 2) Enrich each property with REAL data (replaces placeholder projection)
-    const enriched = await Promise.all(report.properties.map(enrichProperty))
+    let enriched = await Promise.all(report.properties.map(enrichProperty))
+    // ⭐ 两层论证:项目 × 客户 / 户型 × 客户(特点对特点)—— 报告的价值就在这里
+    enriched = await Promise.all(enriched.map((e) => attachFit(e, profile)))
     await mark(reportId, 'data')
 
     // 3) Overall market + policy + trends (from the resolved per-project metrics)

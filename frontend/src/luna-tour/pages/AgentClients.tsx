@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Plus, X, Loader2, Check, ExternalLink, Copy, Sparkles, RefreshCw, ChevronLeft, FileText,
+  Plus, X, Loader2, Check, ExternalLink, Copy, ChevronLeft, FileText,
   Map as MapIcon, Search, Phone, MessageCircle, Mail, Users, Home, StickyNote, Flame,
   Clock, Eye, CheckCircle2, BarChart3, CalendarClock, Scale, ImageOff,
 } from 'lucide-react'
@@ -23,9 +23,10 @@ import {
 } from '../lunaApi'
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../../components/DirhamSymbol'
+// 全站唯一的画像入口(报告页也挂它)。旧的 ClientForm 已被它替换,不要再造第二个。
+import ClientProfileWizard from '../ui/ClientProfileWizard'
 
 const AVA = (seed: string) => `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,ffd5dc,ffdfbf`
-const rseed = () => Math.random().toString(36).slice(2, 9)
 
 const ago = (iso?: string | null, zh = true) => {
   if (!iso) return ''
@@ -162,8 +163,10 @@ export default function AgentClients() {
         sel && <ClientDetail client={sel} onBack={() => { setView('list'); load() }} onEdit={() => { setShowCreate(true) }} />
       )}
 
+      {/* 画像生成器 —— **全站唯一**的画像入口(报告页也挂同一个组件)。
+          旧的 ClientForm(5 个自由文本框,结构化字段一个都不采集)已被它替换。 */}
       {showCreate && (
-        <ClientForm
+        <ClientProfileWizard
           existing={view === 'detail' ? sel : null}
           onClose={() => setShowCreate(false)}
           onSaved={() => { setShowCreate(false); load() }}
@@ -671,71 +674,5 @@ function FollowupForm({ clientId, onSaved }: { clientId: string; onSaved: () => 
         {saving ? L('保存中…', 'Saving…') : L('记录跟进', 'Save follow-up')}
       </button>
     </div>
-  )
-}
-
-function ClientForm({ existing, onClose, onSaved }: { existing: Client | null; onClose: () => void; onSaved: () => void }) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
-  const [name, setName] = useState(existing?.name || '')
-  const [background, setBackground] = useState(existing?.background || '')
-  const [budget, setBudget] = useState(existing?.budget || '')
-  const [expectations, setExpectations] = useState(existing?.expectations || '')
-  const [traits, setTraits] = useState(existing?.traits || '')
-  const [seeds, setSeeds] = useState<string[]>(() => Array.from({ length: 6 }, rseed))
-  const [avatar, setAvatar] = useState<string>(existing?.avatar_url || '')
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    if (!name.trim()) { alert(L('请填客户姓名', 'Please enter a client name')); return }
-    setSaving(true)
-    const body = JSON.stringify({ name, avatar_url: avatar || AVA(name), background, budget, expectations, traits })
-    try {
-      if (existing) await lunaFetch(`/clients/${existing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body })
-      else await lunaFetch('/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
-      onSaved()
-    } catch { alert(L('保存失败', 'Save failed')) } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between"><h3 className="text-base font-bold">{existing ? L('编辑客户', 'Edit client') : L('新建客户', 'New client')}</h3><button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
-
-        {/* Cartoon avatar picker */}
-        <div className="mb-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-slate-500">{L('卡通头像', 'Cartoon avatar')}<button onClick={() => setSeeds(Array.from({ length: 6 }, rseed))} className="flex items-center gap-1 text-teal-600"><RefreshCw className="h-3 w-3" />{L('换一批', 'Shuffle')}</button></div>
-          <div className="grid grid-cols-6 gap-2">
-            {seeds.map((s) => {
-              const u = AVA(s)
-              return <button key={s} onClick={() => setAvatar(u)} className={`overflow-hidden rounded-full ring-2 ${avatar === u ? 'ring-teal-500' : 'ring-transparent'}`}><img src={u} alt="" className="h-12 w-12 bg-slate-100" /></button>
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-2.5">
-          <Field label={L('姓名 *', 'Name *')} value={name} onChange={setName} placeholder={L('如 陈先生', 'e.g. Mr. Chen')} />
-          <Field label={L('背景', 'Background')} value={background} onChange={setBackground} placeholder={L('如 香港投资客，首次置业迪拜', 'e.g. Hong Kong investor, first Dubai purchase')} textarea />
-          <Field label={L('资金', 'Budget')} value={budget} onChange={setBudget} placeholder={L('如 300万 AED 现金', 'e.g. AED 3M cash')} />
-          <Field label={L('期待', 'Expectations')} value={expectations} onChange={setExpectations} placeholder={L('如 5年回报、地铁近、可自住', 'e.g. 5-year ROI, near metro, livable')} textarea />
-          <Field label={L('人物特色', 'Traits')} value={traits} onChange={setTraits} placeholder={L('如 谨慎、看重品牌开发商', 'e.g. cautious, prefers branded developers')} />
-        </div>
-        <button onClick={save} disabled={saving} className="mt-4 w-full rounded-xl bg-teal-500 py-2.5 font-semibold text-white hover:bg-teal-600 disabled:opacity-60">
-          {saving ? L('保存中…', 'Saving…') : existing ? <span className="flex items-center justify-center gap-1.5"><Check className="h-4 w-4" />{L('保存', 'Save')}</span> : <span className="flex items-center justify-center gap-1.5"><Sparkles className="h-4 w-4" />{L('创建客户', 'Create client')}</span>}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, value, onChange, placeholder, textarea }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; textarea?: boolean }) {
-  return (
-    <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
-      {textarea
-        ? <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={2} className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100" />
-        : <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100" />}
-    </label>
   )
 }

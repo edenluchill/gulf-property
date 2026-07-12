@@ -25,7 +25,7 @@ import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
-import { coachProfile, saveProfile, loadProfile } from './client-profile-coach'
+import { coachProfile, saveProfile, loadProfile, type ExtractedProfile } from './client-profile-coach'
 
 const router = Router()
 
@@ -398,13 +398,31 @@ router.post('/client-reports', async (req: Request, res: Response) => {
     const b = (req.body || {}) as Record<string, unknown>
     let client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
     let oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
-    // Generated from a saved client profile → build the brief from it.
+
+    // ⭐ 结构化画像 —— 「为什么适合他」的全部依据。没有它,AI 只能写套话。
+    let profile: ExtractedProfile = (b.profile && typeof b.profile === 'object' ? b.profile : {}) as ExtractedProfile
+
+    // 选了 CRM 客户 → **画像直接从库里带出来**(经纪不用重填)
     const clientId = typeof b.client_id === 'string' ? b.client_id : null
     if (clientId) {
-      const cb = await briefFromClient(agentId, clientId)
+      const [cb, saved] = await Promise.all([
+        briefFromClient(agentId, clientId),
+        loadProfile(clientId, agentId),
+      ])
       if (cb) { client = { name: cb.name }; oneLiner = cb.brief }
+      // 请求里带的画像(经纪刚在 wizard 里补的)优先于库里的旧值
+      profile = { ...saved, ...profile }
     }
-    if (!oneLiner.trim() && !Object.keys(client).length) return res.status(400).json({ success: false, error: '需要客户画像或一句话' })
+
+    // 经纪**手选**的项目。他心里早知道要推哪个 —— 缺的是「怎么说服客户这个值得」。
+    // 不传才回落到 AI 选盘(可选兵器,给不确定推什么的新人)。
+    const projectIds = Array.isArray(b.project_ids)
+      ? (b.project_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+      : undefined
+
+    if (!oneLiner.trim() && !Object.keys(client).length && !Object.keys(profile).length) {
+      return res.status(400).json({ success: false, error: '需要客户画像或一句话' })
+    }
     // 配额门 + 计量(共享 demo 经纪豁免)
     const loggedIn = isLoggedIn(req)
     if (loggedIn) {
@@ -420,7 +438,7 @@ router.post('/client-reports', async (req: Request, res: Response) => {
     )
     if (loggedIn) await spend(agentId, 'reports', { type: 'client_report', id: code, label: clientName || undefined }).catch(() => {})
     // fire-and-forget background build
-    generateClientReport(r.rows[0].id, client, oneLiner)
+    generateClientReport(r.rows[0].id, client, oneLiner, profile, projectIds)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
   } catch (err) {
     console.error('[agent/client-reports] error:', err)

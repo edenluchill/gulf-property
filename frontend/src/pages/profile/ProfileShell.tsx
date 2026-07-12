@@ -61,7 +61,7 @@ const AGENT_TABS: Tab[] = [
   { to: '/agent', end: true, zh: '工作台', en: 'Dashboard', icon: LayoutDashboard },
   { to: '/agent/clients', zh: '客户雷达', en: 'Client radar', icon: Radar },
   { to: '/agent/tour', zh: 'AI 导览', en: 'AI tours', icon: Wand2 },
-  { to: '/agent/report', zh: '秒出提案', en: 'Instant proposals', icon: Zap },
+  { to: '/agent/report', zh: '客户分析报告', en: 'Client fit reports', icon: Zap },
 ]
 // 使用记录:只在付费后显示(有积分消耗才有意义;免费/未订阅不显示)
 const USAGE_TAB: Tab = { to: '/agent/usage', zh: '使用记录', en: 'Usage', icon: Receipt }

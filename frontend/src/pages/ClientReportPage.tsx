@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, TrendingUp, Home, Star, Train, GraduationCap, Trees, ListChecks } from 'lucide-react'
+import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, TrendingUp, Home, Star, Train, GraduationCap, Trees, ListChecks, Target, Check, X, AlertTriangle } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
 import DirhamSymbol from '../components/DirhamSymbol'
 
@@ -48,7 +48,7 @@ export default function ClientReportPage() {
     <div className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
       <style>{`@media print { .no-print{display:none!important} .pg{box-shadow:none!important;margin:0!important} body{background:#fff} }`}</style>
 
-      <TopBar title={p?.name || '投资提案'} />
+      <TopBar title={p?.name || '专属分析'} />
 
       <div className="pg relative mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
         <AgentStamp agent={agent} />
@@ -58,7 +58,7 @@ export default function ClientReportPage() {
           <a href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="block">
             {p.image && <img src={p.image} alt={p.name} className="h-44 w-full rounded-xl object-cover sm:h-56" />}
             <div className="mt-3 pr-24">
-              <div className="text-[11px] font-semibold text-teal-600">投资提案 · 为 {r.client_name || '客户'} 精选</div>
+              <div className="text-[11px] font-semibold text-teal-600">专属分析 · 为 {r.client_name || '客户'}</div>
               <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">{p.name}<ExternalLink className="h-5 w-5 flex-shrink-0 text-slate-300" /></h1>
               <div className="text-sm text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
             </div>
@@ -86,19 +86,109 @@ export default function ClientReportPage() {
               </Section>
             )}
 
-            {/* 适合户型 */}
-            {p.units?.length > 0 && (
-              <Section title="适合的户型" icon={<Home className="h-4 w-4 text-teal-500" />}>
-                <div className="overflow-hidden rounded-xl border border-slate-100">
-                  <div className="flex bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-400"><span className="flex-1">户型</span><span className="w-16 text-right">面积</span><span className="w-24 text-right">价格</span></div>
-                  {p.units.slice(0, 6).map((u: any, i: number) => (
-                    <div key={i} className="flex items-center border-t border-slate-50 px-3 py-2 text-sm">
-                      <span className="flex-1 truncate text-slate-700">{u.name || (u.bedrooms != null ? `${u.bedrooms} 居` : '户型')}</span>
-                      <span className="w-16 text-right text-xs text-slate-500">{u.area != null ? `${Math.round(u.area)}ft²` : '—'}</span>
-                      <span className="w-24 text-right font-semibold text-slate-800"><Dh v={u.price} /></span>
+            {/* ⭐ Layer 1 —— 项目 × 客户：为什么这个适合你
+                这是整份报告的价值所在:不是数据罗列,是**论证**。
+                取舍/风险也要显示 —— 一份全是优点的报告反而不可信,客户不傻。 */}
+            {p.fit && (p.fit.project_why?.length > 0 || p.fit.project_tradeoffs?.length > 0) && (
+              <Section title="为什么这个适合你" icon={<Target className="h-4 w-4 text-teal-500" />}>
+                {p.fit.project_fit != null && (
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="text-xs text-slate-500">匹配度</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: `${Math.max(0, Math.min(100, p.fit.project_fit))}%` }} />
                     </div>
+                    <span className="w-8 text-right text-sm font-bold tabular-nums text-slate-800">{p.fit.project_fit}</span>
+                  </div>
+                )}
+                <ul className="space-y-2">
+                  {(p.fit.project_why || []).map((w: string, i: number) => (
+                    <li key={i} className="flex gap-2 text-sm leading-relaxed text-slate-700">
+                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-teal-500" /><span>{w}</span>
+                    </li>
                   ))}
+                </ul>
+                {p.fit.project_tradeoffs?.length > 0 && (
+                  <div className="mt-3 rounded-xl bg-amber-50/70 p-3">
+                    <div className="mb-1.5 text-[11px] font-semibold text-amber-900">需要你知道的取舍</div>
+                    <ul className="space-y-1.5">
+                      {p.fit.project_tradeoffs.map((w: string, i: number) => (
+                        <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-amber-900/90">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /><span>{w}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {/* ⭐ Layer 2 —— 户型 × 客户：特点对特点
+                「适合的户型」曾经是假的(就是最便宜的 8 个)。现在按客户画像真打分,
+                并逐条论证「为什么这个户型适合你」+「**为什么不推另外那个**」。
+                ⚠️ price 只有 51% 填充 —— 无价的显示「价格待定」,不隐藏、不猜。 */}
+            {p.units?.length > 0 && (
+              <Section title="哪个户型适合你" icon={<Home className="h-4 w-4 text-teal-500" />}>
+                {p.fit?.unit_why?.length > 0 && (
+                  <div className="mb-3 rounded-xl bg-teal-50/70 p-3">
+                    {p.fit.recommended_unit && (
+                      <div className="mb-1.5 text-sm font-bold text-teal-900">主推 · {p.fit.recommended_unit}</div>
+                    )}
+                    <ul className="space-y-1.5">
+                      {p.fit.unit_why.map((w: string, i: number) => (
+                        <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-teal-900/90">
+                          <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /><span>{w}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="overflow-hidden rounded-xl border border-slate-100">
+                  <div className="flex bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-400">
+                    <span className="flex-1">户型</span>
+                    <span className="w-14 text-right">面积</span>
+                    <span className="w-24 text-right">价格</span>
+                  </div>
+                  {p.units.slice(0, 6).map((u: any, i: number) => {
+                    const isTop = p.fit?.recommended_unit && String(u.name || '').includes(p.fit.recommended_unit)
+                    return (
+                      <div key={i} className={`border-t border-slate-50 px-3 py-2 ${isTop ? 'bg-teal-50/40' : ''}`}>
+                        <div className="flex items-center text-sm">
+                          <span className="flex flex-1 items-center gap-1.5 truncate text-slate-700">
+                            {isTop && <span className="shrink-0 rounded bg-teal-500 px-1 text-[9px] font-bold text-white">推荐</span>}
+                            <span className="truncate">{u.name || (u.bedrooms != null ? `${u.bedrooms} 居` : '户型')}</span>
+                          </span>
+                          <span className="w-14 text-right text-xs text-slate-500">{u.area != null ? `${Math.round(u.area)}ft²` : '—'}</span>
+                          <span className="w-24 text-right font-semibold text-slate-800">
+                            {u.price != null ? <Dh v={u.price} /> : <span className="text-xs font-normal text-slate-400">价格待定</span>}
+                          </span>
+                        </div>
+                        {/* 配置 —— 「特点对特点」的原料(女佣房/洗衣房/开放厨房…) */}
+                        {u.features?.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {u.features.slice(0, 5).map((f: string, k: number) => (
+                              <span key={k} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{f}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
+
+                {/* ⭐ 反向论证 —— 说清不推什么,比只夸一个更有说服力 */}
+                {p.fit?.unit_why_not?.length > 0 && (
+                  <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                    <div className="mb-1.5 text-[11px] font-semibold text-slate-600">为什么不推其它户型</div>
+                    <ul className="space-y-1.5">
+                      {p.fit.unit_why_not.map((w: string, i: number) => (
+                        <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-slate-600">
+                          <X className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" /><span>{w}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </Section>
             )}
 
