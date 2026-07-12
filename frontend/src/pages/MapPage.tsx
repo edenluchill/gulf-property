@@ -1596,8 +1596,16 @@ export default function MapPage() {
               filters={filters}
               setFilters={setFilters}
               developers={developers}
-              leading={<MapCompassButton map={liveMap} />}
+              leading={<div className="md:hidden"><MapCompassButton map={liveMap} variant="chip" /></div>}
             />
+          </div>
+
+          {/* 指北针(pad/桌面):维持原来的独立圆盘,不跟着手机版缩进筛选卡 —— 2026-07-11。
+              md 左上是搜索+筛选两行(~104px)→ top-[112px];xl 单行(~52px)→ top-[68px]。 */}
+          <div className="pointer-events-none absolute left-4 top-[112px] z-[1000] hidden md:block xl:top-[68px]">
+            <div className="pointer-events-auto">
+              <MapCompassButton map={liveMap} variant="disc" />
+            </div>
           </div>
 
           {/* 手机:搜索沉到底部 dock(拇指区,底栏之上),结果向上展开。
