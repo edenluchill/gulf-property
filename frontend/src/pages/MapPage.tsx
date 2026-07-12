@@ -21,7 +21,6 @@ import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
 import CollabDrawToolbar from '../luna-tour/collab/CollabDrawToolbar'
 import { useAuth } from '../contexts/AuthContext'
-import { isOwnerEmail } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
 import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
@@ -194,7 +193,6 @@ export default function MapPage() {
   // Three modes: 'browse' (default, unchanged), 'presenter' (owner starts a
   // tour), 'viewer' (a guest opened a /t/:code link — public, no login).
   const { user } = useAuth()
-  const isOwner = isOwnerEmail(user?.email)
   // Viewer session is STICKY: captured from /t/:code, then KEPT across in-app
   // navigation (and reloads, via sessionStorage) so a client roaming the real app
   // never drops the tour. Cleared only on explicit exit. (Presenter already
@@ -850,8 +848,16 @@ export default function MapPage() {
     return peer?.name
   }, [collab.participants, collabMode])
 
-  // Start a tour (owner only): create a room, enter presenter mode.
+  /**
+   * 开一场带看:建房 + 进 presenter 模式。**任何登录经纪都能开**。
+   *
+   * 权限由**后端**判(collab.ts 的 checkCredits('live_tours') → minPlan=agent),
+   * 没权限返回 402 + 中文提示。前端不再自己判 —— 之前这里挂着 isOwner 门,
+   * 结果是普通付费经纪点「开始带看」什么也不发生(静默停在地图上)。
+   */
+  const [tourError, setTourError] = useState<string | null>(null)
   const handleStartTour = useCallback(async () => {
+    setTourError(null)
     try {
       // 一场一码:每次开始带看都新建随机 code(不再用「按经纪派生的稳定 code」)。
       // 上一场的链接不会复用到这一场 → 上一位客户拿旧链接进不来(防偷听)。
@@ -860,7 +866,10 @@ export default function MapPage() {
       setPresenterCode(code)
       setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('host', code); return n }, { replace: true })
     } catch (e) {
+      // ⚠️ 绝不静默失败(铁律:权限 UI 不静默)。createCollabRoom 已经把后端的
+      // 中文提示(含升级引导)抛出来了 —— 显示给他,别只写进 console。
       console.error('[collab] failed to create room', e)
+      setTourError(e instanceof Error ? e.message : '开始带看失败，请重试')
     }
   }, [user?.email, setSearchParams])
 
@@ -870,24 +879,31 @@ export default function MapPage() {
   useEffect(() => {
     if (hostResumedRef.current) return
     const host = searchParams.get('host')
-    if (!host || !isOwner || viewerCode || presenterCode) return
+    // 登录即可复活自己的 presenter 会话(不再是 owner-only)。房间是否真的属于他、
+    // 有没有权限,后端 WS hello 会判。
+    if (!host || !user || viewerCode || presenterCode) return
     hostResumedRef.current = true
     setPresenterCode(host)
-  }, [searchParams, isOwner, viewerCode, presenterCode])
+  }, [searchParams, user, viewerCode, presenterCode])
 
-  // Deep-link from the agent console (/?livetour=1): auto-start a live tour once
-  // auth resolves to owner. Strip the param so refresh/back doesn't re-trigger.
+  /**
+   * 经纪台深链(/?livetour=1)→ 自动开一场带看。
+   *
+   * ⚠️ 这里**曾经**挂着 `!isOwner` 的门 —— 于是普通付费经纪从经纪台点「开一场
+   * 实时带看」,跳到地图后**什么也不发生**(静默停在首页)。带看是核心功能,
+   * 却对除 owner 外的所有人不可用。权限交给后端(minPlan=agent → 402 带中文提示)。
+   */
   const autoStartedRef = useRef(false)
   useEffect(() => {
     if (autoStartedRef.current) return
     if (searchParams.get('livetour') !== '1') return
-    if (!isOwner || collabActive || presenterCode) return
+    if (!user || collabActive || presenterCode) return  // 等 auth 解析出来再开
     autoStartedRef.current = true
     const next = new URLSearchParams(searchParams)
     next.delete('livetour')
     setSearchParams(next, { replace: true })
     void handleStartTour()
-  }, [searchParams, isOwner, collabActive, presenterCode, handleStartTour, setSearchParams])
+  }, [searchParams, user, collabActive, presenterCode, handleStartTour, setSearchParams])
 
   const collabShareUrl = presenterCode ? `${window.location.origin}/t/${presenterCode}` : undefined
 
@@ -1629,6 +1645,33 @@ export default function MapPage() {
               onExit={handleExitCollab}
               onKick={collabMode === 'presenter' ? collab.kick : undefined}
             />
+          )}
+
+          {/* 开带看失败(未订阅 / 积分不足 / 网络)—— **绝不静默**。
+              后端 402 的中文提示直接显示,带升级入口。 */}
+          {tourError && (
+            <div className="fixed left-1/2 top-20 z-[2200] w-[min(420px,calc(100vw-2rem))] -translate-x-1/2">
+              <div className="flex items-start gap-2.5 rounded-xl bg-white px-4 py-3 shadow-2xl ring-1 ring-slate-200">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[11px] font-bold text-amber-700">!</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium leading-snug text-slate-800">{tourError}</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <button
+                      onClick={() => { setTourError(null); void handleStartTour() }}
+                      className="text-xs font-semibold text-emerald-600 hover:underline"
+                    >
+                      重试
+                    </button>
+                    <button onClick={() => navigate('/agent/billing')} className="text-xs font-semibold text-slate-600 hover:underline">
+                      查看套餐
+                    </button>
+                  </div>
+                </div>
+                <button onClick={() => setTourError(null)} className="shrink-0 rounded p-0.5 text-slate-400 transition hover:bg-slate-100">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Collab: 带看视频画中画。经纪 = 本地预览(要看得见镜头对没对准沙盘),
