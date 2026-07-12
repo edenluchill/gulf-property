@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
   CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
-  Menu, X, ChevronRight, Receipt, Inbox,
+  Menu, X, ChevronRight, Receipt,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -43,10 +43,23 @@ const ACCOUNT_TABS: Tab[] = [
 ]
 
 // 经纪工作台(经纪专属模块;名字要让人想点开用)
+//
+// ⚠️ 「线索」(/agent/leads) 暂时下架 (2026-07-12, owner 定)。
+//
+// 为什么:leads 全部是**匿名访客**,一条联系方式都没有。实测 8 条 lead →
+// 有联系方式 0、有名字 0、被认领 0、转化 0。「认领」按钮点下去,经纪拿到的是
+// 一个他**永远联系不上**的人 —— 这不是功能不完善,是逻辑上就走不通。
+//
+// 真正有用的意向信号在别处,而且那里**知道人是谁**:
+//   • 实时带看 —— 客户进带看时过身份门(填了称呼/电话/WhatsApp)
+//   • Luna 导览 —— 分享链接是经纪发给**特定客户**的,行为自然归属到人
+//
+// 路由和后端**保留**(数据继续采,owner 直接访问 /agent/leads 仍可看)——
+// 只藏导航入口,随时可以放回来。要恢复:把下面这行取消注释。
+//   { to: '/agent/leads', zh: '线索', en: 'Leads', icon: Inbox },
 const AGENT_TABS: Tab[] = [
   { to: '/agent', end: true, zh: '工作台', en: 'Dashboard', icon: LayoutDashboard },
   { to: '/agent/clients', zh: '客户雷达', en: 'Client radar', icon: Radar },
-  { to: '/agent/leads', zh: '线索', en: 'Leads', icon: Inbox },
   { to: '/agent/tour', zh: 'AI 导览', en: 'AI tours', icon: Wand2 },
   { to: '/agent/report', zh: '秒出提案', en: 'Instant proposals', icon: Zap },
 ]
