@@ -33,6 +33,16 @@ export interface Room {
   selected: any | null                  // 最近一次 select 事件 payload
   lastCam: any | null                   // 最近一次 cam 快照
   recentChat: any[]                     // 最近 ~30 条 chat,供 sync
+  /**
+   * 画的标注(id → mark)—— **物化**的 draw 状态,供 sync 快照。
+   *
+   * 为什么要物化:draw 走 mapAction 的 add/erase/clear 三个 op 流式广播。
+   * 中途进来的客户(客户迟到是常态)只能收到「之后」的 op,看不到经纪**已经**画好的圈,
+   * 而经纪浑然不觉还在说「你看我圈的这块」。ring 补发也救不了 —— 那条路是死的
+   * (客户端在 sync 时就把 lastSeq 设成 state.seq,后续补发全被 seq<=lastSeq 丢弃)。
+   * 所以服务端做个 reducer,把 marks 直接放进 sync 快照。
+   */
+  marks: Map<string, any>
   seq: number                           // 单调递增,盖在可靠事件上
   ring: ReliableMsg[]                   // 最近 ~200 条可靠事件,供 resumeSeq 补发
   createdAt: number
@@ -79,6 +89,7 @@ function buildRoom(code: string, creatorName?: string): Room {
     selected: null,
     lastCam: null,
     recentChat: [],
+    marks: new Map(),
     seq: 0,
     ring: [],
     createdAt: Date.now(),
@@ -233,7 +244,41 @@ export function pushReliable(room: Room, msg: ReliableMsg): void {
     case 'goto':
       // goto 也代表镜头落点,记为 lastCam 的离散版本不必要 —— 留作纯事件
       break
+    case 'mapAction':
+      reduceDraw(room, (msg as any).action)
+      break
     default:
+      break
+  }
+}
+
+/** 标注上限:兜底防失控房膨胀(和 EVENT_LOG_MAX 同理)。 */
+const MARKS_MAX = 500
+
+/**
+ * 把 draw 的 add/erase/clear 归约进 room.marks,让 sync 快照能带上「已经画好的东西」。
+ *
+ * mapAction 是个 untyped 的万能通道(Luna 工具输出 / 测距 / POI 弹窗 / draw 都走它),
+ * 这里只认 __collab_draw,其余原样放过。
+ */
+function reduceDraw(room: Room, action: any): void {
+  if (!action || action.type !== '__collab_draw') return
+  switch (action.op) {
+    case 'add':
+      if (action.mark?.id) {
+        room.marks.set(action.mark.id, action.mark)
+        // 超上限就丢最老的(Map 保持插入序)
+        if (room.marks.size > MARKS_MAX) {
+          const oldest = room.marks.keys().next().value
+          if (oldest !== undefined) room.marks.delete(oldest)
+        }
+      }
+      break
+    case 'erase':
+      if (action.id) room.marks.delete(action.id)
+      break
+    case 'clear':
+      room.marks.clear()
       break
   }
 }

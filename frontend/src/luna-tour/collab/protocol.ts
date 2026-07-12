@@ -24,6 +24,20 @@ export interface Cam {
   p: number
   /** set on the final frame when the camera goes still, so viewers stop the rAF */
   idle?: boolean
+  /**
+   * Presenter's map viewport size (css px). Viewers use it to COMPENSATE zoom so
+   * they see at least everything the presenter sees.
+   *
+   * Why: visible geographic width ∝ viewportWidth / 2^zoom. At the same zoom an
+   * iPad (1180px) shows ~3× the area a phone (390px) does — the presenter says
+   * "look at this whole community" and the client only has the middle third on
+   * screen. Agents present on iPads, clients watch on phones, so this is the
+   * common case, not an edge case.
+   *
+   * Optional: older clients omit it → viewers fall back to no compensation.
+   */
+  vw?: number
+  vh?: number
 }
 
 export interface Participant {
@@ -69,6 +83,9 @@ export interface GotoMsg {
   b: number
   p: number
   label?: string
+  /** presenter viewport size — same zoom-compensation story as Cam.vw/vh */
+  vw?: number
+  vh?: number
 }
 export interface SelectMsg {
   k: 'select'
@@ -122,9 +139,20 @@ export interface HelloMsg {
 export interface CollabState {
   presenterConnId: string
   lastCam?: Cam
-  selected?: { kind: SelectKind; id: string }
+  selected?: { kind: SelectKind; id: string; tab?: string }
   participants: Participant[]
   recentChat: ChatEntry[]
+  /**
+   * Drawings already on the map (server-materialized from the __collab_draw
+   * add/erase/clear op stream). Without this a client who joins mid-tour sees a
+   * clean map while the agent is saying "look at the block I circled" — and
+   * clients joining late is the norm, not an edge case.
+   *
+   * Shape is `Mark` from useCollabDraw; typed loose here to keep the protocol
+   * free of a dependency on the draw layer (ISOLATION: delete collab/ and this
+   * field just goes unused).
+   */
+  marks?: unknown[]
   seq: number
 }
 export interface SyncMsg {

@@ -32,7 +32,15 @@ export interface UseCollabPresenterOpts {
 
 function readCam(map: MaplibreMap, t: number): Cam {
   const c = map.getCenter()
-  return { t, c: [c.lng, c.lat], z: map.getZoom(), b: map.getBearing(), p: map.getPitch() }
+  // vw/vh = presenter's map viewport (css px). Viewers compensate zoom with it so
+  // they see at least everything we see (iPad presenter → phone client is the
+  // common case). See follow-math.zoomOffsetForViewport.
+  const el = map.getContainer()
+  return {
+    t, c: [c.lng, c.lat], z: map.getZoom(), b: map.getBearing(), p: map.getPitch(),
+    vw: el?.clientWidth || undefined,
+    vh: el?.clientHeight || undefined,
+  }
 }
 
 export function useCollabPresenter(opts: UseCollabPresenterOpts): void {
@@ -70,7 +78,7 @@ export function useCollabPresenter(opts: UseCollabPresenterOpts): void {
       quietTicks = 0
       sentIdle = false
       if (classifyMove(prev, now) === 'jump') {
-        c.send({ k: 'goto', seq: 0, c: now.c, z: now.z, b: now.b, p: now.p })
+        c.send({ k: 'goto', seq: 0, c: now.c, z: now.z, b: now.b, p: now.p, vw: now.vw, vh: now.vh })
       } else {
         c.send({ k: 'cam', ...now })
       }

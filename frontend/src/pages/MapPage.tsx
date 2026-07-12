@@ -25,7 +25,7 @@ import { isOwnerEmail } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
 import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
-import AreaDetailDialog from '../components/AreaDetailDialog'
+import AreaDetailDialog, { type AreaTab } from '../components/AreaDetailDialog'
 import GuidedTour from '../components/GuidedTour'
 import MobileBottomSheet from '../components/MobileBottomSheet'
 import { getImageUrl } from '../lib/image-utils'
@@ -241,6 +241,11 @@ export default function MapPage() {
   const [projectTab, setProjectTab] = useState('overview')
   const openProjectIdRef = useRef<string | null>(null)
   useEffect(() => { openProjectIdRef.current = openProjectId }, [openProjectId])
+  // 区域面板的 tab/口径/选中区 —— 广播回调要读最新值(闭包会捕获旧的)。
+  // state 声明在下面(要等 selectedArea),这里只占 ref 位。
+  const areaTabRef = useRef<AreaTab>('sales')
+  const areaUsageRef = useRef('all')
+  const selectedAreaRef = useRef<DubaiArea | null>(null)
   // Viewer's follow state, in a ref the remote handlers can read: when the client
   // has DETACHED (Free), we don't force the presenter's panels open on them — they
   // get to explore on their own ("share everything… unless they detached").
@@ -650,6 +655,17 @@ export default function MapPage() {
           return
         }
         if (followFreeRef.current) return // detached client explores on their own
+
+        // tab 是 "tab|usage" 的复合串(见 broadcastAreaSub)。经纪只是切了个 tab 时
+        // 别重新 flyTo —— 否则每点一下 tab 相机就抖一下。
+        if (tab) {
+          const [t, u] = tab.split('|')
+          if (t === 'sales' || t === 'rentals' || t === 'projects') setAreaTab(t)
+          if (u) setAreaUsage(u)
+        }
+        const isNewArea = String(selectedAreaRef.current?.id ?? '') !== String(id)
+        if (!isNewArea) return // 同一个区域,只是 tab/口径变了 → 不重开、不飞
+
         const area = dubaiAreas.find((a) => a.id === id)
         if (area) handleAreaClick(area)
       }
@@ -678,6 +694,27 @@ export default function MapPage() {
       collabSendRef.current.sendSelect('project', openProjectIdRef.current, tab)
     }
   }, [])
+
+  // 经纪切区域面板的 tab / 口径 → 客户跟着切。
+  // 复用 select 的 tab 字段(协议不动),编码成 "tab|usage" 的复合串。
+  const broadcastAreaSub = useCallback((tab: AreaTab, usage: string) => {
+    const id = selectedAreaRef.current?.id
+    if (collabActiveRef.current && id) {
+      collabSendRef.current.sendSelect('area', String(id), `${tab}|${usage}`)
+    }
+  }, [])
+  const handleAreaTabChange = useCallback((tab: AreaTab) => {
+    setAreaTab(tab)
+    broadcastAreaSub(tab, areaUsageRef.current)
+  }, [broadcastAreaSub])
+  const handleAreaUsageChange = useCallback((usage: string) => {
+    setAreaUsage(usage)
+    broadcastAreaSub(areaTabRef.current, usage)
+  }, [broadcastAreaSub])
+  // 移动 sheet 的两档 → canonical 三档(market 落到 sales;移动端本就不区分成交/租金)
+  const handleSheetTabChange = useCallback((t: 'market' | 'projects') => {
+    handleAreaTabChange(t === 'projects' ? 'projects' : 'sales')
+  }, [handleAreaTabChange])
   const handleRemoteMapAction = useCallback(
     (action: unknown) => {
       // internal collab broadcast: presenter's landmark / POI / station popups.
@@ -756,6 +793,21 @@ export default function MapPage() {
   // Map drawing / markup (pen / arrow / text / pin / circle), geo-anchored +
   // broadcast to the room. Circle uses getAreaInfoAtPoint for draw-to-query.
   const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive, getAreaInfo: getAreaInfoAtPoint })
+
+  // 带看结束 → 清掉这场画的所有标注 + 测距尺。
+  //
+  // 地图是**常驻**的(挂在 Layout,display:none 隐藏而非卸载 —— 见 memory:
+  // persistent-map-architecture),所以 marks 不会随路由卸载而消失:上一场画的圈
+  // 会一直留在图层里,下次进地图还看得见。必须在 collabActive true→false 时手动清。
+  // 覆盖两条退出路径:经纪「结束」和客户「退出」(两者都会让 collabActive 变 false)。
+  const wasCollabActive = useRef(false)
+  useEffect(() => {
+    if (wasCollabActive.current && !collabActive) {
+      draw.clearAll()
+      setVoiceMeasure(null)
+    }
+    wasCollabActive.current = collabActive
+  }, [collabActive, draw])
 
   // Presenter's distance-measure → broadcast so viewers see the same ruler.
   const handleMeasureChange = useCallback((points: [number, number][] | null) => {
@@ -953,13 +1005,24 @@ export default function MapPage() {
   const [guidedTour, setGuidedTour] = useState<GuidedTourPayload | null>(null)
   // Dev-only test hook so the guided tour can be driven without the live voice pipeline.
   if (import.meta.env.DEV) (window as any).__lunaGuidedTour = setGuidedTour
-  // 移动端 sheet 的 usage 口径(默认全部)+ 市场/项目 tab，新区打开时重置
-  const [sheetUsage, setSheetUsage] = useState('all')
-  const [sheetTab, setSheetTab] = useState<'market' | 'projects'>('market')
-  useEffect(() => { setSheetUsage('all'); setSheetTab('market') }, [selectedArea?.id])
+  // 区域面板的子状态(tab + 口径)—— **canonical,跨设备统一,collab 同步的线格式**。
+  //
+  // ⚠️ 桌面 dialog 有三个 tab(成交/租金/项目),移动 sheet 只有两个(市场/项目)。
+  // 而主力场景恰恰是「经纪 iPad(桌面版) 带客户手机(移动版)」—— 两边渲染的是不同组件、
+  // 不同 tab 集合。所以必须有**一套 canonical 值**上线,两端各自映射,否则「经纪切到
+  // 成交,客户手机没反应」。canonical 取桌面的三档(信息量最大,移动端向下合并)。
+  //
+  // 映射:desktop sales|rentals → mobile 市场;desktop projects → mobile 项目。
+  const [areaTab, setAreaTab] = useState<AreaTab>('sales')
+  const [areaUsage, setAreaUsage] = useState('all')
+  useEffect(() => { setAreaTab('sales'); setAreaUsage('all') }, [selectedArea?.id])
+  useEffect(() => { areaTabRef.current = areaTab }, [areaTab])
+  useEffect(() => { areaUsageRef.current = areaUsage }, [areaUsage])
+  useEffect(() => { selectedAreaRef.current = selectedArea }, [selectedArea])
+  const sheetTab: 'market' | 'projects' = areaTab === 'projects' ? 'projects' : 'market'
   // 移动端 sheet 的区域洞察（桌面 dialog 内部自取，后端缓存去重）
   const { insights: sheetInsights, loading: sheetInsightsLoading } = useAreaInsights(
-    showAreaSheet ? selectedArea?.id : undefined, sheetUsage, marketSegment
+    showAreaSheet ? selectedArea?.id : undefined, areaUsage, marketSegment
   )
 
   // Load Dubai areas & landmarks (with caching)
@@ -1497,7 +1560,7 @@ export default function MapPage() {
           {/* Collab: the presenter's live cursor — global overlay, shows on the map,
               the project drawer, POI panels… everywhere (Figma-style presence). */}
           {collabMode === 'viewer' && (
-            <CollabCursorLayer client={collab.client} active label={collabPeerName || '经纪'} />
+            <CollabCursorLayer client={collab.client} active label={collabPeerName || '经纪'} getMap={getCollabMap} />
           )}
 
           {/* Collab: map drawing/markup toolbar (pen + eraser), strokes geo-anchored
@@ -1885,7 +1948,8 @@ export default function MapPage() {
         projects={projects}
       />
 
-      {/* Desktop: Area Detail Dialog */}
+      {/* Desktop: Area Detail Dialog.
+          collab 时 tab/口径受控 → 经纪切「成交」,客户手机的 sheet 也跟着切。 */}
       <AreaDetailDialog
         isOpen={showAreaDialog}
         onClose={handleCloseArea}
@@ -1893,6 +1957,10 @@ export default function MapPage() {
         area={selectedArea}
         projects={areaProjects}
         isLoading={isLoadingAreaProjects}
+        tab={areaTab}
+        usage={areaUsage}
+        onTabChange={handleAreaTabChange}
+        onUsageChange={handleAreaUsageChange}
       />
 
       {/* POI Info Popup - Mobile: Bottom Sheet, Desktop: Centered Modal */}
@@ -2560,9 +2628,9 @@ export default function MapPage() {
               {USAGE_FILTER.map((u) => (
                 <button
                   key={u.v}
-                  onClick={() => setSheetUsage(u.v)}
+                  onClick={() => handleAreaUsageChange(u.v)}
                   className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    sheetUsage === u.v ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
+                    areaUsage === u.v ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
                   }`}
                 >
                   {i18n.language?.startsWith('zh') ? u.zh : u.en}
@@ -2578,7 +2646,7 @@ export default function MapPage() {
               ]).map((tb) => (
                 <button
                   key={tb.id}
-                  onClick={() => setSheetTab(tb.id)}
+                  onClick={() => handleSheetTabChange(tb.id)}
                   className={`border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
                     sheetTab === tb.id ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500'
                   }`}
@@ -2591,7 +2659,7 @@ export default function MapPage() {
             <div className="p-4 space-y-4">
               {sheetTab === 'market' ? (
                 <>
-                  <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} usageActive={sheetUsage !== 'all'} />
+                  <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} usageActive={areaUsage !== 'all'} />
                   <AreaRecentTx areaId={selectedArea.id} insights={sheetInsights} loading={sheetInsightsLoading} />
                 </>
               ) : areaDevelopers.length > 0 ? (

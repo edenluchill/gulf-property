@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { CollabClient } from './CollabClient'
-import { cameraConverged, stepCamera, type CamState } from './follow-math'
+import { cameraConverged, stepCamera, zoomOffsetForViewport, type CamState } from './follow-math'
 import type { Cam } from './protocol'
 
 export type FollowMode = 'following' | 'free'
@@ -50,8 +50,20 @@ export interface CollabFollowApi {
   returnToPresenter: () => void
 }
 
-function camToState(cam: Cam): CamState {
-  return { c: [cam.c[0], cam.c[1]], z: cam.z, b: cam.b, p: cam.p }
+/**
+ * Remote camera → local target, with VIEWPORT COMPENSATION.
+ *
+ * The presenter's zoom is meaningless on a different-sized screen: visible area
+ * ∝ viewportWidth / 2^zoom. Adopting their zoom verbatim on a phone shows ~1/3 of
+ * what an iPad presenter sees — so "look at this whole community" lands off-screen.
+ * We shift zoom so the viewer's viewport is a SUPERSET of the presenter's.
+ *
+ * Falls back to the raw zoom when the presenter didn't send vw/vh (old client).
+ */
+function camToState(cam: Cam, map?: MaplibreMap | null): CamState {
+  const el = map?.getContainer()
+  const dz = el ? zoomOffsetForViewport(cam, el.clientWidth, el.clientHeight) : 0
+  return { c: [cam.c[0], cam.c[1]], z: cam.z + dz, b: cam.b, p: cam.p }
 }
 
 function readState(map: MaplibreMap): CamState {
@@ -122,18 +134,20 @@ export function useCollabFollow(opts: UseCollabFollowOpts): CollabFollowApi {
       if (m.k !== 'cam') return
       lastCamRef.current = m
       if (modeRef.current === 'following') {
-        targetRef.current = camToState(m)
+        targetRef.current = camToState(m, getMapRef.current?.())
         pumpRaf()
       }
     })
     const offGoto = client.on('goto', (m) => {
       if (m.k !== 'goto') return
-      const cam: Cam = { t: Date.now(), c: m.c, z: m.z, b: m.b, p: m.p }
+      const cam: Cam = { t: Date.now(), c: m.c, z: m.z, b: m.b, p: m.p, vw: m.vw, vh: m.vh }
       lastCamRef.current = cam
-      targetRef.current = camToState(cam)
+      const target = camToState(cam, getMapRef.current?.())
+      targetRef.current = target
       if (modeRef.current === 'following') {
         stopRaf() // flyTo owns the camera for its duration
-        applyFlyTo({ center: m.c, zoom: m.z, bearing: m.b, pitch: m.p })
+        // compensated zoom, not m.z — same reason as cam packets
+        applyFlyTo({ center: m.c, zoom: target.z, bearing: m.b, pitch: m.p })
       }
     })
     return () => {
@@ -154,8 +168,9 @@ export function useCollabFollow(opts: UseCollabFollowOpts): CollabFollowApi {
     modeRef.current = 'following'
     const cam = lastCamRef.current
     if (cam) {
-      targetRef.current = camToState(cam)
-      applyFlyTo({ center: cam.c, zoom: cam.z, bearing: cam.b, pitch: cam.p })
+      const target = camToState(cam, getMapRef.current?.())
+      targetRef.current = target
+      applyFlyTo({ center: cam.c, zoom: target.z, bearing: cam.b, pitch: cam.p })
     }
   }, [applyFlyTo])
 

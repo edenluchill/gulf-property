@@ -14,6 +14,9 @@ interface DeveloperSummary {
   projectNames: string[]
 }
 
+/** 右侧面板的 tab —— 也是 collab 同步的 canonical 值(移动 sheet 向下合并到两档)。 */
+export type AreaTab = 'sales' | 'rentals' | 'projects'
+
 interface AreaDetailDialogProps {
   isOpen: boolean
   onClose: () => void
@@ -22,6 +25,12 @@ interface AreaDetailDialogProps {
   isLoading: boolean
   /** 市场口径（地图筛选器联动），缺省取全站默认 */
   segment?: MarketSegment
+  /** 受控 tab / 口径 —— collab 带看时由页面提升到 MapPage 并广播给客户。
+   *  不传则退回内部自管(普通浏览场景)。 */
+  tab?: AreaTab
+  usage?: string
+  onTabChange?: (tab: AreaTab) => void
+  onUsageChange?: (usage: string) => void
 }
 
 // Usage filter — the dialog shows ALL property types by default; the user can
@@ -35,18 +44,29 @@ const USAGE_FILTER = [
   { v: 'other', zh: '其他', en: 'Other' },
 ]
 
-export default function AreaDetailDialog({ isOpen, onClose, area, projects, isLoading, segment = CONSUMER_SEGMENT }: AreaDetailDialogProps) {
+export default function AreaDetailDialog({
+  isOpen, onClose, area, projects, isLoading, segment = CONSUMER_SEGMENT,
+  tab: tabProp, usage: usageProp, onTabChange, onUsageChange,
+}: AreaDetailDialogProps) {
   const { t, i18n } = useTranslation(['map', 'common'])
   const zh = (i18n.language || 'en').startsWith('zh')
   const langKey = (i18n.language || 'en').split('-')[0] // 'zh-CN' → 'zh'
   const tr = area?.translations?.[langKey ?? '']
   const isTranslated = !!tr
 
-  // Usage lens lives here (default 全部). Reset to 'all' each time a new area opens.
-  const [usage, setUsage] = useState<string>('all')
-  // Right-panel tabs — flat 成交 / 租金 / 项目 (charts stay on the left).
-  const [tab, setTab] = useState<'sales' | 'rentals' | 'projects'>('sales')
-  useEffect(() => { setUsage('all'); setTab('sales') }, [area?.id])
+  // Usage lens + right-panel tabs (成交 / 租金 / 项目; charts stay on the left).
+  //
+  // 受控优先:collab 带看时 MapPage 提升这两个状态并广播给客户(经纪切 tab,客户跟着切)。
+  // 非受控时退回内部自管 —— 普通浏览不该背 collab 的包袱。
+  const [usageLocal, setUsageLocal] = useState<string>('all')
+  const [tabLocal, setTabLocal] = useState<AreaTab>('sales')
+  const controlled = tabProp !== undefined || usageProp !== undefined
+  const usage = usageProp ?? usageLocal
+  const tab = tabProp ?? tabLocal
+  const setUsage = (u: string) => { onUsageChange ? onUsageChange(u) : setUsageLocal(u) }
+  const setTab = (t: AreaTab) => { onTabChange ? onTabChange(t) : setTabLocal(t) }
+  // 受控时由 owner 负责重置(MapPage 在 area 变化时重置),这里别抢
+  useEffect(() => { if (!controlled) { setUsageLocal('all'); setTabLocal('sales') } }, [area?.id, controlled])
 
   // 四指标月度序列 + 近期成交（按 usage + 市场口径,后端全区域预热,通常秒回）
   const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage, segment)

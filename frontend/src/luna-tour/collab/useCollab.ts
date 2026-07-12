@@ -76,10 +76,12 @@ export function useCollab(opts: UseCollabOpts): CollabApi {
   // presenter samples + broadcasts its camera; viewers pass active=false.
   useCollabPresenter({ getMap, client: socket.client, active: active && mode === 'presenter' })
 
-  // live cursor: presenter broadcasts its pointer (viewport-normalized) on `cur`;
-  // the viewer renders it via the global <CollabCursorLayer/> (mounted by the
-  // page) so the cursor shows on EVERY surface, not just the map.
-  useCollabPresenterCursor({ client: socket.client, active: active && mode === 'presenter' })
+  // live cursor: presenter broadcasts its pointer on `cur` — GEO-ANCHORED (lng/lat)
+  // while over the map, viewport-normalized elsewhere. getMap is what lets it
+  // unproject; without it the cursor would point at a different building on a
+  // phone than on the presenter's iPad. The viewer renders it via the global
+  // <CollabCursorLayer/> (mounted by the page) so it shows on EVERY surface.
+  useCollabPresenterCursor({ client: socket.client, active: active && mode === 'presenter', getMap })
 
   const follow = useCollabFollow({
     getMap,

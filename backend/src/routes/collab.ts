@@ -144,6 +144,9 @@ export function initCollabWebSocket(server: Server): void {
               connId: p.connId, name: p.name, role: p.role
             })),
             recentChat: room.recentChat,
+            // 已经画好的标注 —— 中途进来的客户也要看得见经纪圈的那块地
+            // (客户迟到是常态;之前他们只能收到「之后」的 draw op,进来时地图是干净的)
+            marks: Array.from(room.marks.values()),
             seq: room.seq
           }
         }))

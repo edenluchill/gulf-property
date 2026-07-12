@@ -248,9 +248,14 @@ export class CollabClient {
 
     if (msg.k === 'sync') {
       this.connId = msg.connId
-      // The snapshot's seq is authoritative — adopt it so subsequent reliable
-      // events de-dupe against the resumed baseline.
-      if (typeof msg.state?.seq === 'number') this.lastSeq = msg.state.seq
+      // Adopt the snapshot's seq ONLY on a fresh connection.
+      //
+      // ⚠️ On a RESUME (we sent resumeSeq) this must NOT happen: the server replies
+      // `sync` and THEN replays the ring (seq > resumeSeq). Adopting state.seq here
+      // would push lastSeq to the newest event, so every replayed message then fails
+      // `msg.seq <= this.lastSeq` below and is silently dropped — i.e. the whole
+      // replay path was dead, and a reconnecting client recovered nothing.
+      if (this.lastSeq === 0 && typeof msg.state?.seq === 'number') this.lastSeq = msg.state.seq
       this.dispatch(msg)
       return
     }

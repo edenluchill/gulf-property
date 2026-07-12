@@ -20,6 +20,35 @@ export interface CamState {
   p: number
 }
 
+/**
+ * Zoom offset a viewer must apply so it sees AT LEAST everything the presenter sees.
+ *
+ * Visible geographic width ∝ viewportWidth / 2^zoom. To make the viewer's visible
+ * width match the presenter's:  myW / 2^zv = presW / 2^zp  →  zv = zp + log2(myW/presW).
+ *
+ * We take the MIN over both axes, so the viewer's viewport is a SUPERSET of the
+ * presenter's — it may show more, but never less. Showing less is the failure we're
+ * fixing (agent on an iPad says "look at this whole area", client's phone only has
+ * the middle of it on screen).
+ *
+ * Returns 0 when the presenter didn't send its size (old client) or any dimension
+ * is bogus — i.e. degrade to the old no-compensation behaviour, never to a broken zoom.
+ */
+export function zoomOffsetForViewport(
+  presenter: { vw?: number; vh?: number } | null | undefined,
+  myW: number,
+  myH: number
+): number {
+  const pw = presenter?.vw
+  const ph = presenter?.vh
+  if (!pw || !ph || !myW || !myH || pw <= 0 || ph <= 0 || myW <= 0 || myH <= 0) return 0
+  const dz = Math.log2(Math.min(myW / pw, myH / ph))
+  // Guard against absurd values (a collapsed/hidden container reporting ~0) —
+  // a wild zoom jump is far worse than no compensation.
+  if (!Number.isFinite(dz) || Math.abs(dz) > 4) return 0
+  return dz
+}
+
 /** Default smoothing factor per frame — critically-damped feel at ~60fps. */
 export const DEFAULT_K = 0.18
 

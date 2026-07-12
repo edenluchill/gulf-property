@@ -19,6 +19,7 @@ import {
   cameraConverged,
   shouldSendCam,
   classifyMove,
+  zoomOffsetForViewport,
   type CamState,
 } from '../follow-math.ts'
 import { collabWsUrl } from '../protocol.ts'
@@ -311,4 +312,114 @@ test('terminal room_not_found (old link) → terminalReason=not_found + no recon
   assert.deepEqual(seen, ['not_found'])
   s.serverDrop(1006)
   assert.equal(c.state, 'closed', 'old-link viewer does not reconnect a dead room')
+})
+
+// ── viewport zoom compensation (iPad presenter → phone client) ───────────────
+//
+// Visible geographic width ∝ viewportWidth / 2^zoom. Adopting the presenter's zoom
+// verbatim on a smaller screen shows LESS ground than they see — the agent says
+// "look at this whole community" and the client's phone only has the middle of it.
+// This is the common case (agents present on iPads, clients watch on phones).
+
+test('zoomOffsetForViewport: phone viewer sees at least what the iPad presenter sees', () => {
+  const iPad = { vw: 1180, vh: 820 }
+  const dz = zoomOffsetForViewport(iPad, 390, 844) // phone
+  assert.ok(dz < 0, 'phone must zoom OUT to cover the same ground')
+
+  const pz = 13
+  const vz = pz + dz
+  const presW = iPad.vw / 2 ** pz
+  const viewW = 390 / 2 ** vz
+  const presH = iPad.vh / 2 ** pz
+  const viewH = 844 / 2 ** vz
+
+  // superset: the viewer may see MORE than the presenter, never less
+  assert.ok(viewW >= presW - 1e-9, 'viewer width covers presenter width')
+  assert.ok(viewH >= presH - 1e-9, 'viewer height covers presenter height')
+
+  // and without compensation the phone would see only ~1/3 of the width
+  assert.ok(390 / 2 ** pz < presW * 0.4, 'uncompensated phone is badly cropped')
+})
+
+test('zoomOffsetForViewport: identical viewports → no change', () => {
+  assert.equal(zoomOffsetForViewport({ vw: 800, vh: 600 }, 800, 600), 0)
+})
+
+test('zoomOffsetForViewport: missing/bogus sizes degrade to 0, never a wild zoom', () => {
+  assert.equal(zoomOffsetForViewport(undefined, 390, 844), 0, 'old client sent no vw/vh')
+  assert.equal(zoomOffsetForViewport({}, 390, 844), 0)
+  assert.equal(zoomOffsetForViewport({ vw: 1180, vh: 820 }, 0, 0), 0, 'collapsed container')
+  // absurd ratio (hidden container reporting ~1px) must not produce a huge jump
+  assert.equal(zoomOffsetForViewport({ vw: 40000, vh: 40000 }, 390, 844), 0)
+})
+
+// ── ring replay on resume (regression) ──────────────────────────────────────
+//
+// The server replies `sync` and THEN replays ring messages with seq > resumeSeq.
+// The client used to adopt state.seq from the snapshot unconditionally, which
+// pushed lastSeq to the NEWEST event — so every replayed message then failed the
+// `seq <= lastSeq` de-dupe and was silently dropped. Replay was dead: a
+// reconnecting client recovered nothing.
+
+test('resume: replayed ring messages after sync are NOT dropped', () => {
+  const sock = new FakeSocket()
+  const c = makeClient(sock)
+  const got: string[] = []
+  c.on('chat', (m) => { if (m.k === 'chat') got.push(m.text) })
+
+  c.connect()
+  sock.open()
+  // establish a baseline: we've processed up to seq 5
+  sock.recv({ k: 'sync', connId: 'me', state: { presenterConnId: 'p', participants: [], recentChat: [], seq: 5 } })
+  sock.recv({ k: 'chat', seq: 6, from: 'a', name: 'A', text: 'before-drop' })
+  assert.equal(c.seq, 6)
+
+  // reconnect → hello carries resumeSeq=6; server sends a FRESH sync (seq now 9)
+  // and then replays 7,8,9.
+  sock.serverDrop(1006)
+  const sock2 = new FakeSocket()
+  ;(c as unknown as { wsFactory: (u: string) => CollabSocket }).wsFactory = () => sock2
+  c.connect()
+  sock2.open()
+  const hello = sock2.sentJson()[0] as Record<string, unknown>
+  assert.equal(hello.resumeSeq, 6, 'resume asks for everything after 6')
+
+  sock2.recv({ k: 'sync', connId: 'me', state: { presenterConnId: 'p', participants: [], recentChat: [], seq: 9 } })
+  sock2.recv({ k: 'chat', seq: 7, from: 'a', name: 'A', text: 'replay-7' })
+  sock2.recv({ k: 'chat', seq: 8, from: 'a', name: 'A', text: 'replay-8' })
+  sock2.recv({ k: 'chat', seq: 9, from: 'a', name: 'A', text: 'replay-9' })
+
+  assert.deepEqual(got, ['before-drop', 'replay-7', 'replay-8', 'replay-9'],
+    'replayed messages must be delivered, not swallowed by the snapshot seq')
+})
+
+test('fresh connect: snapshot seq IS adopted (no replay expected)', () => {
+  const sock = new FakeSocket()
+  const c = makeClient(sock)
+  const got: number[] = []
+  c.on('chat', (m) => { if (m.k === 'chat') got.push(m.seq) })
+  c.connect()
+  sock.open()
+  sock.recv({ k: 'sync', connId: 'me', state: { presenterConnId: 'p', participants: [], recentChat: [], seq: 20 } })
+  assert.equal(c.seq, 20, 'fresh joiner adopts the room seq')
+  sock.recv({ k: 'chat', seq: 15, from: 'a', name: 'A', text: 'stale' })
+  sock.recv({ k: 'chat', seq: 21, from: 'a', name: 'A', text: 'new' })
+  assert.deepEqual(got, [21], 'pre-join history is not re-delivered')
+})
+
+test('sync carries materialized marks so a late joiner sees existing drawings', () => {
+  const sock = new FakeSocket()
+  const c = makeClient(sock)
+  let marks: unknown[] | undefined
+  c.on('sync', (m) => { if (m.k === 'sync') marks = m.state.marks })
+  c.connect()
+  sock.open()
+  sock.recv({
+    k: 'sync', connId: 'me',
+    state: {
+      presenterConnId: 'p', participants: [], recentChat: [], seq: 3,
+      marks: [{ id: 'm1', kind: 'circle' }, { id: 'm2', kind: 'pen' }],
+    },
+  })
+  assert.deepEqual(marks, [{ id: 'm1', kind: 'circle' }, { id: 'm2', kind: 'pen' }])
 })

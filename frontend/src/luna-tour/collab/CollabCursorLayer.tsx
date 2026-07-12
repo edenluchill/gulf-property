@@ -4,14 +4,21 @@
  * A single fixed, viewport-covering, pointer-events-none layer (portaled to
  * <body> at a z-index ABOVE the project drawer / POI panels) that renders the
  * presenter's labelled cursor wherever they move — Figma-style presence that
- * works on EVERY surface, not just the map. Position comes from viewport-
- * normalized `cur` packets; a tap spawns a ripple.
+ * works on EVERY surface, not just the map.
+ *
+ * ⭐ GEO-ANCHORED when the presenter's pointer is over the map: we re-project
+ * their lng/lat EVERY FRAME, so the cursor sits on the SAME BUILDING no matter
+ * the screen size or aspect. The agent presents on an iPad, the client watches on
+ * a phone — viewport-normalized coords would point at completely different places
+ * on the two devices. Falls back to normalized x/y off-map (drawers, panels),
+ * where there is no geography to anchor to.
  *
  * Imperative DOM updates inside an rAF lerp — never React state per frame
  * (performance hard rule: zero re-render while the cursor moves).
  */
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import type { Map as MaplibreMap } from 'maplibre-gl'
 import { CollabClient } from './CollabClient'
 import type { ServerMsg } from './protocol'
 
@@ -23,14 +30,19 @@ export interface CollabCursorLayerProps {
   active: boolean
   /** presenter display name shown beside the cursor */
   label?: string
+  /** live map — to re-project the presenter's geo anchor. Without it we degrade
+   *  to viewport-normalized positioning (wrong across device sizes, but not broken). */
+  getMap?: () => MaplibreMap | null | undefined
 }
 
-export default function CollabCursorLayer({ client, active, label }: CollabCursorLayerProps) {
+export default function CollabCursorLayer({ client, active, label, getMap }: CollabCursorLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
   const nameRef = useRef<HTMLSpanElement>(null)
   const labelRef = useRef(label)
+  const getMapRef = useRef(getMap)
   labelRef.current = label
+  getMapRef.current = getMap
 
   useEffect(() => {
     if (!active || !client) return
@@ -42,9 +54,30 @@ export default function CollabCursorLayer({ client, active, label }: CollabCurso
     let placed = false
     const cur = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     const tgt = { x: cur.x, y: cur.y }
+    /** last geo anchor from the presenter (null = they're off-map → use x/y) */
+    let geo: { lng: number; lat: number } | null = null
+
+    /** geo → screen, in viewport coords (the overlay is fixed to the viewport). */
+    const projectGeo = (): { x: number; y: number } | null => {
+      const map = getMapRef.current?.()
+      const el = map?.getContainer()
+      if (!map || !el || !geo) return null
+      try {
+        const p = map.project([geo.lng, geo.lat])
+        const r = el.getBoundingClientRect()
+        return { x: p.x + r.left, y: p.y + r.top }
+      } catch {
+        return null
+      }
+    }
 
     const loop = () => {
       raf = requestAnimationFrame(loop)
+      // Re-project every frame: the viewer's map is still moving (following the
+      // presenter's cam), so a screen position computed once would smear. The geo
+      // anchor is the only thing that's stable across both devices.
+      const g = projectGeo()
+      if (g) { tgt.x = g.x; tgt.y = g.y }
       cur.x += (tgt.x - cur.x) * 0.3
       cur.y += (tgt.y - cur.y) * 0.3
       cursor.style.transform = `translate3d(${cur.x.toFixed(1)}px,${cur.y.toFixed(1)}px,0)`
@@ -70,8 +103,20 @@ export default function CollabCursorLayer({ client, active, label }: CollabCurso
 
     const onCur = (m: ServerMsg) => {
       if (m.k !== 'cur') return
-      tgt.x = m.x * window.innerWidth
-      tgt.y = m.y * window.innerHeight
+
+      // Geo anchor wins whenever the presenter's pointer is over the map — it's
+      // the only coordinate that means the same thing on an iPad and a phone.
+      if (typeof m.lng === 'number' && typeof m.lat === 'number') {
+        geo = { lng: m.lng, lat: m.lat }
+        const g = projectGeo()
+        if (g) { tgt.x = g.x; tgt.y = g.y }
+      } else {
+        // off-map (drawer / panel / toolbar): no geography → normalized fallback
+        geo = null
+        tgt.x = m.x * window.innerWidth
+        tgt.y = m.y * window.innerHeight
+      }
+
       if (!placed) { cur.x = tgt.x; cur.y = tgt.y; placed = true }
       lastAt = Date.now()
       if (nameRef.current && labelRef.current && nameRef.current.textContent !== labelRef.current) {

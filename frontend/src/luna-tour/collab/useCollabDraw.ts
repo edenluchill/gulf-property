@@ -296,6 +296,30 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
     return () => off()
   }, [active, client, ensureLayer, render])
 
+  // ── hydrate from the sync snapshot: what's ALREADY drawn ───────────────────
+  //
+  // Joining mid-tour used to land you on a clean map while the agent was saying
+  // "look at the block I circled" — the draw ops that built those marks went out
+  // before you connected, and ring-replay never delivers them. The server now
+  // materializes marks into the sync snapshot; adopt them wholesale.
+  //
+  // Wholesale replace (not merge): sync IS the truth for the room we just joined.
+  // Also clears any stale marks left over from a previous session in this tab.
+  useEffect(() => {
+    if (!active || !client) return
+    const onSync = (m: ServerMsg) => {
+      if (m.k !== 'sync') return
+      const incoming = (m.state?.marks ?? []) as Mark[]
+      marks.current.clear()
+      localOrder.current = [] // they're not ours → undo must not reach back into them
+      for (const mk of incoming) if (mk?.id) marks.current.set(mk.id, mk)
+      ensureLayer()
+      render()
+    }
+    const off = client.on('sync', onSync)
+    return () => off()
+  }, [active, client, ensureLayer, render])
+
   // ── pointer interactions via MAPLIBRE events (gives e.lngLat + cancels pan) ──
   useEffect(() => {
     if (!active) return
