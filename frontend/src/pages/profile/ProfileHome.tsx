@@ -252,15 +252,19 @@ export default function ProfileHome() {
               </div>
               {me?.current_period_end && (
                 <div className="mt-1.5 text-[11px] text-slate-400">
-                  {status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Renews ')}
+                  {/* 免绑卡试用没有续费这回事 —— 它到期就是停,不会扣款。别说"下次续费"。 */}
+                  {me.trial?.active
+                    ? L('免费试用至 ', 'Free trial until ')
+                    : status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Renews ')}
                   {new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
                 </div>
               )}
             </div>
           )}
 
-          {/* 老用户从没走过 choose-role → plans 那条路,产品里没别的地方告诉他能白拿 7 天 */}
-          <TrialClaimCard me={me} />
+          {/* 老用户从没走过 choose-role → plans 那条路,产品里没别的地方告诉他能白拿 7 天。
+              买家的引导交给左侧那张「成为经纪(7 天免费试用)」卡,这里不重复问。 */}
+          <TrialClaimCard me={me} buyerNudge={false} />
         </section>
       </div>
 

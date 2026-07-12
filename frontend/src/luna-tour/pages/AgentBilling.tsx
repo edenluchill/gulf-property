@@ -13,6 +13,7 @@ import RoleBadgeDialog from '../../components/RoleBadgeDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import { useResetOnBFCache } from '../../hooks/useResetOnBFCache'
 import { trackEvent } from '../../lib/track'
+import TrialClaimCard from '../../components/TrialClaimCard'
 import {
   fetchBillingMe, fetchFeatures, openPortal,
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
@@ -21,6 +22,24 @@ import {
 
 // 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
 const ROLE_BY_PLAN: Record<string, UserRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
+
+// 每个功能按什么计费。**实时带看是按「场」扣的,和这场开多久无关**(建房那一刻
+// 扣一次;语音另有独立的时长护栏:单场 ≤30 分钟、每人 ≤3 小时/天)。经纪最容易在
+// 这里误会,所以直接写在单价旁边。
+const UNIT_ZH: Record<string, string> = {
+  reports: '每份',
+  payplan: '每份',
+  brochures: '每份 PDF',
+  live_tours: '每场 · 不限时长',
+  luna_tours: '每条导览',
+}
+const UNIT_EN: Record<string, string> = {
+  reports: 'per report',
+  payplan: 'per offer',
+  brochures: 'per PDF',
+  live_tours: 'per session · any length',
+  luna_tours: 'per tour',
+}
 
 export default function AgentBilling() {
   const { i18n } = useTranslation()
@@ -111,6 +130,8 @@ export default function AgentBilling() {
   const planId = me?.plan.id || 'explore'
   const status = me?.status || 'none'
   const isPaid = status === 'active' || status === 'trialing'
+  // 免绑卡试用:有 Pro 权限但**没有 Stripe 订阅** —— 积分不按月刷新,也没有 portal 可管
+  const onTrial = !!me?.trial?.active
   // 积分(-1 = 无限/owner)
   const cMonth = me?.credits.month ?? 0
   const cUsed = me?.credits.used ?? 0
@@ -201,46 +222,102 @@ export default function AgentBilling() {
           </button>
         )}
 
-        {/* 本月积分余额 */}
-        <div className="mt-5">
-          <div className="mb-1 flex items-baseline justify-between">
-            <span className="text-sm text-slate-500">{L('本月积分余额', 'Credits this month')}</span>
-            <span className="text-sm font-semibold text-slate-900">
-              {unlimited ? L('无限', 'Unlimited') : <>{L('剩', '')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
-            </span>
+        {/* 本月积分余额。未订阅时不画「剩 0 / 0」的空进度条 —— 那不是信息,是一条死杠。 */}
+        {cMonth > 0 || unlimited ? (
+          <div className="mt-5">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-sm text-slate-500">
+                {onTrial ? L('试用积分余额', 'Trial credits') : L('本月积分余额', 'Credits this month')}
+              </span>
+              <span className="text-sm font-semibold text-slate-900">
+                {unlimited ? L('无限', 'Unlimited') : <>{L('剩', '')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full transition-all ${onTrial ? 'bg-teal-500' : 'bg-emerald-500'}`}
+                style={{ width: unlimited ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }} />
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400">
+              {/* ⚠️ 试用积分**不按自然月刷新** —— 它是整个试用期共用的一池,用完即止。
+                  对试用用户说"每月 1 日刷新"是假话(而且会让他以为下月还能白嫖一轮)。 */}
+              {onTrial
+                ? L('试用期共用这一池积分,用完即止 —— 订阅后立即恢复。', 'One pool for the whole trial — it doesn’t reset. Subscribe and credits come back right away.')
+                : me?.credits_reset_at
+                  ? L(`${fmtDate(me.credits_reset_at)} 刷新额度,未用完不累积。`, `Credits reset ${fmtDate(me.credits_reset_at)}; unused don’t roll over.`)
+                  : L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}
+            </div>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: unlimited || cMonth === 0 ? '0%' : `${Math.min(100, Math.round((cUsed / cMonth) * 100))}%` }} />
+        ) : (
+          <div className="mt-4 text-sm text-slate-500">
+            {L('订阅后每月自动发放积分,下面这些功能就能用了。', 'Subscribe and credits land every month — that unlocks everything below.')}
           </div>
-          <div className="mt-1 text-[11px] text-slate-400">
-            {me?.credits_reset_at
-              ? L(`${fmtDate(me.credits_reset_at)} 刷新额度,未用完不累积。`, `Credits reset ${fmtDate(me.credits_reset_at)}; unused don’t roll over.`)
-              : L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}
-          </div>
-        </div>
+        )}
 
-        {/* 积分消耗表(成本来自后端配置,自动同步) */}
+        {/* 领取试用 / 试用已结束 / 买家引导(这一页在 AgentLayout 之外,拿不到 TrialBanner) */}
+        <TrialClaimCard me={me} />
+
+        {/* 积分能买什么(成本来自后端配置,自动同步)。便宜的在前。
+            右侧「余额可做 N 次」比干巴巴的单价有用得多 —— 那才是经纪真正想知道的。 */}
         {feat.features.length > 0 && (
-          <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-            <div className="mb-2 text-xs font-semibold text-slate-600">{L('积分这样花', 'How credits are spent')}{myMult < 1 ? L(`(你的套餐 ×${myMult},已含折扣)`, ` (your plan ×${myMult}, discount applied)`) : ''}</div>
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {feat.features.map((f) => (
-                <div key={f.key} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">{zh ? f.label : (f.labelEn || f.label)}</span>
-                  <span className="font-medium text-slate-800">{Math.round(f.credits * myMult)} {L('积分', 'credits')}{f.key === 'live_tours' ? L('/场', '/session') : ''}</span>
-                </div>
-              ))}
+          <div className="mt-5 overflow-hidden rounded-xl ring-1 ring-slate-900/[0.06]">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+              <span className="text-xs font-semibold text-slate-700">{L('积分能买什么', 'What credits buy')}</span>
+              {myMult < 1 && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                  {L(`你的套餐 ×${myMult} · 已含折扣`, `Your plan ×${myMult} · discounted`)}
+                </span>
+              )}
+            </div>
+            <div className="divide-y divide-slate-50">
+              {[...feat.features]
+                .sort((a, b) => a.credits - b.credits)
+                .map((f) => {
+                  const cost = Math.max(1, Math.round(f.credits * myMult))
+                  const times = unlimited ? -1 : Math.floor(cBalance / cost)
+                  return (
+                    <div key={f.key} className="flex items-center gap-3 px-4 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-slate-800">
+                          {zh ? f.label : (f.labelEn || f.label)}
+                        </div>
+                        <div className="text-[11px] text-slate-400">{L(UNIT_ZH[f.key] || '每次', UNIT_EN[f.key] || 'each')}</div>
+                      </div>
+                      {/* 余额能做几次 —— 只在有余额时显示,别对着 0 喊 */}
+                      {times > 0 && (
+                        <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
+                          {L(`还能做 ${times} 次`, `${times} left`)}
+                        </span>
+                      )}
+                      {unlimited && (
+                        <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
+                          {L('无限', 'Unlimited')}
+                        </span>
+                      )}
+                      <span className="w-20 shrink-0 text-right text-sm font-bold tabular-nums text-slate-900">
+                        {cost} <span className="text-[11px] font-medium text-slate-400">{L('积分', 'cr')}</span>
+                      </span>
+                    </div>
+                  )
+                })}
             </div>
           </div>
         )}
 
-        {isPaid && (
+        {/* Stripe Billing Portal 只对**真的有 Stripe 订阅**的人有意义。
+            免绑卡试用没有 Stripe 订阅 —— 给试用用户看「管理订阅」,点了必然 404
+            (portal 端点找不到 customer)。它需要的不是"管理",是"订阅"。 */}
+        {isPaid && !onTrial && (
           <button onClick={manage} disabled={busy === 'portal'}
             className="mt-5 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">
             {busy === 'portal' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
             {L('管理订阅 / 改套餐 / 取消', 'Manage / change plan / cancel')}
           </button>
+        )}
+        {onTrial && (
+          <Link to="/agent/plans"
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
+            {L('订阅 · 积分立即恢复', 'Subscribe · credits reset now')} <ArrowUpRight className="h-4 w-4" />
+          </Link>
         )}
       </div>
 

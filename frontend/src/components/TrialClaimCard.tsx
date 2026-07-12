@@ -17,7 +17,12 @@ import { startFreeTrial, type BillingMe, type TrialRole } from '../lib/billingAp
 
 const WORKER_ROLES = ['agent', 'agency', 'developer']
 
-export default function TrialClaimCard({ me, compact = false }: { me: BillingMe | null; compact?: boolean }) {
+export default function TrialClaimCard({ me, compact = false, buyerNudge: showBuyerNudge = true }: {
+  me: BillingMe | null
+  compact?: boolean
+  /** 个人中心左侧已有「成为经纪(7 天免费试用)」卡 → 那里关掉,别问两遍 */
+  buyerNudge?: boolean
+}) {
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
@@ -46,6 +51,31 @@ export default function TrialClaimCard({ me, compact = false }: { me: BillingMe 
           <Link to="/agent/plans"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-slate-800">
             {L('查看套餐', 'See plans')}<ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // 账号登记为「买家」但其实是经纪 —— 告诉他试用在哪、怎么拿到。
+  // (买家本来就免费用地图,直接给他开经纪试用没意义,而且试用到期后地图反而会被锁 ——
+  //  所以必须先让他明确切换身份,不能替他决定。)
+  const buyerNudge =
+    showBuyerNudge && !!me && me.role === 'buyer' && me.status === 'none' && !me.trial?.used
+
+  if (buyerNudge) {
+    return (
+      <div className={`${compact ? 'mb-4' : 'mt-4'} rounded-xl border border-slate-200 bg-slate-50 px-4 py-3`}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Gift className="h-4 w-4 shrink-0 text-emerald-500" />
+          <div className="min-w-0 flex-1 text-[13px] leading-snug text-slate-600">
+            <b className="text-slate-900">{L('你是经纪?', 'Are you an agent?')}</b>{' '}
+            {L('你的账号目前登记为买家。切换成经纪身份,即可领取 7 天免费试用(全部专业功能 + 200 积分,无需信用卡)。',
+               'Your account is registered as a buyer. Switch to an agent account to claim a 7-day free trial — all Pro features + 200 credits, no credit card.')}
+          </div>
+          <Link to="/choose-role"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-emerald-700">
+            {L('切换身份', 'Switch role')}<ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       </div>
