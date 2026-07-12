@@ -310,6 +310,10 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     : agentOnboarding ? allTiers.filter((t) => t.id !== 'explore' && t.id !== 'developer')
     : allTiers.filter((t) => t.id !== 'explore')
 
+  // 试用条与套餐卡同宽 —— 各角色卡片数不同(经纪公司只有 1 张),宽度必须跟着走,
+  // 否则一条通栏的试用条压在一张窄卡上面,难看。
+  const gridW = tiers.length === 1 ? 'max-w-md' : tiers.length === 2 ? 'max-w-3xl' : 'max-w-4xl'
+
   return (
     <div className="relative flex-1 overflow-y-auto bg-[#070b16] text-white" style={{ backgroundImage: GRID, backgroundSize: '34px 34px' }}>
       {/* 动效:入场浮现(交错)+ 价格切换弹跳。只动 opacity/transform,零重排 */}
@@ -436,40 +440,41 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             试用不管点哪张卡都**完全一样**(Pro 功能 + 200 积分),等于逼人做一个
             毫无意义的选择。所以试用抽成独立主卡,套餐卡退到「试用结束后再选」。 */}
         {agentOnboarding && canTrial && (
-          <div className="pz-anim mx-auto mt-6 max-w-2xl rounded-2xl border p-6 text-center"
+          <div className={`pz-anim mx-auto mt-5 flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border px-5 py-4 ${gridW}`}
             style={{
               borderColor: ACCENT,
-              background: `linear-gradient(180deg, ${ACCENT}1a, transparent)`,
-              boxShadow: `0 0 60px -20px ${ACCENT}`,
+              background: `linear-gradient(100deg, ${ACCENT}1f, transparent 70%)`,
+              boxShadow: `0 0 50px -22px ${ACCENT}`,
               animation: 'pz-fade-up .5s ease-out both', animationDelay: '60ms',
             }}>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-slate-900" style={{ background: ACCENT }}>
-              <Gift className="h-3.5 w-3.5" /> {L('无需信用卡', 'No credit card')}
-            </span>
-            <h2 className="mt-3 text-2xl font-bold md:text-3xl">{L('先免费用 7 天', 'Use it free for 7 days')}</h2>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-slate-300">
-              {L('全部专业功能 + 200 积分 —— 客户 CRM、实时带看、Luna 导览、品牌报告、地图与 DLD 数据全开。不收卡,到期自动停止,不会扣你一分钱。',
-                 'All Pro features + 200 credits — CRM, live tours, Luna AI tours, branded reports, the map and DLD data. No card taken, it simply stops at the end. You will not be charged.')}
-            </p>
+            <div className="min-w-[260px] flex-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h2 className="text-xl font-bold md:text-2xl">{L('先免费用 7 天', 'Use it free for 7 days')}</h2>
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-900" style={{ background: ACCENT }}>
+                  <Gift className="h-3 w-3" /> {L('无需信用卡', 'No credit card')}
+                </span>
+              </div>
+              <p className="mt-1 text-[13px] leading-snug text-slate-300">
+                {L('全部专业功能 + 200 积分 · 到期自动停止,不会扣你一分钱 —— 现在不用选套餐。',
+                   'All Pro features + 200 credits · it just stops at the end, you will not be charged — no plan to pick right now.')}
+              </p>
+            </div>
             <button
               onClick={() => beginTrial(variant === 'agency' ? 'founder' : variant === 'developer' ? 'developer' : 'agent')}
               disabled={!!busy}
-              className="mx-auto mt-5 flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-[15px] font-bold text-slate-900 transition-all duration-150 hover:opacity-90 hover:shadow-lg active:scale-[0.98] disabled:opacity-60"
-              style={{ background: ACCENT, boxShadow: `0 0 30px -8px ${ACCENT}` }}>
-              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{L('开始 7 天免费试用', 'Start my free trial')} <ArrowRight className="h-4 w-4" /></>}
+              className="flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-bold text-slate-900 transition-all duration-150 hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+              style={{ background: ACCENT, boxShadow: `0 0 26px -8px ${ACCENT}` }}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{L('开始免费试用', 'Start free trial')} <ArrowRight className="h-4 w-4" /></>}
             </button>
-            <p className="mt-2.5 text-[12px] text-slate-400">
-              {L('现在不用选套餐 —— 试用期间所有功能都是开的。', 'No plan to pick right now — everything is unlocked during the trial.')}
-            </p>
           </div>
         )}
 
-        {/* 套餐卡的标题:能试用时它们是"以后"的事,不是现在要做的决定 */}
+        {/* 套餐卡的定位:能试用时它们是"以后"的事,不是现在要做的决定(细一行,别再占一屏) */}
         {agentOnboarding && canTrial && (
-          <div className="mt-8 text-center">
-            <h3 className="text-base font-bold text-slate-200">{L('试用结束后再选套餐', 'Pick a plan after the trial')}</h3>
-            <p className="mt-1 text-xs text-slate-500">{L('现在不用决定;你也可以随时直接订阅。', 'Nothing to decide now — you can also subscribe straight away.')}</p>
-          </div>
+          <p className="mt-5 text-center text-xs text-slate-500">
+            {L('试用结束后再选套餐 —— 现在不用决定,也可以随时直接订阅。',
+               'Pick a plan after the trial — nothing to decide now, or subscribe straight away.')}
+          </p>
         )}
 
         {/* 月付 / 年付 切换(月单价不变,年付送 2 个月) */}

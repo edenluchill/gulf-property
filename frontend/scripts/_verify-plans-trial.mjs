@@ -50,7 +50,15 @@ const meFor = (used) => ({
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 1400 }, deviceScaleFactor: 2 })
 
-for (const [name, used] of [['canTrial', false], ['usedTrial', true]]) {
+// 三个角色页 + 已用过试用态(试用条宽度必须跟着卡片数走:经纪公司只有 1 张卡)
+const SHOTS = [
+  ['agent-canTrial', '/agent/plans', false],
+  ['agency-canTrial', '/agency/plans', false],
+  ['developer-canTrial', '/developer/plans', false],
+  ['agent-usedTrial', '/agent/plans', true],
+]
+
+for (const [name, path, used] of SHOTS) {
   const page = await ctx.newPage()
   page.on('pageerror', (e) => console.log('[pageerror]', String(e).slice(0, 200)))
   await page.addInitScript((s) => {
@@ -64,9 +72,9 @@ for (const [name, used] of [['canTrial', false], ['usedTrial', true]]) {
   await page.route('**/api/billing/me', (r) => r.fulfill({ json: meFor(used) }))
   await page.route('**/api/me/profile', (r) => r.fulfill({ json: { success: true, role: 'agent' } }))
 
-  await page.goto(BASE + '/agent/plans', { waitUntil: 'domcontentloaded' })
+  await page.goto(BASE + path, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(1400)
-  await page.screenshot({ path: `scripts/_shot-plans-${name}.png` })
+  await page.screenshot({ path: `scripts/_shot-plans-${name}.png`, clip: { x: 0, y: 0, width: 1280, height: 950 } })
   console.log('✓', `_shot-plans-${name}.png`)
   await page.close()
 }
