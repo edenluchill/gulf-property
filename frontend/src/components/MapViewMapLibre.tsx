@@ -217,31 +217,6 @@ function MapViewMapLibre({
     })
   }
 
-  /**
-   * 🔴 Luna Tour 期间**强制 dark 矢量底图**。
-   *
-   * baseMap 默认是 'satellite'(见上),于是每个第一次打开 tour 的客户看到的都是卫星图。
-   * 这对**期房**是灾难性的:
-   *   ① 项目还没盖 —— 卫星图上那块地就是**一片沙子**。我们把客户带过去说「这是您的家」。
-   *      (本文件第 41 行的注释自己就承认卫星图「看着像多年前的空地」。)
-   *   ② 卫星瓦片在 zoom 16+ 没有分辨率 → **糊成一片泥浆**。
-   * 而 tour 剧本里本来就写着 `map_style: "dark"` —— 只是从没被执行过。
-   *
-   * 用 setBaseMapState 而不是 setBaseMap:**不写 localStorage**,别改用户自己的底图偏好。
-   * 退出 tour 时恢复原样。
-   */
-  const preTourBaseRef = useRef<BaseMap | null>(null)
-  useEffect(() => {
-    if (tourActive) {
-      if (preTourBaseRef.current === null) preTourBaseRef.current = baseMap
-      setBaseMapState('dark')
-    } else if (preTourBaseRef.current !== null) {
-      setBaseMapState(preTourBaseRef.current)
-      preTourBaseRef.current = null
-    }
-    // baseMap 故意不进依赖:只在进出 tour 时切,不跟随用户在 tour 中的操作(tour 里也切不了)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tourActive])
   // 卡片显示开关(右侧工具卡里切换,持久化)。关掉后地图只剩圆点,更清爽;
   // 点圆点仍能弹出单张卡。默认开。
   const [showCards, setShowCardsState] = useState<boolean>(
@@ -1250,7 +1225,19 @@ function MapViewMapLibre({
         localIdeographFontFamily="'PingFang SC', 'Microsoft YaHei', sans-serif"
         style={{ width: '100%', height: '100%' }}
         mapStyle={
-          baseMap === 'satellite'
+          // 🔴 Luna Tour 期间**无条件 dark 矢量底图**(声明式,不走 state —— 也就不会
+          //    动到用户自己的底图偏好)。
+          //
+          //    baseMap 默认是 'satellite',于是每个第一次打开 tour 的客户看到的都是卫星图。
+          //    这对**期房**是灾难:
+          //      ① 项目还没盖 —— 卫星图上那块地就是**一片沙子**。我们带客户过去说
+          //         「这是您的家」。(本文件第 41 行的注释自己就承认卫星图「看着像
+          //         多年前的空地」。)
+          //      ② 卫星瓦片 zoom 16+ 没有分辨率 → **糊成一片泥浆**。
+          //    而 tour 剧本里本来就写着 map_style:"dark" —— 只是从没被执行过。
+          tourActive
+            ? MAP_STYLE_DARK
+            : baseMap === 'satellite'
             ? SATELLITE_STYLE
             : baseMap === 'dark'
             ? MAP_STYLE_DARK
