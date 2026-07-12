@@ -70,16 +70,20 @@ async function main(): Promise<void> {
     brand: { title: 'Emaar 置业顾问', whatsapp: '971500000000', accent: '#00E0B8' },
   })
 
+  // 中英两版各自的客户 —— 英文 demo 里挂一个叫「陈先生」的客户很怪
+  const CLIENT_NAME = LANG === 'en' ? 'Mr. Chen' : '陈先生'
+  const CLIENT_NAT = LANG === 'en' ? 'Hong Kong' : '香港'
+
   const existing = await pool.query<{ id: string }>(
     `SELECT id FROM lt_clients WHERE agent_id=$1 AND name=$2 LIMIT 1`,
-    [agentId, '陈先生']
+    [agentId, CLIENT_NAME]
   )
   let clientId = existing.rows[0]?.id
   if (!clientId) {
     const ins = await pool.query<{ id: string }>(
       `INSERT INTO lt_clients (agent_id, name, nationality, preferred_language, goal, budget_min, budget_max)
-       VALUES ($1,$2,$3,'zh','invest_both',1000000,5000000) RETURNING id`,
-      [agentId, '陈先生', '香港']
+       VALUES ($1,$2,$3,$4,'invest_both',1000000,5000000) RETURNING id`,
+      [agentId, CLIENT_NAME, CLIENT_NAT, LANG]
     )
     clientId = ins.rows[0].id
   }
