@@ -1675,54 +1675,64 @@ function MapViewMapLibre({
           top 规则:控制卡常开(手机 ~145px / md+ ~148px,top-3 起算)→ 164px。
           控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440 三档截图验证
           (2026-07-03 用户反馈两次撞坑)。 */}
-      {/* 卡宽锁死 w-[60px]:原来按钮是「图标+文字横排」,文字一长(英文 Satellite/Measure)
-          整张卡就变宽、右缘乱跳,中英文两副样子(2026-07-11 用户反馈)。改成图标在上、
-          小字在下、居中,文字 nowrap+截断 —— 中英文一样宽,名字还留着(不逼客户猜图标)。 */}
-      <div data-testid="map-mobile-tools" className="absolute right-2 top-[124px] z-[1000] w-9">
-        <div className="flex flex-col items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+      {/* 手机(<md):屏幕窄,收成 36px 一条纯图标 bar(和左边筛选 bar 同宽)。
+          md+(pad/桌面):维持原来的「图标+文字」横排 pill 卡 —— 2026-07-11 用户明确
+          只要改手机,桌面/pad 不许跟着缩。
+          top 规则:控制卡常开(手机 ~112px / md+ ~148px,各自 top 起算)→ 124 / 164。
+          控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440 三档截图验证。 */}
+      <div data-testid="map-mobile-tools" className="absolute right-2 top-[124px] z-[1000] w-9 md:right-3 md:top-[164px] md:w-auto">
+        <div className="flex flex-col items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:items-stretch md:gap-0.5">
           <button
             type="button"
             onClick={() => setBaseMap(prev => (prev === 'vector' ? 'satellite' : prev === 'satellite' ? 'dark' : 'vector'))}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
               baseMap === 'dark' ? 'bg-slate-800 text-slate-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换底图"
           >
-            <Globe size={15} className={baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'} />
+            <Globe size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${baseMap === 'satellite' ? 'text-emerald-600' : baseMap === 'dark' ? 'text-emerald-400' : 'text-slate-500'}`} />
+            <span className="hidden whitespace-nowrap md:inline">
+              {baseMap === 'vector' ? (isZhUi ? '地图' : 'Map') : baseMap === 'satellite' ? (isZhUi ? '卫星' : 'Satellite') : (isZhUi ? '夜景' : 'Dark')}
+            </span>
           </button>
           <button
             type="button"
             onClick={toggle3D}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
               pitched ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="切换 3D 倾斜视角"
           >
-            <Box size={15} className={pitched ? 'text-white' : 'text-slate-500'} />
+            <Box size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${pitched ? 'text-white' : 'text-slate-500'}`} />
+            <span className="hidden whitespace-nowrap md:inline">{pitched ? (isZhUi ? '平视' : '2D') : '3D'}</span>
           </button>
           <button
             type="button"
             onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
               measureMode ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
             aria-label="测距工具"
           >
-            <Ruler size={15} className={measureMode ? 'text-white' : 'text-slate-500'} />
+            <Ruler size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${measureMode ? 'text-white' : 'text-slate-500'}`} />
+            <span className="hidden whitespace-nowrap md:inline">{measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}</span>
           </button>
           {/* 项目卡片显示/隐藏开关:眼睛图标 = 可见性语义,一眼就懂。
               显示态=青底睁眼「项目」;隐藏态=灰底闭眼「已隐藏」,地图只剩圆点。 */}
           <button
             type="button"
             onClick={toggleShowCards}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
               showCards ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'bg-slate-200 text-slate-500'
             }`}
             aria-label={showCards ? '隐藏项目卡片' : '显示项目卡片'}
           >
             {showCards
-              ? <Eye size={15} className="text-white" />
-              : <EyeOff size={15} className="text-slate-500" />}
+              ? <Eye size={15} className="shrink-0 text-white md:h-3.5 md:w-3.5" />
+              : <EyeOff size={15} className="shrink-0 text-slate-500 md:h-3.5 md:w-3.5" />}
+            <span className="hidden whitespace-nowrap md:inline">
+              {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
+            </span>
           </button>
         </div>
       </div>
