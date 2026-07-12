@@ -9,7 +9,7 @@ import { Helmet } from 'react-helmet-async'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import { ArrowRight, ArrowLeft, Check, Loader2, Flame, Lock, Briefcase } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Check, Loader2, Flame, Lock, Briefcase, Gift } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchPlans, fetchPromo, fetchFeatures, fetchBillingMe, startCheckout, startFreeTrial, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo, type BillingMe, type PaidPlanId, type TrialRole } from '../lib/billingApi'
 import { useResetOnBFCache } from '../hooks/useResetOnBFCache'
@@ -140,8 +140,13 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     setBusy(null)
   }
 
-  /** 主 CTA:能试用 → 免绑卡试用;否则 → 订阅。 */
-  const ctaFor = (planId: PaidPlanId) => canTrial
+  // onboarding 页上方已有独立的「试用」主卡 → 卡片就别再重复放试用按钮了
+  // (两张卡各一个试用按钮,而试用点哪张都一样,只会让人以为要先选套餐才能试)。
+  // 公共 /pricing 没有那张主卡,卡片 CTA 仍然主推试用。
+  const heroTrial = agentOnboarding && canTrial
+
+  /** 主 CTA:能试用且没有主卡 → 试用;否则 → 订阅。 */
+  const ctaFor = (planId: PaidPlanId) => canTrial && !heroTrial
     ? { label: L('免费试用 7 天 · 无需信用卡', 'Try free for 7 days · no card'), onClick: () => beginTrial(planId) }
     : { label: L('立即订阅', 'Subscribe now'), onClick: () => subscribe(planId) }
 
@@ -166,7 +171,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     {
       id: 'rookie', name: L('启程版', 'Starter'), price: bigPriceOf(priceOf('rookie', 25)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
-      badge: canTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('个人经纪起步', 'Solo agents'),
+      badge: canTrial && !heroTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('个人经纪起步', 'Solo agents'),
       note: L('个人经纪起步 · 付款即开通', 'Solo agents · instant activation'),
       billed: billedLine(priceOf('rookie', 25)), priceWas: struckOf(priceOf('rookie', 25)),
       creditsMo: creditsOf('rookie') || 200,
@@ -184,7 +189,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     {
       id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf(priceOf('agent', 49)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT, highlight: true,
-      badge: canTrial ? L('最受欢迎 · 7 天免费 · 免绑卡', 'Most popular · 7 days free · no card') : L('最受欢迎', 'Most popular'),
+      badge: canTrial && !heroTrial ? L('最受欢迎 · 7 天免费 · 免绑卡', 'Most popular · 7 days free · no card') : L('最受欢迎', 'Most popular'),
       note: L('全部专业功能 · 随时取消', 'Every pro feature · cancel anytime'),
       billed: billedLine(priceOf('agent', 49)), priceWas: struckOf(priceOf('agent', 49)),
       creditsMo: creditsOf('agent') || 1200,
@@ -222,7 +227,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     {
       id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf(priceOf('developer', 999)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
-      badge: L('7 天免费试用', '7-day free trial'), highlight: variant === 'developer',
+      badge: canTrial && !heroTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('开发商 / 团队', 'Developers & teams'),
+      highlight: variant === 'developer',
       note: L('开发商 / 团队 · 付款即开通', 'Developers & teams · instant activation'),
       billed: billedLine(priceOf('developer', 999)), priceWas: struckOf(priceOf('developer', 999)),
       creditsMo: creditsOf('developer') || 20000,
@@ -371,19 +377,23 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <>
                 <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('开发商工作台', 'DEVELOPER WORKSPACE')}</span>
                 <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!让你的楼盘被全站买家看到', 'Welcome! Put your projects in front of every buyer')}</h1>
-                <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                  '上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位 —— 先免费试用 7 天,不需要信用卡。',
-                  'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included — try free for 7 days, no credit card.'
-                )}</p>
+                <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{canTrial
+                  ? L('上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位 —— 先免费试用 7 天,不需要信用卡。',
+                       'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included — try free for 7 days, no credit card.')
+                  : L('上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位。',
+                       'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included.')
+                }</p>
               </>
             ) : (
             <>
               <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
               <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!你的经纪工作台已就绪', 'Welcome! Your agent workspace is ready')}</h1>
-              <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                '客户 CRM、品牌化报告、实时带看、Luna 导览 —— 先免费用 7 天,不需要信用卡。',
-                'Client CRM, branded reports, live tours, Luna AI tours — try it free for 7 days. No credit card.'
-              )}</p>
+              <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{canTrial
+                ? L('客户 CRM、品牌化报告、实时带看、Luna 导览 —— 先免费用 7 天,不需要信用卡。',
+                     'Client CRM, branded reports, live tours, Luna AI tours — try it free for 7 days. No credit card.')
+                : L('客户 CRM、品牌化报告、实时带看、Luna 导览 —— 选一档立即开通,随时取消。',
+                     'Client CRM, branded reports, live tours, Luna AI tours — pick a plan, activate instantly, cancel anytime.')
+              }</p>
             </>
             )
           ) : (
@@ -417,6 +427,48 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 · ⏱ {String(countdown.d).padStart(2, '0')}:{String(countdown.h).padStart(2, '0')}:{String(countdown.m).padStart(2, '0')}:{String(countdown.s).padStart(2, '0')}
               </span>
             )}
+          </div>
+        )}
+
+        {/* ── 试用主卡:选完角色落地时,主角是「免费试用」而不是价格 ────────────
+            为什么:原来两张套餐卡各挂一个「免费试用」按钮 —— ①$25/$49 是视觉主角,
+            整页读起来是付费墙,试用被埋在按钮里(用户自己看都没注意到)②更蠢的是:
+            试用不管点哪张卡都**完全一样**(Pro 功能 + 200 积分),等于逼人做一个
+            毫无意义的选择。所以试用抽成独立主卡,套餐卡退到「试用结束后再选」。 */}
+        {agentOnboarding && canTrial && (
+          <div className="pz-anim mx-auto mt-6 max-w-2xl rounded-2xl border p-6 text-center"
+            style={{
+              borderColor: ACCENT,
+              background: `linear-gradient(180deg, ${ACCENT}1a, transparent)`,
+              boxShadow: `0 0 60px -20px ${ACCENT}`,
+              animation: 'pz-fade-up .5s ease-out both', animationDelay: '60ms',
+            }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold text-slate-900" style={{ background: ACCENT }}>
+              <Gift className="h-3.5 w-3.5" /> {L('无需信用卡', 'No credit card')}
+            </span>
+            <h2 className="mt-3 text-2xl font-bold md:text-3xl">{L('先免费用 7 天', 'Use it free for 7 days')}</h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-slate-300">
+              {L('全部专业功能 + 200 积分 —— 客户 CRM、实时带看、Luna 导览、品牌报告、地图与 DLD 数据全开。不收卡,到期自动停止,不会扣你一分钱。',
+                 'All Pro features + 200 credits — CRM, live tours, Luna AI tours, branded reports, the map and DLD data. No card taken, it simply stops at the end. You will not be charged.')}
+            </p>
+            <button
+              onClick={() => beginTrial(variant === 'agency' ? 'founder' : variant === 'developer' ? 'developer' : 'agent')}
+              disabled={!!busy}
+              className="mx-auto mt-5 flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-[15px] font-bold text-slate-900 transition-all duration-150 hover:opacity-90 hover:shadow-lg active:scale-[0.98] disabled:opacity-60"
+              style={{ background: ACCENT, boxShadow: `0 0 30px -8px ${ACCENT}` }}>
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{L('开始 7 天免费试用', 'Start my free trial')} <ArrowRight className="h-4 w-4" /></>}
+            </button>
+            <p className="mt-2.5 text-[12px] text-slate-400">
+              {L('现在不用选套餐 —— 试用期间所有功能都是开的。', 'No plan to pick right now — everything is unlocked during the trial.')}
+            </p>
+          </div>
+        )}
+
+        {/* 套餐卡的标题:能试用时它们是"以后"的事,不是现在要做的决定 */}
+        {agentOnboarding && canTrial && (
+          <div className="mt-8 text-center">
+            <h3 className="text-base font-bold text-slate-200">{L('试用结束后再选套餐', 'Pick a plan after the trial')}</h3>
+            <p className="mt-1 text-xs text-slate-500">{L('现在不用决定;你也可以随时直接订阅。', 'Nothing to decide now — you can also subscribe straight away.')}</p>
           </div>
         )}
 
@@ -485,8 +537,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 {busy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t.cta.label} <ArrowRight className="h-4 w-4" /></>}
               </button>
               {/* 试用到底给什么,说清楚 —— 试用发的是 Pro 档功能 + 200 积分,
-                  经纪公司/开发商的席位不在试用里,别让人以为 $699 的东西白拿 7 天 */}
-              {canTrial && t.id !== 'explore' && (
+                  经纪公司/开发商的席位不在试用里,别让人以为 $699 的东西白拿 7 天。
+                  onboarding 页有独立主卡讲这些,卡片里就不重复了。 */}
+              {canTrial && !heroTrial && t.id !== 'explore' && (
                 <>
                   <p className="mt-1.5 text-center text-[11px] leading-snug text-slate-500">
                     {L('试用含全部专业功能 + 200 积分 · 不收卡 · 到期自动停止',
