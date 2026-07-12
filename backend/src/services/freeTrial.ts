@@ -21,9 +21,12 @@ export const TRIAL_PLAN = 'agent'
 export const TRIAL_ROLES = ['agent', 'agency', 'developer'] as const
 export type TrialRole = typeof TRIAL_ROLES[number]
 
-export type ClaimResult =
-  | { ok: true; endsAt: string }
-  | { ok: false; code: 'trial_used' | 'already_subscribed'; error: string }
+export interface ClaimResult {
+  ok: boolean
+  endsAt?: string                                        // ok=true 时有
+  code?: 'trial_used' | 'already_subscribed'             // ok=false 时有
+  error?: string
+}
 
 /**
  * 领取 7 天免费试用。并发安全:同一 agent 并发调用 N 次,只有一次返回 ok。

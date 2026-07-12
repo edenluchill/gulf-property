@@ -320,7 +320,7 @@ router.post('/trial/start', requireAuth, async (req: Request, res: Response) => 
 
     // 领取:原子占位 + DB 唯一索引兜底(并发/双击只有一个能成功)
     const claim = await claimFreeTrial(agent.id, billingId)
-    if (!claim.ok) {
+    if (!claim.ok || !claim.endsAt) {
       return res.status(409).json({ success: false, code: claim.code, error: claim.error })
     }
     const endsAt = claim.endsAt
