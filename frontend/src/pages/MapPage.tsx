@@ -10,6 +10,7 @@ import { useTourMode } from '../luna-tour/TourModeContext'  // Luna Tour (isolat
 // Luna collaborative tour (isolated co-presence layer). Delete collab/ to remove.
 import { useCollab, type CollabMode } from '../luna-tour/collab/useCollab'
 import CollabBar from '../luna-tour/collab/CollabBar'
+import CollabVideo from '../luna-tour/collab/CollabVideo'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
@@ -1564,6 +1565,18 @@ export default function MapPage() {
               onReturnToMap={() => navigate('/')}
               onExit={handleExitCollab}
               onKick={collabMode === 'presenter' ? collab.kick : undefined}
+            />
+          )}
+
+          {/* Collab: 带看视频画中画。经纪 = 本地预览(要看得见镜头对没对准沙盘),
+              客户 = 经纪的画面。经纪一关摄像头,track 变 null → 整个窗消失。 */}
+          {collabActive && (
+            <CollabVideo
+              local={voice.localVideo}
+              remote={voice.remoteVideo}
+              flipping={voice.flipping}
+              isPresenter={collabMode === 'presenter'}
+              viewers={voice.videoViewers}
             />
           )}
 

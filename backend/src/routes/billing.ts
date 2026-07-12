@@ -208,17 +208,21 @@ router.get('/plans', async (_req: Request, res: Response) => {
 // ============================================================
 router.get('/features', async (_req: Request, res: Response) => {
   try {
-    const { rows } = await pool.query<{ id: string; credits_month: number | null; cost_multiplier: number | null }>(
-      `SELECT id, (limits->>'credits_month')::int AS credits_month, (limits->>'cost_multiplier')::float AS cost_multiplier
+    const { rows } = await pool.query<{ id: string; credits_month: number | null; cost_multiplier: number | null; video_minutes: number | null }>(
+      `SELECT id, (limits->>'credits_month')::int AS credits_month, (limits->>'cost_multiplier')::float AS cost_multiplier,
+              (limits->>'video_minutes_month')::int AS video_minutes
          FROM lt_subscription_plans ORDER BY (limits->>'credits_month')::int ASC NULLS FIRST`
     )
     res.json({
       success: true,
-      features: featureCatalog(), // [{ key, label, credits, minPlan }]
+      features: featureCatalog(), // [{ key, label, credits, minPlan, unit }]
       plans: rows.map((r) => ({
         id: r.id,
         creditsMonth: Number(r.credits_month ?? 0),
         multiplier: Number(r.cost_multiplier ?? 1),
+        // 套餐内含的免费带看视频额度(viewer-分钟/月)。价格页要显示,
+        // 否则「带看视频 1 积分」会被读成付费功能 —— 它对绝大多数经纪是免费的。
+        videoMinutes: Number(r.video_minutes ?? 0),
       })),
     })
   } catch (err) {

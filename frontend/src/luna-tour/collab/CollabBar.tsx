@@ -16,10 +16,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle, Globe } from 'lucide-react'
+import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle, Globe, Video, VideoOff, SwitchCamera } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
 import type { FollowMode } from './useCollabFollow'
 import type { CollabVoiceApi } from './useCollabVoice'
+import { MAX_VIDEO_VIEWERS } from './useCollabVoice'
 
 const ACCENT = '#00E0B8'
 
@@ -200,6 +201,39 @@ export default function CollabBar({
               >
                 {voice.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
+              {/* 摄像头(presenter 专属)—— 客户端永远不显示,他们不需要开摄像头。
+                  额度/人数不足时置灰并说明原因,绝不静默失效。 */}
+              {isPresenter && (
+                <>
+                  <button
+                    type="button"
+                    onClick={voice.videoBlock ? undefined : voice.toggleCamera}
+                    disabled={!!voice.videoBlock}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
+                      voice.videoBlock ? 'cursor-not-allowed text-slate-500' : 'hover:bg-white/10'
+                    }`}
+                    style={!voice.videoBlock ? { color: voice.cameraOn ? ACCENT : '#cbd5e1' } : undefined}
+                    title={
+                      voice.videoBlock === 'quota' ? '视频额度已用完（语音不受影响）'
+                        : voice.videoBlock === 'viewers' ? `观看人数超过 ${MAX_VIDEO_VIEWERS} 人，无法开视频`
+                        : voice.videoBlock === 'upgrade' ? '升级套餐可用带看视频'
+                        : voice.cameraOn ? '关闭摄像头'
+                        : `开摄像头 · 本月剩余 ${voice.videoFreeLeft} 分钟`
+                    }
+                  >
+                    {voice.cameraOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                  </button>
+                  {voice.cameraOn && (
+                    <button
+                      type="button" onClick={voice.flipCamera} disabled={voice.flipping}
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
+                      title={voice.facing === 'environment' ? '切到前置（自拍）' : '切到后置（拍沙盘）'}
+                    >
+                      <SwitchCamera className="h-4 w-4" />
+                    </button>
+                  )}
+                </>
+              )}
               <button
                 type="button" onClick={voice.leave}
                 className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/90 text-white transition hover:bg-rose-500"

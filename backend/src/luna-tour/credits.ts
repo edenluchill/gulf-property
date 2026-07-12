@@ -44,6 +44,12 @@ export const FEATURES = {
   luna_tours: { label: 'Luna 智能导览', labelEn: 'Luna AI tour', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
   // Sales Offer 报价单:5 分/份(2026-07-07 用户定),60 天有效(过期页转联系顾问)
   payplan: { label: 'Sales Offer 报价单', labelEn: 'Sales offer', credits: 5, minPlan: 'rookie' as PlanId },
+  // 带看视频(经纪开摄像头拍沙盘/自拍):**计量型**功能,不是按次。
+  // 单位 = viewer-minute(观看视频的客户数 × 分钟) —— Agora 按「订阅」计费,
+  // 经纪推流不花钱,只有客户观看才计,成本按人头线性涨($0.004/viewer-min)。
+  // 套餐内含免费额度(见 limits.video_minutes_month),超出才按此价扣。
+  // 不走 spend()/checkCredits(),走 settleVideoUsage()/checkVideoQuota()。
+  live_video: { label: '带看视频', labelEn: 'Live video', credits: 1, minPlan: 'agent' as PlanId },
 } as const
 
 export type Feature = keyof typeof FEATURES
@@ -58,6 +64,16 @@ const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, fou
 export const TRIAL_CREDITS = Number(process.env.FREE_TRIAL_CREDITS || 200)
 export const DEV_TRIAL_CREDITS = Number(process.env.DEV_TRIAL_CREDITS || 600)
 export const DEV_TRIAL_DAYS = Number(process.env.DEV_TRIAL_DAYS || 30)
+
+/**
+ * 试用期的免费视频额度(viewer-minutes/月)—— **刻意与套餐解耦**。
+ *
+ * ⚠️ 不能让试用读 limits.video_minutes_month:planFor() 里试用返回的 plan 就是
+ * 订阅行上的 plan_id(DB 里确实有 agent/trialing 的账号)→ 会直接继承 Pro 的 300 分钟。
+ * 而试用是**零收入 + 免绑卡**,注册成本近乎为零 → 100 个邮箱刷试用 = $200 的 Agora 账单。
+ * 30 分钟够试出效果(看到摄像头对客户的说服力),把白嫖面砍到 $0.12/账号。
+ */
+export const TRIAL_VIDEO_MINUTES = Number(process.env.TRIAL_VIDEO_MINUTES || 30)
 
 /**
  * 计费归属:Founder 席位成员(lt_agents.billing_agent_id 指向 founder)的
@@ -264,11 +280,191 @@ export async function resetCreditsOnConversion(agentId: string): Promise<void> {
   )
 }
 
-/** 功能目录(给 /api/billing/features → 价格页/台内自动渲染消耗表)。 */
+/**
+ * 功能目录(给 /api/billing/features → 价格页/台内自动渲染消耗表)。
+ *
+ * unit 区分「按次」和「计量型」:不标的话价格页会把「带看视频 1 积分」渲染成
+ * 「一场带看 1 积分」—— 实际是「每人每分钟 1 积分,且套餐内含免费额度」。
+ */
 export function featureCatalog() {
   return (Object.keys(FEATURES) as Feature[]).map((key) => ({
-    key, label: FEATURES[key].label, labelEn: FEATURES[key].labelEn, credits: FEATURES[key].credits, minPlan: FEATURES[key].minPlan,
+    key, label: FEATURES[key].label, labelEn: FEATURES[key].labelEn,
+    credits: FEATURES[key].credits, minPlan: FEATURES[key].minPlan,
+    unit: key === 'live_video' ? ('viewer_minute' as const) : ('once' as const),
   }))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 带看视频计费(计量型 —— 与上面的「按次」体系并行,不复用 spend/checkCredits)
+//
+// 模型:套餐内含免费额度 → 超出按 1 积分/viewer-minute 扣 → 全空则前端强制关摄像头。
+// 单位是 viewer-minute(观看人数 × 分钟):Agora 按「订阅」计费,成本按人头线性涨。
+//
+// 账本策略:**一场一行 ledger,heartbeat 不断 UPDATE 它**(ref_id = sessionId,
+// 有 partial unique index 兜底)。这样:
+//   • 账本不会被 30s 一行刷爆
+//   • 本月已用量 = SUM(units) 天然包含**进行中**的场 → 额度实时准确
+//   • 结算幂等:每次都按「本场累计用量」重算应扣总额,减去已扣,只补差额
+//     → 重放/崩溃/重复 heartbeat 都不会重复扣
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 该套餐的免费视频额度(viewer-minutes/月)。试用走独立常量,**绝不继承套餐**。 */
+async function videoQuotaOf(p: PlanCfg): Promise<number> {
+  if (p.freeTrial) return TRIAL_VIDEO_MINUTES  // ⚠️ 见 TRIAL_VIDEO_MINUTES 注释
+  const r = await pool.query<{ vm: number | null }>(
+    `SELECT (limits->>'video_minutes_month')::int AS vm FROM lt_subscription_plans WHERE id = $1`,
+    [p.plan]
+  )
+  return Number(r.rows[0]?.vm ?? 0)
+}
+
+/**
+ * 本月已用的视频 viewer-minutes(排除本场)。
+ * 从 ledger 的 units 列累计 —— 免费额度内的行 credits=0 但 units>0,
+ * 所以免费用量在账本上是可见的(这正是加 units 列的原因)。
+ */
+async function videoMinutesUsed(billingId: string, p: PlanCfg, exceptSessionId?: string): Promise<number> {
+  // 试用按「试用开始至今」累计(与 usedFor 同理:试用跨月不能被自然月归零白送第二遍)
+  const since = p.freeTrial && p.trialStart ? p.trialStart : null
+  const r = await pool.query<{ u: string }>(
+    `SELECT COALESCE(SUM(units), 0) AS u FROM lt_credit_ledger
+       WHERE agent_id = $1 AND feature = 'live_video'
+         AND created_at >= ${since ? '$2' : `date_trunc('month', now())`}
+         ${exceptSessionId ? `AND ref_id IS DISTINCT FROM $${since ? 3 : 2}` : ''}`,
+    since
+      ? (exceptSessionId ? [billingId, since, exceptSessionId] : [billingId, since])
+      : (exceptSessionId ? [billingId, exceptSessionId] : [billingId])
+  )
+  return Number(r.rows[0]?.u ?? 0)
+}
+
+export interface VideoQuota {
+  /** 还剩多少免费 viewer-minutes */
+  freeLeft: number
+  /** 套餐/试用的月度免费额度 */
+  freeQuota: number
+  /** 当前积分余额(-1 = 无限) */
+  creditBalance: number
+  /** 免费额度和积分**都**空了 → 不能开摄像头 */
+  exhausted: boolean
+  /** 低于 minPlan(explore/rookie)→ 需升级,与额度无关 */
+  needsUpgrade: boolean
+  freeTrial: boolean
+}
+
+/** 开摄像头前的预检(给前端点亮/置灰按钮)。 */
+export async function checkVideoQuota(agentId: string): Promise<VideoQuota> {
+  if (await isUnlimited(agentId)) {
+    // ⚠️ owner/UNLIMITED_EMAILS 无刹车(积分永远扣不完 → stopVideo 恒 false)。
+    // 刻意不堵:内部人可控,堵了妨碍演示。兜底是单场 30min token TTL
+    // → 一场最多 6 人 × 30min = 180 viewer-min = $0.72。见 spec §3.3 洞②。
+    return { freeLeft: Infinity, freeQuota: Infinity, creditBalance: -1, exhausted: false, needsUpgrade: false, freeTrial: false }
+  }
+  const billingId = await billingAgentOf(agentId)
+  const p = await planFor(billingId)
+  if (PLAN_RANK[p.plan] < PLAN_RANK[FEATURES.live_video.minPlan]) {
+    return { freeLeft: 0, freeQuota: 0, creditBalance: 0, exhausted: true, needsUpgrade: true, freeTrial: p.freeTrial }
+  }
+  const [freeQuota, used, spent] = await Promise.all([
+    videoQuotaOf(p),
+    videoMinutesUsed(billingId, p),
+    usedFor(billingId, p),
+  ])
+  const freeLeft = Math.max(0, freeQuota - used)
+  const creditBalance = p.creditsMonth - spent
+  return {
+    freeLeft, freeQuota, creditBalance,
+    exhausted: freeLeft <= 0 && creditBalance < FEATURES.live_video.credits,
+    needsUpgrade: false,
+    freeTrial: p.freeTrial,
+  }
+}
+
+export interface VideoSettlement {
+  /** 本场累计 viewer-minutes */
+  sessionUnits: number
+  /** 本场落在免费额度里的部分 */
+  freeUsed: number
+  /** 本场实扣的积分总额(累计,非增量) */
+  credits: number
+  /** 月度免费额度剩余 */
+  freeLeft: number
+  /** 积分余额(-1 = 无限) */
+  creditBalance: number
+  /** ⭐ true → 前端必须立即 unpublish 视频轨(Agora 当场停止计费) */
+  stopVideo: boolean
+}
+
+/**
+ * ⭐ 视频用量实时结算(heartbeat 每 30s 调一次)。
+ *
+ * 传入本场**累计** viewer-seconds(不是增量)→ 幂等重算应扣总额 → 只补差额。
+ *
+ * ⚠️ **绝不能改成「会话结束时统一结算」** —— 那是纸糊的护栏:100 人围观 30 分钟,
+ * 钱早花完了才发现,事后扣积分只是记账,拦不住任何东西。刹车必须跟着 heartbeat 走。
+ */
+export async function settleVideoUsage(
+  actorAgentId: string,
+  sessionId: string,
+  viewerSeconds: number,
+  alreadySpent: number,
+  ref?: SpendRef
+): Promise<VideoSettlement> {
+  const sessionUnits = Math.ceil(Math.max(0, viewerSeconds) / 60)
+  const unlimited = await isUnlimited(actorAgentId)
+  const billingId = await billingAgentOf(actorAgentId)   // 席位成员 → founder 共享池+共享额度
+  const p = await planFor(billingId)
+
+  const [freeQuota, usedElsewhere] = await Promise.all([
+    videoQuotaOf(p),
+    videoMinutesUsed(billingId, p, sessionId),   // 排除本场,避免把自己算两遍
+  ])
+
+  const freeLeftBefore = Math.max(0, freeQuota - usedElsewhere)
+  const freeUsed = Math.min(sessionUnits, freeLeftBefore)
+  const billedUnits = sessionUnits - freeUsed
+
+  // ⚠️ 折扣必须在**总量**上取整,不能逐单位取整 ——
+  // Math.round(1 * 0.6) = 1 → founder 的 40% 折扣会被整个吃掉。
+  const credits = unlimited ? 0 : Math.round(FEATURES.live_video.credits * billedUnits * p.multiplier)
+
+  // 一场一行 ledger:heartbeat 反复 UPDATE 同一行(ref_id = sessionId)。
+  // credits=0 的免费行也要写 —— units 是月度额度的唯一真相源。
+  await pool.query(
+    `INSERT INTO lt_credit_ledger (agent_id, actor_agent_id, feature, credits, units, ref_type, ref_id, ref_label)
+       VALUES ($1,$2,'live_video',$3,$4,$5,$6,$7)
+     ON CONFLICT (ref_id) WHERE feature = 'live_video'
+       DO UPDATE SET credits = EXCLUDED.credits, units = EXCLUDED.units, ref_label = EXCLUDED.ref_label`,
+    [billingId, actorAgentId, credits, sessionUnits, ref?.type ?? 'live', sessionId, ref?.label ?? null]
+  ).catch((e) => console.error('[credits] live_video ledger upsert failed:', e))
+
+  // 月度聚合只补差额(alreadySpent = voice_sessions.video_credits_spent)→ 幂等
+  const delta = credits - Math.max(0, alreadySpent)
+  if (!unlimited && delta > 0) {
+    const upd = await pool.query(
+      `UPDATE lt_usage_counters SET credits_used = credits_used + $2
+         WHERE agent_id = $1 AND period_month = date_trunc('month', now())::date`,
+      [billingId, delta]
+    )
+    if (!upd.rowCount) {
+      await pool.query(
+        `INSERT INTO lt_usage_counters (agent_id, period_month, credits_used)
+           VALUES ($1, date_trunc('month', now())::date, $2)`,
+        [billingId, delta]
+      )
+    }
+  }
+
+  const spentTotal = unlimited ? 0 : await usedFor(billingId, p)
+  const creditBalance = unlimited ? -1 : p.creditsMonth - spentTotal
+  const freeLeft = Math.max(0, freeLeftBefore - freeUsed)
+
+  return {
+    sessionUnits, freeUsed, credits, freeLeft, creditBalance,
+    // 免费额度空了 **且** 积分买不起下一分钟 → 刹车。
+    // unlimited 恒 false(见 checkVideoQuota 注释)。
+    stopVideo: !unlimited && freeLeft <= 0 && creditBalance < FEATURES.live_video.credits,
+  }
 }
 
 /** 统一的"积分不足/需订阅"响应(402)。 */

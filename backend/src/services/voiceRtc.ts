@@ -139,6 +139,85 @@ export async function heartbeatVoiceSession(sessionId: number): Promise<void> {
   )
 }
 
+// ── 带看视频(经纪摄像头)用量 + 实时刹车 ──────────────────────────────────
+//
+// Agora 按「订阅」计费:经纪推流不花钱(他只订阅客户音频),**只有客户观看才计费**,
+// 且成本按人头线性涨($0.00399/viewer-min)。所以计量单位是 viewer-minute。
+//
+// ⚠️ 结算必须跟着 heartbeat 走,不能等 /end —— 100 人围观 30 分钟,钱早花完了
+//    才发现,事后扣积分只是记账,拦不住任何东西。见 docs/collab-live-video-spec.md §3.5
+
+/** 每次 heartbeat 之间的间隔(前端 useCollabVoice 的 heartbeat 周期)。 */
+const HEARTBEAT_SECONDS = 30
+
+/** 同时观看视频的客户数上限(前端硬门,这里只做兜底记账口径)。 */
+export const MAX_VIDEO_VIEWERS = 6
+
+export interface VideoHeartbeatResult {
+  stopVideo: boolean
+  freeLeft: number
+  creditBalance: number
+  sessionUnits: number
+}
+
+/**
+ * 视频心跳:累加 viewer-seconds → 实时结算 → 返回是否该强制关摄像头。
+ *
+ * viewers = 当前订阅经纪视频的客户数(前端取 Agora client.remoteUsers.length,
+ * 这是**精确的计费口径** —— 只有真进了 Agora 频道的人才产生费用)。
+ */
+export async function videoHeartbeat(
+  sessionId: number,
+  viewers: number
+): Promise<VideoHeartbeatResult | null> {
+  const n = Math.max(0, Math.min(MAX_VIDEO_VIEWERS, Math.floor(viewers)))
+
+  // 累加本次 30s 的 viewer-seconds,并取回本场累计值 + 已扣积分 + 经纪身份
+  const { rows } = await pool.query<{
+    video_viewer_seconds: number
+    video_credits_spent: number
+    agent_email: string
+    room_code: string
+  }>(
+    `UPDATE voice_sessions
+        SET video_viewer_seconds = video_viewer_seconds + $2
+      WHERE id = $1 AND ended_at IS NULL
+      RETURNING video_viewer_seconds, video_credits_spent, agent_email, room_code`,
+    [sessionId, n * HEARTBEAT_SECONDS]
+  )
+  const row = rows[0]
+  if (!row) return null
+
+  const agent = await pool.query<{ id: string }>(
+    `SELECT id FROM lt_agents WHERE lower(email) = lower($1) LIMIT 1`,
+    [row.agent_email]
+  )
+  const agentId = agent.rows[0]?.id
+  // 认不出经纪(不该发生)→ 保守刹车,不给免费视频
+  if (!agentId) return { stopVideo: true, freeLeft: 0, creditBalance: 0, sessionUnits: 0 }
+
+  const { settleVideoUsage } = await import('../luna-tour/credits')
+  const s = await settleVideoUsage(
+    agentId,
+    String(sessionId),
+    row.video_viewer_seconds,
+    row.video_credits_spent,
+    { type: 'live', id: row.room_code, label: `带看视频 · ${row.room_code}` }
+  )
+
+  // 回写已扣积分(幂等的锚:下次 heartbeat 只补差额)
+  if (s.credits !== row.video_credits_spent) {
+    await pool.query(`UPDATE voice_sessions SET video_credits_spent = $2 WHERE id = $1`, [sessionId, s.credits])
+  }
+
+  return {
+    stopVideo: s.stopVideo,
+    freeLeft: s.freeLeft,
+    creditBalance: s.creditBalance,
+    sessionUnits: s.sessionUnits,
+  }
+}
+
 /** 结束:回填最终时长 + ended_at + 原因。 */
 export async function endVoiceSession(sessionId: number, reason: string): Promise<void> {
   await pool.query(

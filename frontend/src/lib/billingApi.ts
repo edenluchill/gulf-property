@@ -46,13 +46,18 @@ export interface FeatureCost {
   key: string
   label: string
   labelEn?: string              // 英文名(i18n;后端 featureCatalog 提供)
-  credits: number               // 标准每次成本
+  credits: number               // 标准成本(unit='once' 时是每次;'viewer_minute' 时是每人每分钟)
   minPlan: 'explore' | 'rookie' | 'agent' | 'founder'
+  /** 计量型 vs 按次。带看视频是 viewer_minute(每人每分钟),且套餐内含免费额度 ——
+   *  不区分的话会被渲染成「一场带看视频 1 积分」,那是错的。 */
+  unit?: 'once' | 'viewer_minute'
 }
 export interface PlanCredits {
   id: string
   creditsMonth: number
   multiplier: number            // Founder < 1(扣得便宜)
+  /** 套餐内含的免费带看视频额度(viewer-分钟/月)。0 = 无 */
+  videoMinutes?: number
 }
 export interface FeaturesInfo {
   features: FeatureCost[]

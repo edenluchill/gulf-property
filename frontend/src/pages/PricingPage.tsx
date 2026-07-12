@@ -563,6 +563,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         {/* 积分消耗表(成本来自后端 /features 配置,改配置自动同步)。角色专属单档页不放(列别档折扣反而困惑) */}
         {!variant && feat.features.length > 0 && (() => {
           const founderMult = feat.plans.find((p) => p.id === 'founder')?.multiplier ?? 0.6
+          const proVideoMinutes = feat.plans.find((p) => p.id === 'agent')?.videoMinutes ?? 0
+          const agencyVideoMinutes = feat.plans.find((p) => p.id === 'founder')?.videoMinutes ?? 0
           return (
             <div className="pz-anim mx-auto mt-4 max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
               style={{ animation: 'pz-fade-up .5s ease-out both', animationDelay: '320ms' }}>
@@ -575,15 +577,32 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                   </tr>
                 </thead>
                 <tbody>
-                  {feat.features.map((f) => (
-                    <tr key={f.key} className="border-t border-white/[0.05]">
-                      <td className="px-4 py-1 text-slate-300">{f.label}{f.key === 'live_tours' ? L('(每场)', ' (each)') : ''}</td>
-                      <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {L('积分', 'cr')}</td>
-                      <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {L('积分', 'cr')}</td>
-                    </tr>
-                  ))}
+                  {feat.features.map((f) => {
+                    // 带看视频是**计量型**(每人每分钟),且套餐内含免费额度 —— 不标注的话
+                    // 「带看视频 1 积分」会被读成「一场 1 积分」,那是错的。
+                    const metered = f.unit === 'viewer_minute'
+                    const suffix = metered ? L('（每人每分钟）', ' (per viewer-min)')
+                      : f.key === 'live_tours' ? L('（每场）', ' (each)') : ''
+                    return (
+                      <tr key={f.key} className="border-t border-white/[0.05]">
+                        <td className="px-4 py-1 text-slate-300">{f.label}<span className="text-slate-500">{suffix}</span></td>
+                        <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {L('积分', 'cr')}</td>
+                        <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {L('积分', 'cr')}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
+              {/* 带看视频对绝大多数经纪是**免费**的 —— 套餐内含额度,用完才扣积分。
+                  不说这句,上面那行「带看视频 1 积分」会把人吓退。 */}
+              {feat.features.some((f) => f.unit === 'viewer_minute') && proVideoMinutes > 0 && (
+                <p className="border-t border-white/[0.05] px-4 py-2 text-[11px] leading-relaxed text-slate-400">
+                  {L(
+                    `带看视频每月含 ${proVideoMinutes} 分钟（经纪公司版 ${agencyVideoMinutes} 分钟），够每场带看开十几分钟摄像头。超出部分才按上表扣积分。`,
+                    `Live video includes ${proVideoMinutes} min/mo (Agency: ${agencyVideoMinutes}). Only usage beyond that costs credits.`
+                  )}
+                </p>
+              )}
             </div>
           )
         })()}
