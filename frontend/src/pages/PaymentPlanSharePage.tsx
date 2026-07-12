@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Phone, MessageCircle, Loader2, Printer, BadgeCheck, Share2, Check, Clock } from 'lucide-react'
+import { Phone, MessageCircle, Mail, Loader2, Printer, BadgeCheck, Share2, Check, Clock } from 'lucide-react'
 import { PaymentPlan } from '../types'
 import { normalizePaymentPlan, monthGap } from '../lib/paymentPlan'
 
@@ -183,6 +183,10 @@ export default function PaymentPlanSharePage() {
   const orig = share.originalPrice && share.originalPrice > price ? share.originalPrice : null
   const discount = orig ? { amount: orig - price, pct: Math.round(((orig - price) / orig) * 1000) / 10 } : null
   const snap = share.unitSnapshot
+  // 开发商会员出的报价单不带联系方式(后端已把 phone/whatsapp/email 剥成 null),
+  // 落款只留公司名 + 章;底部「咨询顾问」按钮也自然消失(contactHref = undefined)。
+  const isDeveloper = agent?.tier === 'developer'
+  const contactTag = 'inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-600'
   const contactHref = agent?.whatsapp
     ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}`
     : agent?.phone ? `tel:${agent.phone}` : undefined
@@ -470,7 +474,10 @@ export default function PaymentPlanSharePage() {
               </div>
             </div>
 
-            {/* 右:顾问签名卡 + 认证章(章盖在签名旁) */}
+            {/* 右:落款 + 认证章(章盖在签名旁)。
+                经纪 → 姓名 + 联系方式标签(电话/WhatsApp/邮箱,客户照着这份 PDF 就能找到人);
+                开发商会员 → 只落公司名 + 章,不带任何联系方式(2026-07-12 定:开发商不
+                直接对客,客户走经纪)。后端已按 tier 剥掉联系方式,这里只是版式。 */}
             {agent && (
               <div className="flex items-center gap-4">
                 {agent.tier && TIER_STAMP[agent.tier] && (
@@ -484,12 +491,31 @@ export default function PaymentPlanSharePage() {
                   </div>
                 )}
                 <div className="text-right">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{zh ? '您的置业顾问' : 'Sales Executive'}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    {isDeveloper ? (zh ? '出品方' : 'Developer') : (zh ? '您的置业顾问' : 'Sales Executive')}
+                  </div>
                   <div className="font-serif text-lg font-bold text-slate-900">{agent.name}</div>
-                  {agent.phone && <div className="text-xs text-slate-500">{agent.phone}</div>}
-                  {agent.email && <div className="text-xs text-slate-500">{agent.email}</div>}
+                  {!isDeveloper && (agent.phone || agent.whatsapp || agent.email) && (
+                    <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
+                      {agent.phone && (
+                        <span className={contactTag}><Phone className="h-3 w-3 text-slate-400" />{agent.phone}</span>
+                      )}
+                      {agent.whatsapp && agent.whatsapp !== agent.phone && (
+                        <span className={contactTag}><MessageCircle className="h-3 w-3 text-emerald-600" />{agent.whatsapp}</span>
+                      )}
+                      {agent.email && (
+                        <span className={contactTag}><Mail className="h-3 w-3 text-slate-400" />{agent.email}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {agent.photo && <img src={agent.photo} alt={agent.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-200" />}
+                {agent.photo && (
+                  <img
+                    src={agent.photo}
+                    alt={agent.name}
+                    className={`h-14 w-14 object-cover ring-2 ring-slate-200 ${isDeveloper ? 'rounded-lg bg-white object-contain p-1' : 'rounded-full'}`}
+                  />
+                )}
               </div>
             )}
           </div>

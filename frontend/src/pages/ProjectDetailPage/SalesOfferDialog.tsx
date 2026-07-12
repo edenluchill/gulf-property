@@ -62,6 +62,13 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
 
   const [selBeds, setSelBeds] = useState<number | 'all'>('all')
   const [selUnitId, setSelUnitId] = useState<string>('')
+  // 02 步三个联动字段(2026-07-12 改:折扣是主输入,成交价自动算——经纪谈的是
+  // "开发商给几个点",不是"最后收多少钱")。三者都可直接改,改谁就反算另一个:
+  //   原价 origInput ──┐
+  //   折扣 discInput ──┼→ 成交价 priceInput(仍是提交给后端的 price 真相)
+  const [origInput, setOrigInput] = useState<string>('')
+  const [discMode, setDiscMode] = useState<'pct' | 'amt'>('pct')
+  const [discInput, setDiscInput] = useState<string>('')
   const [priceInput, setPriceInput] = useState<string>('')
   const [sharing, setSharing] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -91,9 +98,11 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
   // 骨架直接开编——周期是报价单必填项(2026-07-07 用户定),没有就现建。
   useEffect(() => {
     if (!open) return
-    // 没有户型数据的项目 → 起价预填进输入框(有户型的等选中户型再填)
+    // 没有户型数据的项目 → 起价预填进原价(有户型的等选中户型再填)
     setSelBeds('all'); setSelUnitId('')
-    setPriceInput(units.length === 0 && Number(referencePrice) > 0 ? String(Math.round(Number(referencePrice))) : '')
+    const ref = units.length === 0 && Number(referencePrice) > 0 ? String(Math.round(Number(referencePrice))) : ''
+    setOrigInput(ref); setPriceInput(ref)
+    setDiscMode('pct'); setDiscInput('')
     setErr(null)
     setPlanRows(defaultPlanRows.length === 0
       ? [
@@ -121,23 +130,60 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
   }, [units, selBeds])
 
   const selUnit = units.find((u) => u.id === selUnitId) || null
-  const unitPrice = Math.round(Number(selUnit?.price) || 0)
 
-  // 价格 = 输入框唯一真相(选户型/起价会预填进去);空 = 0,不做隐性回退
-  // (回退会让输入框"删不完",2026-07-07 用户实锤)
-  const typed = parseInt(priceInput || '0', 10)
-  const price = Number.isFinite(typed) && typed > 0 ? typed : 0
-  // 差价优惠只在「所选户型有原价」且报价更低时成立(对齐开发商 offer 的 Discount 行)
-  const discount = unitPrice > 0 && price > 0 && price < unitPrice
-    ? { amount: unitPrice - price, pct: Math.round(((unitPrice - price) / unitPrice) * 1000) / 10 }
+  // 原价/成交价都以输入框为唯一真相,空 = 0,不做隐性回退(回退会让输入框
+  // "删不完",2026-07-07 用户实锤)
+  const num = (s: string) => {
+    const n = parseInt(s || '0', 10)
+    return Number.isFinite(n) && n > 0 ? n : 0
+  }
+  const orig = num(origInput)
+  const price = num(priceInput)
+  // 折扣行只在「原价高于成交价」时成立(对齐开发商 offer 的 Discount 行)
+  const discount = orig > 0 && price > 0 && price < orig
+    ? { amount: orig - price, pct: Math.round(((orig - price) / orig) * 1000) / 10 }
     : null
 
-  // 选中户型 → 标价直接填进价格框(经纪在此基础上改实际报价);户型必选,
-  // 不做"再点一下取消"。
+  /** 折扣(主输入)→ 成交价。base 显式传入,避免 orig 的闭包旧值 */
+  const applyDisc = (raw: string, mode: 'pct' | 'amt' = discMode, base = orig) => {
+    setDiscInput(raw); setErr(null)
+    if (!base) return
+    const v = parseFloat(raw)
+    if (!raw.trim() || !Number.isFinite(v) || v <= 0) { setPriceInput(String(base)); return }
+    const cut = mode === 'pct'
+      ? Math.round((Math.min(v, 100) / 100) * base)
+      : Math.min(Math.round(v), base)
+    setPriceInput(String(base - cut))
+  }
+  /** 成交价直接改 → 反算折扣(有的经纪谈的是最终总价) */
+  const applyPrice = (raw: string) => {
+    setPriceInput(raw); setErr(null)
+    const p2 = num(raw)
+    if (!orig || !p2 || p2 >= orig) { setDiscInput(''); return }
+    const cut = orig - p2
+    setDiscInput(discMode === 'pct' ? String(Math.round((cut / orig) * 1000) / 10) : String(cut))
+  }
+  /** 原价改了 → 折扣不变、成交价重算 */
+  const applyOrig = (raw: string) => {
+    setOrigInput(raw); setErr(null)
+    const base = num(raw)
+    if (base) applyDisc(discInput, discMode, base)
+  }
+  /** %  ⇄ AED 切换:把当前折扣换算成另一种表示,不丢已谈好的优惠 */
+  const switchMode = (m: 'pct' | 'amt') => {
+    if (m === discMode) return
+    setDiscMode(m)
+    setDiscInput(discount ? String(m === 'pct' ? discount.pct : discount.amount) : '')
+  }
+
+  // 选中户型 → 标价填进原价(经纪在此基础上打折);户型必选,不做"再点一下取消"。
+  // 换户型时按点数谈的折扣可平移,直减金额与具体户型强绑定 → 清空。
   const pickUnit = (id: string) => {
     setSelUnitId(id)
     const p2 = Math.round(Number(units.find((u) => u.id === id)?.price) || 0)
-    setPriceInput(p2 > 0 ? String(p2) : '')
+    setOrigInput(p2 > 0 ? String(p2) : '')
+    if (discMode === 'pct' && p2 > 0 && discInput.trim()) applyDisc(discInput, 'pct', p2)
+    else { setDiscInput(''); setPriceInput(p2 > 0 ? String(p2) : '') }
     setErr(null)
   }
 
@@ -168,7 +214,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
           unitName: selUnit?.unit_type_name || (selUnit ? bedsLabel(selUnit.bedrooms) : undefined),
           bedrooms: selUnit?.bedrooms,
           price,
-          originalPrice: discount ? unitPrice : undefined,
+          originalPrice: discount ? orig : undefined,
           unit: selUnit ? {
             name: selUnit.unit_type_name,
             bedrooms: selUnit.bedrooms,
@@ -328,21 +374,87 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
             </section>
           )}
 
-          {/* 02 · 填报价 */}
+          {/* 02 · 报价:原价 → 折扣(% 或直减)→ 成交总价自动算。
+              折扣是主输入(2026-07-12 用户定:经纪谈的是"开发商给几个点",
+              直接填最终总价不直观);三个框互相联动,填哪个都行。 */}
           <section>
             <StepLabel n={units.length > 0 ? '2' : '1'}>{zh ? '报价' : 'Quote'}</StepLabel>
-            <div className="flex items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white focus-within:border-slate-900">
-              <span className="flex items-center pl-3.5 pr-1 text-slate-400"><DirhamSymbol size="1em" /></span>
-              <MoneyInput
-                value={priceInput}
-                onChange={(raw) => { setPriceInput(raw); setErr(null) }}
-                placeholder={zh ? '输入总价' : 'Total price'}
-                className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
-              />
-              {price > 0 && (
-                <span className="shrink-0 pr-3.5 text-xs font-medium text-slate-400">≈ {formatMoneyCompact(price, i18n.language)}</span>
-              )}
+
+            <div className="space-y-2">
+              {/* 原价(选中户型自动填,可改) */}
+              <div className="flex items-center gap-2">
+                <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{zh ? '原价' : 'List price'}</span>
+                <div className="flex flex-1 items-center overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-slate-400">
+                  <span className="flex items-center pl-3 pr-1 text-slate-400"><DirhamSymbol size="0.9em" /></span>
+                  <MoneyInput
+                    value={origInput}
+                    onChange={applyOrig}
+                    placeholder={zh ? '标价' : 'List price'}
+                    className="w-full bg-transparent py-2 pr-3 text-sm font-semibold text-slate-800 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 折扣:% / AED 直减两种模式 */}
+              <div className="flex items-center gap-2">
+                <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{zh ? '优惠' : 'Discount'}</span>
+                <div className="flex shrink-0 overflow-hidden rounded-lg bg-slate-100 p-0.5">
+                  {(['pct', 'amt'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => switchMode(m)}
+                      className={`px-2.5 py-1 text-xs font-bold transition-colors ${
+                        discMode === m ? 'rounded-md bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      {m === 'pct' ? '%' : 'AED'}
+                    </button>
+                  ))}
+                </div>
+                <div className={`flex flex-1 items-center overflow-hidden rounded-xl border bg-white focus-within:border-rose-400 ${
+                  discount ? 'border-rose-200' : 'border-slate-200'
+                }`}>
+                  {discMode === 'pct' ? (
+                    <input
+                      value={discInput}
+                      onChange={(e) => applyDisc(e.target.value.replace(/[^0-9.]/g, '').slice(0, 5))}
+                      inputMode="decimal"
+                      disabled={!orig}
+                      placeholder={zh ? '开发商折扣,如 8' : 'e.g. 8'}
+                      className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none disabled:bg-slate-50 disabled:placeholder:text-slate-300"
+                    />
+                  ) : (
+                    <MoneyInput
+                      value={discInput}
+                      onChange={(raw) => applyDisc(raw)}
+                      disabled={!orig}
+                      placeholder={zh ? '直减金额' : 'Amount off'}
+                      className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none disabled:bg-slate-50 disabled:placeholder:text-slate-300"
+                    />
+                  )}
+                  <span className="shrink-0 pr-3 text-xs font-medium text-slate-400">{discMode === 'pct' ? '%' : 'AED'}</span>
+                </div>
+              </div>
+
+              {/* 成交总价:自动算出,也可直接改(反算折扣) */}
+              <div className="flex items-center gap-2">
+                <span className="w-16 shrink-0 text-xs font-bold text-slate-700">{zh ? '成交总价' : 'Net price'}</span>
+                <div className="flex flex-1 items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white focus-within:border-slate-900">
+                  <span className="flex items-center pl-3 pr-1 text-slate-400"><DirhamSymbol size="1em" /></span>
+                  <MoneyInput
+                    value={priceInput}
+                    onChange={applyPrice}
+                    placeholder={zh ? '输入总价' : 'Total price'}
+                    className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
+                  />
+                  {price > 0 && (
+                    <span className="shrink-0 pr-3.5 text-xs font-medium text-slate-400">≈ {formatMoneyCompact(price, i18n.language)}</span>
+                  )}
+                </div>
+              </div>
             </div>
+
             {discount && (
               <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600 ring-1 ring-rose-100">
                 <BadgePercent className="h-3.5 w-3.5" />

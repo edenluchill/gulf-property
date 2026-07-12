@@ -581,34 +581,6 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
     if (r.rowCount === 0) return res.status(404).json({ error: 'not found' })
     const s = r.rows[0]
 
-    // 60 天过期(2026-07-07 用户定):行保留作生成记录,页面转"联系顾问获取
-    // 最新报价"——价格本就随时调整,过期反而是经纪的回访机会。
-    const ageDays = (Date.now() - new Date(s.created_at).getTime()) / 86_400_000
-    if (ageDays > 60) {
-      const pn = await pool.query<{ project_name: string }>(
-        `SELECT project_name FROM residential_projects WHERE id = $1`, [s.project_id]
-      )
-      return res.status(410).json({
-        expired: true,
-        lang: s.lang,
-        projectName: pn.rows[0]?.project_name || null,
-        agent: s.agent_name
-          ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp }
-          : null,
-      })
-    }
-
-    pool.query('UPDATE lt_payment_shares SET view_count=view_count+1 WHERE share_code=$1', [code]).catch(() => {})
-
-    const pr = await pool.query(
-      `SELECT id, project_name, developer, area, status, completion_date, handover_date,
-              primary_image, project_images, payment_plan
-         FROM residential_projects WHERE id = $1`,
-      [s.project_id]
-    )
-    if (pr.rowCount === 0) return res.status(404).json({ error: 'project not found' })
-    const project = pr.rows[0]
-
     // 经纪段位 → 报价单上的会员盖章(前端 TIER_STAMP 映射文字:rookie=会员 /
     // agent=金牌会员 / founder=公司会员 / developer=开发商会员;owner 视同 founder;
     // 席位成员看团队的套餐)。查当前生效订阅,无订阅 = 不盖章。
@@ -627,6 +599,41 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         agentTier = sub.rows[0]?.plan_id || null
       }
     }
+
+    // 开发商出的报价单只落公司名 + 认证章,不下发任何联系方式(2026-07-12 定:
+    // 开发商不直接对客,客户走经纪;联系方式在服务端就剥掉,不靠前端隐藏)。
+    const isDeveloper = agentTier === 'developer'
+    const agentContact = isDeveloper
+      ? { phone: null, whatsapp: null, email: null }
+      : { phone: s.agent_phone, whatsapp: s.agent_whatsapp, email: s.agent_public_email || null }
+
+    // 60 天过期(2026-07-07 用户定):行保留作生成记录,页面转"联系顾问获取
+    // 最新报价"——价格本就随时调整,过期反而是经纪的回访机会。
+    const ageDays = (Date.now() - new Date(s.created_at).getTime()) / 86_400_000
+    if (ageDays > 60) {
+      const pn = await pool.query<{ project_name: string }>(
+        `SELECT project_name FROM residential_projects WHERE id = $1`, [s.project_id]
+      )
+      return res.status(410).json({
+        expired: true,
+        lang: s.lang,
+        projectName: pn.rows[0]?.project_name || null,
+        agent: s.agent_name
+          ? { name: s.agent_name, photo: s.agent_photo, tier: agentTier, ...agentContact }
+          : null,
+      })
+    }
+
+    pool.query('UPDATE lt_payment_shares SET view_count=view_count+1 WHERE share_code=$1', [code]).catch(() => {})
+
+    const pr = await pool.query(
+      `SELECT id, project_name, developer, area, status, completion_date, handover_date,
+              primary_image, project_images, payment_plan
+         FROM residential_projects WHERE id = $1`,
+      [s.project_id]
+    )
+    if (pr.rowCount === 0) return res.status(404).json({ error: 'project not found' })
+    const project = pr.rows[0]
 
     res.set('Cache-Control', 'public, max-age=300')
     res.json({
@@ -653,7 +660,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         paymentPlan: project.payment_plan || [],
       },
       agent: s.agent_name
-        ? { name: s.agent_name, photo: s.agent_photo, phone: s.agent_phone, whatsapp: s.agent_whatsapp, email: s.agent_public_email || null, tier: agentTier }
+        ? { name: s.agent_name, photo: s.agent_photo, tier: agentTier, ...agentContact }
         : null,
     })
   } catch (err) {

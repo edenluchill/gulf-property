@@ -13,9 +13,10 @@ interface MoneyInputProps {
   placeholder?: string
   className?: string
   maxLen?: number
+  disabled?: boolean
 }
 
-export default function MoneyInput({ value, onChange, placeholder, className, maxLen = 11 }: MoneyInputProps) {
+export default function MoneyInput({ value, onChange, placeholder, className, maxLen = 11, disabled }: MoneyInputProps) {
   const [focused, setFocused] = useState(false)
   return (
     <input
@@ -26,6 +27,7 @@ export default function MoneyInput({ value, onChange, placeholder, className, ma
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       placeholder={placeholder}
+      disabled={disabled}
       className={className}
     />
   )
