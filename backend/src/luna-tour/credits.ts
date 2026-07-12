@@ -339,9 +339,9 @@ async function videoMinutesUsed(billingId: string, p: PlanCfg, exceptSessionId?:
 }
 
 export interface VideoQuota {
-  /** 还剩多少免费 viewer-minutes */
+  /** 还剩多少免费 viewer-minutes(**-1 = 无限**,owner/白名单) */
   freeLeft: number
-  /** 套餐/试用的月度免费额度 */
+  /** 套餐/试用的月度免费额度(-1 = 无限) */
   freeQuota: number
   /** 当前积分余额(-1 = 无限) */
   creditBalance: number
@@ -358,7 +358,10 @@ export async function checkVideoQuota(agentId: string): Promise<VideoQuota> {
     // ⚠️ owner/UNLIMITED_EMAILS 无刹车(积分永远扣不完 → stopVideo 恒 false)。
     // 刻意不堵:内部人可控,堵了妨碍演示。兜底是单场 30min token TTL
     // → 一场最多 6 人 × 30min = 180 viewer-min = $0.72。见 spec §3.3 洞②。
-    return { freeLeft: Infinity, freeQuota: Infinity, creditBalance: -1, exhausted: false, needsUpgrade: false, freeTrial: false }
+    //
+    // ⚠️ 用 -1 表示无限,**不能用 Infinity** —— JSON.stringify(Infinity) === 'null',
+    // 前端 `?? 0` 会把它读成 0 → 按钮显示「本月剩余 0 分钟」。与 creditBalance:-1 同约定。
+    return { freeLeft: -1, freeQuota: -1, creditBalance: -1, exhausted: false, needsUpgrade: false, freeTrial: false }
   }
   const billingId = await billingAgentOf(agentId)
   const p = await planFor(billingId)

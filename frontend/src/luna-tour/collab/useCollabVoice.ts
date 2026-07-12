@@ -72,7 +72,7 @@ export interface CollabVoiceApi {
   videoViewers: number
   /** presenter: 摄像头为何不可用(null = 可用) */
   videoBlock: VideoBlock
-  /** presenter: 本月剩余免费视频分钟(Infinity = 无限) */
+  /** presenter: 本月剩余免费视频分钟(**-1 = 无限**,owner/白名单) */
   videoFreeLeft: number
 }
 

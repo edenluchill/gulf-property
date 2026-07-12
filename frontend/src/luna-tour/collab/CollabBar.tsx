@@ -218,6 +218,8 @@ export default function CollabBar({
                         : voice.videoBlock === 'viewers' ? `观看人数超过 ${MAX_VIDEO_VIEWERS} 人，无法开视频`
                         : voice.videoBlock === 'upgrade' ? '升级套餐可用带看视频'
                         : voice.cameraOn ? '关闭摄像头'
+                        // -1 = 无限(owner/白名单)。别显示「剩余 -1 分钟」。
+                        : voice.videoFreeLeft < 0 ? '开摄像头（无限额度）'
                         : `开摄像头 · 本月剩余 ${voice.videoFreeLeft} 分钟`
                     }
                   >
