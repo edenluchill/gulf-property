@@ -74,6 +74,12 @@ export interface CollabVoiceApi {
   videoBlock: VideoBlock
   /** presenter: 本月剩余免费视频分钟(**-1 = 无限**,owner/白名单) */
   videoFreeLeft: number
+  /**
+   * presenter 专属提示(额度快没了 / 摄像头被强制关了)。
+   * ⚠️ **绝不能让客户看到** —— 「经纪额度不够」对客户是难堪的。只在 isPresenter 时渲染。
+   */
+  videoNotice: string | null
+  dismissVideoNotice: () => void
 }
 
 const BASE = `${API_BASE_URL}/api/voice-rtc`
@@ -92,6 +98,7 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
   const [videoViewers, setVideoViewers] = useState(0)
   const [videoBlock, setVideoBlock] = useState<VideoBlock>(null)
   const [videoFreeLeft, setVideoFreeLeft] = useState(0)
+  const [videoNotice, setVideoNotice] = useState<string | null>(null)
 
   const clientRef = useRef<IAgoraRTCClient | null>(null)
   const micRef = useRef<IMicrophoneAudioTrack | null>(null)
@@ -190,14 +197,32 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
     // 护栏 ①:同时观看人数上限。超了直接不给开 —— 一旦 publish,频道里**所有**人
     // 都会订阅,没法只给其中 6 个看(成本按人头涨)。
     const viewers = clientRef.current?.remoteUsers.length ?? 0
-    if (viewers > MAX_VIDEO_VIEWERS) return setVideoBlock('viewers')
+    if (viewers > MAX_VIDEO_VIEWERS) {
+      setVideoBlock('viewers')
+      setVideoNotice(`观看人数超过 ${MAX_VIDEO_VIEWERS} 人，暂时无法开视频（语音不受影响）`)
+      return
+    }
 
     // 护栏 ②:额度预检(heartbeat 是兜底,这里是即时反馈)
-    await refreshVideoQuota()
     try {
       const res = await fetch(`${BASE}/video-quota?email=${encodeURIComponent(agentEmail || '')}`)
       const q = await res.json().catch(() => null)
-      if (q?.ok && q.exhausted) return setVideoBlock(q.needsUpgrade ? 'upgrade' : 'quota')
+      if (q?.ok) {
+        const left: number = q.freeLeft ?? 0
+        setVideoFreeLeft(left)
+        if (q.exhausted) {
+          setVideoBlock(q.needsUpgrade ? 'upgrade' : 'quota')
+          setVideoNotice(q.needsUpgrade
+            ? '升级套餐即可使用带看视频'
+            : '本月视频额度和积分都已用完，无法开摄像头（语音不受影响）')
+          return
+        }
+        // 开之前先把「快没了」说清楚 —— 别让经纪讲到一半镜头突然黑掉。
+        // -1 = 无限,不提醒。
+        if (left >= 0 && left <= 15) {
+          setVideoNotice(`视频额度仅剩 ${left} 分钟，用完后将自动关闭摄像头（语音继续）`)
+        }
+      }
     } catch { /* 预检失败不拦 —— heartbeat 30s 内会刹车 */ }
 
     try {
@@ -205,9 +230,10 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
     } catch (err) {
       console.error('[collab-voice] camera failed', err)
       setVideoBlock(null)
+      setVideoNotice('摄像头打不开，请检查浏览器权限')
       void stopCamera()
     }
-  }, [mode, status, facing, agentEmail, stopCamera, publishCamera, refreshVideoQuota])
+  }, [mode, status, facing, agentEmail, stopCamera, publishCamera])
 
   /**
    * 前后置切换 —— 必须**重建** track。
@@ -328,8 +354,13 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
           if (!r) return
           if (typeof r.freeLeft === 'number') setVideoFreeLeft(r.freeLeft)
           // ⭐ 成本刹车:额度+积分都空了 → 立即撤视频轨,Agora 当场停止计费。
-          //    语音继续,带看不中断。
-          if (r.stopVideo) void stopCamera('quota')
+          //    语音继续,带看不中断。经纪要知道**为什么**镜头突然黑了。
+          if (r.stopVideo) {
+            void stopCamera('quota')
+            setVideoNotice('视频额度已用完，摄像头已关闭（语音继续，带看不受影响）')
+          } else if (typeof r.freeLeft === 'number' && r.freeLeft >= 0 && r.freeLeft <= 5) {
+            setVideoNotice(`视频额度仅剩 ${r.freeLeft} 分钟`)
+          }
         } catch { /* 网络抖动不刹车 —— 下个心跳会再判一次(最多多烧 30s) */ }
       }, 30_000)
     }
@@ -355,9 +386,17 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
   }, [mode, teardown])
   useEffect(() => () => { void teardown('left', 'idle') }, [teardown])
 
+  // 提示 8 秒后自动消失(经纪正在讲话,不能让一个横幅一直挡着)
+  useEffect(() => {
+    if (!videoNotice) return
+    const t = setTimeout(() => setVideoNotice(null), 8000)
+    return () => clearTimeout(t)
+  }, [videoNotice])
+
   return {
     status, muted, remainingSeconds, connect, leave, toggleMute,
     cameraOn, facing, toggleCamera, flipCamera, flipping,
     localVideo, remoteVideo, videoViewers, videoBlock, videoFreeLeft,
+    videoNotice, dismissVideoNotice: () => setVideoNotice(null),
   }
 }

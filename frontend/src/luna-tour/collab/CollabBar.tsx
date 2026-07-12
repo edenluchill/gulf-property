@@ -112,8 +112,17 @@ export default function CollabBar({
       {/* ONE unified in-session bar, bottom-centre, above the app nav. Viewer is
           chromeless (no nav) → hug the edge; presenter clears the mobile nav.
           Portaled to <body> so it shows on every page. */}
-      <div className={`fixed ${isPresenter ? 'bottom-20' : 'bottom-4'} left-1/2 z-[2150] flex w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center md:bottom-6`}>
-        <div className="flex h-9 items-center gap-1.5 overflow-x-auto rounded-full bg-slate-900/85 px-2.5 shadow-lg ring-1 ring-white/10 backdrop-blur scrollbar-hide">
+      {/* 底栏定位:
+          • safe-area-inset-bottom —— 手机浏览器底部 UI(Safari 地址栏/手势条)会盖住
+            裸的 bottom-4。客户全在手机上,这条必须守。
+          • max-w 留 0.75rem 边距 + overflow-x-auto —— 装不下就横向滚,不溢出屏幕。
+          • ⚠️ 内部每个按钮都必须 shrink-0:否则 flex 会在挤不下时**压扁**它们
+            (图标变形、互相叠住),这比横向滚动难看得多。 */}
+      <div
+        className="fixed left-1/2 z-[2150] flex w-max max-w-[calc(100vw-0.75rem)] -translate-x-1/2 items-center"
+        style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${isPresenter ? '5rem' : '1rem'})` }}
+      >
+        <div className="flex h-9 items-center gap-1 overflow-x-auto rounded-full bg-slate-900/85 px-2 shadow-lg ring-1 ring-white/10 backdrop-blur scrollbar-hide sm:gap-1.5 sm:px-2.5">
           {/* live status */}
           <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full" style={{ backgroundColor: isFree ? '#94a3b8' : ACCENT }} />
           {/* viewer follow / detach toggle */}
@@ -167,7 +176,7 @@ export default function CollabBar({
           <button
             type="button"
             onClick={() => setChatOpen((v) => !v)}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10"
             title="聊天"
             style={chatOpen ? { color: ACCENT } : undefined}
           >
@@ -179,23 +188,24 @@ export default function CollabBar({
           {!voice ? (
             <button
               type="button" disabled aria-disabled
-              className="flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-full text-slate-500"
+              className="flex h-7 w-7 shrink-0 cursor-not-allowed items-center justify-center rounded-full text-slate-500"
               title="语音通话（未启用）"
             >
               <Phone className="h-4 w-4" />
             </button>
           ) : voice.status === 'connecting' ? (
-            <div className="flex h-7 items-center gap-1 px-1.5 text-[11px] text-slate-200" title="接通中…">
+            <div className="flex h-7 shrink-0 items-center gap-1 px-1.5 text-[11px] text-slate-200" title="接通中…">
               <Loader2 className="h-4 w-4 animate-spin" /> 接通中
             </div>
           ) : voice.status === 'live' ? (
-            <div className="flex items-center gap-1">
-              <span className="flex items-center gap-1 rounded-full bg-white/10 px-1.5 text-[11px] font-medium tabular-nums text-slate-200" title="通话剩余时长（上限）">
+            <div className="flex shrink-0 items-center gap-1">
+              {/* 通话计时:手机上藏起来(挤位置,且经纪端的画中画已经有观看人数了) */}
+              <span className="hidden items-center gap-1 rounded-full bg-white/10 px-1.5 text-[11px] font-medium tabular-nums text-slate-200 sm:flex" title="通话剩余时长（上限）">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> {mmss(voice.remainingSeconds)}
               </span>
               <button
                 type="button" onClick={voice.toggleMute}
-                className="flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/10"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10"
                 style={{ color: voice.muted ? '#f87171' : ACCENT }}
                 title={voice.muted ? '已静音 · 点击说话' : '通话中 · 点击静音'}
               >
@@ -209,7 +219,7 @@ export default function CollabBar({
                     type="button"
                     onClick={voice.videoBlock ? undefined : voice.toggleCamera}
                     disabled={!!voice.videoBlock}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition ${
                       voice.videoBlock ? 'cursor-not-allowed text-slate-500' : 'hover:bg-white/10'
                     }`}
                     style={!voice.videoBlock ? { color: voice.cameraOn ? ACCENT : '#cbd5e1' } : undefined}
@@ -228,7 +238,7 @@ export default function CollabBar({
                   {voice.cameraOn && (
                     <button
                       type="button" onClick={voice.flipCamera} disabled={voice.flipping}
-                      className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
                       title={voice.facing === 'environment' ? '切到前置（自拍）' : '切到后置（拍沙盘）'}
                     >
                       <SwitchCamera className="h-4 w-4" />
@@ -238,21 +248,21 @@ export default function CollabBar({
               )}
               <button
                 type="button" onClick={voice.leave}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/90 text-white transition hover:bg-rose-500"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-500/90 text-white transition hover:bg-rose-500"
                 title="挂断"
               >
                 <PhoneOff className="h-4 w-4" />
               </button>
             </div>
           ) : voice.status === 'limit' ? (
-            <div className="flex h-7 items-center gap-1 px-2 text-[11px] font-medium text-amber-300" title="今日语音已达上限">
+            <div className="flex h-7 shrink-0 items-center gap-1 px-2 text-[11px] font-medium text-amber-300" title="今日语音已达上限">
               <Phone className="h-4 w-4 text-slate-400" /> 已达上限
             </div>
           ) : voicePrompt ? (
             // viewer: presenter is calling → prominent answer button
             <button
               type="button" onClick={voice.connect}
-              className="flex h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-slate-900"
+              className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-slate-900"
               style={{ backgroundColor: ACCENT }}
               title="接听经纪的语音通话"
             >
@@ -262,7 +272,7 @@ export default function CollabBar({
             // presenter: start a call · viewer (no active call): waiting
             <button
               type="button" onClick={voice.connect}
-              className="flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-200 transition hover:bg-white/10"
+              className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-200 transition hover:bg-white/10"
               title={isPresenter ? '发起语音通话' : voice.status === 'error' ? '连接失败 · 重试' : '经纪还没开启语音'}
             >
               <Phone className="h-4 w-4" style={{ color: ACCENT }} />
@@ -294,9 +304,25 @@ export default function CollabBar({
         </div>
       </div>
 
+      {/* 视频额度提示 —— **只给经纪看**。客户看到「经纪额度不够」是难堪的,
+          所以严格 isPresenter 门控。8 秒自动消失,也可手动关。 */}
+      {isPresenter && voice?.videoNotice && (
+        <div className="fixed left-1/2 z-[2160] w-[min(360px,calc(100vw-1.5rem))] -translate-x-1/2"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8rem)' }}>
+          <div className="flex items-start gap-2 rounded-xl bg-amber-500/95 px-3 py-2 text-[12px] font-medium leading-snug text-amber-950 shadow-xl">
+            <Video className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="flex-1">{voice.videoNotice}</span>
+            <button type="button" onClick={voice.dismissVideoNotice} className="shrink-0 rounded p-0.5 transition hover:bg-black/10">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* viewer incoming-call banner — bottom-right, above the controls */}
       {voice && voicePrompt && voice.status !== 'live' && voice.status !== 'connecting' && (
-        <div className="fixed bottom-16 left-1/2 z-[2150] w-max -translate-x-1/2">
+        <div className="fixed left-1/2 z-[2150] w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4rem)' }}>
           <button
             type="button"
             onClick={voice.connect}
@@ -311,7 +337,10 @@ export default function CollabBar({
 
       {/* chat panel — opens above the control capsule (bottom-right) */}
       {chatOpen && (
-        <div className={`fixed ${isPresenter ? 'bottom-32' : 'bottom-16'} left-1/2 z-[2150] flex w-[min(320px,calc(100vw-1.5rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur md:bottom-20`}>
+        <div
+          className="fixed left-1/2 z-[2150] flex w-[min(320px,calc(100vw-1.5rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur"
+          style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${isPresenter ? '8rem' : '4rem'})` }}
+        >
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
             <span className="text-sm font-semibold text-white">聊天</span>
             <button
