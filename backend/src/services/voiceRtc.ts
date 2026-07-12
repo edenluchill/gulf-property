@@ -139,51 +139,69 @@ export async function heartbeatVoiceSession(sessionId: number): Promise<void> {
   )
 }
 
-// ── 带看视频(经纪摄像头)用量 + 实时刹车 ──────────────────────────────────
+// ── 通话用量(语音 + 视频)+ 实时刹车 ───────────────────────────────────────
 //
-// Agora 按「订阅」计费:经纪推流不花钱(他只订阅客户音频),**只有客户观看才计费**,
-// 且成本按人头线性涨($0.00399/viewer-min)。所以计量单位是 viewer-minute。
+// Agora 按 **user-minute** 计费,且费率由「订阅了什么」决定:
+//   • 经纪推视频不花钱(他只订阅客户的音频)→ 音频费率
+//   • 客户订阅经纪的视频 → HD 视频费率($3.99/1000,是音频的 4 倍)
+// 所以成本按**人头**线性涨,统一折成 call units(音频 1×,视频 4×)。
 //
-// ⚠️ 结算必须跟着 heartbeat 走,不能等 /end —— 100 人围观 30 分钟,钱早花完了
-//    才发现,事后扣积分只是记账,拦不住任何东西。见 docs/collab-live-video-spec.md §3.5
+// ⚠️ 语音必须按 **user**-秒记,不能按会话墙钟秒(duration_seconds)——
+//    后者不乘人数,6 人房间的成本是 1 人的 6 倍而额度消耗一样。旧实现就是这个洞。
+//
+// ⚠️ 结算必须跟着 heartbeat 走,不能等 /end —— 钱早花完了才发现,事后扣积分
+//    只是记账,拦不住任何东西。见 docs/collab-live-video-spec.md §3.5
 
 /** 每次 heartbeat 之间的间隔(前端 useCollabVoice 的 heartbeat 周期)。 */
 const HEARTBEAT_SECONDS = 30
 
 /** 同时观看视频的客户数上限(前端硬门,这里只做兜底记账口径)。 */
 export const MAX_VIDEO_VIEWERS = 6
+/** 频道内总人数上限(记账兜底 —— 防伪造的 participants 把额度算爆)。 */
+const MAX_PARTICIPANTS = 12
 
-export interface VideoHeartbeatResult {
+export interface CallHeartbeatResult {
+  /** 撤视频轨(先砍贵的:视频单价是音频的 4 倍) */
   stopVideo: boolean
+  /** 连语音都撑不住 → 挂断整场 */
+  stopCall: boolean
   freeLeft: number
   creditBalance: number
   sessionUnits: number
 }
 
 /**
- * 视频心跳:累加 viewer-seconds → 实时结算 → 返回是否该强制关摄像头。
+ * 通话心跳:累加 audio user-秒 + video viewer-秒 → 实时结算 → 返回刹车信号。
  *
- * viewers = 当前订阅经纪视频的客户数(前端取 Agora client.remoteUsers.length,
- * 这是**精确的计费口径** —— 只有真进了 Agora 频道的人才产生费用)。
+ * participants = 当前在 Agora 频道里的**总人数**(含经纪)。这是音频的计费口径 ——
+ *   前端取 client.remoteUsers.length + 1。
+ * videoViewers = 当前订阅经纪视频的客户数(前端取 remoteUsers.length,仅当摄像头开着)。
+ *
+ * 两者都是**精确口径**:只有真进了 Agora 频道的人才产生费用(房间里可能有 20 人,
+ * 但只有接通了语音的才在频道里)。
  */
-export async function videoHeartbeat(
+export async function callHeartbeat(
   sessionId: number,
-  viewers: number
-): Promise<VideoHeartbeatResult | null> {
-  const n = Math.max(0, Math.min(MAX_VIDEO_VIEWERS, Math.floor(viewers)))
+  participants: number,
+  videoViewers: number
+): Promise<CallHeartbeatResult | null> {
+  const nAudio = Math.max(0, Math.min(MAX_PARTICIPANTS, Math.floor(participants)))
+  const nVideo = Math.max(0, Math.min(MAX_VIDEO_VIEWERS, Math.floor(videoViewers)))
 
-  // 累加本次 30s 的 viewer-seconds,并取回本场累计值 + 已扣积分 + 经纪身份
+  // 累加本次 30s 的用量,并取回本场累计值 + 已扣积分 + 经纪身份
   const { rows } = await pool.query<{
+    audio_user_seconds: number
     video_viewer_seconds: number
     video_credits_spent: number
     agent_email: string
     room_code: string
   }>(
     `UPDATE voice_sessions
-        SET video_viewer_seconds = video_viewer_seconds + $2
+        SET audio_user_seconds   = audio_user_seconds   + $2,
+            video_viewer_seconds = video_viewer_seconds + $3
       WHERE id = $1 AND ended_at IS NULL
-      RETURNING video_viewer_seconds, video_credits_spent, agent_email, room_code`,
-    [sessionId, n * HEARTBEAT_SECONDS]
+      RETURNING audio_user_seconds, video_viewer_seconds, video_credits_spent, agent_email, room_code`,
+    [sessionId, nAudio * HEARTBEAT_SECONDS, nVideo * HEARTBEAT_SECONDS]
   )
   const row = rows[0]
   if (!row) return null
@@ -193,16 +211,17 @@ export async function videoHeartbeat(
     [row.agent_email]
   )
   const agentId = agent.rows[0]?.id
-  // 认不出经纪(不该发生)→ 保守刹车,不给免费视频
-  if (!agentId) return { stopVideo: true, freeLeft: 0, creditBalance: 0, sessionUnits: 0 }
+  // 认不出经纪(不该发生)→ 保守刹车,不白送通话
+  if (!agentId) return { stopVideo: true, stopCall: true, freeLeft: 0, creditBalance: 0, sessionUnits: 0 }
 
-  const { settleVideoUsage } = await import('../luna-tour/credits')
-  const s = await settleVideoUsage(
+  const { settleCallUsage } = await import('../luna-tour/credits')
+  const s = await settleCallUsage(
     agentId,
     String(sessionId),
+    row.audio_user_seconds,
     row.video_viewer_seconds,
     row.video_credits_spent,
-    { type: 'live', id: row.room_code, label: `带看视频 · ${row.room_code}` }
+    { type: 'live', id: row.room_code, label: `通话与视频 · ${row.room_code}` }
   )
 
   // 回写已扣积分(幂等的锚:下次 heartbeat 只补差额)
@@ -212,6 +231,7 @@ export async function videoHeartbeat(
 
   return {
     stopVideo: s.stopVideo,
+    stopCall: s.stopCall,
     freeLeft: s.freeLeft,
     creditBalance: s.creditBalance,
     sessionUnits: s.sessionUnits,

@@ -23,22 +23,29 @@ import {
 // 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
 const ROLE_BY_PLAN: Record<string, UserRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
 
-// 每个功能按什么计费。**实时带看是按「场」扣的,和这场开多久无关**(建房那一刻
-// 扣一次;语音另有独立的时长护栏:单场 ≤30 分钟、每人 ≤3 小时/天)。经纪最容易在
-// 这里误会,所以直接写在单价旁边。
+// 每个功能按什么计费 —— 经纪最容易在这里误会,所以直接写在单价旁边。
+//
+// 三种计费形态(2026-07-12 重构):
+//   • 按次      —— 报告/楼书/报价单/Luna 导览
+//   • 免费不限  —— **实时带看**。成本是 $0(纯 WebSocket,跑我们自己的服务器),
+//                  收费没有依据。真正花钱的是通话和视频。
+//   • 计量型    —— **通话与视频**。套餐送额度,超出才扣积分。
+//                  语音 4 分钟 = 1 积分;视频 1 分钟 = 1 积分(HD 视频成本是音频的 4 倍)。
 const UNIT_ZH: Record<string, string> = {
   reports: '每份',
   payplan: '每份',
   brochures: '每份 PDF',
-  live_tours: '每场 · 不限时长',
+  live_tours: '免费 · 不限场次',
   luna_tours: '每条导览',
+  live_call: '语音 4 分钟 / 视频 1 分钟',
 }
 const UNIT_EN: Record<string, string> = {
   reports: 'per report',
   payplan: 'per offer',
   brochures: 'per PDF',
-  live_tours: 'per session · any length',
+  live_tours: 'free · unlimited',
   luna_tours: 'per tour',
+  live_call: '4 min voice / 1 min video',
 }
 
 export default function AgentBilling() {
@@ -139,6 +146,8 @@ export default function AgentBilling() {
   const unlimited = cMonth < 0
   // 我的套餐折扣(Founder<1),用来在消耗表显示实扣
   const myMult = Number(feat.plans.find((p) => p.id === planId)?.multiplier ?? 1)
+  // 套餐内含的免费通话额度(call units:语音 1 分钟=1,视频 1 分钟=4)
+  const callUnits = Number(feat.plans.find((p) => p.id === planId)?.callUnits ?? 0)
 
   // 升级入口:非顶档 + 非席位成员才显示(→ 角色专属选档页)
   const canUpgrade = planId !== 'founder' && planId !== 'developer' && !me?.teamMember
@@ -272,8 +281,13 @@ export default function AgentBilling() {
               {[...feat.features]
                 .sort((a, b) => a.credits - b.credits)
                 .map((f) => {
-                  const cost = Math.max(1, Math.round(f.credits * myMult))
-                  const times = unlimited ? -1 : Math.floor(cBalance / cost)
+                  // ⚠️ 别对 credits=0 的功能做 Math.max(1, …) —— 那会把**免费**的
+                  //    实时带看渲染成「1 积分」。免费就是免费。
+                  const isFree = f.unit === 'free' || f.credits === 0
+                  const metered = f.unit === 'call_unit'
+                  const cost = isFree ? 0 : Math.max(1, Math.round(f.credits * myMult))
+                  // 「还能做 N 次」对免费和计量型都没意义(后者是按分钟的)
+                  const times = unlimited || isFree || metered ? -1 : Math.floor(cBalance / cost)
                   return (
                     <div key={f.key} className="flex items-center gap-3 px-4 py-2.5">
                       <div className="min-w-0 flex-1">
@@ -288,13 +302,22 @@ export default function AgentBilling() {
                           {L(`还能做 ${times} 次`, `${times} left`)}
                         </span>
                       )}
-                      {unlimited && (
+                      {unlimited && !isFree && (
                         <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
                           {L('无限', 'Unlimited')}
                         </span>
                       )}
+                      {metered && callUnits > 0 && (
+                        <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
+                          {L(`套餐含 ${callUnits} 额度`, `${callUnits} incl.`)}
+                        </span>
+                      )}
                       <span className="w-20 shrink-0 text-right text-sm font-bold tabular-nums text-slate-900">
-                        {cost} <span className="text-[11px] font-medium text-slate-400">{L('积分', 'cr')}</span>
+                        {isFree ? (
+                          <span className="text-sm font-semibold text-emerald-600">{L('免费', 'Free')}</span>
+                        ) : (
+                          <>{cost} <span className="text-[11px] font-medium text-slate-400">{L('积分', 'cr')}</span></>
+                        )}
                       </span>
                     </div>
                   )

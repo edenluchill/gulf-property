@@ -563,8 +563,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         {/* 积分消耗表(成本来自后端 /features 配置,改配置自动同步)。角色专属单档页不放(列别档折扣反而困惑) */}
         {!variant && feat.features.length > 0 && (() => {
           const founderMult = feat.plans.find((p) => p.id === 'founder')?.multiplier ?? 0.6
-          const proVideoMinutes = feat.plans.find((p) => p.id === 'agent')?.videoMinutes ?? 0
-          const agencyVideoMinutes = feat.plans.find((p) => p.id === 'founder')?.videoMinutes ?? 0
+          const proCallUnits = feat.plans.find((p) => p.id === 'agent')?.callUnits ?? 0
+          const agencyCallUnits = feat.plans.find((p) => p.id === 'founder')?.callUnits ?? 0
+          const videoWeight = feat.videoUnitWeight ?? 4
           return (
             <div className="pz-anim mx-auto mt-4 max-w-2xl overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]"
               style={{ animation: 'pz-fade-up .5s ease-out both', animationDelay: '320ms' }}>
@@ -578,28 +579,38 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 </thead>
                 <tbody>
                   {feat.features.map((f) => {
-                    // 带看视频是**计量型**(每人每分钟),且套餐内含免费额度 —— 不标注的话
-                    // 「带看视频 1 积分」会被读成「一场 1 积分」,那是错的。
-                    const metered = f.unit === 'viewer_minute'
-                    const suffix = metered ? L('（每人每分钟）', ' (per viewer-min)')
-                      : f.key === 'live_tours' ? L('（每场）', ' (each)') : ''
+                    // 三种形态。不区分的话「通话与视频 1 积分」会被读成「一场通话 1 积分」,
+                    // 而**免费**的实时带看会被渲染成收费的 —— 两个都是错的。
+                    const isFree = f.unit === 'free' || f.credits === 0
+                    const metered = f.unit === 'call_unit'
+                    const suffix = metered
+                      ? L('（语音 4 分钟 / 视频 1 分钟）', ' (4 min voice / 1 min video)')
+                      : isFree ? L('（不限场次）', ' (unlimited)') : ''
                     return (
                       <tr key={f.key} className="border-t border-white/[0.05]">
                         <td className="px-4 py-1 text-slate-300">{f.label}<span className="text-slate-500">{suffix}</span></td>
-                        <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {L('积分', 'cr')}</td>
-                        <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {L('积分', 'cr')}</td>
+                        {isFree ? (
+                          <td className="px-4 py-1 text-right font-semibold" colSpan={2} style={{ color: ACCENT }}>
+                            {L('免费', 'Free')}
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {L('积分', 'cr')}</td>
+                            <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {L('积分', 'cr')}</td>
+                          </>
+                        )}
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
-              {/* 带看视频对绝大多数经纪是**免费**的 —— 套餐内含额度,用完才扣积分。
-                  不说这句,上面那行「带看视频 1 积分」会把人吓退。 */}
-              {feat.features.some((f) => f.unit === 'viewer_minute') && proVideoMinutes > 0 && (
+              {/* 通话对绝大多数经纪是**免费**的 —— 套餐内含额度,用完才扣积分。
+                  不说这句,上面那行「通话与视频 1 积分」会把人吓退。 */}
+              {feat.features.some((f) => f.unit === 'call_unit') && proCallUnits > 0 && (
                 <p className="border-t border-white/[0.05] px-4 py-2 text-[11px] leading-relaxed text-slate-400">
                   {L(
-                    `带看视频每月含 ${proVideoMinutes} 分钟（经纪公司版 ${agencyVideoMinutes} 分钟），够每场带看开十几分钟摄像头。超出部分才按上表扣积分。`,
-                    `Live video includes ${proVideoMinutes} min/mo (Agency: ${agencyVideoMinutes}). Only usage beyond that costs credits.`
+                    `实时带看不限场次、不限时长，完全免费。通话每月含 ${proCallUnits} 额度（约 ${Math.floor(proCallUnits / 2 / 60)} 小时一对一语音，或 ${Math.floor(proCallUnits / videoWeight)} 分钟视频），经纪公司版 ${agencyCallUnits}。超出部分才扣积分。`,
+                    `Live tours are free and unlimited. Calls include ${proCallUnits} units/mo (≈${Math.floor(proCallUnits / 2 / 60)}h of 1-on-1 voice, or ${Math.floor(proCallUnits / videoWeight)} min of video); Agency: ${agencyCallUnits}. Only usage beyond that costs credits.`
                   )}
                 </p>
               )}

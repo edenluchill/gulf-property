@@ -7,13 +7,13 @@
 import { Router, Request, Response } from 'express'
 import { getRoomByCode } from '../services/collab-rooms'
 import pool from '../db/pool'
-import { checkVideoQuota } from '../luna-tour/credits'
+import { checkCallQuota, VIDEO_UNIT_WEIGHT, CALL_UNITS_PER_CREDIT } from '../luna-tour/credits'
 import {
   isVoiceConfigured,
   startVoiceSession,
   getViewerToken,
   heartbeatVoiceSession,
-  videoHeartbeat,
+  callHeartbeat,
   endVoiceSession,
   getAgentUsage,
   MAX_VIDEO_VIEWERS,
@@ -55,40 +55,43 @@ router.post('/viewer-token', async (req: Request, res: Response) => {
 })
 
 /**
- * 心跳:回填语音时长 + **视频用量实时结算**。
+ * 心跳:回填语音时长 + **通话用量实时结算(语音 + 视频)**。
  *
- * ⚠️ 带 videoViewers 时**不能** fire-and-forget —— 响应里的 stopVideo 是成本刹车:
- * 免费额度和积分都空了 → 前端必须立即 unpublish 视频轨(Agora 当场停止计费)。
- * 不带 videoViewers(没开摄像头)时维持原来的 204 快路径。
+ * ⚠️ **不能** fire-and-forget —— 响应里的 stopVideo/stopCall 是成本刹车:
+ * 额度和积分都空了 → 前端必须立即撤视频轨(先砍 4× 单价的视频),
+ * 连语音都撑不住就挂断整场。Agora 当场停止计费。
+ *
+ * participants = 频道内总人数(含经纪)—— 音频按 **user**-分钟计费,不是会话时长。
  */
 router.post('/heartbeat', async (req: Request, res: Response) => {
-  const { sessionId, videoViewers } = (req.body || {}) as {
+  const { sessionId, participants, videoViewers } = (req.body || {}) as {
     sessionId?: number | string
+    participants?: number
     videoViewers?: number
   }
   const sid = Number(sessionId)
   if (!Number.isFinite(sid)) return res.status(400).json({ ok: false })
 
-  // 语音时长回填:best-effort,不阻塞
+  // 语音会话时长回填(统计/日额度还在用):best-effort,不阻塞
   void heartbeatVoiceSession(sid).catch(() => {})
 
-  // 没开摄像头 → 老快路径
-  if (typeof videoViewers !== 'number') return res.status(204).end()
+  // 老客户端不发 participants → 退回 204 快路径(不结算,别把老版本算爆)
+  if (typeof participants !== 'number') return res.status(204).end()
 
   try {
-    const r = await videoHeartbeat(sid, videoViewers)
-    // 会话已结束/不存在 → 让前端关掉摄像头
-    if (!r) return res.json({ ok: true, stopVideo: true, freeLeft: 0, creditBalance: 0 })
+    const r = await callHeartbeat(sid, participants, videoViewers ?? 0)
+    // 会话已结束/不存在 → 让前端收摊
+    if (!r) return res.json({ ok: true, stopVideo: true, stopCall: true, freeLeft: 0, creditBalance: 0 })
     res.json({ ok: true, ...r })
   } catch (err) {
-    console.error('[voice-rtc] video heartbeat failed:', err)
-    // 结算挂了 → **保守刹车**。宁可关掉摄像头,也不能在算不清账的情况下继续烧 Agora。
-    res.json({ ok: false, stopVideo: true, freeLeft: 0, creditBalance: 0 })
+    console.error('[voice-rtc] call heartbeat failed:', err)
+    // 结算挂了 → **保守刹车**(先砍视频)。宁可关摄像头,也不能在算不清账时继续烧 Agora。
+    res.json({ ok: false, stopVideo: true, stopCall: false, freeLeft: 0, creditBalance: 0 })
   }
 })
 
-// 开摄像头前预检(点亮/置灰按钮)。email = 经纪邮箱。
-router.get('/video-quota', async (req: Request, res: Response) => {
+// 开通话/摄像头前预检(点亮/置灰按钮)。email = 经纪邮箱。
+router.get('/call-quota', async (req: Request, res: Response) => {
   const email = String(req.query.email || '').toLowerCase().trim()
   if (!email) return res.status(400).json({ ok: false })
   try {
@@ -98,10 +101,16 @@ router.get('/video-quota', async (req: Request, res: Response) => {
     )
     const agentId = a.rows[0]?.id
     if (!agentId) return res.json({ ok: true, exhausted: true, needsUpgrade: true, freeLeft: 0, creditBalance: 0 })
-    const q = await checkVideoQuota(agentId)
-    res.json({ ok: true, ...q, maxViewers: MAX_VIDEO_VIEWERS })
+    const q = await checkCallQuota(agentId)
+    res.json({
+      ok: true, ...q,
+      maxViewers: MAX_VIDEO_VIEWERS,
+      // 前端把 units 翻译成人话:「剩 N 分钟语音 / M 分钟视频」
+      videoUnitWeight: VIDEO_UNIT_WEIGHT,
+      unitsPerCredit: CALL_UNITS_PER_CREDIT,
+    })
   } catch (err) {
-    console.error('[voice-rtc] video-quota failed:', err)
+    console.error('[voice-rtc] call-quota failed:', err)
     res.status(500).json({ ok: false })
   }
 })

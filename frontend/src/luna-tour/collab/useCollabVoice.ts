@@ -154,11 +154,11 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
 
   const leave = useCallback(() => { void teardown('left', 'idle') }, [teardown])
 
-  /** presenter: 拉取本月视频额度(点亮/置灰摄像头按钮)。 */
+  /** presenter: 拉取本月通话额度(点亮/置灰摄像头按钮)。 */
   const refreshVideoQuota = useCallback(async () => {
     if (mode !== 'presenter' || !agentEmail) return
     try {
-      const res = await fetch(`${BASE}/video-quota?email=${encodeURIComponent(agentEmail)}`)
+      const res = await fetch(`${BASE}/call-quota?email=${encodeURIComponent(agentEmail)}`)
       const q = await res.json().catch(() => null)
       if (!q?.ok) return
       setVideoFreeLeft(q.freeLeft ?? 0)
@@ -205,7 +205,7 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
 
     // 护栏 ②:额度预检(heartbeat 是兜底,这里是即时反馈)
     try {
-      const res = await fetch(`${BASE}/video-quota?email=${encodeURIComponent(agentEmail || '')}`)
+      const res = await fetch(`${BASE}/call-quota?email=${encodeURIComponent(agentEmail || '')}`)
       const q = await res.json().catch(() => null)
       if (q?.ok) {
         const left: number = q.freeLeft ?? 0
@@ -214,13 +214,14 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
           setVideoBlock(q.needsUpgrade ? 'upgrade' : 'quota')
           setVideoNotice(q.needsUpgrade
             ? '升级套餐即可使用带看视频'
-            : '本月视频额度和积分都已用完，无法开摄像头（语音不受影响）')
+            : '本月通话额度和积分都已用完，无法开摄像头（语音不受影响）')
           return
         }
         // 开之前先把「快没了」说清楚 —— 别让经纪讲到一半镜头突然黑掉。
-        // -1 = 无限,不提醒。
-        if (left >= 0 && left <= 15) {
-          setVideoNotice(`视频额度仅剩 ${left} 分钟，用完后将自动关闭摄像头（语音继续）`)
+        // 视频每分钟吃 4 个额度,所以剩 60 额度其实只够 15 分钟视频。-1 = 无限,不提醒。
+        const videoMinutesLeft = Math.floor(left / 4)
+        if (left >= 0 && videoMinutesLeft <= 15) {
+          setVideoNotice(`通话额度只够 ${videoMinutesLeft} 分钟视频了，用完会自动关摄像头（语音继续）`)
         }
       }
     } catch { /* 预检失败不拦 —— heartbeat 30s 内会刹车 */ }
@@ -341,25 +342,38 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
       heartbeatRef.current = setInterval(async () => {
         const sid = sessionIdRef.current
         if (sid == null) return
-        // 摄像头开着才上报观看人数 → 服务端才结算视频用量
-        const viewers = cameraOnRef.current ? (clientRef.current?.remoteUsers.length ?? 0) : undefined
+        const c = clientRef.current
+        // ⚠️ 音频按 **user**-分钟计费(Agora 按人头收钱),所以要上报频道内**总人数**
+        //    (远端 + 我自己),不是会话时长。会话墙钟秒会把 6 人房间的成本低估 6 倍。
+        const participants = (c?.remoteUsers.length ?? 0) + 1
+        // 摄像头开着才上报观看人数(视频单价是音频的 4 倍)
+        const videoViewers = cameraOnRef.current ? (c?.remoteUsers.length ?? 0) : 0
         try {
           const res = await fetch(`${BASE}/heartbeat`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ sessionId: sid, videoViewers: viewers }),
+            body: JSON.stringify({ sessionId: sid, participants, videoViewers }),
           })
-          if (viewers === undefined || res.status === 204) return
+          if (res.status === 204) return
           const r = await res.json().catch(() => null)
           if (!r) return
           if (typeof r.freeLeft === 'number') setVideoFreeLeft(r.freeLeft)
-          // ⭐ 成本刹车:额度+积分都空了 → 立即撤视频轨,Agora 当场停止计费。
-          //    语音继续,带看不中断。经纪要知道**为什么**镜头突然黑了。
-          if (r.stopVideo) {
+
+          // ⭐ 两级成本刹车。Agora 当场停止计费。
+          // ① 额度见底 → 先撤**视频**(单价 4×,砍它最有效),语音继续,带看不中断。
+          if (r.stopVideo && cameraOnRef.current) {
             void stopCamera('quota')
-            setVideoNotice('视频额度已用完，摄像头已关闭（语音继续，带看不受影响）')
-          } else if (typeof r.freeLeft === 'number' && r.freeLeft >= 0 && r.freeLeft <= 5) {
-            setVideoNotice(`视频额度仅剩 ${r.freeLeft} 分钟`)
+            setVideoNotice('通话额度已用完，摄像头已关闭（语音继续，带看不受影响）')
+          }
+          // ② 撤了视频还是撑不住(纯语音也超了)→ 挂断整场通话。
+          //    带看本身不受影响 —— 地图协作是免费的,继续用文字聊天。
+          if (r.stopCall) {
+            setVideoNotice('通话额度已用完，语音已结束（带看继续，可用文字聊天）')
+            void teardown('limit', 'limit')
+            return
+          }
+          if (!r.stopVideo && typeof r.freeLeft === 'number' && r.freeLeft >= 0 && r.freeLeft <= 20) {
+            setVideoNotice(`通话额度仅剩 ${r.freeLeft} 分钟（视频每分钟算 4 分钟）`)
           }
         } catch { /* 网络抖动不刹车 —— 下个心跳会再判一次(最多多烧 30s) */ }
       }, 30_000)

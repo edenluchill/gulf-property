@@ -19,7 +19,7 @@ import pool from '../db/pool'
 import { requireAuth, requireAdmin } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
-import { creditBalance, featureCatalog, resetCreditsOnConversion, DEV_TRIAL_CREDITS, DEV_TRIAL_DAYS } from '../luna-tour/credits'
+import { creditBalance, featureCatalog, resetCreditsOnConversion, DEV_TRIAL_CREDITS, DEV_TRIAL_DAYS, VIDEO_UNIT_WEIGHT, CALL_UNITS_PER_CREDIT } from '../luna-tour/credits'
 import { claimFreeTrial, TRIAL_DAYS, TRIAL_PLAN, TRIAL_ROLES } from '../services/freeTrial'
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
@@ -208,9 +208,9 @@ router.get('/plans', async (_req: Request, res: Response) => {
 // ============================================================
 router.get('/features', async (_req: Request, res: Response) => {
   try {
-    const { rows } = await pool.query<{ id: string; credits_month: number | null; cost_multiplier: number | null; video_minutes: number | null }>(
+    const { rows } = await pool.query<{ id: string; credits_month: number | null; cost_multiplier: number | null; call_units: number | null }>(
       `SELECT id, (limits->>'credits_month')::int AS credits_month, (limits->>'cost_multiplier')::float AS cost_multiplier,
-              (limits->>'video_minutes_month')::int AS video_minutes
+              (limits->>'call_units_month')::int AS call_units
          FROM lt_subscription_plans ORDER BY (limits->>'credits_month')::int ASC NULLS FIRST`
     )
     res.json({
@@ -220,10 +220,14 @@ router.get('/features', async (_req: Request, res: Response) => {
         id: r.id,
         creditsMonth: Number(r.credits_month ?? 0),
         multiplier: Number(r.cost_multiplier ?? 1),
-        // 套餐内含的免费带看视频额度(viewer-分钟/月)。价格页要显示,
-        // 否则「带看视频 1 积分」会被读成付费功能 —— 它对绝大多数经纪是免费的。
-        videoMinutes: Number(r.video_minutes ?? 0),
+        // 套餐内含的免费通话额度(call units/月;语音 1 分钟=1,视频 1 分钟=4)。
+        // 价格页必须显示 —— 否则「通话与视频 1 积分」会被读成付费功能,
+        // 而它对绝大多数经纪是**完全免费**的。
+        callUnits: Number(r.call_units ?? 0),
       })),
+      // 换算常量,给前端把 units 翻译成人话(「含 10 小时通话 / 300 分钟视频」)
+      videoUnitWeight: VIDEO_UNIT_WEIGHT,
+      unitsPerCredit: CALL_UNITS_PER_CREDIT,
     })
   } catch (err) {
     console.error('[billing] /features failed:', err)

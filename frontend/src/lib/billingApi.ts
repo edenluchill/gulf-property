@@ -46,22 +46,31 @@ export interface FeatureCost {
   key: string
   label: string
   labelEn?: string              // 英文名(i18n;后端 featureCatalog 提供)
-  credits: number               // 标准成本(unit='once' 时是每次;'viewer_minute' 时是每人每分钟)
+  credits: number               // 标准成本(unit='once' 时是每次)
   minPlan: 'explore' | 'rookie' | 'agent' | 'founder'
-  /** 计量型 vs 按次。带看视频是 viewer_minute(每人每分钟),且套餐内含免费额度 ——
-   *  不区分的话会被渲染成「一场带看视频 1 积分」,那是错的。 */
-  unit?: 'once' | 'viewer_minute'
+  /**
+   * 三类,不区分的话 UI 会把它们全渲染成「每次 N 积分」——「通话与视频 1 积分」
+   * 会被读成「一场通话 1 积分」,而实时带看会被读成收费的(它其实免费)。
+   *   once      按次 · free 免费不限 · call_unit 计量型(套餐送额度,超出才扣)
+   */
+  unit?: 'once' | 'free' | 'call_unit'
+  /** call_unit 才有:1 积分能买几分钟语音 / 几分钟视频 */
+  audioMinutesPerCredit?: number
+  videoMinutesPerCredit?: number
 }
 export interface PlanCredits {
   id: string
   creditsMonth: number
   multiplier: number            // Founder < 1(扣得便宜)
-  /** 套餐内含的免费带看视频额度(viewer-分钟/月)。0 = 无 */
-  videoMinutes?: number
+  /** 套餐内含的免费通话额度(call units/月;语音 1 分钟=1,视频 1 分钟=4)。0 = 无 */
+  callUnits?: number
 }
 export interface FeaturesInfo {
   features: FeatureCost[]
   plans: PlanCredits[]
+  /** 视频的额度权重(4 = 视频 1 分钟吃 4 个额度) */
+  videoUnitWeight?: number
+  unitsPerCredit?: number
 }
 
 /** 公开:积分功能目录(每次成本)+ 各套餐积分额度/折扣。价格页/台内渲染消耗表。 */

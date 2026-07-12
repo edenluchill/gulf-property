@@ -40,19 +40,37 @@ function emailUnlimited(email?: string | null): boolean {
 export const FEATURES = {
   reports: { label: '买家意向报告', labelEn: 'Buyer proposal', credits: 20, minPlan: 'rookie' as PlanId },   // 常用 → 最便宜
   brochures: { label: 'AI 楼书解析', labelEn: 'AI brochure parsing', credits: 40, minPlan: 'rookie' as PlanId },  // 常用 → 便宜
-  live_tours: { label: '实时带看', labelEn: 'Live tour', credits: 60, minPlan: 'agent' as PlanId },    // 居中
+  // 实时带看(地图协作)= **免费,不限场次**(2026-07-12 owner 定)。
+  // 成本是 $0 —— 纯 WebSocket,跑我们自己的服务器。收费没有依据,且限制它 =
+  // 限制核心价值主张(带看越多 → 客户越可能续费)。真正花钱的是通话/视频,
+  // 由 call 额度封顶。credits: 0 但保留条目 → minPlan 门(agent 以上)仍然生效。
+  live_tours: { label: '实时带看', labelEn: 'Live tour', credits: 0, minPlan: 'agent' as PlanId },
   luna_tours: { label: 'Luna 智能导览', labelEn: 'Luna AI tour', credits: 100, minPlan: 'agent' as PlanId }, // 重度 AI 生成 → 最贵
   // Sales Offer 报价单:5 分/份(2026-07-07 用户定),60 天有效(过期页转联系顾问)
   payplan: { label: 'Sales Offer 报价单', labelEn: 'Sales offer', credits: 5, minPlan: 'rookie' as PlanId },
-  // 带看视频(经纪开摄像头拍沙盘/自拍):**计量型**功能,不是按次。
-  // 单位 = viewer-minute(观看视频的客户数 × 分钟) —— Agora 按「订阅」计费,
-  // 经纪推流不花钱,只有客户观看才计,成本按人头线性涨($0.004/viewer-min)。
-  // 套餐内含免费额度(见 limits.video_minutes_month),超出才按此价扣。
-  // 不走 spend()/checkCredits(),走 settleVideoUsage()/checkVideoQuota()。
-  live_video: { label: '带看视频', labelEn: 'Live video', credits: 1, minPlan: 'agent' as PlanId },
+  // 通话与视频 —— **计量型**,不是按次。见 §「通话计费」。
+  // 单位是 call unit(= Agora Standard 分钟):语音 1 user-min = 1,视频 1 viewer-min = 4。
+  // 套餐内含免费额度(limits.call_units_month),超出按 CALL_UNITS_PER_CREDIT 折算扣积分。
+  // 不走 spend()/checkCredits(),走 settleCallUsage()/checkCallQuota()。
+  live_call: { label: '通话与视频', labelEn: 'Voice & video', credits: 1, minPlan: 'agent' as PlanId },
 } as const
 
 export type Feature = keyof typeof FEATURES
+
+// ── 通话计费的换算常量 ────────────────────────────────────────────────────
+//
+// 口径就是 Agora 自己的 **Standard 分钟**(音频 1×,HD 视频 4×)—— 正好是成本比,
+// 所以额度消耗和真实账单永远同步,不会漂移。
+//   语音 1 user-分钟   = 1 unit  ($0.00099)
+//   视频 1 viewer-分钟 = 4 units ($0.00396)
+//   4 units = 1 积分($0.041)   → 10× 加价,与其他功能的加价率一致
+
+/** 1 viewer-分钟视频 = 几个 unit。Agora HD 视频单价是音频的 4 倍。 */
+export const VIDEO_UNIT_WEIGHT = 4
+/** 几个 unit 折 1 积分(超出免费额度后)。 */
+export const CALL_UNITS_PER_CREDIT = 4
+/** 试用的免费通话额度 —— **刻意与套餐解耦**,理由同 TRIAL_VIDEO_MINUTES。 */
+export const TRIAL_CALL_UNITS = Number(process.env.TRIAL_CALL_UNITS || 120) // = 2h 1对1 语音 或 30 min 视频
 
 const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, founder: 3, developer: 4 }
 
@@ -66,14 +84,15 @@ export const DEV_TRIAL_CREDITS = Number(process.env.DEV_TRIAL_CREDITS || 600)
 export const DEV_TRIAL_DAYS = Number(process.env.DEV_TRIAL_DAYS || 30)
 
 /**
- * 试用期的免费视频额度(viewer-minutes/月)—— **刻意与套餐解耦**。
+ * 试用期的免费通话额度(call units)—— **刻意与套餐解耦**,见 TRIAL_CALL_UNITS。
  *
- * ⚠️ 不能让试用读 limits.video_minutes_month:planFor() 里试用返回的 plan 就是
- * 订阅行上的 plan_id(DB 里确实有 agent/trialing 的账号)→ 会直接继承 Pro 的 300 分钟。
- * 而试用是**零收入 + 免绑卡**,注册成本近乎为零 → 100 个邮箱刷试用 = $200 的 Agora 账单。
- * 30 分钟够试出效果(看到摄像头对客户的说服力),把白嫖面砍到 $0.12/账号。
+ * ⚠️ 不能让试用读 limits.call_units_month:planFor() 里试用返回的 plan 就是
+ * 订阅行上的 plan_id(DB 里确实有 agent/trialing 的账号)→ 会直接继承 Pro 的 1200 units。
+ * 而试用是**零收入 + 免绑卡**,注册成本近乎为零 → 100 个邮箱刷试用 = 白烧几百刀。
+ * 120 units(= 2h 1对1 语音 或 30 min 视频)够试出效果,把白嫖面砍到 $0.12/账号。
+ *
+ * (常量定义在 FEATURES 下方的「通话计费换算常量」区。)
  */
-export const TRIAL_VIDEO_MINUTES = Number(process.env.TRIAL_VIDEO_MINUTES || 30)
 
 /**
  * 计费归属:Founder 席位成员(lt_agents.billing_agent_id 指向 founder)的
@@ -283,22 +302,38 @@ export async function resetCreditsOnConversion(agentId: string): Promise<void> {
 /**
  * 功能目录(给 /api/billing/features → 价格页/台内自动渲染消耗表)。
  *
- * unit 区分「按次」和「计量型」:不标的话价格页会把「带看视频 1 积分」渲染成
- * 「一场带看 1 积分」—— 实际是「每人每分钟 1 积分,且套餐内含免费额度」。
+ * unit 区分三类,不标的话 UI 会把它们全渲染成「每次 N 积分」:
+ *   once      —— 按次(报告/楼书/报价单/Luna 导览)
+ *   free      —— 免费不限(实时带看:成本 $0)
+ *   call_unit —— 计量型(通话与视频:语音 4 分钟 / 视频 1 分钟 = 1 积分,且套餐送额度)
  */
 export function featureCatalog() {
   return (Object.keys(FEATURES) as Feature[]).map((key) => ({
     key, label: FEATURES[key].label, labelEn: FEATURES[key].labelEn,
     credits: FEATURES[key].credits, minPlan: FEATURES[key].minPlan,
-    unit: key === 'live_video' ? ('viewer_minute' as const) : ('once' as const),
+    unit: key === 'live_call' ? ('call_unit' as const)
+      : FEATURES[key].credits === 0 ? ('free' as const)
+      : ('once' as const),
+    // 计量型才有意义:1 积分能买多少语音分钟 / 视频分钟
+    ...(key === 'live_call' ? {
+      audioMinutesPerCredit: CALL_UNITS_PER_CREDIT,                      // 4 分钟语音 = 1 积分
+      videoMinutesPerCredit: CALL_UNITS_PER_CREDIT / VIDEO_UNIT_WEIGHT,  // 1 分钟视频 = 1 积分
+    } : {}),
   }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 带看视频计费(计量型 —— 与上面的「按次」体系并行,不复用 spend/checkCredits)
+// 通话计费(语音 + 视频统一 —— 计量型,与上面的「按次」体系并行)
 //
-// 模型:套餐内含免费额度 → 超出按 1 积分/viewer-minute 扣 → 全空则前端强制关摄像头。
-// 单位是 viewer-minute(观看人数 × 分钟):Agora 按「订阅」计费,成本按人头线性涨。
+// 口径 = Agora 自己的 **Standard 分钟**(音频 1×,HD 视频 4×),正好是成本比:
+//   语音 1 user-分钟   = 1 unit    ($0.00099)
+//   视频 1 viewer-分钟 = 4 units   ($0.00396)
+//   4 units = 1 积分($0.041)      → 10× 加价
+//
+// ⚠️ 为什么语音必须按 **user**-分钟:Agora 按人头收费。旧实现的日额度算的是
+//    voice_sessions.duration_seconds(会话墙钟秒,**不乘人数**)→ 6 人房间的成本
+//    是 1 人的 6 倍,额度消耗却一模一样,而且语音一个积分都不扣。
+//    最坏:3h/天 × 6人 × 30天 = 32,400 user-min = $32/月(vs $49 月费)。这是个真敞口。
 //
 // 账本策略:**一场一行 ledger,heartbeat 不断 UPDATE 它**(ref_id = sessionId,
 // 有 partial unique index 兜底)。这样:
@@ -308,27 +343,34 @@ export function featureCatalog() {
 //     → 重放/崩溃/重复 heartbeat 都不会重复扣
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** 该套餐的免费视频额度(viewer-minutes/月)。试用走独立常量,**绝不继承套餐**。 */
-async function videoQuotaOf(p: PlanCfg): Promise<number> {
-  if (p.freeTrial) return TRIAL_VIDEO_MINUTES  // ⚠️ 见 TRIAL_VIDEO_MINUTES 注释
-  const r = await pool.query<{ vm: number | null }>(
-    `SELECT (limits->>'video_minutes_month')::int AS vm FROM lt_subscription_plans WHERE id = $1`,
+/** 把音频/视频秒数折算成 call units(Agora Standard 分钟)。 */
+export function toCallUnits(audioUserSeconds: number, videoViewerSeconds: number): number {
+  const audioMin = Math.max(0, audioUserSeconds) / 60
+  const videoMin = Math.max(0, videoViewerSeconds) / 60
+  return Math.ceil(audioMin + videoMin * VIDEO_UNIT_WEIGHT)
+}
+
+/** 该套餐的免费通话额度(call units/月)。试用走独立常量,**绝不继承套餐**。 */
+async function callQuotaOf(p: PlanCfg): Promise<number> {
+  if (p.freeTrial) return TRIAL_CALL_UNITS  // ⚠️ 见 TRIAL_CALL_UNITS 注释
+  const r = await pool.query<{ cu: number | null }>(
+    `SELECT (limits->>'call_units_month')::int AS cu FROM lt_subscription_plans WHERE id = $1`,
     [p.plan]
   )
-  return Number(r.rows[0]?.vm ?? 0)
+  return Number(r.rows[0]?.cu ?? 0)
 }
 
 /**
- * 本月已用的视频 viewer-minutes(排除本场)。
+ * 本月已用的 call units(排除本场)。
  * 从 ledger 的 units 列累计 —— 免费额度内的行 credits=0 但 units>0,
  * 所以免费用量在账本上是可见的(这正是加 units 列的原因)。
  */
-async function videoMinutesUsed(billingId: string, p: PlanCfg, exceptSessionId?: string): Promise<number> {
+async function callUnitsUsed(billingId: string, p: PlanCfg, exceptSessionId?: string): Promise<number> {
   // 试用按「试用开始至今」累计(与 usedFor 同理:试用跨月不能被自然月归零白送第二遍)
   const since = p.freeTrial && p.trialStart ? p.trialStart : null
   const r = await pool.query<{ u: string }>(
     `SELECT COALESCE(SUM(units), 0) AS u FROM lt_credit_ledger
-       WHERE agent_id = $1 AND feature = 'live_video'
+       WHERE agent_id = $1 AND feature = 'live_call'
          AND created_at >= ${since ? '$2' : `date_trunc('month', now())`}
          ${exceptSessionId ? `AND ref_id IS DISTINCT FROM $${since ? 3 : 2}` : ''}`,
     since
@@ -338,53 +380,59 @@ async function videoMinutesUsed(billingId: string, p: PlanCfg, exceptSessionId?:
   return Number(r.rows[0]?.u ?? 0)
 }
 
-export interface VideoQuota {
-  /** 还剩多少免费 viewer-minutes(**-1 = 无限**,owner/白名单) */
+/** billedUnits → 积分(含 founder 折扣)。⚠️ 折扣必须在**总量**上取整。 */
+function unitsToCredits(billedUnits: number, multiplier: number): number {
+  // Math.round(1 * 0.6) 逐单位取整 = 1 → founder 的 40% 折扣会被整个吃掉。
+  return Math.round((billedUnits / CALL_UNITS_PER_CREDIT) * multiplier)
+}
+
+export interface CallQuota {
+  /** 还剩多少免费 call units(**-1 = 无限**,owner/白名单) */
   freeLeft: number
   /** 套餐/试用的月度免费额度(-1 = 无限) */
   freeQuota: number
   /** 当前积分余额(-1 = 无限) */
   creditBalance: number
-  /** 免费额度和积分**都**空了 → 不能开摄像头 */
+  /** 免费额度和积分**都**空了 → 不能开通话/摄像头 */
   exhausted: boolean
   /** 低于 minPlan(explore/rookie)→ 需升级,与额度无关 */
   needsUpgrade: boolean
   freeTrial: boolean
 }
 
-/** 开摄像头前的预检(给前端点亮/置灰按钮)。 */
-export async function checkVideoQuota(agentId: string): Promise<VideoQuota> {
+/** 开通话/摄像头前的预检(给前端点亮/置灰按钮)。 */
+export async function checkCallQuota(agentId: string): Promise<CallQuota> {
   if (await isUnlimited(agentId)) {
-    // ⚠️ owner/UNLIMITED_EMAILS 无刹车(积分永远扣不完 → stopVideo 恒 false)。
-    // 刻意不堵:内部人可控,堵了妨碍演示。兜底是单场 30min token TTL
-    // → 一场最多 6 人 × 30min = 180 viewer-min = $0.72。见 spec §3.3 洞②。
+    // ⚠️ owner/UNLIMITED_EMAILS 无刹车(积分永远扣不完 → stop 恒 false)。
+    // 刻意不堵:内部人可控,堵了妨碍演示。兜底是单场 30min token TTL。
     //
     // ⚠️ 用 -1 表示无限,**不能用 Infinity** —— JSON.stringify(Infinity) === 'null',
-    // 前端 `?? 0` 会把它读成 0 → 按钮显示「本月剩余 0 分钟」。与 creditBalance:-1 同约定。
+    // 前端 `?? 0` 会把它读成 0 → 按钮显示「剩余 0 分钟」。与 creditBalance:-1 同约定。
     return { freeLeft: -1, freeQuota: -1, creditBalance: -1, exhausted: false, needsUpgrade: false, freeTrial: false }
   }
   const billingId = await billingAgentOf(agentId)
   const p = await planFor(billingId)
-  if (PLAN_RANK[p.plan] < PLAN_RANK[FEATURES.live_video.minPlan]) {
+  if (PLAN_RANK[p.plan] < PLAN_RANK[FEATURES.live_call.minPlan]) {
     return { freeLeft: 0, freeQuota: 0, creditBalance: 0, exhausted: true, needsUpgrade: true, freeTrial: p.freeTrial }
   }
   const [freeQuota, used, spent] = await Promise.all([
-    videoQuotaOf(p),
-    videoMinutesUsed(billingId, p),
+    callQuotaOf(p),
+    callUnitsUsed(billingId, p),
     usedFor(billingId, p),
   ])
   const freeLeft = Math.max(0, freeQuota - used)
   const creditBalance = p.creditsMonth - spent
   return {
     freeLeft, freeQuota, creditBalance,
-    exhausted: freeLeft <= 0 && creditBalance < FEATURES.live_video.credits,
+    // 免费额度空了,且积分连 1 个 unit 都买不起 → 通话/视频停
+    exhausted: freeLeft <= 0 && creditBalance < 1,
     needsUpgrade: false,
     freeTrial: p.freeTrial,
   }
 }
 
-export interface VideoSettlement {
-  /** 本场累计 viewer-minutes */
+export interface CallSettlement {
+  /** 本场累计 call units */
   sessionUnits: number
   /** 本场落在免费额度里的部分 */
   freeUsed: number
@@ -394,52 +442,56 @@ export interface VideoSettlement {
   freeLeft: number
   /** 积分余额(-1 = 无限) */
   creditBalance: number
-  /** ⭐ true → 前端必须立即 unpublish 视频轨(Agora 当场停止计费) */
+  /** ⭐ 额度耗尽 → 前端必须立即撤视频轨(先砍贵的:视频是音频的 4 倍) */
   stopVideo: boolean
+  /** ⭐ 连语音都撑不住了 → 挂断整场通话 */
+  stopCall: boolean
 }
 
 /**
- * ⭐ 视频用量实时结算(heartbeat 每 30s 调一次)。
+ * ⭐ 通话用量实时结算(heartbeat 每 30s 调一次)。
  *
- * 传入本场**累计** viewer-seconds(不是增量)→ 幂等重算应扣总额 → 只补差额。
+ * 传入本场**累计**的 audio user-秒 和 video viewer-秒(不是增量)
+ * → 幂等重算应扣总额 → 只补差额。
  *
  * ⚠️ **绝不能改成「会话结束时统一结算」** —— 那是纸糊的护栏:100 人围观 30 分钟,
  * 钱早花完了才发现,事后扣积分只是记账,拦不住任何东西。刹车必须跟着 heartbeat 走。
+ *
+ * 两级刹车:额度见底先撤**视频**(单价 4×,砍它最有效),语音继续 —— 带看不中断。
+ * 视频撤了还是不够(纯语音也超了)→ stopCall 挂断整场。
  */
-export async function settleVideoUsage(
+export async function settleCallUsage(
   actorAgentId: string,
   sessionId: string,
-  viewerSeconds: number,
+  audioUserSeconds: number,
+  videoViewerSeconds: number,
   alreadySpent: number,
   ref?: SpendRef
-): Promise<VideoSettlement> {
-  const sessionUnits = Math.ceil(Math.max(0, viewerSeconds) / 60)
+): Promise<CallSettlement> {
+  const sessionUnits = toCallUnits(audioUserSeconds, videoViewerSeconds)
   const unlimited = await isUnlimited(actorAgentId)
   const billingId = await billingAgentOf(actorAgentId)   // 席位成员 → founder 共享池+共享额度
   const p = await planFor(billingId)
 
   const [freeQuota, usedElsewhere] = await Promise.all([
-    videoQuotaOf(p),
-    videoMinutesUsed(billingId, p, sessionId),   // 排除本场,避免把自己算两遍
+    callQuotaOf(p),
+    callUnitsUsed(billingId, p, sessionId),   // 排除本场,避免把自己算两遍
   ])
 
   const freeLeftBefore = Math.max(0, freeQuota - usedElsewhere)
   const freeUsed = Math.min(sessionUnits, freeLeftBefore)
   const billedUnits = sessionUnits - freeUsed
-
-  // ⚠️ 折扣必须在**总量**上取整,不能逐单位取整 ——
-  // Math.round(1 * 0.6) = 1 → founder 的 40% 折扣会被整个吃掉。
-  const credits = unlimited ? 0 : Math.round(FEATURES.live_video.credits * billedUnits * p.multiplier)
+  const credits = unlimited ? 0 : unitsToCredits(billedUnits, p.multiplier)
 
   // 一场一行 ledger:heartbeat 反复 UPDATE 同一行(ref_id = sessionId)。
   // credits=0 的免费行也要写 —— units 是月度额度的唯一真相源。
   await pool.query(
     `INSERT INTO lt_credit_ledger (agent_id, actor_agent_id, feature, credits, units, ref_type, ref_id, ref_label)
-       VALUES ($1,$2,'live_video',$3,$4,$5,$6,$7)
-     ON CONFLICT (ref_id) WHERE feature = 'live_video'
+       VALUES ($1,$2,'live_call',$3,$4,$5,$6,$7)
+     ON CONFLICT (ref_id) WHERE feature = 'live_call'
        DO UPDATE SET credits = EXCLUDED.credits, units = EXCLUDED.units, ref_label = EXCLUDED.ref_label`,
     [billingId, actorAgentId, credits, sessionUnits, ref?.type ?? 'live', sessionId, ref?.label ?? null]
-  ).catch((e) => console.error('[credits] live_video ledger upsert failed:', e))
+  ).catch((e) => console.error('[credits] live_call ledger upsert failed:', e))
 
   // 月度聚合只补差额(alreadySpent = voice_sessions.video_credits_spent)→ 幂等
   const delta = credits - Math.max(0, alreadySpent)
@@ -461,12 +513,14 @@ export async function settleVideoUsage(
   const spentTotal = unlimited ? 0 : await usedFor(billingId, p)
   const creditBalance = unlimited ? -1 : p.creditsMonth - spentTotal
   const freeLeft = Math.max(0, freeLeftBefore - freeUsed)
+  const broke = !unlimited && freeLeft <= 0 && creditBalance < 1
 
   return {
     sessionUnits, freeUsed, credits, freeLeft, creditBalance,
-    // 免费额度空了 **且** 积分买不起下一分钟 → 刹车。
-    // unlimited 恒 false(见 checkVideoQuota 注释)。
-    stopVideo: !unlimited && freeLeft <= 0 && creditBalance < FEATURES.live_video.credits,
+    // 见底 → 先砍视频(4× 单价)。unlimited 恒 false(见 checkCallQuota 注释)。
+    stopVideo: broke,
+    // 撤了视频还是撑不住(纯语音也超)→ 挂断整场
+    stopCall: broke && videoViewerSeconds <= 0,
   }
 }
 
