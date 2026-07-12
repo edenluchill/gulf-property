@@ -19,7 +19,7 @@ import pool from '../db/pool'
 import { requireAuth, requireAdmin } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
-import { creditBalance, featureCatalog, resetCreditsOnConversion, DEV_TRIAL_CREDITS, DEV_TRIAL_DAYS, VIDEO_UNIT_WEIGHT, CALL_UNITS_PER_CREDIT } from '../luna-tour/credits'
+import { creditBalance, featureCatalog, resetCreditsOnConversion, checkCallQuota, DEV_TRIAL_CREDITS, DEV_TRIAL_DAYS, VIDEO_UNIT_WEIGHT, CALL_UNITS_PER_CREDIT } from '../luna-tour/credits'
 import { claimFreeTrial, TRIAL_DAYS, TRIAL_PLAN, TRIAL_ROLES } from '../services/freeTrial'
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
@@ -658,6 +658,13 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       verification: dv.rows[0]?.status || null,   // null | pending | approved | rejected
     }
 
+    // 通话额度 —— ⚠️ **必须从 checkCallQuota 取,不能从 plan.limits 推**。
+    // 试用用户的 plan_id 就是 'agent'(试用给的是 Pro 的功能权限),但他的通话额度
+    // 是独立的 TRIAL_CALL_UNITS(120),不是套餐的 1200。前端若按 planId 去
+    // plans 表里查 callUnits,会给试用用户显示「套餐含 1200 额度」—— 和他实际
+    // 拿到的 120 对不上,也和「试用 200 积分」的文案自相矛盾。
+    const call = await checkCallQuota(agent.id)
+
     res.json({
       success: true,
       approved: agent.approved,
@@ -675,6 +682,8 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
         used: credits.used,            // 本月已花
         balance: credits.balance,      // 余额(-1=无限)
       },
+      // 我**实际**的通话额度(已考虑试用/席位/无限白名单),-1 = 无限
+      callQuota: { total: call.freeQuota, left: call.freeLeft },
     })
   } catch (err) {
     console.error('[billing] /me failed:', err)

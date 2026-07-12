@@ -27,6 +27,11 @@ export interface BillingMe {
   credits_reset_at?: string | null // 下次积分重置时间(下月 1 日)
   teamMember?: boolean // true = Founder 席位成员(套餐由团队承担)
   credits: { month: number; used: number; balance: number } // -1 = 无限(owner)
+  /**
+   * 我**实际**的通话额度(units)。⚠️ 别从 plan.limits 推 —— 试用用户的 plan_id
+   * 就是 'agent',但他的通话额度是独立的(120),不是套餐的 1200。-1 = 无限。
+   */
+  callQuota?: { total: number; left: number }
   /** 免绑卡试用 (2026-07-11)。used=true → 不能再开,CTA 回落「立即订阅」。 */
   trial?: {
     active: boolean

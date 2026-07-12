@@ -146,8 +146,12 @@ export default function AgentBilling() {
   const unlimited = cMonth < 0
   // 我的套餐折扣(Founder<1),用来在消耗表显示实扣
   const myMult = Number(feat.plans.find((p) => p.id === planId)?.multiplier ?? 1)
-  // 套餐内含的免费通话额度(call units:语音 1 分钟=1,视频 1 分钟=4)
-  const callUnits = Number(feat.plans.find((p) => p.id === planId)?.callUnits ?? 0)
+  // 我**实际**的通话额度(units:语音 1 分钟=1,视频 1 分钟=4)。
+  // ⚠️ 从 /me 取,**不能**从 plans 表按 planId 查 —— 试用用户的 plan_id 就是
+  // 'agent'(试用给的是 Pro 的功能权限),但他的通话额度是独立的 120,不是 1200。
+  // 按套餐查会显示「套餐含 1200 额度」,和他实际拿到的对不上。
+  const callTotal = me?.callQuota?.total ?? 0
+  const callLeft = me?.callQuota?.left ?? 0
 
   // 升级入口:非顶档 + 非席位成员才显示(→ 角色专属选档页)
   const canUpgrade = planId !== 'founder' && planId !== 'developer' && !me?.teamMember
@@ -307,9 +311,13 @@ export default function AgentBilling() {
                           {L('无限', 'Unlimited')}
                         </span>
                       )}
-                      {metered && callUnits > 0 && (
+                      {/* 显示**剩余**额度而不是套餐总额 —— 经纪想知道的是「我还能打多久」,
+                          而且试用用户的额度和套餐额度根本不是一个数。-1 = 无限。 */}
+                      {metered && callTotal !== 0 && (
                         <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
-                          {L(`套餐含 ${callUnits} 额度`, `${callUnits} incl.`)}
+                          {callTotal < 0
+                            ? L('无限', 'Unlimited')
+                            : L(`剩 ${callLeft} / ${callTotal} 额度`, `${callLeft} / ${callTotal} left`)}
                         </span>
                       )}
                       <span className="w-20 shrink-0 text-right text-sm font-bold tabular-nums text-slate-900">
