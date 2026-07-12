@@ -25,6 +25,7 @@ import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
+import { coachProfile, saveProfile, loadProfile } from './client-profile-coach'
 
 const router = Router()
 
@@ -196,6 +197,59 @@ router.put('/clients/:id', async (req: Request, res: Response) => {
       [agentId, req.params.id, b.name || '', b.avatar_url || null, b.background || null, b.budget || null, b.expectations || null, b.traits || null]
     )
     res.json({ success: true })
+  } catch (err) { res.status(500).json({ success: false, error: 'internal error' }) }
+})
+
+/**
+ * 画像教练:自由笔记 → 结构化画像 + 「还缺什么」(带可点选项)。
+ *
+ * **手动触发**(经纪点「AI 检查画像」),不是每次输入都调 —— LLM 只在这里用一次
+ * (Gemini Flash 抽取,~几百 token)。问题和选项是模板,0 LLM。
+ * 缺信息只提醒,**不阻塞生成** —— 画像糙则报告糙,那是经纪的选择。
+ *
+ * 不扣积分:成本 < $0.001,而它的整个目的是让后面那份 20 积分的报告更准 ——
+ * 为几厘钱去阻止一个提升主产品质量的动作,不划算。节流兜底(见下)。
+ */
+const coachThrottle = new Map<string, number>()
+router.post('/clients/profile-coach', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const { text, client_id } = (req.body || {}) as { text?: string; client_id?: string }
+
+    // 节流:同一经纪 5 秒一次(防连点/脚本刷)。零成本,够用。
+    const last = coachThrottle.get(agentId) || 0
+    if (Date.now() - last < 5000) return res.status(429).json({ success: false, error: '慢一点，5 秒后再试' })
+    coachThrottle.set(agentId, Date.now())
+
+    // 已有画像:已经知道的不再问(问过一次就别再烦他)
+    const existing = client_id ? await loadProfile(client_id, agentId) : {}
+    const r = await coachProfile(String(text || ''), existing)
+    res.json({ success: true, ...r })
+  } catch (err) {
+    console.error('[agent/profile-coach]', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** 保存画像(结构化字段 + 笔记)→ 回写 lt_clients。软字段深合并进 preferences。 */
+router.put('/clients/:id/profile', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const { profile, note } = (req.body || {}) as { profile?: Record<string, unknown>; note?: string }
+    await saveProfile(req.params.id, agentId, (profile || {}) as any, note)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[agent/clients profile save]', err)
+    res.status(500).json({ success: false, error: 'internal error' })
+  }
+})
+
+/** 读回完整画像(硬列 + preferences 软字段)—— 报告页选客户时带出来。 */
+router.get('/clients/:id/profile', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const p = await loadProfile(req.params.id, agentId)
+    res.json({ success: true, profile: p })
   } catch (err) { res.status(500).json({ success: false, error: 'internal error' }) }
 })
 

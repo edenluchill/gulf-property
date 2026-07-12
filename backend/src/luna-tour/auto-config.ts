@@ -13,7 +13,7 @@ import { GoogleGenAI } from '@google/genai'
 import { TourConfig } from './tour-script.types'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = ['gemini-3-flash', 'gemini-2.5-flash']
+const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite']  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 // Platform guardrails that always win (compliance floor).
 const LOCKED_GUARDRAILS = [

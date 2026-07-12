@@ -136,14 +136,32 @@ To debug a failed extraction:
 npm install @google/genai
 ```
 
-**最新模型版本 (截至 2026年2月):**
+**模型 ID (2026-07-12 核对官方文档 + `ai.models.list()` 实测)**
 
-| 用途 | 模型ID | 说明 |
+> ⚠️ 这张表原来是错的(写着 `gemini-3-flash` / `gemini-3.1-pro`,**两个都 404**),
+> 全站 6 个文件跟着写 → **每次调用先撞 404 再 fallback,整个项目的 AI 一直跑在 2.5 上**。已修。
+
+| 用途 | 模型ID | 价格 (in/out per 1M) |
 |------|--------|------|
-| 通用 | `gemini-3.1-pro` | 最新最强，复杂推理 |
-| 快速 | `gemini-3-flash` | 高性能，性价比高 |
-| Live API (语音对话) | `gemini-2.5-flash-native-audio-preview-12-2025` | 实时语音对话，支持 VAD |
-| Live API (新版) | `gemini-live-2.5-flash-native-audio` | 最新稳定版 (2026年3月后) |
+| **默认(生成/创作/抽取)** | **`gemini-3.5-flash`** | $1.50 / $9.00 — GA 旗舰 Flash (2026-05-19) |
+| 极省钱的轻活 / fallback | `gemini-3.1-flash-lite` | $0.25 / $1.50 — GA |
+| 复杂推理 | `gemini-3.1-pro-preview` | $2.00 / $12.00 — 无免费额度 |
+| Live API (语音对话) | `gemini-2.5-flash-native-audio-preview-12-2025` | 实时语音,支持 VAD |
+
+❌ **别写**:`gemini-3-flash`·`gemini-3.1-flash`·`gemini-3.1-pro`(**404,不存在**)
+❌ `gemini-3-flash-preview`(已废弃)·`gemini-3-pro-preview`(2026-03-09 已关停)
+❌ `gemini-2.5-*` 全系(deprecated,最早 2026-10-16 关停)·`*-latest` 别名(会被静默热切换)
+
+**两个必踩的坑(实测):**
+1. **Gemini 3.x 用 `thinkingConfig.thinkingLevel`**(`minimal|low|medium|high`),
+   **不是 `thinkingBudget`**(那是 2.5 的)。写错会被**静默忽略**。
+   thinking **默认开着且按 output 价计费** —— 抽取类任务设 `minimal`(实测 thinking token 归 0,
+   默认档要烧 1440 个)。
+2. **结构化输出必须把字段全标 `required` + 允许 `null`**。字段 optional 时模型可以合法地
+   「不填」→ **明说了的信息也会静默消失**(实测:optional schema 下「单身/自住/预算120万」
+   只回了个名字,还编了个付款方式)。required 之后它填不出来就必须交 null,藏不住。
+
+详见 `docs/reports/2026-07-12-gemini-model-lineup.md`
 
 **Live API 使用 SDK 示例:**
 ```typescript
