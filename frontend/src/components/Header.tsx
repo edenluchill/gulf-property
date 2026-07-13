@@ -225,19 +225,26 @@ export default function Header() {
               <LanguageSwitcher />
             </div>
 
-            {!loading && (
-              user ? (
-                <UserMenu />
-              ) : (
-                <Link to="/login">
-                  <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                    <Button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl text-sm font-medium shadow-md shadow-teal-500/20">
-                      <LogIn className="h-4 w-4" />
-                      <span>{t('auth:login', 'Sign In')}</span>
-                    </Button>
-                  </motion.div>
-                </Link>
-              )
+            {/* 登录态还没确定时,给一个占位骨架 —— 不能画成「登录」按钮。
+                那等于在还不知道你是谁的时候就断言"你没登录",用户会看到自己的头像被
+                「登录」闪掉一下。也不能什么都不渲染:按钮会凭空弹出来,把整行挤动。 */}
+            {loading ? (
+              <div
+                aria-busy="true"
+                aria-label={t('common:loading', 'Loading')}
+                className={`h-9 w-[104px] animate-pulse rounded-xl ${theme.dark ? 'bg-white/15' : 'bg-slate-200'}`}
+              />
+            ) : user ? (
+              <UserMenu />
+            ) : (
+              <Link to="/login">
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                  <Button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl text-sm font-medium shadow-md shadow-teal-500/20">
+                    <LogIn className="h-4 w-4" />
+                    <span>{t('auth:login', 'Sign In')}</span>
+                  </Button>
+                </motion.div>
+              </Link>
             )}
           </nav>
 

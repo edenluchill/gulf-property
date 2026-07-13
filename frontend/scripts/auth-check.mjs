@@ -151,7 +151,98 @@ const browser = await chromium.launch()
   await ctx.close()
 }
 
-// ── 4 & 5. 微信 WebView 降级 / 普通浏览器对照组 ────────────────────────────
+// ── 4. 已登录用户首屏不得闪过「登录」入口(桌面 + 手机/平板底栏) ─────────────
+// 事后查 DOM 是看不出闪烁的 —— 从页面加载起就用 MutationObserver 盯着,只要「登录」
+// 入口出现过一帧就算失败。登录态未定时应当显示骨架,而不是断言"你没登录"。
+for (const [label, viewport] of [
+  ['桌面 Header', { width: 1400, height: 900 }],
+  ['手机底栏 MobileNav', { width: 390, height: 844 }],
+  ['iPad 底栏 MobileNav', { width: 1024, height: 1366 }],
+]) {
+  const ctx = await browser.newContext({ viewport })
+  await ctx.addInitScript(
+    ([session, key]) => {
+      localStorage.setItem(key, JSON.stringify(session))
+      window.__sawLogin = false
+      const check = () => {
+        if (document.querySelector('a[href="/login"], a[href^="/login?"]')) window.__sawLogin = true
+      }
+      new MutationObserver(check).observe(document.documentElement, { childList: true, subtree: true })
+      const t = setInterval(check, 16) // MutationObserver 之外再高频轮询,别漏掉任何一帧
+      setTimeout(() => clearInterval(t), 8000)
+    },
+    [fakeSession(), AUTH_KEY]
+  )
+  const page = await ctx.newPage()
+  await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await settle(page, true)
+  await page.waitForTimeout(1500)
+
+  const flashed = await page.evaluate(() => window.__sawLogin)
+  record(
+    `${label}:已登录时首屏不闪「登录」`,
+    !flashed,
+    flashed ? '闪过「登录」入口 —— 用户会看到自己被显示成未登录' : '全程没出现过「登录」入口'
+  )
+  await ctx.close()
+}
+
+// ── 5. 匿名用户必须立刻能点「登录」,不能卡在骨架上 ──────────────────────────
+// 反向的坑:为了不闪而让所有人陪着等 —— 匿名用户盯着骨架干等(锁被占死时最长 5 秒),
+// 连登录按钮都点不了。那比闪一下更糟。
+{
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
+  await ctx.addInitScript((lockName) => {
+    // 连锁都被占死的最坏情况下,匿名用户也必须马上看到登录入口
+    navigator.locks.request(lockName, { mode: 'exclusive' }, () => new Promise(() => {}))
+  }, LOCK_NAME)
+  const page = await ctx.newPage()
+  const t0 = Date.now()
+  await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  const appeared = await settle(page, false) // 未登录 = 有 /login 入口
+  const ms = Date.now() - t0
+  record(
+    '匿名用户(且锁被占死):立刻能看到并点到「登录」',
+    appeared && ms < 3000,
+    `登录入口出现耗时 ${ms}ms(超过 3 秒就是把匿名用户卡在骨架上了)`
+  )
+  await ctx.close()
+}
+
+// ── 6. OAuth 回调进行中,不得显示「登录」──────────────────────────────────
+// 这是唯一真正「还不知道你是谁」的时刻:token 正在被换成 session。这里显示「登录」
+// 等于在用户正登录的当口断言他没登录。
+// (曾经真的挂在这:auth-js 初始化会先发一个 session=null 的 INITIAL_SESSION,
+//  onAuthStateChange 照单全收 setLoading(false) → 回调页顶栏/底栏直接画成「登录」。)
+for (const [label, viewport] of [
+  ['桌面', { width: 1400, height: 900 }],
+  ['手机', { width: 390, height: 844 }],
+]) {
+  const ctx = await browser.newContext({ viewport })
+  const page = await ctx.newPage()
+  // 让 Supabase auth 端点永不返回 → 稳定停在"正在换 session"这一帧
+  await page.route('**/auth/v1/**', () => {})
+
+  const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url')
+  const jwt = [b64u({ alg: 'HS256', typ: 'JWT' }), b64u({ sub: 'x', exp: 9999999999 }), 'sig'].join('.')
+  await page.goto(
+    `${BASE}auth/callback#access_token=${jwt}&refresh_token=r&expires_in=3600&token_type=bearer`,
+    { waitUntil: 'domcontentloaded', timeout: 60000 }
+  )
+  await page.waitForTimeout(2500)
+
+  const showsLogin = await page.evaluate(
+    () => !!document.querySelector('a[href="/login"], a[href^="/login?"]')
+  )
+  record(
+    `${label}:OAuth 回调进行中不显示「登录」`,
+    !showsLogin,
+    showsLogin ? '正在换 session 却显示「登录」—— 在用户正登录时说他没登录' : '显示 loading 骨架,没有断言未登录'
+  )
+  await ctx.close()
+}
+
+// ── 7 & 8. 微信 WebView 降级 / 普通浏览器对照组 ────────────────────────────
 for (const [label, ua, wantGoogle] of [
   ['微信 WebView', WECHAT_UA, false],
   ['普通浏览器(对照组)', null, true],

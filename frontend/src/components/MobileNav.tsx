@@ -16,7 +16,7 @@ export default function MobileNav() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation(['common', 'nav', 'auth'])
-  const { user, isAdmin, canUpload } = useAuth()
+  const { user, loading, isAdmin, canUpload } = useAuth()
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
 
@@ -43,9 +43,13 @@ export default function MobileNav() {
     { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp },
     // 管理 - 仅白名单 admin / uploader
     ...((isAdmin || canUpload === true) ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
-    user
-      ? { path: '/profile', label: t('nav:profile'), icon: User }
-      : { path: '/login', label: t('auth:login', 'Login'), icon: LogIn },
+    // 登录态还没确定时给占位,别默认画成「登录」—— 那等于在还不知道你是谁的时候就
+    // 断言"你没登录",已登录的人会看到「我的」被「登录」闪掉一下。
+    loading
+      ? { path: 'auth-loading', label: '', icon: User, isAuthLoading: true }
+      : user
+        ? { path: '/profile', label: t('nav:profile'), icon: User }
+        : { path: '/login', label: t('auth:login', 'Login'), icon: LogIn },
   ]
 
   const gridCols = ({ 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' } as Record<number, string>)[navItems.length] || 'grid-cols-4'
@@ -74,6 +78,20 @@ export default function MobileNav() {
               ? isAdminActive
               : (location.pathname === path ||
                  (path === '/profile' && location.pathname.startsWith('/profile')))
+
+            // 登录态未定 —— 占住这一格(保持 grid 列数不变,底栏不会跳),画个骨架
+            if ('isAuthLoading' in item && item.isAuthLoading) {
+              return (
+                <div
+                  key={path}
+                  aria-busy="true"
+                  className="flex flex-col items-center justify-center gap-1 md:gap-1.5"
+                >
+                  <div className="h-5 w-5 md:h-7 md:w-7 animate-pulse rounded-full bg-slate-200" />
+                  <div className="h-2 w-7 md:h-3 md:w-10 animate-pulse rounded bg-slate-200" />
+                </div>
+              )
+            }
 
             if (isAdminTrigger) {
               return (

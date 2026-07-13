@@ -30,10 +30,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 会走 SIGNED_OUT 把界面改回未登录。乐观渲染,不是鉴权:真鉴权全在服务端。
   const bootstrap = readStoredSession()
 
+  // OAuth 回调页是**唯一**真正「还不知道你是谁」的时刻:token 正在被换成 session。
+  // 其余任何时候,localStorage 同步就能给出答案 —— 有 session 就是登录着,没有就是没登录,
+  // 不存在第三种状态。所以别再让所有人陪着等一个异步的 getSession():
+  //   · 已登录的人 → 等待期间被画成「未登录」,头像被「登录」按钮闪掉一下(owner 报的就是这个)
+  //   · 匿名的人   → 更糟,会盯着骨架干等(锁被占死时最长 5 秒),连登录按钮都点不了
+  const onAuthCallbackRoute =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/callback')
+
   const [user, setUser] = useState<User | null>(bootstrap?.user ?? null)
   const [session, setSession] = useState<Session | null>(bootstrap)
-  // 已经有 session 就不算 loading —— 否则 ProtectedRoute 会白转一圈 spinner
-  const [loading, setLoading] = useState(!bootstrap)
+  const [loading, setLoading] = useState(onAuthCallbackRoute && !bootstrap)
   const [isAdmin, setIsAdmin] = useState(isAdminEmail(bootstrap?.user?.email))
   const [canUpload, setCanUpload] = useState<boolean | null>(false)
   // "为什么老被登出"排查埋点:区分用户点退出 vs SDK 自杀会话(refresh token 被
@@ -75,11 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // reason" — the cause of mobile Google login failing (provider=google,
     // has_hash=true). AuthCallback will finish auth and onAuthStateChange below
     // will then update us; so we just skip the initial getSession on that route.
-    const onAuthCallback =
-      typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/callback')
-
-    // Get initial session (skipped on the callback route to avoid the lock race)
-    if (!onAuthCallback) {
+    // Get initial session (skipped on the callback route to avoid the lock race).
+    // 注意:它现在只负责**校验/纠正**已经渲染出来的乐观状态,不再是首屏的必经之路。
+    if (!onAuthCallbackRoute) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session)
         setUser(session?.user ?? null)
@@ -89,9 +94,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Link this browser's anonymous visitor_id to the account (backfills email).
         if (session?.user) void identifyVisitor()
       })
-    } else {
-      setLoading(false)
     }
+
+    // 回调页兜底:换 session 卡住/失败时(AuthCallback 会显示错误 UI),别让顶栏永远
+    // 停在骨架上 —— 8 秒后收掉,让它回到可点的「登录」。
+    const loadingGuard = onAuthCallbackRoute
+      ? setTimeout(() => setLoading(false), 8_000)
+      : undefined
 
     // Listen for auth changes
     const {
@@ -124,7 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       checkAdminRole(session?.user ?? null)
-      setLoading(false)
+
+      // ⚠️ 别无脑 setLoading(false)。auth-js 初始化时会立刻发一个 session=null 的
+      // INITIAL_SESSION —— 在 OAuth 回调页上,那一刻 token 正在被换成 session,
+      // "还没有 session" 不等于 "没登录"。照单全收就会在你正登录的当口把顶栏画成
+      // 「登录」,正是要避免的那个 bug。只有拿到真结果才收 loading:
+      //   有 session → 登录成功;SIGNED_OUT → 确实没登录。
+      if (session || event === 'SIGNED_OUT' || !onAuthCallbackRoute) setLoading(false)
+
       if (session?.user) void identifyVisitor()
     })
 
@@ -171,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe()
       window.removeEventListener('storage', onStorage)
+      if (loadingGuard) clearTimeout(loadingGuard)
     }
   }, [])
 
