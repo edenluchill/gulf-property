@@ -286,16 +286,24 @@
    桌面: 跟 roi_card 一样贴底居中(同一个位置轮流出现,不会打架 —— homes 和 numbers
    是两拍,不同时在场)。手机: 底部 sheet,压在项目卡上方。 */
 .lt-ov-units {
+  /* 桌面: **右侧竖卡**。底部是字幕、左边是项目卡 —— 户型卡再往中下走就必然打架
+     (第一版放在 roi 的位置,字幕直接糊在户型图上)。右边是这一拍唯一干净的地方。 */
   position: absolute;
-  left: 50%; transform: translate(-50%, 0);
-  bottom: 88px; z-index: 7;
-  width: min(460px, calc(100% - 32px));
+  right: 16px; top: 50%; transform: translateY(-50%);
+  z-index: 7; width: 300px; max-width: 44vw;
   background: linear-gradient(135deg, rgba(10, 14, 24, 0.95), rgba(8, 12, 20, 0.88));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px; padding: 14px 16px;
   backdrop-filter: blur(14px);
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
-  animation: lt-slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  /* ⚠️ 不能用 lt-slide-left —— 它的关键帧只设 translateX,会把上面的
+     translateY(-50%) 覆盖掉,卡片会先偏下再「啪」地跳回中间(roi 卡踩过同一个坑)。
+     居中的位移必须**留在关键帧里**。 */
+  animation: lt-slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes lt-slide-in-right {
+  from { opacity: 0; transform: translate(28px, -50%); }
+  to   { opacity: 1; transform: translate(0, -50%); }
 }
 .lt-units-head {
   font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
@@ -805,14 +813,22 @@
      手机上只留三段进度条 —— 客户看的是地图，不是目录。 */
   .lt-chapter-name { display: none; }
 
-  /* 手机:户型卡贴底(在项目小卡之上),缩略户型图,chips 横向可滚 */
+  /* 手机: 户型卡贴底。
+     ⚠️ 这一拍**藏掉项目小卡** —— 两张卡叠在底部会占掉半个屏幕,而且它们讲的是
+        同一个项目(项目名在顶部章节条上)。户型卡本身就是这一拍的主角。
+     字幕的让位见下面的 :has() 规则 —— 别再手写第二个 bottom 值。 */
   .lt-ov-units {
-    left: 10px; right: 10px; transform: none;
-    width: auto; bottom: 118px; padding: 11px 12px; border-radius: 14px;
+    left: 10px; right: 10px; top: auto; bottom: 12px;
+    transform: none; width: auto; max-width: none;
+    padding: 11px 12px; border-radius: 14px;
+    animation: lt-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  .lt-overlay-root:has(.lt-ov-units) .lt-ov-card { display: none; }
   .lt-units-head { margin-bottom: 7px; }
   .lt-unit-plan { width: 66px; height: 66px; }
   .lt-unit-label { font-size: 17px; }
+  .lt-unit-figs { gap: 10px; margin-top: 5px; }
+  .lt-unit-figs b { font-size: 14px; }
   .lt-unit-chips {
     flex-wrap: nowrap; overflow-x: auto; margin-top: 9px; padding-top: 9px;
     scrollbar-width: none;
@@ -856,3 +872,17 @@
 }
 @keyframes lt-slide-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes lt-slide-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+/**
+ * 字幕给底部的卡片让位。
+ *
+ * ⚠️ 我已经在这上面栽了两次:每次把一张卡挪到底部,字幕就糊在它上面 —— 因为字幕的
+ *    bottom 是写死的。写死的值管不了「底下现在有没有卡、卡多高」。
+ *
+ * 用 :has() 让**字幕自己知道**底下有东西:手机上户型卡在场时抬到卡片之上。
+ * 桌面不需要 —— 桌面的户型卡在右侧,本来就不挡字幕。
+ */
+@media (max-width: 640px) {
+  .lt-root:has(.lt-ov-units) .lt-subtitle,
+  .lt-tour-host:has(.lt-ov-units) .lt-subtitle { bottom: 190px; }
+}
