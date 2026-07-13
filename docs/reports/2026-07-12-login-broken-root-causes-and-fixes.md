@@ -168,9 +168,78 @@ auth-js **不监听 `storage` 事件**（只在 `visibilitychange` 时和存储�
 
 ---
 
-## 建议的下一步
+## 第二轮（同日，commit 611eda9）：补齐诊断 + 固化测试 + 验证多设备
 
-1. **给 `TOKEN_REFRESHED` 埋点** —— 剩下 6 次无法解释的自动登出，缺的就是这段数据。
-2. **401 目前不进错误监控**（`errorCapture.ts:13` 明确排除）。如果刷新失败后前端继续拿旧
-   token 打接口，会产生一串 401，但这些在 dashboard 上完全隐形。至少该采样上报。
-3. 观察 `auth_failure` 是否归零 —— 这是本次修复最直接的验收指标。
+### 诊断层 —— 让"session 怎么死的"不再是黑洞
+
+supabase-js 不暴露刷新的成败，所以在 `global.fetch` 层自己拦（`diagnosticFetch`）：
+
+| 端点 | 事件 | 关键字段 |
+|---|---|---|
+| `/auth/v1/token?grant_type=refresh_token` | `auth_token_refresh` | ok, status, error_code, message, ms, **visibility**, online |
+| `/auth/v1/logout` | `auth_logout_call` | status, **scope** |
+
+- `visibility=hidden` → 刷新发生在后台 tab，冻结的 tab 是头号嫌疑。
+- `scope` → 确认线上真的走 `local`，防止有人改回 global。
+- `auth_signed_out` 现在附带 `last_refresh_ok / status / error / message / age_ms`
+  —— **这是区分「刷新失败了」和「刷新压根没跑」的唯一证据**。
+
+实测（伪造无效 refresh token）打出来的是：
+```json
+{"ok":false,"status":400,"error_code":"validation_failed",
+ "message":"Refresh token is not valid","ms":255,"visibility":"visible","online":true}
+```
+`auth_signed_out` 同步带上 `last_refresh_error:"validation_failed"`、`age_ms:351`。
+
+⚠️ 坑：GoTrue 的错误体形状不一（`error_code`/`error`/`code`/只有 `message`）。第一版只读
+`error_code`，实测全是 null，**埋点等于白埋**。现在认不出的就把原始 body 截一段带上。
+
+### 401 不再隐形
+
+`errorCapture.ts` 原先明确排除 401。现在「**本地有 session、服务器却 401**」= token 已死，
+记成 `api_error / kind:'stale_token'`。匿名请求的 401 仍不报（正常业务流）。
+
+判据用 localStorage 而**不是请求头** —— `errorCapture` 包在 `attribution` 外层，那时候
+Authorization 还没被注入，照请求头判会漏掉一大半请求。
+
+### 错误监控只收失败的刷新
+
+`analyticsQueries.ts` 新增 `ERROR_EVENTS_SQL`，只把 `payload->>'ok'='false'` 的刷新算作故障。
+**成功的刷新每个 tab 每小时一次，放进去会把真问题彻底淹掉。**
+
+### 测试固化进仓库（每条都带对照组）
+
+```bash
+# 浏览器侧 4 场景（真 Chromium）
+cd frontend && npx vite --port 5199 --strictPort &
+SHOT_URL=http://localhost:5199/ node scripts/auth-check.mjs
+
+# 多设备共用一个账号（真 Supabase）
+cd backend && npx ts-node scripts/auth-multidevice-check.ts
+```
+
+多设备验证结果（真 Supabase，同一账号两台独立设备）：
+
+```
+设备A 退出后，设备B 是否还活着:              是 ✓
+对照组: 有人用 scope:'global' 退出后，设备B: 被杀 ✓
+```
+
+后半句同时证明了两件事：**测试真能抓到 bug**，以及**旧代码的 global 确实在连坐**。
+
+---
+
+## 剩下的
+
+1. **6 次无法解释的自动登出** —— 诊断埋点已上线，下次再发生就能直接读出死因
+   （刷新失败？还是 tab 冻结导致压根没刷）。攒几天数据再查：
+   ```sql
+   SELECT created_at, payload->>'last_refresh_ok', payload->>'last_refresh_error',
+          payload->>'last_refresh_message', payload->>'last_refresh_age_ms', payload->>'visibility'
+     FROM app_events
+    WHERE event_type='auth_signed_out' AND payload->>'manual'='false'
+    ORDER BY created_at DESC;
+   ```
+2. **Supabase Dashboard → Auth → Sessions：refresh token reuse interval 10s → 60s**
+   （只能手点，我改不了）。锁降级在极端情况下允许两 tab 并发刷新，把这个窗口调宽是免费保险。
+3. 验收指标：`auth_failure` 归零。
