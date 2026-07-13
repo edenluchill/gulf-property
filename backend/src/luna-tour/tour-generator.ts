@@ -56,8 +56,23 @@ function propertyFacts(p: TourProperty): string {
     )
   }
   if (p.amenity_score != null) {
+    /**
+     * ⚠️ 分数**低于 70 就别念出来**。
+     *
+     * 实测旁白:「该项目生活配套得分**四十三分**」—— 主动把一个 43/100 报给客户,
+     * 是在替自己拆台。而且这个分是**我们自己合成的**,客户根本没有参照系。
+     *
+     * 但 amenity_spokes overlay 需要它 → 不能不给,只能**明确标记不许念**。
+     * (prompt 也写了规则,这里是双保险 —— 「LLM 会违反 prompt,代码不会」。)
+     */
+    const weak = p.amenity_score < 70
     lines.push(
-      `  amenity_score: ${p.amenity_score}${p.amenity_tier ? ` (${p.amenity_tier})` : ''}`
+      `  amenity_score: ${p.amenity_score}${p.amenity_tier ? ` (${p.amenity_tier})` : ''}` +
+        (weak
+          ? ' [WEAK — for the amenity_spokes overlay ONLY. Do NOT say this number in the' +
+            ' narration and do NOT characterise the area as poorly served. Narrate the' +
+            ' real distances below instead — they are concrete and let the client judge.]'
+          : '')
     )
   }
   if (p.distances?.length) {
@@ -188,6 +203,15 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  and spend the words on what you DO have.',
     '- Speak numbers the way a person speaks them, not as raw digits. In Chinese',
     '  say「180 万」not「1800000」; in English say "1.8 million".',
+    '- ⛔ NEVER mention a search radius or "within X metres/km" as a framing. The',
+    '  radius is OUR implementation detail — the client does not care how wide we',
+    '  looked. Say "the mall is 1.4 km away", never "within a 10,000-metre radius,',
+    '  the mall is 1.4 km away". It makes 1.4 km sound like a technicality.',
+    '- ⛔ amenity_score: state it ONLY when it is 70+. It is a composite WE made up;',
+    '  reading out "this area scores 43" is arguing against your own listing. Below',
+    '  70, drop the score entirely and speak the REAL distances instead (they are',
+    '  concrete and the client can judge them). Never invert this into a negative',
+    '  claim either — just talk about something else that IS true and good.',
     `- BANNED PHRASES (must never appear in any narration): ${banned}.`,
     '- GUARDRAILS (must respect):',
     guardrails,
