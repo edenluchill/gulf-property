@@ -1225,18 +1225,11 @@ function MapViewMapLibre({
         localIdeographFontFamily="'PingFang SC', 'Microsoft YaHei', sans-serif"
         style={{ width: '100%', height: '100%' }}
         mapStyle={
-          // 🔴 Luna Tour 期间**无条件 dark 矢量底图**(声明式,不走 state —— 也就不会
-          //    动到用户自己的底图偏好)。
-          //
-          //    baseMap 默认是 'satellite',于是每个第一次打开 tour 的客户看到的都是卫星图。
-          //    这对**期房**是灾难:
-          //      ① 项目还没盖 —— 卫星图上那块地就是**一片沙子**。我们带客户过去说
-          //         「这是您的家」。(本文件第 41 行的注释自己就承认卫星图「看着像
-          //         多年前的空地」。)
-          //      ② 卫星瓦片 zoom 16+ 没有分辨率 → **糊成一片泥浆**。
-          //    而 tour 剧本里本来就写着 map_style:"dark" —— 只是从没被执行过。
+          // 🔴 **Luna Tour 必须用卫星底图。** owner 已经说过很多次了 —— 不要再改。
+          //    我先后改成过 dark 和亮色矢量,两次都是错的。tour 期间强制 satellite,
+          //    不管用户自己的底图偏好是什么。
           tourActive
-            ? MAP_STYLE_DARK
+            ? SATELLITE_STYLE
             : baseMap === 'satellite'
             ? SATELLITE_STYLE
             : baseMap === 'dark'
