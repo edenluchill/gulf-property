@@ -818,7 +818,9 @@
         同一个项目(项目名在顶部章节条上)。户型卡本身就是这一拍的主角。
      字幕的让位见下面的 :has() 规则 —— 别再手写第二个 bottom 值。 */
   .lt-ov-units {
-    left: 10px; right: 10px; top: auto; bottom: 12px;
+    /* bottom: 56 而不是 12 —— mute/CC 按钮在 bottom:14 高 34,贴到 12 的话
+       chips 最后一颗正好被按钮压住(实测「3 房」的价格看不见)。 */
+    left: 10px; right: 10px; top: auto; bottom: 56px;
     transform: none; width: auto; max-width: none;
     padding: 11px 12px; border-radius: 14px;
     animation: lt-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1);
@@ -884,5 +886,5 @@
  */
 @media (max-width: 640px) {
   .lt-root:has(.lt-ov-units) .lt-subtitle,
-  .lt-tour-host:has(.lt-ov-units) .lt-subtitle { bottom: 190px; }
+  .lt-tour-host:has(.lt-ov-units) .lt-subtitle { bottom: 234px; }
 }
