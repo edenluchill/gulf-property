@@ -290,10 +290,40 @@ export default function TourOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
-  // Before the tour starts, slowly orbit over Dubai (centred on the picked homes)
-  // behind the lightly-blurred greeting so the cover feels alive. Stops on start.
+  /**
+   * 🔴 欢迎页:相机**静止**停在 tour 的第一帧机位。
+   *
+   * 这里原本跑着一个**无限旋转**:每帧 `bearing += 0.05`，60fps → 3°/秒，永不停止。
+   * 而欢迎页的遮罩是**半透明**的 —— 客户**看得见**地图在背景里缓慢打转。
+   * **那就是「莫名其妙的平移」。** （顺带 60fps 空转烧 GPU。）
+   *
+   * 而且它用的机位（zoom 10.2 / pitch 55）和剧本 intro 的第一帧对不上 ——
+   * 点「开始」的瞬间还会再跳一下。
+   *
+   * 现在:直接读剧本 intro 的第一个 keyframe，jumpTo 过去，**一次，不循环**。
+   * 于是欢迎页看到的就是 tour 的第一帧，点开始完全无缝。
+   */
   useEffect(() => {
     if (snap || !data) return // snap becomes non-null once the engine starts
+    const map = mapRef.current
+    if (!map) return
+
+    // 剧本 intro 的第一个 keyframe = establishing shot（后端算好的，能装下所有项目）
+    const kf = (data.script?.intro?.camera ?? []).find(
+      (c: any) => Array.isArray(c.center)
+    ) as { center?: [number, number]; zoom?: number; pitch?: number; bearing?: number } | undefined
+
+    if (kf?.center) {
+      map.jumpTo({
+        center: kf.center,
+        zoom: kf.zoom ?? 10.2,
+        pitch: kf.pitch ?? 45,
+        bearing: kf.bearing ?? 0,
+      })
+      return
+    }
+
+    // 兜底:剧本里没有 camera（不该发生）→ 用所有项目的中心
     const coords = data.properties
       .map((p) => p.snapshot.coords)
       .filter((c): c is [number, number] => Array.isArray(c))
@@ -303,18 +333,7 @@ export default function TourOverlay({
           coords.reduce((s, c) => s + c[1], 0) / coords.length,
         ]
       : [55.2, 25.12]
-    let bearing = 0
-    let raf = 0
-    const tick = () => {
-      const map = mapRef.current
-      if (map) {
-        bearing = (bearing + 0.05) % 360
-        map.jumpTo({ center, zoom: 10.2, pitch: 55, bearing })
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    map.jumpTo({ center, zoom: 10.2, pitch: 45, bearing: 0 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap, data])
 
