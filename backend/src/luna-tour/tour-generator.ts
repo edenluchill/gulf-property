@@ -224,12 +224,47 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  { "type":"flyover"|"cut", "duration_ms", "narration": null } }',
     'Beat = { "id", "kind"?, "narration", "duration_ms", "camera": [...], "overlays": [...] }',
     '',
-    'CAMERA entries are either keyframes',
-    '  { "at_ms", "center":[lng,lat], "zoom", "pitch", "bearing", "duration_ms", "easing" }',
-    'or motions',
-    '  { "type":"orbit", "at_ms", "center":[lng,lat], "degrees", "duration_ms" }',
-    '  { "type":"flyover", "at_ms", "from":[lng,lat], "to":[lng,lat], "duration_ms" }.',
+    'CAMERA VOCABULARY — you are the cinematographer. These are your moves:',
+    '  keyframe { at_ms, center?, zoom?, pitch?, duration_ms, easing? }',
+    '      A pose. duration_ms: 0 = a CUT to that pose (use for the establishing shot).',
+    '      ⛔ Do NOT set `bearing` — rotation comes ONLY from `orbit` (below).',
+    '  flyover { type:"flyover", at_ms, from:[lng,lat], to:[lng,lat], duration_ms }',
+    '      Travel between two places. The engine automatically arcs up just enough',
+    '      that BOTH points are in frame mid-flight, then descends. You do not',
+    '      author the arc. Keep it ≤2500ms — travel is dead time, information',
+    '      lives at the destination.',
+    '  orbit { type:"orbit", at_ms, center:[lng,lat], degrees, duration_ms }',
+    '      Circle a point. THIS is how you show a building in the round and reveal',
+    '      what surrounds it. 60–150°, 4000–8000ms. Slow.',
+    '  push { type:"push", at_ms, zoom_delta, duration_ms }',
+    '      Dolly in/out IN PLACE (centre unchanged). +0.5 to +1.2 tightens attention;',
+    '      -0.5 to -1.0 opens up context. The cheapest way to keep a shot alive.',
+    '  crane { type:"crane", at_ms, pitch?, zoom?, duration_ms }',
+    '      Rise/descend IN PLACE. Raising pitch (→55) hugs the ground and makes',
+    '      towers feel tall; lowering it (→25) reads the street grid from above.',
     'easing ∈ linear | easeIn | easeOut | easeInOut.',
+    '',
+    '⭐ MOTION GRAMMAR — the camera must be ALIVE. A frozen map is a dead demo.',
+    '   Rule of thumb: EVERY beat carries motion, EXCEPT when the viewer is reading',
+    '   a number. Motion is how you hold attention; stillness is how you let them read.',
+    '   Chain moves inside one beat (they run back to back — at_ms in order):',
+    '',
+    '   • intro   — the opening must have ENERGY, like a drone taking off. Cut to the',
+    '               establishing shot (duration_ms: 0), then a SLOW high orbit',
+    '               (~60–90°, 5000–7000ms) while you greet the client, and push in',
+    '               (+0.6~1.0) as you name the properties. Never a static wide shot.',
+    '   • arrival — flyover to the property (≤2500ms), then immediately a crane',
+    '               (pitch→50) or push (+0.5) so the arrival keeps breathing.',
+    '   • life    — SLOW orbit (60–100°, 5000–7000ms) around the property while the',
+    '               distance lines draw. This is exactly the beat where circling',
+    '               EARNS its keep: the client is being shown WHAT IS AROUND them.',
+    '   • homes   — orbit again (80–150°, 6000–8000ms), slower and tighter. The client',
+    '               is deciding which home is theirs; let them see it from every side',
+    '               and see the neighbourhood turning behind it. NEVER hold still here.',
+    '   • numbers — ⛔ HOLD. No orbit, no flyover. At most a barely-there push (+0.3).',
+    '               They are reading a chart. Moving the map now competes with the',
+    '               number and they will remember neither.',
+    '   • outro   — crane up + push out (-0.8) to see all the homes together.',
     '',
     'OVERLAY types (each has "at_ms" and usually "duration_ms"):',
     '  title { text, subtitle? }',
@@ -253,27 +288,20 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  duration_ms + outro.duration_ms (transition_out durations are NOT summed).',
     `- total_ms must be within ±${Math.round(TOTAL_DURATION_TOLERANCE * 100)}% of ${targetMs} ms.`,
     '',
-    'CAMERA GRAMMAR (hard rules — a wandering camera is the #1 thing that makes',
-    'this feel like a tech demo instead of a sales tour):',
-    '- ⛔ NO camera motion may exceed 4000 ms. Ever. A long flight over empty',
-    '  desert teaches the viewer NOTHING — it is dead air. If two points are far',
-    '  apart, use a SHORT flyover (≤4000 ms) — the path auto-zooms out, that IS',
-    '  the "up over the city and back down" move. Do not stretch it.',
-    '- ⛔ orbit degrees must be ≤ 120 and duration ≤ 4000 ms. A 180° 7-second orbit',
-    '  around an off-plan plot is 7 seconds of staring at sand.',
-    '- Move the camera ONLY when the spatial relationship IS the message (going to',
-    '  a place, showing how close the metro is). NEVER move the camera while the',
-    '  narration is explaining a NUMBER — hold still and let them read.',
-    '- Vary beat lengths. Do NOT make every beat the same length; that metronome',
-    '  rhythm is exactly what makes it feel like software instead of film.',
-    '',
-    'CAMERA GRAMMAR (cont.):',
-    '- ⛔ NEVER rotate `bearing` between keyframes. Keep bearing CONSTANT within a',
-    '  beat. A slowly rotating map reads as aimless drifting and teaches nothing —',
-    '  it is the single most amateurish thing a map tour can do. When you genuinely',
-    '  want to circle a building, use an explicit `orbit` motion instead.',
-    '- The intro must PUSH IN (zoom increases), not spin. Distance travelled is the',
-    '  message; rotation is not.',
+    'CAMERA GRAMMAR (hard rules):',
+    '- ⛔ TRAVEL (flyover / a keyframe that changes centre) must be ≤2500 ms. Flying',
+    '  over empty desert teaches the viewer NOTHING — it is dead air. The engine',
+    '  already arcs up just enough to keep both endpoints in frame; do not stretch it.',
+    '- ✅ DWELLING (orbit / push / crane) SHOULD be long — 4000–8000 ms. This is not',
+    '  wandering: the camera is holding on ONE subject and revealing it. A slow orbit',
+    '  around the home while you describe what surrounds it is the single most',
+    '  cinematic thing you can do. Use it on `life` and `homes`.',
+    '- ⛔ Never move the camera while the narration is explaining a NUMBER. On the',
+    '  `numbers` beat the camera holds still and they read.',
+    '- ⛔ Never write `bearing` on a keyframe. Rotation comes ONLY from `orbit`. A map',
+    '  that slowly rotates for no reason reads as aimless drifting.',
+    '- Vary beat lengths and vary the MOVE. Do not orbit every single beat at the same',
+    '  speed — that metronome is what makes it feel like software instead of film.',
     '',
     establishing,
     '',
@@ -281,8 +309,8 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '- intro: start at the ESTABLISHING SHOT above (a keyframe with duration_ms: 0,',
     '  so it cuts there instantly), then push in slightly. Title overlay with the',
     '  client name, progress_dots, and highlight_all_pins.',
-    '- arrival beat: ONE short flyover (≤4000 ms) to the property, then a SHORT',
-    '  orbit (≤120°, ≤4000 ms).',
+    '- arrival beat: ONE short flyover (≤2500 ms) to the property, then a crane or',
+    '  push so the shot keeps breathing.',
     '  ⭐ The property_card overlay MUST have at_ms = 0 — it appears the INSTANT',
     '  the beat starts, and stays for the whole beat. The viewer must never be',
     '  looking at a moving map with no information on screen.',
@@ -294,8 +322,8 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  heard about an area, not a home. Narrate the layouts that fit THIS client',
     '  (their budget, their family), name the bedroom counts and say why that one',
     '  suits them. Use only the `unit:` lines given for this property.',
-    '- numbers beat: roi_card overlay, at_ms = 0. Camera HOLDS STILL (no motion at',
-    '  all, or a very slow ≤4000 ms drift). Numbers are read, not flown over.',
+    '- numbers beat: roi_card overlay, at_ms = 0. Camera HOLDS STILL. Numbers are',
+    '  read, not flown over.',
     '- outro: pull back, highlight_all_pins + favorite_picker + cta.',
     '',
     'PROPERTY DATA:',
@@ -379,44 +407,52 @@ function overlayPropertyRefs(o: Overlay): string[] {
  * 从 113 RESIDENCES 飞到 Palm Central 跨了半个迪拜，于是就成了
  * 「**弹远又弹近**」，而中间那几秒画面里什么信息都没有。压到 2 秒。
  */
-const MAX_CAM_MS = 2000
-
-// 🔴 **到了目的地不要再转圈**（owner 明确抱怨「到了目的点在旋转」）。
-//    arrival 之后跟一个 orbit，镜头绕着一栋**还没盖的楼**转 —— 客户已经到了，
-//    他要看的是信息，不是继续晕。orbit 在 clampCinematography 里被整个丢弃。
+/**
+ * 每一类运镜**各自的上限** —— 不再一刀切。
+ *
+ * 之前所有 cue 一律压到 2 秒(包括 orbit),等于把 orbit 判了死刑。
+ * 但 owner 要的从来不是「不许动」,而是「**不许无意义地动**」:
+ *   • **移动**(flyover/keyframe)要短 —— 跨越途中画面里没有信息,那是死时间
+ *   • **原地的动**(orbit/push/crane)可以长 —— 它们让观众**看清眼前这个东西**,
+ *     那正是摄影师的活:环绕看周边、缓缓推近、抬起来看全貌
+ */
+const MAX_MOVE_MS = 2500     // flyover / 带 center 的 keyframe:移动要利落
+const MAX_DWELL_MS = 8000    // orbit / push / crane:原地的动可以从容
+const MAX_ORBIT_DEG = 150    // 一圈半以上就晕了
+const MAX_PUSH_DELTA = 1.5   // 推轨幅度
 
 export function clampCinematography(beat: Beat): void {
-  // 🔴 **keyframe 之间不许转 bearing。**
-  //
-  // demo 的开场实测：center 完全不变、zoom 10→11.8（几乎没动），而 bearing
-  // **0 → 15 → 30 → 45**，转了 12 秒。看起来就是地图在原地莫名其妙地打转/漂移
-  // —— 而它什么信息都没传达。LLM 加它纯粹是觉得「有电影感」。
-  //
-  // 依据（research §6）：van Wijk 的最优路径只管 2D 平移+缩放，bearing 是被硬贴上去的
-  // 线性插值 —— 它会变成一个**和运镜竞争的运动**。真正要绕圈时用 orbit（那是显式的、
-  // 有语义的动作：绕着这个项目看一圈）。keyframe 里的 bearing 漂移只会让人晕。
-  //
-  // 做法：整个 beat 的 bearing 锁定为第一个 keyframe 的值。orbit 不受影响。
-  //
-  // ⚠️ **只锁一拍是不够的。** 每拍各自锁到自己的第一帧 → 拍与拍之间的 bearing 仍然不同
-  //    → 引擎在拍之间平滑插值 → **整场 tour 慢慢转了 80°**。
-  //    实测就是这样（拔掉引擎里那条强制旋转之后才暴露出来 —— 旧代码用 `+ 0` 把 bearing
-  //    压成常数,顺手掩盖了剧本本身就在转）。
-  //    真正的锁在 lockBearingAcrossScript()：**整个剧本一个 bearing**。
-  const firstKf = beat.camera.find((c) => 'bearing' in c && typeof (c as { bearing?: number }).bearing === 'number')
-  const lockedBearing = firstKf ? (firstKf as unknown as { bearing: number }).bearing : undefined
-
-  // orbit 整个丢弃（MAX_ORBIT_DEG = 0）—— 到了目的地就别再转了
-  beat.camera = beat.camera.filter((c) => (c as unknown as { type?: string }).type !== 'orbit')
-
   for (const c of beat.camera) {
-    if (c.duration_ms > MAX_CAM_MS) c.duration_ms = MAX_CAM_MS
-    const anyC = c as unknown as { bearing?: number }
-    if (lockedBearing !== undefined && typeof anyC.bearing === 'number') {
-      anyC.bearing = lockedBearing
+    const t = (c as unknown as { type?: string }).type
+
+    if (t === 'orbit') {
+      // 🔴 orbit 回来了 —— 但它必须是**剧本作者化写下的动作**,而不是引擎每帧偷偷加的自转。
+      //    (引擎里那条 3°/秒 的全局强制旋转已经删掉,见 TimelineEngine 的注释。)
+      const o = c as unknown as { degrees: number; duration_ms: number }
+      o.degrees = Math.max(-MAX_ORBIT_DEG, Math.min(MAX_ORBIT_DEG, o.degrees))
+      o.duration_ms = Math.min(o.duration_ms, MAX_DWELL_MS)
+      continue
     }
+    if (t === 'push') {
+      const p = c as unknown as { zoom_delta: number; duration_ms: number }
+      p.zoom_delta = Math.max(-MAX_PUSH_DELTA, Math.min(MAX_PUSH_DELTA, p.zoom_delta))
+      p.duration_ms = Math.min(p.duration_ms, MAX_DWELL_MS)
+      continue
+    }
+    if (t === 'crane') {
+      c.duration_ms = Math.min(c.duration_ms, MAX_DWELL_MS)
+      continue
+    }
+
+    /**
+     * flyover / keyframe = **移动**。移动途中画面里没有信息,那是死时间。
+     * 跨项目 flyover 走 van Wijk 曲线会自动拉高再落下 —— 拖长了就成了「弹远又弹近」。
+     */
+    c.duration_ms = Math.min(c.duration_ms, MAX_MOVE_MS)
   }
+
   for (const o of beat.overlays) {
+
     // 信息卡从第一帧就在 —— 它是这一拍的主角,不是迟到的注脚
     if ((o.type === 'property_card' || o.type === 'roi_card') && o.at_ms > 0) {
       const wanted = beat.duration_ms - 0
@@ -449,30 +485,31 @@ function withinBeat(beat: Beat): string[] {
 }
 
 /**
- * 🔴 **整个剧本一个 bearing。**
+ * 🔴 **bearing 只有一个来源:显式的 orbit。**
  *
- * clampCinematography 只锁**一拍之内**的 bearing —— 于是每拍各自锁到自己的第一帧,
- * 拍与拍之间仍然不同,引擎在拍之间平滑插值 → **整场 tour 慢慢转了 80°**。
- * owner 一直在说的「乱飘」有一部分就是它。
+ * 之前的坑:LLM 喜欢给每个 keyframe 写不同的 bearing（它觉得「有电影感」）。
+ * clampCinematography 只锁**一拍之内**,拍与拍之间仍然不同 → 引擎平滑插值
+ * → **整场 tour 慢慢转 80°**,而它什么信息都没传达。
  *
- * 地图的正北是客户唯一的方向感锚点。一场带看里**没有任何理由**去转动它。
- * 真要绕着一栋楼看一圈,那是显式的 orbit（有语义的动作）—— 而我们已经把 orbit 全删了。
+ * 但**一刀把所有 bearing 锁成同一个值也是错的** —— 那样 orbit 转完之后,
+ * 下一个 keyframe 会把镜头**啪地掰回去**。
+ *
+ * 正确的做法:**除了开场的建立镜头,所有 cue 都不带 bearing** —— 让它们
+ * 自然继承「相机现在朝哪」。于是:
+ *   • 没有 orbit 的地方 → bearing 一直不变（不会莫名其妙地飘）
+ *   • orbit 转过之后    → 后面的镜头**接着**那个朝向,不会被掰回来
+ *
+ * 旋转从此是**剧本作者写下的动作**,不是任何一层偷偷加的。
  */
-export function lockBearingAcrossScript(beats: Beat[]): void {
-  // 以开场的 bearing 为准（后端算好的建立镜头,通常是 0 = 正北）
-  let locked: number | undefined
+export function normalizeBearing(beats: Beat[]): void {
+  let first = true
   for (const b of beats) {
     for (const c of b.camera) {
-      const anyC = c as unknown as { bearing?: number }
-      if (typeof anyC.bearing === 'number') { locked = anyC.bearing; break }
-    }
-    if (locked !== undefined) break
-  }
-  const target = locked ?? 0
-  for (const b of beats) {
-    for (const c of b.camera) {
-      const anyC = c as unknown as { bearing?: number }
-      if (typeof anyC.bearing === 'number') anyC.bearing = target
+      const anyC = c as unknown as { type?: string; bearing?: number }
+      if (anyC.type === 'orbit') continue          // orbit 靠 degrees,不碰
+      if (typeof anyC.bearing !== 'number') continue
+      if (first) { first = false; continue }        // 开场机位保留（通常 0 = 正北）
+      delete anyC.bearing                           // 其余一律继承当前朝向
     }
   }
 }
@@ -493,7 +530,7 @@ export function validateTourScript(
   // ⭐ 先 clamp 再校验 —— 修掉 LLM 的运镜（8 秒飞行、180° 绕圈、迟到 8 秒的卡片），
   //    而不是把它当成错误退回去重试（那样只是白烧一次 LLM 调用，它下次照样犯）。
   for (const beat of allBeats) clampCinematography(beat)
-  lockBearingAcrossScript(allBeats)
+  normalizeBearing(allBeats)
 
   // 数字口语化 —— 「购入价 1800000 迪拉姆」→「购入价 180 万迪拉姆」。
   // 字幕和 TTS 读的是同一个字符串，改一处两处都对。

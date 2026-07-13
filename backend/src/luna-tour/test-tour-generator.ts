@@ -104,7 +104,11 @@ function cameraSummary(c: Camera): string {
     if (c.type === 'orbit') {
       return `orbit@${c.at_ms}ms ${c.duration_ms}ms ${c.degrees}° center[${c.center[0]},${c.center[1]}]`
     }
-    return `flyover@${c.at_ms}ms ${c.duration_ms}ms [${c.from[0]},${c.from[1]}]→[${c.to[0]},${c.to[1]}]`
+    if (c.type === 'flyover') {
+      return `flyover@${c.at_ms}ms ${c.duration_ms}ms [${c.from[0]},${c.from[1]}]→[${c.to[0]},${c.to[1]}]`
+    }
+    if (c.type === 'push') return `push@${c.at_ms}ms ${c.duration_ms}ms Δzoom ${c.zoom_delta}`
+    return `crane@${c.at_ms}ms ${c.duration_ms}ms pitch ${c.pitch ?? '—'} zoom ${c.zoom ?? '—'}`
   }
   return (
     `keyframe@${c.at_ms}ms ${c.duration_ms}ms` +

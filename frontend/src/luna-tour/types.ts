@@ -34,7 +34,22 @@ export interface CameraFlyover {
   to: LngLat
   duration_ms: number
 }
-export type Camera = CameraKeyframe | CameraOrbit | CameraFlyover
+/** 原地推近/拉远（dolly）—— 中心不动，只有 zoom 在走。 */
+export interface CameraPush {
+  type: 'push'
+  at_ms: number
+  zoom_delta: number
+  duration_ms: number
+}
+/** 原地升降（crane）—— 改俯仰/高度，中心不动。 */
+export interface CameraCrane {
+  type: 'crane'
+  at_ms: number
+  pitch?: number
+  zoom?: number
+  duration_ms: number
+}
+export type Camera = CameraKeyframe | CameraOrbit | CameraFlyover | CameraPush | CameraCrane
 
 export interface TitleOverlay {
   type: 'title'

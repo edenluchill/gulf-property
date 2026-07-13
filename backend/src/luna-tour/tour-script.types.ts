@@ -50,9 +50,41 @@ export const CameraFlyoverSchema = z.object({
   duration_ms: z.number().min(0),
 })
 
+/**
+ * 推轨 —— **原地**推近/拉远（中心不动）。
+ *
+ * 摄影师的 dolly。一段旁白如果只是「站着不动」,画面就死了;轻轻推进去,
+ * 观众的注意力会跟着走。这是最便宜、也最有效的动能。
+ */
+export const CameraPushSchema = z.object({
+  type: z.literal('push'),
+  at_ms: z.number().min(0),
+  /** 正数 = 推近,负数 = 拉远。一般 0.4 ~ 1.2 */
+  zoom_delta: z.number().min(-4).max(4),
+  duration_ms: z.number().min(0),
+})
+
+/**
+ * 升降 —— **原地**改变俯仰/高度（中心不动）。
+ *
+ * 摄影师的 crane。从贴地的仰视缓缓抬到俯瞰,或者反过来压下去 ——
+ * 它讲的是「这栋楼有多高」「这片地有多大」,而不只是移动。
+ */
+export const CameraCraneSchema = z.object({
+  type: z.literal('crane'),
+  at_ms: z.number().min(0),
+  /** 目标俯仰角（0=正俯视, 60=贴地感）。省略 = 不变 */
+  pitch: z.number().min(0).max(75).optional(),
+  /** 目标 zoom。省略 = 不变 */
+  zoom: z.number().min(0).max(24).optional(),
+  duration_ms: z.number().min(0),
+})
+
 export const CameraSchema = z.union([
   CameraOrbitSchema,
   CameraFlyoverSchema,
+  CameraPushSchema,
+  CameraCraneSchema,
   CameraKeyframeSchema,
 ])
 

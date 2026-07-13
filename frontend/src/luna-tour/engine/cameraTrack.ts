@@ -148,7 +148,26 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
     const authored = 'duration_ms' in cam ? cam.duration_ms : undefined
     const dur = authored === 0 ? 0 : Math.max(MIN_CUE_MS, authored || 6000)
 
-    if ('type' in cam && cam.type === 'orbit') {
+    if ('type' in cam && cam.type === 'push') {
+      // dolly —— 原地推近/拉远。最便宜也最有效的动能:画面一直在"呼吸"。
+      const to: CameraState = {
+        ...cur,
+        zoom: Math.max(MIN_TOUR_ZOOM, Math.min(20, cur.zoom + cam.zoom_delta)),
+      }
+      segs.push({ start: t, end: t + dur, from: cur, to })
+      cur = to
+      t += dur
+    } else if ('type' in cam && cam.type === 'crane') {
+      // crane —— 原地升降。讲"这栋楼有多高/这片地有多大"时用。
+      const to: CameraState = {
+        ...cur,
+        pitch: cam.pitch != null ? Math.min(MAX_TOUR_PITCH, cam.pitch) : cur.pitch,
+        zoom: cam.zoom != null ? Math.max(MIN_TOUR_ZOOM, cam.zoom) : cur.zoom,
+      }
+      segs.push({ start: t, end: t + dur, from: cur, to })
+      cur = to
+      t += dur
+    } else if ('type' in cam && cam.type === 'orbit') {
       const center = cam.center
       const from: CameraState = { ...cur }
       const to: CameraState = { ...cur, center, bearing: cur.bearing + cam.degrees }
