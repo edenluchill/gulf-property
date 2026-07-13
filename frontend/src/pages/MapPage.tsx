@@ -1511,10 +1511,7 @@ export default function MapPage() {
             onLandmarkClick={setSelectedLandmark}
             flyToLocation={flyToLocation}
             transportGeoJSON={transportGeoJSON}
-            // 🔴 tour 期间隐藏地铁/公交图层。showTransit 是从 localStorage 读的 ——
-            //    经纪自己开过这个图层,于是**客户的 tour 里也满屏都是红色地铁 pin**,
-            //    跟这场带看毫无关系。和区域色块同理:tour 有自己的叙事,不需要全城交通网。
-            showTransport={showTransport && !tourCode}
+            showTransport={showTransport}
             voiceMeasure={voiceMeasure}
             onMeasureChange={handleMeasureChange}
             // Collab markup: while a draw tool is active, swallow feature clicks so

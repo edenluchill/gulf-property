@@ -905,10 +905,8 @@ function MapViewMapLibre({
   }, [onBoundsChange, recomputeCards, schedulePrefetch, tourActive])
 
   // Area polygons GeoJSON - 支持热力图
-  // 🔴 tour 期间必须隐藏:那些半透明的粉/灰色块盖在项目上,是纯噪音 ——
-  //    客户是来看房子的,不是来看行政区划的。在组件内部拦掉,不依赖调用方记得传对。
   const areasGeoJson = useMemo(() => {
-    if (!showDubaiLayer || tourActive || !dubaiAreas.length || !mapLoaded) return null
+    if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded) return null
 
     // 计算分位数用于热力图
     let percentiles = { p25: 0, p50: 0, p75: 0 }
@@ -947,14 +945,13 @@ function MapViewMapLibre({
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, tourActive, mapLoaded, areaMetric])
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric])
 
   // Area labels GeoJSON - 区域名称 + 指标值（同一图层）
   // 指标值和名称必须在同一个 symbol，否则两个 layer 的碰撞检测会互相
   // 淘汰：看指标时区域名就消失了（客户反馈）。合并后名字+数值永远一起显示。
   const areaLabelsGeoJson = useMemo(() => {
-    // 🔴 tour 期间隐藏:「巴沙一区」「巴沙高地（特科姆）」这些标签跟这场带看毫无关系
-    if (!showDubaiLayer || tourActive || !dubaiAreas.length || !mapLoaded) return null
+    if (!showDubaiLayer || !dubaiAreas.length || !mapLoaded) return null
 
     const langKey = i18n.language?.split('-')[0]
     const lang = i18n.language || 'en'
@@ -1023,7 +1020,7 @@ function MapViewMapLibre({
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, tourActive, mapLoaded, i18n.language, areaMetric])
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric])
 
   // POI GeoJSON for WebGL rendering (no limit needed - symbol layers are fast)
   const poiGeoJson = useMemo(() => {
