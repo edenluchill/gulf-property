@@ -153,14 +153,41 @@ function auditScript(script: any, picked: { id: string; name: string; units: num
   expect(unitCards.every((o: any) => !('area_sqft' in o) && !('price' in o)),
     '户型卡不带数字（只要让模型填数字它就会编）')
 
-  // 运镜
+  /**
+   * 运镜。
+   *
+   * ⚠️ 这里原来断言的是「**没有 orbit**」「所有镜头 ≤2 秒」—— 那是上一轮矫枉过正的产物:
+   *    我为了修「乱飘」把镜头全按死了,结果 owner 说「动能太少了,镜头经常停下来不动,
+   *    没有电影那种感觉」。**要管的从来不是「动不动」,是「动得有没有道理」。**
+   *
+   * 现在的口径:
+   *   • 移动(flyover / 换 center 的 keyframe)必须短 —— 途中没有信息,是死时间
+   *   • 停驻(orbit / push / crane)可以长 —— 它们让客户看清眼前这个东西
+   *   • **numbers 拍必须定住** —— 他在读图表,动镜头就是跟数字抢注意力
+   *   • **life / homes 拍必须有动作** —— 这两拍正是「让他看清周围」的地方
+   *   • keyframe 不许带 bearing —— 旋转只能来自显式的 orbit
+   */
   const cams = allBeats.flatMap((b: any) => b.camera || [])
-  const longCam = cams.filter((c: any) => (c.duration_ms ?? 0) > 2000)
-  expect(longCam.length === 0, '没有超过 2 秒的镜头运动（弹远又弹近）',
-    longCam.map((c: any) => `${c.type || 'keyframe'} ${c.duration_ms}ms`).join(' | '))
+  const TRAVEL = (c: any) => c.type === 'flyover' || (!c.type && Array.isArray(c.center))
+  const longTravel = cams.filter((c: any) => TRAVEL(c) && (c.duration_ms ?? 0) > 2500)
+  expect(longTravel.length === 0, '移动镜头都 ≤2.5 秒（飞越途中是死时间）',
+    longTravel.map((c: any) => `${c.type || 'keyframe'} ${c.duration_ms}ms`).join(' | '))
 
-  const orbits = cams.filter((c: any) => c.type === 'orbit')
-  expect(orbits.length === 0, '没有 orbit（到了目的地还绕着一栋没盖的楼转）')
+  const spun = cams.filter((c: any) => !c.type && typeof c.bearing === 'number' && c !== cams[0])
+  expect(spun.length === 0, 'keyframe 不带 bearing（旋转只能来自显式 orbit，不能靠漂移）',
+    `${spun.length} 个 keyframe 写了 bearing`)
+
+  const numbersBeats = acts.flatMap((a: any) => (a.beats || []).filter((b: any) => b.kind === 'numbers'))
+  const movingNumbers = numbersBeats.filter((b: any) =>
+    (b.camera || []).some((c: any) => c.type === 'orbit' || c.type === 'flyover'))
+  expect(movingNumbers.length === 0, 'numbers 拍定住（读数字时不跟他抢注意力）',
+    movingNumbers.map((b: any) => b.id).join(' | '))
+
+  const showBeats = acts.flatMap((a: any) => (a.beats || []).filter((b: any) => b.kind === 'life' || b.kind === 'homes'))
+  const frozen = showBeats.filter((b: any) => !(b.camera || []).length)
+  expect(showBeats.length > 0 && frozen.length === 0,
+    `life / homes 拍都有运镜（${showBeats.length} 拍，这两拍正是「让他看清周围」的地方）`,
+    frozen.map((b: any) => b.id).join(' | '))
 
   // 卡片必须**开场就在**，不能让客户对着一张空地图发呆
   const lateCards = allBeats.flatMap((b: any) => (b.overlays || []))
