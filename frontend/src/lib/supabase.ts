@@ -27,6 +27,15 @@ class LockUnavailableError extends Error {
  * (同一个旧 token 在窗口内会拿到同一个新 token),代价远小于登不进去。
  */
 const LOCK_WAIT_MS = 5000
+/** 一旦确认锁被占死,这段时间内所有 auth 操作直接跳过抢锁。 */
+const LOCK_STUCK_COOLDOWN_MS = 30_000
+
+/**
+ * 断路器:锁被冻结的 tab 占死时,**每一处** auth 调用都要各自傻等 5 秒才降级 ——
+ * 应用启动时有好几处并发调 getSession(),等待就会串起来(实测首屏要 10.5 秒才认出登录态)。
+ * 第一次确认锁卡死之后,冷却期内后续调用直接无锁执行,不再重复等。
+ */
+let lockStuckUntil = 0
 
 const resilientLock = async <R>(
   name: string,
@@ -35,6 +44,9 @@ const resilientLock = async <R>(
 ): Promise<R> => {
   const locks = globalThis.navigator?.locks
   if (!locks) return await fn()
+
+  // 刚刚才确认过这把锁是死的 —— 别再等一遍
+  if (acquireTimeout !== 0 && Date.now() < lockStuckUntil) return await fn()
 
   // acquireTimeout === 0 是自动刷新 tick 的「抢不到就算了」语义,保持原样 —— 这条路径
   // 上放弃是正确的(下一个 tick 会再来),不需要降级成无锁执行。
@@ -58,6 +70,8 @@ const resilientLock = async <R>(
     })
   } catch (err) {
     if (started) throw err
+    // 没抢到锁 —— 记下来,让后续调用直接走无锁路径,别一个个再等 5 秒
+    lockStuckUntil = Date.now() + LOCK_STUCK_COOLDOWN_MS
     return await fn()
   } finally {
     clearTimeout(timer)

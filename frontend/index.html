@@ -2,6 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!--
+      规范域跳转 —— 必须在任何脚本之前跑。
+
+      pinzos.com 和 www.pinzos.com 是**两个不同的 origin**,localStorage 互不相通。
+      两个域都直接 200 提供网站(谁也不跳谁),于是:在 www 上登录 → session 存在 www 下;
+      下次从书签/微信链接/直接敲域名落到裸域 → 那个 origin 下没有任何 session → 要你重登。
+      owner 报的"过一会儿回来就要重新登录"就是这个,和时间无关,和你从哪个地址进来有关。
+
+      正解是在 Cloudflare 边缘做 301(SEO 也更干净);这段是同一件事的应用层兜底,
+      两者可以共存 —— 边缘 301 生效后这段永远不会被触发。
+
+      只认死 'pinzos.com' 这一个 hostname:localhost、*.pages.dev 预览、以及任何其它
+      域都不受影响。path/query/hash 全部原样带过去(OAuth 的 #access_token 也在 hash 里,
+      不能丢)。
+    -->
+    <script>
+      (function () {
+        if (location.hostname === 'pinzos.com') {
+          location.replace('https://www.pinzos.com' + location.pathname + location.search + location.hash)
+        }
+      })()
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
