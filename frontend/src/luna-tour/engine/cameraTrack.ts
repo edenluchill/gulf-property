@@ -31,20 +31,11 @@ export interface CameraState {
 
 const EASE = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) // easeInOut
 
-/** Marks a keyframe as a gentle "orbit" segment (center glides in). Bearing is
- *  now driven by the ENGINE at a constant rate, so this value only selects the
- *  smooth-center-glide sampling branch; its magnitude no longer sets rotation. */
 /**
- * 🔴 0 —— **不要给静止镜头「加一点转动」**。
- *
- * 原值 24:每个 keyframe 都被偷偷加上 24° 的旋转（注释说是「让静止镜头不至于冻住」）。
- * 但客户到了目的地要的是**读信息**,不是继续晕。owner 的原话:
- *「到了目的点在旋转」「乱飘」。
- *
- * 而且这条会**覆盖剧本里的 bearing** —— 我在剧本层锁死 bearing、删掉 orbit,
- * 全被这一行悄悄加了回去。**代码赢过 prompt,所以坏的代码也赢过好的 prompt。**
+ * ⚠️ 这里曾经有 `AMBIENT_ORBIT_DEG = 24` —— **每个静止关键帧都被偷偷加上 24° 旋转**
+ *    (注释理直气壮地写着「让静止镜头不至于冻住」)。但客户到了目的地要的是**读信息**,
+ *    不是继续晕。已删除。**静止就是静止。**
  */
-const AMBIENT_ORBIT_DEG = 0
 /** A flyover whose target is within ~this (deg ≈ 80m) of us is a no-op → drop. */
 const NOOP_MOVE_EPS = 0.0008
 /** Floor so a 0-duration cue still occupies a sliver of the track. */
@@ -211,15 +202,15 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       cur = to
       t += flyDur
     } else {
-      // keyframe → a gentle continuous orbit so a "static" shot never freezes.
-      // Clamp zoom to the floor so AI-authored wide shots don't yo-yo the view.
+      // keyframe = 一个机位。就到那个机位去,不加任何「氛围运动」。
+      // zoom 仍然卡一个下限,免得 AI 写出 zoom 9 的大广角在短旁白里被压成「一拉一推」。
       const to: CameraState = {
         center: cam.center ?? cur.center,
         zoom: Math.max(MIN_TOUR_ZOOM, cam.zoom ?? cur.zoom),
         pitch: Math.min(MAX_TOUR_PITCH, cam.pitch ?? cur.pitch),
-        bearing: (cam.bearing ?? cur.bearing) + AMBIENT_ORBIT_DEG,
+        bearing: cam.bearing ?? cur.bearing,   // 剧本说什么就是什么
       }
-      segs.push({ start: t, end: t + dur, from: cur, to, orbitDegrees: AMBIENT_ORBIT_DEG })
+      segs.push({ start: t, end: t + dur, from: cur, to })
       cur = to
       t += dur
     }

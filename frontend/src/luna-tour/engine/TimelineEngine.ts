@@ -60,23 +60,13 @@ export interface EngineSnapshot {
 
 /** Min visual dwell so a near-silent beat doesn't flash by (ms). */
 const MIN_BEAT_MS = 1500
-/** Gentle, CONSISTENT cinematic rotation. The engine drives bearing itself at
- *  this fixed rate (real time, NOT time-warped) and carries it across beats, so
- *  every property rotates at the same calm speed regardless of audio length or
- *  the AI's authored orbit `degrees` (which ranged 24°–180° → dizzy + uneven),
- *  and the bearing NEVER snaps between beats (fixes the "blink/jump" on the
- *  numbers beat). Authored camera still controls center/zoom/pitch. */
 /**
- * 🔴 0 —— **不要强制旋转。**
+ * ⚠️ 这里曾经有 `ROTATE_DEG_PER_MS = 0.003`(3°/秒)—— 引擎**每一帧覆盖掉剧本的 bearing**,
+ *    整场 tour 匀速自转,永不停。我在剧本层锁死 bearing、删光 orbit,全被那一行盖掉,
+ *    所以 owner 一直说「乱飘」「到了目的点还在旋转」,而我一直以为自己修好了。
  *
- * 原值 0.003（3°/秒）会**每一帧覆盖掉剧本里的 bearing**,整场 tour 匀速自转,永不停。
- * 我在剧本层锁死 bearing、删掉所有 orbit —— 全被这一行盖掉了,所以 owner 一直在说
- *「乱飘」「到了目的点还在旋转」,而我一直以为自己修好了。
- *
- * 保留常量（而不是删掉整条链路）是因为它同时负责「bearing 不在拍与拍之间跳变」——
- * 现在 bearing 直接来自剧本,而剧本层已经把它锁成常量,所以也不会跳。
+ *    **bearing 现在只有一个来源:剧本。** 别再往这里加「一点点转动」。
  */
-const ROTATE_DEG_PER_MS = 0 // 不转。客户到了目的地要读信息,不是继续晕。
 /** Safety backstop FLOOR: pre-metadata / no-audio cap for one beat (ms). */
 const MAX_BEAT_MS = 60000
 /** Once real audio length is known, backstop = clipLen + this pad, floored at
@@ -146,9 +136,6 @@ export class TimelineEngine {
   // Time-warp factor: camera track is stretched so its motion runs for exactly
   // the narration (audio) length. 1 until the real audio duration is known.
   private camScale = 1
-  // running absolute bearing, advanced at ROTATE_DEG_PER_MS and CARRIED across
-  // beats (never reset mid-tour) so rotation is one continuous, even glide.
-  private camBearingBase = 0
   // gates
   private narrationDone = false
   private minTimeDone = false
@@ -314,7 +301,6 @@ export class TimelineEngine {
   replay() {
     this.paused = false
     this.camEntry = null
-    this.camBearingBase = 0
     void this.playFrom(0)
   }
 
@@ -390,7 +376,7 @@ export class TimelineEngine {
       this.camScale = 1 // until audio length is known (set in onMeta below)
       // snap to its initial state instantly so the first frame is correct — but
       // keep the carried bearing (don't reset rotation at a beat boundary).
-      if (this.camTrack.initial) this.map.jumpTo({ ...this.camTrack.initial, bearing: this.camBearingBase })
+      if (this.camTrack.initial) this.map.jumpTo(this.camTrack.initial)
 
       // gates
       this.narrationDone = false
@@ -450,10 +436,7 @@ export class TimelineEngine {
       //    beats) so rotation is even and never snaps.
       if (this.camTrack) {
         const cs = this.camTrack.sampleAt(this.beatElapsed / this.camScale)
-        if (cs) {
-          cs.bearing = this.camBearingBase + ROTATE_DEG_PER_MS * this.beatElapsed
-          this.map.jumpTo(cs)
-        }
+        if (cs) this.map.jumpTo(cs)   // bearing 来自剧本,引擎不加戏
       }
       // 2) overlay cues at their at_ms
       for (const c of this.beatCues) {
@@ -498,8 +481,6 @@ export class TimelineEngine {
     if (this.narrationDone && this.minTimeDone && cameraDone) {
       // chain the next beat's camera entry from where this one ended
       if (this.camTrack) this.camEntry = finalState(this.camTrack) ?? this.camEntry
-      // carry the bearing forward so the next beat continues the same glide
-      this.camBearingBase = this.camBearingBase + ROTATE_DEG_PER_MS * this.beatElapsed
       const r = this.resolveBeat
       this.abortBeat(true)
       r()

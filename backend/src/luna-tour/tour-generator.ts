@@ -397,6 +397,12 @@ export function clampCinematography(beat: Beat): void {
   // 有语义的动作：绕着这个项目看一圈）。keyframe 里的 bearing 漂移只会让人晕。
   //
   // 做法：整个 beat 的 bearing 锁定为第一个 keyframe 的值。orbit 不受影响。
+  //
+  // ⚠️ **只锁一拍是不够的。** 每拍各自锁到自己的第一帧 → 拍与拍之间的 bearing 仍然不同
+  //    → 引擎在拍之间平滑插值 → **整场 tour 慢慢转了 80°**。
+  //    实测就是这样（拔掉引擎里那条强制旋转之后才暴露出来 —— 旧代码用 `+ 0` 把 bearing
+  //    压成常数,顺手掩盖了剧本本身就在转）。
+  //    真正的锁在 lockBearingAcrossScript()：**整个剧本一个 bearing**。
   const firstKf = beat.camera.find((c) => 'bearing' in c && typeof (c as { bearing?: number }).bearing === 'number')
   const lockedBearing = firstKf ? (firstKf as unknown as { bearing: number }).bearing : undefined
 
@@ -442,6 +448,35 @@ function withinBeat(beat: Beat): string[] {
   return errs
 }
 
+/**
+ * 🔴 **整个剧本一个 bearing。**
+ *
+ * clampCinematography 只锁**一拍之内**的 bearing —— 于是每拍各自锁到自己的第一帧,
+ * 拍与拍之间仍然不同,引擎在拍之间平滑插值 → **整场 tour 慢慢转了 80°**。
+ * owner 一直在说的「乱飘」有一部分就是它。
+ *
+ * 地图的正北是客户唯一的方向感锚点。一场带看里**没有任何理由**去转动它。
+ * 真要绕着一栋楼看一圈,那是显式的 orbit（有语义的动作）—— 而我们已经把 orbit 全删了。
+ */
+export function lockBearingAcrossScript(beats: Beat[]): void {
+  // 以开场的 bearing 为准（后端算好的建立镜头,通常是 0 = 正北）
+  let locked: number | undefined
+  for (const b of beats) {
+    for (const c of b.camera) {
+      const anyC = c as unknown as { bearing?: number }
+      if (typeof anyC.bearing === 'number') { locked = anyC.bearing; break }
+    }
+    if (locked !== undefined) break
+  }
+  const target = locked ?? 0
+  for (const b of beats) {
+    for (const c of b.camera) {
+      const anyC = c as unknown as { bearing?: number }
+      if (typeof anyC.bearing === 'number') anyC.bearing = target
+    }
+  }
+}
+
 /** Returns a list of validation errors. Empty list = valid. */
 export function validateTourScript(
   script: TourScript,
@@ -458,6 +493,7 @@ export function validateTourScript(
   // ⭐ 先 clamp 再校验 —— 修掉 LLM 的运镜（8 秒飞行、180° 绕圈、迟到 8 秒的卡片），
   //    而不是把它当成错误退回去重试（那样只是白烧一次 LLM 调用，它下次照样犯）。
   for (const beat of allBeats) clampCinematography(beat)
+  lockBearingAcrossScript(allBeats)
 
   // 数字口语化 —— 「购入价 1800000 迪拉姆」→「购入价 180 万迪拉姆」。
   // 字幕和 TTS 读的是同一个字符串，改一处两处都对。
