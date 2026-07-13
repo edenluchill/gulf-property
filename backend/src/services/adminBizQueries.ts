@@ -8,6 +8,9 @@
  */
 import pool from '../db/pool'
 import { isOwnerEmail } from '../middleware/requireOwner'
+// 与扣费同源:试用额度的兜底值 / 无限白名单判定,都必须用 credits.ts 那一套,
+// 不能在这里另写一份 —— 后台显示的数字和真正扣费的数字必须是同一个真相。
+import { TRIAL_CREDITS, emailUnlimited } from '../luna-tour/credits'
 
 // ── 订阅客户(B 端:谁订阅了我们的 SaaS)──────────────────────────────
 export interface Subscriber {
@@ -26,6 +29,9 @@ export interface Subscriber {
   credits_month: number   // -1 = 无限
   credits_used: number
   is_internal: boolean    // owner/自己人,展示时标注
+  // 后台一次性授予(每人只能一次)。非 null = 已用掉那次名额,不能再授予。
+  trial_granted_at: string | null
+  trial_granted_by: string | null
 }
 
 /**
@@ -71,8 +77,24 @@ export async function getSubscribers(): Promise<Subscriber[]> {
         ag.status                              AS approval_status,
         s.current_period_end,
         COALESCE(s.cancel_at_period_end, false) AS cancel_at_period_end,
-        COALESCE((p.limits->>'credits_month')::int, 0) AS credits_month,
-        COALESCE(u.credits_used, 0)            AS credits_used
+        -- 额度口径必须和**扣费口径**(credits.planFor)完全一致,否则后台显示的是假账:
+        --   试用 → 行上的 trial_credits;为 NULL 时兜底 TRIAL_CREDITS(200),**不是套餐月额**
+        --   付费 → 套餐月额
+        -- 之前一律取套餐月额 → 7 天自助试用(trial_credits IS NULL,实际只有 200 分)
+        -- 被显示成 0/1200,看起来像人人都拿了 Pro 满额。
+        CASE WHEN s.source = 'free_trial'
+             THEN COALESCE(s.trial_credits, $1::int)
+             ELSE COALESCE((p.limits->>'credits_month')::int, 0)
+        END AS credits_month,
+        -- 已用同理(credits.usedFor):试用**不按自然月**算,按「试用开始至今」的逐笔
+        -- 流水累计 —— 否则跨月的试用一到月初就显示「已用归零」,而扣费那边照旧累计。
+        -- (credits > 0 排除转化时写的负数补偿行。)
+        CASE WHEN s.source = 'free_trial'
+             THEN COALESCE(t.used, 0)
+             ELSE COALESCE(u.credits_used, 0)
+        END AS credits_used,
+        a.trial_granted_at,
+        a.trial_granted_by
        FROM lt_agents a
        LEFT JOIN lt_subscriptions s
          ON s.agent_id = a.id AND s.status IN ('active','trialing')
@@ -80,9 +102,15 @@ export async function getSubscribers(): Promise<Subscriber[]> {
        LEFT JOIN agents ag ON lower(ag.email) = lower(a.email)
        LEFT JOIN lt_usage_counters u
          ON u.agent_id = a.id AND u.period_month = date_trunc('month', now())::date
+       LEFT JOIN LATERAL (
+         SELECT SUM(l.credits) AS used
+           FROM lt_credit_ledger l
+          WHERE l.agent_id = a.id AND l.credits > 0 AND l.created_at >= s.created_at
+       ) t ON s.source = 'free_trial'
       ORDER BY (s.status IS NOT NULL) DESC,
                (s.stripe_subscription_id IS NOT NULL) DESC,
-               a.created_at DESC`
+               a.created_at DESC`,
+    [TRIAL_CREDITS]
   )
   return rows.map((r) => ({
     agent_id: r.agent_id,
@@ -97,9 +125,13 @@ export async function getSubscribers(): Promise<Subscriber[]> {
     approval_status: r.approval_status,
     current_period_end: r.current_period_end,
     cancel_at_period_end: !!r.cancel_at_period_end,
-    credits_month: Number(r.credits_month),
-    credits_used: Number(r.credits_used),
+    // 无限白名单(owner + UNLIMITED_EMAILS)扣费时根本不计费 —— 后台也必须显示
+    // 「无限积分」(-1 是前端的无限标记),而不是套餐的 200/1200 那种假额度。
+    credits_month: emailUnlimited(r.email) ? -1 : Number(r.credits_month),
+    credits_used: emailUnlimited(r.email) ? 0 : Number(r.credits_used),
     is_internal: isOwnerEmail(r.email),
+    trial_granted_at: r.trial_granted_at,
+    trial_granted_by: r.trial_granted_by,
   }))
 }
 

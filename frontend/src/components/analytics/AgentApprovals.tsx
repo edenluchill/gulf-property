@@ -7,9 +7,9 @@
  * 保留:楼书上传权限、套餐变更审计。
  */
 import { useEffect, useState } from 'react'
-import { Loader2, Check, Clock, History, Upload, Plus, CreditCard, Gift, Crown } from 'lucide-react'
+import { Loader2, Check, Clock, History, Upload, Plus, CreditCard, Gift, Crown, Search } from 'lucide-react'
 import {
-  approveAgent, rejectAgent, setAgentPlan,
+  approveAgent, rejectAgent, grantAgentTrial, revokeAgentGrant,
   listUploadPerms, grantUploadPerm, revokeUploadPerm, UploadPermRow,
 } from '../../lib/agentApi'
 import { fetchPlanChanges, type PlanChange } from '../../lib/billingApi'
@@ -21,7 +21,11 @@ const ROLE_LABEL: Record<string, string> = { buyer: '买家', agent: '经纪人'
 
 const ACTION_LABEL: Record<string, { label: string; cls: string }> = {
   subscribed: { label: '订阅', cls: 'bg-emerald-100 text-emerald-700' },
-  trial_started: { label: '开始试用', cls: 'bg-sky-100 text-sky-700' },
+  trial_started: { label: '开始试用(绑卡)', cls: 'bg-sky-100 text-sky-700' },
+  // 免绑卡试用的三个 action —— 原来没有标签,记录里直接露出英文 key。
+  free_trial_started: { label: '自助领 7 天', cls: 'bg-sky-100 text-sky-700' },
+  free_trial_expired: { label: '试用到期', cls: 'bg-slate-100 text-slate-600' },
+  developer_verified: { label: '开发商验证', cls: 'bg-indigo-100 text-indigo-700' },
   trial_converted: { label: '试用转正', cls: 'bg-emerald-100 text-emerald-700' },
   upgraded: { label: '升级', cls: 'bg-emerald-100 text-emerald-700' },
   downgraded: { label: '降级', cls: 'bg-rose-100 text-rose-700' },
@@ -33,7 +37,8 @@ const ACTION_LABEL: Record<string, { label: string; cls: string }> = {
   seats_changed: { label: '调整席位', cls: 'bg-slate-100 text-slate-600' },
   seat_invited: { label: '邀请席位', cls: 'bg-slate-100 text-slate-600' },
   seat_removed: { label: '移除席位', cls: 'bg-slate-100 text-slate-600' },
-  comp_granted: { label: '手动赠送', cls: 'bg-violet-100 text-violet-700' },
+  trial_granted: { label: '赠 30 天试用', cls: 'bg-violet-100 text-violet-700' },
+  comp_granted: { label: '手动赠送(旧·永久)', cls: 'bg-amber-100 text-amber-700' },
   comp_revoked: { label: '撤销赠送', cls: 'bg-slate-100 text-slate-600' },
 }
 const FEEDBACK_ZH: Record<string, string> = {
@@ -51,12 +56,15 @@ function SubBadge({ s }: { s: Subscriber }) {
   return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-400">未订阅</span>
 }
 
-/** 一行订阅客户:身份 + 套餐 + 积分用量 + 到期 + 授予下拉 + (待审批时)批准/拒绝。 */
-function SubRow({ s, busy, onSet, onApprove, onReject }: {
+/** 一行订阅客户:身份 + 套餐 + 积分用量 + 到期 + 赠送按钮 + (待审批时)批准/拒绝。 */
+function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
   s: Subscriber; busy: boolean
-  onSet: (plan: 'rookie' | 'agent' | 'founder' | 'developer' | 'revoke') => void
+  onGrant: () => void; onRevoke: () => void
   onApprove: () => void; onReject: () => void
 }) {
+  const granted = !!s.trial_granted_at
+  // 已有生效套餐(真付费 / 存量永久赠送)→ 不需要再赠送。
+  const hasLiveNonTrial = s.status === 'active'
   const unlimited = s.credits_month < 0
   const pct = unlimited || s.credits_month === 0 ? 0 : Math.min(100, Math.round((s.credits_used / s.credits_month) * 100))
   const subscribed = s.status !== 'none'
@@ -70,6 +78,15 @@ function SubRow({ s, busy, onSet, onApprove, onReject }: {
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-slate-800">{s.display_name || s.email}</span>
           {s.role && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">{ROLE_LABEL[s.role] || s.role}</span>}
+          {/* 赠送过的人在名字旁就打上标 —— 长列表里滚动时一眼看得出,不用挪到最右列去找。 */}
+          {granted && (
+            <span
+              className="flex shrink-0 items-center gap-0.5 rounded bg-violet-50 px-1.5 py-px text-[10px] font-medium text-violet-700 ring-1 ring-violet-100"
+              title={`${new Date(s.trial_granted_at!).toLocaleString('zh-CN')} 由 ${s.trial_granted_by || '未知'} 赠送`}
+            >
+              <Gift className="h-2.5 w-2.5" />已赠送
+            </span>
+          )}
         </div>
         <div className="truncate text-xs text-slate-400">{s.email}</div>
       </div>
@@ -115,21 +132,36 @@ function SubRow({ s, busy, onSet, onApprove, onReject }: {
             <button disabled={busy} onClick={onApprove} className="flex items-center gap-0.5 rounded-lg bg-emerald-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600 disabled:opacity-50"><Check className="h-3 w-3" />批</button>
             <button disabled={busy} onClick={onReject} className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50">拒</button>
           </div>
+        ) : granted ? (
+          // 已用掉那一次名额 —— 谁发的、什么时候发的,写在脸上。不能再发。
+          <div className="flex items-center gap-1.5">
+            <span
+              className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-400 ring-1 ring-slate-100"
+              title={`${new Date(s.trial_granted_at!).toLocaleString('zh-CN')} · ${s.trial_granted_by || '未知'}`}
+            >
+              已赠 {new Date(s.trial_granted_at!).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+              {s.trial_granted_by ? ` · ${s.trial_granted_by.split('@')[0]}` : ''}
+            </span>
+            <button
+              disabled={busy}
+              onClick={onRevoke}
+              className="rounded-lg px-1.5 py-1 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-rose-600 disabled:opacity-50"
+              title="撤销赠送(停掉非 Stripe 的订阅行)。注意:撤销不退还赠送名额。"
+            >
+              撤销
+            </button>
+          </div>
+        ) : hasLiveNonTrial ? (
+          <span className="px-2 py-1 text-[11px] text-slate-300" title="已有生效套餐,不需要赠送">—</span>
         ) : (
-          <select
+          <button
             disabled={busy}
-            value=""
-            onChange={(e) => { const v = e.target.value as 'rookie' | 'agent' | 'founder' | 'developer' | 'revoke'; if (v) onSet(v) }}
-            className="rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-500 disabled:opacity-50"
-            title="手动授予/撤销套餐(不走 Stripe)"
+            onClick={onGrant}
+            className="flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100 hover:bg-violet-100 disabled:opacity-50"
+            title="一次性赠送 30 天专业版试用(1200 积分)。每人只能一次,到期自动停。"
           >
-            <option value="">授予…</option>
-            <option value="rookie">赠 启程版</option>
-            <option value="agent">赠 专业版</option>
-            <option value="founder">赠 经纪公司版</option>
-            <option value="developer">赠 开发商版</option>
-            <option value="revoke">撤销赠送</option>
-          </select>
+            <Gift className="h-3 w-3" />赠 30 天
+          </button>
         )}
       </div>
     </div>
@@ -163,6 +195,7 @@ function PlanChangeLog() {
                   <span className="text-xs text-slate-500">{PLAN_LABEL[c.from_plan || ''] || c.from_plan || '—'} → {PLAN_LABEL[c.to_plan || ''] || c.to_plan}</span>
                 )}
                 {reason && <span className="text-xs text-rose-500">「{reason}」</span>}
+                {c.actor_email && <span className="text-[11px] text-slate-400">操作人 {c.actor_email}</span>}
                 <span className="ml-auto text-[11px] text-slate-400">{new Date(c.created_at).toLocaleString('zh-CN')}</span>
               </div>
             )
@@ -232,28 +265,65 @@ function UploadPermissions() {
 }
 
 /** Owner-only 订阅中心。 */
+type SubFilter = 'all' | 'paid' | 'trialing' | 'granted' | 'ungranted' | 'pending'
+const FILTERS: { id: SubFilter; label: string }[] = [
+  { id: 'all', label: '全部' },
+  { id: 'paid', label: '真付费' },
+  { id: 'trialing', label: '试用中' },
+  { id: 'granted', label: '已赠送过' },
+  { id: 'ungranted', label: '还能赠' },
+  { id: 'pending', label: '待审批' },
+]
+
 export default function AgentApprovals() {
   const [data, setData] = useState<{ subscribers: Subscriber[]; summary: SubscriptionSummary } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState<SubFilter>('all')
 
   const load = () => fetchSubscribers().then(setData).catch(() => setData({ subscribers: [], summary: { total_accounts: 0, subscribed: 0, paid: 0, trialing: 0, comp: 0, pending_approval: 0 } }))
   useEffect(() => { load() }, [])
 
+  // 失败必须让 owner 看见 —— 赠送被后端拒掉(已赠过 / 已有套餐)时静默刷新一下,
+  // 他只会看到「什么都没发生」,然后再点一次。
   const act = async (email: string | null, fn: (e: string) => Promise<void>) => {
     if (!email) return
     setBusy(email)
-    try { await fn(email); await load() } finally { setBusy(null) }
+    try {
+      await fn(email)
+      await load()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '操作失败')
+      await load()
+    } finally { setBusy(null) }
   }
 
   if (!data) return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-teal-500" /></div>
 
   const { subscribers, summary } = data
-  const subscribed = subscribers.filter((s) => s.status !== 'none')
-  const notSubscribed = subscribers.filter((s) => s.status === 'none')
+
+  // 搜索(邮箱/姓名)+ 筛选。账号越来越多,靠肉眼在长列表里翻找是不现实的。
+  const kw = q.trim().toLowerCase()
+  const match = (s: Subscriber) => {
+    if (kw && !`${s.email || ''} ${s.display_name || ''}`.toLowerCase().includes(kw)) return false
+    switch (filter) {
+      case 'paid': return s.paid
+      case 'trialing': return s.status === 'trialing'
+      case 'granted': return !!s.trial_granted_at      // 赠送过的(不管现在还生效没)
+      case 'ungranted': return !s.trial_granted_at && !s.paid  // 还能赠的
+      case 'pending': return s.approval_status === 'pending'
+      default: return true
+    }
+  }
+  const hits = subscribers.filter(match)
+  const subscribed = hits.filter((s) => s.status !== 'none')
+  const notSubscribed = hits.filter((s) => s.status === 'none')
+  const grantedCount = subscribers.filter((s) => s.trial_granted_at).length
 
   const renderRow = (s: Subscriber) => (
     <SubRow key={s.agent_id} s={s} busy={busy === s.email}
-      onSet={(plan) => act(s.email, (e) => setAgentPlan(e, plan))}
+      onGrant={() => act(s.email, grantAgentTrial)}
+      onRevoke={() => act(s.email, revokeAgentGrant)}
       onApprove={() => act(s.email, approveAgent)}
       onReject={() => act(s.email, rejectAgent)} />
   )
@@ -270,6 +340,35 @@ export default function AgentApprovals() {
         <StatCard label="待审批" value={summary.pending_approval} icon={<Clock className="h-4 w-4" />} />
       </div>
 
+      {/* 搜索 + 筛选 —— 两个列表共用 */}
+      <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="搜邮箱或姓名…"
+              className="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none"
+            />
+          </div>
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`rounded-full px-2.5 py-1 text-[12px] font-medium transition ${
+                filter === f.id
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-slate-50 text-slate-500 ring-1 ring-slate-100 hover:bg-slate-100'
+              }`}
+            >
+              {f.label}
+              {f.id === 'granted' && grantedCount > 0 ? ` ${grantedCount}` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* 订阅客户(主角) */}
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -277,7 +376,9 @@ export default function AgentApprovals() {
           <span className="text-xs text-slate-400">谁订阅了我们 · 付费 / 试用 / 赠送</span>
         </div>
         {subscribed.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-slate-400">还没有任何订阅。</p>
+          <p className="px-4 py-6 text-xs text-slate-400">
+            {kw || filter !== 'all' ? '没有符合条件的订阅客户。' : '还没有任何订阅。'}
+          </p>
         ) : (
           <div className="divide-y divide-slate-50">{subscribed.map(renderRow)}</div>
         )}
@@ -290,7 +391,9 @@ export default function AgentApprovals() {
           <span className="text-xs text-slate-400">注册了但还没付费 —— 待审批的可一键批准</span>
         </div>
         {notSubscribed.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-slate-400">没有未订阅账户。</p>
+          <p className="px-4 py-6 text-xs text-slate-400">
+            {kw || filter !== 'all' ? '没有符合条件的账户。' : '没有未订阅账户。'}
+          </p>
         ) : (
           <div className="divide-y divide-slate-50">{notSubscribed.map(renderRow)}</div>
         )}

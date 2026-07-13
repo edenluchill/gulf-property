@@ -880,7 +880,7 @@ router.get('/admin/plan-changes', requireAdmin, async (req: Request, res: Respon
     const { rows } = await pool.query(
       `SELECT l.id, l.agent_id, COALESCE(l.agent_email, a.email) AS agent_email,
               a.display_name, l.action, l.from_plan, l.to_plan, l.from_status, l.to_status,
-              l.reason, l.metadata, l.created_at
+              l.reason, l.metadata, l.actor_email, l.created_at
          FROM plan_change_log l
          LEFT JOIN lt_agents a ON a.id = l.agent_id
         WHERE ($2 = '' OR lower(COALESCE(l.agent_email, a.email)) LIKE '%' || $2 || '%')

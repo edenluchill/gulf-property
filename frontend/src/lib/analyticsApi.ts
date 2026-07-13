@@ -478,6 +478,9 @@ export interface Subscriber {
   credits_month: number          // -1 = 无限
   credits_used: number
   is_internal: boolean
+  // 后台一次性赠送(每人只能一次):谁发的、什么时候发的。非 null = 名额已用掉。
+  trial_granted_at: string | null
+  trial_granted_by: string | null
 }
 export interface SubscriptionSummary {
   total_accounts: number

@@ -28,7 +28,7 @@ const UNLIMITED_EMAILS = (process.env.UNLIMITED_EMAILS || 'shelldubai26@gmail.co
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)
 
-function emailUnlimited(email?: string | null): boolean {
+export function emailUnlimited(email?: string | null): boolean {
   if (!email) return false
   const e = email.toLowerCase()
   return isOwnerEmail(e) || UNLIMITED_EMAILS.includes(e)

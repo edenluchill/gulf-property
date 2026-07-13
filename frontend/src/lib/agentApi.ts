@@ -63,12 +63,34 @@ export async function rejectAgent(email: string): Promise<void> {
   await authed(`/${encodeURIComponent(email)}/reject`, { method: 'POST' })
 }
 
-/** Owner: 手动授予/撤销套餐(comp,不走 Stripe)。plan: explore|rookie|agent|founder|revoke */
-export async function setAgentPlan(email: string, plan: 'explore' | 'rookie' | 'agent' | 'founder' | 'developer' | 'revoke'): Promise<void> {
+/**
+ * Owner: 一次性赠送 30 天试用 / 撤销赠送。
+ *
+ * ⚠️ 不再有「授予永久套餐」这回事(2026-07-13):旧的 comp 授予是 100 年期且没有
+ * 任何过期清理,发出去就收不回。现在只能一人一次、30 天、到期自动停。
+ * 已经赠送过 / 已有生效订阅 → 后端 409,这里把原因抛出来给 UI 显示。
+ */
+export async function grantAgentTrial(email: string): Promise<void> {
+  const res = await authed(`/${encodeURIComponent(email)}/plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'grant_trial' }),
+  })
+  if (res.ok) return
+  const j = await res.json().catch(() => ({}))
+  throw new Error(
+    j.error === 'already_granted' ? '这个经纪已经赠送过了(一人只能一次)'
+    : j.error === 'already_subscribed' ? '他已有生效的套餐,不需要赠送'
+    : '赠送失败'
+  )
+}
+
+/** Owner: 撤销赠送(停掉非 Stripe 的行)。注意:撤销不退还「一人一次」的名额。 */
+export async function revokeAgentGrant(email: string): Promise<void> {
   await authed(`/${encodeURIComponent(email)}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify({ action: 'revoke' }),
   })
 }
 

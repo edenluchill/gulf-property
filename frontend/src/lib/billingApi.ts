@@ -328,6 +328,8 @@ export interface PlanChange {
   to_status: string | null
   reason: string | null
   metadata: Record<string, unknown>
+  /** 谁做的这次变更(手动赠送/撤销才有;Stripe webhook 的是系统行为,为 null)。 */
+  actor_email: string | null
   created_at: string
 }
 

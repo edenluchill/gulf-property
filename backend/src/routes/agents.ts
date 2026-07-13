@@ -12,6 +12,7 @@ import { requireAuth, optionalAuth } from '../middleware/auth'
 import { requireOwner, isOwnerEmail } from '../middleware/requireOwner'
 import { isAdminEmail } from '../lib/adminEmails'
 import { ensureAgent } from '../luna-tour/session-builder'
+import { grantOneTimeTrial, revokeGrant } from '../services/adminGrant'
 
 const router = Router()
 
@@ -87,49 +88,50 @@ router.get('/', optionalAuth, requireOwner, async (_req: Request, res: Response)
   }
 })
 
-// 所有者手动授予/撤销套餐(comp,不走 Stripe)。body { plan: 'explore'|'rookie'|'agent'|'founder'|'developer'|'revoke' }
+/**
+ * 所有者手动授予/撤销。body { action: 'grant_trial' | 'revoke' }
+ *
+ * ⚠️ 2026-07-13 改造:**不再能授予永久套餐**。
+ * 旧行为是插一条 100 年期的 comp 行,而 100 年 comp **没有任何过期清理**
+ * (freeTrialSweep 和 credits/mapMeter 的即时过期谓词都只认 source='free_trial')
+ * → 发出去就是永久免费,而且同一个人能反复发,操作人只存在 reason 字符串里。
+ *
+ * 新行为:每人**只能授予一次**、固定 30 天、走 free_trial 行 → 到期由 sweep 自动
+ * 翻 canceled。谁发的/什么时候发的落到 lt_agents.trial_granted_at/by 列上。
+ * 存量永久 comp 行(自己人)不动 —— 他们有生效订阅,这里会直接拒绝重复授予。
+ */
 router.post('/:email/plan', optionalAuth, requireOwner, async (req: Request, res: Response) => {
   const email = decodeURIComponent(req.params.email || '').toLowerCase().trim()
-  const plan = String(req.body?.plan || '')
+  // 兼容旧前端:老版本传 { plan: 'agent' } 之类 —— 一律当作 grant_trial 处理,
+  // 绝不再按 plan 发永久套餐。
+  const action = String(req.body?.action || (req.body?.plan === 'revoke' ? 'revoke' : 'grant_trial'))
+  const actor = (req.user?.email as string) || 'owner'
   if (!email) return res.status(400).json({ success: false, error: 'email required' })
-  if (!['explore', 'rookie', 'agent', 'founder', 'developer', 'revoke'].includes(plan)) {
-    return res.status(400).json({ success: false, error: 'invalid plan' })
+  if (!['grant_trial', 'revoke'].includes(action)) {
+    return res.status(400).json({ success: false, error: 'invalid action' })
   }
+
   try {
-    // 确保有 lt_agents 行(comp 挂在 lt_agents.id 上)
     const nameRow = await pool.query<{ name: string | null }>(`SELECT name FROM agents WHERE email = $1`, [email])
     const agentId = await ensureAgent({
       email,
       displayName: nameRow.rows[0]?.name || email.split('@')[0],
     })
-    // 撤销/explore:取消所有"手动 comp"行(不动真实 Stripe 订阅)
-    await pool.query(
-      `UPDATE lt_subscriptions SET status = 'canceled', updated_at = now()
-         WHERE agent_id = $1 AND stripe_subscription_id IS NULL AND status <> 'canceled'`,
-      [agentId]
-    )
-    if (plan !== 'revoke' && plan !== 'explore') {
-      // 授予:新建一条 active 的 comp 订阅(planFor 取最新生效的 → 即刻生效)
-      await pool.query(
-        `INSERT INTO lt_subscriptions (agent_id, plan_id, status, current_period_end)
-           VALUES ($1, $2, 'active', now() + interval '100 years')`,
-        [agentId, plan]
-      )
+
+    if (action === 'revoke') {
+      await revokeGrant(agentId, email, actor)
+      return res.json({ success: true })
     }
-    // 手动 comp 也进变更审计(和 Stripe webhook 同一张表,一处看全)
-    await pool.query(
-      `INSERT INTO plan_change_log (agent_id, agent_email, action, to_plan, reason)
-         VALUES ($1, $2, $3, $4, $5)`,
-      [
-        agentId, email,
-        plan === 'revoke' || plan === 'explore' ? 'comp_revoked' : 'comp_granted',
-        plan === 'revoke' ? 'explore' : plan,
-        `manual by ${(req.user?.email as string) || 'owner'}`,
-      ]
-    ).catch((e) => console.error('[agents] comp audit failed:', e))
-    res.json({ success: true })
+
+    const r = await grantOneTimeTrial(agentId, email, actor)
+    if (!r.ok) {
+      return res.status(409).json({
+        success: false, error: r.code, grantedAt: r.grantedAt, grantedBy: r.grantedBy,
+      })
+    }
+    res.json({ success: true, days: r.days, credits: r.credits })
   } catch (err) {
-    console.error('[agents] set plan failed:', err)
+    console.error('[agents] grant/revoke failed:', err)
     res.status(500).json({ success: false })
   }
 })
