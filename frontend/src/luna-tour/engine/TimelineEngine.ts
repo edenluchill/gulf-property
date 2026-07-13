@@ -66,7 +66,17 @@ const MIN_BEAT_MS = 1500
  *  the AI's authored orbit `degrees` (which ranged 24°–180° → dizzy + uneven),
  *  and the bearing NEVER snaps between beats (fixes the "blink/jump" on the
  *  numbers beat). Authored camera still controls center/zoom/pitch. */
-const ROTATE_DEG_PER_MS = 0.003 // 3°/sec
+/**
+ * 🔴 0 —— **不要强制旋转。**
+ *
+ * 原值 0.003（3°/秒）会**每一帧覆盖掉剧本里的 bearing**,整场 tour 匀速自转,永不停。
+ * 我在剧本层锁死 bearing、删掉所有 orbit —— 全被这一行盖掉了,所以 owner 一直在说
+ *「乱飘」「到了目的点还在旋转」,而我一直以为自己修好了。
+ *
+ * 保留常量（而不是删掉整条链路）是因为它同时负责「bearing 不在拍与拍之间跳变」——
+ * 现在 bearing 直接来自剧本,而剧本层已经把它锁成常量,所以也不会跳。
+ */
+const ROTATE_DEG_PER_MS = 0 // 不转。客户到了目的地要读信息,不是继续晕。
 /** Safety backstop FLOOR: pre-metadata / no-audio cap for one beat (ms). */
 const MAX_BEAT_MS = 60000
 /** Once real audio length is known, backstop = clipLen + this pad, floored at

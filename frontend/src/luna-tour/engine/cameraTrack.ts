@@ -34,7 +34,17 @@ const EASE = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) // ease
 /** Marks a keyframe as a gentle "orbit" segment (center glides in). Bearing is
  *  now driven by the ENGINE at a constant rate, so this value only selects the
  *  smooth-center-glide sampling branch; its magnitude no longer sets rotation. */
-const AMBIENT_ORBIT_DEG = 24
+/**
+ * 🔴 0 —— **不要给静止镜头「加一点转动」**。
+ *
+ * 原值 24:每个 keyframe 都被偷偷加上 24° 的旋转（注释说是「让静止镜头不至于冻住」）。
+ * 但客户到了目的地要的是**读信息**,不是继续晕。owner 的原话:
+ *「到了目的点在旋转」「乱飘」。
+ *
+ * 而且这条会**覆盖剧本里的 bearing** —— 我在剧本层锁死 bearing、删掉 orbit,
+ * 全被这一行悄悄加了回去。**代码赢过 prompt,所以坏的代码也赢过好的 prompt。**
+ */
+const AMBIENT_ORBIT_DEG = 0
 /** A flyover whose target is within ~this (deg ≈ 80m) of us is a no-op → drop. */
 const NOOP_MOVE_EPS = 0.0008
 /** Floor so a 0-duration cue still occupies a sliver of the track. */
@@ -95,12 +105,41 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
     return { duration: 0, sampleAt: () => null, initial: entry }
   }
 
-  let cur: CameraState = entry ?? fallback
+  /**
+   * 🔴 相机的起点。
+   *
+   * 原来是 `entry ?? fallback`,而 fallback 是**写死的迪拜市中心 [55.27, 25.2] z11**。
+   * 开场时 entry 是 null（还没有上一拍）→ 于是每场 tour 都从市中心起步,再一路
+   * **插值飞到**建立镜头。欢迎页明明已经把相机停在正确机位上了,引擎却假装自己在市中心。
+   * **这就是 owner 说的「一开始从一个点平移」。**（实测:开场 3.5 秒横跨 20 公里。）
+   *
+   * 现在:没有 entry 就**从剧本的第一个关键帧起步**（那本来就是 duration_ms:0 的瞬切,
+   * 是「机位」不是「运动」）。真没有关键帧才回落到 fallback。
+   */
+  const firstKf = cues.find((c) => !('type' in c) && Array.isArray((c as { center?: unknown }).center)) as
+    | { center: [number, number]; zoom?: number; pitch?: number; bearing?: number }
+    | undefined
+  let cur: CameraState =
+    entry ??
+    (firstKf
+      ? {
+          center: firstKf.center,
+          zoom: Math.max(MIN_TOUR_ZOOM, firstKf.zoom ?? fallback.zoom),
+          pitch: Math.min(MAX_TOUR_PITCH, firstKf.pitch ?? fallback.pitch),
+          bearing: firstKf.bearing ?? 0,
+        }
+      : fallback)
   const segs: Segment[] = []
   let t = 0
 
   for (const cam of cues) {
-    const dur = Math.max(MIN_CUE_MS, 'duration_ms' in cam && cam.duration_ms ? cam.duration_ms : 6000)
+    /**
+     * `duration_ms: 0` 是**瞬切**（剧本用它表示「机位」——建立镜头就是这么写的）。
+     * 原来 Math.max(MIN_CUE_MS, …) 把它拉成了 800ms 的动画 —— 一个本该「切」过去的
+     * 机位,变成了一段谁也没要的运动。0 就是 0。
+     */
+    const authored = 'duration_ms' in cam ? cam.duration_ms : undefined
+    const dur = authored === 0 ? 0 : Math.max(MIN_CUE_MS, authored || 6000)
 
     if ('type' in cam && cam.type === 'orbit') {
       const center = cam.center
