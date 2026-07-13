@@ -441,6 +441,14 @@ function MapViewMapLibre({
     const map = mapRef.current?.getMap()
     if (!map) return
 
+    /**
+     * 调试钩子 —— 让自动化脚本能读到相机(frontend/scripts/_*.mjs)。
+     *
+     * owner:「你要设计得能你自己跑 来测试和优化」。没有这个,我就只能靠肉眼猜
+     * 「地图为什么在开场平移」—— 而猜是错的来源。只读引用,不改任何行为。
+     */
+    ;(window as unknown as { __pinzosMap?: unknown }).__pinzosMap = map
+
     await addCustomIcons(map)
 
     // 底图切换后 style 重建，重新注入自定义图标
@@ -452,24 +460,25 @@ function MapViewMapLibre({
     // 地图就是一块**悬在黑色虚空里的、边缘呈锯齿状的平面**(瓦片没加载完的地方直接是洞)。
     // 那一眼就把整个产品出卖了 —— 它看起来像个没做完的 demo。
     // 加了 sky 之后地图与天空自然衔接,锯齿边被雾吃掉。
+    // ⚠️ MapLibre v5 里天空是**style 属性(map.setSky)**,不是图层。
+    //    我一开始写成了 addLayer({ type: 'sky' }) —— MapLibre 每次加载都吐两条
+    //    console error（"layers.lt-sky.type: expected one of [fill, line, …]"）,
+    //    而且**天空压根没画出来**:我以为修好了的锯齿地平线,其实一次都没生效过。
     const ensureSky = () => {
       try {
-        if (!map.getLayer('lt-sky')) {
-          map.addLayer({
-            id: 'lt-sky',
-            type: 'sky',
-            paint: {
-              'sky-type': 'atmosphere',
-              'sky-atmosphere-sun-intensity': 6,
-              'sky-atmosphere-color': 'rgba(24, 42, 56, 1)',
-              'sky-atmosphere-halo-color': 'rgba(0, 224, 184, 0.28)',
-            },
-          } as never)
-        }
-      } catch { /* 老 style / 不支持 sky 时静默跳过 —— 不能因为装饰把地图搞挂 */ }
+        map.setSky({
+          'sky-color': '#0d1b2a',
+          'sky-horizon-blend': 0.6,
+          'horizon-color': '#2a4a5e',
+          'horizon-fog-blend': 0.7,
+          'fog-color': '#1a2c3a',
+          'fog-ground-blend': 0.35,
+          'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 0.9, 10, 0.5, 14, 0],
+        })
+      } catch { /* 不支持就算了 —— 不能因为装饰把地图搞挂 */ }
     }
     ensureSky()
-    map.on('style.load', ensureSky)   // 换底图后 style 重建 → 天空也要重新加
+    map.on('style.load', ensureSky)   // 换底图后 style 重建 → 天空也要重新设
 
     // Landmark cutouts scale with zoom so they feel painted on the map (not a
     // fixed-size overlay floating above it). Update the CSS var only on ZOOMEND,
