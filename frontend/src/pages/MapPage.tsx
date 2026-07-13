@@ -1505,7 +1505,16 @@ export default function MapPage() {
             dubaiLandmarks={dubaiLandmarks}
             showDubaiLayer
             pois={pois}
-            showPois={showPois}
+            // 🔴 tour 期间关掉**通用 POI 图标层**（那几十个铺满屏幕的蓝圈）——
+            //    它们把项目 pin 完全淹没了，而且跟这场带看没有关系。
+            //
+            //    ⚠️ 这不是"把配套藏起来"：讲到「距地铁 0.91 公里」时，剧本用
+            //    `distance_line` / `amenity_spokes` overlay **只画那一条线、只亮那一个站**
+            //    （life beat 里本来就有）。只有需要的时候才亮，亮的也只是那一个 ——
+            //    而不是把全城几十个 POI 一直摊在客户脸上。
+            //
+            //    3D 地标 / 区域色块 / 地铁线图层**不受影响**（owner 要保留）。
+            showPois={showPois && !tourCode}
             onPoiClick={setSelectedPoi}
             onStationClick={setSelectedStation}
             onLandmarkClick={setSelectedLandmark}

@@ -90,6 +90,34 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     : '(none)'
   const facts = properties.map(propertyFacts).join('\n')
   const ids = properties.map((p) => p.id).join(', ')
+
+  /**
+   * ⭐ 开场机位 —— **算给它，别让它猜**。
+   *
+   * demo 实测：intro 的 center 是**第一个项目**的坐标，而三个项目分散在整个迪拜
+   * （d3 在东北、Palm Central 在西南）—— 所以开场根本看不到全局，客户不知道自己在哪儿。
+   * 而 zoom 是 10（LLM 拍脑袋定的），跟项目的实际分布没有任何关系。
+   *
+   * establishing shot 的全部意义就是「先让他看见自己在哪儿」。这是纯几何，
+   * LLM 算不好也不该由它算。
+   */
+  const lngs = properties.map((p) => p.coords[0])
+  const lats = properties.map((p) => p.coords[1])
+  const cLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
+  const cLat = (Math.min(...lats) + Math.max(...lats)) / 2
+  const spanDeg = Math.max(Math.max(...lngs) - Math.min(...lngs), Math.max(...lats) - Math.min(...lats))
+  // 经验值：让整个项目群 + 一点余量落在画面里。跨度越大，zoom 越小。
+  const introZoom =
+    spanDeg > 0.30 ? 9.6 :
+    spanDeg > 0.18 ? 10.2 :
+    spanDeg > 0.10 ? 10.9 :
+    spanDeg > 0.05 ? 11.6 : 12.4
+  const establishing =
+    `ESTABLISHING SHOT (use these EXACT values for the intro's first keyframe — they are\n` +
+    `computed to fit ALL properties on screen; do NOT invent your own):\n` +
+    `  center: [${cLng.toFixed(5)}, ${cLat.toFixed(5)}]\n` +
+    `  zoom: ${introZoom}   (the intro may push in to ~${(introZoom + 1.2).toFixed(1)}, no further)\n` +
+    `  pitch: 45, bearing: 0`
   const clientLabel =
     [client.name && `name=${client.name}`, client.persona && `persona=${client.persona}`,
       client.goal && `goal=${client.goal}`, client.nationality && `nationality=${client.nationality}`]
@@ -167,9 +195,20 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '- Vary beat lengths. Do NOT make every beat the same length; that metronome',
     '  rhythm is exactly what makes it feel like software instead of film.',
     '',
+    'CAMERA GRAMMAR (cont.):',
+    '- ⛔ NEVER rotate `bearing` between keyframes. Keep bearing CONSTANT within a',
+    '  beat. A slowly rotating map reads as aimless drifting and teaches nothing —',
+    '  it is the single most amateurish thing a map tour can do. When you genuinely',
+    '  want to circle a building, use an explicit `orbit` motion instead.',
+    '- The intro must PUSH IN (zoom increases), not spin. Distance travelled is the',
+    '  message; rotation is not.',
+    '',
+    establishing,
+    '',
     'COMPOSITION GUIDANCE:',
-    '- intro: a short establishing move (≤4000 ms) + title overlay with the client',
-    '  name, progress_dots, and highlight_all_pins.',
+    '- intro: start at the ESTABLISHING SHOT above (a keyframe with duration_ms: 0,',
+    '  so it cuts there instantly), then push in slightly. Title overlay with the',
+    '  client name, progress_dots, and highlight_all_pins.',
     '- arrival beat: ONE short flyover (≤4000 ms) to the property, then a SHORT',
     '  orbit (≤120°, ≤4000 ms).',
     '  ⭐ The property_card overlay MUST have at_ms = 0 — it appears the INSTANT',
@@ -256,15 +295,42 @@ function overlayPropertyRefs(o: Overlay): string[] {
  *
  * LLM 会违反 prompt。代码不会。
  */
-const MAX_CAM_MS = 4000
-const MAX_ORBIT_DEG = 120
+/**
+ * 🔴 转场飞行 ≤ 2 秒（owner 2026-07-12 定）。
+ *
+ * 跨项目的 flyover 会走 van Wijk 的最优曲线 —— 它**自动拉高再落下**。
+ * 从 113 RESIDENCES 飞到 Palm Central 跨了半个迪拜，于是就成了
+ * 「**弹远又弹近**」，而中间那几秒画面里什么信息都没有。压到 2 秒。
+ */
+const MAX_CAM_MS = 2000
+
+// 🔴 **到了目的地不要再转圈**（owner 明确抱怨「到了目的点在旋转」）。
+//    arrival 之后跟一个 orbit，镜头绕着一栋**还没盖的楼**转 —— 客户已经到了，
+//    他要看的是信息，不是继续晕。orbit 在 clampCinematography 里被整个丢弃。
 
 export function clampCinematography(beat: Beat): void {
+  // 🔴 **keyframe 之间不许转 bearing。**
+  //
+  // demo 的开场实测：center 完全不变、zoom 10→11.8（几乎没动），而 bearing
+  // **0 → 15 → 30 → 45**，转了 12 秒。看起来就是地图在原地莫名其妙地打转/漂移
+  // —— 而它什么信息都没传达。LLM 加它纯粹是觉得「有电影感」。
+  //
+  // 依据（research §6）：van Wijk 的最优路径只管 2D 平移+缩放，bearing 是被硬贴上去的
+  // 线性插值 —— 它会变成一个**和运镜竞争的运动**。真正要绕圈时用 orbit（那是显式的、
+  // 有语义的动作：绕着这个项目看一圈）。keyframe 里的 bearing 漂移只会让人晕。
+  //
+  // 做法：整个 beat 的 bearing 锁定为第一个 keyframe 的值。orbit 不受影响。
+  const firstKf = beat.camera.find((c) => 'bearing' in c && typeof (c as { bearing?: number }).bearing === 'number')
+  const lockedBearing = firstKf ? (firstKf as unknown as { bearing: number }).bearing : undefined
+
+  // orbit 整个丢弃（MAX_ORBIT_DEG = 0）—— 到了目的地就别再转了
+  beat.camera = beat.camera.filter((c) => (c as unknown as { type?: string }).type !== 'orbit')
+
   for (const c of beat.camera) {
     if (c.duration_ms > MAX_CAM_MS) c.duration_ms = MAX_CAM_MS
-    const anyC = c as unknown as { type?: string; degrees?: number }
-    if (anyC.type === 'orbit' && typeof anyC.degrees === 'number' && Math.abs(anyC.degrees) > MAX_ORBIT_DEG) {
-      anyC.degrees = anyC.degrees < 0 ? -MAX_ORBIT_DEG : MAX_ORBIT_DEG
+    const anyC = c as unknown as { bearing?: number }
+    if (lockedBearing !== undefined && typeof anyC.bearing === 'number') {
+      anyC.bearing = lockedBearing
     }
   }
   for (const o of beat.overlays) {

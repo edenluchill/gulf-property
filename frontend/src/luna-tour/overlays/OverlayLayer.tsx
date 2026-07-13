@@ -84,6 +84,16 @@ function OverlayItem({
       // don't show a second, redundant progress indicator.
       return null
 
+    /**
+     * 项目卡。
+     *
+     * ⚠️ 手机上这张卡曾经**贴顶全宽、占掉 39% 的屏幕**，而且正好盖住项目本身
+     *    （pin 就在卡片正下方）—— 客户来看房，房子被卡片挡了。还和顶部的经纪头像
+     *    重叠，项目名只露出半截。
+     *
+     * 现在：`.lt-card-body` 这层 wrapper 让手机能把它排成**底部横向小卡**
+     *（缩略图 + 名字 + 价格，占屏 ~13%），地图主体全程可见。桌面保持左侧竖卡。
+     */
     case 'property_card': {
       const p = properties.get(overlay.property_id)
       if (!p) return null
@@ -95,34 +105,36 @@ function OverlayItem({
               <img src={p.image} alt={p.name} loading="eager" />
             </div>
           )}
-          {p.area && <div className="lt-card-area">📍 {p.area}</div>}
-          <div className="lt-card-name">{p.name}</div>
-          {p.developer && <div className="lt-card-dev">{p.developer}</div>}
-          {p.min_price != null && (
-            <div className="lt-card-price">
-              {formatAed(p.min_price)}
-              <span className="lt-card-price-unit"> 起</span>
+          <div className="lt-card-body">
+            {p.area && <div className="lt-card-area">📍 {p.area}</div>}
+            <div className="lt-card-name">{p.name}</div>
+            {p.developer && <div className="lt-card-dev">{p.developer}</div>}
+            {p.min_price != null && (
+              <div className="lt-card-price">
+                {formatAed(p.min_price)}
+                <span className="lt-card-price-unit"> 起</span>
+              </div>
+            )}
+            <div className="lt-card-stats">
+              {p.amenity_score != null && (
+                <div className="lt-card-stat">
+                  <b style={{ color: accent }}>{p.amenity_score}</b>
+                  <span>便利度{p.amenity_tier ? ` · ${p.amenity_tier}` : ''}</span>
+                </div>
+              )}
+              {metro && (
+                <div className="lt-card-stat">
+                  <b style={{ color: accent }}>{metro.distance_km}km</b>
+                  <span>🚇 最近地铁</span>
+                </div>
+              )}
+              {p.status && (
+                <div className="lt-card-stat lt-card-stat-status">
+                  <b>{p.status}</b>
+                  <span>状态</span>
+                </div>
+              )}
             </div>
-          )}
-          <div className="lt-card-stats">
-            {p.amenity_score != null && (
-              <div className="lt-card-stat">
-                <b style={{ color: accent }}>{p.amenity_score}</b>
-                <span>便利度{p.amenity_tier ? ` · ${p.amenity_tier}` : ''}</span>
-              </div>
-            )}
-            {metro && (
-              <div className="lt-card-stat">
-                <b style={{ color: accent }}>{metro.distance_km}km</b>
-                <span>🚇 最近地铁</span>
-              </div>
-            )}
-            {p.status && (
-              <div className="lt-card-stat">
-                <b>{p.status}</b>
-                <span>状态</span>
-              </div>
-            )}
           </div>
         </div>
       )
