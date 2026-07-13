@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Button } from '../ui/button'
 import { useAuth } from '../../contexts/AuthContext'
+import { isWeChatBrowser } from '../../lib/browser'
 
 interface LoginDialogProps {
   open: boolean
@@ -14,6 +15,8 @@ interface LoginDialogProps {
 export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const { t } = useTranslation('auth')
   const { signInWithOtp, verifyOtp, signInWithGoogle, signInWithMicrosoft, isConfigured } = useAuth()
+  // 微信 WebView 拦 OAuth 跳转 → Google/Microsoft 在这里点了必然失败,只留邮箱验证码。
+  const inWeChat = isWeChatBrowser()
 
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -124,19 +127,23 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
         <div className="p-6 pt-2">
           <Tabs defaultValue="email" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsList className={`grid w-full mb-6 ${inWeChat ? 'grid-cols-1' : 'grid-cols-3'}`}>
               <TabsTrigger value="email" className="text-sm">
                 <Mail className="w-4 h-4 mr-2" />
                 Email
               </TabsTrigger>
-              <TabsTrigger value="google" className="text-sm">
-                <GoogleIcon className="w-4 h-4 mr-2" />
-                Google
-              </TabsTrigger>
-              <TabsTrigger value="microsoft" className="text-sm">
-                <MicrosoftIcon className="w-4 h-4 mr-2" />
-                Microsoft
-              </TabsTrigger>
+              {!inWeChat && (
+                <TabsTrigger value="google" className="text-sm">
+                  <GoogleIcon className="w-4 h-4 mr-2" />
+                  Google
+                </TabsTrigger>
+              )}
+              {!inWeChat && (
+                <TabsTrigger value="microsoft" className="text-sm">
+                  <MicrosoftIcon className="w-4 h-4 mr-2" />
+                  Microsoft
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="email" className="space-y-4">
@@ -175,6 +182,12 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                       t('sendCode')
                     )}
                   </Button>
+
+                  {inWeChat && (
+                    <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                      {t('wechatNoGoogle')}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>

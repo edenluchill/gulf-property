@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY } from '../lib/supabase'
 import { identifyVisitor, trackEvent } from '../lib/track'
 import { clearFavorites } from '../lib/favorites'
 import { isAdminEmail, API_BASE_URL } from '../lib/config'
@@ -108,7 +108,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) void identifyVisitor()
     })
 
-    return () => subscription.unsubscribe()
+    // 跨 tab 同步。auth-js 只在 visibilitychange 时和存储对账,不监听 storage 事件 ——
+    // 所以并排开着的两个 tab,A 登录/退出/换账号后 B 的内存里还是旧 session,界面就一直
+    // 显示错的人(用户报的"每个 tab 状态不一样")。而且 signOut 改成 scope:'local' 后,
+    // 退出只清存储、清不掉别的 tab 内存里的 session,更需要这条链路把它们拉齐。
+    const syncFromStorage = async () => {
+      let stored: { access_token?: string; refresh_token?: string } | null = null
+      try {
+        const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
+        stored = raw ? JSON.parse(raw) : null
+      } catch { stored = null }
+
+      const { data } = await supabase.auth.getSession()
+      const current = data.session
+
+      if (!stored?.access_token) {
+        // 别的 tab 退出了 → 清掉本 tab 内存里还活着的 session
+        if (current) {
+          manualSignOutRef.current = true // 用户在别的 tab 点的退出,不是事故,别报警
+          await supabase.auth.signOut({ scope: 'local' })
+          try { clearFavorites() } catch { /* best-effort */ }
+        }
+        return
+      }
+
+      // 别的 tab 登录了、换了账号、或刷新了 token → 采用存储里的这份
+      if (stored.refresh_token && stored.access_token !== current?.access_token) {
+        await supabase.auth.setSession({
+          access_token: stored.access_token,
+          refresh_token: stored.refresh_token,
+        })
+      }
+    }
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.storageArea && e.storageArea !== window.localStorage) return
+      if (e.key !== null && e.key !== AUTH_STORAGE_KEY) return // key === null 是 clear()
+      void syncFromStorage()
+    }
+    window.addEventListener('storage', onStorage)
+
+    return () => {
+      subscription.unsubscribe()
+      window.removeEventListener('storage', onStorage)
+    }
   }, [])
 
   const checkAdminRole = (user: User | null) => {
@@ -171,7 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     manualSignOutRef.current = true
-    await supabase.auth.signOut()
+    // scope:'local' —— 只退出这台设备。Supabase 的默认值是 'global',会吊销该账号在
+    // **所有设备**上的 refresh token:埋点实测,每次在电脑上点退出,3~11 秒后手机和
+    // 另一台电脑就收到 manual:false 的 auth_signed_out 被踢下线(20 次里 14 次如此)。
+    // 这就是"每天都要重新登录"的真凶,不是 refresh token reuse-detection。
+    await supabase.auth.signOut({ scope: 'local' })
     setUser(null)
     setSession(null)
     setIsAdmin(false)
