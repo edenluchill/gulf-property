@@ -39,6 +39,9 @@ export interface MapTourHandle {
   }): Promise<void>
   /** instant set — the engine's single-clock camera track calls this every frame */
   jumpTo(o: { center?: LngLat; zoom?: number; pitch?: number; bearing?: number }): void
+  /** 相机现在在哪 —— 引擎用它来接管，而不是**猜**一个起点。
+   *  (执行层曾经写死过一个「迪拜市中心」当起点 → 每场 tour 都从 20km 外平移过来。) */
+  getCamera(): { center: LngLat; zoom: number; pitch: number; bearing: number } | null
   drawDistanceLine(o: DistanceLineOpts): void
   showAmenitySpokes(o: AmenitySpokesOpts): void
   highlightPins(ids: string[]): void
@@ -209,6 +212,19 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       pitch: o.pitch ?? map.getPitch(),
       bearing: o.bearing ?? map.getBearing(),
     })
+  }
+
+  /** 相机现在在哪。引擎接管时读它,而不是猜一个起点。 */
+  function getCamera() {
+    const map = getMap()
+    if (!map) return null
+    const c = map.getCenter()
+    return {
+      center: [c.lng, c.lat] as LngLat,
+      zoom: map.getZoom(),
+      pitch: map.getPitch(),
+      bearing: map.getBearing(),
+    }
   }
 
   function drawDistanceLine(o: DistanceLineOpts) {
@@ -433,6 +449,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   return {
     flyTo,
     jumpTo,
+    getCamera,
     drawDistanceLine,
     showAmenitySpokes,
     highlightPins,

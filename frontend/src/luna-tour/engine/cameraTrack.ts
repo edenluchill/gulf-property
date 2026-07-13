@@ -75,6 +75,22 @@ interface Segment {
   midZoom?: number
 }
 
+/**
+ * 恰好能把跨度 spanDeg 一起框进画面的 zoom。
+ *
+ * MapLibre: zoom z 时，视口横跨的经度 ≈ 360 / 2^z × (视口宽 / 512)。
+ * 反解出 z，并留 1.5 倍余量（两点不贴边）。这是**几何**，不是拍脑袋的常量。
+ */
+function zoomToFitSpan(spanDeg: number): number {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 1000
+  const need = Math.max(1e-5, spanDeg * 1.5)
+  return Math.log2((360 * (w / 512)) / need)
+}
+/** 抛高不足这么多级就不值得抛 —— 两点本来就在一个画面里，平飞就好。 */
+const MIN_ARC_PULL = 0.8
+/** 抛高的硬上限。再高客户就只看见沙漠了，而那几秒画面里没有任何信息。 */
+const MAX_ARC_PULL = 2.2
+
 const ARRIVAL_ZOOM = 15
 /** Cap the cinematic tilt. A steep pitch (55°+) makes the camera see toward the
  *  horizon, so a SLOW orbit streams a huge, ever-changing fan of satellite tiles
@@ -158,18 +174,38 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       // flyover that only zooms in (the "arrival" push-in after the camera is
       // already over the property).
       if (!moved && !zoomed) continue
-      const to: CameraState = { center: cam.to, zoom: ARRIVAL_ZOOM, pitch: ARRIVAL_PITCH, bearing: cur.bearing }
+      const to: CameraState = {
+        center: cam.to,
+        // 剧本给了 zoom/pitch 就用剧本的；没给才用落位默认值。
+        // **执行层不该替剧本决定机位** —— 它只该决定「怎么走过去」。
+        zoom: 'zoom' in cam && typeof cam.zoom === 'number' ? cam.zoom : ARRIVAL_ZOOM,
+        pitch: 'pitch' in cam && typeof cam.pitch === 'number' ? Math.min(MAX_TOUR_PITCH, cam.pitch) : ARRIVAL_PITCH,
+        bearing: cur.bearing,
+      }
       // Distance-aware duration so a long hop isn't a rushed streak.
       const flyDur = Math.max(dur, Math.min(6000, 2600 + distDeg * 22000))
-      if (moved) {
-        // Property→property hop: RISE to a high overview at mid-flight so the
-        // viewer sees roughly WHERE the next home is, then descend into it —
-        // never a flat low pan ("挑高再拉近,不要平移"). Bigger rise for longer
-        // hops. (In-place arrivals skip the arc → straight push-in.)
-        const pull = Math.min(5.5, Math.max(2.5, distDeg * 15))
-        const midZoom = Math.max(9.5, Math.min(cur.zoom, to.zoom) - pull)
+
+      /**
+       * 🔴 抛高**只为一件事**：让客户在飞行途中同时看见「从哪来、到哪去」。
+       *
+       * 所以抛多高不是拍脑袋定的常量，而是**几何算出来的**：
+       * 恰好能把起点和终点一起框进画面的那个 zoom，多一点都不要。
+       *
+       * 原来的写法是 `pull = clamp(distDeg * 15, 2.5, 5.5)` ——
+       * **不管多远，最少也要抛 2.5 级**。于是挪 500 米也要先冲上天再砸下来，
+       * owner 的原话:「每个 poi 都要抛高镜头然后再 zoom in 太奇怪了」。
+       *
+       * 现在：够短的移动（近到本来就在同一画面里）→ **平飞，不抛**。
+       */
+      const fitZoom = zoomToFitSpan(distDeg)
+      const lowZoom = Math.min(cur.zoom, to.zoom)
+      // 需要往外拉多少级，才能把两点一起看见
+      const pull = lowZoom - fitZoom
+      if (moved && pull > MIN_ARC_PULL) {
+        const midZoom = Math.max(MIN_TOUR_ZOOM, lowZoom - Math.min(pull, MAX_ARC_PULL))
         segs.push({ start: t, end: t + flyDur, from: cur, to, arc: true, midZoom })
       } else {
+        // 两点本来就在一个画面里（POI、同项目内的小移动）→ 直接平移过去。
         segs.push({ start: t, end: t + flyDur, from: cur, to })
       }
       cur = to

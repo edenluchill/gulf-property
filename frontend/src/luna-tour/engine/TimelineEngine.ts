@@ -374,6 +374,17 @@ export class TimelineEngine {
       this.applyBeatFeatures(seg)
       this.map.pulseAt(this.focusOf(seg) ?? null)
 
+      /**
+       * 🔴 接管相机之前,先问地图「你现在在哪」。
+       *
+       * camEntry 是 null 时(开场、或跳拍之后),cameraTrack 以前会回落到一个
+       * **写死的迪拜市中心** —— 于是每场 tour 都从 20km 外平移过来。
+       * 欢迎页明明已经把相机停在正确机位上了。
+       *
+       * 执行层不该**猜**位置,它该**读**位置。
+       */
+      if (!this.camEntry) this.camEntry = this.map.getCamera?.() ?? null
+
       // compile the camera track for this beat (single clock samples it)
       this.camTrack = compileCameraTrack(cameraCues, this.camEntry)
       this.camScale = 1 // until audio length is known (set in onMeta below)
