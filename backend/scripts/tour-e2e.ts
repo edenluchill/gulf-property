@@ -269,6 +269,24 @@ async function main() {
   expect(audio.total > 0 && audio.ready >= audio.total,
     `⑧ 语音全部生成（${audio.ready}/${audio.total}）`)
 
+  /**
+   * ⑨ **发布后的 tour 里,每一拍都必须有 Gemini 语音。**
+   *
+   * 少一条 audio_url,引擎就回落到**浏览器机器音** —— owner 实测被这个坑到:
+   *「怎么是用 browser 机器人语音说话的?」。发布出去的 tour 绝不能有这种拍。
+   */
+  const finalScript = await pool.query<{ script: any }>(
+    `SELECT t.script FROM lt_tour_scripts t
+       JOIN lt_demo_sessions s ON s.id = t.session_id WHERE s.share_code = $1`,
+    [code]
+  )
+  const sc = finalScript.rows[0]?.script
+  const allB = sc ? [sc.intro, ...(sc.acts || []).flatMap((a: any) => a.beats), sc.outro].filter(Boolean) : []
+  const silent = allB.filter((b: any) => !b.audio_url)
+  expect(allB.length > 0 && silent.length === 0,
+    `⑨ 发布后每一拍都有 Gemini 真声（不会回落到机器音）`,
+    silent.map((b: any) => b.id).join(' | '))
+
   await report(code)
 }
 

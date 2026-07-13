@@ -1274,6 +1274,46 @@ router.post('/sessions/:id/render', async (req: Request, res: Response) => {
   }
 })
 
+/**
+ * 预演用的语音 —— **不发布、不扣额度**，只是把 Gemini 声音烧出来。
+ *
+ * 🔴 为什么必须有这个:两段式生成里草稿是不烧语音的,于是经纪点「先预演一遍」
+ *    听到的是**浏览器机器音** —— 他根本没法判断 Luna 讲得好不好,还以为坏了
+ *   (owner 实测:「怎么是用 browser 机器人语音说话的?」)。
+ *    **预演听不到真声,预演就没有意义。**
+ *
+ * 成本上安全:generateSessionAudio 是**幂等**的(已有 audio_url 的拍会跳过),
+ * 所以确认渲染时不会重复烧;经纪改过的那几拍会自动重生成。
+ */
+router.post('/sessions/:id/preview-audio', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const sres = await pool.query<{ id: string; share_code: string }>(
+      `SELECT id, share_code FROM lt_demo_sessions
+        WHERE (id::text=$1 OR share_code=$1) AND agent_id=$2 LIMIT 1`,
+      [req.params.id, agentId]
+    )
+    const sess = sres.rows[0]
+    if (!sess) return res.status(404).json({ error: 'session not found' })
+
+    genJobs.set(sess.share_code, { status: 'generating' })
+    res.json({ ok: true, shareCode: sess.share_code })
+
+    void generateSessionAudio(sess.id)
+      .then((a) => {
+        genJobs.set(sess.share_code, { status: 'ready', audioTotal: a.total })
+        console.log(`[luna] preview audio ${sess.share_code}: ${a.ready}/${a.total} (skipped ${a.skipped})`)
+      })
+      .catch((err) => {
+        console.error('[luna] preview audio failed:', err)
+        genJobs.set(sess.share_code, { status: 'ready', audioTotal: 0 })
+      })
+  } catch (err) {
+    console.error('[luna] preview-audio error:', err)
+    res.status(500).json({ error: 'preview-audio failed' })
+  }
+})
+
 router.get('/sessions/:id/gen-status', async (req: Request, res: Response) => {
   try {
     const key = req.params.id

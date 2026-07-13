@@ -197,6 +197,17 @@ export default function TourOverlay({
   }, [code])
 
   const data = load.kind === 'ready' ? load.data : null
+
+  /**
+   * 有没有拍子缺语音 —— 缺了就会回落到浏览器机器音。
+   * 草稿(还没「确认，生成语音并发布」)就是这种情况。绝不能让它悄悄发生。
+   */
+  const missingVoice = (() => {
+    if (!data?.script) return false
+    const beats = [data.script.intro, ...data.script.acts.flatMap((a) => a.beats), data.script.outro]
+    return beats.some((b) => b && !b.audio_url)
+  })()
+  const zh = !!i18n.language?.startsWith('zh')
   const accent =
     (data?.session.theme?.accent as string) ||
     (data?.agent.brand?.accent as string) ||
@@ -588,6 +599,23 @@ export default function TourOverlay({
         const ev = pid ? evidenceRef.current.get(pid) : undefined
         return ev ? <EvidenceCard evidence={ev} accent={accent} /> : null
       })()}
+
+      {/**
+        * 🔴 **绝不静默地用机器音。**
+        *
+        * 草稿(还没确认渲染)的每一拍都没有 audio_url,引擎会回落到浏览器 speechSynthesis
+        * —— owner 实测就被这个坑到了:「怎么是用 browser 机器人语音说话的?」
+        * 他以为坏了,而实际上只是还没点「确认,生成语音并发布」。
+        *
+        * 回落本身是对的(总比没声音好),但它**必须说出来**。
+        */}
+      {started && missingVoice && state !== 'ended' && (
+        <div className="lt-voice-warn">
+          {zh
+            ? '⚠️ 这是草稿预览 · 当前是浏览器机器音 —— 确认发布后会换成 Luna 的真人语音'
+            : '⚠️ Draft preview · browser robot voice — approve & publish to hear Luna’s real voice'}
+        </div>
+      )}
 
       {/* top CHAPTER bar — one chapter per home, labeled with its name. Tap to fly
           back/forward to that home. Replaces the abstract dot rows. */}

@@ -888,3 +888,16 @@
   .lt-root:has(.lt-ov-units) .lt-subtitle,
   .lt-tour-host:has(.lt-ov-units) .lt-subtitle { bottom: 234px; }
 }
+
+/* 草稿预览的机器音提示 —— 回落可以，但**必须说出来**（见 TourOverlay 的注释）。 */
+.lt-voice-warn {
+  position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+  z-index: 9; pointer-events: none; max-width: 92vw;
+  background: rgba(180, 83, 9, 0.92); color: #fff;
+  font-size: 12px; font-weight: 600; line-height: 1.4; text-align: center;
+  padding: 6px 14px; border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+@media (max-width: 640px) {
+  .lt-voice-warn { top: 56px; font-size: 11px; padding: 5px 11px; }
+}

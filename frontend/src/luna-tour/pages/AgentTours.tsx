@@ -854,6 +854,10 @@ function FlowToggle({
   const [title, setTitle] = useState('')
   const [beats, setBeats] = useState<FlowBeat[]>([])
   const [rendering, setRendering] = useState(false)
+  // 预演的语音（草稿默认没有语音 → 会回落到浏览器机器音，那样预演毫无意义）
+  const [prepping, setPrepping] = useState(false)
+  const [prepDone, setPrepDone] = useState(false)
+  const [prepMsg, setPrepMsg] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const loadedFor = useRef<string | null>(null)
@@ -971,6 +975,55 @@ function FlowToggle({
     setOpen(true)
     setMsg('')
     await loadFlow()
+  }
+
+  /**
+   * 先烧 Gemini 语音，再打开预演。
+   *
+   * 🔴 草稿本来是不烧语音的 —— 于是经纪点「预演」听到的是**浏览器机器音**，
+   *    他根本没法判断 Luna 讲得好不好（owner 实测就被这个坑到了）。
+   *    **预演听不到真声，预演就没有意义。**
+   *
+   * 不发布、不扣额度；而且音频生成是**幂等**的，确认渲染时不会重复烧。
+   */
+  const previewWithVoice = async () => {
+    if (!previewUrl) return
+    if (prepDone) { window.open(previewUrl, '_blank'); return }
+    setPrepping(true)
+    setPrepMsg(L('正在生成 Luna 的真人语音…', "Generating Luna's real voice…"))
+    try {
+      // 先把经纪改过的文案存下来，免得预演听到的是旧稿
+      const narration: Record<string, string> = {}
+      for (const b of beats) narration[b.id] = b.narration
+      await lunaFetch(`/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, narration }),
+      })
+      await lunaFetch(`/sessions/${sessionId}/preview-audio`, { method: 'POST' })
+
+      // 等语音烧完再开 —— 开早了前几拍还是机器音
+      for (let i = 0; i < 80; i++) {
+        await new Promise((r) => setTimeout(r, 2500))
+        const g = await lunaFetch(`/sessions/${sessionId}/gen-status`).then((r) => r.json()).catch(() => null)
+        const total = g?.audioTotal ?? 0
+        const done = g?.audioReady ?? 0
+        if (total > 0) setPrepMsg(L(`语音生成中 ${done}/${total}…`, `Generating voice ${done}/${total}…`))
+        if (total > 0 && done >= total) {
+          setPrepDone(true)
+          setPrepMsg('')
+          window.open(previewUrl, '_blank')
+          setPrepping(false)
+          return
+        }
+      }
+      setPrepMsg(L('语音还没好，先看画面吧', 'Voice not ready yet — opening anyway'))
+      window.open(previewUrl, '_blank')
+    } catch {
+      setPrepMsg(L('语音生成失败，先看画面', 'Voice failed — opening anyway'))
+      window.open(previewUrl, '_blank')
+    }
+    setPrepping(false)
   }
 
   /**
@@ -1319,14 +1372,17 @@ function FlowToggle({
                       : L('✓ 确认，生成语音并发布', '✓ Approve — generate voice & publish')}
                   </button>
                   {previewUrl && (
-                    <a
-                      href={previewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                    <button
+                      onClick={previewWithVoice}
+                      disabled={prepping || rendering}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                     >
-                      {L('先预演一遍', 'Preview first')}
-                    </a>
+                      {prepping
+                        ? (prepMsg || L('准备语音…', 'Preparing voice…'))
+                        : prepDone
+                          ? L('▶ 再听一遍', '▶ Play again')
+                          : L('🔊 先预演一遍（带 Luna 真声）', '🔊 Preview with Luna’s real voice')}
+                    </button>
                   )}
                   <span className="text-xs text-slate-500">
                     {L('确认后才扣一次额度、才生成语音。在此之前客户点链接是打不开的。',
