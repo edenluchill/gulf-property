@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY, getLastRefresh } from '../lib/supabase'
+import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY, getLastRefresh, readStoredSession } from '../lib/supabase'
 import { identifyVisitor, trackEvent } from '../lib/track'
 import { clearFavorites } from '../lib/favorites'
 import { isAdminEmail, API_BASE_URL } from '../lib/config'
@@ -24,15 +24,22 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
+  // 首屏零等待:同步从 localStorage 把 session 读出来当初值,而不是先渲染成「未登录」、
+  // 等 getSession()(要抢 navigator.locks,空载 400~800ms,多 tab 抢锁时好几秒)回来再翻。
+  // 下面的 getSession() + onAuthStateChange 仍然照跑,负责校验和纠正 —— token 真失效了
+  // 会走 SIGNED_OUT 把界面改回未登录。乐观渲染,不是鉴权:真鉴权全在服务端。
+  const bootstrap = readStoredSession()
+
+  const [user, setUser] = useState<User | null>(bootstrap?.user ?? null)
+  const [session, setSession] = useState<Session | null>(bootstrap)
+  // 已经有 session 就不算 loading —— 否则 ProtectedRoute 会白转一圈 spinner
+  const [loading, setLoading] = useState(!bootstrap)
+  const [isAdmin, setIsAdmin] = useState(isAdminEmail(bootstrap?.user?.email))
   const [canUpload, setCanUpload] = useState<boolean | null>(false)
   // "为什么老被登出"排查埋点:区分用户点退出 vs SDK 自杀会话(refresh token 被
   // reuse-detection 吊销、存储被清等)。manual:false 的 auth_signed_out 才是事故。
   const manualSignOutRef = useRef(false)
-  const lastEmailRef = useRef<string | null>(null)
+  const lastEmailRef = useRef<string | null>(bootstrap?.user?.email ?? null)
 
   // 楼书上传权限:admin 直接 true;普通账号问服务端白名单(upload_permissions)
   useEffect(() => {

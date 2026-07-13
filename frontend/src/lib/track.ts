@@ -16,7 +16,7 @@
  * Delete this file + the instrumentation call sites + backend routes/events.ts
  * to remove the feature entirely.
  */
-import { supabase } from './supabase'
+import { supabase, readStoredSession } from './supabase'
 import { API_BASE_URL } from './config'
 
 export type AppEvent =
@@ -247,20 +247,27 @@ export const MAP_QUOTA_EVENT = 'pinzos:map-quota-exhausted'
 // 请求带上它,后端 mapMeter 才认得出「已登录买家/已订阅经纪」并豁免计量 —— 生产没配
 // SUPABASE_JWT_SECRET,不带头的话登录用户在这些端点上和匿名无异,满额会被误拦。
 //
-// authTokenReady:首屏数据请求必须等 getSession 落定再发。否则和 token 加载有竞态,
-// 抢跑的请求不带 Authorization → 被后端当匿名放行 → 该被锁的经纪把数据整页拉了下来
-// (锁形同虚设,删掉 overlay 就能继续用)。getSession 读本地缓存,只挡首屏几毫秒。
+// authTokenReady:首屏数据请求不能在「还不知道自己登没登录」时就发出去 —— 抢跑的请求不带
+// Authorization → 被后端当匿名放行 → 该被锁的经纪把数据整页拉了下来(锁形同虚设)。
+//
+// 但「知道自己登录了」不需要等异步:token 同步就在 localStorage 里。所以本地有 token 时
+// 立刻放行(零阻塞);只有本地什么都没有时,才等 getSession() 确认「真的是匿名」。
 let cachedAccessToken: string | null = null
 let authTokenReady: Promise<void> = Promise.resolve()
 function watchAuthToken(): void {
   try {
-    let ready!: () => void
-    authTokenReady = new Promise<void>((r) => { ready = r })
+    cachedAccessToken = readStoredSession()?.access_token ?? null
+
+    let ready: (() => void) | undefined
+    authTokenReady = cachedAccessToken
+      ? Promise.resolve() // 本地就有 token,首屏一个毫秒都不用等
+      : new Promise<void>((r) => { ready = r })
+
     supabase.auth.getSession()
       .then(({ data }) => { cachedAccessToken = data.session?.access_token || null })
       .catch(() => {})
-      .finally(() => ready())
-    setTimeout(ready, 3000) // 兜底:auth 卡住也绝不无限阻塞业务请求
+      .finally(() => ready?.())
+    setTimeout(() => ready?.(), 3000) // 兜底:auth 卡住也绝不无限阻塞业务请求
     supabase.auth.onAuthStateChange((_event, session) => { cachedAccessToken = session?.access_token || null })
   } catch { /* auth 不可用就保持匿名语义 */ }
 }

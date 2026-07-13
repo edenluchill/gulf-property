@@ -126,7 +126,32 @@ const browser = await chromium.launch()
   await ctx.close()
 }
 
-// ── 3 & 4. 微信 WebView 降级 / 普通浏览器对照组 ────────────────────────────
+// ── 3. 乐观渲染必须能被纠正 ────────────────────────────────────────────────
+// AuthContext 同步读 localStorage 先把登录态画出来(首屏零等待)。代价是:如果那份
+// session 其实已经失效,界面会先"骗人"说你登录着。校验链路必须把它纠正回未登录 ——
+// 否则用户会看到一个假的登录态,点什么都 401。
+{
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
+  const dead = fakeSession()
+  dead.expires_at = Math.floor(Date.now() / 1000) - 60 // 已过期 → SDK 必然去刷新
+  dead.refresh_token = 'definitely-invalid-refresh-token' // → 刷新必然失败
+  await ctx.addInitScript(
+    ([s, key]) => localStorage.setItem(key, JSON.stringify(s)),
+    [dead, AUTH_KEY]
+  )
+  const page = await ctx.newPage()
+  await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 })
+
+  const corrected = await settle(page, false) // 必须最终变回「未登录」
+  record(
+    '乐观渲染:本地 session 已失效时,界面必须被纠正回未登录',
+    corrected,
+    `最终显示未登录=${corrected}(false 说明界面在骗人:显示登录着,实际 token 是死的)`
+  )
+  await ctx.close()
+}
+
+// ── 4 & 5. 微信 WebView 降级 / 普通浏览器对照组 ────────────────────────────
 for (const [label, ua, wantGoogle] of [
   ['微信 WebView', WECHAT_UA, false],
   ['普通浏览器(对照组)', null, true],

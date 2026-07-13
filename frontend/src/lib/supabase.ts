@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, Session } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -9,6 +9,33 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 /** session 在 localStorage 里的 key。跨 tab 同步要监听它,所以导出去共用一个真值。 */
 export const AUTH_STORAGE_KEY = 'pinzos-auth'
+
+/**
+ * **同步**读出已存的 session —— 首屏零等待渲染登录态用。
+ *
+ * `supabase.auth.getSession()` 是异步的,而且要先抢 navigator.locks 那把 origin 级的锁:
+ * 空载时 400~800ms,你开一堆 tab 抢锁时能到好几秒。这段时间里 user 是 null,页面先渲染成
+ * 「未登录」,拿到 session 后再翻成头像 —— 这就是"每次都要等一会才 load 出登录状态"。
+ *
+ * 但 session 本来就**同步躺在 localStorage 里**,没有任何理由要等。这里直接把它读出来先
+ * 渲染,getSession()/onAuthStateChange 退居为事后校验:token 真失效了会走 SIGNED_OUT 把
+ * 界面纠正回来。
+ *
+ * ⚠️ 这是**渲染层的乐观读取,不是鉴权**。它只决定 UI 先画成什么样;所有真鉴权在服务端,
+ *    前端拿一个伪造的 localStorage 骗不到任何数据。
+ */
+export function readStoredSession(): Session | null {
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as Partial<Session>
+    // 形状不对就当没有 —— 存的是 supabase 自己写的 session,但别盲信本地数据
+    if (!s?.access_token || !s?.refresh_token || !s?.user?.id) return null
+    return s as Session
+  } catch {
+    return null // 存储被禁(隐私模式/某些 WebView)→ 老老实实走异步那条路
+  }
+}
 
 /** gotrue 的锁没抢到时抛这个;auth-js 靠 isAcquireTimeout 识别并跳过本轮自动刷新。 */
 class LockUnavailableError extends Error {
