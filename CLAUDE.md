@@ -21,6 +21,22 @@ These scripts automatically read credentials from `backend/.env`.
 - `backend/src/db/` - SQL schema and migration files
 - `backend/scripts/` - Utility scripts (db-runner, db-query, etc.)
 
+## Luna Tour — 改完必须跑的端到端跑分
+
+```bash
+cd backend && npx ts-node -T scripts/tour-e2e.ts          # 打生产,不扣额度
+cd backend && npx ts-node -T scripts/tour-e2e.ts --keep   # 留着人眼看
+```
+
+走真实 HTTP 接口跑完整条链路（生成草稿 → 客户 404 → 大纲时间线 → 改文案 →
+确认渲染 → 客户 200 → 语音），并做 **24 条内容体检**（念原始数字 / 阿拉伯语地名 /
+推销售罄的房 / 户型缺席 / 镜头超 2 秒 / 泄露检索半径 / 低分项目主动报分 …）。
+
+**不带 Authorization → 落到 demo 经纪 → 不扣任何额度**，可以随便跑。
+
+⚠️ **先 `quick-deploy.ps1`，再跑分** —— 它打的是生产 API，不部署就是在测旧镜像。
+⚠️ 视觉验证另有 `frontend/scripts/_tour-audit.mjs`（手机+桌面逐帧录制）。
+
 ## Common Tasks
 
 ### Update a database function
