@@ -91,6 +91,20 @@ export interface RoiCardOverlay {
     yield_pct?: number
   }
 }
+/**
+ * 户型卡 —— 「你能买到什么」。
+ *
+ * ⚠️ overlay 里**故意不带任何数字**：面积/价格/户型图全部从 PropertySnapshot.units
+ * 里读（真实的 project_unit_types 数据）。剧本只能决定「讲哪个项目、重点几房」——
+ * 只要让模型往 overlay 里填数字，它就会编。
+ */
+export interface UnitCardOverlay {
+  type: 'unit_card'
+  at_ms: number
+  duration_ms?: number
+  property_id: string
+  focus_bedrooms?: number
+}
 export interface HighlightAllPinsOverlay {
   type: 'highlight_all_pins'
   at_ms: number
@@ -128,6 +142,7 @@ export type Overlay =
   | DistanceLineOverlay
   | AmenitySpokesOverlay
   | RoiCardOverlay
+  | UnitCardOverlay
   | HighlightAllPinsOverlay
   | FavoritePickerOverlay
   | CtaOverlay
@@ -135,7 +150,7 @@ export type Overlay =
 
 export interface Beat {
   id: string
-  kind?: 'arrival' | 'life' | 'numbers'
+  kind?: 'arrival' | 'life' | 'homes' | 'numbers'
   narration: string
   audio_url?: string
   duration_ms: number
@@ -196,6 +211,18 @@ export interface PropertySnapshot {
   amenity_tier?: string
   distances?: { label: string; to: LngLat; distance_km: number; placeholder?: boolean }[]
   amenities?: { label: string; distance_km: number; placeholder?: boolean }[]
+  /** 真实户型(按卧室数聚合)。没有户型数据的项目整个字段缺席 —— 那就不讲这一拍。 */
+  units?: TourUnit[]
+}
+
+/** 一个户型(按卧室数聚合)。客户要买的是户型,不是「项目」。 */
+export interface TourUnit {
+  bedrooms: number
+  label: string
+  variants: number
+  area_sqft?: number
+  price_from?: number
+  floor_plan_image?: string
 }
 
 export interface SessionProperty {

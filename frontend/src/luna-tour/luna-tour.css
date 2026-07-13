@@ -279,6 +279,64 @@
 @keyframes lt-slide-left { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
 
 /* roi card — compact, centred (not full-width) so the chart reads normally */
+/* ---- 户型卡 (homes beat) ------------------------------------------------
+   客户要买的是户型,不是「项目」。整场 tour 之前一句户型都没有 —— 讲完区域涨幅和
+   地铁距离,客户还是不知道自己 180 万能买到什么。这张卡是唯一回答这个问题的地方。
+
+   桌面: 跟 roi_card 一样贴底居中(同一个位置轮流出现,不会打架 —— homes 和 numbers
+   是两拍,不同时在场)。手机: 底部 sheet,压在项目卡上方。 */
+.lt-ov-units {
+  position: absolute;
+  left: 50%; transform: translate(-50%, 0);
+  bottom: 88px; z-index: 7;
+  width: min(460px, calc(100% - 32px));
+  background: linear-gradient(135deg, rgba(10, 14, 24, 0.95), rgba(8, 12, 20, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px; padding: 14px 16px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+  animation: lt-slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lt-units-head {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.5); margin-bottom: 10px;
+}
+.lt-unit-hero { display: flex; align-items: center; gap: 14px; }
+/* 户型图是线稿(白底黑线) —— 反相贴进深色卡,不然就是一块刺眼的白 */
+.lt-unit-plan {
+  flex: 0 0 auto; width: 92px; height: 92px; object-fit: contain;
+  border-radius: 10px; background: rgba(255, 255, 255, 0.06); padding: 4px;
+  filter: invert(1) hue-rotate(180deg) brightness(1.1);
+}
+.lt-unit-hero-body { min-width: 0; flex: 1; }
+.lt-unit-label {
+  font-size: 20px; font-weight: 800; line-height: 1.2;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.lt-unit-fit {
+  font-size: 10px; font-weight: 700; color: #05070d;
+  background: var(--lt-accent); border-radius: 999px; padding: 2px 8px;
+}
+.lt-unit-figs { display: flex; gap: 14px; margin-top: 7px; flex-wrap: wrap; }
+.lt-unit-figs span {
+  font-size: 11px; color: rgba(255, 255, 255, 0.6); white-space: nowrap;
+}
+.lt-unit-figs b {
+  font-size: 15px; font-weight: 700; color: #fff; margin-right: 3px;
+}
+.lt-unit-chips {
+  display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+  padding-top: 11px; border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lt-unit-chip {
+  display: flex; align-items: baseline; gap: 5px;
+  background: rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 5px 9px;
+}
+.lt-unit-chip b { font-size: 12px; font-weight: 700; }
+.lt-unit-chip span { font-size: 10px; color: rgba(255, 255, 255, 0.55); }
+
+/* ---- 户型卡 ends -------------------------------------------------------- */
+
 .lt-ov-roi {
   position: absolute;
   left: 50%;
@@ -746,6 +804,21 @@
   /* 章节名和经纪徽章在 390px 宽上必然重叠（徽章 left:64 起，章节条 94vw 居中）。
      手机上只留三段进度条 —— 客户看的是地图，不是目录。 */
   .lt-chapter-name { display: none; }
+
+  /* 手机:户型卡贴底(在项目小卡之上),缩略户型图,chips 横向可滚 */
+  .lt-ov-units {
+    left: 10px; right: 10px; transform: none;
+    width: auto; bottom: 118px; padding: 11px 12px; border-radius: 14px;
+  }
+  .lt-units-head { margin-bottom: 7px; }
+  .lt-unit-plan { width: 66px; height: 66px; }
+  .lt-unit-label { font-size: 17px; }
+  .lt-unit-chips {
+    flex-wrap: nowrap; overflow-x: auto; margin-top: 9px; padding-top: 9px;
+    scrollbar-width: none;
+  }
+  .lt-unit-chips::-webkit-scrollbar { display: none; }
+  .lt-unit-chip { flex: 0 0 auto; }
 
   .lt-ov-roi {
     left: 10px; right: 10px; top: 64px; bottom: auto;

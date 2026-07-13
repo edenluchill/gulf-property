@@ -76,7 +76,44 @@ function propertyFacts(p: TourProperty): string {
       )
     }
   }
+  // 户型 —— 客户真正要买的东西。没有就整个不出现，那个项目跳过 homes 拍。
+  if (p.units?.length) {
+    for (const u of p.units) {
+      lines.push(
+        `  unit: ${u.label} (bedrooms=${u.bedrooms}, ${u.variants} layout(s))` +
+          (u.area_sqft != null ? ` | from ${u.area_sqft} sqft` : '') +
+          (u.price_from != null ? ` | from AED ${u.price_from}` : '') +
+          (u.floor_plan_image ? ' | has floor plan' : '')
+      )
+    }
+  }
   return lines.join('\n')
+}
+
+/**
+ * 把旁白里的原始数字换成**人话**。
+ *
+ * 实测 demo 的旁白：
+ *   「购入价 **1800000** 迪拉姆，预计 5 年后价值可达 **3351742** 迪拉姆」
+ * 没有人这么说话，读出来更是一串数字噪音。中文该说「180 万」，英文该说
+ * 「1.8 million」。
+ *
+ * ⚠️ 只动 ≥10000 的整数（价格量级）。百分比、年数、公里数、门牌号都不碰。
+ * 在 validateTourScript 里对所有 beat 跑一遍 —— 字幕和 TTS 读的是同一个字符串，
+ * 所以一处改两处受益。
+ */
+export function humanizeNumbers(text: string, lang: string): string {
+  return text.replace(/\d{5,}/g, (raw) => {
+    const n = parseInt(raw, 10)
+    if (!Number.isFinite(n) || n < 10000) return raw
+    const trim = (x: number) => String(parseFloat(x.toFixed(x < 10 ? 2 : 1)))
+    if (lang.startsWith('zh')) {
+      if (n >= 1e8) return `${trim(n / 1e8)}亿`
+      return `${trim(n / 1e4)}万`
+    }
+    if (n >= 1e6) return `${trim(n / 1e6)} million`
+    return n.toLocaleString('en-US')
+  })
 }
 
 function buildPrompt(input: TourInput, repairNote?: string): string {
@@ -141,9 +178,16 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  loosely (e.g. "about a few minutes away"), never as precise facts.',
     '- Every camera "center"/"to"/"from" coordinate must appear in the data',
     `  below. Every overlay property_id / property_ids value must be among: ${ids}.`,
-    '- For each property produce exactly three beats in order: kind="arrival",',
-    '  then kind="life", then kind="numbers". Wrap each property in one act with',
-    '  that property\'s id as the act "property_id".',
+    '- For each property produce beats in this order: kind="arrival", then',
+    '  kind="life", then kind="homes" (ONLY if that property has `unit:` lines in',
+    '  the data — otherwise SKIP it entirely), then kind="numbers". Wrap each',
+    '  property in one act with that property\'s id as the act "property_id".',
+    '- ⛔ NEVER state a figure the data does not give you, and NEVER describe the',
+    '  ABSENCE of data as a fact about the property. If there is no amenity_score,',
+    '  do not say the area scores zero or "lacks amenities" — say nothing about it',
+    '  and spend the words on what you DO have.',
+    '- Speak numbers the way a person speaks them, not as raw digits. In Chinese',
+    '  say「180 万」not「1800000」; in English say "1.8 million".',
     `- BANNED PHRASES (must never appear in any narration): ${banned}.`,
     '- GUARDRAILS (must respect):',
     guardrails,
@@ -170,6 +214,10 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  distance_line { property_id?, to:[lng,lat], label, anim:"draw" }',
     '  amenity_spokes { property_id?, center:[lng,lat], score, tier?, spokes?:[{label,distance_km}], anim:"pop" }',
     '  roi_card { property_id?, anim:"countup", data:{ buy, future, years, growth_pct, yield_pct? } }',
+    '  unit_card { property_id, focus_bedrooms? }   ← the homes beat. Carries NO',
+    '    numbers: the app renders the real layouts/areas/prices/floor plans from',
+    '    its own data. You only choose WHICH property and which bedroom count to',
+    '    highlight (the one that fits this client — omit focus_bedrooms if unsure).',
     '  highlight_all_pins { property_ids:[...] }',
     '  favorite_picker { property_ids:[...] }',
     '  cta { text?, agent?, channel?, prefill? }',
@@ -217,6 +265,11 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '- life beat: distance_line / amenity_spokes overlays for that property. The',
     '  camera MAY fly to the amenity (metro/school) and back — that is exactly the',
     '  case where motion carries the message. Keep each leg ≤4000 ms.',
+    '- homes beat: unit_card overlay, at_ms = 0. Camera HOLDS STILL. This is the',
+    '  beat where the client finally learns WHAT THEY CAN BUY — until now they have',
+    '  heard about an area, not a home. Narrate the layouts that fit THIS client',
+    '  (their budget, their family), name the bedroom counts and say why that one',
+    '  suits them. Use only the `unit:` lines given for this property.',
     '- numbers beat: roi_card overlay, at_ms = 0. Camera HOLDS STILL (no motion at',
     '  all, or a very slow ≤4000 ms drift). Numbers are read, not flown over.',
     '- outro: pull back, highlight_all_pins + favorite_picker + cta.',
@@ -381,6 +434,20 @@ export function validateTourScript(
   // ⭐ 先 clamp 再校验 —— 修掉 LLM 的运镜（8 秒飞行、180° 绕圈、迟到 8 秒的卡片），
   //    而不是把它当成错误退回去重试（那样只是白烧一次 LLM 调用，它下次照样犯）。
   for (const beat of allBeats) clampCinematography(beat)
+
+  // 数字口语化 —— 「购入价 1800000 迪拉姆」→「购入价 180 万迪拉姆」。
+  // 字幕和 TTS 读的是同一个字符串，改一处两处都对。
+  for (const beat of allBeats) {
+    beat.narration = humanizeNumbers(beat.narration, input.config.language)
+  }
+  for (const act of script.acts) {
+    if (act.transition_out?.narration) {
+      act.transition_out.narration = humanizeNumbers(
+        act.transition_out.narration,
+        input.config.language
+      )
+    }
+  }
 
   for (const act of script.acts) {
     if (!validIds.has(act.property_id)) {

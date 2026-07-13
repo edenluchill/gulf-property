@@ -132,6 +132,23 @@ export const RoiCardOverlaySchema = OverlayBase.extend({
   }),
 })
 
+/**
+ * 户型卡 —— 「你能买到什么」。
+ *
+ * ⚠️ 这个 overlay **只带引用，不带数字**：户型的面积/价格/户型图由前端从
+ * property snapshot 里读。故意的 —— 只要让模型往 overlay 里填数字，它就会编
+ * （roi_card 那次已经证明过了）。它能决定的只有「讲哪个项目、重点讲几房」。
+ */
+export const UnitCardOverlaySchema = OverlayBase.extend({
+  type: z.literal('unit_card'),
+  property_id: z.string(),
+  /** 重点高亮的卧室数（跟客户画像匹配的那个）。给 null 就平铺全部。 */
+  focus_bedrooms: z.preprocess(
+    (v) => (typeof v === 'number' ? v : undefined),
+    z.number().optional()
+  ),
+})
+
 export const HighlightAllPinsOverlaySchema = OverlayBase.extend({
   type: z.literal('highlight_all_pins'),
   property_ids: z.array(z.string()),
@@ -178,6 +195,7 @@ export const OverlaySchema = z.discriminatedUnion('type', [
   DistanceLineOverlaySchema,
   AmenitySpokesOverlaySchema,
   RoiCardOverlaySchema,
+  UnitCardOverlaySchema,
   HighlightAllPinsOverlaySchema,
   FavoritePickerOverlaySchema,
   CtaOverlaySchema,
@@ -190,8 +208,9 @@ export const OverlaySchema = z.discriminatedUnion('type', [
 
 export const BeatSchema = z.object({
   id: z.string(),
-  /** arrival | life | numbers — per-property storytelling phase (§1.2). */
-  kind: z.enum(['arrival', 'life', 'numbers']).optional(),
+  /** arrival | life | homes | numbers — per-property storytelling phase (§1.2).
+   *  `homes` = 户型拍：客户终于知道自己能买到什么（只在有真实户型数据时才有）。 */
+  kind: z.enum(['arrival', 'life', 'homes', 'numbers']).optional(),
   narration: z.string().min(1),
   /** Pre-generated audio URL; empty/absent → browser TTS fallback (§4.5). */
   audio_url: z.string().optional(),
@@ -293,6 +312,28 @@ export interface TourPropertyAmenity {
   placeholder?: boolean
 }
 
+/**
+ * 一个户型（按卧室数聚合）。
+ *
+ * ⚠️ **客户要买的是户型，不是项目。** 整场 tour 之前一句户型都没有 —— 说了半天
+ * 区域涨幅和地铁距离，客户还是不知道自己能买到什么。
+ *
+ * 数据来自 project_unit_types（真实户型表，带户型图）。没有的项目就**不讲这一拍**，
+ * 绝不编。
+ */
+export interface TourPropertyUnit {
+  bedrooms: number
+  /** e.g. "2 房" / "2 Bed" */
+  label: string
+  /** 该卧室数下的户型个数 */
+  variants: number
+  /** 最小建面（sqft）—— 「X 房从 Y 尺起」 */
+  area_sqft?: number
+  /** 该卧室数下的最低价 */
+  price_from?: number
+  floor_plan_image?: string
+}
+
 export interface TourProperty {
   /** Stable id used by camera/overlay references inside the script. */
   id: string
@@ -312,6 +353,8 @@ export interface TourProperty {
   amenity_tier?: string
   distances?: TourPropertyDistance[]
   amenities?: TourPropertyAmenity[]
+  /** 真实户型（按卧室数聚合）。没有户型数据时整个字段缺席 —— 那就少讲一拍。 */
+  units?: TourPropertyUnit[]
 }
 
 export interface TourInput {

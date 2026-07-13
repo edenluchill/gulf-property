@@ -23,13 +23,19 @@ const DEMO_AGENT_EMAIL = 'demo-agent@luna.tour'
 // payment) in distinct areas, spread across price. Pinned (not auto-picked) so
 // the demo's "tap to see full detail" drawer always loads — the old auto-pick
 // landed on a project that was later deleted (404 in the detail drawer).
-//   113 RESIDENCES         · Al Safouh First · AED 1.8M
-//   Palm Central Residences· Palm Jebel Ali  · AED 2.5M
-//   Dubai Design District  · d3              · AED 2.0M
+//
+// ⚠️ 三个都必须是 **selling** 且**有真实户型数据**（project_unit_types）。
+//    旧的 demo 里 Palm Central Residences 是 **sold-out** —— AI 只能照实说
+//    「该项目目前处于售罄状态」，然后硬拗成「顶奢海岛资产」。带客户看一套他买不到
+//    的房，是这份 demo 最伤的地方。换成 Palm Central 2（同一个岛，在售，21 个户型）。
+//
+//   Serenz          · JVC             · AED 0.92M · 21 户型
+//   113 RESIDENCES  · Al Safouh First · AED 1.80M ·  5 户型
+//   Palm Central 2  · Palm Jebel Ali  · AED 2.70M · 21 户型
 const DEMO_PROJECT_IDS = [
+  'b6618cb3-7c62-42f1-8e9c-3eeac137b4ff',
   '4879dabf-a25d-494d-bd42-e16287bf2adf',
-  '6aad8450-de96-4192-adea-ba466fd2790e',
-  '9ee18cfb-f666-4070-91db-34ad3c3ebc56',
+  '263456f9-200e-437f-b16d-96c5f80083c8',
 ]
 
 function num(v: string | number | null): number | undefined {

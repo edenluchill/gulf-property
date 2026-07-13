@@ -12,6 +12,7 @@ import type {
   Overlay,
   PropertySnapshot,
   TourAgent,
+  TourUnit,
 } from '../types'
 import GrowthChart from './GrowthChart'
 
@@ -143,6 +144,18 @@ function OverlayItem({
     case 'roi_card':
       return <RoiCard data={overlay.data} accent={accent} />
 
+    /**
+     * 户型卡 —— 整场 tour 里客户唯一一次知道「我能买到什么」。
+     *
+     * 数字全部来自 PropertySnapshot.units（真实 project_unit_types），overlay 只带
+     * property_id + focus_bedrooms。剧本编不了户型。
+     */
+    case 'unit_card': {
+      const p = properties.get(overlay.property_id)
+      if (!p?.units?.length) return null
+      return <UnitCard units={p.units} focus={overlay.focus_bedrooms} accent={accent} />
+    }
+
     case 'favorite_picker': {
       const cards = overlay.property_ids
         .map((id) => ({ id, p: properties.get(id) }))
@@ -202,6 +215,60 @@ function OverlayItem({
     default:
       return null
   }
+}
+
+function UnitCard({
+  units,
+  focus,
+  accent,
+}: {
+  units: TourUnit[]
+  focus?: number
+  accent: string
+}) {
+  // 剧本挑中的那个户型排第一并高亮 —— 「这个才是给你的」。
+  const focused = focus != null ? units.find((u) => u.bedrooms === focus) : undefined
+  const hero = focused ?? units[0]
+  const rest = units.filter((u) => u !== hero)
+
+  return (
+    <div className="lt-ov lt-ov-units">
+      <div className="lt-units-head">可选户型</div>
+      <div className="lt-unit-hero">
+        {hero.floor_plan_image && (
+          <img className="lt-unit-plan" src={hero.floor_plan_image} alt={hero.label} loading="eager" />
+        )}
+        <div className="lt-unit-hero-body">
+          <div className="lt-unit-label" style={{ color: accent }}>
+            {hero.label}
+            {focused && <span className="lt-unit-fit">最适合你</span>}
+          </div>
+          <div className="lt-unit-figs">
+            {hero.area_sqft != null && (
+              <span>
+                <b>{hero.area_sqft.toLocaleString()}</b> 尺起
+              </span>
+            )}
+            {hero.price_from != null && (
+              <span>
+                <b>{formatAed(hero.price_from)}</b> 起
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      {rest.length > 0 && (
+        <div className="lt-unit-chips">
+          {rest.map((u) => (
+            <div key={u.bedrooms} className="lt-unit-chip">
+              <b>{u.label}</b>
+              {u.price_from != null && <span>{formatAed(u.price_from)} 起</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function RoiCard({

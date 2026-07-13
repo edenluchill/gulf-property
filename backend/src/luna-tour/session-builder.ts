@@ -19,7 +19,7 @@ import {
 } from '../services/investment-calculator'
 import { generateTourScript } from './tour-generator'
 import { generateSessionAudio } from './audio-pipeline'
-import { TourInput, TourProperty, TourConfig } from './tour-script.types'
+import { TourInput, TourProperty, TourPropertyUnit, TourConfig } from './tour-script.types'
 
 // ⚠️ 这里曾经有两个常量:PLACEHOLDER_YIELD_PCT = 6.5 / PLACEHOLDER_GROWTH_PCT = 7。
 // 它们让**每一份 tour 的每一个项目**都播报同一组编造的数字(73% / 6.5% / 15年),
@@ -166,10 +166,60 @@ async function areaMetricsAt(client: PoolClient, lng: number, lat: number): Prom
  * 现在：区域有真数据就用真的；**没有就整个省略 investment**，那一拍的数字直接不讲。
  * 宁可少一拍，也不能对着客户编一个五年回报。
  */
+/**
+ * 真实户型（按卧室数聚合）。
+ *
+ * 客户要买的是户型，不是「项目」。之前整场 tour 一句户型都没有 —— 讲完区域涨幅
+ * 和地铁距离，客户还是不知道自己 180 万能买到什么。
+ *
+ * 只取有意义的行（有卧室数、且面积或价格至少有一个）。没有 → 返回 undefined，
+ * 那个项目就**不讲户型这一拍**。绝不编。
+ */
+async function fetchUnits(
+  client: PoolClient,
+  projectId: string,
+  lang: 'zh' | 'en'
+): Promise<TourPropertyUnit[] | undefined> {
+  const { rows } = await client.query<{
+    bedrooms: number
+    variants: string
+    area_sqft: string | null
+    price_from: string | null
+    floor_plan_image: string | null
+  }>(
+    `SELECT bedrooms,
+            COUNT(*)::text                        AS variants,
+            MIN(area)                             AS area_sqft,
+            MIN(price) FILTER (WHERE price > 0)   AS price_from,
+            (ARRAY_AGG(floor_plan_image) FILTER (WHERE floor_plan_image IS NOT NULL))[1]
+                                                  AS floor_plan_image
+       FROM project_unit_types
+      WHERE project_id = $1::uuid
+        AND bedrooms IS NOT NULL
+        AND (area IS NOT NULL OR price IS NOT NULL)
+      GROUP BY bedrooms
+      ORDER BY bedrooms`,
+    [projectId]
+  )
+  if (!rows.length) return undefined
+  return rows.map((r) => ({
+    bedrooms: r.bedrooms,
+    label:
+      lang === 'en'
+        ? r.bedrooms === 0 ? 'Studio' : `${r.bedrooms} Bed`
+        : r.bedrooms === 0 ? '开间' : `${r.bedrooms} 房`,
+    variants: parseInt(r.variants, 10),
+    area_sqft: num(r.area_sqft) ? Math.round(num(r.area_sqft)!) : undefined,
+    price_from: num(r.price_from),
+    floor_plan_image: r.floor_plan_image ?? undefined,
+  }))
+}
+
 function buildProperty(
   row: ProjectRow,
   real: NearbyResult,
-  metrics: { yield_pct: number; growth_pct: number } | null
+  metrics: { yield_pct: number; growth_pct: number } | null,
+  units: TourPropertyUnit[] | undefined
 ): TourProperty {
   const lng = num(row.longitude)!
   const lat = num(row.latitude)!
@@ -199,17 +249,29 @@ function buildProperty(
     investment: inv && metrics
       ? {
           buy: inv.purchase_price,
-          future: inv.purchase_price + inv.total_profit_5yr,
+          /**
+           * 抹到万位。**五年后的预测值精确到个位就是假精度** —— 旁白会念成
+           * 「三百三十五万一千七百四十二迪拉姆」，既拗口又在假装我们算得准。
+           * 一个五年预测，说「约 335 万」才是诚实的。
+           */
+          future: Math.round((inv.purchase_price + inv.total_profit_5yr) / 10000) * 10000,
           years: 5,
           growth_pct: Math.round((inv.total_profit_5yr / inv.purchase_price) * 100),
           yield_pct: metrics.yield_pct,
           payback_years: payback ?? undefined,
         }
       : undefined,
-    amenity_score: real.score,
-    amenity_tier: real.tier,
+    /**
+     * ⚠️ 得分 0 = **我们半径内一个 POI 都没查到**，不等于「这地方配套很差」。
+     * 但它之前照样进了 prompt，于是 AI 对着客户念：
+     *     「配套基建得分目前为 0」—— 然后硬拗成「顶奢海岛资产」。
+     * 没有数据就闭嘴。score 0 / 没有任何距离 → 整个字段缺席，那一拍不讲配套。
+     */
+    amenity_score: real.score > 0 && real.distances.length ? real.score : undefined,
+    amenity_tier: real.score > 0 && real.distances.length ? real.tier : undefined,
     distances: real.distances,
     amenities: real.amenities,
+    units,
   }
 }
 
@@ -270,7 +332,24 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
         WHERE id = ANY($1::uuid[]) AND latitude IS NOT NULL AND longitude IS NOT NULL`,
       [input.projectIds]
     )
-    const byId = new Map(rows.map((r) => [r.id, r]))
+    /**
+     * 🚫 售罄的项目不能进 tour。
+     *
+     * demo 里 Palm Central 是 sold-out —— AI 只能照实说：
+     *     「该项目目前处于**售罄**状态，配套基建得分目前为 0」
+     * 然后硬拗成「顶奢海岛资产，具有极高的长线收藏价值」。
+     * 这是在带客户看一套他买不到的房。选品阶段就该拦掉，不是靠 prompt 求它别说。
+     */
+    const soldOut = rows.filter((r) => (r.status ?? '').toLowerCase().includes('sold'))
+    if (soldOut.length) {
+      console.warn(
+        `  ⚠️  跳过 ${soldOut.length} 个售罄项目(不能带客户看买不到的房): ` +
+          soldOut.map((r) => r.project_name).join(', ')
+      )
+    }
+    const byId = new Map(
+      rows.filter((r) => !(r.status ?? '').toLowerCase().includes('sold')).map((r) => [r.id, r])
+    )
     const ordered = input.projectIds.map((id) => byId.get(id)).filter((r): r is ProjectRow => !!r)
     if (ordered.length < 2) {
       throw new Error(`Need ≥2 usable projects with coords; got ${ordered.length} of ${input.projectIds.length}`)
@@ -285,11 +364,12 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       const lat = num(row.latitude)!
       // 真实的区域回报/涨幅（DLD）+ 半径内、名字能读的 POI。两者都可能是 null/空 ——
       // 那就少讲一拍，绝不编。
-      const [real, metrics] = await Promise.all([
+      const [real, metrics, units] = await Promise.all([
         fetchNearby(client, lng, lat, lang),
         areaMetricsAt(client, lng, lat),
+        fetchUnits(client, row.id, lang.startsWith('en') ? 'en' : 'zh'),
       ])
-      properties.push(buildProperty(row, real, metrics))
+      properties.push(buildProperty(row, real, metrics, units))
     }
 
     const config: TourConfig = { ...DEFAULT_CONFIG, ...input.config }
@@ -321,6 +401,7 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
         name: p.name, developer: p.developer, image: p.image, area: p.area, status: p.status,
         coords: p.coords, min_price: p.min_price, max_price: p.max_price, investment: p.investment,
         amenity_score: p.amenity_score, amenity_tier: p.amenity_tier, distances: p.distances, amenities: p.amenities,
+        units: p.units,
       }
       await client.query(
         `INSERT INTO lt_session_properties (session_id, project_id, sort_order, snapshot)
