@@ -717,27 +717,35 @@
     width: 62px; height: 62px; border-radius: 10px;
   }
   .lt-card-body { min-width: 0; flex: 1; }
-  .lt-card-area { font-size: 10px; line-height: 1.3; }
-  .lt-card-name {
-    font-size: 15px; margin: 1px 0 0;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  /* 手机上信息要极简 —— 开发商和「状态」是噪音，旁白已经在说了 */
+  /* 手机上信息要极简 —— 区域/开发商/状态是噪音，旁白正在说，地图正在指。
+     卡片只回答三件事：哪个项目、多少钱、离地铁多远。 */
+  .lt-card-area { display: none; }
   .lt-card-dev { display: none; }
   .lt-card-stat-status { display: none; }
-  .lt-card-price { font-size: 17px; margin-top: 2px; display: inline-block; }
-  .lt-card-price-unit { font-size: 10px; }
-  .lt-card-stats {
-    display: inline-flex; gap: 10px; margin: 0 0 0 10px;
-    vertical-align: 2px;
+  .lt-card-name {
+    font-size: 15px; margin: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .lt-card-stat { flex-direction: row; align-items: baseline; gap: 3px; }
+  .lt-card-price { font-size: 17px; margin: 1px 0 0; }
+  .lt-card-price-unit { font-size: 10px; }
+  /* ⚠️ 基类是 flex-wrap: wrap —— 在 62px 缩略图旁边的窄栏里，两个指标必然换行，
+     把卡片撑到 145px 高，价格和名字就被字幕吃掉了。这里必须 nowrap。 */
+  .lt-card-stats {
+    display: flex; flex-wrap: nowrap; gap: 9px; margin: 2px 0 0;
+    overflow: hidden;
+  }
+  .lt-card-stat {
+    flex-direction: row; align-items: baseline; gap: 3px;
+    white-space: nowrap;
+  }
   .lt-card-stat b { font-size: 12px; }
   .lt-card-stat span { font-size: 9px; }
 
-  /* 卡片在底部时，字幕上移让位（否则叠在一起） */
-  .lt-ov-card ~ .lt-subtitle,
-  .lt-subtitle { bottom: 96px; }
+  /* 字幕的 bottom 见本 media query 末尾（那条排在后面，会覆盖这里，别重复写）。 */
+
+  /* 章节名和经纪徽章在 390px 宽上必然重叠（徽章 left:64 起，章节条 94vw 居中）。
+     手机上只留三段进度条 —— 客户看的是地图，不是目录。 */
+  .lt-chapter-name { display: none; }
 
   .lt-ov-roi {
     left: 10px; right: 10px; top: 64px; bottom: auto;
@@ -767,9 +775,10 @@
   .lt-mute { width: 34px; height: 34px; bottom: 14px; right: 12px; font-size: 15px; }
   .lt-cc { height: 34px; bottom: 14px; right: 52px; padding: 0 10px; font-size: 12px; }
 
-  /* phones: lift the caption clear of the bottom controls, keep it compact so
-     it never grows past ~2 short lines (the 1–2 sentence chunking handles length) */
-  .lt-subtitle { bottom: 76px; max-width: 92%; }
+  /* phones: 字幕必须**清空底部卡片**，不只是清空 mute/CC 按钮。
+     ⚠️ 这条在 media query 里排在后面 —— 上面那条 bottom:114px 会被它覆盖，
+        所以高度只能写在这里，别在两处各写一个值（我就是这么把字幕糊回卡片上的）。 */
+  .lt-subtitle { bottom: 114px; max-width: 92%; }
   .lt-subtitle span { font-size: 14px; padding: 5px 11px; line-height: 1.5; }
 }
 @keyframes lt-slide-down { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
