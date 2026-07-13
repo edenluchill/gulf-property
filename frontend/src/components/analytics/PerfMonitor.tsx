@@ -81,6 +81,7 @@ export default function PerfMonitor() {
 
   const { live, alerts } = data
   const endpoints = data.endpoints || []
+  const slow = data.slow || []
   const m1 = live.last1m
   const m3 = live.last3m
   const poolPct = live.pool.max ? Math.round((live.pool.total / live.pool.max) * 100) : 0
@@ -172,6 +173,52 @@ export default function PerfMonitor() {
                     <td className={`px-3 py-2 text-right tabular-nums ${e.p95 > live.thresholds.p95_ms ? 'font-semibold text-rose-600' : ''}`}>{e.p95}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{e.p99}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-slate-400">{e.max}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 慢请求留证 —— 延迟告警的根因就在这张表里 */}
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="border-b border-slate-100 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-800">慢请求(全量留证)</h3>
+          <p className="text-xs text-slate-400">
+            每个超过 1000ms 的请求都记在这里,带真实 URL 和是谁在等 —— 延迟告警查根因先看这张表。
+          </p>
+        </div>
+        {!slow.length ? (
+          <p className="px-4 py-6 text-xs text-slate-400">近期没有慢请求 ✅</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-slate-400">
+                <tr className="border-b border-slate-100">
+                  <th className="px-4 py-2 font-medium">时间</th>
+                  <th className="px-4 py-2 font-medium">接口</th>
+                  <th className="px-4 py-2 text-right font-medium">耗时</th>
+                  <th className="px-4 py-2 font-medium">谁在等</th>
+                  <th className="px-4 py-2 font-medium">URL</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {slow.map((s, i) => (
+                  <tr key={i} className="text-slate-600">
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-400">
+                      {s.at.slice(5, 16).replace('T', ' ')}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px]">{s.endpoint}</td>
+                    <td className={`whitespace-nowrap px-4 py-2 text-right font-medium ${s.duration_ms >= 2000 ? 'text-rose-600' : 'text-amber-600'}`}>
+                      {(s.duration_ms / 1000).toFixed(1)}s
+                      {/* 客户端放弃 = 用户真的等不下去关掉了,比单纯的慢更严重 */}
+                      {s.aborted && <span className="ml-1 text-[10px] text-rose-500">已放弃</span>}
+                    </td>
+                    <td className="max-w-[160px] truncate px-4 py-2 text-slate-500">{s.who || '匿名'}</td>
+                    <td className="max-w-[280px] truncate px-4 py-2 font-mono text-[10px] text-slate-400" title={s.url || ''}>
+                      {s.url}
+                    </td>
                   </tr>
                 ))}
               </tbody>

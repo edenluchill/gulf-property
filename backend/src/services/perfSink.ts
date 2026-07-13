@@ -201,6 +201,34 @@ export function drainErrors(): ErrorHit[] {
   return out
 }
 
+// ───────────────────────── slow requests (NOT sampled) ──────────────────────
+// Same lesson as the 5xx incidents: a latency alert is useless if you can't tell
+// WHICH request was slow. api_calls samples (and only records GETs on a curated
+// whitelist, so the heaviest map endpoints were never in it), morgan's log dies
+// with the container, and the >10s console breadcrumb missed an 8.6s request by
+// design. Every request over SLOW_REQ_MS is now captured whole, with the real URL
+// and the person who waited, and drained to perf_slow_requests.
+export interface SlowHit {
+  endpoint: string
+  url: string
+  status: number
+  ms: number
+  who: string | null
+  aborted: boolean
+}
+
+const MAX_SLOW_BUFFER = 200
+const slowHits: SlowHit[] = []
+
+export function recordSlow(hit: SlowHit): void {
+  if (slowHits.length >= MAX_SLOW_BUFFER) return
+  slowHits.push({ ...hit, url: hit.url.slice(0, 300) })
+}
+
+export function drainSlow(): SlowHit[] {
+  return slowHits.splice(0, slowHits.length)
+}
+
 // ───────────────────────── per-endpoint (path) tracking ─────────────────────
 // Separate, bounded structure: one record per normalized route template
 // ("GET /api/dubai/areas"), each holding a small ring of minute buckets. This

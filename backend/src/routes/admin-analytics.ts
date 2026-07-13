@@ -157,11 +157,12 @@ router.get('/feature-log/reports', wrap((req) => getBuyerReports(Math.min(300, N
 // Full panel: live in-memory snapshot + minute rollups + alert history.
 router.get('/perf', wrap(async (req) => {
   const minutes = Math.min(1440, Math.max(5, Number(req.query.minutes) || 180))
-  const [rollups, alerts] = await Promise.all([
+  const [rollups, alerts, slow] = await Promise.all([
     perf.getPerfRollups(minutes),
     perf.getRecentAlerts(50),
+    perf.getSlowRequests(50),
   ])
-  return { live: perf.getPerfSnapshot(), rollups, alerts, endpoints: perf.getEndpointStats(5) }
+  return { live: perf.getPerfSnapshot(), rollups, alerts, slow, endpoints: perf.getEndpointStats(5) }
 }))
 
 // Lightweight — drives the dashboard red banner (polled frequently).

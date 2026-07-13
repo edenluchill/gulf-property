@@ -405,10 +405,21 @@ export interface PerfEndpointStat {
   p99: number
   max: number
 }
+/** 慢请求全量留证(不采样)——延迟告警能被追根因,全靠这个。 */
+export interface PerfSlowRequest {
+  at: string
+  endpoint: string
+  url: string | null
+  status: number | null
+  duration_ms: number
+  who: string | null
+  aborted: boolean
+}
 export interface PerfData {
   live: PerfSnapshot
   rollups: PerfRollup[]
   alerts: PerfAlert[]
+  slow?: PerfSlowRequest[]
   endpoints?: PerfEndpointStat[]
 }
 export interface ActiveAlert { id: number; created_at: string; kind: string; message: string }

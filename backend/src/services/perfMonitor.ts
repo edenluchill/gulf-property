@@ -59,14 +59,20 @@ function poolStats(): PoolStats {
 // reaches 5%, so it never even alerts. Every 5xx now opens an API_5XX incident
 // instead (ingestErrorIncidents): per endpoint, with the victim and the failing
 // URL, and it stays open until someone finds the root cause.
-function evaluateRules(w: sink.Window, ps: PoolStats): RuleResult[] {
+function evaluateRules(w: sink.Window, ps: PoolStats, worst: sink.SlowHit[]): RuleResult[] {
+  // Name the culprits in the alert itself. "p95 8673ms" tells you nothing you can
+  // act on; "最慢: GET /api/dubai/areas 8673ms (匿名)" is the root cause, in the
+  // alert, at the moment it fires.
+  const blame = worst.length
+    ? ` — 最慢: ${worst.map((h) => `${h.endpoint} ${h.ms}ms${h.who ? ` (${h.who})` : ''}${h.aborted ? ' [客户端已放弃]' : ''}`).join('; ')}`
+    : ''
   return [
     {
       kind: 'HIGH_LATENCY',
       breached: w.req >= 5 && w.p95 > P95_MS,
       metric: w.p95,
       threshold: P95_MS,
-      message: `p95 延迟 ${w.p95}ms 超过阈值 ${P95_MS}ms（近 3 分钟，${w.req} 请求）`,
+      message: `p95 延迟 ${w.p95}ms 超过阈值 ${P95_MS}ms（近 3 分钟，${w.req} 请求）${blame}`,
     },
     {
       kind: 'SLOW_QUERIES',
@@ -156,6 +162,33 @@ async function ingestErrorIncidents(): Promise<void> {
   }
 }
 
+/**
+ * Persist every slow request (unsampled) and hand back the worst few, so the
+ * HIGH_LATENCY alert can name the culprit instead of just quoting a percentile.
+ *
+ * Before this, a latency alert was undiagnosable after the fact: api_calls
+ * samples and skips uncurated GETs (the heavy map endpoints were never in it),
+ * morgan's log dies with the container, and the console breadcrumb only fired
+ * above 10s. "p95 8673ms" with no way to learn which request — that is why none
+ * of these alerts ever got a root cause.
+ */
+async function ingestSlowRequests(): Promise<sink.SlowHit[]> {
+  const hits = sink.drainSlow()
+  if (!hits.length) return []
+  const values: unknown[] = []
+  const tuples = hits.map((h, i) => {
+    const b = i * 6
+    values.push(h.endpoint, h.url, h.status, h.ms, h.who, h.aborted)
+    return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6})`
+  })
+  await pool.query(
+    `INSERT INTO perf_slow_requests (endpoint, url, status, duration_ms, who, aborted)
+     VALUES ${tuples.join(',')}`,
+    values
+  )
+  return [...hits].sort((a, b) => b.ms - a.ms).slice(0, 3)
+}
+
 async function reconcileAlerts(rules: RuleResult[], hasTraffic: boolean): Promise<void> {
   // Current active (unresolved) STATE alerts keyed by kind. API_5XX incidents are
   // excluded: they are not state, they never auto-resolve, and several can be open
@@ -205,8 +238,9 @@ async function tick(): Promise<void> {
     const ps = poolStats()
     await flushMinute(sink.window(60), ps)
     await ingestErrorIncidents()
+    const worst = await ingestSlowRequests()
     // A window with too few requests proves nothing — it can't clear an alert.
-    await reconcileAlerts(evaluateRules(w, ps), w.req >= 5)
+    await reconcileAlerts(evaluateRules(w, ps, worst), w.req >= 5)
   } catch (err) {
     console.error('[perfMonitor] tick failed:', err)
   }
@@ -295,6 +329,26 @@ export async function getRecentAlerts(limit = 50) {
     signature: (r.signature as string) || null,
     detail: r.detail || null,
     active: r.resolved_at == null,
+  }))
+}
+
+/** Slow requests (unsampled, with the real URL and who waited), newest first. */
+export async function getSlowRequests(limit = 50) {
+  const { rows } = await pool.query(
+    `SELECT at, endpoint, url, status, duration_ms, who, aborted
+       FROM perf_slow_requests
+      ORDER BY at DESC
+      LIMIT $1`,
+    [Math.min(200, Math.max(1, limit))]
+  )
+  return rows.map((r) => ({
+    at: r.at,
+    endpoint: r.endpoint as string,
+    url: r.url as string | null,
+    status: r.status as number | null,
+    duration_ms: Number(r.duration_ms),
+    who: r.who as string | null,
+    aborted: !!r.aborted,
   }))
 }
 
