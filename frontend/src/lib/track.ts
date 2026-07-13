@@ -42,6 +42,10 @@ export type AppEvent =
   | 'auth_failure'
   | 'api_error'
   | 'auth_signed_out'
+  // token 刷新诊断 (2026-07-12) — 在此之前"session 怎么死的"完全是黑洞:只知道它死了,
+  // 不知道刷新是失败了(error_code 会说明)还是根本没触发(tab 冻结 → 定时器没跑)。
+  | 'auth_token_refresh'
+  | 'auth_logout_call'
   // 商业化漏斗 (2026-07-11) — 定价页→付款这一段此前是全盲的。
   // checkout_start 与 checkout_success 的差值 = 「绑卡吓跑了多少人」的唯一真答案。
   | 'pricing_view'
@@ -181,12 +185,15 @@ export function trackEvent(
 }
 
 /**
- * Report an error (auth_failure | api_error). Flushes immediately because the
- * user is often about to leave (a broken login/page), and a lost error report
- * is exactly the data we can't afford to drop. Best-effort; never throws.
+ * Report a diagnostic event. Flushes immediately because the user is often about
+ * to leave (a broken login/page), and a lost error report is exactly the data we
+ * can't afford to drop. Best-effort; never throws.
+ *
+ * auth_token_refresh / auth_logout_call 不是"错误"(成功也报),但走同一条立即 flush
+ * 的路 —— 因为它们要回答的正是"session 死掉那一刻发生了什么",而那一刻页面往往就要没了。
  */
 export function trackError(
-  type: 'auth_failure' | 'api_error',
+  type: 'auth_failure' | 'api_error' | 'auth_token_refresh' | 'auth_logout_call',
   payload: Record<string, unknown>
 ): void {
   trackEvent(type, payload, { immediate: true })

@@ -33,6 +33,11 @@ export const ALLOWED_EVENTS = new Set([
   'auth_failure', // OAuth/login callback failed (provider error, race, storage blocked, …)
   'api_error',    // a fetch to our API failed: network down, 5xx, timeout/429
   'auth_signed_out', // session ended (payload: manual) — manual:false means the SDK killed it
+  // token 刷新诊断 (2026-07-12)。auth_signed_out 只说"session 死了",说不出**怎么**死的。
+  // 这两条补上那段:refresh 的真实 status/error_code(refresh_token_not_found? 被限流?
+  // 网络断?),以及 logout 调用时用的 scope(确认线上真的是 local,没在踢别的设备)。
+  'auth_token_refresh', // payload: ok, status, error_code, ms, visibility, online
+  'auth_logout_call',   // payload: status, scope, ms
   // 商业化漏斗 (2026-07-11) — 在此之前我们对「定价页 → 付款」这一段是全盲的:
   // 只能拿 page_view 的 path 反推,「绑卡吓跑了多少人」在数据上根本无法回答。
   // checkout_start 与 checkout_success 的差值就是那个答案。

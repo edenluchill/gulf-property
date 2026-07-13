@@ -236,7 +236,9 @@ export interface CollabReport {
   ai: CollabAi | null
 }
 
-// ── 错误监控(auth_failure + api_error)─────────────────
+// ── 错误监控(auth_failure + api_error + 失败的 auth_token_refresh)──────
+/** 失败的 token 刷新也算故障:客户会被莫名登出。成功的刷新不进来(后端过滤)。 */
+export type ErrorEventType = 'auth_failure' | 'api_error' | 'auth_token_refresh'
 export interface ErrorOverview {
   auth_failures: number
   api_errors: number
@@ -245,7 +247,7 @@ export interface ErrorOverview {
   daily: { day: string; auth_failures: number; api_errors: number }[]
 }
 export interface ErrorGroup {
-  event_type: 'auth_failure' | 'api_error'
+  event_type: ErrorEventType
   signature: string
   count: number
   visitors: number
@@ -255,7 +257,7 @@ export interface ErrorGroup {
 export interface ErrorEvent {
   id: number
   created_at: string
-  event_type: 'auth_failure' | 'api_error'
+  event_type: ErrorEventType
   visitor_id: string | null
   user_email: string | null
   path: string | null

@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Loader2, ShieldAlert, ServerCrash, Users, PhoneCall, ChevronRight } from 'lucide-react'
-import { fetchErrors, fetchErrorImpact, ErrorsData, ErrorEvent, ErrorImpactCustomer } from '../../lib/analyticsApi'
+import { fetchErrors, fetchErrorImpact, ErrorsData, ErrorEvent, ErrorEventType, ErrorImpactCustomer } from '../../lib/analyticsApi'
 import StatCard from './StatCard'
 import { VisitorDrawer, ago as agoRel, shortId } from './Visitors'
 
@@ -102,15 +102,20 @@ const ago = (iso: string) => {
   return `${Math.round(m / 1440)} 天前`
 }
 
-function TypeBadge({ type }: { type: 'auth_failure' | 'api_error' }) {
-  const auth = type === 'auth_failure'
+const TYPE_STYLE: Record<ErrorEventType, { label: string; cls: string }> = {
+  auth_failure: { label: '登录失败', cls: 'bg-rose-50 text-rose-600 ring-rose-200' },
+  // 只有失败的刷新才会进来(后端 ERROR_EVENTS_SQL 过滤)——它就是"客户被莫名登出"的那一刻
+  auth_token_refresh: { label: '会话过期', cls: 'bg-violet-50 text-violet-700 ring-violet-200' },
+  api_error: { label: 'API 异常', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+}
+
+function TypeBadge({ type }: { type: ErrorEventType }) {
+  const s = TYPE_STYLE[type] ?? TYPE_STYLE.api_error
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
-        auth ? 'bg-rose-50 text-rose-600 ring-rose-200' : 'bg-amber-50 text-amber-700 ring-amber-200'
-      }`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${s.cls}`}
     >
-      {auth ? '登录失败' : 'API 异常'}
+      {s.label}
     </span>
   )
 }
@@ -124,14 +129,25 @@ function EventCard({ e }: { e: ErrorEvent }) {
   const title =
     e.event_type === 'auth_failure'
       ? str('reason') || '登录失败'
-      : `${str('method') || 'GET'} ${str('endpoint') || str('url') || '?'}`
+      : e.event_type === 'auth_token_refresh'
+        ? `token 刷新失败 → ${str('error_code') || str('status') || '?'}`
+        : `${str('method') || 'GET'} ${str('endpoint') || str('url') || '?'}`
 
   const detail =
     e.event_type === 'auth_failure'
       ? [str('provider') && `渠道 ${str('provider')}`, str('storage_ok') === 'false' && '存储被禁用', str('origin')]
           .filter(Boolean)
           .join(' · ')
-      : [str('kind'), str('status') && `状态 ${str('status')}`].filter(Boolean).join(' · ')
+      : e.event_type === 'auth_token_refresh'
+        ? // visibility=hidden 说明刷新发生在后台 tab —— 冻结的 tab 是头号嫌疑
+          [
+            str('visibility') && `页面${str('visibility') === 'visible' ? '可见' : '在后台'}`,
+            str('online') === 'false' && '设备离线',
+            str('ms') && `${str('ms')}ms`,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : [str('kind'), str('status') && `状态 ${str('status')}`].filter(Boolean).join(' · ')
 
   return (
     <div className="border-b border-slate-100 px-4 py-3 last:border-0">
@@ -160,7 +176,7 @@ function EventCard({ e }: { e: ErrorEvent }) {
 
 export default function ErrorMonitor({ days }: { days: number }) {
   const [data, setData] = useState<ErrorsData | null>(null)
-  const [filter, setFilter] = useState<'all' | 'auth_failure' | 'api_error'>('all')
+  const [filter, setFilter] = useState<'all' | ErrorEventType>('all')
 
   useEffect(() => {
     let alive = true
@@ -248,7 +264,7 @@ export default function ErrorMonitor({ days }: { days: number }) {
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
               <h3 className="text-sm font-semibold text-slate-800">最近事件</h3>
               <div className="flex gap-1">
-                {(['all', 'auth_failure', 'api_error'] as const).map((f) => (
+                {(['all', 'auth_failure', 'auth_token_refresh', 'api_error'] as const).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
@@ -256,7 +272,7 @@ export default function ErrorMonitor({ days }: { days: number }) {
                       filter === f ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
                     }`}
                   >
-                    {f === 'all' ? '全部' : f === 'auth_failure' ? '登录' : 'API'}
+                    {f === 'all' ? '全部' : f === 'auth_failure' ? '登录' : f === 'auth_token_refresh' ? '会话过期' : 'API'}
                   </button>
                 ))}
               </div>

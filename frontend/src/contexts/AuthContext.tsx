@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY } from '../lib/supabase'
+import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY, getLastRefresh } from '../lib/supabase'
 import { identifyVisitor, trackEvent } from '../lib/track'
 import { clearFavorites } from '../lib/favorites'
 import { isAdminEmail, API_BASE_URL } from '../lib/config'
@@ -93,9 +93,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         // manual:false = the SDK ended the session on its own — that's the bug we
         // hunt (refresh-token revocation / storage loss), keyed by who it hit.
+        //
+        // 附上最近一次 token 刷新的结果(见 supabase.ts 的 diagnosticFetch),这是区分
+        // 「刷新失败了」和「刷新根本没触发(tab 被冻结)」的唯一证据:
+        //   last_refresh_* 有值且 ok=false → 失败,error_code 说明为什么
+        //   last_refresh_age_ms 很大 / 为 null → 压根没刷过 → 定时器没跑
+        const lr = getLastRefresh()
         trackEvent('auth_signed_out', {
           manual: manualSignOutRef.current,
           last_email: lastEmailRef.current || undefined,
+          last_refresh_ok: lr?.ok ?? null,
+          last_refresh_status: lr?.status ?? null,
+          last_refresh_error: lr?.error_code ?? null,
+          // error_code 常常是空的(GoTrue 错误体形状不一),message 才是真正说清死因的那个
+          last_refresh_message: lr?.message?.slice(0, 200) ?? null,
+          last_refresh_age_ms: lr ? Date.now() - lr.at : null,
+          visibility: typeof document !== 'undefined' ? document.visibilityState : null,
         })
         manualSignOutRef.current = false
         lastEmailRef.current = null

@@ -692,11 +692,25 @@ export async function backfillLunaSummaries(limit = 30): Promise<number> {
   return generated
 }
 
-// ── Error monitoring (auth_failure + api_error) ─────────────────────────────
-// All three read app_events filtered to the two error event_types. The frontend
-// (lib/track.ts + lib/errorCapture.ts) stamps diagnostic fields into `payload`:
-//   auth_failure: { provider, reason, code, has_hash, has_code, storage, origin }
-//   api_error:    { url, endpoint, status, kind: 'network'|'http'|'timeout', method }
+// ── Error monitoring ────────────────────────────────────────────────────────
+// All three read app_events filtered to the error event_types. The frontend
+// (lib/track.ts + lib/errorCapture.ts + lib/supabase.ts) stamps diagnostic
+// fields into `payload`:
+//   auth_failure:       { provider, reason, code, has_hash, has_code, storage, origin }
+//   api_error:          { url, endpoint, status, kind: 'network'|'http'|'timeout'|'stale_token', method }
+//   auth_token_refresh: { ok, status, error_code, message, ms, visibility, online }
+
+/**
+ * 什么算「客户撞上的故障」。
+ *
+ * auth_token_refresh 只有 **ok=false 的才算**。成功的刷新是常态(每个 tab 每小时一次),
+ * 放进错误监控会把真问题彻底淹掉 —— 它埋在那儿是为了回答"session 是怎么死的",
+ * 不是为了当告警。查成功刷新请直接查 app_events。
+ */
+const ERROR_EVENTS_SQL = `(
+        event_type IN ('auth_failure','api_error')
+     OR (event_type = 'auth_token_refresh' AND payload->>'ok' = 'false')
+   )`
 
 /** Headline error counters + a small daily trend for the window. */
 export async function getErrorOverview({ from, to }: Range) {
@@ -708,7 +722,7 @@ export async function getErrorOverview({ from, to }: Range) {
         COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'auth_failure')     AS affected_auth_visitors,
         COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'api_error')        AS affected_api_visitors
        FROM app_events
-      WHERE event_type IN ('auth_failure','api_error')
+      WHERE ${ERROR_EVENTS_SQL}
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
         AND visitor_id <> ALL($3::text[])`,
@@ -719,7 +733,7 @@ export async function getErrorOverview({ from, to }: Range) {
             COUNT(*) FILTER (WHERE event_type = 'auth_failure') AS auth_failures,
             COUNT(*) FILTER (WHERE event_type = 'api_error')    AS api_errors
        FROM app_events
-      WHERE event_type IN ('auth_failure','api_error')
+      WHERE ${ERROR_EVENTS_SQL}
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
         AND visitor_id <> ALL($3::text[])
@@ -743,8 +757,9 @@ export async function getErrorOverview({ from, to }: Range) {
 /**
  * Grouped error signatures — "the same broken thing" collapsed into one row so
  * a handful of recurring failures don't drown in noise. Signature:
- *   auth_failure → reason (or provider)
- *   api_error    → "METHOD endpoint → status" (path only, query stripped client-side)
+ *   auth_failure       → reason (or provider)
+ *   auth_token_refresh → "refresh 失败 → error_code" (session 是怎么死的)
+ *   api_error          → "METHOD endpoint → status" (path only, query stripped client-side)
  */
 export async function getErrorGroups({ from, to }: Range, limit = 40) {
   const internal = await internalVisitorIds()
@@ -753,6 +768,8 @@ export async function getErrorGroups({ from, to }: Range, limit = 40) {
         event_type,
         CASE WHEN event_type = 'auth_failure'
              THEN COALESCE(NULLIF(payload->>'reason',''), NULLIF(payload->>'provider',''), 'unknown')
+             WHEN event_type = 'auth_token_refresh'
+             THEN 'refresh 失败 → ' || COALESCE(NULLIF(payload->>'error_code',''), payload->>'status', '?')
              ELSE COALESCE(payload->>'method','GET') || ' '
                   || COALESCE(NULLIF(payload->>'endpoint',''), NULLIF(payload->>'url',''), '?')
                   || ' → ' || COALESCE(payload->>'status', payload->>'kind', '?')
@@ -762,7 +779,7 @@ export async function getErrorGroups({ from, to }: Range, limit = 40) {
         MAX(created_at)            AS last_seen,
         (ARRAY_AGG(payload->>'message' ORDER BY created_at DESC) FILTER (WHERE payload->>'message' IS NOT NULL))[1] AS sample_message
        FROM app_events
-      WHERE event_type IN ('auth_failure','api_error')
+      WHERE ${ERROR_EVENTS_SQL}
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
         AND visitor_id <> ALL($4::text[])
@@ -772,7 +789,7 @@ export async function getErrorGroups({ from, to }: Range, limit = 40) {
     [from, to, limit, internal]
   )
   return rows.map((r) => ({
-    event_type: r.event_type as 'auth_failure' | 'api_error',
+    event_type: r.event_type as 'auth_failure' | 'api_error' | 'auth_token_refresh',
     signature: r.signature as string,
     count: Number(r.count),
     visitors: Number(r.visitors),
@@ -787,7 +804,7 @@ export async function getRecentErrors({ from, to }: Range, limit = 100) {
   const { rows } = await pool.query(
     `SELECT id, created_at, event_type, visitor_id, user_email, path, ua, payload
        FROM app_events
-      WHERE event_type IN ('auth_failure','api_error')
+      WHERE ${ERROR_EVENTS_SQL}
         AND created_at >= $1 AND created_at < $2
         AND COALESCE(payload->>'url', payload->>'endpoint', '') NOT LIKE '%/admin/analytics/%'
         AND visitor_id <> ALL($4::text[])
@@ -798,7 +815,7 @@ export async function getRecentErrors({ from, to }: Range, limit = 100) {
   return rows.map((r) => ({
     id: Number(r.id),
     created_at: r.created_at,
-    event_type: r.event_type as 'auth_failure' | 'api_error',
+    event_type: r.event_type as 'auth_failure' | 'api_error' | 'auth_token_refresh',
     visitor_id: r.visitor_id ?? null,
     user_email: r.user_email ?? null,
     path: r.path ?? null,

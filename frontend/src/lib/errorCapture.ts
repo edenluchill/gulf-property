@@ -10,8 +10,10 @@
  *   • network failures (fetch rejects — offline, DNS, CORS, connection reset)
  *   • 5xx server errors
  *   • 408 / 429 (timeout / rate-limited)
- * Expected 4xx (401/403/404/validation) are intentionally NOT reported — they're
- * normal app flow and would drown the signal.
+ *   • 401 —— 但仅当本地存着 session 时(kind:'stale_token')。匿名请求的 401 是正常
+ *     业务流,照报会淹掉信号;而"本地有 session、服务器却说不认"是 token 已经死了,
+ *     正是 [[session-logout-investigation]] 一直缺的那半条证据链。
+ * 其余预期内的 4xx(403/404/校验错)不报。
  *
  * HARD RULE: this must NEVER change fetch's behaviour or throw into the app.
  * The original response/rejection is always passed through untouched. Reporting
@@ -21,8 +23,25 @@
  */
 import { API_BASE_URL } from './config'
 import { trackError } from './track'
+import { AUTH_STORAGE_KEY } from './supabase'
 
 let installed = false
+
+/**
+ * 我们**自以为**登录着吗?——直接问本地存储,而不是去看请求头。
+ *
+ * 因为 window.fetch 被包了两层:track.ts 的 attribution 先装(内层,负责注入
+ * Authorization),errorCapture 后装(外层)。外层拿到的是调用方的原始 init,
+ * 那时候 Authorization 还没被注入 —— 照着请求头判断会漏掉一大半请求。
+ */
+function believesLoggedIn(): boolean {
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
+    return !!raw && raw.includes('access_token')
+  } catch {
+    return false
+  }
+}
 
 // Self-throttle: a down backend makes every request fail. Cap reports per
 // signature within a window, and cap total reports per window, so we record
@@ -97,6 +116,24 @@ export function installApiErrorCapture(): void {
 
     try {
       const res = await original(input as RequestInfo, init)
+
+      // 401 但**我们带了 Authorization 头** = 我们以为自己登录着,服务器说不认。
+      // 这正是 token 死掉(刷新失败/被吊销)之后前端还在拿死 token 打接口的样子 ——
+      // 原先 401 一律不报,所以这场"风暴"在错误监控里完全隐形,和 auth_signed_out
+      // 也串不起来。匿名请求的 401 仍然不报(那是正常业务流)。
+      if (mine && !isTelemetry && res.status === 401 && believesLoggedIn()) {
+        const endpoint = endpointOf(url)
+        if (shouldReport(`${method} ${endpoint} 401-authed`)) {
+          trackError('api_error', {
+            kind: 'stale_token',
+            method,
+            endpoint,
+            status: 401,
+            message: 'sent a bearer token, server rejected it',
+          })
+        }
+      }
+
       if (mine && !isTelemetry && (res.status >= 500 || res.status === 408 || res.status === 429)) {
         const endpoint = endpointOf(url)
         const signature = `${method} ${endpoint} ${res.status}`
