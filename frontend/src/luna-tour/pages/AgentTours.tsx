@@ -112,6 +112,9 @@ export default function AgentTours() {
   const [genStage, setGenStage] = useState(0)
   const [genStops, setGenStops] = useState<string[]>([])
   const [genShareCode, setGenShareCode] = useState<string | null>(null)
+  /** 草稿的 session id —— 剧本已出、**语音还没烧**,经纪要在时间线上确认 */
+  const [draftSessionId, setDraftSessionId] = useState<string | null>(null)
+  const [rendered, setRendered] = useState(false)
   const [audioReady, setAudioReady] = useState(0)
   const [audioTotal, setAudioTotal] = useState(0)
   const [genError, setGenError] = useState('')
@@ -283,6 +286,15 @@ export default function AgentTours() {
               setGenPhase('ready')
               setGenStops(Array.isArray(d.stops) ? d.stops : [])
               setAudioTotal(d.audioTotal || 0)
+              // 剧本出来了 → 找到这条草稿,把时间线摊给经纪看(语音还没烧)
+              void lunaFetch('/sessions')
+                .then((rr) => rr.json())
+                .then((dd) => {
+                  const hit = (dd.sessions || []).find((x: SessionRow) => x.share_code === code)
+                  if (hit) setDraftSessionId(hit.id)
+                  setSessions(dd.sessions || [])
+                })
+                .catch(() => {})
               load() // refresh "我的导览" list
             }
             setAudioReady(d.audioReady || 0)
@@ -309,6 +321,8 @@ export default function AgentTours() {
     setGenShareCode(null)
     setAudioReady(0)
     setAudioTotal(0)
+    setDraftSessionId(null)
+    setRendered(false)
     setGenPhase('building')
     setGenStage(0)
     stopTimers()
@@ -587,7 +601,8 @@ export default function AgentTours() {
           {createMsg && <span className="text-sm">{createMsg}</span>}
         </div>
 
-        {genPhase !== 'idle' && (
+        {/* 生成中 / 出错 —— 草稿就绪后不再显示这块(位置让给时间线) */}
+        {genPhase !== 'idle' && !(genPhase === 'ready' && draftSessionId && !rendered) && (
           <GenerationProgress
             phase={genPhase}
             stage={genStage}
@@ -599,7 +614,45 @@ export default function AgentTours() {
           />
         )}
 
-        <div className="text-xs text-slate-400 mt-2">{L('分享码与标题自动生成，生成后可在「流程」里编辑标题和文案。', 'Share code and title are auto-generated; after generation you can edit the title and copy under "Flow".')}</div>
+        {/**
+         * ③ 大纲时间线 —— **两段式生成的中间那一步**。
+         *
+         * 剧本已经出来了,但**语音还没烧、tour 还没发布**。经纪在这里看见 Luna 打算
+         * 怎么讲(每个项目讲几拍、每拍说什么),可以改文案、让 AI 重写、加停靠点、
+         * 删掉一拍 —— 确认了才点「生成语音并发布」(那时才扣额度)。
+         *
+         * 旧流程是一口气生成 + 立刻 TTS:经纪第一次看到成品时钱已经花了,
+         * 他在整个过程里**没有一个「我说了算」的时刻**。
+         */}
+        {genPhase === 'ready' && draftSessionId && !rendered && (
+          <div className="mt-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                {L('草稿 · 未发布', 'Draft · not published')}
+              </span>
+              <span className="text-xs text-slate-500">
+                {L('语音还没生成 —— 先看看 Luna 打算怎么讲，改完再确认', "Voice isn't generated yet — read how Luna plans to tell it, edit, then approve")}
+              </span>
+            </div>
+            <FlowToggle
+              sessionId={draftSessionId}
+              draft
+              shareCode={genShareCode}
+              onSaved={load}
+              onRendered={() => {
+                setRendered(true)
+                if (genShareCode) pollGen(genShareCode)
+                load()
+              }}
+            />
+          </div>
+        )}
+
+        {!draftSessionId && (
+          <div className="text-xs text-slate-400 mt-2">
+            {L('先出大纲时间线（不烧语音）→ 你改完确认 → 才生成语音并发布。', 'A storyboard comes first (no voice burned) → you edit and approve → only then is the voice generated and the tour published.')}
+          </div>
+        )}
       </div>
 
       {/* sessions */}
@@ -609,7 +662,14 @@ export default function AgentTours() {
           <div key={s.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             <div className="p-4 flex flex-wrap items-center gap-4">
               <div className="flex-1 min-w-[180px]">
-                <div className="font-semibold">{s.title}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{s.title}</span>
+                  {!s.is_published && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      {L('草稿', 'Draft')}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-slate-500">
                   {s.client_name ? L(`客户 ${s.client_name} · `, `Client ${s.client_name} · `) : ''}
                   <a className="text-emerald-600 hover:underline" href={`/?toursession=${s.share_code}`} target="_blank" rel="noreferrer">
@@ -764,16 +824,36 @@ function AutoTextarea({ value, onChange }: { value: string; onChange: (v: string
   )
 }
 
-/** Toggle + inline editor for a session's tour flow (title + per-beat narration). */
-function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => void }) {
+/**
+ * 每场 tour 的流程编辑器(标题 + 每拍旁白 + 加停靠点 + AI 重写)。
+ *
+ * 两种用法:
+ *   • 列表里的「流程」—— 已发布的 tour,事后微调(改文案会**重烧**那一拍的语音)
+ *   • `draft` —— **两段式生成的中间那一步**:剧本已出、语音还没烧。默认展开,
+ *     底部是「确认,生成语音并发布」。经纪确认之前,客户点分享链接是 404。
+ */
+function FlowToggle({
+  sessionId,
+  onSaved,
+  draft = false,
+  shareCode = null,
+  onRendered,
+}: {
+  sessionId: string
+  onSaved: () => void
+  draft?: boolean
+  shareCode?: string | null
+  onRendered?: () => void
+}) {
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(draft)   // 草稿默认展开 —— 这一步是**必经的**,不是可选的折叠面板
   const [loading, setLoading] = useState(false)
   const [title, setTitle] = useState('')
   const [beats, setBeats] = useState<FlowBeat[]>([])
+  const [rendering, setRendering] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const loadedFor = useRef<string | null>(null)
@@ -867,13 +947,7 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     setBeats(d.flow || [])
   }
 
-  const toggle = async () => {
-    if (open) {
-      setOpen(false)
-      return
-    }
-    setOpen(true)
-    setMsg('')
+  const loadFlow = useCallback(async () => {
     if (loadedFor.current === sessionId) return
     setLoading(true)
     try {
@@ -883,6 +957,45 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
       setBeats([])
     }
     setLoading(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
+
+  // 草稿是**必经的一步** —— 不用等经纪去点「流程」,直接把时间线摊开
+  useEffect(() => { if (draft) void loadFlow() }, [draft, loadFlow])
+
+  const toggle = async () => {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    setOpen(true)
+    setMsg('')
+    await loadFlow()
+  }
+
+  /**
+   * 确认 → 烧语音 → 发布。**额度在这一刻才扣**(草稿不算一次)。
+   * 先保存一次经纪改过的文案,免得他改了没点保存就直接确认。
+   */
+  const approveAndRender = async () => {
+    setRendering(true)
+    setMsg('')
+    try {
+      const narration: Record<string, string> = {}
+      for (const b of beats) narration[b.id] = b.narration
+      await lunaFetch(`/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, narration }),
+      })
+      const r = await lunaFetch(`/sessions/${sessionId}/render`, { method: 'POST' })
+      const d = await r.json()
+      if (!r.ok) setMsg(`❌ ${d.error || L('发布失败', 'Publish failed')}`)
+      else onRendered?.()
+    } catch (e) {
+      setMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
+    }
+    setRendering(false)
   }
 
   // E4 — edit a beat's overlay cards (timing / remove). Applies immediately and
@@ -1017,13 +1130,19 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
     setSaving(false)
   }
 
+  const previewUrl = shareCode ? `/?toursession=${shareCode}` : null
+
   return (
     <>
-      <button onClick={toggle} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
-        {open ? L('收起', 'Collapse') : L('流程', 'Flow')}
-      </button>
+      {!draft && (
+        <button onClick={toggle} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
+          {open ? L('收起', 'Collapse') : L('流程', 'Flow')}
+        </button>
+      )}
       {open && (
-        <div className="w-full border-t border-slate-100 mt-2 pt-4">
+        <div className={draft
+          ? 'w-full rounded-2xl border border-amber-200 bg-amber-50/40 p-4'
+          : 'w-full border-t border-slate-100 mt-2 pt-4'}>
           {loading ? (
             <div className="text-sm text-slate-400">{L('加载流程中…', 'Loading flow…')}</div>
           ) : (
@@ -1172,11 +1291,13 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
-                <button disabled={saving || revising} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-                  {saving ? L('保存中…', 'Saving…') : L('保存修改', 'Save changes')}
-                </button>
+                {!draft && (
+                  <button disabled={saving || revising} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+                    {saving ? L('保存中…', 'Saving…') : L('保存修改', 'Save changes')}
+                  </button>
+                )}
                 <button
-                  disabled={saving || revising}
+                  disabled={saving || revising || rendering}
                   onClick={reviseWithAI}
                   className="bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
@@ -1184,6 +1305,35 @@ function FlowToggle({ sessionId, onSaved }: { sessionId: string; onSaved: () => 
                 </button>
                 {msg && <span className="text-sm">{msg}</span>}
               </div>
+
+              {/* 草稿的收尾 —— **这一按之前,一分语音的钱都没花** */}
+              {draft && (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-white p-3">
+                  <button
+                    disabled={rendering || saving || revising}
+                    onClick={approveAndRender}
+                    className="rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
+                  >
+                    {rendering
+                      ? L('生成语音中…', 'Generating voice…')
+                      : L('✓ 确认，生成语音并发布', '✓ Approve — generate voice & publish')}
+                  </button>
+                  {previewUrl && (
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {L('先预演一遍', 'Preview first')}
+                    </a>
+                  )}
+                  <span className="text-xs text-slate-500">
+                    {L('确认后才扣一次额度、才生成语音。在此之前客户点链接是打不开的。',
+                       'Only on approval is a credit spent and the voice generated. Until then the share link is dead for clients.')}
+                  </span>
+                </div>
+              )}
               <span className="text-xs text-slate-400">
                 {L('直接改文字＝手动改；或在每段下写一句意见,点「用 AI 应用评论」让 AI 重写那几段（改动可在保存的版本里回滚）。改文案后该段语音会自动重生成。', 'Edit the text directly to change it manually; or write a note under a beat and click "Apply notes with AI" to have AI rewrite those beats (changes can be rolled back from a saved version). After editing copy, that beat\'s voice regenerates automatically.')}
               </span>

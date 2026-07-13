@@ -115,11 +115,19 @@ router.post('/public/v/:code/event', async (req: Request, res: Response) => {
   }
 })
 
-router.get('/public/v/:code', async (req: Request, res: Response) => {
+router.get('/public/v/:code', optionalAuth, async (req: Request, res: Response) => {
   const code = String(req.params.code || '').trim()
   if (!code) return res.status(400).json({ error: 'missing share code' })
 
   try {
+    /**
+     * 草稿(status='draft', is_published=false)**只有它自己的经纪能看**。
+     *
+     * 两段式生成里,经纪确认之前 tour 是没发布的 —— 客户点链接必须 404。
+     * 但经纪本人要能预演一遍再决定要不要烧语音(草稿没有音频,引擎会回落到
+     * 浏览器 TTS,足够他判断讲得对不对)。
+     */
+    const viewerEmail = (req.ctx?.email || '').toLowerCase()
     const sessionRes = await pool.query(
       `SELECT s.id, s.title, s.share_code, s.theme, s.data_as_of,
               s.og_image_url, s.reveal_snapshot_url, s.passcode, s.expires_at,
@@ -130,9 +138,10 @@ router.get('/public/v/:code', async (req: Request, res: Response) => {
          FROM lt_demo_sessions s
          JOIN lt_agents a ON a.id = s.agent_id
          LEFT JOIN lt_clients c ON c.id = s.client_id
-        WHERE s.share_code = $1 AND s.is_published = true
+        WHERE s.share_code = $1
+          AND (s.is_published = true OR ($2 <> '' AND lower(a.email) = $2))
         LIMIT 1`,
-      [code]
+      [code, viewerEmail]
     )
     if (sessionRes.rowCount === 0) {
       return res.status(404).json({ error: 'not found' })

@@ -1072,8 +1072,15 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
         let config
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
         if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
-        const result = await createSession({ shareCode, projectIds, title, agentId, clientId, client, config })
-        if (loggedIn) await spend(agentId, 'luna_tours', { type: 'tour', id: shareCode, label: title }).catch(() => {}) // count only real agents
+        /**
+         * 🔴 **草稿** —— 只出剧本,不烧语音,不发布。
+         *
+         * 旧流程是一口气生成 + 立刻 TTS:经纪第一次看到成品时,**语音的钱已经花了**,
+         * 唯一的补救是事后改文案再烧一遍。他在整个过程里没有一个「我说了算」的时刻。
+         *
+         * 现在:先给他一条能看能改的时间线 → 他确认 → 才 /render(那时才扣额度、烧语音)。
+         */
+        const result = await createSession({ shareCode, projectIds, title, agentId, clientId, client, config, draft: true })
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
         console.error('[luna] agent create (bg) error:', err)
@@ -1212,6 +1219,61 @@ function overlaySummary(ov: OverlayCue[] | undefined, imageById?: Map<string, st
  * tour structure) → audio backfill. Merges the in-memory job (status/stops) with
  * live audio counts from the DB. Accepts share_code OR session id.
  */
+/**
+ * 两段式生成的**第二段** —— 经纪在时间线上确认之后,才渲染语音并发布。
+ *
+ * 额度在**这里**扣,不在 create 扣:草稿没花语音的钱,不该算他一次。
+ * 生成语音是整条链路里最贵、最不可逆的一步 —— 它必须发生在人点头之后。
+ */
+router.post('/sessions/:id/render', async (req: Request, res: Response) => {
+  try {
+    const agentId = await currentAgentId(req)
+    const key = req.params.id
+    const sres = await pool.query<{ id: string; share_code: string; title: string; status: string }>(
+      `SELECT id, share_code, title, status FROM lt_demo_sessions
+        WHERE (id::text=$1 OR share_code=$1) AND agent_id=$2 LIMIT 1`,
+      [key, agentId]
+    )
+    const sess = sres.rows[0]
+    if (!sess) return res.status(404).json({ error: 'session not found' })
+    if (sess.status !== 'draft') {
+      // 已经渲染过 —— 不再重复扣额度(重烧语音走 PATCH 那条路)
+      return res.json({ ok: true, alreadyRendered: true, shareCode: sess.share_code })
+    }
+
+    const loggedIn = isLoggedIn(req)
+    if (loggedIn) {
+      const q = await checkCredits(agentId, 'luna_tours')
+      if (!q.allowed) { const e = creditError('luna_tours', q); return res.status(e.status).json(e.body) }
+    }
+
+    await pool.query(
+      `UPDATE lt_demo_sessions SET status='published', is_published=true, published_at=now() WHERE id=$1`,
+      [sess.id]
+    )
+    if (loggedIn) {
+      await spend(agentId, 'luna_tours', { type: 'tour', id: sess.share_code, label: sess.title }).catch(() => {})
+    }
+
+    genJobs.set(sess.share_code, { status: 'generating' })
+    res.json({ ok: true, shareCode: sess.share_code, watch_url: `/?toursession=${sess.share_code}` })
+
+    // 语音在后台烧(11+ 拍 × Gemini TTS + R2,60-120s —— 超过 CF 代理超时)
+    void generateSessionAudio(sess.id)
+      .then((audio) => {
+        genJobs.set(sess.share_code, { status: 'ready', audioTotal: audio.total })
+        console.log(`[luna] render ${sess.share_code}: ${audio.ready}/${audio.total} audio ready`)
+      })
+      .catch((err) => {
+        console.error('[luna] render audio failed:', err)
+        genJobs.set(sess.share_code, { status: 'ready', audioTotal: 0 })
+      })
+  } catch (err) {
+    console.error('[luna] render error:', err)
+    res.status(500).json({ error: 'render failed' })
+  }
+})
+
 router.get('/sessions/:id/gen-status', async (req: Request, res: Response) => {
   try {
     const key = req.params.id

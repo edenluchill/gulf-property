@@ -119,6 +119,25 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
       .catch(() => {})
   }, [existing?.id])
 
+  /**
+   * 打完字**自动**读 —— 不再要经纪去点一个按钮。
+   *
+   * ⚠️ 旧版是「笔记框 + 一个『AI 检查画像』按钮」:经纪写完字,得**主动去点**那个按钮,
+   *    才知道 AI 读懂了什么、还缺什么。绝大多数人不会点 —— 于是这个引导式画像
+   *    等于不存在,画像永远是空的。
+   *
+   * 停止输入 900ms 后自动抽取(≥12 字才值得跑,免得每敲一个字烧一次 Gemini)。
+   */
+  const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (autoRef.current) clearTimeout(autoRef.current)
+    if (checked || checking) return
+    if (note.trim().length < 12) return
+    autoRef.current = setTimeout(() => { void check() }, 900)
+    return () => { if (autoRef.current) clearTimeout(autoRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note, checked, checking])
+
   const check = async () => {
     setChecking(true); setErr('')
     try {
@@ -218,7 +237,12 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* 头像 —— 折叠起来。它对成交没有任何影响,却曾经占着弹窗最显眼的一整行。 */}
+          <details className="mb-3">
+            <summary className="cursor-pointer list-none text-[11px] font-medium text-slate-400 hover:text-slate-600">
+              {L('选个头像（可选）', 'Pick an avatar (optional)')}
+            </summary>
+          <div className="mt-2 mb-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {seeds.map((s) => {
               const u = AVA(s)
               return (
@@ -229,6 +253,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
               )
             })}
           </div>
+          </details>
 
           {/* 笔记 —— 一个输入框,不是表单 */}
           <label className="mb-1.5 block text-xs font-medium text-slate-500">
@@ -244,13 +269,20 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
             className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
           />
 
-          <button
-            onClick={check} disabled={checking || !note.trim()}
-            className="mt-2 flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
-          >
-            {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-            {checking ? L('读取中…', 'Reading…') : L('AI 检查画像', 'Check with AI')}
-          </button>
+          {/* 自动读 —— 这里只报告状态,不再是一个「你必须点」的按钮 */}
+          <div className="mt-2 flex min-h-[24px] items-center gap-1.5 text-xs text-slate-400">
+            {checking ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {L('AI 正在读…', 'Reading…')}</>
+            ) : checked ? (
+              <><Check className="h-3.5 w-3.5 text-emerald-600" /> {L('已读懂 —— 下面点几下补齐就行', 'Understood — just tap to fill the gaps below')}</>
+            ) : note.trim().length >= 12 ? (
+              <button onClick={check} className="flex items-center gap-1.5 font-semibold text-slate-600 hover:text-slate-900">
+                <Wand2 className="h-3.5 w-3.5" /> {L('立即读取', 'Read now')}
+              </button>
+            ) : (
+              <><Wand2 className="h-3.5 w-3.5" /> {L('写几句，AI 会自动读懂并告诉你还缺什么', "Write a few lines — AI reads it and tells you what's missing")}</>
+            )}
+          </div>
 
           {err && <p className="mt-2 text-xs text-rose-500">{err}</p>}
 

@@ -288,6 +288,16 @@ export interface CreateSessionInput {
   /** Wait for narration audio to finish before resolving. CLI passes true; the
    *  HTTP path leaves it false so the request returns fast (audio backfills). */
   awaitAudio?: boolean
+  /**
+   * 草稿模式:**只出剧本,不烧语音,不发布**。
+   *
+   * 两段式生成的第一段 —— 经纪要先在时间线上看见 Luna 打算怎么讲、改完确认了,
+   * 才值得为语音付钱。旧流程是一口气生成 + 立刻 TTS,经纪第一次看到成品时钱已经花了,
+   * 唯一的补救是事后改文案**再烧一遍**。
+   *
+   * 语音在 /sessions/:id/render 里生成(见 agent-router)。
+   */
+  draft?: boolean
 }
 
 export interface CreateSessionResult {
@@ -389,9 +399,15 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       `INSERT INTO lt_demo_sessions
          (agent_id, client_id, title, share_code, status, effective_config,
           data_as_of, theme, is_published, published_at)
-       VALUES ($1,$2,$3,$4,'published',$5,CURRENT_DATE,$6,true,now())
+       VALUES ($1,$2,$3,$4,$7,$5,CURRENT_DATE,$6,$8,CASE WHEN $8 THEN now() END)
        RETURNING id`,
-      [input.agentId, input.clientId ?? null, input.title, input.shareCode, JSON.stringify(config), JSON.stringify(theme)]
+      [
+        input.agentId, input.clientId ?? null, input.title, input.shareCode,
+        JSON.stringify(config), JSON.stringify(theme),
+        // 草稿:未发布 —— 分享链接在经纪确认之前不该能播
+        input.draft ? 'draft' : 'published',
+        !input.draft,
+      ]
     )
     const sessionId = sessionRes.rows[0].id
 
@@ -427,6 +443,21 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
     // whose audio_url isn't ready yet) and audio_url backfills as clips finish.
     // CLI callers pass awaitAudio:true to wait. Done after COMMIT so a TTS hiccup
     // can never roll back a valid session.
+    // 草稿模式在这里就停 —— 语音等经纪确认了再烧(POST /sessions/:id/render)
+    if (input.draft) {
+      return {
+        sessionId,
+        shareCode: input.shareCode,
+        totalMs: script.total_ms,
+        acts: script.acts.length,
+        warnings,
+        audioStarted: false,
+        stops: ['开场', ...properties.map((p) => p.name), '结尾'],
+        // 草稿还没烧语音 —— 数出**将要**烧几条,前端好显示进度
+        audioTotal: 1 + script.acts.reduce((n, a) => n + a.beats.length, 0) + 1,
+      }
+    }
+
     const audioJob = generateSessionAudio(sessionId)
       .then((audio) =>
         console.log(
