@@ -25,7 +25,7 @@ import { reviseNarration } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
-import { coachProfile, saveProfile, loadProfile, type ExtractedProfile } from './client-profile-coach'
+import { coachProfile, saveProfile, loadProfile, profileToOneLiner, type ExtractedProfile } from './client-profile-coach'
 
 const router = Router()
 
@@ -950,11 +950,50 @@ router.get('/projects/search', async (req: Request, res: Response) => {
  * AI match: pick best-fit projects for a client profile + explain each.
  * body: { client?, one_liner? }  → { matches: [{ id, project_name, area, reason }] }
  */
+/**
+ * client_id → 这个客户的**结构化画像**(lt_clients),拼成给 prompt 用的描述。
+ *
+ * ⚠️ AI 导览页原来让经纪**手打一句话画像**(「香港投资客, 预算300万, 重回报」)——
+ *    而 CRM 里早就有全套结构化字段。同一个客户,经纪要在报告页做一遍画像、
+ *    再到导览页手打一遍,两边还对不上。现在两边读**同一份画像**。
+ *
+ * 拿不到画像(没选客户 / 客户不属于这个经纪)就原样返回调用方传的东西 —— 不阻塞。
+ */
+async function resolveClient(
+  agentId: string,
+  clientId: string | null,
+  fallbackClient: Record<string, unknown>,
+  fallbackOneLiner: string
+): Promise<{ client: Record<string, unknown>; oneLiner: string }> {
+  if (!clientId) return { client: fallbackClient, oneLiner: fallbackOneLiner }
+  try {
+    const p = await loadProfile(clientId, agentId)
+    if (!p || !Object.keys(p).length) return { client: fallbackClient, oneLiner: fallbackOneLiner }
+    const line = profileToOneLiner(p)
+    return {
+      client: {
+        ...fallbackClient,
+        ...(p.name ? { name: p.name } : {}),
+        ...(p.nationality ? { nationality: p.nationality } : {}),
+        ...(p.goal ? { goal: p.goal } : {}),
+        persona: line,
+      },
+      // 经纪额外写的备注**接在画像后面**,不覆盖 —— 他补充的是画像没有的东西
+      oneLiner: [line, fallbackOneLiner.trim()].filter(Boolean).join('。'),
+    }
+  } catch {
+    return { client: fallbackClient, oneLiner: fallbackOneLiner }
+  }
+}
+
 router.post('/match', async (req: Request, res: Response) => {
   try {
+    const agentId = await currentAgentId(req)
     const b = (req.body || {}) as Record<string, unknown>
-    const client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
-    const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    const rawClient = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
+    const rawOneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    const clientId = typeof b.client_id === 'string' && b.client_id ? b.client_id : null
+    const { client, oneLiner } = await resolveClient(agentId, clientId, rawClient, rawOneLiner)
     if (!oneLiner.trim() && !Object.keys(client).length) {
       return res.status(400).json({ error: '需要客户画像或一句话' })
     }
@@ -1002,13 +1041,16 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     }
     const shareCodeRaw = String(b.share_code || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '')
     const shareCode = shareCodeRaw || (await uniqueShareCode())
-    const client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
+    const rawClient = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
+    const clientId = typeof b.client_id === 'string' && b.client_id ? b.client_id : null
+    const rawOneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
+    // 选了客户 → 直接读他在 CRM 里的画像(经纪不用再手打一遍)
+    const { client, oneLiner } = await resolveClient(agentId, clientId, rawClient, rawOneLiner)
     const clientName = typeof client.name === 'string' ? client.name.trim() : ''
     const defaultTitle = clientName
       ? `为 ${clientName} 精选的 ${projectIds.length} 个家`
       : `Luna 为你精选的 ${projectIds.length} 个家`
     const title = typeof b.title === 'string' && b.title.trim() ? b.title.trim() : defaultTitle
-    const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
     // Explicit language override (zh/en/ar/ru) — for international Dubai clients.
     const langOverride = ['zh', 'en', 'ar', 'ru'].includes(String(b.language)) ? String(b.language) : undefined
 
@@ -1030,7 +1072,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
         let config
         if (oneLiner || Object.keys(client).length) config = await draftConfig(client, oneLiner)
         if (langOverride) config = { ...(config || {}), language: langOverride } // explicit pick wins
-        const result = await createSession({ shareCode, projectIds, title, agentId, client, config })
+        const result = await createSession({ shareCode, projectIds, title, agentId, clientId, client, config })
         if (loggedIn) await spend(agentId, 'luna_tours', { type: 'tour', id: shareCode, label: title }).catch(() => {}) // count only real agents
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {

@@ -10,7 +10,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { lunaFetch } from '../lunaApi'
+import { lunaFetch, getClients, type Client } from '../lunaApi'
+import ClientProfileWizard, { type Profile } from '../ui/ClientProfileWizard'
 import GenerationProgress from './GenerationProgress'
 
 interface SessionRow {
@@ -81,7 +82,20 @@ export default function AgentTours() {
   } | null>(null)
 
   // create form
-  const [clientName, setClientName] = useState('')
+  /**
+   * 客户 —— 从客户雷达选,画像**自动带出来**;或用**同一个** ClientProfileWizard 新建。
+   *
+   * ⚠️ 旧版是两个裸输入框(客户名字 + 「一句话画像」),要经纪**手打**
+   *    「香港投资客, 预算300万, 重回报」—— 而 CRM 里早就有全套结构化画像。
+   *    同一个客户,经纪要在报告页做一遍画像、再到这儿手打一遍,两边还对不上。
+   *    现在导览和报告读**同一份画像**(后端按 client_id 去 lt_clients 取)。
+   */
+  const [clients, setClients] = useState<Client[]>([])
+  const [clientId, setClientId] = useState('')
+  const [profile, setProfile] = useState<Profile>({})
+  const [showWizard, setShowWizard] = useState(false)
+  const clientName = clients.find((c) => c.id === clientId)?.name ?? ''
+  // 经纪想额外补一句(画像里没有的东西)——**可选**,不是必填的那个「一句话画像」
   const [oneLiner, setOneLiner] = useState('')
   const [language, setLanguage] = useState('') // '' = AI 按客户自动判断
   const [picked, setPicked] = useState<ProjectHit[]>([])
@@ -134,6 +148,17 @@ export default function AgentTours() {
     load()
   }, [load])
 
+  // 客户列表 + 选中客户的画像 —— 和客户雷达/报告页读的是同一份
+  const loadClients = () => { void getClients().then(setClients).catch(() => {}) }
+  useEffect(() => { loadClients() }, [])
+  useEffect(() => {
+    if (!clientId) { setProfile({}); return }
+    void lunaFetch(`/clients/${clientId}/profile`)
+      .then((r) => r.json())
+      .then((j) => setProfile(j?.profile || {}))
+      .catch(() => setProfile({}))
+  }, [clientId])
+
   // ── project search (debounced) ────────────────────────────────────────────
   useEffect(() => {
     const q = query.trim()
@@ -185,7 +210,8 @@ export default function AgentTours() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          client: clientName.trim() ? { name: clientName.trim() } : {},
+          client_id: clientId || undefined,
+          client: clientName ? { name: clientName } : {},
           one_liner: oneLiner,
         }),
       })
@@ -295,7 +321,8 @@ export default function AgentTours() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_ids: picked.map((p) => p.id),
-          client: clientName.trim() ? { name: clientName.trim() } : {},
+          client_id: clientId || undefined,
+          client: clientName ? { name: clientName } : {},
           one_liner: oneLiner,
           ...(language ? { language } : {}),
         }),
@@ -309,7 +336,7 @@ export default function AgentTours() {
         // generation runs in the background — poll for structure + audio.
         setGenShareCode(d.shareCode || null)
         if (d.shareCode) pollGen(d.shareCode)
-        setClientName('')
+        setClientId('')
         setOneLiner('')
         setPicked([])
         setReasons({})
@@ -362,7 +389,7 @@ export default function AgentTours() {
   }
 
   const fmtDwell = (ms: number) => (ms >= 60000 ? `${(ms / 60000).toFixed(1)}m` : `${Math.round(ms / 1000)}s`)
-  const canMatch = !!(clientName.trim() || oneLiner.trim())
+  const canMatch = !!(clientId || oneLiner.trim())
 
   return (
     <div>
@@ -380,17 +407,53 @@ export default function AgentTours() {
           )}
         </div>
 
-        {/* client info */}
-        <div className="grid gap-3 md:grid-cols-2">
+        {/* ① 客户 —— 选一位,画像自动带出来。**不用再手打「一句话画像」** */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700">{L('① 客户', '① Client')}</label>
+          <div className="flex gap-2">
+            <select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+            >
+              <option value="">{L('从客户雷达选一位…', 'Pick from client radar…')}</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowWizard(true)}
+              className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              + <span className="hidden sm:inline">{L('新客户', 'New')}</span>
+            </button>
+          </div>
+
+          {/* 画像预览 —— 经纪要看得见 Luna 拿到了什么 */}
+          {clientId && (
+            <div className="mt-2 rounded-xl bg-slate-50 p-3">
+              <div className="flex flex-wrap gap-1.5">
+                {Object.keys(profile).length === 0 ? (
+                  <span className="text-xs text-slate-400">{L('这个客户还没有画像', 'No profile yet')}</span>
+                ) : (
+                  <TourProfileChips profile={profile} zh={zh} />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWizard(true)}
+                className="mt-2 text-[11px] font-semibold text-teal-700 hover:underline"
+              >
+                {Object.keys(profile).length === 0
+                  ? L('✨ 做一份画像 —— 导览的旁白会照着他的情况讲', '✨ Build a profile — the narration will speak to their situation')
+                  : L('✨ 补充画像', '✨ Refine profile')}
+              </button>
+            </div>
+          )}
+
+          {/* 可选补充 —— 画像之外的临时信息 */}
           <input
-            className="border rounded-lg px-3 py-2 text-sm"
-            placeholder={L('客户名字 (如 陈先生)', 'Client name (e.g. Mr. Chen)')}
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-          />
-          <input
-            className="border rounded-lg px-3 py-2 text-sm"
-            placeholder={L('客户一句话画像 (如「香港投资客, 预算300万, 重回报」)', 'One-line client profile (e.g. "Hong Kong investor, budget 3M, yield-focused")')}
+            className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+            placeholder={L('这次带看想额外强调什么？(可选)', 'Anything to emphasise this time? (optional)')}
             value={oneLiner}
             onChange={(e) => setOneLiner(e.target.value)}
           />
@@ -418,7 +481,7 @@ export default function AgentTours() {
             disabled={!canMatch || matching}
             onClick={aiMatch}
             className="border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            title={canMatch ? '' : L('先填客户名字或一句话画像', 'Enter a client name or one-line profile first')}
+            title={canMatch ? '' : L('先选一位客户', 'Pick a client first')}
           >
             {matching ? L('AI 匹配中…', 'AI matching…') : L('✨ AI 智能匹配房源', '✨ AI smart-match projects')}
           </button>
@@ -641,7 +704,43 @@ export default function AgentTours() {
         ))}
         {!loading && sessions.length === 0 && <div className="text-sm text-slate-400">{L('还没有导览，用上面的表单生成一个。', 'No tours yet — use the form above to generate one.')}</div>}
       </div>
+
+      {/* 画像 wizard —— 和客户雷达、客户分析报告用的是**同一个组件**(不写 duplicate) */}
+      {showWizard && (
+        <ClientProfileWizard
+          existing={clientId ? { id: clientId, name: clients.find((c) => c.id === clientId)?.name } : null}
+          onClose={() => setShowWizard(false)}
+          onSaved={(id, p) => {
+            setShowWizard(false)
+            setClientId(id)
+            setProfile(p)
+            loadClients()
+          }}
+          ctaLabel={L('保存画像', 'Save profile')}
+        />
+      )}
     </div>
+  )
+}
+
+/** 画像小标签 —— 让经纪看得见 Luna 拿到了什么(和报告页同一套口径)。 */
+function TourProfileChips({ profile: p, zh }: { profile: Profile; zh: boolean }) {
+  const out: string[] = []
+  if (p.goal) out.push({ live: zh ? '自住' : 'End-use', invest: zh ? '投资' : 'Investment', both: zh ? '先租后住' : 'Rent then live' }[p.goal])
+  const b = p.budget_max ?? p.budget_min
+  if (b) out.push(`AED ${(b / 1_000_000).toFixed(b % 1_000_000 ? 1 : 0)}M`)
+  if (p.payment) out.push({ cash: zh ? '全款' : 'Cash', installment: zh ? '分期' : 'Installments', mortgage: zh ? '贷款' : 'Mortgage' }[p.payment as string] || String(p.payment))
+  if (p.horizon) out.push({ rent_long: zh ? '长期收租' : 'Long-term', flip: zh ? '3-5年转手' : 'Flip', rent_then_live: zh ? '先租后住' : 'Rent then live' }[p.horizon as string] || String(p.horizon))
+  if (p.family_size) out.push(zh ? `${p.family_size} 口人` : `${p.family_size} people`)
+  if (p.has_children) out.push(zh ? '有小孩' : 'Kids')
+  if (p.nationality) out.push(String(p.nationality))
+  if (p.golden_visa) out.push(zh ? '要黄金签证' : 'Golden visa')
+  return (
+    <>
+      {out.filter(Boolean).map((c, i) => (
+        <span key={i} className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200">{c}</span>
+      ))}
+    </>
   )
 }
 

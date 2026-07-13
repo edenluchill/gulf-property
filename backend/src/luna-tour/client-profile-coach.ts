@@ -437,3 +437,34 @@ export async function loadProfile(clientId: string, agentId: string): Promise<Ex
     ...(r.preferences || {}),
   }
 }
+
+/**
+ * 画像 → 一句话客户描述（给 tour / match 的 prompt 用）。
+ *
+ * ⚠️ 这里**故意不调 LLM**：画像已经是结构化的，把它拼成一句话是纯字符串拼接。
+ *    为了这个再烧一次模型调用是纯浪费。
+ *
+ * 存在的意义：AI 导览页原来让经纪**手打一句话画像**（「香港投资客, 预算300万, 重回报」），
+ * 而 CRM 里早就有全套结构化字段 —— 同一个客户，经纪要在报告页填一遍画像、
+ * 再在导览页手打一遍。现在两边读**同一份画像**。
+ */
+export function profileToOneLiner(p: ExtractedProfile & { note?: string }): string {
+  const bits: string[] = []
+  if (p.nationality) bits.push(String(p.nationality))
+  if (p.goal) bits.push({ live: '自住', invest: '投资', both: '先租后住' }[p.goal] ?? String(p.goal))
+  const b = p.budget_max ?? p.budget_min
+  if (b) bits.push(`预算约 ${(b / 10000).toFixed(0)} 万迪拉姆`)
+  if (p.bedrooms) bits.push(`${p.bedrooms} 房`)
+  if (p.family_size) bits.push(`${p.family_size} 口人`)
+  if (p.has_children) bits.push('有小孩(学区重要)')
+  if (p.has_maid) bits.push('请保姆(需要女佣房)')
+  if (p.cooking === 'often') bits.push('常做中餐(开放厨房是减分)')
+  if (p.payment) bits.push({ cash: '全款', installment: '分期', mortgage: '贷款' }[p.payment] ?? String(p.payment))
+  if (p.horizon) bits.push({ rent_long: '长期收租', flip: '3-5 年转手', rent_then_live: '先租后住' }[p.horizon] ?? String(p.horizon))
+  if (p.golden_visa) bits.push('要黄金签证')
+  if (p.first_time_buyer) bits.push('首次置业')
+  if (p.offplan_ok === false) bits.push('只要现房')
+  if (p.preferred_areas?.length) bits.push(`偏好 ${p.preferred_areas.join('/')}`)
+  if (p.note) bits.push(p.note)
+  return bits.join('，')
+}
