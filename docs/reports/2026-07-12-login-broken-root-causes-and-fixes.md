@@ -240,6 +240,16 @@ cd backend && npx ts-node scripts/auth-multidevice-check.ts
     WHERE event_type='auth_signed_out' AND payload->>'manual'='false'
     ORDER BY created_at DESC;
    ```
-2. **Supabase Dashboard → Auth → Sessions：refresh token reuse interval 10s → 60s**
-   （只能手点，我改不了）。锁降级在极端情况下允许两 tab 并发刷新，把这个窗口调宽是免费保险。
+2. ~~Supabase reuse interval 调到 60s~~ —— **已核实无需动作**。owner 截图确认：
+   `Refresh token reuse interval = 60s`（Supabase 默认才 10s），而且**一直就是 60，没人改过**。
+
+   这条反过来把 reuse-detection 理论彻底否掉：有整整一分钟的复用宽限期，"两个 tab 并发刷新
+   触发全局撤销"几乎不可能发生。真凶就是 `signOut()` 的 `scope: 'global'`。
+   同时也意味着「锁降级 → 可能并发刷新」的残余风险已被这 60s 兜住。
+
+   其余 Sessions 配置也都是对的，别去动：
+   - `Enforce single session per user = 关闭` ← **多设备共用一个账号的前提，开了就全废**
+   - `Time-box / Inactivity timeout = never`
+   - `Detect and revoke compromised refresh tokens = 开启`（防重放，保持开着）
+
 3. 验收指标：`auth_failure` 归零。
