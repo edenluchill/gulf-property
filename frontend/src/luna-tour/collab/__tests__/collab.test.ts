@@ -322,36 +322,24 @@ test('terminal room_not_found (old link) → terminalReason=not_found + no recon
 // This is the common case (agents present on iPads, clients watch on phones).
 
 /**
- * ⚠️ 这条测试**原来断言的是「客户必须看全经纪看到的一切」**(superset),而那个目标
- *    是错的 —— 见 follow-math.ts 的注释:
+ * ⚠️ 这条测试被推翻过**两次**,因为目标错了两次:
  *
- *      经纪 iPad 1180 宽、客户手机 390 宽 → 要「看全」就得缩小 1.6 级 →
- *      **客户什么都看不清**。owner 实测:「客户手机看的巨小」。
+ *   v1「客户必须看全经纪的一切」(superset) → iPad→手机要缩 1.6 级 → **内容只剩 33%**
+ *   v2「那就少缩一点」(0.5 级)             → **还是在缩** → 标签对不上
+ *   v3(现在)「**同样的深度**」             → 客户**照抄经纪的 zoom**
  *
- *    **客户要的不是「看到全部」,是「看清你在讲的那个东西」。**
- *    所以现在:算出「看全」需要多少,然后**卡住收缩量**(最多 0.5 级)。
- *    测试跟着目标一起改 —— 断言的是**新的取舍**,不是旧的。
+ * owner 点破的那句话:「不在一个 zoom level 怎么介绍附近增长率?」——
+ * zoom 不只是缩放,它**决定地图显示什么**(涨幅 chip / 区域标签在低 zoom 会被抽稀)。
+ * 同一个 zoom 不是审美问题,是**两个人能不能在讲同一件事**。
  */
-test('zoomOffsetForViewport: iPad → 手机,缩小但必须仍然看得清', () => {
-  const iPad = { vw: 1180, vh: 820 }
-  const dz = zoomOffsetForViewport(iPad, 390, 844) // phone
-
-  // 还是要缩小一点(否则客户只看得到经纪画面的中间一小块)
-  assert.ok(dz < 0, '手机要缩小一点,才不至于只看到中间一小块')
-
-  // 但**绝不能**缩到「看全」所需要的那么多 —— 那样就看不清了
-  const naiveSuperset = Math.log2(Math.min(390 / 1180, 844 / 820))
-  assert.ok(naiveSuperset < -1.5, '前提:朴素的「看全」需要缩小 1.5 级以上')
-  assert.ok(dz > naiveSuperset, '必须比「看全」缩得少 —— 否则客户看不清')
-
-  // 收缩量卡在半级 —— 内容尺寸最多比经纪那边小 ~30%
-  assert.ok(dz >= -0.5 - 1e-9, '最多缩小 0.5 级')
+test('zoomOffsetForViewport: 电脑/iPad → 手机,客户照抄 zoom(同样的深度)', () => {
+  assert.equal(zoomOffsetForViewport({ vw: 1180, vh: 820 }, 390, 844), 0, 'iPad → 手机:不缩')
+  assert.equal(zoomOffsetForViewport({ vw: 1440, vh: 900 }, 390, 844), 0, '电脑 → 手机:不缩')
 })
 
-test('zoomOffsetForViewport: 手机 → 电脑,放大以维持相近的观感尺寸', () => {
-  const phone = { vw: 390, vh: 844 }
-  const dz = zoomOffsetForViewport(phone, 1440, 900) // desktop viewer
-  assert.ok(dz > 0, '大屏要放大,否则东西显得很小')
+test('zoomOffsetForViewport: 手机 → 电脑,放大以对齐观感尺寸', () => {
+  const dz = zoomOffsetForViewport({ vw: 390, vh: 844 }, 1440, 900)
+  assert.ok(dz > 0, '大屏要放大,否则东西小得可笑')
   assert.ok(dz <= 1.5 + 1e-9, '放大也有上限')
 })
 

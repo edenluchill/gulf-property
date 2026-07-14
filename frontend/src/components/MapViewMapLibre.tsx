@@ -144,6 +144,9 @@ interface MapViewMapLibreProps {
    *  so tapping to draw/place a mark doesn't ALSO open a POI/area/project panel
    *  (and so dismissing a panel doesn't re-select the feature underneath). */
   disableFeatureClicks?: boolean
+  /** 实时带看:由外部接管「项目卡片显示」开关(不传则组件自己管) */
+  showCardsOverride?: boolean
+  onShowCardsChange?: (v: boolean) => void
   /** 相机深链:URL ?v= 解析出的初始相机(只在首挂载生效,地图非受控)。 */
   initialView?: { longitude: number; latitude: number; zoom: number; pitch?: number; bearing?: number }
   /** 相机停稳后回调一次(与 onBoundsChange 同一个 150ms debounce,不新增高频
@@ -179,6 +182,8 @@ function MapViewMapLibre({
   tourActive = false,
   visible = true,
   disableFeatureClicks = false,
+  showCardsOverride,
+  onShowCardsChange,
   initialView,
   onCameraIdle
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
@@ -217,17 +222,23 @@ function MapViewMapLibre({
     })
   }
 
-  // 卡片显示开关(右侧工具卡里切换,持久化)。关掉后地图只剩圆点,更清爽;
-  // 点圆点仍能弹出单张卡。默认开。
-  const [showCards, setShowCardsState] = useState<boolean>(
+  /**
+   * 卡片显示开关(右侧工具卡里切换,持久化)。关掉后地图只剩圆点,更清爽;
+   * 点圆点仍能弹出单张卡。默认开。
+   *
+   * 🔴 **可选受控** —— 实时带看要把这个开关同步给客户(owner:「关闭/打开项目显示时
+   *    也不会 sync 到 client side」),所以外面能接管它。不传 `showCardsOverride`
+   *    时保持原来的内部状态,普通地图完全不受影响。
+   */
+  const [showCardsLocal, setShowCardsState] = useState<boolean>(
     () => localStorage.getItem('map-cards') !== '0'
   )
+  const showCards = showCardsOverride ?? showCardsLocal
   const toggleShowCards = () => {
-    setShowCardsState(prev => {
-      const next = !prev
-      try { localStorage.setItem('map-cards', next ? '1' : '0') } catch { /* ignore */ }
-      return next
-    })
+    const next = !showCards
+    try { localStorage.setItem('map-cards', next ? '1' : '0') } catch { /* ignore */ }
+    setShowCardsState(next)
+    onShowCardsChange?.(next)
   }
   const [measureMode, setMeasureMode] = useState(false)
   const [measurePoints, setMeasurePoints] = useState<{ lng: number; lat: number }[]>([])

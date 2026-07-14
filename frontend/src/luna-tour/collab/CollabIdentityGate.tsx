@@ -3,7 +3,31 @@
  * (名字必填,电话 / WhatsApp·微信选填,不强制登录)。填完才连 WS 进带看,
  * 让意向报告能把行为归属到人、经纪能跟进有兴趣的客户。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
+/**
+ * 🔴 **填过一次就别再让他填第二遍。**
+ *
+ * owner:「客户上次进来看过、填过联系信息和名字,就不用才填一遍了,自动 autofill。」
+ *
+ * 客户被经纪拉进带看,常常是**同一个人反复进来**(这次看完、过两天再看一次、
+ * 换个项目再来一次)。每次都从头填名字和电话,是在**用摩擦惩罚回头客** ——
+ * 而回头客恰恰是最有意向的那批人。
+ *
+ * 存 localStorage(纯本地,不上传;客户随时能改)。
+ */
+const ID_KEY = 'pz-collab-identity'
+
+interface SavedIdentity { name?: string; phone?: string; whatsapp?: string }
+
+function loadIdentity(): SavedIdentity {
+  try {
+    return JSON.parse(localStorage.getItem(ID_KEY) || '{}') as SavedIdentity
+  } catch { return {} }
+}
+function saveIdentity(v: SavedIdentity) {
+  try { localStorage.setItem(ID_KEY, JSON.stringify(v)) } catch { /* 隐私模式 */ }
+}
 import { useTranslation } from 'react-i18next'
 import { UserRound, ArrowRight } from 'lucide-react'
 
@@ -15,12 +39,36 @@ export default function CollabIdentityGate({ presenterName, defaultName, onEnter
   const { i18n } = useTranslation()
   const zh = (i18n.language || 'en').startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
-  const [name, setName] = useState(defaultName || '')
-  const [phone, setPhone] = useState('')
-  const [whatsapp, setWhatsapp] = useState('')
+  const saved = loadIdentity()
+  // 上次填过的自动带出来 —— 回头客不该被罚一遍摩擦
+  const [name, setName] = useState(defaultName || saved.name || '')
+  const [phone, setPhone] = useState(saved.phone || '')
+  const [whatsapp, setWhatsapp] = useState(saved.whatsapp || '')
   const canEnter = name.trim().length > 0
 
-  const submit = () => { if (canEnter) onEnter(name.trim(), phone.trim(), whatsapp.trim()) }
+  /**
+   * 上次填过 → **直接进,不弹这个门**。
+   *
+   * (⚠️ 名字是必填项;有名字就足以进场。留在门口再点一次「进入」是纯粹的摩擦。)
+   */
+  const [autoEntered, setAutoEntered] = useState(false)
+  useEffect(() => {
+    if (autoEntered) return
+    const s = loadIdentity()
+    if (s.name && s.name.trim()) {
+      setAutoEntered(true)
+      onEnter(s.name.trim(), (s.phone || '').trim(), (s.whatsapp || '').trim())
+    }
+    // 只在挂载时判一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const submit = () => {
+    if (!canEnter) return
+    const v = { name: name.trim(), phone: phone.trim(), whatsapp: whatsapp.trim() }
+    saveIdentity(v)   // 下次直接进
+    onEnter(v.name, v.phone, v.whatsapp)
+  }
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">

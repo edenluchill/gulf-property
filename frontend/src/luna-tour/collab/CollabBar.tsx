@@ -94,11 +94,31 @@ export default function CollabBar({
   const [draft, setDraft] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  /**
+   * 🔴 **未读红点。**
+   *
+   * owner:「聊天发信息不会有红点显示告诉客户有人聊天,或者客户聊天留信息,经纪那里
+   *        也不会显示有信息。**在对话 button 上面加个几个信息的点就够了。**」
+   *
+   * 之前:消息**静悄悄地进到一个折叠面板里** —— 两边都不知道对方说了话。
+   * 一场带看里最要命的沉默,就是「他问了,我没看见」。
+   *
+   * 口径(故意做到最简,就按 owner 说的「加个点就够了」):
+   *   • 只数**别人**发的(自己发的不算未读)
+   *   • 面板**开着**时不累计 —— 他正在看
+   *   • 一打开就清零
+   */
+  const [readCount, setReadCount] = useState(messages.length)
+  // ChatEntry.from = 发送者的 connId
+  const othersCount = messages.filter((m) => m.from !== myConnId).length
+  const unread = chatOpen ? 0 : Math.max(0, othersCount - readCount)
+
   useEffect(() => {
-    if (chatOpen && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (chatOpen) {
+      setReadCount(othersCount)   // 打开 = 看过了
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages, chatOpen])
+  }, [messages, chatOpen, othersCount])
 
   const send = () => {
     const text = draft.trim()
@@ -172,15 +192,20 @@ export default function CollabBar({
             )}
           </div>
 
-          {/* chat toggle */}
+          {/* chat toggle —— 带未读红点(owner:「加个点就够了」) */}
           <button
             type="button"
             onClick={() => setChatOpen((v) => !v)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10"
-            title="聊天"
+            className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-200 transition hover:bg-white/10"
+            title={unread > 0 ? `${unread} 条新消息` : '聊天'}
             style={chatOpen ? { color: ACCENT } : undefined}
           >
             <MessageCircle className="h-4 w-4" />
+            {unread > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-slate-900">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
           </button>
 
           {/* in-app voice (Agora), framed as a phone CALL (not a mic). The mic icon

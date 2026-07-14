@@ -21,6 +21,7 @@ import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
 import CollabIdentityGate from '../luna-tour/collab/CollabIdentityGate'
 import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
+import { useCollabMapState, type CollabMapState } from '../luna-tour/collab/useCollabMapState'
 import CollabDrawToolbar from '../luna-tour/collab/CollabDrawToolbar'
 import { useAuth } from '../contexts/AuthContext'
 import MapFilterChips from '../components/MapFilterChips'
@@ -417,6 +418,13 @@ export default function MapPage() {
   })
 
   // Transport layer state - single toggle for all transit (Metro/Tram/Monorail)
+  /**
+   * 项目卡片显示开关 —— 提到这一层,因为**实时带看要把它同步给客户**
+   *(owner:「关闭/打开项目显示时也不会 sync 到 client side」)。
+   * 普通地图行为不变:MapViewMapLibre 只在收到 override 时才交出控制权。
+   */
+  const [showCards, setShowCards] = useState<boolean>(() => localStorage.getItem('map-cards') !== '0')
+
   const [showTransit, setShowTransit] = useState<boolean>(() => {
     return localStorage.getItem('map-show-transit') === 'true'
   })
@@ -820,6 +828,41 @@ export default function MapPage() {
   // Map drawing / markup (pen / arrow / text / pin / circle), geo-anchored +
   // broadcast to the room. Circle uses getAreaInfoAtPoint for draw-to-query.
   const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive, getAreaInfo: getAreaInfoAtPoint })
+
+  /**
+   * 🔴 **地图状态同步** —— 指标热力图 / 筛选 / 项目显示 / 地铁线。
+   *
+   * 之前只有相机、光标、画笔在同步,**地图的「状态」根本没进协议** ——
+   * 经纪切了增长率、筛了交房日期,客户看到的还是原样。
+   * **两个人在看不同的地图,而经纪以为在讲同一张。**
+   *
+   * 复用协议里现成的 `mapAction` 通用通道(画笔也在用)—— 不动协议、不动服务器。
+   * 只有经纪广播,客户只听。
+   */
+  const applyRemoteMapState = useCallback((st: CollabMapState) => {
+    if (st.areaMetric !== undefined) setAreaMetric(st.areaMetric as AreaMetric)
+    if (st.filters !== undefined) setFilters(st.filters as PropertyFilters)
+    if (st.showCards !== undefined) setShowCards(st.showCards)
+    if (st.showTransit !== undefined) setShowTransit(st.showTransit)
+  }, [])
+
+  const mapStateSync = useCollabMapState({
+    client: collab.client,
+    active: collabActive,
+    isPresenter: collabMode === 'presenter',
+    onRemote: applyRemoteMapState,
+  })
+
+  // 经纪这边任一状态变了 → 广播。hook 内部会去重(没变就不发)。
+  useEffect(() => {
+    if (collabMode !== 'presenter') return
+    mapStateSync.broadcast({
+      areaMetric,
+      filters: filters as unknown as Record<string, unknown>,
+      showCards,
+      showTransit,
+    })
+  }, [collabMode, mapStateSync, areaMetric, filters, showCards, showTransit])
 
   // 带看结束 → 清掉这场画的所有标注 + 测距尺。
   //
@@ -1559,6 +1602,9 @@ export default function MapPage() {
             // drawing/placing marks never opens a POI/area/project panel (and
             // closing a panel doesn't re-select the feature underneath).
             disableFeatureClicks={collabActive && draw.tool !== 'none'}
+            // 带看时项目卡片开关由 MapPage 掌管(要同步给客户);平时组件自己管
+            showCardsOverride={collabActive ? showCards : undefined}
+            onShowCardsChange={setShowCards}
             voiceAmenities={voiceAmenities}
             hideAmenityPanel={!!guidedTour}
           />
