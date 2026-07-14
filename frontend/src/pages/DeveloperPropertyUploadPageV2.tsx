@@ -7,7 +7,8 @@
  * PropertyWorkspace component, also used by the admin review/edit pages.
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/card'
@@ -23,6 +24,13 @@ import {
 import { API_ENDPOINTS, API_BASE_URL, USE_DIRECT_UPLOAD } from '../lib/config'
 import { uploadFilesToR2 } from '../lib/r2-upload'
 import { useAuth } from '../contexts/AuthContext'
+import {
+  UploadFileMeta,
+  readDraft,
+  writeDraft,
+  clearDraft,
+  pruneDrafts,
+} from '../lib/upload-draft'
 
 interface ServerReadiness {
   submittable: boolean
@@ -49,7 +57,7 @@ interface ProgressEvent {
 
 export default function DeveloperPropertyUploadPageV2() {
   const { t } = useTranslation('upload')
-  const { session } = useAuth()
+  const { session, loading: authLoading } = useAuth()
   const [documents, setDocuments] = useState<Document[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
@@ -66,7 +74,11 @@ export default function DeveloperPropertyUploadPageV2() {
   const [serverReadiness, setServerReadiness] = useState<ServerReadiness | null>(null)
   const [duplicateNames, setDuplicateNames] = useState<string[]>([])
   const [showUploadPanel, setShowUploadPanel] = useState(false)
+  // 顶部横幅上的文件名/大小。File 对象刷新后拿不回来,所以展示层单独存一份可序列化的元信息。
+  const [fileMeta, setFileMeta] = useState<UploadFileMeta[]>([])
+  const [restoring, setRestoring] = useState(false)
 
+  const [searchParams, setSearchParams] = useSearchParams()
   const eventSourceRef = useRef<EventSource | null>(null)
 
   const [formData, setFormData] = useState<PropertyFormData>(initialFormData)
@@ -102,11 +114,104 @@ export default function DeveloperPropertyUploadPageV2() {
     return ''
   }
 
+  // ⭐ 订阅一个 job 的进度流。上传后首次连接、以及刷新后重连,走的是同一段代码。
+  // worker 模式下 /stream 是轮询 DB 的：任务早已跑完也会立刻补发一条带 buildingData
+  // 的 complete 事件 —— 这就是刷新后能把 AI 结果原样拿回来的原因。
+  const connectStream = useCallback((jobId: string) => {
+    eventSourceRef.current?.close()
+
+    const eventSource = new EventSource(API_ENDPOINTS.langgraphProgressStream(jobId))
+    eventSourceRef.current = eventSource
+
+    eventSource.onopen = () => {
+      setCurrentStage(t('processing.startProcessing'))
+    }
+
+    eventSource.onmessage = (event) => {
+      const progressEvent: ProgressEvent = JSON.parse(event.data)
+
+      setProgressEvents(prev => [...prev, progressEvent])
+      setProgress(progressEvent.progress)
+      setCurrentStage(progressEvent.message)
+
+      if (progressEvent.data?.buildingData) {
+        const { buildingData } = progressEvent.data
+
+        setFormData(prev => {
+          const cleanedLaunchDate = cleanDateFormat(buildingData.launchDate || prev.launchDate)
+          const cleanedCompletionDate = cleanDateFormat(buildingData.completionDate || prev.completionDate)
+          const cleanedHandoverDate = cleanDateFormat(buildingData.handoverDate || prev.handoverDate)
+
+          return {
+            ...prev,
+            projectName: buildingData.name || prev.projectName,
+            developer: buildingData.developer || prev.developer,
+            address: buildingData.address || prev.address,
+            area: buildingData.area || prev.area,
+            completionDate: cleanedCompletionDate,
+            launchDate: cleanedLaunchDate,
+            handoverDate: cleanedHandoverDate,
+            constructionProgress: buildingData.constructionProgress || prev.constructionProgress,
+            description: buildingData.description || prev.description,
+            latitude: buildingData.latitude || prev.latitude,
+            longitude: buildingData.longitude || prev.longitude,
+            amenities: buildingData.amenities || prev.amenities,
+            unitTypes: buildingData.units || prev.unitTypes,
+            paymentPlan: buildingData.paymentPlans?.[0]?.milestones || prev.paymentPlan,
+            projectImages: buildingData.images?.projectImages || prev.projectImages,
+            floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
+            visualContent: buildingData.visualContent || prev.visualContent,
+            extractedPricing: buildingData.extractedPricing || prev.extractedPricing,
+            serviceCharge: buildingData.serviceCharge ?? prev.serviceCharge,
+            landmarks: buildingData.landmarks || prev.landmarks,
+          }
+        })
+
+        // ⭐ 结构化提交就绪检查（后端计算，含修复后的最终状态）
+        if (buildingData.submitReadiness) {
+          setServerReadiness(buildingData.submitReadiness)
+        }
+      }
+
+      if (progressEvent.stage === 'complete') {
+        console.log('✅ Processing complete!')
+        setIsProcessing(false)
+        setIsUploading(false)
+        setHasReviewed(false) // 重置review状态
+        eventSource.close()
+        // ⭐ 查重：与库里已有项目按名称比对
+        const extractedName = progressEvent.data?.buildingData?.name
+        if (extractedName) {
+          checkDuplicateProjects(extractedName)
+        }
+      }
+
+      if (progressEvent.stage === 'error') {
+        console.error('❌ Processing error:', progressEvent.message)
+        setError(progressEvent.message)
+        setIsProcessing(false)
+        setIsUploading(false)
+        eventSource.close()
+      }
+    }
+
+    eventSource.onerror = (err) => {
+      console.error('❌ SSE error:', err)
+      if (eventSource.readyState === EventSource.CLOSED) {
+        setError('Connection closed unexpectedly. Please try again.')
+        setIsProcessing(false)
+        setIsUploading(false)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t])
+
   // Process all documents
   const handleProcessPdfs = async () => {
     if (documents.length === 0) return
 
     setHasStarted(true)
+    setFileMeta(documents.map(d => ({ name: d.file.name, size: d.file.size })))
     setShowUploadPanel(false)
     setIsUploading(true)
     setUploadProgress(0)
@@ -196,92 +301,12 @@ export default function DeveloperPropertyUploadPageV2() {
       setCurrentJobId(jobId)
       console.log(`🆔 Job ID received: ${jobId}`)
 
+      // ⭐ 任务一落地就把 jobId 钉进 URL —— 从这一刻起,刷新/误关标签页都能原样回到这个任务
+      setSearchParams({ job: jobId }, { replace: true })
+
       setIsProcessing(true)
       setCurrentStage(t('processing.connecting'))
-
-      const eventSource = new EventSource(API_ENDPOINTS.langgraphProgressStream(jobId))
-      eventSourceRef.current = eventSource
-
-      eventSource.onopen = () => {
-        setCurrentStage(t('processing.startProcessing'))
-      }
-
-      eventSource.onmessage = (event) => {
-        const progressEvent: ProgressEvent = JSON.parse(event.data)
-
-        setProgressEvents(prev => [...prev, progressEvent])
-        setProgress(progressEvent.progress)
-        setCurrentStage(progressEvent.message)
-
-        if (progressEvent.data?.buildingData) {
-          const { buildingData } = progressEvent.data
-
-          setFormData(prev => {
-            const cleanedLaunchDate = cleanDateFormat(buildingData.launchDate || prev.launchDate)
-            const cleanedCompletionDate = cleanDateFormat(buildingData.completionDate || prev.completionDate)
-            const cleanedHandoverDate = cleanDateFormat(buildingData.handoverDate || prev.handoverDate)
-
-            return {
-              ...prev,
-              projectName: buildingData.name || prev.projectName,
-              developer: buildingData.developer || prev.developer,
-              address: buildingData.address || prev.address,
-              area: buildingData.area || prev.area,
-              completionDate: cleanedCompletionDate,
-              launchDate: cleanedLaunchDate,
-              handoverDate: cleanedHandoverDate,
-              constructionProgress: buildingData.constructionProgress || prev.constructionProgress,
-              description: buildingData.description || prev.description,
-              latitude: buildingData.latitude || prev.latitude,
-              longitude: buildingData.longitude || prev.longitude,
-              amenities: buildingData.amenities || prev.amenities,
-              unitTypes: buildingData.units || prev.unitTypes,
-              paymentPlan: buildingData.paymentPlans?.[0]?.milestones || prev.paymentPlan,
-              projectImages: buildingData.images?.projectImages || prev.projectImages,
-              floorPlanImages: buildingData.images?.floorPlanImages || prev.floorPlanImages,
-              visualContent: buildingData.visualContent || prev.visualContent,
-              extractedPricing: buildingData.extractedPricing || prev.extractedPricing,
-              serviceCharge: buildingData.serviceCharge ?? prev.serviceCharge,
-              landmarks: buildingData.landmarks || prev.landmarks,
-            }
-          })
-
-          // ⭐ 结构化提交就绪检查（后端计算，含修复后的最终状态）
-          if (buildingData.submitReadiness) {
-            setServerReadiness(buildingData.submitReadiness)
-          }
-        }
-
-        if (progressEvent.stage === 'complete') {
-          console.log('✅ Processing complete!')
-          setIsProcessing(false)
-          setIsUploading(false)
-          setHasReviewed(false) // 重置review状态
-          eventSource.close()
-          // ⭐ 查重：与库里已有项目按名称比对
-          const extractedName = progressEvent.data?.buildingData?.name
-          if (extractedName) {
-            checkDuplicateProjects(extractedName)
-          }
-        }
-
-        if (progressEvent.stage === 'error') {
-          console.error('❌ Processing error:', progressEvent.message)
-          setError(progressEvent.message)
-          setIsProcessing(false)
-          setIsUploading(false)
-          eventSource.close()
-        }
-      }
-
-      eventSource.onerror = (error) => {
-        console.error('❌ SSE error:', error)
-        if (eventSource.readyState === EventSource.CLOSED) {
-          setError('Connection closed unexpectedly. Please try again.')
-          setIsProcessing(false)
-          setIsUploading(false)
-        }
-      }
+      connectStream(jobId)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process PDFs')
@@ -355,6 +380,11 @@ export default function DeveloperPropertyUploadPageV2() {
 
       alert(t('confirm.successAlert'))
 
+      // 提交成功 = 这次上传的生命周期结束,草稿和 URL 上的 job 都该收走,
+      // 否则回到 /developer/upload 还会被"恢复"进一个已经提交过的任务。
+      if (currentJobId) clearDraft(currentJobId)
+      setSearchParams({}, { replace: true })
+
       setSubmitted(true)
       setTimeout(() => { window.location.href = '/map' }, 2000)
     } catch (err) {
@@ -374,6 +404,109 @@ export default function DeveloperPropertyUploadPageV2() {
       }
     }
   }, [])
+
+  // ⭐ 刷新 / 误关标签页后的恢复：URL 上的 ?job= 就是这次上传的身份证。
+  // 草稿(本地)负责文件名和经纪手改过的字段;任务状态和 AI 结果以后端为准。
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current || authLoading) return
+    const jobId = searchParams.get('job')
+    if (!jobId) return
+    restoredRef.current = true
+
+    pruneDrafts()
+    setHasStarted(true)
+    setCurrentJobId(jobId)
+    setRestoring(true)
+
+    const draft = readDraft(jobId)
+    if (draft) {
+      setFileMeta(draft.fileMeta || [])
+      setFormData(draft.formData)
+      setServerReadiness((draft.serverReadiness as ServerReadiness) ?? null)
+      setDuplicateNames(draft.duplicateNames || [])
+    }
+
+    ;(async () => {
+      let status: string | undefined
+      try {
+        const headers: Record<string, string> = {}
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+        if (session?.user?.id) headers['x-user-id'] = session.user.id
+        if (session?.user?.email) headers['x-user-email'] = session.user.email
+
+        const res = await fetch(API_ENDPOINTS.task(jobId), { headers })
+        if (res.status === 404) {
+          // 任务不存在(过期/被删)——别把人晾在一个永远不会有数据的空工作台里
+          clearDraft(jobId)
+          setSearchParams({}, { replace: true })
+          setHasStarted(false)
+          setCurrentJobId(null)
+          setRestoring(false)
+          return
+        }
+        if (res.ok) {
+          const task = (await res.json())?.task
+          status = task?.status
+          const names: string[] = task?.pdf_names || []
+          if (!draft?.fileMeta?.length && names.length) {
+            setFileMeta(names.map((name: string) => ({ name, size: 0 })))
+          }
+        }
+      } catch {
+        /* 后端问不到就退回草稿 + SSE */
+      }
+
+      // 已出结果且本地有完整草稿 → 直接用草稿。绝不重连 SSE:
+      // 完成事件会把 buildingData 灌回表单,那会覆盖经纪刷新前手改过的字段。
+      if (draft?.status === 'done' && (status === 'completed' || !status)) {
+        setCurrentStage(t('processing.extractionComplete'))
+        setRestoring(false)
+        return
+      }
+
+      if (status === 'failed' || status === 'cancelled') {
+        setError(t('processing.taskFailed'))
+        setRestoring(false)
+        return
+      }
+
+      // 还在跑(或跑完但本地没草稿)→ 重连进度流。worker 模式下 /stream 轮询 DB,
+      // 任务已完成会立刻补发带 buildingData 的 complete 事件,结果一样拿得回来。
+      setIsProcessing(true)
+      setCurrentStage(t('processing.reconnecting'))
+      connectStream(jobId)
+      setRestoring(false)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading])
+
+  // ⭐ 草稿落盘(含审核工作台里的手动编辑)。防抖,别每敲一个字都写 localStorage。
+  useEffect(() => {
+    if (!currentJobId || submitted || restoring) return
+    const timer = setTimeout(() => {
+      writeDraft({
+        jobId: currentJobId,
+        status: isProcessing || isUploading ? 'running' : 'done',
+        fileMeta,
+        formData,
+        serverReadiness,
+        duplicateNames,
+      })
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [currentJobId, formData, fileMeta, serverReadiness, duplicateNames, isProcessing, isUploading, submitted, restoring])
+
+  // 上传中是唯一救不回来的窗口:文件还在浏览器里,jobId 也还没落库。这时才拦。
+  useEffect(() => {
+    if (!isUploading) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isUploading])
 
   const processingDone = hasStarted && !isProcessing && !isUploading
 
@@ -464,11 +597,13 @@ export default function DeveloperPropertyUploadPageV2() {
             <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {documents.map(doc => (
-                    <span key={doc.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 max-w-[260px]">
+                  {fileMeta.map((f, i) => (
+                    <span key={`${f.name}-${i}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 max-w-[260px]">
                       <FileText className="h-3.5 w-3.5 text-teal-600 shrink-0" />
-                      <span className="truncate font-medium">{doc.file.name}</span>
-                      <span className="text-xs text-gray-400 shrink-0">{(doc.file.size / 1024 / 1024).toFixed(1)}MB</span>
+                      <span className="truncate font-medium">{f.name}</span>
+                      {f.size > 0 && (
+                        <span className="text-xs text-gray-400 shrink-0">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                      )}
                     </span>
                   ))}
                   {/* Status chip */}

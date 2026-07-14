@@ -102,6 +102,8 @@
     "uploadingPercent": "Uploading files... {{percent}}%",
     "uploadComplete": "File upload complete, starting processing...",
     "connecting": "Connecting to processing service...",
+    "reconnecting": "Restoring your previous job...",
+    "taskFailed": "This job failed. Please upload the files again.",
     "startProcessing": "Starting document processing...",
     "mainBrochure": "Main brochure",
     "documentN": "Document {{n}}",
