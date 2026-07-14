@@ -424,6 +424,10 @@ export default function MapPage() {
    * 普通地图行为不变:MapViewMapLibre 只在收到 override 时才交出控制权。
    */
   const [showCards, setShowCards] = useState<boolean>(() => localStorage.getItem('map-cards') !== '0')
+  // 底图也提上来 —— 同理,带看时要同步给客户
+  const [baseMap, setBaseMap] = useState<'vector' | 'satellite' | 'dark'>(
+    () => ((localStorage.getItem('map-base') as 'vector' | 'satellite' | 'dark') || 'satellite')
+  )
 
   const [showTransit, setShowTransit] = useState<boolean>(() => {
     return localStorage.getItem('map-show-transit') === 'true'
@@ -844,6 +848,10 @@ export default function MapPage() {
     if (st.filters !== undefined) setFilters(st.filters as PropertyFilters)
     if (st.showCards !== undefined) setShowCards(st.showCards)
     if (st.showTransit !== undefined) setShowTransit(st.showTransit)
+    // POI 品类(学校/医院/商场/地铁站…)—— 经纪点亮「学校」是为了讲学区,
+    // 客户屏幕上却一个学校都没有,那这段话就是空的。
+    if (st.poiCategories !== undefined) setEnabledPoiCategories(st.poiCategories as PoiCategory[])
+    if (st.baseMap !== undefined) setBaseMap(st.baseMap as 'vector' | 'satellite' | 'dark')
   }, [])
 
   const mapStateSync = useCollabMapState({
@@ -861,8 +869,10 @@ export default function MapPage() {
       filters: filters as unknown as Record<string, unknown>,
       showCards,
       showTransit,
+      poiCategories: enabledPoiCategories,
+      baseMap,
     })
-  }, [collabMode, mapStateSync, areaMetric, filters, showCards, showTransit])
+  }, [collabMode, mapStateSync, areaMetric, filters, showCards, showTransit, enabledPoiCategories, baseMap])
 
   // 带看结束 → 清掉这场画的所有标注 + 测距尺。
   //
@@ -1639,6 +1649,8 @@ export default function MapPage() {
             // 带看时项目卡片开关由 MapPage 掌管(要同步给客户);平时组件自己管
             showCardsOverride={collabActive ? showCards : undefined}
             onShowCardsChange={setShowCards}
+            baseMapOverride={collabActive ? baseMap : undefined}
+            onBaseMapChange={setBaseMap}
             voiceAmenities={voiceAmenities}
             hideAmenityPanel={!!guidedTour}
           />

@@ -147,6 +147,9 @@ interface MapViewMapLibreProps {
   /** 实时带看:由外部接管「项目卡片显示」开关(不传则组件自己管) */
   showCardsOverride?: boolean
   onShowCardsChange?: (v: boolean) => void
+  /** 实时带看:由外部接管底图(矢量/卫星/夜景) */
+  baseMapOverride?: BaseMap
+  onBaseMapChange?: (v: BaseMap) => void
   /** 相机深链:URL ?v= 解析出的初始相机(只在首挂载生效,地图非受控)。 */
   initialView?: { longitude: number; latitude: number; zoom: number; pitch?: number; bearing?: number }
   /** 相机停稳后回调一次(与 onBoundsChange 同一个 150ms debounce,不新增高频
@@ -184,6 +187,8 @@ function MapViewMapLibre({
   disableFeatureClicks = false,
   showCardsOverride,
   onShowCardsChange,
+  baseMapOverride,
+  onBaseMapChange,
   initialView,
   onCameraIdle
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
@@ -211,15 +216,20 @@ function MapViewMapLibre({
   // ~180ms after the camera settles.
   const [mapMoving, setMapMoving] = useState(false)
   const moveShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [baseMap, setBaseMapState] = useState<BaseMap>(
+  /**
+   * 底图(矢量/卫星/夜景)。**可选受控** —— 实时带看要同步给客户:
+   * 经纪切到卫星是为了让客户看清建筑,客户那边还是矢量图就白切了。
+   * (不传 override 时组件自己管,普通地图完全不受影响 —— 和 showCards 同一个模式。)
+   */
+  const [baseMapLocal, setBaseMapState] = useState<BaseMap>(
     () => ((localStorage.getItem('map-base') as BaseMap) || 'satellite')
   )
+  const baseMap = baseMapOverride ?? baseMapLocal
   const setBaseMap = (v: BaseMap | ((p: BaseMap) => BaseMap)) => {
-    setBaseMapState(prev => {
-      const next = typeof v === 'function' ? (v as (p: BaseMap) => BaseMap)(prev) : v
-      try { localStorage.setItem('map-base', next) } catch { /* ignore */ }
-      return next
-    })
+    const next = typeof v === 'function' ? (v as (p: BaseMap) => BaseMap)(baseMap) : v
+    try { localStorage.setItem('map-base', next) } catch { /* ignore */ }
+    setBaseMapState(next)
+    onBaseMapChange?.(next)
   }
 
   /**

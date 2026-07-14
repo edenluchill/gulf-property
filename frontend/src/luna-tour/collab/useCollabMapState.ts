@@ -28,7 +28,11 @@ import type { ServerMsg } from './protocol'
 
 export const MAP_STATE_TYPE = '__collab_mapstate'
 
-/** 同步的东西。**故意只有这三样** —— 它们决定了「两个人看到的是不是同一张地图」。 */
+/**
+ * 同步的东西。判断标准只有一条:**它会不会改变「客户屏幕上看到什么」。**
+ * 会 → 必须同步(否则两个人在看不同的地图)。
+ * 不会(比如经纪自己那个 POI 面板开没开)→ 不同步,别给客户添乱。
+ */
 export interface CollabMapState {
   /** 区域指标热力图（增长率 / 回报 / 单价…）；'none' = 关掉 */
   areaMetric?: string
@@ -38,6 +42,14 @@ export interface CollabMapState {
   showCards?: boolean
   /** 地铁线图层 */
   showTransit?: boolean
+  /**
+   * POI 品类筛选（学校 / 医院 / 商场 / 地铁站…）。
+   * owner:「POI 那些 filter 点击也不会在客户那里显示」—— 经纪点亮「学校」是为了
+   * 讲学区,客户屏幕上却一个学校都没有。
+   */
+  poiCategories?: string[]
+  /** 底图（矢量 / 卫星 / 夜景）—— 经纪切到卫星是为了让客户看清建筑 */
+  baseMap?: string
 }
 
 interface Opts {
