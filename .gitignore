@@ -62,3 +62,6 @@ backend/data/
 frontend/scripts/_*
 frontend/_*.png
 backend/scripts/_*
+
+# wrangler pages dev 的本地缓存(跑 scripts/stale-entry-verify.mjs 时产生)
+frontend/.wrangler/

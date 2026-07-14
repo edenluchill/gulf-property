@@ -26,6 +26,48 @@
       })()
     </script>
 
+    <!--
+      🔴 样式表过期 = 裸 HTML。**必须在这里拦,不能放 main.tsx。**
+
+      现象(客户微信截图):巨大的 logo + 一列没样式的蓝色链接 —— DOM 全在,样式一条没有。
+
+      成因:微信 X5 内核**无视 index.html 的 no-cache**,存着上一次部署的那份 HTML。
+      它引用旧 hash 的 CSS/JS:
+        • 旧 JS  —— 还命中 WebView 长缓存 → 照常跑 → React 把 DOM 渲染出来
+        • 旧 CSS —— 已被 LRU 淘汰 → 回源 → 新部署后旧 hash 不存在 → 404
+      main.tsx 里的过期兜底只监听 vite:preloadError / 动态 import 失败,**全是 JS 的**;
+      CSS 的 404 没有任何人接 → 不会自愈 → 客户"开了几次都是这样"。
+
+      而且兜底**不能放 main.tsx** —— 它自己就在那个 JS bundle 里,JS 一挂 handler 就不存在。
+
+      ⚠️ 只认**同源 /assets/ 下的样式表**。Google Fonts / unpkg 在墙内是必挂的,
+         拿它们触发强刷 = 每个大陆客户平白刷一次。
+    -->
+    <script>
+      (function () {
+        var KEY = 'pz-stale-css-reloaded'
+        window.addEventListener(
+          'error',
+          function (e) {
+            var el = e.target
+            if (!el || el.tagName !== 'LINK' || el.rel !== 'stylesheet') return
+            if (String(el.href || '').indexOf(location.origin + '/assets/') !== 0) return
+            if (sessionStorage.getItem(KEY)) return // 刷过一次还坏 → 让它坏着,别死循环
+            sessionStorage.setItem(KEY, '1')
+            // location.reload() 在 X5 里可能**还是拿那份缓存的 HTML**。换个 URL 才能逼它回源。
+            // _r 是一次性的,启动成功后 main.tsx 会把它从地址栏擦掉。
+            var u =
+              location.pathname +
+              (location.search ? location.search + '&' : '?') +
+              '_r=' + Date.now() +
+              location.hash
+            location.replace(u)
+          },
+          true // ← 必须 capture:资源加载错误不冒泡,只在捕获阶段到 window
+        )
+      })()
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
@@ -35,12 +77,24 @@
     <meta name="description" content="Pinzos is an interactive Dubai off-plan property platform: a satellite map with real DLD transactions, rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, plus agent tools — real-time co-presence map tours for overseas clients, AI-guided Luna tours, and buyer-intent reports." />
     <meta name="keywords" content="Dubai off-plan, Dubai real estate, DLD transactions, property investment Dubai, Golden Visa, real-time property tour, 迪拜期房, 迪拜房产, 海外带看" />
 
-    <!-- Brand wordmark font (Fraunces display serif) + UI font (Inter) -->
+    <!-- Brand wordmark font (Fraunces display serif) + UI font (Inter)
+
+         ⚠️ **绝不能是阻塞渲染的 <link rel=stylesheet>。**
+         fonts.googleapis.com 在中国大陆**完全被墙**,而我们的客户基本都在微信里打开。
+         墙的行为不是"干脆拒绝"而是**丢包**,浏览器要一路等到超时 —— 实测(playwright
+         模拟丢包)DOMContentLoaded 从 637ms 涨到 **30.5 秒**,也就是墙内客户每次打开
+         都在白屏干等半分钟。
+
+         media="print" 让它**不参与首屏渲染**,加载完再 onload 切回 all。
+         墙内就是永远切不回来 → 用 fallback(Header 的 wordmark 是 Georgia serif,
+         正文见 index.css 的 Inter fallback 链)→ 页面照常秒开。 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
 
     <!-- Open Graph — 分享出去的链接长什么样。
@@ -63,9 +117,10 @@
     <meta name="twitter:description" content="Discover premium off-plan properties in Dubai." />
     <meta name="twitter:image" content="https://www.pinzos.com/og-image.jpg" />
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
+    <!-- ❌ 这里原来有一行从 unpkg 拉 leaflet.css 的阻塞 <link> —— 已删,它是**纯冗余**:
+         main.tsx 早就 `import 'leaflet/dist/leaflet.css'`,leaflet 样式一直都在打包产物里
+         (已核对线上 index-*.css 含 .leaflet-container/.leaflet-pane/.leaflet-tile)。
+         它唯一的作用就是在墙内多挂一个不可达的阻塞资源、把首屏拖进超时等待。 -->
   </head>
   <body>
     <div id="root"></div>

@@ -44,6 +44,26 @@ window.addEventListener('load', () => {
   setTimeout(() => sessionStorage.removeItem(RELOAD_KEY), 5000)
 })
 
+/**
+ * 样式表过期的兜底在 **index.html 的内联脚本**里(不能放这儿 —— 这个文件本身就在 JS bundle
+ * 里,而且 <link> 的 error 早在模块执行前就烧完了)。这里只做善后:
+ *   • 清掉它的锁 —— 下次部署还能再救一次
+ *   • 把它为了绕开微信 X5 缓存而加的一次性 `_r` 从地址栏擦掉 —— 否则客户复制/分享出去的
+ *     链接会带着这个参数到处跑
+ */
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    sessionStorage.removeItem('pz-stale-css-reloaded')
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('_r')) {
+      url.searchParams.delete('_r')
+      // search 清空后 URL 里不该剩个光秃秃的 '?'
+      const clean = url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : '') + url.hash
+      window.history.replaceState(null, '', clean)
+    }
+  }, 5000)
+})
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
