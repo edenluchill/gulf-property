@@ -14,7 +14,7 @@ import crypto from 'crypto'
 import { counter, tourPublish } from '../telemetry'
 import path from 'path'
 import multer from 'multer'
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import pool from '../db/pool'
 import { uploadBufferToR2 } from '../services/r2-storage'
 import { createSession, ensureAgent } from './session-builder'
@@ -103,9 +103,76 @@ async function currentAgentId(req: Request): Promise<string> {
   return demoAgentId()
 }
 
-/** 该请求是否为真实登录经纪(共享 demo 经纪豁免配额)。 */
-function isLoggedIn(req: Request): boolean {
-  return isSupabaseConfigured && !!req.headers.authorization?.startsWith('Bearer ')
+// ⚠️ 这里曾经有 `isLoggedIn(req)` —— 它**只看 Authorization 头存不存在,不验签**。
+//    配额门写作 `if (isLoggedIn(req))`,于是:
+//      • 不带头        → 跳过配额,匿名无限烧 Gemini + TTS
+//      • 伪造一个头     → 也进不了真账号,照样落到共享 demo 经纪
+//    **已删除。** 计费与否现在由 billable(req) 决定,而身份由 requireAgent **验签**得到。
+//    别把它加回来。
+
+/**
+ * 🔴 **烧钱的端点必须有主。**
+ *
+ * 漏洞:`currentAgentId()` 在没有 token 时**回落到共享的 demo 经纪**,而配额门是
+ * `if (isLoggedIn(req))` —— 于是:
+ *   • 不带 Authorization  → isLoggedIn=false → **完全跳过配额**
+ *   • 随便伪造一个 Bearer → isLoggedIn=true(它只看头存不存在,不验签!)→ 落到 demo 账号
+ * 两条路都能让**开放互联网上的任何人**无限烧我们的 Gemini + TTS。钱在漏。
+ *
+ * requireAgent:**真的验签**,拿到真实经纪;拿不到就 401。
+ *
+ * 唯一的例外是内部自动化(scripts/tour-e2e.ts —— 我自己的跑分)。
+ * 它走一个**独立的内部 token**(env: LUNA_INTERNAL_TOKEN),而不是靠这个安全漏洞。
+ * ⚠️ 之前跑分之所以"不扣额度",靠的正是这个洞。**不能用漏洞来做测试。**
+ */
+export interface AgentReq extends Request {
+  lunaAgentId?: string
+  /** 内部自动化(跑分脚本)—— 不扣额度,但必须持内部 token */
+  lunaInternal?: boolean
+}
+
+const INTERNAL_TOKEN = process.env.LUNA_INTERNAL_TOKEN || ''
+
+async function requireAgent(req: AgentReq, res: Response, next: NextFunction): Promise<void> {
+  // ① 内部自动化
+  const internal = String(req.headers['x-luna-internal'] || '')
+  if (INTERNAL_TOKEN && internal && internal === INTERNAL_TOKEN) {
+    req.lunaAgentId = await demoAgentId()
+    req.lunaInternal = true
+    return next()
+  }
+
+  // ② 真实登录经纪 —— **验签**,不是看头存不存在
+  const h = req.headers.authorization
+  const token = h && h.startsWith('Bearer ') ? h.substring(7) : null
+  if (isSupabaseConfigured && token) {
+    try {
+      const { data: { user } } = await supabaseAdmin.auth.getUser(token)
+      if (user?.email) {
+        req.lunaAgentId = await ensureAgent({
+          email: user.email,
+          displayName: (user.user_metadata?.name as string) || user.email.split('@')[0],
+          authUserId: user.id,
+          brand: { title: '置业顾问', accent: '#00E0B8' },
+        })
+        return next()
+      }
+    } catch { /* 无效 token → 落到 401 */ }
+  }
+
+  // ③ Supabase 没配(本地开发)→ 保持可用,否则本地什么都跑不了
+  if (!isSupabaseConfigured) {
+    req.lunaAgentId = await demoAgentId()
+    req.lunaInternal = true
+    return next()
+  }
+
+  res.status(401).json({ error: '请先登录', code: 'auth_required' })
+}
+
+/** 扣不扣额度:内部自动化不扣,真实经纪扣。 */
+function billable(req: AgentReq): boolean {
+  return !req.lunaInternal
 }
 
 /** Short, human-friendly random code (no ambiguous chars like 0/o/1/l). */
@@ -139,9 +206,9 @@ async function uniqueReportCode(): Promise<string> {
 
 // ── Agent-branded per-project shareable reports ────────────────────────────
 /** Create (or fetch the existing) shareable report for a project → /r/:code. */
-router.post('/project-reports', async (req: Request, res: Response) => {
+router.post('/project-reports', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const projectId = String(req.body?.projectId || '').trim()
     if (!projectId) return res.status(400).json({ success: false, error: 'projectId required' })
     const p = await pool.query('SELECT id, project_name FROM residential_projects WHERE id=$1', [projectId])
@@ -153,7 +220,7 @@ router.post('/project-reports', async (req: Request, res: Response) => {
       code = existing.rows[0].share_code // 复用已生成的报告 — 不计额度
     } else {
       // 新建报告才走配额门 + 计量(共享 demo 经纪豁免)
-      const loggedIn = isLoggedIn(req)
+      const loggedIn = billable(req)
       if (loggedIn) {
         const q = await checkCredits(agentId, 'reports')
         if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
@@ -212,9 +279,9 @@ router.put('/clients/:id', async (req: Request, res: Response) => {
  * 为几厘钱去阻止一个提升主产品质量的动作,不划算。节流兜底(见下)。
  */
 const coachThrottle = new Map<string, number>()
-router.post('/clients/profile-coach', async (req: Request, res: Response) => {
+router.post('/clients/profile-coach', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const { text, client_id } = (req.body || {}) as { text?: string; client_id?: string }
 
     // 节流:同一经纪 5 秒一次(防连点/脚本刷)。零成本,够用。
@@ -393,9 +460,9 @@ async function briefFromClient(agentId: string, clientId: string): Promise<{ nam
 
 /** Kick off a client investment proposal — returns a share code immediately,
  *  builds in the background (poll /client-reports/:code/status for progress). */
-router.post('/client-reports', async (req: Request, res: Response) => {
+router.post('/client-reports', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const b = (req.body || {}) as Record<string, unknown>
     let client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
     let oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
@@ -425,7 +492,7 @@ router.post('/client-reports', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: '需要客户画像或一句话' })
     }
     // 配额门 + 计量(共享 demo 经纪豁免)
-    const loggedIn = isLoggedIn(req)
+    const loggedIn = billable(req)
     if (loggedIn) {
       const q = await checkCredits(agentId, 'reports')
       if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
@@ -450,9 +517,9 @@ router.post('/client-reports', async (req: Request, res: Response) => {
 /** Kick off an agent-branded COMPARISON report for a client over hand-picked
  *  projects (2-4). Same async + share_code + /cr/:code page as the proposal,
  *  but kind='compare'. Body: { client_id?, client_name?, project_ids: [] }. */
-router.post('/client-reports/compare', async (req: Request, res: Response) => {
+router.post('/client-reports/compare', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const b = (req.body || {}) as Record<string, unknown>
     const projectIds = Array.isArray(b.project_ids) ? b.project_ids.filter((x) => typeof x === 'string').slice(0, 4) as string[] : []
     if (projectIds.length < 2) return res.status(400).json({ success: false, error: '请选择 2-4 个项目对比' })
@@ -469,7 +536,7 @@ router.post('/client-reports/compare', async (req: Request, res: Response) => {
         profile = { budget: { min: Number(c.rows[0].budget_min) || 0, max: Number(c.rows[0].budget_max) || 0 } }
     }
 
-    const loggedIn = isLoggedIn(req)
+    const loggedIn = billable(req)
     if (loggedIn) {
       const q = await checkCredits(agentId, 'reports')
       if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
@@ -987,9 +1054,9 @@ async function resolveClient(
   }
 }
 
-router.post('/match', async (req: Request, res: Response) => {
+router.post('/match', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const b = (req.body || {}) as Record<string, unknown>
     const rawClient = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
     const rawOneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
@@ -1032,9 +1099,9 @@ router.post('/report', async (req: Request, res: Response) => {
  * share_code/title are auto-generated when omitted (editable afterwards).
  * If one_liner/client provided, AI drafts the config (auto-config); else default.
  */
-router.post('/sessions/create', async (req: Request, res: Response) => {
+router.post('/sessions/create', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const b = (req.body || {}) as Record<string, unknown>
     const projectIds = Array.isArray(b.project_ids) ? (b.project_ids as unknown[]).map(String) : []
     if (projectIds.length < 2) {
@@ -1056,7 +1123,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     const langOverride = ['zh', 'en', 'ar', 'ru'].includes(String(b.language)) ? String(b.language) : undefined
 
     // Quota gate — only for real logged-in agents (the shared demo is exempt).
-    const loggedIn = isLoggedIn(req)
+    const loggedIn = billable(req)
     if (loggedIn) {
       const q = await checkCredits(agentId, 'luna_tours')
       if (!q.allowed) { const e = creditError('luna_tours', q); return res.status(e.status).json(e.body) }
@@ -1231,9 +1298,9 @@ function overlaySummary(ov: OverlayCue[] | undefined, imageById?: Map<string, st
  * 额度在**这里**扣,不在 create 扣:草稿没花语音的钱,不该算他一次。
  * 生成语音是整条链路里最贵、最不可逆的一步 —— 它必须发生在人点头之后。
  */
-router.post('/sessions/:id/render', async (req: Request, res: Response) => {
+router.post('/sessions/:id/render', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const key = req.params.id
     const sres = await pool.query<{ id: string; share_code: string; title: string; status: string }>(
       `SELECT id, share_code, title, status FROM lt_demo_sessions
@@ -1247,7 +1314,7 @@ router.post('/sessions/:id/render', async (req: Request, res: Response) => {
       return res.json({ ok: true, alreadyRendered: true, shareCode: sess.share_code })
     }
 
-    const loggedIn = isLoggedIn(req)
+    const loggedIn = billable(req)
     if (loggedIn) {
       const q = await checkCredits(agentId, 'luna_tours')
       if (!q.allowed) { const e = creditError('luna_tours', q); return res.status(e.status).json(e.body) }
@@ -1302,9 +1369,9 @@ router.post('/sessions/:id/render', async (req: Request, res: Response) => {
  * 成本上安全:generateSessionAudio 是**幂等**的(已有 audio_url 的拍会跳过),
  * 所以确认渲染时不会重复烧;经纪改过的那几拍会自动重生成。
  */
-router.post('/sessions/:id/preview-audio', async (req: Request, res: Response) => {
+router.post('/sessions/:id/preview-audio', requireAgent, async (req: AgentReq, res: Response) => {
   try {
-    const agentId = await currentAgentId(req)
+    const agentId = req.lunaAgentId!
     const sres = await pool.query<{ id: string; share_code: string }>(
       `SELECT id, share_code FROM lt_demo_sessions
         WHERE (id::text=$1 OR share_code=$1) AND agent_id=$2 LIMIT 1`,
@@ -1505,7 +1572,7 @@ router.patch('/sessions/:id/comments/:cid', async (req: Request, res: Response) 
  * version (undo), persist, regenerate ONLY the changed beats' audio (background),
  * and mark the comments applied.
  */
-router.post('/sessions/:id/revise', async (req: Request, res: Response) => {
+router.post('/sessions/:id/revise', requireAgent, async (req: AgentReq, res: Response) => {
   try {
     const sessionId = await resolveSessionId(req.params.id)
     if (!sessionId) return res.status(404).json({ error: 'not found' })

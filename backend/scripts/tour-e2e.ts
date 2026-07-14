@@ -5,8 +5,11 @@
  *   选盘 → 生成草稿(不烧语音) → 草稿对客户 404 → 读大纲时间线 → 内容体检
  *   → 模拟经纪改文案 → 确认渲染 → 对客户 200 → 语音生成 → 清理
  *
- * ⚠️ **不带 Authorization → 落到 demo 经纪 → 不扣任何额度**（isLoggedIn=false）。
- *    所以这个脚本可以随便跑。
+ * ⚠️ 走 **`x-luna-internal` 内部 token**（env: LUNA_INTERNAL_TOKEN）→ demo 经纪 → 不扣额度。
+ *
+ *    之前它靠的是「不带 Authorization 就跳过配额」这个**安全漏洞** —— 而那个漏洞让
+ *    开放互联网上的任何人都能无限烧我们的 Gemini + TTS。**不能用漏洞来做测试。**
+ *    漏洞已堵（requireAgent），跑分改走正当的内部通道。
  *
  * 真正的价值不在「接口通不通」，在**内容体检**：那些反复咬人的问题
  *（念原始数字、推销售罄的房、把「没数据」说成「得分为 0」、户型全程缺席、
@@ -34,10 +37,16 @@ const bad = (name: string, detail?: string) => checks.push({ ok: false, name, de
 const expect = (cond: boolean, name: string, detail?: string) =>
   cond ? ok(name, detail) : bad(name, detail)
 
+const INTERNAL = process.env.LUNA_INTERNAL_TOKEN || ''
+
 async function api(path: string, init?: RequestInit): Promise<{ status: number; body: any }> {
   const r = await fetch(path, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(INTERNAL ? { 'x-luna-internal': INTERNAL } : {}),
+      ...(init?.headers || {}),
+    },
   })
   const text = await r.text()
   let body: any = null
@@ -199,6 +208,23 @@ function auditScript(script: any, picked: { id: string; name: string; units: num
 // ── 主流程 ──────────────────────────────────────────────────────────────────
 async function main() {
   console.log(`\n🎬 Luna Tour 端到端跑分  →  ${BASE}\n${'─'.repeat(66)}`)
+
+  if (!INTERNAL) throw new Error('缺 LUNA_INTERNAL_TOKEN（在 backend/.env 里）')
+
+  /**
+   * ⓪ **匿名不能烧钱。**
+   *
+   * 曾经的漏洞:`currentAgentId()` 没 token 时回落到共享 demo 经纪,而配额门是
+   * `if (isLoggedIn)` —— 不带 Authorization 就**完全跳过配额**,开放互联网上的
+   * 任何人都能无限烧我们的 Gemini + TTS。**钱在漏。**
+   * 这条断言就是那个洞的墓碑 —— 它再也不能悄悄打开。
+   */
+  const anon = await fetch(`${AGENT}/sessions/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },   // 故意不带任何凭证
+    body: JSON.stringify({ project_ids: ['x', 'y'], client: {} }),
+  })
+  expect(anon.status === 401, '⓪ 匿名请求烧不了钱（401）', `实际 ${anon.status}`)
 
   const picked = await pickProjects()
   if (picked.length < 2) throw new Error('可用项目不足 2 个')
