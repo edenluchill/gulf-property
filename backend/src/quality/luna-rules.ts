@@ -90,6 +90,34 @@ export const LUNA_RULES: Rule<LunaSession>[] = [
     },
   },
   {
+    id: 'absurd_price_spoken',
+    severity: 'critical',
+    why:
+      '**Luna 对客户报了一个荒谬的价格。**\n' +
+      '实测(2026-07-13):她说「Al Safouh First 中位价约 **2321万**迪拉姆」——\n' +
+      '真实值是 232 万。根因:`Math.round(aed / 1000)` 后面跟着「万」' +
+      '(**该除 10000**),全站 10 处,**每一个金额都放大了 10 倍**;\n' +
+      '连客户自己说的预算也是:客户说「300万」,她复述成「3000万内」。\n' +
+      '已修(voice-assistant-tools 的 wan() helper)。这条规则留着当哨兵。\n' +
+      '判据:迪拜公寓中位价现实区间约 50万–800万 AED。她嘴里出现「1000万以上的中位价」' +
+      '几乎一定是单位算错了(真正的豪宅报价会带项目名,不会是"中位价")。',
+    check: (s) => {
+      const bad: string[] = []
+      for (const m of aiMsgs(s)) {
+        const text = String(m.content || '')
+        // 「中位价约 2321万」「中位约 2600万」
+        const re = /中位[价]?\s*(?:约|为|确实为)?\s*([\d,]+)\s*万/g
+        let hit: RegExpExecArray | null
+        while ((hit = re.exec(text))) {
+          const wan = Number(hit[1].replace(/,/g, ''))
+          if (Number.isFinite(wan) && wan >= 1000) bad.push(`${wan}万`)   // ≥1000万 的"中位价"
+        }
+      }
+      return bad.length === 0 ? null
+        : `Luna 报了荒谬的中位价:${bad.slice(0, 3).join('、')}(迪拜公寓中位价现实区间 50–800万,多半是单位算错了)`
+    },
+  },
+  {
     id: 'ai_apologized',
     severity: 'major',
     why: 'Luna 的人设是**顾问**,不是客服。系统提示词里明确禁了「抱歉/对不起/无法」,出现说明模型没守住 —— 而且通常意味着她被问倒了。',

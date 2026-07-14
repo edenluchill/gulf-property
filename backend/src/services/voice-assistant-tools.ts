@@ -8,6 +8,31 @@ import { counter, histogram } from '../telemetry'
 
 const API_BASE = `http://localhost:${process.env.PORT || 3000}`
 
+/**
+ * AED 绝对值 → 中文「万」。
+ *
+ * 🔴 **是 / 10000,不是 / 1000。** 全站曾有 **10 处**写成 `/ 1000` 然后说「万」——
+ * 于是 Luna 对客户播报的**每一个金额都放大了 10 倍**:
+ *   · 232 万的区域中位价 → 她说「中位约 **2321万**」
+ *   · 客户说「我预算 300 万」→ 她复述成「预算 **3000万**内」
+ * (2026-07-13 由质量遥测的 ai_apologized 线索顺藤摸出来的。)
+ *
+ * 金额一律走这个函数,别再手写除法。
+ */
+function wan(aed: number | null | undefined): string {
+  const n = Number(aed)
+  if (!Number.isFinite(n)) return '—'
+  return String(Math.round(n / 10000))
+}
+
+/** AED → 「千」(小额:月供、房贷登记费)。 */
+function qian(aed: number | null | undefined): string {
+  const n = Number(aed)
+  if (!Number.isFinite(n)) return '—'
+  return String(Math.round(n / 1000))
+}
+
+
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`)
   if (!res.ok) throw new Error(`API ${path}: ${res.status}`)
@@ -754,14 +779,14 @@ async function executeToolInner(
       const data = await apiFetch<{ results: any[] }>(`/api/ai/analytics/recommend?${qs.toString()}`)
       const rows = data.results || []
       if (!rows.length) {
-        return { result: { areas: [] }, summary: `预算 ${Math.round(params.budget / 1000)}万 AED 内暂时没有足够数据的区域,可以放宽预算或换户型。` }
+        return { result: { areas: [] }, summary: `预算 ${wan(params.budget)}万 AED 内暂时没有足够数据的区域,可以放宽预算或换户型。` }
       }
       const top = rows.slice(0, 3).map((r: any) =>
-        `${r.area_name}(中位约 ${Math.round(r.median_price_aed / 1000)}万,毛收益 ${r.gross_yield_pct ?? '—'}%,3年涨 ${r.cagr_3y_pct ?? '—'}%)`
+        `${r.area_name}(中位约 ${wan(r.median_price_aed)}万,毛收益 ${r.gross_yield_pct ?? '—'}%,3年涨 ${r.cagr_3y_pct ?? '—'}%)`
       ).join(';')
       return {
         result: { areas: rows },
-        summary: `预算 ${Math.round(params.budget / 1000)}万内,按${params.goal || '综合'}推荐:${top}。(基于真实成交,指示性参考)`,
+        summary: `预算 ${wan(params.budget)}万内,按${params.goal || '综合'}推荐:${top}。(基于真实成交,指示性参考)`,
         mapAction: { type: 'highlight_areas', areas: rows.map((r: any) => r.area_name) }
       }
     }
@@ -779,7 +804,7 @@ async function executeToolInner(
       const p = d.projection_5y || {}
       return {
         result: d,
-        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位价约 ${Math.round(d.median_price_aed / 1000)}万 AED,毛租金收益 ${d.gross_yield_pct ?? '—'}%,近3年年化 ${d.cagr_3y_pct ?? '—'}%。指示性5年总回报约 ${p.total_roi_pct ?? '—'}%,回本约 ${p.payback_years ?? '—'} 年(样本置信度 ${d.sample?.confidence};指示性,非保证)。`
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位价约 ${wan(d.median_price_aed)}万 AED,毛租金收益 ${d.gross_yield_pct ?? '—'}%,近3年年化 ${d.cagr_3y_pct ?? '—'}%。指示性5年总回报约 ${p.total_roi_pct ?? '—'}%,回本约 ${p.payback_years ?? '—'} 年(样本置信度 ${d.sample?.confidence};指示性,非保证)。`
       }
     }
 
@@ -810,7 +835,7 @@ async function executeToolInner(
       const vsCity = c.vs_city_pct >= 0 ? `高${c.vs_city_pct}%` : `低${Math.abs(c.vs_city_pct)}%`
       return {
         result: d,
-        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位 ${Math.round(pr.median_price_aed / 1000)}万 AED(${pr.median_price_sqm}/㎡,比全城${vsCity}),近3年年化 ${t.cagr_3y_pct}%、同比 ${t.yoy_pct}%(${t.direction}),毛收益 ${y.gross_yield_pct ?? '—'}%,指示性5年ROI ${p.total_roi_pct}%、回本 ${p.payback_years ?? '—'}年,流动性${d.liquidity.level}(置信度${d.sample.confidence})。净收益/供给/人口数据暂缺。`
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位 ${wan(pr.median_price_aed)}万 AED(${pr.median_price_sqm}/㎡,比全城${vsCity}),近3年年化 ${t.cagr_3y_pct}%、同比 ${t.yoy_pct}%(${t.direction}),毛收益 ${y.gross_yield_pct ?? '—'}%,指示性5年ROI ${p.total_roi_pct}%、回本 ${p.payback_years ?? '—'}年,流动性${d.liquidity.level}(置信度${d.sample.confidence})。净收益/供给/人口数据暂缺。`
       }
     }
 
@@ -822,10 +847,10 @@ async function executeToolInner(
       if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
       const d = await apiFetch<any>(`/api/ai/analytics/affordability?${qs.toString()}`)
       const areas = (d.affordable_areas || []).slice(0, 3)
-        .map((a: any) => `${a.area_name}(中位${Math.round(a.median_price_aed / 1000)}万,收益${a.gross_yield_pct ?? '—'}%)`).join(';')
+        .map((a: any) => `${a.area_name}(中位${wan(a.median_price_aed)}万,收益${a.gross_yield_pct ?? '—'}%)`).join(';')
       return {
         result: d,
-        summary: `按你的条件大约能买到 ${Math.round(d.max_price_aed / 1000)}万 AED(首付约${Math.round(d.down_payment_aed / 1000)}万${d.monthly_payment_aed ? `,月供约${Math.round(d.monthly_payment_aed / 1000)}千` : ''})。预算内可考虑:${areas || '暂无足够数据的区域'}。(假设:首付${d.assumptions.down_pct * 100}%、利率${d.assumptions.rate * 100}%、${d.assumptions.years}年)`,
+        summary: `按你的条件大约能买到 ${wan(d.max_price_aed)}万 AED(首付约${wan(d.down_payment_aed)}万${d.monthly_payment_aed ? `,月供约${qian(d.monthly_payment_aed)}千` : ''})。预算内可考虑:${areas || '暂无足够数据的区域'}。(假设:首付${d.assumptions.down_pct * 100}%、利率${d.assumptions.rate * 100}%、${d.assumptions.years}年)`,
         mapAction: d.affordable_areas?.length ? { type: 'highlight_areas', areas: d.affordable_areas.map((a: any) => a.area_name) } : undefined
       }
     }
@@ -838,7 +863,7 @@ async function executeToolInner(
       const dir = data.premium_pct >= 0 ? `高 ${data.premium_pct}%` : `低 ${Math.abs(data.premium_pct)}%`
       return {
         result: data,
-        summary: `${data.project_name}(${data.bedrooms}居)报价约 ${Math.round(data.asking_price_aed / 1000)}万,比 ${data.area} ${data.segment_used === 'offplan' ? '期房成交中位' : '成交中位'} ${Math.round(data.area_median_aed / 1000)}万${dir}。片区收益 ${data.area_yield_pct ?? '—'}%、3年涨 ${data.area_cagr_pct ?? '—'}%(置信度${data.confidence})。`
+        summary: `${data.project_name}(${data.bedrooms}居)报价约 ${wan(data.asking_price_aed)}万,比 ${data.area} ${data.segment_used === 'offplan' ? '期房成交中位' : '成交中位'} ${wan(data.area_median_aed)}万${dir}。片区收益 ${data.area_yield_pct ?? '—'}%、3年涨 ${data.area_cagr_pct ?? '—'}%(置信度${data.confidence})。`
       }
     }
 
@@ -847,7 +872,7 @@ async function executeToolInner(
       const c = data.costs
       return {
         result: data,
-        summary: `买 ${Math.round(data.price_aed / 1000)}万的房,一次性费用约 ${Math.round(data.total_fees_aed / 1000)}万(${data.total_fees_pct}%):过户费 ${Math.round(c.dld_transfer_4pct / 1000)}万、中介 ${Math.round(c.agent_2pct / 1000)}万${c.mortgage_registration ? `、房贷登记 ${Math.round(c.mortgage_registration / 1000)}千` : ''}。连房价共约 ${Math.round(data.all_in_aed / 1000)}万。`
+        summary: `买 ${wan(data.price_aed)}万的房,一次性费用约 ${wan(data.total_fees_aed)}万(${data.total_fees_pct}%):过户费 ${wan(c.dld_transfer_4pct)}万、中介 ${wan(c.agent_2pct)}万${c.mortgage_registration ? `、房贷登记 ${qian(c.mortgage_registration)}千` : ''}。连房价共约 ${wan(data.all_in_aed)}万。`
       }
     }
 
@@ -861,7 +886,7 @@ async function executeToolInner(
       if (data.error) return { result: data, summary: `${params.area} 数据不足,暂时算不了租 vs 买。` }
       return {
         result: data,
-        summary: `${data.area} ${data.years}年:买(净成本约 ${Math.round(data.buy_net_cost_aed / 1000)}万,已计增值)vs 租(共约 ${Math.round(data.rent_total_aed / 1000)}万)→ 更划算:${data.verdict === 'buy' ? '买' : '租'}。(指示性,未计房贷利息/物业费)`
+        summary: `${data.area} ${data.years}年:买(净成本约 ${wan(data.buy_net_cost_aed)}万,已计增值)vs 租(共约 ${wan(data.rent_total_aed)}万)→ 更划算:${data.verdict === 'buy' ? '买' : '租'}。(指示性,未计房贷利息/物业费)`
       }
     }
 
