@@ -10,7 +10,7 @@
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
-import { CheckCircle, AlertTriangle, XCircle, Loader2, MapPin } from 'lucide-react'
+import { CheckCircle, AlertTriangle, XCircle, Loader2, MapPin, Tag } from 'lucide-react'
 
 export interface ClientReadiness {
   missingProjectFields: string[]
@@ -18,6 +18,10 @@ export interface ClientReadiness {
   warningUnits: { name: string; issues: string[] }[]
   unitsCount: number
   submittable: boolean
+  /** 有价格的户型数(0 = 一个都没有)。 */
+  unitsWithPrice?: number
+  /** 🔴「一个价格都没有」的专门提醒 —— 见后端 submit-readiness.ts 的长注释。 */
+  priceWarning?: string
 }
 
 interface SubmitReviewDialogProps {
@@ -91,6 +95,27 @@ export function SubmitReviewDialog({
             </div>
           )}
 
+          {/*
+            🔴 一个价格都没有 —— **项目级**的洞,必须单独喊。
+            之前「缺少价格」只是每个户型下面一个小 warning:31 个户型全缺时,
+            经纪看到的是 31 个小标记,根本意识不到「客户会问价格而我答不上来」。
+
+            实测(2026-07-13,追到永久归档的源 PDF):这**不是抽取器的 bug** ——
+            迪拜楼书本来就不印价格,价格是单独一张 price list。所以这里要做的
+            不是报错,是**告诉他补传什么**。
+          */}
+          {readiness.priceWarning && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
+              <div className="flex items-center gap-2 font-semibold text-amber-900">
+                <Tag className="h-4 w-4" />
+                {readiness.unitsWithPrice === 0 ? '这份楼书里没有价格' : '价格不完整'}
+              </div>
+              <p className="mt-1 whitespace-pre-line pl-6 leading-relaxed text-amber-800">
+                {readiness.priceWarning}
+              </p>
+            </div>
+          )}
+
           {/* Blocked units */}
           {readiness.blockedUnits.length > 0 && (
             <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-sm space-y-2">
@@ -138,8 +163,9 @@ export function SubmitReviewDialog({
             </div>
           )}
 
-          {/* All clear */}
-          {readiness.submittable && readiness.warningUnits.length === 0 && duplicateNames.length === 0 && (
+          {/* All clear —— 有价格警告时就不能说"一切就绪"(那是自相矛盾) */}
+          {readiness.submittable && readiness.warningUnits.length === 0
+            && duplicateNames.length === 0 && !readiness.priceWarning && (
             <div className="bg-green-50 border border-green-300 rounded-lg p-4 text-sm flex items-center gap-2 text-green-800 font-semibold">
               <CheckCircle className="h-4 w-4" />
               {t('readiness.ready')}

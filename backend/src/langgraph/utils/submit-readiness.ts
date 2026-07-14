@@ -19,6 +19,27 @@ export interface SubmitReadiness {
   blockedUnits: UnitReadiness[];
   warningUnits: UnitReadiness[];
   message?: string;     // actionable guidance when not submittable
+  /**
+   * 有价格的户型数。**0 = 整个项目一个价格都没有** —— 这不是"某个户型不完整",
+   * 是一个项目级的洞,要单独喊出来(见 priceWarning)。
+   */
+  unitsWithPrice: number;
+  /**
+   * 🔴 「一个价格都没有」的专门提醒。
+   *
+   * 2026-07-13 质量遥测挖出来的真问题:19 个 job 抽出 12/13/31/47 个户型,
+   * **价格 0 个**。而客户在 Luna 对话里问「What's the starting price for?」,
+   * **问了两遍**(她答不上来)。
+   *
+   * 追到源 PDF(永久归档)实测确认:**不是抽取器的 bug** —— 迪拜楼书本来就不印价格
+   * (Binghatti Wraith 的 44 页 brochure + 户型图,一个价格都没有;payment plan
+   * 也只有分期比例,没有绝对价格)。价格是**单独一张 price list**,经纪按需给。
+   *
+   * 所以修法不是改抽取器,是**在这里告诉经纪:客户会问价格,你得补传价格表**。
+   * 之前「缺少价格」只是每个户型下面一个小 warning,31 个户型全缺时,
+   * 经纪根本意识不到这是个项目级的洞。
+   */
+  priceWarning?: string;
 }
 
 export function computeSubmitReadiness(data: any): SubmitReadiness {
@@ -65,5 +86,24 @@ export function computeSubmitReadiness(data: any): SubmitReadiness {
     message = `项目缺少必填字段: ${missingProjectFields.join(', ')}。请补全后提交。`;
   }
 
-  return { submittable, missingProjectFields, unitsCount: units.length, blockedUnits, warningUnits, message };
+  // 🔴 一个价格都没有 —— 项目级的洞,单独喊(不是 31 个小 warning)
+  const unitsWithPrice = units.filter((u) => Number(u?.price) > 0).length;
+  let priceWarning: string | undefined;
+  if (units.length > 0 && unitsWithPrice === 0) {
+    priceWarning =
+      `这 ${units.length} 个户型**一个价格都没有** —— 这份楼书里本来就不印价格(迪拜楼书的常态,` +
+      `价格通常是单独一张 price list)。\n` +
+      `⚠️ 客户一定会问价格。没有价格,Luna 答不上来、报价单也生成不了。\n` +
+      `👉 请把**价格表 / payment plan(带金额的那种)**也一起传上来,重新处理即可。`;
+  } else if (units.length > 0 && unitsWithPrice < units.length / 2) {
+    priceWarning =
+      `只有 ${unitsWithPrice}/${units.length} 个户型有价格。缺价格的户型,客户问起来会答不上来 —— ` +
+      `建议补传完整的价格表。`;
+  }
+
+  return {
+    submittable, missingProjectFields, unitsCount: units.length,
+    blockedUnits, warningUnits, message,
+    unitsWithPrice, priceWarning,
+  };
 }

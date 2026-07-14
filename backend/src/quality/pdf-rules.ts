@@ -58,12 +58,17 @@ export const PDF_RULES: Rule<Building>[] = [
   {
     id: 'units_have_price',
     severity: 'major',
-    why: '户型没价格 = 客户最想知道的那个数没了。填充率低说明价格页没被正确识别。',
+    why: '户型没价格 = **客户最想知道的那个数没了**(实测:客户在 Luna 里问「starting price」问了两遍,她答不上来)。\n' +
+      '⚠️ 但这**通常不是抽取器的 bug** —— 2026-07-13 追到源 PDF 实测确认:迪拜楼书本来就不印价格' +
+      '(Binghatti Wraith 的 44 页 brochure + 户型图,一个价格都没有),价格是**单独一张 price list**。\n' +
+      '所以这条规则失败时,先看经纪**有没有传价格表**,而不是去改 pricing-extractor。' +
+      '修法在上传环节(submit-readiness 的 priceWarning)。',
     check: (b) => {
       const units = b?.units || []
       if (!units.length) return null   // has_units 已经报过了
       const rate = fillRate(units, 'price')
-      return rate >= 60 ? null : `只有 ${rate}% 的户型有价格(${units.length} 个户型)`
+      return rate >= 60 ? null
+        : `只有 ${rate}% 的户型有价格(${units.length} 个户型)—— 多半是没传价格表`
     },
   },
   {
