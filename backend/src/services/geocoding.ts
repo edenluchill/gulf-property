@@ -1,3 +1,4 @@
+import { counter } from '../telemetry'
 /**
  * Google Maps Geocoding Service
  *
@@ -59,11 +60,16 @@ export async function geocodeAddress(
     const data = await response.json()
 
     if (data.status === 'ZERO_RESULTS') {
+      // 地理编码失败 = **项目在地图上没有位置**(或落到错的地方)。楼书里的地址千奇百怪,
+      // 这个失败率就是数据质量的直接指标 —— 之前只有 console。
+      counter('geocode', { result: 'zero_results' }).inc()
       console.log(`   ⚠️  No geocoding results for: "${searchQuery}"`)
       return null
     }
 
     if (data.status !== 'OK') {
+      // status 是 Google 的固定枚举(OVER_QUERY_LIMIT / REQUEST_DENIED / …),低基数,可当 label
+      counter('geocode', { result: String(data.status).slice(0, 24) }).inc()
       console.error(`   ✗ Geocoding API error: ${data.status}`, data.error_message)
       return null
     }
@@ -75,10 +81,12 @@ export async function geocodeAddress(
       formattedAddress: result.formatted_address
     }
 
+    counter('geocode', { result: 'ok' }).inc()
     console.log(`   ✓ Geocoded: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`)
     return coords
 
   } catch (error) {
+    counter('geocode', { result: 'error' }).inc()
     console.error('   ✗ Geocoding error:', error)
     return null
   }

@@ -8,11 +8,7 @@
  * best-effort:任何失败(无 key / 模型报错 / 空输出)返回 null,绝不抛进请求路径。
  * 范式同 services/collabReport.ts / luna-tour/auto-report.ts。
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from './ai/models'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
+import { callGemini } from './ai/gemini'
 
 interface TranscriptMessage { role?: string; content?: string }
 interface TranscriptToolCall { name?: string; params?: unknown; result?: unknown; error?: string }
@@ -100,18 +96,16 @@ ${body}
 
 只输出这段摘要本身,不要标题、不要编号、不要 markdown、不要多余解释。`
 
-  for (const model of MODELS) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: { temperature: 0.4 },
-      })
-      const text = (resp.text ?? '').trim()
-      if (text) return text.slice(0, 800)
-    } catch {
-      /* try next model */
-    }
+  try {
+    const { text } = await callGemini({
+      task: 'luna-summary',
+      contents: prompt,
+      config: { temperature: 0.4 },
+    })
+    const out = text.trim()
+    if (out) return out.slice(0, 800)
+  } catch {
+    return null
   }
   return null
 }

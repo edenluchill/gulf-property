@@ -17,6 +17,7 @@
  * 永不因为计量本身搞坏地图:任何 DB/内部错误 → 放行(fail-open)。
  */
 import { Request, Response, NextFunction } from 'express'
+import { counter } from '../telemetry'
 import { createHash } from 'crypto'
 import pool from '../db/pool'
 import { clientIp } from './rateLimit'
@@ -254,6 +255,9 @@ export async function mapMeter(req: Request, res: Response, next: NextFunction):
   try {
     const v = await meter(req, { record: true })
     if (!v.metered || !v.exhausted) return next()
+    // 撞到地图限时门 = 一个**想用但用不了**的人。这是转化漏斗的入口信号,
+    // 不只是一个 429(requiresPlan 区分:未登录 vs 登录了但没套餐)。
+    counter('map.quota.exhausted', { requiresPlan: v.requiresPlan ? 'yes' : 'no' }).inc()
     res.status(429).json({
       success: false,
       code: 'map_quota_exhausted',
@@ -265,6 +269,9 @@ export async function mapMeter(req: Request, res: Response, next: NextFunction):
       limitMinutes: LIMIT_MIN,
     })
   } catch (err) {
+    // fail-open 是对的(计量出错绝不拖垮地图),但**必须可见** ——
+    // 否则计量悄悄挂掉 = 所有人无限免费用地图,而我们毫不知情。
+    counter('map.meter.failed').inc()
     console.error('[mapMeter] fail-open:', err)
     next() // 计量出错绝不拖垮地图
   }

@@ -1,3 +1,6 @@
+import { runAudit } from '../quality'
+import { LUNA_RULES, type LunaSession } from '../quality/luna-rules'
+import { counter } from '../telemetry'
 /**
  * Behaviour event collection — public ingest endpoint.
  *
@@ -24,12 +27,16 @@ router.post('/', optionalAuth, (req: Request, res: Response) => {
   // Accept either { events: [...] } (batch) or a single event object.
   const rawEvents = Array.isArray(body.events) ? body.events : [body]
 
+  counter('events.received').inc(rawEvents.length)
   void ingestEvents(rawEvents, {
     userEmail: req.user?.email ?? null,
     userId: req.user?.id ?? null,
     ua: (req.headers['user-agent'] as string || '').slice(0, 300) || null,
     ipHash: hashIp(req),
   }).catch((err) => {
+    // 行为采集是**所有客户分析的地基**(dashboard/漏斗/lead 引擎全靠它)。
+    // 它悄悄挂掉 = 数据静静地少了一块,而所有报表照样正常显示 —— 最难发现的那种坏。
+    counter('events.ingest.failed').inc()
     console.error('[events] ingest failed (ignored):', err instanceof Error ? err.message : err)
   })
 })
@@ -62,6 +69,17 @@ router.post('/voice-session', optionalAuth, (req: Request, res: Response) => {
     const s = JSON.stringify(session)
     transcript = s.length <= 1_000_000 ? s : JSON.stringify({ sessionId, truncated: true })
   } catch { /* keep '{}' */ }
+
+  /**
+   * 对话质检 —— 一场对话的质量不是「有没有报错」,是**客户问的东西 Luna 答上了没有**。
+   * 规则从真实 transcript 里找行为痕迹(客户重复提问 = 第一次没答上;工具返回空 =
+   * 她拿不到数据只能瞎聊)。落 quality_samples 带 session_id,**可回溯到原对话**。
+   */
+  void runAudit('luna_session', sessionId, session as LunaSession, LUNA_RULES, {
+    turns: messages.length,
+    toolCalls: toolCalls.length,
+    durationMs: durationMs ?? 0,
+  }).catch((e) => console.error('[quality] luna audit failed:', e))
 
   void pool
     .query(

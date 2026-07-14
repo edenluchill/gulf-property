@@ -13,6 +13,7 @@
  */
 
 import { join } from 'path';
+import { counter, histogram } from '../telemetry';
 import { createOutputStructure } from '../utils/pdf/file-manager';
 import { progressEmitter } from '../services/progress-emitter';
 import { splitAllPdfsIntoChunks } from './strategies/chunking';
@@ -37,16 +38,41 @@ import { resolveCanonicalArea } from './utils/canonical-area';
 const MEMORY_THRESHOLD_MB = 3500; // Warn when heap exceeds this
 const MEMORY_CRITICAL_MB = 4500;  // Abort job when heap exceeds this
 
+/**
+ * 分阶段计时 —— 之前**只有一个 job 总耗时**,一个 job 跑 2.6 分钟,慢在哪一步完全不知道。
+ * stage 名是固定枚举(低基数),jobId 绝不进 label。
+ */
+function makeStageTimer() {
+  let name = 'text_layer';
+  let at = Date.now();
+  return {
+    /** 结束当前阶段、开始下一个。 */
+    next(nextName: string) {
+      histogram('pdf.stage.ms', { stage: name }).observe(Date.now() - at);
+      name = nextName;
+      at = Date.now();
+    },
+    /** 收尾最后一个阶段。 */
+    done() {
+      histogram('pdf.stage.ms', { stage: name }).observe(Date.now() - at);
+    },
+  };
+}
+
 function checkMemory(jobId: string, stage: string): { ok: boolean; heapUsedMB: number } {
   const usage = process.memoryUsage();
   const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
   const rssMB = Math.round(usage.rss / 1024 / 1024);
 
   if (heapUsedMB > MEMORY_THRESHOLD_MB) {
+    // 内存告急 —— worker 被 OOM kill 的话,这个 job 会**永久卡在 processing**,
+    // 不重试、客户的楼书就没了。这个计数是 OOM 的前兆信号。
+    counter('pdf.memory.high').inc();
     console.warn(`⚠️  [${jobId}] High memory at ${stage}: ${heapUsedMB}MB heap, ${rssMB}MB RSS`);
   }
 
   if (heapUsedMB > MEMORY_CRITICAL_MB) {
+    counter('pdf.memory.critical').inc();
     console.error(`🚨 [${jobId}] CRITICAL memory at ${stage}: ${heapUsedMB}MB - triggering GC and aborting`);
     // Try to free memory
     if (global.gc) {
@@ -149,6 +175,9 @@ export async function executePdfWorkflow(
       throw new MemoryExceededError(initialMem.heapUsedMB, 'workflow-start');
     }
     
+    // 分阶段计时:之前只有一个 job 总耗时(约 2.6 分钟),慢在哪一步完全不知道
+    const stages = makeStageTimer();
+
     // ============================================================
     // STEP 0: Calculate PDF hashes and check cache
     // ============================================================
@@ -239,6 +268,7 @@ export async function executePdfWorkflow(
     const outputStructure = createOutputStructure(outputBaseDir, jobId);
     
     // ============================================================
+    stages.next('imagegen');
     // STEP 0: Generate and upload ALL PDF images upfront (or reconstruct from cache)
     // ============================================================
     let imageBatches: PdfImageBatch[] = [];
@@ -391,6 +421,7 @@ export async function executePdfWorkflow(
     });
 
     // ============================================================
+    stages.next('chunking');
     // STEP 1: Split all PDFs into chunks
     // ============================================================
     progressEmitter.emit(jobId, {
@@ -430,6 +461,7 @@ export async function executePdfWorkflow(
     });
 
     // ============================================================
+    stages.next('ai_batch');
     // STEP 2: Process chunks in batches and aggregate data
     // ============================================================
     // Memory check before batch processing
@@ -508,6 +540,7 @@ export async function executePdfWorkflow(
     chunkAnalyses.forEach(chunk => resultRecorder.recordChunk(chunk));
 
     // ============================================================
+    stages.next('reduce');
     // STEP 3: 最终数据已在PageRegistry中，直接使用
     // ============================================================
     console.log(`\n📊 Processing complete. Using smart assignment result...`);
@@ -535,6 +568,7 @@ export async function executePdfWorkflow(
     }
 
     // ============================================================
+    stages.next('geocode');
     // STEP 3.5: Auto-geocode address to get coordinates
     // ============================================================
     if (finalData.address && !finalData.latitude && !finalData.longitude) {
@@ -596,6 +630,7 @@ export async function executePdfWorkflow(
     console.log(`   Images: ${finalData.images.projectImages.length} project, ${finalData.images.floorPlanImages.length} floor plans`);
 
     // ============================================================
+    stages.next('report');
     // STEP 4: Save detailed analysis report
     // ============================================================
     const analysisReportPath = resultRecorder.saveFullReport(
@@ -629,6 +664,12 @@ export async function executePdfWorkflow(
         floorPlanImages: finalData.images?.floorPlanImages?.length || 0,
       },
     });
+
+    stages.done();
+    histogram('pdf.pages').observe(totalPages);
+    histogram('pdf.chunks').observe(totalChunks);
+    // 一份楼书解析出的东西为零 = 对客户来说这次上传白费了(哪怕 job 是"成功"的)
+    if ((finalData.units?.length || 0) === 0) counter('pdf.result.no_units').inc();
 
     return {
       success: allErrors.length === 0,

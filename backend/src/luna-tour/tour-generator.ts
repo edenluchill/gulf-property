@@ -14,7 +14,7 @@
  *      input, total within ±20% of target). On failure, feed the errors back
  *      to the model and retry once.
  */
-import { GoogleGenAI } from '@google/genai'
+import { callGemini } from '../services/ai/gemini'
 import { FLASH, FLASH_LITE } from '../services/ai/models'
 import {
   TourScript,
@@ -30,8 +30,6 @@ const PRIMARY_MODEL = FLASH    // GA 旗舰(2026-05)。gemini-3-flash 是 404,3-
 const FALLBACK_MODEL = FLASH_LITE  // 别掉回 2.5(全系 2026-10-16 关停)
 
 const TOTAL_DURATION_TOLERANCE = 0.2 // ±20% of target_seconds
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
 // ---------------------------------------------------------------------------
 // Prompt building
@@ -351,28 +349,24 @@ function stripJsonFence(text: string): string {
 }
 
 async function callModel(prompt: string): Promise<unknown> {
-  let lastErr: unknown
-  for (const model of [PRIMARY_MODEL, FALLBACK_MODEL]) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        },
-      })
-      const text = resp.text ?? ''
-      if (!text.trim()) throw new Error('empty response')
-      return JSON.parse(stripJsonFence(text))
-    } catch (err) {
-      lastErr = err
-    }
+  try {
+    const { text } = await callGemini({
+      task: 'tour-generator',
+      models: [PRIMARY_MODEL, FALLBACK_MODEL],
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.7,
+      },
+    })
+    if (!text.trim()) throw new Error('empty response')
+    return JSON.parse(stripJsonFence(text))
+  } catch (err) {
+    throw new Error(
+      `Gemini generation failed for both ${PRIMARY_MODEL} and ${FALLBACK_MODEL}: ` +
+        (err instanceof Error ? err.message : String(err))
+    )
   }
-  throw new Error(
-    `Gemini generation failed for both ${PRIMARY_MODEL} and ${FALLBACK_MODEL}: ` +
-      (lastErr instanceof Error ? lastErr.message : String(lastErr))
-  )
 }
 
 // ---------------------------------------------------------------------------

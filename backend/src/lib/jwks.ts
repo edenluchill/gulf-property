@@ -1,3 +1,4 @@
+import { counter } from '../telemetry'
 /**
  * jwks — Supabase 的 JWT 签名公钥,缓存在内存里,供本地验签用。
  *
@@ -46,11 +47,20 @@ async function fetchJwks(): Promise<void> {
   lastFetchAt = Date.now()
 }
 
-/** 拉一次公钥;并发调用合并成一次。失败只记日志——验签退回远程,不影响可用性。 */
+/**
+ * 拉一次公钥;并发调用合并成一次。失败只记日志 —— 验签退回远程,不影响可用性。
+ *
+ * 但「退回远程」意味着**每个请求都要往 Supabase 打一次网络调用**(本来是零远程调用) ——
+ * 悄悄地拖慢所有鉴权请求。所以失败必须可见,不能只躺在日志里。
+ */
 export async function refreshJwks(): Promise<void> {
   if (inflight) return inflight
   inflight = fetchJwks()
-    .catch((e) => { console.error('[jwks] refresh failed:', e instanceof Error ? e.message : e) })
+    .then(() => { counter('auth.jwks.refresh', { result: 'ok' }).inc() })
+    .catch((e) => {
+      counter('auth.jwks.refresh', { result: 'failed' }).inc()
+      console.error('[jwks] refresh failed:', e instanceof Error ? e.message : e)
+    })
     .finally(() => { inflight = null })
   return inflight
 }

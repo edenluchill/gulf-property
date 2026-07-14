@@ -20,13 +20,11 @@
 
 import { Router } from 'express'
 import { FLASH } from '../services/ai/models'
-import { GoogleGenAI } from '@google/genai'
+import { callGemini } from '../services/ai/gemini'
 import { executeTool } from '../services/voice-assistant-tools'
 import { convertToolsForSDK } from '../services/voice-assistant'
 
 const router = Router()
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODEL = FLASH
 
 // Valid tool names (for validating the classifier's choice).
 const TOOL_NAMES = new Set(convertToolsForSDK().map((d: any) => d.name))
@@ -84,12 +82,17 @@ function phrasePrompt(language: string): string {
     : 'You are Luna, a Dubai property assistant. Using the TOOL RESULT, answer the user concisely in English (2-4 sentences): bedrooms/size/price/yield. If 0 results, suggest nearby areas. No greeting, no self-intro.'
 }
 
-async function genText(model: string, contents: any, extra: any = {}): Promise<string> {
+async function genText(contents: any, extra: any = {}): Promise<string> {
   // NOTE: no thinkingBudget:0 here. These are plain text steps (no tools), and
   // thinking-OFF measurably degrades the server model's instruction-following /
   // classification. Let it think.
-  const resp = await ai.models.generateContent({ model, contents, config: { ...extra } })
-  return (resp.text ?? '').trim()
+  const { text } = await callGemini({
+    task: 'voice-text',
+    models: [FLASH],   // 这里从来只用旗舰,不退到 lite —— 分类质量比省钱重要
+    contents,
+    config: { ...extra },
+  })
+  return text.trim()
 }
 
 /** Parse the classifier's JSON defensively (strip code fences / stray text). */
@@ -131,7 +134,7 @@ router.post('/text', async (req, res) => {
     contents.push({ role: 'user', parts: [{ text }] })
 
     // ── Step 1: classify → { tool, args, say } (plain JSON text; reliable) ──
-    const planRaw = await genText(MODEL, contents, {
+    const planRaw = await genText(contents, {
       systemInstruction: classifyPrompt(language),
       responseMimeType: 'application/json',
     })
@@ -157,7 +160,7 @@ router.post('/text', async (req, res) => {
     let reply = ''
     try {
       const resultText = JSON.stringify(steps[0]?.result ?? {}).slice(0, 4000)
-      reply = await genText(MODEL, [
+      reply = await genText([
         { role: 'user', parts: [{ text: `用户: ${text}\n工具: ${plan.tool}\n工具结果(摘要): ${summary}\n工具结果(数据): ${resultText}` }] },
       ], { systemInstruction: phrasePrompt(language) })
     } catch { /* fall through */ }

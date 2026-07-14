@@ -9,12 +9,8 @@
  * Best-effort: any failure returns undefined so createSession falls back to the
  * platform default config — never blocks tour generation.
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from '../services/ai/models'
+import { callGemini } from '../services/ai/gemini'
 import { TourConfig } from './tour-script.types'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 // Platform guardrails that always win (compliance floor).
 const LOCKED_GUARDRAILS = [
@@ -54,34 +50,30 @@ export async function draftConfig(
 - 一句话提到"快/简短" → target_seconds 偏小(120-150);"详细" → 偏大(180-200)。
 - 拿不准就用 language=zh, narrative_focus=investment, target_seconds=165, tone=professional。`
 
-  for (const model of MODELS) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.4 },
-      })
-      const text = resp.text ?? ''
-      if (!text.trim()) continue
-      const raw = JSON.parse(stripFence(text)) as Record<string, unknown>
+  try {
+    const { text } = await callGemini({
+      task: 'auto-config',
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.4 },
+    })
+    if (!text.trim()) return undefined
+    const raw = JSON.parse(stripFence(text)) as Record<string, unknown>
 
-      const language = ['zh', 'en', 'ar', 'ru'].includes(String(raw.language)) ? String(raw.language) : 'zh'
-      const focus = String(raw.narrative_focus || 'investment')
-      let seconds = Number(raw.target_seconds)
-      if (!Number.isFinite(seconds)) seconds = 165
-      seconds = Math.max(120, Math.min(200, Math.round(seconds)))
+    const language = ['zh', 'en', 'ar', 'ru'].includes(String(raw.language)) ? String(raw.language) : 'zh'
+    const focus = String(raw.narrative_focus || 'investment')
+    let seconds = Number(raw.target_seconds)
+    if (!Number.isFinite(seconds)) seconds = 165
+    seconds = Math.max(120, Math.min(200, Math.round(seconds)))
 
-      return {
-        language,
-        narrative_focus: focus,
-        target_seconds: seconds,
-        // compliance floor — always applied, brief cannot override
-        banned_phrases: LOCKED_BANNED,
-        guardrails: LOCKED_GUARDRAILS,
-      }
-    } catch {
-      /* try next model */
+    return {
+      language,
+      narrative_focus: focus,
+      target_seconds: seconds,
+      // compliance floor — always applied, brief cannot override
+      banned_phrases: LOCKED_BANNED,
+      guardrails: LOCKED_GUARDRAILS,
     }
+  } catch {
+    return undefined
   }
-  return undefined
 }

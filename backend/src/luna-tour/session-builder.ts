@@ -12,6 +12,8 @@
  * the luna-tour directory to remove.
  */
 import type { PoolClient } from 'pg'
+import { runAudit } from '../quality'
+import { TOUR_RULES } from '../quality/tour-rules'
 import pool from '../db/pool'
 import {
   calculateInvestment5yr,
@@ -390,6 +392,27 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
     }
 
     const { script, warnings } = await generateTourScript(tourInput)
+
+    /**
+     * 生产质检 —— **每一场真实生成的 tour 都体检**(不只是我手动跑测试的时候)。
+     *
+     * 这些规则本来就写在 tour-e2e.ts 里,而且很好(每条都是踩坑换来的:
+     * 「户型卡不带数字」是因为**只要让模型填数字它就会编**),但它们从来没有
+     * 作用在真实输出上 —— 我们对生产 tour 的质量一无所知。
+     *
+     * 分数和问题落 quality_samples(带 share_code,**可回溯到原剧本**),
+     * 失败的规则进 quality.rule 指标 → **哪条最常挂,就是下一个该优化的地方**。
+     * 不阻塞生成:质检挂了也不影响经纪拿到 tour。
+     */
+    void runAudit('luna_tour', input.shareCode, script, TOUR_RULES, {
+      projects: properties.map((p) => ({
+        id: p.id,
+        name: p.name,
+        units: (p.units || []).length,
+      })),
+      language: config.language,
+      warnings: warnings.length,
+    }).catch((e) => console.error('[quality] tour audit failed:', e))
 
     const theme = input.theme ?? { map_style: 'dark', accent: '#00E0B8', captions: true }
     await client.query('BEGIN')

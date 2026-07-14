@@ -8,12 +8,8 @@
  * 隐私:events 含客户聊天逐句(PII)。所有读取路由都挂 requireOwner(见
  * routes/admin-analytics.ts)。
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from './ai/models'
+import { callGemini } from './ai/gemini'
 import pool from '../db/pool'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 export interface CollabSessionRow {
   code: string
@@ -221,28 +217,24 @@ ${facts}
 - 只用记录里的事实;聊天为空就老实说信息有限、interest_level 给「未知」。
 - follow_up 要具体引用客户看过的区/项目,不要空话。`
 
-  for (const model of MODELS) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.5 },
-      })
-      const text = resp.text ?? ''
-      if (!text.trim()) continue
-      const raw = JSON.parse(stripFence(text)) as Partial<CollabAi>
-      const lvl = raw.interest_level
-      return {
-        summary: String(raw.summary || '').trim(),
-        interest_level: lvl === '高' || lvl === '中' || lvl === '低' ? lvl : '未知',
-        signals: Array.isArray(raw.signals) ? raw.signals.map(String).slice(0, 5) : [],
-        follow_up: String(raw.follow_up || '').trim(),
-      }
-    } catch {
-      /* try next model */
+  try {
+    const { text } = await callGemini({
+      task: 'collab-report',
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.5 },
+    })
+    if (!text.trim()) return null
+    const raw = JSON.parse(stripFence(text)) as Partial<CollabAi>
+    const lvl = raw.interest_level
+    return {
+      summary: String(raw.summary || '').trim(),
+      interest_level: lvl === '高' || lvl === '中' || lvl === '低' ? lvl : '未知',
+      signals: Array.isArray(raw.signals) ? raw.signals.map(String).slice(0, 5) : [],
+      follow_up: String(raw.follow_up || '').trim(),
     }
+  } catch {
+    return null
   }
-  return null
 }
 
 /**

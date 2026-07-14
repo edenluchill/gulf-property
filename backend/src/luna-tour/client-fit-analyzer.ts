@@ -34,14 +34,10 @@
  *
  * ISOLATION: 只读 project_unit_types。删 luna-tour 目录即移除。
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from '../services/ai/models'
+import { callGemini } from '../services/ai/gemini'
 import pool from '../db/pool'
 import type { ExtractedProfile } from './client-profile-coach'
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-/** 见 docs/reports/2026-07-12-gemini-model-lineup.md —— 别写 gemini-3-flash(404)。 */
-const MODELS = DEFAULT_CHAIN
 /** 这是**论证**任务(要推理),不是抽取 —— 给一点思考预算,但别放飞。 */
 const THINKING = { thinkingLevel: 'low' as const }
 const MAX_OUTPUT_TOKENS = 4000
@@ -307,32 +303,30 @@ export async function analyzeFit(
     .replace('{{PROJECT}}', projectLines)
     .replace('{{UNITS}}', unitLines(units))
 
-  for (const model of MODELS) {
-    try {
-      const res = await ai.models.generateContent({
-        model,
-        contents,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: FIT_SCHEMA as any,
-          temperature: 0.4,          // 论证要有点文采,但别放飞
-          maxOutputTokens: MAX_OUTPUT_TOKENS,
-          thinkingConfig: THINKING,
-        } as any,
-      })
-      const j = JSON.parse((res.text || '{}').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''))
-      return {
-        project_fit: j.project_fit ?? null,
-        project_why: j.project_why ?? [],
-        project_tradeoffs: j.project_tradeoffs ?? [],
-        recommended_unit: j.recommended_unit ?? null,
-        unit_why: j.unit_why ?? [],
-        unit_why_not: j.unit_why_not ?? [],
-        summary: j.summary ?? null,
-      }
-    } catch (e) {
-      console.error(`[fit-analyzer] failed (${model}):`, e instanceof Error ? e.message : e)
+  try {
+    const { text } = await callGemini({
+      task: 'client-fit',
+      contents,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: FIT_SCHEMA as any,
+        temperature: 0.4,          // 论证要有点文采,但别放飞
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        thinkingConfig: THINKING,
+      },
+    })
+    const j = JSON.parse((text || '{}').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''))
+    return {
+      project_fit: j.project_fit ?? null,
+      project_why: j.project_why ?? [],
+      project_tradeoffs: j.project_tradeoffs ?? [],
+      recommended_unit: j.recommended_unit ?? null,
+      unit_why: j.unit_why ?? [],
+      unit_why_not: j.unit_why_not ?? [],
+      summary: j.summary ?? null,
     }
+  } catch (e) {
+    console.error('[fit-analyzer] failed:', e instanceof Error ? e.message : e)
+    return null
   }
-  return null
 }

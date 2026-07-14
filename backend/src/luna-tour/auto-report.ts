@@ -14,14 +14,10 @@
  * ISOLATION: lives under luna-tour/, reads residential_projects. Delete the
  * directory to remove.
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from '../services/ai/models'
+import { callGemini } from '../services/ai/gemini'
 import pool from '../db/pool'
 import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
 import { matchProperties } from './auto-match'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 // Same placeholder assumptions the tour uses (keep reports + tours consistent).
 const YIELD_PCT = 6.5
@@ -178,36 +174,32 @@ ${facts}
 - 口语化、具体、面向客户;不得承诺或保证回报,不得编造新数字。
 - risks 给 2-3 条,简短(如「交付延期」「区域新供应多」「汇率波动」)。`
 
-  for (const model of MODELS) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.5 },
-      })
-      const text = resp.text ?? ''
-      if (!text.trim()) continue
-      const raw = JSON.parse(stripFence(text)) as {
-        summary?: string
-        properties?: Array<{ id?: string; scenarios?: { optimistic?: string; base?: string; conservative?: string }; risks?: string[] }>
-      }
-      base.summary = typeof raw.summary === 'string' ? raw.summary.trim() : ''
-      const sById = new Map((raw.properties || []).map((p) => [String(p.id), p]))
-      for (const p of base.properties) {
-        const s = sById.get(p.id)
-        if (s?.scenarios) {
-          p.scenarios = {
-            optimistic: String(s.scenarios.optimistic || ''),
-            base: String(s.scenarios.base || ''),
-            conservative: String(s.scenarios.conservative || ''),
-          }
-        }
-        if (Array.isArray(s?.risks)) p.risks = s!.risks.map(String).slice(0, 3)
-      }
-      return base
-    } catch {
-      /* try next model */
+  try {
+    const { text } = await callGemini({
+      task: 'auto-report',
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.5 },
+    })
+    if (!text.trim()) return base
+    const raw = JSON.parse(stripFence(text)) as {
+      summary?: string
+      properties?: Array<{ id?: string; scenarios?: { optimistic?: string; base?: string; conservative?: string }; risks?: string[] }>
     }
+    base.summary = typeof raw.summary === 'string' ? raw.summary.trim() : ''
+    const sById = new Map((raw.properties || []).map((p) => [String(p.id), p]))
+    for (const p of base.properties) {
+      const s = sById.get(p.id)
+      if (s?.scenarios) {
+        p.scenarios = {
+          optimistic: String(s.scenarios.optimistic || ''),
+          base: String(s.scenarios.base || ''),
+          conservative: String(s.scenarios.conservative || ''),
+        }
+      }
+      if (Array.isArray(s?.risks)) p.risks = s!.risks.map(String).slice(0, 3)
+    }
+    return base
+  } catch {
+    return base // numbers + reasons, no AI prose
   }
-  return base // numbers + reasons, no AI prose
 }

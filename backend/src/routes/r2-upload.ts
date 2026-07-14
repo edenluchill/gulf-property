@@ -1,3 +1,4 @@
+import { counter, histogram } from '../telemetry';
 /**
  * R2 Direct Upload Routes — browser uploads PDF parts straight to R2 (presigned
  * multipart), bypassing the German API server entirely. This fixes the chronic
@@ -179,7 +180,17 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       metadata: { uploadedAt: Date.now(), workerMode: true, directUpload: true },
     });
 
-    await spend(agentId, 'brochures', { type: 'brochure', id: String(jobId), label: pdfNames[0] }).catch(() => {});
+    // 扣费失败 = 白送一次楼书解析(40 分)。原来是空 catch —— 漏了钱也无声。
+    await spend(agentId, 'brochures', { type: 'brochure', id: String(jobId), label: pdfNames[0] })
+      .catch((e) => {
+        counter('credits.spend.failed', { feature: 'brochures' }).inc();
+        console.error('[r2-upload] 🔴 楼书扣费失败(白送了一次):', e);
+      });
+
+    // 上传是客户旅程的起点(500MB 楼书,失败最伤人)。之前这条线零遥测。
+    counter('pdf.upload.completed').inc();
+    counter('pdf.upload.files').inc(pdfNames.length);
+    histogram('pdf.upload.bytes').observe(Number(totalSizeBytes) || 0);
     console.log(`📋 Task created from direct upload: ${jobId} (${pdfNames.length} file(s))`);
     res.json({
       success: true,
@@ -187,6 +198,8 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       message: 'Upload complete. Worker will process. Connect to /api/langgraph-progress/stream/:jobId',
     });
   } catch (e: any) {
+    // 客户已经把几百 MB 传完了,却在最后一步挂掉 —— 这是最伤的失败。
+    counter('pdf.upload.failed').inc();
     console.error('r2-upload/complete failed:', e);
     res.status(500).json({ success: false, error: e.message || 'Failed to complete upload' });
   }

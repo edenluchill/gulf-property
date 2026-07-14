@@ -11,12 +11,8 @@
  * ISOLATION: lives under luna-tour/, reads residential_projects. Delete the
  * directory to remove.
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from '../services/ai/models'
+import { callGemini } from '../services/ai/gemini'
 import pool from '../db/pool'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 export interface MatchPick {
   id: string
@@ -83,27 +79,24 @@ ${list}
 - reason 要针对这位客户,具体、口语化、不超过 40 字,可结合预算/区域/生活方式/投资回报。
 - 客户画像里若有预算/区域偏好,优先满足;拿不准就选区域多样、价格有梯度的组合。`
 
-  for (const model of MODELS) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.5 },
-      })
-      const text = resp.text ?? ''
-      if (!text.trim()) continue
-      const raw = JSON.parse(stripFence(text)) as { picks?: Array<{ id?: string; reason?: string }> }
-      const picks: MatchPick[] = []
-      for (const p of raw.picks || []) {
-        const c = p.id ? byId.get(String(p.id)) : undefined
-        if (c && !picks.some((x) => x.id === c.id)) {
-          picks.push({ id: c.id, project_name: c.project_name, area: c.area, reason: String(p.reason || '').slice(0, 120) })
-        }
+  try {
+    const { text } = await callGemini({
+      task: 'auto-match',
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.5 },
+    })
+    if (!text.trim()) return []
+    const raw = JSON.parse(stripFence(text)) as { picks?: Array<{ id?: string; reason?: string }> }
+    const picks: MatchPick[] = []
+    for (const p of raw.picks || []) {
+      const c = p.id ? byId.get(String(p.id)) : undefined
+      if (c && !picks.some((x) => x.id === c.id)) {
+        picks.push({ id: c.id, project_name: c.project_name, area: c.area, reason: String(p.reason || '').slice(0, 120) })
       }
-      if (picks.length >= 2) return picks.slice(0, count)
-    } catch {
-      /* try next model */
     }
+    if (picks.length >= 2) return picks.slice(0, count)
+  } catch {
+    return []
   }
   return []
 }

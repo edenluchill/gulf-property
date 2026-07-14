@@ -1,3 +1,4 @@
+import { counter } from '../telemetry'
 /**
  * Agora 应用内语音 REST —— token 签发 + 用量记录。挂在 /api/voice-rtc。
  *
@@ -72,8 +73,13 @@ router.post('/heartbeat', async (req: Request, res: Response) => {
   const sid = Number(sessionId)
   if (!Number.isFinite(sid)) return res.status(400).json({ ok: false })
 
-  // 语音会话时长回填(统计/日额度还在用):best-effort,不阻塞
-  void heartbeatVoiceSession(sid).catch(() => {})
+  // 语音会话时长回填(统计/日额度还在用):best-effort,不阻塞。
+  // ⚠️ 但 heartbeat 是**计费刹车的心跳** —— 它悄悄挂掉,通话就会一直烧 Agora 的钱
+  // 而额度门永远不触发。必须可见。
+  void heartbeatVoiceSession(sid).catch((e) => {
+    counter('call.heartbeat.failed').inc()
+    console.error('[voice-rtc] heartbeat failed (计费刹车可能失效):', e)
+  })
 
   // 老客户端不发 participants → 退回 204 快路径(不结算,别把老版本算爆)
   if (typeof participants !== 'number') return res.status(204).end()
@@ -120,7 +126,11 @@ router.post('/end', (req: Request, res: Response) => {
   const { sessionId, reason } = (req.body || {}) as { sessionId?: number | string; reason?: string }
   res.status(204).end()
   const sid = Number(sessionId)
-  if (Number.isFinite(sid)) void endVoiceSession(sid, reason || 'ended').catch(() => {})
+  // 结束失败 = 这一场不结算(少收费,或者状态一直挂着)。
+  if (Number.isFinite(sid)) void endVoiceSession(sid, reason || 'ended').catch((e) => {
+    counter('call.settle.failed').inc()
+    console.error('[voice-rtc] endVoiceSession failed (这场没结算):', e)
+  })
 })
 
 // 经纪当日用量(给经纪端显示剩余)

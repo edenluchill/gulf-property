@@ -14,6 +14,7 @@ import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
 import * as tq from '../services/telemetryQueries'
 import * as aiq from '../services/aiCostQueries'
+import * as qq from '../services/qualityQueries'
 import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
 import { getRevenueShare, settleMonth, unsettleMonth } from '../services/revenueShare'
 import {
@@ -190,6 +191,15 @@ router.get('/telemetry/live-tour', wrap(async (req) => {
   ])
   return { live: tq.liveSnapshot(), series: { cpu, conns, fanout }, funnel, rum, agora }
 }))
+
+// ── 质量诊断(给 AI 用来自主优化的接口)── docs/quality-spec.md ──────────────
+// 一个请求拿到优化所需的全部信息:最该改的缺陷 + 最差案例(带回溯 SQL)+ 分数趋势。
+router.get('/quality/:feature/diagnose', wrap((req) =>
+  qq.diagnose(req.params.feature as qq.Feature, Math.min(90, Number(req.query.days) || 7))
+))
+router.get('/quality', wrap((req) =>
+  qq.qualityOverview(Math.min(90, Number(req.query.days) || 7))
+))
 
 // ── AI 成本 / PDF 管线 / 钱门(之前全是盲的)────────────────────────────────
 router.get('/telemetry/ops', wrap(async (req) => {

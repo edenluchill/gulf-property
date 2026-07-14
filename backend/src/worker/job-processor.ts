@@ -1,3 +1,5 @@
+import { runAudit } from '../quality';
+import { PDF_RULES } from '../quality/pdf-rules';
 /**
  * Job Processor
  *
@@ -166,6 +168,21 @@ export async function processJob(job: PendingJob): Promise<void> {
         warnings: result.warnings,
       });
       console.log(`   [100%] Processing complete!`);
+
+      /**
+       * 抽取质检 —— **一个"成功"的 job 完全可能什么都没抽出来**。
+       * 客户传了 200 页楼书,拿回一个空壳,而系统显示"处理完成"。
+       *
+       * 这里把「成功」拆成可优化的维度:户型抽到了吗、价格/面积填充率多少、
+       * 有没有坐标(没坐标 = 项目上不了地图)、有没有图。
+       * 分数落 quality_samples(带 jobId,**可回溯到原 PDF —— 源文件是永久归档的**),
+       * 失败的规则进 quality.rule 指标 → **哪个字段最常缺,就是下一个该改的抽取 agent**。
+       */
+      void runAudit('pdf_extract', jobId, result.buildingData, PDF_RULES, {
+        totalPages: result.totalPages,
+        totalChunks: result.totalChunks,
+        processingTimeMs: result.processingTime,
+      }).catch((e) => console.error('[quality] pdf audit failed:', e));
 
       // ⭐ 永久归档源 PDF(2026-07-09):成功处理后把 pending-pdfs/ 的原始 PDF 复制到
       // pdf-archive/(永不自动清理),供以后 pipeline 改进时重跑验证/优化。非致命。

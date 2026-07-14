@@ -17,28 +17,8 @@
  *
  * ISOLATION: 只读写 lt_clients。删 luna-tour 目录即移除。
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from '../services/ai/models'
+import { callGemini } from '../services/ai/gemini'
 import pool from '../db/pool'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-/**
- * 模型 —— 依据 Google 官方文档(2026-07-12 核对 ai.google.dev/gemini-api/docs/models)。
- *
- *   ✅ gemini-3.5-flash        **GA 旗舰 Flash**(2026-05-19 发布)。首选。
- *                              `gemini-flash-latest` 就指向它。$1.50/$9.00 per 1M
- *   ✅ gemini-3.1-flash-lite   GA,最便宜($0.25/$1.50)。fallback
- *
- * 🔴 **别用这些**(踩过的坑,写清楚免得再踩):
- *   ❌ gemini-3-flash / gemini-3.1-flash / gemini-3.1-pro —— **不存在**(404)。
- *      CLAUDE.md 原来写的就是错的,全站 6 个文件跟着写,于是**每次调用先撞 404
- *      再 fallback 到 2.5** —— 整个项目的 AI 一直跑在 2.5 上。
- *   ❌ gemini-3-flash-preview —— **已 deprecated**(替代品就是 3.5-flash)
- *   ❌ gemini-3-pro-preview —— **2026-03-09 已关停**(还能 resolve,但只是 redirect)
- *   ❌ gemini-2.5-* 全系 —— deprecated,最早 2026-10-16 关停
- *   ❌ *-latest 别名 —— 会被静默热切换(官方只给 2 周邮件通知),抽取代码不能钉它
- */
-const MODELS = DEFAULT_CHAIN
 
 /**
  * 🔴 Gemini 3.x 用 **`thinkingLevel`**,不是 `thinkingBudget`(那是 2.5 的参数)。
@@ -346,29 +326,26 @@ export async function coachProfile(text: string, existing: ExtractedProfile = {}
 
   const note = (text || '').trim()
   if (note) {
-    for (const model of MODELS) {
-      try {
-        const res = await ai.models.generateContent({
-          model,
-          contents: EXTRACT_PROMPT.replace('{{TEXT}}', note.slice(0, 4000)),
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: EXTRACT_SCHEMA as any,
-            temperature: 0,
-            maxOutputTokens: MAX_OUTPUT_TOKENS,
-            thinkingConfig: THINKING_MINIMAL,   // ⚠️ 是 thinkingLevel,不是 thinkingBudget
-          } as any,
-        })
-        const parsed = JSON.parse((res.text || '{}').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''))
-        // 笔记里的新信息覆盖旧的(经纪刚写的最新)
-        for (const [k, v] of Object.entries(parsed)) {
-          if (v !== null && v !== undefined && v !== '') (extracted as any)[k] = v
-        }
-        break
-      } catch (e) {
-        // 抽取挂了不阻塞 —— 退回「只用已有画像算 gap」,经纪照样能点选补全
-        console.error(`[profile-coach] extract failed (${model}):`, e instanceof Error ? e.message : e)
+    try {
+      const { text: out } = await callGemini({
+        task: 'profile-coach',
+        contents: EXTRACT_PROMPT.replace('{{TEXT}}', note.slice(0, 4000)),
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: EXTRACT_SCHEMA as any,
+          temperature: 0,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          thinkingConfig: THINKING_MINIMAL,   // ⚠️ 是 thinkingLevel,不是 thinkingBudget
+        },
+      })
+      const parsed = JSON.parse((out || '{}').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''))
+      // 笔记里的新信息覆盖旧的(经纪刚写的最新)
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v !== null && v !== undefined && v !== '') (extracted as any)[k] = v
       }
+    } catch (e) {
+      // 抽取挂了不阻塞 —— 退回「只用已有画像算 gap」,经纪照样能点选补全
+      console.error('[profile-coach] extract failed:', e instanceof Error ? e.message : e)
     }
   }
 

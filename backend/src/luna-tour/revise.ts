@@ -11,11 +11,7 @@
  * the compliance floor is restated so a comment can't push it to over-promise,
  * and any failure returns [] so nothing is changed.
  */
-import { GoogleGenAI } from '@google/genai'
-import { DEFAULT_CHAIN } from '../services/ai/models'
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
+import { callGemini } from '../services/ai/gemini'
 
 function stripFence(t: string): string {
   return t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
@@ -73,27 +69,24 @@ ${beats.map((b, i) => `${i + 1}. [${b.beat_id}] ${b.narration}`).join('\n')}
 - 「短一点」→ 显著缩短;「详细一点」→ 适度扩展但不堆砌;「强调X」→ 自然突出 X。
 - 只返回有改动的段;beat_id 必须来自待修改列表。`
 
-  for (const model of MODELS) {
-    try {
-      const resp = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.6 },
-      })
-      const text = resp.text ?? ''
-      if (!text.trim()) continue
-      const raw = JSON.parse(stripFence(text)) as { patches?: { beat_id?: unknown; narration?: unknown }[] }
-      const patches: NarrationPatch[] = []
-      for (const p of raw.patches ?? []) {
-        const id = String(p.beat_id ?? '')
-        const narration = String(p.narration ?? '').trim()
-        // only accept patches for beats that actually had a comment
-        if (id && narration && commented.has(id)) patches.push({ beat_id: id, narration })
-      }
-      if (patches.length) return patches
-    } catch {
-      /* try next model */
+  try {
+    const { text } = await callGemini({
+      task: 'revise',
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.6 },
+    })
+    if (!text.trim()) return []
+    const raw = JSON.parse(stripFence(text)) as { patches?: { beat_id?: unknown; narration?: unknown }[] }
+    const patches: NarrationPatch[] = []
+    for (const p of raw.patches ?? []) {
+      const id = String(p.beat_id ?? '')
+      const narration = String(p.narration ?? '').trim()
+      // only accept patches for beats that actually had a comment
+      if (id && narration && commented.has(id)) patches.push({ beat_id: id, narration })
     }
+    if (patches.length) return patches
+  } catch {
+    return []
   }
   return []
 }

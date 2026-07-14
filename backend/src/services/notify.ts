@@ -1,3 +1,4 @@
+import { counter, histogram } from '../telemetry'
 /**
  * notify — minimal outbound alert email via Resend's HTTP API.
  *
@@ -46,14 +47,23 @@ export function isEmailConfigured(): boolean {
   return !!process.env.RESEND_API_KEY && recipients().length > 0
 }
 
+/**
+ * ⚠️ **这是元级的单点** —— **所有**告警都靠它送出去。
+ * 它一挂,我们连「它挂了」都收不到通知(因为通知就是它发的)。
+ * 所以必须埋点:`notify.email{result}` 会落进 metrics_minute,
+ * Admin 上看得见,不依赖邮件本身。
+ */
 export async function sendAlertEmail(subject: string, text: string, html?: string, to?: string[]): Promise<boolean> {
   const key = process.env.RESEND_API_KEY
   // 显式 to 优先;否则按主题分流(订阅→shell,错误/性能→Eden)。
   const recipientList = to && to.length ? to : autoRoute(subject)
   if (!key || recipientList.length === 0) {
+    // 没配 = **所有告警都是哑的**。这不是"优雅降级",这是监控系统本身失效。
+    counter('notify.email', { result: 'not_configured' }).inc()
     console.warn(`[notify] email not configured (RESEND_API_KEY/ALERT_EMAIL) — skipping: ${subject}`)
     return false
   }
+  const t0 = Date.now()
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -69,13 +79,18 @@ export async function sendAlertEmail(subject: string, text: string, html?: strin
         ...(html ? { html } : {}),
       }),
     })
+    histogram('notify.email.ms').observe(Date.now() - t0)
     if (!res.ok) {
       const body = await res.text().catch(() => '')
+      counter('notify.email', { result: 'failed' }).inc()
       console.error(`[notify] resend failed ${res.status}: ${body.slice(0, 200)}`)
       return false
     }
+    counter('notify.email', { result: 'ok' }).inc()
     return true
   } catch (err) {
+    histogram('notify.email.ms').observe(Date.now() - t0)
+    counter('notify.email', { result: 'failed' }).inc()
     console.error('[notify] resend request error:', err)
     return false
   }
