@@ -55,9 +55,31 @@ router.get('/search', async (req: Request, res: Response) => {
     }
 
     if (developer) {
-      query += ` AND (LOWER(rp.developer) LIKE LOWER($${paramIndex}) OR LOWER(rp.project_name) LIKE LOWER($${paramIndex}))`
-      values.push(`%${String(developer)}%`)
-      paramIndex++
+      /**
+       * 🔴 模糊匹配是**必须的**,不是锦上添花(2026-07-13 质量遥测挖出来的真 bug):
+       *
+       *   客户问「Al Ghadeer Gardens」→ Luna 查回 **0 条** → 她只能瞎聊。
+       *   但库里**有**这个项目 —— 它被存成了「AIGHADEER GARDENS」
+       *   (楼书抽取时把 `Al Ghadeer` 认成了 `AIGHADEER`:小写 l 读成大写 I,空格丢了)。
+       *
+       * 也就是说:**客户用正确的名字问,反而查不到**。楼书 OCR 出的项目名天生会有
+       * 这种畸变(大小写、空格、l/I、O/0),精确 LIKE 撑不住。
+       *
+       * 三层:① 精确 LIKE ② 去空格 LIKE ③ trigram 相似度 ≥0.45
+       * (AIGHADEER GARDENS ↔ Al Ghadeer Gardens 的相似度是 0.71,稳稳命中)
+       * 这个字段同时匹配开发商和项目名 —— 模型经常把项目名塞进 developer。
+       */
+      const raw = String(developer)
+      query += ` AND (
+        LOWER(rp.developer) LIKE LOWER($${paramIndex})
+        OR LOWER(rp.project_name) LIKE LOWER($${paramIndex})
+        OR REPLACE(LOWER(rp.project_name), ' ', '') LIKE REPLACE(LOWER($${paramIndex}), ' ', '')
+        OR REPLACE(LOWER(rp.developer), ' ', '')    LIKE REPLACE(LOWER($${paramIndex}), ' ', '')
+        OR similarity(LOWER(rp.project_name), LOWER($${paramIndex + 1})) >= 0.45
+        OR similarity(LOWER(rp.developer), LOWER($${paramIndex + 1}))    >= 0.45
+      )`
+      values.push(`%${raw}%`, raw)
+      paramIndex += 2
     }
 
     if (status) {

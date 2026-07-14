@@ -101,13 +101,36 @@ export const LUNA_RULES: Rule<LunaSession>[] = [
     },
   },
   {
+    id: 'transcript_lost_user_speech',
+    severity: 'critical',
+    why:
+      '**客户说了话,但他的话没被记进 transcript。**\n' +
+      '判据:**Luna 不可能凭空调工具** —— 有工具调用(或 AI 回复里带着只有客户能提供的参数),' +
+      '却没有任何 user 消息,那就一定是**转录丢了**,不是客户没说话。\n' +
+      '实测(2026-07-13):一场"客户零发言"的会话里,Luna 调了 ' +
+      'recommend_by_budget({budget: 3000000}) 并回复「根据您的300万迪拉姆预算…」—— ' +
+      '客户明明说了预算,那句话就是没被记下来。\n' +
+      '⚠️ 这个 bug **2026-07-03 已修**(finalizeUserMessage),历史数据里还有 16 场。' +
+      '这条规则留着当哨兵:它一旦再响,就是转录又丢了。\n' +
+      '后果:Admin 看对话记录只看到 Luna 单方面在说话,**根本不知道客户问了什么**。',
+    check: (s) => {
+      const users = userMsgs(s).length
+      const calls = (s?.toolCalls || []).length
+      if (users > 0) return null
+      if (calls === 0) return null   // 没工具调用 → 交给 no_user_turn 判(可能真的没说话)
+      return `Luna 调了 ${calls} 次工具却没有任何客户发言 —— **客户的话丢了**(她不可能凭空调工具)`
+    },
+  },
+  {
     id: 'no_user_turn',
     severity: 'major',
-    why: '会话建起来了但客户一句话没说 —— **麦克风没权限?Luna 没出声?** 这是纯技术故障的信号,不是内容问题。',
+    why: '会话建起来、Luna 也没调任何工具、客户一句话没说 —— **麦克风没权限?Luna 没出声?** ' +
+      '这是纯技术故障的信号。(有工具调用的情况归 transcript_lost_user_speech —— 那是记录丢了,不是没说话。)',
     check: (s) => {
       if ((s?.messages || []).length === 0) return null   // 空会话另算
+      if ((s?.toolCalls || []).length > 0) return null    // 有工具调用 = 客户说过话,只是没记下来
       return userMsgs(s).length === 0
-        ? '整场对话客户一句话都没说(麦克风/音频可能坏了)' : null
+        ? '整场对话客户一句话都没说,Luna 也没调任何工具(麦克风/音频可能坏了)' : null
     },
   },
   {
