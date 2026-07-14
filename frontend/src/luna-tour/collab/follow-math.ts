@@ -21,19 +21,33 @@ export interface CamState {
 }
 
 /**
- * Zoom offset a viewer must apply so it sees AT LEAST everything the presenter sees.
+ * 客户该在经纪的 zoom 上偏移多少 —— **让他「看清」,而不是「看全」。**
  *
- * Visible geographic width ∝ viewportWidth / 2^zoom. To make the viewer's visible
- * width match the presenter's:  myW / 2^zv = presW / 2^zp  →  zv = zp + log2(myW/presW).
+ * 可视地理宽度 ∝ 视口宽 / 2^zoom。要让客户看到和经纪**一样多**的东西:
+ *   zv = zp + log2(myW / presW)
  *
- * We take the MIN over both axes, so the viewer's viewport is a SUPERSET of the
- * presenter's — it may show more, but never less. Showing less is the failure we're
- * fixing (agent on an iPad says "look at this whole area", client's phone only has
- * the middle of it on screen).
+ * ── ⚠️ 「一点不少」是个错误的目标 ────────────────────────────────────────
+ * 原来这里取两轴的 **min**,让客户视口成为经纪视口的**超集**(一点内容都不能少)。
+ * 数学没错,但目标错了:
  *
- * Returns 0 when the presenter didn't send its size (old client) or any dimension
- * is bogus — i.e. degrade to the old no-compensation behaviour, never to a broken zoom.
+ *   经纪 iPad 横屏 1180 宽,客户手机 390 宽 → min 比值 0.33 → **客户要缩小 1.6 级**。
+ *   于是「一点不少」的代价是 —— **全都看不清**。
+ *   owner 实测:「我用电脑 share,我看地图 ok,不过**客户手机看的巨小**」。
+ *
+ * **客户要的不是「看到全部」,是「看清你在讲的那个东西」。**
+ * 经纪讲的东西几乎总在画面中央;宁可让客户少看到一点边角,也不能让他什么都看不清。
+ *
+ * 所以:算出「看全」需要的偏移,然后**卡住收缩量**。
+ *   • 最多缩小 MAX_SHRINK 级 —— 再小就不认字了
+ *   • 最多放大 MAX_GROW 级   —— (经纪在手机、客户在电脑时,该放大追上同样的比例)
+ *
+ * 拿不到经纪视口(老客户端)或数据离谱 → 返回 0(退回「不补偿」,绝不给个坏 zoom)。
  */
+/** 客户最多比经纪缩小这么多级。1 级 = 内容线性尺寸减半 —— 半级已经很明显了。 */
+const MAX_SHRINK = 0.5
+/** 客户最多比经纪放大这么多级(经纪在手机、客户在大屏时用得上)。 */
+const MAX_GROW = 1.5
+
 export function zoomOffsetForViewport(
   presenter: { vw?: number; vh?: number } | null | undefined,
   myW: number,
@@ -42,11 +56,10 @@ export function zoomOffsetForViewport(
   const pw = presenter?.vw
   const ph = presenter?.vh
   if (!pw || !ph || !myW || !myH || pw <= 0 || ph <= 0 || myW <= 0 || myH <= 0) return 0
-  const dz = Math.log2(Math.min(myW / pw, myH / ph))
-  // Guard against absurd values (a collapsed/hidden container reporting ~0) —
-  // a wild zoom jump is far worse than no compensation.
-  if (!Number.isFinite(dz) || Math.abs(dz) > 4) return 0
-  return dz
+  const wantSuperset = Math.log2(Math.min(myW / pw, myH / ph))
+  // 视口塌陷(隐藏容器报 ~0)时会算出离谱的值 —— 一个疯掉的 zoom 比不补偿糟得多。
+  if (!Number.isFinite(wantSuperset) || Math.abs(wantSuperset) > 4) return 0
+  return Math.max(-MAX_SHRINK, Math.min(MAX_GROW, wantSuperset))
 }
 
 /** Default smoothing factor per frame — critically-damped feel at ~60fps. */

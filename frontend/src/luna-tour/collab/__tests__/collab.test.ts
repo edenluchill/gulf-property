@@ -321,24 +321,38 @@ test('terminal room_not_found (old link) → terminalReason=not_found + no recon
 // "look at this whole community" and the client's phone only has the middle of it.
 // This is the common case (agents present on iPads, clients watch on phones).
 
-test('zoomOffsetForViewport: phone viewer sees at least what the iPad presenter sees', () => {
+/**
+ * ⚠️ 这条测试**原来断言的是「客户必须看全经纪看到的一切」**(superset),而那个目标
+ *    是错的 —— 见 follow-math.ts 的注释:
+ *
+ *      经纪 iPad 1180 宽、客户手机 390 宽 → 要「看全」就得缩小 1.6 级 →
+ *      **客户什么都看不清**。owner 实测:「客户手机看的巨小」。
+ *
+ *    **客户要的不是「看到全部」,是「看清你在讲的那个东西」。**
+ *    所以现在:算出「看全」需要多少,然后**卡住收缩量**(最多 0.5 级)。
+ *    测试跟着目标一起改 —— 断言的是**新的取舍**,不是旧的。
+ */
+test('zoomOffsetForViewport: iPad → 手机,缩小但必须仍然看得清', () => {
   const iPad = { vw: 1180, vh: 820 }
   const dz = zoomOffsetForViewport(iPad, 390, 844) // phone
-  assert.ok(dz < 0, 'phone must zoom OUT to cover the same ground')
 
-  const pz = 13
-  const vz = pz + dz
-  const presW = iPad.vw / 2 ** pz
-  const viewW = 390 / 2 ** vz
-  const presH = iPad.vh / 2 ** pz
-  const viewH = 844 / 2 ** vz
+  // 还是要缩小一点(否则客户只看得到经纪画面的中间一小块)
+  assert.ok(dz < 0, '手机要缩小一点,才不至于只看到中间一小块')
 
-  // superset: the viewer may see MORE than the presenter, never less
-  assert.ok(viewW >= presW - 1e-9, 'viewer width covers presenter width')
-  assert.ok(viewH >= presH - 1e-9, 'viewer height covers presenter height')
+  // 但**绝不能**缩到「看全」所需要的那么多 —— 那样就看不清了
+  const naiveSuperset = Math.log2(Math.min(390 / 1180, 844 / 820))
+  assert.ok(naiveSuperset < -1.5, '前提:朴素的「看全」需要缩小 1.5 级以上')
+  assert.ok(dz > naiveSuperset, '必须比「看全」缩得少 —— 否则客户看不清')
 
-  // and without compensation the phone would see only ~1/3 of the width
-  assert.ok(390 / 2 ** pz < presW * 0.4, 'uncompensated phone is badly cropped')
+  // 收缩量卡在半级 —— 内容尺寸最多比经纪那边小 ~30%
+  assert.ok(dz >= -0.5 - 1e-9, '最多缩小 0.5 级')
+})
+
+test('zoomOffsetForViewport: 手机 → 电脑,放大以维持相近的观感尺寸', () => {
+  const phone = { vw: 390, vh: 844 }
+  const dz = zoomOffsetForViewport(phone, 1440, 900) // desktop viewer
+  assert.ok(dz > 0, '大屏要放大,否则东西显得很小')
+  assert.ok(dz <= 1.5 + 1e-9, '放大也有上限')
 })
 
 test('zoomOffsetForViewport: identical viewports → no change', () => {

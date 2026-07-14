@@ -504,10 +504,38 @@ function MapViewMapLibre({
     // beat after the gesture settles so a multi-step wheel zoom doesn't flicker.
     // Skip in tour mode (few pins; the cinematic camera moves constantly).
     if (!tourActive) {
-      const hideMarkers = () => {
+      /**
+       * 🔴 **只有「用户自己的手势」才隐藏 marker。程序驱动的相机绝不触发。**
+       *
+       * owner 实测(实时带看):「每次平移或者 zoom in/out,**买家屏幕都会震动半秒**」。
+       *
+       * 根因:客户端的跟随循环**每帧 jumpTo** 一次(平滑追经纪的相机)。而**每一次
+       * jumpTo 都会触发一对 zoomstart/zoomend** —— 于是:
+       *     zoomstart → setMapMoving(true)  → React 整棵地图子树重渲染 + marker 全隐藏
+       *     zoomend   → 180ms 后 setMapMoving(false) → 再渲染一次 + marker 全复现
+       * 每秒重复 60 次 —— **marker 疯狂闪烁 + React 疯狂重渲染**,叠加那个 180ms 的
+       * 复现定时器,看起来就是「震动半秒」。
+       *
+       * 这其实是项目铁律「**禁 onMove → setState**」被绕了一圈违反了:
+       * 我们没直接在 move 里 setState,但 zoomstart/zoomend 里 setState 是一回事。
+       *
+       * 修:MapLibre 只有**真实用户手势**产生的事件才带 `originalEvent`。
+       * 程序调用(jumpTo/flyTo/easeTo —— 跟随、运镜、搜索定位)**不带**。
+       * 隐藏 marker 的初衷本来就是「手势时 GPU 被 marker 重排压垮」,
+       * 那就**只在手势时隐藏**。
+       */
+      const hideMarkers = (e?: { originalEvent?: unknown }) => {
+        if (!e?.originalEvent) return   // ← 程序驱动的相机:什么都不做
         if (moveShowTimerRef.current) clearTimeout(moveShowTimerRef.current)
         setMapMoving(true)
       }
+      /**
+       * ⚠️ **隐藏要看手势,复现必须无条件。**
+       *
+       * 手势的 zoomend 常常**不带 originalEvent**(惯性滑完才结束)—— 如果复现也
+       * 要求 originalEvent,marker 就**永远回不来了**。这个坑差点被我埋进去。
+       * 复现本身很便宜(一次 setState),宁可多跑,不能不跑。再挂一个 idle 兜底。
+       */
       const revealMarkersSoon = () => {
         if (moveShowTimerRef.current) clearTimeout(moveShowTimerRef.current)
         moveShowTimerRef.current = setTimeout(() => setMapMoving(false), 180)
@@ -518,6 +546,7 @@ function MapViewMapLibre({
       map.on('rotateend', revealMarkersSoon)
       map.on('pitchstart', hideMarkers)
       map.on('pitchend', revealMarkersSoon)
+      map.on('idle', revealMarkersSoon)   // 兜底:无论怎么结束的,marker 必须回来
     }
 
     // (指北针的相机跟随已搬到 components/MapCompassButton —— 它自己订阅 rotate/pitch,
