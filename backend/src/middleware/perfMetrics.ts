@@ -11,13 +11,36 @@ import { recordRequest, recordEndpoint, recordError, recordSlow, SLOW_REQ_MS, in
 // Health checks and the metrics endpoints themselves would skew the numbers.
 const IGNORE = new Set(['/health'])
 
-// 天生长连接的路径:大文件上传(几十秒-几分钟)和 SSE 进度流。它们的耗时是
-// 设计如此,不是"慢"——混进 p95 会在低流量时把 HIGH_LATENCY 报警顶爆
-// (2026-07-07 实锤:一条 142s 上传把 5 请求窗口的 p95 干到 142083ms 误报)。
-// 仍计 req/错误率/并发,只是不进延迟分位样本。
-const LONG_LIVED_PREFIXES = ['/api/upload', '/api/r2-upload', '/api/langgraph-progress']
+/**
+ * 耗时「设计如此」的路径 —— 不进延迟分位样本(仍计 req / 错误率 / 并发)。
+ *
+ * ① 长连接:大文件上传(几十秒~几分钟)、SSE 进度流。
+ *    2026-07-07 实锤:**一条 142s 的上传把 5 请求窗口的 p95 干到 142083ms** → 误报。
+ *
+ * ② **AI 生成接口**(2026-07-13 加):它们要等 Gemini 出结果,**3–15 秒是正常的**,
+ *    不是"慢"。2026-07-14 05:17 的 HIGH_LATENCY 告警里就混着一条
+ *    `POST /api/luna/agent/sessions/:id/ai-edit 3625ms` —— 那是 Luna 在改文案,
+ *    调一次 Gemini,3.6 秒完全正常。低流量时(告警窗口只有 9 个请求)一条 AI 调用
+ *    就能把 p95 顶过 2000ms 阈值 → **告警会反复误报,然后没人再看告警**。
+ *
+ *    ⚠️ 排除它们**不等于不监控** —— AI 的耗时/失败/成本有专门的指标:
+ *    `ai.call.ms{task}` / `ai.call.failed` / `ai.cost.usd_micro`(见 services/ai/gemini.ts),
+ *    而且比 HTTP p95 精确得多(能拆到是哪个 task、哪个模型、有没有降级)。
+ */
+const LONG_LIVED_PREFIXES = [
+  '/api/upload', '/api/r2-upload', '/api/langgraph-progress',   // ① 上传 / SSE
+]
+/** ② AI 生成:等模型出结果,秒级是设计如此。耗时由 ai.call.ms 单独监控。 */
+const AI_SLOW_PATTERNS = [
+  /\/ai-edit$/,                      // Luna 改文案
+  /\/api\/luna\/agent\/sessions/,    // tour 生成 / 渲染 / 预览
+  /\/api\/luna\/agent\/clients\/.*\/(report|coach)/,  // 客户报告 / 档案教练
+  /^\/api\/ai\//,                    // AI 分析(investment / projects / areas)
+  /^\/api\/compare/,                 // AI 房源对比
+]
 function isLongLived(path: string): boolean {
   return LONG_LIVED_PREFIXES.some((p) => path.startsWith(p))
+    || AI_SLOW_PATTERNS.some((re) => re.test(path))
 }
 
 /**
