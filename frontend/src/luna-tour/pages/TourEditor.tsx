@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import AiEditPanel from '../ui/AiEditPanel'
 import { lunaFetch } from '../lunaApi'
 import { API_BASE_URL } from '../../lib/config'
 
@@ -71,6 +72,14 @@ export default function TourEditor() {
   const [shareCode, setShareCode] = useState('')
   const [preview, setPreview] = useState(false)
   const [nodes, setNodes] = useState<Node[]>([])
+  /**
+   * 🔴 **时间线默认收起。**
+   *
+   * owner 实测:「客户已经来看到直接懵逼了 完全不会用」。
+   * 根因不是时间线做得不好,是**我们在让经纪当剪辑师** —— 而他是销售。
+   * 主界面改成「跟 Luna 说你想改什么」;轨道/时长/镜头滑块收进「高级」。
+   */
+  const [advanced, setAdvanced] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selId, setSelId] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, string>>({})
@@ -255,17 +264,38 @@ export default function TourEditor() {
       <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-white shrink-0">
         <Link to="/agent/tour" className="text-slate-500 hover:text-slate-800 text-sm">← 返回</Link>
         <input className="flex-1 border rounded-lg px-3 py-1.5 text-sm font-medium" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <div className="flex items-center gap-1 text-slate-500">
-          <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.max(6, p - 4))}>−</button>
-          <span className="text-xs w-10 text-center">{px}px/s</span>
-          <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
-        </div>
+        {advanced && (
+          <div className="flex items-center gap-1 text-slate-500">
+            <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.max(6, p - 4))}>−</button>
+            <span className="text-xs w-10 text-center">{px}px/s</span>
+            <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
+          </div>
+        )}
         <button onClick={() => setPreview(true)} disabled={!shareCode} className="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">▶ 预览播放</button>
-        <button onClick={applyComments} disabled={busy} className="bg-indigo-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">✨ 用 AI 应用评论</button>
         <button onClick={saveNarration} disabled={busy} className="bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">保存</button>
+        <button
+          onClick={() => setAdvanced((a) => !a)}
+          className={`rounded-lg border px-3 py-1.5 text-sm transition ${advanced ? 'border-slate-300 bg-slate-100 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+          title="轨道 / 时长 / 镜头 —— 想手调才需要"
+        >
+          ⚙ 高级
+        </button>
         {msg && <span className="text-sm">{msg}</span>}
       </div>
 
+      {/* 💬 主界面:跟 Luna 说你想改什么。经纪是销售,不是剪辑师。 */}
+      {!advanced && (
+        <div className="shrink-0 overflow-auto bg-slate-100 p-4">
+          <div className="mx-auto max-w-3xl">
+            <AiEditPanel sessionId={id} onChanged={reload} />
+            <p className="mt-3 text-center text-xs text-slate-400">
+              想手调轨道、卡片时长、镜头？点右上角的「⚙ 高级」。
+            </p>
+          </div>
+        </div>
+      )}
+
+      {advanced && (
       <div className="flex-1 flex min-h-0">
         {/* TIMELINE */}
         <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
@@ -406,8 +436,26 @@ export default function TourEditor() {
                 <textarea className="w-full border rounded-lg px-3 py-2 text-sm leading-relaxed" rows={5} value={sel.narration} onChange={(e) => setNodes((cur) => cur.map((n) => (n.id === sel.id ? { ...n, narration: e.target.value } : n)))} />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">给 AI 的修改意见</label>
-                <input className="w-full border border-dashed border-slate-300 rounded-lg px-2 py-1.5 text-sm" placeholder="短一点 / 强调海景 / 这个数字改成…" value={comments[sel.id] || ''} onChange={(e) => setComments((c) => ({ ...c, [sel.id]: e.target.value }))} />
+                <label className="block text-xs text-slate-400 mb-1">给 AI 的修改意见（只改这一段）</label>
+                <input
+                  className="w-full border border-dashed border-slate-300 rounded-lg px-2 py-1.5 text-sm"
+                  placeholder="短一点 / 更口语 / 别提那个学校"
+                  value={comments[sel.id] || ''}
+                  onChange={(e) => setComments((c) => ({ ...c, [sel.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void applyComments() }}
+                />
+                <button
+                  onClick={() => void applyComments()}
+                  disabled={busy}
+                  className="mt-1.5 w-full rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  ✨ 用 AI 应用这些意见
+                </button>
+                {/* ⚠️ 数字改不了 —— 而且这是刻意的。卡片上的价格/涨幅/成交量全部来自
+                    真实 DLD 数据;能手改 = 能伪造 = 客户凭什么信我们。 */}
+                <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                  卡片上的数字来自真实成交数据，不可改动 —— 这样客户才信得过。
+                </p>
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">镜头风格(画面怎么动)</label>
@@ -452,6 +500,7 @@ export default function TourEditor() {
           )}
         </div>
       </div>
+      )}
 
       {/* in-editor preview — plays the real tour in an iframe */}
       {preview && shareCode && (

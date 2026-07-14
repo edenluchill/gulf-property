@@ -110,6 +110,65 @@ export default function FactSheet() {
               {s.amenity_score != null && <div>便利度评分: <b>{s.amenity_score}/100{s.amenity_tier ? ` (${s.amenity_tier})` : ''}</b></div>}
             </div>
 
+            {/**
+              * 🔴 **没数据的时候要说话。**
+              *
+              * owner:「事实清单也不错,不过现在感觉不 complete?」——
+              * 截图里 Palm Central 2 **只有一个价格**。不是漏了,是那个区(Palm Jebel Ali)
+              * 真的**没有足够的成交数据**(204 笔,过不了门槛),半径内也查不到配套 POI。
+              *
+              * 但**空着不解释,看起来就像产品坏了**。诚实地说「这个区暂无足够成交数据」,
+              * 比留一片空白强 —— 而且它本身就是一条信息(新区、流动性低)。
+              */}
+            {!s.investment && !s.distances?.length && !ev && (
+              <div className="fs-disc" style={{ marginTop: 10 }}>
+                这个区域目前还没有足够的公开成交与配套数据（新开发区常见）。
+                我们**不会**用估算把它填满 —— 宁可少说，也不编。
+              </div>
+            )}
+
+            {/* 户型 —— 客户真正要买的东西。数据一直都在，只是这张表没展示。 */}
+            {s.units && s.units.length > 0 && (
+              <>
+                <div className="fs-sec">可选户型（真实户型表）</div>
+                {s.units.map((u) => (
+                  <div className="fs-row" key={u.bedrooms}>
+                    <span>{u.label}{u.variants > 1 ? ` · ${u.variants} 种` : ''}</span>
+                    <b>
+                      {u.area_sqft ? `${u.area_sqft.toLocaleString()} 尺起` : ''}
+                      {u.area_sqft && u.price_from ? ' · ' : ''}
+                      {u.price_from ? `${fmtAed(u.price_from)} 起` : ''}
+                    </b>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* 邻区对比 —— 「为什么是这里,而不是走路 5 分钟外的那个区」 */}
+            {s.area_context && s.area_context.neighbors.length > 0 && (
+              <>
+                <div className="fs-sec">这里 vs 隔壁（同样的地段）</div>
+                <div className="fs-row" style={{ color: '#6b7280' }}>
+                  <span>区域</span>
+                  <span>涨幅 · 回报 · 单价/㎡ · 年成交</span>
+                </div>
+                {[{ ...s.area_context.self, self: true }, ...s.area_context.neighbors.slice(0, 3)].map((n) => (
+                  <div className="fs-row" key={n.name}>
+                    <span>{'self' in n && n.self ? '📍 ' : ''}{n.name}{'self' in n && n.self ? '' : ` (${n.distance_km}km)`}</span>
+                    <b>
+                      {n.growth_pct}% · {n.yield_pct}% · {n.price_sqm.toLocaleString()} · {n.transactions.toLocaleString()}
+                    </b>
+                  </div>
+                ))}
+                {s.area_context.weakness && (
+                  <div className="fs-disc" style={{ marginTop: 6 }}>
+                    {s.area_context.weakness.claim} {s.area_context.weakness.rebuttal}
+                  </div>
+                )}
+                <div className="fs-src">来源：Dubai Land Department（近 12 个月）· 单价为中位数</div>
+              </>
+            )}
+
             {s.investment && (
               <>
                 <div className="fs-sec">投资展望（{s.investment.years} 年）</div>

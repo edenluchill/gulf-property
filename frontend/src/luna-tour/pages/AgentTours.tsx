@@ -115,6 +115,7 @@ export default function AgentTours() {
   /** 草稿的 session id —— 剧本已出、**语音还没烧**,经纪要在时间线上确认 */
   const [draftSessionId, setDraftSessionId] = useState<string | null>(null)
   const [rendered, setRendered] = useState(false)
+  const [filterClient, setFilterClient] = useState('')
   const [audioReady, setAudioReady] = useState(0)
   const [audioTotal, setAudioTotal] = useState(0)
   const [genError, setGenError] = useState('')
@@ -403,6 +404,11 @@ export default function AgentTours() {
   }
 
   const fmtDwell = (ms: number) => (ms >= 60000 ? `${(ms / 60000).toFixed(1)}m` : `${Math.round(ms / 1000)}s`)
+
+  // 按客户筛 —— 经纪的脑子是按人组织的,不是按 tour 组织的
+  const shownSessions = sessions.filter((x) =>
+    !filterClient ? true : filterClient === '__anon' ? !x.client_name : x.client_name === filterClient
+  )
   const canMatch = !!(clientId || oneLiner.trim())
 
   return (
@@ -655,10 +661,24 @@ export default function AgentTours() {
         )}
       </div>
 
-      {/* sessions */}
-      <div className="font-semibold mb-3">{L('我的导览', 'My tours')} {loading ? '…' : `(${sessions.length})`}</div>
+      {/* sessions —— **按客户筛**(owner:「一定要有每个客户的 filter」)。
+          经纪的脑子是按人组织的,不是按 tour 组织的:他想的是「陈先生那几场怎么样了」。 */}
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <span className="font-semibold">{L('我的导览', 'My tours')} {loading ? '…' : `(${shownSessions.length})`}</span>
+        <select
+          value={filterClient}
+          onChange={(e) => setFilterClient(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-teal-400"
+        >
+          <option value="">{L('全部客户', 'All clients')}</option>
+          {[...new Set(sessions.map((x) => x.client_name).filter(Boolean))].map((n) => (
+            <option key={n!} value={n!}>{n}</option>
+          ))}
+          <option value="__anon">{L('未绑定客户', 'No client')}</option>
+        </select>
+      </div>
       <div className="space-y-3">
-        {sessions.map((s) => (
+        {shownSessions.map((s) => (
           <div key={s.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
             <div className="p-4 flex flex-wrap items-center gap-4">
               <div className="flex-1 min-w-[180px]">
@@ -686,38 +706,46 @@ export default function AgentTours() {
                 <div className="text-lg font-bold text-emerald-600">{Math.round(s.lead_score)}</div>
                 <div className="text-[11px] text-slate-400">{L('热度', 'Heat')}</div>
               </div>
+              {/**
+                * 🔴 **四个动作,不是六个。**
+                *
+                * 之前一行挂了 6 个按钮:预览批注 / 事实清单 / 编辑器 / 流程 / 行为 / 删除。
+                * 而「流程」和「编辑器」**是同一件事的两个入口**(都是改旁白)——
+                * 那是我做两段式时留下的重复。「预览批注」是编辑器的一个模式。
+                *
+                * 现在:**打开 · 编辑 · 行为 · 删除**。其余收进「⋯」。
+                */}
               <a
-                href={`/?toursession=${s.share_code}&edit=1`}
+                href={`/?toursession=${s.share_code}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-3 py-1.5"
-                title={L('边看边在特定点暂停留言,回来用 AI 应用', 'Pause at specific points to leave notes, then apply them with AI')}
+                className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+                title={L('像客户一样打开这场导览', 'Open the tour as the client sees it')}
               >
-                {L('预览批注', 'Preview & annotate')}
-              </a>
-              <a
-                href={`/factsheet/${s.share_code}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5"
-                title={L('可核验的数据事实清单(可打印/存 PDF 给客户)', 'Verifiable data fact sheet (printable / save as PDF for the client)')}
-              >
-                {L('事实清单', 'Fact sheet')}
+                {L('▶ 打开', '▶ Open')}
               </a>
               <Link
                 to={`/agent/tour/${s.id}/edit`}
-                className="text-sm text-white bg-ink-700 hover:bg-ink-800 rounded-lg px-3 py-1.5"
-                title={L('可视化时间线编辑器', 'Visual timeline editor')}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                title={L('改旁白 / 镜头 / 卡片,或直接让 AI 改', 'Edit narration / camera / cards — or just tell the AI')}
               >
-                {L('🎬 编辑器', '🎬 Editor')}
+                {L('编辑', 'Edit')}
               </Link>
-              <FlowToggle sessionId={s.id} onSaved={load} />
-              <button onClick={() => openEvents(s.id)} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
+              <button
+                onClick={() => openEvents(s.id)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                title={L('这个客户看了什么、停在哪几套房上', 'What this client watched and where they lingered')}
+              >
                 {eventsId === s.id ? L('收起', 'Collapse') : L('行为', 'Activity')}
               </button>
-              <button onClick={() => deleteTour(s.id, s.title)} className="text-sm text-rose-400 hover:text-rose-600 border border-rose-200 rounded-lg px-3 py-1.5" title={L('删除整个导览', 'Delete the entire tour')}>
-                {L('删除', 'Delete')}
-              </button>
+              <MoreMenu
+                items={[
+                  { label: L('复制链接', 'Copy link'), onClick: () => { void navigator.clipboard?.writeText(`${window.location.origin}/v/${s.share_code}`) } },
+                  { label: L('事实清单（可打印给客户）', 'Fact sheet (printable)'), href: `/factsheet/${s.share_code}` },
+                  { label: L('边看边批注', 'Preview & annotate'), href: `/?toursession=${s.share_code}&edit=1` },
+                  { label: L('删除', 'Delete'), danger: true, onClick: () => deleteTour(s.id, s.title) },
+                ]}
+              />
             </div>
             {eventsId === s.id && insights && (
               <div className="border-t border-slate-100 p-4 bg-indigo-50/40">
@@ -762,7 +790,13 @@ export default function AgentTours() {
             )}
           </div>
         ))}
-        {!loading && sessions.length === 0 && <div className="text-sm text-slate-400">{L('还没有导览，用上面的表单生成一个。', 'No tours yet — use the form above to generate one.')}</div>}
+        {!loading && shownSessions.length === 0 && (
+          <div className="text-sm text-slate-400">
+            {sessions.length === 0
+              ? L('还没有导览，用上面的表单生成一个。', 'No tours yet — use the form above to generate one.')
+              : L('这个客户还没有导览。', 'No tours for this client yet.')}
+          </div>
+        )}
       </div>
 
       {/* 画像 wizard —— 和客户雷达、客户分析报告用的是**同一个组件**(不写 duplicate) */}
@@ -1398,6 +1432,48 @@ function FlowToggle({
         </div>
       )}
     </>
+  )
+}
+
+/** 「⋯」菜单 —— 低频动作收进来,别在每一行摊六个按钮。 */
+function MoreMenu({
+  items,
+}: {
+  items: { label: string; href?: string; onClick?: () => void; danger?: boolean }[]
+}) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [open])
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}
+        className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-500 transition hover:bg-slate-50"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((it) =>
+            it.href ? (
+              <a key={it.label} href={it.href} target="_blank" rel="noreferrer"
+                className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                {it.label}
+              </a>
+            ) : (
+              <button key={it.label} onClick={it.onClick}
+                className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${it.danger ? 'text-rose-500' : 'text-slate-700'}`}>
+                {it.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -1,11 +1,22 @@
 /**
- * 🔔 客户动静 —— 「谁刚看完、谁想联系你、谁收藏了哪套」。
+ * 🔔 购买意向提醒 —— 「谁刚看完、谁点了联系、谁收藏了哪套」。
  *
- * 🔴 这是这个产品**唯一真正的护城河**,而它之前是假的:行为数据一直在采
- *    (lt_engagement_events),但**没有任何人被告知** —— 经纪只有主动去翻才看得见。
+ * 行为数据一直在采,但之前**没有任何人被告知** —— 经纪只有主动去翻才看得见。
+ * 最值钱的一刻是客户**刚看完的那一分钟**,所以这块在工作台的**第一屏**。
  *
- * 最值钱的一刻是客户**刚看完的那一分钟**:他此刻正在想这件事。晚一天再打电话,
- * 热度就没了。所以这块必须在工作台的**第一屏**,而不是藏在某个 tab 里。
+ * ── ⚠️ 但它是**信号**,不是线索(owner 定调)────────────────────────────
+ *
+ * Luna Tour 的访客是**匿名的**:我们没有他的电话、没有微信。
+ * 实测:10 场 tour **6 场完全匿名**;剩下 4 场绑了客户,而那 4 个客户
+ * **0 个有电话、0 个有 WhatsApp**。
+ *
+ * 我上一版写的是「陈先生想联系你」+ 一个「去跟进」按钮 —— 而经纪点进去
+ * **根本联系不上任何人**。这跟 leads tab 被下架是同一个病。
+ * **一个联系不上的"线索"不是线索,是噪音。**
+ *
+ * 所以:
+ *   • 知道是谁(这场 tour 是发给某个客户的)→ 指名道姓,可以去他的档案
+ *   • 不知道是谁(公开链接)→ **明说不知道**,并告诉他下次怎么做才能知道
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +39,13 @@ const ICON: Record<string, string> = {
   tour_complete: '🎬',
   cta: '📞',
   favorite: '❤️',
+}
+
+/** 加粗 body 里的 **…**（后端用它标「我们不知道他是谁」这种要害的话）。 */
+function renderBody(text: string) {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1 ? <b key={i} className="text-slate-700">{part}</b> : <span key={i}>{part}</span>
+  )
 }
 
 function ago(iso: string, zh: boolean): string {
@@ -84,7 +102,7 @@ export default function IntentFeed() {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="h-4 w-4 text-teal-600" />
-          <span className="font-semibold">{L('客户动静', 'Client activity')}</span>
+          <span className="font-semibold">{L('购买意向', 'Buying signals')}</span>
           {unread > 0 && (
             <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
               {unread}
@@ -112,15 +130,27 @@ export default function IntentFeed() {
                 <span className="text-sm font-semibold text-slate-800">{n.title}</span>
                 <span className="text-[11px] text-slate-400">{ago(n.created_at, zh)}</span>
               </div>
-              {n.body && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{n.body}</p>}
+              {n.body && (
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{renderBody(n.body)}</p>
+              )}
             </div>
-            {n.client_id && (
+            {/**
+              * 🔴 **只有真的知道是谁,才给「去跟进」。**
+              *
+              * 匿名访客给一个跟进按钮 = 骗经纪点进去,然后发现联系不上任何人。
+              * 那比不给更伤 —— 他会觉得这个产品在忽悠他。
+              */}
+            {n.client_id ? (
               <Link
                 to="/agent/clients"
                 className="shrink-0 self-center rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700"
               >
-                {L('去跟进', 'Follow up')}
+                {L('看他的档案', 'Open profile')}
               </Link>
+            ) : (
+              <span className="shrink-0 self-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-400">
+                {L('匿名访客', 'Anonymous')}
+              </span>
             )}
           </div>
         ))}

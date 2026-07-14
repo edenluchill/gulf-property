@@ -90,3 +90,70 @@ ${beats.map((b, i) => `${i + 1}. [${b.beat_id}] ${b.narration}`).join('\n')}
   }
   return []
 }
+
+/**
+ * 🔴 **一句话改稿** —— AI 编辑器的核心。
+ *
+ * reviseNarration 要求经纪**先逐拍标注**,再点「用 AI 应用评论」——
+ * 那还是在要求他先理解「拍」这个概念、先学会时间线。
+ *
+ * owner 实测:「客户已经来看到直接懵逼了,完全不会用」。
+ * 根因不是这个编辑器不好用,是**我们在让经纪当剪辑师** —— 而他是销售。
+ * 他脑子里的东西是「结尾太长了」「别提那个学校」「多讲讲海景」,
+ * 他不该去找**哪个滑块**对应这句话。
+ *
+ * 所以:他打**一句人话**,由 AI 自己决定**改哪几拍**、怎么改。
+ *
+ * ⚠️ 只改**旁白文字**。数字、卡片、镜头一律不动 ——
+ *    卡片上的数字全部来自真实 DLD,**可手改 = 可伪造 = 客户凭什么信我们**。
+ */
+export async function reviseWithInstruction(
+  beats: (BeatForRevise & { kind?: string })[],
+  instruction: string
+): Promise<NarrationPatch[]> {
+  const text = instruction.trim()
+  if (!text || !beats.length) return []
+
+  const prompt = `你是迪拜房产导览的旁白编辑。经纪对整场导览提了**一句**修改意见,
+请你自己判断**哪几段需要改**,并只重写那几段。没受影响的段**不要返回**。
+
+经纪的意见:
+"""
+${text}
+"""
+
+当前导览的全部旁白(按顺序):
+${beats.map((b, i) => `${i + 1}. [${b.beat_id}]${b.kind ? ` (${b.kind})` : ''} ${b.narration}`).join('\n')}
+
+只输出如下结构的 JSON,不要解释:
+{ "patches": [ { "beat_id": "...", "narration": "重写后的旁白" } ] }
+
+硬规则(不可违反):
+- **只改旁白文字。** 不要改数字 —— 所有价格/涨幅/距离/成交量都来自真实数据,
+  不许编造、不许调整、不许"凑整"。意见里如果要求改数字,**忽略那部分**。
+- 不要承诺或保证任何回报率或升值。不出现"抱歉/对不起/无法"。
+- 保持原语言与专业、温暖的口吻。
+- 「短一点」→ 显著缩短;「更口语」→ 像人说话不像念稿;「去掉套话」→ 删掉空洞的形容词。
+- 「别提X」→ 把 X 相关的句子整个拿掉,并让上下文读起来仍然通顺。
+- 只返回**真正改动过**的段;beat_id 必须来自上面的列表。
+- 如果这句意见跟旁白无关(比如在说镜头或卡片),返回 { "patches": [] }。`
+
+  try {
+    const { text: out } = await callGemini({
+      task: 'revise-instruction',
+      models: ['gemini-3.5-flash', 'gemini-3.1-flash-lite'],
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.6 },
+    })
+    const parsed = JSON.parse(stripFence(out || '{}')) as { patches?: NarrationPatch[] }
+    const valid = new Set(beats.map((b) => b.beat_id))
+    return (parsed.patches || [])
+      .filter((p) => p && typeof p.beat_id === 'string' && typeof p.narration === 'string')
+      .filter((p) => valid.has(p.beat_id) && p.narration.trim().length > 0)
+      // 没变的别算成"改了"
+      .filter((p) => p.narration.trim() !== beats.find((b) => b.beat_id === p.beat_id)?.narration.trim())
+  } catch (err) {
+    console.warn('[luna] reviseWithInstruction failed:', err instanceof Error ? err.message : err)
+    return []   // 失败就什么都不改
+  }
+}

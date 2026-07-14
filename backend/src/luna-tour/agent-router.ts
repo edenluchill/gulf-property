@@ -22,7 +22,7 @@ import { generateClientReport, generateCompareReport, initialProgress } from './
 import { draftConfig } from './auto-config'
 import { matchProperties } from './auto-match'
 import { buildClientReport } from './auto-report'
-import { reviseNarration } from './revise'
+import { reviseNarration, reviseWithInstruction } from './revise'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
@@ -1526,6 +1526,115 @@ router.get('/clients/:id/activity', requireAgent, async (req: AgentReq, res: Res
   } catch (err) {
     console.error('[luna] client activity error:', err)
     res.status(500).json({ error: 'activity failed' })
+  }
+})
+
+/**
+ * 🔴 **一句话改稿 + 撤销** —— AI 编辑器的核心。
+ *
+ * owner 实测:「客户已经来看到直接懵逼了,完全不会用」。
+ * 根因不是编辑器不好用,是**我们在让经纪当剪辑师** —— 而他是销售。
+ * 他脑子里是「结尾太长了」「别提那个学校」,他不该去找**哪个滑块**对应这句话。
+ *
+ * 所以:他打一句人话 → AI 自己决定改哪几拍 → **返回前后对照** → 不满意一键撤销。
+ *
+ * ⚠️ **只改旁白。** 卡片上的数字全部来自真实 DLD ——
+ *    可手改 = 可伪造 = 客户凭什么信我们。这不是缺失的功能,是**刻意的约束**。
+ */
+router.post('/sessions/:id/ai-edit', requireAgent, async (req: AgentReq, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const instruction = String(req.body?.instruction || '').trim().slice(0, 500)
+    if (!instruction) return res.status(400).json({ error: '说一句你想改什么' })
+
+    const scRes = await pool.query<{ id: string; script: ScriptShape }>(
+      `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
+      [sessionId]
+    )
+    const scriptRow = scRes.rows[0]
+    if (!scriptRow) return res.status(404).json({ error: 'no script' })
+
+    const beats: { beat_id: string; narration: string; kind?: string }[] = []
+    eachBeat(scriptRow.script, (b) =>
+      beats.push({ beat_id: b.id || '', narration: b.narration || '', kind: (b as { kind?: string }).kind })
+    )
+    const before = new Map(beats.map((b) => [b.beat_id, b.narration]))
+
+    const patches = await reviseWithInstruction(beats, instruction)
+    if (!patches.length) {
+      return res.json({ ok: true, applied: 0, diffs: [], message: 'Luna 没找到要改的地方 —— 换个说法再试?' })
+    }
+
+    // 撤销点
+    await pool.query(
+      `INSERT INTO lt_tour_script_versions (script_id, session_id, script, note) VALUES ($1,$2,$3,$4)`,
+      [scriptRow.id, sessionId, JSON.stringify(scriptRow.script), `AI 改稿前 · ${instruction.slice(0, 40)}`]
+    )
+
+    const changed = new Set(patches.map((p) => p.beat_id))
+    const patchById = new Map(patches.map((p) => [p.beat_id, p.narration]))
+    eachBeat(scriptRow.script, (b) => {
+      if (b.id && changed.has(b.id)) {
+        b.narration = patchById.get(b.id)!
+        b.audio_url = undefined   // 只有改过的那几拍重烧语音
+      }
+    })
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
+    await pool.query(`DELETE FROM lt_audio_assets WHERE session_id=$1 AND beat_id = ANY($2::text[])`, [sessionId, [...changed]])
+
+    // 已发布的 tour 才立刻重烧语音;草稿等经纪确认(省钱)
+    const pub = await pool.query<{ is_published: boolean }>(`SELECT is_published FROM lt_demo_sessions WHERE id=$1`, [sessionId])
+    if (pub.rows[0]?.is_published) {
+      void generateSessionAudio(sessionId).catch(() => {})
+    }
+
+    const kindOf = new Map(beats.map((b) => [b.beat_id, b.kind]))
+    res.json({
+      ok: true,
+      applied: patches.length,
+      diffs: patches.map((p) => ({
+        beat_id: p.beat_id,
+        kind: kindOf.get(p.beat_id) || '',
+        before: before.get(p.beat_id) || '',
+        after: p.narration,
+      })),
+    })
+  } catch (err) {
+    console.error('[luna] ai-edit error:', err)
+    res.status(500).json({ error: 'ai-edit failed' })
+  }
+})
+
+/** 撤销上一次改动（AI 改稿 / 手改都算）。 */
+router.post('/sessions/:id/undo', requireAgent, async (req: AgentReq, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+    const v = await pool.query<{ id: string; script_id: string; script: unknown; note: string }>(
+      `SELECT id, script_id, script, note FROM lt_tour_script_versions
+        WHERE session_id=$1 ORDER BY created_at DESC LIMIT 1`,
+      [sessionId]
+    )
+    const last = v.rows[0]
+    if (!last) return res.json({ ok: true, restored: false, message: '没有可撤销的改动' })
+
+    /**
+     * ⚠️ **不要删音频。**
+     *
+     * 快照是在改动**之前**拍的 —— 它里面本来就带着**当时那几拍的 audio_url**,
+     * 而 R2 上那些文件**一直还在**(我们从不删)。所以恢复剧本 = 恢复旧语音,
+     * 一秒钟、一分钱都不用花。
+     *
+     * 我第一版在这里 DELETE 了 lt_audio_assets —— 那会让整场白白重烧一次语音。
+     */
+    await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(last.script), last.script_id])
+    await pool.query(`DELETE FROM lt_tour_script_versions WHERE id=$1`, [last.id])
+
+    res.json({ ok: true, restored: true, note: last.note })
+  } catch (err) {
+    console.error('[luna] undo error:', err)
+    res.status(500).json({ error: 'undo failed' })
   }
 })
 
