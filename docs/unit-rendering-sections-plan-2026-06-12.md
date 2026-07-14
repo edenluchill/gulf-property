@@ -110,7 +110,7 @@
 
 ### Phase 3 — 全局 section 重建 pass(推荐,~2 天)⭐ 解决 B5 根因
 
-8. 所有 chunk 分类完成后、`getFinalResult()` 之前,加一次**纯文本**全局调用(gemini-3-flash,无图片):
+8. 所有 chunk 分类完成后、`getFinalResult()` 之前,加一次**纯文本**全局调用(gemini-3.5-flash,无图片):
    - 输入:每页一行 `页码 | pdfSource | pageType | startMarkerText | unitTypeName | 文本层前 80 字`(140 页 ≈ 几千 token)
    - 输出:`sections: [{ unitTypeName, unitCategory, startPage, endPage, anchorPage?, confidence }]`
    - 这是人翻楼书的方式——全局看目录结构。单页无解的"这 8 页属于 Blue Horizon"在全局序列里是显然的

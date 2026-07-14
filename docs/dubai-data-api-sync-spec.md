@@ -1,6 +1,6 @@
 # Dubai Data API (data.dubai / DDA iPaaS) 同步系统设计
 
-> 状态:**设计稿,未实现**。等 `client_secret` 入 env + 确认 UAE 出口后开始 Phase 0 测试。
+> 状态:**已上线**(2026-07-13 核实)。`sync/dubai/` 目录与本设计一一对应,`sync_runs` / `sync_cursors` 表都在跑。原文写的「设计稿,未实现」已不成立。
 > 作者:Claude · 日期:2026-06-07
 > 对应凭证:Application Id `PUBLIC-USR-UID-4057946` · Environment `STG`
 

@@ -181,6 +181,17 @@ export const UnitCardOverlaySchema = OverlayBase.extend({
   ),
 })
 
+/**
+ * 邻居对比卡 —— 地理套利那一拍。
+ *
+ * ⚠️ 和 unit_card 一样:**overlay 里不带任何数字**,前端从 property snapshot 的
+ *    area_context 读真数据。只要让模型往 overlay 里填数字,它就会编。
+ */
+export const AreaCompareOverlaySchema = OverlayBase.extend({
+  type: z.literal('area_compare'),
+  property_id: z.string(),
+})
+
 export const HighlightAllPinsOverlaySchema = OverlayBase.extend({
   type: z.literal('highlight_all_pins'),
   property_ids: z.array(z.string()),
@@ -228,6 +239,7 @@ export const OverlaySchema = z.discriminatedUnion('type', [
   AmenitySpokesOverlaySchema,
   RoiCardOverlaySchema,
   UnitCardOverlaySchema,
+  AreaCompareOverlaySchema,
   HighlightAllPinsOverlaySchema,
   FavoritePickerOverlaySchema,
   CtaOverlaySchema,
@@ -240,9 +252,17 @@ export const OverlaySchema = z.discriminatedUnion('type', [
 
 export const BeatSchema = z.object({
   id: z.string(),
-  /** arrival | life | homes | numbers — per-property storytelling phase (§1.2).
-   *  `homes` = 户型拍：客户终于知道自己能买到什么（只在有真实户型数据时才有）。 */
-  kind: z.enum(['arrival', 'life', 'homes', 'numbers']).optional(),
+  /**
+   * 每个项目的叙事阶段。
+   *   arrival   到达
+   *   life      周边生活
+   *   homes     户型 —— 客户终于知道自己能买到什么
+   *   arbitrage **地理套利** —— 「我为什么该买这里，而不是走路 5 分钟外的那个区」
+   *   weakness  **它的短板** —— 主动说出输在哪，然后**立刻用真数据反驳**（接种）
+   *   numbers   投资数字
+   * 后三个都**只在有真数据时才有**；没有就整拍不讲。
+   */
+  kind: z.enum(['arrival', 'life', 'homes', 'arbitrage', 'weakness', 'numbers']).optional(),
   narration: z.string().min(1),
   /** Pre-generated audio URL; empty/absent → browser TTS fallback (§4.5). */
   audio_url: z.string().optional(),
@@ -261,7 +281,15 @@ export const ActSchema = z.object({
   id: z.string(),
   property_id: z.string(),
   beats: z.array(BeatSchema).min(1),
-  transition_out: TransitionSchema.optional(),
+  /**
+   * ⚠️ **容忍 null。** 模型经常用 `null` 表示「没有转场」,而 `.optional()` 只接受
+   *    「字段缺席」—— 一个 null 就让**整个剧本 schema parse 失败,一次生成(含重试)
+   *    全部作废**(实测:`acts.2.transition_out: expected object, received null`)。
+   *
+   *    同类坑已经踩过一次(cta 的 `agent` 字段回了 `true`)。**凡是可选字段,
+   *    都要能吃 null** —— 别让一个 null 炸掉一次几十秒、几千 token 的生成。
+   */
+  transition_out: z.preprocess((v) => (v == null ? undefined : v), TransitionSchema.optional()),
   // E3 — non-property stop (beach / landmark / any place). property_id is '' then.
   place: z.object({ name: z.string(), coords: LngLat }).optional(),
 })
@@ -387,6 +415,24 @@ export interface TourProperty {
   amenities?: TourPropertyAmenity[]
   /** 真实户型（按卧室数聚合）。没有户型数据时整个字段缺席 —— 那就少讲一拍。 */
   units?: TourPropertyUnit[]
+  /**
+   * 区域对比（地理套利 + 能被反驳的短板）。
+   * 目标区或邻居的成交量过不了门槛 → 整个字段缺席 → 这两拍不讲（宁可少一拍，不能用噪音说话）。
+   */
+  area_context?: {
+    self: AreaStatsLite
+    neighbors: AreaStatsLite[]
+    weakness: { claim: string; rebuttal: string } | null
+  }
+}
+
+export interface AreaStatsLite {
+  name: string
+  distance_km: number
+  growth_pct: number
+  yield_pct: number
+  price_sqm: number
+  transactions: number
 }
 
 export interface TourInput {

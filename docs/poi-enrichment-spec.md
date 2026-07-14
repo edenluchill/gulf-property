@@ -20,7 +20,7 @@
 ## 成本
 - KHDA 抓取:$0(公开数据)
 - Wikidata/维基百科:$0(免费 API,无需 key,照片 CC 可商用)
-- Gemini 兜底介绍:695 个 × gemini-3-flash 一次性 ≈ 几美分~$1
+- Gemini 兜底介绍:695 个 × gemini-3.5-flash 一次性 ≈ 几美分~$1
 - **关键**:免费源允许"一次性抓取、永久存库",无 Google ToS 的长期缓存禁令 → prefetch 不贵。
 
 ## 全免费数据栈
@@ -54,7 +54,7 @@ CREATE TABLE dubai_poi_enrichment (
 ### 1.2 批处理脚本 `backend/scripts/enrich-pois.ts`
 对 695 个目标 POI:
 1. **Wikidata 匹配**:用 name(+ name_ar)+ 坐标半径,查 Wikidata SPARQL / `wbsearchentities`;命中取 image(P18)、描述、official website。图片转 Commons 缩略图 URL。
-2. **Gemini 兜底**:无 Wikidata 命中者,gemini-3-flash 按 `name + category + area + address` 生成中性介绍(中英),提示词禁止编造评分/数字,只描述定位与特点。
+2. **Gemini 兜底**:无 Wikidata 命中者,gemini-3.5-flash 按 `name + category + area + address` 生成中性介绍(中英),提示词禁止编造评分/数字,只描述定位与特点。
 3. 写入 `dubai_poi_enrichment`,记 source。可重跑(UPSERT)。
 
 ### 1.3 API:`backend/src/routes/dubai-pois.ts`

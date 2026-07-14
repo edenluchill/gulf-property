@@ -1,3 +1,10 @@
+> # ⚠️ 半份过期(2026-07-13 核实)
+>
+> **§1(聚合气泡)已死** —— 主角 `supercluster` 在前端**零 import**,`ClusterBubble` 零命中,
+> 已被 `ProjectCardMarker` 取代。那个 npm 依赖也已在本次大扫除中卸载。
+>
+> **§2(访客分析)仍然是活的** —— 那部分照旧有效。
+
 # Cluster pill 重设计 + 访客级 analytics — 2026-06-19
 
 ## 1. Cluster pin 现代化

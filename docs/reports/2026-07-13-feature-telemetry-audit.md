@@ -137,13 +137,29 @@ worker 是独立进程、独立镜像，API 里那句 `startTelemetry()` 它根�
 
 ## 六、还没做的（明说）
 
-- **PDF 管线的分阶段耗时**：`workflow-executor.ts` 有 10 个 STEP，但对外只有 6 个
-  粗粒度 stage，现在只量了 job 总耗时。要拆到「哪一步慢」还得逐 STEP 包一层。
+- ~~**PDF 管线的分阶段耗时**~~ → **已做**（2026-07-13 稍晚）：`workflow-executor.ts` 的
+  6 个阶段（text_layer / imagegen / chunking / ai_batch / reduce / report）已逐段计时。
 - **langgraph 仍用旧 SDK**（`@google/generative-ai`），没走 `callGemini`，
   所以 **PDF 管线的 AI 成本还没有计入**（只有次数/失败/耗时）。迁到新 SDK 是
   10 个文件的机械替换，风险可控但没在这一轮做。
-- `processing_logs` / `debug_snapshot` 是**死代码**（`logToDB()` 全库零调用），
-  所以 admin 的任务日志页永远是空的。要么接上，要么删掉。
+
+### ⚠️ 本报告的一处错误（2026-07-13 更正）
+
+原文这里写着：
+
+> ~~`processing_logs` / `debug_snapshot` 是**死代码**（`logToDB()` 全库零调用），
+> 所以 admin 的任务日志页永远是空的。~~
+
+**这是错的。** 大扫除时去验证，发现：
+
+- `logToDB()` 有 **6 处调用**（都在 `workflow-executor.ts` 里，`executePdfWorkflow` 的主路径上）
+- `processing_logs` 列里 **33 个任务有日志**
+- **admin 的任务日志页是能用的**
+
+只有 `debug_snapshot` 是真死的（`updateDebugSnapshot()` 零调用、列 0 行数据），已删除。
+
+**教训：分析报告本身也会错。清理 dead code 前必须逐条 grep 验证 ——
+差一点就按这份报告删掉了一个正在工作的日志功能。**
 
 ---
 

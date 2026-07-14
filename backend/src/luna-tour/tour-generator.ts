@@ -24,6 +24,7 @@ import {
   Beat,
   Overlay,
 } from './tour-script.types'
+import { areaContextFacts } from './area-context'
 
 // Model names kept as top-level constants so they are trivial to swap.
 const PRIMARY_MODEL = FLASH    // GA 旗舰(2026-05)。gemini-3-flash 是 404,3-flash-preview 已废弃
@@ -89,6 +90,10 @@ function propertyFacts(p: TourProperty): string {
           `${a.placeholder ? ' [PLACEHOLDER]' : ''}`
       )
     }
+  }
+  // 区域对比 —— 地理套利 + 能被反驳的短板。没有就整个不出现，那两拍跳过。
+  if (p.area_context) {
+    lines.push(...areaContextFacts(p.area_context as never))
   }
   // 户型 —— 客户真正要买的东西。没有就整个不出现，那个项目跳过 homes 拍。
   if (p.units?.length) {
@@ -200,6 +205,10 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  ABSENCE of data as a fact about the property. If there is no amenity_score,',
     '  do not say the area scores zero or "lacks amenities" — say nothing about it',
     '  and spend the words on what you DO have.',
+    '- ⛔ NEVER name the beat or the section out loud. "地理套利" / "arbitrage" /',
+    '  "短板" / "weakness" / "numbers beat" are OUR internal labels — a real agent',
+    '  does not announce "now, the geographic-arbitrage section". Just SAY the thing:',
+    '  "0.5 公里外的 Motor City，单价比这里贵 26%，涨幅是 0。" No preamble.',
     '- Speak numbers the way a person speaks them, not as raw digits. In Chinese',
     '  say「180 万」not「1800000」; in English say "1.8 million".',
     '- ⛔ NEVER mention a search radius or "within X metres/km" as a framing. The',
@@ -260,6 +269,9 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '   • homes   — orbit again (80–150°, 6000–8000ms), slower and tighter. The client',
     '               is deciding which home is theirs; let them see it from every side',
     '               and see the neighbourhood turning behind it. NEVER hold still here.',
+    '   • arbitrage — crane UP (pitch→30, zoom out ~1.0) so the neighbouring districts',
+    '               are all on screen. The comparison IS the shot.',
+    '   • weakness — ⛔ HOLD. Dead still. He is being told the truth; do not distract him.',
     '   • numbers — ⛔ HOLD. No orbit, no flyover. At most a barely-there push (+0.3).',
     '               They are reading a chart. Moving the map now competes with the',
     '               number and they will remember neither.',
@@ -272,6 +284,9 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  distance_line { property_id?, to:[lng,lat], label, anim:"draw" }',
     '  amenity_spokes { property_id?, center:[lng,lat], score, tier?, spokes?:[{label,distance_km}], anim:"pop" }',
     '  roi_card { property_id?, anim:"countup", data:{ buy, future, years, growth_pct, yield_pct? } }',
+    '  area_compare { property_id }   ← the arbitrage beat. Carries NO numbers: the',
+    '    app renders the real neighbour table from its own data. (Same rule as',
+    '    unit_card — give the model a number field and it WILL invent numbers.)',
     '  unit_card { property_id, focus_bedrooms? }   ← the homes beat. Carries NO',
     '    numbers: the app renders the real layouts/areas/prices/floor plans from',
     '    its own data. You only choose WHICH property and which bedroom count to',
@@ -321,6 +336,23 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  heard about an area, not a home. Narrate the layouts that fit THIS client',
     '  (their budget, their family), name the bedroom counts and say why that one',
     '  suits them. Use only the `unit:` lines given for this property.',
+    '- arbitrage beat ⭐ (地理套利 — the single most persuasive thing a MAP can do,',
+    '  and a PDF brochure never can): overlay `area_compare` { property_id }, at_ms 0.',
+    '  Camera cranes UP so the neighbouring areas are all in frame.',
+    '  The investor does not want to know "how much does this project grow". He wants',
+    '  to know "WHY HERE and not the district a 5-minute walk away". Answer THAT.',
+    '  Use the `area_self:` and `area_neighbor:` lines. Name the neighbour, its',
+    '  distance, and the number that makes the case. Be concrete and blunt, e.g.',
+    '  "0.5 km away, Motor City costs 26% MORE per sqm — and grew 0%."',
+    '- weakness beat ⭐ (它的短板 — honesty, but ARMED): overlay: none needed.',
+    '  Camera HOLDS STILL — this is a moment of eye contact, not scenery.',
+    '  Say `weakness_claim:` FIRST, plainly, no hedging. Then say `weakness_rebuttal:`.',
+    '  ⛔ You MUST NOT soften the claim, and you MUST NOT omit the rebuttal.',
+    '  Why: a stated flaw WITHOUT a refutation is WORSE than saying nothing (Allen).',
+    '  What works is INOCULATION — you are vaccinating the client against what the',
+    '  NEXT agent will say to him. He will hear "JVC grows slower" from someone else;',
+    '  he should hear it from YOU first, with the answer already attached.',
+    '  End by naming who this is NOT for. That is what makes the rest believable.',
     '- numbers beat: roi_card overlay, at_ms = 0. Camera HOLDS STILL. Numbers are',
     '  read, not flown over.',
     '- outro: pull back, highlight_all_pins + favorite_picker + cta.',
@@ -357,8 +389,20 @@ async function callModel(prompt: string): Promise<unknown> {
       config: {
         responseMimeType: 'application/json',
         temperature: 0.7,
+        /**
+         * 🔴 **thinking 是按 output 价计费的**($9/1M) —— 不设就是默认全开。
+         *
+         * 剧本生成确实需要一点规划(编排 12 拍的节奏、决定哪一拍讲什么),
+         * 所以不能像抽取任务那样设 'minimal'。'low' 是权衡:留一点推理,
+         * 但不让它为了"想周全"烧掉几千个 output token。
+         *
+         * ⚠️ Gemini 3.x 是 `thinkingLevel`,**不是 `thinkingBudget`**(那是 2.5 的,
+         *    写错会被**静默忽略**)。
+         */
+        thinkingConfig: { thinkingLevel: 'low' },
       },
     })
+
     if (!text.trim()) throw new Error('empty response')
     return JSON.parse(stripJsonFence(text))
   } catch (err) {
@@ -509,6 +553,58 @@ export function normalizeBearing(beats: Beat[]): void {
   }
 }
 
+/**
+ * 🔴 **在代码里判定 beat 的 kind,不要求 LLM 自己标。**
+ *
+ * 实测:prompt 明明白白写了「kind="arbitrage"」「kind="weakness"」,模型**内容全写对了**
+ *(邻居对比、短板+反驳一字不差),但把它们**统统标成了 `kind: "life"`**。
+ * 于是 area_compare 卡片不会出现,下游按 kind 做的一切(断言、运镜、UI)全部落空。
+ *
+ * 「LLM 会违反 prompt。代码不会。」—— 那就别让 kind 由它决定:
+ * 我们**知道**哪个项目有邻居数据、短板文案长什么样,直接认出来并打标。
+ *
+ * ⚠️ 顺序要紧:短板那一拍**也会**提到邻居的名字,所以必须**先认短板**(带反驳的),
+ *    再认套利。反过来会把短板误判成套利。
+ */
+function classifyBeats(script: TourScript, input: TourInput): void {
+  const byId = new Map(input.properties.map((p) => [p.id, p]))
+
+  for (const act of script.acts) {
+    const prop = byId.get(act.property_id)
+    const ctx = prop?.area_context
+    if (!ctx) continue
+
+    const neighborNames = ctx.neighbors.map((n) => n.name).filter(Boolean)
+    const mentionsNeighbor = (t: string) => neighborNames.some((n) => n && t.includes(n))
+    const hasRebuttal = (t: string) => /但是|但|不过|however|but /i.test(t)
+
+    // ① 短板拍 —— 提到邻居 **且** 带反驳。先认它。
+    if (ctx.weakness) {
+      const b = act.beats.find(
+        (x) => x.kind !== 'arbitrage' && mentionsNeighbor(x.narration) && hasRebuttal(x.narration)
+      )
+      if (b) b.kind = 'weakness'
+    }
+
+    // ② 套利拍 —— 提到邻居(且不是刚认出来的短板拍)
+    if (neighborNames.length) {
+      const b = act.beats.find((x) => x.kind !== 'weakness' && mentionsNeighbor(x.narration))
+      if (b) {
+        b.kind = 'arbitrage'
+        // 卡片也别指望它加 —— 我们自己确保它在,且从第 0 毫秒就在
+        if (!b.overlays.some((o) => o.type === 'area_compare')) {
+          b.overlays.unshift({
+            type: 'area_compare',
+            property_id: act.property_id,
+            at_ms: 0,
+            duration_ms: b.duration_ms,
+          } as Overlay)
+        }
+      }
+    }
+  }
+}
+
 /** Returns a list of validation errors. Empty list = valid. */
 export function validateTourScript(
   script: TourScript,
@@ -526,6 +622,9 @@ export function validateTourScript(
   //    而不是把它当成错误退回去重试（那样只是白烧一次 LLM 调用，它下次照样犯）。
   for (const beat of allBeats) clampCinematography(beat)
   normalizeBearing(allBeats)
+
+  // kind 由**代码**判定 —— 模型内容写对了却全标成 'life'(见 classifyBeats 的注释)
+  classifyBeats(script, input)
 
   // 数字口语化 —— 「购入价 1800000 迪拉姆」→「购入价 180 万迪拉姆」。
   // 字幕和 TTS 读的是同一个字符串，改一处两处都对。

@@ -17,7 +17,7 @@
 项目名/开发商/地址通常在前 10 页就齐了,后续 chunk 不必再跑 project-info extractor。检查现状是否已条件化,没有就加"已齐全则跳过"。
 
 ### 4. 模型版本
-全线在用 `gemini-3-flash-preview`,CLAUDE.md 指引是正式版 `gemini-3-flash`(preview 配额/限流更严,正式版更稳)。一行改动,顺手做。
+全线在用 `gemini-3-flash-preview`,CLAUDE.md 指引是正式版 `gemini-3.5-flash`(preview 配额/限流更严,正式版更稳)。一行改动,顺手做。
 
 ## 二、获取更多信息
 

@@ -1,3 +1,12 @@
+> # ⛔ 已过期(2026-07-13 核实)
+>
+> 这份文档描述的是**从 CSV 导数据**的时代。现在**全部走官方 API**
+> (见 `dubai-data-api-sync-spec.md` / `dubai-data-flow-diagram.md`)。
+>
+> 它列的 Next Steps 三张表(projects / developers / valuations)**早已入库**。
+>
+> 保留原因:记录了当初的数据源盘点(哪些数据从哪来),有历史参考价值。
+
 # Dubai Pulse Data Sources
 
 > Reference for future data integration from https://www.dubaipulse.gov.ae/

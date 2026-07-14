@@ -1,10 +1,22 @@
+> # ⛔ 已过期(2026-07-13 核实)
+>
+> **别按这份文档干活。** 它描述的状态已经不成立:
+> - 它点名的 `pages/AgentDashboard.tsx` **已不存在**(`/luna/agent` 现在是 redirect)
+> - 它说编辑器还是 TODO —— 实际 `TourEditor.tsx` **早就上线了**
+> - 它引用的模型名已经是 404 的
+>
+> **仍有价值的部分**(已镜像进 memory,别丢):react-map-gl Marker 抖动 → 改用 GL symbol;
+> R2 CORS 图片代理;camScale 的由来。
+>
+> 当前状态看:`luna-tour-presentation-architecture.md`(现状)+ `luna-tour-studio-spec.md`(路线)
+
 # Luna Tour — 进度与待办(下次 pick up 从这里开始)
 
 > 🔵 **打磨清单**:`docs/luna-tour-polish-plan-2026-06-02.md` —— ✅ **四项全部完成(2026-06-02)**,见下「真机打磨第七轮」。下次只剩**真机肉眼复验手感**。
 
 ## 2026-06-06 E2 评论式 AI 改稿(第一版:flow 编辑器内)
 - **数据层**(`src/db/luna-tour-edit.sql`,已应用 + 进 teardown):`lt_edit_comments`(评论锚 beat+at_ms,status open/applied/dismissed)、`lt_tour_script_versions`(脚本版本快照,撤销用)。
-- **revise 服务** `luna-tour/revise.ts`:`reviseNarration(beats, comments)` → Gemini(gemini-3-flash 主/2.5 fallback,JSON)只重写**有评论的 beat** 的旁白,执行意见(短一点/强调X/改数字),restate 合规底线(不承诺回报、不编数字、禁词),失败返回 []。
+- **revise 服务** `luna-tour/revise.ts`:`reviseNarration(beats, comments)` → Gemini(gemini-3.5-flash 主/2.5 fallback,JSON)只重写**有评论的 beat** 的旁白,执行意见(短一点/强调X/改数字),restate 合规底线(不承诺回报、不编数字、禁词),失败返回 []。
 - **后端端点**(agent-router):`POST/GET/PATCH /sessions/:id/comments`、`POST /sessions/:id/revise`(收集 open 评论→AI 改→**快照版本**→应用 patch(改 narration + 清该 beat audio_url)→**只重生成改动段音频**(后台,generateSessionAudio 跳过已有音频)→标记 applied)、`GET /sessions/:id/versions` + `POST /sessions/:id/revert`。
 - **前端** FlowEditor:每段旁白下加「给 AI 的修改意见」输入 + 「✨ 用 AI 应用评论」按钮(POST 评论→revise→reload),手动直接改文字仍可。改动可回滚(版本)。
 - 前后端 tsc + 前端 build + 暂停不变量 25/25。**后端必须部署。**
@@ -231,7 +243,7 @@
    - `reports/2026-05-30-build-difficulty.md`(难度评估)
 2. **产品心脏验证 = GO**:`backend/src/luna-tour/` 已实现并**真实跑通**:
    - `tour-script.types.ts`(zod TourScript v2 + TourInput)
-   - `tour-generator.ts`(`generateTourScript()`:Gemini gemini-3-flash 主 / gemini-2.5-flash fallback;结构化 JSON;数据只引用不编造;banned_phrases/guardrails;zod+程序化校验+自动重试一次;另导出 `validateTourScript`)
+   - `tour-generator.ts`(`generateTourScript()`:Gemini gemini-3.5-flash 主 / gemini-2.5-flash fallback;结构化 JSON;数据只引用不编造;banned_phrases/guardrails;zod+程序化校验+自动重试一次;另导出 `validateTourScript`)
    - `test-tour-generator.ts`(取 2 个真盘 + investment-calculator 算 ROI;`npx ts-node src/luna-tour/test-tour-generator.ts` 跑通,首次生成即过全部校验,0 warnings,旁白自然、数据零编造)
    - `npx tsc --noEmit` 全仓 0 错误。
    - 已知小问题(留待优化,非阻塞):①总时长偏满(命中 ±20% 边界,spec 原文 ±15%,可把 `tour-generator.ts` 顶部 `TOTAL_DURATION_TOLERANCE` 改 0.15);②arrival 的 flyover from==to(无"上一处"坐标,语义无害)。

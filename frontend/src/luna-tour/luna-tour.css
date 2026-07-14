@@ -901,3 +901,69 @@
 @media (max-width: 640px) {
   .lt-voice-warn { top: 56px; font-size: 11px; padding: 5px 11px; }
 }
+
+/* ---- 地理套利:邻居对比卡 -------------------------------------------------
+   投资客真正想知道的不是「这个项目涨多少」,而是**「我为什么该买这里,
+   而不是走路 5 分钟外的那个区」**。这是地图能做、PDF 楼书永远做不到的事。
+   桌面走右侧竖卡(和户型卡同一个槽 —— 它们是两拍,不同时在场);手机贴底。 */
+.lt-ov-compare {
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  z-index: 7; width: 380px; max-width: 46vw;
+  background: linear-gradient(135deg, rgba(10, 14, 24, 0.96), rgba(8, 12, 20, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px; padding: 14px 16px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+  animation: lt-slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lt-cmp-head { font-size: 15px; font-weight: 800; }
+.lt-cmp-sub { font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 1px; margin-bottom: 10px; }
+.lt-cmp-grid { display: flex; flex-direction: column; gap: 3px; }
+.lt-cmp-row {
+  display: grid; grid-template-columns: 1.5fr 0.7fr 0.7fr 1fr 0.9fr;
+  align-items: center; gap: 6px;
+  padding: 6px 7px; border-radius: 8px;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.lt-cmp-row.is-self { background: rgba(255, 255, 255, 0.08); }
+.lt-cmp-hdr {
+  font-size: 9.5px; letter-spacing: 0.04em; padding-bottom: 2px;
+  color: rgba(255, 255, 255, 0.42); font-weight: 600;
+}
+.lt-cmp-name {
+  display: flex; flex-direction: column; min-width: 0;
+  font-weight: 600; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.lt-cmp-name i { font-style: normal; font-size: 9.5px; color: rgba(255, 255, 255, 0.4); }
+.lt-cmp-price { display: flex; flex-direction: column; line-height: 1.2; }
+/* 邻居比本区贵 → 红(那是他多付的钱);便宜 → 绿 */
+.lt-cmp-price i { font-style: normal; font-size: 9.5px; }
+.lt-cmp-price i.up { color: #f0808f; }
+.lt-cmp-price i.down { color: #7ddb9a; }
+/* 成交量条 = **流动性**:想出手时有没有人接盘。涨得快而没人买,那个数字是纸上的。 */
+.lt-cmp-tx { display: flex; flex-direction: column; gap: 3px; }
+.lt-cmp-tx b { font-size: 11.5px; font-weight: 700; }
+.lt-cmp-tx i { display: block; height: 3px; border-radius: 2px; }
+.lt-cmp-foot {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 9.5px; line-height: 1.4; color: rgba(255, 255, 255, 0.4);
+}
+.lt-cmp-note { display: block; }
+
+@media (max-width: 640px) {
+  .lt-ov-compare {
+    left: 8px; right: 8px; top: auto; bottom: 56px;
+    transform: none; width: auto; max-width: none;
+    padding: 11px 12px; border-radius: 14px;
+    animation: lt-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* 手机上藏掉项目小卡 —— 两张卡叠在底部会占掉半个屏 */
+  .lt-overlay-root:has(.lt-ov-compare) .lt-ov-card { display: none; }
+  .lt-cmp-row { grid-template-columns: 1.4fr 0.6fr 0.6fr 0.9fr 0.8fr; font-size: 11px; padding: 5px; }
+  .lt-cmp-foot .lt-cmp-note { display: none; }
+  /* 字幕给这张卡让位（同 :has 规则，别再手写第二个 bottom） */
+  .lt-root:has(.lt-ov-compare) .lt-subtitle,
+  .lt-tour-host:has(.lt-ov-compare) .lt-subtitle { bottom: 260px; }
+}

@@ -131,7 +131,7 @@ Beat = { id, kind?:'arrival'|'life'|'numbers', narration, audio_url?, duration_m
 
 **生成流程**(`tour-generator.ts` + `session-builder.ts`):
 ```
-TourInput{client, config, properties[]} → buildPrompt() → Gemini(gemini-3-flash)
+TourInput{client, config, properties[]} → buildPrompt() → Gemini(gemini-3.5-flash)
   → JSON → zod parse(TourScriptSchema) → validate(timing/refs/duration±20%) → 失败反馈重试一次 → 存 lt_tour_scripts
 ```
 `TourProperty` 喂给生成器的字段:id, name, coords, min/max_price, investment{buy,future,growth_pct,yield_pct,payback_years}, amenity_score, amenity_tier, distances[], amenities[]。

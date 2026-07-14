@@ -113,6 +113,13 @@ export interface RoiCardOverlay {
  * 里读（真实的 project_unit_types 数据）。剧本只能决定「讲哪个项目、重点几房」——
  * 只要让模型往 overlay 里填数字，它就会编。
  */
+/** 邻居对比卡(地理套利)。**不带数字** —— 前端从 snapshot 的 area_context 读真数据。 */
+export interface AreaCompareOverlay {
+  type: 'area_compare'
+  at_ms: number
+  duration_ms?: number
+  property_id: string
+}
 export interface UnitCardOverlay {
   type: 'unit_card'
   at_ms: number
@@ -158,6 +165,7 @@ export type Overlay =
   | AmenitySpokesOverlay
   | RoiCardOverlay
   | UnitCardOverlay
+  | AreaCompareOverlay
   | HighlightAllPinsOverlay
   | FavoritePickerOverlay
   | CtaOverlay
@@ -165,7 +173,7 @@ export type Overlay =
 
 export interface Beat {
   id: string
-  kind?: 'arrival' | 'life' | 'homes' | 'numbers'
+  kind?: 'arrival' | 'life' | 'homes' | 'arbitrage' | 'weakness' | 'numbers'
   narration: string
   audio_url?: string
   duration_ms: number
@@ -228,6 +236,21 @@ export interface PropertySnapshot {
   amenities?: { label: string; distance_km: number; placeholder?: boolean }[]
   /** 真实户型(按卧室数聚合)。没有户型数据的项目整个字段缺席 —— 那就不讲这一拍。 */
   units?: TourUnit[]
+  /** 区域对比(地理套利 + 能被反驳的短板)。成交量过不了门槛 → 缺席 → 那两拍不讲。 */
+  area_context?: {
+    self: AreaStats
+    neighbors: AreaStats[]
+    weakness: { claim: string; rebuttal: string } | null
+  }
+}
+
+export interface AreaStats {
+  name: string
+  distance_km: number
+  growth_pct: number
+  yield_pct: number
+  price_sqm: number
+  transactions: number
 }
 
 /** 一个户型(按卧室数聚合)。客户要买的是户型,不是「项目」。 */

@@ -22,6 +22,7 @@ import {
 import { generateTourScript } from './tour-generator'
 import { generateSessionAudio } from './audio-pipeline'
 import { TourInput, TourProperty, TourPropertyUnit, TourConfig } from './tour-script.types'
+import { fetchAreaContext } from './area-context'
 
 // ⚠️ 这里曾经有两个常量:PLACEHOLDER_YIELD_PCT = 6.5 / PLACEHOLDER_GROWTH_PCT = 7。
 // 它们让**每一份 tour 的每一个项目**都播报同一组编造的数字(73% / 6.5% / 15年),
@@ -221,7 +222,8 @@ function buildProperty(
   row: ProjectRow,
   real: NearbyResult,
   metrics: { yield_pct: number; growth_pct: number } | null,
-  units: TourPropertyUnit[] | undefined
+  units: TourPropertyUnit[] | undefined,
+  areaCtx: TourProperty['area_context']
 ): TourProperty {
   const lng = num(row.longitude)!
   const lat = num(row.latitude)!
@@ -274,6 +276,7 @@ function buildProperty(
     distances: real.distances,
     amenities: real.amenities,
     units,
+    area_context: areaCtx,
   }
 }
 
@@ -376,12 +379,14 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       const lat = num(row.latitude)!
       // 真实的区域回报/涨幅（DLD）+ 半径内、名字能读的 POI。两者都可能是 null/空 ——
       // 那就少讲一拍，绝不编。
-      const [real, metrics, units] = await Promise.all([
+      const [real, metrics, units, areaCtx] = await Promise.all([
         fetchNearby(client, lng, lat, lang),
         areaMetricsAt(client, lng, lat),
         fetchUnits(client, row.id, lang.startsWith('en') ? 'en' : 'zh'),
+        // 地理套利 + 能被反驳的短板。成交量过不了门槛就返回 null → 那两拍不讲。
+        fetchAreaContext(client, lng, lat).catch(() => null),
       ])
-      properties.push(buildProperty(row, real, metrics, units))
+      properties.push(buildProperty(row, real, metrics, units, areaCtx ?? undefined))
     }
 
     const config: TourConfig = { ...DEFAULT_CONFIG, ...input.config }
@@ -441,6 +446,7 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
         coords: p.coords, min_price: p.min_price, max_price: p.max_price, investment: p.investment,
         amenity_score: p.amenity_score, amenity_tier: p.amenity_tier, distances: p.distances, amenities: p.amenities,
         units: p.units,
+        area_context: p.area_context,
       }
       await client.query(
         `INSERT INTO lt_session_properties (session_id, project_id, sort_order, snapshot)

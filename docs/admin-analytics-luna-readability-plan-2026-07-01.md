@@ -30,7 +30,7 @@
 
 ### 4. 每场 AI 中文对话摘要(后端 + 前端)—— 本期核心
 - **DB**:`luna_sessions` 加列 `summary text`、`summary_at timestamptz`。迁移文件 `backend/src/db/add-luna-session-summary.sql`(用户跑 db-runner)。
-- **服务**:`backend/src/services/lunaSummary.ts` → `summarizeLunaSession(transcript): Promise<string|null>`。用 `@google/genai` Gemini Flash(`gemini-3-flash`),best-effort,失败返回 null。参照 `services/collabReport.ts` / `luna-tour/auto-report.ts` 的 Gemini 调用范式。
+- **服务**:`backend/src/services/lunaSummary.ts` → `summarizeLunaSession(transcript): Promise<string|null>`。用 `@google/genai` Gemini Flash(`gemini-3.5-flash`),best-effort,失败返回 null。参照 `services/collabReport.ts` / `luna-tour/auto-report.ts` 的 Gemini 调用范式。
   - 输入:把 transcript 压成紧凑文本 —— 用户消息、Luna 消息、每个 toolCall 的 `name(params)→result`、errors。
   - Prompt(中文输出,2–4 句):**客户意图 / Luna 做了什么(调了什么工具、结果如何)/ 有没有帮上、有无问题**。明确要求:即使人类转录残缺,也要结合工具调用和 Luna 回复推断意图。
 - **写入时生成**:`events.ts` upsert 后 fire-and-forget 调 summarize 并 `UPDATE ... SET summary=, summary_at=`(仅当 transcript 有内容)。→ 之后每场新会话自带摘要。

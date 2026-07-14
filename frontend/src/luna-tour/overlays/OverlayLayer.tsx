@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RenderOverlay } from '../engine/TimelineEngine'
 import type {
+  AreaStats,
   Overlay,
   PropertySnapshot,
   TourAgent,
@@ -145,6 +146,22 @@ function OverlayItem({
       return <RoiCard data={overlay.data} accent={accent} />
 
     /**
+     * 🔴 地理套利 —— **地图能做、而 PDF 楼书永远做不到的那件事。**
+     *
+     * 投资客真正想知道的不是「这个项目涨多少」,而是
+     * **「我为什么该买这里,而不是走路 5 分钟外的那个区」**。
+     *
+     * 数字全部来自 snapshot.area_context(真实 DLD),overlay 只带 property_id ——
+     * 只要给模型一个能填数字的字段,它就会编。
+     */
+    case 'area_compare': {
+      const p = properties.get(overlay.property_id)
+      const ctx = p?.area_context
+      if (!ctx?.neighbors?.length) return null
+      return <AreaCompareCard ctx={ctx} accent={accent} />
+    }
+
+    /**
      * 户型卡 —— 整场 tour 里客户唯一一次知道「我能买到什么」。
      *
      * 数字全部来自 PropertySnapshot.units（真实 project_unit_types），overlay 只带
@@ -267,6 +284,69 @@ function UnitCard({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function AreaCompareCard({
+  ctx,
+  accent,
+}: {
+  ctx: NonNullable<PropertySnapshot['area_context']>
+  accent: string
+}) {
+  const rows: (AreaStats & { self?: boolean })[] = [
+    { ...ctx.self, self: true },
+    ...ctx.neighbors.slice(0, 3),
+  ]
+  const maxPrice = Math.max(...rows.map((r) => r.price_sqm || 0), 1)
+
+  return (
+    <div className="lt-ov lt-ov-compare">
+      <div className="lt-cmp-head">这里 vs 隔壁</div>
+      <div className="lt-cmp-sub">同样的地段，走路 5 分钟的差别</div>
+      <div className="lt-cmp-grid">
+        <div className="lt-cmp-row lt-cmp-hdr">
+          <span />
+          <span>涨幅</span>
+          <span>回报</span>
+          <span>单价/㎡</span>
+          <span>年成交</span>
+        </div>
+        {rows.map((r) => (
+          <div key={r.name} className={`lt-cmp-row ${r.self ? 'is-self' : ''}`}>
+            <span className="lt-cmp-name">
+              {r.self ? '📍 ' : ''}
+              {r.name}
+              {!r.self && <i className="lt-cmp-km">{r.distance_km}km</i>}
+            </span>
+            <span style={r.self ? { color: accent, fontWeight: 800 } : undefined}>
+              {r.growth_pct}%
+            </span>
+            <span style={r.self ? { color: accent, fontWeight: 800 } : undefined}>
+              {r.yield_pct}%
+            </span>
+            <span className="lt-cmp-price">
+              {r.price_sqm ? r.price_sqm.toLocaleString() : '—'}
+              {!r.self && r.price_sqm > 0 && (
+                <i className={r.price_sqm > ctx.self.price_sqm ? 'up' : 'down'}>
+                  {r.price_sqm > ctx.self.price_sqm ? '+' : ''}
+                  {Math.round(((r.price_sqm - ctx.self.price_sqm) / ctx.self.price_sqm) * 100)}%
+                </i>
+              )}
+            </span>
+            <span className="lt-cmp-tx">
+              {/* 成交量 = 流动性 = 你想卖的时候有没有人接盘。条越长越好出手。 */}
+              <b>{(r.transactions / 1000).toFixed(1)}k</b>
+              <i style={{ width: `${Math.max(4, (r.transactions / Math.max(...rows.map((x) => x.transactions), 1)) * 100)}%`, background: r.self ? accent : 'rgba(255,255,255,0.25)' }} />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="lt-cmp-foot">
+        Dubai Land Department · 近 12 个月 · 单价为中位数
+        <span className="lt-cmp-note">（{maxPrice > 0 ? '成交量条 = 流动性：想出手时有没有人接盘' : ''}）</span>
+      </div>
     </div>
   )
 }

@@ -324,7 +324,7 @@ CTA 点击 → 一键 WhatsApp,**预填消息**:
 - 旁白受 `narrative_focus` 权重与 `banned_phrases`/`guardrails` 约束。
 - 生成后**程序化校验**:每个 `audio`/`overlay`/`camera` 的 `at_ms + duration_ms` 不超出 beat 时长;引用的 property_id/坐标在输入集内;总时长 ≈ target_seconds(±15%)。校验失败→自动重试一次→仍失败标记人工。
 
-**模型:** 文本脚本用 `gemini-3-flash`(快、便宜)或 `gemini-3.1-pro`(质量优先);先做可切换。
+**模型:** 文本脚本用 `gemini-3.5-flash`(快、便宜)或 `gemini-3.1-pro`(质量优先);先做可切换。
 
 **这是第一个该做垂直切片验证的点。** 写死 1 客户 + 2 房,跑通"输入→TourScript JSON→校验通过",肉眼审旁白质量和时间轴合理性,再谈其他。
 

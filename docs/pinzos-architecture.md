@@ -1,3 +1,15 @@
+> # ⛔ 大部分已过期(2026-07-13 核实)
+>
+> **核心主张从未实现**:文档说要把逻辑收口到一个 `market-analytics` 共享层 ——
+> **这个层压根没建过**(全仓 grep 零命中)。
+>
+> 另外两处与现实矛盾:
+> - 角色表写的是 `agency-admin` / `platform-admin` —— 现役是四角色 buyer/agent/agency/developer
+> - 说「每周同步」—— 实际早就是**每日**(见 `daily-jobs-overview.md`)
+>
+> **仍然准确的**:两服务器架构(API + worker)那一段。其余按 CLAUDE.md 和
+> `dubai-data-flow-diagram.md` 为准。
+
 # Pinzos 整体架构图解(简明版)
 
 > 目的:用图 + 大白话,让你一眼看懂整个系统怎么串起来、新功能插在哪。

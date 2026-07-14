@@ -91,16 +91,29 @@ export async function callGemini<T = unknown>(opts: GeminiCall): Promise<GeminiR
 
       const ms = Date.now() - t0
       const u = (resp as unknown as {
-        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
+        usageMetadata?: {
+          promptTokenCount?: number
+          candidatesTokenCount?: number
+          thoughtsTokenCount?: number
+        }
       }).usageMetadata
       const inTokens = u?.promptTokenCount ?? 0
-      const outTokens = u?.candidatesTokenCount ?? 0
+      /**
+       * 🔴 **thinking token 是按 output 价计费的**,而我们之前**根本没在算它**。
+       *
+       * 于是成本看板上的数字是**偏低的** —— 一个默认开着 thinking 的任务,
+       * 真实花费可能是账面的两倍。不设 thinkingLevel 就是默认全开。
+       * (Gemini 3.x 用 `thinkingLevel`,不是 2.5 的 `thinkingBudget` —— 写错会被静默忽略。)
+       */
+      const thinkTokens = u?.thoughtsTokenCount ?? 0
+      const outTokens = (u?.candidatesTokenCount ?? 0) + thinkTokens
       const usd = costUsd(model, inTokens, outTokens)
 
       counter('ai.call', { task: opts.task, model }).inc()
       histogram('ai.call.ms', { task: opts.task }).observe(ms)
       counter('ai.tokens', { task: opts.task, dir: 'in' }).inc(inTokens)
       counter('ai.tokens', { task: opts.task, dir: 'out' }).inc(outTokens)
+      if (thinkTokens > 0) counter('ai.tokens', { task: opts.task, dir: 'thinking' }).inc(thinkTokens)
       // counter 只累加整数 → 存微美元(1 USD = 1e6)。读的时候再除回去。
       counter('ai.cost.usd_micro', { task: opts.task }).inc(Math.round(usd * 1e6))
       // 退到备用模型 = 主模型有问题(废弃/限流/挂了)。这个指标就是模型漂移的哨兵。

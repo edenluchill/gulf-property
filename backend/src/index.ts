@@ -28,7 +28,6 @@ import agentsRouter from './routes/agents'  // 经纪准入审批
 import telemetryRouter from './routes/telemetry'  // 客户端 RUM 上报
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
-import voiceTextRouter from './routes/voice-text'
 import voiceDebugRouter from './routes/voice-debug'
 import aiProjectsRouter from './routes/ai-projects'
 import aiAreasRouter from './routes/ai-areas'
@@ -158,7 +157,6 @@ app.use('/api/custom-routes', customRoutesRouter)  // Custom routes and stops (r
 app.use('/api/geocode', geocodeRouter)  // Google Maps geocoding API proxy
 app.use('/api/voice-chat', voiceChatRouter)  // Voice chat health check (legacy)
 app.use('/api/voice', voiceTokenRouter)  // Ephemeral token generation
-app.use('/api/voice', voiceTextRouter)  // Text-mode agent (typed Luna, audio-free)
 app.use('/api/voice/tools', voiceToolsRouter)  // Tool execution
 app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
 app.use('/api/collab', collabRouter)  // 实时协作带看 REST (建房/校验); WS 在 /api/collab
