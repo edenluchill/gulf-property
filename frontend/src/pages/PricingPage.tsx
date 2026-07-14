@@ -69,26 +69,34 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
     const p = plans.find((x) => x.id === id)
     return p ? Number(p.price_usd_month) : fallback
   }
-  // 当套餐卖:只显示一个总价。年付收 10 个月价(送 2 个月);月付 = 1 个月价。
-  const chargeMonths = cycle === 'year' ? 10 : 1
-  const totalOf = (monthly: number) => monthly * chargeMonths
+  // 年付实收价:优先后端显式列 price_usd_year(rookie=$249 —— 中国人忌 250),
+  // 回退 month×10(founder/developer 仍是「送 2 个月」)。这里必须跟 Stripe 实收一致,
+  // 否则页面标一个价、结账扣另一个价。
+  const yearOf = (id: string, monthly: number) => {
+    const y = Number(plans.find((x) => x.id === id)?.price_usd_year)
+    return Number.isFinite(y) && y > 0 ? y : monthly * 10
+  }
+  // 当套餐卖:只显示一个总价。年付 = 真实年付价;月付 = 1 个月价。
+  const totalOf = (id: string, monthly: number) => (cycle === 'year' ? yearOf(id, monthly) : monthly)
   const fmt = (n: number) => { const r = Math.round(n * 100) / 100; return r % 1 === 0 ? `$${r}` : `$${r.toFixed(2)}` }
   // 大字 = 套餐总价(有优惠则扣 30%)
-  const bigPriceOf = (monthly: number) => fmt(totalOf(monthly) * (1 - pct))
+  const bigPriceOf = (id: string, monthly: number) => fmt(totalOf(id, monthly) * (1 - pct))
   // 划掉的锚点:年付锚满 12 个月;月付仅在有优惠时锚原月价。
   const struckOf = (monthly: number): string | undefined => {
     if (pct > 0) return `$${cycle === 'year' ? monthly * 12 : monthly}`
     return cycle === 'year' ? `$${monthly * 12}` : undefined
   }
   // 大字下方一行
-  const billedLine = (monthly: number) => {
+  const billedLine = (id: string, monthly: number) => {
     if (promo.active) {
       return cycle === 'year'
         ? L('永久锁定发布价 · 已含送 2 个月 · 随时取消', 'Launch price locked forever · 2 months free included · cancel anytime')
         : L('永久锁定发布价 · 按月付 · 随时取消', 'Launch price locked forever · billed monthly · cancel anytime')
     }
+    // 省多少 = 12 个月月价 − 真实年付价(锚点 $300 − $249 = 省 $51,跟划掉的价对得上)
+    const saved = fmt(monthly * 12 - yearOf(id, monthly))
     return cycle === 'year'
-      ? L(`年度套餐 · 省 $${monthly * 2}(送 2 个月)· 随时取消`, `Yearly package · save $${monthly * 2} (2 months free) · cancel anytime`)
+      ? L(`年度套餐 · 省 ${saved}(送 2 个月)· 随时取消`, `Yearly package · save ${saved} (2 months free) · cancel anytime`)
       : L('按月付 · 随时取消', 'Billed monthly · cancel anytime')
   }
 
@@ -169,11 +177,11 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       cta: { label: L('打开地图', 'Open the map'), onClick: () => navigate('/') },
     },
     {
-      id: 'rookie', name: L('启程版', 'Starter'), price: bigPriceOf(priceOf('rookie', 25)),
+      id: 'rookie', name: L('启程版', 'Starter'), price: bigPriceOf('rookie', priceOf('rookie', 25)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
       badge: canTrial && !heroTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('个人经纪起步', 'Solo agents'),
       note: L('个人经纪起步 · 付款即开通', 'Solo agents · instant activation'),
-      billed: billedLine(priceOf('rookie', 25)), priceWas: struckOf(priceOf('rookie', 25)),
+      billed: billedLine('rookie', priceOf('rookie', 25)), priceWas: struckOf(priceOf('rookie', 25)),
       creditsMo: creditsOf('rookie') || 200,
       features: [
         L('地图与市场数据不限时:260+ 区域真实成交/租金/收益率(DLD 官方,每周更新)', 'Unlimited map & data: 260+ areas of official DLD sales/rent/yield, weekly refresh'),
@@ -187,11 +195,11 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       cta: ctaFor('rookie'),
     },
     {
-      id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf(priceOf('agent', 49)),
+      id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf('agent', priceOf('agent', 49)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT, highlight: true,
       badge: canTrial && !heroTrial ? L('最受欢迎 · 7 天免费 · 免绑卡', 'Most popular · 7 days free · no card') : L('最受欢迎', 'Most popular'),
       note: L('全部专业功能 · 随时取消', 'Every pro feature · cancel anytime'),
-      billed: billedLine(priceOf('agent', 49)), priceWas: struckOf(priceOf('agent', 49)),
+      billed: billedLine('agent', priceOf('agent', 49)), priceWas: struckOf(priceOf('agent', 49)),
       creditsMo: creditsOf('agent') || 1200,
       features: [
         L('启程版全部功能,积分池 ×6(200 → 1,200)', 'Everything in Starter, 6× the credits (200 → 1,200)'),
@@ -208,11 +216,11 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       // agency 角色页把同一套餐展示为「经纪公司版」(多席位 + lead),套餐 id 仍是 founder
       id: 'founder',
       name: L('经纪公司版', 'Agency'),
-      price: bigPriceOf(priceOf('founder', 699)),
+      price: bigPriceOf('founder', priceOf('founder', 699)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: GOLD,
       badge: L('团队 · 3 席', 'Team · 3 seats'), highlight: variant === 'agency',
       note: L('经纪公司 / 团队 · 付款即开通', 'Agencies & teams · instant activation'),
-      billed: billedLine(priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
+      billed: billedLine('founder', priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       creditsMo: creditsOf('founder') || 15000, founderDiscount: true,
       features: [
         L('专业版全部功能 · Lead 独占优先分发(你的团队先挑)', 'Everything in Pro · first pick of every lead'),
@@ -225,12 +233,12 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       cta: ctaFor('founder'),
     },
     {
-      id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf(priceOf('developer', 999)),
+      id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf('developer', priceOf('developer', 999)),
       per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
       badge: canTrial && !heroTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('开发商 / 团队', 'Developers & teams'),
       highlight: variant === 'developer',
       note: L('开发商 / 团队 · 付款即开通', 'Developers & teams · instant activation'),
-      billed: billedLine(priceOf('developer', 999)), priceWas: struckOf(priceOf('developer', 999)),
+      billed: billedLine('developer', priceOf('developer', 999)), priceWas: struckOf(priceOf('developer', 999)),
       creditsMo: creditsOf('developer') || 20000,
       features: [
         L('上传楼书:AI 解析户型/价格/付款计划,分钟级上架', 'Upload brochures: AI parses units/prices/plans, live in minutes'),
