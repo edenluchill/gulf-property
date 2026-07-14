@@ -9,7 +9,16 @@
  * Covers the pure follow-math and CollabClient reconnect/de-dupe/heartbeat with
  * a fake WebSocket — zero DOM, zero network, zero maplibre.
  */
-import test from 'node:test'
+/**
+ * ⚠️ 这套测试原来用 `node:test` 跑 —— 而它**从来没跑起来过**:
+ *    protocol.ts 里有无扩展名的 import(`../../lib/config`)+ `import.meta.env`,
+ *    Node 原生解析不了 → 每次都是 ERR_MODULE_NOT_FOUND。
+ *    换句话说:**这里的断言一条都没被执行过**,它只是看起来像有测试。
+ *
+ *    这是个 Vite 项目 —— 用 **vitest**(能原生吃 TS + import.meta.env),
+ *    别去 hack Node 的模块解析。`npm test` 现在真的会跑。
+ */
+import { test } from 'vitest'
 import assert from 'node:assert/strict'
 
 import {

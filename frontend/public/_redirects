@@ -1,0 +1,11 @@
+# 🔴 找不到的静态资源必须 404 —— 不能拿 index.html 顶包。
+#
+# Cloudflare Pages 默认把**所有找不到的路径**都当成 SPA 路由,回一份 index.html(200)。
+# 于是当浏览器去取一个**上一次部署的** chunk(标签页开着没刷新、按了 back)时:
+#     /assets/index-OLDHASH.js  →  200 + text/html
+#     → "Failed to load module script: expected JavaScript but got MIME type text/html"
+#     → **整页白屏**
+#
+# 静态资源找不到就该 404。这样浏览器会正常抛「模块加载失败」,
+# 前端的兜底(main.tsx 里的 vite:preloadError → 强刷一次)才能接住它。
+/assets/*  /404.html  404

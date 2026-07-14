@@ -79,7 +79,10 @@ export function zoomOffsetForViewport(
   const wantSuperset = Math.log2(Math.min(myW / pw, myH / ph))
   // 视口塌陷(隐藏容器报 ~0)时会算出离谱的值 —— 一个疯掉的 zoom 比不补偿糟得多。
   if (!Number.isFinite(wantSuperset) || Math.abs(wantSuperset) > 4) return 0
-  return Math.max(-MAX_SHRINK, Math.min(MAX_GROW, wantSuperset))
+  const dz = Math.max(-MAX_SHRINK, Math.min(MAX_GROW, wantSuperset))
+  // ⚠️ Math.max(-0, …) 会返回 **-0**。它和 0 相等,但 Object.is 不认 ——
+  //    调用方要是拿它做恒等判断/序列化(JSON 里会变成 "-0")就会莫名其妙。规范掉。
+  return dz === 0 ? 0 : dz
 }
 
 /** Default smoothing factor per frame — critically-damped feel at ~60fps. */
