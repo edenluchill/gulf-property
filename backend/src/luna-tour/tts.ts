@@ -12,17 +12,13 @@
  * raw PCM, so we wrap it in a 44-byte WAV header → an <audio>-playable Blob.
  */
 import { GoogleGenAI } from '@google/genai'
+import { TTS_CHAIN } from '../services/ai/models'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
 // Try the configured model first, then known TTS preview names. The first that
 // returns audio wins (mirrors tour-generator's model-fallback resilience).
-const TTS_MODELS = [
-  process.env.LUNA_TTS_MODEL,
-  'gemini-3.1-flash-tts-preview',
-  'gemini-2.5-flash-preview-tts',
-  'gemini-2.5-pro-preview-tts',
-].filter(Boolean) as string[]
+const TTS_MODELS = TTS_CHAIN.filter(Boolean) as string[]
 
 const PCM_SAMPLE_RATE = 24000
 const PCM_CHANNELS = 1

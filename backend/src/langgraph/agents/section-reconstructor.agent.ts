@@ -14,6 +14,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 import { PageMetadata, PageType } from '../types/page-metadata';
 import { UnitBoundary } from '../types/assignment-result';
 import { parseJsonResponse } from '../utils/json-parser';
@@ -55,7 +56,7 @@ export async function reconstructUnitSections(
     const prompt = buildPrompt(jobId, pages);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: { responseMimeType: 'application/json' },
     });
 

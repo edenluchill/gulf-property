@@ -24,5 +24,5 @@
  * 全部细节见 docs/telemetry-spec.md。
  */
 export { counter, gauge, histogram, peek, seriesCount, type Labels, type Snapshot } from './metrics'
-export { funnel, collabJoin, COLLAB_JOIN_STEPS, type Funnel } from './funnel'
+export { funnel, collabJoin, COLLAB_JOIN_STEPS, tourPublish, TOUR_PUBLISH_STEPS, type Funnel } from './funnel'
 export { runtimeSnapshot } from './runtime'

@@ -15,6 +15,7 @@
  *      to the model and retry once.
  */
 import { GoogleGenAI } from '@google/genai'
+import { FLASH, FLASH_LITE } from '../services/ai/models'
 import {
   TourScript,
   TourScriptSchema,
@@ -25,8 +26,8 @@ import {
 } from './tour-script.types'
 
 // Model names kept as top-level constants so they are trivial to swap.
-const PRIMARY_MODEL = 'gemini-3.5-flash'    // GA 旗舰(2026-05)。gemini-3-flash 是 404,3-flash-preview 已废弃
-const FALLBACK_MODEL = 'gemini-3.1-flash-lite'  // 别掉回 2.5(全系 2026-10-16 关停)
+const PRIMARY_MODEL = FLASH    // GA 旗舰(2026-05)。gemini-3-flash 是 404,3-flash-preview 已废弃
+const FALLBACK_MODEL = FLASH_LITE  // 别掉回 2.5(全系 2026-10-16 关停)
 
 const TOTAL_DURATION_TOLERANCE = 0.2 // ±20% of target_seconds
 

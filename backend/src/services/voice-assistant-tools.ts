@@ -4,6 +4,7 @@
  * These tools allow the AI to interact with the map and search properties.
  * All DB access goes through localhost API endpoints — no direct pool import.
  */
+import { counter, histogram } from '../telemetry'
 
 const API_BASE = `http://localhost:${process.env.PORT || 3000}`
 
@@ -385,8 +386,33 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 
-// Map tool name to execution function
+/**
+ * 工具执行的**唯一分发处** —— 语音 / 文字 / 服务端 Live 三条路径全部经过这里。
+ * 包一层就能覆盖全部 23 个工具:成功率、耗时、以及最要命的 **unknown tool**。
+ *
+ * 为什么 unknown 要单独计:工具声明在**三处**(前端声明 / 后端执行器 / 提示词),
+ * 会漂移。漂移之后 default 分支返回 "Unknown tool: X",但 HTTP 仍是 **200 + success**,
+ * 在监控上**完全隐形** —— Luna 表面在工作,实际那个工具根本没执行。
+ */
 export async function executeTool(
+  toolName: string,
+  params: any
+): Promise<{ result: any; summary: string; mapAction?: any }> {
+  const t0 = Date.now()
+  try {
+    const out = await executeToolInner(toolName, params)
+    const unknown = typeof out?.summary === 'string' && out.summary.startsWith('Unknown tool')
+    counter('voice.tool', { tool: toolName.slice(0, 40), result: unknown ? 'unknown' : 'ok' }).inc()
+    histogram('voice.tool.ms', { tool: toolName.slice(0, 40) }).observe(Date.now() - t0)
+    return out
+  } catch (e) {
+    counter('voice.tool', { tool: toolName.slice(0, 40), result: 'error' }).inc()
+    histogram('voice.tool.ms', { tool: toolName.slice(0, 40) }).observe(Date.now() - t0)
+    throw e
+  }
+}
+
+async function executeToolInner(
   toolName: string,
   params: any
 ): Promise<{ result: any; summary: string; mapAction?: any }> {

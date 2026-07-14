@@ -726,18 +726,28 @@ export class TaskManager {
   }
 
   /**
-   * Recover interrupted tasks on server startup
-   * Marks any 'processing' or 'queued' tasks as failed since they were interrupted
+   * 清理**真正卡死**的任务。
+   *
+   * 🔴 2026-07-13 修:原来是 `WHERE status IN ('processing','queued','uploading')`
+   * —— 无条件把所有 processing 刷成 failed。但**这个函数是 API 进程启动时调的,
+   * 而 PDF 是 worker 进程在跑**(两个独立容器)。于是每次部署 API(quick-deploy 天天跑),
+   * 都会把 worker **正在处理**的 job 标成 failed;worker 全然不知,跑完又把它改回
+   * completed。状态来回跳,客户看到"失败"其实还在跑,而失败率指标全是假的。
+   *
+   * 现在只清理 **20 分钟没有任何进展** 的(单个 job 约 2.6 分钟,20 分钟足够宽容)——
+   * 那才是真的被 OOM kill / 进程死掉留下的孤儿。正在跑的 job 会持续 updated_at,
+   * 不会被误杀。
    */
   async recoverInterruptedTasks(): Promise<number> {
     const query = `
       UPDATE pdf_processing_tasks
       SET
         status = 'failed',
-        errors = COALESCE(errors, ARRAY[]::TEXT[]) || ARRAY['服务器重启，任务中断。请重新提交。'],
+        errors = COALESCE(errors, ARRAY[]::TEXT[]) || ARRAY['任务中断（处理进程异常退出）。请重新提交。'],
         completed_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
       WHERE status IN ('processing', 'queued', 'uploading')
+        AND updated_at < now() - interval '20 minutes'
       RETURNING job_id
     `;
 

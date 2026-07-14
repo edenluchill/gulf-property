@@ -6,6 +6,7 @@
  */
 
 import { GoogleGenAI, Modality, Session, LiveServerMessage, Type } from '@google/genai'
+import { LIVE_AUDIO } from './ai/models'
 import WebSocket from 'ws'
 import { voiceAssistantTools, executeTool } from './voice-assistant-tools'
 
@@ -13,7 +14,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
 // Gemini 2.5 Flash with native audio support for Live API
 // Reference: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-native-audio-preview-12-2025
-const GEMINI_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
+const GEMINI_LIVE_MODEL = LIVE_AUDIO
 
 // System instruction for the AI assistant
 const SYSTEM_INSTRUCTION = `You are a friendly Dubai real estate consultant AI assistant. Your name is Luna.

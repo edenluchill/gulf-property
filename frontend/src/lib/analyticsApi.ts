@@ -487,6 +487,37 @@ export interface LiveTourTelemetry {
 }
 export const fetchLiveTourTelemetry = (hours = 24) =>
   authedGet<LiveTourTelemetry>(`/telemetry/live-tour?hours=${hours}`)
+
+// ── AI 成本 / PDF 管线 / 钱门 / Tour 漏斗(之前全是盲的)────────────────────
+export interface OpsTelemetry {
+  ai: {
+    hours: number
+    totalUsd: number
+    totalCalls: number
+    tasks: {
+      task: string; calls: number; usd: number
+      inTokens: number; outTokens: number
+      failed: number
+      /** 退到备用模型的次数 —— 主模型有问题(废弃/限流)的哨兵 */
+      fallback: number
+      p50: number; p95: number
+    }[]
+  }
+  pdf: {
+    queue: {
+      pending: number; processing: number; oldestWaitS: number
+      /** >0 = worker 被 OOM kill 留下的孤儿,永远不会重试 */
+      stuck: number
+      workerRssMb: number; workerCpuPct: number
+    }
+    jobs: { completed: number; failed: number }
+    agents: { agent: string; ok: number; failed: number; invalid: number; total: number }[]
+  }
+  paywall: { feature: string; reason: string; trial: boolean; count: number }[]
+  tourFunnel: { step: string; count: number; fromPrevPct: number | null; fromFirstPct: number | null }[]
+}
+export const fetchOpsTelemetry = (hours = 24) =>
+  authedGet<OpsTelemetry>(`/telemetry/ops?hours=${hours}`)
 export const fetchActiveAlerts = () => authedGet<{ alerts: ActiveAlert[] }>(`/perf/alerts/active`)
 export const ackAlert = (id: number) => authedPost<{ ok: boolean }>(`/perf/alerts/${id}/ack`)
 

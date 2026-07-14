@@ -8,6 +8,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 import { PageType } from '../types/page-metadata';
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
@@ -60,7 +61,7 @@ export async function classifyPage(
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: {
         responseMimeType: 'application/json',
       },
@@ -321,7 +322,7 @@ export async function classifyPagesBatch(
   if (pages.length === 0) return new Map();
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-flash-preview',
+    model: FLASH,
     generationConfig: { responseMimeType: 'application/json' },
   });
 

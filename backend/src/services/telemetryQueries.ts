@@ -10,7 +10,7 @@
  * (feature='live_call' 的 units)。1 unit = 1 Agora Standard 分钟 = $0.00099。
  */
 import pool from '../db/pool'
-import { peek, runtimeSnapshot, COLLAB_JOIN_STEPS } from '../telemetry'
+import { peek, runtimeSnapshot, COLLAB_JOIN_STEPS, TOUR_PUBLISH_STEPS } from '../telemetry'
 
 /** Agora Standard 分钟单价(语音 1 unit;HD 视频 1 viewer-分钟 = 4 units)。 */
 const AGORA_USD_PER_UNIT = 0.00099
@@ -80,6 +80,33 @@ export async function joinFunnel(hours = 24) {
       step,
       count: n,
       // 相对上一步的转化率 —— 断崖一眼可见
+      fromPrevPct: prev > 0 ? Math.round((n / prev) * 100) : null,
+      fromFirstPct: first > 0 ? Math.round((n / first) * 100) : null,
+    }
+  })
+}
+
+/**
+ * Luna Tour 生成 → 客户观看漏斗。
+ * 回答唯一重要的问题:**辛苦生成的 tour,到底有没有人看?**
+ */
+export async function tourFunnel(hours = 168) {
+  const { rows } = await pool.query<{ step: string; n: string }>(
+    `SELECT labels->>'step' AS step, SUM(count)::bigint AS n
+       FROM metrics_minute
+      WHERE name = 'funnel.tour.publish'
+        AND minute > now() - ($1 || ' hours')::interval
+      GROUP BY 1`,
+    [String(hours)]
+  )
+  const byStep = new Map(rows.map((r) => [r.step, Number(r.n)]))
+  const first = byStep.get(TOUR_PUBLISH_STEPS[0]) || 0
+  return TOUR_PUBLISH_STEPS.map((step, i) => {
+    const n = byStep.get(step) || 0
+    const prev = i === 0 ? n : (byStep.get(TOUR_PUBLISH_STEPS[i - 1]) || 0)
+    return {
+      step,
+      count: n,
       fromPrevPct: prev > 0 ? Math.round((n / prev) * 100) : null,
       fromFirstPct: first > 0 ? Math.round((n / first) * 100) : null,
     }

@@ -5,6 +5,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -24,7 +25,7 @@ export async function deduplicateAmenitiesWithAI(rawAmenities: string[]): Promis
   
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: {
         responseMimeType: 'application/json',
       },
@@ -162,7 +163,7 @@ export async function extractAmenities(
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: {
         responseMimeType: 'application/json',
       },

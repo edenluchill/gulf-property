@@ -7,6 +7,7 @@
 
 // @ts-nocheck - Complex pdf-lib internal API usage
 import { PDFDocument } from 'pdf-lib';
+import { FLASH } from '../../services/ai/models'
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
@@ -141,7 +142,7 @@ export async function classifyExtractedImages(
   
   console.log(`\n🔍 Classifying ${images.length} images...`);
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+  const model = genAI.getGenerativeModel({ model: FLASH });
 
   for (const image of images) {
     try {

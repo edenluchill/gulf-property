@@ -9,9 +9,10 @@
  * 范式同 services/collabReport.ts / luna-tour/auto-report.ts。
  */
 import { GoogleGenAI } from '@google/genai'
+import { DEFAULT_CHAIN } from './ai/models'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite']  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
+const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 interface TranscriptMessage { role?: string; content?: string }
 interface TranscriptToolCall { name?: string; params?: unknown; result?: unknown; error?: string }

@@ -12,6 +12,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 import { appearsInText } from '../utils/text-layer';
@@ -74,7 +75,7 @@ ${text}`;
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: { responseMimeType: 'application/json' },
     });
 

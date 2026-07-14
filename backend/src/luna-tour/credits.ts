@@ -13,6 +13,7 @@
  */
 import pool from '../db/pool'
 import { isOwnerEmail } from '../middleware/requireOwner'
+import { counter } from '../telemetry'
 
 type PlanId = 'explore' | 'rookie' | 'agent' | 'founder' | 'developer'
 
@@ -240,6 +241,10 @@ export async function spend(actorAgentId: string, feature: Feature, ref?: SpendR
   const billingId = await billingAgentOf(actorAgentId) // 席位成员扣 founder 的共享池
   const p = await planFor(billingId)
   const cost = unlimited ? 0 : Math.round(FEATURES[feature].credits * p.multiplier)
+
+  // 全站每一次扣费都经过这里 → 一处埋点覆盖所有功能的实际消耗。
+  counter('credits.spent', { feature }).inc(cost)
+  counter('credits.spend.count', { feature }).inc()
 
   // 逐笔流水:总是记一行(含 owner/无限的 0),历史可查、可点回原件。失败不阻断主流程。
   await pool.query(
@@ -469,6 +474,8 @@ export async function settleCallUsage(
   ref?: SpendRef
 ): Promise<CallSettlement> {
   const sessionUnits = toCallUnits(audioUserSeconds, videoViewerSeconds)
+  // 通话是**唯一真正花钱**的东西(Agora)。units 就是 Agora Standard 分钟 = 成本本身。
+  counter('call.units', { kind: videoViewerSeconds > 0 ? 'video' : 'audio' }).inc(sessionUnits)
   const unlimited = await isUnlimited(actorAgentId)
   const billingId = await billingAgentOf(actorAgentId)   // 席位成员 → founder 共享池+共享额度
   const p = await planFor(billingId)
@@ -526,6 +533,14 @@ export async function settleCallUsage(
 
 /** 统一的"积分不足/需订阅"响应(402)。 */
 export function creditError(feature: Feature, c: CreditCheck): { status: number; body: Record<string, unknown> } {
+  // 全站 9 个 402 门都必经这一个函数 → 一处埋点覆盖所有 paywall。
+  // 「谁被挡住了、被什么挡住的」是转化漏斗里最值钱的一格:
+  // subscription_required = 他想用但没订阅(热线索);insufficient_credits = 试用烧完了(更热)
+  counter('billing.paywall.hit', {
+    feature,
+    reason: c.reason === 'insufficient' ? 'insufficient_credits' : 'subscription_required',
+    trial: c.freeTrial ? 'yes' : 'no',
+  }).inc()
   const label = FEATURES[feature].label
   const minPlanName = FEATURES[feature].minPlan === 'agent' ? 'Pro 专业版' : 'Starter 启程版'
   let reason: string

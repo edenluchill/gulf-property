@@ -5,6 +5,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 import { readFileSync } from 'fs';
 import { parseJsonResponse } from '../utils/json-parser';
 
@@ -39,7 +40,7 @@ export async function extractPaymentPlan(
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: {
         responseMimeType: 'application/json',  // ✅ 简单模式 - 快速！
       },

@@ -14,6 +14,7 @@
  * never throws so it can't block session creation.
  */
 import pool from '../db/pool'
+import { counter, histogram } from '../telemetry'
 import { synthesizeSpeech } from './tts'
 import { uploadBufferToR2 } from '../services/r2-storage'
 import { TourScript, Beat } from './tour-script.types'
@@ -98,6 +99,7 @@ export async function generateSessionAudio(
       result.skipped++
       return
     }
+    const beatT0 = Date.now()
     try {
       const key = `luna-tour/audio/${sessionId}/${beat.id}-${language}.wav`
       // Synthesize + upload as one retried unit — both legs can flake on a poor
@@ -110,9 +112,12 @@ export async function generateSessionAudio(
       })
       beat.audio_url = url
       result.ready++
+      counter('tour.tts.beat', { result: 'ok' }).inc()
+      histogram('tour.tts.beat.ms').observe(Date.now() - beatT0)
       await recordAsset(sessionId, beat.id, language, voice, url, 'ready')
     } catch (err) {
       result.failed++
+      counter('tour.tts.beat', { result: 'failed' }).inc()
       console.warn(`[luna-audio] beat ${beat.id} failed:`, err instanceof Error ? err.message : err)
       await recordAsset(sessionId, beat.id, language, voice, null, 'failed')
     }
@@ -123,6 +128,13 @@ export async function generateSessionAudio(
     sessionId,
     JSON.stringify(script),
   ])
+
+  // ⚠️ 这个函数**设计上从不 throw**:11 拍全失败也照样 resolve,调用方于是把 job 标成
+  // 'ready' —— **经纪看到「生成成功」,客户点开听到的却是浏览器机器音**。
+  // 这里必须把整场的结果如实记下来,否则那种"假成功"永远查不出。
+  counter('tour.audio.session', {
+    result: result.ready === 0 ? 'none' : result.failed > 0 ? 'partial' : 'ok',
+  }).inc()
 
   return result
 }

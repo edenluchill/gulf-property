@@ -5,6 +5,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { FLASH } from '../services/ai/models'
 import multer from 'multer';
 import { executePdfWorkflow } from '../langgraph/workflow-executor';
 import { join } from 'path';
@@ -107,8 +108,10 @@ router.get('/health', async (_req: Request, res: Response) => {
         config: {
           geminiConfigured: hasGeminiKey,
           models: {
-            classifier: 'gemini-3-flash-preview',
-            extractor: 'gemini-3-flash-preview',
+            // 从单一真相源读 —— 之前这里写死的是**已废弃**的模型名,
+            // health 端点在谎报自己跑的是什么(实际跑的是别的)。
+            classifier: FLASH,
+            extractor: FLASH,
           },
           modes: {
             direct: 'Direct PDF processing (default, no canvas needed)',

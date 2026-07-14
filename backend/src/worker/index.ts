@@ -18,6 +18,8 @@
 import 'dotenv/config';
 import { JobPoller } from './job-poller';
 import { processJob } from './job-processor';
+import { startWorkerTelemetry } from '../telemetry/worker';
+import { counter, histogram } from '../telemetry';
 
 // Configuration
 const POLL_INTERVAL_MS = parseInt(process.env.WORKER_POLL_INTERVAL || '3000', 10);
@@ -71,6 +73,10 @@ async function main() {
     workerId: WORKER_ID,
   });
 
+  // worker 是**独立进程** —— API 里那句 startTelemetry() 它跑不到,所以在这之前
+  // 整条 PDF 管线内部零遥测。同一道生产门(本地 dev 连的是生产库,不许写)。
+  if (process.env.NODE_ENV === 'production') startWorkerTelemetry();
+
   console.log(`🚀 Worker started, polling for jobs...`);
 
   poller.on('job', async (job) => {
@@ -84,10 +90,17 @@ async function main() {
     activeJobs.add(jobId);
     console.log(`\n📥 Processing job: ${jobId}`);
 
+    // jobId **绝不能进 label**(基数会炸)—— 它只进日志和表。
+    const t0 = Date.now();
+    counter('pdf.job.started').inc();
     try {
       await processJob(job);
+      counter('pdf.job', { result: 'completed' }).inc();
+      histogram('pdf.job.total_ms').observe(Date.now() - t0);
       console.log(`✅ Job ${jobId} completed`);
     } catch (error) {
+      counter('pdf.job', { result: 'failed' }).inc();
+      histogram('pdf.job.total_ms').observe(Date.now() - t0);
       console.error(`❌ Job ${jobId} failed:`, error);
     } finally {
       activeJobs.delete(jobId);

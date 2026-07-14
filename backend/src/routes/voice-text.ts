@@ -19,13 +19,14 @@
  */
 
 import { Router } from 'express'
+import { FLASH } from '../services/ai/models'
 import { GoogleGenAI } from '@google/genai'
 import { executeTool } from '../services/voice-assistant-tools'
 import { convertToolsForSDK } from '../services/voice-assistant'
 
 const router = Router()
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODEL = 'gemini-3.5-flash'
+const MODEL = FLASH
 
 // Valid tool names (for validating the classifier's choice).
 const TOOL_NAMES = new Set(convertToolsForSDK().map((d: any) => d.name))

@@ -35,12 +35,13 @@
  * ISOLATION: 只读 project_unit_types。删 luna-tour 目录即移除。
  */
 import { GoogleGenAI } from '@google/genai'
+import { DEFAULT_CHAIN } from '../services/ai/models'
 import pool from '../db/pool'
 import type { ExtractedProfile } from './client-profile-coach'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 /** 见 docs/reports/2026-07-12-gemini-model-lineup.md —— 别写 gemini-3-flash(404)。 */
-const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite']
+const MODELS = DEFAULT_CHAIN
 /** 这是**论证**任务(要推理),不是抽取 —— 给一点思考预算,但别放飞。 */
 const THINKING = { thinkingLevel: 'low' as const }
 const MAX_OUTPUT_TOKENS = 4000

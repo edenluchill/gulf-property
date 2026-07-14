@@ -6,6 +6,7 @@
  * 拖进 DB 依赖,还会重蹈 pool ↔ monitor 的循环依赖。
  */
 import { defineAlert } from './alerts'
+import { peek } from './metrics'
 import { startRuntimeMetrics, runtimeSnapshot } from './runtime'
 import { startTelemetryFlusher } from './flush'
 
@@ -63,6 +64,65 @@ function registerAlerts(): void {
   })
 }
 
+/**
+ * 「事件类」告警 —— 这些**不是状态**,它们发生了就是发生了,不会自己好。
+ *
+ * 用 peek() 读当前窗口的计数:只要这一分钟内出现过,就开事故。
+ * (状态类告警 CPU/内存 会自愈,上面那批;这批不会 —— 见 [[alerts-are-incidents-not-state]]。)
+ */
+function registerIncidentAlerts(): void {
+  const countOf = (name: string): number =>
+    peek().filter((s) => s.name === name).reduce((a, s) => a + (s.count ?? 0), 0)
+
+  defineAlert({
+    kind: 'BILLING_PAID_NOT_PROVISIONED',
+    severity: 'error',
+    threshold: 1,
+    read: () => countOf('billing.webhook.dropped'),
+    breach: (v) => v >= 1,
+    // 🔴 全流程最严重的一条:**客户付了钱,订阅没开通,而 webhook 回了 200**,
+    // Stripe 认为一切正常、不会重试。之前只有一行 console.warn。
+    message: (v) =>
+      `🔴 ${v} 笔付款没有开通订阅(webhook 找不到 agent 或 price 映射不到套餐)。` +
+      `客户已经付钱了,Stripe 认为成功、不会重试 —— 需要人工去 Stripe 查这笔单并手动开通。`,
+  })
+
+  defineAlert({
+    kind: 'STRIPE_WEBHOOK_SIG_FAILED',
+    severity: 'error',
+    threshold: 1,
+    read: () => countOf('stripe.webhook.sig_failed'),
+    breach: (v) => v >= 1,
+    message: (v) => `Stripe webhook 验签失败 ${v} 次 —— 密钥不对/被篡改。此刻所有付款事件都进不来。`,
+  })
+
+  defineAlert({
+    kind: 'AI_MODEL_GONE',
+    severity: 'error',
+    threshold: 1,
+    read: () => peek()
+      .filter((s) => (s.name === 'ai.call.failed' || s.name === 'pdf.ai.exhausted') && s.labels.reason === 'model_gone')
+      .reduce((a, s) => a + (s.count ?? 0), 0),
+    breach: (v) => v >= 1,
+    // 就是这条:2026-07-13 发现 PDF 管线的 project-description-generator 用着一个
+    // **已经 404** 的模型(gemini-3-pro-preview),每传一份楼书都在失败,
+    // 靠一行 console.warn —— 一直没人发现。有这条告警,当天就会报出来。
+    message: (v) =>
+      `🔴 AI 模型已失效(404 / no longer supported),${v} 次调用直接挂掉。` +
+      `模型被 Google 关停了 —— 跑 scripts/check-gemini-models.ts 看是哪个,改 services/ai/models.ts。`,
+  })
+
+  defineAlert({
+    kind: 'AI_EXHAUSTED',
+    severity: 'warn',
+    threshold: 3,
+    read: () => countOf('ai.call.exhausted') + countOf('pdf.ai.exhausted'),
+    breach: (v) => v >= 3,
+    // 整条模型链(主 + fallback)全挂 = 这个 AI 功能此刻是坏的,客户拿不到东西。
+    message: (v) => `${v} 次 AI 调用把整条模型链都试完了还是失败 —— 该功能此刻对客户是坏的(限流?上游挂了?)。`,
+  })
+}
+
 let started = false
 
 /** app 启动时调用一次(生产门内 —— 本地 dev 连的是生产库,后台写库任务不许在本地跑)。 */
@@ -71,5 +131,6 @@ export function startTelemetry(): void {
   started = true
   startRuntimeMetrics()
   registerAlerts()
+  registerIncidentAlerts()
   startTelemetryFlusher()
 }

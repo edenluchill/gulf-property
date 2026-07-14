@@ -10,6 +10,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 import { readFileSync } from 'fs';
 import { parseJsonResponse } from '../utils/json-parser';
 
@@ -42,7 +43,7 @@ export async function extractProjectInfo(
   try {
     // ⭐ 简化：只使用 JSON mode（和其他 agents 一致，避免 schema 卡住）
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: {
         responseMimeType: 'application/json',
       },

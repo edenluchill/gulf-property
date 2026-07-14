@@ -13,6 +13,8 @@
  *   → 401 { passcode_required:true } if passcode set and not matched (?pc=)
  */
 import { Router, Request, Response } from 'express'
+import { LIVE_AUDIO } from '../services/ai/models'
+import { counter, tourPublish } from '../telemetry'
 import { createHash, randomBytes } from 'crypto'
 import { GoogleGenAI } from '@google/genai'
 import pool from '../db/pool'
@@ -144,9 +146,14 @@ router.get('/public/v/:code', optionalAuth, async (req: Request, res: Response) 
       [code, viewerEmail]
     )
     if (sessionRes.rowCount === 0) {
+      // 客户点了链接却 404(tour 还是草稿 / 链接失效)—— 之前是静默的
+      counter('tour.watch.not_found').inc()
       return res.status(404).json({ error: 'not found' })
     }
     const s = sessionRes.rows[0]
+    // 漏斗最后一步:客户**真的点开看了**。在这一步之前,整条生成链路的价值都是零。
+    // (经纪自己预览草稿不算 —— 那不是客户。)
+    if (!viewerEmail) tourPublish.step('client_open')
 
     if (s.expires_at && new Date(s.expires_at).getTime() < Date.now()) {
       return res.status(410).json({ error: 'expired' })
@@ -282,7 +289,7 @@ router.post('/public/v/:code/live-token', async (req: Request, res: Response) =>
     res.json({
       token: token.name,
       expiresAt: expireTime,
-      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      model: LIVE_AUDIO,
       systemInstruction: buildTourSystemInstruction({
         agentName: row.agent_name,
         language: row.language || 'zh',

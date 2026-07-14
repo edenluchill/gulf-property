@@ -14,6 +14,7 @@
  * ⚠️ STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET 必须加进 docker-compose 映射。
  */
 import { Router, Request, Response } from 'express'
+import { counter } from '../telemetry'
 import Stripe from 'stripe'
 import pool from '../db/pool'
 import { requireAuth, requireAdmin } from '../middleware/auth'
@@ -973,7 +974,11 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   const agentId = a.rows[0]?.id
   const agentEmail = a.rows[0]?.email || null
   if (!agentId) {
-    console.warn('[billing] webhook: no agent for customer', customerId)
+    // 🔴 客户**已经付了钱**,但我们找不到对应的 agent → 订阅没开通,而 webhook 仍回 200,
+    // Stripe 认为一切正常、不会重试。这是全流程唯一「收了钱没发货」的路径,
+    // 之前只有一行 console.warn。任何一次都必须立案(见 telemetry/start.ts 的告警)。
+    counter('billing.webhook.dropped', { reason: 'no_agent' }).inc()
+    console.error('[billing] 🔴 webhook: no agent for customer', customerId, '— 客户付了钱但订阅没开通')
     return
   }
 
@@ -996,7 +1001,10 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   }
   planId = planId || sub.metadata?.plan_id || null
   if (!planId) {
-    console.warn('[billing] webhook: cannot map price to plan', sub.items?.data?.map((i) => i.price?.id))
+    // 🔴 同上,而且是**批量**的:price 配错 → 所有新订阅都静默不开通。
+    counter('billing.webhook.dropped', { reason: 'no_plan' }).inc()
+    console.error('[billing] 🔴 webhook: cannot map price to plan',
+      sub.items?.data?.map((i) => i.price?.id), '— 客户付了钱但订阅没开通')
     return
   }
 
@@ -1130,10 +1138,16 @@ export async function billingWebhookHandler(req: Request, res: Response): Promis
     const sig = req.headers['stripe-signature'] as string
     event = stripe.webhooks.constructEvent(req.body, sig, secret)
   } catch (err) {
+    // 验签失败 = Stripe 那头在疯狂重试,而我们这头**零信号**。任何一次都要立案。
+    counter('stripe.webhook.sig_failed').inc()
     console.error('[billing] webhook signature verify failed:', (err as Error).message)
     res.status(400).send(`Webhook Error: ${(err as Error).message}`)
     return
   }
+
+  // webhook 是钱的**唯一入口** —— 埋在这一处,所有事件类型自动覆盖。
+  // event.type 是 Stripe 的固定枚举,低基数,可以安全当 label。
+  counter('stripe.webhook', { type: event.type }).inc()
 
   try {
     switch (event.type) {

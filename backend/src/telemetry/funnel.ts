@@ -46,3 +46,18 @@ export function funnel(name: string, steps: readonly string[]): Funnel {
  */
 export const COLLAB_JOIN_STEPS = ['link_open', 'identity_submit', 'ws_connect', 'sync', 'first_cam'] as const
 export const collabJoin = funnel('collab.join', COLLAB_JOIN_STEPS)
+
+/**
+ * Luna Tour 生成 → 客户观看。
+ *
+ * 这条漏斗回答的是**唯一重要的问题**:辛苦生成的 tour,到底有没有人看?
+ * (最后一步 client_open 之前,整条链路的价值都是零。)
+ *
+ *   create        经纪点「生成」
+ *   draft_ready   草稿生成成功(AI 出剧本)      ← 失败现在只写内存 + console
+ *   render        经纪确认发布(**额度在这一步扣**)
+ *   audio_ready   语音全部渲染成功              ← 部分失败也会被标成"成功"
+ *   client_open   客户真的点开看了
+ */
+export const TOUR_PUBLISH_STEPS = ['create', 'draft_ready', 'render', 'audio_ready', 'client_open'] as const
+export const tourPublish = funnel('tour.publish', TOUR_PUBLISH_STEPS)

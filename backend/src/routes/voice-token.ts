@@ -6,6 +6,7 @@
  */
 
 import { Router } from 'express'
+import { LIVE_AUDIO } from '../services/ai/models'
 import { GoogleGenAI } from '@google/genai'
 
 const router = Router()
@@ -227,7 +228,7 @@ router.post('/token', async (req, res) => {
     res.json({
       token: token.name,
       expiresAt: expireTime,
-      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      model: LIVE_AUDIO,
       systemInstruction: getSystemInstruction(language)
     })
   } catch (error) {

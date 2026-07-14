@@ -9,6 +9,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -45,7 +46,7 @@ export async function generateProjectDescription(
   
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-pro-preview',
+      model: FLASH,
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 500,

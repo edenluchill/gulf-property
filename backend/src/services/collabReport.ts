@@ -9,10 +9,11 @@
  * routes/admin-analytics.ts)。
  */
 import { GoogleGenAI } from '@google/genai'
+import { DEFAULT_CHAIN } from './ai/models'
 import pool from '../db/pool'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite']  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
+const MODELS = DEFAULT_CHAIN  // ⚠️ gemini-3.5-flash = GA 旗舰(2026-05)。别写 gemini-3-flash(404)/3-flash-preview(已废弃)
 
 export interface CollabSessionRow {
   code: string

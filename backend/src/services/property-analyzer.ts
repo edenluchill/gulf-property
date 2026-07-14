@@ -6,6 +6,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { FLASH } from '../services/ai/models'
 
 interface UserProfile {
   // Free-form description (preferred)
@@ -88,7 +89,7 @@ export async function analyzeProperties(
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
     })
 
     const prompt = buildAnalysisPrompt(properties, profile, language)

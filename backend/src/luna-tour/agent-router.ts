@@ -11,6 +11,7 @@
  *   POST /api/luna/agent/sessions/create       → generate a tour for given projects
  */
 import crypto from 'crypto'
+import { counter, tourPublish } from '../telemetry'
 import path from 'path'
 import multer from 'multer'
 import { Router, Request, Response } from 'express'
@@ -1064,6 +1065,7 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
     // Kick off the heavy build (AI config + script + audio) in the BACKGROUND and
     // return the share_code now, so the request can't hit the proxy timeout. The
     // client polls /sessions/:code/gen-status for structure + audio progress.
+    tourPublish.step('create')
     genJobs.set(shareCode, { status: 'generating' })
     res.json({ ok: true, shareCode, status: 'generating', watch_url: `/?toursession=${shareCode}` })
 
@@ -1081,8 +1083,12 @@ router.post('/sessions/create', async (req: Request, res: Response) => {
          * 现在:先给他一条能看能改的时间线 → 他确认 → 才 /render(那时才扣额度、烧语音)。
          */
         const result = await createSession({ shareCode, projectIds, title, agentId, clientId, client, config, draft: true })
+        tourPublish.step('draft_ready')
         genJobs.set(shareCode, { status: 'ready', stops: result.stops, audioTotal: result.audioTotal })
       } catch (err) {
+        // 草稿生成失败 —— HTTP 早就 200 了,失败只写进程内存 + console。
+        // 而 genJobs 是内存 Map:进程一重启,失败的草稿会被当成「生成成功」。
+        counter('tour.draft.failed').inc()
         console.error('[luna] agent create (bg) error:', err)
         genJobs.set(shareCode, { status: 'failed', error: err instanceof Error ? err.message : 'create failed' })
       }
@@ -1252,19 +1258,30 @@ router.post('/sessions/:id/render', async (req: Request, res: Response) => {
       [sess.id]
     )
     if (loggedIn) {
-      await spend(agentId, 'luna_tours', { type: 'tour', id: sess.share_code, label: sess.title }).catch(() => {})
+      // 扣费失败 = **白送一场 tour**(100 积分),而这里原本是个空 catch —— 零日志、
+      // 零计数,漏了钱也没人知道。至少要让它可见。
+      await spend(agentId, 'luna_tours', { type: 'tour', id: sess.share_code, label: sess.title })
+        .catch((e) => {
+          counter('credits.spend.failed', { feature: 'luna_tours' }).inc()
+          console.error('[luna-tour] 🔴 render 扣费失败(白送了一场):', e)
+        })
     }
 
+    tourPublish.step('render')
     genJobs.set(sess.share_code, { status: 'generating' })
     res.json({ ok: true, shareCode: sess.share_code, watch_url: `/?toursession=${sess.share_code}` })
 
     // 语音在后台烧(11+ 拍 × Gemini TTS + R2,60-120s —— 超过 CF 代理超时)
     void generateSessionAudio(sess.id)
       .then((audio) => {
+        // ⚠️ 只有**全部**拍都有声才算真 ready。之前不管成几拍都标 'ready',
+        // 经纪看到「成功」,客户点开却是浏览器机器音。
+        if (audio.ready > 0 && audio.failed === 0) tourPublish.step('audio_ready')
         genJobs.set(sess.share_code, { status: 'ready', audioTotal: audio.total })
         console.log(`[luna] render ${sess.share_code}: ${audio.ready}/${audio.total} audio ready`)
       })
       .catch((err) => {
+        counter('tour.audio.session', { result: 'threw' }).inc()
         console.error('[luna] render audio failed:', err)
         genJobs.set(sess.share_code, { status: 'ready', audioTotal: 0 })
       })

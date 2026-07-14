@@ -18,6 +18,7 @@
  * ISOLATION: 只读写 lt_clients。删 luna-tour 目录即移除。
  */
 import { GoogleGenAI } from '@google/genai'
+import { DEFAULT_CHAIN } from '../services/ai/models'
 import pool from '../db/pool'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
@@ -37,7 +38,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
  *   ❌ gemini-2.5-* 全系 —— deprecated,最早 2026-10-16 关停
  *   ❌ *-latest 别名 —— 会被静默热切换(官方只给 2 周邮件通知),抽取代码不能钉它
  */
-const MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite']
+const MODELS = DEFAULT_CHAIN
 
 /**
  * 🔴 Gemini 3.x 用 **`thinkingLevel`**,不是 `thinkingBudget`(那是 2.5 的参数)。

@@ -8,6 +8,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { FLASH } from '../../services/ai/models'
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 
@@ -47,7 +48,7 @@ export async function extractUnitDetails(
   
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3-flash-preview',
+      model: FLASH,
       generationConfig: {
         responseMimeType: 'application/json',  // ✅ 简单模式：快速！
         // ❌ 移除 responseSchema - 太慢了！

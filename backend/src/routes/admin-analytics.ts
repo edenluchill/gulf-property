@@ -13,6 +13,7 @@ import { summarizeLunaSession } from '../services/lunaSummary'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
 import * as tq from '../services/telemetryQueries'
+import * as aiq from '../services/aiCostQueries'
 import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
 import { getRevenueShare, settleMonth, unsettleMonth } from '../services/revenueShare'
 import {
@@ -188,6 +189,18 @@ router.get('/telemetry/live-tour', wrap(async (req) => {
     tq.agoraCost(30),
   ])
   return { live: tq.liveSnapshot(), series: { cpu, conns, fanout }, funnel, rum, agora }
+}))
+
+// ── AI 成本 / PDF 管线 / 钱门(之前全是盲的)────────────────────────────────
+router.get('/telemetry/ops', wrap(async (req) => {
+  const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24))
+  const [ai, pdf, paywall, tourFunnel] = await Promise.all([
+    aiq.aiCost(hours),
+    aiq.pdfPipeline(hours),
+    aiq.paywallHits(168),
+    tq.tourFunnel(hours),
+  ])
+  return { ai, pdf, paywall, tourFunnel }
 }))
 
 // ── 分成对账(FINDHOMEGO 25% / 运营方 75%,按 Stripe 实收净额)──────────
