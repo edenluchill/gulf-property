@@ -69,8 +69,13 @@ export default function FactSheet() {
   if (!data) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>正在生成事实清单…</div>
 
   return (
+    <div className="fs-scroll">
     <div className="fs-root">
       <style>{`
+        /* 🔴 **必须自己滚。**
+           app 根是 h-screen + overflow-hidden —— **window 从来不滚动**(项目老坑)。
+           靠 window 滚的页面在这里全是死的:owner 实测「没办法 scroll down」。 */
+        .fs-scroll { position: fixed; inset: 0; overflow-y: auto; background: #fff; -webkit-overflow-scrolling: touch; }
         .fs-root { max-width: 820px; margin: 0 auto; padding: 32px 28px 60px; color: #111827;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
         .fs-print { position: sticky; top: 12px; float: right; background: #0d9488; color: #fff; border: none;
@@ -87,7 +92,16 @@ export default function FactSheet() {
         .fs-src a { color: #0d9488; }
         .fs-disc { font-size: 10.5px; color: #9ca3af; margin-top: 8px; }
         .fs-foot { font-size: 11px; color: #9ca3af; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-        @media print { .fs-print { display: none; } .fs-root { padding: 0; } }
+        /* 照片 + 涨幅图 —— 之前一张图都没有,清单看起来像一堆干巴巴的数字 */
+        .fs-photo { width: 100%; height: 190px; object-fit: cover; border-radius: 10px; margin-bottom: 12px; background: #f3f4f6; }
+        .fs-chart { margin-top: 8px; }
+        .fs-chart-axis { display: flex; justify-content: space-between; font-size: 10.5px; color: #9ca3af; margin-top: 2px; }
+        @media print {
+          .fs-print { display: none; }
+          .fs-scroll { position: static; overflow: visible; }
+          .fs-root { padding: 0; }
+          .fs-card { break-inside: avoid; }
+        }
       `}</style>
       <button className="fs-print" onClick={() => window.print()}>🖨 打印 / 存 PDF</button>
       <div className="fs-h1">{data.session.title}</div>
@@ -101,6 +115,7 @@ export default function FactSheet() {
         const ev = evidence[p.project_id ?? p.id]
         return (
           <div className="fs-card" key={p.id}>
+            {s.image && <img className="fs-photo" src={s.image} alt={s.name} loading="lazy" />}
             <div className="fs-name">{s.name}</div>
             <div className="fs-meta">
               {[s.area, s.developer, s.status].filter(Boolean).join(' · ')}
@@ -178,6 +193,24 @@ export default function FactSheet() {
                   <div>增长: <b>+{s.investment.growth_pct}%</b></div>
                   {s.investment.yield_pct != null && <div>参考租金回报: <b>~{s.investment.yield_pct}%</b></div>}
                 </div>
+                {/* 涨幅图 —— 一条线胜过四个数字 */}
+                <div className="fs-chart">
+                  <svg viewBox="0 0 320 70" width="100%" height="70" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id={`g-${p.id}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0d9488" stopOpacity="0.28" />
+                        <stop offset="100%" stopColor="#0d9488" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M0,62 C120,58 200,34 320,8 L320,70 L0,70 Z" fill={`url(#g-${p.id})`} />
+                    <path d="M0,62 C120,58 200,34 320,8" fill="none" stroke="#0d9488" strokeWidth="2" />
+                    <circle cx="320" cy="8" r="3.5" fill="#0d9488" />
+                  </svg>
+                  <div className="fs-chart-axis">
+                    <span>今年 · {fmtAed(s.investment.buy)}</span>
+                    <span>{s.investment.years} 年后 · {fmtAed(s.investment.future)}</span>
+                  </div>
+                </div>
                 <div className="fs-disc">投资数字为基于参考假设的估算,非保证回报。</div>
               </>
             )}
@@ -226,6 +259,7 @@ export default function FactSheet() {
         由 Luna 生成 · 配套距离来自地图实测 · 成交数据来自迪拜土地局(DLD)公开记录 · 联系经纪 {data.agent.name}
         {data.agent.phone ? ` · ${data.agent.phone}` : ''}
       </div>
+    </div>
     </div>
   )
 }
