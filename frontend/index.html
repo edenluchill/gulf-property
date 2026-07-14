@@ -43,17 +43,25 @@
       rel="stylesheet"
     />
 
-    <!-- Default Open Graph meta tags -->
+    <!-- Open Graph — 分享出去的链接长什么样。
+         ⚠️ og:image 必须是**绝对 URL**（原来是 /og-image.jpg，相对路径，
+            大多数爬虫直接忽略 → 就算有图也不显示）。
+         ⚠️ 这些是**默认值**。分享一场 tour（/v/:code）时，边缘的
+            Pages Function（functions/v/[code].ts）会用 HTMLRewriter 把它们
+            改写成这场带看的真实信息（客户名 / 经纪名 / 首套房的照片）。
+            HTMLRewriter 只能改**已存在**的标签 —— 所以下面每一条都必须在。 -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Pinzos" />
+    <meta property="og:url" content="https://www.pinzos.com" />
     <meta property="og:title" content="Pinzos - A New Way to Buy Off-Plan in Dubai" />
     <meta property="og:description" content="Discover premium off-plan properties in Dubai. Browse projects, compare unit types, and find your ideal investment." />
-    <meta property="og:image" content="/og-image.jpg" />
+    <meta property="og:image" content="https://www.pinzos.com/og-image.jpg" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Pinzos - A New Way to Buy Off-Plan in Dubai" />
     <meta name="twitter:description" content="Discover premium off-plan properties in Dubai." />
+    <meta name="twitter:image" content="https://www.pinzos.com/og-image.jpg" />
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
