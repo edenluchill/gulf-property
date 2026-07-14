@@ -56,18 +56,34 @@ async function api(path: string, init?: RequestInit): Promise<{ status: number; 
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** 挑 3 个**在售 + 有真实户型**的项目，跨区域、价格拉开。 */
+/**
+ * 挑 3 个**在售 + 有真实户型**的项目，跨区域。
+ *
+ * ⚠️ **优先挑成交量大的区。** 第一版随便挑，结果选中的区全都成交量太低 →
+ *    地理套利和「短板+反驳」那两拍**正确地跳过了** → 于是那两条断言**空过**。
+ *    **空过的断言是虚假的安全感**：它绿着，但它什么都没验。
+ *    现在按区域成交量排序，保证这条路径每次都被真正走一遍。
+ */
 async function pickProjects(): Promise<{ id: string; name: string; units: number }[]> {
-  const { rows } = await pool.query<{ id: string; name: string; units: string }>(
-    `SELECT DISTINCT ON (p.area) p.id::text, p.project_name AS name, COUNT(u.id)::text AS units
+  const { rows } = await pool.query<{ id: string; name: string; units: string; tx: string }>(
+    `SELECT DISTINCT ON (p.area)
+            p.id::text, p.project_name AS name,
+            COUNT(u.id)::text AS units,
+            COALESCE(MAX(m.transaction_count), 0)::text AS tx
        FROM residential_projects p
        JOIN project_unit_types u ON u.project_id = p.id AND u.bedrooms IS NOT NULL
+       LEFT JOIN dubai_areas a
+              ON a.boundary IS NOT NULL
+             AND ST_Contains(a.boundary::geometry,
+                             ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326))
+       LEFT JOIN get_dubai_area_metrics(NULL,NULL,NULL) m ON m.id = a.id
       WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
         AND p.status = 'selling' AND p.min_price > 500000
       GROUP BY p.id, p.project_name, p.area
       ORDER BY p.area, COUNT(u.id) DESC`
   )
-  return rows.slice(0, 3).map((r) => ({ id: r.id, name: r.name, units: Number(r.units) }))
+  const sorted = [...rows].sort((a, b) => Number(b.tx) - Number(a.tx))
+  return sorted.slice(0, 3).map((r) => ({ id: r.id, name: r.name, units: Number(r.units) }))
 }
 
 // ── 内容体检 —— 每一条都是踩过的坑 ──────────────────────────────────────────
@@ -106,6 +122,32 @@ function auditNarration(beats: FlowBeat[]) {
 
   const zero = beats.filter((b) => ZERO_SCORE.test(b.narration))
   expect(zero.length === 0, '没有把「没数据」播报成「得分为 0」', zero.map((b) => b.id).join(' | '))
+
+  /**
+   * 🔴 **说了缺点却不反驳它,比什么都不说更糟**(Allen 的元分析)。
+   *
+   * 有效的机制不是「坦诚」,是**接种**:让客户免疫下一个经纪要说的话。
+   * 所以 weakness 那一拍**必须带反驳** —— 只说缺点不给答案 = 主动帮竞争对手。
+   */
+  const weakBeats = beats.filter((b) => b.kind === 'weakness')
+  const noRebuttal = weakBeats.filter((b) => !/但是|但|不过|however|but /i.test(b.narration))
+  expect(noRebuttal.length === 0,
+    weakBeats.length
+      ? `短板那一拍**带了反驳**（${weakBeats.length} 拍；说了缺点不反驳比不说更糟）`
+      : '（这批没有能被真数据反驳的短板 → 那一拍正确地跳过了）',
+    noRebuttal.map((b) => b.narration.slice(0, 40)).join(' | '))
+
+  /**
+   * 不能**报幕**:「看一下地理套利」「下面是短板这一拍」—— 真实经纪不会宣布章节名。
+   *
+   * ⚠️ 只禁**报幕**,不禁词。第一版把「套利」整个词禁了 —— 但「更具套利空间」
+   *    对投资客是完全正常的中文。**断言太紧和太松一样有害**:它会逼着我把
+   *    本来对的东西改坏。
+   */
+  const JARGON = /地理套利|这一拍|本拍|arbitrage|weakness beat|接下来这一段/i
+  const jargon = beats.filter((b) => JARGON.test(b.narration))
+  expect(jargon.length === 0, '没把内部术语念给客户（「地理套利」是我们的黑话）',
+    jargon.map((b) => b.narration.slice(0, 30)).join(' | '))
 
   const leak = beats.filter((b) => RADIUS_LEAK.test(b.narration))
   expect(leak.length === 0, '没有把内部检索半径念给客户（「周边一万米范围内」）',
