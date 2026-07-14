@@ -936,7 +936,19 @@ export default function MapPage() {
       // ?host=code 存的是「当次这场」的 code:刷新/断线重连仍复活同一场房间。
       const { code } = await createCollabRoom(user?.email?.split('@')[0] || undefined)
       setPresenterCode(code)
-      setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('host', code); return n }, { replace: true })
+      /**
+       * ⚠️ **一次写完** —— 设 host **并且**删掉 livetour。
+       *
+       * 之前这两件事分在两个 effect 里各调一次 setSearchParams,互相覆盖 ——
+       * 结果 URL 常常同时留着 `livetour=1` 和 `host=xxx`(owner 那条链接就是),
+       * 于是**下一次刷新又会去走「自动开一场」那条路**。
+       */
+      setSearchParams((prev) => {
+        const n = new URLSearchParams(prev)
+        n.set('host', code)
+        n.delete('livetour')
+        return n
+      }, { replace: true })
     } catch (e) {
       // ⚠️ 绝不静默失败(铁律:权限 UI 不静默)。createCollabRoom 已经把后端的
       // 中文提示(含升级引导)抛出来了 —— 显示给他,别只写进 console。
@@ -970,10 +982,32 @@ export default function MapPage() {
     if (autoStartedRef.current) return
     if (searchParams.get('livetour') !== '1') return
     if (!user || collabActive || presenterCode) return  // 等 auth 解析出来再开
+
+    /**
+     * 🔴 **URL 里已经有 ?host= → 这是「刷新/断线重连」,绝不能新建房间。**
+     *
+     * owner 实测:「经纪在一个 live tour session 里不小心断了或者按了刷新,
+     *              **会创建新 room 而不是 join 回原本买家在的 room**。」
+     *
+     * 根因是一个 React 状态竞态。刷新时 URL 上 `livetour=1` 和 `host=FUPSU` 都在:
+     *   1. 上面那个「复活 presenter」的 effect 先跑 → setPresenterCode('FUPSU')
+     *      —— 但 **setState 是异步的,这一轮还没生效**
+     *   2. 本 effect 在**同一轮**接着跑 → 读到的 presenterCode 还是 undefined
+     *      → 判定「还没开始」→ **开了一间新房**
+     *
+     * 于是:**客户还在老房间里,经纪自己跑到新房间去了** —— 两个人从此看不见对方。
+     *
+     * 修:**别信还没刷新的 state,信 URL。** URL 上有 host 就是在复活,不是在开新场。
+     */
+    if (searchParams.get('host')) {
+      autoStartedRef.current = true      // 别再跑;复活交给上面那个 effect
+      const next = new URLSearchParams(searchParams)
+      next.delete('livetour')            // 清掉,免得下次刷新又走这条路
+      setSearchParams(next, { replace: true })
+      return
+    }
+
     autoStartedRef.current = true
-    const next = new URLSearchParams(searchParams)
-    next.delete('livetour')
-    setSearchParams(next, { replace: true })
     void handleStartTour()
   }, [searchParams, user, collabActive, presenterCode, handleStartTour, setSearchParams])
 
