@@ -9,6 +9,7 @@ import { defineAlert } from './alerts'
 import { peek } from './metrics'
 import { startRuntimeMetrics, runtimeSnapshot } from './runtime'
 import { startTelemetryFlusher } from './flush'
+import { startDataFreshnessTelemetry } from './dataFreshness'
 
 export { flushNow } from './flush'
 export { evaluateAlerts, defineAlert } from './alerts'
@@ -132,5 +133,6 @@ export function startTelemetry(): void {
   startRuntimeMetrics()
   registerAlerts()
   registerIncidentAlerts()
+  startDataFreshnessTelemetry() // DLD 断更告警(自带 gauge + 3 条规则)
   startTelemetryFlusher()
 }

@@ -37,6 +37,8 @@
     "avgSize": "Average Size (m²)"
   },
   "ppsRange": "Price range: {{min}} – {{median}} – {{max}} AED/m² (p25 {{p25}} · p75 {{p75}})",
+  "dataThrough": "Data through {{date}} (latest DLD release)",
+  "dataStale": "DLD hasn't published new sales for {{days}} days (source cadence, not a page error)",
   "trend": {
     "title": "Last 24 months trend (bars = volume, line = median price)"
   },

@@ -6,8 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import {
-  fetchTxFilters, fetchTxSummary, fetchTxList, fetchTxProjects,
-  TxFilters, TxSummary, TxRow
+  fetchTxFilters, fetchTxSummary, fetchTxList, fetchTxProjects, fetchDataFreshness,
+  TxFilters, TxSummary, TxRow, DataFreshness
 } from '../lib/api'
 import DirhamSymbol from '../components/DirhamSymbol'
 import { formatMoneyCompact } from '../lib/money'
@@ -82,6 +82,7 @@ export default function TransactionsPage() {
   const [maxPrice, setMaxPrice] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)  // 移动端筛选折叠
   const [summary, setSummary] = useState<TxSummary | null>(null)
+  const [freshness, setFreshness] = useState<DataFreshness | null>(null)
   const [rows, setRows] = useState<TxRow[]>([])
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -102,6 +103,8 @@ export default function TransactionsPage() {
   }), [area, selectedProjects, rooms, type, year, minPrice, maxPrice])
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
+  // 数据截止日 —— 与筛选无关,只拉一次
+  useEffect(() => { fetchDataFreshness().then(setFreshness) }, [])
 
   // 区域变化 → 重置项目筛选（项目可能不在新区域内）
   useEffect(() => {
@@ -137,6 +140,13 @@ export default function TransactionsPage() {
   }, [query, page])
 
   const pps = summary?.pricePerSqm
+
+  // DLD 官方多久没发新成交了。成交本该日更 → 2 天以上就该主动说明,
+  // 否则用户看到最新一条停在几天前,只会以为是我们的页面坏了。
+  // 用 txPublishedAt(源 API 自带的发布时间),不是成交日 —— 后者天然滞后一两天。
+  const staleDays = freshness?.txPublishedAt
+    ? Math.floor((Date.now() - new Date(freshness.txPublishedAt).getTime()) / 86_400_000)
+    : null
 
   // 移动端筛选摘要(让折叠态也能看出当前筛选)
   const filterParts = [
@@ -371,6 +381,16 @@ export default function TransactionsPage() {
                 p25: fmt(pps.p25),
                 p75: fmt(pps.p75)
               })}
+            </div>
+          )}
+          {/* 数据截止日。DLD 停发时(2026-07-08 起停了 6 天)最新一条会停住不动,
+              不标出来就会被当成我们的 bug —— 这事已经发生过一次。 */}
+          {freshness?.txThrough && (
+            <div className="mt-1 text-xs text-slate-400">
+              {t('dataThrough', { date: freshness.txThrough.slice(0, 10) })}
+              {staleDays != null && staleDays >= 2 && (
+                <span className="text-amber-600"> · {t('dataStale', { days: staleDays })}</span>
+              )}
             </div>
           )}
 

@@ -766,6 +766,25 @@ export interface TxRow {
   sizeSqm: number | null; price: number | null; pricePerSqm: number | null;
   saleType: 'offplan' | 'ready';
 }
+/**
+ * 数据截止到哪天。DLD 会**停发数据**(2026-07-08 起停了 6 天),那时页面上最新一条
+ * 就停住不动,看起来像我们坏了 —— owner 和经纪都会这么以为。把截止日标出来,
+ * 断更就是一句「数据截至 X 日」的事实,不是 bug。
+ */
+export interface DataFreshness {
+  txThrough: string | null       // 最新成交日
+  txPublishedAt: string | null   // DLD 最后一次发布成交的时间(源 API 自带字段)
+  rentPublishedAt: string | null
+}
+export async function fetchDataFreshness(): Promise<DataFreshness | null> {
+  try {
+    // 走 /meta 而不是 /market —— /api/market 整个前缀挂了 mapMeter(匿名地图限时),
+    // 放那儿会烧地图额度,还会对额度用完的匿名访客 429。
+    const r = await fetch(`${API_URL}/meta/data-freshness`)
+    if (!r.ok) return null
+    return await r.json()
+  } catch { return null } // 拿不到就不显示这行,绝不能挡住整页数据
+}
 function txQuery(p: Record<string, string | string[] | undefined>): string {
   const qs = new URLSearchParams();
   Object.entries(p).forEach(([k, v]) => {

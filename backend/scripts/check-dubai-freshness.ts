@@ -43,11 +43,30 @@ async function main(): Promise<void> {
     const line = `${tag}: ${c.table} latest=${new Date(latest).toISOString()} age=${ageH.toFixed(1)}h (limit ${c.maxAgeHours}h)`
     if (ageH > c.maxAgeHours) { console.error(line); stale = true } else { console.log(line) }
   }
-  await pool.end()
+  // 陈旧了要分清是谁的锅 —— 老版无论如何都喊 "the daily sync did not run",
+  // 而 2026-07-14 那次同步明明跑了、是 DLD 源头停发,照着这句去查会一路查错方向。
+  // market_cache.updated_at = daily 跑到最后一步(precompute)的时间 = 我们跑完了的心跳。
   if (stale) {
-    console.error('\n❌ Dubai data is stale — the daily rebuild/sync likely did not run.')
+    const { rows } = await pool.query(
+      `SELECT EXTRACT(EPOCH FROM (now() - max(updated_at)))/3600 AS age_h FROM market_cache`
+    )
+    const syncAgeH = rows[0]?.age_h != null ? Number(rows[0].age_h) : null
+    await pool.end()
+    if (syncAgeH != null && syncAgeH <= 36) {
+      console.error(
+        `\n⚠️ 数据陈旧,但**同步是好的**(${syncAgeH.toFixed(1)}h 前刚跑完一轮)。` +
+        `\n   → 是 DLD 源头停发了,不是我们的锅。改代码没用,等它恢复。`
+      )
+    } else {
+      console.error(
+        `\n❌ 数据陈旧,且**同步本身也没跑完**(market_cache 已 ${syncAgeH?.toFixed(1) ?? '?'}h 未更新)。` +
+        `\n   → 这是我们的锅。去盒子看:` +
+        `\n   ssh -i ~/.ssh/dubai_proxy root@38.54.8.9 "systemctl status dubai-daily.service; tail -40 /opt/dubai-sync/daily.log"`
+      )
+    }
     process.exit(1)
   }
+  await pool.end()
   console.log('\n✅ Dubai data is fresh.')
 }
 main().catch((e) => { console.error(e?.message ?? e); process.exit(1) })

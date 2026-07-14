@@ -37,6 +37,8 @@
     "avgSize": "平均面积 (m²)"
   },
   "ppsRange": "单价区间：{{min}} – {{median}} – {{max}} AED/m²（p25 {{p25}} · p75 {{p75}}）",
+  "dataThrough": "数据截至 {{date}}（DLD 官方最新发布）",
+  "dataStale": "DLD 已 {{days}} 天未发布新成交（源头节奏，非页面故障）",
   "trend": {
     "title": "近 24 个月趋势（柱=成交量，线=中位单价）"
   },
