@@ -6,6 +6,7 @@ import type { Map as MaplibreMap } from 'maplibre-gl'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
 import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
 import { createMapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
+import { createAmbientLife } from '../luna-tour/map/ambientLife'  // Luna Tour 氛围层:海上的船 + 天上的飞机 (isolated)
 import TourOverlay from '../luna-tour/TourOverlay'  // Luna Tour (isolated)
 import { useTourMode } from '../luna-tour/TourModeContext'  // Luna Tour (isolated)
 // Luna collaborative tour (isolated co-presence layer). Delete collab/ to remove.
@@ -287,6 +288,26 @@ export default function MapPage() {
   // Tour mode: the overlay reports its 2-3 properties; the main map renders ONLY
   // these as native (clickable) pins — not the whole search-result marker sea.
   const [tourPins, setTourPins] = useState<MapPinProject[]>([])
+
+  /**
+   * 氛围层 —— 海上的船 + 天上的飞机。**只在 tour 期间跑。**
+   *
+   * 一张静止的卫星图是一张照片;有船在海上走、有飞机掠过,它才是一座正在运转的城市 ——
+   * 而客户要买的正是这座城市的一部分。
+   *
+   * 纯 GL symbol layer + 15Hz 定时器,零 React、零 DOM marker
+   * (DOM marker 会压垮 GPU —— 那个坑踩过了)。
+   */
+  useEffect(() => {
+    if (!tourCode) return
+    const life = createAmbientLife({ getMap: getCollabMap })
+    // 等地图 style 真的就绪再启动(start 里也有 isStyleLoaded 兜底,这里只是别空转)
+    const t = window.setTimeout(() => life.start(), 800)
+    return () => {
+      window.clearTimeout(t)
+      life.stop()
+    }
+  }, [tourCode, getCollabMap])
 
   // Entering a tour → clean map (the tour toggles the area-value heatmap itself);
   // leaving → restore the user's saved metric. Never persists the tour's choice.
