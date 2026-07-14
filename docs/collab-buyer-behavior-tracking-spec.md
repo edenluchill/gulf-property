@@ -42,6 +42,41 @@
 - 「买家 A 自己看了什么」「买家 B ...」(新:各买家自主操作 + 停留 + 提问)
 - AI interest_level 只基于买家自主行为(点了/停留/问了),不再被经纪操作误导。
 
+## Session 身份·安全·自定义链接(2026-07-10 追加需求)
+
+### 现状(实测)
+- 房间在内存(collab-rooms.ts)。`createRoom` 生成随机 code;但 `ensureRoomWithCode`/`getRoomByCode`
+  让同一 code **长期有效、任何人可加入**,无一次性/过期/passcode/结束机制(只靠 GC)。
+- 加入只传 `name`(客户填,没填=「访客」),无强身份。link = `pinzos.com/t/:code`(SHARE_BASE_URL)。
+- `lt_agents` 无 handle/slug 列。
+
+### 需求 1:客户不登录,经纪怎么认谁 → 能,不用登录
+- 进带看弹轻量「你是谁」:名字必填,电话/WhatsApp 选填(**不强制登录**)。
+- 每个 viewer = name + visitor_id(埋点身份,跨会话稳定) + 他自己的行为(见上买家行为采集)。
+- 报告按买家分栏:「张三看了 X、停留 5 分、问了付款」→ 经纪据此跟进。
+- 真·跟进(打电话/加微信)需联系方式 → 加入门选填 or 带看结束弹留资(转 lead,复用 [[behavior-to-lead-engine]])。
+
+### 需求 2:每次独立 session,防偷听
+组合(按性价比):
+1. **每次「开始带看」新 code**,不复用旧 link(前端保证不 ensureRoomWithCode 旧码)。
+2. **经纪「结束带看」→ 房间关闭**,旧 code 失效(再进提示「本次带看已结束」)。当前只靠 GC,加显式 end。
+3. **在场名单 + 踢人**:经纪看到谁在房间(name/visitor),能踢掉不该在的人。
+4. (可选加强)**4 位 passcode / 经纪审批进入**:陌生人拿到 link 也进不去,要经纪放行。
+- 铁律:presenter 不在(没开带看)时旧 link 进不去。
+
+### 需求 3:经纪自定义 handle 链接 `/t/:handle/:xxxxx`
+- `lt_agents` 加 `handle` 列(唯一、小写 slug、正则校验),**先抢先得**,系统默认给一个(email 前缀),
+  经纪可编辑(改名释放旧的、占用即不可用,唯一约束 + 409)。
+- 路由 `/t/:handle/:code`(前端 map 路由 + 后端 SHARE_BASE_URL 拼 handle),**兼容旧 `/t/:code`**。
+- 好处:品牌化链接 + link 自带经纪身份(辅助 session 归属)。handle ≠ session code(code 仍每次新生成)。
+
+### 分期(整合买家行为 + session 改造)
+- **S1 防偷听最小闭环**:每次开始带看新 code + 经纪显式结束即失效 + 在场名单/踢人。(安全最急)
+- **S2 客户身份门**:进带看填名(+选填联系方式)→ 行为/报告归属到人 + 带看后留资转 lead。
+- **S3 买家行为采集**(本文档主体 P1-P3):买家自主操作打点归属。
+- **S4 经纪 handle 自定义链接**:handle 列 + /t/:handle/:code + 个人中心可编辑。
+- 依赖:S2 是 S3 报告「按买家分栏」的前提(先有身份才能归属行为)。
+
 ## 关联
 [[collaborative-tour-intent-engine]] [[voice-agora-cost-guards]] [[identity-context-and-api-attribution]]
 (买家 visitor_id 归属) [[analytics-internal-exclusion]](经纪不算客户,同理买家行为要排经纪自己)

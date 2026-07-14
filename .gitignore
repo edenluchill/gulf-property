@@ -57,3 +57,8 @@ Thumbs.db
 backend/data/
 **/data/dubai-pulse/
 *.osm.pbf
+
+# 临时调试产物(截图/探针脚本) —— 一律 _ 前缀,不进仓库
+frontend/scripts/_*
+frontend/_*.png
+backend/scripts/_*

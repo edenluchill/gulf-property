@@ -89,6 +89,16 @@
 
 **教训**:新增任何 setInterval 写库的后台任务必须加同款 production 门;排查线上神秘数据改动先查 `pg_stat_activity` 的 client_addr。
 
+### 第四轮:抓到"修过的修复其实是空操作"(2026-07-09,commit `cf0422f`)
+
+**现象**:一次 2665ms 的楼书上传把 26 请求窗口的 p95 顶爆触发 HIGH_LATENCY——但第三轮(fa25c4f)已把 `/api/r2-upload` 排除出 p95 口径,理论不该再触发。metric 精确 = 上传耗时 = 铁证:上传仍在样本里。
+
+**根因(Express 时序陷阱)**:排除判断 `isLongLived(req.path)` 跑在异步 `res.on('finish')` 回调里。请求进入挂载于 `/api/r2-upload` 的子路由时,Express 把 `req.url` 临时剥成 `/start`;finish 异步触发时 `req.path` 仍是 `/start`,前缀匹配 `/api/r2-upload` 失败 → 上传漏回样本。**第三轮那个修复对它要排除的上传路由本身从来是空操作**,靠循环巡检的"报警口径怪"才暴露。
+
+**修复**:在中间件入口(app 级、进子路由前,`req.path` 必完整)算好 `longLived` 存闭包,`done()` 只读它。诊断纪律:先 grep 容器编译产物确认逻辑在(在),再验证是否真跑到(时序不对)——别假设旧修复生效。
+
+**通用教训**:任何在 `res.on('finish'|'close')` 回调里基于 `req.path`/`req.url`/`req.baseUrl` 判断的中间件,对挂载子路由都会拿到被剥前缀的短路径;需完整路径用 `req.originalUrl`(attribution 写 api_calls 就用它,故免疫)。
+
 ### 自动接手(未来)
 - cx-guardian 巡检剧本已升级(commit `fe825a2`):新增 render_crash 检测、api_calls p95>1.5s 慢端点排行(修法=microCache+预热范式)、perf_alerts 核查(req=0 风暴=内部预热要包 maintenance)、修完删旧噪音行的收尾闭环、本地起服带 PERF_FLUSHER_DISABLED=1。
 - 启用方式:`/loop` 本地循环跑 cx-guardian(它云端跑不了,要本地 env/docker)。
