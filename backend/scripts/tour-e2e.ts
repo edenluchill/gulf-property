@@ -273,6 +273,26 @@ async function main() {
   const beats: FlowBeat[] = flowRes.body?.flow || []
   expect(beats.length > 0, '④ 大纲时间线拿得到', `${beats.length} 拍`)
 
+  /**
+   * ⚠️ **契约断言 —— 后端返回的形状必须是前端要的形状。**
+   *
+   * 血的教训:后端 /script 返回 `camera: "环绕展示"`(**字符串**),而分镜时间线对它
+   * `.map()` → `"环绕展示".map is not a function` → **整个经纪台白屏**。
+   * 两段式生成把这条时间线放到了必经之路上 —— 一生成就炸。
+   *
+   * 而**两边各自的 tsc 都通过**(前端声明 string[],后端实际发 string)——
+   * 类型在编译期是对的,运行期是错的。我的跑分只打 API 不打 UI,所以没抓到。
+   * 这条断言就是那道缝的补丁。
+   */
+  const shapeBad: string[] = []
+  for (const b of beats as any[]) {
+    if (b.camera != null && !Array.isArray(b.camera)) shapeBad.push(`${b.id}.camera 不是数组(${typeof b.camera})`)
+    if (b.overlays != null && !Array.isArray(b.overlays)) shapeBad.push(`${b.id}.overlays 不是数组`)
+    if (typeof b.narration !== 'string') shapeBad.push(`${b.id}.narration 不是字符串`)
+  }
+  expect(shapeBad.length === 0, '④ 时间线形状对得上前端（camera/overlays 必须是数组）',
+    shapeBad.slice(0, 3).join(' | '))
+
   console.log('\n📋 大纲时间线：')
   for (const b of beats) {
     const kind = (b.kind || '—').padEnd(8)

@@ -320,6 +320,16 @@ router.get('/public/img', async (req: Request, res: Response) => {
     if (!upstream.ok) return res.status(upstream.status).end()
     const buf = Buffer.from(await upstream.arrayBuffer())
     res.set('Access-Control-Allow-Origin', '*')
+    /**
+     * 🔴 **必须显式放行 CORP。**
+     *
+     * 全站 `app.use(helmet())` 会设 `Cross-Origin-Resource-Policy: same-origin`,
+     * 于是从 www.pinzos.com 加载 api.pinzos.com 上的图片会被浏览器**直接拦掉**:
+     *     net::ERR_BLOCKED_BY_RESPONSE.NotSameOrigin
+     * 而 curl 是**不执行 CORP 的** —— 所以命令行怎么试都是 200,只有浏览器会拦。
+     * (我一度据此把它判成"假象"。教训:跨域的东西必须用浏览器验,不能只 curl。)
+     */
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin')
     res.set('Cache-Control', 'public, max-age=86400')
     res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg')
     res.send(buf)

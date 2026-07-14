@@ -24,7 +24,9 @@ interface Node {
   kind: string
   narration: string
   seconds?: number
-  camera?: string
+  /** 一句话摘要（后端 cameraLabel）。⚠️ 别用 `camera` —— 那是**分镜 chips 数组**，
+   *  给 AgentTours 的时间线用的。混用会 `.map is not a function` 白屏。 */
+  cameraLabel?: string
   cameraStyle?: string
   overlays?: OverlayChip[]
   transition?: string
@@ -200,7 +202,7 @@ export default function TourEditor() {
   }
   const setCameraStyle = async (beatId: string, style: string) => {
     const r = await lunaFetch(`/sessions/${id}/beat-camera`, { method: 'POST', body: JSON.stringify({ beat_id: beatId, style }) })
-    if (r.ok) { const d = await r.json(); setNodes((cur) => cur.map((n) => (n.id === beatId ? { ...n, camera: d.camera, cameraStyle: d.cameraStyle } : n))); flash('✅ 镜头已更新') }
+    if (r.ok) { const d = await r.json(); setNodes((cur) => cur.map((n) => (n.id === beatId ? { ...n, cameraLabel: d.cameraLabel ?? d.camera, cameraStyle: d.cameraStyle } : n))); flash('✅ 镜头已更新') }
   }
   const editOverlays = async (beatId: string, edits: { index: number; duration_ms?: number; remove?: boolean }[]) => {
     const r = await lunaFetch(`/sessions/${id}/beat-overlays`, { method: 'POST', body: JSON.stringify({ beat_id: beatId, edits }) })
@@ -336,7 +338,7 @@ export default function TourEditor() {
               <Track label="镜头" h={38}>
                 {laid.map((b) => (
                   <div key={b.id} className="absolute top-1 bottom-1 rounded-md bg-slate-700/60 border border-slate-600 flex items-center px-2 overflow-hidden" style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
-                    <span className="text-[11px] text-slate-300 truncate">🎥 {b.camera || '环绕展示'}</span>
+                    <span className="text-[11px] text-slate-300 truncate">🎥 {b.cameraLabel || '环绕展示'}</span>
                   </div>
                 ))}
               </Track>

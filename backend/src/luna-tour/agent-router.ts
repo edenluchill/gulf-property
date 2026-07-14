@@ -1169,6 +1169,7 @@ router.post('/sessions/create', requireAgent, async (req: AgentReq, res: Respons
 type CameraCue = {
   type?: string
   degrees?: number
+  zoom_delta?: number
   zoom?: number
   pitch?: number
   duration_ms?: number
@@ -1242,6 +1243,42 @@ const CAMERA_STYLES: Record<string, { zoom: number; pitch: number; label: string
 }
 /** Friendly one-word camera move for a beat (no zoom jargon). The engine adds a
  *  constant gentle rotation to every beat regardless. */
+/**
+ * 分镜的**动作 chips** —— 经纪在时间线上看见「这一拍镜头到底做了什么」。
+ *
+ * 🔴 前端(AgentTours 的分镜时间线)要的是 **string[]**,它对每一项 .map() 出一个小标签。
+ *    而这里以前只返回 cameraSummary() 的**一句话字符串** → `"环绕展示".map is not a function`
+ *    → **整个经纪台白屏**。而两段式生成把这个时间线放到了必经之路上,所以一生成就炸。
+ *
+ *    我的 e2e 只打 API、不打 UI,所以没抓到。教训写在提交信息里。
+ */
+function cameraChips(cam: CameraCue[] | undefined): string[] {
+  if (!Array.isArray(cam) || !cam.length) return []
+  const secs = (ms?: number) => (ms && ms >= 100 ? `${(ms / 1000).toFixed(1)}s` : '')
+  const out: string[] = []
+  for (const c of cam) {
+    const d = secs(c.duration_ms)
+    switch (c.type) {
+      case 'flyover':
+        out.push(`✈️ 飞入${d ? ' ' + d : ''}`)
+        break
+      case 'orbit':
+        out.push(`🔄 环绕 ${Math.abs(Math.round(c.degrees ?? 0))}°${d ? ' · ' + d : ''}`)
+        break
+      case 'push':
+        out.push(`${(c.zoom_delta ?? 0) >= 0 ? '🔍 推近' : '🔎 拉远'} ${Math.abs(c.zoom_delta ?? 0).toFixed(1)}${d ? ' · ' + d : ''}`)
+        break
+      case 'crane':
+        out.push(`🎚️ 升降${c.pitch != null ? ` ${Math.round(c.pitch)}°` : ''}${d ? ' · ' + d : ''}`)
+        break
+      default:
+        // keyframe:duration 0 = 瞬切机位;否则是一次缓动
+        out.push(c.duration_ms === 0 ? '🎬 机位' : `🎥 移镜${d ? ' ' + d : ''}`)
+    }
+  }
+  return out
+}
+
 function cameraSummary(cam: CameraCue[] | undefined): string {
   if (!Array.isArray(cam) || !cam.length) return '环绕展示'
   const hasFly = cam.some((c) => c?.type === 'flyover')
@@ -1875,7 +1912,8 @@ router.post('/sessions/:id/beat-camera', async (req: Request, res: Response) => 
     if (!target) return res.status(404).json({ error: 'beat not found' })
     target.camera = [{ at_ms: 0, zoom: preset.zoom, pitch: preset.pitch, bearing: 0, duration_ms: target.duration_ms || 8000 }]
     await pool.query(`UPDATE lt_tour_scripts SET script=$1 WHERE id=$2`, [JSON.stringify(scriptRow.script), scriptRow.id])
-    res.json({ ok: true, camera: cameraSummary(target.camera), cameraStyle: style })
+    // camera = 分镜 chips(数组), cameraLabel = 一句话摘要。两个都给,别再混。
+    res.json({ ok: true, camera: cameraChips(target.camera), cameraLabel: cameraSummary(target.camera), cameraStyle: style })
   } catch (err) {
     console.error('[luna] beat-camera error:', err)
     res.status(500).json({ error: 'beat-camera failed' })
@@ -2004,7 +2042,8 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       kind: string
       narration: string
       seconds: number
-      camera: string
+      camera: string[]        // ← 分镜 chips(前端 .map 它)
+      cameraLabel: string     // ← 一句话摘要(旧的 TourEditor 用)
       cameraStyle: string
       overlays: OverlayViz[]
       transition?: string
@@ -2018,7 +2057,8 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       kind,
       narration: b.narration || '',
       seconds: estimateSeconds(b.narration || ''),
-      camera: cameraSummary(b.camera),
+      camera: cameraChips(b.camera),
+      cameraLabel: cameraSummary(b.camera),
       cameraStyle: cameraStyle(b.camera),
       overlays: overlaySummary(b.overlays, imageById),
       actIndex,
