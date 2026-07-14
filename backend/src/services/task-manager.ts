@@ -38,18 +38,6 @@ export interface TaskLogEntry {
   data?: any;
 }
 
-// Debug snapshot structure
-export interface DebugSnapshot {
-  lastUpdate: string;
-  currentState: any;
-  metrics: {
-    memoryUsage?: number;
-    processingTime?: number;
-    apiCalls?: number;
-    [key: string]: any;
-  };
-}
-
 // Task record from database
 export interface TaskRecord {
   id: string;
@@ -72,7 +60,9 @@ export interface TaskRecord {
   result_data: any | null;
   errors: string[];
   processing_logs: TaskLogEntry[];
-  debug_snapshot: DebugSnapshot | null;
+  // ⚠️ DB 里还有个 debug_snapshot 列,但**代码不再碰它** —— 写它的
+  // updateDebugSnapshot() 从来没被调用过,列里 0 行数据。2026-07-13 移除死代码。
+  // (对比:processing_logs 是**活的** —— logToDB 有 6 处调用,33 个任务有日志。)
   metadata: Record<string, any> | null;
   worker_id: string | null;
   started_at: Date | null;
@@ -633,29 +623,6 @@ export class TaskManager {
       `, [jobId, JSON.stringify(entries)]);
     } catch (err) {
       console.error(`Failed to append logs for ${jobId}:`, err);
-    }
-  }
-
-  /**
-   * Update the debug snapshot for a task
-   * Useful for capturing state at specific points for debugging
-   */
-  async updateDebugSnapshot(jobId: string, snapshot: Partial<DebugSnapshot>): Promise<void> {
-    const fullSnapshot: DebugSnapshot = {
-      lastUpdate: new Date().toISOString(),
-      currentState: snapshot.currentState || {},
-      metrics: snapshot.metrics || {},
-    };
-
-    try {
-      await pool.query(`
-        UPDATE pdf_processing_tasks
-        SET debug_snapshot = $2,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE job_id = $1
-      `, [jobId, JSON.stringify(fullSnapshot)]);
-    } catch (err) {
-      console.error(`Failed to update debug snapshot for ${jobId}:`, err);
     }
   }
 

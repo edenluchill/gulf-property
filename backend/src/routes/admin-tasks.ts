@@ -387,7 +387,8 @@ router.get('/:jobId/logs', async (req: Request, res: Response) => {
     res.json({
       success: true,
       logs,
-      debugSnapshot: task?.debug_snapshot || null,
+      // 原来这里还返回 debugSnapshot —— 但它**永远是 null**(写它的
+      // updateDebugSnapshot() 从来没被调用过)。2026-07-13 连同死代码一起移除。
       totalLogs: task?.processing_logs?.length || 0,
     });
   } catch (error) {
