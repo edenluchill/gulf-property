@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CollabClient, type ConnState } from './CollabClient'
 import { collabWsUrl, type ChatEntry, type ClientMsg, type Participant, type Role } from './protocol'
+import { mark, measureFrom, reportFunnelStep, netLabel } from '../../lib/telemetry'
 
 export interface UseCollabSocketOpts {
   code: string
@@ -51,14 +52,39 @@ export function useCollabSocket(opts: UseCollabSocketOpts): CollabSocketApi {
     const client = new CollabClient({ code, name, role, url: collabWsUrl() })
     clientRef.current = client
 
-    const offState = client.onState(setState)
+    // ── RUM:客户真实的进房体验 ────────────────────────────────────────
+    // 2026-07-13「半分钟延迟」的真凶在客户端(首屏 + 4.8MB 卫星瓦片),而我们当时
+    // 对真实客户的设备一无所知,只能拿 playwright 模拟。埋在这一处 → 所有调用方覆盖。
+    // 只测 viewer:presenter 是经纪自己,他不是我们要研究的那个"等得不耐烦的人"。
+    const isViewer = role === 'viewer'
+    const net = netLabel()
+    if (isViewer) mark('collab.enter')      // 计时起点 = 客户点了「进入带看」
+
+    const offState = client.onState((s) => {
+      setState(s)
+      if (isViewer && s === 'open') {
+        measureFrom('collab.enter', 'rum.collab.ws_open.ms', { net })
+        reportFunnelStep('collab.join', 'ws_connect')
+      }
+    })
     const offTerminal = client.onTerminal(setEndedReason)
     const offSync = client.on('sync', (m) => {
       if (m.k !== 'sync') return
+      if (isViewer) reportFunnelStep('collab.join', 'sync')
       setConnId(m.connId)
       setPresenterConnId(m.state.presenterConnId ?? null)
       setParticipants(m.state.participants ?? [])
       setMessages(m.state.recentChat ?? [])
+    })
+
+    // 第一帧相机 = 客户的画面**真正开始跟随经纪**的那一刻(实测 4G 1.2s)。
+    // 这是「点了进入之后到底等了多久」最诚实的数字。
+    let gotFirstCam = false
+    const offFirstCam = client.on('cam', () => {
+      if (!isViewer || gotFirstCam) return
+      gotFirstCam = true
+      measureFrom('collab.enter', 'rum.collab.ttfc.ms', { net })
+      reportFunnelStep('collab.join', 'first_cam')
     })
     const offJoin = client.on('join', (m) => {
       if (m.k !== 'join') return
@@ -84,6 +110,7 @@ export function useCollabSocket(opts: UseCollabSocketOpts): CollabSocketApi {
       offState()
       offTerminal()
       offSync()
+      offFirstCam()
       offJoin()
       offLeave()
       offChat()

@@ -25,6 +25,7 @@ import voiceChatRouter, { initVoiceChatWebSocket } from './routes/voice-chat'
 import collabRouter, { initCollabWebSocket } from './routes/collab'  // 实时协作带看 (isolated; see docs/luna-collaborative-tour-spec.md)
 import voiceRtcRouter from './routes/voice-rtc'  // Agora 应用内语音 token + 用量额度
 import agentsRouter from './routes/agents'  // 经纪准入审批
+import telemetryRouter from './routes/telemetry'  // 客户端 RUM 上报
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
 import voiceTextRouter from './routes/voice-text'
@@ -53,6 +54,7 @@ import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (
 import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图每日限时(服务端强制)
 import { startPerfFlusher, stopPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 import { startFreeTrialSweep } from './services/freeTrialSweep'  // 免绑卡试用到期 → canceled
+import { startTelemetry } from './telemetry/start'  // 通用遥测(WS/容量/漏斗/RUM)— docs/telemetry-spec.md
 import { primeJwks } from './lib/jwks'  // Supabase 签名公钥 → 登录请求本地验签(零远程调用)
 
 const app: Application = express()
@@ -162,6 +164,7 @@ app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
 app.use('/api/collab', collabRouter)  // 实时协作带看 REST (建房/校验); WS 在 /api/collab
 app.use('/api/voice-rtc', voiceRtcRouter)  // Agora 应用内语音 token + 用量额度
 app.use('/api/agents', agentsRouter)  // 经纪准入审批(/me + owner 批准)
+app.use('/api/telemetry', telemetryRouter)  // 客户端 RUM 上报(匿名,白名单)— docs/telemetry-spec.md
 app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/ai/analytics', aiAnalyticsRouter)  // AI investment/ROI/budget analysis (DLD data)
@@ -223,6 +226,10 @@ const server = app.listen(PORT, async () => {
   // 的「报警开了就被关」churn)。PERF_FLUSHER_DISABLED=1 是生产上的手动逃生阀。
   if (process.env.NODE_ENV === 'production' && process.env.PERF_FLUSHER_DISABLED !== '1') {
     startPerfFlusher()
+    // 同一道生产门:本地 dev 连的是**生产库**,后台写库任务不许在本地跑
+    // (见 [[local-dev-ghost-processes]])。埋点调用本身在本地无害 —— 只在内存累积、
+    // 有界、不落库。
+    startTelemetry()
   }
 
   // 免绑卡试用到期清理(同款生产门:本地 dev 连的是生产库,后台写库任务不许在本地跑)

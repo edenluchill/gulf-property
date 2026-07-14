@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { reportFunnelStep } from '../lib/telemetry'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
@@ -200,8 +201,15 @@ export default function MapPage() {
   const [viewerCode, setViewerCode] = useState<string | undefined>(() => {
     try { return sessionStorage.getItem('collabViewerCode') || undefined } catch { return undefined }
   })
+  const linkOpenReportedRef = useRef(false)
   useEffect(() => {
     if (isCollabViewerPath && pathCode) {
+      // 漏斗第 1 步:客户点开了分享链接。只报一次(ref 守卫)——
+      // 这一步是整个漏斗的分母,重复上报会把后面每一步的转化率都算低。
+      if (!linkOpenReportedRef.current) {
+        linkOpenReportedRef.current = true
+        reportFunnelStep('collab.join', 'link_open')
+      }
       setViewerCode(pathCode)
       try { sessionStorage.setItem('collabViewerCode', pathCode) } catch { /* ignore */ }
     }
@@ -945,6 +953,9 @@ export default function MapPage() {
 
   // 客户身份门提交(S2):记住称呼(→ 连 WS 用真名)+ 选填联系方式上报后端(供报告/跟进)。
   const handleViewerIdentify = useCallback((name: string, phone: string, whatsapp: string) => {
+    // 漏斗第 2 步。这道门是**最可疑的流失点** —— 2026-07-13 现场那批房间大部分
+    // peak_participants=1(客户压根没进来),而经纪分不清「没点」和「卡住了」。
+    reportFunnelStep('collab.join', 'identity_submit')
     setViewerName(name)
     try { sessionStorage.setItem('collabViewerName', name) } catch { /* ignore */ }
     if (viewerCode && (phone || whatsapp)) {

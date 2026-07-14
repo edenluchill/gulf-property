@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, BadgeCheck } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, BadgeCheck, Wifi } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
@@ -28,6 +28,7 @@ import FeatureLog from '../components/analytics/FeatureLog'
 import AgentApprovals from '../components/analytics/AgentApprovals'
 import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
+import LiveTourTelemetry from '../components/analytics/LiveTourTelemetry'
 import AgentRuns from '../components/analytics/AgentRuns'
 import RevenueShare from '../components/analytics/RevenueShare'
 import DeveloperVerification from '../components/analytics/DeveloperVerification'
@@ -56,6 +57,7 @@ const TABS = [
   { id: 'errors', label: '错误监控', Icon: AlertTriangle },
   { id: 'guardian', label: '看护', Icon: ShieldCheck },
   { id: 'perf', label: '性能负载', Icon: Activity },
+  { id: 'livetour', label: '实时带看', Icon: Wifi },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -358,6 +360,9 @@ export default function AdminAnalytics() {
 
           {/* ── 性能负载 ──────────────────────────────────────────────── */}
           {tab === 'perf' && <PerfMonitor />}
+
+          {/* ── 实时带看(WS 遥测 / 容量 / 进房漏斗 / 客户端体感 / Agora 成本)── */}
+          {tab === 'livetour' && <LiveTourTelemetry />}
         </div>
       )}
       </main>

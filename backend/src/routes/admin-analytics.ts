@@ -12,6 +12,7 @@ import * as q from '../services/analyticsQueries'
 import { summarizeLunaSession } from '../services/lunaSummary'
 import { getCollabSessions, getCollabReport } from '../services/collabReport'
 import * as perf from '../services/perfMonitor'
+import * as tq from '../services/telemetryQueries'
 import { getAgentRuns, getAgentClientsOverview } from '../services/agentRuns'
 import { getRevenueShare, settleMonth, unsettleMonth } from '../services/revenueShare'
 import {
@@ -172,6 +173,22 @@ router.get('/perf/alerts/active', wrap(async () => ({ alerts: await perf.getActi
 router.post('/perf/alerts/:id/ack', wrap(async (req) => ({
   ok: await perf.ackAlert(Number(req.params.id)),
 })))
+
+// ── 实时带看遥测(WS 之前 100% 全盲)── docs/telemetry-spec.md ────────────
+// 一次给全:此刻现状 + 容量曲线 + 进房漏斗 + 客户端真实体验 + Agora 真金白银。
+router.get('/telemetry/live-tour', wrap(async (req) => {
+  const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24))
+  const minutes = Math.min(1440, Math.max(30, Number(req.query.minutes) || 180))
+  const [cpu, conns, fanout, funnel, rum, agora] = await Promise.all([
+    tq.metricSeries('runtime.cpu.pct', minutes),
+    tq.metricSeries('collab.ws.connections', minutes),
+    tq.metricSeries('collab.fanout.msgs', minutes),
+    tq.joinFunnel(hours),
+    tq.rumSummary(hours),
+    tq.agoraCost(30),
+  ])
+  return { live: tq.liveSnapshot(), series: { cpu, conns, fanout }, funnel, rum, agora }
+}))
 
 // ── 分成对账(FINDHOMEGO 25% / 运营方 75%,按 Stripe 实收净额)──────────
 router.get('/revenue-share', wrap((req) =>

@@ -458,6 +458,35 @@ export const unsettleRevenueMonth = (month: string, currency: string) =>
   authedPost<{ ok: boolean }>(`/revenue-share/unsettle`, { month, currency })
 
 export const fetchPerf = (minutes = 180) => authedGet<PerfData>(`/perf?minutes=${minutes}`)
+
+// ── 实时带看遥测(WS 之前 100% 全盲)── docs/telemetry-spec.md ────────────────
+export interface LiveTourTelemetry {
+  live: {
+    wsConnections: number
+    activeRooms: number
+    cpuPct: number
+    rssMb: number
+    loopLagMs: number
+    capacity: { cpuWarnPct: number; note: string }
+  }
+  series: {
+    cpu: { minute: string; value: number }[]
+    conns: { minute: string; value: number }[]
+    fanout: { minute: string; value: number }[]
+  }
+  funnel: { step: string; count: number; fromPrevPct: number | null; fromFirstPct: number | null }[]
+  rum: { name: string; samples: number; p50: number; p95: number }[]
+  agora: {
+    days: number
+    totalUnits: number
+    totalUsd: number
+    usdPerUnit: number
+    daily: { day: string; units: number; usd: number }[]
+    top: { email: string; units: number; credits: number; usd: number }[]
+  }
+}
+export const fetchLiveTourTelemetry = (hours = 24) =>
+  authedGet<LiveTourTelemetry>(`/telemetry/live-tour?hours=${hours}`)
 export const fetchActiveAlerts = () => authedGet<{ alerts: ActiveAlert[] }>(`/perf/alerts/active`)
 export const ackAlert = (id: number) => authedPost<{ ok: boolean }>(`/perf/alerts/${id}/ack`)
 

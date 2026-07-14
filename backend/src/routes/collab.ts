@@ -26,9 +26,11 @@ import {
   pushReliable,
   fanout,
   startRoomGc,
+  roomStats,
   type Room,
   type Participant
 } from '../services/collab-rooms'
+import { counter, gauge, collabJoin } from '../telemetry'
 import { startCollabPersistence, flushRoom } from '../services/collab-persistence'
 import { purgeOldCollabRooms } from '../services/collabReport'
 import { checkCredits, spend, creditError } from '../luna-tour/credits'
@@ -84,7 +86,14 @@ export function initCollabWebSocket(server: Server): void {
 
   console.log('🗺️  Collab WebSocket server initialized at /api/collab')
 
+  // WS 之前 **100% 全盲** —— perfMetrics 是 Express 中间件,而 upgrade 根本不经过它。
+  // 2026-07-13 合伙人报「带看有半分钟延迟」时,我们没有任何现成数据可查,
+  // 只能临时写探针脚本去生产实测。这几个 gauge 是 pull 式的,不用自己维护计数器。
+  gauge('collab.rooms.active', () => roomStats().rooms)
+  gauge('collab.ws.connections', () => roomStats().participants)
+
   wss.on('connection', (ws: WebSocket) => {
+    counter('collab.ws.connect').inc()
     // 这两个在 hello 成功后绑定;在此之前的消息(除 hello/ping)忽略。
     let room: Room | null = null
     let me: Participant | null = null
@@ -125,12 +134,23 @@ export function initCollabWebSocket(server: Server): void {
           joined = joinRoom(msg.code, ws, msg.name || '访客', role)
         }
         if (!joined) {
+          // 客户点了链接却进不去(房间已结束 / 链接失效)—— 之前是**静默失败**,
+          // 经纪那头只看到「客户怎么没进来」,分不清是没点还是进不来。
+          counter('collab.ws.error', { reason: 'room_not_found' }).inc()
           ws.send(JSON.stringify({ k: 'error', reason: 'room_not_found' }))
           ws.close()
           return
         }
         room = joined.room
         me = joined.participant
+
+        // 进房漏斗:ws_connect(连上并被房间接纳)→ sync(拿到快照 = 真正进房成功)。
+        // link_open / identity_submit 在前端上报(RUM),first_cam 也是。
+        // 今天那批 peak_participants=1 的房间(客户压根没进来)是手查 DB 才发现的。
+        if (role === 'viewer') {
+          collabJoin.step('ws_connect')
+          collabJoin.step('sync')
+        }
 
         // 回 sync 全量快照(connId 告诉客户端它自己的 id)
         ws.send(JSON.stringify({
@@ -226,6 +246,7 @@ export function initCollabWebSocket(server: Server): void {
 
     const cleanup = () => {
       clearInterval(pingTimer)
+      counter('collab.ws.disconnect').inc()
       if (room && me) {
         const connId = me.connId
         leave(room, connId)

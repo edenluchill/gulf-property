@@ -7,6 +7,8 @@
  */
 
 import type { WebSocket } from 'ws'
+// telemetry 是零依赖的(不碰 DB/express),所以这层「纯逻辑」引它不破坏隔离。
+import { counter, histogram } from '../telemetry'
 
 export type Role = 'presenter' | 'viewer'
 
@@ -287,15 +289,32 @@ function reduceDraw(room: Room, action: any): void {
  * 扇出给房间内其它人(可排除发送者)。逐个 ws.send,坏连接静默跳过。
  */
 export function fanout(room: Room, msg: any, exceptConnId?: string): void {
+  const t0 = Date.now()
   const text = JSON.stringify(msg)
+  let sent = 0
   for (const p of room.participants.values()) {
     if (p.connId === exceptConnId) continue
     try {
       p.ws.send(text)
+      sent++
     } catch {
       // 坏连接由 close/error handler 清理,这里不抛
     }
   }
+  // 扇出是**容量的直接前兆**:msg/s 和单帧耗时一起涨 = 单核快满了(单进程单线程,
+  // 压测:1000 人同时带看 ≈ 单核 105%)。埋在这一处 → 所有扇出路径自动覆盖。
+  if (sent > 0) {
+    counter('collab.fanout.msgs').inc(sent)
+    counter('collab.fanout.bytes').inc(text.length * sent)
+    histogram('collab.fanout.ms').observe(Date.now() - t0)
+  }
+}
+
+/** 房间/连接的当前规模 —— 给 telemetry 的 gauge 拉取(pull 式,不用自己维护计数)。 */
+export function roomStats(): { rooms: number; participants: number } {
+  let participants = 0
+  for (const r of rooms.values()) participants += r.participants.size
+  return { rooms: rooms.size, participants }
 }
 
 /** 所有活跃房间(供持久化层遍历 flush dirty 房间)。 */
