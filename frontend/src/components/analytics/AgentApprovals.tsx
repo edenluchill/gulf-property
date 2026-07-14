@@ -89,13 +89,14 @@ function GrantedTag({ s, compact }: { s: Subscriber; compact?: boolean }) {
   const title = `${GRANT_NAME} · ${by} 于 ${at.toLocaleString('zh-CN')} 赠送`
   return (
     <span
-      className="flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100"
+      // whitespace-nowrap:不加的话「已赠 Pro 30 天 · 7/13 · lzp6529」会折成两行,把整行撑高
+      className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100"
       title={title}
     >
       <Gift className="h-3 w-3 shrink-0" />
       {compact ? '已赠 Pro' : `已赠 ${GRANT_SHORT}`}
       <span className="font-normal text-violet-400">
-        {at.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} · {by.split('@')[0]}
+        · {at.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} · {by.split('@')[0]}
       </span>
     </span>
   )
@@ -183,7 +184,7 @@ function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
         <div className="hidden w-[76px] shrink-0 text-right text-[12px] font-semibold text-slate-700 sm:block">{planLabel}</div>
         <div className="hidden w-[128px] shrink-0 justify-end sm:flex"><CreditMeter s={s} /></div>
         <div className="hidden w-[76px] shrink-0 text-right text-[11px] tabular-nums text-slate-400 md:block">{expiry}</div>
-        <div className="hidden w-[216px] shrink-0 justify-end sm:flex"><Actions /></div>
+        <div className="hidden w-[252px] shrink-0 justify-end sm:flex"><Actions /></div>
       </div>
 
       {/* ── 第二层:手机专用。套餐/额度/到期在手机上原来是全隐藏的 ——
