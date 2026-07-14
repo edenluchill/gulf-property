@@ -1435,6 +1435,100 @@ router.post('/sessions/:id/preview-audio', requireAgent, async (req: AgentReq, r
   }
 })
 
+/**
+ * 🔔 通知 —— 客户看完 / 想联系 / 收藏了某套。
+ *
+ * 核心卖点(「把 tour 发给客户,然后你知道他做了什么」)之前是**假的**:数据一直在采,
+ * 但没有任何人被告知。这三个端点就是把它变成真的。
+ */
+router.get('/notifications', requireAgent, async (req: AgentReq, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id::text, kind, title, body, share_code, client_id::text,
+              read_at, created_at
+         FROM lt_notifications
+        WHERE agent_id = $1
+        ORDER BY created_at DESC
+        LIMIT 50`,
+      [req.lunaAgentId]
+    )
+    const unread = rows.filter((r: { read_at: string | null }) => !r.read_at).length
+    res.json({ notifications: rows, unread })
+  } catch (err) {
+    console.error('[luna] notifications error:', err)
+    res.status(500).json({ error: 'notifications failed' })
+  }
+})
+
+router.post('/notifications/read', requireAgent, async (req: AgentReq, res: Response) => {
+  try {
+    const id = typeof req.body?.id === 'string' ? req.body.id : null
+    if (id) {
+      await pool.query(`UPDATE lt_notifications SET read_at=now() WHERE id=$1 AND agent_id=$2 AND read_at IS NULL`, [id, req.lunaAgentId])
+    } else {
+      await pool.query(`UPDATE lt_notifications SET read_at=now() WHERE agent_id=$1 AND read_at IS NULL`, [req.lunaAgentId])
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: 'mark read failed' })
+  }
+})
+
+/**
+ * 客户档案里的**行为时间线** —— 「他到底做了什么」。
+ *
+ * 这就是把 tour 的行为**回传到 CRM**:经纪打开一个客户,看见的不再是一张静态名片,
+ * 而是「他看了哪场 tour、在哪几套房上停留最久、收藏了哪套、有没有看完」。
+ * 打电话之前**先知道他在想什么** —— 这是这个产品唯一真正的护城河。
+ */
+router.get('/clients/:id/activity', requireAgent, async (req: AgentReq, res: Response) => {
+  try {
+    const own = await pool.query('SELECT 1 FROM lt_clients WHERE id=$1 AND agent_id=$2', [req.params.id, req.lunaAgentId])
+    if (!own.rowCount) return res.status(404).json({ error: 'client not found' })
+
+    // 这个客户的所有 tour + 每场的关键指标
+    const tours = await pool.query(
+      `SELECT s.share_code, s.title, s.created_at,
+              COUNT(*) FILTER (WHERE e.event_type='tour_play')     AS plays,
+              COUNT(*) FILTER (WHERE e.event_type='tour_complete') AS completes,
+              COUNT(*) FILTER (WHERE e.event_type IN ('cta_whatsapp','cta_call')) AS cta,
+              COUNT(*) FILTER (WHERE e.event_type='feedback')      AS loves,
+              COALESCE(SUM(e.dwell_ms),0)::bigint                  AS dwell_ms,
+              MAX(e.created_at)                                    AS last_seen
+         FROM lt_demo_sessions s
+         LEFT JOIN lt_engagement_events e ON e.session_id = s.id
+        WHERE s.client_id = $1 AND s.agent_id = $2
+        GROUP BY s.id, s.share_code, s.title, s.created_at
+        ORDER BY s.created_at DESC`,
+      [req.params.id, req.lunaAgentId]
+    )
+
+    /**
+     * 他在**哪几套房**上停留最久 —— 这是打电话前最该知道的一件事。
+     * 「陈先生,我看您在 Serenz 上看了挺久」比「您考虑得怎么样了」强一百倍。
+     */
+    const props = await pool.query(
+      `SELECT sp.snapshot->>'name' AS name,
+              COALESCE(SUM(e.dwell_ms),0)::bigint AS dwell_ms,
+              COUNT(*) FILTER (WHERE e.event_type='feedback') AS loves
+         FROM lt_demo_sessions s
+         JOIN lt_engagement_events e ON e.session_id = s.id
+         JOIN lt_session_properties sp
+           ON sp.session_id = s.id AND sp.project_id = e.project_id
+        WHERE s.client_id = $1 AND s.agent_id = $2 AND e.project_id IS NOT NULL
+        GROUP BY sp.snapshot->>'name'
+        ORDER BY SUM(e.dwell_ms) DESC NULLS LAST
+        LIMIT 6`,
+      [req.params.id, req.lunaAgentId]
+    )
+
+    res.json({ tours: tours.rows, properties: props.rows })
+  } catch (err) {
+    console.error('[luna] client activity error:', err)
+    res.status(500).json({ error: 'activity failed' })
+  }
+})
+
 router.get('/sessions/:id/gen-status', async (req: Request, res: Response) => {
   try {
     const key = req.params.id

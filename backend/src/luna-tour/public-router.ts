@@ -22,6 +22,7 @@ import { optionalAuth } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { checkCredits, spend, creditError } from './credits'
 import { getMarketEvidence } from './evidence'
+import { notifyAgentOfIntent } from './notify-agent'
 import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
 
 const router = Router()
@@ -102,6 +103,17 @@ router.post('/public/v/:code/event', async (req: Request, res: Response) => {
       // payload column is NOT NULL DEFAULT '{}' — pass '{}' when we have none.
       [sessionId, visitorId, eventType, projectId, dwellMs, payload ?? '{}', ua || null, ipHash]
     )
+
+    /**
+     * 🔴 高意向 → **立刻通知经纪**(fire-and-forget)。
+     *
+     * 最值钱的一刻是客户**刚看完的那一分钟** —— 他此刻正在想这件事。
+     * 晚一天打电话,热度就没了。
+     *
+     * 之前:行为数据一直在采,但**没有任何人被告知**。经纪只有主动去翻才看得见。
+     * 核心卖点是假的。
+     */
+    void notifyAgentOfIntent({ sessionId, visitorId, eventType, projectId })
 
     if (eventType === 'feedback') {
       const reaction = typeof b.reaction === 'string' ? b.reaction.slice(0, 16) : 'love'

@@ -11,6 +11,7 @@ import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
 import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
 import { SectionHeader, StatCard } from '../ui/Panel'
 import ActivationChecklist from '../ui/ActivationChecklist'
+import IntentFeed from '../ui/IntentFeed'
 
 interface SessionRow {
   id: string
@@ -87,6 +88,11 @@ export default function AgentOverview() {
         <h1 className="text-2xl font-bold mb-1">{L('经纪工作台', 'Agent workbench')}</h1>
         <p className="text-sm text-slate-500">{L('两种带客户看房的方式 — 选一个开始', 'Two ways to show clients around — pick one to start')}</p>
       </div>
+
+      {/* 🔔 客户动静 —— **第一屏**。谁刚看完、谁想联系你、谁收藏了哪套。
+          最值钱的一刻是客户刚看完的那一分钟(他此刻正在想这件事),
+          所以它不能藏在某个 tab 里。一条都没有时不占地方。 */}
+      <IntentFeed />
 
       {/* 试用期激活清单(全部完成后自动消失) */}
       {!loading && <ActivationChecklist hasClients={clients.length > 0} />}

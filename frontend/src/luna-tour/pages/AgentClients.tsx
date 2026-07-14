@@ -231,6 +231,20 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
   const [interactions, setInteractions] = useState<ClientInteraction[]>([])
   const [engagement, setEngagement] = useState<ClientEngagement[]>([])
   const [heat, setHeat] = useState<ClientHeat | null>(null)
+  /**
+   * 🔴 他在**哪几套房**上停留最久 —— 打电话前最该知道的一件事。
+   *
+   * 「陈先生,我看您在 Serenz 上看了挺久」比「您考虑得怎么样了」强一百倍。
+   * 这就是把 tour 的行为**回传到 CRM** —— 之前数据全采到了,但经纪看不见。
+   */
+  const [focus, setFocus] = useState<{ name: string; dwell_ms: number; loves: number }[]>([])
+  useEffect(() => {
+    if (!client.id) return
+    void lunaFetch(`/clients/${client.id}/activity`)
+      .then((r) => r.json())
+      .then((d) => setFocus(d.properties || []))
+      .catch(() => setFocus([]))
+  }, [client.id])
   const [stage, setStage] = useState<PipelineStage | null>(client.pipeline_stage || null)
   const [savingStage, setSavingStage] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
@@ -382,6 +396,40 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
 
       {/* log a follow-up */}
       <FollowupForm clientId={client.id} onSaved={refresh} />
+
+      {/* 🔴 他最在意的房子 —— 打电话之前先知道他在想什么 */}
+      {focus.length > 0 && (
+        <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
+          <div className="mb-1 text-sm font-bold text-slate-700">{L('他最在意的房子', 'What he keeps coming back to')}</div>
+          <p className="mb-3 text-xs text-slate-400">
+            {L('按停留时长排。打电话时先聊排第一的那套 —— 他已经在想它了。',
+               'Ranked by dwell time. Open the call with the top one — he is already thinking about it.')}
+          </p>
+          <div className="space-y-2">
+            {focus.map((f, i) => {
+              const top = focus[0]?.dwell_ms || 1
+              const pct = Math.max(6, Math.round((f.dwell_ms / top) * 100))
+              return (
+                <div key={f.name || i} className="flex items-center gap-3">
+                  <div className="w-40 shrink-0 truncate text-sm font-medium text-slate-700">
+                    {i === 0 && '🔥 '}{f.name}
+                  </div>
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full ${i === 0 ? 'bg-teal-500' : 'bg-slate-300'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="w-28 shrink-0 text-right text-xs text-slate-500 tabular-nums">
+                    {Math.round(f.dwell_ms / 1000)}s
+                    {f.loves > 0 && <span className="ml-1">❤️</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* activity timeline */}
       <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
