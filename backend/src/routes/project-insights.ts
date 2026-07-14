@@ -8,7 +8,7 @@
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { getProjectInsights, getProjectTransactions, refreshProjectInsightsCache } from '../services/projectInsights'
-import { beginMaintenance, endMaintenance } from '../services/perfSink'
+import { beginMaintenance, endMaintenance, yieldToLiveTraffic } from '../services/perfSink'
 
 const router = Router()
 
@@ -25,6 +25,11 @@ async function warmAllProjectInsights() {
     const r = await pool.query(`SELECT id FROM residential_projects`)
     let ok = 0
     for (const row of r.rows) {
+      // 有真人在飞就等他先走完。250ms 的 sleep 只管**节奏**不管**优先级** ——
+      // 预热的每一项都是打 DLD 大表的重聚合,照样能把 DB 的 CPU 占住,
+      // 让一个没命中缓存的客户排队等 7.6 秒(2026-07-14 05:17 实际发生过)。
+      // 预热没有 deadline,客户有。
+      await yieldToLiveTraffic()
       try {
         await refreshProjectInsightsCache(String(row.id))
         ok++

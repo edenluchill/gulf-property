@@ -30,17 +30,42 @@ const IGNORE = new Set(['/health'])
 const LONG_LIVED_PREFIXES = [
   '/api/upload', '/api/r2-upload', '/api/langgraph-progress',   // ① 上传 / SSE
 ]
-/** ② AI 生成:等模型出结果,秒级是设计如此。耗时由 ai.call.ms 单独监控。 */
-const AI_SLOW_PATTERNS = [
-  /\/ai-edit$/,                      // Luna 改文案
-  /\/api\/luna\/agent\/sessions/,    // tour 生成 / 渲染 / 预览
-  /\/api\/luna\/agent\/clients\/.*\/(report|coach)/,  // 客户报告 / 档案教练
-  /^\/api\/ai\//,                    // AI 分析(investment / projects / areas)
-  /^\/api\/compare/,                 // AI 房源对比
+
+/**
+ * ② **真正同步等模型出结果**的接口 —— 只有这几个。
+ *
+ * ⚠️ **别按路径名猜。** 2026-07-14 我第一版把 `/api/ai/*` 和 `/api/compare` 整个排除了,
+ * 理由是"名字里有 ai,肯定慢"。**错得离谱**:
+ *   · `ai-analytics.ts`(investment / recommend / affordability / rent-vs-buy …8 个端点)
+ *     —— **零 AI 调用**,全是 SQL + PG 函数(`area_investment_report()`)
+ *   · `ai-projects.ts` / `ai-areas.ts` / `compare.ts` —— 同样**零 AI 调用**
+ *   路径里的 `ai` 只是「给 Luna 用的数据接口」的命名习惯。
+ *
+ *   于是 `/api/ai/analytics/investment` 那个**真实的 5–9 秒慢查询**
+ *   (owner 在 dashboard 上一眼看到的)被我当成"AI 天生慢"**藏起来了**。
+ *   **把真问题排除出监控,比没有监控更糟。**
+ *
+ * 也别把 tour 的 create / render 算进来 —— 它们**立即 res.json 返回**,
+ * AI 在后台跑,HTTP 耗时本来就短(几十毫秒)。
+ *
+ * 判据只有一个:**handler 里有没有 `await` 一个会调 Gemini 的函数。**
+ * 已逐个 grep 确认:
+ *   · POST …/sessions/:id/ai-edit        → await revise()          调 Gemini
+ *   · POST …/clients/profile-coach       → await coachProfile()    调 Gemini
+ *   · POST …/client-reports (+ /report)  → await buildClientReport() 调 Gemini
+ *
+ * 排除 ≠ 不监控:AI 的耗时/失败/成本由 `ai.call.ms{task}` / `ai.call.failed` /
+ * `ai.cost.usd_micro` 单独盯着(services/ai/gemini.ts),比 HTTP p95 精确得多。
+ */
+const AI_SYNC_PATTERNS = [
+  /\/ai-edit$/,                          // Luna 改文案(await revise)
+  /\/clients\/profile-coach$/,           // 客户档案教练(await coachProfile)
+  /\/client-reports$/,                   // 客户匹配报告(await buildClientReport)
+  /\/luna\/agent\/report$/,              // 同上,另一个入口
 ]
 function isLongLived(path: string): boolean {
   return LONG_LIVED_PREFIXES.some((p) => path.startsWith(p))
-    || AI_SLOW_PATTERNS.some((re) => re.test(path))
+    || AI_SYNC_PATTERNS.some((re) => re.test(path))
 }
 
 /**

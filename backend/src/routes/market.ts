@@ -11,7 +11,7 @@ import pool from '../db/pool'
 import { findAreaByName } from '../services/area-matcher'
 import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
 import { DEFAULT_SEGMENT, SEGMENT_MIN_SAMPLE, parseSegment, MarketSegment } from '../lib/marketSegment'
-import { beginMaintenance, endMaintenance } from '../services/perfSink'
+import { beginMaintenance, endMaintenance, yieldToLiveTraffic } from '../services/perfSink'
 import { cached, prime } from '../services/microCache'
 
 const router = Router()
@@ -858,6 +858,8 @@ async function warmAreaInsights() {
     let ok = 0
     const want = r.rows.length * WARM_USAGES.length
     for (const row of r.rows) {
+      // 有真人在飞就等 —— 预热没有 deadline,客户有。见 perfSink.yieldToLiveTraffic。
+      await yieldToLiveTraffic()
       // Warm the SAME keys the request path reads (insightsKey), or the warm round
       // is a no-op that only burns DB while starving live requests.
       for (const usage of WARM_USAGES) {

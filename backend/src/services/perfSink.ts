@@ -96,6 +96,32 @@ export function decConcurrency(): void {
   if (activeConcurrency > 0) activeConcurrency--
 }
 
+/** 当前在途的真实用户请求数。 */
+export function liveRequestsInFlight(): number {
+  return activeConcurrency
+}
+
+/**
+ * 后台批量任务(缓存预热等)在**每一项之前**调这个 —— 有真人在用就让路。
+ *
+ * 为什么需要:预热器本身已经每项 sleep 250ms 了,看着很"礼貌"。但礼貌的是**节奏**,
+ * 不是**优先级** —— 它照样每秒往 DB 灌十几条**重聚合查询**(每个项目的 insights 都要
+ * 打 DLD 那几张大表)。真实事故(2026-07-14 05:17):预热正在跑,一个客户请求了一个
+ * 还没预热到的项目 → 他的查询在 DB 里排队等 CPU → **等了 7.6 秒**。
+ * 那一分钟 `pool_waiting = 0` —— **不是连接池被占满,是 DB 的 CPU 被占满**。
+ * (指纹:`req` 只有 9,`query_count` 却有 704 → 后台任务饿死前台。)
+ *
+ * 预热是**没有 deadline 的活**:晚 10 秒热完没人在乎,让一个真人等 7 秒有人在乎。
+ * 所以规则很简单:**只要有活人在飞,就等**。等到没人了再继续。
+ * 上限 maxWaitMs 是防呆 —— 万一有个 SSE/长连接一直挂着,预热不能就此永远停摆。
+ */
+export async function yieldToLiveTraffic(maxWaitMs = 30_000): Promise<void> {
+  const deadline = Date.now() + maxWaitMs
+  while (activeConcurrency > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200))
+  }
+}
+
 export interface Window {
   windowSec: number
   req: number

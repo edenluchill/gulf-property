@@ -25,15 +25,43 @@ DECLARE
   v_yield numeric; v_annual_rent numeric; v_future numeric; v_rentinc numeric; v_roi numeric; v_payback numeric;
   v_conf text; v_liq text; v_trend text; v_avail jsonb;
   v_sc_sqft numeric; v_sc_drag numeric; v_net_yield numeric;
+  v_area_ids int[];
 BEGIN
   -- 营销名 → 区块(认 "Marina"/"Arabian Ranches" 等);取最短匹配名(最贴切)
   SELECT id INTO v_block FROM dubai_areas WHERE name ILIKE v_like ORDER BY length(name) ASC LIMIT 1;
+
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- 🔴 区域解析**只做一次**,解析成 area_id 数组;下面 7 条查询全部统一用
+  --    `area_id = ANY(v_area_ids)` —— 一个**裸列谓词**,索引直接可用。
+  --
+  -- 原来每条查询里写的是:
+  --    CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block
+  --         ELSE area_name ILIKE v_like END
+  -- 这在 plpgsql 里是**灾难**:v_block 是变量,**规划期不知道它是不是 NULL**,
+  -- 规划器必须为两个分支都留后路 → **索引用不上,只能全表扫**。
+  -- (拿字面量在 psql 里测是看不出来的 —— PG 会把 CASE 折叠掉,一切看起来很快。
+  --  这就是为什么这个 bug 活了这么久:**手测永远复现不了**。)
+  --
+  -- 等价性已验证:203 个区里 dld_transactions.area_name 与 dld_areas.area_name
+  -- **零处不一致**,所以用维表解析 area_id 和原来的 ILIKE 结果完全相同。
+  -- ══════════════════════════════════════════════════════════════════════════
+  IF v_block IS NOT NULL THEN
+    SELECT array_agg(area_id) INTO v_area_ids FROM dld_areas WHERE dubai_area_id = v_block;
+  ELSE
+    SELECT array_agg(area_id) INTO v_area_ids FROM dld_areas WHERE area_name ILIKE v_like;
+  END IF;
+
+  IF v_area_ids IS NULL OR cardinality(v_area_ids) = 0 THEN
+    RETURN jsonb_build_object('area', p_area, 'ptype', p_ptype, 'bedrooms', p_bedrooms,
+      'error', 'unknown_area', 'available_in_area', '[]'::jsonb,
+      'message', '没有匹配到这个区域(名字可能拼错了,或者 DLD 里没有这个地籍名)');
+  END IF;
 
   -- 期房占比永远按全口径算（口径过滤后该数没有意义）
   SELECT avg((is_offplan)::int::numeric) INTO v_offplan_share
   FROM v_sales
   WHERE ptype = p_ptype AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
-    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND area_id = ANY(v_area_ids)
     AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
 
   SELECT percentile_cont(0.5) within group (order by price_aed),
@@ -46,7 +74,7 @@ BEGIN
   FROM v_sales
   WHERE ptype = p_ptype AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
     AND (v_off IS NULL OR is_offplan = v_off)
-    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND area_id = ANY(v_area_ids)
     AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
 
   -- 样本护栏：请求口径样本太薄 → 回退全口径重算（segment_used 会如实标注）
@@ -61,7 +89,7 @@ BEGIN
       INTO v_price_aed, v_price_sqm, v_p25, v_p75, v_size, v_cnt, v_cnt12
     FROM v_sales
     WHERE ptype = p_ptype AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
-      AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+      AND area_id = ANY(v_area_ids)
       AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
   END IF;
   v_seg := CASE WHEN v_off IS NULL THEN 'all' WHEN v_off THEN 'offplan' ELSE 'ready' END;
@@ -69,7 +97,7 @@ BEGIN
   IF v_cnt IS NULL OR v_cnt = 0 THEN
     SELECT jsonb_agg(jsonb_build_object('ptype', ptype, 'count', c) ORDER BY c DESC) INTO v_avail
     FROM (SELECT ptype, count(*) c FROM v_sales
-          WHERE (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+          WHERE area_id = ANY(v_area_ids)
             AND txn_date >= CURRENT_DATE - INTERVAL '24 months'
           GROUP BY ptype) q;
     RETURN jsonb_build_object('area',p_area,'ptype',p_ptype,'bedrooms',p_bedrooms,
@@ -80,28 +108,31 @@ BEGIN
   SELECT percentile_cont(0.5) within group (order by rent_sqm), count(*)
     INTO v_rent_sqm, v_rent_cnt
   FROM v_rent WHERE ptype = p_ptype
-    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND area_id = ANY(v_area_ids)
     AND start_date >= CURRENT_DATE - INTERVAL '24 months';
 
   -- 趋势/同城对比全部沿用生效口径（同口径对比才是苹果比苹果）
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_then
   FROM v_sales WHERE ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
     AND (v_off IS NULL OR is_offplan = v_off)
-    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND area_id = ANY(v_area_ids)
     AND txn_date >= CURRENT_DATE - INTERVAL '48 months' AND txn_date < CURRENT_DATE - INTERVAL '36 months';
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_prev12
   FROM v_sales WHERE ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
     AND (v_off IS NULL OR is_offplan = v_off)
-    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND area_id = ANY(v_area_ids)
     AND txn_date >= CURRENT_DATE - INTERVAL '24 months' AND txn_date < CURRENT_DATE - INTERVAL '12 months';
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_cur12
   FROM v_sales WHERE ptype=p_ptype AND (p_bedrooms IS NULL OR bedrooms=p_bedrooms)
     AND (v_off IS NULL OR is_offplan = v_off)
-    AND (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END)
+    AND area_id = ANY(v_area_ids)
     AND txn_date >= CURRENT_DATE - INTERVAL '12 months';
-  SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_city_sqm
-  FROM v_sales WHERE ptype=p_ptype AND (v_off IS NULL OR is_offplan = v_off)
-    AND txn_date >= CURRENT_DATE - INTERVAL '12 months';
+  -- 全城中位数(同城对比的分母)。**绝不能在这里现算** ——
+  -- 它跟 p_area 完全无关,却要 Parallel Seq Scan 整张 dld_transactions(340ms,
+  -- 而且是多核并行 → 单个请求就能把 DB 的 CPU 顶到 150%)。已预算进 mv_city_baseline
+  -- (每日随 refresh-derived.ts 刷新;口径必须和这里逐字一致:ptype + seg + 近12个月)。
+  SELECT city_sqm INTO v_city_sqm
+  FROM mv_city_baseline WHERE ptype = p_ptype AND seg = v_seg;
 
   IF v_then > 0 THEN v_cagr := power(v_price_sqm / v_then, 1.0/3) - 1; END IF;
   IF v_prev12 > 0 AND v_cur12 > 0 THEN v_yoy := v_cur12/v_prev12 - 1; END IF;

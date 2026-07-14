@@ -17,15 +17,41 @@ DECLARE
   v_cagr numeric; v_g numeric; v_yield numeric; v_annual_rent numeric;
   v_future numeric; v_rentinc numeric; v_roi numeric; v_payback numeric; v_conf text;
   v_sc_sqft numeric; v_sc_drag numeric; v_net_yield numeric;
+  v_area_ids int[];
 BEGIN
   SELECT id INTO v_block FROM dubai_areas WHERE name ILIKE v_like ORDER BY length(name) ASC LIMIT 1;
+
+  -- ══════════════════════════════════════════════════════════════════════════
+  -- 🔴 区域解析只做一次 → area_id 数组;下面每条查询统一用 `area_id = ANY(v_area_ids)`。
+  --
+  -- 原来写的是 `CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block
+  --              ELSE area_name ILIKE v_like END`。在 plpgsql 里这是**灾难**:
+  -- v_block 是**变量**,规划期不知道它是不是 NULL → 规划器必须为两个分支都留后路 →
+  -- **索引全部用不上,只能全表扫**。
+  --
+  -- ⚠️ **拿字面量在外面 EXPLAIN 是测不出来的** —— PG 会把 CASE 常量折叠,一切看起来很快。
+  --    这就是它能活这么久的原因:**手测永远复现不了,只有真实调用才慢**。
+  --    要验必须在函数内部计时(clock_timestamp 逐句),或者用参数化的 PREPARE。
+  --
+  -- 等价性已验证:203 个区里 dld_transactions.area_name 与 dld_areas.area_name 零处不一致。
+  -- 同样的修法见 area_investment_report(dubai-analytics-v2-report.sql)。
+  -- ══════════════════════════════════════════════════════════════════════════
+  IF v_block IS NOT NULL THEN
+    SELECT array_agg(area_id) INTO v_area_ids FROM dld_areas WHERE dubai_area_id = v_block;
+  ELSE
+    SELECT array_agg(area_id) INTO v_area_ids FROM dld_areas WHERE area_name ILIKE v_like;
+  END IF;
+
+  IF v_area_ids IS NULL OR cardinality(v_area_ids) = 0 THEN
+    RETURN jsonb_build_object('error','unknown area','area',p_area,'ptype',p_ptype,'bedrooms',p_bedrooms);
+  END IF;
 
   SELECT percentile_cont(0.5) within group (order by price_aed),
          percentile_cont(0.5) within group (order by price_sqm),
          avg(size_sqm), count(*)
     INTO v_price_aed, v_price_sqm, v_size, v_cnt
   FROM v_sales
-  WHERE (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END) AND ptype = p_ptype
+  WHERE area_id = ANY(v_area_ids) AND ptype = p_ptype
     AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
     AND (p_is_offplan IS NULL OR is_offplan = p_is_offplan)
     AND txn_date >= CURRENT_DATE - INTERVAL '24 months';
@@ -37,12 +63,12 @@ BEGIN
   SELECT percentile_cont(0.5) within group (order by rent_sqm), count(*)
     INTO v_rent_sqm, v_rent_cnt
   FROM v_rent
-  WHERE (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END) AND ptype = p_ptype
+  WHERE area_id = ANY(v_area_ids) AND ptype = p_ptype
     AND start_date >= CURRENT_DATE - INTERVAL '24 months';
 
   SELECT percentile_cont(0.5) within group (order by price_sqm) INTO v_price_then
   FROM v_sales
-  WHERE (CASE WHEN v_block IS NOT NULL THEN dubai_area_id = v_block ELSE area_name ILIKE v_like END) AND ptype = p_ptype
+  WHERE area_id = ANY(v_area_ids) AND ptype = p_ptype
     AND (p_bedrooms IS NULL OR bedrooms = p_bedrooms)
     AND txn_date >= CURRENT_DATE - INTERVAL '48 months'
     AND txn_date <  CURRENT_DATE - INTERVAL '36 months';
