@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AiEditPanel from '../ui/AiEditPanel'
+import StoryboardReview from '../ui/StoryboardReview'
 import { lunaFetch } from '../lunaApi'
 import { API_BASE_URL } from '../../lib/config'
 
@@ -80,6 +81,8 @@ export default function TourEditor() {
    * 主界面改成「跟 Luna 说你想改什么」;轨道/时长/镜头滑块收进「高级」。
    */
   const [advanced, setAdvanced] = useState(false)
+  // 「让 Luna 改」→ 把那句建议直接交给 AI 编辑器执行(nonce:同一条能点第二次)
+  const [injected, setInjected] = useState<{ text: string; nonce: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [selId, setSelId] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, string>>({})
@@ -287,7 +290,9 @@ export default function TourEditor() {
       {!advanced && (
         <div className="shrink-0 overflow-auto bg-slate-100 p-4">
           <div className="mx-auto max-w-3xl">
-            <AiEditPanel sessionId={id} onChanged={reload} />
+            {/* 🔎 Luna 先说这份大纲缺了什么 —— 经纪不用自己去 12 拍里找问题 */}
+            <StoryboardReview sessionId={id} onApplyFix={(fix) => setInjected({ text: fix, nonce: Date.now() })} />
+            <AiEditPanel sessionId={id} onChanged={reload} injected={injected} />
             <p className="mt-3 text-center text-xs text-slate-400">
               想手调轨道、卡片时长、镜头？点右上角的「⚙ 高级」。
             </p>

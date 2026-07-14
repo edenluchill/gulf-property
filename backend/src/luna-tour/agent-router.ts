@@ -23,6 +23,8 @@ import { draftConfig } from './auto-config'
 import { matchProperties } from './auto-match'
 import { buildClientReport } from './auto-report'
 import { reviseNarration, reviseWithInstruction } from './revise'
+import { reviewByRules, reviewByAi, type ReviewNote } from './storyboard-review'
+import type { TourScript, TourConfig, TourProperty, TourInput } from './tour-script.types'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
@@ -1635,6 +1637,73 @@ router.post('/sessions/:id/undo', requireAgent, async (req: AgentReq, res: Respo
   } catch (err) {
     console.error('[luna] undo error:', err)
     res.status(500).json({ error: 'undo failed' })
+  }
+})
+
+/**
+ * 🔔 **Luna 对大纲的意见** —— 「这份剧本缺了什么」。
+ *
+ * 经纪拿到草稿时间线,面对十几拍旁白,**不知道该看什么** —— 于是要么全盘接受
+ *(那两段式就白做了),要么随便改两个字。Luna 读一遍,直接告诉他缺了什么、
+ * 为什么这会让他丢单。
+ *
+ * 两层(和客户画像 coach 同构):
+ *   • **规则**(0 次 LLM)—— 结构性硬伤:说了短板没反驳 / 没讲户型 /
+ *     投资客没讲地理套利 / 某项目没有数字 / 太长
+ *   • **LLM**(1 次 Flash)—— 基于**这个客户的画像**的个性化洞察,最多 2 条
+ *
+ * ⚠️ **不阻塞。** 意见只是意见,经纪可以无视直接发布。
+ */
+router.get('/sessions/:id/review', requireAgent, async (req: AgentReq, res: Response) => {
+  try {
+    const sessionId = await resolveSessionId(req.params.id)
+    if (!sessionId) return res.status(404).json({ error: 'not found' })
+
+    const sres = await pool.query<{ script: TourScript; config: TourConfig; client_name: string | null }>(
+      `SELECT t.script, s.effective_config AS config, c.name AS client_name
+         FROM lt_tour_scripts t
+         JOIN lt_demo_sessions s ON s.id = t.session_id
+         LEFT JOIN lt_clients c ON c.id = s.client_id
+        WHERE t.session_id = $1
+        ORDER BY t.language LIMIT 1`,
+      [sessionId]
+    )
+    const row = sres.rows[0]
+    if (!row?.script) return res.status(404).json({ error: 'no script' })
+
+    /**
+     * 项目快照就是当初喂给生成器的那份事实 —— 直接复用,不重新查库。
+     *
+     * ⚠️ **快照里没有 `id`**(只有 name/coords/units/…),而 act.property_id 用的是
+     *    项目的 UUID。规则层拿 `p.id` 去匹配 act 会**永远匹配不上** ——
+     *    项目名显示成「某个项目」,而且「有没有户型/邻区数据」的判断**全部失效**,
+     *    于是它报了一条根本不存在的「没有投资数字」。
+     *
+     *    真正的 id 在 **project_id 列**上。补回去。
+     */
+    const props = await pool.query<{ project_id: string; snapshot: TourProperty }>(
+      `SELECT project_id::text, snapshot FROM lt_session_properties WHERE session_id = $1`,
+      [sessionId]
+    )
+    const clientProfile = req.query.client_id
+      ? await loadProfile(String(req.query.client_id), req.lunaAgentId!).catch(() => ({}))
+      : {}
+
+    const input = {
+      client: { ...(clientProfile as object), ...(row.client_name ? { name: row.client_name } : {}) },
+      config: row.config,
+      properties: props.rows.map((r) => ({ ...r.snapshot, id: r.project_id })),
+    } as TourInput
+
+    const rules = reviewByRules(row.script, input)
+    // 规则是免费的,先给;AI 那 1 次调用只在有客户画像时才值得花
+    const ai = await reviewByAi(row.script, input)
+
+    const notes: ReviewNote[] = [...rules, ...ai]
+    res.json({ notes })
+  } catch (err) {
+    console.error('[luna] review error:', err)
+    res.status(500).json({ error: 'review failed' })
   }
 })
 

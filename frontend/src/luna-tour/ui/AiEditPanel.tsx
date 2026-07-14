@@ -20,7 +20,7 @@
  * **能手改 = 能伪造 = 客户凭什么信我们说的是真的。**
  * 所以这不是「缺失的功能」,是**产品的地基**。经纪能控制的只有:要不要显示、什么时候出现。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, Undo2, Wand2 } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
@@ -56,9 +56,15 @@ const PRESETS_EN = [
 export default function AiEditPanel({
   sessionId,
   onChanged,
+  /**
+   * 外部(Luna 的意见)塞进来的一句指令 —— 直接执行。
+   * ⚠️ 带 nonce:同一条建议点第二次也要能再跑一遍(只比字符串的话值没变,useEffect 不会触发)。
+   */
+  injected,
 }: {
   sessionId: string
   onChanged?: () => void
+  injected?: { text: string; nonce: number } | null
 }) {
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
@@ -69,6 +75,12 @@ export default function AiEditPanel({
   const [diffs, setDiffs] = useState<Diff[]>([])
   const [msg, setMsg] = useState('')
   const [canUndo, setCanUndo] = useState(false)
+
+  // 「让 Luna 改」点进来 → 直接执行那条建议
+  useEffect(() => {
+    if (injected?.text) void apply(injected.text)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injected?.nonce])
 
   const apply = async (instruction: string) => {
     if (!instruction.trim() || busy) return
