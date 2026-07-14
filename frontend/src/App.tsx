@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { trackEvent, installTracking } from './lib/track'
 import { installApiErrorCapture } from './lib/errorCapture'
+import { applyPinchZoomPolicy } from './lib/pinchZoom'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectReportPage from './pages/ProjectReportPage'
 import PaymentPlanSharePage from './pages/PaymentPlanSharePage'  // 付款计划分享页 /pp/:code (客户免登录)
@@ -61,6 +62,15 @@ function RouteTracker() {
   return null
 }
 
+/** 禁止整页被手指捏放大(文档型页面除外)。为什么必须这么做见 lib/pinchZoom.ts。 */
+function PinchZoomPolicy() {
+  const location = useLocation()
+  useEffect(() => {
+    applyPinchZoomPolicy(location.pathname)
+  }, [location.pathname])
+  return null
+}
+
 function App() {
   const { i18n, t } = useTranslation()
   const { updateAvailable } = useVersionCheck()
@@ -73,6 +83,7 @@ function App() {
     <TourModeProvider>
     <VoiceAssistantProvider>
     <RouteTracker />
+    <PinchZoomPolicy />
     {/* 新版本提示条（编辑页不自动刷新，避免丢表单） */}
     {updateAvailable && (
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-full shadow-xl">

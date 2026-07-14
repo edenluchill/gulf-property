@@ -72,7 +72,15 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 默认按**应用型**页面来:禁止整页被手指捏放大。
+         客户在地图/底部 nav 上双指一捏,整个页面就被等比放大并偏移(工具栏被切、nav 被裁),
+         而且再也缩不回精确的 1.0 —— 经纪反馈的"不能自适应屏幕大小"就是这个。
+
+         这里必须是**静态默认值**:React 挂载之前客户就能捏。
+         文档型页面(报价单 /pp/、报告 /r/ /cr/、事实清单)需要放大看细节,
+         由 src/lib/pinchZoom.ts 在路由变化时把它改回可缩放。
+         ⚠️ iOS/WKWebView(微信)**忽略** user-scalable=no,那边靠拦 gesture 事件,同见该文件。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Pinzos - A New Way to Buy Off-Plan in Dubai</title>
     <meta name="description" content="Pinzos is an interactive Dubai off-plan property platform: a satellite map with real DLD transactions, rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, plus agent tools — real-time co-presence map tours for overseas clients, AI-guided Luna tours, and buyer-intent reports." />
     <meta name="keywords" content="Dubai off-plan, Dubai real estate, DLD transactions, property investment Dubai, Golden Visa, real-time property tour, 迪拜期房, 迪拜房产, 海外带看" />
