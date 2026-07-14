@@ -7,6 +7,7 @@
  * 保留:楼书上传权限、套餐变更审计。
  */
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Loader2, Check, Clock, History, Upload, Plus, CreditCard, Gift, Crown, Search } from 'lucide-react'
 import {
   approveAgent, rejectAgent, grantAgentTrial, revokeAgentGrant,
@@ -17,6 +18,12 @@ import { fetchSubscribers, type Subscriber, type SubscriptionSummary } from '../
 import StatCard from './StatCard'
 
 const PLAN_LABEL: Record<string, string> = { explore: '探索(免费)', rookie: '启程版', agent: '专业版', founder: '经纪公司版', developer: '开发商版' }
+
+// 赠送的东西叫什么 —— 一处定义,按钮/确认弹窗/已赠标/审计记录都用它。
+// 不叫「30 天」(听着像随便送几天),叫「经纪 Pro 30 天免费套餐」:它给的是完整
+// 一个月的专业版(1200 积分,实时带看 / Luna 导览全开)。
+const GRANT_NAME = '经纪 Pro 30 天免费套餐(1200 积分)'
+const GRANT_SHORT = 'Pro 30 天'
 const ROLE_LABEL: Record<string, string> = { buyer: '买家', agent: '经纪人', agency: '经纪公司', developer: '开发商' }
 
 const ACTION_LABEL: Record<string, { label: string; cls: string }> = {
@@ -37,7 +44,7 @@ const ACTION_LABEL: Record<string, { label: string; cls: string }> = {
   seats_changed: { label: '调整席位', cls: 'bg-slate-100 text-slate-600' },
   seat_invited: { label: '邀请席位', cls: 'bg-slate-100 text-slate-600' },
   seat_removed: { label: '移除席位', cls: 'bg-slate-100 text-slate-600' },
-  trial_granted: { label: '赠 30 天试用', cls: 'bg-violet-100 text-violet-700' },
+  trial_granted: { label: '赠 Pro 30 天', cls: 'bg-violet-100 text-violet-700' },
   comp_granted: { label: '手动赠送(旧·永久)', cls: 'bg-amber-100 text-amber-700' },
   comp_revoked: { label: '撤销赠送', cls: 'bg-slate-100 text-slate-600' },
 }
@@ -56,7 +63,51 @@ function SubBadge({ s }: { s: Subscriber }) {
   return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-400">未订阅</span>
 }
 
-/** 一行订阅客户:身份 + 套餐 + 积分用量 + 到期 + 赠送按钮 + (待审批时)批准/拒绝。 */
+/** 积分用量:额度列必须**列宽固定**,否则每行数字位数不同 → 进度条左右横跳。 */
+function CreditMeter({ s }: { s: Subscriber }) {
+  const unlimited = s.credits_month < 0
+  if (s.status === 'none') return <span className="text-[11px] text-slate-300">—</span>
+  if (unlimited) return <span className="text-[11px] font-medium text-emerald-600">无限积分</span>
+  const pct = s.credits_month === 0 ? 0 : Math.min(100, Math.round((s.credits_used / s.credits_month) * 100))
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${pct > 85 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+      </div>
+      {/* tabular-nums + 固定宽度右对齐 → 1200 和 200 的行也能对齐 */}
+      <span className="w-[52px] shrink-0 text-right text-[10px] tabular-nums text-slate-400">
+        {s.credits_used}/{s.credits_month}
+      </span>
+    </div>
+  )
+}
+
+/** 「已赠送」标 —— 赠了什么、谁赠的、什么时候,一眼看全。 */
+function GrantedTag({ s, compact }: { s: Subscriber; compact?: boolean }) {
+  const at = new Date(s.trial_granted_at!)
+  const by = s.trial_granted_by || '未知'
+  const title = `${GRANT_NAME} · ${by} 于 ${at.toLocaleString('zh-CN')} 赠送`
+  return (
+    <span
+      className="flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100"
+      title={title}
+    >
+      <Gift className="h-3 w-3 shrink-0" />
+      {compact ? '已赠 Pro' : `已赠 ${GRANT_SHORT}`}
+      <span className="font-normal text-violet-400">
+        {at.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} · {by.split('@')[0]}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * 一行订阅客户。
+ *
+ * 布局:桌面走**固定列宽**的行(套餐/额度/到期/状态/操作各自定宽 → 列对齐不抖);
+ * 手机不挤成一行(挤了就是截图里那种谁也看不清的样子),而是第二层单独一行放
+ * 套餐·额度·到期·操作 —— 手机上这些信息同样要看得见、点得到(触摸目标 ≥32px)。
+ */
 function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
   s: Subscriber; busy: boolean
   onGrant: () => void; onRevoke: () => void
@@ -65,104 +116,85 @@ function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
   const granted = !!s.trial_granted_at
   // 已有生效套餐(真付费 / 存量永久赠送)→ 不需要再赠送。
   const hasLiveNonTrial = s.status === 'active'
-  const unlimited = s.credits_month < 0
-  const pct = unlimited || s.credits_month === 0 ? 0 : Math.min(100, Math.round((s.credits_used / s.credits_month) * 100))
-  const subscribed = s.status !== 'none'
   const isPending = s.approval_status === 'pending'
-  return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-500 text-sm font-semibold text-white">
-        {(s.email || 'U').charAt(0).toUpperCase()}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-slate-800">{s.display_name || s.email}</span>
-          {s.role && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">{ROLE_LABEL[s.role] || s.role}</span>}
-          {/* 赠送过的人在名字旁就打上标 —— 长列表里滚动时一眼看得出,不用挪到最右列去找。 */}
-          {granted && (
-            <span
-              className="flex shrink-0 items-center gap-0.5 rounded bg-violet-50 px-1.5 py-px text-[10px] font-medium text-violet-700 ring-1 ring-violet-100"
-              title={`${new Date(s.trial_granted_at!).toLocaleString('zh-CN')} 由 ${s.trial_granted_by || '未知'} 赠送`}
-            >
-              <Gift className="h-2.5 w-2.5" />已赠送
-            </span>
-          )}
+  const planLabel = s.status === 'none' ? '—' : (PLAN_LABEL[s.plan_id || ''] || s.plan_name || s.plan_id)
+  const expiry = s.current_period_end
+    ? `${s.cancel_at_period_end ? '将取消 ' : '续费 '}${new Date(s.current_period_end).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}`
+    : ''
+
+  const Actions = ({ compact }: { compact?: boolean }) => {
+    if (isPending) {
+      return (
+        <div className="flex gap-1">
+          <button disabled={busy} onClick={onApprove} className="flex items-center gap-0.5 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-emerald-600 disabled:opacity-50"><Check className="h-3 w-3" />批准</button>
+          <button disabled={busy} onClick={onReject} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50">拒绝</button>
         </div>
-        <div className="truncate text-xs text-slate-400">{s.email}</div>
-      </div>
-
-      {/* 套餐 + 积分用量 */}
-      <div className="hidden w-40 shrink-0 sm:block">
-        {subscribed ? (
-          <>
-            <div className="text-right text-[12px] font-semibold text-slate-700">{PLAN_LABEL[s.plan_id || ''] || s.plan_name || s.plan_id}</div>
-            <div className="mt-1 flex items-center justify-end gap-1.5">
-              {unlimited ? (
-                <span className="text-[10px] text-emerald-600">无限积分</span>
-              ) : (
-                <>
-                  <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                    <div className={`h-full rounded-full ${pct > 85 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-[10px] tabular-nums text-slate-400">{s.credits_used}/{s.credits_month}</span>
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="text-right text-[11px] text-slate-300">—</div>
-        )}
-      </div>
-
-      {/* 到期 */}
-      <div className="hidden w-24 shrink-0 text-right text-[11px] text-slate-400 md:block">
-        {s.current_period_end ? (
-          <>
-            {s.cancel_at_period_end ? '将取消 ' : '续费 '}
-            {new Date(s.current_period_end).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
-          </>
-        ) : ''}
-      </div>
-
-      {/* 状态 + 操作 */}
-      <div className="flex shrink-0 items-center gap-2">
-        <SubBadge s={s} />
-        {isPending ? (
-          <div className="flex gap-1">
-            <button disabled={busy} onClick={onApprove} className="flex items-center gap-0.5 rounded-lg bg-emerald-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600 disabled:opacity-50"><Check className="h-3 w-3" />批</button>
-            <button disabled={busy} onClick={onReject} className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50">拒</button>
-          </div>
-        ) : granted ? (
-          // 已用掉那一次名额 —— 谁发的、什么时候发的,写在脸上。不能再发。
-          <div className="flex items-center gap-1.5">
-            <span
-              className="rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-400 ring-1 ring-slate-100"
-              title={`${new Date(s.trial_granted_at!).toLocaleString('zh-CN')} · ${s.trial_granted_by || '未知'}`}
-            >
-              已赠 {new Date(s.trial_granted_at!).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
-              {s.trial_granted_by ? ` · ${s.trial_granted_by.split('@')[0]}` : ''}
-            </span>
-            <button
-              disabled={busy}
-              onClick={onRevoke}
-              className="rounded-lg px-1.5 py-1 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-rose-600 disabled:opacity-50"
-              title="撤销赠送(停掉非 Stripe 的订阅行)。注意:撤销不退还赠送名额。"
-            >
-              撤销
-            </button>
-          </div>
-        ) : hasLiveNonTrial ? (
-          <span className="px-2 py-1 text-[11px] text-slate-300" title="已有生效套餐,不需要赠送">—</span>
-        ) : (
+      )
+    }
+    if (granted) {
+      return (
+        <div className="flex items-center gap-1">
+          <GrantedTag s={s} compact={compact} />
           <button
             disabled={busy}
-            onClick={onGrant}
-            className="flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100 hover:bg-violet-100 disabled:opacity-50"
-            title="一次性赠送 30 天专业版试用(1200 积分)。每人只能一次,到期自动停。"
+            onClick={onRevoke}
+            className="shrink-0 rounded-lg px-2 py-1.5 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-rose-600 disabled:opacity-50"
+            title="撤销赠送(停掉赠送的订阅)。注意:撤销不退还赠送名额,不能再赠第二次。"
           >
-            <Gift className="h-3 w-3" />赠 30 天
+            撤销
           </button>
-        )}
+        </div>
+      )
+    }
+    if (hasLiveNonTrial) {
+      return <span className="px-2 py-1 text-[11px] text-slate-300" title="已有生效套餐,不需要赠送">—</span>
+    }
+    return (
+      <button
+        disabled={busy}
+        onClick={onGrant}
+        className="flex shrink-0 items-center gap-1 rounded-lg bg-violet-50 px-2.5 py-1.5 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100 hover:bg-violet-100 disabled:opacity-50"
+        title={`一次性赠送${GRANT_NAME}。每人只能一次,到期自动停。`}
+      >
+        <Gift className="h-3 w-3" />赠 {GRANT_SHORT}
+      </button>
+    )
+  }
+
+  return (
+    <div className="px-3 py-3 sm:px-4">
+      {/* ── 第一层:身份(手机/桌面共用)────────────────────── */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-500 text-sm font-semibold text-white">
+          {(s.email || 'U').charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-slate-800">{s.display_name || s.email}</span>
+            {s.role && <span className="hidden shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500 sm:inline">{ROLE_LABEL[s.role] || s.role}</span>}
+            <SubBadge s={s} />
+          </div>
+          <div className="truncate text-xs text-slate-400">{s.email}</div>
+        </div>
+
+        {/* 桌面:固定列宽 → 列与列之间永远对齐 */}
+        <div className="hidden w-[92px] shrink-0 text-right text-[12px] font-semibold text-slate-700 sm:block">{planLabel}</div>
+        <div className="hidden w-[132px] shrink-0 justify-end sm:flex"><CreditMeter s={s} /></div>
+        <div className="hidden w-[76px] shrink-0 text-right text-[11px] tabular-nums text-slate-400 md:block">{expiry}</div>
+        <div className="hidden shrink-0 justify-end sm:flex"><Actions /></div>
+      </div>
+
+      {/* ── 第二层:手机专用。套餐/额度/到期在手机上原来是全隐藏的 ——
+             owner 在手机上根本看不到谁快用完积分、谁快到期。 ── */}
+      <div className="mt-2.5 flex items-center justify-between gap-2 pl-12 sm:hidden">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-600">{planLabel}</span>
+            {expiry && <span className="text-[10px] tabular-nums text-slate-400">{expiry}</span>}
+          </div>
+          <CreditMeter s={s} />
+        </div>
+        <div className="shrink-0"><Actions compact /></div>
       </div>
     </div>
   )
@@ -265,6 +297,70 @@ function UploadPermissions() {
 }
 
 /** Owner-only 订阅中心。 */
+/**
+ * 赠送确认弹窗。赠送是**一次性、不可再来**的动作(撤销也不退还名额),
+ * 且列表里相邻两行的按钮离得很近 —— 手机上尤其容易点错人。必须先确认。
+ */
+function GrantConfirm({ s, busy, onCancel, onConfirm }: {
+  s: Subscriber; busy: boolean; onCancel: () => void; onConfirm: () => void
+}) {
+  // 铁律:fixed 全屏 modal 必须 portal 到 body —— 祖先只要有 transform/backdrop-filter,
+  // fixed 就会相对那个祖先定位而不是视口,弹窗会被卡在半路。
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4" onClick={onCancel}>
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+            <Gift className="h-4 w-4" />
+          </span>
+          <h3 className="text-base font-semibold text-slate-800">确认赠送?</h3>
+        </div>
+
+        <div className="mt-4 space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-slate-400">赠给</span>
+            <span className="min-w-0 truncate font-medium text-slate-800">{s.display_name || s.email}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="shrink-0 text-slate-400">邮箱</span>
+            <span className="min-w-0 truncate text-slate-600">{s.email}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="shrink-0 text-slate-400">赠送内容</span>
+            <span className="text-right font-medium text-violet-700">{GRANT_NAME}</span>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs leading-relaxed text-slate-500">
+          每人<span className="font-semibold text-slate-700">只能赠送一次</span>,撤销也不会退还名额。
+          30 天后自动停止,不会变成永久免费。
+        </p>
+
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+          >
+            取消
+          </button>
+          <button
+            disabled={busy}
+            onClick={onConfirm}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
+            确认赠送
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 type SubFilter = 'all' | 'paid' | 'trialing' | 'granted' | 'ungranted' | 'pending'
 const FILTERS: { id: SubFilter; label: string }[] = [
   { id: 'all', label: '全部' },
@@ -280,6 +376,8 @@ export default function AgentApprovals() {
   const [busy, setBusy] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<SubFilter>('all')
+  // 待确认赠送的对象(null = 弹窗关着)。赠送不可逆,不能点一下就发出去。
+  const [confirming, setConfirming] = useState<Subscriber | null>(null)
 
   const load = () => fetchSubscribers().then(setData).catch(() => setData({ subscribers: [], summary: { total_accounts: 0, subscribed: 0, paid: 0, trialing: 0, comp: 0, pending_approval: 0 } }))
   useEffect(() => { load() }, [])
@@ -322,7 +420,7 @@ export default function AgentApprovals() {
 
   const renderRow = (s: Subscriber) => (
     <SubRow key={s.agent_id} s={s} busy={busy === s.email}
-      onGrant={() => act(s.email, grantAgentTrial)}
+      onGrant={() => setConfirming(s)}
       onRevoke={() => act(s.email, revokeAgentGrant)}
       onApprove={() => act(s.email, approveAgent)}
       onReject={() => act(s.email, rejectAgent)} />
@@ -330,6 +428,19 @@ export default function AgentApprovals() {
 
   return (
     <div className="space-y-5">
+      {confirming && (
+        <GrantConfirm
+          s={confirming}
+          busy={busy === confirming.email}
+          onCancel={() => setConfirming(null)}
+          onConfirm={async () => {
+            const target = confirming
+            setConfirming(null)
+            await act(target.email, grantAgentTrial)
+          }}
+        />
+      )}
+
       {/* 商业化 summary */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <StatCard label="经纪账户" value={summary.total_accounts} icon={<CreditCard className="h-4 w-4" />} />
@@ -343,7 +454,8 @@ export default function AgentApprovals() {
       {/* 搜索 + 筛选 —— 两个列表共用 */}
       <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1">
+          {/* 手机上搜索框独占一行 —— 和 chips 挤在一行会被压成一条缝 */}
+          <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
               value={q}

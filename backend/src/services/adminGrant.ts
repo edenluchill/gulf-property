@@ -86,8 +86,9 @@ export async function grantOneTimeTrial(agentId: string, email: string, actor: s
     throw e
   }
 
+  // 审计里要能看出**赠了什么**,不只是「赠过了」。
   await audit(agentId, email, 'trial_granted', GRANT_TRIAL_PLAN,
-    `${GRANT_TRIAL_DAYS} 天 / ${GRANT_TRIAL_CREDITS} 分`, actor)
+    `经纪 Pro ${GRANT_TRIAL_DAYS} 天免费套餐(${GRANT_TRIAL_CREDITS} 积分)`, actor)
 
   return { ok: true, days: GRANT_TRIAL_DAYS, credits: GRANT_TRIAL_CREDITS }
 }
