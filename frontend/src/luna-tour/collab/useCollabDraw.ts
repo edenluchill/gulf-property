@@ -180,6 +180,29 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
     return { type: 'FeatureCollection' as const, features: feats }
   }, [])
 
+  /**
+   * 🔴 **画的东西必须盖住地图上的一切。**
+   *
+   * owner:「画的线条/文字/所有东西都应该是比较高的 layer,比如覆盖 project 卡片、
+   *        POI、铁路、所有地图上的东西 —— 除了 filter/panel/指南针那些组件。」
+   *
+   * MapLibre 的图层是**按加入顺序**堆叠的。画笔图层在带看一开始就加了,而
+   * POI / 地铁线 / 区域块 / 项目圆点是**后来**按需加的 —— 于是它们全压在画笔上面。
+   *
+   * 所以:图层加完、style 重建后、以及**别人往地图上加图层时**(styledata),
+   * 都把这五个图层顶回最上层。顺序:填充 → 线 → 箭头 → 图钉 → **文字最上**
+   *(文字不能被自己画的圈盖住)。
+   */
+  const raiseLayers = useCallback(() => {
+    const map = getMapRef.current?.()
+    if (!map) return
+    for (const id of [L_FILL, L_LINE, L_HEAD, L_PIN, L_LABEL]) {
+      if (map.getLayer(id)) {
+        try { map.moveLayer(id) } catch { /* style 正在换 → 下次 style.load 再顶 */ }
+      }
+    }
+  }, [])
+
   const render = useCallback(() => {
     const map = getMapRef.current?.()
     if (map && map.isStyleLoaded?.()) {
@@ -259,14 +282,30 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
         } as never,
       } as never)
     }
+    raiseLayers()
     return true
-  }, [toFC])
+  }, [toFC, raiseLayers])
 
   const broadcast = useCallback((action: unknown) => {
     clientRef.current?.send({ k: 'mapAction', seq: 0, action })
   }, [])
 
-  // ── add layers once the map style is ready ─────────────────────────────────
+  /**
+   * 🔴 **画的东西必须活过一次 style 重建。**
+   *
+   * owner 实测:「画图/写字/标记会出现在客户手机,但**经纪自己看不到**」。
+   *
+   * 根因:MapPage 的 `mapStyle` **依赖 areaMetric** —— 经纪一切指标(比如增长率),
+   * MapLibre 就 `setStyle` **整个换掉地图**,而 setStyle 会**删掉所有自定义图层和
+   * source**。于是:
+   *   • 经纪(切过指标的那个)→ 画笔图层被抹掉 → **他自己看不见**
+   *   • 客户(没切过)      → 图层还在   → **他看得见**
+   * 广播一直是通的,断的是**本地渲染**。经纪等于闭着眼在画。
+   *
+   * 修:监听 `style.load`,**style 一重建就把图层加回来并重画**。
+   *(同样的模式:mapTourHandle 的 ensureSky、ambientLife。地图上任何长期存在的
+   *  自定义图层都必须这么写 —— 这是 MapLibre 的既定行为,不是 bug。)
+   */
   useEffect(() => {
     if (!active) return
     let tries = 0
@@ -274,8 +313,32 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
       if (ensureLayer()) { render(); clearInterval(id) }
       else if (++tries > 60) clearInterval(id)
     }, 150)
-    return () => clearInterval(id)
-  }, [active, ensureLayer, render])
+
+    const map = getMapRef.current?.()
+    const onStyle = () => {
+      // style 刚重建 —— 图层和 source 都没了,重新加,并把已有的标记重画回去
+      if (ensureLayer()) render()
+    }
+    /**
+     * 别人往地图上加图层(经纪开 POI / 切地铁 / 换指标)会把画笔压下去 →
+     * 顶回来。**节流 300ms** —— styledata 触发很密,不能每次都跑。
+     */
+    let raiseAt = 0
+    const onStyleData = () => {
+      const now = Date.now()
+      if (now - raiseAt < 300) return
+      raiseAt = now
+      raiseLayers()
+    }
+    map?.on('style.load', onStyle)
+    map?.on('styledata', onStyleData)
+
+    return () => {
+      clearInterval(id)
+      map?.off('style.load', onStyle)
+      map?.off('styledata', onStyleData)
+    }
+  }, [active, ensureLayer, render, raiseLayers])
 
   // ── apply remote ops (everyone, incl. the sender's peers). NEVER re-broadcast
   //    — that would ping-pong forever between two broadcasting nodes. ────────────

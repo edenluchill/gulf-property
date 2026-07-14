@@ -296,11 +296,11 @@ function MapViewMapLibre({
     return () => window.removeEventListener('keydown', onKey)
   }, [measureMode, exitMeasure])
 
-  // 测距模式：地图光标改为十字
+  // 测距 / 画笔模式：地图光标改为十字（画笔时地图当自己不存在）
   useEffect(() => {
     const canvas = mapRef.current?.getMap()?.getCanvas()
-    if (canvas) canvas.style.cursor = measureMode ? 'crosshair' : ''
-  }, [measureMode, mapLoaded])
+    if (canvas) canvas.style.cursor = (measureMode || disableFeatureClicks) ? 'crosshair' : ''
+  }, [measureMode, disableFeatureClicks, mapLoaded])
 
   // 语音助手/导览触发测距：进入测距模式、落点、(可选)自动缩放到这些点
   useEffect(() => {
@@ -1084,6 +1084,22 @@ function MapViewMapLibre({
   const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const map = mapRef.current?.getMap()
     if (!map) return
+    /**
+     * 🔴 **画图时地图不做任何 hover。**
+     *
+     * owner:「画图时不应该触发任何地图上东西的 event(项目卡/areablock 的 hover),
+     *        不然画图时鼠标变化很奇怪。」
+     *
+     * `disableFeatureClicks` 已经挡住了**点击**和 DOM marker 的 pointer-events,
+     * 但**没挡 hover** —— 于是画线经过一个项目圆点,光标就被改成小手、还弹出项目名,
+     * 手感全乱。画笔模式下光标应该**始终是十字**,地图当自己不存在。
+     */
+    if (disableFeatureClicks) {
+      map.getCanvas().style.cursor = 'crosshair'
+      setAreaHover(map, null)   // 复用既有的 hover 清除 —— 别手写第二套 setFilter
+      setDotTip(null)
+      return
+    }
     // 拖动/缩放中不做 hover:地图在光标下滑动时区域边界会连续穿过光标,
     // 高亮闪烁没意义还白做功
     if (map.isMoving()) { setDotTip(null); return }
@@ -1116,7 +1132,7 @@ function MapViewMapLibre({
       map.getCanvas().style.cursor = ''
       setDotTip(null)
     }
-  }, [setAreaHover, setDotTip])
+  }, [setAreaHover, setDotTip, disableFeatureClicks])
 
   const handleMouseLeave = useCallback(() => {
     const map = mapRef.current?.getMap()
