@@ -177,11 +177,13 @@ function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
           <div className="truncate text-xs text-slate-400">{s.email}</div>
         </div>
 
-        {/* 桌面:固定列宽 → 列与列之间永远对齐 */}
-        <div className="hidden w-[92px] shrink-0 text-right text-[12px] font-semibold text-slate-700 sm:block">{planLabel}</div>
-        <div className="hidden w-[132px] shrink-0 justify-end sm:flex"><CreditMeter s={s} /></div>
+        {/* 桌面:每列**都**定宽(操作列尤其 —— 它的内容宽度随状态变化很大:
+            「赠 Pro 30 天」按钮 vs「已赠 … + 撤销」。不定宽就会把左边所有列推歪,
+            这正是原来 credit 列左右横跳的真正原因。) */}
+        <div className="hidden w-[76px] shrink-0 text-right text-[12px] font-semibold text-slate-700 sm:block">{planLabel}</div>
+        <div className="hidden w-[128px] shrink-0 justify-end sm:flex"><CreditMeter s={s} /></div>
         <div className="hidden w-[76px] shrink-0 text-right text-[11px] tabular-nums text-slate-400 md:block">{expiry}</div>
-        <div className="hidden shrink-0 justify-end sm:flex"><Actions /></div>
+        <div className="hidden w-[216px] shrink-0 justify-end sm:flex"><Actions /></div>
       </div>
 
       {/* ── 第二层:手机专用。套餐/额度/到期在手机上原来是全隐藏的 ——
