@@ -18,6 +18,10 @@ import { useMyRole } from '../../hooks/useMyRole'
 import { getProjectCount, getFavoriteCount } from '../../lib/favorites'
 import { lunaFetch } from '../../luna-tour/lunaApi'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
+
+// 会员认证证书(navy+烫金正式奖状)入口开关。2026-07-14 owner:太正式,先撤,
+// 新的恭喜入驻海报(推广有礼 tab)取而代之;证书代码全保留,以后要恢复翻回 true。
+const MEMBERSHIP_CERT_ENABLED = false
 import AgentCardEditor from '../../components/AgentCardEditor'
 import TrialClaimCard from '../../components/TrialClaimCard'
 import type { ProfileShellContext } from './ProfileShell'
@@ -119,7 +123,7 @@ export default function ProfileHome() {
               <span>{L('登录方式', 'Via')}: {user.app_metadata?.provider === 'google' ? 'Google' : (user.app_metadata?.provider || 'Email')}</span>
             </div>
             {/* 勋章:直接常显(手机也显示),点开生成朋友圈分享图 */}
-            {badge && (
+            {MEMBERSHIP_CERT_ENABLED && badge && (
               <button
                 onClick={() => setShowBadgeDlg(true)}
                 className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/20 transition active:scale-95"

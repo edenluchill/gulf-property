@@ -10,6 +10,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Loader2, ExternalLink, Users, UserPlus, X, ArrowUpRight } from 'lucide-react'
 import { badgeForPlan } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
+
+// 付款成功后自动弹的会员认证证书开关。2026-07-14 owner:太正式先撤(恭喜入驻海报取而代之);翻回 true 恢复。
+const MEMBERSHIP_CERT_ENABLED = false
 import { useAuth } from '../../contexts/AuthContext'
 import { useResetOnBFCache } from '../../hooks/useResetOnBFCache'
 import { trackEvent } from '../../lib/track'
@@ -107,7 +110,7 @@ export default function AgentBilling() {
   const [showBadge, setShowBadge] = useState(false)
   const badgeShownRef = useState(() => ({ done: false }))[0]
   useEffect(() => {
-    if (banner === 'success' && me && !badgeShownRef.done && badgeForPlan(me.plan?.id, me.status, me.teamMember)) {
+    if (MEMBERSHIP_CERT_ENABLED && banner === 'success' && me && !badgeShownRef.done && badgeForPlan(me.plan?.id, me.status, me.teamMember)) {
       badgeShownRef.done = true
       setShowBadge(true)
     }

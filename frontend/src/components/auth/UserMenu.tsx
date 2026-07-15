@@ -10,6 +10,9 @@ import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../RoleBadgeDialog'
 import { useMyRole } from '../../hooks/useMyRole'
 
+// 会员认证证书入口开关。2026-07-14 owner:太正式先撤,恭喜入驻海报取而代之;翻回 true 恢复。
+const MEMBERSHIP_CERT_ENABLED = false
+
 // 账户菜单里的角色小徽章(与角色选择卡同一套颜色/emoji)
 const ROLE_CHIP: Record<string, { zh: string; en: string; emoji: string; cls: string }> = {
   buyer: { zh: '买家', en: 'Buyer', emoji: '🏠', cls: 'bg-teal-100 text-teal-700' },
@@ -194,7 +197,7 @@ export default function UserMenu() {
                   {zh ? '切换身份' : 'Switch role'}
                 </button>
               )}
-              {badge && (
+              {MEMBERSHIP_CERT_ENABLED && badge && (
                 <button
                   onClick={() => { setShowBadge(true); setIsOpen(false) }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
