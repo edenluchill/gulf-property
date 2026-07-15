@@ -21,6 +21,7 @@ interface Props {
   link: string
   shareRewardClaimed: boolean
   shareRewardDays: number
+  shareRewardCredits: number
   onClaimed?: (days: number) => void
 }
 
@@ -75,7 +76,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath()
 }
 
-export default function CelebrationPoster({ name, avatarUrl, link, shareRewardClaimed, shareRewardDays, onClaimed }: Props) {
+export default function CelebrationPoster({ name, avatarUrl, link, shareRewardClaimed, shareRewardDays, shareRewardCredits, onClaimed }: Props) {
   const { i18n } = useTranslation()
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
@@ -167,8 +168,10 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
     if (claimed) return
     const r = await claimShareReward()
     if (r.ok && r.days > 0) {
-      setClaimed(true); setToast(L(`🎁 已到账 ${r.days} 天免费使用`, `🎁 ${r.days} free days added`)); onClaimed?.(r.days)
-      setTimeout(() => setToast(''), 3000)
+      setClaimed(true)
+      setToast(L(`🎁 已到账 ${r.days} 天试用 + ${r.credits} 积分`, `🎁 +${r.days} days & ${r.credits} credits added`))
+      onClaimed?.(r.days)
+      setTimeout(() => setToast(''), 3200)
     } else if (r.code === 'already_claimed' || r.code === 'no_trial_to_extend') {
       setClaimed(true)
     }
@@ -229,7 +232,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
           </div>
           {!claimed && (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              <Gift className="w-3.5 h-3.5" /> {L(`首次分享再得 ${shareRewardDays} 天`, `+${shareRewardDays} days on 1st share`)}
+              <Gift className="w-3.5 h-3.5" /> {L(`首次分享 +${shareRewardDays}天 +${shareRewardCredits}积分`, `1st share: +${shareRewardDays}d +${shareRewardCredits} credits`)}
             </span>
           )}
         </div>

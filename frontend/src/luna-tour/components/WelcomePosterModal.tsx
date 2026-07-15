@@ -87,6 +87,7 @@ export default function WelcomePosterModal({ open: openProp, onClose }: { open?:
             link={joinLink()}
             shareRewardClaimed={stats.shareRewardClaimed}
             shareRewardDays={stats.shareRewardDays}
+            shareRewardCredits={stats.shareRewardCredits}
           />
         </div>
       </div>

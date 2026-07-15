@@ -605,12 +605,15 @@ export async function markDiscountUsed(agentId: string): Promise<void> {
 // 首次分享 +7 天 —— 即时动力(与推荐奖励是两条腿)
 // ============================================================================
 
-/** 分享奖励天数。 */
+/** 分享奖励:延试用天数 + 额外积分(可配置)。 */
 export const SHARE_REWARD_DAYS = Number(process.env.REFERRAL_SHARE_DAYS || 7)
+export const SHARE_REWARD_CREDITS = Number(process.env.REFERRAL_SHARE_CREDITS || 200)
+const TRIAL_CREDITS_DEFAULT = Number(process.env.TRIAL_CREDITS || 200)
 
 export interface ShareRewardResult {
   ok: boolean
   days?: number
+  credits?: number
   code?: 'already_claimed' | 'no_trial_to_extend'
   extendedTo?: string | null
 }
@@ -639,27 +642,29 @@ export async function claimShareReward(agentId: string): Promise<ShareRewardResu
   )
   if (!claim.rowCount) return { ok: false, code: 'already_claimed' }
 
-  // 延长当前免绑卡试用 +7 天
+  // 延长当前免绑卡试用 +7 天,并把积分额度 +200(trial_credits 是余额的额度上限,加它=多给 200 分)
   const ext = await pool.query<{ current_period_end: Date }>(
     `UPDATE lt_subscriptions
-        SET current_period_end = current_period_end + ($2 || ' days')::interval, updated_at = now()
+        SET current_period_end = current_period_end + ($2 || ' days')::interval,
+            trial_credits = COALESCE(trial_credits, $4) + $3,
+            updated_at = now()
       WHERE agent_id = $1 AND source = 'free_trial' AND status = 'trialing'
       RETURNING current_period_end`,
-    [agentId, String(SHARE_REWARD_DAYS)]
+    [agentId, String(SHARE_REWARD_DAYS), SHARE_REWARD_CREDITS, TRIAL_CREDITS_DEFAULT]
   )
   if (!ext.rowCount) {
     // 没有可延长的试用(已付费/试用已过期)。占位保持烧掉:分享动作只认一次。
-    return { ok: true, days: 0, code: 'no_trial_to_extend' }
+    return { ok: true, days: 0, credits: 0, code: 'no_trial_to_extend' }
   }
 
   await pool.query(
     `INSERT INTO plan_change_log (agent_id, action, reason)
        VALUES ($1, 'share_reward', $2)`,
-    [agentId, `首次分享 +${SHARE_REWARD_DAYS} 天试用`]
+    [agentId, `首次分享 +${SHARE_REWARD_DAYS} 天试用 +${SHARE_REWARD_CREDITS} 积分`]
   ).catch((e) => console.error('[referral] share reward audit failed:', e))
 
-  console.log(`[referral] 🎁 share reward: agent ${agentId} +${SHARE_REWARD_DAYS}d trial`)
-  return { ok: true, days: SHARE_REWARD_DAYS, extendedTo: ext.rows[0].current_period_end.toISOString() }
+  console.log(`[referral] 🎁 share reward: agent ${agentId} +${SHARE_REWARD_DAYS}d +${SHARE_REWARD_CREDITS}cr`)
+  return { ok: true, days: SHARE_REWARD_DAYS, credits: SHARE_REWARD_CREDITS, extendedTo: ext.rows[0].current_period_end.toISOString() }
 }
 
 /** 前端问:分享奖励领过了吗(决定分享按钮旁显不显示"再得 7 天")。 */

@@ -70,7 +70,12 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {
     const stats = await referral.getStats(agent.id, APP_URL)
     const shareClaimed = await referral.shareRewardClaimed(agent.id)
-    res.json({ success: true, ...stats, shareRewardClaimed: shareClaimed, shareRewardDays: referral.SHARE_REWARD_DAYS })
+    res.json({
+      success: true, ...stats,
+      shareRewardClaimed: shareClaimed,
+      shareRewardDays: referral.SHARE_REWARD_DAYS,
+      shareRewardCredits: referral.SHARE_REWARD_CREDITS,
+    })
   } catch (err) {
     console.error('[referral] /me failed:', err)
     res.status(500).json({ success: false, error: 'stats failed' })
@@ -83,7 +88,7 @@ router.post('/share-claim', requireAuth, async (req: Request, res: Response) => 
   if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })
   try {
     const r = await referral.claimShareReward(agent.id)
-    res.json({ success: r.ok, days: r.days ?? 0, code: r.code || null, extendedTo: r.extendedTo || null })
+    res.json({ success: r.ok, days: r.days ?? 0, credits: r.credits ?? 0, code: r.code || null, extendedTo: r.extendedTo || null })
   } catch (err) {
     console.error('[referral] share-claim failed:', err)
     res.status(500).json({ success: false, error: 'claim failed' })

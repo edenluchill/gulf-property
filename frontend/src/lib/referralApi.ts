@@ -60,6 +60,7 @@ export interface ReferralStats {
   }>
   shareRewardClaimed: boolean
   shareRewardDays: number
+  shareRewardCredits: number
 }
 
 /** 推广面板数据;未登录/出错返回 null。 */
@@ -86,12 +87,12 @@ export async function attachReferral(code: string): Promise<{ ok: boolean; code:
 }
 
 /** 首次分享 +7 天。返回实际发放的天数(0 = 无试用可延 / already_claimed)。 */
-export async function claimShareReward(): Promise<{ ok: boolean; days: number; code: string | null }> {
+export async function claimShareReward(): Promise<{ ok: boolean; days: number; credits: number; code: string | null }> {
   try {
     const res = await authed('/share-claim', { method: 'POST' })
     const j = await res.json().catch(() => ({}))
-    return { ok: !!j.success, days: j.days ?? 0, code: j.code ?? null }
+    return { ok: !!j.success, days: j.days ?? 0, credits: j.credits ?? 0, code: j.code ?? null }
   } catch {
-    return { ok: false, days: 0, code: null }
+    return { ok: false, days: 0, credits: 0, code: null }
   }
 }
