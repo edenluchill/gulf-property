@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import QRCode from 'qrcode'
 import { Download, Share2, Copy, Check, Gift, Loader2 } from 'lucide-react'
 import { claimShareReward } from '../../lib/referralApi'
+import ShareChannelIcon, { type ChannelKey } from './ShareChannelIcon'
 
 interface Props {
   name: string
@@ -49,11 +50,12 @@ const POSTER = {
   },
 }
 
-const CHANNELS = [
-  { key: 'wechat', zh: '微信', en: 'WeChat', emoji: '💬' },
-  { key: 'moments', zh: '朋友圈', en: 'Moments', emoji: '🌤️' },
-  { key: 'xhs', zh: '小红书', en: 'RED', emoji: '📕' },
-  { key: 'douyin', zh: '抖音', en: 'Douyin', emoji: '🎵' },
+// 每个平台专属引导(桌面保存图片后提示去哪发;网页无法直接分到指定 App)
+const CHANNELS: { key: ChannelKey; zh: string; en: string; hintZh: string; hintEn: string }[] = [
+  { key: 'wechat', zh: '微信', en: 'WeChat', hintZh: '已保存海报,打开微信发给好友', hintEn: 'Saved — open WeChat to send' },
+  { key: 'moments', zh: '朋友圈', en: 'Moments', hintZh: '已保存海报,打开微信发朋友圈', hintEn: 'Saved — open WeChat Moments to post' },
+  { key: 'xhs', zh: '小红书', en: 'RED', hintZh: '已保存海报,打开小红书发布', hintEn: 'Saved — open RED to post' },
+  { key: 'douyin', zh: '抖音', en: 'Douyin', hintZh: '已保存海报,打开抖音发布', hintEn: 'Saved — open Douyin to post' },
 ]
 
 function loadImg(src: string, cors = false): Promise<HTMLImageElement> {
@@ -185,17 +187,19 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
     return new File([arr], 'pinzos-poster.png', { type: mime })
   }
 
-  async function share() {
+  async function share(ch: typeof CHANNELS[number]) {
     if (!dataUrl) return
     const file = dataUrlToFile(dataUrl)
+    // 手机:唤起系统分享面板(用户自己挑 App;网页无法直接分到指定 App)
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: 'Pinzos', text: L('迪拜买房新方式,让位置说话', 'The new way to buy in Dubai') })
         await grantOnce(); return
       } catch { return }
     }
+    // 桌面:保存图片 + 该平台专属引导(打开微信/小红书... 去发布)
     download()
-    setToast(L('海报已保存,去微信/朋友圈发图片分享', 'Poster saved — share the image on your socials'))
+    setToast(L(ch.hintZh, ch.hintEn))
     await grantOnce()
     setTimeout(() => setToast(''), 3500)
   }
@@ -239,9 +243,9 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
 
         <div className="mt-3 grid grid-cols-4 gap-2">
           {CHANNELS.map((c) => (
-            <button key={c.key} onClick={share} disabled={building}
+            <button key={c.key} onClick={() => share(c)} disabled={building}
               className="flex flex-col items-center gap-1.5 rounded-xl py-3 ring-1 ring-slate-100 bg-slate-50 hover:bg-white transition active:scale-95 disabled:opacity-50">
-              <span className="text-2xl">{c.emoji}</span>
+              <ShareChannelIcon channel={c.key} />
               <span className="text-xs font-medium text-slate-600">{L(c.zh, c.en)}</span>
             </button>
           ))}
