@@ -51,6 +51,8 @@ export const ALLOWED_EVENTS = new Set([
   'map_gate_hit',     // 撞到 429 地图门       (payload: requires_plan)
                      // (refresh-token reuse revocation, storage loss), the "why do I keep
                      // getting logged out" investigation signal
+  // 推荐计划 (2026-07-14) — /i/:code 落地页点击量,推广面板漏斗的第一环。
+  'referral_click',   // 有人点了推荐链接落地  (payload: code)
 ])
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

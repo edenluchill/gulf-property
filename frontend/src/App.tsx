@@ -46,6 +46,8 @@ import AgentUsage from './luna-tour/pages/AgentUsage'  // 使用记录(逐笔积
 import AgentLeads from './luna-tour/pages/AgentLeads'  // 共享线索池 + 认领
 import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fact sheet (isolated)
 import TourEditor from './luna-tour/pages/TourEditor'  // Luna Tour visual storyboard editor (isolated)
+import ReferralLanding from './pages/ReferralLanding'  // /i/:code 推荐链接落地(存码→跳定价页)
+import AgentPromo from './luna-tour/pages/AgentPromo'  // 经纪推广有礼(推荐面板)
 
 /** Behaviour analytics: install page-hide flushing once + emit a page_view on
  *  every route change. Fully decoupled; remove this component + its render to
@@ -108,6 +110,8 @@ function App() {
         <Route path="/r/:code" element={<ProjectReportPage />} />
         {/* Shareable payment-plan quote (agent picks unit + types actual price) */}
         <Route path="/pp/:code" element={<PaymentPlanSharePage />} />
+        {/* 推荐链接落地(存码 → 跳定价页;归因在登录那一刻回传) */}
+        <Route path="/i/:code" element={<ReferralLanding />} />
         {/* 公开凭证验证页(证书二维码/链接落地) */}
         <Route path="/verify/:code" element={<VerifyPage />} />
         {/* Comprehensive client investment proposal (shareable, printable) */}
@@ -127,6 +131,7 @@ function App() {
             <Route path="leads" element={<AgentLeads />} />
             <Route path="tour" element={<AgentTours />} />
             <Route path="report" element={<AgentReport />} />
+            <Route path="promo" element={<AgentPromo />} />
             <Route path="usage" element={<AgentUsage />} />
           </Route>
         </Route>

@@ -44,6 +44,7 @@ import favoritesRouter from './routes/favorites'  // Server-side favorites persi
 import adminAnalyticsRouter from './routes/admin-analytics'  // Owner-only dashboard queries (isolated)
 import billingRouter, { billingWebhookHandler } from './routes/billing'  // Stripe 订阅计费 (isolated; docs/stripe-billing-spec.md)
 import profileRouter from './routes/profile'  // 用户角色 buyer/agent(登录后一次性选择)
+import referralRouter from './routes/referral'  // 经纪推荐计划(attach/stats/share-claim)
 import pool from './db/pool'
 import { taskManager } from './services/task-manager'
 import { perfMetrics } from './middleware/perfMetrics'  // per-request latency/status sampler
@@ -53,6 +54,7 @@ import { apiRateLimiter } from './middleware/rateLimit'  // abuse/DoS backstop (
 import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图每日限时(服务端强制)
 import { startPerfFlusher, stopPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 import { startFreeTrialSweep } from './services/freeTrialSweep'  // 免绑卡试用到期 → canceled
+import { startReferralSweep } from './services/referralSweep'    // 推荐计划 hold→qualified→发奖
 import { startTelemetry } from './telemetry/start'  // 通用遥测(WS/容量/漏斗/RUM)— docs/telemetry-spec.md
 import { primeJwks } from './lib/jwks'  // Supabase 签名公钥 → 登录请求本地验签(零远程调用)
 
@@ -181,6 +183,7 @@ app.use('/api/admin/analytics', adminAnalyticsRouter)  // Owner-only dashboard q
 app.use('/api/admin/insights', adminAnalyticsRouter)   // ⭐ ad-blocker-resistant alias — the dashboard reads here now
 app.use('/api/billing', billingRouter)  // Stripe 订阅计费(webhook 已在 json parser 之前单独挂)
 app.use('/api/me', profileRouter)  // 用户角色 buyer/agent
+app.use('/api/referral', referralRouter)  // 经纪推荐计划
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
@@ -232,6 +235,8 @@ const server = app.listen(PORT, async () => {
 
   // 免绑卡试用到期清理(同款生产门:本地 dev 连的是生产库,后台写库任务不许在本地跑)
   startFreeTrialSweep()
+  // 推荐计划结算(hold 期满 → qualified → 发奖到 Stripe balance;同款生产门)
+  startReferralSweep()
 })
 
 // Extend timeouts for large file uploads (10 minutes)

@@ -12,6 +12,7 @@ import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaA
 import { SectionHeader, StatCard } from '../ui/Panel'
 import ActivationChecklist from '../ui/ActivationChecklist'
 import IntentFeed from '../ui/IntentFeed'
+import WelcomePosterModal from '../components/WelcomePosterModal'  // 首登恭喜入驻海报(自动弹一次)
 
 interface SessionRow {
   id: string
@@ -84,6 +85,8 @@ export default function AgentOverview() {
 
   return (
     <div>
+      {/* 首登自动弹一次恭喜入驻海报(试用也弹);之后去「推广有礼」tab 再看 */}
+      <WelcomePosterModal />
       <div className="mb-5">
         <h1 className="text-2xl font-bold mb-1">{L('经纪工作台', 'Agent workbench')}</h1>
         <p className="text-sm text-slate-500">{L('两种带客户看房的方式 — 选一个开始', 'Two ways to show clients around — pick one to start')}</p>

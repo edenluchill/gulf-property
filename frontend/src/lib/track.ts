@@ -56,6 +56,8 @@ export type AppEvent =
   | 'checkout_abandon'
   | 'paywall_hit'
   | 'map_gate_hit'
+  // 推荐计划 (2026-07-14) — /i/:code 落地页点击,推广面板漏斗第一环
+  | 'referral_click'
 
 // '/api/sync' (not '/api/events') — "events" is on ad-block keyword lists, which
 // silently eats real users' telemetry. The backend double-mounts both paths.

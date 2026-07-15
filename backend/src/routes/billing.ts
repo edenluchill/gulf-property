@@ -24,6 +24,7 @@ import { creditBalance, featureCatalog, resetCreditsOnConversion, checkCallQuota
 import { claimFreeTrial, TRIAL_DAYS, TRIAL_PLAN, TRIAL_ROLES } from '../services/freeTrial'
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
+import * as referral from '../services/referral'
 
 const router = Router()
 
@@ -269,6 +270,18 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
 
   try {
     const customerId = await ensureCustomer(stripe, agent)
+
+    // ── 被推荐人首月折扣(双边奖励)────────────────────────────────
+    // 只给月付首期(coupon duration=once);年付不给(5 折年费成本过高)。
+    // ⚠️ discounts 与 allow_promotion_codes 互斥(Stripe 限制,见 [[stripe-billing]]):
+    //    挂了自动折扣就不能再让用户手填促销码。被推荐人拿的是自动折扣,优先。
+    let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined
+    let allowPromo = true
+    if (interval === 'month' && (await referral.pendingDiscount(agent.id))) {
+      discounts = [{ coupon: referral.REFERRAL_COUPON_ID }]
+      allowPromo = false
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
@@ -280,11 +293,15 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
         metadata: { lt_agent_id: agent.id, plan_id: planId, interval },
       },
       payment_method_collection: 'always',
-      allow_promotion_codes: true, // 无自动折扣;有促销码可手填
+      ...(discounts ? { discounts } : { allow_promotion_codes: allowPromo }),
       client_reference_id: agent.id,
       success_url: `${APP_URL}/agent/billing?status=success`,
       cancel_url: `${APP_URL}/agent/billing?status=cancel`,
     })
+
+    // 券已挂上 → 标记用掉(取消 checkout 后不能反复白嫖新券;真正付款失败也只是少一次机会)
+    if (discounts) await referral.markDiscountUsed(agent.id).catch(() => {})
+
     res.json({ success: true, url: session.url })
   } catch (err) {
     console.error('[billing] checkout failed:', err)
@@ -964,6 +981,20 @@ async function autoApprovePaid(email: string | null, name: string | null, role =
   }
 }
 
+/** Stripe customer(id 或对象)→ 我们的 lt_agents.id。推荐 webhook 用。 */
+async function agentIdForCustomer(
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null
+): Promise<string | null> {
+  if (!customer) return null
+  const customerId = typeof customer === 'string' ? customer : customer.id
+  if (!customerId) return null
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM lt_agents WHERE stripe_customer_id = $1`,
+    [customerId]
+  )
+  return rows[0]?.id || null
+}
+
 /** 以 Stripe subscription 对象为唯一真相,幂等 upsert 到 lt_subscriptions + 变更审计。 */
 async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
@@ -1160,6 +1191,14 @@ export async function billingWebhookHandler(req: Request, res: Response): Promis
               : session.subscription.id
           const sub = await stripe.subscriptions.retrieve(subId)
           await upsertSubscription(sub)
+          // 推荐人自己刚成为付费客户 → flush 之前挂起的推荐奖励(达标时他还没订阅,
+          // reward 停在 pending;现在有 customer + 活跃订阅了,可以打进 balance 抵扣)。
+          try {
+            const agentId = await agentIdForCustomer(sub.customer)
+            if (agentId) await referral.applyPendingRewards(stripe, agentId)
+          } catch (e) {
+            console.error('[billing] flush pending referral rewards failed:', e)
+          }
           // Notify owner + partner of a new subscription (best-effort; no-op if email unconfigured).
           try {
             const item = sub.items.data[0]
@@ -1193,6 +1232,39 @@ export async function billingWebhookHandler(req: Request, res: Response): Promis
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         await upsertSubscription(event.data.object as Stripe.Subscription)
+        break
+      }
+      // ── 推荐计划:首笔真钱 → 把被推荐人推进 30 天 hold ──────────────
+      case 'invoice.paid':
+      case 'invoice.payment_succeeded': {
+        const inv = event.data.object as Stripe.Invoice
+        // 只认真钱:$0 试用发票 / 全额抵扣的发票不算 qualify。
+        const reason = (inv as unknown as { billing_reason?: string }).billing_reason
+        if ((inv.amount_paid ?? 0) > 0 &&
+            (reason === 'subscription_create' || reason === 'subscription_cycle')) {
+          const agentId = await agentIdForCustomer(inv.customer)
+          if (agentId) await referral.markPaid(agentId, inv.id || `inv_${event.id}`)
+        }
+        break
+      }
+      // ── 退款 / 拒付 → 撤销归因(计数回落 = 天然 clawback)──────────────
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge
+        // 只在全额退款时撤销(部分退款仍算真实付费)
+        if (charge.refunded && (charge.amount_refunded ?? 0) >= (charge.amount ?? 0)) {
+          const agentId = await agentIdForCustomer(charge.customer)
+          if (agentId) await referral.revoke(agentId, 'charge_refunded')
+        }
+        break
+      }
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute
+        const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id
+        if (chargeId) {
+          const charge = await stripe.charges.retrieve(chargeId)
+          const agentId = await agentIdForCustomer(charge.customer)
+          if (agentId) await referral.revoke(agentId, 'chargeback')
+        }
         break
       }
       default:

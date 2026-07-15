@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY, getLastRefresh, readStoredSession } from '../lib/supabase'
 import { identifyVisitor, trackEvent } from '../lib/track'
+import { attachStoredCode } from '../lib/referral'
 import { clearFavorites } from '../lib/favorites'
 import { isAdminEmail, API_BASE_URL } from '../lib/config'
 
@@ -141,7 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       //   有 session → 登录成功;SIGNED_OUT → 确实没登录。
       if (session || event === 'SIGNED_OUT' || !onAuthCallbackRoute) setLoading(false)
 
-      if (session?.user) void identifyVisitor()
+      if (session?.user) {
+        void identifyVisitor()
+        // 推荐归因:若本地有未过期的推荐码,登录这一刻把它钉到账号上(幂等,无码则 no-op)。
+        // 放在这里而非注册 hook —— 本仓库没有 Supabase auth hook(见 spec §4)。
+        void attachStoredCode()
+      }
     })
 
     // 跨 tab 同步。auth-js 只在 visibilitychange 时和存储对账,不监听 storage 事件 ——
