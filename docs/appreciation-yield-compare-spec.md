@@ -299,6 +299,42 @@ yield_comparison: {
   - **地图**(`MapPage.tsx`):控制卡底部「增长」标签变可点「增长·近1年 ▾」→ 开周期 popover(**不加行高,不触发工具卡 top 铁律**);`mapAreas` 派生数组把 `capitalAppreciation` 覆盖成所选周期值只喂地图层(弹窗 selectedArea 仍取原数组,不受影响);414/1180/1440 三档截图已验证。
 - **前端待推**:全部 type-check + 实机截图通过;CF Pages 需 `git push` 才上线。
 
+## 11. Phase 4 — 周期扩到全指标 + 项目对比分析 tab（2026-07-15 追加）
+
+### 11.1 周期 → 全指标（统一时间窗口，已定「全套」）
+周期从"只驱动资本增值"升级为**全局时间窗口**，所有指标按所选窗口重算：
+
+| 指标 | 窗口口径 | 精度 |
+|---|---|---|
+| 成交量 | 窗口内笔数(∑月度 count) | 精确 |
+| 增值率 | 窗口端点中位价之比 | 已做 |
+| 中位价/㎡、中位总价 | 窗口内中位价 | **近似**=成交量加权的月度中位均值(避免 63×percentile 重查);标「近N期」 |
+| 租金回报 | 窗口内中位租金/㎡ ÷ 窗口内中位价/㎡ | 近似(同上) |
+| 租赁稳定率 | 保持全口径(与窗口无关) | 不变 |
+
+- **诚实铁律**:长周期的价格/回报是跨年成交合并,UI 必须标「近3年」而非「当前」,`InfoHint` 说明"把窗口内所有成交合并算,不是现价"。
+- **后端**:
+  - area-insights 的月度查询已取 median pps + count(63 月);**补 median 总价 + median 租金/㎡ 月度序列**,派生各窗口加权值 → 塞进 `appreciation` 同款结构(每指标一份 per-period map)。
+  - all-area 端点(`/market/area-appreciation` → 改名/扩为 `/market/area-metrics-by-period`)同样返回**每区×每周期×每指标**窗口值,给地图全指标按周期上色。
+- **前端**:
+  - 周期选择器不再只在 `capitalGrowth` 显示 → **任意指标选中都显示**(地图控制卡底部标签统一变「<指标>·近1年 ▾」)。
+  - `mapAreas` override 从只覆盖 `capitalAppreciation` → 覆盖当前指标对应字段(medianUnitPrice/medianPriceSqm/rentalYield/transactionCount/capitalAppreciation)。
+  - AreaBlock 六张卡全部读窗口值;周期选择器标题从「资本增值周期」→「指标时间范围」。
+  - 短周期护栏 + 样本不足 `—` 一致复用。
+
+### 11.2 项目 vs 区域 + 附近项目 —— 新「对比分析」tab
+现状:项目 vs 区域对比散在「概览」(YieldVsAreaModule 回报 + PriceCheckModule 价格)。用户要更直观 + 独立 tab + 能比附近项目。
+
+**新增 tab `对比分析`**(`ProjectDetailPage` 加 tab,`AGENT_TABS`/路由风格一致):
+- **区块 A:本盘 vs 所在区域(全维度记分卡)** — 一屏看齐:回报率 / 价格/㎡(溢价%) / 增值率 / 5年年化,每行一条对比条(复用 `YieldVsAreaModule` 标尺 + `PriceCheckModule` 标尺 + `ReturnsBar`),右侧 verdict chip(高于/低于区域 + pp)。把散落的对比收敛成一个"体检报告"。
+- **区块 B:附近同类项目横评** — 按经纬度取最近 4–6 个 project,表格列:起价 / 回报率 / 溢价 / 增值率(区域级) / 交付时间 / 匹配置信,本盘高亮置顶。帮买家做"这盘 vs 隔壁那盘"的横向决策。数据:`residential_projects` 空间近邻 + 各自 `getProjectInsights`(已缓存预热)。
+- **诚实**:附近项目多为新盘→回报/增值走各自区域级(带 tier 徽章);缺数据的项目列「—」不编。
+
+**接口**:`GET /residential-projects/:id/nearby-compare?radius=` → `{ subject, area, nearby[] }`,复用现有 insights 缓存,新增仅空间近邻查询。
+
+### 11.3 建议顺序
+先 **11.1 周期全指标**(已定、延续已上线的地图/AreaBlock,改动集中在增值率基础设施的泛化)→ 再 **11.2 对比 tab**(新 tab + 近邻查询,独立可增量)。
+
 ## 10. 已定决策（2026-07-15 用户拍板）
 
 1. **周期全档位平铺，短周期不藏**：`1月/3月/半年/1年/2年/3年/5年/自定义` 全部可选，默认近1年；短周期挂"样本波动大"ⓘ 提示替代隐藏。（见 §4.1）

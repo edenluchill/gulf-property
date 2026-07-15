@@ -407,24 +407,34 @@ export default function MapPage() {
   const [apprPeriod, setApprPeriod] = useState<MetricPeriodKey>(loadSavedPeriod)
   const [showPeriodPop, setShowPeriodPop] = useState(false)
   const changeApprPeriod = (k: MetricPeriodKey) => { setApprPeriod(k); savePeriod(k) }
-  // 全区各周期增值率 —— 选了「资本增值」指标才取,一次取回,切周期/口径不重取。
+  // 支持"时间窗口"的指标(全部 5 个地图指标)。
+  const metricHasPeriod = areaMetric !== 'none'
+  // 全区各周期全指标 —— 选了任意指标就取,一次取回,切周期/口径/指标不重取。
   const [areaApprMap, setAreaApprMap] = useState<AllAreaAppreciation | null>(null)
   useEffect(() => {
-    if (areaMetric !== 'capitalGrowth' || areaApprMap) return
+    if (!metricHasPeriod || areaApprMap) return
     let alive = true
     fetchAllAreaAppreciation().then(d => { if (alive && d) setAreaApprMap(d) })
     return () => { alive = false }
-  }, [areaMetric, areaApprMap])
-  // 地图专用区域数组:选「资本增值」时,把每区的 capitalAppreciation 覆盖成
-  // 所选周期+口径的增值率,着色/标签随周期变。只喂给地图层,不动原 dubaiAreas
-  // (弹窗的 selectedArea 仍来自原数组,见 handleAreaClick)。
+  }, [metricHasPeriod, areaApprMap])
+  // 地图专用区域数组:选了指标时,把每区的指标值覆盖成所选周期+口径的窗口值,
+  // 着色/标签随周期变。只喂给地图层,不动原 dubaiAreas(弹窗 selectedArea 仍取
+  // 原数组,见 handleAreaClick)。undefined = 该区该周期样本不足 → 灰色。
   const mapAreas = useMemo(() => {
-    if (areaMetric !== 'capitalGrowth' || !areaApprMap) return dubaiAreas
+    if (!metricHasPeriod || !areaApprMap) return dubaiAreas
     return dubaiAreas.map(a => {
-      const v = areaApprMap.areas[a.id]?.[marketSegment]?.[apprPeriod]
-      return { ...a, capitalAppreciation: v ?? undefined }
+      const m = areaApprMap.areas[a.id]?.[marketSegment]?.[apprPeriod]
+      if (!m) return { ...a, medianUnitPrice: undefined, medianPriceSqm: undefined, capitalAppreciation: undefined, transactionCount: undefined, rentalYield: undefined }
+      return {
+        ...a,
+        medianUnitPrice: m.unitPrice ?? undefined,
+        medianPriceSqm: m.priceSqm ?? undefined,
+        capitalAppreciation: m.growth ?? undefined,
+        transactionCount: m.count,
+        rentalYield: m.yield ?? undefined,
+      }
     })
-  }, [dubaiAreas, areaMetric, areaApprMap, marketSegment, apprPeriod])
+  }, [dubaiAreas, metricHasPeriod, areaApprMap, marketSegment, apprPeriod])
 
 
   // POI state — persisted in localStorage (default: true)
@@ -2034,24 +2044,17 @@ export default function MapPage() {
                   ? (zhL ? ' · 现楼出租参考' : ' · existing stock')
                   : ''
                 return active ? (
-                  active.value === 'capitalGrowth' ? (
-                    // 资本增值:标签变可点,附当前周期,点开周期选择 popover(不加行高,
-                    // 不触发下方工具卡 top 重排铁律)。
-                    <button
-                      type="button"
-                      onClick={() => setShowPeriodPop(v => !v)}
-                      className="flex w-full items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-semibold text-primary transition active:scale-95"
-                    >
-                      <active.Icon className="w-3 h-3 shrink-0" />
-                      <span className="truncate whitespace-nowrap">{t(active.labelKey as any)} · {periodLabel(apprPeriod, zhL)}</span>
-                      <span className="shrink-0 opacity-70">▾</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-semibold text-primary">
-                      <active.Icon className="w-3 h-3 shrink-0" />
-                      <span className="truncate whitespace-nowrap">{t(active.labelKey as any)}{yieldCaveat}</span>
-                    </div>
-                  )
+                  // 任意指标都可点标签开周期 popover:附当前周期,不加行高(不触发
+                  // 下方工具卡 top 重排铁律)。所有 5 个指标都按所选时间窗口重算。
+                  <button
+                    type="button"
+                    onClick={() => setShowPeriodPop(v => !v)}
+                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-primary/10 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-semibold text-primary transition active:scale-95"
+                  >
+                    <active.Icon className="w-3 h-3 shrink-0" />
+                    <span className="truncate whitespace-nowrap">{t(active.labelKey as any)} · {periodLabel(apprPeriod, zhL)}{yieldCaveat}</span>
+                    <span className="shrink-0 opacity-70">▾</span>
+                  </button>
                 ) : (
                   <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-medium text-slate-400">
                     {(i18n.language || 'en').startsWith('zh') ? '选择指标' : 'Pick metric'}
@@ -2061,14 +2064,14 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* 资本增值周期 popover —— 从控制卡底部「增长·近1年 ▾」标签点开。
+          {/* 指标时间范围 popover —— 从控制卡底部「<指标>·近1年 ▾」标签点开。
               浮层在控制卡左侧空白处,不改任何卡片高度(不触发工具卡 top 铁律)。 */}
-          {showPeriodPop && areaMetric === 'capitalGrowth' && (
+          {showPeriodPop && metricHasPeriod && (
             <>
               <div className="fixed inset-0 z-[1000]" onClick={() => setShowPeriodPop(false)} />
               <div className="absolute top-2 right-[164px] md:right-[224px] z-[1001] w-[200px] rounded-2xl bg-white/95 p-3 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  {(i18n.language || 'en').startsWith('zh') ? '资本增值周期' : 'Capital growth period'}
+                  {(i18n.language || 'en').startsWith('zh') ? '指标时间范围' : 'Metric time range'}
                 </div>
                 <PeriodSelector
                   value={apprPeriod}
@@ -2077,8 +2080,8 @@ export default function MapPage() {
                 />
                 <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-snug text-slate-400">
                   {(i18n.language || 'en').startsWith('zh')
-                    ? '色块与数字按所选周期＋当前口径重新着色；跟随上方综合/期房/现房。'
-                    : 'Recolors areas by the selected period & current basis (all/off-plan/ready).'}
+                    ? '所有指标都按所选时间窗口重算（成交量=窗口内笔数、价格/回报=窗口内中位、增值=窗口涨幅）；跟随上方综合/期房/现房。'
+                    : 'All metrics recompute over the selected window (volume=count, price/yield=window median, growth=window change); follows the basis above.'}
                 </div>
               </div>
             </>

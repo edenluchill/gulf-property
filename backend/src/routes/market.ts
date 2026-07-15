@@ -514,8 +514,60 @@ function computeAppreciation(smoothed: (number | null)[], counts: number[]): App
   return out
 }
 
+/** 单个周期窗口内的全指标值(「近N期」口径)。 */
+export interface PeriodMetrics {
+  growth: number | null      // 窗口涨幅(端点滚动窗口中位价之比)
+  priceSqm: number | null    // 窗口内中位价/㎡(成交量加权月度中位;标「近N期」非现价)
+  unitPrice: number | null   // 窗口内中位总价(同上)
+  count: number              // 窗口内成交量(精确)
+  yield: number | null       // 窗口内中位租金/㎡ ÷ 窗口内中位价/㎡(仅 all 口径)
+}
+export type MetricsByPeriod = Partial<Record<AppreciationPeriod, PeriodMetrics>>
+
+/**
+ * 各周期窗口的全指标。价格/总价/回报=窗口内成交量加权的月度中位(近似真·窗口中位，
+ * 免 63×percentile 重查;UI 标「近N期」而非现价)。成交量=窗口内笔数(精确)。
+ * 增值率沿用端点滚动比(computeAppreciation)。回报只在 all 口径(rentSqm 非空)算。
+ * @param pps/unit/cnt 63 月月度中位价/㎡、中位总价、成交量(index 末位=最新)
+ * @param rentSqm 63 月月度中位租金/㎡(仅 all 口径传;其余传 null)
+ */
+export function computeWindowedMetrics(
+  pps: (number | null)[], unit: (number | null)[], cnt: number[], rentSqm: (number | null)[] | null
+): MetricsByPeriod {
+  const MIN_WIN = 5
+  const growth = computeAppreciation(smooth3(pps), cnt)
+  const end = pps.length - 1
+  const round = (n: number) => Math.round(n)
+  const out: MetricsByPeriod = {}
+  for (const [k, months] of Object.entries(APPRECIATION_PERIODS) as [AppreciationPeriod, number][]) {
+    const from = Math.max(0, end - months + 1)
+    let wCnt = 0, pSum = 0, pW = 0, uSum = 0, uW = 0, rSum = 0, rN = 0
+    for (let i = from; i <= end; i++) {
+      const c = cnt[i] || 0
+      wCnt += c
+      if (pps[i] != null && c > 0) { pSum += (pps[i] as number) * c; pW += c }
+      if (unit[i] != null && c > 0) { uSum += (unit[i] as number) * c; uW += c }
+      if (rentSqm && rentSqm[i] != null) { rSum += rentSqm[i] as number; rN += 1 }
+    }
+    const enough = wCnt >= MIN_WIN
+    const priceSqm = enough && pW > 0 ? pSum / pW : null
+    const unitPrice = enough && uW > 0 ? round(uSum / uW) : null
+    const rentAvg = rN > 0 ? rSum / rN : null
+    const yieldPct = priceSqm != null && priceSqm > 0 && rentAvg != null
+      ? Number(((rentAvg / priceSqm) * 100).toFixed(2)) : null
+    out[k] = {
+      growth: growth[k] ?? null,
+      priceSqm: priceSqm != null ? round(priceSqm) : null,
+      unitPrice,
+      count: wCnt,
+      yield: yieldPct,
+    }
+  }
+  return out
+}
+
 /** 以 endYm（'YYYY-MM'）结尾、共 n 个月的连续日历月份轴 */
-function monthRange(endYm: string, n: number): string[] {
+export function monthRange(endYm: string, n: number): string[] {
   const [y, m] = endYm.split('-').map(Number)
   const out: string[] = []
   for (let i = n - 1; i >= 0; i--) {
@@ -580,19 +632,24 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
          SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
                 COUNT(*)::int AS count,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_up,
                 COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
                   FILTER (WHERE dt.is_offplan) AS median_pps_offplan,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
+                  FILTER (WHERE dt.is_offplan) AS median_up_offplan,
                 COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-                  FILTER (WHERE NOT dt.is_offplan) AS median_pps_ready
+                  FILTER (WHERE NOT dt.is_offplan) AS median_pps_ready,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
+                  FILTER (WHERE NOT dt.is_offplan) AS median_up_ready
            FROM dld_transactions dt
            ${txJoin}
           CROSS JOIN bounds b
           WHERE ${txWhere}
             AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
-            AND dt.meter_sale_price > 0
-            -- 63 个月:24 个月展示 + t-12 同比 需 37;增值率最长 5 年(60)+3 个月
+            AND dt.meter_sale_price > 0 AND dt.actual_worth > 0
+            -- 63 个月:24 个月展示 + t-12 同比 需 37;增值率/窗口指标最长 5 年(60)+3 个月
             -- 滚动窗口 需 63。一次扫全，切周期零额外查询。
             AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '63 months'
             AND dt.instance_date <= b.d
@@ -611,7 +668,8 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
             AND rc.usage_type = 'Residential'
             AND rc.property_area BETWEEN 15 AND 2000
             AND rc.annual_amount BETWEEN 5000 AND 5000000
-            AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '25 months'
+            -- 63 月:回报率窗口最长 5 年(60)+ 平滑;原 25 月只够 2 年展示序列
+            AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months'
             AND rc.start_date <= b.d
           GROUP BY 1 ORDER BY 1`,
         [areaId, usage]
@@ -729,10 +787,12 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
 
     // 每口径一套 价格/量/同比 序列（列名后缀区分；'all' 用无后缀列）
     const segCols = (r: any, seg: 'all' | 'offplan' | 'ready') => seg === 'all'
-      ? { count: r.count, pps: r.median_pps }
+      ? { count: r.count, pps: r.median_pps, up: r.median_up }
       : seg === 'offplan'
-        ? { count: r.count_offplan, pps: r.median_pps_offplan }
-        : { count: r.count_ready, pps: r.median_pps_ready }
+        ? { count: r.count_offplan, pps: r.median_pps_offplan, up: r.median_up_offplan }
+        : { count: r.count_ready, pps: r.median_pps_ready, up: r.median_up_ready }
+    // 63 月月度中位租金/㎡(仅 all;期房价格做分母无意义),给回报率窗口用
+    const rent63 = apprMonths.map(m => rentByMonth.get(m) ?? null)
     const mkSeries = (seg: 'all' | 'offplan' | 'ready') => {
       const pps37 = monthsWithLookback.map(m => {
         const r = byMonth.get(m)
@@ -766,8 +826,15 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
         const r = byMonth.get(m)
         return r ? Number(segCols(r, seg).count || 0) : 0
       })
+      const unit63 = apprMonths.map(m => {
+        const r = byMonth.get(m)
+        const v = r ? segCols(r, seg).up : null
+        return v != null ? Number(v) : null
+      })
       const appreciation = computeAppreciation(smooth3(pps63), cnt63)
-      return { smooth, price, volume, growth, appreciation }
+      // 全指标窗口值(回报只 all 口径给 rent 序列)
+      const metrics = computeWindowedMetrics(pps63, unit63, cnt63, seg === 'all' ? rent63 : null)
+      return { smooth, price, volume, growth, appreciation, metrics }
     }
     const sAll = mkSeries('all')
     const sOffplan = mkSeries('offplan')
@@ -789,11 +856,11 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       rentalYield,
       dataThrough: endYm,
       variants: {
-        all: { price: sAll.price, volume: sAll.volume, growth: sAll.growth, appreciation: sAll.appreciation,
+        all: { price: sAll.price, volume: sAll.volume, growth: sAll.growth, appreciation: sAll.appreciation, metrics: sAll.metrics,
                medianUnitPrice: roundOrNull(mr.median_unit_price), count12m: Number(mr.n || 0) },
-        offplan: { price: sOffplan.price, volume: sOffplan.volume, growth: sOffplan.growth, appreciation: sOffplan.appreciation,
+        offplan: { price: sOffplan.price, volume: sOffplan.volume, growth: sOffplan.growth, appreciation: sOffplan.appreciation, metrics: sOffplan.metrics,
                    medianUnitPrice: roundOrNull(mr.median_unit_price_offplan), count12m: Number(mr.n_offplan || 0) },
-        ready: { price: sReady.price, volume: sReady.volume, growth: sReady.growth, appreciation: sReady.appreciation,
+        ready: { price: sReady.price, volume: sReady.volume, growth: sReady.growth, appreciation: sReady.appreciation, metrics: sReady.metrics,
                  medianUnitPrice: roundOrNull(mr.median_unit_price_ready), count12m: Number(mr.n_ready || 0) },
       },
       recentTransactions: recentRes.rows.map(mapTxRow),
@@ -865,53 +932,80 @@ const CITY_APPR_KEY = 'mkt:appr:city'
  * 天然不匹配真实 area_id → 不在此 → 地图对手绘区不按周期着色(与其常缺 rolling
  * metrics 的现状一致)。全表 percentile 较重 → microCache 6h + 预热。
  */
-type AllAreaAppr = { dataThrough: string | null; areas: Record<string, Record<'all' | 'offplan' | 'ready', Appreciation>> }
+type AllAreaAppr = { dataThrough: string | null; areas: Record<string, Record<'all' | 'offplan' | 'ready', MetricsByPeriod>> }
 async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
   const boundsRes = await pool.query(
     `SELECT to_char(date_trunc('month', MAX(instance_date)), 'YYYY-MM') AS m FROM dld_transactions`
   )
   const endYm: string = boundsRes.rows[0]?.m
   if (!endYm) return { dataThrough: null, areas: {} }
-  const rows = await pool.query(
-    `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
-     SELECT dla.dubai_area_id AS area_id,
-            to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
-            COUNT(*)::int AS count,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS pps,
-            COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-              FILTER (WHERE dt.is_offplan) AS pps_offplan,
-            COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-              FILTER (WHERE NOT dt.is_offplan) AS pps_ready
-       FROM dld_transactions dt
-       JOIN dld_areas dla ON dla.area_id = dt.area_id
-       CROSS JOIN bounds b
-      WHERE dt.trans_group = 'Sales' AND dt.meter_sale_price > 0
-        AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '63 months'
-        AND dt.instance_date <= b.d
-      GROUP BY 1, 2`
-  )
+  const [salesRows, rentRows] = await Promise.all([
+    pool.query(
+      `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+       SELECT dla.dubai_area_id AS area_id,
+              to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
+              COUNT(*)::int AS count,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS pps,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS up,
+              COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE dt.is_offplan) AS pps_offplan,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE dt.is_offplan) AS up_offplan,
+              COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE NOT dt.is_offplan) AS pps_ready,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE NOT dt.is_offplan) AS up_ready
+         FROM dld_transactions dt
+         JOIN dld_areas dla ON dla.area_id = dt.area_id
+         CROSS JOIN bounds b
+        WHERE dt.trans_group = 'Sales' AND dt.meter_sale_price > 0 AND dt.actual_worth > 0
+          AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '63 months'
+          AND dt.instance_date <= b.d
+        GROUP BY 1, 2`
+    ),
+    // 各区月度中位租金/㎡(residential;仅 all 口径回报用)。dubai_area_id 已回填。
+    pool.query(
+      `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+       SELECT rc.dubai_area_id AS area_id,
+              to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS month,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area) AS rent_sqm
+         FROM dld_rent_contracts rc CROSS JOIN bounds b
+        WHERE rc.usage_type = 'Residential' AND rc.dubai_area_id IS NOT NULL
+          AND rc.property_area BETWEEN 15 AND 2000 AND rc.annual_amount BETWEEN 5000 AND 5000000
+          AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months' AND rc.start_date <= b.d
+        GROUP BY 1, 2`
+    ),
+  ])
   const apprMonths = monthRange(endYm, 63)
   const byArea = new Map<string, Map<string, any>>()
-  for (const r of rows.rows) {
+  for (const r of salesRows.rows) {
     const id = String(r.area_id)
     if (!byArea.has(id)) byArea.set(id, new Map())
     byArea.get(id)!.set(r.month, r)
   }
+  const rentByArea = new Map<string, Map<string, number>>()
+  for (const r of rentRows.rows) {
+    if (r.rent_sqm == null) continue
+    const id = String(r.area_id)
+    if (!rentByArea.has(id)) rentByArea.set(id, new Map())
+    rentByArea.get(id)!.set(r.month, Number(r.rent_sqm))
+  }
   const areas: AllAreaAppr['areas'] = {}
   for (const [id, months] of byArea) {
+    const rentMonths = rentByArea.get(id)
+    const rent63 = apprMonths.map(m => rentMonths?.get(m) ?? null)
     const seg = (col: 'all' | 'offplan' | 'ready') => {
       const pps = apprMonths.map(m => {
-        const r = months.get(m)
-        const v = r ? (col === 'all' ? r.pps : col === 'offplan' ? r.pps_offplan : r.pps_ready) : null
+        const r = months.get(m); const v = r ? (col === 'all' ? r.pps : col === 'offplan' ? r.pps_offplan : r.pps_ready) : null
+        return v != null ? Number(v) : null
+      })
+      const up = apprMonths.map(m => {
+        const r = months.get(m); const v = r ? (col === 'all' ? r.up : col === 'offplan' ? r.up_offplan : r.up_ready) : null
         return v != null ? Number(v) : null
       })
       const cnt = apprMonths.map(m => {
         const r = months.get(m)
         return r ? Number((col === 'all' ? r.count : col === 'offplan' ? r.count_offplan : r.count_ready) || 0) : 0
       })
-      return computeAppreciation(smooth3(pps), cnt)
+      return computeWindowedMetrics(pps, up, cnt, col === 'all' ? rent63 : null)
     }
     areas[id] = { all: seg('all'), offplan: seg('offplan'), ready: seg('ready') }
   }
@@ -953,6 +1047,7 @@ function composeAreaInsights(raw: any, segment: MarketSegment, strict = false) {
     volumeAll: variants.all.volume,
     growth: v.growth,
     appreciation: v.appreciation,   // 各周期增值率(跟随 segment 口径);全市基准由 route 注入
+    metricsByPeriod: v.metrics,     // 各周期全指标窗口值(价格/总价/成交量/回报;跟随 segment)
     rentalYield: raw.rentalYield,   // 固定全口径
     dataThrough: raw.dataThrough,
     medianUnitPrice: v.medianUnitPrice,

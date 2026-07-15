@@ -272,6 +272,15 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   const priceDisplay = medianPsm ?? ((usageActive || segActive) ? null : (area.averagePrice ?? null))
   // Median TOTAL transaction price (房子中位总价) — the headline buyers care about.
   const medianUnit = pick(area.medianUnitPrice, insights?.medianUnitPrice)
+  // 全指标窗口值(「近N期」)。mp 存在(已选周期且已加载)→ 用窗口值(含 null→显示「—」,
+  // 与地图灰色一致,不拿 12 个月值冒充短周期);mp 缺失(未加载)→ 回退现值,不破坏加载态。
+  const mp = insights?.metricsByPeriod?.[period]
+  const unitShown = mp ? mp.unitPrice : medianUnit
+  const priceShown = mp ? mp.priceSqm : priceDisplay
+  const countShown = mp ? mp.count : txCount
+  // 回报永远全口径:选期房/现房时该口径 mp.yield=null → 退回全口径现值(不硬造窗口回报)
+  const yieldShown = mp?.yield ?? yieldNow
+  const growthChip = mp ? mp.growth : growthNow
   const pctChip = (v: number | null | undefined) =>
     v == null ? null : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
@@ -329,12 +338,13 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           )}
         </div>
       )}
-      {/* 资本增值周期选择器 —— 只驱动下方「资本增值」卡,跟随当前市场口径 */}
+      {/* 指标时间范围 —— 驱动下方全部指标卡(价格/成交量/回报/增值),跟随市场口径 */}
       <div className="mb-2.5">
         <div className="mb-1.5 flex items-center gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            {zh ? '资本增值周期' : 'Capital growth period'}
+            {zh ? '指标时间范围' : 'Metric time range'}
           </span>
+          <span className="text-[10px] text-slate-400">{zh ? '· 下方指标都按此窗口计算' : '· all metrics use this window'}</span>
         </div>
         <PeriodSelector value={period} onChange={changePeriod} zh={zh} />
       </div>
@@ -345,15 +355,15 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           label={zh ? '中位总价' : 'Median price'}
           info={<InfoHint title={zh ? '怎么算的' : 'How'} text={zh ? '该口径近 12 个月 DLD 成交总价的中位数 —— 真实成交,不是挂牌价。' : 'Median total DLD sale price over the last 12 months — actual deals, not asking prices.'} />}
           value={
-            medianUnit != null ? (
+            unitShown != null ? (
               <>
                 <DirhamSymbol size="0.7em" className="text-slate-400" />
-                {formatMoneyCompact(medianUnit, i18n.language)}
+                {formatMoneyCompact(unitShown, i18n.language)}
               </>
             ) : '—'
           }
-          chip={pctChip(growthNow)}
-          chipClass={growthNow != null && growthNow >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}
+          chip={pctChip(growthChip)}
+          chipClass={growthChip != null && growthChip >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}
           loading={loading}
         >
           <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(v).toLocaleString()} />
@@ -364,10 +374,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           label={zh ? '均价/m²' : 'Price/m²'}
           info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
           value={
-            priceDisplay != null ? (
+            priceShown != null ? (
               <>
                 <DirhamSymbol size="0.7em" className="text-slate-400" />
-                {formatMoneyFull(priceDisplay)}
+                {formatMoneyFull(priceShown)}
               </>
             ) : '—'
           }
@@ -377,9 +387,9 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
         </StatCard>
 
         <StatCard
-          label={t('map:areaDialog.transactionCount')}
-          info={<InfoHint title={howTitle} text={zh ? '近 12 个月该区全部 DLD 成交（含期房、现房与地块）——反映真实活跃度，不随口径筛选缩水。价格与增长按所选口径另行计算。' : 'All DLD sales in the last 12 months (off-plan, ready and plots) — real market activity, unaffected by the basis filter. Price & growth follow the selected basis separately.'} />}
-          value={txCount != null ? txCount.toLocaleString() : '—'}
+          label={zh ? '成交量' : 'Volume'}
+          info={<InfoHint title={howTitle} text={zh ? `所选时间范围（${periodLabel(period, zh)}）内该区 DLD 成交笔数——反映真实活跃度。价格/回报/增值同样按此窗口计算，可用上方周期切换。` : `DLD sales in the selected window (${periodLabel(period, zh)}). Price / yield / growth also follow this window — switch it above.`} />}
+          value={countShown != null ? countShown.toLocaleString() : '—'}
           chip={seg !== 'all' && insights?.segmentCounts12m?.[seg] != null && !usageActive
             ? `${seg === 'offplan' ? (zh ? '期房' : 'Off-plan') : (zh ? '现房' : 'Ready')} ${insights.segmentCounts12m[seg].toLocaleString()}` : null}
           chipClass="bg-violet-50 text-violet-700"
@@ -416,7 +426,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
         <StatCard
           label={t('map:areaDialog.rentalYield')}
           info={<InfoHint title={howTitle} text={t('map:explain.rentalYield')} evidence={leaseEvidence} />}
-          value={yieldNow != null ? `${yieldNow.toFixed(1)}%` : '—'}
+          value={yieldShown != null ? `${yieldShown.toFixed(1)}%` : '—'}
           chip={area.netYield != null ? `${zh ? '净' : 'Net'} ${area.netYield.toFixed(1)}%` : null}
           chipClass="bg-emerald-50 text-emerald-700"
           loading={loading}

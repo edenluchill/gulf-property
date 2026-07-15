@@ -880,6 +880,16 @@ export async function fetchRentList(p: Record<string, string | string[] | undefi
 export type AppreciationPeriodKey = '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '5y';
 export type AppreciationByPeriod = Partial<Record<AppreciationPeriodKey, number | null>>;
 
+// 单周期窗口内的全指标值(「近N期」口径)。
+export interface PeriodMetrics {
+  growth: number | null;    // 窗口涨幅(增值率)
+  priceSqm: number | null;  // 窗口内中位价/㎡
+  unitPrice: number | null; // 窗口内中位总价
+  count: number;            // 窗口内成交量
+  yield: number | null;     // 窗口内回报率(仅 all 口径)
+}
+export type MetricsByPeriod = Partial<Record<AppreciationPeriodKey, PeriodMetrics>>;
+
 export interface AreaInsights {
   months: string[];
   price: (number | null)[];
@@ -891,6 +901,8 @@ export interface AreaInsights {
   appreciation?: AppreciationByPeriod;
   /** 全市同口径增值率基准(「本区 vs 全市」对比) */
   appreciationCity?: AppreciationByPeriod;
+  /** 各周期全指标窗口值(价格/总价/成交量/回报;跟随 segment) */
+  metricsByPeriod?: MetricsByPeriod;
   rentalYield: (number | null)[];
   dataThrough: string | null;
   medianUnitPrice?: number | null;   // median TOTAL transaction price (房子中位总价) for the usage
@@ -915,7 +927,7 @@ export interface AreaInsights {
 // 全部官方区各周期增值率(三口径),地图按周期上色用。一次取回,切周期/口径不重取。
 export interface AllAreaAppreciation {
   dataThrough: string | null;
-  areas: Record<string, Record<'all' | 'offplan' | 'ready', AppreciationByPeriod>>;
+  areas: Record<string, Record<'all' | 'offplan' | 'ready', MetricsByPeriod>>;
 }
 export async function fetchAllAreaAppreciation(): Promise<AllAreaAppreciation | null> {
   try {
