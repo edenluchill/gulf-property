@@ -60,23 +60,26 @@ export default function WelcomePosterModal({ open: openProp, onClose }: { open?:
   const close = () => { if (controlled) onClose?.(); else setAutoOpen(false) }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto"
-         onClick={close}>
-      <div className="relative w-full max-w-md my-8" onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={close}
-          className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-900"
-          aria-label="关闭"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <CelebrationPoster
-          name={name}
-          avatarUrl={avatarUrl}
-          link={joinLink()}
-          shareRewardClaimed={stats.shareRewardClaimed}
-          shareRewardDays={stats.shareRewardDays}
-        />
+    // 外层只管滚动;内层 flex min-h-full 居中 —— 海报很高时(桌面/平板)顶部也能滚到,不被裁。
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/50 backdrop-blur-sm" onClick={close}>
+      <div className="flex min-h-full items-center justify-center p-4">
+        {/* 响应式:手机近满宽,桌面/平板更大 */}
+        <div className="relative my-8 w-full max-w-[min(92vw,540px)]" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={close}
+            className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-900"
+            aria-label="关闭"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <CelebrationPoster
+            name={name}
+            avatarUrl={avatarUrl}
+            link={joinLink()}
+            shareRewardClaimed={stats.shareRewardClaimed}
+            shareRewardDays={stats.shareRewardDays}
+          />
+        </div>
       </div>
     </div>,
     document.body

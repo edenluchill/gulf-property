@@ -192,7 +192,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
   }
 
   return (
-    <div className="relative mx-auto max-w-[380px]">
+    <div className="relative w-full">
       <canvas ref={canvasRef} className="hidden" />
 
       {/* 合成后的海报图 */}
