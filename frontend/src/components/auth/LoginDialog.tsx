@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Mail, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -6,6 +6,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Button } from '../ui/button'
 import { useAuth } from '../../contexts/AuthContext'
 import { isWeChatBrowser } from '../../lib/browser'
+import { friendlyAuthError, isRateLimitError } from '../../lib/authErrors'
+import { useSendCooldown, OTP_COOLDOWN_SECONDS } from '../../hooks/useSendCooldown'
 
 interface LoginDialogProps {
   open: boolean
@@ -23,12 +25,22 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { remaining: cooldown, start: startCooldown } = useSendCooldown()
+
+  // Google/Microsoft 登录整页跳转后按「后退」回来,bfcache 恢复会让 loading 冻在 true
+  // → 按钮永远转圈。pageshow 复位。见 LoginPage 同款注释。
+  useEffect(() => {
+    const reset = () => setLoading(false)
+    window.addEventListener('pageshow', reset)
+    return () => window.removeEventListener('pageshow', reset)
+  }, [])
 
   const handleSendCode = async () => {
     if (!email.trim()) {
       setError(t('emailRequired'))
       return
     }
+    if (cooldown > 0) return // 冷却中,别再发(防触发 Supabase 邮件限流)
 
     setLoading(true)
     setError(null)
@@ -38,8 +50,10 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     setLoading(false)
 
     if (error) {
-      setError(error.message)
+      setError(friendlyAuthError(error, t))
+      if (isRateLimitError(error)) startCooldown(OTP_COOLDOWN_SECONDS)
     } else {
+      startCooldown(OTP_COOLDOWN_SECONDS) // 成功也冷却,和 Supabase 单用户间隔对齐
       setStep('code')
     }
   }
@@ -170,7 +184,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
                   <Button
                     onClick={handleSendCode}
-                    disabled={loading}
+                    disabled={loading || cooldown > 0}
                     className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white py-3 rounded-lg font-medium transition-colors"
                   >
                     {loading ? (
@@ -178,6 +192,8 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         {t('sendingCode')}
                       </>
+                    ) : cooldown > 0 ? (
+                      t('resendIn', 'Resend in {{s}}s', { s: cooldown })
                     ) : (
                       t('sendCode')
                     )}

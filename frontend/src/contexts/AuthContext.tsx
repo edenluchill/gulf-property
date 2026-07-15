@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured, AUTH_STORAGE_KEY, getLastRefresh, readStoredSession } from '../lib/supabase'
-import { identifyVisitor, trackEvent } from '../lib/track'
+import { identifyVisitor, trackEvent, trackError } from '../lib/track'
 import { attachStoredCode } from '../lib/referral'
 import { clearFavorites } from '../lib/favorites'
 import { isAdminEmail, API_BASE_URL } from '../lib/config'
@@ -218,6 +218,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+    if (error) {
+      // 验证码发送失败此前完全没埋点(见 docs/reports/2026-07-15-otp-rate-limit-
+      // monitoring-gap.md):真实用户被卡在登录第一步而后端零感知。补上 → 进
+      // 「错误监控」tab。reason:'otp_send' 区别于 /auth/callback 的回调失败。
+      trackError('auth_failure', {
+        reason: 'otp_send',
+        provider: 'email',
+        status: (error as { status?: number }).status ?? null,
+        message: (error.message || '').slice(0, 300),
+      })
+    }
     return { error }
   }
 

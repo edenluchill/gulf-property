@@ -7,6 +7,8 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { useAuth } from '../contexts/AuthContext'
 import { isWeChatBrowser } from '../lib/browser'
+import { friendlyAuthError, isRateLimitError } from '../lib/authErrors'
+import { useSendCooldown, OTP_COOLDOWN_SECONDS } from '../hooks/useSendCooldown'
 
 export default function LoginPage() {
   const { t } = useTranslation(['auth', 'common'])
@@ -30,13 +32,24 @@ export default function LoginPage() {
   const [step, setStep] = useState<'email' | 'otp' | 'success'>('email')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { remaining: cooldown, start: startCooldown } = useSendCooldown()
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // 点「Continue with Google」会整页跳转 → loading=true。用户按「后退」回来时页面常从
+  // bfcache 恢复,React state 冻在 loading=true → 按钮永远卡在「Sending...」。pageshow
+  // 是 bfcache 恢复的规范信号(首次加载也会触发,那时 loading 本就是 false,复位无副作用)。
+  useEffect(() => {
+    const reset = () => setLoading(false)
+    window.addEventListener('pageshow', reset)
+    return () => window.removeEventListener('pageshow', reset)
+  }, [])
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     if (!email.trim()) {
       setError(t('auth:emailRequired'))
       return
     }
+    if (cooldown > 0) return // 冷却中,别再发(防触发 Supabase 邮件限流)
 
     setLoading(true)
     setError('')
@@ -44,12 +57,14 @@ export default function LoginPage() {
     try {
       const { error } = await signInWithOtp(email)
       if (error) {
-        setError(error.message)
+        setError(friendlyAuthError(error, t))
+        if (isRateLimitError(error)) startCooldown(OTP_COOLDOWN_SECONDS)
       } else {
+        startCooldown(OTP_COOLDOWN_SECONDS) // 成功也冷却,和 Supabase 单用户间隔对齐
         setStep('otp')
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to send code')
+      setError(err.message || t('auth:errGeneric', 'Failed to send code'))
     } finally {
       setLoading(false)
     }
@@ -438,13 +453,15 @@ export default function LoginPage() {
                       <Button
                         type="submit"
                         className="w-full h-12 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-medium text-base shadow-lg shadow-teal-500/25 hover:shadow-teal-500/35 transition-all"
-                        disabled={loading}
+                        disabled={loading || cooldown > 0}
                       >
                         {loading ? (
                           <>
                             <Loader2 className="h-5 w-5 animate-spin mr-2" />
                             {t('auth:sendingCode', 'Sending...')}
                           </>
+                        ) : cooldown > 0 ? (
+                          t('auth:resendIn', 'Resend in {{s}}s', { s: cooldown })
                         ) : (
                           t('auth:sendCode', 'Send login code')
                         )}
@@ -528,17 +545,30 @@ export default function LoginPage() {
                         )}
                       </Button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStep('email')
-                          setOtpCode('')
-                          setError('')
-                        }}
-                        className="w-full text-center text-slate-500 hover:text-teal-600 text-sm transition-colors"
-                      >
-                        {t('auth:useAnotherEmail', 'Use a different email')}
-                      </button>
+                      <div className="flex items-center justify-center gap-4 text-sm">
+                        <button
+                          type="button"
+                          disabled={loading || cooldown > 0}
+                          onClick={() => handleSendOtp()}
+                          className="text-teal-600 hover:text-teal-700 transition-colors disabled:text-slate-400 disabled:cursor-not-allowed"
+                        >
+                          {cooldown > 0
+                            ? t('auth:resendIn', 'Resend in {{s}}s', { s: cooldown })
+                            : t('auth:resendCode', 'Resend code')}
+                        </button>
+                        <span className="text-slate-300">·</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStep('email')
+                            setOtpCode('')
+                            setError('')
+                          }}
+                          className="text-slate-500 hover:text-teal-600 transition-colors"
+                        >
+                          {t('auth:useAnotherEmail', 'Use a different email')}
+                        </button>
+                      </div>
                     </form>
                   )}
                 </div>
