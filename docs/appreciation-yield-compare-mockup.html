@@ -1,0 +1,524 @@
+<style>
+  :root{
+    --bg:#eef1f5; --panel:#ffffff; --panel-2:#f7f9fb;
+    --ink:#1e2430; --ink-soft:#5b6472; --ink-faint:#8a93a3;
+    --line:rgba(20,28,45,.09); --line-strong:rgba(20,28,45,.15);
+    --accent:#6d5df6; --accent-soft:rgba(109,93,246,.12);
+    --up:#0fae7a; --up-soft:rgba(15,174,122,.13);
+    --warn:#e0921a; --warn-soft:rgba(224,146,26,.15);
+    --down:#e0561a;
+    --shadow:0 6px 24px rgba(20,28,45,.10);
+    --shadow-sm:0 2px 8px rgba(20,28,45,.07);
+    --r:18px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e1218; --panel:#171d27; --panel-2:#1e2632;
+      --ink:#eaf0f7; --ink-soft:#9aa6b6; --ink-faint:#6b7688;
+      --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+      --accent:#8b7cff; --accent-soft:rgba(139,124,255,.18);
+      --up:#34d399; --up-soft:rgba(52,211,153,.16);
+      --warn:#f0a83a; --warn-soft:rgba(240,168,58,.18);
+      --down:#f5764a;
+      --shadow:0 10px 34px rgba(0,0,0,.5);
+      --shadow-sm:0 2px 10px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f5; --panel:#ffffff; --panel-2:#f7f9fb;
+    --ink:#1e2430; --ink-soft:#5b6472; --ink-faint:#8a93a3;
+    --line:rgba(20,28,45,.09); --line-strong:rgba(20,28,45,.15);
+    --accent:#6d5df6; --accent-soft:rgba(109,93,246,.12);
+    --up:#0fae7a; --up-soft:rgba(15,174,122,.13);
+    --warn:#e0921a; --warn-soft:rgba(224,146,26,.15); --down:#e0561a;
+    --shadow:0 6px 24px rgba(20,28,45,.10); --shadow-sm:0 2px 8px rgba(20,28,45,.07);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1218; --panel:#171d27; --panel-2:#1e2632;
+    --ink:#eaf0f7; --ink-soft:#9aa6b6; --ink-faint:#6b7688;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+    --accent:#8b7cff; --accent-soft:rgba(139,124,255,.18);
+    --up:#34d399; --up-soft:rgba(52,211,153,.16);
+    --warn:#f0a83a; --warn-soft:rgba(240,168,58,.18); --down:#f5764a;
+    --shadow:0 10px 34px rgba(0,0,0,.5); --shadow-sm:0 2px 10px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 20px 80px}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* ---- page head ---- */
+  .phead{margin-bottom:34px}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:650}
+  .phead h1{font-size:clamp(24px,4vw,34px);line-height:1.15;margin:.35em 0 .3em;text-wrap:balance;letter-spacing:-.01em}
+  .phead p{color:var(--ink-soft);max-width:64ch;margin:0;font-size:15px}
+  .mocknote{display:inline-flex;align-items:center;gap:7px;margin-top:16px;font-size:12.5px;color:var(--ink-faint);
+    background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:999px;box-shadow:var(--shadow-sm)}
+  .mocknote b{color:var(--ink-soft);font-weight:600}
+
+  /* ---- section ---- */
+  section{margin-top:46px}
+  .sec-tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--accent);
+    background:var(--accent-soft);padding:4px 11px;border-radius:8px;margin-bottom:12px}
+  .sec-h{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sec-sub{color:var(--ink-soft);margin:0 0 22px;font-size:14.5px;max-width:70ch}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:26px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;gap:20px}}
+
+  /* ---- generic app card ---- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .card-pad{padding:18px}
+  .devlabel{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-faint);margin-bottom:10px;font-weight:600}
+  .devlabel .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+
+  /* area header */
+  .area-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .area-name{font-size:19px;font-weight:750;letter-spacing:-.01em}
+  .area-name small{font-size:12px;font-weight:600;color:var(--ink-faint);margin-left:6px;letter-spacing:.02em}
+  .area-meta{font-size:11.5px;color:var(--ink-faint)}
+
+  /* pill rows */
+  .pillrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .pillrow.scroll{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:3px}
+  .pillrow.scroll::-webkit-scrollbar{height:0}
+  .rowlabel{font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);
+    width:100%;margin:2px 0 -2px}
+  .pill{appearance:none;border:1px solid var(--line-strong);background:var(--panel-2);color:var(--ink-soft);
+    font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;
+    transition:transform .08s,background .15s,color .15s,border-color .15s;display:inline-flex;align-items:center;gap:5px}
+  .pill:hover{border-color:var(--accent)}
+  .pill:active{transform:scale(.92)}
+  .pill[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px var(--accent-soft)}
+  .pill .warn-i{font-size:10px;opacity:.85}
+  .pill.seg{padding:6px 14px}
+  :root[data-theme="dark"] .pill[aria-pressed="true"], @media(prefers-color-scheme:dark){.pill[aria-pressed="true"]{color:#0e1218}}
+  :root[data-theme="light"] .pill[aria-pressed="true"]{color:#fff}
+
+  /* big appreciation stat */
+  .stat{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;position:relative}
+  .stat-lab{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:4px}
+  .info{width:15px;height:15px;border-radius:50%;border:1px solid var(--line-strong);color:var(--ink-faint);
+    font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;cursor:help;flex:0 0 auto}
+  .stat-val{display:flex;align-items:baseline;gap:8px}
+  .bignum{font-size:38px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .bignum.up{color:var(--up)} .bignum.down{color:var(--down)}
+  .arrow{font-size:20px;font-weight:800}
+  .stat-per{font-size:12.5px;color:var(--ink-faint);margin-left:auto;align-self:flex-end}
+  .spark{margin:12px 0 10px}
+  .cmp{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12.5px;color:var(--ink-soft);
+    border-top:1px dashed var(--line-strong);padding-top:10px}
+  .cmp b{color:var(--ink);font-weight:700}
+  .badge-up{color:var(--up);font-weight:750}
+  .thinwarn{display:none;align-items:center;gap:7px;margin-top:10px;font-size:12px;color:var(--warn);
+    background:var(--warn-soft);border-radius:9px;padding:7px 10px;line-height:1.35}
+  .thinwarn.show{display:flex}
+
+  /* context mini-stats */
+  .ministat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .ms{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+  .ms .l{font-size:11px;color:var(--ink-faint);font-weight:600}
+  .ms .v{font-size:16px;font-weight:750;margin-top:2px}
+
+  /* ---- map mock ---- */
+  .mapmock{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+    background:
+      radial-gradient(120% 90% at 30% 20%,rgba(109,93,246,.10),transparent 55%),
+      linear-gradient(135deg,#20303a,#16222b);}
+  .heat{position:absolute;border-radius:50%;filter:blur(2px);opacity:.85}
+  .ctrl{position:absolute;top:10px;right:10px;width:150px;background:var(--panel);
+    border-radius:14px;padding:5px;box-shadow:var(--shadow);border:1px solid var(--line)}
+  .ctrl .seg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:4px}
+  .ctrl .seg3 span{font-size:10px;text-align:center;padding:5px 0;border-radius:8px;color:var(--ink-soft);font-weight:650;background:var(--panel-2)}
+  .ctrl .seg3 span.on{background:var(--accent);color:#fff}
+  .ctrl .icons{display:flex;gap:3px;justify-content:space-between}
+  .ctrl .icons i{flex:1;height:26px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-style:normal;color:var(--ink-faint)}
+  .ctrl .icons i.on{background:var(--accent-soft);color:var(--accent)}
+  .periodchip{position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:7px;
+    background:var(--panel);border:1px solid var(--accent);color:var(--ink);font-size:12px;font-weight:700;
+    padding:7px 12px;border-radius:999px;box-shadow:var(--shadow);cursor:pointer;animation:pulse 2.4s ease-in-out infinite}
+  .periodchip .k{color:var(--up)}
+  .periodchip .car{color:var(--accent);font-size:11px}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--accent-soft)}50%{box-shadow:0 0 0 6px transparent}}
+  @media(prefers-reduced-motion:reduce){.periodchip{animation:none}}
+
+  /* ---- annotation column ---- */
+  .anno{position:sticky;top:20px}
+  .anno h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint);margin:0 0 12px;font-weight:700}
+  .exp{display:flex;gap:11px;margin-bottom:15px}
+  .exp .n{flex:0 0 26px;height:26px;border-radius:9px;background:var(--accent-soft);color:var(--accent);
+    font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .exp .t{font-size:13.5px;color:var(--ink-soft);line-height:1.5}
+  .exp .t b{color:var(--ink);font-weight:700}
+
+  /* ---- feature 2: project ---- */
+  .invtiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  @media(max-width:520px){.invtiles{grid-template-columns:1fr 1fr}}
+  .tile{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 11px}
+  .tile .l{font-size:10.5px;color:var(--ink-faint);font-weight:600;line-height:1.25}
+  .tile .v{font-size:18px;font-weight:780;margin-top:3px}
+  .tile .v small{font-size:11px;font-weight:600;color:var(--ink-faint)}
+
+  .yblock{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .yhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .yhead .tt{font-size:14.5px;font-weight:750}
+  .verdict{font-size:13px;font-weight:750;padding:6px 12px;border-radius:999px}
+  .verdict.above{color:var(--up);background:var(--up-soft)}
+  .verdict.below{color:var(--warn);background:var(--warn-soft)}
+
+  /* ruler */
+  .ruler{margin:22px 4px 8px;position:relative;height:8px;border-radius:999px;
+    background:linear-gradient(90deg,var(--warn-soft),var(--up-soft))}
+  .ruler .avg{position:absolute;top:-6px;width:2px;height:20px;background:var(--ink-faint);border-radius:2px;transform:translateX(-50%)}
+  .ruler .avg::after{content:"区域均值";position:absolute;top:-17px;left:50%;transform:translateX(-50%);
+    font-size:10px;color:var(--ink-faint);white-space:nowrap;font-weight:650}
+  .ruler .dot{position:absolute;top:50%;width:20px;height:20px;border-radius:50%;transform:translate(-50%,-50%);
+    border:3px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.25);transition:left .5s cubic-bezier(.22,1,.36,1)}
+  .ruler .dot.above{background:var(--up)} .ruler .dot.below{background:var(--warn)}
+  .ruler .dot::after{content:attr(data-lab);position:absolute;top:24px;left:50%;transform:translateX(-50%);
+    font-size:12px;font-weight:800;white-space:nowrap;color:var(--ink)}
+  .rends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-faint);margin:26px 2px 0;font-weight:600}
+
+  .tierbar{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-faint);margin:14px 0 4px}
+  .tierbar b{color:var(--ink-soft);font-weight:700}
+  .tierbadge{display:inline-flex;align-items:center;gap:5px;background:var(--accent-soft);color:var(--accent);
+    font-weight:700;padding:3px 9px;border-radius:7px}
+
+  .why-h{font-size:12px;font-weight:700;color:var(--ink-soft);margin:16px 0 9px;letter-spacing:.02em}
+  .factors{display:flex;flex-direction:column;gap:8px}
+  .fac{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+  .fac .ic{flex:0 0 26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+  .fac.up .ic{background:var(--up-soft);color:var(--up)} .fac.down .ic{background:var(--warn-soft);color:var(--warn)}
+  .fac.flat .ic{background:var(--panel-2);color:var(--ink-faint)}
+  .fac .tx{flex:1;min-width:0} .fac .tx .a{font-size:13px;font-weight:700} .fac .tx .b{font-size:11.5px;color:var(--ink-faint)}
+  .fac .val{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+  .fac.up .val{color:var(--up)} .fac.down .val{color:var(--warn)}
+
+  details.method{margin-top:14px;border-top:1px dashed var(--line-strong);padding-top:12px}
+  details.method summary{font-size:12.5px;color:var(--accent);font-weight:700;cursor:pointer;list-style:none}
+  details.method summary::-webkit-details-marker{display:none}
+  details.method summary::before{content:"▸ ";}
+  details.method[open] summary::before{content:"▾ "}
+  details.method p{font-size:12px;color:var(--ink-soft);line-height:1.55;margin:9px 0 0}
+
+  .switch{display:inline-flex;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:4px;margin-bottom:14px}
+  .switch button{appearance:none;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:700;
+    color:var(--ink-soft);padding:6px 13px;border-radius:8px;cursor:pointer}
+  .switch button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow-sm)}
+
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-faint);line-height:1.6}
+  a.spec{color:var(--accent);font-weight:600;text-decoration:none}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+</style>
+
+<div class="wrap">
+  <div class="phead">
+    <div class="eyebrow">UI 原型 · 客户体验演示</div>
+    <h1>增值率对比 &amp; 项目 vs 区域回报率</h1>
+    <p>沿用 App 现有视觉系统（白卡 · 紫色药丸 · sparkline · 对比标尺）。下面两块都可点：切周期、切市场口径、切项目，看数字与状态怎么变。</p>
+    <span class="mocknote">● <b>数字为示意 mock</b>，真实数据来自 DLD 成交 · 每个指标都会标口径与样本量</span>
+  </div>
+
+  <!-- ============ FEATURE 1 ============ -->
+  <section>
+    <span class="sec-tag">功能 1</span>
+    <h2 class="sec-h">区域增值率 · 自选周期</h2>
+    <p class="sec-sub">买家自己挑周期看"最近涨了多少"，永远垫一条全市对比。周期在 AreaBlock 里平铺可选，在地图上点一下就切、热力图重新上色。</p>
+
+    <div class="grid">
+      <!-- AreaBlock card -->
+      <div class="card card-pad">
+        <div class="devlabel"><span class="dot"></span>区域详情 · AreaBlock（弹窗/移动端 bottom sheet）</div>
+
+        <div class="area-top">
+          <div class="area-name">朱美拉湖塔 <small>JLT</small></div>
+          <div class="area-meta">数据截止 2026-06 · 官方区</div>
+        </div>
+
+        <!-- market segment (口径) -->
+        <div class="pillrow" id="segRow" role="group" aria-label="市场口径">
+          <button class="pill seg" data-seg="all" aria-pressed="true">综合</button>
+          <button class="pill seg" data-seg="offplan" aria-pressed="false">期房</button>
+          <button class="pill seg" data-seg="ready" aria-pressed="false">现房</button>
+        </div>
+
+        <!-- period selector -->
+        <div class="pillrow scroll" id="perRow" role="group" aria-label="周期">
+          <span class="rowlabel">周期（增值率跟随上方口径）</span>
+          <button class="pill" data-per="1m" aria-pressed="false">1月 <span class="warn-i">ⓘ</span></button>
+          <button class="pill" data-per="3m" aria-pressed="false">3月 <span class="warn-i">ⓘ</span></button>
+          <button class="pill" data-per="6m" aria-pressed="false">半年 <span class="warn-i">ⓘ</span></button>
+          <button class="pill" data-per="1y" aria-pressed="true">1年</button>
+          <button class="pill" data-per="2y" aria-pressed="false">2年</button>
+          <button class="pill" data-per="3y" aria-pressed="false">3年</button>
+          <button class="pill" data-per="5y" aria-pressed="false">5年</button>
+          <button class="pill" data-per="custom" aria-pressed="false">自定义</button>
+        </div>
+
+        <!-- appreciation stat -->
+        <div class="stat">
+          <div class="stat-lab">资本增值<span class="info" title="滚动窗口中位价之比 · 非点对点 · 端点样本不足自动加宽窗口">i</span></div>
+          <div class="stat-val">
+            <span class="arrow up" id="apArrow">▲</span>
+            <span class="bignum up tnum" id="apVal">+12.4%</span>
+            <span class="stat-per" id="apPer">近1年 · 综合</span>
+          </div>
+          <div class="spark" id="spark"></div>
+          <div class="cmp">
+            <span>本区 <b class="tnum" id="cmpSelf">+12.4%</b></span>
+            <span>全市 <b class="tnum" id="cmpCity">+8.1%</b></span>
+            <span class="badge-up" id="cmpDiff">高于均值 4.3pp</span>
+          </div>
+          <div class="thinwarn" id="thinwarn">⚠ 短周期样本波动大，仅供参考；已按滚动窗口平滑，端点不足会自动加宽</div>
+        </div>
+
+        <!-- context mini stats -->
+        <div class="ministat">
+          <div class="ms"><div class="l">中位价 / m²</div><div class="v tnum">AED 1,840</div></div>
+          <div class="ms"><div class="l">成交量（窗口）</div><div class="v tnum" id="msN">2,150 笔</div></div>
+        </div>
+      </div>
+
+      <!-- annotation + map -->
+      <div class="anno">
+        <div class="mapmock" aria-label="地图控制示意">
+          <span class="heat" style="width:38%;height:34%;left:8%;top:14%;background:radial-gradient(circle,rgba(15,174,122,.9),transparent 70%)"></span>
+          <span class="heat" style="width:30%;height:30%;left:52%;top:40%;background:radial-gradient(circle,rgba(240,168,58,.85),transparent 70%)"></span>
+          <span class="heat" style="width:26%;height:26%;left:30%;top:56%;background:radial-gradient(circle,rgba(224,86,26,.8),transparent 70%)"></span>
+          <div class="ctrl">
+            <div class="seg3"><span class="on">综合</span><span>期房</span><span>现房</span></div>
+            <div class="icons"><i>价</i><i class="on">▲</i><i>量</i><i>租</i><i>净</i></div>
+          </div>
+          <button class="periodchip" id="mapChip">资本增值 · <span class="k tnum" id="chipVal">近1年</span> <span class="car">▾</span></button>
+        </div>
+        <div style="height:18px"></div>
+        <h3>客户体验</h3>
+        <div class="exp"><span class="n">1</span><span class="t"><b>一眼看懂"最近涨没涨"。</b>短线客点 3月/半年，长线投资点 3年/5年——同一张卡，各取所需。</span></div>
+        <div class="exp"><span class="n">2</span><span class="t"><b>永远垫一条全市对比。</b>「涨 12%」听着高，但全市涨 8%——<b>高于均值 4.3pp</b> 才是这个区真本事，避免被绝对数字误导。</span></div>
+        <div class="exp"><span class="n">3</span><span class="t"><b>短周期诚实标注。</b>1月/3月挂 ⓘ「样本波动大」，不糊弄；端点样本不足自动加宽窗口，绝不硬报抖动数。</span></div>
+        <div class="exp"><span class="n">4</span><span class="t"><b>地图上点一下就切。</b>经纪带看不用离开地图——点左下角药丸切周期，热力图立刻重新上色，控制卡高度不变。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURE 2 ============ -->
+  <section>
+    <span class="sec-tag">功能 2</span>
+    <h2 class="sec-h">项目 vs 区域 · 租金回报对比</h2>
+    <p class="sec-sub">看单个项目时，一条标尺立刻定位它在区域里的位置——高于还是低于均值几个点，并用可算的因子说清"为什么"，不编。</p>
+
+    <div class="grid">
+      <div class="card card-pad">
+        <div class="devlabel"><span class="dot"></span>项目详情 · OverviewTab</div>
+
+        <div class="switch" id="projSwitch" role="group" aria-label="切换示例项目">
+          <button data-proj="verde" aria-pressed="true">Sobha Verde（高于区域）</button>
+          <button data-proj="tower" aria-pressed="false">Marina Gate 2（低于区域）</button>
+        </div>
+
+        <!-- investment tiles -->
+        <div class="invtiles">
+          <div class="tile"><div class="l">毛租金回报</div><div class="v tnum" id="tGross">6.8<small>%</small></div></div>
+          <div class="tile"><div class="l">净回报</div><div class="v tnum" id="tNet">5.9<small>%</small></div></div>
+          <div class="tile"><div class="l">5年年化</div><div class="v tnum" id="tCagr">14.2<small>%</small></div></div>
+          <div class="tile"><div class="l">回本年限</div><div class="v tnum" id="tPay">7.1<small>年</small></div></div>
+        </div>
+
+        <!-- yield vs area -->
+        <div class="yblock">
+          <div class="yhead">
+            <span class="tt">本项目 vs 区域租金回报</span>
+            <span class="verdict above" id="verdict">高于区域均值 +0.6pp</span>
+          </div>
+
+          <div class="ruler" id="ruler">
+            <div class="avg" id="rAvg"></div>
+            <div class="dot above" id="rDot" data-lab="6.8%"></div>
+          </div>
+          <div class="rends"><span id="rMin">4.1% 区域最低</span><span id="rMax">区域最高 8.5%</span></div>
+
+          <div class="tierbar">
+            <span class="tierbadge" id="tier">🎯 本社区</span>
+            <span>置信度 <b id="conf">高</b></span>
+            <span>样本 <b class="tnum" id="samp">142</b> 笔</span>
+            <span>截止 <b>2026-06</b></span>
+          </div>
+
+          <div class="why-h">为什么？（数据分解 · 不接 AI）</div>
+          <div class="factors" id="factors"></div>
+
+          <details class="method">
+            <summary>怎么算的</summary>
+            <p>回报率 = 中位新签租金/㎡ ÷ 中位成交价/㎡。项目回报偏离区域，必然来自可算因子：溢价（价格高→摊薄）、户型（小户型租金/㎡ 更高）、期房/现房口径、物业费（影响净回报）。上面每条都从 DLD 数据算出贡献值，按影响排序，不做主观解读。</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="anno">
+        <h3>客户体验</h3>
+        <div class="exp"><span class="n">1</span><span class="t"><b>结论一秒到位。</b>标尺上一个点 + 一句 verdict：客户不用懂行也知道"这盘在区域里算好还是差"。</span></div>
+        <div class="exp"><span class="n">2</span><span class="t"><b>给结论也给原因。</b>回报高是因为<b>户型偏小、租金/㎡ 高</b>；被摊薄是因为<b>溢价 8%</b>——客户信服，经纪好讲，不是一句空口"性价比高"。</span></div>
+        <div class="exp"><span class="n">3</span><span class="t"><b>数字站得住。</b>标匹配层级（本开发体/本社区/区域）+ 置信度 + 样本量——跟别家网站对不上时，能解释是口径不同，不掉信任。</span></div>
+        <div class="exp"><span class="n">4</span><span class="t"><b>两种状态都体面。</b>切到 Marina Gate 2 看"低于区域"——不藏短板，把原因摆清楚（溢价 18%、大户型多），反而帮客户做明白的决策。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    完整设计见 <a class="spec" href="#">docs/appreciation-yield-compare-spec.md</a> · 数据层共用一张「区域×月×口径 中位价/中位租金」预计算表，增值率与回报率是它的两个视图 · 项目级增值率不做（样本太薄=噪声），项目页落到所在区域 + 附真实成交明细。
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s)};
+
+  /* ---------- Feature 1 ---------- */
+  var AP={
+    '1m':{lab:'1月', pct:0.9,  city:0.6, n:180,  thin:true},
+    '3m':{lab:'3月', pct:2.4,  city:1.8, n:520,  thin:true},
+    '6m':{lab:'半年',pct:5.1,  city:3.9, n:1080, thin:true},
+    '1y':{lab:'1年', pct:12.4, city:8.1, n:2150},
+    '2y':{lab:'2年', pct:28.6, city:19.4,n:4300},
+    '3y':{lab:'3年', pct:41.2, city:30.1,n:6500},
+    '5y':{lab:'5年', pct:73.5, city:55.2,n:9800},
+    'custom':{lab:'自定义',pct:16.8,city:11.0,n:2900}
+  };
+  var SEG={all:{m:1,name:'综合'},offplan:{m:1.16,name:'期房'},ready:{m:0.9,name:'现房'}};
+  var curPer='1y', curSeg='all';
+  var NOISE=[0,.28,-.18,.42,.1,-.3,.36,.05,-.22,.48,.2,-.12,.34,0]; // fixed seeded wobble
+
+  function fmtP(v){return (v>=0?'+':'')+v.toFixed(1)+'%';}
+
+  function sparkSVG(pct,thin){
+    var W=280,H=64,P=6,n=NOISE.length;
+    var amp=(thin?0.30:0.09)*Math.abs(pct)+ .4;
+    var pts=[],max=-1e9,min=1e9;
+    for(var i=0;i<n;i++){
+      var t=i/(n-1);
+      var v=t*pct + NOISE[i]*amp;
+      pts.push(v); if(v>max)max=v; if(v<min)min=v;
+    }
+    var rng=(max-min)||1;
+    function X(i){return P+(W-2*P)*i/(n-1);}
+    function Y(v){return P+(H-2*P)*(1-(v-min)/rng);}
+    var d='',a='M '+X(0)+' '+Y(pts[0]);
+    for(var i=0;i<n;i++){ d+=(i?' L ':'M ')+X(i).toFixed(1)+' '+Y(pts[i]).toFixed(1); }
+    a='M '+X(0)+' '+H+' L '+X(0)+' '+Y(pts[0]);
+    for(var i=1;i<n;i++){a+=' L '+X(i).toFixed(1)+' '+Y(pts[i]).toFixed(1);}
+    a+=' L '+X(n-1)+' '+H+' Z';
+    var col=pct>=0?'var(--up)':'var(--down)';
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="64" preserveAspectRatio="none" aria-hidden="true">'+
+      '<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0" stop-color="'+col+'" stop-opacity="0.22"/>'+
+      '<stop offset="1" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs>'+
+      '<path d="'+a+'" fill="url(#sg)"/>'+
+      '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'+
+      '<circle cx="'+X(n-1)+'" cy="'+Y(pts[n-1])+'" r="3.4" fill="'+col+'" stroke="var(--panel)" stroke-width="2"/></svg>';
+  }
+
+  function renderF1(){
+    var d=AP[curPer], m=SEG[curSeg].m;
+    var pct=+(d.pct*m).toFixed(1), city=+(d.city).toFixed(1);
+    var diff=+(pct-city).toFixed(1);
+    var up=pct>=0;
+    $('#apVal').textContent=fmtP(pct); $('#apVal').className='bignum tnum '+(up?'up':'down');
+    $('#apArrow').textContent=up?'▲':'▼'; $('#apArrow').className='arrow '+(up?'up':'down');
+    $('#apPer').textContent='近'+d.lab.replace('自定义','自定义区间')+' · '+SEG[curSeg].name;
+    $('#cmpSelf').textContent=fmtP(pct); $('#cmpCity').textContent=fmtP(city);
+    var dEl=$('#cmpDiff');
+    if(diff>=0){dEl.textContent='高于均值 '+diff.toFixed(1)+'pp';dEl.style.color='var(--up)';}
+    else{dEl.textContent='低于均值 '+Math.abs(diff).toFixed(1)+'pp';dEl.style.color='var(--warn)';}
+    $('#spark').innerHTML=sparkSVG(pct,d.thin);
+    $('#msN').textContent=d.n.toLocaleString()+' 笔';
+    $('#thinwarn').className='thinwarn'+(d.thin?' show':'');
+    $('#chipVal').textContent='近'+d.lab;
+  }
+
+  $('#perRow').addEventListener('click',function(e){
+    var b=e.target.closest('.pill'); if(!b)return;
+    curPer=b.dataset.per;
+    [].forEach.call(this.querySelectorAll('.pill'),function(p){p.setAttribute('aria-pressed',p===b);});
+    renderF1();
+  });
+  $('#segRow').addEventListener('click',function(e){
+    var b=e.target.closest('.pill'); if(!b)return;
+    curSeg=b.dataset.seg;
+    [].forEach.call(this.querySelectorAll('.pill'),function(p){p.setAttribute('aria-pressed',p===b);});
+    // segment 铁律：期房/现房也影响 seg3 灯
+    var lit={all:0,offplan:1,ready:2}[curSeg];
+    [].forEach.call(document.querySelectorAll('.ctrl .seg3 span'),function(s,i){s.className=i===lit?'on':'';});
+    renderF1();
+  });
+  $('#mapChip').addEventListener('click',function(){
+    // 演示：点地图药丸循环切到下一个常用周期
+    var order=['3m','1y','3y','5y']; var i=order.indexOf(curPer); curPer=order[(i+1)%order.length];
+    [].forEach.call($('#perRow').querySelectorAll('.pill'),function(p){p.setAttribute('aria-pressed',p.dataset.per===curPer);});
+    renderF1();
+  });
+
+  /* ---------- Feature 2 ---------- */
+  var PROJ={
+    verde:{gross:6.8,net:5.9,cagr:14.2,pay:7.1,verdict:'above',gap:0.6,
+      area:{min:4.1,avg:6.2,max:8.5},tier:'🎯 本开发体',conf:'高',samp:142,
+      factors:[
+        {t:'户型偏小',d:'1B 为主，租金/㎡ 更高',v:'+0.9pp',dir:'up',ic:'↑'},
+        {t:'溢价 8%',d:'成交价高于区域中位',v:'−0.5pp',dir:'down',ic:'↓'},
+        {t:'物业费偏高',d:'净回报进一步下调',v:'−0.2pp',dir:'down',ic:'↓'},
+        {t:'现房交付',d:'按实收租金口径',v:'',dir:'flat',ic:'≈'}
+      ]},
+    tower:{gross:5.4,net:4.6,cagr:11.5,pay:9.3,verdict:'below',gap:-0.8,
+      area:{min:4.1,avg:6.2,max:8.5},tier:'📍 本社区',conf:'中',samp:88,
+      factors:[
+        {t:'溢价 18%',d:'滨水地标溢价高，摊薄回报',v:'−1.1pp',dir:'down',ic:'↓'},
+        {t:'大户型多',d:'2–3B 占比高，租金/㎡ 偏低',v:'−0.4pp',dir:'down',ic:'↓'},
+        {t:'物业费高',d:'高端塔楼服务费高',v:'−0.3pp',dir:'down',ic:'↓'},
+        {t:'户型稀缺',d:'高层景观单位需求稳',v:'+0.6pp',dir:'up',ic:'↑'}
+      ]}
+  };
+
+  function renderF2(key){
+    var p=PROJ[key];
+    $('#tGross').innerHTML=p.gross.toFixed(1)+'<small>%</small>';
+    $('#tNet').innerHTML=p.net.toFixed(1)+'<small>%</small>';
+    $('#tCagr').innerHTML=p.cagr.toFixed(1)+'<small>%</small>';
+    $('#tPay').innerHTML=p.pay.toFixed(1)+'<small>年</small>';
+
+    var v=$('#verdict');
+    if(p.verdict==='above'){v.className='verdict above';v.textContent='高于区域均值 +'+p.gap.toFixed(1)+'pp';}
+    else{v.className='verdict below';v.textContent='低于区域均值 '+p.gap.toFixed(1)+'pp';}
+
+    var a=p.area, span=a.max-a.min;
+    $('#rAvg').style.left=((a.avg-a.min)/span*100)+'%';
+    var dot=$('#rDot');
+    dot.style.left=Math.max(3,Math.min(97,(p.gross-a.min)/span*100))+'%';
+    dot.className='dot '+(p.verdict==='above'?'above':'below');
+    dot.setAttribute('data-lab',p.gross.toFixed(1)+'%');
+    $('#rMin').textContent=a.min.toFixed(1)+'% 区域最低';
+    $('#rMax').textContent='区域最高 '+a.max.toFixed(1)+'%';
+    $('#tier').textContent=p.tier;
+    $('#conf').textContent=p.conf; $('#samp').textContent=p.samp;
+
+    $('#factors').innerHTML=p.factors.map(function(f){
+      return '<div class="fac '+f.dir+'"><span class="ic">'+f.ic+'</span>'+
+        '<span class="tx"><span class="a">'+f.t+'</span><span class="b">'+f.d+'</span></span>'+
+        (f.v?'<span class="val">'+f.v+'</span>':'<span class="val" style="color:var(--ink-faint)">—</span>')+'</div>';
+    }).join('');
+  }
+
+  $('#projSwitch').addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b)return;
+    [].forEach.call(this.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x===b);});
+    renderF2(b.dataset.proj);
+  });
+
+  renderF1();
+  renderF2('verde');
+})();
+</script>

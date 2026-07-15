@@ -3,6 +3,7 @@ import { ResidentialProject, UnitType } from '../../types'
 import { ProjectInsights } from '../../lib/api'
 import { useTranslation } from 'react-i18next'
 import { PriceCheckModule } from './PriceCheckModule'
+import { YieldVsAreaModule } from './YieldVsAreaModule'
 import InvestmentScorecard from '../../components/project/InvestmentScorecard'
 import BuyerConfidence from '../../components/project/BuyerConfidence'
 
@@ -63,6 +64,11 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
         offplan={project.status === 'upcoming' || project.status === 'under-construction'}
         lang={i18n.language}
       />
+    )}
+
+    {/* 本项目 vs 区域租金回报 + 价格×租金分解(仅在有独立开发体回报时出现) */}
+    {insights?.yield_comparison && (
+      <YieldVsAreaModule insights={insights} lang={i18n.language} />
     )}
 
     {/* Investor-confidence: Golden Visa, freehold/tax-free, build progress + handover */}

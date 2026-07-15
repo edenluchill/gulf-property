@@ -20,6 +20,38 @@ const HUBS: { hub: string; lng: number; lat: number }[] = [
   { hub: 'DXB Airport', lng: 55.3644, lat: 25.2532 },
 ]
 
+/** One driver of the project↔area yield gap. `est_pp` sums across factors to
+ *  the measured gap (price + rent decomposition is exact); qualitative notes
+ *  (e.g. offplan) carry est_pp = null. */
+export interface YieldFactor {
+  key: 'price' | 'rent' | 'offplan'
+  dir: 'up' | 'down' | 'flat'   // effect on the project's yield vs area
+  label: string                 // headline chip, e.g. '溢价 12%'
+  detail: string                // one honest clause of explanation
+  est_pp: number | null         // contribution in percentage points (signed)
+}
+
+export interface YieldComparison {
+  // 'measured'       — development has its own rentals → real project yield, full
+  //                    price×rent split.
+  // 'price_adjusted' — development has sales but no settled rentals yet (the common
+  //                    new-launch case) → project yield ESTIMATED at area rents from
+  //                    the project's own sale price. Isolates the premium's drag on
+  //                    yield — the number a buyer of a new project actually needs.
+  basis: 'measured' | 'price_adjusted'
+  estimated: boolean            // true ⇢ project_yield_pct is an estimate (label it)
+  project_yield_pct: number     // measured dev yield, or price-adjusted estimate
+  area_yield_pct: number        // surrounding community baseline
+  gap_pp: number                // project − area, 1 decimal (signed)
+  verdict: 'above' | 'inline' | 'below'
+  premium_pct: number | null    // dev median price/㎡ vs area median (signed %)
+  tier: 'development'           // only computed at the tightest tier
+  confidence: 'high' | 'medium' | 'low'
+  sample_n: number | null       // development sales count behind the price
+  data_through: string | null
+  factors: YieldFactor[]
+}
+
 export interface ProjectInsights {
   area: {
     id: string | null
@@ -38,6 +70,11 @@ export interface ProjectInsights {
     rent_count: number | null
   } | null
   investment: (Investment5yr & { payback_years: number | null; reference_price: number }) | null
+  // Project (development) rental yield vs its surrounding community, with an
+  // EXACT price×rent decomposition of the gap. Only present when we have a
+  // genuine development-level yield distinct from the area baseline (tier 1 with
+  // its own rentals); null otherwise (project too new → we only know the area).
+  yield_comparison: YieldComparison | null
   nearby: {
     metro: { name: string; distance_m: number; lat?: number; lng?: number }[]
     pois: { category: string; name: string; distance_m: number; lat?: number; lng?: number; khda_rating?: string; description_zh?: string }[]
@@ -49,6 +86,126 @@ export interface ProjectInsights {
 /** Straight-line metres → rough driving minutes (1.4× detour, ~45 km/h). */
 function minsEstimate(distanceM: number): number {
   return Math.max(1, Math.round((distanceM * 1.4) / 1000 / 45 * 60))
+}
+
+/**
+ * Compare a development's rental yield to its community, decomposed by the two
+ * levers of yield (= rent/㎡ ÷ price/㎡):
+ *
+ *  • 'measured'       — the development has its own settled rentals. Real project
+ *                       yield; EXACT price×rent split (holding rent at area level
+ *                       isolates the price contribution, the residual is rent
+ *                       level). price_pp + rent_pp == gap by construction.
+ *  • 'price_adjusted' — sales but no settled rentals yet (the common new-launch
+ *                       case). Yield ESTIMATED at area rents from the project's
+ *                       OWN sale price, so the whole gap is the premium's drag —
+ *                       exactly what a new-project buyer needs. Rent is flagged as
+ *                       assumed, not measured.
+ *
+ * Needs both prices (dev + area median/㎡). Returns null when it can't produce a
+ * meaningful, honest comparison.
+ */
+function buildYieldComparison(args: {
+  rawDevYield: number | null    // development's own yield, or null (borrowed)
+  areaYield: number
+  devPsm: number | null
+  areaPsm: number | null
+  offplan: boolean
+  confidence: 'high' | 'medium' | 'low'
+  sampleN: number | null
+  dataThrough: string | null
+}): YieldComparison | null {
+  const { rawDevYield, areaYield, devPsm, areaPsm, offplan } = args
+  const round1 = (n: number) => Math.round(n * 10) / 10
+  const havePrices = devPsm != null && areaPsm != null && devPsm > 0 && areaPsm > 0
+  if (!havePrices && rawDevYield == null) return null // nothing project-specific to say
+
+  const premiumPct = havePrices ? ((devPsm! - areaPsm!) / areaPsm!) * 100 : null
+  const factors: YieldFactor[] = []
+
+  // Round the two headline yields FIRST, then derive gap and factor pp from the
+  // rounded numbers — so "4.4% vs 5.2% ⇒ gap −0.8pp" and "price + rent == gap"
+  // always reconcile on screen (independent rounding drifted 0.1 apart).
+  const basis: YieldComparison['basis'] = rawDevYield != null ? 'measured' : 'price_adjusted'
+  const projectYield =
+    rawDevYield != null ? round1(rawDevYield) : round1(areaYield * (areaPsm! / devPsm!))
+  const areaY = round1(areaYield)
+  const gap = round1(projectYield - areaY)
+  const prem = premiumPct ?? 0
+
+  if (basis === 'measured' && havePrices) {
+    // Exact split: price effect from the price ratio, rent as the residual so the
+    // two sum to the displayed gap.
+    const priceOnlyYield = areaYield * (areaPsm! / devPsm!)
+    const pricePp = round1(priceOnlyYield - areaYield)
+    const rentPp = round1(gap - pricePp)
+    factors.push({
+      key: 'price',
+      dir: pricePp >= 0 ? 'up' : 'down',
+      label: prem >= 0 ? `溢价 ${Math.round(prem)}%` : `折价 ${Math.round(-prem)}%`,
+      detail: prem >= 0 ? '成交价高于区域中位，摊薄回报' : '成交价低于区域中位，抬升回报',
+      est_pp: pricePp,
+    })
+    factors.push({
+      key: 'rent',
+      dir: rentPp >= 0 ? 'up' : 'down',
+      label: rentPp >= 0 ? '租金高于区域' : '租金低于区域',
+      detail:
+        rentPp >= 0
+          ? '本开发体新签租金/㎡ 高于区域，多因户型偏小、楼龄或精装'
+          : '本开发体新签租金/㎡ 低于区域，多因大户型占比高或楼龄',
+      est_pp: rentPp,
+    })
+  } else if (basis === 'price_adjusted') {
+    // Buy at this project's price, rent at area rates → the whole gap is price.
+    factors.push({
+      key: 'price',
+      dir: gap >= 0 ? 'up' : 'down',
+      label: prem >= 0 ? `溢价 ${Math.round(prem)}%` : `折价 ${Math.round(-prem)}%`,
+      detail:
+        prem >= 0
+          ? '成交价高于区域中位，同等租金下摊薄回报'
+          : '成交价低于区域中位，同等租金下抬升回报',
+      est_pp: gap,
+    })
+    factors.push({
+      key: 'rent',
+      dir: 'flat',
+      label: '租金按区域估算',
+      detail: '本开发体暂无稳定租赁记录，租金以区域水平估算；若实际跑赢区域，回报会更高',
+      est_pp: null,
+    })
+  }
+
+  const verdict: YieldComparison['verdict'] = gap > 0.3 ? 'above' : gap < -0.3 ? 'below' : 'inline'
+
+  if (offplan) {
+    factors.push({
+      key: 'offplan',
+      dir: 'flat',
+      label: '期房阶段',
+      detail: '尚未交付，回报为持有期估算',
+      est_pp: null,
+    })
+  }
+
+  // Dominant (largest |pp|) driver first; qualitative notes fall to the end.
+  factors.sort((a, b) => Math.abs(b.est_pp ?? -1) - Math.abs(a.est_pp ?? -1))
+
+  return {
+    basis,
+    estimated: basis === 'price_adjusted',
+    project_yield_pct: projectYield,
+    area_yield_pct: areaY,
+    gap_pp: gap,
+    verdict,
+    premium_pct: premiumPct != null ? round1(premiumPct) : null,
+    tier: 'development',
+    confidence: args.confidence,
+    sample_n: args.sampleN,
+    data_through: args.dataThrough,
+    factors,
+  }
 }
 
 // 缓存:构建一次要 ~8.5s(resolve_project_development ~1.3s + get_development_metrics
@@ -77,7 +234,7 @@ export function invalidateProjectInsights(projectId: string): void {
 
 async function buildProjectInsights(projectId: string): Promise<ProjectInsights | null> {
   const projRes = await pool.query(
-    `SELECT id, project_name, area, latitude, longitude, min_price, starting_price
+    `SELECT id, project_name, area, latitude, longitude, min_price, starting_price, status
        FROM residential_projects WHERE id = $1`,
     [projectId]
   )
@@ -108,6 +265,11 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
   let area: ProjectInsights['area'] = null
   let yieldPct = 0
   let growthPct = 0
+  // Development-level figures kept RAW (before any area fallback), so we can tell
+  // a genuine development yield apart from a borrowed one and decompose the gap.
+  let rawDevYield: number | null = null
+  let devMedianPsm: number | null = null
+  let devSalesCount: number | null = null
 
   // Resolve project → DLD development (master_project) + official area_id.
   let resolvedMaster: string | null = null
@@ -141,6 +303,10 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
          JOIN dubai_areas da ON da.id = dla.dubai_area_id
          JOIN dubai_area_rolling_metrics dam ON dam.dubai_area_id = da.id
         WHERE dla.area_id = $1
+          -- yield/growth only live on the residential 'all' row (offplan/commercial
+          -- rows carry null yield); without this filter LIMIT 1 grabs an arbitrary
+          -- same-month row and returns null yield → the comparison silently vanishes.
+          AND dam.usage = 'residential' AND dam.segment = 'all'
         ORDER BY dam.period_end_month DESC LIMIT 1`,
       [resolvedAreaId]
     )
@@ -168,6 +334,9 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
       if (d && Number(d.sales_count) >= 30) {
         const devYield = d.rental_yield_pct != null ? parseFloat(d.rental_yield_pct) : null
         const devGrowth = d.price_growth_pct != null ? parseFloat(d.price_growth_pct) : null
+        rawDevYield = devYield
+        devMedianPsm = d.median_price_sqm != null ? parseFloat(d.median_price_sqm) : null
+        devSalesCount = d.sales_count != null ? Number(d.sales_count) : null
         yieldPct = devYield ?? areaMetrics?.yield ?? 0
         growthPct = devGrowth ?? areaMetrics?.growth ?? 0
         area = {
@@ -219,8 +388,9 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
               to_char(dam.period_end_month, 'YYYY-MM-DD') AS period_end_month
          FROM dubai_area_rolling_metrics dam
          JOIN dubai_areas da ON da.id = dam.dubai_area_id
-        WHERE LOWER(da.name) = LOWER($1)
-           OR REPLACE(LOWER(da.name), ' ', '') = REPLACE(LOWER($1), ' ', '')
+        WHERE (LOWER(da.name) = LOWER($1)
+           OR REPLACE(LOWER(da.name), ' ', '') = REPLACE(LOWER($1), ' ', ''))
+          AND dam.usage = 'residential' AND dam.segment = 'all'
         ORDER BY dam.period_end_month DESC
         LIMIT 1`,
       [p.area]
@@ -243,6 +413,24 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
         rent_count: null,
       }
     }
+  }
+
+  // Project (development) yield vs its community. Fires when we matched a
+  // development (tier 1) with an area baseline yield: 'measured' if the dev has
+  // its own rentals, else a 'price_adjusted' estimate from the dev's own sale
+  // price. Returns null when there's nothing project-specific to compare.
+  let yield_comparison: YieldComparison | null = null
+  if (area?.tier === 'development' && areaMetrics?.yield != null) {
+    yield_comparison = buildYieldComparison({
+      rawDevYield,
+      areaYield: areaMetrics.yield,
+      devPsm: devMedianPsm,
+      areaPsm: areaMetrics.median_psm,
+      offplan: p.status === 'upcoming' || p.status === 'under-construction',
+      confidence: area.confidence,
+      sampleN: devSalesCount,
+      dataThrough: area.data_through,
+    })
   }
 
   // 5yr investment projection from the reference price + area yield/growth.
@@ -323,7 +511,7 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
     }
   }
 
-  return { area, investment, nearby, commute }
+  return { area, investment, yield_comparison, nearby, commute }
 }
 
 // ── Real DLD transactions for a project's development ───────────────────────

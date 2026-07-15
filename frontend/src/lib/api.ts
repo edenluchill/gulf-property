@@ -876,6 +876,10 @@ export async function fetchRentList(p: Record<string, string | string[] | undefi
 }
 
 // ---- 区域洞察（地图区域弹窗：四指标月度序列 + 近期成交）----
+// 增值率周期 key,与后端 APPRECIATION_PERIODS + 前端 PeriodSelector 一一对应。
+export type AppreciationPeriodKey = '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '5y';
+export type AppreciationByPeriod = Partial<Record<AppreciationPeriodKey, number | null>>;
+
 export interface AreaInsights {
   months: string[];
   price: (number | null)[];
@@ -883,6 +887,10 @@ export interface AreaInsights {
   /** 全口径月度成交量（含现房/地块）——成交量展示用，不随价格口径缩水 */
   volumeAll?: number[];
   growth: (number | null)[];
+  /** 各周期资本增值率(跟随 segment 口径);滚动窗口中位价之比,样本不足为 null */
+  appreciation?: AppreciationByPeriod;
+  /** 全市同口径增值率基准(「本区 vs 全市」对比) */
+  appreciationCity?: AppreciationByPeriod;
   rentalYield: (number | null)[];
   dataThrough: string | null;
   medianUnitPrice?: number | null;   // median TOTAL transaction price (房子中位总价) for the usage
@@ -904,6 +912,19 @@ export interface AreaInsights {
     regType: 'new' | 'renew';
   }[];
 }
+// 全部官方区各周期增值率(三口径),地图按周期上色用。一次取回,切周期/口径不重取。
+export interface AllAreaAppreciation {
+  dataThrough: string | null;
+  areas: Record<string, Record<'all' | 'offplan' | 'ready', AppreciationByPeriod>>;
+}
+export async function fetchAllAreaAppreciation(): Promise<AllAreaAppreciation | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/area-appreciation`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
 export async function fetchAreaInsights(areaId: string, usage?: string, segment?: string): Promise<AreaInsights | null> {
   try {
     // Backend default is 'all' — send the param for every non-'all' usage
@@ -976,6 +997,29 @@ export async function generateBuyingReport(body: {
 }
 
 // ---- 项目投资 + 位置情报（详情页改版）----
+export interface YieldFactor {
+  key: 'price' | 'rent' | 'offplan';
+  dir: 'up' | 'down' | 'flat';
+  label: string;
+  detail: string;
+  est_pp: number | null;
+}
+
+export interface YieldComparison {
+  basis: 'measured' | 'price_adjusted'; // price_adjusted ⇢ 项目回报为估算(按区域租金)
+  estimated: boolean;
+  project_yield_pct: number;
+  area_yield_pct: number;
+  gap_pp: number;
+  verdict: 'above' | 'inline' | 'below';
+  premium_pct: number | null;
+  tier: 'development';
+  confidence: 'high' | 'medium' | 'low';
+  sample_n: number | null;
+  data_through: string | null;
+  factors: YieldFactor[];
+}
+
 export interface ProjectInsights {
   area: {
     id: string | null;
@@ -1003,6 +1047,9 @@ export interface ProjectInsights {
     payback_years: number | null;
     reference_price: number;
   } | null;
+  // 项目(开发体)租金回报 vs 所在区域,含价格×租金的精确分解;仅在有独立开发体
+  // 回报时出现(项目太新→只知区域→为 null)。见后端 projectInsights.ts。
+  yield_comparison: YieldComparison | null;
   nearby: {
     metro: { name: string; distance_m: number; lat?: number; lng?: number }[];
     pois: { category: string; name: string; distance_m: number; lat?: number; lng?: number }[];

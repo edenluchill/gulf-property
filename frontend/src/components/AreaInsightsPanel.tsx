@@ -10,6 +10,8 @@ import { DubaiArea } from '../types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
 import { fetchAreaInsights, fetchTxList, AreaInsights } from '../lib/api'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
+import { MetricPeriodKey, loadSavedPeriod, savePeriod, periodLabel, SHORT_PERIODS } from '../lib/metricPeriod'
+import { PeriodSelector } from './PeriodSelector'
 import DirhamSymbol from './DirhamSymbol'
 
 // ── 取数 hook ────────────────────────────────────────────────────────────────
@@ -253,6 +255,14 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
     (usageActive || segActive) ? (b ?? null) : (a ?? b)
   const growthNow = pick(area.capitalAppreciation, lastNonNull(insights?.growth))
   const yieldNow = pick(area.rentalYield, lastNonNull(insights?.rentalYield))
+
+  // 资本增值:自选周期(跟随 segment 口径)。周期本地持久化,桌面/移动/地图共用同一 key。
+  const [period, setPeriod] = useState<MetricPeriodKey>(loadSavedPeriod)
+  const changePeriod = (k: MetricPeriodKey) => { setPeriod(k); savePeriod(k) }
+  const apprArea = insights?.appreciation?.[period] ?? null
+  const apprCity = insights?.appreciationCity?.[period] ?? null
+  const apprDelta = apprArea != null && apprCity != null ? Number((apprArea - apprCity).toFixed(1)) : null
+  const shortPeriod = SHORT_PERIODS.includes(period)
   // Rent stability is residential-derived → only meaningful in the 'all' view.
   const stabilityNow = usageActive ? null : (area.rentStability ?? null)
   const medianPsm = pick(area.medianPriceSqm, lastNonNull(insights?.price))
@@ -319,6 +329,16 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           )}
         </div>
       )}
+      {/* 资本增值周期选择器 —— 只驱动下方「资本增值」卡,跟随当前市场口径 */}
+      <div className="mb-2.5">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            {zh ? '资本增值周期' : 'Capital growth period'}
+          </span>
+        </div>
+        <PeriodSelector value={period} onChange={changePeriod} zh={zh} />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         {/* 中位总价 (median total transaction price) */}
         <StatCard
@@ -370,12 +390,27 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
 
         <StatCard
           label={t('map:areaDialog.capitalGrowth')}
-          info={<InfoHint title={howTitle} text={t('map:explain.capitalGrowth')} />}
-          value={growthNow != null ? `${growthNow >= 0 ? '+' : ''}${growthNow.toFixed(1)}%` : '—'}
-          valueClass={growthNow != null && growthNow >= 0 ? 'text-emerald-600' : 'text-rose-600'}
+          info={<InfoHint
+            title={howTitle}
+            text={zh
+              ? `${zh ? '近' : ''}${periodLabel(period, zh)}资本增值 = 该口径「最新滚动窗口中位价/㎡」÷「往前推 ${periodLabel(period, zh)} 的窗口」− 1(非点对点)。${shortPeriod ? '短周期样本薄、波动大，仅供参考。' : ''}样本不足显示「—」，绝不硬报抖动数。`
+              : `Capital growth over ${periodLabel(period, zh)} = latest rolling median price/㎡ ÷ the window ${periodLabel(period, zh)} earlier − 1 (not point-to-point). ${shortPeriod ? 'Short windows are thin & volatile — indicative only. ' : ''}Insufficient samples show “—”.`}
+          />}
+          value={apprArea != null ? `${apprArea >= 0 ? '+' : ''}${apprArea.toFixed(1)}%` : '—'}
+          valueClass={apprArea == null ? 'text-slate-400' : apprArea >= 0 ? 'text-emerald-600' : 'text-rose-600'}
           loading={loading}
         >
-          <SparkLine data={insights?.growth || []} color={growthNow != null && growthNow >= 0 ? '#059669' : '#e11d48'} showZero labels={insights?.months} fmt={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`} />
+          {apprCity != null && (
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] leading-none">
+              <span className="text-slate-400">{zh ? '全市' : 'City'} {apprCity >= 0 ? '+' : ''}{apprCity.toFixed(1)}%</span>
+              {apprDelta != null && (
+                <span className={`rounded px-1 py-0.5 font-semibold ${apprDelta >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                  {apprDelta >= 0 ? (zh ? '高于 +' : 'above +') : (zh ? '低于 ' : 'below ')}{apprDelta.toFixed(1)}pp
+                </span>
+              )}
+            </div>
+          )}
+          <SparkLine data={insights?.growth || []} color={apprArea != null && apprArea >= 0 ? '#059669' : '#e11d48'} showZero labels={insights?.months} fmt={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`} />
         </StatCard>
 
         <StatCard
