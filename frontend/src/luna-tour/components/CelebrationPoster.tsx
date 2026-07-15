@@ -50,12 +50,19 @@ const POSTER = {
   },
 }
 
-// 每个平台专属引导(桌面保存图片后提示去哪发;网页无法直接分到指定 App)
-const CHANNELS: { key: ChannelKey; zh: string; en: string; hintZh: string; hintEn: string }[] = [
-  { key: 'wechat', zh: '微信', en: 'WeChat', hintZh: '已保存海报,打开微信发给好友', hintEn: 'Saved — open WeChat to send' },
-  { key: 'moments', zh: '朋友圈', en: 'Moments', hintZh: '已保存海报,打开微信发朋友圈', hintEn: 'Saved — open WeChat Moments to post' },
-  { key: 'xhs', zh: '小红书', en: 'RED', hintZh: '已保存海报,打开小红书发布', hintEn: 'Saved — open RED to post' },
-  { key: 'douyin', zh: '抖音', en: 'Douyin', hintZh: '已保存海报,打开抖音发布', hintEn: 'Saved — open Douyin to post' },
+// 渠道跟着语言走:中文=微信/小红书/抖音;海外=WhatsApp/Instagram/TikTok/Facebook。
+// 每个带专属引导(桌面保存图片后提示去哪发;网页无法直接分到指定 App)。
+interface Channel { key: ChannelKey; label: string; hint: string }
+const ZH_CHANNELS: Channel[] = [
+  { key: 'wechat', label: '微信', hint: '已保存海报,打开微信发好友/朋友圈' },
+  { key: 'xhs', label: '小红书', hint: '已保存海报,打开小红书发布' },
+  { key: 'douyin', label: '抖音', hint: '已保存海报,打开抖音发布' },
+]
+const EN_CHANNELS: Channel[] = [
+  { key: 'whatsapp', label: 'WhatsApp', hint: 'Saved — open WhatsApp to send' },
+  { key: 'instagram', label: 'Instagram', hint: 'Saved — open Instagram to post' },
+  { key: 'tiktok', label: 'TikTok', hint: 'Saved — open TikTok to post' },
+  { key: 'facebook', label: 'Facebook', hint: 'Saved — open Facebook to post' },
 ]
 
 function loadImg(src: string, cors = false): Promise<HTMLImageElement> {
@@ -187,7 +194,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
     return new File([arr], 'pinzos-poster.png', { type: mime })
   }
 
-  async function share(ch: typeof CHANNELS[number]) {
+  async function share(ch: Channel) {
     if (!dataUrl) return
     const file = dataUrlToFile(dataUrl)
     // 手机:唤起系统分享面板(用户自己挑 App;网页无法直接分到指定 App)
@@ -199,7 +206,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
     }
     // 桌面:保存图片 + 该平台专属引导(打开微信/小红书... 去发布)
     download()
-    setToast(L(ch.hintZh, ch.hintEn))
+    setToast(ch.hint)
     await grantOnce()
     setTimeout(() => setToast(''), 3500)
   }
@@ -241,12 +248,12 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
           )}
         </div>
 
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {CHANNELS.map((c) => (
+        <div className={`mt-3 grid gap-2 ${zh ? 'grid-cols-3' : 'grid-cols-4'}`}>
+          {(zh ? ZH_CHANNELS : EN_CHANNELS).map((c) => (
             <button key={c.key} onClick={() => share(c)} disabled={building}
               className="flex flex-col items-center gap-1.5 rounded-xl py-3 ring-1 ring-slate-100 bg-slate-50 hover:bg-white transition active:scale-95 disabled:opacity-50">
               <ShareChannelIcon channel={c.key} />
-              <span className="text-xs font-medium text-slate-600">{L(c.zh, c.en)}</span>
+              <span className="text-xs font-medium text-slate-600">{c.label}</span>
             </button>
           ))}
         </div>
