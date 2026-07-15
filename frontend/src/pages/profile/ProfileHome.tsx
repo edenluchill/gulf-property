@@ -18,6 +18,7 @@ import { useMyRole } from '../../hooks/useMyRole'
 import { getProjectCount, getFavoriteCount } from '../../lib/favorites'
 import { lunaFetch } from '../../luna-tour/lunaApi'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
+import WelcomePosterModal from '../../luna-tour/components/WelcomePosterModal'  // 入驻海报(重开入口)
 
 // 会员认证证书(navy+烫金正式奖状)入口开关。2026-07-14 owner:太正式,先撤,
 // 新的恭喜入驻海报(推广有礼 tab)取而代之;证书代码全保留,以后要恢复翻回 true。
@@ -48,6 +49,7 @@ export default function ProfileHome() {
   const { badge, me } = useOutletContext<ProfileShellContext>()
 
   const [showBadgeDlg, setShowBadgeDlg] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [showCardEditor, setShowCardEditor] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   useEffect(() => { setAvatarError(false) }, [user?.user_metadata?.avatar_url])
@@ -132,6 +134,15 @@ export default function ProfileHome() {
                 <span aria-hidden>{badge.emoji}</span>
                 {zh ? badge.titleZh : badge.titleEn}
                 <span className="text-white/70">· {L('分享', 'Share')}</span>
+              </button>
+            )}
+            {/* 入驻海报:登录时会自动弹一次,这里给个随时重开的入口(纯扩散,分享得 7 天) */}
+            {['agent', 'agency', 'developer'].includes(role || '') && (
+              <button
+                onClick={() => setShowWelcome(true)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/20 transition active:scale-95"
+              >
+                🎉 {L('我的入驻海报', 'My welcome poster')}<span className="text-white/70">· {L('分享', 'Share')}</span>
               </button>
             )}
           </div>
@@ -334,6 +345,7 @@ export default function ProfileHome() {
       {showCardEditor && (
         <AgentCardEditor onClose={() => { setShowCardEditor(false); loadCard() }} />
       )}
+      <WelcomePosterModal open={showWelcome} onClose={() => setShowWelcome(false)} />
     </div>
   )
 }

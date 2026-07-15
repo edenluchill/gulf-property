@@ -27,15 +27,15 @@ interface Props {
   onClaimed?: (days: number) => void
 }
 
-// 底图原生尺寸
-const W = 1024, H = 1536
+// 底图原生尺寸;CROP_H=裁掉底部烤进图里的假「分享给更多朋友」条(y≈1358 起,不可点)
+const W = 1024, H = 1536, CROP_H = 1356
 const CARD_BG = 'rgb(250,249,254)'
 // 原图里名字/头像的精确位置(像素扫描得到)
 const AVATAR = { cx: 352, cy: 732, r: 66 }
 const NAME_COVER = { x: 448, y: 672, w: 320, h: 82 }   // 盖住原「王帅（Shell）」
 const NAME_TEXT = { x: 456, y: 730, size: 54 }          // 重画当前用户名(baseline)
-// 推荐二维码卡(右下角空白区)
-const QR = { x: 806, y: 1176, size: 152, pad: 14 }
+// 二维码卡(右下角;上移到裁切线之上)
+const QR = { x: 806, y: 1130, size: 152, pad: 14 }
 
 const CHANNELS = [
   { key: 'wechat', label: '微信', emoji: '💬' },
@@ -81,7 +81,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
       if (!canvas) return
       const ctx = canvas.getContext('2d')
       if (!ctx) return
-      canvas.width = W; canvas.height = H
+      canvas.width = W; canvas.height = CROP_H  // 画布只有 CROP_H 高 → 底部假分享条自动被裁掉
 
       const bg = await loadImg('/welcome-poster-template.png').catch(() => null)
       if (!bg || cancelled) return
@@ -192,13 +192,13 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
   }
 
   return (
-    <div className="relative">
+    <div className="relative mx-auto max-w-[380px]">
       <canvas ref={canvasRef} className="hidden" />
 
       {/* 合成后的海报图 */}
       <div className="relative rounded-3xl overflow-hidden ring-1 ring-slate-100 shadow-xl shadow-indigo-500/10 bg-indigo-50">
         {building && (
-          <div className="aspect-[1024/1536] flex items-center justify-center text-indigo-300">
+          <div className="aspect-[1024/1356] flex items-center justify-center text-indigo-300">
             <Loader2 className="w-8 h-8 animate-spin" />
           </div>
         )}

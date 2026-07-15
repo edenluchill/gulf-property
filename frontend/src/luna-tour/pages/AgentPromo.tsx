@@ -1,16 +1,17 @@
 /**
  * 经纪台「推广有礼」tab (route: /agent/promo) — docs/referral-program-spec.md
  *
- * 恭喜入驻海报(分享入口)+ 推荐漏斗 + 进度条 + 成就 badge + 推荐明细 + 已获奖励。
- * 每累计 3 个「合格推荐」(被推荐人真实付费满 30 天)→ 得 1 个月订阅费抵扣。
+ * 「推广」= 推荐同行注册**付费**:被推荐人首月 20% off,推荐人每累计 3 个合格推荐得 1 个月免费。
+ * 用 /i/:code 推荐链接(与「入驻海报」的扩散链接是**两条**,owner 2026-07-14 定,别混)。
  *
- * 🔴 badge 只在这里(经纪侧)显示,绝不进客户可见页面(见 spec §9.1)。
+ * 这里只放:推荐链接 + 分享 + 漏斗 + 进度 + 成就 badge + 已获奖励。
+ * 入驻海报(+7天扩散)在登录弹窗,不在这里。
+ *
+ * 🔴 badge 只在经纪侧,绝不进客户可见页(见 spec §9.1)。
  */
 import { useEffect, useState } from 'react'
-import { Gift, Users, MousePointerClick, BadgeDollarSign, Trophy, Loader2, Info } from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
+import { Gift, Users, MousePointerClick, BadgeDollarSign, Trophy, Loader2, Info, Copy, Check, Share2 } from 'lucide-react'
 import { fetchReferral, type ReferralStats, type AttrStatus } from '../../lib/referralApi'
-import CelebrationPoster from '../components/CelebrationPoster'
 
 const BADGE_STYLE: Record<string, { bg: string; text: string; emoji: string }> = {
   connector: { bg: 'bg-sky-100', text: 'text-sky-700', emoji: '🔗' },
@@ -33,18 +34,26 @@ function daysUntil(iso: string | null): number | null {
 }
 
 export default function AgentPromo() {
-  const { user } = useAuth()
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [loading, setLoading] = useState(true)
-
-  const name = (user?.user_metadata?.name as string) || user?.email?.split('@')[0] || '经纪'
-  const avatarUrl = (user?.user_metadata?.avatar_url as string) || (user?.user_metadata?.picture as string) || null
+  const [copied, setCopied] = useState(false)
 
   const load = () => {
     setLoading(true)
     fetchReferral().then(setStats).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(load, [])
+
+  async function copyLink() {
+    if (!stats) return
+    try { await navigator.clipboard.writeText(stats.link); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* noop */ }
+  }
+  async function shareLink() {
+    if (!stats) return
+    const text = '用我的专属链接注册 Pinzos,首月 8 折 —— 迪拜买房新方式,让位置说话 👇'
+    if (navigator.share) { try { await navigator.share({ title: 'Pinzos 邀请', text, url: stats.link }); return } catch { return } }
+    copyLink()
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center py-24 text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
@@ -68,27 +77,36 @@ export default function AgentPromo() {
         )}
       </div>
 
-      {/* 恭喜入驻海报 + 分享 */}
-      <CelebrationPoster
-        name={name}
-        avatarUrl={avatarUrl}
-        link={stats.link}
-        shareRewardClaimed={stats.shareRewardClaimed}
-        shareRewardDays={stats.shareRewardDays}
-        onClaimed={load}
-      />
-
-      {/* 进度条:再推荐 N 位付费同行,得 1 个月免费 */}
+      {/* 推荐链接卡:主行动 */}
       <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 p-5 text-white shadow-lg shadow-indigo-500/20">
+        <div className="text-sm font-medium text-indigo-100">我的专属推荐链接</div>
+        <div className="mt-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
+          <span className="flex-1 truncate text-sm font-mono">{stats.link}</span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button onClick={copyLink} className="flex items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 transition active:scale-[0.99]">
+            {copied ? <><Check className="w-4 h-4" /> 已复制</> : <><Copy className="w-4 h-4" /> 复制链接</>}
+          </button>
+          <button onClick={shareLink} className="flex items-center justify-center gap-2 rounded-xl bg-indigo-900/40 py-2.5 text-sm font-semibold text-white hover:bg-indigo-900/60 transition active:scale-[0.99]">
+            <Share2 className="w-4 h-4" /> 分享给同行
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-indigo-100">
+          同行用此链接注册,<b className="text-white">首月 8 折</b>;每 <b className="text-white">{stats.perReward}</b> 位付费,你得 <b className="text-white">1 个月免费</b>
+        </p>
+      </div>
+
+      {/* 进度条 */}
+      <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-5">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-indigo-100">距离下一个「免费月」</span>
-          <span className="text-sm font-bold">{stats.progress} / {stats.perReward}</span>
+          <span className="text-sm font-medium text-slate-500">距离下一个「免费月」</span>
+          <span className="text-sm font-bold text-slate-900">{stats.progress} / {stats.perReward}</span>
         </div>
-        <div className="mt-2.5 h-2.5 rounded-full bg-white/25 overflow-hidden">
-          <div className="h-full rounded-full bg-white transition-all" style={{ width: `${(stats.progress / stats.perReward) * 100}%` }} />
+        <div className="mt-2.5 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 transition-all" style={{ width: `${(stats.progress / stats.perReward) * 100}%` }} />
         </div>
-        <p className="mt-3 text-sm text-indigo-50">
-          再推荐 <b className="text-white">{stats.towardNext}</b> 位付费同行,即可获得 <b className="text-white">1 个月免费</b>
+        <p className="mt-3 text-sm text-slate-500">
+          再推荐 <b className="text-indigo-600">{stats.towardNext}</b> 位付费同行,即可获得 <b className="text-indigo-600">1 个月免费</b>
         </p>
       </div>
 
@@ -160,7 +178,7 @@ export default function AgentPromo() {
       <div className="flex gap-2 rounded-xl bg-slate-50 p-3.5 text-xs text-slate-500 leading-relaxed">
         <Info className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
         <div>
-          被推荐的同行通过你的链接注册并**真实付费**满 30 天,即算 1 个合格推荐;每满 {stats.perReward} 个,
+          被推荐的同行通过你的链接注册并<b>真实付费</b>满 30 天,即算 1 个合格推荐;每满 {stats.perReward} 个,
           你的下一期账单自动抵扣 1 个月订阅费。被推荐人首月享 8 折。试用不计入。退款/取消会相应扣减进度。
         </div>
       </div>
