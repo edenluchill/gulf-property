@@ -23,6 +23,7 @@ export default function WelcomePosterModal() {
 
   const email = user?.email || ''
   const name = (user?.user_metadata?.name as string) || email.split('@')[0] || '经纪'
+  const avatarUrl = (user?.user_metadata?.avatar_url as string) || (user?.user_metadata?.picture as string) || null
 
   useEffect(() => {
     if (!email) return
@@ -52,6 +53,7 @@ export default function WelcomePosterModal() {
         </button>
         <CelebrationPoster
           name={name}
+          avatarUrl={avatarUrl}
           link={stats.link}
           shareRewardClaimed={stats.shareRewardClaimed}
           shareRewardDays={stats.shareRewardDays}

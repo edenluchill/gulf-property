@@ -38,6 +38,7 @@ export default function AgentPromo() {
   const [loading, setLoading] = useState(true)
 
   const name = (user?.user_metadata?.name as string) || user?.email?.split('@')[0] || '经纪'
+  const avatarUrl = (user?.user_metadata?.avatar_url as string) || (user?.user_metadata?.picture as string) || null
 
   const load = () => {
     setLoading(true)
@@ -70,6 +71,7 @@ export default function AgentPromo() {
       {/* 恭喜入驻海报 + 分享 */}
       <CelebrationPoster
         name={name}
+        avatarUrl={avatarUrl}
         link={stats.link}
         shareRewardClaimed={stats.shareRewardClaimed}
         shareRewardDays={stats.shareRewardDays}
