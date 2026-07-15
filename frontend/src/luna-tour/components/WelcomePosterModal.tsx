@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchReferral, type ReferralStats } from '../../lib/referralApi'
+import { lunaFetch } from '../lunaApi'
 import CelebrationPoster from './CelebrationPoster'
 
 const SEEN_PREFIX = 'pz-welcome-poster:'
@@ -32,10 +33,18 @@ export default function WelcomePosterModal({ open: openProp, onClose }: { open?:
   const { user } = useAuth()
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [autoOpen, setAutoOpen] = useState(false)
+  const [cardPhoto, setCardPhoto] = useState<string | null>(null)
 
   const email = user?.email || ''
   const name = (user?.user_metadata?.name as string) || email.split('@')[0] || '经纪'
-  const avatarUrl = (user?.user_metadata?.avatar_url as string) || (user?.user_metadata?.picture as string) || null
+  // 头像优先级:经纪名片职业照 > Google 头像 > 首字母(CelebrationPoster 兜底)
+  const avatarUrl = cardPhoto || (user?.user_metadata?.avatar_url as string) || (user?.user_metadata?.picture as string) || null
+
+  // 拉经纪名片拿职业照(海报头像优先用它)
+  useEffect(() => {
+    if (!email) return
+    lunaFetch('/profile').then((r) => r.json()).then((j) => setCardPhoto(j?.agent?.photo_url || null)).catch(() => {})
+  }, [email])
 
   // 拉一次(拿 shareReward 领取状态);受控模式每次打开都拉,自动模式只在没看过时拉。
   useEffect(() => {

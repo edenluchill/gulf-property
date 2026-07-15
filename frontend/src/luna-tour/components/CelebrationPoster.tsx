@@ -109,7 +109,10 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
       ctx.beginPath(); ctx.arc(AV.cx, AV.cy, AV.r + 2, 0, Math.PI * 2); ctx.closePath(); ctx.clip()
       let drewAvatar = false
       if (avatarUrl) {
-        const av = await loadImg(avatarUrl, true).catch(() => null)
+        // 独立缓存键:避免复用「之前 <img> 无 crossOrigin 拿的、不带 CORS 头」的缓存
+        // → 那份缓存会让带 crossOrigin 的加载 CORS 校验失败、污染画布。加 ?canvas=1 单开一份。
+        const cacheKeyed = avatarUrl + (avatarUrl.includes('?') ? '&' : '?') + 'canvas=1'
+        const av = await loadImg(cacheKeyed, true).catch(() => null)
         if (av && !cancelled) { ctx.drawImage(av, AV.cx - AV.r, AV.cy - AV.r, AV.r * 2, AV.r * 2); drewAvatar = true }
       }
       if (!drewAvatar) {
@@ -153,7 +156,8 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
       }
 
       if (cancelled) return
-      setDataUrl(canvas.toDataURL('image/png'))
+      // 兜底:万一某张头像污染了画布,toDataURL 会抛 —— 别让海报卡在 loading。
+      try { setDataUrl(canvas.toDataURL('image/png')) } catch (e) { console.warn('[poster] toDataURL tainted:', e) }
       setBuilding(false)
     })()
     return () => { cancelled = true }
