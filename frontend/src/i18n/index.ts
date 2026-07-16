@@ -38,6 +38,14 @@ import navZh from './locales/zh-CN/nav.json'
 import editorZh from './locales/zh-CN/editor.json'
 import componentsZh from './locales/zh-CN/components.json'
 
+// compare 命名空间 —— 多语言 framework pilot,5 语言全 JSON(ar/ru/fr 只随翻译进度补 ns,
+// 其余 ns 缺失自动回退 en)。新语言的其它 ns 在 P1 逐步加。
+import compareEn from './locales/en/compare.json'
+import compareZh from './locales/zh-CN/compare.json'
+import compareAr from './locales/ar/compare.json'
+import compareRu from './locales/ru/compare.json'
+import compareFr from './locales/fr/compare.json'
+
 const resources = {
   en: {
     common: commonEn,
@@ -57,6 +65,7 @@ const resources = {
     nav: navEn,
     editor: editorEn,
     components: componentsEn,
+    compare: compareEn,
   },
   'zh-CN': {
     common: commonZh,
@@ -76,7 +85,12 @@ const resources = {
     nav: navZh,
     editor: editorZh,
     components: componentsZh,
+    compare: compareZh,
   },
+  // 新语言:目前只有 compare ns(pilot),其余 ns 缺失 → fallbackLng 回退 en。P1 逐步补齐。
+  ar: { compare: compareAr },
+  ru: { compare: compareRu },
+  fr: { compare: compareFr },
 }
 
 i18n
@@ -100,7 +114,7 @@ i18n
     },
     nonExplicitSupportedLngs: true,
     defaultNS: 'common',
-    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components'],
+    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components', 'compare'],
     interpolation: {
       escapeValue: false,
     },
@@ -110,5 +124,17 @@ i18n
       caches: ['localStorage'],
     },
   })
+
+// <html lang/dir> 随语言动态(阿拉伯语=RTL)。装一次,首屏 + 每次切换都生效。
+// 内联归一(不 import lib/tt 防循环依赖)。
+function applyHtmlLangDir(lng?: string) {
+  if (typeof document === 'undefined') return
+  const l = (lng || 'en').toLowerCase()
+  const code = l.startsWith('zh') ? 'zh' : (['ar', 'ru', 'fr'].includes(l.slice(0, 2)) ? l.slice(0, 2) : 'en')
+  document.documentElement.lang = code
+  document.documentElement.dir = code === 'ar' ? 'rtl' : 'ltr'
+}
+i18n.on('languageChanged', applyHtmlLangDir)
+applyHtmlLangDir(i18n.language)
 
 export default i18n

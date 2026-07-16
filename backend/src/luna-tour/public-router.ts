@@ -253,11 +253,7 @@ function buildTourSystemInstruction(opts: {
   spokenSoFar?: string
 }): string {
   const lang =
-    opts.language === 'en'
-      ? 'Respond in English, concise and natural.'
-      : opts.language === 'ar'
-      ? 'أجب بالعربية، بإيجاز وبشكل طبيعي.'
-      : '用中文回复，简洁自然。'
+    `Reply in the SAME language the user writes/speaks — auto-detect and match it (Chinese, English, Arabic, Russian, French, …). Concise and natural.${opts.language ? ` Interface language "${opts.language}" — default to it if unsure.` : ''}`
   const agent = opts.agentName || 'David'
   const prop = opts.propertyName
     ? `客户当前正在看的房源:「${opts.propertyName}」${opts.propertyArea ? `(${opts.propertyArea})` : ''}。`

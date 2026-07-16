@@ -89,7 +89,7 @@ export async function summarizeLunaSession(transcript: LunaTranscript | null | u
 会话记录:
 ${body}
 
-请用中文写 2–4 句摘要,依次说清:
+用「与上面会话相同的语言」写 2–4 句摘要(自动跟随对话语言:中/英/阿/俄/法…),依次说清:
 1. 客户意图 —— 客户想找/想了解什么(结合工具参数推断,如 search_projects{developer:"Emaar"} 说明想找 Emaar 的项目)。
 2. Luna 做了什么 —— 调用了哪些工具、结果如何(如搜索返回 0 条 = 没找到)。
 3. 有没有帮上、有没有问题 —— 是否满足了客户、有无出错或空结果导致体验不好。

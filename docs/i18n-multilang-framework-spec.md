@@ -115,7 +115,7 @@
 
 ## 5. 已定决策（2026-07-15 用户拍板）
 
-1. **三元迁移 = `tt({...})` 内联桥接**（codemod + AI 批填）。
+1. **翻译入库 = JSON + `t()`（标准）** 〔**2026-07-15 修正**：原定 tt() 内联桥接，pilot 实测 5 语言内联对象把组件淹没、且母语校对得改 .tsx——改用 react-i18next JSON。组件里只留 `t('ns:key')`,翻译全在 `locales/<lang>/<ns>.json`,AI/校对只碰 JSON。codemod 自动生成 key,迁移不比 inline 慢。`tt({...})`(lib/tt.ts)降级为**极少数动态串的逃生舱**,不做主路径。**新语言的 JSON 资源块 + i18next.d.ts 类型 + ns 三处要同步**(见 i18n/index.ts 的 ar/ru/fr 块)。〕
 2. **范围 = 面向客户功能优先**（项目/对比/地图/AreaBlock/报价/home/nav/auth）；内部工具(admin/agent/editor/upload)后置。
 3. **ru/fr 先上（LTR）；阿拉伯语 RTL 作为独立 P2 里程碑后做。**
 4. **AI 翻译先上线，母语校对（尤其 ar）异步跟进替换。**

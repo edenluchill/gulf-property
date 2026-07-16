@@ -194,11 +194,9 @@ function buildAnalysisPrompt(properties: PropertyData[], profile: UserProfile, l
   const propertyCount = properties.length
   const labels = PROPERTY_LABELS.slice(0, propertyCount)
 
-  // Determine output language
-  const isChineseLang = language.startsWith('zh')
-  const outputLanguageInstruction = isChineseLang
-    ? `\n\n**IMPORTANT: Generate ALL text content (summary, reasons, explanations, personalizedAdvice) in Simplified Chinese (简体中文). Property names can remain in English.**`
-    : ''
+  // 自动检测:按用户界面语言产出全部文案(界面语言由前端 Accept-Language/参数传入)。
+  const outputLanguageInstruction =
+    `\n\n**IMPORTANT: Generate ALL text content (summary, reasons, explanations, personalizedAdvice) in the user's language (code "${language}" — e.g. zh=简体中文, en=English, ar=العربية, ru=Русский, fr=Français). If unclear, match the language of the input query. Property names can remain in English.**`
 
   // Build property descriptions
   const propertyDescriptions = properties

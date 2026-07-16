@@ -16,9 +16,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 // System instruction generator based on language.
 // Exported so the text-mode agent (/api/voice/text) reuses the EXACT same prompt.
 export function getSystemInstruction(language: string): string {
-  const langInstructions = language === 'zh'
-    ? `语言: 用中文回复，简洁自然。`
-    : `Language: Respond in English, be concise and natural.`
+  // 自动检测:跟着用户说的语言回复(支持中/英/阿/俄/法…),别写死语言。
+  const langInstructions =
+    `Language: reply in the SAME language the user speaks — auto-detect it from their speech and match it (Chinese, English, Arabic, Russian, French, …). Be concise and natural.${language && language !== 'auto' ? ` The user’s interface language is "${language}" — default to it if unsure.` : ''}`
 
   return `You are Luna, Dubai real estate AI.
 
