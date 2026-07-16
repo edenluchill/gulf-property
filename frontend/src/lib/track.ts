@@ -290,6 +290,14 @@ function installApiAttribution(): void {
           init?.headers || (input instanceof Request ? input.headers : undefined)
         )
         if (!headers.has('X-Visitor-Id')) headers.set('X-Visitor-Id', getVisitorId())
+        // 用户语言注入 → 后端 getLang(req) 据此产文案/调 AI(见 i18n framework spec §2.1)
+        if (!headers.has('Accept-Language')) {
+          try {
+            const raw = (localStorage.getItem('pinzos-lang') || '').toLowerCase()
+            const code = raw.startsWith('zh') ? 'zh' : (raw.slice(0, 2) || 'en')
+            headers.set('Accept-Language', ['en', 'zh', 'ar', 'ru', 'fr'].includes(code) ? code : 'en')
+          } catch { /* localStorage 不可用则不注入 */ }
+        }
         if (cachedAccessToken && !headers.has('Authorization')) {
           headers.set('Authorization', `Bearer ${cachedAccessToken}`)
         }
