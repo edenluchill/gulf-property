@@ -206,10 +206,15 @@ projectDetail/misc/gate/lunaTour/profile/roleSelect/about。
 - 前端已全站发 `Accept-Language`(track.ts),后端 `getLang(req)` 拿得到。
 
 ## 轨道 C：阿拉伯语布局 RTL(独立里程碑,文本已就绪)
-- 现状:`<html dir>` 已随语言切(ar=rtl,i18n/index.ts);文本全翻好。**缺的是布局镜像**。
-- 做:**203 处物理 Tailwind → 逻辑属性** `ml-/mr-→ms-/me-`、`pl-/pr-→ps-/pe-`、`left-/right-→start-/end-`、`text-left→text-start`;方向性图标/箭头翻转;地图 UI(右缘 Luna 药丸、筛选 chips 贴左)按 dir 镜像。
-- Tailwind 逻辑属性 v3 原生支持(ms-/me- 等);扫命令:`grep -rloE "\b(ml|mr|pl|pr)-[0-9]" src --include=*.tsx`。
-- 建议专门一期 + 三档截图(414/1180/1440)× RTL 验。
+- 现状:`<html dir>` 已随语言切(ar=rtl);文本全翻好;**语言下拉阿语行反位 bug 已修**。
+- ✅ **安全子集已完成(2026-07-15)**:411 token / 97 文件,`ml/mr→ms/me`、`pl/pr→ps/pe`、`text-left/right→text-start/end`。工具 `frontend/scripts/i18n-rtl-logical.mjs`(只改字符串内 token,不碰注释)。**逻辑属性在 LTR 下=物理属性,零回归**;阿语自动镜像。tsc 0。
+- 🔲 **剩下的(需 RTL 视觉判断,别机械转)**:
+  - **`left-/right-` 绝对定位**(182 处)—— 多数该镜像(Luna 药丸右缘、下拉 `right-0`、筛选 chips),但部分是刻意锁边;要 `start-/end-` 或 `rtl:` 变体,逐个看。
+  - **方向性图标**:`ChevronRight/ChevronLeft/ArrowRight/ArrowLeft`(返回/下一步/展开箭头)在 RTL 要翻转 —— 用 `rtl:rotate-180` 或按 dir 换组件。
+  - `rounded-l/r`(10)、`border-l/r`(37)——视觉边角,低优先。
+  - `space-x-*` 在 RTL 顺序:Tailwind 的 `space-x` 用 `rtl:space-x-reverse` 或改 `gap`。
+  - 地图 UI(右缘药丸、chips 贴左)整体按 dir 镜像。
+- 建议专门一期 + 三档截图(414/1180/1440)× 切到阿语验。**登录用户不受匿名地图额度限制,可真机直接看阿语。**
 
 ## 工具/文件速查
 - 翻译:`cd backend && npx ts-node -T scripts/i18n-translate.ts <ns...>|--all [--langs ar,ru,fr] [--force]`
