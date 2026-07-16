@@ -155,9 +155,27 @@ key 去重(播种已有 key)。translate 自动剥 markdown 围栏。glob 自动
 
 # 📋 接手清单 (PICKUP —— 2026-07-15,下次直接从这里干)
 
-**当前状态**：App 已可在 5 语言下正常用。所有 `t()` 键控 UI = 5 语言全。未迁的内联三元对 ar/ru/fr 英文兜底(不坏)。工具链全部现成+验证过。
+## ✅✅ 轨道 A 已全部完成 (2026-07-15)
 
-## 轨道 A：内联三元 → t()（剩 430 处 / 57 文件）
+**所有面向客户 + 内部经纪台 + 内容页的 UI 串已迁到 `t()`,29 命名空间 × 5 语言全对齐,tsc 0 err。**
+约 **1,900 个双语点 / 40+ 文件 / 15 commit** 清完。新增 ns:payplan/offer/areaInsights/
+projectDetail/misc/gate/lunaTour/profile/roleSelect/about。
+
+**两种双语模式都清了**:内联三元(`i18n-codemod.mjs`)+ `L('中','En')` 辅助函数
+(**新写 `frontend/scripts/i18n-codemod-L.mjs`**,一次抽 388+ luna-tour + 290+ 小文件调用)。
+
+**剩下的 ~65 处 `zh ?` 是「故意保留」,不是遗漏,别再去转**:
+- `lib/generateProjectNotes.ts`(11)——生成散文,**该走后端 AI 按语言生成**(§轨道B),不是 static t()。
+- `lib/metricPeriod.ts`(7)——`periodLabel` 返回 1M/3M/1Y **通用缩写**,zh 给中文、其余给 M/Y 缩写即可。
+- `lib/tt.ts`(2)——tt() 逃生舱 helper **本身的实现**,必须保留。
+- **数据驱动双语**:共享 badge(`badge.titleZh`,UserMenu/ProfileShell/ProfileHome/RoleSelect 各1处,跨文件数据源,改要动 `lib/roleBadge`)、luna-tour 的 `L(obj.label, obj.en)` 枚举 map(AgentClients/AgentBilling/AgentTours/CelebrationPoster/AiEditPanel 等)、LocationTab POI_META、GuidedTour STOP_META、AmenitiesTab meta.zh。
+- **本地化资源/格式**:AboutPage 的 `zh?'/x.jpg':'/x-en.jpg'`(只有 zh/en 两版素材)、㎡/sqft 单位制选择(UnitTypesTab)、offer 存储 lang code、中文页专属 slogan。
+
+**下一步 = 轨道 B(后端中文串)+ 轨道 C(阿语 RTL 布局)**,见下方。轨道 A 收工。
+
+---
+
+## 轨道 A(存档)：内联三元 → t()
 **每个文件跑 §4b 的 4 步**(codemod --write → 若报警加 2 行 casted t + 删 const zh → translate --force → tsc 0 err → 提交)。ns 名 = 组件功能区。
 
 **⚠️ codemod 会安全跳过的(需人工/单独处理,别硬转)**:
