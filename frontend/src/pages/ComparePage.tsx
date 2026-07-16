@@ -417,7 +417,7 @@ export default function ComparePage() {
         `}
       >
         {selected && (
-          <div className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full ${color?.bg} text-white flex items-center justify-center text-xs font-bold shadow-lg`}>
+          <div className={`absolute top-2 start-2 z-10 w-6 h-6 rounded-full ${color?.bg} text-white flex items-center justify-center text-xs font-bold shadow-lg`}>
             {ITEM_LABELS[selectedIdx]}
           </div>
         )}
@@ -460,7 +460,7 @@ export default function ComparePage() {
         </div>
 
         <div className={`
-          absolute bottom-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center
+          absolute bottom-2 end-2 w-5 h-5 rounded-full border-2 flex items-center justify-center
           ${selected
             ? `${color?.bg} border-transparent`
             : 'border-slate-300 bg-white'
@@ -630,7 +630,7 @@ export default function ComparePage() {
                             <Building2 className="h-10 w-10 text-slate-300" />
                           </div>
                         )}
-                        <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded ${color.bg} text-white`}>
+                        <span className={`absolute top-2 start-2 px-2 py-1 text-xs font-bold rounded ${color.bg} text-white`}>
                           {ITEM_LABELS[idx]}
                         </span>
                       </div>
@@ -655,7 +655,7 @@ export default function ComparePage() {
                 <table className="w-full text-sm min-w-[400px]">
                   <thead className="bg-slate-50 border-b">
                     <tr>
-                      <th className="px-3 md:px-4 py-2 text-start text-slate-600 font-medium text-xs md:text-sm sticky left-0 bg-slate-50 z-10 w-20 md:w-auto"></th>
+                      <th className="px-3 md:px-4 py-2 text-start text-slate-600 font-medium text-xs md:text-sm sticky start-0 bg-slate-50 z-10 w-20 md:w-auto"></th>
                       {propertyData.map((_, idx) => (
                         <th key={idx} className={`px-2 md:px-4 py-2 text-center font-semibold text-xs md:text-sm ${ITEM_COLORS[idx].text}`}>
                           {ITEM_LABELS[idx]}
@@ -665,7 +665,7 @@ export default function ComparePage() {
                   </thead>
                   <tbody className="divide-y">
                     <tr>
-                      <td className="px-3 md:px-4 py-2 text-slate-600 font-medium text-xs md:text-sm sticky left-0 bg-white z-10">Price</td>
+                      <td className="px-3 md:px-4 py-2 text-slate-600 font-medium text-xs md:text-sm sticky start-0 bg-white z-10">Price</td>
                       {propertyData.map((prop, idx) => (
                         <td key={idx} className="px-4 py-2 text-center font-semibold text-slate-800">
                           {formatPrice(prop.price)}

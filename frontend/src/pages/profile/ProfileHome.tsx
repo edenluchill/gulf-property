@@ -92,8 +92,8 @@ export default function ProfileHome() {
     <div className="space-y-4">
       {/* ── 身份 hero:头像 + 账号信息(横排紧凑,避免与下方名片重复堆叠) ── */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg md:p-7">
-        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -end-16 -top-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 start-1/3 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
         <div className="relative flex items-center gap-4 text-start">
           {avatarUrl && !avatarError ? (
             <img

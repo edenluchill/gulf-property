@@ -352,10 +352,10 @@ export function ImageLightbox({
                 }`} />
                 {/* Active indicator bar */}
                 {index === currentIndex && (
-                  <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-e bg-white" />
+                  <div className="absolute start-0 top-1.5 bottom-1.5 w-[3px] rounded-e bg-white" />
                 )}
                 {/* Index — zero padded, appears on hover / active */}
-                <div className={`absolute bottom-1 right-1.5 text-[9px] font-semibold tabular-nums tracking-wide transition-opacity duration-200 ${
+                <div className={`absolute bottom-1 end-1.5 text-[9px] font-semibold tabular-nums tracking-wide transition-opacity duration-200 ${
                   index === currentIndex ? 'text-white opacity-100' : 'text-white/80 opacity-0 group-hover:opacity-100'
                 }`} style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
                   {String(index + 1).padStart(2, '0')}
@@ -453,7 +453,7 @@ export function ImageLightbox({
                   />
 
                   {/* Editorial index caption — fades up only on the centered image */}
-                  <div className={`pointer-events-none absolute bottom-4 left-5 flex items-baseline gap-1.5 tabular-nums transition-all duration-500 ${
+                  <div className={`pointer-events-none absolute bottom-4 start-5 flex items-baseline gap-1.5 tabular-nums transition-all duration-500 ${
                     index === currentIndex ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
                   }`} style={{ textShadow: '0 2px 14px rgba(0,0,0,0.85)' }}>
                     <span className="text-white text-2xl font-light leading-none tracking-tight">{String(index + 1).padStart(2, '0')}</span>
@@ -493,14 +493,14 @@ export function ImageLightbox({
           <>
             <button
               onClick={goToPrevious}
-              className="absolute left-5 top-1/2 -translate-y-1/2 p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/55 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
+              className="absolute start-5 top-1/2 -translate-y-1/2 p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/55 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
               aria-label="Previous image"
             >
               <ChevronUp className="h-[18px] w-[18px]" />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-5 top-1/2 -translate-y-1/2 p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/55 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
+              className="absolute end-5 top-1/2 -translate-y-1/2 p-2.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-white/55 hover:text-white hover:border-white/40 hover:bg-black/50 transition-all duration-200"
               aria-label="Next image"
             >
               <ChevronDown className="h-[18px] w-[18px]" />
@@ -548,7 +548,7 @@ export function ImageLightbox({
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               onClick={goToPrevious}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white"
+              className="absolute start-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white"
             >
               <ChevronLeft className="h-5 w-5" />
             </motion.button>
@@ -556,7 +556,7 @@ export function ImageLightbox({
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               onClick={goToNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white"
+              className="absolute end-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white"
             >
               <ChevronRight className="h-5 w-5" />
             </motion.button>

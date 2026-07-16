@@ -182,7 +182,7 @@ export default function CollabBar({
                   style={{ backgroundColor: dotColor(p.connId) }}
                 >
                   {initial(p.name)}
-                  <span className="pointer-events-none absolute -right-1 -top-1 hidden h-3 w-3 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold leading-none text-white group-hover:flex">×</span>
+                  <span className="pointer-events-none absolute -end-1 -top-1 hidden h-3 w-3 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold leading-none text-white group-hover:flex">×</span>
                 </button>
               )
             })}
@@ -203,7 +203,7 @@ export default function CollabBar({
           >
             <MessageCircle className="h-4 w-4" />
             {unread > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-slate-900">
+              <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-slate-900">
                 {unread > 9 ? '9+' : unread}
               </span>
             )}

@@ -143,7 +143,7 @@ export function FavoriteProjectCard({ favorite, onClose }: FavoriteProjectCardPr
 
             {/* Refresh indicator - small spinning icon in corner */}
             {isRefreshing && (
-              <div className="absolute top-1 right-1 bg-white/80 rounded-full p-0.5">
+              <div className="absolute top-1 end-1 bg-white/80 rounded-full p-0.5">
                 <RefreshCw className="h-3 w-3 text-teal-500 animate-spin" />
               </div>
             )}

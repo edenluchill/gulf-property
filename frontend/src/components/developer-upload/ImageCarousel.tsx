@@ -49,7 +49,7 @@ function ImageLightbox({
       <button
         type="button"
         onClick={onClose}
-        className="absolute top-4 right-4 z-50 bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+        className="absolute top-4 end-4 z-50 bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
       >
         <X className="h-6 w-6 text-white" />
       </button>
@@ -61,13 +61,13 @@ function ImageLightbox({
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-16 z-50 bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+        className="absolute top-4 end-16 z-50 bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
       >
         <Download className="h-6 w-6 text-white" />
       </a>
 
       {/* Image counter */}
-      <div className="absolute top-4 left-4 z-50 bg-black/60 text-white text-sm px-3 py-1 rounded-full">
+      <div className="absolute top-4 start-4 z-50 bg-black/60 text-white text-sm px-3 py-1 rounded-full">
         {currentIndex + 1} / {images.length}
       </div>
 
@@ -93,7 +93,7 @@ function ImageLightbox({
               e.stopPropagation()
               onNavigate((currentIndex - 1 + images.length) % images.length)
             }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
+            className="absolute start-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
           >
             <ChevronLeft className="h-8 w-8 text-white" />
           </button>
@@ -103,7 +103,7 @@ function ImageLightbox({
               e.stopPropagation()
               onNavigate((currentIndex + 1) % images.length)
             }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
+            className="absolute end-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
           >
             <ChevronRight className="h-8 w-8 text-white" />
           </button>
@@ -242,14 +242,14 @@ export function ImageCarousel({
               <button
                 type="button"
                 onClick={() => api?.scrollPrev()}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute start-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <ChevronLeft className="h-5 w-5 text-gray-700" />
               </button>
               <button
                 type="button"
                 onClick={() => api?.scrollNext()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute end-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <ChevronRight className="h-5 w-5 text-gray-700" />
               </button>
@@ -258,7 +258,7 @@ export function ImageCarousel({
 
           {/* Image Counter */}
           {images.length > 1 && (
-            <div className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
+            <div className="absolute bottom-3 end-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
               {currentIndex + 1} / {images.length}
             </div>
           )}
@@ -301,7 +301,7 @@ export function ImageCarousel({
                 />
                 {/* Index indicator */}
                 <div className={cn(
-                  "absolute bottom-0 right-0 text-[10px] px-1 rounded-tl",
+                  "absolute bottom-0 end-0 text-[10px] px-1 rounded-tl",
                   currentIndex === idx
                     ? "bg-teal-500 text-white"
                     : "bg-black/50 text-white"
@@ -311,9 +311,11 @@ export function ImageCarousel({
               </button>
             ))}
           </div>
-          {/* Scroll hint for many images */}
+          {/* Scroll hint for many images。
+              渐变方向在 Tailwind 里没有逻辑属性,得靠 rtl: 变体手动镜像 ——
+              否则 RTL 下遮罩贴在左缘却仍朝左淡出,该淡的一侧反而是实心。 */}
           {images.length > 6 && (
-            <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
+            <div className="absolute end-0 top-0 bottom-2 w-8 bg-gradient-to-l rtl:bg-gradient-to-r from-white to-transparent pointer-events-none" />
           )}
         </div>
       )}

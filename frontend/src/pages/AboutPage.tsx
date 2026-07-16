@@ -92,8 +92,8 @@ export default function AboutPage() {
 
       {/* ── Hero ──────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
-        <Glow className="-right-32 -top-32 h-[34rem] w-[34rem]" />
-        <Glow className="-left-32 top-52 h-96 w-96" color={GOLD} opacity={0.1} />
+        <Glow className="-end-32 -top-32 h-[34rem] w-[34rem]" />
+        <Glow className="-start-32 top-52 h-96 w-96" color={GOLD} opacity={0.1} />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-6 py-16 md:py-24 lg:grid-cols-2">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-mono text-[11px] tracking-wide" style={{ color: ACCENT }}>
@@ -265,7 +265,7 @@ export default function AboutPage() {
 
         <Reveal delay={0.1} className="mt-3">
           <Tile className="relative overflow-hidden">
-            <Glow className="-right-10 -top-10 h-48 w-48" opacity={0.16} />
+            <Glow className="-end-10 -top-10 h-48 w-48" opacity={0.16} />
             <div className="relative grid items-center gap-5 md:grid-cols-[auto,1fr]">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl" style={{ background: 'rgba(0,224,184,0.14)' }}><Mic className="h-8 w-8" style={{ color: ACCENT }} /></div>
               <div>
@@ -305,7 +305,7 @@ export default function AboutPage() {
             <Reveal key={i} delay={i * 0.05}>
               <div className="relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5"
                 style={{ borderColor: tier.hot ? ACCENT : tier.c === GOLD ? `${GOLD}66` : 'rgba(255,255,255,0.1)', boxShadow: tier.hot ? `0 0 34px -14px ${ACCENT}` : undefined }}>
-                {tier.hot && <span className="absolute -top-2.5 left-5 rounded-full px-2 py-0.5 text-[10px] font-bold text-slate-900" style={{ background: ACCENT }}>{t('about:mostPopular')}</span>}
+                {tier.hot && <span className="absolute -top-2.5 start-5 rounded-full px-2 py-0.5 text-[10px] font-bold text-slate-900" style={{ background: ACCENT }}>{t('about:mostPopular')}</span>}
                 <div className="text-sm font-semibold" style={{ color: tier.c }}>{tier.n}</div>
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-2xl font-bold">{tier.p}</span>
@@ -354,7 +354,7 @@ export default function AboutPage() {
 function Section({ id, glow, children }: { id?: string; glow?: boolean; children: React.ReactNode }) {
   return (
     <section id={id} className="relative scroll-mt-14 py-16">
-      {glow && <Glow className="right-0 top-1/4 h-72 w-72" opacity={0.08} />}
+      {glow && <Glow className="end-0 top-1/4 h-72 w-72" opacity={0.08} />}
       <div className="relative mx-auto max-w-6xl px-6">{children}</div>
     </section>
   )

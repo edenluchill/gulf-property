@@ -74,7 +74,7 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
       />
 
       {/* 关闭 */}
-      <button onClick={onClose} className="absolute right-4 top-4 z-10 rounded-full p-2 text-white/40 transition hover:bg-white/10 hover:text-white/80">
+      <button onClick={onClose} className="absolute end-4 top-4 z-10 rounded-full p-2 text-white/40 transition hover:bg-white/10 hover:text-white/80">
         <X className="h-5 w-5" />
       </button>
 

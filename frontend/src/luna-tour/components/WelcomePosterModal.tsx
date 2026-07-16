@@ -76,7 +76,7 @@ export default function WelcomePosterModal({ open: openProp, onClose }: { open?:
         <div className="relative my-8 w-full max-w-[min(92vw,540px)]" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={close}
-            className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-900"
+            className="absolute -top-3 -end-3 z-10 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-900"
             aria-label="关闭"
           >
             <X className="w-5 h-5" />

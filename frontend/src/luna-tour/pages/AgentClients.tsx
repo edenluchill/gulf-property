@@ -131,7 +131,7 @@ export default function AgentClients() {
 
           {/* search */}
           <div className="relative mb-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -521,7 +521,7 @@ function CompareModal({ clientId, onClose }: { clientId: string; onClose: () => 
           <>
             <div className="overflow-y-auto px-5 py-4">
               <div className="relative mb-3">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   autoFocus
                   value={q}

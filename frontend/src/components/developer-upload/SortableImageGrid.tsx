@@ -117,7 +117,7 @@ const SortableImageItem = memo(function SortableImageItem({
 
       {/* Primary badge */}
       {isPrimary && !isHidden && (
-        <div className="absolute top-1 left-1 bg-amber-500 rounded-full p-1">
+        <div className="absolute top-1 start-1 bg-amber-500 rounded-full p-1">
           <Star className="h-3 w-3 text-white fill-white" />
         </div>
       )}
@@ -136,7 +136,7 @@ const SortableImageItem = memo(function SortableImageItem({
         <div
           {...attributes}
           {...listeners}
-          className="absolute top-1 right-1 p-1 bg-white/90 rounded shadow cursor-grab active:cursor-grabbing opacity-80 hover:opacity-100 transition-opacity touch-none"
+          className="absolute top-1 end-1 p-1 bg-white/90 rounded shadow cursor-grab active:cursor-grabbing opacity-80 hover:opacity-100 transition-opacity touch-none"
         >
           <GripVertical className="h-4 w-4 text-gray-600" />
         </div>
@@ -144,7 +144,7 @@ const SortableImageItem = memo(function SortableImageItem({
 
       {/* Action buttons - bottom (always visible — see drag-handle note) */}
       {!isDragOverlay && (
-        <div className="absolute bottom-1 right-1 flex gap-1 opacity-90 hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-1 end-1 flex gap-1 opacity-90 hover:opacity-100 transition-opacity">
           {/* Enlarge for verification */}
           {onOpen && (
             <button

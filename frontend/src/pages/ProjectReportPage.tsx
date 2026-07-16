@@ -69,7 +69,7 @@ export default function ProjectReportPage() {
         <button
           type="button"
           onClick={() => { trackEvent('report_action', { action: 'pdf_export', code }); window.print() }}
-          className="rp-no-print absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-lg backdrop-blur hover:bg-white"
+          className="rp-no-print absolute end-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-lg backdrop-blur hover:bg-white"
         >
           <Printer className="h-3.5 w-3.5" /> 保存 PDF
         </button>

@@ -46,7 +46,7 @@ export function ProjectInfoTags({
     return (
       <>
         {/* Left tag: Project name + Bedrooms */}
-        <div className="absolute bottom-6 left-6 flex flex-col gap-2">
+        <div className="absolute bottom-6 start-6 flex flex-col gap-2">
           <div className="backdrop-blur-md bg-black/40 text-white px-4 py-2 rounded-lg">
             <h1 className="text-xl font-bold">{projectName}</h1>
             {bedrooms && (
@@ -56,7 +56,7 @@ export function ProjectInfoTags({
         </div>
 
         {/* Right tag: Price + Completion */}
-        <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2">
+        <div className="absolute bottom-6 end-6 flex flex-col items-end gap-2">
           <div className="backdrop-blur-md bg-black/40 text-white px-4 py-2 rounded-lg text-end">
             {startingPrice && (
               <div className="text-xl font-bold">{formatPrice(startingPrice)}+</div>

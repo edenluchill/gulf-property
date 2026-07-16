@@ -335,7 +335,9 @@ function DropdownNav({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-            className={`absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur-xl z-[1001] ${panel}`}
+            // origin-* 无逻辑属性:菜单已随 end-0 镜像到 RTL 的左侧,展开动画的
+            // 缩放原点必须跟着挪,否则会从"远处的"右上角弹出来。
+            className={`absolute end-0 mt-2 w-64 origin-top-right rtl:origin-top-left rounded-2xl border p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur-xl z-[1001] ${panel}`}
           >
             {items.map((it, i) => {
               const ItIcon = it.icon

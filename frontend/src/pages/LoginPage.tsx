@@ -152,7 +152,7 @@ export default function LoginPage() {
         />
 
         {/* Animated candlestick chart lines - subtle investment theme */}
-        <svg className="absolute left-[5%] top-[20%] w-[300px] h-[200px] opacity-[0.08]" viewBox="0 0 300 200">
+        <svg className="absolute start-[5%] top-[20%] w-[300px] h-[200px] opacity-[0.08]" viewBox="0 0 300 200">
           {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
             const x = 20 + i * 35
             const heights = [60, 80, 50, 90, 70, 100, 65, 85]
@@ -182,7 +182,7 @@ export default function LoginPage() {
         </svg>
 
         {/* Rising trend line animation */}
-        <svg className="absolute right-[8%] bottom-[15%] w-[250px] h-[150px] opacity-[0.06]" viewBox="0 0 250 150">
+        <svg className="absolute end-[8%] bottom-[15%] w-[250px] h-[150px] opacity-[0.06]" viewBox="0 0 250 150">
           <motion.path
             d="M 10 130 Q 50 120, 80 100 T 150 70 T 200 40 T 240 20"
             fill="none"
@@ -370,7 +370,7 @@ export default function LoginPage() {
           >
             <div className="bg-white rounded-2xl p-8 shadow-2xl shadow-slate-200/70 border border-slate-100/80 relative overflow-hidden">
               {/* Subtle corner decoration */}
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-gradient-to-bl from-teal-50 to-transparent rounded-full" />
+              <div className="absolute -top-10 -end-10 w-32 h-32 bg-gradient-to-bl from-teal-50 to-transparent rounded-full" />
 
               {/* Mobile Logo */}
               <Link to="/" className="flex lg:hidden items-center space-x-3 rtl:space-x-reverse mb-6 relative z-10">
@@ -438,7 +438,7 @@ export default function LoginPage() {
                           {t('auth:email', 'Email')}
                         </label>
                         <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                          <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                           <Input
                             type="email"
                             value={email}

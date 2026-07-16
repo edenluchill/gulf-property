@@ -97,13 +97,13 @@ export function DesktopHeroGallery({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="absolute top-6 right-6 p-3 rounded-full bg-black/30 backdrop-blur-sm text-white opacity-0 group-hover:opacity-100 transition-all duration-300"
+            className="absolute top-6 end-6 p-3 rounded-full bg-black/30 backdrop-blur-sm text-white opacity-0 group-hover:opacity-100 transition-all duration-300"
           >
             <Expand className="h-5 w-5" />
           </motion.div>
 
           {/* Image count badge */}
-          <div className="absolute top-6 left-6 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white text-sm font-medium">
+          <div className="absolute top-6 start-6 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm text-white text-sm font-medium">
             1 / {images.length}
           </div>
         </motion.div>
@@ -156,7 +156,7 @@ export function DesktopHeroGallery({
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                 {/* Image number on hover */}
-                <div className="absolute bottom-3 left-3 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute bottom-3 start-3 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   {index + 2} / {images.length}
                 </div>
 

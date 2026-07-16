@@ -78,7 +78,7 @@ export default function AreaSearch({ onSelect, autoFocus }: { onSelect: (area: A
 
       {open && (loading || results.length > 0) && (
         // 手机在底部 → 结果向上展开;md+ 在顶部 → 向下展开
-        <div className="absolute left-0 bottom-full z-[1003] mb-1.5 max-h-64 w-full overflow-y-auto rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur md:bottom-auto md:top-full md:mb-0 md:mt-1.5 md:w-60">
+        <div className="absolute start-0 bottom-full z-[1003] mb-1.5 max-h-64 w-full overflow-y-auto rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur md:bottom-auto md:top-full md:mb-0 md:mt-1.5 md:w-60">
           {loading && results.length === 0 && (
             <div className="px-3 py-2 text-xs text-slate-400">{t('misc:searching')}</div>
           )}

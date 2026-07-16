@@ -160,7 +160,7 @@ export default function AdminPropertyListPage() {
           <Card className="mb-4 sm:mb-6 shadow-lg">
             <CardContent className="pt-6">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
                   type="text"
                   placeholder={t('list.searchPlaceholder')}
@@ -235,7 +235,7 @@ export default function AdminPropertyListPage() {
                           )}
 
                           {/* Status Badge */}
-                          <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold shadow-lg
+                          <div className={`absolute top-3 start-3 px-3 py-1 rounded-full text-xs font-semibold shadow-lg
                             ${statusColor === 'red' ? 'bg-red-600 text-white' :
                               statusColor === 'green' ? 'bg-green-500 text-white' :
                               statusColor === 'blue' ? 'bg-blue-500 text-white' :

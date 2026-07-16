@@ -972,7 +972,7 @@ export default function UnifiedDubaiEditor() {
   return (
     <div className="flex h-full">
       {/* Global Action Buttons - Fixed Position */}
-      <div className="fixed top-20 right-4 xl:right-6 z-50 flex gap-2">
+      <div className="fixed top-20 end-4 xl:end-6 z-50 flex gap-2">
         {/* Undo/Redo Buttons */}
         <div className="flex gap-1 bg-white rounded-lg shadow-lg p-1">
           <Button
@@ -1356,7 +1356,7 @@ export default function UnifiedDubaiEditor() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          className="absolute top-2 right-2"
+                          className="absolute top-2 end-2"
                           onClick={() => handleFormDataChange({ imageUrl: '' })}
                         >
                           <X className="w-3 h-3" />

@@ -141,7 +141,7 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
                       )}
                     </div>
                     {/* Label badge */}
-                    <div className={`absolute -top-1 -left-1 w-5 h-5 rounded-full ${item.color.bg} text-white flex items-center justify-center text-xs font-bold shadow`}>
+                    <div className={`absolute -top-1 -start-1 w-5 h-5 rounded-full ${item.color.bg} text-white flex items-center justify-center text-xs font-bold shadow`}>
                       {item.color.label}
                     </div>
                   </div>
@@ -201,11 +201,11 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
               )}
             </div>
             {/* Winner badge */}
-            <div className={`absolute -top-2 -left-2 w-7 h-7 rounded-full ${winnerColor.bg} text-white flex items-center justify-center text-sm font-bold shadow-lg ring-2 ring-white`}>
+            <div className={`absolute -top-2 -start-2 w-7 h-7 rounded-full ${winnerColor.bg} text-white flex items-center justify-center text-sm font-bold shadow-lg ring-2 ring-white`}>
               {winnerColor.label}
             </div>
             {/* Trophy */}
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-400 text-white flex items-center justify-center shadow">
+            <div className="absolute -bottom-1 -end-1 w-6 h-6 rounded-full bg-amber-400 text-white flex items-center justify-center shadow">
               <Trophy className="h-3.5 w-3.5" />
             </div>
           </div>

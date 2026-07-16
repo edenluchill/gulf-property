@@ -42,7 +42,7 @@ export default function CollabFrame({ role, followMode, shareUrl, onCopyShare, c
       />
 
       {role === 'presenter' && shareUrl && createPortal(
-        <div className="fixed bottom-32 left-3 z-[2150] flex w-[min(330px,calc(100vw-1.5rem))] items-center gap-2 rounded-2xl bg-slate-900/90 px-3 py-2 shadow-xl ring-1 ring-white/10 backdrop-blur md:bottom-4 md:w-auto md:max-w-[420px]">
+        <div className="fixed bottom-32 start-3 z-[2150] flex w-[min(330px,calc(100vw-1.5rem))] items-center gap-2 rounded-2xl bg-slate-900/90 px-3 py-2 shadow-xl ring-1 ring-white/10 backdrop-blur md:bottom-4 md:w-auto md:max-w-[420px]">
           <span className="hidden text-xs text-slate-400 sm:inline">分享链接</span>
           <code className="min-w-0 flex-1 truncate rounded-md bg-black/30 px-2 py-1 text-xs text-slate-200">{shareUrl}</code>
           <button

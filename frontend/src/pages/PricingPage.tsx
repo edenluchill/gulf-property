@@ -342,7 +342,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           <div className="relative mb-5 flex items-center justify-center gap-2 select-none">
             <button
               onClick={reselectRole}
-              className="absolute left-0 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+              className="absolute start-0 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">{t('misc:chooseAnotherRole')}</span>
@@ -500,7 +500,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                 animation: 'pz-fade-up .5s ease-out both',
                 animationDelay: `${ti * 80}ms`,
               }}>
-              {tier.badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: tier.edge }}>{tier.badge}</span>}
+              {tier.badge && <span className="absolute -top-3 start-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: tier.edge }}>{tier.badge}</span>}
               <div className="text-sm font-semibold" style={{ color: tier.edge }}>{tier.name}</div>
               <div className="mt-1 flex items-end gap-2">
                 {/* key=cycle:月/年切换时价格轻弹一下,肉眼能看到变化发生 */}

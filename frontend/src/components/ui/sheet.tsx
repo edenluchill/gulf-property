@@ -87,10 +87,10 @@ const slideAnimations = {
 }
 
 const sideClasses = {
-  right: 'right-0 top-0 h-full',
-  left: 'left-0 top-0 h-full',
-  top: 'top-0 left-0 w-full',
-  bottom: 'bottom-0 left-0 w-full',
+  right: 'end-0 top-0 h-full',
+  left: 'start-0 top-0 h-full',
+  top: 'top-0 start-0 w-full',
+  bottom: 'bottom-0 start-0 w-full',
 }
 
 export function SheetContent({ className = '', children, side = 'right' }: SheetContentProps) {
@@ -132,7 +132,7 @@ export function SheetClose({ className = '', onClick }: SheetCloseProps) {
     <button
       onClick={onClick}
       className={cn(
-        'absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+        'absolute end-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
         className
       )}
     >

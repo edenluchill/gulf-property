@@ -119,7 +119,7 @@ export default function CollabVideo({ local, remote, flipping, isPresenter, view
         <button
           type="button"
           onClick={() => setFull(false)}
-          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25"
+          className="absolute end-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25"
           title="退出全屏"
         >
           <X className="h-5 w-5" />

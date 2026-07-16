@@ -158,7 +158,7 @@ export function UnitTypesSubPage({
                     alt={selectedUnit.unit_type_name}
                     className="w-full h-auto max-h-[450px] object-contain"
                   />
-                  <div className="absolute top-3 right-3 rounded-full bg-white/90 p-1.5 text-slate-600 opacity-0 shadow group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 end-3 rounded-full bg-white/90 p-1.5 text-slate-600 opacity-0 shadow group-hover:opacity-100 transition-opacity">
                     <ZoomIn className="h-4 w-4" />
                   </div>
                 </div>

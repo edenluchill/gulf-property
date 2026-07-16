@@ -62,7 +62,7 @@ export default function CollabPresenterGuide({
           <div className="relative px-6 pt-6 pb-4" style={{ background: `linear-gradient(135deg, ${ACCENT}22, transparent)` }}>
             <button
               onClick={onDismiss}
-              className="absolute right-3 top-3 rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+              className="absolute end-3 top-3 rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
               aria-label={t('lunaTour:close')}
             >
               <X className="h-4 w-4" />

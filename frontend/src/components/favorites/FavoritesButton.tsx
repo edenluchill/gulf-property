@@ -19,7 +19,7 @@ export function FavoritesButton() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
-            className="absolute -top-1 -right-1 bg-teal-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
+            className="absolute -top-1 -end-1 bg-teal-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
           >
             {projectCount > 99 ? '99+' : projectCount}
           </motion.span>

@@ -174,7 +174,7 @@ function ThinkingBubble({ toolStatus }: { toolStatus: string }) {
         </motion.div>
 
         {/* Tail arrow */}
-        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-blue-50/80 border-t border-e border-indigo-100/60" />
+        <div className="absolute bottom-7 -end-[6px] w-3 h-3 rotate-45 bg-blue-50/80 border-t border-e border-indigo-100/60" />
 
         {/* Content */}
         <div className="relative flex items-center gap-2.5">
@@ -484,13 +484,13 @@ function LunaBubble({
     >
       <div className="relative rounded-2xl bg-gradient-to-br from-[#f0f4ff] to-white px-4 py-3 text-sm shadow-xl shadow-blue-900/[0.06] backdrop-blur-xl border border-blue-100/50 ring-1 ring-blue-50">
         {/* Tail arrow */}
-        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-[#f5f7ff] border-t border-e border-blue-100/50" />
+        <div className="absolute bottom-7 -end-[6px] w-3 h-3 rotate-45 bg-[#f5f7ff] border-t border-e border-blue-100/50" />
 
         {/* Dismiss — so a lingering reply never blocks the map */}
         <button
           onClick={(e) => { e.stopPropagation(); onDismiss() }}
           aria-label="关闭"
-          className="absolute -top-2 -left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-700"
+          className="absolute -top-2 -start-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-700"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -561,7 +561,7 @@ function LunaTextPanel({
     >
       <div className="relative rounded-2xl bg-white/90 shadow-2xl shadow-blue-900/10 backdrop-blur-xl border border-blue-100/60 ring-1 ring-blue-50 overflow-hidden">
         {/* Tail arrow */}
-        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-white/90 border-t border-e border-blue-100/60" />
+        <div className="absolute bottom-7 -end-[6px] w-3 h-3 rotate-45 bg-white/90 border-t border-e border-blue-100/60" />
 
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-blue-50">
@@ -827,7 +827,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       // 半空,跟别的底部控件对不齐 —— 2026-07-11 用户反馈"不匹配")。
       // ⚠️ 底栏是 xl:hidden 且 h-16 md:h-20 —— 所以要按 nav 实际高度分三档:
       //   <md : nav 64 → 76px      md~lg(平板): nav 80 → 92px      xl+: 无 nav → 24px
-      'fixed bottom-[76px] md:bottom-[92px] xl:bottom-6 right-0 z-50 flex flex-col items-end gap-1.5',
+      'fixed bottom-[76px] md:bottom-[92px] xl:bottom-6 end-0 z-50 flex flex-col items-end gap-1.5',
       className
     )}>
       {/* Luna's daily energy — slim capsule docked to the right edge above the pill.
@@ -854,7 +854,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       {/* Text-mode panel: absolutely positioned left of pill (independent of voice) */}
       <AnimatePresence>
         {TEXT_MODE_ENABLED && textOpen && (
-          <div key="text-panel" className="absolute bottom-0 right-[56px]">
+          <div key="text-panel" className="absolute bottom-0 end-[56px]">
             <LunaTextPanel onNavigateProject={navigateToProject} t={t} />
           </div>
         )}
@@ -863,7 +863,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       {/* Bubble area: absolutely positioned left of pill, bottom-aligned */}
       <AnimatePresence mode="wait">
         {!textOpen && showThinkingBubble && (
-          <div key="thinking-bubble" className="absolute bottom-0 right-[56px]">
+          <div key="thinking-bubble" className="absolute bottom-0 end-[56px]">
             <ThinkingBubble toolStatus={toolStatus} />
           </div>
         )}
@@ -874,7 +874,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
             transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-            className="absolute bottom-0 right-[56px] w-56 md:w-64 max-w-[calc(100vw-5rem)]"
+            className="absolute bottom-0 end-[56px] w-56 md:w-64 max-w-[calc(100vw-5rem)]"
           >
             <div className="rounded-2xl bg-emerald-600/95 px-3.5 py-2 text-[13px] leading-snug text-white shadow-xl backdrop-blur-xl">
               {userTranscript}
@@ -882,7 +882,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
           </motion.div>
         )}
         {!textOpen && showResponseBubble && !showUserCaption && (
-          <div key="response-bubble" className="absolute bottom-0 right-[56px]">
+          <div key="response-bubble" className="absolute bottom-0 end-[56px]">
             <LunaBubble
               bubble={latestBubble}
               onNavigateProject={navigateToProject}
@@ -938,7 +938,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         )}
         {/* Recording indicator dot */}
         {effPhase === 'listening' && (
-          <div className="absolute top-1.5 right-1.5 z-20">
+          <div className="absolute top-1.5 end-1.5 z-20">
             <div className="h-2 w-2 rounded-full bg-red-400">
               <motion.div
                 className="absolute inset-0 rounded-full bg-red-400"

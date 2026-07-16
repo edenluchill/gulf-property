@@ -130,7 +130,7 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
                     className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                   />
                   {/* view / floor badges */}
-                  <div className="absolute bottom-1.5 left-1.5 flex flex-wrap gap-1">
+                  <div className="absolute bottom-1.5 start-1.5 flex flex-wrap gap-1">
                     {unit.view_type && (
                       <span className="flex items-center gap-0.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm backdrop-blur">
                         {isSeaView(unit.view_type) ? <Waves className="h-2.5 w-2.5 text-sky-500" /> : <Building2 className="h-2.5 w-2.5 text-slate-400" />}
@@ -147,7 +147,7 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
               )}
 
               {projectId && (
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-2 end-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <UnitTypeFavoriteButton projectId={projectId} unitTypeId={unit.id} size="sm" />
                 </div>
               )}

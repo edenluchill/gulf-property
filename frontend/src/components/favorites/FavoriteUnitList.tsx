@@ -213,7 +213,7 @@ export function FavoriteUnitList({ projectId, unitTypeIds, units, onClose }: Fav
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 <button
                   onClick={() => setSelectedUnit(null)}
-                  className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm rounded-full p-2 text-white hover:bg-white/30 transition-colors"
+                  className="absolute top-3 end-3 bg-white/20 backdrop-blur-sm rounded-full p-2 text-white hover:bg-white/30 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>

@@ -206,7 +206,7 @@ export function UnitTypeCard({
                           <button
                             type="button"
                             onClick={() => removeFloorPlanFromUnit(img)}
-                            className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs shadow"
+                            className="absolute -top-1.5 -end-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs shadow"
                             title={t('unitTypeCard.removeToGallery', { defaultValue: 'Remove (back to gallery)' })}
                           >
                             ×
@@ -255,7 +255,7 @@ export function UnitTypeCard({
                           <button
                             type="button"
                             onClick={() => removePhotoFromUnit(img)}
-                            className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs shadow"
+                            className="absolute -top-1.5 -end-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs shadow"
                             title={t('unitTypeCard.removeToGallery', { defaultValue: 'Remove (back to gallery)' })}
                           >
                             ×

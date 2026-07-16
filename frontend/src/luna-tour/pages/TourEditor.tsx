@@ -329,7 +329,7 @@ export default function TourEditor() {
                         {isCut ? '✂ 直切' : '🎬 挑高抛远'}
                       </button>
                       {transEdit === prevAct && (
-                        <div className="absolute top-9 left-0 z-30 bg-white text-slate-700 rounded-lg shadow-lg border p-2 w-44">
+                        <div className="absolute top-9 start-0 z-30 bg-white text-slate-700 rounded-lg shadow-lg border p-2 w-44">
                           <div className="text-[11px] font-semibold mb-1">转场方式</div>
                           <div className="flex gap-1 mb-2">
                             <button onClick={() => setTransition(prevAct, 'flyover', 2500)} className={`flex-1 text-[11px] rounded px-1 py-1 border ${!isCut ? 'bg-indigo-50 border-indigo-300' : ''}`}>🎬 挑高抛远</button>
@@ -398,7 +398,7 @@ export default function TourEditor() {
                         title={`${o.label} · 拖动移动 · 拖右端裁剪时长`}
                       >
                         {/* left colour stripe = type */}
-                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${o.type === 'property_card' ? 'bg-emerald-500' : o.type === 'roi_card' ? 'bg-blue-500' : isMedia ? 'bg-violet-500' : 'bg-amber-500'}`} />
+                        <div className={`absolute start-0 top-0 bottom-0 w-1.5 ${o.type === 'property_card' ? 'bg-emerald-500' : o.type === 'roi_card' ? 'bg-blue-500' : isMedia ? 'bg-violet-500' : 'bg-amber-500'}`} />
                         {hasImg ? (
                           <img src={proxied(o.image)} alt="" className="h-9 w-14 object-cover rounded shrink-0" />
                         ) : (
@@ -409,7 +409,7 @@ export default function TourEditor() {
                           <div className="text-[12px] text-slate-700 truncate leading-tight">{o.label}</div>
                           <div className="text-[10px] text-slate-400">{Math.round(dur)}s</div>
                         </div>
-                        <div onMouseDown={(e) => startDrag(e, b, o, 'trim')} className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize ${isMedia ? 'bg-violet-300' : 'bg-amber-300'}`} />
+                        <div onMouseDown={(e) => startDrag(e, b, o, 'trim')} className={`absolute end-0 top-0 bottom-0 w-2 cursor-ew-resize ${isMedia ? 'bg-violet-300' : 'bg-amber-300'}`} />
                       </div>
                     )
                   })
@@ -511,7 +511,7 @@ export default function TourEditor() {
       {preview && shareCode && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPreview(false)}>
           <div className="relative bg-black rounded-xl overflow-hidden shadow-2xl" style={{ width: 'min(1100px,92vw)', height: 'min(680px,86vh)' }} onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setPreview(false)} className="absolute top-2 right-2 z-10 bg-white/90 rounded-full w-8 h-8 text-slate-700 text-lg leading-none">✕</button>
+            <button onClick={() => setPreview(false)} className="absolute top-2 end-2 z-10 bg-white/90 rounded-full w-8 h-8 text-slate-700 text-lg leading-none">✕</button>
             <iframe title="预览" src={`/?toursession=${shareCode}`} className="w-full h-full border-0" allow="autoplay; fullscreen" />
           </div>
         </div>

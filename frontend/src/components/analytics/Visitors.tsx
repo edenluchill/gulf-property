@@ -147,7 +147,7 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
   return (
     <>
       <div className="fixed inset-0 z-[10000] bg-black/40" onClick={onClose} />
-      <div className="fixed right-0 top-0 z-[10001] flex h-full w-full max-w-md flex-col bg-slate-50 shadow-2xl">
+      <div className="fixed end-0 top-0 z-[10001] flex h-full w-full max-w-md flex-col bg-slate-50 shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-slate-800">

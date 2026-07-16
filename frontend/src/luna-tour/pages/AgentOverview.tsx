@@ -108,7 +108,7 @@ export default function AgentOverview() {
           to="/?livetour=1"
           className="group relative overflow-hidden rounded-2xl bg-ink-800 p-5 text-white shadow-md ring-1 ring-black/20 transition hover:shadow-xl hover:-translate-y-0.5"
         >
-          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-25 blur-2xl" style={{ background: '#14b8a6' }} />
+          <div className="absolute -end-8 -top-8 h-28 w-28 rounded-full opacity-25 blur-2xl" style={{ background: '#14b8a6' }} />
           <div className="relative">
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-400/15">
               <Radio className="h-6 w-6 text-teal-300" />
@@ -131,7 +131,7 @@ export default function AgentOverview() {
           to="/agent/tour"
           className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 p-5 text-white shadow-md ring-1 ring-emerald-600/20 transition hover:shadow-xl hover:-translate-y-0.5"
         >
-          <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/20 opacity-40 blur-2xl" />
+          <div className="absolute -end-8 -top-8 h-28 w-28 rounded-full bg-white/20 opacity-40 blur-2xl" />
           <div className="relative">
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
               <Sparkles className="h-6 w-6 text-white" />

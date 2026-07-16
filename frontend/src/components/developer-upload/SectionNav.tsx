@@ -79,7 +79,8 @@ export function SectionNav({ sections, activeId, onSelect }: SectionNavProps) {
             ))}
           </div>
           {/* 右缘渐隐:提示还能横滑 */}
-          <div className="pointer-events-none absolute inset-y-1.5 right-1.5 w-10 rounded-e-2xl bg-gradient-to-l from-white via-white/70 to-transparent" />
+          {/* 滚动淡出遮罩;渐变方向无逻辑属性,rtl: 手动镜像(同 ImageCarousel)。 */}
+          <div className="pointer-events-none absolute inset-y-1.5 end-1.5 w-10 rounded-e-2xl bg-gradient-to-l rtl:bg-gradient-to-r from-white via-white/70 to-transparent" />
         </div>
       </div>
 

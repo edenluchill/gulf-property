@@ -1268,7 +1268,10 @@ function MapViewMapLibre({
 
   return (
     <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
-      {/* 圆点 hover 名字提示(命令式定位,坐标 = e.point 相对地图容器) */}
+      {/* 圆点 hover 名字提示(命令式定位,坐标 = e.point 相对地图容器)
+          rtl-keep: left-0 必须保持**物理左**。定位靠下面 style 的 transform:translate(x,y)
+          命令式写入,x 恒等于 e.point.x —— 从容器左缘算起,与 dir 无关。换成 start-0 后
+          RTL 下会变 right:0,再叠加正的 translate x → 提示直接飞出屏幕右侧。 */}
       <div
         ref={dotTipRef}
         className="pointer-events-none absolute left-0 top-0 z-[900] whitespace-nowrap rounded-full bg-slate-900/85 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg ring-1 ring-white/15 backdrop-blur-sm"

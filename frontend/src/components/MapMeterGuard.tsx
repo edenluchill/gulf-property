@@ -147,7 +147,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
   return (
     <>
       {showToast && (
-        <div className="absolute bottom-6 left-4 z-[550] max-w-[300px] rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur px-4 py-3 flex items-start gap-3">
+        <div className="absolute bottom-6 start-4 z-[550] max-w-[300px] rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur px-4 py-3 flex items-start gap-3">
           <div className="text-sm text-slate-700 leading-relaxed">
             {t('gate:enjoyingTheMapSign')}
             <button

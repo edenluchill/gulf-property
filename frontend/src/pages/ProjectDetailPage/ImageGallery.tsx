@@ -45,12 +45,12 @@ export function ImageGallery({
             />
             {/* Image number badge */}
             {images.length > 1 && (
-              <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-0.5 rounded-full text-xs font-medium">
+              <div className="absolute top-2 end-2 bg-black/60 text-white px-2 py-0.5 rounded-full text-xs font-medium">
                 {index + 1} / {images.length}
               </div>
             )}
             {/* 放大提示(触屏无 hover,常显轻量图标) */}
-            <div className="absolute bottom-2 right-2 rounded-full bg-black/45 p-1.5 text-white backdrop-blur-sm">
+            <div className="absolute bottom-2 end-2 rounded-full bg-black/45 p-1.5 text-white backdrop-blur-sm">
               <Expand className="h-3.5 w-3.5" />
             </div>
           </div>

@@ -40,7 +40,7 @@ export default function LanguageSwitcher() {
         <span>{active.short}</span>
       </button>
       {open && (
-        <div className="absolute right-0 z-[1200] mt-1 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg" role="listbox">
+        <div className="absolute end-0 z-[1200] mt-1 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg" role="listbox">
           {LANGS.map((l) => {
             const isActive = l.key === cur
             return (

@@ -313,7 +313,7 @@ function TopBar({ title }: { title: string }) {
 
 function AgentStamp({ agent }: { agent: any }) {
   return (
-    <div className="absolute right-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 ps-1 pe-3 shadow-sm">
+    <div className="absolute end-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 ps-1 pe-3 shadow-sm">
       {agent.photo
         ? <img src={agent.photo} alt={agent.name} className="h-8 w-8 rounded-full object-cover" />
         : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
@@ -454,7 +454,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
             <table className="w-full min-w-[480px] border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 bg-white p-2.5 text-start text-[11px] font-semibold text-slate-400" />
+                  <th className="sticky start-0 z-10 bg-white p-2.5 text-start text-[11px] font-semibold text-slate-400" />
                   {props.map((p, i) => (
                     <th key={i} className={`min-w-[120px] border-s border-slate-100 p-2.5 align-top ${i === winnerIdx ? 'bg-teal-50/70' : 'bg-slate-50/60'}`}>
                       {p.primary_image && <img src={p.primary_image} alt={p.name} className="mb-1.5 h-16 w-full rounded-lg object-cover" />}
@@ -468,7 +468,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
                   const bi = bestIdxOf(row)
                   return (
                     <tr key={ri} className="border-t border-slate-50">
-                      <td className="sticky left-0 z-10 bg-white p-2.5 text-start text-xs text-slate-500">{row.label}</td>
+                      <td className="sticky start-0 z-10 bg-white p-2.5 text-start text-xs text-slate-500">{row.label}</td>
                       {props.map((p, i) => (
                         <td key={i} className={`border-s border-slate-100 p-2.5 text-center ${i === winnerIdx ? 'bg-teal-50/50' : ''} ${i === bi ? 'font-bold text-teal-700' : 'text-slate-700'}`}>
                           {row.render(p)}

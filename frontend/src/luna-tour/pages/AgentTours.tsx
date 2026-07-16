@@ -1458,7 +1458,7 @@ function MoreMenu({
         ⋯
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute end-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {items.map((it) =>
             it.href ? (
               <a key={it.label} href={it.href} target="_blank" rel="noreferrer"

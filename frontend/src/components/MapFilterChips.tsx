@@ -163,7 +163,7 @@ export default function MapFilterChips({ filters, setFilters, developers, leadin
     </button>
   )
   // 手机:从 chip 右侧飞出(竖排 chips 在左边缘,往下开会盖住其它 chip);桌面:往下开。
-  const POP_POS = 'absolute z-[1001] left-full top-0 ms-1.5 md:left-0 md:top-9 md:ms-0'
+  const POP_POS = 'absolute z-[1001] start-full top-0 ms-1.5 md:start-0 md:top-9 md:ms-0'
   // 手机是纯图标按钮,所以下拉必须自报家门:顶部一行标题(桌面 chip 上已有文字,不重复)。
   const Pop = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className={`${POP_POS} animate-filter-pop w-44 overflow-hidden rounded-xl bg-white/95 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-xl`}>

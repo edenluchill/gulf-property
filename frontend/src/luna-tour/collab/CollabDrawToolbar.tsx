@@ -24,7 +24,7 @@ export default function CollabDrawToolbar({ draw }: { draw: CollabDrawApi }) {
       <button
         type="button"
         onClick={() => { setOpen(true); draw.setTool('pen') }}
-        className="fixed right-3 top-1/2 z-[2150] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/85 text-white shadow-xl ring-1 ring-white/15 backdrop-blur transition hover:bg-slate-900"
+        className="fixed end-3 top-1/2 z-[2150] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/85 text-white shadow-xl ring-1 ring-white/15 backdrop-blur transition hover:bg-slate-900"
         title="画笔 / 标记"
         aria-label="画笔"
       >
@@ -51,7 +51,7 @@ export default function CollabDrawToolbar({ draw }: { draw: CollabDrawApi }) {
 
   return (
     <>
-      <div className="fixed right-3 top-1/2 z-[2150] flex -translate-y-1/2 flex-col items-center gap-1 rounded-2xl bg-slate-900/90 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur">
+      <div className="fixed end-3 top-1/2 z-[2150] flex -translate-y-1/2 flex-col items-center gap-1 rounded-2xl bg-slate-900/90 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur">
         <ToolBtn t="none" icon={<Hand className="h-4 w-4" />} label="移动地图" />
         <ToolBtn t="pen" icon={<Pencil className="h-4 w-4" />} label="画笔" />
         <ToolBtn t="arrow" icon={<ArrowUpRight className="h-4 w-4" />} label="箭头" />

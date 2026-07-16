@@ -185,13 +185,13 @@ export default function AgentReport() {
           )}
 
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={q} onChange={(e) => setQ(e.target.value)}
               placeholder={t('lunaTour:searchAProject')}
               className="w-full rounded-lg border border-slate-200 py-2 ps-9 pe-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
             />
-            {searching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-300" />}
+            {searching && <Loader2 className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-300" />}
           </div>
 
           {hits.length > 0 && (
