@@ -120,7 +120,9 @@ async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 
     const label = nameUsable(hit.name, lang)
       ? `${s.emoji} ${s.zh}（${hit.name}）`
       : `${s.emoji} ${s.zh}`
-    distances.push({ label, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
+    // cat 一并送出:label 是**会变的展示文案**,不能当数据键。
+    // (前端曾用 label.includes('地铁') 找地铁 → label 一换语言,地铁行就静默消失。)
+    distances.push({ label, cat: s.cat, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
   }
 
   const score100 = Math.round(score * 100)

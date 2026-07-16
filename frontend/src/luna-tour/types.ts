@@ -10,6 +10,8 @@
 
 export type Easing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
 export type LngLat = [number, number]
+/** 配套品类,与后端 AMENITY_SPECS.cat / dubai_pois.category 同源。 */
+export type TourAmenityCat = 'metro_station' | 'school' | 'mall' | 'hospital' | 'supermarket'
 
 export interface CameraKeyframe {
   at_ms: number
@@ -232,7 +234,8 @@ export interface PropertySnapshot {
   }
   amenity_score?: number
   amenity_tier?: string
-  distances?: { label: string; to: LngLat; distance_km: number; placeholder?: boolean }[]
+  /** label = 展示文案(随 tour 语言变,只用来显示);cat = 结构化品类,判断请用它。 */
+  distances?: { label: string; cat?: TourAmenityCat; to: LngLat; distance_km: number; placeholder?: boolean }[]
   amenities?: { label: string; distance_km: number; placeholder?: boolean }[]
   /** 真实户型(按卧室数聚合)。没有户型数据的项目整个字段缺席 —— 那就不讲这一拍。 */
   units?: TourUnit[]

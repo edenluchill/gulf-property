@@ -99,7 +99,13 @@ function OverlayItem({
     case 'property_card': {
       const p = properties.get(overlay.property_id)
       if (!p) return null
-      const metro = p.distances?.find((d) => d.label.includes('地铁'))
+      // 认品类走结构化的 cat,不看 label —— label 是展示文案,一换 tour 语言
+      // 「地铁」就没了,这一行会**静默消失**(客户端不报错,只是少了个信息)。
+      // ‖ 兜底:DB 里的历史 session 是在 cat 之前生成的,没有该字段 → 回退到旧的
+      //   中文子串匹配。等历史 session 过期后可以删掉后半截。
+      const metro = p.distances?.find((d) =>
+        d.cat ? d.cat === 'metro_station' : d.label.includes('地铁')
+      )
       return (
         <div className="lt-ov lt-ov-card">
           {p.image && (

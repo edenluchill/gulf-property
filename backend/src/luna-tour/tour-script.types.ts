@@ -358,7 +358,16 @@ export interface TourPropertyInvestment {
 }
 
 export interface TourPropertyDistance {
+  /**
+   * 展示文案（含 emoji + 品类 + 可能的专名）。**只用来显示,永远别拿它做判断** ——
+   * 它会随 tour 语言变。要认品类请用 `cat`。
+   */
   label: string
+  /**
+   * 结构化品类,与 dubai_pois.category 同源。这才是稳定的数据键。
+   * optional:**DB 里的历史 session 没有这个字段**,消费方必须留兜底。
+   */
+  cat?: 'metro_station' | 'school' | 'mall' | 'hospital' | 'supermarket'
   /** [lng, lat] of the destination. */
   to: [number, number]
   distance_km: number
