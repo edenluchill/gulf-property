@@ -1,0 +1,21 @@
+{
+  "outlook": "投资评估",
+  "netYield": "净租金回报",
+  "rentalYield": "租金回报",
+  "cagr5": "5 年年化",
+  "payback": "回本年限",
+  "paybackVal": "{{y}} 年",
+  "growth": "{{unit}}涨幅",
+  "tierDev": "本开发体", "tierArea": "本社区", "tierZone": "区域",
+  "matchDev": "本开发体", "matchArea": "本社区", "matchZone": "所在区域",
+  "precise": " · 精准",
+  "matchTitle": "数据匹配口径",
+  "grossYield": "毛租金回报",
+  "serviceCharge": "物业费",
+  "netFormula": "净回报 = 毛回报 − 物业费拖累",
+  "returns5yr": "5 年收益拆解（以参考价估算）",
+  "refPrice": "参考价",
+  "dataThrough": " · {{unit}}数据截止 {{date}}",
+  "basedOn": " · 基于近一年 {{n}} 笔成交",
+  "disclaimer": "。估算来自{{unit}} DLD 成交，非投资回报承诺。"
+}

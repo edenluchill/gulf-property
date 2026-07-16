@@ -1,0 +1,21 @@
+{
+  "outlook": "Évaluation d'investissement",
+  "netYield": "Rendement net",
+  "rentalYield": "Rendement locatif",
+  "cagr5": "annualisé sur 5 ans",
+  "payback": "Amortissement",
+  "paybackVal": "{{y}} ans",
+  "growth": "Hausse {{unit}}",
+  "tierDev": "de la promotion", "tierArea": "de la communauté", "tierZone": "de la zone",
+  "matchDev": "Promotion", "matchArea": "Communauté", "matchZone": "Zone",
+  "precise": " · précis",
+  "matchTitle": "Niveau de correspondance des données",
+  "grossYield": "Rendement brut",
+  "serviceCharge": "Charges",
+  "netFormula": "Net = brut − charges",
+  "returns5yr": "Rendements sur 5 ans (au prix de référence)",
+  "refPrice": "Prix de référence",
+  "dataThrough": " · données {{unit}} jusqu'au {{date}}",
+  "basedOn": " · sur la base de {{n}} ventes sur un an",
+  "disclaimer": ". Estimations issues des ventes DLD {{unit}} — pas une garantie de rendement."
+}

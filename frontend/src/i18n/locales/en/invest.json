@@ -1,0 +1,21 @@
+{
+  "outlook": "Investment outlook",
+  "netYield": "Net yield",
+  "rentalYield": "Rental yield",
+  "cagr5": "5yr annualized",
+  "payback": "Payback",
+  "paybackVal": "{{y}}y",
+  "growth": "{{unit}} growth",
+  "tierDev": "development", "tierArea": "community", "tierZone": "area",
+  "matchDev": "Development", "matchArea": "Community", "matchZone": "Area",
+  "precise": " · precise",
+  "matchTitle": "Data matched at",
+  "grossYield": "Gross yield",
+  "serviceCharge": "Service charge",
+  "netFormula": "Net yield = gross − service charge",
+  "returns5yr": "5-year returns (at reference price)",
+  "refPrice": "Reference price",
+  "dataThrough": " · {{unit}} data through {{date}}",
+  "basedOn": " · based on {{n}} recent sales",
+  "disclaimer": ". Estimates from {{unit}} DLD sales — not a guarantee of returns."
+}

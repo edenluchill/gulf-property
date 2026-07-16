@@ -45,6 +45,11 @@ import compareZh from './locales/zh-CN/compare.json'
 import compareAr from './locales/ar/compare.json'
 import compareRu from './locales/ru/compare.json'
 import compareFr from './locales/fr/compare.json'
+import investEn from './locales/en/invest.json'
+import investZh from './locales/zh-CN/invest.json'
+import investAr from './locales/ar/invest.json'
+import investRu from './locales/ru/invest.json'
+import investFr from './locales/fr/invest.json'
 
 const resources = {
   en: {
@@ -66,6 +71,7 @@ const resources = {
     editor: editorEn,
     components: componentsEn,
     compare: compareEn,
+    invest: investEn,
   },
   'zh-CN': {
     common: commonZh,
@@ -86,11 +92,12 @@ const resources = {
     editor: editorZh,
     components: componentsZh,
     compare: compareZh,
+    invest: investZh,
   },
   // 新语言:目前只有 compare ns(pilot),其余 ns 缺失 → fallbackLng 回退 en。P1 逐步补齐。
-  ar: { compare: compareAr },
-  ru: { compare: compareRu },
-  fr: { compare: compareFr },
+  ar: { compare: compareAr, invest: investAr },
+  ru: { compare: compareRu, invest: investRu },
+  fr: { compare: compareFr, invest: investFr },
 }
 
 i18n
@@ -114,7 +121,7 @@ i18n
     },
     nonExplicitSupportedLngs: true,
     defaultNS: 'common',
-    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components', 'compare'],
+    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components', 'compare', 'invest'],
     interpolation: {
       escapeValue: false,
     },

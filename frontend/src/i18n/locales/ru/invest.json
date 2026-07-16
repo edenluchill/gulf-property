@@ -1,0 +1,21 @@
+{
+  "outlook": "Инвест-оценка",
+  "netYield": "Чистая доходность",
+  "rentalYield": "Доходность аренды",
+  "cagr5": "годовых за 5 лет",
+  "payback": "Окупаемость",
+  "paybackVal": "{{y}} лет",
+  "growth": "Рост {{unit}}",
+  "tierDev": "проекта", "tierArea": "района", "tierZone": "зоны",
+  "matchDev": "Проект", "matchArea": "Район", "matchZone": "Зона",
+  "precise": " · точно",
+  "matchTitle": "Уровень сопоставления данных",
+  "grossYield": "Валовая доходность",
+  "serviceCharge": "Сервисный сбор",
+  "netFormula": "Чистая = валовая − сервисный сбор",
+  "returns5yr": "Доход за 5 лет (по базовой цене)",
+  "refPrice": "Базовая цена",
+  "dataThrough": " · данные {{unit}} до {{date}}",
+  "basedOn": " · на основе {{n}} сделок за год",
+  "disclaimer": ". Оценки по сделкам {{unit}} DLD — не гарантия доходности."
+}
