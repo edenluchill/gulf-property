@@ -113,6 +113,33 @@
 
 ---
 
+## 4b. 进度 + 接续指南（2026-07-15，随时更新）
+
+**已完成并上线：**
+1. **地基**：`frontend/src/lib/tt.ts`(逃生舱,少用)、`backend/src/lib/lang.ts` `getLang(req)`、`track.ts` fetch 层注入 `Accept-Language`、`LanguageSwitcher.tsx` 5 语言下拉、i18n `<html lang/dir>` 动态(ar=rtl)。
+2. **工业化工具**：
+   - `backend/scripts/i18n-translate.ts` —— 读 `frontend/src/i18n/locales/en/<ns>.json` → Gemini 产 ar/ru/fr。用法 `npx ts-node -T scripts/i18n-translate.ts <ns...>|--all [--langs ar,ru] [--force]`。保留 key+`{{插值}}`。
+   - `frontend/src/i18n/index.ts` 改 **`import.meta.glob('./locales/*/*.json')` 自动加载** —— 放 JSON 即生效,零配置。`ns` 也自动派生。
+3. **全站 t() 键控 UI 已 5 语言**：19 命名空间 × {en,zh,ar,ru,fr} 全齐,key 与 en 一致。
+4. **6 个组件内联三元已转 JSON**：`compare` ns(YieldVsAreaModule/PriceCheckModule/NearbyProjectsCompare/RecentDealsCompact/CompareTab)、`invest` ns(InvestmentScorecard)。
+5. **AI 自动检测语言**:voice-token/public-router/property-analyzer/lunaSummary/client-fit-analyzer 改成"跟随用户语言",不写死中文。
+
+**转组件的标准配方(照此复制)：**
+```
+1. 组件顶部 const { t } = useTranslation('<ns>')；动态 key 用
+   const tk = (k,o?) => (t as (k:string,o?:Record<string,unknown>)=>string)(`sub.${k}`, o)
+2. 把 zh?'中':'英' 换成 t('key')；插值用 {{var}} + t('key',{var});
+   注意:插值名别用 `count`(触发 i18next 复数,会 TS 报错)→ 用 n。
+3. locales/en/<ns>.json + zh-CN/<ns>.json 写 en/zh;
+4. 跑 backend/scripts/i18n-translate.ts <ns> 补 ar/ru/fr;
+5. npx tsc --noEmit 验;glob 自动加载,无需改 index.ts。
+```
+
+**剩余（未做）：**
+- **内联三元 codemod**(Task #8)：542 处里剩 ~450 处 / ~71 文件。top:SalesOfferDialog(47)、PaymentPlanSharePage(47)、AreaInsightsPanel(25)、TransactionsTab(13)、RoleSelectPage(13)…。现状=对 ar/ru/fr 回退英文(不坏,待翻)。
+- **后端 ~942 条中文串**(Task #11)：market.ts `verdictFor`/`area-classification` 等 → 改返回 code+参数由前端渲染,或 getLang 查表。
+- **阿语布局 RTL**：203 处物理 Tailwind 边距(ml-/mr-/pl-/pr-/left-/right-/text-left)→ 逻辑属性(ms-/me-/ps-/pe-/start-/end-/text-start)+ 图标/地图镜像。文本+dir 已就绪,布局未镜像。
+
 ## 5. 已定决策（2026-07-15 用户拍板）
 
 1. **翻译入库 = JSON + `t()`（标准）** 〔**2026-07-15 修正**：原定 tt() 内联桥接，pilot 实测 5 语言内联对象把组件淹没、且母语校对得改 .tsx——改用 react-i18next JSON。组件里只留 `t('ns:key')`,翻译全在 `locales/<lang>/<ns>.json`,AI/校对只碰 JSON。codemod 自动生成 key,迁移不比 inline 慢。`tt({...})`(lib/tt.ts)降级为**极少数动态串的逃生舱**,不做主路径。**新语言的 JSON 资源块 + i18next.d.ts 类型 + ns 三处要同步**(见 i18n/index.ts 的 ar/ru/fr 块)。〕
