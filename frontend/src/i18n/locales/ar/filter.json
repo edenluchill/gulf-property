@@ -4,10 +4,10 @@
     "title": "السعر",
     "range": "نطاق السعر",
     "minPrice": "أقل سعر (AED)",
-    "maxPrice": "أقصى سعر (AED)",
+    "maxPrice": "أعلى سعر (AED)",
     "noMin": "بدون حد أدنى",
     "noMax": "بدون حد أقصى",
-    "priceSqft": "السعر للقدم المربع (AED)",
+    "priceSqft": "السعر لكل sqft (AED)",
     "min": "الأدنى",
     "max": "الأقصى",
     "anyPrice": "أي سعر",
@@ -27,7 +27,7 @@
     "5plus": "5+",
     "propertySize": "مساحة العقار (sqft)",
     "minSize": "أقل مساحة",
-    "maxSize": "أقصى مساحة"
+    "maxSize": "أكبر مساحة"
   },
   "location": {
     "title": "الموقع",
@@ -42,12 +42,12 @@
     "title": "الحالة ونسبة الإنجاز",
     "projectStatus": "حالة المشروع",
     "all": "الكل",
-    "upcoming": "قادم",
+    "upcoming": "قيد الإطلاق",
     "underConstruction": "قيد الإنشاء",
     "completed": "مكتمل",
     "completionProgress": "نسبة الإنجاز (%)",
-    "minPercent": "أقل نسبة %",
-    "maxPercent": "أقصى نسبة %"
+    "minPercent": "أقل %",
+    "maxPercent": "أقصى %"
   },
   "dates": {
     "title": "التواريخ",
@@ -59,7 +59,7 @@
     "autoApply": "تُطبق الفلاتر تلقائياً عند تغييرها"
   },
   "chips": {
-    "any": "أي",
+    "any": "الكل",
     "price": "السعر",
     "beds": "غرف النوم",
     "status": "الحالة",
@@ -73,12 +73,12 @@
     "filterListings": "تصفية العقارات",
     "clear": "مسح",
     "aed": "AED",
-    "constructionProgress": "تقدم أعمال البناء",
+    "constructionProgress": "تطور الأعمال الإنشائية",
     "searchDeveloper": "البحث عن مطور…",
-    "anyAllDevelopers": "أي مطور (الجميع)",
+    "anyAllDevelopers": "الكل (جميع المطورين)",
     "clearAll": "مسح الكل",
     "viewResults": "عرض النتائج",
-    "selected": "المحدد: {{name}}",
+    "selected": "تم تحديد: {{name}}",
     "price0": "أي سعر",
     "price1": "≤ 500K",
     "price2": "500K–1M",
@@ -87,15 +87,15 @@
     "price5": "5M–10M",
     "price6": "10M+",
     "statusUnderConstruction": "قيد الإنشاء",
-    "statusUpcoming": "قادم",
+    "statusUpcoming": "قيد الإطلاق",
     "statusCompleted": "مكتمل",
     "searching": "جاري البحث…",
     "searchPlaceholder": "ابحث عن منطقة / مشروع / كلمة مفتاحية",
-    "refresh": "تحديث بيانات التصفية",
+    "refresh": "تحديث بيانات الفلتر",
     "tagArea": "المنطقة",
     "tagDeveloper": "المطور",
     "tagProject": "المشروع",
     "payment": "الدفع",
-    "paymentHint": "تقسيم الدفعات أثناء البناء / عند التسليم"
+    "paymentHint": "توزيع الدفعات أثناء الإنشاء / عند التسليم"
   }
 }

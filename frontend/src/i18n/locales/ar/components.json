@@ -3,10 +3,10 @@
     "you": "أنت",
     "tool": {
       "search": "بحث",
-      "locate": "تحديد الموقع",
-      "area": "المنطقة",
+      "locate": "تحديد موقع",
+      "area": "منطقة",
       "compare": "مقارنة",
-      "project": "المشروع"
+      "project": "مشروع"
     },
     "status": {
       "thinking": "جاري التفكير",
@@ -18,12 +18,12 @@
       "yield": "العائد",
       "growth": "النمو",
       "txns": "الصفقات",
-      "pricePerSqm": "$/m²"
+      "pricePerSqm": "$/م²"
     },
     "chart": {
-      "projection": "توقعات لـ 5 سنوات",
+      "projection": "توقعات 5 سنوات",
       "perYear": "/سنوياً",
-      "yearLabel": "سنة {{n}}",
+      "yearLabel": "السنة {{n}}",
       "rent": "الإيجار",
       "growth": "النمو"
     },

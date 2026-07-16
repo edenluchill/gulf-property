@@ -57,5 +57,20 @@
     "prev": "上一页",
     "next": "下一页"
   },
-  "empty": "该筛选条件下暂无成交数据。"
+  "empty": "该筛选条件下暂无成交数据。",
+  "noMatchedDldTransactions": "暂无可匹配的真实成交",
+  "thisProjectIsnT": "尚未把该项目匹配到 DLD 开发体（可能是新盘或名称未对齐）。",
+  "realTransactions": "真实成交 · 开发体 ",
+  "sales": "成交",
+  "rentals": "租约",
+  "offPlan": "期房",
+  "ready": "现房",
+  "all": "全部",
+  "noRecords": "该口径暂无记录",
+  "offPlan2": "期房",
+  "ready2": "现房",
+  "new": "新签",
+  "renew": "续租",
+  "yr": "年",
+  "sourceDubaiLandDepartment": "数据来源 Dubai Land Department,展示该开发体近期记录。"
 }

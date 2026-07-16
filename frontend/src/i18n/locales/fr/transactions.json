@@ -1,12 +1,12 @@
 {
   "title": "Historique des transactions",
-  "description": "Basé sur les données de transactions résidentielles réelles du Dubai Land Department (instantanés périodiques, non en temps réel ; les enregistrements de revente sont généralement différés de 4 à 8 semaines).",
+  "description": "Basé sur les données de transaction résidentielles réelles du Dubai Land Department (mises à jour périodiques, non en temps réel ; les enregistrements de revente sont généralement différés de 4 à 8 semaines).",
   "filter": {
     "area": "Quartier",
     "project": "Projet",
     "allProjects": "Tous les projets",
     "projectPlaceholder": "Rechercher des projets (sélection multiple)…",
-    "clearProject": "Effacer le filtre des projets",
+    "clearProject": "Effacer le filtre de projet",
     "projectsSelected": "{{count}} projets",
     "clearAll": "Tout effacer",
     "rooms": "Chambres",
@@ -14,21 +14,21 @@
     "type": "Type",
     "allAreas": "Tous les quartiers",
     "allRooms": "Toutes les chambres",
-    "anyYear": "Toutes (les plus récentes d'abord)",
+    "anyYear": "Toutes (les plus récentes en premier)",
     "areaOption": "{{name}} ({{count}})",
     "yearLabel": "{{year}}",
     "toggle": "Filtres",
     "summaryAll": "Toutes les transactions",
-    "apply": "Voir les résultats"
+    "apply": "Afficher les résultats"
   },
   "saleType": {
     "all": "Tout",
     "ready": "Prêt / Revente",
-    "offplan": "Sur plan",
+    "offplan": "Off-plan",
     "readyShort": "Prêt"
   },
   "loading": "Calcul en cours…",
-  "loadFailed": "Échec du chargement des données (problème temporaire de réseau/serveur) — cela ne signifie pas qu'il n'y a pas de transactions.",
+  "loadFailed": "Impossible de charger les données (problème temporaire de réseau ou de serveur) — cela ne signifie pas qu'il n'y a pas de transactions.",
   "retry": "Réessayer",
   "kpi": {
     "count": "Transactions",
@@ -57,5 +57,20 @@
     "prev": "Précédent",
     "next": "Suivant"
   },
-  "empty": "Aucune donnée de transaction disponible pour les filtres sélectionnés."
+  "empty": "Aucune donnée de transaction disponible pour les filtres sélectionnés.",
+  "noMatchedDldTransactions": "Aucune transaction DLD correspondante",
+  "thisProjectIsnT": "Ce projet n'est pas encore associé à un développement du DLD.",
+  "realTransactions": "Transactions réelles · ",
+  "sales": "Ventes",
+  "rentals": "Locations",
+  "offPlan": "Off-plan",
+  "ready": "Prêt",
+  "all": "Tout",
+  "noRecords": "Aucun enregistrement",
+  "offPlan2": "Off-plan",
+  "ready2": "Prêt",
+  "new": "Nouveau",
+  "renew": "Renouvellement",
+  "yr": "an",
+  "sourceDubaiLandDepartment": "Source : Dubai Land Department — transactions récentes pour ce projet."
 }

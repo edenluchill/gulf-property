@@ -67,8 +67,14 @@ async function translateNs(ns: string, lang: string): Promise<void> {
     config: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: 'low' } },
   })
   // 校验:必须是合法 JSON 且 key 集合与 en 一致(粗校验顶层 key)。
+  // 偶尔模型会裹 ```json 围栏或加话 → 剥掉围栏、截到第一个 { 到最后一个 }。
   let parsed: unknown
-  try { parsed = JSON.parse(text) } catch { throw new Error(`${lang}/${ns}: Gemini returned non-JSON`) }
+  const cleaned = (() => {
+    let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+    const a = s.indexOf('{'), b = s.lastIndexOf('}')
+    return a >= 0 && b > a ? s.slice(a, b + 1) : s
+  })()
+  try { parsed = JSON.parse(cleaned) } catch { throw new Error(`${lang}/${ns}: Gemini returned non-JSON`) }
   const enKeys = Object.keys(JSON.parse(enJson)).sort().join(',')
   const outKeys = Object.keys(parsed as object).sort().join(',')
   if (enKeys !== outKeys) console.log(`  ⚠ ${lang}/${ns}: top-level keys differ (en=[${enKeys}] out=[${outKeys}]) — 请人工核对`)

@@ -57,5 +57,20 @@
     "prev": "Previous",
     "next": "Next"
   },
-  "empty": "No transaction data available for the selected filters."
+  "empty": "No transaction data available for the selected filters.",
+  "noMatchedDldTransactions": "No matched DLD transactions",
+  "thisProjectIsnT": "This project isn’t matched to a DLD development yet.",
+  "realTransactions": "Real transactions · ",
+  "sales": "Sales",
+  "rentals": "Rentals",
+  "offPlan": "Off-plan",
+  "ready": "Ready",
+  "all": "All",
+  "noRecords": "No records",
+  "offPlan2": "Off-plan",
+  "ready2": "Ready",
+  "new": "New",
+  "renew": "Renew",
+  "yr": "yr",
+  "sourceDubaiLandDepartment": "Source: Dubai Land Department — recent records for this development."
 }
