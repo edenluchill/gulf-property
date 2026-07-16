@@ -170,7 +170,7 @@ export function AnalysisReport({ report, properties }: AnalysisReportProps) {
                   </div>
 
                   {/* Overall Score */}
-                  <div className="flex-shrink-0 text-right">
+                  <div className="flex-shrink-0 text-end">
                     <div className={`text-2xl font-bold ${item.color.text}`}>
                       {Math.round(item.overallScore)}
                     </div>

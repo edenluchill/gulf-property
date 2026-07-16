@@ -116,7 +116,7 @@ export function ProgressSection({
               <p className="text-amber-600 mt-1">
                 前面还有 <span className="font-bold">{queueInfo.queuePosition}</span> 个任务
                 {queueInfo.processing !== undefined && (
-                  <span className="text-amber-500 ml-2">
+                  <span className="text-amber-500 ms-2">
                     (正在处理 {queueInfo.processing}/{queueInfo.maxConcurrent})
                   </span>
                 )}

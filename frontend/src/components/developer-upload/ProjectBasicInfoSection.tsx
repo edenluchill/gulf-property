@@ -194,7 +194,7 @@ export function ProjectBasicInfoSection({
                 onClick={onOpenMapPicker}
                 disabled={isProcessing}
               >
-                <MapPin className="h-3 w-3 mr-1" />
+                <MapPin className="h-3 w-3 me-1" />
                 {t('basicInfo.reselect')}
               </Button>
             </div>
@@ -207,7 +207,7 @@ export function ProjectBasicInfoSection({
             onClick={onOpenMapPicker}
             disabled={isProcessing}
           >
-            <MapPin className="mr-2 h-4 w-4 text-teal-600" />
+            <MapPin className="me-2 h-4 w-4 text-teal-600" />
             {t('basicInfo.clickMapToSelect')}
           </Button>
         )}

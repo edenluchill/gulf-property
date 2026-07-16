@@ -23,7 +23,7 @@ export default function ReturnsBar({
 
   const Amount = ({ v }: { v: number }) => (
     <span className="tabular-nums">
-      <DirhamSymbol size="0.85em" className="mr-0.5 text-slate-400" />
+      <DirhamSymbol size="0.85em" className="me-0.5 text-slate-400" />
       {formatMoneyCompact(v, lang)}
     </span>
   )
@@ -43,7 +43,7 @@ export default function ReturnsBar({
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
           {t('projectDetail:appreciation')} <Amount v={appreciation} />
         </span>
-        <span className="ml-auto font-medium text-slate-800">
+        <span className="ms-auto font-medium text-slate-800">
           {t('projectDetail:5yrTotal')}+<Amount v={total} />
         </span>
       </div>

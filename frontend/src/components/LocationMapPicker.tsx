@@ -203,7 +203,7 @@ export default function LocationMapPickerModal({
               disabled={!selectedPosition}
               className="bg-gradient-to-r from-green-600 to-emerald-600 px-6"
             >
-              <Check className="mr-2 h-4 w-4" />
+              <Check className="me-2 h-4 w-4" />
               {t('locationPicker.confirm')}
             </Button>
           </div>

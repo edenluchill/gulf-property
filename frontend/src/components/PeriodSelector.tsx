@@ -35,7 +35,7 @@ export function PeriodSelector({
               }`}
             >
               {periodLabel(k, zh)}
-              {SHORT_PERIODS.includes(k) && <span className="ml-0.5 opacity-70">ⓘ</span>}
+              {SHORT_PERIODS.includes(k) && <span className="ms-0.5 opacity-70">ⓘ</span>}
             </button>
           )
         })}

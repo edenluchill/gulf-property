@@ -65,7 +65,7 @@ export default function GlobalQuotaGate() {
         <p className="mt-2 text-sm text-slate-500">
           {t('gate:signInToContinue2')}
         </p>
-        <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-left mx-auto w-fit">
+        <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-start mx-auto w-fit">
           <li>✓ {t('gate:unlimitedMarketTransactionData')}</li>
           <li>✓ {t('gate:favoritesSyncedAcrossDevices2')}</li>
           <li>✓ {t('gate:lunaAiAssistant2')}</li>

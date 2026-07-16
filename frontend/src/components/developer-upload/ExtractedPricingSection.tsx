@@ -113,10 +113,10 @@ export function ExtractedPricingSection({
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <div className="text-right">
+                    <div className="text-end">
                       <div className="font-bold text-gray-900">
                         {entry.isStartingFrom && (
-                          <span className="text-xs text-gray-500 font-normal mr-1">
+                          <span className="text-xs text-gray-500 font-normal me-1">
                             {t('extractedPricing.startingFrom', 'Starting from')}
                           </span>
                         )}
@@ -129,11 +129,11 @@ export function ExtractedPricingSection({
                       )}
                     </div>
                     {entry.area && (
-                      <div className="text-sm text-gray-600 border-l border-gray-200 pl-4">
+                      <div className="text-sm text-gray-600 border-l border-gray-200 ps-4">
                         {entry.area.toLocaleString()} sqft
                       </div>
                     )}
-                    <div className="flex items-center gap-1 text-xs text-gray-400 border-l border-gray-200 pl-4">
+                    <div className="flex items-center gap-1 text-xs text-gray-400 border-l border-gray-200 ps-4">
                       <FileText className="h-3 w-3" />
                       <span>p.{entry.sourcePageNumber}</span>
                     </div>

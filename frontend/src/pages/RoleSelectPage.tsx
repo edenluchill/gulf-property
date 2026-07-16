@@ -195,7 +195,7 @@ export default function RoleSelectPage() {
               key={c.id}
               disabled={!!saving}
               onClick={() => void choose(c)}
-              className={`group relative flex items-start gap-4 rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition-all duration-150 active:scale-[0.98] disabled:opacity-60 ${c.ring} ${c.bg}`}
+              className={`group relative flex items-start gap-4 rounded-2xl border-2 border-slate-200 bg-white p-5 text-start shadow-sm transition-all duration-150 active:scale-[0.98] disabled:opacity-60 ${c.ring} ${c.bg}`}
             >
               <span
                 className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-[34px] shadow-md transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3 ${c.grad}`}

@@ -40,7 +40,7 @@ function AreaCard({ a }: { a: AreaClass }) {
       </button>
       {open && (
         <div className="mt-2 space-y-2 text-xs text-slate-600">
-          <ul className="list-disc pl-4 space-y-1">
+          <ul className="list-disc ps-4 space-y-1">
             {a.reasons.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
           <div className="rounded-lg bg-slate-50 p-2 leading-relaxed">

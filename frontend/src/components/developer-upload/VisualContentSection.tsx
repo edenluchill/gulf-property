@@ -76,20 +76,20 @@ export function VisualContentSection({
               <div className="bg-white rounded p-3">
                 <p className="font-medium text-blue-700 mb-1">{t('visualContent.renderImages')}</p>
                 {visualContent.renderingDescriptions && visualContent.renderingDescriptions.length > 0 ? (
-                  <ul className="list-disc list-inside ml-2 text-gray-700 space-y-1">
+                  <ul className="list-disc list-inside ms-2 text-gray-700 space-y-1">
                     {visualContent.renderingDescriptions.map((desc, idx) => (
                       <li key={idx}>{desc}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="ml-2 text-gray-600">{t('visualContent.renderDetected')}</p>
+                  <p className="ms-2 text-gray-600">{t('visualContent.renderDetected')}</p>
                 )}
               </div>
             )}
             {visualContent.hasLocationMaps && (
               <div className="bg-white rounded p-3">
                 <p className="font-medium text-blue-700 mb-1">{t('visualContent.locationMap')}</p>
-                <p className="ml-2 text-gray-600">{t('visualContent.locationMapDetected')}</p>
+                <p className="ms-2 text-gray-600">{t('visualContent.locationMapDetected')}</p>
               </div>
             )}
           </div>

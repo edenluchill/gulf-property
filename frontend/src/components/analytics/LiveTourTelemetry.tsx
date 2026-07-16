@@ -99,10 +99,10 @@ export default function LiveTourTelemetry() {
                   <div className="h-5 flex-1 overflow-hidden rounded bg-slate-50">
                     <div className={`h-full ${drop ? 'bg-rose-400' : 'bg-teal-400'}`} style={{ width: `${Math.max(2, pct)}%` }} />
                   </div>
-                  <div className="w-28 shrink-0 text-right text-xs tabular-nums text-slate-500">
+                  <div className="w-28 shrink-0 text-end text-xs tabular-nums text-slate-500">
                     {s.count}
                     {s.fromPrevPct !== null && (
-                      <span className={drop ? 'ml-1 font-semibold text-rose-600' : 'ml-1 text-slate-400'}>
+                      <span className={drop ? 'ms-1 font-semibold text-rose-600' : 'ms-1 text-slate-400'}>
                         {s.fromPrevPct}%
                       </span>
                     )}
@@ -133,13 +133,13 @@ export default function LiveTourTelemetry() {
                     <div className="text-xs font-medium text-slate-700">{meta.label}</div>
                     {meta.hint && <div className="text-[10px] text-slate-400">{meta.hint}</div>}
                   </div>
-                  <div className="w-20 shrink-0 text-right text-xs tabular-nums text-slate-500">
+                  <div className="w-20 shrink-0 text-end text-xs tabular-nums text-slate-500">
                     p50 {fmt(r.p50, meta.unit)}
                   </div>
-                  <div className="w-24 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-700">
+                  <div className="w-24 shrink-0 text-end text-xs font-semibold tabular-nums text-slate-700">
                     p95 {fmt(r.p95, meta.unit)}
                   </div>
-                  <div className="w-16 shrink-0 text-right text-[10px] text-slate-300">{r.samples} 次</div>
+                  <div className="w-16 shrink-0 text-end text-[10px] text-slate-300">{r.samples} 次</div>
                 </div>
               )
             })}
@@ -163,8 +163,8 @@ export default function LiveTourTelemetry() {
             {agora.top.map((t) => (
               <div key={t.email} className="flex items-center gap-3 py-2 text-xs">
                 <span className="min-w-0 flex-1 truncate text-slate-700">{t.email}</span>
-                <span className="w-20 shrink-0 text-right tabular-nums text-slate-400">{t.units} units</span>
-                <span className="w-16 shrink-0 text-right font-semibold tabular-nums text-slate-700">${t.usd}</span>
+                <span className="w-20 shrink-0 text-end tabular-nums text-slate-400">{t.units} units</span>
+                <span className="w-16 shrink-0 text-end font-semibold tabular-nums text-slate-700">${t.usd}</span>
               </div>
             ))}
           </div>

@@ -152,7 +152,7 @@ export default function PaymentPlanSharePage() {
               : `Offers are valid for 60 days${expired.projectName ? ` — prices for ${expired.projectName} may have changed` : ''}. Contact your consultant for a fresh quote.`}
           </p>
           {a && (
-            <div className="mt-6 flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-left">
+            <div className="mt-6 flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-start">
               {a.photo
                 ? <img src={a.photo} alt={a.name} className="h-11 w-11 rounded-full object-cover ring-2 ring-white" />
                 : <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-500 text-lg font-bold text-white">{(a.name || '?').slice(0, 1)}</div>}
@@ -252,7 +252,7 @@ export default function PaymentPlanSharePage() {
   if (snap?.area) unitRows.push([t('payplan:totalAreaSqFt'), String(snap.area)])
   if (snap?.view) unitRows.push([t('payplan:view'), snap.view])
 
-  const th = 'border border-slate-300 bg-slate-800 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-white'
+  const th = 'border border-slate-300 bg-slate-800 px-3 py-2 text-start text-[11px] font-semibold uppercase tracking-wide text-white'
   const td = 'border border-slate-200 px-3 py-2 text-[13px] text-slate-700'
   const sectionTitle = 'mt-8 mb-3 text-center text-[13px] font-bold uppercase tracking-[0.18em] text-slate-800'
 
@@ -299,7 +299,7 @@ export default function PaymentPlanSharePage() {
               <div className="mt-1 text-[10px] tracking-wide text-slate-400">{t('payplan:aNewWayTo')} · pinzos.com</div>
             </div>
           </div>
-          <div className="text-right text-[10px] leading-relaxed text-slate-400">
+          <div className="text-end text-[10px] leading-relaxed text-slate-400">
             {t('payplan:dataSource')}<br />
             <span className="font-semibold text-slate-500">Dubai Land Department (DLD)</span>
           </div>
@@ -316,19 +316,19 @@ export default function PaymentPlanSharePage() {
           <table className="shrink-0 text-[11px]">
             <tbody>
               <tr>
-                <td className="pr-3 text-right text-slate-400">Ref No</td>
-                <td className="text-right font-semibold text-slate-700">SO-{share.code?.toUpperCase()}</td>
+                <td className="pe-3 text-end text-slate-400">Ref No</td>
+                <td className="text-end font-semibold text-slate-700">SO-{share.code?.toUpperCase()}</td>
               </tr>
               {quoteDate && (
                 <tr>
-                  <td className="pr-3 text-right text-slate-400">{t('payplan:date')}</td>
-                  <td className="text-right font-semibold text-slate-700">{quoteDate}</td>
+                  <td className="pe-3 text-end text-slate-400">{t('payplan:date')}</td>
+                  <td className="text-end font-semibold text-slate-700">{quoteDate}</td>
                 </tr>
               )}
               {validUntil && (
                 <tr>
-                  <td className="pr-3 text-right text-slate-400">{t('payplan:validUntil')}</td>
-                  <td className="text-right font-semibold text-teal-700">{validUntil}</td>
+                  <td className="pe-3 text-end text-slate-400">{t('payplan:validUntil')}</td>
+                  <td className="text-end font-semibold text-teal-700">{validUntil}</td>
                 </tr>
               )}
             </tbody>
@@ -366,22 +366,22 @@ export default function PaymentPlanSharePage() {
             {unitRows.map(([k, v]) => (
               <tr key={k}>
                 <td className={`${td} w-1/2 bg-slate-50 font-medium text-slate-500`}>{k}</td>
-                <td className={`${td} text-right font-semibold`}>{v}</td>
+                <td className={`${td} text-end font-semibold`}>{v}</td>
               </tr>
             ))}
             <tr>
               <td className={`${td} bg-slate-50 font-medium text-slate-500`}>{t('payplan:sellingPriceAed')}</td>
-              <td className={`${td} text-right font-semibold ${discount ? 'text-slate-400 line-through' : ''}`}>{aed(orig || price)}</td>
+              <td className={`${td} text-end font-semibold ${discount ? 'text-slate-400 line-through' : ''}`}>{aed(orig || price)}</td>
             </tr>
             {discount && (
               <tr>
                 <td className={`${td} font-semibold text-rose-700`}>{t('payplan:discount', { discount_pct: discount.pct })}</td>
-                <td className={`${td} text-right font-semibold text-rose-700`}>− {aed(discount.amount)}</td>
+                <td className={`${td} text-end font-semibold text-rose-700`}>− {aed(discount.amount)}</td>
               </tr>
             )}
             <tr>
               <td className={`${td} bg-slate-800 text-sm font-bold text-white`}>{t('payplan:totalSellingPriceAed')}</td>
-              <td className={`${td} bg-slate-800 text-right text-base font-extrabold text-white`}>{aed(price)}</td>
+              <td className={`${td} bg-slate-800 text-end text-base font-extrabold text-white`}>{aed(price)}</td>
             </tr>
           </tbody>
         </table>
@@ -398,9 +398,9 @@ export default function PaymentPlanSharePage() {
                 <tr>
                   <th className={`${th} w-8 text-center`}>#</th>
                   <th className={th}>{t('payplan:paymentTerms')}</th>
-                  <th className={`${th} w-20 text-right`}>%</th>
+                  <th className={`${th} w-20 text-end`}>%</th>
                   <th className={`${th} w-28`}>{t('payplan:date2')}</th>
-                  <th className={`${th} w-32 text-right`}>{t('payplan:amountAed')}</th>
+                  <th className={`${th} w-32 text-end`}>{t('payplan:amountAed')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -408,14 +408,14 @@ export default function PaymentPlanSharePage() {
                   <tr key={r.idx} className="even:bg-slate-50/60">
                     <td className={`${td} text-center text-slate-400`}>{r.idx}</td>
                     <td className={td}>{r.name}</td>
-                    <td className={`${td} text-right`}>{r.pct.toFixed(2)} %</td>
+                    <td className={`${td} text-end`}>{r.pct.toFixed(2)} %</td>
                     <td className={`${td} text-slate-500`}>{r.date || '—'}</td>
-                    <td className={`${td} text-right font-semibold`}>{aed(r.amount)}</td>
+                    <td className={`${td} text-end font-semibold`}>{aed(r.amount)}</td>
                   </tr>
                 ))}
                 <tr>
                   <td className={`${td} bg-slate-800 font-bold text-white`} colSpan={4}>{t('payplan:purchasePrice')}</td>
-                  <td className={`${td} bg-slate-800 text-right font-extrabold text-white`}>{aed(price)}</td>
+                  <td className={`${td} bg-slate-800 text-end font-extrabold text-white`}>{aed(price)}</td>
                 </tr>
               </tbody>
             </table>
@@ -428,19 +428,19 @@ export default function PaymentPlanSharePage() {
           <thead>
             <tr>
               <th className={th}>{t('payplan:description')}</th>
-              <th className={`${th} w-32 text-right`}>{t('payplan:totalAmountAed')}</th>
+              <th className={`${th} w-32 text-end`}>{t('payplan:totalAmountAed')}</th>
               <th className={th}>{t('payplan:remarks')}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td className={td}>{t('payplan:oqoodDldRegistration4')}</td>
-              <td className={`${td} text-right font-semibold`}>{aed(dldFee)}</td>
+              <td className={`${td} text-end font-semibold`}>{aed(dldFee)}</td>
               <td className={`${td} text-slate-500`}>{t('payplan:payableByTheBuyer')}</td>
             </tr>
             <tr>
               <td className={td}>{t('payplan:adminCharges')}</td>
-              <td className={`${td} text-right font-semibold`}>{aed(adminFee)}</td>
+              <td className={`${td} text-end font-semibold`}>{aed(adminFee)}</td>
               <td className={`${td} text-slate-500`}>{t('payplan:payableByTheBuyer2')}</td>
             </tr>
           </tbody>
@@ -489,7 +489,7 @@ export default function PaymentPlanSharePage() {
                     </div>
                   </div>
                 )}
-                <div className="text-right">
+                <div className="text-end">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     {isDeveloper ? (t('payplan:developer2')) : (t('payplan:salesExecutive'))}
                   </div>

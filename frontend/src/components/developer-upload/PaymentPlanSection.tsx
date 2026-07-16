@@ -80,7 +80,7 @@ export function PaymentPlanSection({ paymentPlan, isProcessing }: PaymentPlanSec
                       {timing}
                     </span>
                   )}
-                  <span className="font-bold text-teal-600 tabular-nums w-12 text-right shrink-0">
+                  <span className="font-bold text-teal-600 tabular-nums w-12 text-end shrink-0">
                     {parseFloat(String(milestone.percentage)) || 0}%
                   </span>
                 </div>

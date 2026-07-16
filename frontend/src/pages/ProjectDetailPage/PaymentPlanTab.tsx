@@ -136,15 +136,15 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
           {/* 空值 = 跟随起价(placeholder 灰显起价,值永不隐性回退——回退会
               让输入框删不完,2026-07-07 用户实锤) */}
           <div className="flex max-w-md items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white focus-within:border-primary">
-            <span className="flex items-center pl-3.5 pr-1 text-slate-400"><DirhamSymbol size="1em" /></span>
+            <span className="flex items-center ps-3.5 pe-1 text-slate-400"><DirhamSymbol size="1em" /></span>
             <MoneyInput
               value={priceInput}
               onChange={setPriceInput}
               placeholder={basePrice > 0 ? basePrice.toLocaleString('en-US') : (t('projectDetail:enterTotalPrice'))}
-              className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
+              className="w-full bg-transparent py-2.5 pe-3 text-lg font-bold text-slate-900 outline-none"
             />
             {activePrice > 0 && (
-              <span className="shrink-0 pr-3.5 text-xs font-medium text-slate-400">
+              <span className="shrink-0 pe-3.5 text-xs font-medium text-slate-400">
                 ≈ {formatMoneyCompact(activePrice, i18n.language)}
               </span>
             )}

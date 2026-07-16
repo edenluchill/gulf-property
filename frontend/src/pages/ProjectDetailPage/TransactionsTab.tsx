@@ -118,7 +118,7 @@ export function TransactionsTab({ projectId }: { projectId: string }) {
                       {r.saleType === 'offplan' ? ` · ${t('transactions:offPlan2')}` : ` · ${t('transactions:ready2')}`}
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 text-end">
                     <div className="text-sm font-bold text-slate-900">
                       <DirhamSymbol size="0.8em" className="mx-0.5 text-slate-400" />
                       {r.price != null ? formatMoneyCompact(r.price, i18n.language) : '—'}
@@ -136,7 +136,7 @@ export function TransactionsTab({ projectId }: { projectId: string }) {
                       {` · ${r.regType === 'new' ? (t('transactions:new')) : (t('transactions:renew'))}`}
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 text-end">
                     <div className="text-sm font-bold text-slate-900">
                       <DirhamSymbol size="0.8em" className="mx-0.5 text-slate-400" />
                       {r.annualRent != null ? formatMoneyCompact(r.annualRent, i18n.language) : '—'}<span className="text-[11px] font-normal text-slate-400">/{t('transactions:yr')}</span>

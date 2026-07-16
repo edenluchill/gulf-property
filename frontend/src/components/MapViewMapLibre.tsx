@@ -1886,7 +1886,7 @@ function MapViewMapLibre({
                 : voiceAmenities.tier === '一般' ? 'text-amber-600' : 'text-slate-500'
             }`}>{voiceAmenities.score}</span>
             <span className="text-sm text-slate-400">/100</span>
-            <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
+            <span className={`ms-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
               voiceAmenities.tier === '优秀' ? 'bg-emerald-50 text-emerald-700'
                 : voiceAmenities.tier === '良好' ? 'bg-sky-50 text-sky-700'
                 : voiceAmenities.tier === '一般' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
@@ -1897,7 +1897,7 @@ function MapViewMapLibre({
               <div key={s.category} className="flex items-center gap-2 text-xs">
                 <span className="w-4 text-center">{s.emoji}</span>
                 <span className="text-slate-600">{s.label}</span>
-                <span className="ml-auto truncate font-medium text-slate-800" title={s.name}>{s.distanceKm} km</span>
+                <span className="ms-auto truncate font-medium text-slate-800" title={s.name}>{s.distanceKm} km</span>
               </div>
             ))}
           </div>

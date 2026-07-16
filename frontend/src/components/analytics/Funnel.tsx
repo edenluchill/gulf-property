@@ -34,7 +34,7 @@ export default function Funnel({
                   <span className="truncate text-slate-700">{s.step}</span>
                   <span className="tabular-nums text-slate-500">
                     {s.visitors}
-                    {i > 0 && <span className="ml-1 text-xs text-slate-400">({pct.toFixed(0)}%)</span>}
+                    {i > 0 && <span className="ms-1 text-xs text-slate-400">({pct.toFixed(0)}%)</span>}
                   </span>
                 </div>
                 <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">

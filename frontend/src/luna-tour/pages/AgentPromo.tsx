@@ -73,7 +73,7 @@ export default function AgentPromo() {
         <Gift className="w-6 h-6 text-indigo-500" />
         <h1 className="text-xl font-bold text-slate-900">{t('lunaTour:referEarn')}</h1>
         {badge && (
-          <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold ${badge.bg} ${badge.text}`}>
+          <span className={`ms-auto inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold ${badge.bg} ${badge.text}`}>
             {badge.emoji} {L(stats.badge.zh, stats.badge.label)}
           </span>
         )}

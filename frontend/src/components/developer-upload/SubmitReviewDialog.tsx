@@ -90,7 +90,7 @@ export function SubmitReviewDialog({
                 <XCircle className="h-4 w-4" />
                 {t('readiness.missingFields', { fields: readiness.missingProjectFields.join(', ') })}
               </div>
-              <p className="text-red-700 pl-6">{t('reviewDialog.missingFieldsHint')}</p>
+              <p className="text-red-700 ps-6">{t('reviewDialog.missingFieldsHint')}</p>
             </div>
           )}
 
@@ -109,7 +109,7 @@ export function SubmitReviewDialog({
                 <Tag className="h-4 w-4" />
                 {readiness.unitsWithPrice === 0 ? '这份楼书里没有价格' : '价格不完整'}
               </div>
-              <p className="mt-1 whitespace-pre-line pl-6 leading-relaxed text-amber-800">
+              <p className="mt-1 whitespace-pre-line ps-6 leading-relaxed text-amber-800">
                 {readiness.priceWarning}
               </p>
             </div>
@@ -188,7 +188,7 @@ export function SubmitReviewDialog({
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" />
                 {t('submitBtn.submitting')}
               </>
             ) : (

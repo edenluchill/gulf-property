@@ -33,7 +33,7 @@ export default function UnitEconomics({
 
   const Amount = ({ v }: { v: number }) => (
     <span className="tabular-nums">
-      <DirhamSymbol size="0.85em" className="mr-0.5 text-slate-400" />
+      <DirhamSymbol size="0.85em" className="me-0.5 text-slate-400" />
       {formatMoneyCompact(v, lang)}
     </span>
   )
@@ -75,7 +75,7 @@ export default function UnitEconomics({
                 <div key={m.id || i} className="flex items-center justify-between gap-2 text-sm">
                   <span className="min-w-0 truncate text-slate-600">
                     {m.milestone_name}
-                    {m.interval_description ? <span className="ml-1 text-xs text-slate-400">· {m.interval_description}</span> : ''}
+                    {m.interval_description ? <span className="ms-1 text-xs text-slate-400">· {m.interval_description}</span> : ''}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="text-xs text-slate-400">{pct}%</span>

@@ -190,7 +190,7 @@ export default function AreaDetailDialog({
             </div>
             {desc && <p className="mt-1 text-sm text-slate-500 leading-snug line-clamp-2">{desc}</p>}
           </div>
-          <button onClick={onClose} className="flex-shrink-0 p-2 -mr-1 rounded-full hover:bg-slate-100 transition-colors">
+          <button onClick={onClose} className="flex-shrink-0 p-2 -me-1 rounded-full hover:bg-slate-100 transition-colors">
             <X className="w-5 h-5 text-slate-600" />
           </button>
         </div>

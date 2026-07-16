@@ -65,14 +65,14 @@ export default function Visitors({ days }: { days: number }) {
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
-                <th className="px-4 py-2 text-left font-medium">访客</th>
-                <th className="px-2 py-2 text-left font-medium">意向</th>
-                <th className="px-2 py-2 text-right font-medium">评分</th>
-                <th className="px-2 py-2 text-right font-medium">浏览</th>
-                <th className="px-2 py-2 text-right font-medium">搜索</th>
-                <th className="px-2 py-2 text-right font-medium">Luna</th>
-                <th className="px-2 py-2 text-right font-medium">收藏</th>
-                <th className="px-4 py-2 text-right font-medium">最近活跃</th>
+                <th className="px-4 py-2 text-start font-medium">访客</th>
+                <th className="px-2 py-2 text-start font-medium">意向</th>
+                <th className="px-2 py-2 text-end font-medium">评分</th>
+                <th className="px-2 py-2 text-end font-medium">浏览</th>
+                <th className="px-2 py-2 text-end font-medium">搜索</th>
+                <th className="px-2 py-2 text-end font-medium">Luna</th>
+                <th className="px-2 py-2 text-end font-medium">收藏</th>
+                <th className="px-4 py-2 text-end font-medium">最近活跃</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -82,16 +82,16 @@ export default function Visitors({ days }: { days: number }) {
                     <div className="font-medium text-slate-700">{v.user_email || <span className="font-mono text-slate-500">#{shortId(v.visitor_id)}</span>}</div>
                     <div className="font-mono text-[10px] text-slate-400">
                       {v.user_email ? `#${shortId(v.visitor_id)}` : ''}
-                      {v.browser_count > 1 && <span className="ml-1 font-sans text-slate-400">· {v.browser_count} 设备</span>}
+                      {v.browser_count > 1 && <span className="ms-1 font-sans text-slate-400">· {v.browser_count} 设备</span>}
                     </div>
                   </td>
                   <td className="px-2 py-2.5"><StageBadge stage={v.stage} /></td>
-                  <td className="px-2 py-2.5 text-right font-semibold text-slate-700">{v.score}</td>
-                  <td className="px-2 py-2.5 text-right text-slate-500">{v.views}</td>
-                  <td className="px-2 py-2.5 text-right text-slate-500">{v.searches}</td>
-                  <td className="px-2 py-2.5 text-right text-slate-500">{v.luna_opens || '—'}</td>
-                  <td className="px-2 py-2.5 text-right text-slate-500">{v.favorites || '—'}</td>
-                  <td className="px-4 py-2.5 text-right text-xs text-slate-400">{ago(v.last_seen)}</td>
+                  <td className="px-2 py-2.5 text-end font-semibold text-slate-700">{v.score}</td>
+                  <td className="px-2 py-2.5 text-end text-slate-500">{v.views}</td>
+                  <td className="px-2 py-2.5 text-end text-slate-500">{v.searches}</td>
+                  <td className="px-2 py-2.5 text-end text-slate-500">{v.luna_opens || '—'}</td>
+                  <td className="px-2 py-2.5 text-end text-slate-500">{v.favorites || '—'}</td>
+                  <td className="px-4 py-2.5 text-end text-xs text-slate-400">{ago(v.last_seen)}</td>
                 </tr>
               ))}
             </tbody>
@@ -170,7 +170,7 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
                   <span className="text-sm font-semibold text-slate-800">意向预测</span>
                   <StageBadge stage={d.stage} />
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <div className="text-lg font-bold text-slate-900">{d.score}</div>
                   <div className="text-[10px] text-slate-400">意向评分</div>
                 </div>
@@ -222,11 +222,11 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
                     <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
                       <div className="min-w-0">
                         <span className="truncate font-medium text-slate-700">{p.name}</span>
-                        {p.area && <span className="ml-1 text-xs text-slate-400">{p.area}</span>}
+                        {p.area && <span className="ms-1 text-xs text-slate-400">{p.area}</span>}
                       </div>
                       <div className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
                         {p.minPrice != null && <><DirhamSymbol size="0.8em" className="text-slate-400" />{formatMoneyCompact(p.minPrice, lang)}</>}
-                        {p.count > 1 && <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">×{p.count}</span>}
+                        {p.count > 1 && <span className="ms-1 rounded-full bg-slate-100 px-1.5 text-[10px]">×{p.count}</span>}
                       </div>
                     </div>
                   ))}
@@ -245,7 +245,7 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
                     <button
                       key={s.session_id}
                       onClick={() => setOpenSession(s.session_id)}
-                      className="flex w-full items-start justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50"
+                      className="flex w-full items-start justify-between gap-2 rounded-lg px-2 py-1.5 text-start hover:bg-slate-50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="text-xs text-slate-500">
@@ -302,7 +302,7 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
 
                   if (isApi) {
                     return (
-                      <div key={i} className="flex items-start gap-2.5 border-l-2 border-slate-100 pl-2 opacity-70">
+                      <div key={i} className="flex items-start gap-2.5 border-l-2 border-slate-100 ps-2 opacity-70">
                         <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">

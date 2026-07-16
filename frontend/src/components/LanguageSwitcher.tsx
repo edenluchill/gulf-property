@@ -48,7 +48,7 @@ export default function LanguageSwitcher() {
                 key={l.key}
                 type="button"
                 onClick={() => { i18n.changeLanguage(l.code); setOpen(false) }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 ${isActive ? 'font-semibold text-primary' : 'text-slate-700'}`}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-slate-50 ${isActive ? 'font-semibold text-primary' : 'text-slate-700'}`}
                 role="option"
                 aria-selected={isActive}
               >

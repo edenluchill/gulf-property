@@ -70,7 +70,7 @@ export default function TrialBanner() {
 
       <Link
         to="/agent/billing"
-        className={`ml-auto inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-white transition ${
+        className={`ms-auto inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-white transition ${
           urgent ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
         }`}
       >

@@ -56,7 +56,7 @@ export function NearbyProjectsCompare({ projectId, lang }: { projectId: string; 
           <table className="w-full text-sm" style={{ minWidth: 520 }}>
             <thead>
               <tr className="border-b text-[11px] uppercase tracking-wide text-slate-400">
-                {cols.map((c) => (<th key={c.key} className={`py-2 font-medium ${c.align === 'left' ? 'text-left pr-3' : 'text-right px-2'}`}>{c.label}</th>))}
+                {cols.map((c) => (<th key={c.key} className={`py-2 font-medium ${c.align === 'left' ? 'text-start pe-3' : 'text-end px-2'}`}>{c.label}</th>))}
               </tr>
             </thead>
             <tbody>
@@ -65,7 +65,7 @@ export function NearbyProjectsCompare({ projectId, lang }: { projectId: string; 
                 return (
                   <tr key={r.id} className={`border-b last:border-0 ${isSubject ? 'bg-primary/[0.06]' : ''}`}>
                     {cols.map((c) => (
-                      <td key={c.key} className={`py-2.5 tabular-nums ${c.align === 'left' ? 'text-left pr-3' : 'text-right px-2 text-slate-700'}`}>
+                      <td key={c.key} className={`py-2.5 tabular-nums ${c.align === 'left' ? 'text-start pe-3' : 'text-end px-2 text-slate-700'}`}>
                         {c.key === 'name' && isSubject ? (
                           <div className="flex items-center gap-1.5">
                             <span className="shrink-0 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">{tk('thisBadge')}</span>

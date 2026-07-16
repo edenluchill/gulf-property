@@ -358,7 +358,7 @@ export default function LangGraphTestPage() {
                           <ul className="space-y-1">
                             {result.marketingContent.highlights.map((highlight: string, idx: number) => (
                               <li key={idx} className="text-sm text-gray-700 flex items-start">
-                                <span className="text-green-600 mr-2">✓</span>
+                                <span className="text-green-600 me-2">✓</span>
                                 {highlight}
                               </li>
                             ))}

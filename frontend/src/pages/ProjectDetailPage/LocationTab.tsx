@@ -128,7 +128,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
               <Marker key={`${p.category}-${p.n}`} position={[p.lat, p.lng]} icon={numberedIcon(p.n, meta.color)}>
                 <Tooltip direction="top" offset={[0, -12]}>
                   <span className="font-medium">{p.n}. {p.name}</span>
-                  <span className="ml-1 text-slate-400">{zh ? meta.zh : meta.en} · {dist(p.distance_m, t)}</span>
+                  <span className="ms-1 text-slate-400">{zh ? meta.zh : meta.en} · {dist(p.distance_m, t)}</span>
                 </Tooltip>
               </Marker>
             )
@@ -217,20 +217,20 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
               <div key={i} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <div className="min-w-0">
                   <span className="text-slate-700">{s.building || areaName}</span>
-                  <span className="ml-2 text-xs text-slate-400">
+                  <span className="ms-2 text-xs text-slate-400">
                     {s.rooms || ''} {s.sizeSqm ? `· ${Math.round(s.sizeSqm)} m²` : ''} · {s.saleType === 'offplan' ? (t('projectDetail:offPlan')) : t('projectDetail:ready')}
                   </span>
                 </div>
-                <div className="shrink-0 text-right">
+                <div className="shrink-0 text-end">
                   {s.price != null && (
                     <div className="font-medium text-slate-800">
-                      <DirhamSymbol size="0.8em" className="mr-0.5 text-slate-400" />
+                      <DirhamSymbol size="0.8em" className="me-0.5 text-slate-400" />
                       {formatMoneyCompact(s.price, i18n.language)}
                     </div>
                   )}
                   {s.pricePerSqm != null && (
                     <div className="text-[11px] text-slate-400">
-                      <DirhamSymbol size="0.75em" className="mr-0.5" />
+                      <DirhamSymbol size="0.75em" className="me-0.5" />
                       {Math.round(s.pricePerSqm).toLocaleString()}/m²
                     </div>
                   )}

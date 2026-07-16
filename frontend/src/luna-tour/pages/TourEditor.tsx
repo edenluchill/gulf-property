@@ -311,7 +311,7 @@ export default function TourEditor() {
                 <div className="shrink-0 bg-slate-900 border-r border-b border-slate-800" style={{ width: GUTTER, height: 30 }} />
                 <div className="relative bg-slate-900 border-b border-slate-800" style={{ width: W, height: 30 }}>
                   {ruler.map((s) => (
-                    <div key={s} className="absolute top-0 h-full border-l border-slate-700/60 text-[11px] text-slate-400 pl-1 pt-1" style={{ left: s * px }}>{s}s</div>
+                    <div key={s} className="absolute top-0 h-full border-l border-slate-700/60 text-[11px] text-slate-400 ps-1 pt-1" style={{ left: s * px }}>{s}s</div>
                   ))}
                 </div>
               </div>
@@ -349,7 +349,7 @@ export default function TourEditor() {
                     {b.image ? <img src={proxied(b.image)} alt="" className="h-9 w-12 object-cover rounded shrink-0" /> : <span className="text-lg shrink-0">{b.isPlace ? '📍' : '🏠'}</span>}
                     <span className="text-sm font-medium text-slate-100 truncate">{b.name}</span>
                     {b.actIndex >= 0 && (
-                      <span className="ml-auto flex items-center gap-1 shrink-0">
+                      <span className="ms-auto flex items-center gap-1 shrink-0">
                         <button className="text-slate-300 hover:text-white px-1 text-sm" title="左移" onClick={() => moveStop(b.actIndex, -1)}>←</button>
                         <button className="text-slate-300 hover:text-white px-1 text-sm" title="右移" onClick={() => moveStop(b.actIndex, 1)}>→</button>
                         <button className="text-rose-300 hover:text-rose-500 px-1 text-sm" title="删除" onClick={() => deleteStop(b.actIndex, b.name)}>✕</button>
@@ -362,7 +362,7 @@ export default function TourEditor() {
               {/* 旁白 track (beats) */}
               <Track label="旁白" h={104}>
                 {laid.map((b) => (
-                  <button key={b.id} onClick={() => setSelId(b.id)} className={`absolute top-1.5 bottom-1.5 rounded-lg border text-left px-2.5 py-2 overflow-hidden transition ${selId === b.id ? 'ring-2 ring-indigo-300 z-10' : ''} ${(b.actIndex ?? -1) < 0 ? 'bg-slate-700 border-slate-600' : b.isPlace ? 'bg-indigo-600/70 border-indigo-400' : 'bg-emerald-700/70 border-emerald-500'}`} style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
+                  <button key={b.id} onClick={() => setSelId(b.id)} className={`absolute top-1.5 bottom-1.5 rounded-lg border text-start px-2.5 py-2 overflow-hidden transition ${selId === b.id ? 'ring-2 ring-indigo-300 z-10' : ''} ${(b.actIndex ?? -1) < 0 ? 'bg-slate-700 border-slate-600' : b.isPlace ? 'bg-indigo-600/70 border-indigo-400' : 'bg-emerald-700/70 border-emerald-500'}`} style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
                     <div className="text-[11px] font-medium text-white/80 mb-0.5">{KIND_ZH[b.kind] || b.kind} · ~{b.dur}s</div>
                     <div className="text-[13px] text-white leading-snug line-clamp-4">{b.narration || '—'}</div>
                   </button>
@@ -393,7 +393,7 @@ export default function TourEditor() {
                       <div
                         key={`${b.id}-${o.idx}`}
                         onMouseDown={(e) => startDrag(e, b, o, 'move')}
-                        className={`absolute rounded-lg border bg-white shadow-sm flex items-center gap-2 pl-2.5 pr-2 cursor-grab active:cursor-grabbing overflow-hidden ${isDrag ? 'z-20 ring-2 ring-amber-300' : 'border-slate-300'}`}
+                        className={`absolute rounded-lg border bg-white shadow-sm flex items-center gap-2 ps-2.5 pe-2 cursor-grab active:cursor-grabbing overflow-hidden ${isDrag ? 'z-20 ring-2 ring-amber-300' : 'border-slate-300'}`}
                         style={{ left: (b.start + at) * px + 1, width: Math.max(hasImg ? 110 : 76, dur * px - 2), top: 6 + lane * 48, height: 42 }}
                         title={`${o.label} · 拖动移动 · 拖右端裁剪时长`}
                       >

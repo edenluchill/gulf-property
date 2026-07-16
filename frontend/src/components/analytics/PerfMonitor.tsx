@@ -149,30 +149,30 @@ export default function PerfMonitor() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-slate-400">
+                <tr className="border-b border-slate-100 text-start text-slate-400">
                   <th className="px-4 py-2 font-medium">接口</th>
-                  <th className="px-3 py-2 text-right font-medium">请求</th>
-                  <th className="px-3 py-2 text-right font-medium">RPS</th>
-                  <th className="px-3 py-2 text-right font-medium">错误</th>
-                  <th className="px-3 py-2 text-right font-medium">慢</th>
-                  <th className="px-3 py-2 text-right font-medium">p50</th>
-                  <th className="px-3 py-2 text-right font-medium">p95</th>
-                  <th className="px-3 py-2 text-right font-medium">p99</th>
-                  <th className="px-3 py-2 text-right font-medium">max</th>
+                  <th className="px-3 py-2 text-end font-medium">请求</th>
+                  <th className="px-3 py-2 text-end font-medium">RPS</th>
+                  <th className="px-3 py-2 text-end font-medium">错误</th>
+                  <th className="px-3 py-2 text-end font-medium">慢</th>
+                  <th className="px-3 py-2 text-end font-medium">p50</th>
+                  <th className="px-3 py-2 text-end font-medium">p95</th>
+                  <th className="px-3 py-2 text-end font-medium">p99</th>
+                  <th className="px-3 py-2 text-end font-medium">max</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {endpoints.map((e) => (
                   <tr key={e.key} className="text-slate-600 hover:bg-slate-50/60">
                     <td className="px-4 py-2 font-mono text-[11px] text-slate-700">{e.key}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{e.req}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{e.rps}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${e.err > 0 ? 'text-rose-600' : ''}`}>{e.err}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${e.slow > 0 ? 'text-amber-600' : ''}`}>{e.slow}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{e.p50}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums ${e.p95 > live.thresholds.p95_ms ? 'font-semibold text-rose-600' : ''}`}>{e.p95}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{e.p99}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-400">{e.max}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">{e.req}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">{e.rps}</td>
+                    <td className={`px-3 py-2 text-end tabular-nums ${e.err > 0 ? 'text-rose-600' : ''}`}>{e.err}</td>
+                    <td className={`px-3 py-2 text-end tabular-nums ${e.slow > 0 ? 'text-amber-600' : ''}`}>{e.slow}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">{e.p50}</td>
+                    <td className={`px-3 py-2 text-end tabular-nums ${e.p95 > live.thresholds.p95_ms ? 'font-semibold text-rose-600' : ''}`}>{e.p95}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">{e.p99}</td>
+                    <td className="px-3 py-2 text-end tabular-nums text-slate-400">{e.max}</td>
                   </tr>
                 ))}
               </tbody>
@@ -193,12 +193,12 @@ export default function PerfMonitor() {
           <p className="px-4 py-6 text-xs text-slate-400">近期没有慢请求 ✅</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-start text-xs">
               <thead className="text-slate-400">
                 <tr className="border-b border-slate-100">
                   <th className="px-4 py-2 font-medium">时间</th>
                   <th className="px-4 py-2 font-medium">接口</th>
-                  <th className="px-4 py-2 text-right font-medium">耗时</th>
+                  <th className="px-4 py-2 text-end font-medium">耗时</th>
                   <th className="px-4 py-2 font-medium">谁在等</th>
                   <th className="px-4 py-2 font-medium">URL</th>
                 </tr>
@@ -210,10 +210,10 @@ export default function PerfMonitor() {
                       {s.at.slice(5, 16).replace('T', ' ')}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px]">{s.endpoint}</td>
-                    <td className={`whitespace-nowrap px-4 py-2 text-right font-medium ${s.duration_ms >= 2000 ? 'text-rose-600' : 'text-amber-600'}`}>
+                    <td className={`whitespace-nowrap px-4 py-2 text-end font-medium ${s.duration_ms >= 2000 ? 'text-rose-600' : 'text-amber-600'}`}>
                       {(s.duration_ms / 1000).toFixed(1)}s
                       {/* 客户端放弃 = 用户真的等不下去关掉了,比单纯的慢更严重 */}
-                      {s.aborted && <span className="ml-1 text-[10px] text-rose-500">已放弃</span>}
+                      {s.aborted && <span className="ms-1 text-[10px] text-rose-500">已放弃</span>}
                     </td>
                     <td className="max-w-[160px] truncate px-4 py-2 text-slate-500">{s.who || '匿名'}</td>
                     <td className="max-w-[280px] truncate px-4 py-2 font-mono text-[10px] text-slate-400" title={s.url || ''}>

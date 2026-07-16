@@ -117,7 +117,7 @@ export default function ProjectReportPage() {
                 <div className="text-[11px] text-teal-700/70">投入 <DirhamSymbol size="0.7em" />{M(inv.buy)},5 年预计总回报</div>
                 <div className="text-2xl font-extrabold text-teal-700"><DirhamSymbol size="0.7em" className="text-teal-500" />{M(inv.total_profit_5yr)}</div>
               </div>
-              <div className="text-right">
+              <div className="text-end">
                 <div className="text-2xl font-extrabold text-emerald-600">{inv.annualized_return_pct != null ? `${Number(inv.annualized_return_pct).toFixed(1)}%` : '—'}</div>
                 <div className="text-[11px] text-slate-500">年化回报{inv.payback_years != null ? ` · ${Number(inv.payback_years).toFixed(0)} 年回本` : ''}</div>
               </div>
@@ -267,7 +267,7 @@ function Section({ title, icon, badge, children }: { title?: string; icon?: Reac
       {title && (
         <div className="mb-3 flex items-center gap-2">
           {icon}<h3 className="text-sm font-bold text-slate-800">{title}</h3>
-          {badge && <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-200"><BadgeCheck className="h-3 w-3" />{badge}</span>}
+          {badge && <span className="ms-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-200"><BadgeCheck className="h-3 w-3" />{badge}</span>}
         </div>
       )}
       {children}

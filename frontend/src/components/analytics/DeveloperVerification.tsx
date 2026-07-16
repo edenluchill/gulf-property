@@ -83,7 +83,7 @@ export default function DeveloperVerification() {
                     {r.note && <div className="mt-0.5 truncate text-[11px] text-slate-400">“{r.note}”</div>}
                   </div>
 
-                  <div className="hidden w-28 shrink-0 text-right text-[11px] text-slate-400 md:block">
+                  <div className="hidden w-28 shrink-0 text-end text-[11px] text-slate-400 md:block">
                     {r.status === 'approved' && r.trial_ends_at ? (
                       <>试用至 {fmtDate(r.trial_ends_at)}<br />{r.trial_credits} 积分</>
                     ) : (
@@ -93,7 +93,7 @@ export default function DeveloperVerification() {
 
                   <div className="flex shrink-0 items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${st.cls}`}>
-                      {r.status === 'approved' && <BadgeCheck className="mr-0.5 inline h-3 w-3" />}
+                      {r.status === 'approved' && <BadgeCheck className="me-0.5 inline h-3 w-3" />}
                       {st.label}
                     </span>
                     {r.status === 'pending' && (

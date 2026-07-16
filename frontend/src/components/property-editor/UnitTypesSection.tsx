@@ -69,7 +69,7 @@ const SortableUnitCard = memo(function SortableUnitCard({
       <div
         {...attributes}
         {...listeners}
-        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pe-2 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity z-10"
       >
         <div className="p-1.5 bg-gray-100 rounded hover:bg-gray-200">
           <GripVertical className="h-4 w-4 text-gray-500" />
@@ -234,7 +234,7 @@ export function UnitTypesSection({
                       </div>
                     </div>
                   )}
-                  <div className={`space-y-3 ${!isUncategorized ? 'pl-4' : ''} ml-6`}>
+                  <div className={`space-y-3 ${!isUncategorized ? 'ps-4' : ''} ms-6`}>
                     {units.map((unit, idx) => (
                       <SortableUnitCard
                         key={unit.id}

@@ -169,13 +169,13 @@ export default function AgentReport() {
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-slate-700">
             {t('lunaTour:project2')}
-            <span className="ml-1 font-normal text-slate-400">{t('lunaTour:leaveEmptyLetAi')}</span>
+            <span className="ms-1 font-normal text-slate-400">{t('lunaTour:leaveEmptyLetAi')}</span>
           </label>
 
           {picked.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {picked.map((p) => (
-                <span key={p.id} className="flex items-center gap-1 rounded-full bg-teal-50 py-1 pl-2.5 pr-1 text-xs font-medium text-teal-800 ring-1 ring-teal-200">
+                <span key={p.id} className="flex items-center gap-1 rounded-full bg-teal-50 py-1 ps-2.5 pe-1 text-xs font-medium text-teal-800 ring-1 ring-teal-200">
                   {p.project_name}
                   <button onClick={() => setPicked((v) => v.filter((x) => x.id !== p.id))}
                     className="rounded-full p-0.5 transition hover:bg-teal-200"><X className="h-3 w-3" /></button>
@@ -189,7 +189,7 @@ export default function AgentReport() {
             <input
               value={q} onChange={(e) => setQ(e.target.value)}
               placeholder={t('lunaTour:searchAProject')}
-              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+              className="w-full rounded-lg border border-slate-200 py-2 ps-9 pe-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
             />
             {searching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-300" />}
           </div>
@@ -199,7 +199,7 @@ export default function AgentReport() {
               {hits.slice(0, 8).map((h) => (
                 <button key={h.id}
                   onClick={() => { setPicked((v) => [...v, h]); setQ(''); setHits([]) }}
-                  className="flex w-full items-center gap-2 border-b border-slate-50 px-3 py-2 text-left transition last:border-0 hover:bg-slate-50"
+                  className="flex w-full items-center gap-2 border-b border-slate-50 px-3 py-2 text-start transition last:border-0 hover:bg-slate-50"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-slate-800">{h.project_name}</span>

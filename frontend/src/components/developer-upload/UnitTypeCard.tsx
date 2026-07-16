@@ -186,7 +186,7 @@ export function UnitTypeCard({
                   <Label className="text-xs text-gray-600 font-semibold">
                     {t('unitTypeCard.floorPlan')}
                     {unit.floorPlanImages && unit.floorPlanImages.length > 1 && (
-                      <span className="text-teal-600 ml-1">({t('unitTypeCard.imageCount', { count: unit.floorPlanImages.length })})</span>
+                      <span className="text-teal-600 ms-1">({t('unitTypeCard.imageCount', { count: unit.floorPlanImages.length })})</span>
                     )}
                   </Label>
                   <ImageCarousel
@@ -234,7 +234,7 @@ export function UnitTypeCard({
                   <Label className="text-xs text-gray-600 font-semibold">
                     {t('unitTypeCard.unitPhotos', { defaultValue: 'Unit Photos' })}
                     {unitPhotos.length > 0 && (
-                      <span className="text-teal-600 ml-1">({t('unitTypeCard.imageCount', { count: unitPhotos.length })})</span>
+                      <span className="text-teal-600 ms-1">({t('unitTypeCard.imageCount', { count: unitPhotos.length })})</span>
                     )}
                   </Label>
                   {unitPhotos.length > 0 && (

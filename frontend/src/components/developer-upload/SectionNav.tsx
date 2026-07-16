@@ -91,7 +91,7 @@ export function SectionNav({ sections, activeId, onSelect }: SectionNavProps) {
               key={s.id}
               type="button"
               onClick={() => onSelect(s.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all text-left ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all text-start ${
                 s.id === activeId
                   ? 'bg-white text-gray-900 font-semibold shadow-sm ring-1 ring-gray-200'
                   : 'text-gray-500 hover:text-gray-800 hover:bg-white/60'

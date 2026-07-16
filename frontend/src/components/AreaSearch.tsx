@@ -87,7 +87,7 @@ export default function AreaSearch({ onSelect, autoFocus }: { onSelect: (area: A
               key={a.id}
               type="button"
               onClick={() => pick(a)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-slate-50"
+              className="flex w-full items-center gap-2 px-3 py-2 text-start text-xs transition-colors hover:bg-slate-50"
             >
               <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
               <span className="flex-1 truncate text-slate-800">{a.name}</span>

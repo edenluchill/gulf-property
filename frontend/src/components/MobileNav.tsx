@@ -165,7 +165,7 @@ export default function MobileNav() {
             <h2 className="text-lg font-semibold text-slate-900">{t('nav:admin')}</h2>
             <button
               onClick={() => setAdminSheetOpen(false)}
-              className="p-2 -mr-2 rounded-full hover:bg-slate-100 transition-colors"
+              className="p-2 -me-2 rounded-full hover:bg-slate-100 transition-colors"
             >
               <X className="h-5 w-5 text-slate-400" />
             </button>
@@ -193,7 +193,7 @@ export default function MobileNav() {
                   }`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className="flex-1 text-left">
+                  <div className="flex-1 text-start">
                     <div className={`font-medium ${isActive ? 'text-teal-700' : 'text-slate-800'}`}>
                       {label}
                     </div>

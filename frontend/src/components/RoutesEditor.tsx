@@ -438,7 +438,7 @@ export function RoutesSidebar({
           className="w-full"
           size="lg"
         >
-          <Route className="w-5 h-5 mr-2" />
+          <Route className="w-5 h-5 me-2" />
           {editMode === 'drawing-route' ? '✏️ Draw on Map...' : 'Add New Route'}
         </Button>
 
@@ -449,7 +449,7 @@ export function RoutesSidebar({
             className="w-full"
             size="sm"
           >
-            <Circle className="w-4 h-4 mr-2" />
+            <Circle className="w-4 h-4 me-2" />
             Add Stop
           </Button>
         )}
@@ -481,7 +481,7 @@ export function RoutesSidebar({
 
               {/* Stops */}
               {selectedRoute?.id === route.id && (route.stops?.length ?? 0) > 0 && (
-                <div className="ml-4 mt-1 space-y-1 border-l-2 border-slate-200 pl-3">
+                <div className="ms-4 mt-1 space-y-1 border-l-2 border-slate-200 ps-3">
                   {route.stops?.map((stop) => (
                     <div
                       key={stop.id}

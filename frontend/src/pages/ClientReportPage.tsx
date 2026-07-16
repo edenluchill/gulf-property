@@ -57,7 +57,7 @@ export default function ClientReportPage() {
         {p && (
           <a href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="block">
             {p.image && <img src={p.image} alt={p.name} className="h-44 w-full rounded-xl object-cover sm:h-56" />}
-            <div className="mt-3 pr-24">
+            <div className="mt-3 pe-24">
               <div className="text-[11px] font-semibold text-teal-600">专属分析 · 为 {r.client_name || '客户'}</div>
               <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">{p.name}<ExternalLink className="h-5 w-5 flex-shrink-0 text-slate-300" /></h1>
               <div className="text-sm text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
@@ -78,7 +78,7 @@ export default function ClientReportPage() {
                       <div key={s.k} className="flex items-center gap-2">
                         <span className="w-20 flex-shrink-0 text-xs text-slate-500">{s.k}</span>
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-500" style={{ width: `${s.v}%` }} /></div>
-                        <span className="w-7 flex-shrink-0 text-right text-xs font-semibold text-slate-700">{s.v}</span>
+                        <span className="w-7 flex-shrink-0 text-end text-xs font-semibold text-slate-700">{s.v}</span>
                       </div>
                     ))}
                   </div>
@@ -97,7 +97,7 @@ export default function ClientReportPage() {
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                       <div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: `${Math.max(0, Math.min(100, p.fit.project_fit))}%` }} />
                     </div>
-                    <span className="w-8 text-right text-sm font-bold tabular-nums text-slate-800">{p.fit.project_fit}</span>
+                    <span className="w-8 text-end text-sm font-bold tabular-nums text-slate-800">{p.fit.project_fit}</span>
                   </div>
                 )}
                 <ul className="space-y-2">
@@ -146,8 +146,8 @@ export default function ClientReportPage() {
                 <div className="overflow-hidden rounded-xl border border-slate-100">
                   <div className="flex bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-400">
                     <span className="flex-1">户型</span>
-                    <span className="w-14 text-right">面积</span>
-                    <span className="w-24 text-right">价格</span>
+                    <span className="w-14 text-end">面积</span>
+                    <span className="w-24 text-end">价格</span>
                   </div>
                   {p.units.slice(0, 6).map((u: any, i: number) => {
                     const isTop = p.fit?.recommended_unit && String(u.name || '').includes(p.fit.recommended_unit)
@@ -158,8 +158,8 @@ export default function ClientReportPage() {
                             {isTop && <span className="shrink-0 rounded bg-teal-500 px-1 text-[9px] font-bold text-white">推荐</span>}
                             <span className="truncate">{u.name || (u.bedrooms != null ? `${u.bedrooms} 居` : '户型')}</span>
                           </span>
-                          <span className="w-14 text-right text-xs text-slate-500">{u.area != null ? `${Math.round(u.area)}ft²` : '—'}</span>
-                          <span className="w-24 text-right font-semibold text-slate-800">
+                          <span className="w-14 text-end text-xs text-slate-500">{u.area != null ? `${Math.round(u.area)}ft²` : '—'}</span>
+                          <span className="w-24 text-end font-semibold text-slate-800">
                             {u.price != null ? <Dh v={u.price} /> : <span className="text-xs font-normal text-slate-400">价格待定</span>}
                           </span>
                         </div>
@@ -313,7 +313,7 @@ function TopBar({ title }: { title: string }) {
 
 function AgentStamp({ agent }: { agent: any }) {
   return (
-    <div className="absolute right-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 pl-1 pr-3 shadow-sm">
+    <div className="absolute right-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 ps-1 pe-3 shadow-sm">
       {agent.photo
         ? <img src={agent.photo} alt={agent.name} className="h-8 w-8 rounded-full object-cover" />
         : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
@@ -378,7 +378,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
       <div className="pg relative mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
         <AgentStamp agent={agent} />
 
-        <div className="pr-24">
+        <div className="pe-24">
           <div className="text-[11px] font-semibold text-teal-600">项目对比 · 为 {report.client_name || '客户'} 精选</div>
           <h1 className="text-2xl font-extrabold text-slate-900">为 {report.client_name || '客户'} 准备的项目对比</h1>
           <div className="text-sm text-slate-500">{props.length} 个项目并排对比</div>
@@ -427,7 +427,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
                               <div key={i} className="flex items-center gap-2">
                                 <span className="w-24 flex-shrink-0 truncate text-[11px] text-slate-500">{p.name}</span>
                                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.min(100, ((scores[i] ?? 0) / maxScore) * 100)}%` }} /></div>
-                                <span className="w-7 flex-shrink-0 text-right text-[11px] font-semibold text-slate-700">{scores[i] ?? '—'}</span>
+                                <span className="w-7 flex-shrink-0 text-end text-[11px] font-semibold text-slate-700">{scores[i] ?? '—'}</span>
                               </div>
                             ))}
                           </div>
@@ -454,7 +454,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
             <table className="w-full min-w-[480px] border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 bg-white p-2.5 text-left text-[11px] font-semibold text-slate-400" />
+                  <th className="sticky left-0 z-10 bg-white p-2.5 text-start text-[11px] font-semibold text-slate-400" />
                   {props.map((p, i) => (
                     <th key={i} className={`min-w-[120px] border-l border-slate-100 p-2.5 align-top ${i === winnerIdx ? 'bg-teal-50/70' : 'bg-slate-50/60'}`}>
                       {p.primary_image && <img src={p.primary_image} alt={p.name} className="mb-1.5 h-16 w-full rounded-lg object-cover" />}
@@ -468,7 +468,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
                   const bi = bestIdxOf(row)
                   return (
                     <tr key={ri} className="border-t border-slate-50">
-                      <td className="sticky left-0 z-10 bg-white p-2.5 text-left text-xs text-slate-500">{row.label}</td>
+                      <td className="sticky left-0 z-10 bg-white p-2.5 text-start text-xs text-slate-500">{row.label}</td>
                       {props.map((p, i) => (
                         <td key={i} className={`border-l border-slate-100 p-2.5 text-center ${i === winnerIdx ? 'bg-teal-50/50' : ''} ${i === bi ? 'font-bold text-teal-700' : 'text-slate-700'}`}>
                           {row.render(p)}

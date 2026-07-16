@@ -71,7 +71,7 @@ export default function FeatureLog() {
                 }`}>
                 <s.Icon className="h-4 w-4 shrink-0" />
                 <span className="whitespace-nowrap">{s.label}</span>
-                {c != null && <span className={`ml-auto hidden rounded-full px-1.5 text-[10px] md:inline ${active ? 'bg-teal-100 text-teal-600' : 'bg-slate-100 text-slate-400'}`}>{c}</span>}
+                {c != null && <span className={`ms-auto hidden rounded-full px-1.5 text-[10px] md:inline ${active ? 'bg-teal-100 text-teal-600' : 'bg-slate-100 text-slate-400'}`}>{c}</span>}
               </button>
             )
           })}
@@ -112,7 +112,7 @@ export default function FeatureLog() {
               <Rows>
                 {luna.map((s) => (
                   <button key={s.id} onClick={() => setOpenSession(s.session_id)}
-                    className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
+                    className="flex w-full items-start justify-between gap-3 px-4 py-3 text-start hover:bg-slate-50">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-slate-700">
                         {fmtTime(s.created_at)} · <span className={s.email ? 'text-slate-700' : 'text-slate-400'}>{s.email || (s.short_id ? `#${s.short_id}` : '匿名')}</span>
@@ -135,11 +135,11 @@ export default function FeatureLog() {
               <Rows>
                 {collab.map((c) => (
                   <button key={c.code} onClick={() => setOpenCollab(c.code)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start hover:bg-slate-50">
                     <div className="min-w-0">
                       <div className="text-sm text-slate-700">
                         {fmtTime(c.last_event_at || c.created_at)}{c.name ? ` · ${c.name}` : ''}
-                        <span className="ml-1 font-mono text-xs text-slate-400">{c.code}</span>
+                        <span className="ms-1 font-mono text-xs text-slate-400">{c.code}</span>
                       </div>
                       <div className="text-xs text-slate-400">{c.chat_count} 条聊天 · {c.event_count} 事件 · 峰值 {c.peak_participants} 人</div>
                     </div>

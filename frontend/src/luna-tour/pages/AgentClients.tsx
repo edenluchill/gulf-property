@@ -136,7 +136,7 @@ export default function AgentClients() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t('lunaTour:searchNameEmailPhone')}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
             />
           </div>
 
@@ -197,7 +197,7 @@ function ClientCard({ c, onClick }: { c: Client; onClick: () => void }) {
   const sm = stageMeta(c.pipeline_stage)
   const overdue = isOverdue(c.next_followup_at)
   return (
-    <button onClick={onClick} className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-teal-300">
+    <button onClick={onClick} className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-4 text-start shadow-sm transition hover:border-teal-300">
       <div className="flex items-center gap-3">
         <img src={c.avatar_url || AVA(c.name)} alt={c.name} className="h-12 w-12 rounded-full bg-slate-100 ring-1 ring-slate-200" />
         <div className="min-w-0 flex-1">
@@ -422,9 +422,9 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <div className="w-28 shrink-0 text-right text-xs text-slate-500 tabular-nums">
+                  <div className="w-28 shrink-0 text-end text-xs text-slate-500 tabular-nums">
                     {Math.round(f.dwell_ms / 1000)}s
-                    {f.loves > 0 && <span className="ml-1">❤️</span>}
+                    {f.loves > 0 && <span className="ms-1">❤️</span>}
                   </div>
                 </div>
               )
@@ -527,7 +527,7 @@ function CompareModal({ clientId, onClose }: { clientId: string; onClose: () => 
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder={t('lunaTour:searchProjectNameArea')}
-                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
                 />
               </div>
 
@@ -556,7 +556,7 @@ function CompareModal({ clientId, onClose }: { clientId: string; onClose: () => 
                         key={p.id}
                         onClick={() => toggle(p)}
                         disabled={disabled}
-                        className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition disabled:opacity-40 ${on ? 'border-teal-400 bg-teal-50/60 ring-1 ring-teal-200' : 'border-slate-200 hover:border-teal-300'}`}
+                        className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-start transition disabled:opacity-40 ${on ? 'border-teal-400 bg-teal-50/60 ring-1 ring-teal-200' : 'border-slate-200 hover:border-teal-300'}`}
                       >
                         {p.primary_image
                           ? <img src={p.primary_image} alt={p.project_name} className="h-12 w-16 flex-shrink-0 rounded-lg object-cover" />
@@ -626,7 +626,7 @@ function InteractionItem({ it }: { it: ClientInteraction }) {
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold text-slate-700">{L(km.label, km.en)}</span>
           {it.outcome && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">{outcomeLabel(it.outcome, zh)}</span>}
-          <span className="ml-auto shrink-0 text-[11px] text-slate-400">{ago(it.created_at, t)}</span>
+          <span className="ms-auto shrink-0 text-[11px] text-slate-400">{ago(it.created_at, t)}</span>
         </div>
         {it.note && <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{it.note}</div>}
         {it.next_followup_at && <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-400"><CalendarClock className="h-3 w-3" />{t('lunaTour:nextFollowUp')} {dateStr(it.next_followup_at)}</div>}
@@ -646,7 +646,7 @@ function EngagementItem({ ev }: { ev: ClientEngagement }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
           <span className="text-slate-600">{info.label}</span>
-          <span className="ml-auto shrink-0 text-[11px] text-slate-400">{ago(ev.created_at, t)}</span>
+          <span className="ms-auto shrink-0 text-[11px] text-slate-400">{ago(ev.created_at, t)}</span>
         </div>
         <div className="mt-0.5 text-[11px] text-slate-400">{t('lunaTour:clientActivity')}</div>
       </div>

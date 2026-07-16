@@ -276,7 +276,7 @@ export default function ProjectDetailPage() {
         <h1 className="text-3xl font-bold mb-4">{t('project:notFound')}</h1>
         <Link to="/map">
           <Button>
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft className="me-2 h-4 w-4" />
             {t('project:backToProperties')}
           </Button>
         </Link>
@@ -349,7 +349,7 @@ export default function ProjectDetailPage() {
           </div>
           <div className="flex items-center gap-4">
             {project.starting_price && (
-              <div className="text-right hidden sm:block">
+              <div className="text-end hidden sm:block">
                 <div className="text-xs text-slate-500">{t('common:price.startingPrice')}</div>
                 <div className="text-lg font-bold text-primary">{formatPrice(project.starting_price)}</div>
               </div>
@@ -392,7 +392,7 @@ export default function ProjectDetailPage() {
           <div className="container mx-auto px-4">
             <div className="flex items-center h-12">
               {/* Back button - both mobile and desktop */}
-              <Link to="/map" className="mr-3 -ml-2 flex-shrink-0">
+              <Link to="/map" className="me-3 -ms-2 flex-shrink-0">
                 <Button variant="ghost" size="icon" className="h-9 w-9">
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
@@ -420,7 +420,7 @@ export default function ProjectDetailPage() {
                 {/* Mobile compact header */}
                 <div className="bg-white border-b py-3 px-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 mr-3">
+                    <div className="flex-1 min-w-0 me-3">
                       <div className="flex items-center gap-2">
                         <h1 className="text-base font-bold text-slate-900 truncate">{project.project_name}</h1>
                         {/* Sold Out Badge */}
@@ -504,7 +504,7 @@ export default function ProjectDetailPage() {
                 {/* Tablet compact header with actions */}
                 <div className="bg-white border-b py-3 px-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 mr-3">
+                    <div className="flex-1 min-w-0 me-3">
                       <div className="flex items-center gap-2">
                         <h1 className="text-lg font-bold text-slate-900 truncate">{project.project_name}</h1>
                         {project.status === 'sold-out' && (
@@ -549,7 +549,7 @@ export default function ProjectDetailPage() {
                         onClick={handleGenerateReport}
                         disabled={genningReport}
                       >
-                        <Share2 className="mr-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
+                        <Share2 className="me-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
                       </Button>
                       <Button variant="outline" size="sm" className="h-10 px-3" onClick={() => setShowCardEditor(true)}>名片</Button>
                       <Button
@@ -638,7 +638,7 @@ export default function ProjectDetailPage() {
                           size="sm"
                           onClick={handleShare}
                         >
-                          <Share2 className="h-4 w-4 mr-2" />
+                          <Share2 className="h-4 w-4 me-2" />
                           {t('project:share', 'Share')}
                         </Button>
                         <Button
@@ -648,12 +648,12 @@ export default function ProjectDetailPage() {
                         >
                           {copied ? (
                             <>
-                              <Check className="h-4 w-4 mr-2 text-green-600" />
+                              <Check className="h-4 w-4 me-2 text-green-600" />
                               {t('project:copyNotes.copied')}
                             </>
                           ) : (
                             <>
-                              <Copy className="h-4 w-4 mr-2" />
+                              <Copy className="h-4 w-4 me-2" />
                               {t('project:copyNotes.button')}
                             </>
                           )}
@@ -663,7 +663,7 @@ export default function ProjectDetailPage() {
                           size="sm"
                           onClick={handleToggleFavorite}
                         >
-                          <Heart className={`h-4 w-4 mr-2 ${isFav ? 'fill-current' : ''}`} />
+                          <Heart className={`h-4 w-4 me-2 ${isFav ? 'fill-current' : ''}`} />
                           {isFav ? t('project:saved', 'Saved') : t('project:save', 'Save')}
                         </Button>
                       </div>
@@ -879,7 +879,7 @@ export default function ProjectDetailPage() {
                         </div>
                         <button
                           onClick={() => setShowMobileInfo(false)}
-                          className="p-2 -mt-1 -mr-2 text-slate-400 hover:text-slate-600"
+                          className="p-2 -mt-1 -me-2 text-slate-400 hover:text-slate-600"
                         >
                           <X className="h-5 w-5" />
                         </button>
@@ -976,7 +976,7 @@ export default function ProjectDetailPage() {
                           variant="outline"
                           className="flex-1"
                         >
-                          <Share2 className="h-4 w-4 mr-2" />
+                          <Share2 className="h-4 w-4 me-2" />
                           {t('project:share', 'Share')}
                         </Button>
                         <Button
@@ -986,12 +986,12 @@ export default function ProjectDetailPage() {
                         >
                           {copied ? (
                             <>
-                              <Check className="h-4 w-4 mr-2 text-green-600" />
+                              <Check className="h-4 w-4 me-2 text-green-600" />
                               {t('project:copyNotes.copied')}
                             </>
                           ) : (
                             <>
-                              <Copy className="h-4 w-4 mr-2" />
+                              <Copy className="h-4 w-4 me-2" />
                               {t('project:copyNotes.button')}
                             </>
                           )}
@@ -1001,7 +1001,7 @@ export default function ProjectDetailPage() {
                           variant={isFav ? "default" : "outline"}
                           className="flex-1"
                         >
-                          <Heart className={`h-4 w-4 mr-2 ${isFav ? 'fill-current' : ''}`} />
+                          <Heart className={`h-4 w-4 me-2 ${isFav ? 'fill-current' : ''}`} />
                           {isFav ? t('project:saved', 'Saved') : t('project:save', 'Save')}
                         </Button>
                       </div>

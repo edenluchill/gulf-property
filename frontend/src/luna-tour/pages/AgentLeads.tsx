@@ -88,7 +88,7 @@ export default function AgentLeads() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-semibold text-slate-800">{l.name || t('lunaTour:anonymous')}</span>
                       {mine && <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-600">{t('lunaTour:claimed')}</span>}
-                      <span className="ml-auto inline-flex items-center gap-1">
+                      <span className="ms-auto inline-flex items-center gap-1">
                         <Flame className={`h-4 w-4 ${heatTone(l.lead_score)}`} />
                         <span className={`text-base font-bold ${heatTone(l.lead_score)}`}>{l.lead_score}</span>
                       </span>

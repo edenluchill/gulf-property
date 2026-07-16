@@ -191,7 +191,7 @@ function ThinkingBubble({ toolStatus }: { toolStatus: string }) {
           <span className="text-indigo-600 text-[13px] font-medium">{toolStatus}</span>
 
           {/* Animated dots */}
-          <div className="flex gap-[3px] ml-auto">
+          <div className="flex gap-[3px] ms-auto">
             {[0, 1, 2].map(i => (
               <motion.div
                 key={i}
@@ -213,7 +213,7 @@ function CompactProjectCard({ project, onNavigate }: { project: ProjectCard; onN
   return (
     <button
       onClick={() => onNavigate(project.id)}
-      className="w-full rounded-xl bg-white/70 p-2 text-left hover:bg-white/90 transition-all group"
+      className="w-full rounded-xl bg-white/70 p-2 text-start hover:bg-white/90 transition-all group"
     >
       <div className="flex items-center gap-2.5">
         <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
@@ -243,7 +243,7 @@ function CompactProjectCard({ project, onNavigate }: { project: ProjectCard; onN
       </div>
       {/* Unit types in budget */}
       {project.unitTypes && project.unitTypes.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5 pl-[50px]">
+        <div className="flex flex-wrap gap-1 mt-1.5 ps-[50px]">
           {project.unitTypes.slice(0, 4).map((u) => (
             <span key={u.category} className="inline-flex items-center gap-0.5 rounded-md bg-blue-50/80 px-1.5 py-0.5 text-[9px] text-blue-700">
               <span className="font-semibold">{u.category}</span>
@@ -272,13 +272,13 @@ function CompactAreaCard({ areaInfo, t }: { areaInfo: AreaInfoCard; t: TFunction
         {areaInfo.rentalYield != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
             <span className="text-gray-400">{t('voice.metric.yield')}</span>
-            <span className="ml-1 font-semibold text-emerald-600">{parseFloat(String(areaInfo.rentalYield)).toFixed(1)}%</span>
+            <span className="ms-1 font-semibold text-emerald-600">{parseFloat(String(areaInfo.rentalYield)).toFixed(1)}%</span>
           </div>
         )}
         {areaInfo.priceGrowth != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
             <span className="text-gray-400">{t('voice.metric.growth')}</span>
-            <span className={cn('ml-1 font-semibold', parseFloat(String(areaInfo.priceGrowth)) >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+            <span className={cn('ms-1 font-semibold', parseFloat(String(areaInfo.priceGrowth)) >= 0 ? 'text-emerald-600' : 'text-red-500')}>
               {parseFloat(String(areaInfo.priceGrowth)) >= 0 ? '+' : ''}{parseFloat(String(areaInfo.priceGrowth)).toFixed(1)}%
             </span>
           </div>
@@ -286,13 +286,13 @@ function CompactAreaCard({ areaInfo, t }: { areaInfo: AreaInfoCard; t: TFunction
         {areaInfo.transactionCount != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
             <span className="text-gray-400">{t('voice.metric.txns')}</span>
-            <span className="ml-1 font-semibold text-gray-700">{Number(areaInfo.transactionCount).toLocaleString()}</span>
+            <span className="ms-1 font-semibold text-gray-700">{Number(areaInfo.transactionCount).toLocaleString()}</span>
           </div>
         )}
         {areaInfo.medianPrice != null && (
           <div className="rounded-lg bg-white/70 px-1.5 py-1">
             <span className="text-gray-400">{t('voice.metric.pricePerSqm')}</span>
-            <span className="ml-1 font-semibold text-gray-700">{Number(areaInfo.medianPrice).toLocaleString()}</span>
+            <span className="ms-1 font-semibold text-gray-700">{Number(areaInfo.medianPrice).toLocaleString()}</span>
           </div>
         )}
       </div>
@@ -497,7 +497,7 @@ function LunaBubble({
 
         {/* Text */}
         {bubble.text && (
-          <p className="pr-2 text-gray-800 leading-relaxed text-[13px]">{bubble.text}</p>
+          <p className="pe-2 text-gray-800 leading-relaxed text-[13px]">{bubble.text}</p>
         )}
 
         {bubble.attachment && (
@@ -836,7 +836,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         const low = quota.pct >= 80
         const remainPct = Math.min(100, Math.max(0, 100 - quota.pct))
         return (
-          <div className="flex items-center gap-1.5 rounded-l-full border border-white/70 bg-white/85 py-1 pl-2.5 pr-2.5 shadow-md shadow-slate-900/[0.06] backdrop-blur-xl">
+          <div className="flex items-center gap-1.5 rounded-l-full border border-white/70 bg-white/85 py-1 ps-2.5 pe-2.5 shadow-md shadow-slate-900/[0.06] backdrop-blur-xl">
             <Zap className={cn('h-3 w-3 shrink-0', low ? 'text-amber-500' : 'text-emerald-500')} fill="currentColor" />
             <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-200/70">
               <div

@@ -166,7 +166,7 @@ export default function AdminPropertyListPage() {
                   placeholder={t('list.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 text-base py-6"
+                  className="ps-10 text-base py-6"
                 />
               </div>
             </CardContent>

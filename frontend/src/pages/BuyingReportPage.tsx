@@ -136,7 +136,7 @@ export default function BuyingReportPage() {
                     .filter(Boolean).join(' · ')}
                 </div>
               </div>
-              <div className="text-right text-[11px] text-slate-400">
+              <div className="text-end text-[11px] text-slate-400">
                 {t('brand.poweredBy')}
               </div>
             </div>
@@ -171,7 +171,7 @@ export default function BuyingReportPage() {
                   </div>
                 </div>
 
-                <ul className="mt-3 list-disc pl-5 text-xs text-slate-600 space-y-1">
+                <ul className="mt-3 list-disc ps-5 text-xs text-slate-600 space-y-1">
                   {r.why.map((w, j) => <li key={j}>{w}</li>)}
                 </ul>
 
@@ -204,7 +204,7 @@ export default function BuyingReportPage() {
           {/* 假设与免责 —— 必须显著 */}
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="text-sm font-semibold text-amber-800">{t('result.assumptionsTitle')}</div>
-            <ul className="mt-2 list-disc pl-5 text-xs text-amber-800 space-y-1">
+            <ul className="mt-2 list-disc ps-5 text-xs text-amber-800 space-y-1">
               {report.assumptions.map((a, i) => <li key={i}>{a}</li>)}
             </ul>
             <p className="mt-3 text-xs leading-relaxed text-amber-800">{report.disclaimer}</p>

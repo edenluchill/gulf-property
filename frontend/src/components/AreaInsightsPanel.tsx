@@ -44,7 +44,7 @@ function SparkTip({ xPct, text, label }: { xPct: number; text: string; label?: s
       style={{ left: `${Math.min(Math.max(xPct, 16), 84)}%` }}
     >
       {text}
-      {label ? <span className="ml-1 font-normal text-slate-400">{label}</span> : null}
+      {label ? <span className="ms-1 font-normal text-slate-400">{label}</span> : null}
     </div>
   )
 }
@@ -172,7 +172,7 @@ function InfoHint({ title, text, evidence }: { title: string; text: string; evid
         <>
           <div className="fixed inset-0 z-[10005]" onClick={(e) => { e.stopPropagation(); setPos(null) }} />
           <div
-            className="fixed z-[10006] w-[248px] rounded-xl bg-slate-900 p-3 text-left shadow-2xl"
+            className="fixed z-[10006] w-[248px] rounded-xl bg-slate-900 p-3 text-start shadow-2xl"
             style={{ top: pos.top, left: pos.left }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -465,7 +465,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
             <div className="flex items-center justify-between">
               <span className="text-slate-500">
                 {t('areaInsights:serviceCharge')}
-                <span className="ml-1 text-slate-400">(<DirhamSymbol size="0.7em" className="text-slate-400" />{area.serviceChargeSqft.toFixed(0)}/sqft)</span>
+                <span className="ms-1 text-slate-400">(<DirhamSymbol size="0.7em" className="text-slate-400" />{area.serviceChargeSqft.toFixed(0)}/sqft)</span>
               </span>
               <span className="font-medium text-rose-500">−{area.scDragPct.toFixed(1)}%</span>
             </div>
@@ -595,7 +595,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
                       {tx.sizeSqm ? ` · ${tx.sizeSqm} m²` : ''}
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 text-end">
                     <div className="flex items-center justify-end gap-1 text-sm font-bold text-slate-900">
                       {tx.price != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
                       {tx.price != null ? formatMoneyCompact(tx.price, lang) : '—'}
@@ -638,7 +638,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
                   {r.sizeSqm ? ` · ${r.sizeSqm} m²` : ''}
                 </div>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 text-end">
                 <div className="flex items-center justify-end gap-1 text-sm font-bold text-slate-900">
                   {r.annualRent != null && <DirhamSymbol size="0.75em" className="text-slate-400" />}
                   {r.annualRent != null ? formatMoneyCompact(r.annualRent, lang) : '—'}

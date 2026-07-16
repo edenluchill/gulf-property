@@ -516,7 +516,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                   <span className="text-xl font-extrabold" style={{ color: tier.edge }}>{(tier as { creditsMo: number }).creditsMo.toLocaleString()}</span>
                   <span className="text-[13px] font-medium text-slate-300">{t('misc:creditsMo')}</span>
                   {(tier as { founderDiscount?: boolean }).founderDiscount && (
-                    <span className="ml-auto text-[11px] font-semibold" style={{ color: tier.edge }}>{t('misc:06Cost')}</span>
+                    <span className="ms-auto text-[11px] font-semibold" style={{ color: tier.edge }}>{t('misc:06Cost')}</span>
                   )}
                 </div>
               )}
@@ -560,9 +560,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wide text-slate-400" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    <th className="px-4 py-1.5 text-left font-semibold" style={{ color: ACCENT }}>{t('misc:whatCreditsBuy')}</th>
-                    <th className="px-4 py-1.5 text-right font-medium">{t('misc:standard')}</th>
-                    <th className="px-4 py-1.5 text-right font-medium" style={{ color: GOLD }}>{t('misc:agency2')} ×{founderMult}</th>
+                    <th className="px-4 py-1.5 text-start font-semibold" style={{ color: ACCENT }}>{t('misc:whatCreditsBuy')}</th>
+                    <th className="px-4 py-1.5 text-end font-medium">{t('misc:standard')}</th>
+                    <th className="px-4 py-1.5 text-end font-medium" style={{ color: GOLD }}>{t('misc:agency2')} ×{founderMult}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -578,13 +578,13 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                       <tr key={f.key} className="border-t border-white/[0.05]">
                         <td className="px-4 py-1 text-slate-300">{f.label}<span className="text-slate-500">{suffix}</span></td>
                         {isFree ? (
-                          <td className="px-4 py-1 text-right font-semibold" colSpan={2} style={{ color: ACCENT }}>
+                          <td className="px-4 py-1 text-end font-semibold" colSpan={2} style={{ color: ACCENT }}>
                             {t('misc:free2')}
                           </td>
                         ) : (
                           <>
-                            <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {t('misc:cr')}</td>
-                            <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {t('misc:cr2')}</td>
+                            <td className="px-4 py-1 text-end font-semibold text-white">{f.credits} {t('misc:cr')}</td>
+                            <td className="px-4 py-1 text-end" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {t('misc:cr2')}</td>
                           </>
                         )}
                       </tr>

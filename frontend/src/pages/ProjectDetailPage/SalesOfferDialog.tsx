@@ -332,7 +332,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                   ))}
                 </div>
               )}
-              <div className="max-h-60 space-y-1.5 overflow-y-auto pr-1">
+              <div className="max-h-60 space-y-1.5 overflow-y-auto pe-1">
                 {list.map((u) => {
                   const active = u.id === selUnitId
                   const p = Number(u.price) || 0
@@ -341,7 +341,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                       key={u.id}
                       type="button"
                       onClick={() => pickUnit(u.id)}
-                      className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-all ${
+                      className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-start transition-all ${
                         active ? 'border-teal-500 bg-teal-50/60 ring-1 ring-teal-500' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
@@ -356,7 +356,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                           {u.view_type ? ` · ${u.view_type}` : ''}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
+                      <div className="shrink-0 text-end">
                         {p > 0
                           ? <div className="text-sm font-bold text-slate-800"><DirhamSymbol size="0.8em" /> {formatMoneyCompact(p, i18n.language)}</div>
                           : <div className="text-[11px] text-slate-300">{t('offer:k')}</div>}
@@ -384,12 +384,12 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               <div className="flex items-center gap-2">
                 <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{t('offer:listPrice')}</span>
                 <div className="flex flex-1 items-center overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-slate-400">
-                  <span className="flex items-center pl-3 pr-1 text-slate-400"><DirhamSymbol size="0.9em" /></span>
+                  <span className="flex items-center ps-3 pe-1 text-slate-400"><DirhamSymbol size="0.9em" /></span>
                   <MoneyInput
                     value={origInput}
                     onChange={applyOrig}
                     placeholder={t('offer:listPrice2')}
-                    className="w-full bg-transparent py-2 pr-3 text-sm font-semibold text-slate-800 outline-none"
+                    className="w-full bg-transparent py-2 pe-3 text-sm font-semibold text-slate-800 outline-none"
                   />
                 </div>
               </div>
@@ -432,7 +432,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                       className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none disabled:bg-slate-50 disabled:placeholder:text-slate-300"
                     />
                   )}
-                  <span className="shrink-0 pr-3 text-xs font-medium text-slate-400">{discMode === 'pct' ? '%' : 'AED'}</span>
+                  <span className="shrink-0 pe-3 text-xs font-medium text-slate-400">{discMode === 'pct' ? '%' : 'AED'}</span>
                 </div>
               </div>
 
@@ -440,15 +440,15 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               <div className="flex items-center gap-2">
                 <span className="w-16 shrink-0 text-xs font-bold text-slate-700">{t('offer:netPrice')}</span>
                 <div className="flex flex-1 items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white focus-within:border-slate-900">
-                  <span className="flex items-center pl-3 pr-1 text-slate-400"><DirhamSymbol size="1em" /></span>
+                  <span className="flex items-center ps-3 pe-1 text-slate-400"><DirhamSymbol size="1em" /></span>
                   <MoneyInput
                     value={priceInput}
                     onChange={applyPrice}
                     placeholder={t('offer:totalPrice')}
-                    className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
+                    className="w-full bg-transparent py-2.5 pe-3 text-lg font-bold text-slate-900 outline-none"
                   />
                   {price > 0 && (
-                    <span className="shrink-0 pr-3.5 text-xs font-medium text-slate-400">≈ {formatMoneyCompact(price, i18n.language)}</span>
+                    <span className="shrink-0 pe-3.5 text-xs font-medium text-slate-400">≈ {formatMoneyCompact(price, i18n.language)}</span>
                   )}
                 </div>
               </div>
@@ -527,9 +527,9 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                             value={r.pct}
                             onChange={(e) => patchPlanRow(i, { pct: e.target.value.replace(/[^0-9.]/g, '').slice(0, 6) })}
                             inputMode="decimal"
-                            className="w-full px-2 py-1.5 text-right text-xs font-semibold text-slate-800 outline-none"
+                            className="w-full px-2 py-1.5 text-end text-xs font-semibold text-slate-800 outline-none"
                           />
-                          <span className="pr-1.5 text-[11px] text-slate-400">%</span>
+                          <span className="pe-1.5 text-[11px] text-slate-400">%</span>
                         </div>
                         {i === 0 ? (
                           <span className="w-[76px] shrink-0 text-center text-[11px] font-medium text-slate-400">{t('offer:booking2')}</span>
@@ -542,19 +542,19 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                               r.gap === '' ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'
                             }`}
                           >
-                            <span className="pl-1.5 text-[10px] text-slate-300">+</span>
+                            <span className="ps-1.5 text-[10px] text-slate-300">+</span>
                             <input
                               value={r.gap}
                               onChange={(e) => patchPlanRow(i, { gap: e.target.value.replace(/[^0-9]/g, '').slice(0, 3) })}
                               inputMode="numeric"
                               placeholder={t('offer:tbd')}
-                              className="w-full bg-transparent px-1 py-1.5 text-right text-xs text-slate-600 outline-none placeholder:text-[10px] placeholder:text-amber-500/80"
+                              className="w-full bg-transparent px-1 py-1.5 text-end text-xs text-slate-600 outline-none placeholder:text-[10px] placeholder:text-amber-500/80"
                             />
-                            <span className="pr-1.5 text-[11px] text-slate-400">{t('offer:mo')}</span>
+                            <span className="pe-1.5 text-[11px] text-slate-400">{t('offer:mo')}</span>
                           </div>
                         )}
                         {price > 0 && (
-                          <span className="hidden w-16 shrink-0 text-right text-[10px] tabular-nums text-slate-400 sm:block">
+                          <span className="hidden w-16 shrink-0 text-end text-[10px] tabular-nums text-slate-400 sm:block">
                             {formatMoneyCompact(Math.round(((parseFloat(r.pct) || 0) / 100) * price), i18n.language)}
                           </span>
                         )}
@@ -574,7 +574,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                     </button>
                     <span className={`text-xs font-bold tabular-nums ${planValid ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {t('offer:total')} {planTotal.toFixed(planTotal % 1 ? 2 : 0)}%
-                      {!planValid && <span className="ml-1 font-semibold">{t('offer:mustBe100')}</span>}
+                      {!planValid && <span className="ms-1 font-semibold">{t('offer:mustBe100')}</span>}
                     </span>
                   </div>
                 </div>
@@ -607,7 +607,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                 : units.length > 0
                   ? <span className="font-medium text-amber-600">{t('offer:selectAUnitFirst')}</span>
                   : <span>{t('offer:projectLevelQuote')}{price > 0 ? ` · ${price.toLocaleString('en-US')}` : ''}</span>}
-              {planRows && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{t('offer:customSchedule')}</span>}
+              {planRows && <span className="ms-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{t('offer:customSchedule')}</span>}
             </div>
             <button
               type="button"

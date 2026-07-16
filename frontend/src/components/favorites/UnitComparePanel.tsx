@@ -300,7 +300,7 @@ function CompareRow({ icon, label, children, itemCount, isAmenity }: CompareRowP
       style={{ gridTemplateColumns: `200px repeat(${itemCount}, 1fr)` }}
     >
       {/* Label Cell */}
-      <div className={`p-4 border-r flex items-center gap-2 ${isAmenity ? 'pl-8 text-sm' : ''} bg-slate-50`}>
+      <div className={`p-4 border-r flex items-center gap-2 ${isAmenity ? 'ps-8 text-sm' : ''} bg-slate-50`}>
         {icon && <span className="text-slate-400">{icon}</span>}
         <span className="font-medium text-slate-700">{label}</span>
       </div>

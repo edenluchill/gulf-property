@@ -76,7 +76,7 @@ export default function CollabReport({ code, onClose }: { code: string; onClose:
                   <div className="mb-2 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-teal-600" />
                     <span className="text-sm font-semibold text-slate-800">AI 意向分析</span>
-                    <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_STYLE[report.ai.interest_level] || LEVEL_STYLE['未知']}`}>
+                    <span className={`ms-auto rounded-full px-2 py-0.5 text-xs font-medium ${LEVEL_STYLE[report.ai.interest_level] || LEVEL_STYLE['未知']}`}>
                       意向{report.ai.interest_level}
                     </span>
                   </div>
@@ -129,9 +129,9 @@ export default function CollabReport({ code, onClose }: { code: string; onClose:
                       {report.contacts.map((c, i) => (
                         <div key={i} className="text-sm">
                           <span className="font-medium text-slate-700">{c.name}</span>
-                          {c.phone && <span className="ml-2 text-slate-500">📞 {c.phone}</span>}
-                          {c.whatsapp && <span className="ml-2 text-slate-500">💬 {c.whatsapp}</span>}
-                          {!c.phone && !c.whatsapp && <span className="ml-2 text-slate-400">(未留联系方式)</span>}
+                          {c.phone && <span className="ms-2 text-slate-500">📞 {c.phone}</span>}
+                          {c.whatsapp && <span className="ms-2 text-slate-500">💬 {c.whatsapp}</span>}
+                          {!c.phone && !c.whatsapp && <span className="ms-2 text-slate-400">(未留联系方式)</span>}
                         </div>
                       ))}
                     </div>
@@ -156,7 +156,7 @@ export default function CollabReport({ code, onClose }: { code: string; onClose:
                             c.from === 'agent' ? 'bg-slate-100 text-slate-800' : 'bg-teal-500 text-white'
                           }`}
                         >
-                          {c.name && <span className="mr-1 text-[10px] opacity-60">{c.name}</span>}
+                          {c.name && <span className="me-1 text-[10px] opacity-60">{c.name}</span>}
                           {c.text}
                         </div>
                       </div>

@@ -63,7 +63,7 @@ export default function AgentRuns({ days: _days }: { days: number }) {
             <ShieldCheck className="h-4 w-4 text-teal-500" />
             <span className="text-sm font-semibold text-slate-800">{run.agent}</span>
             <StatusBadge status={run.status} />
-            <span className="ml-auto text-xs text-slate-400">{ago(run.created_at)}</span>
+            <span className="ms-auto text-xs text-slate-400">{ago(run.created_at)}</span>
           </div>
 
           {/* Summary */}
@@ -123,7 +123,7 @@ export default function AgentRuns({ days: _days }: { days: number }) {
                 <button
                   key={i}
                   onClick={() => setSelected(f.identity)}
-                  className="flex w-full items-start justify-between gap-2 rounded-lg bg-rose-50/60 px-3 py-2 text-left text-sm hover:bg-rose-50"
+                  className="flex w-full items-start justify-between gap-2 rounded-lg bg-rose-50/60 px-3 py-2 text-start text-sm hover:bg-rose-50"
                 >
                   <div className="min-w-0">
                     <div className="truncate font-medium text-slate-700">{f.identity}</div>

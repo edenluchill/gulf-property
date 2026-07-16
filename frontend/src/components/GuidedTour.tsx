@@ -102,7 +102,7 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
           <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />
         )}
         <div className="font-semibold text-sm text-slate-800 truncate">{tour.name}</div>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ms-auto flex items-center gap-1.5">
           <button onClick={() => setPaused(p => !p)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500" title={paused ? 'Play' : 'Pause'}>
             {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
           </button>
@@ -137,7 +137,7 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
 
       {/* Narration line (台词) */}
       <div className="px-4 pt-3 text-sm leading-snug text-slate-700">
-        <span className="mr-1">🌙</span>{stop.line}
+        <span className="me-1">🌙</span>{stop.line}
       </div>
 
       {/* Stop card */}
@@ -194,8 +194,8 @@ function StopCard({ stop, lang }: { stop: GuidedStop; lang: string }) {
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {stop.spokes.slice(0, 6).map((s, i) => (
             <div key={i} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
-              <span className="truncate text-slate-700"><span className="mr-1">{s.emoji}</span>{s.label} · {s.name}</span>
-              <span className="ml-2 flex-shrink-0 font-semibold text-slate-800">{s.distanceKm}km</span>
+              <span className="truncate text-slate-700"><span className="me-1">{s.emoji}</span>{s.label} · {s.name}</span>
+              <span className="ms-2 flex-shrink-0 font-semibold text-slate-800">{s.distanceKm}km</span>
             </div>
           ))}
         </div>

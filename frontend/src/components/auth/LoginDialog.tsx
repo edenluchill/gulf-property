@@ -143,18 +143,18 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           <Tabs defaultValue="email" className="w-full">
             <TabsList className={`grid w-full mb-6 ${inWeChat ? 'grid-cols-1' : 'grid-cols-3'}`}>
               <TabsTrigger value="email" className="text-sm">
-                <Mail className="w-4 h-4 mr-2" />
+                <Mail className="w-4 h-4 me-2" />
                 Email
               </TabsTrigger>
               {!inWeChat && (
                 <TabsTrigger value="google" className="text-sm">
-                  <GoogleIcon className="w-4 h-4 mr-2" />
+                  <GoogleIcon className="w-4 h-4 me-2" />
                   Google
                 </TabsTrigger>
               )}
               {!inWeChat && (
                 <TabsTrigger value="microsoft" className="text-sm">
-                  <MicrosoftIcon className="w-4 h-4 mr-2" />
+                  <MicrosoftIcon className="w-4 h-4 me-2" />
                   Microsoft
                 </TabsTrigger>
               )}
@@ -189,7 +189,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="w-4 h-4 me-2 animate-spin" />
                         {t('sendingCode')}
                       </>
                     ) : cooldown > 0 ? (
@@ -239,7 +239,7 @@ export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="w-4 h-4 me-2 animate-spin" />
                         {t('verifying')}
                       </>
                     ) : (

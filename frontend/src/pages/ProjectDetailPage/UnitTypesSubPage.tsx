@@ -50,7 +50,7 @@ export function UnitTypesSubPage({
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Header - Clean */}
       <div className="bg-white border-b px-6 py-3 flex items-center gap-4 flex-shrink-0">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-2 -ml-2">
+        <Button variant="ghost" size="sm" onClick={onBack} className="gap-2 -ms-2">
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
@@ -67,7 +67,7 @@ export function UnitTypesSubPage({
               key={unit.id}
               onClick={() => onUnitSelect(unit.id)}
               className={cn(
-                'w-full text-left px-4 py-3 border-l-2 transition-all hover:bg-slate-50',
+                'w-full text-start px-4 py-3 border-l-2 transition-all hover:bg-slate-50',
                 unit.id === selectedUnitId
                   ? 'border-l-primary bg-primary/5'
                   : 'border-l-transparent'
@@ -132,7 +132,7 @@ export function UnitTypesSubPage({
                 </div>
                 <div className="flex items-center gap-4">
                   {selectedUnit.price && (
-                    <div className="text-right">
+                    <div className="text-end">
                       <div className="text-2xl font-bold text-primary">
                         {formatPrice(selectedUnit.price)}
                       </div>

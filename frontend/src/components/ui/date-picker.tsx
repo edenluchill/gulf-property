@@ -75,14 +75,14 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "w-full justify-start text-start font-normal",
             !value && "text-gray-500",
             disabled && "bg-teal-50 animate-pulse cursor-not-allowed",
             className
           )}
           type="button"
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+          <CalendarIcon className="me-2 h-4 w-4" />
           {formatDisplayDate(value || '')}
         </Button>
       </PopoverTrigger>

@@ -122,7 +122,7 @@ export default function AboutPage() {
               <div className="relative overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
                 <div className="flex items-center gap-1.5 bg-white/[0.06] px-3 py-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
-                  <span className="ml-2 truncate font-mono text-[11px] text-slate-400">pinzos.com</span>
+                  <span className="ms-2 truncate font-mono text-[11px] text-slate-400">pinzos.com</span>
                 </div>
                 <img src={zh ? '/about-map.jpg' : '/about-map-en.jpg'} alt={t('about:pinzosDubaiSatelliteMap')} className="block w-full" loading="eager" />
               </div>
@@ -160,7 +160,7 @@ export default function AboutPage() {
             <div className="relative overflow-hidden rounded-2xl border border-white/15 shadow-2xl">
               <div className="flex items-center gap-1.5 bg-white/[0.06] px-3 py-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
-                <span className="ml-2 truncate font-mono text-[11px] text-slate-400">pinzos.com</span>
+                <span className="ms-2 truncate font-mono text-[11px] text-slate-400">pinzos.com</span>
               </div>
               <video key={zh ? 'zh' : 'en'} src={zh ? '/luna-tour-demo.mp4' : '/luna-tour-demo-en.mp4'} autoPlay muted loop playsInline preload="metadata" poster={zh ? '/about-map.jpg' : '/about-map-en.jpg'} className="block w-full" />
             </div>

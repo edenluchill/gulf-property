@@ -48,7 +48,7 @@ export function AmenitiesTab({ amenities }: AmenitiesTabProps) {
                   <span className="text-sm font-semibold text-slate-900">{zh ? meta.zh : meta.en}</span>
                   <span className="text-xs text-slate-400">{items.length}</span>
                 </div>
-                <div className="flex flex-wrap gap-2 pl-9">
+                <div className="flex flex-wrap gap-2 ps-9">
                   {items.map((a, i) => (
                     <span key={i} className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
                       {a}

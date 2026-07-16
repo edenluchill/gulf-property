@@ -39,7 +39,7 @@ export function FavoritesDrawer() {
                   <p className="text-sm text-slate-500">
                     {t('count', { count: projectCount })}
                     {unitTypeCount > 0 && (
-                      <span className="ml-1">
+                      <span className="ms-1">
                         ({unitTypeCount} {t('unitTypes', 'unit types')})
                       </span>
                     )}
@@ -93,7 +93,7 @@ export function FavoritesDrawer() {
                 onClick={handleOpenCompare}
                 className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white"
               >
-                <Sparkles className="h-4 w-4 mr-2" />
+                <Sparkles className="h-4 w-4 me-2" />
                 {t('actions.compare')}
               </Button>
               <p className="text-xs text-slate-500 text-center mt-2">

@@ -166,12 +166,12 @@ export function PropertyEditorForm({
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                    <Loader2 className="me-2 h-6 w-6 animate-spin" />
                     <span className="text-lg">{t('submitBtn.submitting')}</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="mr-2 h-6 w-6" />
+                    <CheckCircle className="me-2 h-6 w-6" />
                     <span className="text-lg font-bold">
                       {hasReviewed ? finalSubmitTextConfirmed : finalSubmitText}
                     </span>

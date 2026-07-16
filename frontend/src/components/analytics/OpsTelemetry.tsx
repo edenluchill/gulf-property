@@ -47,7 +47,7 @@ export default function OpsTelemetry() {
           <DollarSign className="h-4 w-4 text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-800">AI 成本 · 24h</h3>
           <span className="text-xs text-slate-400">按功能拆开 —— 谁在烧钱、谁在失败</span>
-          <span className="ml-auto text-lg font-semibold tabular-nums text-slate-800">{money(ai.totalUsd)}</span>
+          <span className="ms-auto text-lg font-semibold tabular-nums text-slate-800">{money(ai.totalUsd)}</span>
         </div>
         {ai.tasks.length === 0 ? (
           <p className="py-6 text-center text-xs text-slate-400">24 小时内没有 AI 调用。</p>
@@ -67,9 +67,9 @@ export default function OpsTelemetry() {
                     失败 {t.failed}
                   </span>
                 )}
-                <span className="w-16 shrink-0 text-right tabular-nums text-slate-400">{t.calls} 次</span>
-                <span className="w-20 shrink-0 text-right tabular-nums text-slate-400">p95 {(t.p95 / 1000).toFixed(1)}s</span>
-                <span className="w-20 shrink-0 text-right font-semibold tabular-nums text-slate-700">{money(t.usd)}</span>
+                <span className="w-16 shrink-0 text-end tabular-nums text-slate-400">{t.calls} 次</span>
+                <span className="w-20 shrink-0 text-end tabular-nums text-slate-400">p95 {(t.p95 / 1000).toFixed(1)}s</span>
+                <span className="w-20 shrink-0 text-end font-semibold tabular-nums text-slate-700">{money(t.usd)}</span>
               </div>
             ))}
           </div>
@@ -109,7 +109,7 @@ export default function OpsTelemetry() {
                 <span className="min-w-0 flex-1 truncate text-slate-600">{a.agent}</span>
                 {a.failed > 0 && <span className="flex items-center gap-0.5 text-rose-600"><AlertTriangle className="h-3 w-3" />{a.failed} 失败</span>}
                 {a.invalid > 0 && <span className="text-amber-600">{a.invalid} 校验没过</span>}
-                <span className="w-12 text-right tabular-nums text-slate-400">{a.ok} ok</span>
+                <span className="w-12 text-end tabular-nums text-slate-400">{a.ok} ok</span>
               </div>
             ))}
           </div>
@@ -136,10 +136,10 @@ export default function OpsTelemetry() {
                     <div className={`h-full ${drop ? 'bg-rose-400' : 'bg-teal-400'}`}
                       style={{ width: `${Math.max(2, s.fromFirstPct ?? 0)}%` }} />
                   </div>
-                  <div className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-500">
+                  <div className="w-24 shrink-0 text-end text-xs tabular-nums text-slate-500">
                     {s.count}
                     {s.fromPrevPct !== null && (
-                      <span className={drop ? 'ml-1 font-semibold text-rose-600' : 'ml-1 text-slate-400'}>{s.fromPrevPct}%</span>
+                      <span className={drop ? 'ms-1 font-semibold text-rose-600' : 'ms-1 text-slate-400'}>{s.fromPrevPct}%</span>
                     )}
                   </div>
                 </div>
@@ -168,7 +168,7 @@ export default function OpsTelemetry() {
                   {p.reason === 'insufficient_credits' ? '积分用完了' : '需要订阅'}
                 </span>
                 {p.trial && <span className="shrink-0 text-[10px] text-violet-600">试用中</span>}
-                <span className="w-12 shrink-0 text-right font-semibold tabular-nums text-slate-700">{p.count}</span>
+                <span className="w-12 shrink-0 text-end font-semibold tabular-nums text-slate-700">{p.count}</span>
               </div>
             ))}
           </div>

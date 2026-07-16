@@ -94,7 +94,7 @@ export default function ProfileHome() {
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg md:p-7">
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-500/20 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="relative flex items-center gap-4 text-left">
+        <div className="relative flex items-center gap-4 text-start">
           {avatarUrl && !avatarError ? (
             <img
               src={avatarUrl}
@@ -293,8 +293,8 @@ export default function ProfileHome() {
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-900">
             {t('profile:favorites')}
-            <span className="ml-2 text-rose-500">{favProjects}</span>
-            <span className="ml-1 text-xs font-normal text-slate-400">
+            <span className="ms-2 text-rose-500">{favProjects}</span>
+            <span className="ms-1 text-xs font-normal text-slate-400">
               {t('profile:projectsSuffix')}{favTotal > favProjects ? t('profile:favWithSaves', { n: favTotal }) : ''}
             </span>
           </div>

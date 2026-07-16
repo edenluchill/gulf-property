@@ -131,11 +131,11 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
               </span>
             </div>
             <div className="flex items-center text-slate-600 mb-2">
-              <Building2 className="h-4 w-4 mr-1" />
+              <Building2 className="h-4 w-4 me-1" />
               <span className="font-medium">{project.developer}</span>
             </div>
             <div className="flex items-center text-slate-600 mb-4">
-              <MapPin className="h-4 w-4 mr-1" />
+              <MapPin className="h-4 w-4 me-1" />
               <span>{project.area}</span>
             </div>
           </div>
@@ -198,7 +198,7 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center text-sm text-slate-600">
-                <Activity className="h-4 w-4 mr-1" />
+                <Activity className="h-4 w-4 me-1" />
                 <span>{t('common:progress.constructionProgress')}</span>
               </div>
               <span className="font-semibold">{project.construction_progress}%</span>

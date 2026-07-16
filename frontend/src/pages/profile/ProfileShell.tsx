@@ -236,7 +236,7 @@ export default function ProfileShell() {
             </div>
             <button
               onClick={() => setMenuOpen(false)}
-              className="-mr-1 rounded-full p-2 text-slate-400 transition hover:bg-slate-100"
+              className="-me-1 rounded-full p-2 text-slate-400 transition hover:bg-slate-100"
             >
               <X className="h-5 w-5" />
             </button>
@@ -359,7 +359,7 @@ export default function ProfileShell() {
                   <>
                     <button
                       onClick={toggleAgentOpen}
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-start transition hover:bg-slate-50"
                     >
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 ring-1 ring-teal-100">
                         <Briefcase className="h-4 w-4" />

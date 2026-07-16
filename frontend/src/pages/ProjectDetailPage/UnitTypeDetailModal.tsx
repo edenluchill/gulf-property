@@ -63,7 +63,7 @@ export function UnitTypeDetailModal({ unit, isOpen, onClose }: UnitTypeDetailMod
                     </div>
                   )}
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <div className="text-sm text-slate-600 mb-1">{t('project:unitDetail.totalValue')}</div>
                   <div className="text-2xl font-bold text-slate-900">
                     {formatPrice(unit.price)}

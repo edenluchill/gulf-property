@@ -655,7 +655,7 @@ export default function ComparePage() {
                 <table className="w-full text-sm min-w-[400px]">
                   <thead className="bg-slate-50 border-b">
                     <tr>
-                      <th className="px-3 md:px-4 py-2 text-left text-slate-600 font-medium text-xs md:text-sm sticky left-0 bg-slate-50 z-10 w-20 md:w-auto"></th>
+                      <th className="px-3 md:px-4 py-2 text-start text-slate-600 font-medium text-xs md:text-sm sticky left-0 bg-slate-50 z-10 w-20 md:w-auto"></th>
                       {propertyData.map((_, idx) => (
                         <th key={idx} className={`px-2 md:px-4 py-2 text-center font-semibold text-xs md:text-sm ${ITEM_COLORS[idx].text}`}>
                           {ITEM_LABELS[idx]}
@@ -828,7 +828,7 @@ export default function ComparePage() {
                     onClick={() => setShowProfileInput(true)}
                     className="w-full text-slate-600"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Plus className="w-4 h-4 me-2" />
                     {t('compare.addProfile', 'Add your profile for personalized analysis')}
                   </Button>
                 )}
@@ -907,7 +907,7 @@ export default function ComparePage() {
                 onClick={handleStartAnalysis}
                 className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600"
               >
-                <Sparkles className="w-4 h-4 mr-2" />
+                <Sparkles className="w-4 h-4 me-2" />
                 {t('compare.startAnalysis', 'Start AI Analysis')}
               </Button>
             ) : (
@@ -916,7 +916,7 @@ export default function ComparePage() {
                 variant="outline"
                 className="w-full"
               >
-                <Lock className="w-4 h-4 mr-2" />
+                <Lock className="w-4 h-4 me-2" />
                 {t('compare.loginRequired', 'Login to use AI Analysis')}
               </Button>
             )}

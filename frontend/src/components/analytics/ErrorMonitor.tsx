@@ -62,7 +62,7 @@ function UrgentContactBlock() {
               <button
                 key={r.identity}
                 onClick={() => setOpenId(r.identity)}
-                className="flex w-full items-start justify-between gap-2 border-b border-amber-200/50 px-4 py-3 text-left transition-colors last:border-0 hover:bg-amber-100/50"
+                className="flex w-full items-start justify-between gap-2 border-b border-amber-200/50 px-4 py-3 text-start transition-colors last:border-0 hover:bg-amber-100/50"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">

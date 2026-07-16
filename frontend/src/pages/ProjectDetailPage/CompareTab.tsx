@@ -24,10 +24,10 @@ function CompareGuide() {
   ]
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50/60">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-left">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-start">
         <Lightbulb className="h-4 w-4 shrink-0 text-amber-500" />
         <span className="text-sm font-medium text-slate-700">{tk('guideToggle')}</span>
-        <ChevronDown className={`ml-auto h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`ms-auto h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="px-4 pb-4 pt-1">

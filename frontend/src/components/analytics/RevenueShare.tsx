@@ -76,7 +76,7 @@ function MonthRow({ m, onChanged }: { m: MonthShare; onChanged: () => void }) {
             {' '}· 手续费 −{fmtMoney(m.fee_cents, m.currency)}
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-end">
           <p className="text-sm font-bold text-slate-800">{fmtMoney(m.net_cents, m.currency)}</p>
           <p className="text-[11px] text-slate-400">实收净额</p>
         </div>

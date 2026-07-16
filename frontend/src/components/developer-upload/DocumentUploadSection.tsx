@@ -78,7 +78,7 @@ export function DocumentUploadSection({
               <p className="font-medium">{t('documentUpload.largeFileWarningTitle', 'Large file detected')}</p>
               <p className="text-amber-600">{sizeWarning}</p>
             </div>
-            <button onClick={() => setSizeWarning(null)} className="ml-auto text-amber-400 hover:text-amber-600">
+            <button onClick={() => setSizeWarning(null)} className="ms-auto text-amber-400 hover:text-amber-600">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -109,7 +109,7 @@ export function DocumentUploadSection({
             className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600"
             size="lg"
           >
-            <Upload className="mr-2 h-5 w-5" />
+            <Upload className="me-2 h-5 w-5" />
             {t('documentUpload.aiExtract')} ({documents.length})
           </Button>
         )}

@@ -145,13 +145,13 @@ export default function UserMenu() {
                 </div>
               </div>
               {isAdmin && (
-                <span className="inline-block mt-2 mr-1.5 px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-medium rounded-full">
+                <span className="inline-block mt-2 me-1.5 px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-medium rounded-full">
                   Admin
                 </span>
               )}
               {/* 当前角色徽章(买家/经纪人/经纪公司/开发商) */}
               {roleChip && (
-                <span className={`inline-flex items-center gap-1 mt-2 mr-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${roleChip.cls}`}>
+                <span className={`inline-flex items-center gap-1 mt-2 me-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${roleChip.cls}`}>
                   <span aria-hidden>{roleChip.emoji}</span>
                   {zh ? roleChip.zh : roleChip.en}
                 </span>

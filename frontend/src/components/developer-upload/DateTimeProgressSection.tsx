@@ -194,7 +194,7 @@ export function DateTimeProgressSection({
           {/* Progress Bar Visualization */}
           <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden shadow-inner">
             <div 
-              className={`h-full ${getProgressColor(progressValue)} transition-all duration-500 ease-out flex items-center justify-end pr-3`}
+              className={`h-full ${getProgressColor(progressValue)} transition-all duration-500 ease-out flex items-center justify-end pe-3`}
               style={{ width: `${progressValue}%` }}
             >
               {progressValue > 10 && (

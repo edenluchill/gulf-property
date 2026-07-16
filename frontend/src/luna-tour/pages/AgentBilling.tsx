@@ -324,7 +324,7 @@ export default function AgentBilling() {
                             : t('lunaTour:left2', { callLeft, callTotal })}
                         </span>
                       )}
-                      <span className="w-20 shrink-0 text-right text-sm font-bold tabular-nums text-slate-900">
+                      <span className="w-20 shrink-0 text-end text-sm font-bold tabular-nums text-slate-900">
                         {isFree ? (
                           <span className="text-sm font-semibold text-emerald-600">{t('lunaTour:free')}</span>
                         ) : (

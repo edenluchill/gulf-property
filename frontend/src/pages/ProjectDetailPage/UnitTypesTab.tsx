@@ -98,7 +98,7 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
             </Chip>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-2">
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
@@ -183,7 +183,7 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
                     <div className="font-semibold text-primary text-sm">{formatPrice(unit.price)}</div>
                     {ppsf > 0 && (
                       <div className="text-[10px] text-slate-400 whitespace-nowrap">
-                        <DirhamSymbol size="0.8em" className="mr-0.5" />
+                        <DirhamSymbol size="0.8em" className="me-0.5" />
                         {formatMoneyFull(ppsf)}/sqft
                       </div>
                     )}

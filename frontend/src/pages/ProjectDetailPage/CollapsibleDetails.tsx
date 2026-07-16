@@ -40,7 +40,7 @@ function Section({ title, icon, isOpen, onToggle, children }: SectionProps) {
     <div className="border-b border-slate-200 last:border-b-0">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between py-4 px-1 text-left hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between py-4 px-1 text-start hover:bg-slate-50 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="text-slate-600">{icon}</span>

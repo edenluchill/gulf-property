@@ -44,11 +44,11 @@ export default function LostCustomers({ days: _days }: { days: number }) {
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
-                <th className="px-4 py-2 text-left font-medium">客户</th>
-                <th className="px-2 py-2 text-right font-medium">评分</th>
-                <th className="px-2 py-2 text-right font-medium">沉默</th>
-                <th className="px-2 py-2 text-left font-medium">原因</th>
-                <th className="px-4 py-2 text-right font-medium">行为</th>
+                <th className="px-4 py-2 text-start font-medium">客户</th>
+                <th className="px-2 py-2 text-end font-medium">评分</th>
+                <th className="px-2 py-2 text-end font-medium">沉默</th>
+                <th className="px-2 py-2 text-start font-medium">原因</th>
+                <th className="px-4 py-2 text-end font-medium">行为</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -60,8 +60,8 @@ export default function LostCustomers({ days: _days }: { days: number }) {
                     </div>
                     {r.user_email && <div className="font-mono text-[10px] text-slate-400">#{shortId(r.visitor_id)}</div>}
                   </td>
-                  <td className="px-2 py-2.5 text-right font-semibold text-slate-700">{r.score}</td>
-                  <td className="px-2 py-2.5 text-right text-slate-500">{r.days_silent} 天</td>
+                  <td className="px-2 py-2.5 text-end font-semibold text-slate-700">{r.score}</td>
+                  <td className="px-2 py-2.5 text-end text-slate-500">{r.days_silent} 天</td>
                   <td className="px-2 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {r.reasons.map((rs) => {

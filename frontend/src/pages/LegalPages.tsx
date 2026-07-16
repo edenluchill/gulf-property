@@ -65,7 +65,7 @@ function Sec({ title, children }: { title: string; children: React.ReactNode }) 
 
 function Ul({ items }: { items: React.ReactNode[] }) {
   return (
-    <ul className="list-disc space-y-1.5 pl-5">
+    <ul className="list-disc space-y-1.5 ps-5">
       {items.map((it, i) => <li key={i}>{it}</li>)}
     </ul>
   )

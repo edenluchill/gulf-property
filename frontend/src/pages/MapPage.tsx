@@ -1558,7 +1558,7 @@ export default function MapPage() {
                   placeholder={t('map:searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-12 text-base"
+                  className="ps-10 h-12 text-base"
                 />
               </div>
               <Button
@@ -1566,10 +1566,10 @@ export default function MapPage() {
                 className="h-12 px-6"
                 onClick={() => setShowFilters(!showFilters)}
               >
-                <SlidersHorizontal className="h-5 w-5 mr-2" />
+                <SlidersHorizontal className="h-5 w-5 me-2" />
                 {t('map:filters')}
                 {hasActiveFilters && (
-                  <span className="ml-2 bg-primary text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                  <span className="ms-2 bg-primary text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
                     !
                   </span>
                 )}
@@ -2388,7 +2388,7 @@ export default function MapPage() {
 
                 {/* Header: thumbnail left + type/title right */}
                 <div className="p-5 pb-3">
-                  <div className="flex gap-4 pr-8">
+                  <div className="flex gap-4 pe-8">
                     <div
                       className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0"
                       style={{ background: `linear-gradient(135deg, ${color}22, ${color}0d)` }}
@@ -2782,7 +2782,7 @@ export default function MapPage() {
                 </button>
 
                 {chips}
-                <h3 className="mt-2 text-xl font-bold text-slate-900 leading-tight pr-10">
+                <h3 className="mt-2 text-xl font-bold text-slate-900 leading-tight pe-10">
                   {lmName}
                 </h3>
                 {lmName !== selectedLandmark.name && (

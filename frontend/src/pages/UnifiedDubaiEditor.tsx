@@ -1005,7 +1005,7 @@ export default function UnifiedDubaiEditor() {
             size="lg"
             className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
           >
-            <Save className="w-5 h-5 mr-2" />
+            <Save className="w-5 h-5 me-2" />
             {isSaving ? t('common.saving') : t('unified.saveAll', { count: modifiedAreaIds.size + modifiedLandmarkIds.size + areas.filter(a => a.id.startsWith('temp-')).length + landmarks.filter(l => l.id.startsWith('temp-')).length })}
           </Button>
         )}
@@ -1066,7 +1066,7 @@ export default function UnifiedDubaiEditor() {
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Layers className="w-4 h-4 inline mr-2" />
+            <Layers className="w-4 h-4 inline me-2" />
             {t('unified.tabAreas', { count: areas.length })}
           </button>
           <button
@@ -1080,7 +1080,7 @@ export default function UnifiedDubaiEditor() {
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <MapPin className="w-4 h-4 inline mr-2" />
+            <MapPin className="w-4 h-4 inline me-2" />
             {t('unified.tabLandmarks', { count: landmarks.length })}
           </button>
           <button
@@ -1095,7 +1095,7 @@ export default function UnifiedDubaiEditor() {
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Route className="w-4 h-4 inline mr-2" />
+            <Route className="w-4 h-4 inline me-2" />
             {t('unified.tabRoutes')}
           </button>
         </div>
@@ -1112,7 +1112,7 @@ export default function UnifiedDubaiEditor() {
                   className="w-full"
                   size="lg"
                 >
-                  <Layers className="w-5 h-5 mr-2" />
+                  <Layers className="w-5 h-5 me-2" />
                   {editMode === 'drawing-area' ? t('unified.drawOnMap') : t('unified.addNewArea')}
                 </Button>
 
@@ -1175,7 +1175,7 @@ export default function UnifiedDubaiEditor() {
                   className="w-full"
                   size="lg"
                 >
-                  <MapPin className="w-5 h-5 mr-2" />
+                  <MapPin className="w-5 h-5 me-2" />
                   {editMode === 'placing-landmark' ? t('unified.clickMap') : t('unified.addNewLandmark')}
                 </Button>
 
@@ -1243,7 +1243,7 @@ export default function UnifiedDubaiEditor() {
           <div className="p-3 xl:p-4 border-b bg-slate-50 flex items-center gap-2">
             <button
               onClick={closeSelection}
-              className="xl:hidden p-1 -ml-1 hover:bg-slate-200 rounded-md transition-colors"
+              className="xl:hidden p-1 -ms-1 hover:bg-slate-200 rounded-md transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-slate-600" />
             </button>
@@ -1319,7 +1319,7 @@ export default function UnifiedDubaiEditor() {
                       className="w-full"
                       size="sm"
                     >
-                      <MapPin className="w-4 h-4 mr-2" />
+                      <MapPin className="w-4 h-4 me-2" />
                       {t('unified.addStop')}
                     </Button>
                   </>
@@ -1371,7 +1371,7 @@ export default function UnifiedDubaiEditor() {
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
                       >
-                        <Upload className="w-4 h-4 mr-2" />
+                        <Upload className="w-4 h-4 me-2" />
                         {isUploading ? t('unified.uploading') : t('unified.upload')}
                       </Button>
                       <input
@@ -1514,7 +1514,7 @@ export default function UnifiedDubaiEditor() {
                 className="flex-1"
                 size="sm"
               >
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-4 h-4 me-2" />
                 {routesEditor.isSaving ? t('common.saving') : t('common.save')}
               </Button>
               <Button variant="destructive" size="sm" onClick={handleDeleteRouteItem}>

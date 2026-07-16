@@ -217,7 +217,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
               {t('lunaTour:justWriteFreelyAi')}
             </p>
           </div>
-          <button onClick={onClose} className="ml-2 shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100">
+          <button onClick={onClose} className="ms-2 shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100">
             <X className="h-5 w-5" />
           </button>
         </div>

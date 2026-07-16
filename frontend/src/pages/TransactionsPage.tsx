@@ -189,7 +189,7 @@ export default function TransactionsPage() {
       <div className="mt-3 md:mt-5 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
       <button
         onClick={() => setFiltersOpen(o => !o)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left md:hidden"
+        className="flex w-full items-center gap-2 px-4 py-3 text-start md:hidden"
       >
         <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" />
         <span className="flex-1 truncate text-sm font-medium text-slate-700">{filterSummary}</span>
@@ -226,7 +226,7 @@ export default function TransactionsPage() {
                         )
                         setProjectQuery('')  // 清空便于继续加下一个
                       }}
-                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 ${picked ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-slate-50 ${picked ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${picked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'}`}>
@@ -429,15 +429,15 @@ export default function TransactionsPage() {
             {/* 桌面端：完整表格 */}
             <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs text-slate-500">
+              <thead className="bg-slate-50 text-start text-xs text-slate-500">
                 <tr>
                   <th className="px-3 py-2">{t('table.date')}</th>
                   <th className="px-3 py-2">{t('table.area')}</th>
                   <th className="px-3 py-2">{t('table.building')}</th>
                   <th className="px-3 py-2">{t('table.rooms')}</th>
-                  <th className="px-3 py-2 text-right">{t('table.size')}</th>
-                  <th className="px-3 py-2 text-right">{t('table.price')}</th>
-                  <th className="px-3 py-2 text-right">{t('table.pps')}</th>
+                  <th className="px-3 py-2 text-end">{t('table.size')}</th>
+                  <th className="px-3 py-2 text-end">{t('table.price')}</th>
+                  <th className="px-3 py-2 text-end">{t('table.pps')}</th>
                   <th className="px-3 py-2">{t('table.type')}</th>
                 </tr>
               </thead>
@@ -448,9 +448,9 @@ export default function TransactionsPage() {
                     <td className="px-3 py-2">{r.area}</td>
                     <td className="px-3 py-2 max-w-[200px] truncate" title={r.building}>{r.building}</td>
                     <td className="px-3 py-2">{r.rooms}</td>
-                    <td className="px-3 py-2 text-right">{fmt(r.sizeSqm)}</td>
-                    <td className="px-3 py-2 text-right">{fmt(r.price)}</td>
-                    <td className="px-3 py-2 text-right">{fmt(r.pricePerSqm)}</td>
+                    <td className="px-3 py-2 text-end">{fmt(r.sizeSqm)}</td>
+                    <td className="px-3 py-2 text-end">{fmt(r.price)}</td>
+                    <td className="px-3 py-2 text-end">{fmt(r.pricePerSqm)}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${r.saleType === 'offplan' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
                         {r.saleType === 'offplan' ? t('saleType.offplan') : t('saleType.readyShort')}

@@ -236,13 +236,13 @@ export default function AdminAnalytics() {
       {perfAlerts.length > 0 && (
         <button
           onClick={() => setTab('perf')}
-          className="block w-full bg-rose-600 px-4 py-2.5 text-left text-sm text-white hover:bg-rose-700"
+          className="block w-full bg-rose-600 px-4 py-2.5 text-start text-sm text-white hover:bg-rose-700"
         >
           <div className="mx-auto flex max-w-6xl items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
             <span className="font-semibold">性能告警 {perfAlerts.length} 项进行中</span>
             <span className="truncate text-rose-100">· {perfAlerts[0].message}</span>
-            <span className="ml-auto shrink-0 text-rose-100">查看 →</span>
+            <span className="ms-auto shrink-0 text-rose-100">查看 →</span>
           </div>
         </button>
       )}
@@ -331,7 +331,7 @@ export default function AdminAnalytics() {
                       <div key={i} className="flex items-center justify-between gap-2 px-4 py-2">
                         <div className="min-w-0">
                           <span className="truncate text-sm text-slate-700">{s.query}</span>
-                          {s.kind && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{s.kind}</span>}
+                          {s.kind && <span className="ms-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{s.kind}</span>}
                         </div>
                         <span className="shrink-0 text-[10px] text-slate-400">{s.created_at.slice(5, 16).replace('T', ' ')}</span>
                       </div>

@@ -533,7 +533,7 @@ export default function AgentTours() {
                         type="button"
                         disabled={already}
                         onClick={() => addProject(p)}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed border-b border-slate-50 last:border-0"
+                        className="w-full flex items-center gap-3 px-3 py-2 text-start hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed border-b border-slate-50 last:border-0"
                       >
                         {p.primary_image ? (
                           <img src={p.primary_image} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
@@ -561,7 +561,7 @@ export default function AgentTours() {
               {picked.map((p, i) => (
                 <div
                   key={p.id}
-                  className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-full pl-2.5 pr-1.5 py-1 text-sm"
+                  className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-full ps-2.5 pe-1.5 py-1 text-sm"
                 >
                   <span className="text-emerald-700 font-medium text-xs tabular-nums">{i + 1}</span>
                   <span className="truncate max-w-[160px]">{p.project_name}</span>
@@ -782,7 +782,7 @@ export default function AgentTours() {
                         <span className="font-medium">{L(EVENT_ZH[e.event_type] || e.event_type, EVENT_EN[e.event_type] || e.event_type)}</span>
                         {e.project_name && <span className="text-slate-500">· {e.project_name}</span>}
                         {e.dwell_ms != null && <span className="text-slate-400">· {fmtDwell(e.dwell_ms)}</span>}
-                        <span className="text-slate-300 ml-auto">{e.visitor_id.slice(0, 8)}</span>
+                        <span className="text-slate-300 ms-auto">{e.visitor_id.slice(0, 8)}</span>
                       </li>
                     ))}
                   </ul>
@@ -1467,7 +1467,7 @@ function MoreMenu({
               </a>
             ) : (
               <button key={it.label} onClick={it.onClick}
-                className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${it.danger ? 'text-rose-500' : 'text-slate-700'}`}>
+                className={`block w-full px-3 py-2 text-start text-sm hover:bg-slate-50 ${it.danger ? 'text-rose-500' : 'text-slate-700'}`}>
                 {it.label}
               </button>
             )

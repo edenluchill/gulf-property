@@ -151,7 +151,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
           <div className="text-sm text-slate-700 leading-relaxed">
             {t('gate:enjoyingTheMapSign')}
             <button
-              className="ml-2 font-medium text-teal-600 hover:text-teal-700"
+              className="ms-2 font-medium text-teal-600 hover:text-teal-700"
               onClick={() => { dismissToast(); goLogin('email') }}
             >
               {t('gate:signIn')}
@@ -173,7 +173,7 @@ export default function MapMeterGuard({ active, getView }: Props) {
             <p className="mt-2 text-sm text-slate-500">
               {t('gate:signInToContinue')}
             </p>
-            <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-left mx-auto w-fit">
+            <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-start mx-auto w-fit">
               <li>✓ {t('gate:unlimitedMapMarketData')}</li>
               <li>✓ {t('gate:favoritesSyncedAcrossDevices')}</li>
               <li>✓ {t('gate:lunaAiAssistant')}</li>

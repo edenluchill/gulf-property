@@ -476,7 +476,7 @@ export default function AdminTasksPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left">
+                <th className="px-4 py-3 text-start">
                   <input
                     type="checkbox"
                     checked={selectedTasks.size === tasks.length && tasks.length > 0}
@@ -484,22 +484,22 @@ export default function AdminTasksPage() {
                     className="rounded"
                   />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                   {t('tasks.colTask')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                   {t('tasks.colStatus')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                   {t('tasks.colProgress')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                   {t('tasks.colUser')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                   {t('tasks.colDuration')}
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-start text-xs font-medium text-gray-500 uppercase">
                   {t('tasks.colActions')}
                 </th>
               </tr>

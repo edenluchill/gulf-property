@@ -75,7 +75,7 @@ function CreditMeter({ s }: { s: Subscriber }) {
         <div className={`h-full rounded-full ${pct > 85 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
       </div>
       {/* tabular-nums + 固定宽度右对齐 → 1200 和 200 的行也能对齐 */}
-      <span className="w-[52px] shrink-0 text-right text-[10px] tabular-nums text-slate-400">
+      <span className="w-[52px] shrink-0 text-end text-[10px] tabular-nums text-slate-400">
         {s.credits_used}/{s.credits_month}
       </span>
     </div>
@@ -181,15 +181,15 @@ function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
         {/* 桌面:每列**都**定宽(操作列尤其 —— 它的内容宽度随状态变化很大:
             「赠 Pro 30 天」按钮 vs「已赠 … + 撤销」。不定宽就会把左边所有列推歪,
             这正是原来 credit 列左右横跳的真正原因。) */}
-        <div className="hidden w-[76px] shrink-0 text-right text-[12px] font-semibold text-slate-700 sm:block">{planLabel}</div>
+        <div className="hidden w-[76px] shrink-0 text-end text-[12px] font-semibold text-slate-700 sm:block">{planLabel}</div>
         <div className="hidden w-[128px] shrink-0 justify-end sm:flex"><CreditMeter s={s} /></div>
-        <div className="hidden w-[76px] shrink-0 text-right text-[11px] tabular-nums text-slate-400 md:block">{expiry}</div>
+        <div className="hidden w-[76px] shrink-0 text-end text-[11px] tabular-nums text-slate-400 md:block">{expiry}</div>
         <div className="hidden w-[252px] shrink-0 justify-end sm:flex"><Actions /></div>
       </div>
 
       {/* ── 第二层:手机专用。套餐/额度/到期在手机上原来是全隐藏的 ——
              owner 在手机上根本看不到谁快用完积分、谁快到期。 ── */}
-      <div className="mt-2.5 flex items-center justify-between gap-2 pl-12 sm:hidden">
+      <div className="mt-2.5 flex items-center justify-between gap-2 ps-12 sm:hidden">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold text-slate-600">{planLabel}</span>
@@ -231,7 +231,7 @@ function PlanChangeLog() {
                 )}
                 {reason && <span className="text-xs text-rose-500">「{reason}」</span>}
                 {c.actor_email && <span className="text-[11px] text-slate-400">操作人 {c.actor_email}</span>}
-                <span className="ml-auto text-[11px] text-slate-400">{new Date(c.created_at).toLocaleString('zh-CN')}</span>
+                <span className="ms-auto text-[11px] text-slate-400">{new Date(c.created_at).toLocaleString('zh-CN')}</span>
               </div>
             )
           })}
@@ -333,7 +333,7 @@ function GrantConfirm({ s, busy, onCancel, onConfirm }: {
           </div>
           <div className="flex justify-between gap-3">
             <span className="shrink-0 text-slate-400">赠送内容</span>
-            <span className="text-right font-medium text-violet-700">{GRANT_NAME}</span>
+            <span className="text-end font-medium text-violet-700">{GRANT_NAME}</span>
           </div>
         </div>
 
@@ -464,7 +464,7 @@ export default function AgentApprovals() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="搜邮箱或姓名…"
-              className="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 py-1.5 ps-8 pe-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none"
             />
           </div>
           {FILTERS.map((f) => (

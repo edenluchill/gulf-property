@@ -152,7 +152,7 @@ export default function FavoritesPage() {
                     onClick={() => navigate('/compare')}
                     className="bg-white text-teal-600 hover:bg-white/90"
                   >
-                    <GitCompare className="h-4 w-4 mr-2" />
+                    <GitCompare className="h-4 w-4 me-2" />
                     {t('nav.compare', 'Compare')}
                   </Button>
                 </div>

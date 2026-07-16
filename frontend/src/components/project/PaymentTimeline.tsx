@@ -72,11 +72,11 @@ export default function PaymentTimeline({
                 <div className="truncate text-sm font-medium text-slate-800">{m.milestone_name}</div>
                 {timing(m) && <div className="text-xs text-slate-400">{timing(m)}</div>}
               </div>
-              <div className="text-right">
+              <div className="text-end">
                 <div className="text-lg font-bold text-slate-900">{p}%</div>
                 {referencePrice && referencePrice > 0 && (
                   <div className="text-[11px] text-slate-500">
-                    <DirhamSymbol size="0.8em" className="mr-0.5 text-slate-400" />
+                    <DirhamSymbol size="0.8em" className="me-0.5 text-slate-400" />
                     {formatMoneyCompact((referencePrice * p) / 100, lang)}
                   </div>
                 )}
