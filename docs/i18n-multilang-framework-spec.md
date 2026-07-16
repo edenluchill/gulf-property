@@ -176,7 +176,7 @@ key 去重(播种已有 key)。translate 自动剥 markdown 围栏。glob 自动
     4. 新 ns **必须**加进 `i18next.d.ts`(import + resources 两处),否则 `useTranslation('newns')` / 强类型 `t('newns:key')` TS 报错。
     5. **数据驱动双语保留**(`u.zh`/`roleChip.zh`/`badge.titleZh`)、㎡/sqft 单位制选择、本地化资源路径(jpg/mp4)—— 不是翻译,别硬转。
   - **AboutPage 仍待做(数据/资源驱动)**:6 处全是内容变量 `zh?cn:en` + 本地化资源路径,需内容层迁移(把双语内容搬 JSON 或 5 语言数据结构),非简单 codemod。
-- 🟡 gate/infra(短,顺手,**下一批从这里**):MapMeterGuard(10) GlobalQuotaGate(8) AppErrorBoundary(3) voice-assistant/VoiceAssistantButton(9) GuidedTour(9)
+- ✅ 🟡 gate/infra **已完成(2026-07-15)** → **gate** ns:MapMeterGuard/GlobalQuotaGate/AppErrorBoundary(class,用 i18n.getFixedT)/VoiceAssistantButton(加 gate 多 ns)/GuidedTour(StopCard 子组件补 getFixedT)。**下一批从 🟢 或 ⚪ 起。**
 - 🟢 内部/经纪台(可后置):luna-tour/*(AgentClients 18, AgentReport 10, AgentTours 8, ClientProfileWizard 11, AgentOverview 5, IntentFeed 5, CollabBar 7, AiEditPanel 3, AgentBilling 3, CelebrationPoster 4)、profile/ProfileShell(8) ProfileHome(5)
 - ⚪ lib(是 label 函数,小心逻辑):`lib/metricPeriod.ts`(7,periodLabel 用 switch 不是三元,可能不用动) `lib/marketSegment.ts`(3,segmentLabel) `lib/generateProjectNotes.ts`(11,生成文本—考虑改后端 AI 按语言生成)
 - 已完成(别重做):compare ns(YieldVsAreaModule/PriceCheckModule/NearbyProjectsCompare/RecentDealsCompact/CompareTab)、invest ns(InvestmentScorecard)、transactions ns(TransactionsTab)。
