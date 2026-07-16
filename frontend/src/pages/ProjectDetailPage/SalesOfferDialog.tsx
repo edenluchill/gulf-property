@@ -55,7 +55,8 @@ function StepLabel({ n, right, children }: { n: string; right?: React.ReactNode;
  * z-[10000]:fixed 弹层必须压过 MobileNav 的 z-50(项目规约)。
  */
 export default function SalesOfferDialog({ open, onClose, projectId, projectName, units, referencePrice, paymentPlan, entitled }: SalesOfferDialogProps) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('offer')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = (i18n.language || 'en').startsWith('zh')
   const { session } = useAuth()
   const navigate = useNavigate()
@@ -83,7 +84,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
       const fromDates = monthGap(sorted[i - 1]?.milestone_date, m.milestone_date)
       const gap = i === 0 ? 0 : (Number(m.interval_months) || fromDates)
       return {
-        name: m.milestone_name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
+        name: m.milestone_name || (t('offer:installment', { i_1: i + 1 })),
         pct: String(Number(m.percentage) || 0),
         gap: gap != null ? String(gap) : '',
       }
@@ -106,8 +107,8 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
     setErr(null)
     setPlanRows(defaultPlanRows.length === 0
       ? [
-          { name: zh ? '签约定金' : 'Down Payment', pct: '20', gap: '' },
-          { name: zh ? '交付时' : 'On Completion', pct: '80', gap: '' },
+          { name: t('offer:downPayment'), pct: '20', gap: '' },
+          { name: t('offer:onCompletion'), pct: '80', gap: '' },
         ]
       : null)
   }, [open, projectId, defaultPlanRows, zh, units.length, referencePrice])
@@ -117,7 +118,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
     setErr(null)
   }
 
-  const bedsLabel = (b: number) => (b === 0 ? (zh ? '工作室' : 'Studio') : zh ? `${b} 居` : `${b} BR`)
+  const bedsLabel = (b: number) => (b === 0 ? (t('offer:studio')) : t('offer:br', { b }))
 
   // 居室分组(全部户型,有价没价都能选;组内有价在前、按价升序)
   const bedsOptions = useMemo(
@@ -195,11 +196,11 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
   const generate = async () => {
     if (!price || sharing) return
     if (!unitOk) {
-      setErr(zh ? '请先选择户型' : 'Please select a unit first')
+      setErr(t('offer:pleaseSelectAUnit'))
       return
     }
     if (!planOk) {
-      setErr(zh ? `付款周期各期比例合计需为 100%(当前 ${planTotal.toFixed(2)}%)` : `Installments must add up to 100% (now ${planTotal.toFixed(2)}%)`)
+      setErr(t('offer:installmentsMustSum', { total: planTotal.toFixed(2) }))
       return
     }
     setSharing(true); setErr(null)
@@ -245,7 +246,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
       onClose()
       navigate(`/pp/${j.code}`)
     } catch (e) {
-      setErr(e instanceof Error && e.message !== 'failed' ? e.message : (zh ? '生成失败,请重试' : 'Failed, please retry'))
+      setErr(e instanceof Error && e.message !== 'failed' ? e.message : (t('offer:failedPleaseRetry')))
     } finally {
       setSharing(false)
     }
@@ -267,12 +268,12 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               <FileText className="h-4 w-4 text-teal-300" />
               <span className="font-serif text-xl font-bold tracking-tight">Sales Offer</span>
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-teal-200">
-                {zh ? '报价单' : 'Quote'}
+                {t('offer:quote')}
               </span>
             </div>
             <div className="mt-1 text-xs text-slate-400">{projectName}</div>
           </div>
-          <button type="button" onClick={onClose} aria-label={zh ? '关闭' : 'Close'}
+          <button type="button" onClick={onClose} aria-label={t('offer:close')}
             className="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white">
             <X className="h-5 w-5" />
           </button>
@@ -290,19 +291,17 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               <Lock className="h-5 w-5 text-amber-600" />
             </div>
             <h3 className="mt-4 text-base font-bold text-slate-900">
-              {zh ? 'Sales Offer 是经纪会员功能' : 'Sales Offer is a member feature'}
+              {t('offer:salesOfferIsA')}
             </h3>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
-              {zh
-                ? '订阅任意经纪套餐($25/月起)即可生成带品牌盖章与优惠标注的正式报价单,链接 / PDF 一键发客户。'
-                : 'Subscribe to any agent plan (from $25/mo) to create formal offers with your certification stamp — link or PDF.'}
+              {t('offer:subscribeToAnyAgent')}
             </p>
             <div className="mt-6 flex items-center justify-center gap-3">
               <Link to="/pricing" className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
-                {zh ? '查看套餐' : 'View plans'}
+                {t('offer:viewPlans')}
               </Link>
               <button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-100">
-                {zh ? '稍后再说' : 'Not now'}
+                {t('offer:notNow')}
               </button>
             </div>
           </div>
@@ -312,8 +311,8 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
           {/* 01 · 选户型 */}
           {units.length > 0 && (
             <section>
-              <StepLabel n="1" right={!selUnit && <span className="text-[11px] font-medium text-amber-600">{zh ? '必选' : 'Required'}</span>}>
-                {zh ? '选户型' : 'Unit'}
+              <StepLabel n="1" right={!selUnit && <span className="text-[11px] font-medium text-amber-600">{t('offer:required')}</span>}>
+                {t('offer:unit')}
               </StepLabel>
               {bedsOptions.length > 1 && (
                 <div className="mb-2.5 flex flex-wrap gap-1.5">
@@ -321,7 +320,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                       selBeds === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}>
-                    {zh ? '全部' : 'All'}
+                    {t('offer:all')}
                   </button>
                   {bedsOptions.map((b) => (
                     <button key={b} type="button" onClick={() => setSelBeds(b)}
@@ -360,7 +359,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                       <div className="shrink-0 text-right">
                         {p > 0
                           ? <div className="text-sm font-bold text-slate-800"><DirhamSymbol size="0.8em" /> {formatMoneyCompact(p, i18n.language)}</div>
-                          : <div className="text-[11px] text-slate-300">{zh ? '未标价' : '—'}</div>}
+                          : <div className="text-[11px] text-slate-300">{t('offer:k')}</div>}
                       </div>
                       <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
                         active ? 'border-teal-500 bg-teal-500' : 'border-slate-300'
@@ -378,18 +377,18 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               折扣是主输入(2026-07-12 用户定:经纪谈的是"开发商给几个点",
               直接填最终总价不直观);三个框互相联动,填哪个都行。 */}
           <section>
-            <StepLabel n={units.length > 0 ? '2' : '1'}>{zh ? '报价' : 'Quote'}</StepLabel>
+            <StepLabel n={units.length > 0 ? '2' : '1'}>{t('offer:quote2')}</StepLabel>
 
             <div className="space-y-2">
               {/* 原价(选中户型自动填,可改) */}
               <div className="flex items-center gap-2">
-                <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{zh ? '原价' : 'List price'}</span>
+                <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{t('offer:listPrice')}</span>
                 <div className="flex flex-1 items-center overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-slate-400">
                   <span className="flex items-center pl-3 pr-1 text-slate-400"><DirhamSymbol size="0.9em" /></span>
                   <MoneyInput
                     value={origInput}
                     onChange={applyOrig}
-                    placeholder={zh ? '标价' : 'List price'}
+                    placeholder={t('offer:listPrice2')}
                     className="w-full bg-transparent py-2 pr-3 text-sm font-semibold text-slate-800 outline-none"
                   />
                 </div>
@@ -397,7 +396,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
 
               {/* 折扣:% / AED 直减两种模式 */}
               <div className="flex items-center gap-2">
-                <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{zh ? '优惠' : 'Discount'}</span>
+                <span className="w-16 shrink-0 text-xs font-medium text-slate-500">{t('offer:discount')}</span>
                 <div className="flex shrink-0 overflow-hidden rounded-lg bg-slate-100 p-0.5">
                   {(['pct', 'amt'] as const).map((m) => (
                     <button
@@ -421,7 +420,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                       onChange={(e) => applyDisc(e.target.value.replace(/[^0-9.]/g, '').slice(0, 5))}
                       inputMode="decimal"
                       disabled={!orig}
-                      placeholder={zh ? '开发商折扣,如 8' : 'e.g. 8'}
+                      placeholder={t('offer:eG8')}
                       className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none disabled:bg-slate-50 disabled:placeholder:text-slate-300"
                     />
                   ) : (
@@ -429,7 +428,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                       value={discInput}
                       onChange={(raw) => applyDisc(raw)}
                       disabled={!orig}
-                      placeholder={zh ? '直减金额' : 'Amount off'}
+                      placeholder={t('offer:amountOff')}
                       className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none disabled:bg-slate-50 disabled:placeholder:text-slate-300"
                     />
                   )}
@@ -439,13 +438,13 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
 
               {/* 成交总价:自动算出,也可直接改(反算折扣) */}
               <div className="flex items-center gap-2">
-                <span className="w-16 shrink-0 text-xs font-bold text-slate-700">{zh ? '成交总价' : 'Net price'}</span>
+                <span className="w-16 shrink-0 text-xs font-bold text-slate-700">{t('offer:netPrice')}</span>
                 <div className="flex flex-1 items-center overflow-hidden rounded-xl border-2 border-slate-200 bg-white focus-within:border-slate-900">
                   <span className="flex items-center pl-3 pr-1 text-slate-400"><DirhamSymbol size="1em" /></span>
                   <MoneyInput
                     value={priceInput}
                     onChange={applyPrice}
-                    placeholder={zh ? '输入总价' : 'Total price'}
+                    placeholder={t('offer:totalPrice')}
                     className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
                   />
                   {price > 0 && (
@@ -458,9 +457,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
             {discount && (
               <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600 ring-1 ring-rose-100">
                 <BadgePercent className="h-3.5 w-3.5" />
-                {zh
-                  ? `优惠 ${discount.pct}%,省 ${formatMoneyCompact(discount.amount, i18n.language)},将标注在报价单上`
-                  : `${discount.pct}% off (save ${formatMoneyCompact(discount.amount, i18n.language)}) — shown on the offer`}
+                {t('offer:discountShownOnOffer', { pct: discount.pct, amount: formatMoneyCompact(discount.amount, i18n.language) })}
               </div>
             )}
           </section>
@@ -473,16 +470,16 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                 right={planRows ? (defaultPlanRows.length > 0 && (
                   <button type="button" onClick={() => { setPlanRows(null); setErr(null) }}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700">
-                    <RotateCcw className="h-3.5 w-3.5" />{zh ? '恢复默认' : 'Reset'}
+                    <RotateCcw className="h-3.5 w-3.5" />{t('offer:reset')}
                   </button>
                 )) : (
                   <button type="button" onClick={() => { setPlanRows(defaultPlanRows.map((r) => ({ ...r }))); setErr(null) }}
                     className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200">
-                    <SlidersHorizontal className="h-3.5 w-3.5" />{zh ? '调整' : 'Edit'}
+                    <SlidersHorizontal className="h-3.5 w-3.5" />{t('offer:edit')}
                   </button>
                 )}
               >
-                {zh ? '付款周期' : 'Schedule'}
+                {t('offer:schedule')}
               </StepLabel>
 
               {/* 周期条:每段宽=占比、段内直接标该期金额(编辑时实时跟着变) */}
@@ -507,9 +504,9 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                   })}
                 </div>
                 <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                  <span>{zh ? '签约' : 'Booking'}</span>
-                  <span>{zh ? `${shownPlanRows.length} 期` : `${shownPlanRows.length} installments`}</span>
-                  <span>{zh ? '交付' : 'Handover'}</span>
+                  <span>{t('offer:booking')}</span>
+                  <span>{t('offer:installments', { shownPlanRows_length: shownPlanRows.length })}</span>
+                  <span>{t('offer:handover')}</span>
                 </div>
               </div>
 
@@ -522,7 +519,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                         <input
                           value={r.name}
                           onChange={(e) => patchPlanRow(i, { name: e.target.value.slice(0, 120) })}
-                          placeholder={zh ? '付款节点' : 'Milestone'}
+                          placeholder={t('offer:milestone')}
                           className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400"
                         />
                         <div className="flex w-[72px] shrink-0 items-center overflow-hidden rounded-lg border border-slate-200 focus-within:border-slate-400">
@@ -535,12 +532,12 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                           <span className="pr-1.5 text-[11px] text-slate-400">%</span>
                         </div>
                         {i === 0 ? (
-                          <span className="w-[76px] shrink-0 text-center text-[11px] font-medium text-slate-400">{zh ? '签约时' : 'Booking'}</span>
+                          <span className="w-[76px] shrink-0 text-center text-[11px] font-medium text-slate-400">{t('offer:booking2')}</span>
                         ) : (
                           /* 间隔推不出来(原计划只有死日期没锚点/交付期不定)→ 琥珀提醒待填;
                              留空也能生成,报价单上该期不显示时间 */
                           <div
-                            title={r.gap === '' ? (zh ? '原计划未标明间隔,可补填;留空则报价单该期不显示时间' : 'No interval in the source plan — fill it in, or leave empty to omit') : undefined}
+                            title={r.gap === '' ? (t('offer:noIntervalInThe')) : undefined}
                             className={`flex w-[76px] shrink-0 items-center overflow-hidden rounded-lg border focus-within:border-slate-400 ${
                               r.gap === '' ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'
                             }`}
@@ -550,10 +547,10 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                               value={r.gap}
                               onChange={(e) => patchPlanRow(i, { gap: e.target.value.replace(/[^0-9]/g, '').slice(0, 3) })}
                               inputMode="numeric"
-                              placeholder={zh ? '待填' : 'TBD'}
+                              placeholder={t('offer:tbd')}
                               className="w-full bg-transparent px-1 py-1.5 text-right text-xs text-slate-600 outline-none placeholder:text-[10px] placeholder:text-amber-500/80"
                             />
-                            <span className="pr-1.5 text-[11px] text-slate-400">{zh ? '月' : 'mo'}</span>
+                            <span className="pr-1.5 text-[11px] text-slate-400">{t('offer:mo')}</span>
                           </div>
                         )}
                         {price > 0 && (
@@ -562,7 +559,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                           </span>
                         )}
                         <button type="button" onClick={() => setPlanRows((rows) => rows!.filter((_, j) => j !== i))}
-                          aria-label={zh ? '删除本期' : 'Remove'}
+                          aria-label={t('offer:remove')}
                           className="shrink-0 rounded-lg p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-500">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -571,13 +568,13 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/70 px-3 py-2">
                     <button type="button"
-                      onClick={() => setPlanRows((rows) => [...(rows || []), { name: zh ? '新增一期' : 'New installment', pct: '5', gap: '3' }])}
+                      onClick={() => setPlanRows((rows) => [...(rows || []), { name: t('offer:newInstallment'), pct: '5', gap: '3' }])}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-800">
-                      <Plus className="h-3.5 w-3.5" />{zh ? '添加一期' : 'Add installment'}
+                      <Plus className="h-3.5 w-3.5" />{t('offer:addInstallment')}
                     </button>
                     <span className={`text-xs font-bold tabular-nums ${planValid ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {zh ? '合计' : 'Total'} {planTotal.toFixed(planTotal % 1 ? 2 : 0)}%
-                      {!planValid && <span className="ml-1 font-semibold">{zh ? '(需为 100%)' : '(must be 100%)'}</span>}
+                      {t('offer:total')} {planTotal.toFixed(planTotal % 1 ? 2 : 0)}%
+                      {!planValid && <span className="ml-1 font-semibold">{t('offer:mustBe100')}</span>}
                     </span>
                   </div>
                 </div>
@@ -589,14 +586,14 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
           {/* 落款名片:报价单以经纪名片(姓名/头像/电话/邮箱+认证章)落款 */}
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5">
             <span className="text-xs text-slate-500">
-              {zh ? '报价单将以你的名片落款(姓名 / 头像 / 电话 / 邮箱 + 品牌章)' : 'The offer is signed with your card (name, photo, phone, email + stamp)'}
+              {t('offer:theOfferIsSigned')}
             </span>
             <button
               type="button"
               onClick={() => setCardOpen(true)}
               className="shrink-0 text-xs font-semibold text-teal-700 underline-offset-2 hover:underline"
             >
-              {zh ? '编辑名片' : 'Edit card'}
+              {t('offer:editCard')}
             </button>
           </div>
         </div>
@@ -608,9 +605,9 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               {selUnit
                 ? <span className="truncate">{selUnit.unit_type_name || bedsLabel(selUnit.bedrooms)} · <DirhamSymbol size="0.8em" /> {price > 0 ? price.toLocaleString('en-US') : '—'}</span>
                 : units.length > 0
-                  ? <span className="font-medium text-amber-600">{zh ? '请先选择户型' : 'Select a unit first'}</span>
-                  : <span>{zh ? '按项目报价' : 'Project-level quote'}{price > 0 ? ` · ${price.toLocaleString('en-US')}` : ''}</span>}
-              {planRows && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{zh ? '自定义周期' : 'Custom schedule'}</span>}
+                  ? <span className="font-medium text-amber-600">{t('offer:selectAUnitFirst')}</span>
+                  : <span>{t('offer:projectLevelQuote')}{price > 0 ? ` · ${price.toLocaleString('en-US')}` : ''}</span>}
+              {planRows && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">{t('offer:customSchedule')}</span>}
             </div>
             <button
               type="button"
@@ -619,7 +616,7 @@ export default function SalesOfferDialog({ open, onClose, projectId, projectName
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-40"
             >
               {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              {zh ? '生成报价单' : 'Generate offer'}
+              {t('offer:generateOffer')}
             </button>
           </div>
         </div>

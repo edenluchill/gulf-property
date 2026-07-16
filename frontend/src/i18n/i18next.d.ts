@@ -19,6 +19,8 @@ import editorEn from './locales/en/editor.json'
 import componentsEn from './locales/en/components.json'
 import compareEn from './locales/en/compare.json'
 import investEn from './locales/en/invest.json'
+import offerEn from './locales/en/offer.json'
+import payplanEn from './locales/en/payplan.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -43,6 +45,8 @@ declare module 'i18next' {
       components: typeof componentsEn
       compare: typeof compareEn
       invest: typeof investEn
+      offer: typeof offerEn
+      payplan: typeof payplanEn
     }
   }
 }
