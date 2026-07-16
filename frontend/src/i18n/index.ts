@@ -2,103 +2,20 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 
-import commonEn from './locales/en/common.json'
-import homeEn from './locales/en/home.json'
-import mapEn from './locales/en/map.json'
-import filterEn from './locales/en/filter.json'
-import projectEn from './locales/en/project.json'
-import favoritesEn from './locales/en/favorites.json'
-import developerEn from './locales/en/developer.json'
-import adminEn from './locales/en/admin.json'
-import uploadEn from './locales/en/upload.json'
-import authEn from './locales/en/auth.json'
-import transactionsEn from './locales/en/transactions.json'
-import reportEn from './locales/en/report.json'
-import insightsEn from './locales/en/insights.json'
-import agentEn from './locales/en/agent.json'
-import navEn from './locales/en/nav.json'
-import editorEn from './locales/en/editor.json'
-import componentsEn from './locales/en/components.json'
-
-import commonZh from './locales/zh-CN/common.json'
-import homeZh from './locales/zh-CN/home.json'
-import mapZh from './locales/zh-CN/map.json'
-import filterZh from './locales/zh-CN/filter.json'
-import projectZh from './locales/zh-CN/project.json'
-import favoritesZh from './locales/zh-CN/favorites.json'
-import developerZh from './locales/zh-CN/developer.json'
-import adminZh from './locales/zh-CN/admin.json'
-import uploadZh from './locales/zh-CN/upload.json'
-import authZh from './locales/zh-CN/auth.json'
-import transactionsZh from './locales/zh-CN/transactions.json'
-import reportZh from './locales/zh-CN/report.json'
-import insightsZh from './locales/zh-CN/insights.json'
-import agentZh from './locales/zh-CN/agent.json'
-import navZh from './locales/zh-CN/nav.json'
-import editorZh from './locales/zh-CN/editor.json'
-import componentsZh from './locales/zh-CN/components.json'
-
-// compare 命名空间 —— 多语言 framework pilot,5 语言全 JSON(ar/ru/fr 只随翻译进度补 ns,
-// 其余 ns 缺失自动回退 en)。新语言的其它 ns 在 P1 逐步加。
-import compareEn from './locales/en/compare.json'
-import compareZh from './locales/zh-CN/compare.json'
-import compareAr from './locales/ar/compare.json'
-import compareRu from './locales/ru/compare.json'
-import compareFr from './locales/fr/compare.json'
-import investEn from './locales/en/invest.json'
-import investZh from './locales/zh-CN/invest.json'
-import investAr from './locales/ar/invest.json'
-import investRu from './locales/ru/invest.json'
-import investFr from './locales/fr/invest.json'
-
-const resources = {
-  en: {
-    common: commonEn,
-    home: homeEn,
-    map: mapEn,
-    filter: filterEn,
-    project: projectEn,
-    favorites: favoritesEn,
-    developer: developerEn,
-    admin: adminEn,
-    upload: uploadEn,
-    auth: authEn,
-    transactions: transactionsEn,
-    report: reportEn,
-    insights: insightsEn,
-    agent: agentEn,
-    nav: navEn,
-    editor: editorEn,
-    components: componentsEn,
-    compare: compareEn,
-    invest: investEn,
-  },
-  'zh-CN': {
-    common: commonZh,
-    home: homeZh,
-    map: mapZh,
-    filter: filterZh,
-    project: projectZh,
-    favorites: favoritesZh,
-    developer: developerZh,
-    admin: adminZh,
-    upload: uploadZh,
-    auth: authZh,
-    transactions: transactionsZh,
-    report: reportZh,
-    insights: insightsZh,
-    agent: agentZh,
-    nav: navZh,
-    editor: editorZh,
-    components: componentsZh,
-    compare: compareZh,
-    invest: investZh,
-  },
-  // 新语言:目前只有 compare ns(pilot),其余 ns 缺失 → fallbackLng 回退 en。P1 逐步补齐。
-  ar: { compare: compareAr, invest: investAr },
-  ru: { compare: compareRu, invest: investRu },
-  fr: { compare: compareFr, invest: investFr },
+// 自动加载所有 locale JSON —— 放一个 locales/<lang>/<ns>.json 文件即生效,零配置改动。
+// (工业化 i18n framework:配合 backend/scripts/i18n-translate.ts 批翻,加语言=跑脚本。)
+// 缺的 <lang>/<ns> 由 fallbackLng 回退 en。
+const files = import.meta.glob('./locales/*/*.json', { eager: true }) as Record<string, { default: Record<string, unknown> }>
+const resources: Record<string, Record<string, Record<string, unknown>>> = {}
+const nsSet = new Set<string>()
+for (const p in files) {
+  const m = p.match(/\.\/locales\/([^/]+)\/([^/]+)\.json$/)
+  if (!m) continue
+  const [, lng, ns] = m
+  ;(resources[lng] ||= {})[ns] = files[p].default
+  nsSet.add(ns)
 }
+const allNs = [...nsSet]
 
 i18n
   .use(LanguageDetector)
@@ -121,7 +38,7 @@ i18n
     },
     nonExplicitSupportedLngs: true,
     defaultNS: 'common',
-    ns: ['common', 'home', 'map', 'filter', 'project', 'favorites', 'developer', 'admin', 'upload', 'auth', 'transactions', 'report', 'insights', 'agent', 'nav', 'editor', 'components', 'compare', 'invest'],
+    ns: allNs,
     interpolation: {
       escapeValue: false,
     },

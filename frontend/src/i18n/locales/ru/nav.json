@@ -1,0 +1,33 @@
+{
+  "mapExplore": "Поиск на карте",
+  "explore": "Обзор",
+  "analysis": "Аналитика",
+  "admin": "Админ",
+  "agentPortal": "Агенты",
+  "agentHub": "Хаб для агентов",
+  "becomeAgent": "Стать агентом",
+  "profile": "Профиль",
+  "transactions": "Сделки",
+  "areaInsights": "Анализ районов",
+  "buyingReport": "AI-отчет",
+  "compare": "Сравнение",
+  "favorites": "Избранное",
+  "uploadBrochure": "Загрузить брошюру",
+  "projectManagement": "Управление проектами",
+  "dubaiMapEditor": "Редактор карты",
+  "taskManagement": "Управление задачами",
+  "dataManagement": "Управление данными",
+  "learnMore": "Подробнее",
+  "desc": {
+    "transactions": "Многомерный поиск реальных сделок DLD",
+    "areaInsights": "Рейтинг районов и сравнение двух локаций",
+    "buyingReport": "AI-отчет для принятия решения о покупке",
+    "compare": "Сравнение проектов бок о бок",
+    "favorites": "Сохраненные проекты",
+    "uploadBrochure": "Автоизвлечение инфо о проекте из PDF-брошюр",
+    "projectManagement": "Просмотр и редактирование всех проектов",
+    "dubaiMapEditor": "Редактирование маршрутов на карте Дубая",
+    "taskManagement": "Просмотр статуса задач на загрузку",
+    "dataManagement": "Аналитика поведения клиентов и бизнеса"
+  }
+}

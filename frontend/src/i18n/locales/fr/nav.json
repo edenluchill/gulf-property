@@ -1,0 +1,33 @@
+{
+  "mapExplore": "Explorer la carte",
+  "explore": "Explorer",
+  "analysis": "Analyses",
+  "admin": "Admin",
+  "agentPortal": "Agents",
+  "agentHub": "Espace Agents",
+  "becomeAgent": "Devenir agent",
+  "profile": "Profil",
+  "transactions": "Transactions",
+  "areaInsights": "Analyses de zones",
+  "buyingReport": "Rapport IA",
+  "compare": "Comparer",
+  "favorites": "Favoris",
+  "uploadBrochure": "Importer une brochure",
+  "projectManagement": "Gestion des projets",
+  "dubaiMapEditor": "Éditeur de carte",
+  "taskManagement": "Gestion des tâches",
+  "dataManagement": "Gestion des données",
+  "learnMore": "En savoir plus",
+  "desc": {
+    "transactions": "Recherche multidimensionnelle de transactions DLD réelles",
+    "areaInsights": "Évaluation et comparaison de deux zones",
+    "buyingReport": "Rapport IA d'aide à l'achat immobilier",
+    "compare": "Comparaison directe de projets",
+    "favorites": "Mes projets sauvegardés",
+    "uploadBrochure": "Extraction automatique des infos de brochures PDF",
+    "projectManagement": "Visualiser et modifier tous les projets",
+    "dubaiMapEditor": "Modifier les itinéraires sur la carte de Dubaï",
+    "taskManagement": "Suivre le statut des tâches d'importation",
+    "dataManagement": "Analyses des données commerciales et du comportement client"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "mapExplore": "استكشاف الخريطة",
+  "explore": "استكشاف",
+  "analysis": "التحليلات",
+  "admin": "الإدارة",
+  "agentPortal": "الوكلاء",
+  "agentHub": "مركز الوكلاء",
+  "becomeAgent": "كن وكيلاً",
+  "profile": "حسابي",
+  "transactions": "المعاملات",
+  "areaInsights": "تحليلات المناطق",
+  "buyingReport": "تقرير الذكاء الاصطناعي",
+  "compare": "مقارنة",
+  "favorites": "المفضلة",
+  "uploadBrochure": "تحميل الكتيب",
+  "projectManagement": "إدارة المشاريع",
+  "dubaiMapEditor": "محرر الخريطة",
+  "taskManagement": "إدارة المهام",
+  "dataManagement": "إدارة البيانات",
+  "learnMore": "معرفة المزيد",
+  "desc": {
+    "transactions": "بحث متعدد الأبعاد في معاملات DLD الحقيقية",
+    "areaInsights": "تصنيف المناطق ومقارنة بين منطقتين",
+    "buyingReport": "تقرير الذكاء الاصطناعي لاتخاذ قرار شراء عقار",
+    "compare": "مقارنة مباشرة للمشاريع جنباً إلى جنب",
+    "favorites": "المشاريع التي قمت بحفظها",
+    "uploadBrochure": "استخراج تلقائي لمعلومات المشروع من كتيبات PDF",
+    "projectManagement": "عرض وتعديل جميع المشاريع",
+    "dubaiMapEditor": "تعديل مسارات خريطة دبي",
+    "taskManagement": "عرض حالة مهام الرفع",
+    "dataManagement": "سلوك العملاء وتحليلات الأعمال"
+  }
+}
