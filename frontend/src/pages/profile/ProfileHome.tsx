@@ -35,14 +35,14 @@ interface AgentCard {
   photo_url?: string | null
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  none: '未订阅', trialing: '试用中', active: '生效中', past_due: '续费失败', canceled: '已取消',
+const STATUS_KEY: Record<string, string> = {
+  none: 'statusNone', trialing: 'statusTrialing', active: 'statusActive', past_due: 'statusPastDue', canceled: 'statusCanceled',
 }
 
 export default function ProfileHome() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('profile')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const role = useMyRole()
@@ -71,7 +71,7 @@ export default function ProfileHome() {
   const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User'
   const avatarUrl = user.user_metadata?.avatar_url
   const joined = user.created_at
-    ? new Date(user.created_at).toLocaleDateString(zh ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'long' })
+    ? new Date(user.created_at).toLocaleDateString(i18n.language, { year: 'numeric', month: 'long' })
     : null
 
   const switchRole = () => {
@@ -119,10 +119,10 @@ export default function ProfileHome() {
               {joined && (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="h-3 w-3" />
-                  {L(`${joined} 加入`, `Joined ${joined}`)}
+                  {t('profile:joined', { joined })}
                 </span>
               )}
-              <span>{L('登录方式', 'Via')}: {user.app_metadata?.provider === 'google' ? 'Google' : (user.app_metadata?.provider || 'Email')}</span>
+              <span>{t('profile:via')}: {user.app_metadata?.provider === 'google' ? 'Google' : (user.app_metadata?.provider || 'Email')}</span>
             </div>
             {/* 勋章:直接常显(手机也显示),点开生成朋友圈分享图 */}
             {MEMBERSHIP_CERT_ENABLED && badge && (
@@ -133,7 +133,7 @@ export default function ProfileHome() {
               >
                 <span aria-hidden>{badge.emoji}</span>
                 {zh ? badge.titleZh : badge.titleEn}
-                <span className="text-white/70">· {L('分享', 'Share')}</span>
+                <span className="text-white/70">· {t('profile:share')}</span>
               </button>
             )}
             {/* 入驻海报:登录时会自动弹一次,这里给个随时重开的入口(纯扩散,分享得 7 天) */}
@@ -142,7 +142,7 @@ export default function ProfileHome() {
                 onClick={() => setShowWelcome(true)}
                 className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/20 transition active:scale-95"
               >
-                🎉 {L('我的入驻海报', 'My welcome poster')}<span className="text-white/70">· {L('分享', 'Share')}</span>
+                🎉 {t('profile:myWelcomePoster')}<span className="text-white/70">· {t('profile:share2')}</span>
               </button>
             )}
           </div>
@@ -157,10 +157,10 @@ export default function ProfileHome() {
               <div>
                 <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
                   <Contact className="h-4 w-4 text-indigo-500" />
-                  {L('经纪名片', 'Agent card')}
+                  {t('profile:agentCard')}
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-400">
-                  {L('对客户展示的联系方式', 'Contact info shown to clients')}
+                  {t('profile:contactInfoShownTo')}
                 </p>
               </div>
               <button
@@ -168,7 +168,7 @@ export default function ProfileHome() {
                 className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
               >
                 <Pencil className="h-3 w-3" />
-                {L('编辑', 'Edit')}
+                {t('profile:edit')}
               </button>
             </div>
             <div className="flex items-start gap-4">
@@ -180,23 +180,23 @@ export default function ProfileHome() {
                 </div>
               )}
               <dl className="min-w-0 flex-1 space-y-1.5 text-sm">
-                <div className="font-semibold text-slate-900">{card?.display_name || <Empty L={L} />}</div>
+                <div className="font-semibold text-slate-900">{card?.display_name || <Empty />}</div>
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  {card?.phone || <Empty L={L} />}
+                  {card?.phone || <Empty />}
                 </div>
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <MessageCircle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  {card?.whatsapp ? `WhatsApp ${card.whatsapp}` : <Empty L={L} />}
+                  {card?.whatsapp ? `WhatsApp ${card.whatsapp}` : <Empty />}
                 </div>
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  {card?.public_email || <span className="text-slate-400">{L('展示邮箱未填(可空)', 'Public email not set')}</span>}
+                  {card?.public_email || <span className="text-slate-400">{t('profile:publicEmailNotSet')}</span>}
                 </div>
               </dl>
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-              {L('这张名片会作为落款出现在你的 Sales Offer 报价单与品牌报告上。', 'Shown as your signature on Sales Offers and branded reports.')}
+              {t('profile:shownAsYourSignature')}
             </p>
           </section>
         ) : (
@@ -207,15 +207,15 @@ export default function ProfileHome() {
                 <Sparkles className="h-5 w-5 text-orange-600" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-bold text-slate-900">{L('成为经纪(7 天免费试用)', 'Become an agent (7-day trial)')}</h2>
+                <h2 className="text-sm font-bold text-slate-900">{t('profile:becomeAnAgent7')}</h2>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  {L('解锁经纪工作台:客户雷达、AI 导览、客户分析报告、实时带看。', 'Unlock client radar, AI tours, client fit reports and live tours.')}
+                  {t('profile:unlockClientRadarAi')}
                 </p>
                 <button
                   onClick={switchRole}
                   className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-95"
                 >
-                  {L('了解详情', 'Learn more')} <ArrowRight className="h-3.5 w-3.5" />
+                  {t('profile:learnMore')} <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
@@ -227,36 +227,35 @@ export default function ProfileHome() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
               <BarChart3 className="h-4 w-4 text-emerald-500" />
-              {L('订阅与用量', 'Subscription & usage')}
+              {t('profile:subscriptionUsage')}
             </h2>
             <Link
               to="/agent/billing"
               className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600 hover:underline"
             >
-              {isPaid ? L('管理订阅', 'Manage') : L('查看套餐', 'View plans')} <ChevronRight className="h-3 w-3" />
+              {isPaid ? t('profile:manage') : t('profile:viewPlans')} <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs text-slate-400">{L('当前套餐', 'Current plan')}</div>
+              <div className="text-xs text-slate-400">{t('profile:currentPlan')}</div>
               <div className="text-lg font-bold text-slate-900">{planName}</div>
             </div>
             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              {zh ? (STATUS_LABEL[status] || status) : status}
+              {STATUS_KEY[status] ? t(`profile:${STATUS_KEY[status]}`) : status}
             </span>
           </div>
           {/* 买家没有积分体系 —— 给他看「剩 0/0」像是坏了。讲他真正拥有的东西。 */}
           {role === 'buyer' ? (
             <div className="mt-4 text-sm text-slate-500">
-              {L('地图、260+ 区域真实成交与租金数据、Luna 语音助手 —— 买家不限时免费使用。',
-                 'The map, real DLD sales & rent data across 260+ areas, and Luna — free and unlimited for buyers.')}
+              {t('profile:theMapRealDld')}
             </div>
           ) : (
             <div className="mt-4">
               <div className="mb-1 flex items-baseline justify-between text-sm">
-                <span className="text-slate-500">{L('本月积分', 'Credits this month')}</span>
+                <span className="text-slate-500">{t('profile:creditsThisMonth')}</span>
                 <span className="font-semibold text-slate-900">
-                  {unlimited ? L('无限', 'Unlimited') : <>{L('剩', 'Left')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+                  {unlimited ? t('profile:unlimited') : <>{t('profile:left')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -269,9 +268,9 @@ export default function ProfileHome() {
                 <div className="mt-1.5 text-[11px] text-slate-400">
                   {/* 免绑卡试用没有续费这回事 —— 它到期就是停,不会扣款。别说"下次续费"。 */}
                   {me.trial?.active
-                    ? L('免费试用至 ', 'Free trial until ')
-                    : status === 'canceled' ? L('有效期至 ', 'Valid until ') : L('下次续费 ', 'Renews ')}
-                  {new Date(me.current_period_end).toLocaleDateString(zh ? 'zh-CN' : 'en-US')}
+                    ? t('profile:freeTrialUntil')
+                    : status === 'canceled' ? t('profile:validUntil') : t('profile:renews')}
+                  {new Date(me.current_period_end).toLocaleDateString(i18n.language)}
                 </div>
               )}
             </div>
@@ -293,13 +292,13 @@ export default function ProfileHome() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-900">
-            {L('我的收藏', 'Favorites')}
+            {t('profile:favorites')}
             <span className="ml-2 text-rose-500">{favProjects}</span>
             <span className="ml-1 text-xs font-normal text-slate-400">
-              {L(`个项目${favTotal > favProjects ? ` · ${favTotal} 条收藏` : ''}`, ` projects`)}
+              {t('profile:projectsSuffix')}{favTotal > favProjects ? t('profile:favWithSaves', { n: favTotal }) : ''}
             </span>
           </div>
-          <div className="text-xs text-slate-400">{L('跨设备同步', 'Synced across devices')}</div>
+          <div className="text-xs text-slate-400">{t('profile:syncedAcrossDevices')}</div>
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5" />
       </Link>
@@ -312,7 +311,7 @@ export default function ProfileHome() {
             className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-slate-50"
           >
             <ArrowLeftRight className="h-4 w-4 text-slate-400" />
-            {L('切换身份', 'Switch role')}
+            {t('profile:switchRole')}
           </button>
         )}
         {isOwnerEmail(user.email) && (
@@ -321,7 +320,7 @@ export default function ProfileHome() {
             className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-slate-50"
           >
             <BarChart3 className="h-4 w-4 text-blue-500" />
-            {L('数据后台', 'Analytics')}
+            {t('profile:analytics')}
           </button>
         )}
         {/* 桌面侧栏有退出,但手机端没有侧栏 —— 这里是手机唯一退出入口 */}
@@ -330,7 +329,7 @@ export default function ProfileHome() {
           className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-red-500 shadow-sm ring-1 ring-slate-900/[0.06] transition hover:bg-red-50 md:hidden"
         >
           <LogOut className="h-4 w-4" />
-          {L('退出登录', 'Sign out')}
+          {t('profile:signOut3')}
         </button>
       </div>
 
@@ -350,6 +349,7 @@ export default function ProfileHome() {
   )
 }
 
-function Empty({ L }: { L: (a: string, b: string) => string }) {
-  return <span className="text-slate-400">{L('未填写', 'Not set')}</span>
+function Empty() {
+  const { t } = useTranslation('profile')
+  return <span className="text-slate-400">{t('notSet')}</span>
 }

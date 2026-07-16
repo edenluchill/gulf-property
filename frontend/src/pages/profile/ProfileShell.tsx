@@ -25,21 +25,22 @@ import { useScrollChrome } from '../../hooks/useScrollChrome'
 import { Sheet, SheetContent } from '../../components/ui/sheet'
 
 // 角色小徽章(与 UserMenu / 角色选择卡同一套颜色/emoji)
-const ROLE_CHIP: Record<string, { zh: string; en: string; emoji: string; cls: string }> = {
-  buyer: { zh: '买家', en: 'Buyer', emoji: '🏠', cls: 'bg-teal-100 text-teal-700' },
-  agent: { zh: '经纪人', en: 'Agent', emoji: '🧑‍💼', cls: 'bg-indigo-100 text-indigo-700' },
-  agency: { zh: '经纪公司', en: 'Agency', emoji: '🏢', cls: 'bg-violet-100 text-violet-700' },
-  developer: { zh: '开发商', en: 'Developer', emoji: '🏗️', cls: 'bg-amber-100 text-amber-700' },
+// 双语标签全部走 profile ns 的 t(key);data 层只留翻译 key(不再内嵌 zh/en)。
+const ROLE_CHIP: Record<string, { key: string; emoji: string; cls: string }> = {
+  buyer: { key: 'roleBuyer', emoji: '🏠', cls: 'bg-teal-100 text-teal-700' },
+  agent: { key: 'roleAgent', emoji: '🧑‍💼', cls: 'bg-indigo-100 text-indigo-700' },
+  agency: { key: 'roleAgency', emoji: '🏢', cls: 'bg-violet-100 text-violet-700' },
+  developer: { key: 'roleDeveloper', emoji: '🏗️', cls: 'bg-amber-100 text-amber-700' },
 }
 
 export type ProfileShellContext = { badge: RoleBadge | null; me: BillingMe | null }
 
-type Tab = { to: string; end?: boolean; zh: string; en: string; icon: typeof UserRound }
+type Tab = { to: string; end?: boolean; key: string; icon: typeof UserRound }
 
 // 通用组:所有登录用户可见(订阅页自己按套餐渲染,买家看到的是升级选项)
 const ACCOUNT_TABS: Tab[] = [
-  { to: '/profile', end: true, zh: '个人资料', en: 'Profile', icon: UserRound },
-  { to: '/agent/billing', zh: '订阅与套餐', en: 'Billing', icon: CreditCard },
+  { to: '/profile', end: true, key: 'tabProfile', icon: UserRound },
+  { to: '/agent/billing', key: 'tabBilling', icon: CreditCard },
 ]
 
 // 经纪工作台(经纪专属模块;名字要让人想点开用)
@@ -58,21 +59,21 @@ const ACCOUNT_TABS: Tab[] = [
 // 只藏导航入口,随时可以放回来。要恢复:把下面这行取消注释。
 //   { to: '/agent/leads', zh: '线索', en: 'Leads', icon: Inbox },
 const AGENT_TABS: Tab[] = [
-  { to: '/agent', end: true, zh: '工作台', en: 'Dashboard', icon: LayoutDashboard },
-  { to: '/agent/clients', zh: '客户雷达', en: 'Client radar', icon: Radar },
-  { to: '/agent/tour', zh: 'AI 导览', en: 'AI tours', icon: Wand2 },
-  { to: '/agent/report', zh: '客户分析报告', en: 'Client fit reports', icon: Zap },
-  { to: '/agent/promo', zh: '推广有礼', en: 'Refer & earn', icon: Gift },
+  { to: '/agent', end: true, key: 'tabDashboard', icon: LayoutDashboard },
+  { to: '/agent/clients', key: 'tabClientRadar', icon: Radar },
+  { to: '/agent/tour', key: 'tabAiTours', icon: Wand2 },
+  { to: '/agent/report', key: 'tabClientFitReports', icon: Zap },
+  { to: '/agent/promo', key: 'tabReferEarn', icon: Gift },
 ]
 // 使用记录:只在付费后显示(有积分消耗才有意义;免费/未订阅不显示)
-const USAGE_TAB: Tab = { to: '/agent/usage', zh: '使用记录', en: 'Usage', icon: Receipt }
+const USAGE_TAB: Tab = { to: '/agent/usage', key: 'tabUsage', icon: Receipt }
 
 const AGENT_NAV_OPEN_KEY = 'pz-agent-nav-open'
 
 export default function ProfileShell() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('profile')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const { user, loading, isAdmin, signOut } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
@@ -140,16 +141,15 @@ export default function ProfileShell() {
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-teal-50">
             <LogIn className="h-6 w-6 text-teal-600" />
           </div>
-          <h2 className="text-lg font-bold text-slate-900">{L('登录个人中心', 'Sign in')}</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t('profile:signIn')}</h2>
           <p className="mt-2 text-sm text-slate-500">
-            {L('登录后管理你的资料、收藏与经纪工作台。支持 Google 一键登录或邮箱验证码。',
-               'Sign in to manage your profile, favorites and agent workspace.')}
+            {t('profile:signInToManage')}
           </p>
           <Link
             to={`/login?returnTo=${returnTo}`}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-600"
           >
-            {L('前往登录', 'Go to login')} <ArrowRight className="h-4 w-4" />
+            {t('profile:goToLogin')} <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>
@@ -174,7 +174,7 @@ export default function ProfileShell() {
 
   // 当前板块(最长前缀匹配;/agent/billing 优先于 /agent)
   const currentTab = mobileTabs
-    .filter((t) => location.pathname === t.to || location.pathname.startsWith(t.to + '/'))
+    .filter((tab) => location.pathname === tab.to || location.pathname.startsWith(tab.to + '/'))
     .sort((a, b) => b.to.length - a.to.length)[0] ?? mobileTabs[0]
 
   const sheetRowCls = ({ isActive }: { isActive: boolean }) =>
@@ -196,7 +196,7 @@ export default function ProfileShell() {
         <div className="flex min-w-0 items-center gap-2">
           <currentTab.icon className="h-4 w-4 shrink-0 text-teal-600" />
           <span className="truncate text-[15px] font-bold text-slate-900">
-            {zh ? currentTab.zh : currentTab.en}
+            {t(`profile:${currentTab.key}`)}
           </span>
         </div>
         <button
@@ -204,7 +204,7 @@ export default function ProfileShell() {
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-slate-600 ring-1 ring-slate-200 transition active:scale-95"
         >
           <Menu className="h-4 w-4" />
-          {L('菜单', 'Menu')}
+          {t('profile:menu')}
         </button>
       </div>
 
@@ -246,12 +246,12 @@ export default function ProfileShell() {
             {/* 账户组 */}
             <div>
               <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                {L('账户', 'Account')}
+                {t('profile:account')}
               </div>
               {ACCOUNT_TABS.map((tab) => (
                 <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
                   <tab.icon className="h-[18px] w-[18px]" />
-                  <span className="flex-1">{zh ? tab.zh : tab.en}</span>
+                  <span className="flex-1">{t(`profile:${tab.key}`)}</span>
                   <ChevronRight className="h-4 w-4 text-slate-300" />
                 </NavLink>
               ))}
@@ -260,22 +260,22 @@ export default function ProfileShell() {
             {/* 经纪工作台组 */}
             <div>
               <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                {L('经纪工作台', 'Agent workspace')}
+                {t('profile:agentWorkspace')}
               </div>
               {isAgent ? (
                 agentTabs.map((tab) => (
                   <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
                     <tab.icon className="h-[18px] w-[18px]" />
-                    <span className="flex-1">{zh ? tab.zh : tab.en}</span>
+                    <span className="flex-1">{t(`profile:${tab.key}`)}</span>
                     <ChevronRight className="h-4 w-4 text-slate-300" />
                   </NavLink>
                 ))
               ) : (
                 <Link to="/choose-role" className="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium text-slate-700 transition active:bg-slate-100">
                   <Lock className="h-[18px] w-[18px] text-slate-400" />
-                  <span className="flex-1">{L('解锁经纪工作台', 'Unlock agent workspace')}</span>
+                  <span className="flex-1">{t('profile:unlockAgentWorkspace')}</span>
                   <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                    {L('去解锁', 'Unlock')}
+                    {t('profile:unlock')}
                   </span>
                 </Link>
               )}
@@ -288,7 +288,7 @@ export default function ProfileShell() {
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-semibold text-red-500 transition active:bg-red-50"
               >
                 <LogOut className="h-[18px] w-[18px]" />
-                {L('退出登录', 'Sign out')}
+                {t('profile:signOut')}
               </button>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function ProfileShell() {
                     {roleChip && (
                       <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${roleChip.cls}`}>
                         <span aria-hidden>{roleChip.emoji}</span>
-                        {zh ? roleChip.zh : roleChip.en}
+                        {t(`profile:${roleChip.key}`)}
                       </span>
                     )}
                     {badge && (
@@ -348,7 +348,7 @@ export default function ProfileShell() {
                 {ACCOUNT_TABS.map((tab) => (
                   <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
                     <tab.icon className="h-4 w-4" />
-                    {zh ? tab.zh : tab.en}
+                    {t(`profile:${tab.key}`)}
                   </NavLink>
                 ))}
               </nav>
@@ -365,9 +365,9 @@ export default function ProfileShell() {
                         <Briefcase className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-bold text-slate-900">{L('经纪工作台', 'Agent workspace')}</span>
+                        <span className="block text-[13px] font-bold text-slate-900">{t('profile:agentWorkspace2')}</span>
                         <span className="block text-[10px] font-semibold uppercase tracking-wider text-teal-600">
-                          {L('经纪专属', 'Agents only')}
+                          {t('profile:agentsOnly')}
                         </span>
                       </span>
                       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${agentOpen ? 'rotate-180' : ''}`} />
@@ -377,7 +377,7 @@ export default function ProfileShell() {
                         {agentTabs.map((tab) => (
                           <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
                             <tab.icon className="h-4 w-4" />
-                            {zh ? tab.zh : tab.en}
+                            {t(`profile:${tab.key}`)}
                           </NavLink>
                         ))}
                       </div>
@@ -390,13 +390,13 @@ export default function ProfileShell() {
                       <Lock className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-bold text-slate-900">{L('经纪工作台', 'Agent workspace')}</span>
+                      <span className="block text-[13px] font-bold text-slate-900">{t('profile:agentWorkspace3')}</span>
                       <span className="block truncate text-[11px] text-slate-400">
-                        {L('客户雷达 · AI 导览 · 分析报告', 'Client radar · AI tours · fit reports')}
+                        {t('profile:clientRadarAiTours')}
                       </span>
                     </span>
                     <span className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm transition group-hover:opacity-95">
-                      {L('去解锁', 'Unlock')}
+                      {t('profile:unlock2')}
                     </span>
                   </Link>
                 )}
@@ -408,7 +408,7 @@ export default function ProfileShell() {
                 className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-red-500 transition hover:bg-red-50"
               >
                 <LogOut className="h-4 w-4" />
-                {L('退出登录', 'Sign out')}
+                {t('profile:signOut2')}
               </button>
             </div>
           </aside>
