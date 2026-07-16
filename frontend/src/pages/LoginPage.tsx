@@ -267,7 +267,7 @@ export default function LoginPage() {
             className="hidden lg:block flex-1 max-w-md"
           >
             {/* Logo */}
-            <Link to="/" className="flex items-center space-x-3 mb-8">
+            <Link to="/" className="flex items-center space-x-3 rtl:space-x-reverse mb-8">
               <motion.div
                 className="bg-gradient-to-br from-teal-500 to-emerald-600 p-2.5 rounded-xl shadow-lg shadow-teal-500/20"
                 whileHover={{ scale: 1.05 }}
@@ -308,7 +308,7 @@ export default function LoginPage() {
                   initial={{ opacity: 0, x: -15 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.5 + index * 0.1 }}
-                  className="flex items-center space-x-3"
+                  className="flex items-center space-x-3 rtl:space-x-reverse"
                 >
                   <div className="flex-shrink-0 w-9 h-9 bg-teal-50 border border-teal-100 rounded-lg flex items-center justify-center">
                     <feature.icon className="h-4 w-4 text-teal-600" />
@@ -373,7 +373,7 @@ export default function LoginPage() {
               <div className="absolute -top-10 -right-10 w-32 h-32 bg-gradient-to-bl from-teal-50 to-transparent rounded-full" />
 
               {/* Mobile Logo */}
-              <Link to="/" className="flex lg:hidden items-center space-x-3 mb-6 relative z-10">
+              <Link to="/" className="flex lg:hidden items-center space-x-3 rtl:space-x-reverse mb-6 relative z-10">
                 <motion.div className="bg-gradient-to-br from-teal-500 to-emerald-600 p-2.5 rounded-xl">
                   <Building2 className="h-6 w-6 text-white" />
                 </motion.div>

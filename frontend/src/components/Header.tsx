@@ -100,7 +100,7 @@ export default function Header() {
       <div className="container mx-auto px-4 py-2 xl:py-4 relative z-10">
         <div className="flex items-center justify-between">
           {/* Logo - Compact on mobile/tablet */}
-          <Link to="/" className="flex items-center space-x-2 xl:space-x-3 group relative z-10">
+          <Link to="/" className="flex items-center space-x-2 rtl:space-x-reverse xl:space-x-3 xl:rtl:space-x-reverse group relative z-10">
             {/* 定制 mark：地图 Pin（呼应 "Pin"zos / 选址）内嵌上升数据柱（AI 分析 / 资本增值），
                 最高柱金色 = 迪拜贵气 + 峰值收益。裸 mark，无通用圆角方块 */}
             <motion.div
@@ -239,7 +239,7 @@ export default function Header() {
             ) : (
               <Link to="/login">
                 <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                  <Button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl text-sm font-medium shadow-md shadow-teal-500/20">
+                  <Button className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl text-sm font-medium shadow-md shadow-teal-500/20">
                     <LogIn className="h-4 w-4" />
                     <span>{t('auth:login', 'Sign In')}</span>
                   </Button>

@@ -481,7 +481,7 @@ export function RoutesSidebar({
 
               {/* Stops */}
               {selectedRoute?.id === route.id && (route.stops?.length ?? 0) > 0 && (
-                <div className="ms-4 mt-1 space-y-1 border-l-2 border-slate-200 ps-3">
+                <div className="ms-4 mt-1 space-y-1 border-s-2 border-slate-200 ps-3">
                   {route.stops?.map((stop) => (
                     <div
                       key={stop.id}

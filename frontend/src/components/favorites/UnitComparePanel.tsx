@@ -74,11 +74,11 @@ export function UnitComparePanel({ items, isOpen, onClose, onRemoveItem }: UnitC
             <div className="min-w-[600px]">
               {/* Column Headers with Floor Plans */}
               <div className="grid border-b bg-slate-50" style={{ gridTemplateColumns: `200px repeat(${items.length}, 1fr)` }}>
-                <div className="p-4 font-semibold text-slate-700 border-r bg-slate-100">
+                <div className="p-4 font-semibold text-slate-700 border-e bg-slate-100">
                   {/* Empty header cell */}
                 </div>
                 {items.map((item, idx) => (
-                  <div key={item.unit.id} className="p-4 border-r last:border-r-0">
+                  <div key={item.unit.id} className="p-4 border-e last:border-e-0">
                     {/* Column Label Badge */}
                     <div className="flex items-center justify-between mb-3">
                       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
@@ -241,11 +241,11 @@ export function UnitComparePanel({ items, isOpen, onClose, onRemoveItem }: UnitC
                 {allAmenities.length > 0 && (
                   <>
                     <div className="grid bg-slate-50 border-t" style={{ gridTemplateColumns: `200px repeat(${items.length}, 1fr)` }}>
-                      <div className="p-4 font-semibold text-slate-700 border-r flex items-center gap-2">
+                      <div className="p-4 font-semibold text-slate-700 border-e flex items-center gap-2">
                         <span className="text-lg">Amenities</span>
                       </div>
                       {items.map((item) => (
-                        <div key={item.unit.id} className="p-4 border-r last:border-r-0">
+                        <div key={item.unit.id} className="p-4 border-e last:border-e-0">
                           {/* Empty cell for header */}
                         </div>
                       ))}
@@ -300,14 +300,14 @@ function CompareRow({ icon, label, children, itemCount, isAmenity }: CompareRowP
       style={{ gridTemplateColumns: `200px repeat(${itemCount}, 1fr)` }}
     >
       {/* Label Cell */}
-      <div className={`p-4 border-r flex items-center gap-2 ${isAmenity ? 'ps-8 text-sm' : ''} bg-slate-50`}>
+      <div className={`p-4 border-e flex items-center gap-2 ${isAmenity ? 'ps-8 text-sm' : ''} bg-slate-50`}>
         {icon && <span className="text-slate-400">{icon}</span>}
         <span className="font-medium text-slate-700">{label}</span>
       </div>
 
       {/* Value Cells */}
       {childArray.map((child, idx) => (
-        <div key={idx} className="p-4 border-r last:border-r-0 flex items-center">
+        <div key={idx} className="p-4 border-e last:border-e-0 flex items-center">
           {child}
         </div>
       ))}

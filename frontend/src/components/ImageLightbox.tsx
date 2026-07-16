@@ -303,7 +303,7 @@ export function ImageLightbox({
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1, duration: 0.3 }}
-          className="w-28 h-full flex flex-col bg-black border-r border-white/[0.08]"
+          className="w-28 h-full flex flex-col bg-black border-e border-white/[0.08]"
         >
           {/* Header — zero-padded counter, luxury portfolio feel */}
           <div className="flex-shrink-0 px-3 py-4 border-b border-white/[0.08]">
@@ -352,7 +352,7 @@ export function ImageLightbox({
                 }`} />
                 {/* Active indicator bar */}
                 {index === currentIndex && (
-                  <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-white" />
+                  <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-e bg-white" />
                 )}
                 {/* Index — zero padded, appears on hover / active */}
                 <div className={`absolute bottom-1 right-1.5 text-[9px] font-semibold tabular-nums tracking-wide transition-opacity duration-200 ${

@@ -44,7 +44,7 @@ export default function PaymentTimeline({
             return (
               <div
                 key={m.id || i}
-                className={`flex items-center justify-center ${SEG_COLORS[i % SEG_COLORS.length]} ${i > 0 ? 'border-l border-white' : ''}`}
+                className={`flex items-center justify-center ${SEG_COLORS[i % SEG_COLORS.length]} ${i > 0 ? 'border-s border-white' : ''}`}
                 style={{ width: `${total ? (p / total) * 100 : 0}%` }}
                 title={`${m.milestone_name} · ${p}%`}
               >

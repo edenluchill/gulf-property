@@ -256,7 +256,7 @@ export default function TourEditor() {
 
   const Track = ({ label, h, children }: { label: string; h: number; children: React.ReactNode }) => (
     <div className="flex border-b border-slate-800" style={{ height: h }}>
-      <div className="shrink-0 flex items-center justify-center text-[11px] text-slate-400 border-r border-slate-800 bg-slate-900" style={{ width: GUTTER }}>{label}</div>
+      <div className="shrink-0 flex items-center justify-center text-[11px] text-slate-400 border-e border-slate-800 bg-slate-900" style={{ width: GUTTER }}>{label}</div>
       <div className="relative" style={{ width: W }}>{children}</div>
     </div>
   )
@@ -308,10 +308,10 @@ export default function TourEditor() {
             <div style={{ width: W + GUTTER }}>
               {/* ruler */}
               <div className="flex sticky top-0 z-10">
-                <div className="shrink-0 bg-slate-900 border-r border-b border-slate-800" style={{ width: GUTTER, height: 30 }} />
+                <div className="shrink-0 bg-slate-900 border-e border-b border-slate-800" style={{ width: GUTTER, height: 30 }} />
                 <div className="relative bg-slate-900 border-b border-slate-800" style={{ width: W, height: 30 }}>
                   {ruler.map((s) => (
-                    <div key={s} className="absolute top-0 h-full border-l border-slate-700/60 text-[11px] text-slate-400 ps-1 pt-1" style={{ left: s * px }}>{s}s</div>
+                    <div key={s} className="absolute top-0 h-full border-s border-slate-700/60 text-[11px] text-slate-400 ps-1 pt-1" style={{ left: s * px }}>{s}s</div>
                   ))}
                 </div>
               </div>
@@ -430,7 +430,7 @@ export default function TourEditor() {
         </div>
 
         {/* side edit panel */}
-        <div className="w-[340px] shrink-0 border-l bg-white overflow-y-auto p-4">
+        <div className="w-[340px] shrink-0 border-s bg-white overflow-y-auto p-4">
           {!sel ? (
             <div className="text-sm text-slate-400 mt-8 text-center">点时间线上的片段来编辑<br />旁白 · 卡片 · 媒体 · AI 改稿<br /><span className="text-xs">卡片可在轨道上拖动移动 / 裁剪时长</span></div>
           ) : (

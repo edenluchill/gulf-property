@@ -61,16 +61,16 @@ export function UnitTypesSubPage({
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Minimal */}
-        <div className="w-64 bg-white border-r flex-shrink-0 overflow-y-auto">
+        <div className="w-64 bg-white border-e flex-shrink-0 overflow-y-auto">
           {unitTypes.map((unit) => (
             <button
               key={unit.id}
               onClick={() => onUnitSelect(unit.id)}
               className={cn(
-                'w-full text-start px-4 py-3 border-l-2 transition-all hover:bg-slate-50',
+                'w-full text-start px-4 py-3 border-s-2 transition-all hover:bg-slate-50',
                 unit.id === selectedUnitId
-                  ? 'border-l-primary bg-primary/5'
-                  : 'border-l-transparent'
+                  ? 'border-s-primary bg-primary/5'
+                  : 'border-s-transparent'
               )}
             >
               <div className="font-medium text-sm truncate">{unit.unit_type_name}</div>

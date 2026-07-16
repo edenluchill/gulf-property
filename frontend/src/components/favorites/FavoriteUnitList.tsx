@@ -78,7 +78,7 @@ export function FavoriteUnitList({ projectId, unitTypeIds, units, onClose }: Fav
   if (unitDetails.length === 0 && unitTypeIds.length > 0) {
     // Show IDs if we couldn't load details
     return (
-      <div className="space-y-2 ps-4 border-l-2 border-slate-200">
+      <div className="space-y-2 ps-4 border-s-2 border-slate-200">
         {unitTypeIds.map(id => (
           <div
             key={id}
@@ -101,7 +101,7 @@ export function FavoriteUnitList({ projectId, unitTypeIds, units, onClose }: Fav
 
   return (
     <>
-      <div className="space-y-2 ps-4 border-l-2 border-teal-200">
+      <div className="space-y-2 ps-4 border-s-2 border-teal-200">
         {unitDetails.map(unit => (
           <div
             key={unit.id}

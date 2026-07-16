@@ -220,7 +220,7 @@ export function UnitTypesSection({
                 <div key={groupKey} className="space-y-4">
                   {/* Only show group header for categorized units */}
                   {!isUncategorized && (
-                    <div className="px-5 py-4 rounded-xl shadow-md border-l-4 bg-gradient-to-r from-blue-50 via-blue-50 to-indigo-50 border-blue-500">
+                    <div className="px-5 py-4 rounded-xl shadow-md border-s-4 bg-gradient-to-r from-blue-50 via-blue-50 to-indigo-50 border-blue-500">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">🏢</span>
                         <div>

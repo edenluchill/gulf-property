@@ -10,7 +10,7 @@ export function FavoritesButton() {
     <Button
       variant="ghost"
       onClick={openDrawer}
-      className="relative flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80"
+      className="relative flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80"
     >
       <Heart className="h-4 w-4" />
       <AnimatePresence>

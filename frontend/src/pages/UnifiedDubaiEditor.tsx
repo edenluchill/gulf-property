@@ -1012,7 +1012,7 @@ export default function UnifiedDubaiEditor() {
       </div>
 
       {/* Left Toolbar — hidden on tablet when editing (edit panel takes its place) */}
-      <div className={`w-64 xl:w-80 bg-white border-r flex-col overflow-hidden ${hasSelection ? 'hidden xl:flex' : 'flex'}`}>
+      <div className={`w-64 xl:w-80 bg-white border-e flex-col overflow-hidden ${hasSelection ? 'hidden xl:flex' : 'flex'}`}>
         {/* Header */}
         <div className="p-3 xl:p-4 border-b bg-slate-50">
           <h2 className="font-bold text-lg mb-3">{t('unified.title')}</h2>
@@ -1238,7 +1238,7 @@ export default function UnifiedDubaiEditor() {
 
       {/* Edit Panel — tablet: replaces left panel (order-first), desktop: right column (order-last) */}
       {hasSelection && (
-        <div className="w-64 xl:w-96 bg-white border-r xl:border-r-0 xl:border-l flex flex-col overflow-hidden order-first xl:order-last">
+        <div className="w-64 xl:w-96 bg-white border-e xl:border-e-0 xl:border-s flex flex-col overflow-hidden order-first xl:order-last">
           {/* Header — back arrow on tablet, X on desktop */}
           <div className="p-3 xl:p-4 border-b bg-slate-50 flex items-center gap-2">
             <button

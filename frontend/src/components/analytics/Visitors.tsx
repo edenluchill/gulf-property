@@ -302,7 +302,7 @@ export function VisitorDrawer({ id, onClose }: { id: string; onClose: () => void
 
                   if (isApi) {
                     return (
-                      <div key={i} className="flex items-start gap-2.5 border-l-2 border-slate-100 ps-2 opacity-70">
+                      <div key={i} className="flex items-start gap-2.5 border-s-2 border-slate-100 ps-2 opacity-70">
                         <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">

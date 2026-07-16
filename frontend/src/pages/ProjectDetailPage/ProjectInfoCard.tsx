@@ -215,13 +215,13 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
         {/* Dates */}
         <div className="space-y-2 pt-4 border-t">
           {project.launch_date && (
-            <div className="flex items-center space-x-2 text-slate-600">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse text-slate-600">
               <TrendingUp className="h-4 w-4" />
               <span>{t('common:dates.launchDate')}: {formatDate(project.launch_date)}</span>
             </div>
           )}
           {project.completion_date && (
-            <div className="flex items-center space-x-2 text-slate-600">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse text-slate-600">
               <Calendar className="h-4 w-4" />
               <span>{t('common:dates.completionDate')}: {formatDate(project.completion_date)}</span>
             </div>

@@ -213,7 +213,7 @@ export default function AreaDetailDialog({
 
         {/* 2-column — charts left, flat 成交/租金/项目 tabs right */}
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-[380px] overflow-y-auto border-r border-slate-100 p-4 space-y-4">
+          <div className="w-[380px] overflow-y-auto border-e border-slate-100 p-4 space-y-4">
             {tilesEl}
             {aiEl}
           </div>

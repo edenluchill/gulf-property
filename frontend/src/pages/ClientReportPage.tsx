@@ -456,7 +456,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
                 <tr>
                   <th className="sticky left-0 z-10 bg-white p-2.5 text-start text-[11px] font-semibold text-slate-400" />
                   {props.map((p, i) => (
-                    <th key={i} className={`min-w-[120px] border-l border-slate-100 p-2.5 align-top ${i === winnerIdx ? 'bg-teal-50/70' : 'bg-slate-50/60'}`}>
+                    <th key={i} className={`min-w-[120px] border-s border-slate-100 p-2.5 align-top ${i === winnerIdx ? 'bg-teal-50/70' : 'bg-slate-50/60'}`}>
                       {p.primary_image && <img src={p.primary_image} alt={p.name} className="mb-1.5 h-16 w-full rounded-lg object-cover" />}
                       <div className="flex items-center gap-1 text-xs font-bold text-slate-800">{p.name}{i === winnerIdx && <Star className="h-3 w-3 flex-shrink-0 text-amber-400" />}</div>
                     </th>
@@ -470,7 +470,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
                     <tr key={ri} className="border-t border-slate-50">
                       <td className="sticky left-0 z-10 bg-white p-2.5 text-start text-xs text-slate-500">{row.label}</td>
                       {props.map((p, i) => (
-                        <td key={i} className={`border-l border-slate-100 p-2.5 text-center ${i === winnerIdx ? 'bg-teal-50/50' : ''} ${i === bi ? 'font-bold text-teal-700' : 'text-slate-700'}`}>
+                        <td key={i} className={`border-s border-slate-100 p-2.5 text-center ${i === winnerIdx ? 'bg-teal-50/50' : ''} ${i === bi ? 'font-bold text-teal-700' : 'text-slate-700'}`}>
                           {row.render(p)}
                         </td>
                       ))}

@@ -206,7 +206,7 @@ export default function LangGraphTestPage() {
                   {progressEvents.map((event, idx) => (
                     <div
                       key={idx}
-                      className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg text-sm"
+                      className="flex items-start space-x-3 rtl:space-x-reverse p-3 bg-gray-50 rounded-lg text-sm"
                     >
                       <Clock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
@@ -226,7 +226,7 @@ export default function LangGraphTestPage() {
 
             {/* Error Display */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3 rtl:space-x-reverse">
                 <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold text-red-900">Error</div>
@@ -242,7 +242,7 @@ export default function LangGraphTestPage() {
               <>
                 {/* Summary Card */}
                 <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl shadow-lg p-6">
-                  <div className="flex items-center space-x-3 mb-4">
+                  <div className="flex items-center space-x-3 rtl:space-x-reverse mb-4">
                     <CheckCircle className="w-8 h-8 text-green-600" />
                     <h2 className="text-2xl font-bold text-gray-900">
                       Processing Complete!
@@ -268,7 +268,7 @@ export default function LangGraphTestPage() {
                 {/* Building Data Card */}
                 {result.buildingData && (
                   <div className="bg-white rounded-xl shadow-lg p-6">
-                    <div className="flex items-center space-x-2 mb-4">
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse mb-4">
                       <Building2 className="w-6 h-6 text-blue-600" />
                       <h3 className="text-xl font-semibold">Building Information</h3>
                     </div>
@@ -339,7 +339,7 @@ export default function LangGraphTestPage() {
                 {/* Marketing Content Card */}
                 {result.marketingContent && (
                   <div className="bg-white rounded-xl shadow-lg p-6">
-                    <div className="flex items-center space-x-2 mb-4">
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse mb-4">
                       <TrendingUp className="w-6 h-6 text-purple-600" />
                       <h3 className="text-xl font-semibold">Marketing Content</h3>
                     </div>

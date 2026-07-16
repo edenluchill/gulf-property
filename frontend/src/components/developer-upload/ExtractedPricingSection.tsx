@@ -129,11 +129,11 @@ export function ExtractedPricingSection({
                       )}
                     </div>
                     {entry.area && (
-                      <div className="text-sm text-gray-600 border-l border-gray-200 ps-4">
+                      <div className="text-sm text-gray-600 border-s border-gray-200 ps-4">
                         {entry.area.toLocaleString()} sqft
                       </div>
                     )}
-                    <div className="flex items-center gap-1 text-xs text-gray-400 border-l border-gray-200 ps-4">
+                    <div className="flex items-center gap-1 text-xs text-gray-400 border-s border-gray-200 ps-4">
                       <FileText className="h-3 w-3" />
                       <span>p.{entry.sourcePageNumber}</span>
                     </div>

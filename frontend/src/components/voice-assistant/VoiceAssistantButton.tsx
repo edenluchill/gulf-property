@@ -174,7 +174,7 @@ function ThinkingBubble({ toolStatus }: { toolStatus: string }) {
         </motion.div>
 
         {/* Tail arrow */}
-        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-blue-50/80 border-t border-r border-indigo-100/60" />
+        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-blue-50/80 border-t border-e border-indigo-100/60" />
 
         {/* Content */}
         <div className="relative flex items-center gap-2.5">
@@ -484,7 +484,7 @@ function LunaBubble({
     >
       <div className="relative rounded-2xl bg-gradient-to-br from-[#f0f4ff] to-white px-4 py-3 text-sm shadow-xl shadow-blue-900/[0.06] backdrop-blur-xl border border-blue-100/50 ring-1 ring-blue-50">
         {/* Tail arrow */}
-        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-[#f5f7ff] border-t border-r border-blue-100/50" />
+        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-[#f5f7ff] border-t border-e border-blue-100/50" />
 
         {/* Dismiss — so a lingering reply never blocks the map */}
         <button
@@ -561,7 +561,7 @@ function LunaTextPanel({
     >
       <div className="relative rounded-2xl bg-white/90 shadow-2xl shadow-blue-900/10 backdrop-blur-xl border border-blue-100/60 ring-1 ring-blue-50 overflow-hidden">
         {/* Tail arrow */}
-        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-white/90 border-t border-r border-blue-100/60" />
+        <div className="absolute bottom-7 -right-[6px] w-3 h-3 rotate-45 bg-white/90 border-t border-e border-blue-100/60" />
 
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-blue-50">
@@ -836,7 +836,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         const low = quota.pct >= 80
         const remainPct = Math.min(100, Math.max(0, 100 - quota.pct))
         return (
-          <div className="flex items-center gap-1.5 rounded-l-full border border-white/70 bg-white/85 py-1 ps-2.5 pe-2.5 shadow-md shadow-slate-900/[0.06] backdrop-blur-xl">
+          <div className="flex items-center gap-1.5 rounded-s-full border border-white/70 bg-white/85 py-1 ps-2.5 pe-2.5 shadow-md shadow-slate-900/[0.06] backdrop-blur-xl">
             <Zap className={cn('h-3 w-3 shrink-0', low ? 'text-amber-500' : 'text-emerald-500')} fill="currentColor" />
             <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-200/70">
               <div
@@ -900,7 +900,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         whileTap={textOpen ? undefined : { scale: 0.95 }}
         className={cn(
           'relative flex flex-col items-center gap-1 overflow-hidden flex-shrink-0',
-          'rounded-l-2xl backdrop-blur-xl',
+          'rounded-s-2xl backdrop-blur-xl',
           'w-[52px] transition-all duration-300',
           textOpen && 'opacity-40', // typing → voice pill inert + dimmed (no misclicks)
           isActive ? 'py-2.5 px-1.5' : 'py-3 px-1.5',
@@ -915,7 +915,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         {/* Listening: emerald glow pulse */}
         {effPhase === 'listening' && (
           <motion.div
-            className="absolute inset-0 rounded-l-2xl bg-emerald-200/30"
+            className="absolute inset-0 rounded-s-2xl bg-emerald-200/30"
             animate={{ opacity: [0.2, 0.5, 0.2] }}
             transition={{ duration: 2, repeat: Infinity }}
           />
@@ -931,7 +931,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
         {/* Processing: indigo pulse */}
         {effPhase === 'processing' && (
           <motion.div
-            className="absolute inset-0 rounded-l-2xl bg-indigo-200/25"
+            className="absolute inset-0 rounded-s-2xl bg-indigo-200/25"
             animate={{ opacity: [0.15, 0.4, 0.15] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           />
@@ -1005,7 +1005,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       <button
         onClick={handleKeyboard}
         className={cn(
-          'flex w-[52px] flex-col items-center gap-0.5 rounded-l-2xl py-2 px-1.5 backdrop-blur-xl',
+          'flex w-[52px] flex-col items-center gap-0.5 rounded-s-2xl py-2 px-1.5 backdrop-blur-xl',
           'shadow-md border transition-all duration-300',
           textOpen
             ? 'bg-gradient-to-b from-teal-200/90 to-emerald-100/90 border-teal-300/60'

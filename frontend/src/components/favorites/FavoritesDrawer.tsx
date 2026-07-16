@@ -26,7 +26,7 @@ export function FavoritesDrawer() {
     <>
       {/* Non-modal Sheet - allows interaction with compare modal */}
       <Sheet open={isDrawerOpen} onOpenChange={closeDrawer} modal={false}>
-        <SheetContent side="right" className="w-[360px] max-w-[85vw] shadow-xl border-l">
+        <SheetContent side="right" className="w-[360px] max-w-[85vw] shadow-xl border-s">
           {/* Header */}
           <SheetHeader className="flex flex-row items-center justify-between border-b pb-4">
             <div className="flex items-center gap-3">
