@@ -1,0 +1,27 @@
+{
+  "title": "Classification des zones",
+  "description": "Basé sur les transactions réelles du DLD, les zones sont classées comme matures / en croissance / d'avenir / sous pression de l'offre. Les étiquettes sont attribuées selon les percentiles à l'échelle de la ville — développez pour voir l'explication.",
+  "metrics": {
+    "transactions": "Ventes",
+    "priceGrowth": "Croissance des prix",
+    "rentalYield": "Rendement locatif"
+  },
+  "card": {
+    "why": "Pourquoi ?",
+    "collapse": "Réduire",
+    "investPerspective": "Perspective investisseur :",
+    "livePerspective": "Perspective propriétaire-occupant :"
+  },
+  "loading": "Analyse des zones en cours…",
+  "empty": "Aucune donnée de classification des zones disponible.",
+  "compare": {
+    "title": "Comparer deux zones",
+    "areaA": "Zone A",
+    "areaB": "Zone B",
+    "button": "Comparer"
+  },
+  "filter": {
+    "all": "Tous ({{count}})",
+    "tag": "{{label}} ({{count}})"
+  }
+}

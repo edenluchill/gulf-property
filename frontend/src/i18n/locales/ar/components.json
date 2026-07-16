@@ -1,0 +1,32 @@
+{
+  "voice": {
+    "you": "أنت",
+    "tool": {
+      "search": "بحث",
+      "locate": "تحديد الموقع",
+      "area": "المنطقة",
+      "compare": "مقارنة",
+      "project": "المشروع"
+    },
+    "status": {
+      "thinking": "جاري التفكير",
+      "listening": "جاري الاستماع",
+      "speaking": "جاري التحدث",
+      "connecting": "..."
+    },
+    "metric": {
+      "yield": "العائد",
+      "growth": "النمو",
+      "txns": "الصفقات",
+      "pricePerSqm": "$/m²"
+    },
+    "chart": {
+      "projection": "توقعات لـ 5 سنوات",
+      "perYear": "/سنوياً",
+      "yearLabel": "سنة {{n}}",
+      "rent": "الإيجار",
+      "growth": "النمو"
+    },
+    "moreProjects": "+{{count}} إضافي"
+  }
+}

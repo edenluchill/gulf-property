@@ -1,0 +1,30 @@
+{
+  "hero": {
+    "title1": "Découvrez le meilleur de Dubaï",
+    "title2": "Immobilier sur plan",
+    "subtitle": "Explorez des projets haut de gamme des plus grands promoteurs mondiaux. Prenez des décisions éclairées grâce à des informations complètes et des analyses basées sur l'IA.",
+    "exploreBtn": "Explorer les projets",
+    "developerBtn": "Pour les promoteurs"
+  },
+  "stats": {
+    "activeProjects": "Projets actifs",
+    "availableProperties": "Biens disponibles",
+    "trustedDevelopers": "Promoteurs de confiance"
+  },
+  "features": {
+    "title": "Pourquoi choisir Pinzos ?",
+    "subtitle": "Votre partenaire de confiance pour trouver le bien sur plan idéal à Dubaï",
+    "interactiveMap": "Carte interactive",
+    "interactiveMapDesc": "Explorez les biens sur une carte interactive avec des informations détaillées sur l'emplacement et les prix",
+    "marketInsights": "Analyses de marché",
+    "marketInsightsDesc": "Bénéficiez d'analyses optimisées par l'IA et d'informations complètes sur les projets pour décider en toute confiance",
+    "verifiedListings": "Annonces vérifiées",
+    "verifiedListingsDesc": "Tous les biens proviennent de promoteurs vérifiés, garantissant authenticité et fiabilité",
+    "saveFavorites": "Sauvegarder vos favoris",
+    "saveFavoritesDesc": "Ajoutez vos biens préférés à vos favoris et comparez-les pour trouver votre investissement idéal"
+  },
+  "cta": {
+    "title": "Prêt à trouver le bien de vos rêves ?",
+    "subtitle": "Commencez à explorer {{count}} projets d'exception sur plan à Dubaï dès aujourd'hui"
+  }
+}

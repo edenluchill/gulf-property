@@ -1,0 +1,50 @@
+{
+  "title": "Rapport de décision immobilière par IA",
+  "description": "Indiquez-nous votre objectif et votre budget, et nous générerons des recommandations structurées avec une prévision sur 5 ans basée sur les transactions réelles du DLD.",
+  "goals": {
+    "invest_growth": "Investissement · Axé plus-value",
+    "invest_rent": "Investissement · Axé rendement locatif",
+    "invest_both": "Investissement · Équilibre plus-value & rendement",
+    "self_use": "Résidence principale",
+    "self_invest": "Résidence principale & investissement"
+  },
+  "form": {
+    "goal": "Objectif",
+    "budgetMax": "Budget maximum (AED, optionnel)",
+    "budgetPlaceholder": "ex. 2000000",
+    "generating": "Génération en cours…",
+    "generate": "Générer le rapport"
+  },
+  "brand": {
+    "collapse": "Masquer l'identité de l'agent",
+    "expandSet": "Identité de l'agent (configurée)",
+    "expandOptional": "Identité de l'agent (optionnelle)",
+    "name": "Nom",
+    "agency": "Agence",
+    "rera": "N° RERA / BRN",
+    "phone": "Téléphone",
+    "hint": "Une fois rempli, votre rapport PDF imprimé ou exporté portera votre signature en haut. Les informations sont uniquement stockées dans ce navigateur.",
+    "reraLabel": "RERA/BRN : {{value}}",
+    "poweredBy": "Propulsé par Pinzos · Données DLD"
+  },
+  "result": {
+    "goal": "Objectif :",
+    "budget": " · Budget ≤ {{value}} AED",
+    "generatedAt": " · Généré le {{date}}",
+    "print": "Imprimer / Exporter en PDF",
+    "noRecommendations": "Aucun secteur ne répond aux exigences de liquidité dans ces conditions. Essayez d'ajuster votre budget ou votre objectif.",
+    "referencePrice": "Prix de référence {{price}} AED · Amortissement ~{{years}} ans",
+    "matchingProjects": "Projets correspondants sur la plateforme : {{count}} ({{developers}})",
+    "investPerspective": "Perspective d'investissement :",
+    "livePerspective": "Perspective résidentielle :",
+    "assumptionsTitle": "Hypothèses & Clause de non-responsabilité"
+  },
+  "scenario": {
+    "conservative": "Conservateur",
+    "neutral": "Neutre",
+    "optimistic": "Optimiste",
+    "perYear": " /an",
+    "totalReturn": "Rendement total sur 5 ans ≈ {{value}} AED",
+    "rentalAndAppreciation": "Location {{rental}} · Plus-value {{appreciation}}"
+  }
+}

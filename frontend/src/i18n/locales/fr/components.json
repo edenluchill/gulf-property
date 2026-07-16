@@ -1,0 +1,32 @@
+{
+  "voice": {
+    "you": "Vous",
+    "tool": {
+      "search": "Rechercher",
+      "locate": "Localiser",
+      "area": "Secteur",
+      "compare": "Comparer",
+      "project": "Projet"
+    },
+    "status": {
+      "thinking": "Réflexion",
+      "listening": "Écoute",
+      "speaking": "Parle",
+      "connecting": "..."
+    },
+    "metric": {
+      "yield": "Rendement",
+      "growth": "Croissance",
+      "txns": "Transactions",
+      "pricePerSqm": "$/m²"
+    },
+    "chart": {
+      "projection": "Projection sur 5 ans",
+      "perYear": "/an",
+      "yearLabel": "A{{n}}",
+      "rent": "Loyer",
+      "growth": "Croissance"
+    },
+    "moreProjects": "+{{count}} autres"
+  }
+}

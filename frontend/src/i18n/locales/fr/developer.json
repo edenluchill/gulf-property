@@ -1,0 +1,39 @@
+{
+  "title": "Publiez votre projet",
+  "subtitle": "Vous êtes un promoteur avec un projet sur plan à Dubai ? Soumettez les détails de votre projet et touchez des acheteurs internationaux à la recherche de propriétés haut de gamme.",
+  "success": {
+    "title": "Merci !",
+    "received": "La soumission de votre projet a bien été reçue.",
+    "review": "Notre équipe va examiner votre demande et vous contactera sous 2 à 3 jours ouvrables."
+  },
+  "form": {
+    "projectInfo": "Informations sur le projet",
+    "projectInfoDesc": "Veuillez fournir des informations détaillées sur votre projet sur plan. Tous les champs sont obligatoires, sauf indication contraire.",
+    "projectDetails": "Détails du projet",
+    "projectName": "Nom du projet *",
+    "projectNamePlaceholder": "ex. Marina Heights Tower",
+    "developerName": "Nom du promoteur *",
+    "developerNamePlaceholder": "ex. Emaar Properties",
+    "fullAddress": "Adresse complète *",
+    "fullAddressPlaceholder": "ex. Dubai Marina, Dubai",
+    "district": "Quartier *",
+    "districtPlaceholder": "ex. Dubai Marina",
+    "pricing": "Prix (AED)",
+    "minPrice": "Prix minimum *",
+    "maxPrice": "Prix maximum *",
+    "timeline": "Calendrier",
+    "expectedCompletion": "Date de livraison prévue *",
+    "contactInfo": "Coordonnées de contact",
+    "email": "Adresse e-mail *",
+    "emailPlaceholder": "contact@developer.com",
+    "phone": "Numéro de téléphone *",
+    "phonePlaceholder": "+971 4 XXX XXXX",
+    "projectDescription": "Description du projet *",
+    "projectDescriptionPlaceholder": "Fournissez une description détaillée de votre projet, y compris les caractéristiques principales, les équipements et les points forts uniques...",
+    "additionalMaterials": "Documents complémentaires (Optionnel)",
+    "uploadPrompt": "Téléchargez des images du projet, des plans d'architecte ou des brochures",
+    "dragDrop": "Faites glisser et déposez des fichiers ici, ou cliquez pour parcourir",
+    "submitBtn": "Soumettre le projet pour examen",
+    "submitDisclaimer": "En soumettant ce formulaire, vous acceptez nos conditions générales. Nous examinerons votre demande et vous contacterons sous 2 à 3 jours ouvrables."
+  }
+}

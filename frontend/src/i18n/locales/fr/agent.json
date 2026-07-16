@@ -1,0 +1,37 @@
+{
+  "title": "Espace Agent",
+  "intro": "Utilisez les données réelles des transactions du Dubai Land Department pour générer des rapports d'analyse professionnels à votre image, et laissez les chiffres parler d'eux-mêmes.",
+  "features": {
+    "dldTitle": "Données DLD Officielles",
+    "dldDesc": "Vérité des transactions, vérification de la santé des prix et classification des zones — le tout basé sur les registres officiels",
+    "brandedTitle": "Rapports Clients Personnalisés",
+    "brandedDesc": "Les rapports affichent votre nom / agence / RERA en en-tête — exportez-les en PDF pour vos clients",
+    "toolsTitle": "Outils d'Aide à la Décision",
+    "toolsDesc": "La comparaison de zones et les rapports d'achat IA aident vos clients à décider rapidement"
+  },
+  "trial": {
+    "title": "Essai Gratuit Early-Bird",
+    "desc": "Activez-le dès maintenant pour utiliser gratuitement toutes les fonctionnalités agent. L'abonnement payant (Individuel : early-bird 199 / standard 299 AED par mois et plus) commencera une fois le canal de paiement en ligne. Vous serez averti individuellement — aucun débit automatique.",
+    "activate": "Devenir agent · Commencer l'essai gratuit"
+  },
+  "active": {
+    "exit": "Quitter le mode agent",
+    "status": "✅ En essai gratuit early-bird · Actif pendant {{days}} jours · L'abonnement payant (199/299 AED par mois et plus) commencera une fois le canal de paiement actif ; aucun débit pour le moment.",
+    "brandTitle": "Mon Image de Marque (utilisée dans les en-têtes de rapport)",
+    "name": "Nom",
+    "agency": "Agence",
+    "rera": "N° RERA / BRN",
+    "phone": "Téléphone",
+    "saved": "Enregistré",
+    "save": "Enregistrer l'image de marque",
+    "brandHint": "Les informations sont stockées uniquement dans ce navigateur ; une fois enregistrées, l'exportation d'un PDF sur la page du rapport IA inclura votre en-tête personnalisé."
+  },
+  "tools": {
+    "reportLabel": "Rapport de Décision Immobilière IA",
+    "reportDesc": "Questionnaire → recommandations + prévisions de fourchettes, exporté avec votre image de marque",
+    "transactionsLabel": "Historique des Transactions",
+    "transactionsDesc": "Recherche multidimensionnelle parmi 1.47M de transactions réelles du DLD",
+    "areasLabel": "Classification & Comparaison de Zones",
+    "areasDesc": "Évaluation des zones matures / en croissance / d'avenir, comparaison de deux zones"
+  }
+}

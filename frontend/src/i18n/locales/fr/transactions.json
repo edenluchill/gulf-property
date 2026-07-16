@@ -1,0 +1,61 @@
+{
+  "title": "Historique des transactions",
+  "description": "Basé sur les données de transactions résidentielles réelles du Dubai Land Department (instantanés périodiques, non en temps réel ; les enregistrements de revente sont généralement différés de 4 à 8 semaines).",
+  "filter": {
+    "area": "Quartier",
+    "project": "Projet",
+    "allProjects": "Tous les projets",
+    "projectPlaceholder": "Rechercher des projets (sélection multiple)…",
+    "clearProject": "Effacer le filtre des projets",
+    "projectsSelected": "{{count}} projets",
+    "clearAll": "Tout effacer",
+    "rooms": "Chambres",
+    "year": "Année",
+    "type": "Type",
+    "allAreas": "Tous les quartiers",
+    "allRooms": "Toutes les chambres",
+    "anyYear": "Toutes (les plus récentes d'abord)",
+    "areaOption": "{{name}} ({{count}})",
+    "yearLabel": "{{year}}",
+    "toggle": "Filtres",
+    "summaryAll": "Toutes les transactions",
+    "apply": "Voir les résultats"
+  },
+  "saleType": {
+    "all": "Tout",
+    "ready": "Prêt / Revente",
+    "offplan": "Sur plan",
+    "readyShort": "Prêt"
+  },
+  "loading": "Calcul en cours…",
+  "loadFailed": "Échec du chargement des données (problème temporaire de réseau/serveur) — cela ne signifie pas qu'il n'y a pas de transactions.",
+  "retry": "Réessayer",
+  "kpi": {
+    "count": "Transactions",
+    "medianPps": "Prix médian (AED/m²)",
+    "medianTotal": "Prix total médian (AED)",
+    "avgSize": "Taille moyenne (m²)"
+  },
+  "ppsRange": "Fourchette de prix : {{min}} – {{median}} – {{max}} AED/m² (p25 {{p25}} · p75 {{p75}})",
+  "dataThrough": "Données jusqu'au {{date}} (dernière publication du DLD)",
+  "dataStale": "Le DLD n'a pas publié de nouvelles ventes depuis {{days}} jours (fréquence de la source, pas une erreur de page)",
+  "trend": {
+    "title": "Tendance des 24 derniers mois (barres = volume, ligne = prix médian)"
+  },
+  "table": {
+    "date": "Date",
+    "area": "Quartier",
+    "building": "Projet / Immeuble",
+    "rooms": "Chambres",
+    "size": "Taille m²",
+    "price": "Total AED",
+    "pps": "Prix /m²",
+    "type": "Type"
+  },
+  "pagination": {
+    "page": "Page {{page}}",
+    "prev": "Précédent",
+    "next": "Suivant"
+  },
+  "empty": "Aucune donnée de transaction disponible pour les filtres sélectionnés."
+}

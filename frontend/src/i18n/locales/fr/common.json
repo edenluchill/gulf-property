@@ -1,0 +1,124 @@
+{
+  "brand": "Pinzos",
+  "tagline": "Une nouvelle façon d'acheter sur plan à Dubaï",
+  "nav": {
+    "mapExplore": "Explorer la carte",
+    "favorites": "Favoris",
+    "compare": "Comparer",
+    "forDevelopers": "Pour les promoteurs",
+    "admin": "Admin",
+    "projectManagement": "Gestion de projet",
+    "dubaiMapEditor": "Éditeur de carte Dubaï",
+    "explore": "Explorer",
+    "submit": "Soumettre"
+  },
+  "status": {
+    "upcoming": "Lancement imminent",
+    "selling": "En vente",
+    "underConstruction": "En cours de construction",
+    "completed": "Terminé",
+    "handedOver": "Livré",
+    "soldOut": "Épuisé"
+  },
+  "buttons": {
+    "viewDetails": "Voir les détails",
+    "backToProperties": "Retour aux propriétés",
+    "browseProperties": "Parcourir les propriétés",
+    "browseMore": "Plus de propriétés",
+    "requestInfo": "Demander plus d'informations",
+    "downloadBrochure": "Télécharger la brochure",
+    "requestUnitInfo": "Demander des infos sur l'unité",
+    "requestPaymentPlan": "Demander le plan de paiement",
+    "requestDetailedInfo": "Demander des infos détaillées",
+    "scheduleViewing": "Planifier une visite",
+    "clearAll": "Tout effacer",
+    "viewFullDetails": "Voir tous les détails",
+    "viewInteractiveMap": "Voir la carte interactive"
+  },
+  "units": {
+    "sqft": "sq ft",
+    "beds": "Chambres",
+    "bedrooms": "Chambres",
+    "bathrooms": "Salles de bain",
+    "units": "unités",
+    "pricePerSqft": "Prix/sqft",
+    "size": "Surface"
+  },
+  "dates": {
+    "justNow": "À l'instant",
+    "mAgo": "Il y a {{count}} min",
+    "hAgo": "Il y a {{count}} h",
+    "lastUpdated": "Dernière mise à jour",
+    "launchDate": "Date de lancement",
+    "completionDate": "Date de livraison",
+    "launched": "Lancé",
+    "expectedCompletion": "Livraison prévue",
+    "completion": "Livraison"
+  },
+  "price": {
+    "startingPrice": "Prix de départ",
+    "priceOnRequest": "Prix sur demande",
+    "priceOnApplication": "Prix sur demande",
+    "poa": "POA"
+  },
+  "progress": {
+    "constructionProgress": "Avancement des travaux",
+    "progress": "Avancement"
+  },
+  "datePicker": {
+    "selectDate": "Sélectionner une date",
+    "quickSelect": "Sélection rapide",
+    "clearDate": "Effacer la date",
+    "today": "Aujourd'hui",
+    "inYears_one": "Dans {{count}} an",
+    "inYears_other": "Dans {{count}} ans"
+  },
+  "loading": "Chargement...",
+  "noResults": "Aucun résultat trouvé",
+  "amenities": "Équipements",
+  "coordinates": "Coordonnées",
+  "description": "Description",
+  "total": "Total",
+  "verified": "Vérifié",
+  "clickToViewDetails": "Cliquer pour voir les détails →",
+  "selectPropertyToView": "Sélectionner une propriété pour voir les détails",
+  "propertiesNearby": "{{count}} propriétés à proximité",
+  "loadingPropertyDetails": "Chargement des détails de la propriété...",
+  "loadingProperties": "Chargement des propriétés...",
+  "about": {
+    "title": "À propos de Pinzos",
+    "subtitle": "Une nouvelle façon de découvrir l'immobilier sur plan à Dubaï",
+    "hero": "Épingler des projets sur la carte. Voir la valeur.",
+    "startExploring": "Commencer l'exploration",
+    "features": {
+      "mapExplore": {
+        "title": "Carte interactive",
+        "desc": "Parcourez tous les projets sur plan sur une carte interactive. Visualisez les emplacements exacts, les équipements à proximité et les infos du quartier."
+      },
+      "aiInsights": {
+        "title": "Analyses par IA",
+        "desc": "Obtenez une analyse instantanée des brochures de projets, des tendances de prix et du potentiel d'investissement grâce à l'IA."
+      },
+      "marketData": {
+        "title": "Données réelles du marché",
+        "desc": "Consultez l'historique des transactions, les tendances des prix, les rendements locatifs et la valorisation du capital par secteur."
+      },
+      "verifiedProjects": {
+        "title": "Projets vérifiés",
+        "desc": "Toutes les annonces proviennent de promoteurs certifiés. Comparez les plans de paiement, les types d'unités et les dates de livraison."
+      },
+      "favorites": {
+        "title": "Enregistrer et comparer",
+        "desc": "Ajoutez vos propriétés favorites à vos signets et comparez-les côte à côte pour trouver l'investissement idéal."
+      },
+      "trusted": {
+        "title": "Plateforme de confiance",
+        "desc": "Nous travaillons directement avec les promoteurs pour vous fournir des informations précises et à jour."
+      }
+    }
+  },
+  "newVersion": {
+    "message": "Une nouvelle version est disponible",
+    "refresh": "Actualiser"
+  }
+}

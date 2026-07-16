@@ -1,0 +1,124 @@
+{
+  "brand": "Pinzos",
+  "tagline": "Новый способ покупки off-plan недвижимости в Дубае",
+  "nav": {
+    "mapExplore": "Поиск на карте",
+    "favorites": "Избранное",
+    "compare": "Сравнение",
+    "forDevelopers": "Застройщикам",
+    "admin": "Админ",
+    "projectManagement": "Управление проектами",
+    "dubaiMapEditor": "Редактор карты Дубая",
+    "explore": "Обзор",
+    "submit": "Отправить"
+  },
+  "status": {
+    "upcoming": "Скоро старт",
+    "selling": "В продаже",
+    "underConstruction": "Строится",
+    "completed": "Завершен",
+    "handedOver": "Сдан",
+    "soldOut": "Продано"
+  },
+  "buttons": {
+    "viewDetails": "Подробнее",
+    "backToProperties": "Назад к объектам",
+    "browseProperties": "Смотреть объекты",
+    "browseMore": "Показать еще объекты",
+    "requestInfo": "Запросить информацию",
+    "downloadBrochure": "Скачать брошюру",
+    "requestUnitInfo": "Информация о планировках",
+    "requestPaymentPlan": "Запросить план оплаты",
+    "requestDetailedInfo": "Запросить подробности",
+    "scheduleViewing": "Запланировать показ",
+    "clearAll": "Очистить всё",
+    "viewFullDetails": "Посмотреть все детали",
+    "viewInteractiveMap": "Интерактивная карта"
+  },
+  "units": {
+    "sqft": "sq ft",
+    "beds": "Спальни",
+    "bedrooms": "Спальни",
+    "bathrooms": "Санузлы",
+    "units": "апартаменты",
+    "pricePerSqft": "Цена за sqft",
+    "size": "Площадь"
+  },
+  "dates": {
+    "justNow": "Только что",
+    "mAgo": "{{count}} мин. назад",
+    "hAgo": "{{count}} ч. назад",
+    "lastUpdated": "Обновлено",
+    "launchDate": "Дата запуска",
+    "completionDate": "Срок сдачи",
+    "launched": "Запущен",
+    "expectedCompletion": "Ожидаемый срок сдачи",
+    "completion": "Сдача"
+  },
+  "price": {
+    "startingPrice": "Начальная цена",
+    "priceOnRequest": "Цена по запросу",
+    "priceOnApplication": "Цена по запросу",
+    "poa": "POA"
+  },
+  "progress": {
+    "constructionProgress": "Ход строительства",
+    "progress": "Прогресс"
+  },
+  "datePicker": {
+    "selectDate": "Выберите дату",
+    "quickSelect": "Быстрый выбор",
+    "clearDate": "Очистить дату",
+    "today": "Сегодня",
+    "inYears_one": "Через {{count}} год",
+    "inYears_other": "Через {{count}} лет"
+  },
+  "loading": "Загрузка...",
+  "noResults": "Ничего не найдено",
+  "amenities": "Удобства",
+  "coordinates": "Координаты",
+  "description": "Описание",
+  "total": "Всего",
+  "verified": "Проверено",
+  "clickToViewDetails": "Нажмите, чтобы узнать подробности →",
+  "selectPropertyToView": "Выберите объект для просмотра деталей",
+  "propertiesNearby": "{{count}} объектов рядом",
+  "loadingPropertyDetails": "Загрузка деталей объекта...",
+  "loadingProperties": "Загрузка объектов...",
+  "about": {
+    "title": "О Pinzos",
+    "subtitle": "Новый способ поиска off-plan недвижимости в Дубае",
+    "hero": "Проекты на карте. Наглядная выгода.",
+    "startExploring": "Начать поиск",
+    "features": {
+      "mapExplore": {
+        "title": "Интерактивная карта",
+        "desc": "Изучайте все off-plan проекты на интерактивной карте. Смотрите точное расположение, инфраструктуру и особенности районов."
+      },
+      "aiInsights": {
+        "title": "Аналитика ИИ",
+        "desc": "Мгновенный анализ брошюр, динамики цен и инвестиционного потенциала проектов с помощью ИИ."
+      },
+      "marketData": {
+        "title": "Реальные данные рынка",
+        "desc": "История сделок, динамика цен, доходность от аренды и прирост стоимости по районам."
+      },
+      "verifiedProjects": {
+        "title": "Проверенные проекты",
+        "desc": "Все предложения напрямую от надежных застройщиков. Сравнивайте планы оплаты, планировки и сроки сдачи."
+      },
+      "favorites": {
+        "title": "Сохранение и сравнение",
+        "desc": "Добавляйте объекты в избранное и сравнивайте их характеристики для выбора идеального варианта."
+      },
+      "trusted": {
+        "title": "Надежная платформа",
+        "desc": "Мы работаем напрямую с застройщиками, предоставляя точную и актуальную информацию."
+      }
+    }
+  },
+  "newVersion": {
+    "message": "Доступна новая версия",
+    "refresh": "Обновить"
+  }
+}

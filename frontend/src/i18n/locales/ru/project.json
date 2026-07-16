@@ -1,0 +1,78 @@
+{
+  "loadingDetails": "Загрузка информации о проекте...",
+  "notFound": "Проект не найден",
+  "backToProperties": "Назад к недвижимости",
+  "tabs": {
+    "overview": "Обзор",
+    "compare": "Сравнить",
+    "unitTypes": "Типы жилья",
+    "paymentPlan": "План оплаты",
+    "amenities": "Удобства",
+    "location": "Расположение",
+    "transactions": "Транзакции"
+  },
+  "overview": {
+    "aboutProject": "О проекте",
+    "defaultDescription": "{{name}} — это премиальный строящийся проект от {{developer}} в районе {{area}}, Дубай. Этот строящийся объект со статусом {{status}} предлагает апартаменты с {{bedrooms}} спальнями.",
+    "defaultDescriptionRange": "{{name}} — это премиальный строящийся проект от {{developer}} в районе {{area}}, Дубай. Этот строящийся объект со статусом {{status}} предлагает апартаменты с количеством спален от {{minBed}} до {{maxBed}}.",
+    "totalUnits": "Всего объектов",
+    "unitTypes": "Типы жилья"
+  },
+  "unitTypesTab": {
+    "title": "Типы жилья и планировки",
+    "titleWithCount": "Типы жилья и планировки ({{count}} конфигураций)",
+    "emptyMessage": "Информация о типах жилья скоро появится.",
+    "group": "Группа {{key}}",
+    "configuration_one": "{{count}} конфигурация",
+    "configuration_other": "{{count}} конфигураций",
+    "area": "Площадь",
+    "balcony": "Балкон"
+  },
+  "paymentPlanTab": {
+    "title": "План оплаты",
+    "emptyMessage": "Информация о плане оплаты скоро появится.",
+    "atBooking": "При бронировании",
+    "monthsLater_one": "через {{count}} месяц",
+    "monthsLater_other": "через {{count}} месяцев",
+    "due": "К оплате"
+  },
+  "amenitiesTab": {
+    "title": "Удобства и инфраструктура",
+    "emptyMessage": "Информация об удобствах скоро появится."
+  },
+  "locationTab": {
+    "title": "Расположение",
+    "dubai": "Дубай"
+  },
+  "infoCard": {
+    "totalUnits": "Всего объектов"
+  },
+  "unitDetail": {
+    "startingPrice": "Начальная цена",
+    "perSqft": "за sqft",
+    "totalValue": "Общая стоимость",
+    "floorPlan": "Планировка",
+    "unitSpecifications": "Спецификации объекта",
+    "bedroom_one": "Спальня",
+    "bedroom_other": "Спальни",
+    "bathroom_one": "Ванная комната",
+    "bathroom_other": "Ванные комнаты",
+    "builtUpArea": "Площадь застройки",
+    "balconyArea": "Площадь балкона",
+    "totalArea": "Общая площадь",
+    "featuresAmenities": "Особенности и удобства"
+  },
+  "unitSubPage": {
+    "backToProject": "Назад к проекту",
+    "configurations": "конфигурации",
+    "selectUnit": "Выберите тип жилья для просмотра деталей"
+  },
+  "copyNotes": {
+    "button": "Копировать заметки",
+    "copied": "Скопировано!",
+    "copyFailed": "Ошибка копирования"
+  },
+  "share": "Поделиться",
+  "save": "Сохранить",
+  "saved": "Сохранено"
+}

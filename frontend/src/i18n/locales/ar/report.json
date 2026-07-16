@@ -1,0 +1,50 @@
+{
+  "title": "تقرير الذكاء الاصطناعي للقرارات العقارية",
+  "description": "أخبرنا بهدفك وميزانيتك، وسنقوم بتوليد توصيات مهيكلة مع توقعات لمدى 5 سنوات بناءً على معاملات DLD الحقيقية.",
+  "goals": {
+    "invest_growth": "استثمار · تركيز على نمو رأس المال",
+    "invest_rent": "استثمار · تركيز على العائد الإيجاري",
+    "invest_both": "استثمار · توازن بين نمو رأس المال والعائد",
+    "self_use": "سكن شخصي",
+    "self_invest": "سكن شخصي واستثمار"
+  },
+  "form": {
+    "goal": "الهدف",
+    "budgetMax": "الحد الأقصى للميزانية (AED، اختياري)",
+    "budgetPlaceholder": "مثال: 2000000",
+    "generating": "جاري التوليد...",
+    "generate": "توليد التقرير"
+  },
+  "brand": {
+    "collapse": "إخفاء العلامة التجارية للوكيل",
+    "expandSet": "العلامة التجارية للوكيل (محددة)",
+    "expandOptional": "العلامة التجارية للوكيل (اختياري)",
+    "name": "الاسم",
+    "agency": "الوكالة",
+    "rera": "رقم RERA / BRN",
+    "phone": "الهاتف",
+    "hint": "بمجرد التعبئة، سيحمل تقرير PDF المطبوع أو المصدّر توقيعك في الأعلى. يتم تخزين المعلومات في هذا المتصفح فقط.",
+    "reraLabel": "RERA/BRN: {{value}}",
+    "poweredBy": "مشغل بواسطة Pinzos · بيانات DLD"
+  },
+  "result": {
+    "goal": "الهدف:",
+    "budget": " · الميزانية ≤ {{value}} AED",
+    "generatedAt": " · تم التوليد في {{date}}",
+    "print": "طباعة / تصدير PDF",
+    "noRecommendations": "لا توجد مناطق تلبي متطلبات السيولة في ظل هذه الشروط. حاول تعديل ميزانيتك أو هدفك.",
+    "referencePrice": "السعر المرجعي {{price}} AED · استرداد الاستثمار ~{{years}} سنوات",
+    "matchingProjects": "المشاريع المطابقة على المنصة: {{count}} ({{developers}})",
+    "investPerspective": "المنظور الاستثماري:",
+    "livePerspective": "منظور السكن الشخصي:",
+    "assumptionsTitle": "الافتراضات وإخلاء المسؤولية"
+  },
+  "scenario": {
+    "conservative": "تحفظي",
+    "neutral": "محايد",
+    "optimistic": "متفائل",
+    "perYear": " /سنوياً",
+    "totalReturn": "إجمالي العائد لـ 5 سنوات ≈ {{value}} AED",
+    "rentalAndAppreciation": "الإيجار {{rental}} · نمو رأس المال {{appreciation}}"
+  }
+}

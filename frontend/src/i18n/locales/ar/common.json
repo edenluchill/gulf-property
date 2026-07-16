@@ -1,0 +1,124 @@
+{
+  "brand": "Pinzos",
+  "tagline": "طريقة جديدة لشراء العقارات على المخطط في دبي",
+  "nav": {
+    "mapExplore": "استكشاف الخريطة",
+    "favorites": "المفضلة",
+    "compare": "مقارنة",
+    "forDevelopers": "للمطورين",
+    "admin": "مسؤول النظام",
+    "projectManagement": "إدارة المشاريع",
+    "dubaiMapEditor": "محرر خريطة دبي",
+    "explore": "استكشف",
+    "submit": "إرسال"
+  },
+  "status": {
+    "upcoming": "يطلق قريباً",
+    "selling": "قيد البيع",
+    "underConstruction": "قيد الإنشاء",
+    "completed": "مكتمل",
+    "handedOver": "تم التسليم",
+    "soldOut": "مباع بالكامل"
+  },
+  "buttons": {
+    "viewDetails": "عرض التفاصيل",
+    "backToProperties": "العودة للعقارات",
+    "browseProperties": "تصفح العقارات",
+    "browseMore": "تصفح المزيد من العقارات",
+    "requestInfo": "طلب المزيد من المعلومات",
+    "downloadBrochure": "تحميل البروشور",
+    "requestUnitInfo": "طلب معلومات الوحدة",
+    "requestPaymentPlan": "طلب خطة الدفع",
+    "requestDetailedInfo": "طلب معلومات تفصيلية",
+    "scheduleViewing": "جدولة موعد للمعاينة",
+    "clearAll": "مسح الكل",
+    "viewFullDetails": "عرض التفاصيل الكاملة",
+    "viewInteractiveMap": "عرض الخريطة التفاعلية"
+  },
+  "units": {
+    "sqft": "sq ft",
+    "beds": "غرف نوم",
+    "bedrooms": "غرف نوم",
+    "bathrooms": "حمامات",
+    "units": "وحدات",
+    "pricePerSqft": "السعر لكل sqft",
+    "size": "المساحة"
+  },
+  "dates": {
+    "justNow": "الآن",
+    "mAgo": "منذ {{count}} دقيقة",
+    "hAgo": "منذ {{count}} ساعة",
+    "lastUpdated": "آخر تحديث",
+    "launchDate": "تاريخ الإطلاق",
+    "completionDate": "تاريخ الإنجاز",
+    "launched": "تم الإطلاق",
+    "expectedCompletion": "التسليم المتوقع",
+    "completion": "الإنجاز"
+  },
+  "price": {
+    "startingPrice": "يبدأ السعر من",
+    "priceOnRequest": "السعر عند الطلب",
+    "priceOnApplication": "السعر عند التقديم",
+    "poa": "POA"
+  },
+  "progress": {
+    "constructionProgress": "تطور أعمال البناء",
+    "progress": "التقدم الحالي"
+  },
+  "datePicker": {
+    "selectDate": "اختر التاريخ",
+    "quickSelect": "اختيار سريع",
+    "clearDate": "مسح التاريخ",
+    "today": "اليوم",
+    "inYears_one": "خلال سنة واحدة",
+    "inYears_other": "خلال {{count}} سنوات"
+  },
+  "loading": "جاري التحميل...",
+  "noResults": "لم يتم العثور على نتائج",
+  "amenities": "المرافق والخدمات",
+  "coordinates": "الإحداثيات",
+  "description": "الوصف",
+  "total": "الإجمالي",
+  "verified": "موثق",
+  "clickToViewDetails": "انقر لعرض التفاصيل الكاملة ←",
+  "selectPropertyToView": "اختر عقاراً لعرض تفاصيله",
+  "propertiesNearby": "{{count}} عقارات قريبة",
+  "loadingPropertyDetails": "جاري تحميل تفاصيل العقار...",
+  "loadingProperties": "جاري تحميل العقارات...",
+  "about": {
+    "title": "عن Pinzos",
+    "subtitle": "طريقة جديدة لاستكشاف العقارات على المخطط في دبي",
+    "hero": "حدد المشاريع على الخريطة. واعرف القيمة.",
+    "startExploring": "ابدأ الاستكشاف",
+    "features": {
+      "mapExplore": {
+        "title": "خريطة تفاعلية",
+        "desc": "تصفح جميع المشاريع على المخطط عبر خريطة تفاعلية. اطلع على المواقع الدقيقة والمرافق المجاورة ومعلومات عن المنطقة."
+      },
+      "aiInsights": {
+        "title": "تحليلات مدعومة بالذكاء الاصطناعي",
+        "desc": "احصل على تحليل فوري لبروشورات المشاريع واتجاهات الأسعار وفرص الاستثمار بدعم من الذاء الاصطناعي."
+      },
+      "marketData": {
+        "title": "بيانات السوق الحقيقية",
+        "desc": "اطلع على بيانات المعاملات التاريخية، واتجاهات الأسعار، وعوائد الإيجار، ونمو قيمة العقار حسب المنطقة."
+      },
+      "verifiedProjects": {
+        "title": "مشاريع موثقة",
+        "desc": "جميع العقارات المعروضة هي من مطورين معتمدين. قارن خطط الدفع، وأنواع الوحدات، وتواريخ التسليم."
+      },
+      "favorites": {
+        "title": "حفظ ومقارنة",
+        "desc": "احفظ عقاراتك المفضلة وقارن بينها جنباً إلى جنب للعثور على الاستثمار الأمثل."
+      },
+      "trusted": {
+        "title": "منصة موثوقة",
+        "desc": "نعمل مباشرة مع المطورين لنوفر لك معلومات دقيقة ومحدثة على الدوام."
+      }
+    }
+  },
+  "newVersion": {
+    "message": "يتوفر إصدار جديد",
+    "refresh": "تحديث الآن"
+  }
+}

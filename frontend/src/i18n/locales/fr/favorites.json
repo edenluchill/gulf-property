@@ -1,0 +1,146 @@
+{
+  "title": "Mes favoris",
+  "subtitle": "Propriétés que vous avez enregistrées pour plus tard. Suivez les résidences de vos rêves à Dubaï.",
+  "empty": {
+    "title": "Aucun favori pour le moment",
+    "message": "Commencez à explorer les propriétés et enregistrez vos favoris pour y accéder facilement plus tard.",
+    "drawer": {
+      "title": "Aucun favori pour le moment",
+      "message": "Ajoutez des propriétés et des types d'unités à vos favoris pour les voir s'afficher ici."
+    }
+  },
+  "count": "{{count}} propriétés",
+  "count_one": "{{count}} propriété",
+  "count_other": "{{count}} propriétés",
+  "units": "unités",
+  "drawer": {
+    "title": "Mes favoris",
+    "close": "Fermer"
+  },
+  "project": {
+    "remove": "Retirer des favoris",
+    "unitTypes": "{{count}} type(s) d'unité enregistré(s)",
+    "unitTypes_one": "{{count}} type d'unité enregistré",
+    "unitTypes_other": "{{count}} types d'unité enregistrés",
+    "noUnits": "Aucun type d'unité spécifique enregistré"
+  },
+  "unitType": {
+    "remove": "Retirer le type d'unité",
+    "viewDetails": "Voir les détails",
+    "bedrooms": "Chambres",
+    "bathrooms": "Salles de bain",
+    "area": "Surface totale",
+    "suiteArea": "Surface intérieure",
+    "balconyArea": "Surface balcon",
+    "orientation": "Orientation",
+    "startingPrice": "Prix de départ"
+  },
+  "actions": {
+    "compare": "Comparer les propriétés",
+    "viewProject": "Voir le projet",
+    "viewInProject": "Voir dans le projet",
+    "loading": "Chargement..."
+  },
+  "unitTypes": "types d'unité",
+  "browse": "Parcourir les propriétés",
+  "back": "Retour au comparateur",
+  "cancel": "Annuler",
+  "saving": "Enregistrement...",
+  "compare": {
+    "title": "Comparer les propriétés",
+    "ready": "Prêt à comparer !",
+    "count": "Vous avez enregistré {{count}} types d'unité",
+    "selectItems": "Sélectionnez 2 propriétés ou types d'unité à comparer",
+    "selectPrompt": "Sélectionnez de 2 à 4 propriétés à comparer",
+    "selected": "Sélectionné",
+    "clearAll": "Tout effacer",
+    "addMore": "Ajouter",
+    "fromFavorites": "Depuis vos favoris",
+    "noFavorites": "Aucun favori pour le moment. Parcourez les propriétés pour en ajouter !",
+    "startAnalysis": "Lancer l'analyse IA",
+    "loginRequired": "Connectez-vous pour utiliser l'analyse IA",
+    "analyzing": "Analyse en cours...",
+    "newComparison": "Nouvelle comparaison",
+    "yourProfile": "Votre profil",
+    "profileHelps": "Permet à l'IA de personnaliser ses recommandations",
+    "editProfile": "Modifier",
+    "addProfile": "Ajoutez votre profil pour une analyse personnalisée",
+    "profilePlaceholder": "Parlez-nous de vous, ex. : « Famille de 4 personnes avec 2 enfants, budget d'environ 2M AED, recherche un investissement proche de bonnes écoles, de préférence prêt ou presque achevé... »",
+    "saveAndAnalyze": "Enregistrer & Analyser",
+    "subtitle": "Comparaison de {{count}} types d'unité",
+    "hint": "Comparez vos types d'unité enregistrés côte à côte",
+    "maxHint": "Seuls les {{max}} premiers types d'unité seront comparés",
+    "price": "Prix",
+    "area": "Surface",
+    "bedrooms": "Chambres",
+    "bathrooms": "Salles de bain",
+    "location": "Quartier",
+    "completion": "Livraison",
+    "progress": "Avancement",
+    "developer": "Promoteur",
+    "upcoming": "à venir",
+    "steps": {
+      "gathering": "Collecte des données immobilières",
+      "analyzing": "Analyse du potentiel d'investissement",
+      "comparing": "Comparaison des critères de vie",
+      "generating": "Génération du rapport personnalisé"
+    }
+  },
+  "profile": {
+    "title": "Parlez-nous de vous",
+    "subtitle": "Aidez-nous à personnaliser vos recommandations",
+    "familyStatus": {
+      "label": "Situation familiale",
+      "single": "Célibataire",
+      "couple": "Couple",
+      "familySmall": "Famille restreinte (1-2 enfants)",
+      "familyLarge": "Famille nombreuse (3+ enfants)"
+    },
+    "purpose": {
+      "label": "Quel est votre objectif principal ?",
+      "investment": "Investissement",
+      "residence": "Résidence principale",
+      "work": "Travail / Affaires",
+      "mixed": "Usage mixte"
+    },
+    "children": {
+      "label": "Avez-vous des enfants ?",
+      "ages": "Âges des enfants (séparés par une virgule)"
+    },
+    "investment": {
+      "horizon": "Horizon d'investissement",
+      "short": "Court terme (< 2 ans)",
+      "medium": "Moyen terme (2-5 ans)",
+      "long": "Long terme (5+ ans)",
+      "risk": "Tolérance au risque",
+      "conservative": "Conservatrice",
+      "moderate": "Modérée",
+      "aggressive": "Audacieuse"
+    },
+    "budget": {
+      "label": "Fourchette de budget (AED)"
+    },
+    "workLocation": "Lieu de travail (optionnel)",
+    "schoolPreference": "La proximité des écoles est importante",
+    "save": "Enregistrer & Continuer"
+  },
+  "report": {
+    "title": "Rapport d'analyse IA",
+    "summary": "Résumé",
+    "recommendation": "Recommandation",
+    "recommended": "Recommandé",
+    "confidence": "Indice de confiance",
+    "reasons": "Arguments clés",
+    "ranking": "Classement général",
+    "overallScore": "Score",
+    "dimensions": {
+      "investment": "Rendement financier",
+      "lifestyle": "Cadre de vie",
+      "location": "Emplacement",
+      "value": "Rapport qualité-prix"
+    },
+    "advice": "Conseil personnalisé",
+    "download": "Télécharger le rapport",
+    "detailedAnalysis": "Analyse détaillée"
+  }
+}

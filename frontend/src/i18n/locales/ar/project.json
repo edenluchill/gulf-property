@@ -1,0 +1,78 @@
+{
+  "loadingDetails": "جاري تحميل تفاصيل المشروع...",
+  "notFound": "المشروع غير موجود",
+  "backToProperties": "العودة إلى العقارات",
+  "tabs": {
+    "overview": "نظرة عامة",
+    "compare": "مقارنة",
+    "unitTypes": "أنواع الوحدات",
+    "paymentPlan": "خطة الدفع",
+    "amenities": "المرافق",
+    "location": "الموقع",
+    "transactions": "المعاملات"
+  },
+  "overview": {
+    "aboutProject": "عن هذا المشروع",
+    "defaultDescription": "إن {{name}} هو مشروع متميز قيد الإنشاء من قبل {{developer}} يقع في {{area}}، دبي. يوفر هذا المشروع {{status}} وحدات تضم {{bedrooms}} غرف نوم.",
+    "defaultDescriptionRange": "إن {{name}} هو مشروع متميز قيد الإنشاء من قبل {{developer}} يقع في {{area}}، دبي. يوفر هذا المشروع {{status}} وحدات تضم من {{minBed}} إلى {{maxBed}} غرف نوم.",
+    "totalUnits": "إجمالي الوحدات",
+    "unitTypes": "أنواع الوحدات"
+  },
+  "unitTypesTab": {
+    "title": "أنواع الوحدات ومخططات الطوابق",
+    "titleWithCount": "أنواع الوحدات ومخططات الطوابق ({{count}} نماذج)",
+    "emptyMessage": "ستتوفر معلومات أنواع الوحدات قريباً.",
+    "group": "المجموعة {{key}}",
+    "configuration_one": "{{count}} نموذج",
+    "configuration_other": "{{count}} نماذج",
+    "area": "المساحة",
+    "balcony": "الشرفة"
+  },
+  "paymentPlanTab": {
+    "title": "خطة الدفع",
+    "emptyMessage": "ستتوفر معلومات خطة الدفع قريباً.",
+    "atBooking": "عند الحجز",
+    "monthsLater_one": "بعد {{count}} شهر",
+    "monthsLater_other": "بعد {{count}} أشهر",
+    "due": "مستحق"
+  },
+  "amenitiesTab": {
+    "title": "المرافق والخدمات",
+    "emptyMessage": "ستتوفر معلومات المرافق قريباً."
+  },
+  "locationTab": {
+    "title": "الموقع",
+    "dubai": "دبي"
+  },
+  "infoCard": {
+    "totalUnits": "إجمالي الوحدات"
+  },
+  "unitDetail": {
+    "startingPrice": "سعر البدء",
+    "perSqft": "لكل sq ft",
+    "totalValue": "القيمة الإجمالية",
+    "floorPlan": "مخطط الطابق",
+    "unitSpecifications": "مواصفات الوحدة",
+    "bedroom_one": "غرفة نوم",
+    "bedroom_other": "غرف نوم",
+    "bathroom_one": "حمام",
+    "bathroom_other": "حمامات",
+    "builtUpArea": "المساحة المبنية",
+    "balconyArea": "مساحة الشرفة",
+    "totalArea": "المساحة الإجمالية",
+    "featuresAmenities": "الميزات والمرافق"
+  },
+  "unitSubPage": {
+    "backToProject": "العودة إلى المشروع",
+    "configurations": "نماذج",
+    "selectUnit": "اختر نوع الوحدة لعرض التفاصيل"
+  },
+  "copyNotes": {
+    "button": "نسخ الملاحظات",
+    "copied": "تم النسخ!",
+    "copyFailed": "فشل النسخ"
+  },
+  "share": "مشاركة",
+  "save": "حفظ",
+  "saved": "تم الحفظ"
+}

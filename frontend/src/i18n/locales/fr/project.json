@@ -1,0 +1,78 @@
+{
+  "loadingDetails": "Chargement des détails du projet...",
+  "notFound": "Projet introuvable",
+  "backToProperties": "Retour aux propriétés",
+  "tabs": {
+    "overview": "Aperçu",
+    "compare": "Comparer",
+    "unitTypes": "Types d'unités",
+    "paymentPlan": "Plan de paiement",
+    "amenities": "Équipements",
+    "location": "Emplacement",
+    "transactions": "Transactions"
+  },
+  "overview": {
+    "aboutProject": "À propos de ce projet",
+    "defaultDescription": "{{name}} est un projet d'exception sur plan par {{developer}} situé à {{area}}, Dubai. Ce projet {{status}} propose des unités de {{bedrooms}} chambre.",
+    "defaultDescriptionRange": "{{name}} est un projet d'exception sur plan par {{developer}} situé à {{area}}, Dubai. Ce projet {{status}} propose des unités de {{minBed}} à {{maxBed}} chambres.",
+    "totalUnits": "Total des unités",
+    "unitTypes": "Types d'unités"
+  },
+  "unitTypesTab": {
+    "title": "Types d'unités & plans d'étage",
+    "titleWithCount": "Types d'unités & plans d'étage ({{count}} configurations)",
+    "emptyMessage": "Les informations sur les types d'unités seront bientôt disponibles.",
+    "group": "Groupe {{key}}",
+    "configuration_one": "{{count}} configuration",
+    "configuration_other": "{{count}} configurations",
+    "area": "Surface",
+    "balcony": "Balcon"
+  },
+  "paymentPlanTab": {
+    "title": "Plan de paiement",
+    "emptyMessage": "Les informations sur le plan de paiement seront bientôt disponibles.",
+    "atBooking": "À la réservation",
+    "monthsLater_one": "{{count}} mois plus tard",
+    "monthsLater_other": "{{count}} mois plus tard",
+    "due": "Dû"
+  },
+  "amenitiesTab": {
+    "title": "Équipements & installations",
+    "emptyMessage": "Les informations sur les équipements seront bientôt disponibles."
+  },
+  "locationTab": {
+    "title": "Emplacement",
+    "dubai": "Dubai"
+  },
+  "infoCard": {
+    "totalUnits": "Total des unités"
+  },
+  "unitDetail": {
+    "startingPrice": "Prix de départ",
+    "perSqft": "par sqft",
+    "totalValue": "Valeur totale",
+    "floorPlan": "Plan d'étage",
+    "unitSpecifications": "Spécifications de l'unité",
+    "bedroom_one": "Chambre",
+    "bedroom_other": "Chambres",
+    "bathroom_one": "Salle de bain",
+    "bathroom_other": "Salles de bain",
+    "builtUpArea": "Surface construite",
+    "balconyArea": "Surface du balcon",
+    "totalArea": "Surface totale",
+    "featuresAmenities": "Caractéristiques & équipements"
+  },
+  "unitSubPage": {
+    "backToProject": "Retour au projet",
+    "configurations": "configurations",
+    "selectUnit": "Sélectionnez un type d'unité pour voir les détails"
+  },
+  "copyNotes": {
+    "button": "Copier les notes",
+    "copied": "Copié !",
+    "copyFailed": "Échec de la copie"
+  },
+  "share": "Partager",
+  "save": "Enregistrer",
+  "saved": "Enregistré"
+}

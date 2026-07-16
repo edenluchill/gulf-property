@@ -1,0 +1,39 @@
+{
+  "title": "أدرج مشروعك",
+  "subtitle": "هل أنت مطور عقاري لديه مشروع قيد الإنشاء في دبي؟ أرسل تفاصيل مشروعك الآن لتصل إلى مشترين دوليين يبحثون عن عقارات فاخرة.",
+  "success": {
+    "title": "شكراً لك!",
+    "received": "تم استلام تفاصيل مشروعك بنجاح.",
+    "review": "سيقوم فريقنا بمراجعة طلبك والتواصل معك خلال 2-3 أيام عمل."
+  },
+  "form": {
+    "projectInfo": "معلومات المشروع",
+    "projectInfoDesc": "يرجى تقديم معلومات مفصلة عن مشروعك قيد الإنشاء. جميع الحقول مطلوبة ما لم يُذكر أنها اختيارية.",
+    "projectDetails": "تفاصيل المشروع",
+    "projectName": "اسم المشروع *",
+    "projectNamePlaceholder": "مثال: Marina Heights Tower",
+    "developerName": "اسم المطور *",
+    "developerNamePlaceholder": "مثال: Emaar Properties",
+    "fullAddress": "العنوان بالكامل *",
+    "fullAddressPlaceholder": "مثال: دبي مارينا، دبي",
+    "district": "المنطقة *",
+    "districtPlaceholder": "مثال: دبي مارينا",
+    "pricing": "الأسعار (AED)",
+    "minPrice": "أقل سعر *",
+    "maxPrice": "أعلى سعر *",
+    "timeline": "الجدول الزمني",
+    "expectedCompletion": "تاريخ الإنجاز المتوقع *",
+    "contactInfo": "معلومات الاتصال",
+    "email": "البريد الإلكتروني *",
+    "emailPlaceholder": "contact@developer.com",
+    "phone": "رقم الهاتف *",
+    "phonePlaceholder": "+971 4 XXX XXXX",
+    "projectDescription": "وصف المشروع *",
+    "projectDescriptionPlaceholder": "قدم وصفاً تفصيلياً لمشروعك، بما في ذلك الميزات الرئيسية، المرافق، ونقاط البيع الفريدة...",
+    "additionalMaterials": "مواد إضافية (اختياري)",
+    "uploadPrompt": "تحميل صور المشروع، مخططات الطوابق، أو الكتيبات الإعلانية",
+    "dragDrop": "اسحب الملفات وأفلتها هنا، أو انقر للتصفح",
+    "submitBtn": "إرسال المشروع للمراجعة",
+    "submitDisclaimer": "بتقديم هذا النموذج، فإنك توافق على الشروط والأحكام الخاصة بنا. سنقوم بمراجعة طلبك والتواصل معك خلال 2-3 أيام عمل."
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "voice": {
+    "you": "Вы",
+    "tool": {
+      "search": "Поиск",
+      "locate": "Найти",
+      "area": "Район",
+      "compare": "Сравнить",
+      "project": "Проект"
+    },
+    "status": {
+      "thinking": "Думает",
+      "listening": "Слушает",
+      "speaking": "Говорит",
+      "connecting": "..."
+    },
+    "metric": {
+      "yield": "Доходность",
+      "growth": "Рост",
+      "txns": "Сделки",
+      "pricePerSqm": "$/м²"
+    },
+    "chart": {
+      "projection": "Прогноз на 5 лет",
+      "perYear": "/год",
+      "yearLabel": "Г{{n}}",
+      "rent": "Аренда",
+      "growth": "Рост"
+    },
+    "moreProjects": "Еще +{{count}}"
+  }
+}
