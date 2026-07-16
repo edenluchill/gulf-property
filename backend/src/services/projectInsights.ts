@@ -44,8 +44,8 @@ export interface YieldComparison {
   area_yield_pct: number        // surrounding community baseline
   gap_pp: number                // project − area, 1 decimal (signed)
   verdict: 'above' | 'inline' | 'below'
-  premium_pct: number | null    // dev median price/㎡ vs area median (signed %)
-  tier: 'development'           // only computed at the tightest tier
+  premium_pct: number | null    // 本盘挂牌价/㎡ vs 区域中位 (signed %)
+  tier: 'development' | 'area' | 'area_name'  // 匹配层级(影响可信度)
   confidence: 'high' | 'medium' | 'low'
   sample_n: number | null       // development sales count behind the price
   data_through: string | null
@@ -106,101 +106,55 @@ function minsEstimate(distanceM: number): number {
  * meaningful, honest comparison.
  */
 function buildYieldComparison(args: {
-  rawDevYield: number | null    // development's own yield, or null (borrowed)
+  projectPsm: number | null     // 本盘挂牌中位价/㎡(买家实付)
+  areaPsm: number | null        // 区域中位价/㎡
   areaYield: number
-  devPsm: number | null
-  areaPsm: number | null
   offplan: boolean
+  tier: 'development' | 'area' | 'area_name'
   confidence: 'high' | 'medium' | 'low'
   sampleN: number | null
   dataThrough: string | null
 }): YieldComparison | null {
-  const { rawDevYield, areaYield, devPsm, areaPsm, offplan } = args
+  const { projectPsm, areaPsm, areaYield, offplan } = args
+  if (projectPsm == null || areaPsm == null || projectPsm <= 0 || areaPsm <= 0) return null
   const round1 = (n: number) => Math.round(n * 10) / 10
-  const havePrices = devPsm != null && areaPsm != null && devPsm > 0 && areaPsm > 0
-  if (!havePrices && rawDevYield == null) return null // nothing project-specific to say
 
-  const premiumPct = havePrices ? ((devPsm! - areaPsm!) / areaPsm!) * 100 : null
-  const factors: YieldFactor[] = []
-
-  // Round the two headline yields FIRST, then derive gap and factor pp from the
-  // rounded numbers — so "4.4% vs 5.2% ⇒ gap −0.8pp" and "price + rent == gap"
-  // always reconcile on screen (independent rounding drifted 0.1 apart).
-  const basis: YieldComparison['basis'] = rawDevYield != null ? 'measured' : 'price_adjusted'
-  const projectYield =
-    rawDevYield != null ? round1(rawDevYield) : round1(areaYield * (areaPsm! / devPsm!))
+  const premiumPct = ((projectPsm - areaPsm) / areaPsm) * 100
   const areaY = round1(areaYield)
+  const projectYield = round1(areaYield * (areaPsm / projectPsm)) // 有效回报=区域租金÷本盘买入价
   const gap = round1(projectYield - areaY)
-  const prem = premiumPct ?? 0
+  const prem = premiumPct
+  const verdict: YieldComparison['verdict'] = gap > 0.3 ? 'above' : gap < -0.3 ? 'below' : 'inline'
 
-  if (basis === 'measured' && havePrices) {
-    // Exact split: price effect from the price ratio, rent as the residual so the
-    // two sum to the displayed gap.
-    const priceOnlyYield = areaYield * (areaPsm! / devPsm!)
-    const pricePp = round1(priceOnlyYield - areaYield)
-    const rentPp = round1(gap - pricePp)
-    factors.push({
-      key: 'price',
-      dir: pricePp >= 0 ? 'up' : 'down',
-      label: prem >= 0 ? `溢价 ${Math.round(prem)}%` : `折价 ${Math.round(-prem)}%`,
-      detail: prem >= 0 ? '成交价高于区域中位，摊薄回报' : '成交价低于区域中位，抬升回报',
-      est_pp: pricePp,
-    })
-    factors.push({
-      key: 'rent',
-      dir: rentPp >= 0 ? 'up' : 'down',
-      label: rentPp >= 0 ? '租金高于区域' : '租金低于区域',
-      detail:
-        rentPp >= 0
-          ? '本开发体新签租金/㎡ 高于区域，多因户型偏小、楼龄或精装'
-          : '本开发体新签租金/㎡ 低于区域，多因大户型占比高或楼龄',
-      est_pp: rentPp,
-    })
-  } else if (basis === 'price_adjusted') {
-    // Buy at this project's price, rent at area rates → the whole gap is price.
-    factors.push({
+  const factors: YieldFactor[] = [
+    {
       key: 'price',
       dir: gap >= 0 ? 'up' : 'down',
       label: prem >= 0 ? `溢价 ${Math.round(prem)}%` : `折价 ${Math.round(-prem)}%`,
-      detail:
-        prem >= 0
-          ? '成交价高于区域中位，同等租金下摊薄回报'
-          : '成交价低于区域中位，同等租金下抬升回报',
+      detail: prem >= 0 ? '本盘挂牌价高于区域成交中位，同等租金下摊薄回报' : '本盘挂牌价低于区域成交中位，同等租金下抬升回报',
       est_pp: gap,
-    })
-    factors.push({
+    },
+    {
       key: 'rent',
       dir: 'flat',
       label: '租金按区域估算',
-      detail: '本开发体暂无稳定租赁记录，租金以区域水平估算；若实际跑赢区域，回报会更高',
+      detail: '按区域租金水平估算;若本盘实际租金跑赢区域，有效回报会更高',
       est_pp: null,
-    })
-  }
-
-  const verdict: YieldComparison['verdict'] = gap > 0.3 ? 'above' : gap < -0.3 ? 'below' : 'inline'
-
+    },
+  ]
   if (offplan) {
-    factors.push({
-      key: 'offplan',
-      dir: 'flat',
-      label: '期房阶段',
-      detail: '尚未交付，回报为持有期估算',
-      est_pp: null,
-    })
+    factors.push({ key: 'offplan', dir: 'flat', label: '期房阶段', detail: '尚未交付，回报为持有期估算', est_pp: null })
   }
-
-  // Dominant (largest |pp|) driver first; qualitative notes fall to the end.
-  factors.sort((a, b) => Math.abs(b.est_pp ?? -1) - Math.abs(a.est_pp ?? -1))
 
   return {
-    basis,
-    estimated: basis === 'price_adjusted',
+    basis: 'price_adjusted',
+    estimated: true,
     project_yield_pct: projectYield,
     area_yield_pct: areaY,
     gap_pp: gap,
     verdict,
-    premium_pct: premiumPct != null ? round1(premiumPct) : null,
-    tier: 'development',
+    premium_pct: round1(premiumPct),
+    tier: args.tier,
     confidence: args.confidence,
     sample_n: args.sampleN,
     data_through: args.dataThrough,
@@ -252,6 +206,17 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
     Number(p.min_price) ||
     0
 
+  // 本盘挂牌中位价/㎡（= 各户型 price_per_sqft 中位数 × 10.7639，与价格体检同源）。
+  // 这是买家「实际支付」的价，用它算溢价 → 与价格体检一致，且能捕捉新盘在老区的
+  // 真实溢价（开发体 DLD 中位是历史成交、匹配又粗，会把溢价抹平）。
+  const SQFT_PER_SQM = 10.7639
+  const psmRes = await pool.query(
+    `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY price_per_sqft) AS med
+       FROM project_unit_types WHERE project_id = $1 AND price_per_sqft > 0`,
+    [projectId]
+  )
+  const projectPsm = psmRes.rows[0]?.med != null ? Number(psmRes.rows[0].med) * SQFT_PER_SQM : null
+
   // ── Precise market metrics, tightest tier first ─────────────────────────
   //   1. development (master_project)  — the precise unit, beats the area blend
   //   2. area (spatially-resolved official community via ST_Covers)
@@ -265,11 +230,8 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
   let area: ProjectInsights['area'] = null
   let yieldPct = 0
   let growthPct = 0
-  // Development-level figures kept RAW (before any area fallback), so we can tell
-  // a genuine development yield apart from a borrowed one and decompose the gap.
-  let rawDevYield: number | null = null
+  // 开发体 DLD 中位价/㎡ —— 仅当本盘没录入挂牌单价(price_per_sqft)时,作为「买入价」兜底。
   let devMedianPsm: number | null = null
-  let devSalesCount: number | null = null
 
   // Resolve project → DLD development (master_project) + official area_id.
   let resolvedMaster: string | null = null
@@ -334,9 +296,7 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
       if (d && Number(d.sales_count) >= 30) {
         const devYield = d.rental_yield_pct != null ? parseFloat(d.rental_yield_pct) : null
         const devGrowth = d.price_growth_pct != null ? parseFloat(d.price_growth_pct) : null
-        rawDevYield = devYield
         devMedianPsm = d.median_price_sqm != null ? parseFloat(d.median_price_sqm) : null
-        devSalesCount = d.sales_count != null ? Number(d.sales_count) : null
         yieldPct = devYield ?? areaMetrics?.yield ?? 0
         growthPct = devGrowth ?? areaMetrics?.growth ?? 0
         area = {
@@ -415,20 +375,23 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
     }
   }
 
-  // Project (development) yield vs its community. Fires when we matched a
-  // development (tier 1) with an area baseline yield: 'measured' if the dev has
-  // its own rentals, else a 'price_adjusted' estimate from the dev's own sale
-  // price. Returns null when there's nothing project-specific to compare.
+  // 本盘 vs 区域回报:按「本盘挂牌价买入、区域租金出租」的有效回报。价格基准用区域
+  // 真实中位(areaMetrics 优先;tier3 用兜底 area.median)，不用开发体 DLD 中位——后者
+  // 匹配粗会抹平新盘溢价(REEF 996 之坑)。任意 tier 只要有本盘挂牌价 + 区域基准即可比。
+  const cmpAreaPsm = areaMetrics?.median_psm ?? area?.median_price_sqm ?? null
+  const cmpAreaYield = areaMetrics?.yield ?? area?.rental_yield_pct ?? null
+  // 买入价:优先本盘挂牌单价(诚实=买家实付);缺则退回开发体 DLD 中位(tier1)。
+  const buyPsm = projectPsm ?? devMedianPsm
   let yield_comparison: YieldComparison | null = null
-  if (area?.tier === 'development' && areaMetrics?.yield != null) {
+  if (area && buyPsm != null && cmpAreaPsm != null && cmpAreaYield != null) {
     yield_comparison = buildYieldComparison({
-      rawDevYield,
-      areaYield: areaMetrics.yield,
-      devPsm: devMedianPsm,
-      areaPsm: areaMetrics.median_psm,
+      projectPsm: buyPsm,
+      areaPsm: cmpAreaPsm,
+      areaYield: cmpAreaYield,
       offplan: p.status === 'upcoming' || p.status === 'under-construction',
+      tier: area.tier,
       confidence: area.confidence,
-      sampleN: devSalesCount,
+      sampleN: area.sales_transaction_count,
       dataThrough: area.data_through,
     })
   }

@@ -1025,7 +1025,7 @@ export interface YieldComparison {
   gap_pp: number;
   verdict: 'above' | 'inline' | 'below';
   premium_pct: number | null;
-  tier: 'development';
+  tier: 'development' | 'area' | 'area_name';
   confidence: 'high' | 'medium' | 'low';
   sample_n: number | null;
   data_through: string | null;

@@ -30,8 +30,8 @@ function factorText(f: YieldFactor, premiumPct: number | null, zh: boolean): { t
     return {
       title: prem >= 0 ? (zh ? `溢价 ${Math.round(prem)}%` : `+${Math.round(prem)}% price`) : zh ? `折价 ${Math.round(-prem)}%` : `−${Math.round(-prem)}% price`,
       detail: up
-        ? zh ? '成交价低于区域中位，抬升回报' : 'Priced below the area median — lifts yield'
-        : zh ? '成交价高于区域中位，摊薄回报' : 'Priced above the area median — dilutes yield',
+        ? zh ? '本盘挂牌价低于区域成交中位，同等租金下抬升回报' : 'Listed below the area median — lifts effective yield'
+        : zh ? '本盘挂牌价高于区域成交中位，同等租金下摊薄回报' : 'Listed above the area median — dilutes effective yield',
     }
   }
   if (f.key === 'rent') {
@@ -174,13 +174,9 @@ export function YieldVsAreaModule({ insights, lang }: { insights: ProjectInsight
           </div>
           {showWhy && (
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              {yc.estimated
-                ? zh
-                  ? '本开发体尚无稳定租赁记录，回报按「以本盘成交价买入、按区域租金出租」估算——因此差值主要来自价格定位(溢价拉低、折价抬升)。若实际租金跑赢区域，回报会更高。数据为 DLD 定期快照，登记通常滞后 4–8 周。'
-                  : 'This development has no settled rentals yet, so yield is estimated as "buy at this project’s price, rent at area rates" — the gap is therefore driven by price positioning (a premium lowers it, a discount lifts it). Real rents outperforming the area would raise it. DLD periodic snapshot; registrations lag 4–8 weeks.'
-                : zh
-                ? '回报率由租金与价格两个因子决定。把租金固定在区域水平，可分离出价格定位贡献了多少个百分点；余下的即租金水平差异(户型、楼龄、精装)。两者相加恰好等于实测差值，非模型拟合。数据为 DLD 定期快照，登记通常滞后 4–8 周。'
-                : 'Yield is driven by rent and price. Holding rent at the area level isolates the price contribution in percentage points; the residual is the rent-level difference (unit mix, age, fit-out). The two sum exactly to the measured gap — no model fudge. DLD periodic snapshot; registrations lag 4–8 weeks.'}
+              {zh
+                ? '有效回报 = 区域中位租金/㎡ ÷ 本盘挂牌中位价/㎡ ——「按你实际支付的挂牌价买入、按区域租金水平出租」能拿到多少。所以本盘 vs 区域的差主要来自价格定位:挂牌溢价越高，同等租金下有效回报越低。这是估算(新盘无本盘租赁史);若实际租金跑赢区域，回报会更高。数据为 DLD 定期快照，登记通常滞后 4–8 周。'
+                : 'Effective yield = area median rent/㎡ ÷ this project’s listed median price/㎡ — what you’d earn buying at the price you actually pay and renting at area rates. The gap vs area is therefore driven by price positioning: the higher the listed premium, the lower the effective yield at the same rent. An estimate (no rental history at the new price); real rents outperforming the area would raise it. DLD periodic snapshot; registrations lag 4–8 weeks.'}
             </p>
           )}
         </div>
