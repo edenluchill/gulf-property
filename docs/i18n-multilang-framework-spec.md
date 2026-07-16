@@ -153,7 +153,135 @@ key 去重(播种已有 key)。translate 自动剥 markdown 围栏。glob 自动
 
 ---
 
-# 📋 接手清单 (PICKUP —— 2026-07-15,下次直接从这里干)
+# 📋 接手清单 (PICKUP —— 2026-07-16,下次直接从这里干)
+
+## ✅✅ 轨道 C 代码部分全部完成 (2026-07-16),剩截图验收
+
+RTL 的**全部代码改动已落地**,6 个 commit。`tsc 0 / build 0`,且每批都验证过
+产物 CSS 真生成了对应类(逻辑属性/rtl: 变体都**不会静默失效**)。
+
+| 批次 | 内容 | 量 |
+|---|---|---|
+| C-3 | `rounded-l/r→s/e`、`border-l/r→s/e`、`space-x` 补 `rtl:space-x-reverse` | 58 token / 21 文件 |
+| C-1 | `left-/right- → start-/end-` | 131 token / 50 文件 |
+| C-2 | 方向性图标补 `rtl:-scale-x-100` | 53 图标 / 27 文件 |
+| C-5 | 功能性渐变 + `origin-*` 手动 `rtl:` 镜像 | 3 处 |
+| C-1(地图) | 地图 UI 镜像 + **uiBlocks 裸像素禁区**镜像 | 17 token + JS |
+
+**新工具**(都幂等、都只改字符串字面量不碰注释):
+- `frontend/scripts/i18n-rtl-logical.mjs --phase2` —— 边角/边框/间距
+- `frontend/scripts/i18n-rtl-position.mjs` —— 定位(带三类启发式,见下)
+- `frontend/scripts/i18n-rtl-icons.mjs` —— 方向图标
+
+### ⚠️ 这轮踩到的坑(再动 RTL 前必读)
+
+1. **`left-1/2 -translate-x-1/2` 是「居中」不是「靠左」,绝不能转**(保留 18 处)。
+   transform 不随 dir 翻转 → 它在 RTL 下本来就居中。转成 `start-1/2` 后 RTL 下
+   `start`=`right`,元素右缘落在中心再左移半身位 → **直接偏出中心**。
+   `left-0 right-0` 成对 = 横向撑满,方向无关,转了纯噪音(保留 34 处)。
+2. **`rtl:rotate-180` 对斜箭头是错的**。`ArrowUpRight + rotate-180` = 左**下**箭头。
+   必须用 `-scale-x-100`(只镜像水平轴)→ 左**上**。统一用镜像,一个规则覆盖所有方向。
+3. **图标翻不翻,看它表达的是「方向」还是「物体」**。工具图标不翻 ——
+   本仓库唯一一例:CollabDrawToolbar 的「画箭头工具」图示(已在脚本 EXCLUDE 里)。
+4. **`rtl-keep` 豁免机制**:元素上方 6 行内写 `rtl-keep`,codemod 整个跳过。
+   用于**命令式定位** —— MapViewMapLibre 的圆点 hover 提示靠 JS 写
+   `transform:translate(x,y)`,x 恒从容器**左**缘算(`e.point.x`,与 dir 无关)。
+   换成 `start-0` 后 RTL 变 `right:0` 叠加正 x → 提示飞出屏幕。
+   (判断靠 AST 找所属 JSX 元素再回溯注释,不靠脆弱的行距。)
+5. **codemod 看不见 JS 里的裸像素**。`MapViewMapLibre.recomputeCards()` 的
+   `uiBlocks` 是硬编码禁区坐标,Tailwind 把浮层镜像走了它不会跟着动 →
+   卡片去躲空气、然后压在真浮层底下。**已修**:坐标统一按 LTR 写,RTL 时整体
+   翻转 `x0'=W-x1`;`i18n.language` 已进依赖数组(否则切语言不重算=等于没镜像)。
+6. **Tailwind 对这几类没有逻辑属性,只能 `rtl:` 手动镜像**:
+   `bg-gradient-to-*`、`origin-*`。全站扫下来功能性的只有 3 处(已修);
+   另 114 处 `to-r`/`to-br` 是装饰性按钮/卡片渐变,**有意跳过**(RTL 不镜像无妨)。
+
+### 🔲 轨道 C 唯一剩余:阿语三档截图验收
+切阿语,**414 / 1180 / 1440** 三档逐页看。登录用户不受匿名地图额度限。
+重点看:地图 UI(禁区镜像对不对)、Luna 药丸、下拉、轮播箭头、
+以及 **VoiceAssistantButton 的 `rotate-45` 气泡尖角**(旋转不随 dir 变,
+`border-t border-e` 镜像后尖角朝向需人眼确认)。
+
+---
+
+## 轨道 B 进展 (2026-07-16)
+
+**真实范围 ≈ 312 条,不是 4599。** 4599 里绝大部分是**中文注释**(保留是好事)
+和**给 Gemini 的 prompt**(中文写、AI 按用户语言输出,本就不用管)。
+
+### ✅ 批 0 已完成 —— 零翻译成本那批
+
+**① 解「反向影子」(11 处,`51b1aaa`)** —— 这是整个轨道 B 性价比最高的一批。
+调用点写成 `d.error || t('lunaTour:editFailed')`:翻译键早写好、5 语言也齐,
+但后端一送中文 `error`,`||` **当场短路,译文永远走不到**。
+修法(沿用 `agent-router:172` 已有范式 `{ error:'请先登录', code:'auth_required' }`):
+- 后端 13 处中文 error 补 `code`;`error` 字段保留 → **给日志/调试看**。
+- 新 `frontend/src/luna-tour/errText.ts`:认 `code` 查 `lunaTour:err.<code>`,
+  没有就回退调用点自己的 key。**前端永远不显示 `d.error`**。
+- 14 个 `err.*` 键 × 5 语言齐。
+
+**② `CAMERA_STYLES.label`(3 条死串,`c2b4a9f`)** —— 精确删掉 label 字段。
+
+> ⚠️ **侦察报告的两条结论是错的,已核实修正**:
+> - `CAMERA_STYLES` **不是**纯死代码(agent-router:2174 活着),死的只有 `label` 字段。
+> - agent-router 的 8 条「版本备注」**不是该删的死串**。前端 undo 确实丢弃响应体
+>   (`await` 无 `.json()`),但这些串是写进 DB 的**审计轨迹**,删了等于毁记录。
+>   正确处置 = 归类为内部串、不翻译。
+
+**③ 修了一个真 bug(`01740ed`)** —— `OverlayLayer` 用
+`p.distances.find(d => d.label.includes('地铁'))` 找地铁,即**把展示文案当数据键**。
+label 随 tour 语言变 → 换语言后匹配返回 undefined,导览卡的地铁行**静默消失**。
+轨道 B 一推进必然引爆。修:后端本就有结构化 `AMENITY_SPECS.cat`,只是没往前端送;
+现在 `distances[].cat` 带上,前端认 cat 不认 label。
+**`cat` 标 optional 且保留旧匹配兜底 —— tour session 持久化在 DB,历史 session
+没这字段,不留兜底就是修一个 bug 造一个。**
+
+### 🔧 工具链升级:`i18n-translate.ts --missing`
+
+以前只有两档:默认**整个跳过**(一个键都加不进) / `--force` **整个重翻**
+(churn 掉已校对的译文)。所以 spec 之前只能建议"新键塞进独立小 ns"来绕开 ——
+**那是在绕工具缺陷,不是设计**。
+现在 `--missing` 只翻 en 有、目标缺的键,再深合并回去(已有键优先)。
+实测 lunaTour(473 键)加 14 个 err 键:ar/ru/fr **+48 insertions / 0 deletions**,
+已有译文一条没动,成本 $0.04。**大 ns 现在可以放心加键了。**
+
+### 🔴 轨道 B 剩余 —— 按优先级
+
+**P0 · 面向客户的公开分享页,零 i18n(这是轨道 A 真正的漏网)**
+
+轨道 A 自称"全部完成",但这几个页**从没被迁过**,且都是**分享给客户看的**:
+
+| 文件 | 中文串 | 路由 | 状态 |
+|---|---|---|---|
+| `pages/ClientReportPage.tsx` | 73 | `/cr/:code` 客户分析报告 | 零 `useTranslation`,`formatMoneyCompact(v,'zh')` 写死 |
+| `pages/ProjectReportPage.tsx` | 38 | `/r/:code` 经纪品牌报告 | 同上 |
+| `luna-tour/overlays/OverlayLayer.tsx` | 17 | 导览浮层 | 客户直接看 |
+
+⚠️ **ClientReportPage 不是机械迁移,是个 feature。** `lt_client_reports` 表
+**没有 lang 列**,而报告正文是 AI 生成后存进 `report jsonb` 的 —— 正文语言在生成
+那一刻被定死。光翻前端 chrome 没用:标签变阿语、正文还是中文,反而更怪。
+
+> **✅ 已拍板(2026-07-16):照抄报价单范式** —— `lt_client_reports` 加 `lang` 列,
+> 经纪在「生成报告」时从下拉选语言 → AI 按该语言写正文 → 前端
+> `i18n.getFixedT(lang, ns)` 锁定,不跟浏览者 UI 切。
+> (与 `PaymentPlanSharePage` 的 `share.lang` 及 §5 决策 #1 一致。)
+> 三处要一起动:**DB 迁移 + AI prompt 按 lang + 前端 getFixedT**。
+
+**P1 · 其他后端串**
+- `session-builder.ts:210-213` —— `lang === 'en' ? 'Studio'/'3 Bed' : '开间'/'3 房'`,
+  **只有 en 分支,ar/ru/fr 全部穿透到中文**。`bedrooms` 数字本就在同一对象里,
+  `label` 是冗余的 → 该删掉 label,让前端按 `bedrooms` 自己 t() 渲染。
+- `client-profile-coach.ts:429` `profileToOneLiner()` —— 拼「香港，投资，预算约 300 万
+  迪拉姆」,经 `agent-router:1042` 落到 `/cr/:code` 的 `需求：` 行(`ClientReportPage:67`,
+  **这行的标签本身也是硬编码中文**)。随 ClientReportPage 一起做。
+- `routes/market.ts` `verdictFor()` / `/area-classification` —— 原 spec 点名的病灶,
+  尚未动。范式:返回 code+参数由前端 t() 渲染(价格体检/回报因子已是此范式)。
+
+**⚪ 有意后置 · owner-only 后台(~470 条)**
+`components/analytics/*`(12 个 tab)、`AdminAnalytics.tsx`、`PerfMonitor` 等。
+按 §5 决策 #2「内部工具后置」,**这不算漏**。
+
+---
 
 ## ✅✅ 轨道 A 已全部完成 (2026-07-15)
 
