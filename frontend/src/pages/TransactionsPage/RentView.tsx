@@ -57,9 +57,8 @@ function Kpi({ label, value, currency }: { label: string; value: string; currenc
 }
 
 export default function RentView() {
-  const { i18n } = useTranslation()
-  const zh = i18n.language?.startsWith('zh')
-  const L = (z: string, e: string) => (zh ? z : e)
+  const { t: tRaw, i18n } = useTranslation('misc')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [areas, setAreas] = useState<{ name: string; count: number }[]>([])
   const [area, setArea] = useState('')
   // 项目多选(同社区多个 phase 合看)
@@ -117,7 +116,7 @@ export default function RentView() {
 
   const filterParts = [
     selectedProjects.length === 1 ? selectedProjects[0]
-      : selectedProjects.length > 1 ? L(`${selectedProjects.length} 个项目`, `${selectedProjects.length} projects`)
+      : selectedProjects.length > 1 ? t('misc:projects3', { selectedProjects_length: selectedProjects.length })
       : null,
     area || null,
     (minPrice || maxPrice)
@@ -125,7 +124,7 @@ export default function RentView() {
       : null,
     year || null,
   ].filter(Boolean) as string[]
-  const filterSummary = filterParts.length ? filterParts.join(' · ') : L('全部租约', 'All contracts')
+  const filterSummary = filterParts.length ? filterParts.join(' · ') : t('misc:allContracts')
 
   return (
     <>
@@ -143,7 +142,7 @@ export default function RentView() {
         <div className={`${filtersOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row md:flex-wrap items-stretch md:items-end gap-3 border-t border-slate-100 px-4 pb-4 pt-3 md:border-t-0 md:p-4`}>
           {/* 项目多选(放最前) */}
           <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-            {L('项目', 'Project')}
+            {t('misc:project')}
             <div className="relative">
               <input
                 type="text"
@@ -151,7 +150,7 @@ export default function RentView() {
                 onChange={(e) => { setProjectQuery(e.target.value); setProjectOpen(true) }}
                 onFocus={() => setProjectOpen(true)}
                 onBlur={() => setTimeout(() => setProjectOpen(false), 150)}
-                placeholder={L('搜索项目名（可多选）…', 'Search projects (multi-select)…')}
+                placeholder={t('misc:searchProjectsMultiSelect')}
                 className="w-full md:min-w-[260px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
               />
               {projectOpen && projectSuggestions.length > 0 && (
@@ -185,72 +184,72 @@ export default function RentView() {
                 {selectedProjects.map((name) => (
                   <span key={name} className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200">
                     <span className="truncate">{name}</span>
-                    <button type="button" onClick={() => setSelectedProjects((prev) => prev.filter((x) => x !== name))} className="shrink-0 text-emerald-400 hover:text-emerald-700" aria-label={L('移除', 'Remove')}>×</button>
+                    <button type="button" onClick={() => setSelectedProjects((prev) => prev.filter((x) => x !== name))} className="shrink-0 text-emerald-400 hover:text-emerald-700" aria-label={t('misc:remove')}>×</button>
                   </span>
                 ))}
                 {selectedProjects.length > 1 && (
-                  <button type="button" onClick={() => setSelectedProjects([])} className="text-xs text-slate-400 underline hover:text-slate-600">{L('清空', 'Clear all')}</button>
+                  <button type="button" onClick={() => setSelectedProjects([])} className="text-xs text-slate-400 underline hover:text-slate-600">{t('misc:clearAll')}</button>
                 )}
               </div>
             )}
           </label>
 
           <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-            {L('区域', 'Area')}
+            {t('misc:area')}
             <select value={area} onChange={(e) => setArea(e.target.value)} className="w-full md:min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800">
-              <option value="">{L('全部区域', 'All areas')}</option>
+              <option value="">{t('misc:allAreas')}</option>
               {areas.map((a) => <option key={a.name} value={a.name}>{a.name} ({a.count.toLocaleString()})</option>)}
             </select>
           </label>
 
           {/* 年租金区间 */}
           <div className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-            {L('年租金区间', 'Annual rent')}
+            {t('misc:annualRent')}
             <div className="flex items-center gap-1.5">
               <select value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800">
-                <option value="">{L('最低', 'Min')}</option>
+                <option value="">{t('misc:min2')}</option>
                 {RENT_PRICE_STEPS.map((v) => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
               </select>
               <span className="text-slate-400">–</span>
               <select value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800">
-                <option value="">{L('最高', 'Max')}</option>
+                <option value="">{t('misc:max2')}</option>
                 {RENT_PRICE_STEPS.map((v) => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
               </select>
             </div>
           </div>
 
           <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-            {L('年份', 'Year')}
+            {t('misc:year')}
             <select value={year} onChange={(e) => setYear(e.target.value)} className="w-full md:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800">
-              <option value="">{L('不限', 'Any')}</option>
+              <option value="">{t('misc:any')}</option>
               {['2026', '2025', '2024', '2023', '2022', '2021'].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </label>
 
           <button onClick={() => setFiltersOpen(false)} className="mt-1 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-white md:hidden">
-            {L('查看结果', 'Apply')}
+            {t('misc:apply')}
           </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="mt-6 text-sm text-slate-400">{L('加载中…', 'Loading…')}</div>
+        <div className="mt-6 text-sm text-slate-400">{t('misc:loading')}</div>
       ) : summary && summary.count > 0 ? (
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Kpi label={L('租约笔数', 'Contracts')} value={fmt(summary.count)} />
-            <Kpi label={L('中位年租金', 'Median annual rent')} value={fmt(summary.medianAnnualRent)} currency />
-            <Kpi label={L('中位租金/㎡', 'Median rent/m²')} value={fmt(rps?.median)} currency />
-            <Kpi label={L('平均面积 (㎡)', 'Avg size (m²)')} value={fmt(summary.avgSizeSqm)} />
+            <Kpi label={t('misc:contracts')} value={fmt(summary.count)} />
+            <Kpi label={t('misc:medianAnnualRent')} value={fmt(summary.medianAnnualRent)} currency />
+            <Kpi label={t('misc:medianRentM')} value={fmt(rps?.median)} currency />
+            <Kpi label={t('misc:avgSizeM')} value={fmt(summary.avgSizeSqm)} />
           </div>
           {rps && (
             <div className="mt-2 text-xs text-slate-500">
-              {L('租金/㎡区间(年):', 'Rent/m² (annual):')} {fmt(rps.p25)} – {fmt(rps.median)} – {fmt(rps.p75)} AED/m²
+              {t('misc:rentMAnnual')} {fmt(rps.p25)} – {fmt(rps.median)} – {fmt(rps.p75)} AED/m²
             </div>
           )}
 
           <div className="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-2 text-sm font-medium text-slate-700">{L('近 24 个月趋势(柱=租约量,线=中位租金/㎡)', 'Last 24 months (bars=volume, line=median rent/m²)')}</div>
+            <div className="mb-2 text-sm font-medium text-slate-700">{t('misc:last24MonthsBars')}</div>
             <RentTrend trend={summary.trend} />
           </div>
 
@@ -262,10 +261,10 @@ export default function RentView() {
                   <div className="flex items-baseline justify-between gap-2">
                     <div className="flex items-center gap-1 text-base font-bold text-slate-900">
                       <DirhamSymbol size="0.8em" className="text-slate-400" />
-                      {fmt(r.annualRent)}<span className="text-xs font-normal text-slate-400">/{L('年', 'yr')}</span>
+                      {fmt(r.annualRent)}<span className="text-xs font-normal text-slate-400">/{t('misc:yr')}</span>
                     </div>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${r.regType === 'renew' ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                      {r.regType === 'renew' ? L('续租', 'Renew') : L('新签', 'New')}
+                      {r.regType === 'renew' ? t('misc:renew') : t('misc:new')}
                     </span>
                   </div>
                   <div className="mt-0.5 truncate text-sm text-slate-700" title={r.building}>{r.building}</div>
@@ -285,14 +284,14 @@ export default function RentView() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">{L('起租日', 'Start')}</th>
-                    <th className="px-3 py-2">{L('区域', 'Area')}</th>
-                    <th className="px-3 py-2">{L('楼盘', 'Project')}</th>
-                    <th className="px-3 py-2">{L('类型', 'Type')}</th>
-                    <th className="px-3 py-2 text-right">{L('面积', 'Size')}</th>
-                    <th className="px-3 py-2 text-right">{L('年租金', 'Annual rent')}</th>
-                    <th className="px-3 py-2 text-right">{L('租金/㎡', 'Rent/m²')}</th>
-                    <th className="px-3 py-2">{L('登记', 'Reg')}</th>
+                    <th className="px-3 py-2">{t('misc:start')}</th>
+                    <th className="px-3 py-2">{t('misc:area2')}</th>
+                    <th className="px-3 py-2">{t('misc:project2')}</th>
+                    <th className="px-3 py-2">{t('misc:type')}</th>
+                    <th className="px-3 py-2 text-right">{t('misc:size')}</th>
+                    <th className="px-3 py-2 text-right">{t('misc:annualRent2')}</th>
+                    <th className="px-3 py-2 text-right">{t('misc:rentM')}</th>
+                    <th className="px-3 py-2">{t('misc:reg')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -307,7 +306,7 @@ export default function RentView() {
                       <td className="px-3 py-2 text-right">{fmt(r.rentPerSqm)}</td>
                       <td className="px-3 py-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs ${r.regType === 'renew' ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                          {r.regType === 'renew' ? L('续租', 'Renew') : L('新签', 'New')}
+                          {r.regType === 'renew' ? t('misc:renew2') : t('misc:new2')}
                         </span>
                       </td>
                     </tr>
@@ -316,17 +315,17 @@ export default function RentView() {
               </table>
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
-              <span>{L('第', 'Page')} {page + 1} {L('页', '')}</span>
+              <span>{t('misc:page')} {page + 1} {t('misc:k')}</span>
               <div className="flex gap-2">
-                <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40">{L('上一页', 'Prev')}</button>
-                <button disabled={rows.length < limit} onClick={() => setPage((p) => p + 1)} className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40">{L('下一页', 'Next')}</button>
+                <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40">{t('misc:prev')}</button>
+                <button disabled={rows.length < limit} onClick={() => setPage((p) => p + 1)} className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40">{t('misc:next')}</button>
               </div>
             </div>
           </div>
           <p className="mt-3 text-xs text-slate-400">{summary.note}</p>
         </>
       ) : (
-        <div className="mt-6 text-sm text-slate-400">{L('该筛选下暂无租约数据。', 'No rent contracts for this filter.')}</div>
+        <div className="mt-6 text-sm text-slate-400">{t('misc:noRentContractsFor')}</div>
       )}
     </>
   )

@@ -23,9 +23,8 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
   /** 个人中心左侧已有「成为经纪(7 天免费试用)」卡 → 那里关掉,别问两遍 */
   buyerNudge?: boolean
 }) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('misc')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -42,15 +41,14 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Clock className="h-4 w-4 shrink-0 text-slate-400" />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-slate-900">{L('免费试用已结束', 'Your free trial has ended')}</div>
+            <div className="text-sm font-bold text-slate-900">{t('misc:yourFreeTrialHas')}</div>
             <div className="mt-0.5 text-[12.5px] leading-snug text-slate-500">
-              {L('订阅后积分立即恢复,客户 CRM、实时带看、Luna 导览与地图数据继续可用。',
-                 'Subscribe and your credits come back right away — CRM, live tours, Luna and the map data all resume.')}
+              {t('misc:subscribeAndYourCredits')}
             </div>
           </div>
           <Link to="/agent/plans"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-slate-800">
-            {L('查看套餐', 'See plans')}<ArrowRight className="h-3.5 w-3.5" />
+            {t('misc:seePlans')}<ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       </div>
@@ -69,13 +67,12 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Gift className="h-4 w-4 shrink-0 text-emerald-500" />
           <div className="min-w-0 flex-1 text-[13px] leading-snug text-slate-600">
-            <b className="text-slate-900">{L('你是经纪?', 'Are you an agent?')}</b>{' '}
-            {L('你的账号目前登记为买家。切换成经纪身份,即可领取 7 天免费试用(全部专业功能 + 200 积分,无需信用卡)。',
-               'Your account is registered as a buyer. Switch to an agent account to claim a 7-day free trial — all Pro features + 200 credits, no credit card.')}
+            <b className="text-slate-900">{t('misc:areYouAnAgent')}</b>{' '}
+            {t('misc:yourAccountIsRegistered2')}
           </div>
           <Link to="/choose-role"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-emerald-700">
-            {L('切换身份', 'Switch role')}<ArrowRight className="h-3.5 w-3.5" />
+            {t('misc:switchRole2')}<ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       </div>
@@ -95,7 +92,7 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
   const btn = (
     <button onClick={claim} disabled={busy}
       className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60">
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Gift className="h-4 w-4" />{L('一键领取', 'Claim it')}<ArrowRight className="h-3.5 w-3.5" /></>}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Gift className="h-4 w-4" />{t('misc:claimIt')}<ArrowRight className="h-3.5 w-3.5" /></>}
     </button>
   )
 
@@ -104,11 +101,10 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-emerald-900">
-            {L('你还有 7 天免费试用没领', 'You have an unclaimed 7-day free trial')}
+            {t('misc:youHaveAnUnclaimed')}
           </div>
           <div className="mt-0.5 text-[12.5px] leading-snug text-emerald-800">
-            {L('全部专业功能 + 200 积分 · 无需信用卡 · 到期自动停止,不会扣款',
-               'All Pro features + 200 credits · no credit card · it just stops at the end, nothing is charged')}
+            {t('misc:allProFeatures2002')}
           </div>
         </div>
         {btn}

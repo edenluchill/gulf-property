@@ -29,9 +29,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   /** 角色专属选档页:各角色只看到自己的套餐(agent=启程+专业 / agency=经纪公司版 / developer=开发商版) */
   variant?: 'agent' | 'agency' | 'developer'
 }) {
-  const { i18n } = useTranslation()
-  const zh = (i18n.language || 'en').startsWith('zh')
-  const L = (cn: string, en: string) => (zh ? cn : en)
+  const { t: tRaw } = useTranslation('misc')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const { user } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -90,14 +89,14 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   const billedLine = (id: string, monthly: number) => {
     if (promo.active) {
       return cycle === 'year'
-        ? L('永久锁定发布价 · 已含送 2 个月 · 随时取消', 'Launch price locked forever · 2 months free included · cancel anytime')
-        : L('永久锁定发布价 · 按月付 · 随时取消', 'Launch price locked forever · billed monthly · cancel anytime')
+        ? t('misc:launchPriceLockedForever')
+        : t('misc:launchPriceLockedForever2')
     }
     // 省多少 = 12 个月月价 − 真实年付价(锚点 $300 − $249 = 省 $51,跟划掉的价对得上)
     const saved = fmt(monthly * 12 - yearOf(id, monthly))
     return cycle === 'year'
-      ? L(`年度套餐 · 省 ${saved}(送 2 个月)· 随时取消`, `Yearly package · save ${saved} (2 months free) · cancel anytime`)
-      : L('按月付 · 随时取消', 'Billed monthly · cancel anytime')
+      ? t('misc:yearlyPackageSave2', { saved })
+      : t('misc:billedMonthlyCancelAnytime')
   }
 
   // 倒计时 dd hh mm ss
@@ -155,8 +154,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
 
   /** 主 CTA:能试用且没有主卡 → 试用;否则 → 订阅。 */
   const ctaFor = (planId: PaidPlanId) => canTrial && !heroTrial
-    ? { label: L('免费试用 7 天 · 无需信用卡', 'Try free for 7 days · no card'), onClick: () => beginTrial(planId) }
-    : { label: L('立即订阅', 'Subscribe now'), onClick: () => subscribe(planId) }
+    ? { label: t('misc:tryFreeFor7'), onClick: () => beginTrial(planId) }
+    : { label: t('misc:subscribeNow'), onClick: () => subscribe(planId) }
 
   // 软出口:选错身份 → 回选择身份页重选(不直接改成买家)
   const reselectRole = () => {
@@ -166,144 +165,144 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
 
   const allTiers = [
     {
-      id: 'explore', name: L('探索版', 'Explore'), price: L('免费', 'Free'), edge: ACCENT,
-      note: L('给买家', 'For buyers'),
+      id: 'explore', name: t('misc:explore'), price: t('misc:free'), edge: ACCENT,
+      note: t('misc:forBuyers'),
       features: [
-        L('交互式卫星地图 + 真实 DLD 成交/租约', 'Interactive map + real DLD data'),
-        L('区域指标 + 项目详情 + 5 年投资分析', 'Area metrics + detail + 5-yr ROI'),
-        L('Luna 语音助手(查数据、飞镜头)', 'Luna voice assistant'),
-        L('经纪工具需订阅 Agent 解锁', 'Agent tools unlock with a paid plan'),
+        t('misc:interactiveMapRealDld'),
+        t('misc:areaMetricsDetail5'),
+        t('misc:lunaVoiceAssistant'),
+        t('misc:agentToolsUnlockWith'),
       ],
-      cta: { label: L('打开地图', 'Open the map'), onClick: () => navigate('/') },
+      cta: { label: t('misc:openTheMap'), onClick: () => navigate('/') },
     },
     {
-      id: 'rookie', name: L('启程版', 'Starter'), price: bigPriceOf('rookie', priceOf('rookie', 25)),
-      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
-      badge: canTrial && !heroTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('个人经纪起步', 'Solo agents'),
-      note: L('个人经纪起步 · 付款即开通', 'Solo agents · instant activation'),
+      id: 'rookie', name: t('misc:starter'), price: bigPriceOf('rookie', priceOf('rookie', 25)),
+      per: cycle === 'year' ? t('misc:yr2') : t('misc:mo'), edge: ACCENT,
+      badge: canTrial && !heroTrial ? t('misc:7DaysFreeNo') : t('misc:soloAgents'),
+      note: t('misc:soloAgentsInstantActivation'),
       billed: billedLine('rookie', priceOf('rookie', 25)), priceWas: struckOf(priceOf('rookie', 25)),
       creditsMo: creditsOf('rookie') || 200,
       features: [
-        L('地图与市场数据不限时:260+ 区域真实成交/租金/收益率(DLD 官方,每周更新)', 'Unlimited map & data: 260+ areas of official DLD sales/rent/yield, weekly refresh'),
-        L('客户 CRM:档案 · 热度评分 · 活动时间线 · 跟进记录 · 交易管道', 'Client CRM: profiles · heat score · timeline · notes · pipeline'),
-        L('买家意向报告:客户看了哪些盘、停留多久、意向多强', 'Intent reports: what they viewed, how long, how hot'),
-        L('AI 楼书解析:上传开发商 PDF,户型/价格/付款计划自动成库', 'AI brochures: upload a PDF, units/prices/plans auto-extracted'),
-        L('Sales Offer 报价单:选户型填报价,品牌盖章+优惠标注,链接/PDF 发客户(60 天有效)', 'Sales Offers: pick a unit, set your quote — stamped, discount-marked, link/PDF, valid 60 days'),
-        L('品牌报告页:带你头像与联系方式的项目投资报告(5年ROI+真实成交)', 'Branded report page: your face & contact on a 5-yr ROI report'),
-        L('符合关注区域的 lead(尽力推送)', 'Leads for your focus areas (best effort)'),
+        t('misc:unlimitedMapData260'),
+        t('misc:clientCrmProfilesHeat'),
+        t('misc:intentReportsWhatThey'),
+        t('misc:aiBrochuresUploadA'),
+        t('misc:salesOffersPickA'),
+        t('misc:brandedReportPageYour'),
+        t('misc:leadsForYourFocus'),
       ],
       cta: ctaFor('rookie'),
     },
     {
-      id: 'agent', name: L('专业版', 'Pro'), price: bigPriceOf('agent', priceOf('agent', 49)),
-      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT, highlight: true,
-      badge: canTrial && !heroTrial ? L('最受欢迎 · 7 天免费 · 免绑卡', 'Most popular · 7 days free · no card') : L('最受欢迎', 'Most popular'),
-      note: L('全部专业功能 · 随时取消', 'Every pro feature · cancel anytime'),
+      id: 'agent', name: t('misc:pro'), price: bigPriceOf('agent', priceOf('agent', 49)),
+      per: cycle === 'year' ? t('misc:yr3') : t('misc:mo2'), edge: ACCENT, highlight: true,
+      badge: canTrial && !heroTrial ? t('misc:mostPopular7Days') : t('misc:mostPopular'),
+      note: t('misc:everyProFeatureCancel'),
       billed: billedLine('agent', priceOf('agent', 49)), priceWas: struckOf(priceOf('agent', 49)),
       creditsMo: creditsOf('agent') || 1200,
       features: [
-        L('启程版全部功能,积分池 ×6(200 → 1,200)', 'Everything in Starter, 6× the credits (200 → 1,200)'),
-        L('实时海外带看:与客户同屏看地图和楼盘,你动他也动', 'Live overseas tours: same screen, you move, they follow'),
-        L('应用内语音:带看中直接通话,不用切微信/电话', 'In-app voice: talk during the tour, no app switching'),
-        L('Luna AI 智能导览:自动飞盘讲盘,中英双语', 'Luna AI tours: auto fly-through with narration, EN/中文'),
-        L('带看意向报告:一场带看结束自动生成客户意向小结', 'Tour intent report auto-generated after every tour'),
-        L('Lead 优先推送(排在启程版之前)', 'Priority lead flow (ahead of Starter)'),
-        L('客户行为洞察:谁在看、看了多久、何时该跟进', 'Behaviour insights: who is browsing, for how long, when to follow up'),
+        t('misc:everythingInStarter6'),
+        t('misc:liveOverseasToursSame'),
+        t('misc:inAppVoiceTalk'),
+        t('misc:lunaAiToursFeature'),
+        t('misc:tourIntentReportAuto'),
+        t('misc:priorityLeadFlowAhead'),
+        t('misc:behaviourInsightsWhoIs'),
       ],
       cta: ctaFor('agent'),
     },
     {
       // agency 角色页把同一套餐展示为「经纪公司版」(多席位 + lead),套餐 id 仍是 founder
       id: 'founder',
-      name: L('经纪公司版', 'Agency'),
+      name: t('misc:agency'),
       price: bigPriceOf('founder', priceOf('founder', 699)),
-      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: GOLD,
-      badge: L('团队 · 3 席', 'Team · 3 seats'), highlight: variant === 'agency',
-      note: L('经纪公司 / 团队 · 付款即开通', 'Agencies & teams · instant activation'),
+      per: cycle === 'year' ? t('misc:yr4') : t('misc:mo3'), edge: GOLD,
+      badge: t('misc:team3Seats'), highlight: variant === 'agency',
+      note: t('misc:agenciesTeamsInstantActivation'),
       billed: billedLine('founder', priceOf('founder', 699)), priceWas: struckOf(priceOf('founder', 699)),
       creditsMo: creditsOf('founder') || 15000, founderDiscount: true,
       features: [
-        L('专业版全部功能 · Lead 独占优先分发(你的团队先挑)', 'Everything in Pro · first pick of every lead'),
-        L('含 3 个席位共享 15,000 积分池,+$49/席无限扩容', '3 seats sharing 15,000 credits, +$49/seat unlimited'),
-        L('团队管理:一键邀请/移除成员,套餐与用量一处看', 'Team management: invite/remove in one click, one bill'),
-        L('积分消耗 ×0.6 —— 同样的活省 40%', 'Credits burn at ×0.6 — 40% cheaper per action'),
-        L('White-label 品牌定制 · 自定义域名', 'White-label branding · custom domain'),
-        L('优先支持(直连产品团队)', 'Priority support (direct line to the team)'),
+        t('misc:everythingInProFirst'),
+        t('misc:3SeatsSharing15'),
+        t('misc:teamManagementInviteRemove'),
+        t('misc:creditsBurnAt0'),
+        t('misc:whiteLabelBrandingCustom'),
+        t('misc:prioritySupportDirectLine'),
       ],
       cta: ctaFor('founder'),
     },
     {
-      id: 'developer', name: L('开发商版', 'Developer'), price: bigPriceOf('developer', priceOf('developer', 999)),
-      per: cycle === 'year' ? L('/ 年', '/ yr') : L('/ 月', '/ mo'), edge: ACCENT,
-      badge: canTrial && !heroTrial ? L('7 天免费 · 免绑卡', '7 days free · no card') : L('开发商 / 团队', 'Developers & teams'),
+      id: 'developer', name: t('misc:developer'), price: bigPriceOf('developer', priceOf('developer', 999)),
+      per: cycle === 'year' ? t('misc:yr5') : t('misc:mo4'), edge: ACCENT,
+      badge: canTrial && !heroTrial ? t('misc:7DaysFreeNo2') : t('misc:developersTeams'),
       highlight: variant === 'developer',
-      note: L('开发商 / 团队 · 付款即开通', 'Developers & teams · instant activation'),
+      note: t('misc:developersTeamsInstantActivation'),
       billed: billedLine('developer', priceOf('developer', 999)), priceWas: struckOf(priceOf('developer', 999)),
       creditsMo: creditsOf('developer') || 20000,
       features: [
-        L('上传楼书:AI 解析户型/价格/付款计划,分钟级上架', 'Upload brochures: AI parses units/prices/plans, live in minutes'),
-        L('项目管理:开盘状态 · 图册主图 · 详情页随时可改', 'Project management: sales status, gallery, details — edit anytime'),
-        L('楼盘全站曝光:地图 pin · 搜索 · Luna AI 主动推荐给买家', 'Sitewide exposure: map pins, search, Luna AI recommends you to buyers'),
-        L('销售工具全套:客户 CRM · 实时海外带看 · 应用内语音', 'Full sales toolkit: CRM · live overseas tours · in-app voice'),
-        L('品牌报告页 + Sales Offer 报价单,置业顾问人手一份', 'Branded reports + Sales Offers for every sales rep'),
-        L('含 5 个席位共享 20,000 积分池,+$49/席无限扩容', '5 seats sharing 20,000 credits, +$49/seat unlimited'),
-        L('买家行为数据:谁在看你的盘、看了多久、意向多强', 'Buyer behaviour data: who views your projects, how long, how hot'),
+        t('misc:uploadBrochuresAiParses'),
+        t('misc:projectManagementSalesStatus'),
+        t('misc:sitewideExposureMapPins'),
+        t('misc:fullSalesToolkitCrm'),
+        t('misc:brandedReportsSalesOffers'),
+        t('misc:5SeatsSharing20'),
+        t('misc:buyerBehaviourDataWho'),
       ],
       cta: ctaFor('developer'),
     },
   ]
   // 完整功能全景(onboarding 页原地铺开;经纪/经纪公司一套,开发商一套)
   const featureGroups: { title: string; items: string[] }[] = variant === 'developer' ? [
-    { title: L('上架与曝光', 'Listing & exposure'), items: [
-      L('楼书 PDF 上传,AI 自动解析户型/价格/付款计划', 'Upload brochure PDFs — AI extracts units, prices, payment plans'),
-      L('项目分钟级上架:地图 pin + 搜索直达 + 详情页', 'Projects live in minutes: map pin, search, full detail page'),
-      L('Luna AI 会向匹配的买家主动讲你的盘', 'Luna AI actively pitches your projects to matching buyers'),
-      L('开盘状态管理:即将开盘 / 在售 / 建设中 / 售罄', 'Sales status: coming soon / selling / building / sold out'),
+    { title: t('misc:listingExposure'), items: [
+      t('misc:uploadBrochurePdfsAi'),
+      t('misc:projectsLiveInMinutes'),
+      t('misc:lunaAiActivelyPitches'),
+      t('misc:salesStatusComingSoon'),
     ]},
-    { title: L('销售工具', 'Sales toolkit'), items: [
-      L('客户 CRM:档案 · 热度评分 · 时间线 · 跟进 · 管道', 'Client CRM: profiles, heat score, timeline, notes, pipeline'),
-      L('实时海外带看 + 应用内语音,一场会议签下海外客户', 'Live overseas tours + in-app voice — close remote buyers in one call'),
-      L('品牌报告页:5年 ROI + 真实 DLD 成交做信任背书', 'Branded reports: 5-yr ROI backed by real DLD transactions'),
-      L('Sales Offer 报价单:实价+可调付款周期,品牌盖章一键发客户', 'Sales Offers: your price + negotiable schedule, stamped & shareable'),
+    { title: t('misc:salesToolkit'), items: [
+      t('misc:clientCrmProfilesHeat2'),
+      t('misc:liveOverseasToursIn'),
+      t('misc:brandedReports5Yr'),
+      t('misc:salesOffersYourPrice'),
     ]},
-    { title: L('团队与席位', 'Team & seats'), items: [
-      L('含 5 个席位,置业顾问人手一号', '5 seats included — one for every sales rep'),
-      L('全团队共享 20,000 积分池,+$49/席无限扩容', 'Team shares 20,000 credits, +$49/seat unlimited'),
-      L('一键邀请/移除成员,一张账单', 'Invite/remove in one click, one bill'),
-      L('成员自动获得开发商会员卡', 'Every member gets a Developer membership card'),
+    { title: t('misc:teamSeats'), items: [
+      t('misc:5SeatsIncludedOne'),
+      t('misc:teamShares20000'),
+      t('misc:inviteRemoveInOne'),
+      t('misc:everyMemberGetsA'),
     ]},
-    { title: L('数据与洞察', 'Data & insights'), items: [
-      L('谁在看你的盘、看了多久、意向多强', 'Who views your projects, how long, how hot'),
-      L('260+ 区域官方 DLD 成交/租金数据做定价参考', '260+ areas of official DLD data for pricing'),
-      L('区域供给信号:同区在售/待售有多少', 'Supply signals: competing inventory per area'),
-      L('优先支持', 'Priority support'),
+    { title: t('misc:dataInsights'), items: [
+      t('misc:whoViewsYourProjects'),
+      t('misc:260AreasOfOfficial'),
+      t('misc:supplySignalsCompetingInventory'),
+      t('misc:prioritySupport'),
     ]},
   ] : [
-    { title: L('数据与地图', 'Data & map'), items: [
-      L('260+ 区域官方 DLD 成交/租金数据,每周更新', '260+ areas of official DLD sales & rent data, weekly refresh'),
-      L('收益率 · 增值 · 供给信号 · 期房/现房口径切换', 'Yields, appreciation, supply signals, off-plan vs ready'),
-      L('5 年 ROI 投资模型 + 回本年限,一盘一算', '5-yr ROI model with payback years, per project'),
-      L('卫星图 / 3D 建筑 / 测距,专业感拉满', 'Satellite, 3D buildings, measuring tools'),
+    { title: t('misc:dataMap'), items: [
+      t('misc:260AreasOfOfficial2'),
+      t('misc:yieldsAppreciationSupplySignals'),
+      t('misc:5YrRoiModel'),
+      t('misc:satellite3dBuildingsMeasuring'),
     ]},
-    { title: L('客户与 CRM', 'Clients & CRM'), items: [
-      L('客户档案 + 热度评分,该跟谁一眼看出', 'Profiles + heat score — know who to call first'),
-      L('活动时间线:浏览/收藏/联系全记录', 'Full activity timeline: views, favorites, contacts'),
-      L('跟进记录 + 交易管道(洽谈→带看→成交)', 'Notes + pipeline (talking → touring → closed)'),
-      L('买家意向报告一键生成', 'One-click buyer intent reports'),
+    { title: t('misc:clientsCrm'), items: [
+      t('misc:profilesHeatScoreKnow'),
+      t('misc:fullActivityTimelineViews'),
+      t('misc:notesPipelineTalkingTouring'),
+      t('misc:oneClickBuyerIntent'),
     ]},
-    { title: L('带看与导览', 'Tours'), items: [
-      L('实时海外带看:同屏同步,你看哪他看哪', 'Live overseas tours: same screen, perfectly synced'),
-      L('应用内语音通话,带看不切 App', 'In-app voice — no switching apps mid-tour'),
-      L('Luna AI 导览:自动飞盘讲盘(中/英)', 'Luna AI tours: auto fly-through with narration'),
-      L('带看结束自动生成意向小结', 'Intent summary auto-generated after each tour'),
+    { title: t('misc:tours'), items: [
+      t('misc:liveOverseasToursSame2'),
+      t('misc:inAppVoiceNo'),
+      t('misc:lunaAiToursAuto'),
+      t('misc:intentSummaryAutoGenerated'),
     ]},
-    { title: L('品牌与转化', 'Brand & closing'), items: [
-      L('品牌报告页:你的头像+联系方式+项目 ROI', 'Branded report pages with your face & contact'),
-      L('Sales Offer 报价单:优惠标注+品牌盖章,链接/PDF 发客户', 'Sales Offers: discount-marked & stamped, link or PDF'),
-      L('AI 楼书解析:PDF 秒变结构化户型库', 'AI brochure parsing: PDF to structured units'),
+    { title: t('misc:brandClosing'), items: [
+      t('misc:brandedReportPagesWith'),
+      t('misc:salesOffersDiscountMarked'),
+      t('misc:aiBrochureParsingPdf'),
       variant === 'agency'
-        ? L('White-label 品牌定制 + 自定义域名', 'White-label + custom domain')
-        : L('Lead 推送:买家在你关注的区域出现就通知你', 'Lead flow: get notified when buyers appear in your areas'),
+        ? t('misc:whiteLabelCustomDomain')
+        : t('misc:leadFlowGetNotified'),
     ]},
   ]
 
@@ -331,11 +330,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         @media (prefers-reduced-motion: reduce) { .pz-anim { animation: none !important } }
       `}</style>
       <Helmet>
-        <title>{L('定价 — Pinzos 订阅', 'Pricing — Pinzos Plans')}</title>
-        <meta name="description" content={L(
-          'Pinzos 订阅:买家免费;经纪 $25/月起,专业版 $49/月含实时海外带看、Luna 智能导览与买家意向报告;经纪公司版 $699/月 3 席;开发商版 $999/月含楼书上传与 5 席。',
-          'Pinzos plans: free for buyers; agents from $25/mo, Pro $49/mo with live overseas tours, Luna AI tours and buyer-intent reports; Agency $699/mo with 3 seats; Developer $999/mo with brochure uploads and 5 seats.'
-        )} />
+        <title>{t('misc:pricingPinzosPlans')}</title>
+        <meta name="description" content={t('misc:pinzosPlansFreeFor')} />
         <link rel="canonical" href="https://pinzos.com/pricing" />
       </Helmet>
 
@@ -349,8 +345,8 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               className="absolute left-0 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">{L('重新选择角色', 'Choose another role')}</span>
-              <span className="sm:hidden">{L('重选角色', 'Back')}</span>
+              <span className="hidden sm:inline">{t('misc:chooseAnotherRole')}</span>
+              <span className="sm:hidden">{t('misc:back')}</span>
             </button>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: ACCENT }}>
               <span className="text-sm font-black text-slate-900">P</span>
@@ -363,14 +359,11 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-indigo-300/30 bg-indigo-500/10 px-4 py-3 text-sm text-slate-200">
             <Briefcase className="h-4 w-4 shrink-0 text-indigo-300" />
             <span>
-              {L(
-                '你的账号是经纪身份 —— 经纪版(含不限时地图与数据)需选择套餐后使用。可以先免费试用 7 天,无需信用卡。',
-                'Your account is registered as an agent — agent access (incl. unlimited map & data) starts with a plan. Start with a free 7-day trial, no credit card needed.'
-              )}
+              {t('misc:yourAccountIsRegistered')}
             </span>
             <button onClick={reselectRole}
               className="font-medium text-teal-300 underline-offset-2 hover:underline">
-              {L('选错身份?重新选择角色 →', 'Wrong role? Choose again →')}
+              {t('misc:wrongRoleChooseAgain')}
             </button>
           </div>
         )}
@@ -378,44 +371,34 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           {agentOnboarding ? (
             variant === 'agency' ? (
               <>
-                <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: GOLD }}>// {L('经纪公司工作台', 'AGENCY WORKSPACE')}</span>
-                <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!为你的团队开通 Pinzos', 'Welcome! Set up Pinzos for your team')}</h1>
-                <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{L(
-                  '多席位共享一个积分池,lead 独占优先分发,White-label 品牌定制 —— 开通后立即可为团队邀请席位。',
-                  'Multiple seats sharing one credit pool, first pick of buyer leads, white-label branding — invite your team right after activation.'
-                )}</p>
+                <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: GOLD }}>// {t('misc:agencyWorkspace')}</span>
+                <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{t('misc:welcomeSetUpPinzos')}</h1>
+                <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{t('misc:multipleSeatsSharingOne')}</p>
               </>
             ) : variant === 'developer' ? (
               <>
-                <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('开发商工作台', 'DEVELOPER WORKSPACE')}</span>
-                <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!让你的楼盘被全站买家看到', 'Welcome! Put your projects in front of every buyer')}</h1>
+                <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {t('misc:developerWorkspace')}</span>
+                <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{t('misc:welcomePutYourProjects')}</h1>
                 <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{canTrial
-                  ? L('上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位 —— 先免费试用 7 天,不需要信用卡。',
-                       'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included — try free for 7 days, no credit card.')
-                  : L('上传楼书 AI 自动解析上架,配套销售工具(CRM/实时带看/品牌报告),含 5 个团队席位。',
-                       'Upload brochures, AI parses and lists them, full sales toolkit (CRM, live tours, branded reports), 5 team seats included.')
+                  ? t('misc:uploadBrochuresAiParses2')
+                  : t('misc:uploadBrochuresAiParses3')
                 }</p>
               </>
             ) : (
             <>
-              <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('经纪工作台', 'AGENT WORKSPACE')}</span>
-              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('欢迎!你的经纪工作台已就绪', 'Welcome! Your agent workspace is ready')}</h1>
+              <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {t('misc:agentWorkspace')}</span>
+              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{t('misc:welcomeYourAgentWorkspace')}</h1>
               <p className="mx-auto mt-1.5 max-w-2xl text-sm text-slate-400">{canTrial
-                ? L('客户 CRM、品牌化报告、实时带看、Luna 导览 —— 先免费用 7 天,不需要信用卡。',
-                     'Client CRM, branded reports, live tours, Luna AI tours — try it free for 7 days. No credit card.')
-                : L('客户 CRM、品牌化报告、实时带看、Luna 导览 —— 选一档立即开通,随时取消。',
-                     'Client CRM, branded reports, live tours, Luna AI tours — pick a plan, activate instantly, cancel anytime.')
+                ? t('misc:clientCrmBrandedReports')
+                : t('misc:clientCrmBrandedReports2')
               }</p>
             </>
             )
           ) : (
             <>
-              <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {L('定价', 'PRICING')}</span>
-              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{L('买家免费,经纪与开发商按量选档', 'Free for buyers. Plans for agents & developers.')}</h1>
-              <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{L(
-                '买家直接打开地图就能用。经纪 $25 起:地图不限时 + lead,带海外客户实时看房、生成导览与意向报告;开发商版含楼书上传与 5 席。按月或按年付,随时取消。',
-                'Buyers just open the map — free. Agents from $25: unlimited map + leads, live overseas tours, intent reports; Developer plan adds brochure uploads & 5 seats. Billed monthly or yearly, cancel anytime.'
-              )}</p>
+              <span className="font-mono text-[11px] font-semibold tracking-widest" style={{ color: ACCENT }}>// {t('misc:pricing')}</span>
+              <h1 className="mt-1.5 text-2xl font-bold md:text-4xl">{t('misc:freeForBuyersPlans')}</h1>
+              <p className="mx-auto mt-1.5 hidden max-w-2xl text-sm text-slate-400 sm:block">{t('misc:buyersJustOpenThe')}</p>
             </>
           )}
         </div>
@@ -425,14 +408,14 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           <div className="mx-auto mt-5 flex max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border px-4 py-2 text-sm"
             style={{ borderColor: `${GOLD}66`, background: `linear-gradient(90deg, ${GOLD}22, ${ACCENT}12)`, boxShadow: `0 0 40px -22px ${GOLD}` }}>
             <span className="inline-flex items-center gap-1.5 font-bold" style={{ color: GOLD }}>
-              <Flame className="h-4 w-4" /> {L('发布限时优惠', 'Launch Offer')}
+              <Flame className="h-4 w-4" /> {t('misc:launchOffer')}
             </span>
             <span className="rounded-md px-1.5 py-0.5 text-xs font-extrabold text-slate-900" style={{ background: GOLD }}>-{promo.percentOff}%</span>
             {promo.forever && (
-              <span className="inline-flex items-center gap-1 text-xs text-slate-200"><Lock className="h-3 w-3" /> {L('永久锁价', 'locked forever')}</span>
+              <span className="inline-flex items-center gap-1 text-xs text-slate-200"><Lock className="h-3 w-3" /> {t('misc:lockedForever')}</span>
             )}
             {promo.seatsRemaining != null && (
-              <span className="text-xs text-slate-300">· {L('仅剩', 'only')} <b style={{ color: GOLD }}>{promo.seatsRemaining}</b>/{promo.seatsTotal} {L('席', 'left')}</span>
+              <span className="text-xs text-slate-300">· {t('misc:only')} <b style={{ color: GOLD }}>{promo.seatsRemaining}</b>/{promo.seatsTotal} {t('misc:left')}</span>
             )}
             {countdown && (
               <span className="font-mono text-xs font-semibold tabular-nums text-white">
@@ -457,14 +440,13 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             }}>
             <div className="min-w-[260px] flex-1">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <h2 className="text-xl font-bold md:text-2xl">{L('先免费用 7 天', 'Use it free for 7 days')}</h2>
+                <h2 className="text-xl font-bold md:text-2xl">{t('misc:useItFreeFor')}</h2>
                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-900" style={{ background: ACCENT }}>
-                  <Gift className="h-3 w-3" /> {L('无需信用卡', 'No credit card')}
+                  <Gift className="h-3 w-3" /> {t('misc:noCreditCard')}
                 </span>
               </div>
               <p className="mt-1 text-[13px] leading-snug text-slate-300">
-                {L('全部专业功能 + 200 积分 · 到期自动停止,不会扣你一分钱 —— 现在不用选套餐。',
-                   'All Pro features + 200 credits · it just stops at the end, you will not be charged — no plan to pick right now.')}
+                {t('misc:allProFeatures200')}
               </p>
             </div>
             <button
@@ -472,7 +454,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               disabled={!!busy}
               className="flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-bold text-slate-900 transition-all duration-150 hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
               style={{ background: ACCENT, boxShadow: `0 0 26px -8px ${ACCENT}` }}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{L('开始免费试用', 'Start free trial')} <ArrowRight className="h-4 w-4" /></>}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t('misc:startFreeTrial')} <ArrowRight className="h-4 w-4" /></>}
             </button>
           </div>
         )}
@@ -480,8 +462,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
         {/* 套餐卡的定位:能试用时它们是"以后"的事,不是现在要做的决定(细一行,别再占一屏) */}
         {agentOnboarding && canTrial && (
           <p className="mt-5 text-center text-xs text-slate-500">
-            {L('试用结束后再选套餐 —— 现在不用决定,也可以随时直接订阅。',
-               'Pick a plan after the trial — nothing to decide now, or subscribe straight away.')}
+            {t('misc:pickAPlanAfter')}
           </p>
         )}
 
@@ -491,13 +472,13 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             <button onClick={() => setCycle('month')}
               className={`rounded-full px-4 py-1.5 font-medium transition-all duration-200 active:scale-95 ${cycle === 'month' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
               style={cycle === 'month' ? { background: ACCENT } : undefined}>
-              {L('按月付', 'Monthly')}
+              {t('misc:monthly')}
             </button>
             <button onClick={() => setCycle('year')}
               className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-medium transition-all duration-200 active:scale-95 ${cycle === 'year' ? 'text-slate-900' : 'text-slate-400 hover:text-white'}`}
               style={cycle === 'year' ? { background: ACCENT } : undefined}>
-              {L('按年付', 'Yearly')}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'year' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{L('免费送 2 个月', '2 months free')}</span>
+              {t('misc:yearly')}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${cycle === 'year' ? 'bg-slate-900/15 text-slate-900' : 'bg-white/10 text-slate-300'}`}>{t('misc:2MonthsFree')}</span>
             </button>
           </div>
         </div>
@@ -510,57 +491,56 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
             : agentOnboarding ? 'md:grid-cols-2 xl:grid-cols-3 mx-auto max-w-4xl'
             : 'md:grid-cols-2 xl:grid-cols-4'
         }`}>
-          {tiers.map((t, ti) => (
+          {tiers.map((tier, ti) => (
             // 自然升序(便宜的在前),手机桌面一致 —— 低门槛档先入眼;入场交错浮现+悬浮抬升
-            <div key={t.id} className="pz-anim relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 transition-transform duration-200 hover:-translate-y-1"
+            <div key={tier.id} className="pz-anim relative flex h-full flex-col rounded-2xl border bg-white/[0.03] p-5 transition-transform duration-200 hover:-translate-y-1"
               style={{
-                borderColor: t.highlight ? ACCENT : t.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)',
-                boxShadow: t.highlight ? `0 0 40px -16px ${ACCENT}` : undefined,
+                borderColor: tier.highlight ? ACCENT : tier.edge === GOLD ? `${GOLD}77` : 'rgba(255,255,255,0.1)',
+                boxShadow: tier.highlight ? `0 0 40px -16px ${ACCENT}` : undefined,
                 animation: 'pz-fade-up .5s ease-out both',
                 animationDelay: `${ti * 80}ms`,
               }}>
-              {t.badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: t.edge }}>{t.badge}</span>}
-              <div className="text-sm font-semibold" style={{ color: t.edge }}>{t.name}</div>
+              {tier.badge && <span className="absolute -top-3 left-6 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-900" style={{ background: tier.edge }}>{tier.badge}</span>}
+              <div className="text-sm font-semibold" style={{ color: tier.edge }}>{tier.name}</div>
               <div className="mt-1 flex items-end gap-2">
                 {/* key=cycle:月/年切换时价格轻弹一下,肉眼能看到变化发生 */}
-                <span key={cycle} className="pz-anim text-3xl font-bold" style={{ animation: 'pz-pop .25s ease-out both' }}>{t.price}</span>
-                {t.priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{t.priceWas}</span>}
-                {t.per && <span className="pb-1 text-sm text-slate-500">{t.per}{L(' (USD)', ' (USD)')}</span>}
+                <span key={cycle} className="pz-anim text-3xl font-bold" style={{ animation: 'pz-pop .25s ease-out both' }}>{tier.price}</span>
+                {tier.priceWas && <span className="pb-1 text-base font-medium text-slate-500 line-through">{tier.priceWas}</span>}
+                {tier.per && <span className="pb-1 text-sm text-slate-500">{tier.per} (USD)</span>}
               </div>
-              <p className="mt-1 text-[13px] text-slate-400">{t.note}</p>
-              {t.billed && <p className="mt-0.5 text-[11px] text-slate-500">{t.billed}</p>}
+              <p className="mt-1 text-[13px] text-slate-400">{tier.note}</p>
+              {tier.billed && <p className="mt-0.5 text-[11px] text-slate-500">{tier.billed}</p>}
               {/* 醒目的每月积分额度 */}
-              {'creditsMo' in t && (t as { creditsMo?: number }).creditsMo != null && (
-                <div className="mt-2.5 flex items-baseline gap-1.5 rounded-lg px-3 py-1.5" style={{ background: `${t.edge}1a` }}>
-                  <span className="text-xl font-extrabold" style={{ color: t.edge }}>{(t as { creditsMo: number }).creditsMo.toLocaleString()}</span>
-                  <span className="text-[13px] font-medium text-slate-300">{L('积分 / 月', 'credits / mo')}</span>
-                  {(t as { founderDiscount?: boolean }).founderDiscount && (
-                    <span className="ml-auto text-[11px] font-semibold" style={{ color: t.edge }}>{L('消耗 ×0.6', '0.6× cost')}</span>
+              {'creditsMo'  in tier && (tier as { creditsMo?: number }).creditsMo != null && (
+                <div className="mt-2.5 flex items-baseline gap-1.5 rounded-lg px-3 py-1.5" style={{ background: `${tier.edge}1a` }}>
+                  <span className="text-xl font-extrabold" style={{ color: tier.edge }}>{(tier as { creditsMo: number }).creditsMo.toLocaleString()}</span>
+                  <span className="text-[13px] font-medium text-slate-300">{t('misc:creditsMo')}</span>
+                  {(tier as { founderDiscount?: boolean }).founderDiscount && (
+                    <span className="ml-auto text-[11px] font-semibold" style={{ color: tier.edge }}>{t('misc:06Cost')}</span>
                   )}
                 </div>
               )}
               <ul className="mt-3 flex-1 space-y-1.5 text-[13px] leading-snug text-slate-300">
-                {t.features.map((f, i) => (
-                  <li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: t.edge }} /> {f}</li>
+                {tier.features.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: tier.edge }} /> {f}</li>
                 ))}
               </ul>
-              <button onClick={t.cta.onClick} disabled={busy === t.id}
+              <button onClick={tier.cta.onClick} disabled={busy === tier.id}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold text-slate-900 transition-all duration-150 hover:opacity-90 hover:shadow-lg active:scale-[0.97] disabled:opacity-60"
-                style={{ background: t.edge }}>
-                {busy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t.cta.label} <ArrowRight className="h-4 w-4" /></>}
+                style={{ background: tier.edge }}>
+                {busy === tier.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{tier.cta.label} <ArrowRight className="h-4 w-4" /></>}
               </button>
               {/* 试用到底给什么,说清楚 —— 试用发的是 Pro 档功能 + 200 积分,
                   经纪公司/开发商的席位不在试用里,别让人以为 $699 的东西白拿 7 天。
                   onboarding 页有独立主卡讲这些,卡片里就不重复了。 */}
-              {canTrial && !heroTrial && t.id !== 'explore' && (
+              {canTrial && !heroTrial && tier.id !== 'explore' && (
                 <>
                   <p className="mt-1.5 text-center text-[11px] leading-snug text-slate-500">
-                    {L('试用含全部专业功能 + 200 积分 · 不收卡 · 到期自动停止',
-                       'Trial: all Pro features + 200 credits · no card · auto-stops')}
+                    {t('misc:trialAllProFeatures')}
                   </p>
-                  <button onClick={() => subscribe(t.id as PaidPlanId)} disabled={busy === t.id}
+                  <button onClick={() => subscribe(tier.id as PaidPlanId)} disabled={busy === tier.id}
                     className="mt-1 text-center text-[11px] text-slate-500 underline-offset-2 transition hover:text-slate-300 hover:underline disabled:opacity-60">
-                    {L('或直接订阅 →', 'Or subscribe now →')}
+                    {t('misc:orSubscribeNow')}
                   </button>
                 </>
               )}
@@ -580,9 +560,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wide text-slate-400" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    <th className="px-4 py-1.5 text-left font-semibold" style={{ color: ACCENT }}>{L('积分消耗对照', 'WHAT CREDITS BUY')}</th>
-                    <th className="px-4 py-1.5 text-right font-medium">{L('标准', 'Standard')}</th>
-                    <th className="px-4 py-1.5 text-right font-medium" style={{ color: GOLD }}>{L('经纪公司版', 'Agency')} ×{founderMult}</th>
+                    <th className="px-4 py-1.5 text-left font-semibold" style={{ color: ACCENT }}>{t('misc:whatCreditsBuy')}</th>
+                    <th className="px-4 py-1.5 text-right font-medium">{t('misc:standard')}</th>
+                    <th className="px-4 py-1.5 text-right font-medium" style={{ color: GOLD }}>{t('misc:agency2')} ×{founderMult}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -592,19 +572,19 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                     const isFree = f.unit === 'free' || f.credits === 0
                     const metered = f.unit === 'call_unit'
                     const suffix = metered
-                      ? L('（语音 4 分钟 / 视频 1 分钟）', ' (4 min voice / 1 min video)')
-                      : isFree ? L('（不限场次）', ' (unlimited)') : ''
+                      ? t('misc:4MinVoice1')
+                      : isFree ? t('misc:unlimited') : ''
                     return (
                       <tr key={f.key} className="border-t border-white/[0.05]">
                         <td className="px-4 py-1 text-slate-300">{f.label}<span className="text-slate-500">{suffix}</span></td>
                         {isFree ? (
                           <td className="px-4 py-1 text-right font-semibold" colSpan={2} style={{ color: ACCENT }}>
-                            {L('免费', 'Free')}
+                            {t('misc:free2')}
                           </td>
                         ) : (
                           <>
-                            <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {L('积分', 'cr')}</td>
-                            <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {L('积分', 'cr')}</td>
+                            <td className="px-4 py-1 text-right font-semibold text-white">{f.credits} {t('misc:cr')}</td>
+                            <td className="px-4 py-1 text-right" style={{ color: GOLD }}>{Math.round(f.credits * founderMult)} {t('misc:cr2')}</td>
                           </>
                         )}
                       </tr>
@@ -616,10 +596,12 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                   不说这句,上面那行「通话与视频 1 积分」会把人吓退。 */}
               {feat.features.some((f) => f.unit === 'call_unit') && proCallUnits > 0 && (
                 <p className="border-t border-white/[0.05] px-4 py-2 text-[11px] leading-relaxed text-slate-400">
-                  {L(
-                    `实时带看不限场次、不限时长，完全免费。通话每月含 ${proCallUnits} 额度（约 ${Math.floor(proCallUnits / 2 / 60)} 小时一对一语音，或 ${Math.floor(proCallUnits / videoWeight)} 分钟视频），经纪公司版 ${agencyCallUnits}。超出部分才扣积分。`,
-                    `Live tours are free and unlimited. Calls include ${proCallUnits} units/mo (≈${Math.floor(proCallUnits / 2 / 60)}h of 1-on-1 voice, or ${Math.floor(proCallUnits / videoWeight)} min of video); Agency: ${agencyCallUnits}. Only usage beyond that costs credits.`
-                  )}
+                  {t('misc:callUnitsExplain', {
+                    units: proCallUnits,
+                    hours: Math.floor(proCallUnits / 2 / 60),
+                    videoMin: Math.floor(proCallUnits / videoWeight),
+                    agency: agencyCallUnits,
+                  })}
                 </p>
               )}
             </div>
@@ -628,20 +610,18 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
 
         <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500">
           {promo.active
-            ? L(`发布限时优惠:全场 ${promo.percentOff}% off,早鸟订阅永久锁定此价(限 ${promo.seatsTotal} 席,限时)。划掉为原价。`,
-                `Launch offer: ${promo.percentOff}% off everything, early subscribers lock this price forever (${promo.seatsTotal} seats, limited time). Struck price is the regular rate.`)
-            : L('价格以美元(USD)计,按月或按年付(年付送 2 个月)。', 'Prices in USD, billed monthly or yearly (yearly = 2 months free).')}
+            ? t('misc:launchOfferOffEverything', { promo_percentOff: promo.percentOff, promo_seatsTotal: promo.seatsTotal })
+            : t('misc:pricesInUsdBilled')}
           {canTrial
-            ? L(' 7 天免费试用无需信用卡 —— 到期自动停止,不会自动扣款。支付由 Stripe 安全处理。',
-                ' The 7-day free trial needs no credit card — it just stops at the end, nothing is charged. Payments securely handled by Stripe.')
-            : L(' 支付由 Stripe 安全处理。', ' Payments securely handled by Stripe.')}
+            ? t('misc:the7DayFree')
+            : t('misc:paymentsSecurelyHandledBy')}
         </p>
 
         {/* 完整功能全景:直接铺在付费页里(卖点信息宁多勿少,不外链) */}
         {agentOnboarding && (
           <div className="mt-10">
-            <h2 className="text-center text-lg font-bold text-white">{L('开通后你得到的全部', 'Everything you get')}</h2>
-            <p className="mt-1 text-center text-xs text-slate-500">{L('不是节选 —— 这就是完整清单', 'Not highlights — the full list')}</p>
+            <h2 className="text-center text-lg font-bold text-white">{t('misc:everythingYouGet')}</h2>
+            <p className="mt-1 text-center text-xs text-slate-500">{t('misc:notHighlightsTheFull')}</p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {featureGroups.map((g) => (
                 <div key={g.title} className="rounded-2xl bg-white/[0.03] p-5 ring-1 ring-white/10">
@@ -664,7 +644,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
           {agentOnboarding && (
             <button onClick={reselectRole}
               className="inline-flex items-center gap-1.5 text-[12px] text-slate-500 transition hover:text-slate-300">
-              {L('选错身份?重新选择角色 →', 'Wrong role? Choose again →')}
+              {t('misc:wrongRoleChooseAgain2')}
             </button>
           )}
         </div>

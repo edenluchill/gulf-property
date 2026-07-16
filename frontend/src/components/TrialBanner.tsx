@@ -14,9 +14,8 @@ import DeveloperVerifyCard from './DeveloperVerifyCard'
 import TrialClaimCard from './TrialClaimCard'
 
 export default function TrialBanner() {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('misc')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [me, setMe] = useState<BillingMe | null>(null)
 
   const load = () => { void fetchBillingMe().then(setMe) }
@@ -49,17 +48,17 @@ export default function TrialBanner() {
     >
       <Sparkles className={`h-4 w-4 shrink-0 ${urgent ? 'text-amber-500' : 'text-emerald-500'}`} />
       <span className="font-semibold">
-        {L('免费试用中', 'Free trial')}
+        {t('misc:freeTrial')}
         {' · '}
         {days > 0
-          ? L(`还剩 ${days} 天`, `${days} day${days === 1 ? '' : 's'} left`)
-          : L('今天到期', 'ends today')}
+          ? (days === 1 ? t('misc:dayLeft', { days }) : t('misc:daysLeft', { days }))
+          : t('misc:endsToday')}
       </span>
 
       {/* 剩余积分 + 细进度条:用完就停,让他一直看得见 */}
       <span className="flex items-center gap-2">
         <span className={urgent ? 'text-amber-800' : 'text-emerald-800'}>
-          {L(`剩 ${balance} / ${month} 积分`, `${balance} / ${month} credits left`)}
+          {t('misc:creditsLeft', { balance, month })}
         </span>
         <span className={`h-1.5 w-16 overflow-hidden rounded-full ${urgent ? 'bg-amber-200' : 'bg-emerald-200'}`}>
           <span
@@ -75,7 +74,7 @@ export default function TrialBanner() {
           urgent ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
         }`}
       >
-        {L('订阅 · 积分立即恢复', 'Subscribe · credits reset now')}
+        {t('misc:subscribeCreditsResetNow')}
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>
