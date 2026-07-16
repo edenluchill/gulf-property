@@ -1552,7 +1552,7 @@ export default function MapPage() {
             {/* Search Bar */}
             <div className="flex gap-3">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
+                <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
                 <Input
                   type="text"
                   placeholder={t('map:searchPlaceholder')}
@@ -1873,7 +1873,7 @@ export default function MapPage() {
           {/* 左上:筛选。手机(<md)竖排贴左边缘一列,每个筛选项直接可点(不再是「筛选」
               单按钮开抽屉 —— 2026-07-11 用户要求手机和桌面一样即点即用),popover 往右
               飞出,地图中间不被压。md+ 保持搜索在上、chips 横排在下。 */}
-          <div className="absolute top-3 left-2 md:top-4 md:left-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
+          <div className="absolute top-3 start-2 md:top-4 md:start-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
             <div className="hidden md:block">
               <AreaSearch
                 onSelect={(a) => {
@@ -1891,7 +1891,7 @@ export default function MapPage() {
 
           {/* 指北针(pad/桌面):维持原来的独立圆盘,不跟着手机版缩进筛选卡 —— 2026-07-11。
               md 左上是搜索+筛选两行(~104px)→ top-[112px];xl 单行(~52px)→ top-[68px]。 */}
-          <div className="pointer-events-none absolute left-4 top-[112px] z-[1000] hidden md:block xl:top-[68px]">
+          <div className="pointer-events-none absolute start-4 top-[112px] z-[1000] hidden md:block xl:top-[68px]">
             <div className="pointer-events-auto">
               <MapCompassButton map={liveMap} variant="disc" />
             </div>
@@ -1909,7 +1909,7 @@ export default function MapPage() {
           {/* 手机默认只是左下角一颗搜索图标(不常年占一条),点开才展开输入框——
               2026-07-11 用户要求。展开时铺到底部 dock,结果向上开。 */}
           <div
-            className="md:hidden fixed left-2 z-[1002] transition-[bottom] duration-150"
+            className="md:hidden fixed start-2 z-[1002] transition-[bottom] duration-150"
             style={{ bottom: 76 + keyboardInset, right: searchOpen ? 62 : undefined }}
           >
             {searchOpen ? (
@@ -1958,7 +1958,7 @@ export default function MapPage() {
           {/* 卡片宽度锁死(w-[184px]/md w-[212px]):以前是内容撑宽,切到英文所有文案变长
               → 卡跟着变宽、口径 tab 还折行,整块 UI 抖一下且很难看(2026-07-11 用户反馈)。
               现在 5 个图标按钮的行决定了宽度,文字一律 nowrap + 截断,中英文一样宽。 */}
-          <div data-testid="map-mobile-controls" className="absolute top-2 right-2 z-[1000] w-[148px] md:w-[212px]">
+          <div data-testid="map-mobile-controls" className="absolute top-2 end-2 z-[1000] w-[148px] md:w-[212px]">
             <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 md:p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state。
                   三等分 + 不折行:英文 "Off-plan" 比中文长得多,不锁死就会换行。 */}
@@ -2069,7 +2069,7 @@ export default function MapPage() {
           {showPeriodPop && metricHasPeriod && (
             <>
               <div className="fixed inset-0 z-[1000]" onClick={() => setShowPeriodPop(false)} />
-              <div className="absolute top-2 right-[164px] md:right-[224px] z-[1001] w-[200px] rounded-2xl bg-white/95 p-3 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+              <div className="absolute top-2 end-[164px] md:end-[224px] z-[1001] w-[200px] rounded-2xl bg-white/95 p-3 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   {t('misc:metricTimeRange')}
                 </div>
@@ -2098,7 +2098,7 @@ export default function MapPage() {
                 onClick={() => setShowPoiPanel(false)}
               />
               {/* 移动端:底部抽屉(全宽,不挤压顶部控件,与筛选 sheet 一致);桌面:右上浮动卡片 */}
-              <div className="fixed inset-x-0 bottom-0 w-full max-h-[65vh] rounded-t-2xl md:absolute md:inset-x-auto md:bottom-auto md:top-[172px] md:right-4 md:left-auto md:w-[280px] md:max-h-[400px] md:rounded-xl bg-white shadow-xl border border-slate-200/80 z-[1001] overflow-hidden">
+              <div className="fixed inset-x-0 bottom-0 w-full max-h-[65vh] rounded-t-2xl md:absolute md:inset-x-auto md:bottom-auto md:top-[172px] md:end-4 md:start-auto md:w-[280px] md:max-h-[400px] md:rounded-xl bg-white shadow-xl border border-slate-200/80 z-[1001] overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -2381,7 +2381,7 @@ export default function MapPage() {
                 {/* Close (overlays photo when present) */}
                 <button
                   onClick={() => setSelectedPoi(null)}
-                  className="absolute top-3 right-3 z-10 p-2 bg-white/80 hover:bg-white backdrop-blur rounded-full text-slate-500 hover:text-slate-700 transition-colors shadow-sm"
+                  className="absolute top-3 end-3 z-10 p-2 bg-white/80 hover:bg-white backdrop-blur rounded-full text-slate-500 hover:text-slate-700 transition-colors shadow-sm"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2598,7 +2598,7 @@ export default function MapPage() {
               <div className="relative p-5 pb-4">
                 <button
                   onClick={() => setSelectedStation(null)}
-                  className="absolute top-3 right-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute top-3 end-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2776,7 +2776,7 @@ export default function MapPage() {
               <div className="relative p-5 pb-3">
                 <button
                   onClick={() => setSelectedLandmark(null)}
-                  className="absolute top-3 right-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute top-3 end-3 p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>

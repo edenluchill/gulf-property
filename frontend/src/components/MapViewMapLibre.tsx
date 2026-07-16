@@ -22,6 +22,7 @@ import {
   formatMetricValue, getMetricRawValue, calculatePercentiles, getHeatmapColor
 } from '../lib/map/metrics'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
+import { isRTL } from '../lib/tt'
 import { ProjectCardMarker, LandmarkMarker } from './map/MapMarkers'
 // Luna Tour cinematic handle (isolated; lets the tour drive THIS map). Delete
 // the import + useImperativeHandle below + luna-tour/ to remove.
@@ -778,12 +779,13 @@ function MapViewMapLibre({
     // 只挡最影响观感的顶部浮层(搜索栏 + 右上指标卡,都不透明、面积大,卡钻底下
     // 像坏了)。右侧工具竖卡、右下 Luna 球不挡——卡片跟它们轻微交叠可接受(用户
     // 说稍挤没关系),换取多显示卡片。
-    const uiBlocks: { x0: number; y0: number; x1: number; y1: number }[] = isNarrow
+    // ⚠️ 下面的坐标一律按 **LTR 布局** 手写(筛选卡在左、指标卡在右),RTL 由末尾统一镜像。
+    const ltrBlocks: { x0: number; y0: number; x1: number; y1: number }[] = isNarrow
       ? [
           // 手机布局(2026-07-11):左边一竖列筛选图标钮、底部一条搜索 dock、左下指北针。
           // 三者都不透明,卡钻底下等于看不见。
-          { x0: 0, y0: 0, x1: 52, y1: 260 },          // 左侧筛选卡(w-36 + left-2;指北针 + 5 项)
-          { x0: W - 156, y0: 0, x1: W, y1: 170 },     // 指标卡(固定 148 宽 + 右 8)
+          { x0: 0, y0: 0, x1: 52, y1: 260 },          // 左侧筛选卡(w-36 + start-2;指北针 + 5 项)
+          { x0: W - 156, y0: 0, x1: W, y1: 170 },     // 指标卡(固定 148 宽 + 边距 8)
           // 底部搜索 dock + 指北针都是 fixed(贴可见视口),而这里的 H 是地图容器高度
           // (100vh,比可见区高一截)→ 禁区往上多留一点,吸收这个差值。
           { x0: 0, y0: H - 96, x1: W - 60, y1: H },   // 底部搜索 dock
@@ -793,6 +795,12 @@ function MapViewMapLibre({
           { x0: 0, y0: 0, x1: 560, y1: 56 },          // 搜索+筛选行
           { x0: W - 270, y0: 0, x1: W, y1: 235 },      // 指标卡
         ]
+    // 阿语(dir=rtl)下浮层本身被 Tailwind 的 start-/end- 自动镜像到了对侧,
+    // 但上面这些是**裸像素坐标**,不会跟着动 —— 不镜像的话卡片会去躲一片空气,
+    // 然后大大方方压在真正的筛选卡/指标卡底下。整体做一次水平翻转即可对齐。
+    const uiBlocks = isRTL(i18n.language)
+      ? ltrBlocks.map((b) => ({ ...b, x0: W - b.x1, x1: W - b.x0 }))
+      : ltrBlocks
     const flash = new Set(flashProjectIds ?? [])
     const sorted = [...projects].sort((a, b) => {
       if (a.id === selectedProjectId) return -1
@@ -835,7 +843,9 @@ function MapViewMapLibre({
     // flashKey(字符串)代替 flashProjectIds(每次 render 新数组)进 deps,
     // 避免父层无关渲染反复重建本回调
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, selectedProjectId, flashKey, showCards])
+    // i18n.language: uiBlocks 的镜像取决于 dir,切阿语后禁区必须重算,
+    // 否则卡片仍按 LTR 的禁区排布 → 压在已镜像过去的浮层底下。
+  }, [projects, selectedProjectId, flashKey, showCards, i18n.language])
 
   useEffect(() => {
     if (mapLoaded && !tourActive) recomputeCards()
@@ -1789,7 +1799,7 @@ function MapViewMapLibre({
           只要改手机,桌面/pad 不许跟着缩。
           top 规则:控制卡常开(手机 ~112px / md+ ~148px,各自 top 起算)→ 124 / 164。
           控制卡再改高度这里要跟着挪,且改完必须 414/1180/1440 三档截图验证。 */}
-      <div data-testid="map-mobile-tools" className="absolute right-2 top-[124px] z-[1000] w-9 md:right-3 md:top-[164px] md:w-auto">
+      <div data-testid="map-mobile-tools" className="absolute end-2 top-[124px] z-[1000] w-9 md:end-3 md:top-[164px] md:w-auto">
         <div className="flex flex-col items-center gap-1 rounded-2xl bg-white/95 p-1 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm md:items-stretch md:gap-0.5">
           <button
             type="button"
@@ -1872,11 +1882,11 @@ function MapViewMapLibre({
 
       {/* 语音助手：配套便利度评分面板 */}
       {showAmenities && voiceAmenities && !hideAmenityPanel && (
-        <div className="absolute left-3 bottom-24 md:bottom-6 z-[1000] w-[256px] rounded-2xl bg-white/95 p-3.5 shadow-xl ring-1 ring-slate-200 backdrop-blur">
+        <div className="absolute start-3 bottom-24 md:bottom-6 z-[1000] w-[256px] rounded-2xl bg-white/95 p-3.5 shadow-xl ring-1 ring-slate-200 backdrop-blur">
           <button
             type="button"
             onClick={() => setAmenityClosed(true)}
-            className="absolute right-2 top-2 rounded-full p-1 text-slate-400 hover:bg-slate-100"
+            className="absolute end-2 top-2 rounded-full p-1 text-slate-400 hover:bg-slate-100"
             aria-label="关闭"
           >
             <X size={14} />
