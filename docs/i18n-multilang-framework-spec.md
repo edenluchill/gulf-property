@@ -196,11 +196,45 @@ RTL 的**全部代码改动已落地**,6 个 commit。`tsc 0 / build 0`,且每�
    `bg-gradient-to-*`、`origin-*`。全站扫下来功能性的只有 3 处(已修);
    另 114 处 `to-r`/`to-br` 是装饰性按钮/卡片渐变,**有意跳过**(RTL 不镜像无妨)。
 
-### 🔲 轨道 C 唯一剩余:阿语三档截图验收
-切阿语,**414 / 1180 / 1440** 三档逐页看。登录用户不受匿名地图额度限。
-重点看:地图 UI(禁区镜像对不对)、Luna 药丸、下拉、轮播箭头、
-以及 **VoiceAssistantButton 的 `rotate-45` 气泡尖角**(旋转不随 dir 变,
-`border-t border-e` 镜像后尖角朝向需人眼确认)。
+### ✅ 轨道 C-4 已完成(2026-07-16)· 并且做成了可重跑的工具
+
+**别再用人眼扫几十张图 —— 必然漏。两个脚本:**
+- `frontend/scripts/rtl-audit.mjs` —— 切阿语,关键页 × **手机414/平板1180/桌面1440**,
+  自动抓:**横向溢出**(RTL 最典型的坏法,还会打印是哪个元素撑宽的)、漏翻的裸键、
+  残留 CJK、`html dir`、JS 错误。用法 `node scripts/rtl-audit.mjs [路由]`。
+- `frontend/scripts/rtl-doc-lock-check.mjs` —— **用阿语浏览器打开 lang=zh 的报告,
+  页面必须纹丝不动保持中文**。这是用普通 `useTranslation` 就会犯的错,
+  且只有切到别的语言才看得见。
+
+**巡检结果**:12/12 页×档全绿;`/cr/demo` 在阿语浏览器下 mobile+pad 均保持中文 LTR。
+
+**它抓到的两个真问题(人眼扫图看不出来)**:
+1. **定价页功能名恒为中文** —— `credits.ts` 的 `FEATURES[].label` 是中文,
+   `PricingPage` 直接渲染 `f.label`;旁边的 `labelEn` **从来没人读**(没接线的开关)。
+   `AgentBilling` 更隐蔽:`zh ? f.label : (f.labelEn || f.label)` —— 只有中英两版。
+   已修:后端只送 `key`,前端 `t('pricing:feature.<key>')`(新 `pricing` ns × 5 语言)。
+2. **中文报告在给客户看阿拉伯语地标名** —— 见下方「地名防线」。
+
+**仍需人眼扫一眼的**:VoiceAssistantButton 的 `rotate-45` 气泡尖角
+(旋转不随 dir 变,`border-t border-e` 镜像后尖角朝向)、导览对比卡 5 列在 RTL 下的语序。
+
+### ⭐ 地名防线(placeNameUsable)—— 任何把地名给用户看的地方都要过
+
+`dubai_pois.name` 混着中文/拉丁/**阿拉伯原名**。不挡的话:
+- 一份中文报告的「周边」chips 写着「دبي مول / برج خليفة · 3.6km」,客户一个字看不懂;
+- 更糟:demo 里「🚇 地铁(صيدلية لايف)」—— 那其实是「Life Pharmacy」,
+  **一家药房被当成地铁站念给客户听**。
+
+防线原本只长在 `luna-tour/session-builder`(导览),**报告链路一直没有**。
+现已提到 `backend/src/lib/lang.ts` 的 `placeNameUsable()` 共用,
+前端镜像在 `frontend/src/lib/tt.ts`(两边判据必须一致)。
+- **生成时过滤(必须)**:AI 也吃 `nearby.name`,不挡它会把阿拉伯名字念进中文散文。
+- **渲染时再挡一道**:DB 里的存量报告是在这之前生成的、名字已烤进 jsonb。
+- 名字不可读 → 退回品类(`clientReport:poiCat.*`,23 个);连品类都没有 → 整条不显示。
+
+**⚠️ 差点引入的 bug**:`radarScores` 也吃 `nearby`。拿**过滤后**的去算,会因为
+"地铁站的名字是阿拉伯文"把它整条丢掉 →「生活配套」分平白变低。
+已分成两份:**评分用未过滤的,展示用过滤后的**。展示层的过滤绝不能改变评分。
 
 ---
 
