@@ -550,7 +550,7 @@ export function ImageLightbox({
               onClick={goToPrevious}
               className="absolute start-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 rtl:-scale-x-100" />
             </motion.button>
             <motion.button
               initial={{ opacity: 0, x: 20 }}
@@ -558,7 +558,7 @@ export function ImageLightbox({
               onClick={goToNext}
               className="absolute end-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 rtl:-scale-x-100" />
             </motion.button>
           </>
         )}

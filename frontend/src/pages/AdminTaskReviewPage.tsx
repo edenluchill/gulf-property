@@ -229,7 +229,7 @@ export default function AdminTaskReviewPage() {
               onClick={() => navigate('/admin/tasks')}
               className="p-2 shrink-0"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 rtl:-scale-x-100" />
             </Button>
             <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 shadow-md shrink-0">
               <Building2 className="h-5 w-5 text-white" />

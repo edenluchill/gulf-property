@@ -123,7 +123,7 @@ export default function CollabIdentityGate({ presenterName, defaultName, onEnter
           disabled={!canEnter}
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
         >
-          {t('lunaTour:enterTour')} <ArrowRight className="h-4 w-4" />
+          {t('lunaTour:enterTour')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
         </button>
         <p className="mt-2 text-center text-[11px] text-slate-400">
           {t('lunaTour:leaveContactSoThe')}

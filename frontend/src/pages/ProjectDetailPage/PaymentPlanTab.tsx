@@ -117,7 +117,7 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
               <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-100 to-yellow-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200/70">
                 <Crown className="h-2.5 w-2.5" />{t('projectDetail:pro')}
               </span>
-              {entitled !== false && <ArrowRight className="h-4 w-4 text-slate-400" />}
+              {entitled !== false && <ArrowRight className="h-4 w-4 text-slate-400 rtl:-scale-x-100" />}
             </button>
           )}
         </div>

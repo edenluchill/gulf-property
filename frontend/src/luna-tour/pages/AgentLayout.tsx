@@ -28,7 +28,7 @@ function GoPlansButton() {
       }}
       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
     >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>免费试用 7 天,无需信用卡<ArrowRight className="h-4 w-4" /></>}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>免费试用 7 天,无需信用卡<ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></>}
     </button>
   )
 }

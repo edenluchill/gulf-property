@@ -276,7 +276,7 @@ export default function ProjectDetailPage() {
         <h1 className="text-3xl font-bold mb-4">{t('project:notFound')}</h1>
         <Link to="/map">
           <Button>
-            <ArrowLeft className="me-2 h-4 w-4" />
+            <ArrowLeft className="me-2 h-4 w-4 rtl:-scale-x-100" />
             {t('project:backToProperties')}
           </Button>
         </Link>
@@ -394,7 +394,7 @@ export default function ProjectDetailPage() {
               {/* Back button - both mobile and desktop */}
               <Link to="/map" className="me-3 -ms-2 flex-shrink-0">
                 <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <ArrowLeft className="h-5 w-5" />
+                  <ArrowLeft className="h-5 w-5 rtl:-scale-x-100" />
                 </Button>
               </Link>
 

@@ -112,7 +112,7 @@ export default function AboutPage() {
               {t('about:oneInteractiveSatelliteMap')}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>{t('about:openTheMap')} <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>{t('about:openTheMap')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></Link>
               <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{t('about:seePricing')}</Link>
             </div>
           </Reveal>
@@ -168,7 +168,7 @@ export default function AboutPage() {
         </Reveal>
         <Reveal delay={0.16} className="mt-6 text-center">
           <a href="/?toursession=demo" target="_blank" rel="noopener" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
-            {t('about:tryThisTourNo')} <ArrowRight className="h-4 w-4" />
+            {t('about:tryThisTourNo')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </a>
           <p className="mt-2 text-xs text-slate-500">{t('about:opensARealLuna')}</p>
         </Reveal>
@@ -322,7 +322,7 @@ export default function AboutPage() {
         </div>
         <Reveal delay={0.14} className="mt-7 flex flex-wrap items-center gap-4">
           <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
-            {t('about:fullPricingStartFree')} <ArrowRight className="h-4 w-4" />
+            {t('about:fullPricingStartFree')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
           <span className="inline-flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5" /> {t('about:allAgentPlansInclude')}</span>
         </Reveal>
@@ -335,7 +335,7 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold md:text-4xl">{t('about:readyToExplore')}</h2>
           <p className="mt-3 text-slate-400">{t('about:openTheMapOr')}</p>
           <div className="mt-7 flex justify-center gap-3">
-            <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>{t('about:openTheMap2')} <ArrowRight className="h-4 w-4" /></Link>
+            <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT }}>{t('about:openTheMap2')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></Link>
             <Link to="/agent" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{t('about:agentConsole')}</Link>
           </div>
           {/* legal footer — Google OAuth verification requires reachable policy links */}
@@ -390,7 +390,7 @@ function Pipeline({ steps }: { steps: { icon: React.ReactNode; t: string }[] }) 
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: 'rgba(0,224,184,0.14)', color: ACCENT }}>{s.icon}</span>
             <span className="text-sm font-medium text-slate-200">{s.t}</span>
           </div>
-          {i < steps.length - 1 && <ArrowRight className="mx-auto hidden h-5 w-5 md:block" style={{ color: ACCENT }} />}
+          {i < steps.length - 1 && <ArrowRight className="mx-auto hidden h-5 w-5 md:block rtl:-scale-x-100" style={{ color: ACCENT }} />}
         </div>
       ))}
     </div>
@@ -408,7 +408,7 @@ function CoPresenceDiagram() {
     </div>
   )
   const Arrow = ({ label }: { label: string }) => (
-    <div className="flex flex-col items-center justify-center px-1 md:px-2"><ArrowRight className="h-5 w-5" style={{ color: ACCENT }} /><span className="font-mono text-[10px] text-slate-500">{label}</span></div>
+    <div className="flex flex-col items-center justify-center px-1 md:px-2"><ArrowRight className="h-5 w-5 rtl:-scale-x-100" style={{ color: ACCENT }} /><span className="font-mono text-[10px] text-slate-500">{label}</span></div>
   )
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-center">

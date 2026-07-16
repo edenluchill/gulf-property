@@ -75,7 +75,7 @@ export default function TrialBanner() {
         }`}
       >
         {t('misc:subscribeCreditsResetNow')}
-        <ArrowRight className="h-3.5 w-3.5" />
+        <ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
       </Link>
     </div>
     </>

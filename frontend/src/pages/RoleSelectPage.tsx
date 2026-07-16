@@ -208,7 +208,7 @@ export default function RoleSelectPage() {
                   <span className="text-base font-bold text-slate-900">{t(`roleSelect:${c.titleKey}`)}</span>
                   {saving === c.id
                     ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                    : <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5" />}
+                    : <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100" />}
                 </span>
                 <span className="mt-0.5 block text-[13px] text-slate-500">{t(`roleSelect:${c.descKey}`)}</span>
                 <span className="mt-2 block space-y-1">
@@ -325,10 +325,10 @@ function CertInfoStep({ card, defaultName, onBack }: {
 
         <button onClick={cont} disabled={saving}
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t('roleSelect:continueToPlans')} <ArrowRight className="h-4 w-4" /></>}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t('roleSelect:continueToPlans')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></>}
         </button>
         <button onClick={onBack} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100">
-          <ArrowLeft className="h-4 w-4" /> {t('roleSelect:back')}
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /> {t('roleSelect:back')}
         </button>
       </div>
     </div>

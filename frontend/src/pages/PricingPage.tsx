@@ -344,7 +344,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               onClick={reselectRole}
               className="absolute start-0 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
               <span className="hidden sm:inline">{t('misc:chooseAnotherRole')}</span>
               <span className="sm:hidden">{t('misc:back')}</span>
             </button>
@@ -454,7 +454,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               disabled={!!busy}
               className="flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-[14px] font-bold text-slate-900 transition-all duration-150 hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
               style={{ background: ACCENT, boxShadow: `0 0 26px -8px ${ACCENT}` }}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t('misc:startFreeTrial')} <ArrowRight className="h-4 w-4" /></>}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t('misc:startFreeTrial')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></>}
             </button>
           </div>
         )}
@@ -528,7 +528,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
               <button onClick={tier.cta.onClick} disabled={busy === tier.id}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold text-slate-900 transition-all duration-150 hover:opacity-90 hover:shadow-lg active:scale-[0.97] disabled:opacity-60"
                 style={{ background: tier.edge }}>
-                {busy === tier.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{tier.cta.label} <ArrowRight className="h-4 w-4" /></>}
+                {busy === tier.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{tier.cta.label} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></>}
               </button>
               {/* 试用到底给什么,说清楚 —— 试用发的是 Pro 档功能 + 200 积分,
                   经纪公司/开发商的席位不在试用里,别让人以为 $699 的东西白拿 7 天。

@@ -95,7 +95,7 @@ function ImageLightbox({
             }}
             className="absolute start-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
           >
-            <ChevronLeft className="h-8 w-8 text-white" />
+            <ChevronLeft className="h-8 w-8 text-white rtl:-scale-x-100" />
           </button>
           <button
             type="button"
@@ -105,7 +105,7 @@ function ImageLightbox({
             }}
             className="absolute end-4 top-1/2 -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
           >
-            <ChevronRight className="h-8 w-8 text-white" />
+            <ChevronRight className="h-8 w-8 text-white rtl:-scale-x-100" />
           </button>
         </>
       )}
@@ -244,14 +244,14 @@ export function ImageCarousel({
                 onClick={() => api?.scrollPrev()}
                 className="absolute start-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <ChevronLeft className="h-5 w-5 text-gray-700" />
+                <ChevronLeft className="h-5 w-5 text-gray-700 rtl:-scale-x-100" />
               </button>
               <button
                 type="button"
                 onClick={() => api?.scrollNext()}
                 className="absolute end-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <ChevronRight className="h-5 w-5 text-gray-700" />
+                <ChevronRight className="h-5 w-5 text-gray-700 rtl:-scale-x-100" />
               </button>
             </>
           )}

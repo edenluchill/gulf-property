@@ -199,7 +199,7 @@ export default function AgentBilling() {
         {canUpgrade && (
           <Link to="/agent/plans"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-            {t('lunaTour:upgrade')} <ArrowUpRight className="h-4 w-4" />
+            {t('lunaTour:upgrade')} <ArrowUpRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         )}
       </div>
@@ -351,7 +351,7 @@ export default function AgentBilling() {
         {onTrial && (
           <Link to="/agent/plans"
             className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
-            {t('lunaTour:subscribeCreditsResetNow')} <ArrowUpRight className="h-4 w-4" />
+            {t('lunaTour:subscribeCreditsResetNow')} <ArrowUpRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         )}
       </div>
@@ -423,7 +423,7 @@ export default function AgentBilling() {
             <div className="mt-0.5 text-sm text-slate-500">{t('lunaTour:seeProAgencyBigger')}</div>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-            {t('lunaTour:viewPlans')} <ArrowUpRight className="h-4 w-4" />
+            {t('lunaTour:viewPlans')} <ArrowUpRight className="h-4 w-4 rtl:-scale-x-100" />
           </span>
         </Link>
       )}

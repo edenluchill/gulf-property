@@ -1245,7 +1245,7 @@ export default function UnifiedDubaiEditor() {
               onClick={closeSelection}
               className="xl:hidden p-1 -ms-1 hover:bg-slate-200 rounded-md transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
+              <ArrowLeft className="w-5 h-5 text-slate-600 rtl:-scale-x-100" />
             </button>
             <h3 className="font-semibold flex-1">{editTitle}</h3>
             <Button variant="ghost" size="sm" onClick={closeSelection} className="hidden xl:flex">

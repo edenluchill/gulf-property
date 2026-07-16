@@ -303,7 +303,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
 
   return (
     <div>
-      <button onClick={onBack} className="mb-4 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ChevronLeft className="h-4 w-4" />{t('lunaTour:backToClients')}</button>
+      <button onClick={onBack} className="mb-4 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />{t('lunaTour:backToClients')}</button>
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center gap-4">
           <img src={client.avatar_url || AVA(client.name)} alt={client.name} className="h-16 w-16 rounded-full bg-slate-100 ring-1 ring-slate-200" />

@@ -513,7 +513,7 @@ export default function ComparePage() {
             onClick={() => step === 'select' ? navigate(-1) : handleBack()}
             className="h-9 w-9"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-5 w-5 rtl:-scale-x-100" />
           </Button>
           <div>
             <h1 className="text-lg font-bold text-slate-800">

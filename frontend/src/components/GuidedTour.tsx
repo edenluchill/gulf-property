@@ -149,7 +149,7 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
       <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-2.5">
         <button onClick={() => { setPaused(true); go(idx - 1) }} disabled={idx === 0}
           className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent">
-          <ChevronLeft className="w-4 h-4" />{t('gate:back')}
+          <ChevronLeft className="w-4 h-4 rtl:-scale-x-100" />{t('gate:back')}
         </button>
         {isLast ? (
           <button onClick={onClose} className="inline-flex items-center gap-1 rounded-lg bg-teal-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-600">
@@ -158,7 +158,7 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
         ) : (
           <button onClick={() => { setPaused(true); go(idx + 1) }}
             className="inline-flex items-center gap-1 rounded-lg bg-teal-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-600">
-            {t('gate:next')}<ChevronRight className="w-4 h-4" />
+            {t('gate:next')}<ChevronRight className="w-4 h-4 rtl:-scale-x-100" />
           </button>
         )}
       </div>

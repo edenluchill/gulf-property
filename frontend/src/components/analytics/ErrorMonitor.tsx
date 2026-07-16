@@ -82,7 +82,7 @@ function UrgentContactBlock() {
                   </p>
                   <p className="mt-1 text-[11px] text-slate-400">最后错误 {agoRel(r.last_error_at)}</p>
                 </div>
-                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-amber-400 rtl:-scale-x-100" />
               </button>
             )
           })}

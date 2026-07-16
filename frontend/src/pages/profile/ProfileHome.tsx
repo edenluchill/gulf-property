@@ -215,7 +215,7 @@ export default function ProfileHome() {
                   onClick={switchRole}
                   className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-95"
                 >
-                  {t('profile:learnMore')} <ArrowRight className="h-3.5 w-3.5" />
+                  {t('profile:learnMore')} <ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
                 </button>
               </div>
             </div>
@@ -233,7 +233,7 @@ export default function ProfileHome() {
               to="/agent/billing"
               className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600 hover:underline"
             >
-              {isPaid ? t('profile:manage') : t('profile:viewPlans')} <ChevronRight className="h-3 w-3" />
+              {isPaid ? t('profile:manage') : t('profile:viewPlans')} <ChevronRight className="h-3 w-3 rtl:-scale-x-100" />
             </Link>
           </div>
           <div className="flex items-center justify-between">
@@ -300,7 +300,7 @@ export default function ProfileHome() {
           </div>
           <div className="text-xs text-slate-400">{t('profile:syncedAcrossDevices')}</div>
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 rtl:-scale-x-100" />
       </Link>
 
       {/* ── 账户操作:flat 一行 ── */}

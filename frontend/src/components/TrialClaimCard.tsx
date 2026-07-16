@@ -48,7 +48,7 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
           </div>
           <Link to="/agent/plans"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-slate-800">
-            {t('misc:seePlans')}<ArrowRight className="h-3.5 w-3.5" />
+            {t('misc:seePlans')}<ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
           </Link>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
           </div>
           <Link to="/choose-role"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-emerald-700">
-            {t('misc:switchRole2')}<ArrowRight className="h-3.5 w-3.5" />
+            {t('misc:switchRole2')}<ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
           </Link>
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function TrialClaimCard({ me, compact = false, buyerNudge: showBu
   const btn = (
     <button onClick={claim} disabled={busy}
       className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60">
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Gift className="h-4 w-4" />{t('misc:claimIt')}<ArrowRight className="h-3.5 w-3.5" /></>}
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Gift className="h-4 w-4" />{t('misc:claimIt')}<ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" /></>}
     </button>
   )
 

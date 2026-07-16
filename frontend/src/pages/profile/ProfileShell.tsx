@@ -149,7 +149,7 @@ export default function ProfileShell() {
             to={`/login?returnTo=${returnTo}`}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-600"
           >
-            {t('profile:goToLogin')} <ArrowRight className="h-4 w-4" />
+            {t('profile:goToLogin')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         </div>
       </div>
@@ -252,7 +252,7 @@ export default function ProfileShell() {
                 <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
                   <tab.icon className="h-[18px] w-[18px]" />
                   <span className="flex-1">{t(`profile:${tab.key}`)}</span>
-                  <ChevronRight className="h-4 w-4 text-slate-300" />
+                  <ChevronRight className="h-4 w-4 text-slate-300 rtl:-scale-x-100" />
                 </NavLink>
               ))}
             </div>
@@ -267,7 +267,7 @@ export default function ProfileShell() {
                   <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
                     <tab.icon className="h-[18px] w-[18px]" />
                     <span className="flex-1">{t(`profile:${tab.key}`)}</span>
-                    <ChevronRight className="h-4 w-4 text-slate-300" />
+                    <ChevronRight className="h-4 w-4 text-slate-300 rtl:-scale-x-100" />
                   </NavLink>
                 ))
               ) : (

@@ -331,7 +331,7 @@ export default function LoginPage() {
                   <span className="text-xs font-medium text-slate-500">Market Overview</span>
                 </div>
                 <div className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
-                  <ArrowUpRight className="w-4 h-4" />
+                  <ArrowUpRight className="w-4 h-4 rtl:-scale-x-100" />
                   <span>+12.5%</span>
                 </div>
               </div>
@@ -385,7 +385,7 @@ export default function LoginPage() {
                 to="/"
                 className="inline-flex items-center text-slate-400 hover:text-teal-600 mb-6 transition-colors text-sm relative z-10"
               >
-                <ArrowLeft className="h-4 w-4 me-2" />
+                <ArrowLeft className="h-4 w-4 me-2 rtl:-scale-x-100" />
                 {t('auth:backToHome', 'Back to home')}
               </Link>
 

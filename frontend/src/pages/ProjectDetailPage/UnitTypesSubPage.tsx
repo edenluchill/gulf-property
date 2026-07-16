@@ -51,7 +51,7 @@ export function UnitTypesSubPage({
       {/* Header - Clean */}
       <div className="bg-white border-b px-6 py-3 flex items-center gap-4 flex-shrink-0">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-2 -ms-2">
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           Back
         </Button>
         <div className="h-5 w-px bg-slate-200" />

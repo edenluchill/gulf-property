@@ -130,7 +130,7 @@ export default function ActivationChecklist({ hasClients }: { hasClients: boolea
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-slate-500">{s.desc}</span>
               </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-500" />
+              <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-500 rtl:-scale-x-100" />
             </>
           )
           // Luna demo 开新标签 —— 它是个全屏客户视角的页面,同页跳走就把经纪
