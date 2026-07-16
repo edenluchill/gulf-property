@@ -11,6 +11,7 @@ import { useFavorites } from '../contexts/FavoritesContext'
 import { fetchResidentialProjectById, fetchProjectInsights, ProjectInsights } from '../lib/api'
 import { ImageGallery } from './ProjectDetailPage/ImageGallery'
 import { OverviewTab } from './ProjectDetailPage/OverviewTab'
+import { CompareTab } from './ProjectDetailPage/CompareTab'
 import { UnitTypesTab } from './ProjectDetailPage/UnitTypesTab'
 import { PaymentPlanTab } from './ProjectDetailPage/PaymentPlanTab'
 import { AmenitiesTab } from './ProjectDetailPage/AmenitiesTab'
@@ -400,6 +401,7 @@ export default function ProjectDetailPage() {
               {/* Tabs */}
               <TabsList className="flex-1 overflow-x-auto flex justify-start md:justify-center h-10 bg-transparent">
                 <TabsTrigger value="overview" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.overview')}</TabsTrigger>
+                <TabsTrigger value="compare" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.compare', '对比分析')}</TabsTrigger>
                 <TabsTrigger value="units" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.unitTypes')}</TabsTrigger>
                 <TabsTrigger value="payment" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.paymentPlan')}</TabsTrigger>
                 <TabsTrigger value="amenities" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.amenities')}</TabsTrigger>
@@ -700,6 +702,12 @@ export default function ProjectDetailPage() {
                 </div>
               </>
             )}
+          </TabsContent>
+
+          {/* 对比分析 tab —— 本盘 vs 区域 + 附近项目横评 */}
+          <TabsContent value="compare" className="mt-0">
+            <CompactProjectHeader />
+            <CompareTab project={project} insights={insights} />
           </TabsContent>
 
           {/* Other Tabs - Compact header + content */}

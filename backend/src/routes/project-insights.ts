@@ -7,7 +7,7 @@
  */
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
-import { getProjectInsights, getProjectTransactions, refreshProjectInsightsCache } from '../services/projectInsights'
+import { getProjectInsights, getProjectTransactions, getNearbyCompare, refreshProjectInsightsCache } from '../services/projectInsights'
 import { beginMaintenance, endMaintenance, yieldToLiveTraffic } from '../services/perfSink'
 
 const router = Router()
@@ -56,6 +56,19 @@ router.get('/:id/insights', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[project-insights] error:', err)
     res.status(500).json({ success: false, error: 'failed to build insights' })
+  }
+})
+
+// 本盘 + 最近同类项目横评(对比分析 tab)。
+router.get('/:id/nearby-compare', async (req: Request, res: Response) => {
+  try {
+    const data = await getNearbyCompare(String(req.params.id))
+    if (!data) return res.status(404).json({ success: false, error: 'project not found' })
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.json({ success: true, data })
+  } catch (err) {
+    console.error('[project-insights] nearby-compare error:', err)
+    res.status(500).json({ success: false, error: 'failed to build comparison' })
   }
 })
 

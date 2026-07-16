@@ -1070,6 +1070,32 @@ export interface ProjectInsights {
   commute: { hub: string; distance_m: number; mins_est: number }[];
 }
 
+// ---- 本盘 + 附近同类项目横评（对比分析 tab）----
+export interface CompareRow {
+  id: string;
+  name: string | null;
+  developer: string | null;
+  area: string | null;
+  distance_m: number | null;
+  status: string | null;
+  starting_price: number | null;
+  yield_pct: number | null;
+  growth_pct: number | null;
+  annualized_5yr: number | null;
+  premium_pct: number | null;
+  yield_gap_pp: number | null;
+  tier: 'development' | 'area' | 'area_name' | null;
+  confidence: 'high' | 'medium' | 'low' | null;
+}
+export async function fetchNearbyCompare(id: string): Promise<{ subject: CompareRow; nearby: CompareRow[] } | null> {
+  try {
+    const r = await fetch(`${API_URL}/residential-projects/${id}/nearby-compare`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j?.success ? j.data : null;
+  } catch { return null; }
+}
+
 export async function fetchProjectInsights(id: string): Promise<ProjectInsights | null> {
   try {
     const r = await fetch(`${API_URL}/residential-projects/${id}/insights`);

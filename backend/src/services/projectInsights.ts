@@ -514,6 +514,83 @@ async function buildProjectInsights(projectId: string): Promise<ProjectInsights 
   return { area, investment, yield_comparison, nearby, commute }
 }
 
+// ── Nearby-project comparison (对比分析 tab) ─────────────────────────────────
+export interface CompareRow {
+  id: string
+  name: string | null
+  developer: string | null
+  area: string | null
+  distance_m: number | null      // 距本盘直线距离(subject 为 0)
+  status: string | null
+  starting_price: number | null  // 参考价(最便宜户型/起价)
+  yield_pct: number | null       // 区域/开发体回报(tier 感知)
+  growth_pct: number | null      // 区域涨幅
+  annualized_5yr: number | null  // 5 年年化
+  premium_pct: number | null     // 价格 vs 区域中位(仅 development tier 有)
+  yield_gap_pp: number | null    // 回报 vs 区域(仅 development tier 有)
+  tier: 'development' | 'area' | 'area_name' | null
+  confidence: 'high' | 'medium' | 'low' | null
+}
+
+function toCompareRow(id: string, meta: any, ins: ProjectInsights | null, distanceM: number | null): CompareRow {
+  return {
+    id,
+    name: meta.project_name ?? null,
+    developer: meta.developer ?? null,
+    area: ins?.area?.name ?? meta.area ?? null,
+    distance_m: distanceM != null ? Math.round(distanceM) : null,
+    status: meta.status ?? null,
+    starting_price: ins?.investment?.reference_price || Number(meta.starting_price) || Number(meta.min_price) || null,
+    yield_pct: ins?.area?.rental_yield_pct ?? null,
+    growth_pct: ins?.area?.price_growth_pct ?? null,
+    annualized_5yr: ins?.investment?.annualized_return_pct ?? null,
+    premium_pct: ins?.yield_comparison?.premium_pct ?? null,
+    yield_gap_pp: ins?.yield_comparison?.gap_pp ?? null,
+    tier: ins?.area?.tier ?? null,
+    confidence: ins?.area?.confidence ?? null,
+  }
+}
+
+/**
+ * 本盘 + 最近 N 个同类项目的横评。用于「对比分析」tab —— 买家横向比"这盘 vs 隔壁"。
+ * 复用 getProjectInsights(已缓存预热)取每盘的回报/涨幅/溢价;近邻走经纬度直线距离。
+ * 缺坐标/无 insights 的项目照样列出(数值 null → 前端显示「—」不编)。
+ */
+export async function getNearbyCompare(projectId: string, limit = 5): Promise<{ subject: CompareRow; nearby: CompareRow[] } | null> {
+  const meRes = await pool.query(
+    `SELECT id, project_name, developer, area, status, latitude, longitude, min_price, starting_price
+       FROM residential_projects WHERE id = $1`,
+    [projectId]
+  )
+  if (meRes.rows.length === 0) return null
+  const me = meRes.rows[0]
+  const lat = me.latitude != null ? parseFloat(me.latitude) : null
+  const lng = me.longitude != null ? parseFloat(me.longitude) : null
+
+  let nearRows: any[] = []
+  if (lat != null && lng != null) {
+    const nr = await pool.query(
+      `SELECT id, project_name, developer, area, status, min_price, starting_price,
+              ST_Distance(ST_SetSRID(ST_Point(longitude, latitude),4326)::geography,
+                          ST_SetSRID(ST_Point($2,$3),4326)::geography) AS dist
+         FROM residential_projects
+        WHERE id <> $1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+        ORDER BY dist ASC LIMIT $4`,
+      [projectId, lng, lat, limit]
+    )
+    nearRows = nr.rows
+  }
+
+  // 本盘 + 近邻并行取 insights(缓存命中，快)。
+  const [subjectIns, ...nearIns] = await Promise.all([
+    getProjectInsights(projectId).catch(() => null),
+    ...nearRows.map((r) => getProjectInsights(String(r.id)).catch(() => null)),
+  ])
+  const subject = toCompareRow(projectId, me, subjectIns, 0)
+  const nearby = nearRows.map((r, i) => toCompareRow(String(r.id), r, nearIns[i] ?? null, Number(r.dist)))
+  return { subject, nearby }
+}
+
 // ── Real DLD transactions for a project's development ───────────────────────
 export interface ProjectTx {
   matched: boolean
