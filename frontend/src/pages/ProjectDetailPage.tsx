@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { useScrollChrome } from '../hooks/useScrollChrome'
 import { Button } from '../components/ui/button'
-import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed, Copy, Check, Share2 } from 'lucide-react'
+import { ArrowLeft, MapPin, Building2, Heart, ChevronUp, X, DollarSign, Calendar, Bed, Copy, Check, Share2, LayoutDashboard, Dumbbell, Receipt, BarChart3 } from 'lucide-react'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useFavorites } from '../contexts/FavoritesContext'
 import { fetchResidentialProjectById, fetchProjectInsights, ProjectInsights } from '../lib/api'
@@ -400,13 +400,13 @@ export default function ProjectDetailPage() {
 
               {/* Tabs */}
               <TabsList className="flex-1 overflow-x-auto flex justify-start md:justify-center h-10 bg-transparent">
-                <TabsTrigger value="overview" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.overview')}</TabsTrigger>
-                <TabsTrigger value="compare" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.compare', '对比分析')}</TabsTrigger>
-                <TabsTrigger value="units" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.unitTypes')}</TabsTrigger>
-                <TabsTrigger value="payment" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.paymentPlan')}</TabsTrigger>
-                <TabsTrigger value="amenities" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.amenities')}</TabsTrigger>
-                <TabsTrigger value="location" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.location')}</TabsTrigger>
-                <TabsTrigger value="transactions" className="flex-shrink-0 data-[state=active]:bg-primary/10">{t('project:tabs.transactions', '成交')}</TabsTrigger>
+                <TabsTrigger value="overview" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><LayoutDashboard className="h-3.5 w-3.5" />{t('project:tabs.overview')}</TabsTrigger>
+                <TabsTrigger value="units" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><Bed className="h-3.5 w-3.5" />{t('project:tabs.unitTypes')}</TabsTrigger>
+                <TabsTrigger value="payment" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><Calendar className="h-3.5 w-3.5" />{t('project:tabs.paymentPlan')}</TabsTrigger>
+                <TabsTrigger value="amenities" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><Dumbbell className="h-3.5 w-3.5" />{t('project:tabs.amenities')}</TabsTrigger>
+                <TabsTrigger value="location" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><MapPin className="h-3.5 w-3.5" />{t('project:tabs.location')}</TabsTrigger>
+                <TabsTrigger value="transactions" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><Receipt className="h-3.5 w-3.5" />{t('project:tabs.transactions', '成交')}</TabsTrigger>
+                <TabsTrigger value="compare" className="flex-shrink-0 gap-1.5 data-[state=active]:bg-primary/10"><BarChart3 className="h-3.5 w-3.5" />{t('project:tabs.compare', '对比分析')}</TabsTrigger>
               </TabsList>
             </div>
           </div>
