@@ -1,0 +1,48 @@
+{
+  "buyerTitle": "Acheteur",
+  "buyerDesc": "J'achète ou je recherche",
+  "buyerBullets": [
+    "Carte et données de marché illimitées",
+    "Favoris · Luna AI · ROI sur 5 ans"
+  ],
+  "agentTitle": "Agent",
+  "agentDesc": "Je suis un agent immobilier",
+  "agentBullets": [
+    "CRM client · rapports personnalisés · visites live",
+    "Flux de leads"
+  ],
+  "agencyTitle": "Agence",
+  "agencyDesc": "Nous sommes une équipe ou une agence",
+  "agencyBullets": [
+    "Comptes multiples · gestion d'équipe",
+    "Premier choix de leads · marque blanche"
+  ],
+  "developerTitle": "Promoteur",
+  "developerDesc": "Nous développons et vendons des projets",
+  "developerBullets": [
+    "Import de brochures · analyse AI · projets",
+    "Outils de vente + visibilité maximale"
+  ],
+  "pleaseSignInFirst": "Veuillez d'abord vous connecter",
+  "signInToChoose": "Connectez-vous pour choisir votre rôle et déverrouiller votre espace de travail",
+  "signIn": "Se connecter",
+  "yourRoleFollowsYour": "Votre rôle dépend de votre abonnement actif. Pour le modifier, ajustez ou résiliez d'abord votre forfait.",
+  "manageSubscription": "Gérer l'abonnement",
+  "backToTheMap": "Retour à la carte",
+  "whichOneAreYou": "Qui êtes-vous ?",
+  "weLlSetUp": "Nous allons configurer l'espace de travail et les outils adaptés à vos besoins",
+  "pickTheRoleThat": "Choisissez le rôle qui vous correspond — votre rôle détermine les fonctionnalités disponibles (vous pouvez changer d'avis à tout moment).",
+  "youCanSwitchYour": "Vous pouvez changer de rôle à tout moment depuis le menu profil (en haut à droite)",
+  "pleaseUploadAJpg": "Veuillez charger une image au format JPG / PNG / WEBP",
+  "uploadFailed": "Échec du chargement",
+  "uploadFailed2": "Échec du chargement",
+  "pleaseEnterYourName": "Veuillez saisir votre nom (il apparaîtra sur votre carte de membre)",
+  "completeYourMembership": "Complétez votre profil",
+  "thisAppearsOnYour": "Cela apparaîtra sur votre carte de membre Pinzos — visible par vos clients.",
+  "uploading": "Chargement...",
+  "uploadPhotoOptional": "Charger une photo (optionnel)",
+  "nameOnMembershipCard": "Nom (sur la carte de membre)",
+  "yourName": "Votre nom",
+  "continueToPlans": "Continuer vers les abonnements",
+  "back": "Retour"
+}

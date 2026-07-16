@@ -27,6 +27,7 @@ import miscEn from './locales/en/misc.json'
 import gateEn from './locales/en/gate.json'
 import lunaTourEn from './locales/en/lunaTour.json'
 import profileEn from './locales/en/profile.json'
+import roleSelectEn from './locales/en/roleSelect.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -59,6 +60,7 @@ declare module 'i18next' {
       gate: typeof gateEn
       lunaTour: typeof lunaTourEn
       profile: typeof profileEn
+      roleSelect: typeof roleSelectEn
     }
   }
 }

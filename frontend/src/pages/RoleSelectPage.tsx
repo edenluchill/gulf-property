@@ -16,12 +16,11 @@ import { useAuth } from '../contexts/AuthContext'
 import { lunaFetch } from '../luna-tour/lunaApi'
 
 // 四个角色卡:可视化 emoji 徽章 + 专属配色,一眼分得开。不放价格。
+// 双语文案走 roleSelect ns 的 t(key);bullets 用 returnObjects 取数组。
 const ROLE_CARDS: {
   id: UserRole
   emoji: string
-  titleZh: string; titleEn: string
-  descZh: string; descEn: string
-  bulletsZh: string[]; bulletsEn: string[]
+  titleKey: string; descKey: string; bulletsKey: string
   grad: string
   ring: string
   bg: string
@@ -30,44 +29,33 @@ const ROLE_CARDS: {
 }[] = [
   {
     id: 'buyer', emoji: '🏠',
-    titleZh: '买家', titleEn: 'Buyer',
-    descZh: '我在找房、研究迪拜楼市', descEn: "I'm buying or researching",
-    bulletsZh: ['地图与市场数据不限时', '收藏 · Luna 助手 · 5年回报分析'],
-    bulletsEn: ['Unlimited map & market data', 'Favorites · Luna AI · 5-yr ROI'],
+    titleKey: 'buyerTitle', descKey: 'buyerDesc', bulletsKey: 'buyerBullets',
     grad: 'from-teal-400 to-emerald-500', ring: 'hover:border-teal-500', bg: 'hover:bg-teal-50/60',
     paid: false, next: null,
   },
   {
     id: 'agent', emoji: '🧑‍💼',
-    titleZh: '经纪人', titleEn: 'Agent',
-    descZh: '我是独立地产经纪', descEn: "I'm a real estate agent",
-    bulletsZh: ['客户 CRM · 品牌报告 · 实时带看', 'Lead 推送'],
-    bulletsEn: ['Client CRM · branded reports · live tours', 'Lead flow'],
+    titleKey: 'agentTitle', descKey: 'agentDesc', bulletsKey: 'agentBullets',
     grad: 'from-blue-400 to-indigo-500', ring: 'hover:border-indigo-500', bg: 'hover:bg-indigo-50/60',
     paid: true, next: '/agent/plans',
   },
   {
     id: 'agency', emoji: '🏢',
-    titleZh: '经纪公司', titleEn: 'Agency',
-    descZh: '我们是团队或经纪公司', descEn: "We're a team or brokerage",
-    bulletsZh: ['多席位共享 · 团队管理', 'Lead 独占优先 · 品牌定制'],
-    bulletsEn: ['Multiple seats · team management', 'First pick of leads · white-label'],
+    titleKey: 'agencyTitle', descKey: 'agencyDesc', bulletsKey: 'agencyBullets',
     grad: 'from-violet-400 to-purple-600', ring: 'hover:border-violet-500', bg: 'hover:bg-violet-50/60',
     paid: true, next: '/agency/plans',
   },
   {
     id: 'developer', emoji: '🏗️',
-    titleZh: '开发商', titleEn: 'Developer',
-    descZh: '我们开发/销售楼盘项目', descEn: 'We develop & sell projects',
-    bulletsZh: ['上传楼书 · AI 解析 · 项目管理', '销售工具 + 楼盘全站曝光'],
-    bulletsEn: ['Upload brochures · AI parsing · projects', 'Sales tools + full exposure'],
+    titleKey: 'developerTitle', descKey: 'developerDesc', bulletsKey: 'developerBullets',
     grad: 'from-amber-400 to-orange-500', ring: 'hover:border-amber-500', bg: 'hover:bg-amber-50/60',
     paid: true, next: '/developer/plans',
   },
 ]
 
 export default function RoleSelectPage() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('roleSelect')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
   const { user, loading: authLoading } = useAuth()
   const [saving, setSaving] = useState<UserRole | null>(null)
@@ -123,12 +111,12 @@ export default function RoleSelectPage() {
     return (
       <div className="flex flex-1 items-center justify-center overflow-y-auto bg-slate-50 px-4">
         <div className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
-          <h1 className="text-xl font-bold text-slate-900">{zh ? '请先登录' : 'Please sign in first'}</h1>
+          <h1 className="text-xl font-bold text-slate-900">{t('roleSelect:pleaseSignInFirst')}</h1>
           <p className="mt-2 text-sm text-slate-500">
-            {zh ? '登录后即可选择你的身份,开启对应的工作台' : 'Sign in to choose your role and unlock your workspace'}
+            {t('roleSelect:signInToChoose')}
           </p>
           <a href="/login" className="mt-5 block rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
-            {zh ? '去登录' : 'Sign in'}
+            {t('roleSelect:signIn')}
           </a>
         </div>
       </div>
@@ -160,19 +148,17 @@ export default function RoleSelectPage() {
             {zh ? paidBadge.titleZh : paidBadge.titleEn}
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">
-            {zh
-              ? '你已开通对应套餐,身份由订阅决定。如需变更身份,请先在「订阅与套餐」里调整或取消当前套餐。'
-              : 'Your role follows your active subscription. To change it, adjust or cancel your plan first.'}
+            {t('roleSelect:yourRoleFollowsYour')}
           </p>
           <div className="mt-5 flex flex-col gap-2">
             <a
               href="/agent/billing"
               className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
             >
-              {zh ? '管理订阅与套餐' : 'Manage subscription'}
+              {t('roleSelect:manageSubscription')}
             </a>
             <a href="/" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100">
-              {zh ? '回到地图' : 'Back to the map'}
+              {t('roleSelect:backToTheMap')}
             </a>
           </div>
         </div>
@@ -182,26 +168,24 @@ export default function RoleSelectPage() {
 
   // 已选付费角色 → 收集认证信息(姓名 + 可选头像),再进付款
   if (pending) {
-    return <CertInfoStep card={pending} zh={zh} defaultName={user?.user_metadata?.full_name || user?.user_metadata?.name || ''} onBack={() => setPending(null)} />
+    return <CertInfoStep card={pending} defaultName={user?.user_metadata?.full_name || user?.user_metadata?.name || ''} onBack={() => setPending(null)} />
   }
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50">
       <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
         <h1 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">
-          {zh ? '你是哪种身份?' : 'Which one are you?'}
+          {t('roleSelect:whichOneAreYou')}
         </h1>
         <p className="mt-2 text-center text-sm text-slate-500">
-          {zh ? '我们会按身份为你打开对应的工作台和功能' : "We'll set up the right workspace and tools for you"}
+          {t('roleSelect:weLlSetUp')}
         </p>
 
         {/* 提醒:角色决定功能 */}
         <div className="mx-auto mt-4 flex max-w-xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           <span>
-            {zh
-              ? '请选择符合你真实身份的角色 —— 角色决定你能使用的功能,选错会缺少对应功能(之后可随时回到本页切换)。'
-              : 'Pick the role that matches you — your role decides which features you get (you can come back and switch anytime).'}
+            {t('roleSelect:pickTheRoleThat')}
           </span>
         </div>
 
@@ -221,14 +205,14 @@ export default function RoleSelectPage() {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="text-base font-bold text-slate-900">{zh ? c.titleZh : c.titleEn}</span>
+                  <span className="text-base font-bold text-slate-900">{t(`roleSelect:${c.titleKey}`)}</span>
                   {saving === c.id
                     ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                     : <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5" />}
                 </span>
-                <span className="mt-0.5 block text-[13px] text-slate-500">{zh ? c.descZh : c.descEn}</span>
+                <span className="mt-0.5 block text-[13px] text-slate-500">{t(`roleSelect:${c.descKey}`)}</span>
                 <span className="mt-2 block space-y-1">
-                  {(zh ? c.bulletsZh : c.bulletsEn).map((b, i) => (
+                  {(t(`roleSelect:${c.bulletsKey}`, { returnObjects: true }) as unknown as string[]).map((b, i) => (
                     <span key={i} className="block text-xs leading-relaxed text-slate-400">· {b}</span>
                   ))}
                 </span>
@@ -238,7 +222,7 @@ export default function RoleSelectPage() {
         </div>
 
         <p className="mt-5 text-center text-[11px] text-slate-400">
-          {zh ? '选完之后,随时可以在右上角头像菜单里「切换身份」回到本页' : 'You can switch your role anytime from the avatar menu (top right)'}
+          {t('roleSelect:youCanSwitchYour')}
         </p>
       </div>
     </div>
@@ -250,13 +234,13 @@ export default function RoleSelectPage() {
  * 保存进 lt_agents(display_name / photo_url,复用经纪名片接口),再跳到对应付款页。
  * 付款成功后颁发的证书就用这份姓名 + 头像。
  */
-function CertInfoStep({ card, zh, defaultName, onBack }: {
+function CertInfoStep({ card, defaultName, onBack }: {
   card: typeof ROLE_CARDS[number]
-  zh: boolean
   defaultName: string
   onBack: () => void
 }) {
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('roleSelect')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [name, setName] = useState(defaultName)
   const [photo, setPhoto] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -277,7 +261,7 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert(L('请上传 JPG / PNG / WEBP 图片', 'Please upload a JPG / PNG / WEBP image')); return }
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert(t('roleSelect:pleaseUploadAJpg')); return }
     setUploading(true)
     try {
       const fd = new FormData()
@@ -285,12 +269,12 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
       const r = await lunaFetch('/avatar', { method: 'POST', body: fd })
       const j = await r.json()
       if (j?.photoUrl) setPhoto(`${j.photoUrl}?t=${Date.now()}`)
-      else alert(L('上传失败', 'Upload failed'))
-    } catch { alert(L('上传失败', 'Upload failed')) } finally { setUploading(false) }
+      else alert(t('roleSelect:uploadFailed'))
+    } catch { alert(t('roleSelect:uploadFailed2')) } finally { setUploading(false) }
   }
 
   const cont = async () => {
-    if (!name.trim()) { alert(L('请填写姓名(将印在你的会员卡上)', 'Please enter your name (it appears on your membership card)')); return }
+    if (!name.trim()) { alert(t('roleSelect:pleaseEnterYourName')); return }
     setSaving(true)
     try {
       await lunaFetch('/profile', {
@@ -310,9 +294,9 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
           <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br text-[34px] shadow-md ${card.grad}`} aria-hidden>
             {card.emoji}
           </span>
-          <h1 className="mt-4 text-xl font-bold text-slate-900">{L('完善会员信息', 'Complete your membership')}</h1>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">{t('roleSelect:completeYourMembership')}</h1>
           <p className="mt-1.5 text-sm text-slate-500">
-            {L('填写将印在你专属会员卡上的信息 —— 客户会看到。', 'This appears on your Pinzos membership card — clients will see it.')}
+            {t('roleSelect:thisAppearsOnYour')}
           </p>
         </div>
 
@@ -327,24 +311,24 @@ function CertInfoStep({ card, zh, defaultName, onBack }: {
             </div>
           </button>
           <button onClick={() => fileRef.current?.click()} className="text-xs font-medium text-teal-600">
-            {uploading ? L('上传中…', 'Uploading…') : L('上传头像(可选)', 'Upload photo (optional)')}
+            {uploading ? t('roleSelect:uploading') : t('roleSelect:uploadPhotoOptional')}
           </button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={onPick} />
         </div>
 
         {/* 姓名(必填) */}
         <label className="mt-5 block">
-          <span className="text-xs font-medium text-slate-500">{L('姓名(会员卡署名)', 'Name (on membership card)')}</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={L('您的姓名', 'Your name')}
+          <span className="text-xs font-medium text-slate-500">{t('roleSelect:nameOnMembershipCard')}</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('roleSelect:yourName')}
             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100" />
         </label>
 
         <button onClick={cont} disabled={saving}
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{L('继续选择套餐', 'Continue to plans')} <ArrowRight className="h-4 w-4" /></>}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t('roleSelect:continueToPlans')} <ArrowRight className="h-4 w-4" /></>}
         </button>
         <button onClick={onBack} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100">
-          <ArrowLeft className="h-4 w-4" /> {L('返回重选身份', 'Back')}
+          <ArrowLeft className="h-4 w-4" /> {t('roleSelect:back')}
         </button>
       </div>
     </div>
