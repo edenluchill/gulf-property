@@ -48,7 +48,7 @@ export default function AreaDetailDialog({
   isOpen, onClose, area, projects, isLoading, segment = CONSUMER_SEGMENT,
   tab: tabProp, usage: usageProp, onTabChange, onUsageChange,
 }: AreaDetailDialogProps) {
-  const { t, i18n } = useTranslation(['map', 'common'])
+  const { t, i18n } = useTranslation(['map', 'common', 'misc'])
   const zh = (i18n.language || 'en').startsWith('zh')
   const langKey = (i18n.language || 'en').split('-')[0] // 'zh-CN' → 'zh'
   const tr = area?.translations?.[langKey ?? '']
@@ -154,14 +154,14 @@ export default function AreaDetailDialog({
     </div>
   ) : (
     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-400">
-      {zh ? '该区域暂无已收录的项目' : 'No projects on record for this area yet'}
+      {t('misc:noProjectsOnRecord')}
     </div>
   )
 
   const RIGHT_TABS = [
-    { id: 'sales' as const, label: zh ? '成交' : 'Sales' },
-    { id: 'rentals' as const, label: zh ? '租金' : 'Rentals' },
-    { id: 'projects' as const, label: `${zh ? '项目' : 'Projects'}${projectTotal ? ` (${projectTotal})` : ''}` },
+    { id: 'sales' as const, label: t('misc:sales') },
+    { id: 'rentals' as const, label: t('misc:rentals') },
+    { id: 'projects' as const, label: `${t('misc:projects')}${projectTotal ? ` (${projectTotal})` : ''}` },
   ]
 
   return (
@@ -197,7 +197,7 @@ export default function AreaDetailDialog({
 
         {/* Usage filter — instantly shows what's measured + how to switch */}
         <div className="px-5 py-2 border-b border-slate-100 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="text-[11px] font-medium text-slate-400 shrink-0">{zh ? '口径' : 'Usage'}</span>
+          <span className="text-[11px] font-medium text-slate-400 shrink-0">{t('misc:usage')}</span>
           {USAGE_FILTER.map((u) => (
             <button
               key={u.v}

@@ -26,9 +26,9 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
   /** 碰撞检测决定翻到圆点下方(躲开顶部/右上面板):锚点+尾巴方向翻转 */
   below?: boolean
 }) => {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('misc')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const lang = i18n.language || 'en'
-  const isZh = lang.startsWith('zh')
   const isSoldOut = project.status === 'sold-out'
   const hasPrice = !isSoldOut && project.minPrice != null && isFinite(project.minPrice) && project.minPrice > 0
 
@@ -154,7 +154,7 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
                 fontSize: compact ? 9.5 : 10, fontWeight: 800, color: '#fda4af',
                 lineHeight: compact ? '13px' : '14px', letterSpacing: '0.03em',
               }}>
-                {isZh ? '已售罄' : 'SOLD OUT'}
+                {t('misc:soldOut')}
               </div>
             ) : hasPrice ? (
               <div style={{
@@ -164,14 +164,14 @@ export const ProjectCardMarker = memo(({ project, onClick, flashing, selected, c
                 fontVariantNumeric: 'tabular-nums',
               }}>
                 <span style={{ fontWeight: 600, fontSize: compact ? 9 : 10, color: 'rgba(226,232,240,0.7)' }}>
-                  {isZh ? '起' : 'From'}
+                  {t('misc:from')}
                 </span>
                 <DirhamSymbol size="0.8em" />
                 <span>{formatMoneyCompact(project.minPrice!, lang)}</span>
               </div>
             ) : (
               <div style={{ fontSize: compact ? 9.5 : 10, fontWeight: 600, color: 'rgba(226,232,240,0.65)', lineHeight: compact ? '13px' : '14px' }}>
-                {isZh ? '价格待定' : 'Price TBA'}
+                {t('misc:priceTba')}
               </div>
             )}
           </div>

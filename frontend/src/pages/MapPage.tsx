@@ -170,7 +170,7 @@ function getKhdaStyle(rating?: string): { bg: string; text: string; zh: string }
 }
 
 export default function MapPage() {
-  const { t, i18n } = useTranslation(['map', 'common'])
+  const { t, i18n } = useTranslation(['map', 'common', 'misc'])
   const navigate = useNavigate()
   const voiceContext = useVoiceAssistantContext()
   // Luna Tour: run a shared session ON this map. Supports both /v/:code and the
@@ -860,9 +860,9 @@ export default function MapPage() {
     if (!area) return null
     const name = (zh && area.translations?.zh?.name) || area.name
     const lines = [name]
-    if (area.medianUnitPrice) lines.push(`${zh ? '中位价' : 'Median'} ${formatMoneyCompact(area.medianUnitPrice, i18n.language)}`)
-    if (area.rentalYield) lines.push(`${zh ? '租金回报' : 'Yield'} ${area.rentalYield.toFixed(1)}%`)
-    if (area.transactionCount) lines.push(`${zh ? '成交' : 'Deals'} ${area.transactionCount.toLocaleString('en-US')}`)
+    if (area.medianUnitPrice) lines.push(`${t('misc:median')} ${formatMoneyCompact(area.medianUnitPrice, i18n.language)}`)
+    if (area.rentalYield) lines.push(`${t('misc:yield')} ${area.rentalYield.toFixed(1)}%`)
+    if (area.transactionCount) lines.push(`${t('misc:deals')} ${area.transactionCount.toLocaleString('en-US')}`)
     return lines.join('\n')
   }, [dubaiAreas, i18n.language])
 
@@ -1703,7 +1703,7 @@ export default function MapPage() {
             >
               <div className="flex flex-col items-center gap-3">
                 <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-white/25 border-t-teal-400" />
-                <span className="text-sm font-medium text-white/80">{i18n.language?.startsWith('zh') ? '加载地图…' : 'Loading map…'}</span>
+                <span className="text-sm font-medium text-white/80">{t('misc:loadingMap')}</span>
               </div>
             </div>
           )}
@@ -1934,7 +1934,7 @@ export default function MapPage() {
             ) : (
               <button
                 onClick={() => setSearchOpen(true)}
-                aria-label={(i18n.language || 'en').startsWith('zh') ? '搜索区域' : 'Search area'}
+                aria-label={t('misc:searchArea')}
                 className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/95 text-slate-600 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform active:scale-90"
               >
                 <Search className="h-4 w-4" />
@@ -2057,7 +2057,7 @@ export default function MapPage() {
                   </button>
                 ) : (
                   <div className="flex items-center justify-center rounded-lg bg-slate-50 px-2 py-0.5 md:py-1 text-[10px] md:text-[11px] font-medium text-slate-400">
-                    {(i18n.language || 'en').startsWith('zh') ? '选择指标' : 'Pick metric'}
+                    {t('misc:pickMetric')}
                   </div>
                 )
               })()}
@@ -2071,7 +2071,7 @@ export default function MapPage() {
               <div className="fixed inset-0 z-[1000]" onClick={() => setShowPeriodPop(false)} />
               <div className="absolute top-2 right-[164px] md:right-[224px] z-[1001] w-[200px] rounded-2xl bg-white/95 p-3 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  {(i18n.language || 'en').startsWith('zh') ? '指标时间范围' : 'Metric time range'}
+                  {t('misc:metricTimeRange')}
                 </div>
                 <PeriodSelector
                   value={apprPeriod}
@@ -2079,9 +2079,7 @@ export default function MapPage() {
                   zh={(i18n.language || 'en').startsWith('zh')}
                 />
                 <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-snug text-slate-400">
-                  {(i18n.language || 'en').startsWith('zh')
-                    ? '所有指标都按所选时间窗口重算（成交量=窗口内笔数、价格/回报=窗口内中位、增值=窗口涨幅）；跟随上方综合/期房/现房。'
-                    : 'All metrics recompute over the selected window (volume=count, price/yield=window median, growth=window change); follows the basis above.'}
+                  {t('misc:allMetricsRecomputeOver')}
                 </div>
               </div>
             </>
@@ -2867,7 +2865,7 @@ export default function MapPage() {
 
             {/* Usage filter — 顶部常驻,一进来就知道当前口径 + 怎么切。横向可滚。 */}
             <div className="px-4 py-2.5 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-slate-100">
-              <span className="text-[11px] font-medium text-slate-400 shrink-0">{i18n.language?.startsWith('zh') ? '口径' : 'Usage'}</span>
+              <span className="text-[11px] font-medium text-slate-400 shrink-0">{t('misc:usage2')}</span>
               {USAGE_FILTER.map((u) => (
                 <button
                   key={u.v}
@@ -2884,8 +2882,8 @@ export default function MapPage() {
             {/* Tabs: 市场行情 | 项目(N) — 项目单独 tab,多了也不挤 */}
             <div className="px-4 flex gap-1 border-b border-slate-100">
               {([
-                { id: 'market' as const, label: i18n.language?.startsWith('zh') ? '市场行情' : 'Market' },
-                { id: 'projects' as const, label: `${i18n.language?.startsWith('zh') ? '项目' : 'Projects'}${areaDevelopers.reduce((n, d) => n + d.projectCount, 0) ? ` (${areaDevelopers.reduce((n, d) => n + d.projectCount, 0)})` : ''}` },
+                { id: 'market' as const, label: t('misc:market') },
+                { id: 'projects' as const, label: `${t('misc:projects2')}${areaDevelopers.reduce((n, d) => n + d.projectCount, 0) ? ` (${areaDevelopers.reduce((n, d) => n + d.projectCount, 0)})` : ''}` },
               ]).map((tb) => (
                 <button
                   key={tb.id}
@@ -2941,7 +2939,7 @@ export default function MapPage() {
                 </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-400">
-                  {i18n.language?.startsWith('zh') ? '该区域暂无已收录的项目' : 'No projects on record yet'}
+                  {t('misc:noProjectsOnRecord2')}
                 </div>
               )}
             </div>

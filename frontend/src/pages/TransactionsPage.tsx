@@ -61,8 +61,7 @@ function TrendChart({ trend }: { trend: TxSummary['trend'] }) {
 }
 
 export default function TransactionsPage() {
-  const { t, i18n } = useTranslation(['transactions', 'common'])
-  const zh = i18n.language?.startsWith('zh')
+  const { t, i18n } = useTranslation(['transactions', 'common', 'misc'])
   // 手机/pad 下滑收起顶部导航,到顶才回来(全站统一滚动收纳机制)
   const scrollChromeRef = useRef<HTMLDivElement>(null)
   useScrollChrome(scrollChromeRef)
@@ -179,7 +178,7 @@ export default function TransactionsPage() {
             onClick={() => setMode(m)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            {m === 'sales' ? (zh ? '成交' : 'Sales') : (zh ? '租金' : 'Rent')}
+            {m === 'sales' ? (t('misc:sales2')) : (t('misc:rent'))}
           </button>
         ))}
       </div>
@@ -292,14 +291,14 @@ export default function TransactionsPage() {
         </label>
         {/* 价格区间(成交总价) */}
         <div className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.priceRange', { defaultValue: zh ? '价格区间' : 'Price' })}
+          {t('filter.priceRange', { defaultValue: t('misc:price') })}
           <div className="flex items-center gap-1.5">
             <select
               value={minPrice}
               onChange={e => setMinPrice(e.target.value)}
               className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
             >
-              <option value="">{zh ? '最低' : 'Min'}</option>
+              <option value="">{t('misc:min')}</option>
               {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
             </select>
             <span className="text-slate-400">–</span>
@@ -308,7 +307,7 @@ export default function TransactionsPage() {
               onChange={e => setMaxPrice(e.target.value)}
               className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
             >
-              <option value="">{zh ? '最高' : 'Max'}</option>
+              <option value="">{t('misc:max')}</option>
               {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
             </select>
           </div>

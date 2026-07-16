@@ -17,7 +17,8 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
   /** true = 里程碑庆祝框(订阅成功刚颁发时):恭喜文案 + 引导主动分享 */
   celebrate?: boolean
 }) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('misc')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [dataUrl, setDataUrl] = useState<string | null>(null)
@@ -84,11 +85,11 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
           className="mb-4 text-center"
         >
           <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#C7A050]">
-            {celebrate ? (zh ? '欢迎入驻' : 'Welcome Aboard') : (zh ? '我的会员卡' : 'My Membership')}
+            {celebrate ? (t('misc:welcomeAboard')) : (t('misc:myMembership'))}
           </div>
           {celebrate && (
             <div className="mt-1 text-lg font-bold text-white">
-              {zh ? '恭喜入驻,欢迎成为 Pinzos 会员 🎉' : 'Welcome aboard — you’re now a Pinzos member 🎉'}
+              {t('misc:welcomeAboardYouRe')}
             </div>
           )}
         </motion.div>
@@ -139,10 +140,10 @@ export default function RoleBadgeDialog({ badge, name, onClose, celebrate = fals
             style={saved ? undefined : { background: 'linear-gradient(180deg, #EBD592, #C7A050)' }}
           >
             {saved ? <Check className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-            {saved ? (zh ? '已保存' : 'Saved') : (zh ? '保存图片' : 'Save image')}
+            {saved ? (t('misc:saved')) : (t('misc:saveImage'))}
           </button>
           <p className="text-center text-[11px] text-white/40">
-            {zh ? '保存后即可分享到朋友圈 / WhatsApp Status' : 'Share to WeChat Moments / WhatsApp Status'}
+            {t('misc:shareToWechatMoments')}
           </p>
         </motion.div>
       </div>

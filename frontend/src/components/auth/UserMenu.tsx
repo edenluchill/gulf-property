@@ -22,7 +22,7 @@ const ROLE_CHIP: Record<string, { zh: string; en: string; emoji: string; cls: st
 }
 
 export default function UserMenu() {
-  const { t, i18n } = useTranslation('auth')
+  const { t, i18n } = useTranslation(['auth', 'misc'])
   const zh = !!i18n.language?.startsWith('zh')
   const { user, isAdmin, signOut } = useAuth()
   const role = useMyRole()
@@ -176,7 +176,7 @@ export default function UserMenu() {
                 className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 <UserRound className="w-4 h-4 text-slate-400" />
-                {zh ? '个人中心' : 'My profile'}
+                {t('misc:myProfile')}
               </Link>
               {/* 未付费:可自由切换身份;已付费:身份由订阅决定 → 引导去订阅页调整 */}
               {badge ? (
@@ -186,7 +186,7 @@ export default function UserMenu() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-                  {zh ? '订阅与套餐' : 'Subscription & plan'}
+                  {t('misc:subscriptionPlan')}
                 </a>
               ) : (
                 <button
@@ -194,7 +194,7 @@ export default function UserMenu() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-                  {zh ? '切换身份' : 'Switch role'}
+                  {t('misc:switchRole')}
                 </button>
               )}
               {MEMBERSHIP_CERT_ENABLED && badge && (
@@ -203,7 +203,7 @@ export default function UserMenu() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <Medal className="w-4 h-4 text-amber-500" />
-                  {zh ? '我的会员卡(分享朋友圈)' : 'My membership card (share it)'}
+                  {t('misc:myMembershipCardShare')}
                 </button>
               )}
               {/* 数据管理 / analytics moved into the header Admin dropdown — see Header.tsx */}
