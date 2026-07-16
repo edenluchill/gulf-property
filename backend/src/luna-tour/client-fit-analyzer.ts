@@ -36,6 +36,7 @@
  */
 import { callGemini } from '../services/ai/gemini'
 import pool from '../db/pool'
+import { langInstruction, type LangCode } from '../lib/lang'
 import type { ExtractedProfile } from './client-profile-coach'
 
 /** 这是**论证**任务(要推理),不是抽取 —— 给一点思考预算,但别放飞。 */
@@ -269,7 +270,7 @@ const PROMPT = `你是迪拜顶级房产经纪的分析师。经纪要把这个�
    ❌ 不要用「哥」「兄弟」「咱」这类称呼 —— 客户可能是他刚认识的人
    ❌ 不要写成报告腔/学术腔（「综上所述」「本方案具备」）
    ✅ 就像一个专业顾问当面跟他讲清楚一件事：直接、具体、有数字、敢说实话
-5. 用「与客户输入/需求相同的语言」写(自动检测:中/英/阿/俄/法…);拿不准就用界面语言。`
+5. {{LANG}}`
 
 /**
  * 跑两层论证。best-effort —— 挂了返回 null,报告照样出(只是少了论证段)。
@@ -277,7 +278,8 @@ const PROMPT = `你是迪拜顶级房产经纪的分析师。经纪要把这个�
 export async function analyzeFit(
   profile: ExtractedProfile,
   project: { name: string; area?: string | null; developer?: string | null; [k: string]: unknown },
-  units: ScoredUnit[]
+  units: ScoredUnit[],
+  lang: LangCode = 'zh'
 ): Promise<FitAnalysis | null> {
   if (!units.length) return null
 
@@ -302,6 +304,7 @@ export async function analyzeFit(
     .replace('{{PROFILE}}', profileLines(profile))
     .replace('{{PROJECT}}', projectLines)
     .replace('{{UNITS}}', unitLines(units))
+    .replace('{{LANG}}', langInstruction(lang))
 
   try {
     const { text } = await callGemini({

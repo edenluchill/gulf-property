@@ -3,8 +3,15 @@ import { useTranslation } from 'react-i18next'
 import { Globe, Check } from 'lucide-react'
 import { normLang } from '../lib/tt'
 
-// 5 语言;code=i18next 用的语言码,short=药丸上的短标。ar 是 RTL(布局 P2,文本先上)。
-const LANGS: { key: string; code: string; native: string; short: string }[] = [
+/**
+ * 5 语言。key=ISO 码(存库/传后端用);code=i18next 的语言码(注意 zh 是 **zh-CN**,
+ * locale 目录也叫 zh-CN);native=各语言的自称(语言选择器的惯例:用目标语言写自己,
+ * 这样正在找母语的人一眼能认出来);short=药丸上的短标。
+ *
+ * ⚠️ 单一真相源 —— 报告语言选择器(AgentReport)等处一律从这里 import,别再抄一份。
+ * 抄一份的结果必然是:这边加了语言,那边没跟上。
+ */
+export const LANGS: { key: string; code: string; native: string; short: string }[] = [
   { key: 'en', code: 'en', native: 'English', short: 'EN' },
   { key: 'zh', code: 'zh-CN', native: '中文', short: '中' },
   { key: 'ar', code: 'ar', native: 'العربية', short: 'ع' },

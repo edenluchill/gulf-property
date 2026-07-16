@@ -25,7 +25,9 @@ import {
   abortMultipartUpload,
 } from '../services/r2-multipart';
 import { resolveAgentId } from '../lib/agent-identity';
-import { checkCredits, spend, creditError } from '../luna-tour/credits';
+import { spend } from '../luna-tour/credits';
+import { requireAuth } from '../middleware/auth';
+import { requireUploader } from '../middleware/requireUploader';
 
 const router = Router();
 
@@ -43,7 +45,7 @@ function safeName(name: string): string {
  * body: { files: [{ filename, size }] }
  * → { success, jobId, uploads: [{ filename, key, uploadId }] }
  */
-router.post('/start', async (req: Request, res: Response): Promise<void> => {
+router.post('/start', requireAuth, requireUploader, async (req: Request, res: Response): Promise<void> => {
   try {
     const files = req.body?.files;
     if (!Array.isArray(files) || files.length === 0) {
@@ -54,15 +56,6 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ success: false, error: `Too many files (max ${MAX_FILES})` });
       return;
     }
-
-    // 楼书解析订阅 gating —— 在上传大文件之前先 fail-fast(真正的强制 + 计量在 /complete)。
-    const agentId = await resolveAgentId(req);
-    if (!agentId) {
-      res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
-      return;
-    }
-    const q = await checkCredits(agentId, 'brochures');
-    if (!q.allowed) { const e = creditError('brochures', q); res.status(e.status).json(e.body); return; }
 
     const jobId = generateJobId();
     const uploads: Array<{ filename: string; key: string; uploadId: string }> = [];
@@ -87,7 +80,7 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
  * body: { key, uploadId, partNumbers: number[] }
  * → { success, urls: { [partNumber]: presignedUrl } }
  */
-router.post('/sign', async (req: Request, res: Response): Promise<void> => {
+router.post('/sign', requireAuth, requireUploader, async (req: Request, res: Response): Promise<void> => {
   try {
     const { key, uploadId, partNumbers } = req.body || {};
     if (!key || !uploadId || !Array.isArray(partNumbers) || partNumbers.length === 0) {
@@ -125,7 +118,7 @@ router.post('/sign', async (req: Request, res: Response): Promise<void> => {
  * }
  * → { success, jobId }
  */
-router.post('/complete', async (req: Request, res: Response): Promise<void> => {
+router.post('/complete', requireAuth, requireUploader, async (req: Request, res: Response): Promise<void> => {
   try {
     const { jobId, files, totalSizeBytes } = req.body || {};
     const userId =
@@ -137,15 +130,9 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // AI 楼书解析订阅 gating(验证 token,不信任 x-user-* 头)。owner 无限;
-    // 匿名/未订阅/超额一律拦,避免无订阅者消耗 AI 处理成本。
-    const agentId = await resolveAgentId(req);
-    if (!agentId) {
-      res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
-      return;
-    }
-    const q = await checkCredits(agentId, 'brochures');
-    if (!q.allowed) { const e = creditError('brochures', q); res.status(e.status).json(e.body); return; }
+    // 权限已由 requireUploader 强制(admin/owner/白名单)。此处只为记账解析经纪身份;
+    // 白名单里的人可能没订阅,拿不到 agentId 也照常放行,不再卡积分。
+    const agentId = await resolveAgentId(req).catch(() => null);
 
     const pdfUrls: string[] = [];
     const pdfNames: string[] = [];
@@ -180,12 +167,14 @@ router.post('/complete', async (req: Request, res: Response): Promise<void> => {
       metadata: { uploadedAt: Date.now(), workerMode: true, directUpload: true },
     });
 
-    // 扣费失败 = 白送一次楼书解析(40 分)。原来是空 catch —— 漏了钱也无声。
-    await spend(agentId, 'brochures', { type: 'brochure', id: String(jobId), label: pdfNames[0] })
-      .catch((e) => {
-        counter('credits.spend.failed', { feature: 'brochures' }).inc();
-        console.error('[r2-upload] 🔴 楼书扣费失败(白送了一次):', e);
-      });
+    // 记账(best-effort,绝不阻断已放行的上传)。白名单里没订阅的经纪 agentId 为空 → 跳过。
+    if (agentId) {
+      await spend(agentId, 'brochures', { type: 'brochure', id: String(jobId), label: pdfNames[0] })
+        .catch((e) => {
+          counter('credits.spend.failed', { feature: 'brochures' }).inc();
+          console.error('[r2-upload] 🔴 楼书扣费失败(白送了一次):', e);
+        });
+    }
 
     // 上传是客户旅程的起点(500MB 楼书,失败最伤人)。之前这条线零遥测。
     counter('pdf.upload.completed').inc();

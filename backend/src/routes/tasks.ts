@@ -19,8 +19,14 @@ import { taskManager, TaskStatus, TaskAbortedError } from '../services/task-mana
 import { progressEmitter } from '../services/progress-emitter';
 import { executePdfWorkflow } from '../langgraph/workflow-executor';
 import { PageRegistryManager } from '../langgraph/core/page-registry';
+import { requireAuth } from '../middleware/auth';
+import { requireUploader } from '../middleware/requireUploader';
 
 const router = Router();
+
+// PDF 任务管理(列表/启动/暂停/恢复/取消)全是「可管理项目」能力,服务端强制。
+// 旧版只从可伪造的 x-user-* 头取身份、不做任何校验。
+router.use(requireAuth, requireUploader);
 
 // Configure multer for PDF uploads (memory storage)
 const upload = multer({

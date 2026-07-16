@@ -12,6 +12,7 @@ import {
 } from '../types/residential-projects'
 import { isR2PdfCacheUrl } from '../services/r2-storage'
 import { requireAuth } from '../middleware/auth'
+import { requireUploader } from '../middleware/requireUploader'
 import { invalidateProjectInsights } from '../services/projectInsights'
 
 const MONTH_NAMES: Record<string, number> = {
@@ -609,7 +610,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   // Submit a new residential project (from DeveloperPropertyUploadPageV2)
   // Requires authentication
   // ============================================================================
-  router.post('/submit', requireAuth, async (req: Request, res: Response) => {
+  router.post('/submit', requireAuth, requireUploader, async (req: Request, res: Response) => {
     const client = await pool.connect()
     
     try {
@@ -951,7 +952,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   // Update an existing residential project (full update of all fields)
   // Requires authentication
   // ============================================================================
-  router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+  router.put('/:id', requireAuth, requireUploader, async (req: Request, res: Response) => {
     const client = await pool.connect()
     
     try {
@@ -1274,7 +1275,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
   // Delete a project (cascades to unit types and payment plans)
   // Requires authentication
   // ============================================================================
-  router.delete('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  router.delete('/:id', requireAuth, requireUploader, async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params
 

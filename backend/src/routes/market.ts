@@ -18,40 +18,27 @@ const router = Router()
 
 const SQFT_PER_SQM = 10.7639
 
+/**
+ * 价格判断**只回 level**,不回文案。
+ *
+ * 这里以前还拼 `label` + `explanation` 两段中文 —— 而唯一的消费方
+ * (frontend PriceCheckModule) 早就改成读 level 自己走 t('compare:priceCheck.*') 渲染,
+ * **那两个字段算完、序列化、传过网络,然后被整个丢弃**。典型的死负载:
+ * 白烧 CPU/带宽,还让人误以为后端在负责这段文案(于是 i18n 盘点时被算成"待翻译")。
+ *
+ * 阈值语义(前端 VERDICT_KEY / eAbove|eBelow|eInline 与此一一对应,改这里必须同步那里):
+ *   sampleCount < 30 → insufficient(样本不足,不给判断)
+ *   premium > 25%    → high
+ *   premium > 10%    → above
+ *   premium < -10%   → below
+ *   其余             → inline
+ */
 function verdictFor(premiumPct: number, sampleCount: number) {
-  if (sampleCount < 30) {
-    return {
-      level: 'insufficient' as const,
-      label: '样本不足',
-      explanation: '该区域近 12 个月可比成交样本不足，暂不给出价格判断，仅供参考。'
-    }
-  }
-  if (premiumPct > 25) {
-    return {
-      level: 'high' as const,
-      label: '显著高于区域成交中位数',
-      explanation: `本项目单价相对同区近 12 个月成交中位数高约 ${premiumPct.toFixed(0)}%。新盘相对二手存在溢价较常见，建议结合付款计划、交付时间与楼层/景观综合判断。`
-    }
-  }
-  if (premiumPct > 10) {
-    return {
-      level: 'above' as const,
-      label: '高于区域成交中位数',
-      explanation: `本项目单价相对同区近 12 个月成交中位数高约 ${premiumPct.toFixed(0)}%，可能反映新房、楼层、景观或付款计划的资金时间价值。`
-    }
-  }
-  if (premiumPct < -10) {
-    return {
-      level: 'below' as const,
-      label: '低于区域成交中位数',
-      explanation: `本项目单价相对同区近 12 个月成交中位数低约 ${Math.abs(premiumPct).toFixed(0)}%，可能反映户型、楼龄或具体单元差异。`
-    }
-  }
-  return {
-    level: 'inline' as const,
-    label: '与区域成交中位数基本一致',
-    explanation: '本项目单价与同区近 12 个月成交中位数基本处于同一水平。'
-  }
+  if (sampleCount < 30) return { level: 'insufficient' as const }
+  if (premiumPct > 25) return { level: 'high' as const }
+  if (premiumPct > 10) return { level: 'above' as const }
+  if (premiumPct < -10) return { level: 'below' as const }
+  return { level: 'inline' as const }
 }
 
 router.get('/price-check', async (req: Request, res: Response) => {
@@ -90,7 +77,7 @@ router.get('/price-check', async (req: Request, res: Response) => {
         matched: false,
         reason: 'area_unmatched',
         projectArea: project.area || null,
-        summary: '暂未能把该项目匹配到有成交数据的区域，无法做价格体检。'
+        // (summary 已删:PriceCheckModule 只读 matched/reason,自己走 t() 出文案。)
       })
     }
 
@@ -127,7 +114,7 @@ router.get('/price-check', async (req: Request, res: Response) => {
         matched: true,
         areaName: area.name,
         sampleCount: 0,
-        summary: `${area.name} 近 12 个月暂无可比住宅成交，无法做价格体检。`
+        // (summary 已删:同上,前端按 sampleCount===0 自己出文案。)
       })
     }
 
@@ -139,11 +126,7 @@ router.get('/price-check', async (req: Request, res: Response) => {
 
     const verdict =
       premiumPct == null
-        ? {
-            level: 'no_project_price' as const,
-            label: '缺少项目单价',
-            explanation: '该项目未录入可用的户型单价（AED/sqft），仅展示区域成交区间供参考。'
-          }
+        ? { level: 'no_project_price' as const }
         : verdictFor(premiumPct, sampleCount)
 
     const dataThrough: Date = d.data_through
@@ -170,10 +153,8 @@ router.get('/price-check', async (req: Request, res: Response) => {
       },
       premiumPct: premiumPct != null ? Number(premiumPct.toFixed(1)) : null,
       verdict,
-      methodology:
-        '区域基准 = 该区近 12 个月 DLD 住宅销售（Unit/Villa）每平方米成交价分布，' +
-        '已剔除最高/最低 5% 极端值，取中位数。项目单价 = 各户型 price_per_sqft 中位数换算 AED/sqm。' +
-        '数据为 DLD 定期快照（非实时），二手登记通常滞后 4–8 周。'
+      // (methodology 已删:PriceCheckModule 用自己的 tk('methodology') 译文,
+      //  后端这段中文算完传过去就被丢弃 —— 死负载。)
     })
   } catch (err) {
     console.error('[market/price-check] error:', err)

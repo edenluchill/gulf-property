@@ -16,9 +16,11 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { errText } from '../errText'
+import { LANGS as REPORT_LANGS } from '../../components/LanguageSwitcher'
+import { normLang } from '../../lib/tt'
 import { useTranslation } from 'react-i18next'
 import {
-  Loader2, Check, ExternalLink, Copy, Sparkles, Search, X, Plus, User, Eye,
+  Loader2, Check, ExternalLink, Copy, Sparkles, Search, X, Plus, User, Eye, Languages,
 } from 'lucide-react'
 import { lunaFetch, getClients, searchProjectsForCompare, type Client, type CompareSearchProject } from '../lunaApi'
 import ClientProfileWizard, { type Profile } from '../ui/ClientProfileWizard'
@@ -29,7 +31,7 @@ interface Step { key: string; label: string; done: boolean }
 const KEY_FIELDS: (keyof Profile)[] = ['goal', 'budget_max', 'payment', 'family_size', 'nationality', 'offplan_ok']
 
 export default function AgentReport() {
-  const { t: tRaw } = useTranslation('lunaTour')
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   // ── 客户 ──────────────────────────────────────────────────────────────────
@@ -45,6 +47,10 @@ export default function AgentReport() {
   const [searching, setSearching] = useState(false)
 
   // ── 生成 ─────────────────────────────────────────────────────────────────
+  // 报告的**文档语言**:AI 按它写正文,/cr/:code 用 getFixedT 锁定,不跟浏览者 UI 切。
+  // 默认 = 经纪当前界面语言(最可能的选择),但客户语言 ≠ 经纪语言时必须能改 ——
+  // 这正是俄罗斯客户以前会收到中文报告的原因。
+  const [lang, setLang] = useState<string>(() => normLang(i18n.language))
   const [phase, setPhase] = useState<'idle' | 'generating' | 'ready' | 'error'>('idle')
   const [steps, setSteps] = useState<Step[]>([])
   const [shareCode, setShareCode] = useState<string | null>(null)
@@ -93,6 +99,7 @@ export default function AgentReport() {
           client_id: clientId,
           profile,                                   // 结构化画像 —— 论证的全部依据
           project_ids: picked.map((p) => String(p.id)), // 空 → AI 推荐
+          lang,                                      // 文档语言 → 存库 + AI 按它写正文
         }),
       })
       const d = await r.json()
@@ -220,6 +227,24 @@ export default function AgentReport() {
             {phase === 'generating' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {phase === 'generating' ? t('lunaTour:generating') : t('lunaTour:generateReport')}
           </button>
+          {/* 报告语言 —— 客户读的语言,不一定等于经纪的界面语言。
+              选定后 AI 用它写正文,/cr/:code 锁定渲染。 */}
+          <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <Languages className="h-3.5 w-3.5 text-slate-400" />
+            {t('lunaTour:reportLang')}
+            <select
+              value={lang}
+              onChange={(e) => setLang(e.target.value)}
+              disabled={phase === 'generating'}
+              className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-medium text-slate-700 disabled:opacity-40"
+            >
+              {/* value 用 key(ISO 码 en/zh/ar/ru/fr)—— 后端 normLang 和
+                  lt_client_reports.lang 的 CHECK 约束收的都是它,不是 i18next 的 zh-CN。 */}
+              {REPORT_LANGS.map((l) => (
+                <option key={l.key} value={l.key}>{l.native}</option>
+              ))}
+            </select>
+          </label>
           <span className="text-[11px] text-slate-400">20 {t('lunaTour:credits')}</span>
           {!clientId && <span className="text-[11px] text-slate-400">{t('lunaTour:pickAClientFirst')}</span>}
           {err && <span className="text-sm text-rose-500">❌ {err}</span>}

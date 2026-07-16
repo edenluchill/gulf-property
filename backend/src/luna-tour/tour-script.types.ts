@@ -392,8 +392,13 @@ export interface TourPropertyAmenity {
  */
 export interface TourPropertyUnit {
   bedrooms: number
-  /** e.g. "2 房" / "2 Bed" */
-  label: string
+  /**
+   * @deprecated 后端不再产这个字段 —— 它以前写死 `lang==='en' ? 'Studio'/'N Bed' : '开间'/'N 房'`,
+   * 只有 en 一个分支,ar/ru/fr 全部穿透成中文。现在交前端按 `bedrooms` 用 t() 渲染。
+   * 仍标 optional 是因为 **DB 里的历史 session 的 jsonb 还带着它**(读出来会有值)。
+   * 新代码别读它;要显示户型名请用 bedrooms。
+   */
+  label?: string
   /** 该卧室数下的户型个数 */
   variants: number
   /** 最小建面（sqft）—— 「X 房从 Y 尺起」 */

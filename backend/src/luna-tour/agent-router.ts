@@ -27,6 +27,7 @@ import { reviewByRules, reviewByAi, type ReviewNote } from './storyboard-review'
 import type { TourScript, TourConfig, TourProperty, TourInput } from './tour-script.types'
 import { generateSessionAudio } from './audio-pipeline'
 import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
+import { normLang } from '../lib/lang'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
 import { coachProfile, saveProfile, loadProfile, profileToOneLiner, type ExtractedProfile } from './client-profile-coach'
 
@@ -501,14 +502,18 @@ router.post('/client-reports', requireAgent, async (req: AgentReq, res: Response
     }
     const code = await uniqueClientCode()
     const clientName = typeof client.name === 'string' ? client.name : ''
+    // 报告的**文档语言**:经纪在生成时选定,随行存库。AI 按它写正文,/cr/:code 用
+    // getFixedT(lang) 锁定 —— 不跟浏览者 UI 语言切。同报价单(share.lang)的范式。
+    // 缺省 'zh' = 与本列的 DB 默认一致(存量报告正文确实是中文)。
+    const lang = normLang(typeof b.lang === 'string' ? b.lang : null) ?? 'zh'
     const r = await pool.query(
-      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress, client_id)
-       VALUES ($1,$2,$3,$4,'generating',$5,$6) RETURNING id`,
-      [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress()), clientId]
+      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress, client_id, lang)
+       VALUES ($1,$2,$3,$4,'generating',$5,$6,$7) RETURNING id`,
+      [agentId, code, clientName, oneLiner, JSON.stringify(initialProgress()), clientId, lang]
     )
     if (loggedIn) await spend(agentId, 'reports', { type: 'client_report', id: code, label: clientName || undefined }).catch(() => {})
     // fire-and-forget background build
-    generateClientReport(r.rows[0].id, client, oneLiner, profile, projectIds)
+    generateClientReport(r.rows[0].id, client, oneLiner, profile, projectIds, lang)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
   } catch (err) {
     console.error('[agent/client-reports] error:', err)
@@ -544,13 +549,14 @@ router.post('/client-reports/compare', requireAgent, async (req: AgentReq, res: 
       if (!q.allowed) { const e = creditError('reports', q); return res.status(e.status).json(e.body) }
     }
     const code = await uniqueClientCode()
+    const lang = normLang(typeof b.lang === 'string' ? b.lang : null) ?? 'zh'
     const r = await pool.query(
-      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress, client_id, kind)
-       VALUES ($1,$2,$3,$4,'generating',$5,$6,'compare') RETURNING id`,
-      [agentId, code, clientName, `对比 ${projectIds.length} 个项目`, JSON.stringify(initialProgress()), clientId]
+      `INSERT INTO lt_client_reports (agent_id, share_code, client_name, brief, status, progress, client_id, kind, lang)
+       VALUES ($1,$2,$3,$4,'generating',$5,$6,'compare',$7) RETURNING id`,
+      [agentId, code, clientName, `对比 ${projectIds.length} 个项目`, JSON.stringify(initialProgress()), clientId, lang]
     )
     if (loggedIn) await spend(agentId, 'reports', { type: 'client_report', id: code, label: clientName || `对比 ${projectIds.length} 个项目` }).catch(() => {})
-    generateCompareReport(r.rows[0].id, clientName, projectIds, profile)
+    generateCompareReport(r.rows[0].id, clientName, projectIds, profile, lang)
     res.json({ success: true, shareCode: code, url: `/cr/${code}` })
   } catch (err) {
     console.error('[agent/client-reports/compare] error:', err)

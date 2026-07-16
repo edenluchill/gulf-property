@@ -9,6 +9,7 @@ import { getProjectInsights, getProjectTransactions } from '../services/projectI
 import { analyzeProperties } from '../services/property-analyzer'
 import { projectUnits, scoreUnits, analyzeFit } from './client-fit-analyzer'
 import type { ExtractedProfile } from './client-profile-coach'
+import type { LangCode } from '../lib/lang'
 
 const STEPS = [
   { key: 'match', label: '匹配最优项目' },
@@ -191,9 +192,9 @@ async function enrichProperty(p: any) {
  * 这是整份报告的**价值所在** —— 不是数据罗列,是「为什么这个适合你」。
  * best-effort:AI 挂了就只带打过分的户型(规则分仍然有效),报告照出。
  */
-async function attachFit(enriched: any, profile: ExtractedProfile) {
+async function attachFit(enriched: any, profile: ExtractedProfile, lang: LangCode) {
   const scored = scoreUnits(enriched.units || [], profile)
-  const fit = await analyzeFit(profile, enriched, scored).catch(() => null)
+  const fit = await analyzeFit(profile, enriched, scored, lang).catch(() => null)
   return { ...enriched, units: scored, fit }
 }
 
@@ -210,7 +211,9 @@ export async function generateClientReport(
   client: Record<string, unknown>,
   oneLiner: string,
   profile: ExtractedProfile = {},
-  projectIds?: string[]
+  projectIds?: string[],
+  // 报告的文档语言(经纪生成时选定,存 lt_client_reports.lang)。AI 按它写正文。
+  lang: LangCode = 'zh'
 ) {
   try {
     // 1) 项目:经纪手选优先;没选才让 AI 推荐(可选兵器,给不确定推什么的新人)
@@ -235,7 +238,7 @@ export async function generateClientReport(
     // 2) Enrich each property with REAL data (replaces placeholder projection)
     let enriched = await Promise.all(report.properties.map(enrichProperty))
     // ⭐ 两层论证:项目 × 客户 / 户型 × 客户(特点对特点)—— 报告的价值就在这里
-    enriched = await Promise.all(enriched.map((e) => attachFit(e, profile)))
+    enriched = await Promise.all(enriched.map((e) => attachFit(e, profile, lang)))
     await mark(reportId, 'data')
 
     // 3) Overall market + policy + trends (from the resolved per-project metrics)
@@ -257,7 +260,15 @@ export async function generateClientReport(
     }
 
     // 4) Finalize
-    const full = { ...report, properties: enriched, market, overview }
+    //
+    // profile_struct:给 /cr/:code 的「需求：」行用的**结构化**画像。
+    // 以前那行读的是 report.profile —— profileToOneLiner() 拼出来的**中文串**
+    // (「香港，投资，预算约 300 万迪拉姆」),于是公开页用中文向一个可能不懂中文的
+    // 客户描述他自己。按 spec 的规矩:后端不拼 5 语言串,交结构化数据,
+    // 前端用 getFixedT(报告 lang) 渲染。
+    // (profileToOneLiner 保留 —— 它还要喂 AI prompt,那是数据输入不是展示,
+    //  且 prompt 现在带显式语言指令,输入是什么语言都不影响正文语言。)
+    const full = { ...report, properties: enriched, market, overview, profile_struct: profile }
     await pool.query(
       `UPDATE lt_client_reports SET report=$2, status='ready' WHERE id=$1`,
       [reportId, JSON.stringify(full)]
@@ -280,7 +291,9 @@ export async function generateCompareReport(
   reportId: string,
   clientName: string,
   projectIds: string[],
-  profile: { budget?: { min: number; max: number }; freeformDescription?: string } = {}
+  profile: { budget?: { min: number; max: number }; freeformDescription?: string } = {},
+  // 对比报告写进同一张 lt_client_reports、同一个 /cr/:code 页 → 语言也必须随行。
+  lang: LangCode = 'zh'
 ) {
   try {
     // 1) Base projects (agent's hand-picked shortlist), preserve the picked order.
@@ -308,7 +321,8 @@ export async function generateCompareReport(
         bedrooms: 0, size: 0, price: e.net?.buy ?? e.min_price ?? 0,
         status: 'offplan', amenities: [] as string[],
       }))
-      comparison = await analyzeProperties(propData as any, profile as any, 'zh')
+      // 曾写死 'zh' —— 对比报告的 AI 结论因此永远是中文,哪怕报告是给俄罗斯客户的。
+      comparison = await analyzeProperties(propData as any, profile as any, lang)
     } catch (e) {
       console.error('[compare-report] analyze failed (kept table only):', e instanceof Error ? e.message : e)
     }

@@ -37,3 +37,33 @@ export function getLang(req: Request): LangCode {
   const h = fromAcceptLanguage(req.headers['accept-language'] as string | undefined)
   return h ?? 'en'
 }
+
+/** 白名单归一化的公开版(给 body/DB 里来的 lang 值用,不是从 req 解析)。 */
+export function normLang(raw?: string | null): LangCode | null {
+  return norm(raw)
+}
+
+/**
+ * 写进 AI prompt 的语言名。**用目标语言自称**(endonym)——
+ * 对模型比英文名更硬,不容易被 prompt 主体的语言带跑。
+ */
+const LANG_ENDONYM: Record<LangCode, string> = {
+  en: 'English',
+  zh: '简体中文 (Simplified Chinese)',
+  ar: 'العربية (Arabic)',
+  ru: 'Русский (Russian)',
+  fr: 'Français (French)',
+}
+
+/**
+ * 给 AI 的"用哪种语言写"指令。
+ *
+ * ⚠️ **别再用「跟随客户输入的语言,自动检测」那套。** 在报告/导览这类场景里,
+ * 喂给模型的"客户画像"是**经纪**填的(wizard 选项本身就是中文)——
+ * 自动检测检到的是**经纪**的语言,不是客户的。俄罗斯客户拿到中文报告就是这么来的。
+ * 语言必须由调用方显式传入。
+ */
+export function langInstruction(lang: LangCode): string {
+  return `**全文用 ${LANG_ENDONYM[lang]} 写。** 这是这份文档的指定语言 —— 与上面提示词本身的语言无关,`
+    + `也与输入数据碰巧是什么语言无关。人名、项目名、开发商名保持原文;AED / m² / DLD 等单位与专有名词不译。`
+}

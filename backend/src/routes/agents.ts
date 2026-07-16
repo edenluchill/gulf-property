@@ -10,7 +10,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { requireAuth, optionalAuth } from '../middleware/auth'
 import { requireOwner, isOwnerEmail } from '../middleware/requireOwner'
-import { isAdminEmail } from '../lib/adminEmails'
+import { canManageProjects } from '../middleware/requireUploader'
 import { ensureAgent } from '../luna-tour/session-builder'
 import { grantOneTimeTrial, revokeGrant } from '../services/adminGrant'
 
@@ -158,34 +158,12 @@ router.post('/:email/reject', optionalAuth, requireOwner, (req, res) => decide(r
 // 单独授权某个 email 能用「上传楼书 / 任务审核 / 项目管理」,但看不到
 // telemetry/分析后台(那些仍是 admin/owner)。admin 隐含拥有上传权限。
 
-/** 登录用户查自己有没有上传权限(前端 AuthContext 用)。
- *  可上传 = admin/owner | upload_permissions 白名单 | 开发商角色且订阅生效。 */
+/** 登录用户查自己有没有上传权限(前端 AuthContext / ProtectedRoute requireUploader 用)。
+ *  与服务端强制门 requireUploader 同一真相源:admin/owner | upload_permissions 白名单。
+ *  不再看套餐/角色 —— 付费方也走人工 grant 进白名单。 */
 router.get('/can-upload', requireAuth, async (req: Request, res: Response) => {
   const email = (req.user?.email || req.ctx?.email || '').toLowerCase().trim()
-  if (!email) return res.json({ canUpload: false })
-  if (isAdminEmail(email) || isOwnerEmail(email)) return res.json({ canUpload: true })
-  try {
-    const { rows } = await pool.query(`SELECT 1 FROM upload_permissions WHERE email = $1`, [email])
-    if (rows.length > 0) return res.json({ canUpload: true })
-    // 开发商套餐含「上传楼书」:role=developer + active/trialing 订阅
-    const dev = await pool.query(
-      `SELECT 1
-         FROM user_profiles up
-         JOIN lt_agents la ON lower(la.email) = $1
-         JOIN lt_subscriptions s
-           ON s.agent_id = COALESCE(la.billing_agent_id, la.id)
-          AND s.status IN ('active','trialing')
-          -- 免绑卡试用过期后没有 webhook 关它,sweep 有 5min 窗口 → 这里带即时过期谓词
-          AND (s.source <> 'free_trial' OR s.current_period_end > now())
-        WHERE lower(up.email) = $1 AND up.role = 'developer'
-        LIMIT 1`,
-      [email]
-    )
-    res.json({ canUpload: dev.rows.length > 0 })
-  } catch (err) {
-    console.error('[agents] can-upload failed:', err)
-    res.json({ canUpload: false })
-  }
+  res.json({ canUpload: await canManageProjects(email) })
 })
 
 router.get('/upload-permissions', optionalAuth, requireOwner, async (_req: Request, res: Response) => {

@@ -182,8 +182,7 @@ async function areaMetricsAt(client: PoolClient, lng: number, lat: number): Prom
  */
 async function fetchUnits(
   client: PoolClient,
-  projectId: string,
-  lang: 'zh' | 'en'
+  projectId: string
 ): Promise<TourPropertyUnit[] | undefined> {
   const { rows } = await client.query<{
     bedrooms: number
@@ -207,12 +206,11 @@ async function fetchUnits(
     [projectId]
   )
   if (!rows.length) return undefined
+  // label 不再由后端拼:它以前是 `lang === 'en' ? 'Studio'/'N Bed' : '开间'/'N 房'`
+  // —— **只有 en 一个分支,ar/ru/fr 全部穿透成中文**。而 bedrooms 数字就在同一个
+  // 对象里,label 纯属冗余。现在交前端按 bedrooms 自己 t() 渲染(见 OverlayLayer)。
   return rows.map((r) => ({
     bedrooms: r.bedrooms,
-    label:
-      lang === 'en'
-        ? r.bedrooms === 0 ? 'Studio' : `${r.bedrooms} Bed`
-        : r.bedrooms === 0 ? '开间' : `${r.bedrooms} 房`,
     variants: parseInt(r.variants, 10),
     area_sqft: num(r.area_sqft) ? Math.round(num(r.area_sqft)!) : undefined,
     price_from: num(r.price_from),
@@ -384,7 +382,7 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       const [real, metrics, units, areaCtx] = await Promise.all([
         fetchNearby(client, lng, lat, lang),
         areaMetricsAt(client, lng, lat),
-        fetchUnits(client, row.id, lang.startsWith('en') ? 'en' : 'zh'),
+        fetchUnits(client, row.id),
         // 地理套利 + 能被反驳的短板。成交量过不了门槛就返回 null → 那两拍不讲。
         fetchAreaContext(client, lng, lat).catch(() => null),
       ])

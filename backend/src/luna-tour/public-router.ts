@@ -707,7 +707,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
 router.get('/public/client-report/:code', async (req: Request, res: Response) => {
   try {
     const r = await pool.query(
-      `SELECT cr.status, cr.report, cr.client_name,
+      `SELECT cr.status, cr.report, cr.client_name, cr.lang,
               a.display_name AS agent_name, a.photo_url AS agent_photo, a.phone AS agent_phone, a.whatsapp AS agent_whatsapp
          FROM lt_client_reports cr JOIN lt_agents a ON a.id = cr.agent_id
         WHERE cr.share_code = $1 LIMIT 1`,
@@ -720,6 +720,9 @@ router.get('/public/client-report/:code', async (req: Request, res: Response) =>
     res.set('Cache-Control', 'public, max-age=300')
     res.json({
       status: 'ready',
+      // 文档语言:AI 已按它写好正文并存库。前端必须用 getFixedT(lang) 锁定渲染,
+      // 别跟浏览者 UI 语言走 —— 否则会出现「阿语标签 + 中文正文」。
+      lang: row.lang || 'zh',
       agent: { name: row.agent_name, photo: row.agent_photo, phone: row.agent_phone, whatsapp: row.agent_whatsapp },
       report: row.report,
     })

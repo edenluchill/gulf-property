@@ -14,30 +14,14 @@ import { taskManager, TaskStatus } from '../services/task-manager';
 import pool from '../db/pool';
 import { deletePdfsForJob } from '../services/r2-cleanup';
 import { presignDownloadUrl } from '../services/r2-storage';
+import { requireAuth } from '../middleware/auth';
+import { requireUploader } from '../middleware/requireUploader';
 
 const router = Router();
 
-/**
- * Simple admin check middleware
- * In production, this should verify JWT claims or role-based access
- */
-function requireAdmin(req: Request, res: Response, next: Function): void {
-  const userId = req.headers['x-user-id'] as string;
-  const isAdmin = req.headers['x-admin'] === 'true' || userId === 'admin';
-
-  if (!isAdmin) {
-    res.status(403).json({
-      success: false,
-      error: 'Admin access required',
-    });
-    return;
-  }
-
-  next();
-}
-
-// Apply admin middleware to all routes
-router.use(requireAdmin);
+// 任务管理服务端强制权限:必须是可管理项目的账号(admin/owner/upload_permissions 白名单)。
+// 旧版只看可伪造的 x-admin / x-user-id 请求头 —— 任何人加个 header 就能删/重跑所有任务。
+router.use(requireAuth, requireUploader);
 
 /**
  * GET /api/admin/tasks

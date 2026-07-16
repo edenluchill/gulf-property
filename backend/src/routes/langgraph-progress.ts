@@ -16,7 +16,9 @@ import { existsSync } from 'fs';
 import { executeWithQueue, getQueueStats, canStartImmediately } from '../services/job-queue';
 import { uploadPdfForProcessing } from '../services/r2-storage';
 import { resolveAgentId } from '../lib/agent-identity';
-import { checkCredits, spend, creditError } from '../luna-tour/credits';
+import { spend } from '../luna-tour/credits';
+import { requireAuth } from '../middleware/auth';
+import { requireUploader } from '../middleware/requireUploader';
 
 // Worker mode: if enabled, upload PDFs to R2 and let worker process
 // If disabled (local dev), process inline
@@ -82,6 +84,8 @@ const uploadMultiple = multer({
 
 router.post(
   '/start',
+  requireAuth,
+  requireUploader,
   uploadMultiple.array('files', 10),  // Support up to 10 PDFs
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -101,16 +105,12 @@ router.post(
       const userId = req.headers['x-user-id'] as string || (req as any).user?.id || req.body.userId || 'anonymous';
       const userEmail = req.headers['x-user-email'] as string || (req as any).user?.email || req.body.userEmail;
 
-      // AI 楼书解析订阅 gating(验证 token,不信任 x-user-* 头)。owner 无限;
-      // 匿名/未订阅/超额一律拦。与直传 R2 路径(/api/r2-upload/complete)同口径。
-      const agentId = await resolveAgentId(req);
-      if (!agentId) {
-        res.status(401).json({ success: false, error: '请先登录经纪账号再上传楼书。', code: 'auth_required', upgradeUrl: '/agent' });
-        return;
+      // 权限已由 requireUploader 强制(admin/owner/白名单)。此处只为记账解析经纪身份;
+      // 白名单里没订阅的人 agentId 为空也照常放行,不再卡积分。
+      const agentId = await resolveAgentId(req).catch(() => null);
+      if (agentId) {
+        await spend(agentId, 'brochures', { type: 'brochure', label: files[0]?.originalname }).catch(() => {});
       }
-      const quota = await checkCredits(agentId, 'brochures');
-      if (!quota.allowed) { const e = creditError('brochures', quota); res.status(e.status).json(e.body); return; }
-      await spend(agentId, 'brochures', { type: 'brochure', label: files[0]?.originalname }).catch(() => {});
 
       // Calculate total file size
       const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);
