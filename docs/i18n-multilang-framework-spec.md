@@ -151,10 +151,50 @@ key 去重(播种已有 key)。translate 自动剥 markdown 围栏。glob 自动
 5. npx tsc --noEmit 验;glob 自动加载,无需改 index.ts。
 ```
 
-**剩余（未做）：**
-- **内联三元 codemod**(Task #8)：542 处里剩 ~450 处 / ~71 文件。top:SalesOfferDialog(47)、PaymentPlanSharePage(47)、AreaInsightsPanel(25)、TransactionsTab(13)、RoleSelectPage(13)…。现状=对 ar/ru/fr 回退英文(不坏,待翻)。
-- **后端 ~942 条中文串**(Task #11)：market.ts `verdictFor`/`area-classification` 等 → 改返回 code+参数由前端渲染,或 getLang 查表。
-- **阿语布局 RTL**：203 处物理 Tailwind 边距(ml-/mr-/pl-/pr-/left-/right-/text-left)→ 逻辑属性(ms-/me-/ps-/pe-/start-/end-/text-start)+ 图标/地图镜像。文本+dir 已就绪,布局未镜像。
+---
+
+# 📋 接手清单 (PICKUP —— 2026-07-15,下次直接从这里干)
+
+**当前状态**：App 已可在 5 语言下正常用。所有 `t()` 键控 UI = 5 语言全。未迁的内联三元对 ar/ru/fr 英文兜底(不坏)。工具链全部现成+验证过。
+
+## 轨道 A：内联三元 → t()（剩 430 处 / 57 文件）
+**每个文件跑 §4b 的 4 步**(codemod --write → 若报警加 2 行 casted t + 删 const zh → translate --force → tsc 0 err → 提交)。ns 名 = 组件功能区。
+
+**⚠️ codemod 会安全跳过的(需人工/单独处理,别硬转)**:
+- **数据驱动双语**:`zh ? obj.titleZh : obj.titleEn`(如 RoleSelectPage、可能 luna-tour 报告卡)—— 这是数据结构里塞了 Zh/En 字段,要么改数据层要么保留,不是简单 t()。
+- 嵌套三元 `zh ? a : cond2 ? b : c`、带函数调用的模板插值。
+
+**worklist(按面向客户优先级;数字=三元数)**:
+- 🔴 客户高频先做:
+  - `pages/PaymentPlanSharePage.tsx`(49) `pages/ProjectDetailPage/SalesOfferDialog.tsx`(47) —— 报价单/分享,最大两户
+  - `components/AreaInsightsPanel.tsx`(25) —— 地图区域块(我加过 period,注意 tk 已有)
+  - `pages/ProjectDetailPage/LocationTab.tsx`(10) `UnitTypesTab.tsx`(8) `PaymentPlanTab.tsx`(5) `OverviewTab.tsx`(4)
+  - `components/project/`: BuyerConfidence(8) PaymentChart(8) PaymentTimeline(7) UnitEconomics(6) ReturnsBar(3)
+  - `components/AreaDetailDialog.tsx`(6) `components/map/MapMarkers.tsx`(3) `pages/MapPage.tsx`(3) `pages/TransactionsPage.tsx`(4) `pages/AboutPage.tsx`(4)
+  - `components/auth/UserMenu.tsx`(6) `components/RoleBadgeDialog.tsx`(4)
+- 🟡 gate/infra(短,顺手):MapMeterGuard(10) GlobalQuotaGate(8) AppErrorBoundary(3) voice-assistant/VoiceAssistantButton(9) GuidedTour(9)
+- 🟢 内部/经纪台(可后置):luna-tour/*(AgentClients 18, AgentReport 10, AgentTours 8, ClientProfileWizard 11, AgentOverview 5, IntentFeed 5, CollabBar 7, AiEditPanel 3, AgentBilling 3, CelebrationPoster 4)、profile/ProfileShell(8) ProfileHome(5)
+- ⚪ lib(是 label 函数,小心逻辑):`lib/metricPeriod.ts`(7,periodLabel 用 switch 不是三元,可能不用动) `lib/marketSegment.ts`(3,segmentLabel) `lib/generateProjectNotes.ts`(11,生成文本—考虑改后端 AI 按语言生成)
+- 已完成(别重做):compare ns(YieldVsAreaModule/PriceCheckModule/NearbyProjectsCompare/RecentDealsCompact/CompareTab)、invest ns(InvestmentScorecard)、transactions ns(TransactionsTab)。
+- **重扫命令**:`grep -rlE "zh \?|isZh \?" src --include=*.tsx --include=*.ts | while read f; do echo "$(grep -cE 'zh \?|isZh \?' "$f") $f"; done | sort -rn`
+
+## 轨道 B：后端 ~942 条中文串 → 结构化 or 按语言产
+- 病灶:`backend/src/routes/market.ts` `verdictFor()`(价格判断已在前端做了范式,可参考)、`/area-classification`(市场分级 tag/reasons 中文);`luna-tour/`(452 条,多是 AI prompt/报告,已随"AI 自动检测语言"缓解)、`services/`(284)。
+- 做法:优先**返回 code+参数由前端 t() 渲染**(价格体检/回报因子已是此范式,照抄);长叙述用 `getLang(req)`(已有,`backend/src/lib/lang.ts`)查表或让 AI 按语言生成。
+- 前端已全站发 `Accept-Language`(track.ts),后端 `getLang(req)` 拿得到。
+
+## 轨道 C：阿拉伯语布局 RTL(独立里程碑,文本已就绪)
+- 现状:`<html dir>` 已随语言切(ar=rtl,i18n/index.ts);文本全翻好。**缺的是布局镜像**。
+- 做:**203 处物理 Tailwind → 逻辑属性** `ml-/mr-→ms-/me-`、`pl-/pr-→ps-/pe-`、`left-/right-→start-/end-`、`text-left→text-start`;方向性图标/箭头翻转;地图 UI(右缘 Luna 药丸、筛选 chips 贴左)按 dir 镜像。
+- Tailwind 逻辑属性 v3 原生支持(ms-/me- 等);扫命令:`grep -rloE "\b(ml|mr|pl|pr)-[0-9]" src --include=*.tsx`。
+- 建议专门一期 + 三档截图(414/1180/1440)× RTL 验。
+
+## 工具/文件速查
+- 翻译:`cd backend && npx ts-node -T scripts/i18n-translate.ts <ns...>|--all [--langs ar,ru,fr] [--force]`
+- codemod:`cd frontend && node scripts/i18n-codemod.mjs <file> <ns> [--write]`
+- i18n 配置:`frontend/src/i18n/index.ts`(glob 自动加载,不用改);类型 `i18next.d.ts`(新 ns 想要 t() 强类型才加,不加就用 casted t)
+- 语言解析:前端 `lib/tt.ts`(逃生舱)、后端 `lib/lang.ts` `getLang(req)`
+- **验证阻塞**:匿名地图额度 10min/天,我这轮用光了没法截图;登录用户不受限,可直接真机看。
 
 ## 5. 已定决策（2026-07-15 用户拍板）
 
