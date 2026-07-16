@@ -124,6 +124,22 @@
 4. **6 个组件内联三元已转 JSON**：`compare` ns(YieldVsAreaModule/PriceCheckModule/NearbyProjectsCompare/RecentDealsCompact/CompareTab)、`invest` ns(InvestmentScorecard)。
 5. **AI 自动检测语言**:voice-token/public-router/property-analyzer/lunaSummary/client-fit-analyzer 改成"跟随用户语言",不写死中文。
 
+**⭐ 工业化流水线(已验证,turnkey)—— 转一个组件 4 步：**
+```
+# 1. codemod 抽三元 → t('ns:key') + 写 en/zh JSON (先不 --write 干跑看报告)
+cd frontend && node scripts/i18n-codemod.mjs src/path/File.tsx <ns> --write
+# 2. 若报告"⚠ 需人工接",在组件顶部加 2 行(并删无用的 const zh=...):
+#      const { t: tRaw, i18n } = useTranslation('<ns>')
+#      const t = tRaw as (k: string, o?: Record<string, unknown>) => string
+# 3. 补 ar/ru/fr (Gemini,~$0.04):
+cd ../backend && npx ts-node -T scripts/i18n-translate.ts <ns> --force
+# 4. 验:cd ../frontend && npx tsc --noEmit -p tsconfig.json  → 0 errors 才提交
+```
+codemod 安全:靠 CJK 判中英分支、只碰简单串、嵌套/复杂插值/歧义**跳过并报告**(人工处理),
+key 去重(播种已有 key)。translate 自动剥 markdown 围栏。glob 自动加载新 JSON。
+已用 TransactionsTab(15 串)+ compare/invest 手工样板验证。**剩 ~70 文件是重复这 4 步。**
+新 ns 名建议 = 组件所属功能区(避免和大 ns 混)。
+
 **转组件的标准配方(照此复制)：**
 ```
 1. 组件顶部 const { t } = useTranslation('<ns>')；动态 key 用
