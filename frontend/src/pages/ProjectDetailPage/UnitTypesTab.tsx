@@ -22,7 +22,7 @@ type SortKey = 'price' | 'area' | 'beds'
 const isSeaView = (v?: string) => !!v && /sea|marina|water|ocean|海|beach|lagoon/i.test(v)
 
 export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, growthPct, paymentPlan }: UnitTypesTabProps) {
-  const { t, i18n } = useTranslation(['project', 'common'])
+  const { t, i18n } = useTranslation(['project', 'common', 'projectDetail'])
   const zh = i18n.language?.startsWith('zh')
   const [selectedUnit, setSelectedUnit] = useState<UnitType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -72,7 +72,7 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
     )
   }
 
-  const bedLabel = (n: number) => (n === 0 ? (zh ? '工作室' : 'Studio') : `${n}${zh ? '室' : 'BR'}`)
+  const bedLabel = (n: number) => (n === 0 ? (t('projectDetail:studio')) : `${n}${t('projectDetail:br')}`)
   const Chip = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
     <button
       onClick={onClick}
@@ -90,7 +90,7 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <Chip active={bedFilter === 'all'} onClick={() => setBedFilter('all')}>
-            {zh ? '全部' : 'All'}
+            {t('projectDetail:all')}
           </Chip>
           {bedOptions.map((n) => (
             <Chip key={n} active={bedFilter === n} onClick={() => setBedFilter(n)}>
@@ -104,11 +104,11 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
             onChange={(e) => setSortKey(e.target.value as SortKey)}
             className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none"
           >
-            <option value="price">{zh ? '价格 ↑' : 'Price ↑'}</option>
-            <option value="area">{zh ? '面积 ↑' : 'Size ↑'}</option>
-            <option value="beds">{zh ? '卧室 ↑' : 'Beds ↑'}</option>
+            <option value="price">{t('projectDetail:price')}</option>
+            <option value="area">{t('projectDetail:size')}</option>
+            <option value="beds">{t('projectDetail:beds')}</option>
           </select>
-          <span className="text-xs text-slate-400">{shown.length}{zh ? ' 种' : ''}</span>
+          <span className="text-xs text-slate-400">{shown.length}{t('projectDetail:k')}</span>
         </div>
       </div>
 

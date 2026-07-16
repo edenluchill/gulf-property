@@ -14,8 +14,7 @@ interface OverviewTabProps {
 const MIX_COLORS = ['#94a3b8', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f59e0b', '#ef4444']
 
 export function OverviewTab({ project, insights }: OverviewTabProps) {
-  const { t, i18n } = useTranslation(['project', 'common'])
-  const isZh = (i18n.language || 'en').startsWith('zh')
+  const { t, i18n } = useTranslation(['project', 'common', 'projectDetail'])
 
   // 户型构成(unit mix):按卧室数聚合 unit_count(竞品对比结论——ARO 的
   // availability 占比环是买家速判"这盘偏大户还是小户"的好工具)。
@@ -35,7 +34,7 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
         beds,
         count,
         pct: Math.round((count / total) * 100),
-        label: beds === 0 ? (isZh ? '工作室' : 'Studio') : (isZh ? `${beds}室` : `${beds} BR`),
+        label: beds === 0 ? (t('projectDetail:studio2')) : (t('projectDetail:br2', { beds })),
         color: MIX_COLORS[Math.min(beds, MIX_COLORS.length - 1)],
       }))
     return { rows, total }
@@ -106,9 +105,9 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
         {unitMix && (
           <div className="mt-6">
             <div className="mb-2 flex items-baseline justify-between">
-              <div className="text-sm font-semibold text-slate-800">{isZh ? '户型构成' : 'Unit mix'}</div>
+              <div className="text-sm font-semibold text-slate-800">{t('projectDetail:unitMix')}</div>
               <div className="text-xs text-slate-400">
-                {isZh ? `共 ${unitMix.total} 套` : `${unitMix.total} units`}
+                {t('projectDetail:units', { unitMix_total: unitMix.total })}
               </div>
             </div>
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
@@ -125,7 +124,7 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
                 <div key={r.beds} className="flex items-center gap-1.5 text-xs text-slate-600">
                   <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} />
                   <span className="font-medium">{r.label}</span>
-                  <span className="text-slate-400">{r.pct}% · {r.count}{isZh ? '套' : ''}</span>
+                  <span className="text-slate-400">{r.pct}% · {r.count}{t('projectDetail:k2')}</span>
                 </div>
               ))}
             </div>

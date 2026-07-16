@@ -30,8 +30,7 @@ interface PaymentPlanTabProps {
  *     点开 SalesOfferDialog 弹窗选户型 + 填报价 → 生成正式报价单 /pp/:code。
  */
 export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projectId, projectName }: PaymentPlanTabProps) {
-  const { t, i18n } = useTranslation(['project', 'common'])
-  const zh = (i18n.language || 'en').startsWith('zh')
+  const { t, i18n } = useTranslation(['project', 'common', 'projectDetail'])
   const { user } = useAuth()
 
   // JSONB 两种历史键名(camelCase / snake_case)→ 统一成 PaymentPlan
@@ -114,9 +113,9 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
               className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/10 transition hover:shadow hover:ring-slate-900/20 active:scale-95"
             >
               {entitled === false ? <Lock className="h-4 w-4 text-slate-400" /> : <FileText className="h-4 w-4 text-slate-500" />}
-              {zh ? '生成 Sales Offer' : 'Sales Offer'}
+              {t('projectDetail:salesOffer')}
               <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-100 to-yellow-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200/70">
-                <Crown className="h-2.5 w-2.5" />{zh ? '会员' : 'PRO'}
+                <Crown className="h-2.5 w-2.5" />{t('projectDetail:pro')}
               </span>
               {entitled !== false && <ArrowRight className="h-4 w-4 text-slate-400" />}
             </button>
@@ -127,10 +126,10 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
         {/* 总价:开发商只公布起价,客户/经纪可改成实际报价即时换算 */}
         <div>
           <div className="mb-2 flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-800">{zh ? '总价' : 'Total price'}</span>
+            <span className="text-sm font-semibold text-slate-800">{t('projectDetail:totalPrice')}</span>
             {priceEdited && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                <Pencil className="h-3 w-3" />{zh ? '已改为实际报价' : 'Custom quote'}
+                <Pencil className="h-3 w-3" />{t('projectDetail:customQuote')}
               </span>
             )}
           </div>
@@ -141,7 +140,7 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
             <MoneyInput
               value={priceInput}
               onChange={setPriceInput}
-              placeholder={basePrice > 0 ? basePrice.toLocaleString('en-US') : (zh ? '输入总价' : 'Enter total price')}
+              placeholder={basePrice > 0 ? basePrice.toLocaleString('en-US') : (t('projectDetail:enterTotalPrice'))}
               className="w-full bg-transparent py-2.5 pr-3 text-lg font-bold text-slate-900 outline-none"
             />
             {activePrice > 0 && (
@@ -151,9 +150,7 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
             )}
           </div>
           <p className="mt-1.5 max-w-md text-[11px] leading-relaxed text-slate-400">
-            {zh
-              ? '开发商开盘只公布起价——不同楼层、朝向价格不同。改成实际报价,下方每期金额即时换算。'
-              : 'Developers only publish starting prices — floors and orientations vary. Type the actual quote and every installment below updates instantly.'}
+            {t('projectDetail:developersOnlyPublishStarting')}
           </p>
         </div>
 

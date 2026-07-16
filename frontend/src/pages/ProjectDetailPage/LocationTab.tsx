@@ -28,9 +28,9 @@ const POI_META: Record<string, { color: string; zh: string; en: string }> = {
 }
 const metaFor = (c: string) => POI_META[c] || { color: '#64748b', zh: c, en: c }
 
-function dist(m: number, zh: boolean): string {
+function dist(m: number, t: (k: string) => string): string {
   if (m < 1000) return `${m} m`
-  return `${(m / 1000).toFixed(1)} km${m <= 1500 ? (zh ? ' · 步行可达' : ' · walkable') : ''}`
+  return `${(m / 1000).toFixed(1)} km${m <= 1500 ? t('projectDetail:walkable') : ''}`
 }
 
 // 项目主标记:醒目的 teal 水滴 pin(尖端落点)
@@ -65,7 +65,8 @@ function FitBounds({ points }: { points: [number, number][] }) {
 }
 
 export function LocationTab({ buildingName, areaName, location, insights }: LocationTabProps) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('projectDetail')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = i18n.language?.startsWith('zh')
   const [sales, setSales] = useState<AreaInsights['recentTransactions']>([])
 
@@ -127,7 +128,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
               <Marker key={`${p.category}-${p.n}`} position={[p.lat, p.lng]} icon={numberedIcon(p.n, meta.color)}>
                 <Tooltip direction="top" offset={[0, -12]}>
                   <span className="font-medium">{p.n}. {p.name}</span>
-                  <span className="ml-1 text-slate-400">{zh ? meta.zh : meta.en} · {dist(p.distance_m, zh)}</span>
+                  <span className="ml-1 text-slate-400">{zh ? meta.zh : meta.en} · {dist(p.distance_m, t)}</span>
                 </Tooltip>
               </Marker>
             )
@@ -140,7 +141,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
         {commute.length > 0 && (
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <Clock className="h-4 w-4 text-slate-400" /> {zh ? '通勤时间（估算）' : 'Commute (est.)'}
+              <Clock className="h-4 w-4 text-slate-400" /> {t('projectDetail:commuteEst')}
             </h3>
             <div className="space-y-2">
               {commute.map((c) => (
@@ -155,10 +156,10 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
 
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <MapPin className="h-4 w-4 text-slate-400" /> {zh ? '周边' : 'Nearby'}
+            <MapPin className="h-4 w-4 text-slate-400" /> {t('projectDetail:nearby')}
           </h3>
           {nearbyList.length === 0 ? (
-            <p className="text-xs text-slate-400">{zh ? '暂无周边数据' : 'No nearby data'}</p>
+            <p className="text-xs text-slate-400">{t('projectDetail:noNearbyData')}</p>
           ) : (
             <div className="space-y-2">
               {nearbyList.map((p, i) => {
@@ -196,7 +197,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
                         )
                       })()}
                     </span>
-                    <span className="shrink-0 text-xs text-slate-500">{dist(p.distance_m, zh)}</span>
+                    <span className="shrink-0 text-xs text-slate-500">{dist(p.distance_m, t)}</span>
                   </div>
                 )
               })}
@@ -209,7 +210,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
       {sales.length > 0 && (
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
           <h3 className="mb-3 text-sm font-semibold text-slate-800">
-            {zh ? '附近真实成交（同区近期）' : 'Recent area sales'}
+            {t('projectDetail:recentAreaSales')}
           </h3>
           <div className="divide-y divide-slate-50">
             {sales.map((s, i) => (
@@ -217,7 +218,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
                 <div className="min-w-0">
                   <span className="text-slate-700">{s.building || areaName}</span>
                   <span className="ml-2 text-xs text-slate-400">
-                    {s.rooms || ''} {s.sizeSqm ? `· ${Math.round(s.sizeSqm)} m²` : ''} · {s.saleType === 'offplan' ? (zh ? '期房' : 'Off-plan') : zh ? '现房' : 'Ready'}
+                    {s.rooms || ''} {s.sizeSqm ? `· ${Math.round(s.sizeSqm)} m²` : ''} · {s.saleType === 'offplan' ? (t('projectDetail:offPlan')) : t('projectDetail:ready')}
                   </span>
                 </div>
                 <div className="shrink-0 text-right">
@@ -239,7 +240,7 @@ export function LocationTab({ buildingName, areaName, location, insights }: Loca
           </div>
           {insights?.area?.data_through && (
             <p className="mt-2 text-[11px] text-slate-400">
-              {zh ? `数据截止 ${insights.area.data_through} · 来源 DLD` : `Through ${insights.area.data_through} · DLD`}
+              {t('projectDetail:throughDld', { insights_area_data_through: insights.area.data_through })}
             </p>
           )}
         </div>
