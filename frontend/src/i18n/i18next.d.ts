@@ -21,6 +21,7 @@ import compareEn from './locales/en/compare.json'
 import investEn from './locales/en/invest.json'
 import offerEn from './locales/en/offer.json'
 import payplanEn from './locales/en/payplan.json'
+import areaInsightsEn from './locales/en/areaInsights.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -47,6 +48,7 @@ declare module 'i18next' {
       invest: typeof investEn
       offer: typeof offerEn
       payplan: typeof payplanEn
+      areaInsights: typeof areaInsightsEn
     }
   }
 }

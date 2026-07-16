@@ -232,7 +232,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   loading: boolean
   usageActive?: boolean   // a specific usage filter is active → prefer the per-usage insights series
 }) {
-  const { t, i18n } = useTranslation(['map'])
+  const { t, i18n } = useTranslation(['map', 'areaInsights'])
   const zh = (i18n.language || 'en').startsWith('zh')
   // `area.*` is the map's combined ('all') value. When the user picks a specific
   // usage in the dialog, the insights series IS that usage → prefer it. Otherwise
@@ -301,12 +301,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center">
         <div className="text-sm font-medium text-slate-600">
-          {zh ? '该区域近期住宅成交较少' : 'Limited recent residential activity'}
+          {t('areaInsights:limitedRecentResidentialActivity')}
         </div>
         <div className="mt-1.5 text-xs leading-relaxed text-slate-400">
-          {zh
-            ? '暂无足够 DLD 成交以计算可靠的市场指标。可能是工业 / 新兴 / 低活跃片区。'
-            : 'Not enough DLD transactions to compute reliable market metrics — likely an industrial, emerging, or low-activity district.'}
+          {t('areaInsights:notEnoughDldTransactions')}
         </div>
       </div>
     )
@@ -323,17 +321,15 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       {segActive && (
         <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">
-            {seg === 'offplan' ? (zh ? '仅统计期房成交' : 'Off-plan sales only') : (zh ? '仅统计现房成交' : 'Ready sales only')}
+            {seg === 'offplan' ? (t('areaInsights:offPlanSalesOnly')) : (t('areaInsights:readySalesOnly'))}
             <InfoHint
-              title={zh ? '口径说明' : 'About this basis'}
-              text={zh
-                ? `中位价与增长仅统计${seg === 'offplan' ? '期房（off-plan）' : '现房（ready）'}成交。期房与现房是两个市场，混在一起会互相失真；可用地图右上角的口径开关切换。租金回报、稳定性与成交量始终按全市场计算，不受口径影响。`
-                : `Median price & growth count ${seg === 'offplan' ? 'off-plan' : 'ready'} sales only. Off-plan and ready are two different markets — mixing them distorts both; switch basis from the map's top-right toggle. Rental yield, stability and volume always use the full market.`}
+              title={t('areaInsights:aboutThisBasis')}
+              text={t('areaInsights:basisNote', { basis: seg === 'offplan' ? t('areaInsights:basisOffplan') : t('areaInsights:basisReady') })}
             />
           </span>
           {thinSample && (
             <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200">
-              {zh ? `样本较少（12个月仅 ${segCount} 笔），仅供参考` : `Thin sample (${segCount} sales in 12m) — indicative only`}
+              {t('areaInsights:thinSampleSalesIn', { segCount })}
             </span>
           )}
         </div>
@@ -342,9 +338,9 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       <div className="mb-2.5">
         <div className="mb-1.5 flex items-center gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            {zh ? '指标时间范围' : 'Metric time range'}
+            {t('areaInsights:metricTimeRange')}
           </span>
-          <span className="text-[10px] text-slate-400">{zh ? '· 下方指标都按此窗口计算' : '· all metrics use this window'}</span>
+          <span className="text-[10px] text-slate-400">{t('areaInsights:allMetricsUseThis')}</span>
         </div>
         <PeriodSelector value={period} onChange={changePeriod} zh={zh} />
       </div>
@@ -352,8 +348,8 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       <div className="grid grid-cols-2 gap-3">
         {/* 中位总价 (median total transaction price) */}
         <StatCard
-          label={zh ? '中位总价' : 'Median price'}
-          info={<InfoHint title={zh ? '怎么算的' : 'How'} text={zh ? '该口径近 12 个月 DLD 成交总价的中位数 —— 真实成交,不是挂牌价。' : 'Median total DLD sale price over the last 12 months — actual deals, not asking prices.'} />}
+          label={t('areaInsights:medianPrice')}
+          info={<InfoHint title={t('areaInsights:how')} text={t('areaInsights:medianTotalDldSale')} />}
           value={
             unitShown != null ? (
               <>
@@ -371,7 +367,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
 
         {/* 均价/m² (median price per square metre) */}
         <StatCard
-          label={zh ? '均价/m²' : 'Price/m²'}
+          label={t('areaInsights:priceM')}
           info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
           value={
             priceShown != null ? (
@@ -387,11 +383,11 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
         </StatCard>
 
         <StatCard
-          label={zh ? '成交量' : 'Volume'}
-          info={<InfoHint title={howTitle} text={zh ? `所选时间范围（${periodLabel(period, zh)}）内该区 DLD 成交笔数——反映真实活跃度。价格/回报/增值同样按此窗口计算，可用上方周期切换。` : `DLD sales in the selected window (${periodLabel(period, zh)}). Price / yield / growth also follow this window — switch it above.`} />}
+          label={t('areaInsights:volume')}
+          info={<InfoHint title={howTitle} text={t('areaInsights:volumeNote', { period: periodLabel(period, zh) })} />}
           value={countShown != null ? countShown.toLocaleString() : '—'}
           chip={seg !== 'all' && insights?.segmentCounts12m?.[seg] != null && !usageActive
-            ? `${seg === 'offplan' ? (zh ? '期房' : 'Off-plan') : (zh ? '现房' : 'Ready')} ${insights.segmentCounts12m[seg].toLocaleString()}` : null}
+            ? `${seg === 'offplan' ? (t('areaInsights:offPlan')) : (t('areaInsights:ready'))} ${insights.segmentCounts12m[seg].toLocaleString()}` : null}
           chipClass="bg-violet-50 text-violet-700"
           loading={loading}
         >
@@ -402,9 +398,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           label={t('map:areaDialog.capitalGrowth')}
           info={<InfoHint
             title={howTitle}
-            text={zh
-              ? `${zh ? '近' : ''}${periodLabel(period, zh)}资本增值 = 该口径「最新滚动窗口中位价/㎡」÷「往前推 ${periodLabel(period, zh)} 的窗口」− 1(非点对点)。${shortPeriod ? '短周期样本薄、波动大，仅供参考。' : ''}样本不足显示「—」，绝不硬报抖动数。`
-              : `Capital growth over ${periodLabel(period, zh)} = latest rolling median price/㎡ ÷ the window ${periodLabel(period, zh)} earlier − 1 (not point-to-point). ${shortPeriod ? 'Short windows are thin & volatile — indicative only. ' : ''}Insufficient samples show “—”.`}
+            text={t('areaInsights:growthNote', { period: periodLabel(period, zh), shortNote: shortPeriod ? t('areaInsights:shortWindowNote') : '' })}
           />}
           value={apprArea != null ? `${apprArea >= 0 ? '+' : ''}${apprArea.toFixed(1)}%` : '—'}
           valueClass={apprArea == null ? 'text-slate-400' : apprArea >= 0 ? 'text-emerald-600' : 'text-rose-600'}
@@ -412,10 +406,10 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
         >
           {apprCity != null && (
             <div className="mb-1 flex items-center gap-1.5 text-[10px] leading-none">
-              <span className="text-slate-400">{zh ? '全市' : 'City'} {apprCity >= 0 ? '+' : ''}{apprCity.toFixed(1)}%</span>
+              <span className="text-slate-400">{t('areaInsights:city')} {apprCity >= 0 ? '+' : ''}{apprCity.toFixed(1)}%</span>
               {apprDelta != null && (
                 <span className={`rounded px-1 py-0.5 font-semibold ${apprDelta >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                  {apprDelta >= 0 ? (zh ? '高于 +' : 'above +') : (zh ? '低于 ' : 'below ')}{apprDelta.toFixed(1)}pp
+                  {apprDelta >= 0 ? (t('areaInsights:above')) : (t('areaInsights:below'))}{apprDelta.toFixed(1)}pp
                 </span>
               )}
             </div>
@@ -427,7 +421,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           label={t('map:areaDialog.rentalYield')}
           info={<InfoHint title={howTitle} text={t('map:explain.rentalYield')} evidence={leaseEvidence} />}
           value={yieldShown != null ? `${yieldShown.toFixed(1)}%` : '—'}
-          chip={area.netYield != null ? `${zh ? '净' : 'Net'} ${area.netYield.toFixed(1)}%` : null}
+          chip={area.netYield != null ? `${t('areaInsights:net')} ${area.netYield.toFixed(1)}%` : null}
           chipClass="bg-emerald-50 text-emerald-700"
           loading={loading}
         >
@@ -439,14 +433,14 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           info={<InfoHint title={howTitle} text={t('map:explain.rentStability')} evidence={leaseEvidence} />}
           value={stabilityNow != null ? `${Math.round(stabilityNow)}%` : '—'}
           valueClass={stabilityNow == null ? 'text-slate-900' : stabilityNow >= 90 ? 'text-emerald-600' : stabilityNow >= 80 ? 'text-slate-900' : 'text-amber-600'}
-          chip={stabilityNow == null ? null : stabilityNow >= 90 ? (zh ? '稳定' : 'Stable') : stabilityNow < 80 ? (zh ? '租金上涨快' : 'Rising fast') : null}
+          chip={stabilityNow == null ? null : stabilityNow >= 90 ? (t('areaInsights:stable')) : stabilityNow < 80 ? (t('areaInsights:risingFast')) : null}
           chipClass={stabilityNow != null && stabilityNow >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}
           loading={loading}
         >
           {stabilityNow != null ? (
             <div className="flex h-9 items-end gap-1.5">
               <div className="flex-1">
-                <div className="text-[9px] text-slate-400">{zh ? '续租' : 'Renew'}</div>
+                <div className="text-[9px] text-slate-400">{t('areaInsights:renew')}</div>
                 <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${Math.min(stabilityNow, 100)}%` }} />
               </div>
             </div>
@@ -460,24 +454,24 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       {area.netYield != null && area.serviceChargeSqft != null && area.netGrossYield != null && area.scDragPct != null && (
         <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
           <div className="mb-2 flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-slate-700">{zh ? '净租金回报（扣物业费）' : 'Net rental yield (after service charge)'}</span>
+            <span className="text-xs font-semibold text-slate-700">{t('areaInsights:netRentalYieldAfter')}</span>
             <InfoHint title={howTitle} text={t('map:explain.netYield')} />
           </div>
           <div className="space-y-1.5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">{zh ? '毛租金回报' : 'Gross yield'}</span>
+              <span className="text-slate-500">{t('areaInsights:grossYield')}</span>
               <span className="font-medium text-slate-700">{area.netGrossYield.toFixed(1)}%</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">
-                {zh ? '物业费' : 'Service charge'}
+                {t('areaInsights:serviceCharge')}
                 <span className="ml-1 text-slate-400">(<DirhamSymbol size="0.7em" className="text-slate-400" />{area.serviceChargeSqft.toFixed(0)}/sqft)</span>
               </span>
               <span className="font-medium text-rose-500">−{area.scDragPct.toFixed(1)}%</span>
             </div>
             <div className="h-px bg-emerald-200/70" />
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-700">{zh ? '净租金回报' : 'Net yield'}</span>
+              <span className="font-semibold text-slate-700">{t('areaInsights:netYield')}</span>
               <span className="text-sm font-bold text-emerald-600">{area.netYield.toFixed(1)}%</span>
             </div>
           </div>
@@ -487,8 +481,8 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
         <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
         {t('map:areaDialog.dldSource', { month: insights?.dataThrough || '—' })}
-        {seg === 'offplan' && <span>{zh ? '· 期房口径' : '· off-plan basis'}</span>}
-        {seg === 'ready' && <span>{zh ? '· 现房口径' : '· ready basis'}</span>}
+        {seg === 'offplan' && <span>{t('areaInsights:offPlanBasis')}</span>}
+        {seg === 'ready' && <span>{t('areaInsights:readyBasis')}</span>}
       </p>
     </div>
   )
@@ -506,7 +500,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
   loading: boolean
   kind?: 'sales' | 'rentals'   // when set, render only that list + hide the internal toggle
 }) {
-  const { t, i18n } = useTranslation(['map'])
+  const { t, i18n } = useTranslation(['map', 'areaInsights'])
   const lang = i18n.language || 'en'
   const [internalTab, setInternalTab] = useState<'sales' | 'rentals'>('sales')
   const tab = kind ?? internalTab
@@ -559,8 +553,6 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
     </button>
   )
 
-  const zh = (lang || 'en').startsWith('zh')
-
   return (
     <div>
       <div className={`mb-2 flex items-center gap-2 ${kind ? 'justify-end' : 'justify-between'}`}>
@@ -573,7 +565,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
         <span className="inline-flex items-center gap-1.5">
           {tab === 'sales' && effFilter !== 'all' && (
             <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-200">
-              {effFilter === 'offplan' ? (zh ? '仅期房成交' : 'Off-plan only') : (zh ? '仅现房成交' : 'Ready only')}
+              {effFilter === 'offplan' ? (t('areaInsights:offPlanOnly')) : (t('areaInsights:readyOnly'))}
             </span>
           )}
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
