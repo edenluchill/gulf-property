@@ -1238,10 +1238,12 @@ const OVERLAY_ZH: Record<string, string> = {
 
 // camera "style" presets the agent can pick (zoom/pitch the engine honours +
 // constant gentle rotation). Friendly, no jargon.
-const CAMERA_STYLES: Record<string, { zoom: number; pitch: number; label: string }> = {
-  orbit: { zoom: 14, pitch: 50, label: '🔄 环绕展示' },
-  push: { zoom: 16, pitch: 55, label: '🔍 推近' },
-  aerial: { zoom: 11.5, pitch: 70, label: '🦅 俯瞰全景' },
+// label 字段已删:只有 zoom/pitch 被 preset 读走(见 /beats/:id/camera),
+// label 从定义之日起就没有任何引用 —— 留着只会让人以为前端在显示它。
+const CAMERA_STYLES: Record<string, { zoom: number; pitch: number }> = {
+  orbit: { zoom: 14, pitch: 50 },
+  push: { zoom: 16, pitch: 55 },
+  aerial: { zoom: 11.5, pitch: 70 },
 }
 /** Friendly one-word camera move for a beat (no zoom jargon). The engine adds a
  *  constant gentle rotation to every beat regardless. */
