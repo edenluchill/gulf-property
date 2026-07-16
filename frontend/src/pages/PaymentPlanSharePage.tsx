@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { Phone, MessageCircle, Mail, Loader2, Printer, BadgeCheck, Share2, Check, Clock } from 'lucide-react'
 import { PaymentPlan } from '../types'
 import { normalizePaymentPlan, monthGap } from '../lib/paymentPlan'
+import i18n from '../i18n'
 
 /** 信头用的静态品牌 mark(与 Header 的 pin+数据柱同源,无动效) */
 function PinzosMark({ className }: { className?: string }) {
@@ -178,6 +179,10 @@ export default function PaymentPlanSharePage() {
 
   const { share, project, agent } = d
   const zh = share.lang !== 'en'
+  // 报价单是经纪为客户备好的正式文档:语言锁定 share.lang(经纪选定),
+  // 不跟随浏览者 UI 语言。getFixedT 非响应式,正合此意;5 语言经同一套 JSON 生效。
+  const docLang = !share.lang || share.lang === 'zh' ? 'zh-CN' : share.lang
+  const t = (i18n.getFixedT as (l: string, ns: string) => (k: string, o?: Record<string, unknown>) => string)(docLang, 'payplan')
   const plan = normalizePaymentPlan(project.paymentPlan)
   const price = share.price
   const orig = share.originalPrice && share.originalPrice > price ? share.originalPrice : null
@@ -191,7 +196,7 @@ export default function PaymentPlanSharePage() {
     ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}`
     : agent?.phone ? `tel:${agent.phone}` : undefined
   const bedsLabel = share.bedrooms != null
-    ? (share.bedrooms === 0 ? (zh ? '工作室' : 'Studio') : zh ? `${share.bedrooms} 居` : `${share.bedrooms} BR`)
+    ? (share.bedrooms === 0 ? (t('payplan:studio')) : t('payplan:br', { share_bedrooms: share.bedrooms }))
     : null
   const unitLabel = share.unitName || bedsLabel
   const quoteDate = share.createdAt ? String(share.createdAt).slice(0, 10) : ''
@@ -206,12 +211,12 @@ export default function PaymentPlanSharePage() {
   const rows = share.planSnapshot?.length
     ? share.planSnapshot.map((m, i) => ({
         idx: i + 1,
-        name: m.name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
+        name: m.name || (t('payplan:installment', { i_1: i + 1 })),
         pct: Number(m.pct) || 0,
         // months = 距上一期的月数(谈的是间隔不是日历日期)
         date: i === 0
-          ? (zh ? '签约时' : 'At booking')
-          : (m.months != null && m.months > 0 ? (zh ? `${m.months} 个月后` : `${m.months} months later`) : ''),
+          ? (t('payplan:atBooking'))
+          : (m.months != null && m.months > 0 ? (t('payplan:monthsLater', { m_months: m.months })) : ''),
         amount: (Number(m.pct) || 0) / 100 * price,
       }))
     : (() => {
@@ -223,12 +228,12 @@ export default function PaymentPlanSharePage() {
           const gap = i === 0 ? 0 : (Number(m.interval_months) || monthGap(sorted[i - 1]?.milestone_date, m.milestone_date))
           return {
             idx: i + 1,
-            name: m.milestone_name || (zh ? `第 ${i + 1} 期` : `Installment ${i + 1}`),
+            name: m.milestone_name || (t('payplan:installment2', { i_1: i + 1 })),
             pct: Number(m.percentage) || 0,
             date: i === 0
-              ? (zh ? '签约时' : 'At booking')
+              ? (t('payplan:atBooking2'))
               : (gap != null && gap > 0
-                ? (zh ? `${gap} 个月后` : `${gap} months later`)
+                ? (t('payplan:monthsLater2', { gap }))
                 : (m.interval_description || '')),
             amount: (Number(m.percentage) || 0) / 100 * price,
           }
@@ -241,11 +246,11 @@ export default function PaymentPlanSharePage() {
 
   // 单元明细行(有值才显示)
   const unitRows: [string, string][] = []
-  if (unitLabel) unitRows.push([zh ? '户型' : 'Unit Type', unitLabel])
-  if (snap?.builtUpArea) unitRows.push([zh ? '室内面积 (Sq.Ft)' : 'Internal Area (Sq.Ft)', String(snap.builtUpArea)])
-  if (snap?.balconyArea) unitRows.push([zh ? '阳台面积 (Sq.Ft)' : 'Balcony Area (Sq.Ft)', String(snap.balconyArea)])
-  if (snap?.area) unitRows.push([zh ? '总面积 (Sq.Ft)' : 'Total Area (Sq.Ft)', String(snap.area)])
-  if (snap?.view) unitRows.push([zh ? '景观' : 'View', snap.view])
+  if (unitLabel) unitRows.push([t('payplan:unitType'), unitLabel])
+  if (snap?.builtUpArea) unitRows.push([t('payplan:internalAreaSqFt'), String(snap.builtUpArea)])
+  if (snap?.balconyArea) unitRows.push([t('payplan:balconyAreaSqFt'), String(snap.balconyArea)])
+  if (snap?.area) unitRows.push([t('payplan:totalAreaSqFt'), String(snap.area)])
+  if (snap?.view) unitRows.push([t('payplan:view'), snap.view])
 
   const th = 'border border-slate-300 bg-slate-800 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-white'
   const td = 'border border-slate-200 px-3 py-2 text-[13px] text-slate-700'
@@ -291,11 +296,11 @@ export default function PaymentPlanSharePage() {
             <PinzosMark className="h-9 w-9" />
             <div>
               <div className="font-serif text-2xl font-semibold leading-none tracking-[-0.015em] text-slate-900">Pinzos</div>
-              <div className="mt-1 text-[10px] tracking-wide text-slate-400">{zh ? '迪拜买房新方式' : 'A New Way to Buy Off-Plan in Dubai'} · pinzos.com</div>
+              <div className="mt-1 text-[10px] tracking-wide text-slate-400">{t('payplan:aNewWayTo')} · pinzos.com</div>
             </div>
           </div>
           <div className="text-right text-[10px] leading-relaxed text-slate-400">
-            {zh ? '数据来源' : 'Data source'}<br />
+            {t('payplan:dataSource')}<br />
             <span className="font-semibold text-slate-500">Dubai Land Department (DLD)</span>
           </div>
         </div>
@@ -316,13 +321,13 @@ export default function PaymentPlanSharePage() {
               </tr>
               {quoteDate && (
                 <tr>
-                  <td className="pr-3 text-right text-slate-400">{zh ? '报价日期' : 'Date'}</td>
+                  <td className="pr-3 text-right text-slate-400">{t('payplan:date')}</td>
                   <td className="text-right font-semibold text-slate-700">{quoteDate}</td>
                 </tr>
               )}
               {validUntil && (
                 <tr>
-                  <td className="pr-3 text-right text-slate-400">{zh ? '有效期至' : 'Valid until'}</td>
+                  <td className="pr-3 text-right text-slate-400">{t('payplan:validUntil')}</td>
                   <td className="text-right font-semibold text-teal-700">{validUntil}</td>
                 </tr>
               )}
@@ -338,10 +343,10 @@ export default function PaymentPlanSharePage() {
         <table className="pp-avoid mt-7 w-full border-collapse">
           <thead>
             <tr>
-              <th className={th}>{zh ? '项目' : 'Project'}</th>
-              <th className={th}>{zh ? '开发商' : 'Developer'}</th>
-              <th className={th}>{zh ? '区域' : 'Area'}</th>
-              {completion && <th className={th}>{zh ? '预计交付' : 'Est. Completion'}</th>}
+              <th className={th}>{t('payplan:project')}</th>
+              <th className={th}>{t('payplan:developer')}</th>
+              <th className={th}>{t('payplan:area')}</th>
+              {completion && <th className={th}>{t('payplan:estCompletion')}</th>}
             </tr>
           </thead>
           <tbody>
@@ -355,7 +360,7 @@ export default function PaymentPlanSharePage() {
         </table>
 
         {/* ── 单元明细 + 价格(折扣行样式对齐样本:Discount → Total Selling Price)── */}
-        <div className={sectionTitle}>{zh ? '单元明细 · Unit Details' : 'Unit Details'}</div>
+        <div className={sectionTitle}>{t('payplan:unitDetails')}</div>
         <table className="pp-avoid w-full border-collapse">
           <tbody>
             {unitRows.map(([k, v]) => (
@@ -365,37 +370,37 @@ export default function PaymentPlanSharePage() {
               </tr>
             ))}
             <tr>
-              <td className={`${td} bg-slate-50 font-medium text-slate-500`}>{zh ? '售价 (AED)' : 'Selling Price (AED)'}</td>
+              <td className={`${td} bg-slate-50 font-medium text-slate-500`}>{t('payplan:sellingPriceAed')}</td>
               <td className={`${td} text-right font-semibold ${discount ? 'text-slate-400 line-through' : ''}`}>{aed(orig || price)}</td>
             </tr>
             {discount && (
               <tr>
-                <td className={`${td} font-semibold text-rose-700`}>{zh ? `专属优惠 ${discount.pct}%` : `Discount ${discount.pct}%`}</td>
+                <td className={`${td} font-semibold text-rose-700`}>{t('payplan:discount', { discount_pct: discount.pct })}</td>
                 <td className={`${td} text-right font-semibold text-rose-700`}>− {aed(discount.amount)}</td>
               </tr>
             )}
             <tr>
-              <td className={`${td} bg-slate-800 text-sm font-bold text-white`}>{zh ? '成交总价 (AED)' : 'Total Selling Price (AED)'}</td>
+              <td className={`${td} bg-slate-800 text-sm font-bold text-white`}>{t('payplan:totalSellingPriceAed')}</td>
               <td className={`${td} bg-slate-800 text-right text-base font-extrabold text-white`}>{aed(price)}</td>
             </tr>
           </tbody>
         </table>
         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-          * {zh ? '价格与房源随时可能调整,恕不另行通知。' : 'Prices and availability are subject to change without notice.'}
+          * {t('payplan:pricesAndAvailabilityAre')}
         </p>
 
         {/* ── 分期付款表 ── */}
         {rows.length > 0 && (
           <>
-            <div className={sectionTitle}>{zh ? '分期付款安排 · Schedule of Installment Payments' : 'Schedule of Installment Payments'}</div>
+            <div className={sectionTitle}>{t('payplan:scheduleOfInstallmentPayments')}</div>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
                   <th className={`${th} w-8 text-center`}>#</th>
-                  <th className={th}>{zh ? '付款节点' : 'Payment Terms'}</th>
+                  <th className={th}>{t('payplan:paymentTerms')}</th>
                   <th className={`${th} w-20 text-right`}>%</th>
-                  <th className={`${th} w-28`}>{zh ? '时间' : 'Date'}</th>
-                  <th className={`${th} w-32 text-right`}>{zh ? '金额 (AED)' : 'Amount (AED)'}</th>
+                  <th className={`${th} w-28`}>{t('payplan:date2')}</th>
+                  <th className={`${th} w-32 text-right`}>{t('payplan:amountAed')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -409,7 +414,7 @@ export default function PaymentPlanSharePage() {
                   </tr>
                 ))}
                 <tr>
-                  <td className={`${td} bg-slate-800 font-bold text-white`} colSpan={4}>{zh ? '合计 · Purchase Price' : 'Purchase Price'}</td>
+                  <td className={`${td} bg-slate-800 font-bold text-white`} colSpan={4}>{t('payplan:purchasePrice')}</td>
                   <td className={`${td} bg-slate-800 text-right font-extrabold text-white`}>{aed(price)}</td>
                 </tr>
               </tbody>
@@ -418,38 +423,36 @@ export default function PaymentPlanSharePage() {
         )}
 
         {/* ── 附加费用 ── */}
-        <div className={sectionTitle}>{zh ? '附加费用 · Additional Cost' : 'Additional Cost'}</div>
+        <div className={sectionTitle}>{t('payplan:additionalCost')}</div>
         <table className="pp-avoid w-full border-collapse">
           <thead>
             <tr>
-              <th className={th}>{zh ? '项目' : 'Description'}</th>
-              <th className={`${th} w-32 text-right`}>{zh ? '金额 (AED)' : 'Total Amount (AED)'}</th>
-              <th className={th}>{zh ? '说明' : 'Remarks'}</th>
+              <th className={th}>{t('payplan:description')}</th>
+              <th className={`${th} w-32 text-right`}>{t('payplan:totalAmountAed')}</th>
+              <th className={th}>{t('payplan:remarks')}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className={td}>{zh ? 'DLD 注册费(4% + 40)' : 'Oqood / DLD Registration (4% + 40)'}</td>
+              <td className={td}>{t('payplan:oqoodDldRegistration4')}</td>
               <td className={`${td} text-right font-semibold`}>{aed(dldFee)}</td>
-              <td className={`${td} text-slate-500`}>{zh ? '预订时由买家支付' : 'Payable by the Buyer at time of booking'}</td>
+              <td className={`${td} text-slate-500`}>{t('payplan:payableByTheBuyer')}</td>
             </tr>
             <tr>
-              <td className={td}>{zh ? '行政费(Admin Charges)' : 'Admin Charges'}</td>
+              <td className={td}>{t('payplan:adminCharges')}</td>
               <td className={`${td} text-right font-semibold`}>{aed(adminFee)}</td>
-              <td className={`${td} text-slate-500`}>{zh ? '预订时由买家支付' : 'Payable by the Buyer at time of booking'}</td>
+              <td className={`${td} text-slate-500`}>{t('payplan:payableByTheBuyer2')}</td>
             </tr>
           </tbody>
         </table>
         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-          * {zh
-            ? '按迪拜通行标准估算,以开发商与迪拜土地局(DLD)实际收费为准;最终价格与付款节点以开发商购房合同(SPA)为准。'
-            : 'Estimated per standard Dubai practice; actual amounts per the developer and the DLD. Final prices and milestones per the developer’s SPA.'}
+          * {t('payplan:estimatedPerStandardDubai')}
         </p>
 
         {/* ── 户型图(UNIT PLAN;打印时整块不拆,能塞进当前页就不翻页)── */}
         {snap?.floorPlanImage && (
           <div className="pp-plan">
-            <div className={sectionTitle}>{zh ? '户型图 · Unit Plan' : 'Unit Plan'}</div>
+            <div className={sectionTitle}>{t('payplan:unitPlan')}</div>
             <div className="border border-slate-200 p-2">
               <img src={snap.floorPlanImage} alt={unitLabel || 'Unit plan'} className="mx-auto block max-h-[560px] w-auto max-w-full" loading="lazy" />
             </div>
@@ -463,10 +466,10 @@ export default function PaymentPlanSharePage() {
             <div className="flex items-start gap-3.5">
               {qr && <img src={qr} alt="Verify QR" className="h-[72px] w-[72px] rounded-md border border-slate-200 p-1" />}
               <div className="text-[11px] leading-relaxed text-slate-500">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-700">{zh ? '在线验证' : 'Verify online'}</div>
-                <div className="mt-1">{zh ? '扫码核验本报价单真伪与时效' : 'Scan to verify this offer'}</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-700">{t('payplan:verifyOnline')}</div>
+                <div className="mt-1">{t('payplan:scanToVerifyThis')}</div>
                 <div className="font-medium text-teal-700">pinzos.com/pp/{share.code}</div>
-                {quoteDate && <div className="mt-1 text-slate-400">{zh ? `由 Pinzos 平台出具 · ${quoteDate}` : `Issued via Pinzos · ${quoteDate}`}</div>}
+                {quoteDate && <div className="mt-1 text-slate-400">{t('payplan:issuedViaPinzos', { quoteDate })}</div>}
               </div>
             </div>
 
@@ -488,7 +491,7 @@ export default function PaymentPlanSharePage() {
                 )}
                 <div className="text-right">
                   <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    {isDeveloper ? (zh ? '出品方' : 'Developer') : (zh ? '您的置业顾问' : 'Sales Executive')}
+                    {isDeveloper ? (t('payplan:developer2')) : (t('payplan:salesExecutive'))}
                   </div>
                   <div className="font-serif text-lg font-bold text-slate-900">{agent.name}</div>
                   {!isDeveloper && (agent.phone || agent.whatsapp || agent.email) && (
@@ -531,19 +534,19 @@ export default function PaymentPlanSharePage() {
             className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
           >
             {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-            {copied ? (zh ? '链接已复制' : 'Link copied') : (zh ? '分享给客户' : 'Share')}
+            {copied ? (t('payplan:linkCopied')) : (t('payplan:share'))}
           </button>
           <button
             type="button"
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            <Printer className="h-4 w-4" />{zh ? '保存 PDF / 打印' : 'Save as PDF'}
+            <Printer className="h-4 w-4" />{t('payplan:saveAsPdf')}
           </button>
           {contactHref && (
             <a href={contactHref} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
               {agent?.whatsapp ? <MessageCircle className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-              {zh ? '咨询顾问' : 'Contact'}
+              {t('payplan:contact')}
             </a>
           )}
         </div>
