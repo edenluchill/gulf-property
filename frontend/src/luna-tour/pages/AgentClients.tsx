@@ -8,6 +8,7 @@
  * investment proposal or a tour.
  */
 import { useEffect, useRef, useState } from 'react'
+import { errText } from '../errText'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -280,7 +281,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
     setPhase('generating'); setSteps([]); setShareCode(null)
     try {
       const r = await (await lunaFetch('/client-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id }) })).json()
-      if (!r.shareCode) { setPhase('idle'); alert(r.error || t('lunaTour:generationFailed')); return }
+      if (!r.shareCode) { setPhase('idle'); alert(errText(r, 'lunaTour:generationFailed')); return }
       setShareCode(r.shareCode)
       pollRef.current = setInterval(async () => {
         const s = await (await lunaFetch(`/client-reports/${r.shareCode}/status`)).json()

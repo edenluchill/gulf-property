@@ -471,5 +471,21 @@
   "lunaIsReadingThe": "Luna 正在读这份大纲…",
   "lunaReadItNothing": "Luna 看过了 —— 该讲的都讲到了。",
   "lunaSNotes": "Luna 的意见（{{notes_length}} 条）",
-  "letLunaFixIt": "让 Luna 改"
+  "letLunaFixIt": "让 Luna 改",
+  "err": {
+    "auth_required": "请先登录",
+    "client_name_required": "客户姓名必填",
+    "compare_needs_2_to_4": "请选择 2-4 个项目对比",
+    "instruction_required": "说一句你想改什么",
+    "invalid_email": "邮箱格式不正确",
+    "lead_already_claimed": "该线索已被认领",
+    "lead_not_found": "线索不存在或已转/被他人认领",
+    "login_required": "请先登录经纪账户",
+    "needs_2_projects": "至少需要选择 2 个楼盘",
+    "payplan_pct_not_100": "付款周期不合法:各期比例合计需为 100%",
+    "profile_or_brief_required": "需要客户画像或一句话",
+    "rate_limited": "慢一点，5 秒后再试",
+    "subscription_required": "Sales Offer 报价单是订阅经纪功能,选择套餐即可解锁。",
+    "upload_rejected": "没有文件,或类型/大小不支持(视频/图,≤60MB)"
+  }
 }

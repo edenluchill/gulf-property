@@ -471,5 +471,21 @@
   "lunaIsReadingThe": "Luna is reading the storyboard…",
   "lunaReadItNothing": "Luna read it — nothing important is missing.",
   "lunaSNotes": "Luna's notes ({{notes_length}})",
-  "letLunaFixIt": "Let Luna fix it"
+  "letLunaFixIt": "Let Luna fix it",
+  "err": {
+    "auth_required": "Please sign in first.",
+    "client_name_required": "Client name is required.",
+    "compare_needs_2_to_4": "Pick 2–4 projects to compare.",
+    "instruction_required": "Tell Luna what you'd like changed.",
+    "invalid_email": "That email address doesn't look right.",
+    "lead_already_claimed": "This lead has already been claimed.",
+    "lead_not_found": "Lead not found — it may have been converted or claimed by someone else.",
+    "login_required": "Please sign in to your agent account first.",
+    "needs_2_projects": "Pick at least 2 projects.",
+    "payplan_pct_not_100": "Payment schedule is invalid: the instalments must add up to 100%.",
+    "profile_or_brief_required": "Add a client profile or a one-line brief first.",
+    "rate_limited": "Easy there — try again in 5 seconds.",
+    "subscription_required": "Sales Offer is a subscriber feature — pick a plan to unlock it.",
+    "upload_rejected": "No file, or the type/size isn't supported (video/image, ≤60MB)."
+  }
 }

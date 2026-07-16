@@ -21,6 +21,7 @@
  * 为几厘钱去阻止一个提升主产品（20 积分的报告）质量的动作，不划算。
  */
 import { useEffect, useRef, useState } from 'react'
+import { errText } from '../errText'
 import { useTranslation } from 'react-i18next'
 import { Sparkles, Check, X, Loader2, RefreshCw, Wand2 } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
@@ -145,7 +146,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
         body: JSON.stringify({ text: note, client_id: existing?.id }),
       })
       const j = await r.json()
-      if (!j.success) { setErr(j.error || t('lunaTour:checkFailed')); return }
+      if (!j.success) { setErr(errText(j, 'lunaTour:checkFailed')); return }
       setProfile((prev) => ({ ...prev, ...j.extracted }))
       if (j.extracted?.name && !name.trim()) setName(j.extracted.name)
       setGaps(j.gaps || [])

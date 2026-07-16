@@ -247,7 +247,7 @@ router.post('/clients', async (req: Request, res: Response) => {
     const agentId = await currentAgentId(req)
     const b = (req.body || {}) as Record<string, string>
     const name = String(b.name || '').trim()
-    if (!name) return res.status(400).json({ success: false, error: '客户姓名必填' })
+    if (!name) return res.status(400).json({ success: false, error: '客户姓名必填', code: 'client_name_required' })
     const r = await pool.query(
       `INSERT INTO lt_clients (agent_id, name, avatar_url, background, budget, expectations, traits)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
@@ -288,7 +288,7 @@ router.post('/clients/profile-coach', requireAgent, async (req: AgentReq, res: R
 
     // 节流:同一经纪 5 秒一次(防连点/脚本刷)。零成本,够用。
     const last = coachThrottle.get(agentId) || 0
-    if (Date.now() - last < 5000) return res.status(429).json({ success: false, error: '慢一点，5 秒后再试' })
+    if (Date.now() - last < 5000) return res.status(429).json({ success: false, error: '慢一点，5 秒后再试', code: 'rate_limited' })
     coachThrottle.set(agentId, Date.now())
 
     // 已有画像:已经知道的不再问(问过一次就别再烦他)
@@ -491,7 +491,7 @@ router.post('/client-reports', requireAgent, async (req: AgentReq, res: Response
       : undefined
 
     if (!oneLiner.trim() && !Object.keys(client).length && !Object.keys(profile).length) {
-      return res.status(400).json({ success: false, error: '需要客户画像或一句话' })
+      return res.status(400).json({ success: false, error: '需要客户画像或一句话', code: 'profile_or_brief_required' })
     }
     // 配额门 + 计量(共享 demo 经纪豁免)
     const loggedIn = billable(req)
@@ -524,7 +524,7 @@ router.post('/client-reports/compare', requireAgent, async (req: AgentReq, res: 
     const agentId = req.lunaAgentId!
     const b = (req.body || {}) as Record<string, unknown>
     const projectIds = Array.isArray(b.project_ids) ? b.project_ids.filter((x) => typeof x === 'string').slice(0, 4) as string[] : []
-    if (projectIds.length < 2) return res.status(400).json({ success: false, error: '请选择 2-4 个项目对比' })
+    if (projectIds.length < 2) return res.status(400).json({ success: false, error: '请选择 2-4 个项目对比', code: 'compare_needs_2_to_4' })
     const clientId = typeof b.client_id === 'string' ? b.client_id : null
 
     // Resolve client name + budget from the saved (agent-owned) profile.
@@ -650,7 +650,7 @@ router.post('/profile', async (req: Request, res: Response) => {
     if (public_email !== undefined) {
       const v = String(public_email || '').trim().slice(0, 160)
       if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
-        return res.status(400).json({ success: false, error: '邮箱格式不正确' })
+        return res.status(400).json({ success: false, error: '邮箱格式不正确', code: 'invalid_email' })
       }
       pubEmail = v || null
     }
@@ -816,7 +816,7 @@ router.post('/leads/:id/claim', async (req: Request, res: Response) => {
        RETURNING id`,
       [agentId, req.params.id]
     )
-    if (!r.rowCount) return res.status(409).json({ success: false, error: '该线索已被认领' })
+    if (!r.rowCount) return res.status(409).json({ success: false, error: '该线索已被认领', code: 'lead_already_claimed' })
     res.json({ success: true })
   } catch (err) {
     console.error('[luna] lead claim error:', err)
@@ -853,7 +853,7 @@ router.post('/leads/:id/convert', async (req: Request, res: Response) => {
           AND (assigned_agent_id IS NULL OR assigned_agent_id = $1)`,
       [agentId, req.params.id]
     )
-    if (!lead.rowCount) return res.status(404).json({ success: false, error: '线索不存在或已转/被他人认领' })
+    if (!lead.rowCount) return res.status(404).json({ success: false, error: '线索不存在或已转/被他人认领', code: 'lead_not_found' })
     const l = lead.rows[0]
     const name = (l.name || l.email || l.phone || '新客户').toString().slice(0, 120)
     // 意向摘要 → 客户备注(区域/项目/搜索/研究痕迹)
@@ -1065,7 +1065,7 @@ router.post('/match', requireAgent, async (req: AgentReq, res: Response) => {
     const clientId = typeof b.client_id === 'string' && b.client_id ? b.client_id : null
     const { client, oneLiner } = await resolveClient(agentId, clientId, rawClient, rawOneLiner)
     if (!oneLiner.trim() && !Object.keys(client).length) {
-      return res.status(400).json({ error: '需要客户画像或一句话' })
+      return res.status(400).json({ error: '需要客户画像或一句话', code: 'profile_or_brief_required' })
     }
     const matches = await matchProperties(client, oneLiner, 3)
     res.json({ matches })
@@ -1085,7 +1085,7 @@ router.post('/report', async (req: Request, res: Response) => {
     const client = (b.client && typeof b.client === 'object' ? b.client : {}) as Record<string, unknown>
     const oneLiner = typeof b.one_liner === 'string' ? b.one_liner : ''
     if (!oneLiner.trim() && !Object.keys(client).length) {
-      return res.status(400).json({ error: '需要客户画像或一句话' })
+      return res.status(400).json({ error: '需要客户画像或一句话', code: 'profile_or_brief_required' })
     }
     const report = await buildClientReport(client, oneLiner, 3)
     res.json({ report })
@@ -1107,7 +1107,7 @@ router.post('/sessions/create', requireAgent, async (req: AgentReq, res: Respons
     const b = (req.body || {}) as Record<string, unknown>
     const projectIds = Array.isArray(b.project_ids) ? (b.project_ids as unknown[]).map(String) : []
     if (projectIds.length < 2) {
-      return res.status(400).json({ error: '至少需要选择 2 个楼盘' })
+      return res.status(400).json({ error: '至少需要选择 2 个楼盘', code: 'needs_2_projects' })
     }
     const shareCodeRaw = String(b.share_code || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '')
     const shareCode = shareCodeRaw || (await uniqueShareCode())
@@ -1548,7 +1548,7 @@ router.post('/sessions/:id/ai-edit', requireAgent, async (req: AgentReq, res: Re
     const sessionId = await resolveSessionId(req.params.id)
     if (!sessionId) return res.status(404).json({ error: 'not found' })
     const instruction = String(req.body?.instruction || '').trim().slice(0, 500)
-    if (!instruction) return res.status(400).json({ error: '说一句你想改什么' })
+    if (!instruction) return res.status(400).json({ error: '说一句你想改什么', code: 'instruction_required' })
 
     const scRes = await pool.query<{ id: string; script: ScriptShape }>(
       `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
@@ -2047,7 +2047,7 @@ router.post('/sessions/:id/beat-media', async (req: Request, res: Response) => {
 router.post('/media-upload', mediaUpload.single('file'), async (req: Request, res: Response) => {
   try {
     const file = (req as Request & { file?: Express.Multer.File }).file
-    if (!file) return res.status(400).json({ error: '没有文件,或类型/大小不支持(视频/图,≤60MB)' })
+    if (!file) return res.status(400).json({ error: '没有文件,或类型/大小不支持(视频/图,≤60MB)', code: 'upload_rejected' })
     const ext = MEDIA_EXT[file.mimetype] || path.extname(file.originalname) || '.bin'
     const key = `luna-media/${crypto.randomUUID()}${ext}`
     const url = await uploadBufferToR2(key, file.buffer, file.mimetype)

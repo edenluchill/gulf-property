@@ -15,6 +15,7 @@
  *    经纪却要从零手打。而且旧版的「适合的户型」是假的(就是最便宜的 8 个)。
  */
 import { useEffect, useRef, useState } from 'react'
+import { errText } from '../errText'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2, Check, ExternalLink, Copy, Sparkles, Search, X, Plus, User, Eye,
@@ -95,7 +96,7 @@ export default function AgentReport() {
         }),
       })
       const d = await r.json()
-      if (!d.shareCode) { setErr(d.error || t('lunaTour:generationFailedPleaseSign')); setPhase('error'); return }
+      if (!d.shareCode) { setErr(errText(d, 'lunaTour:generationFailedPleaseSign')); setPhase('error'); return }
       setShareCode(d.shareCode)
       pollRef.current = setInterval(async () => {
         try {

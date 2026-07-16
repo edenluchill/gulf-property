@@ -538,7 +538,7 @@ router.post('/public/payplan', optionalAuth, async (req: Request, res: Response)
     if (plan != null) {
       planSnapshot = sanitizePlanSnapshot(plan)
       if (!planSnapshot) {
-        return res.status(400).json({ error: '付款周期不合法:各期比例合计需为 100%' })
+        return res.status(400).json({ error: '付款周期不合法:各期比例合计需为 100%', code: 'payplan_pct_not_100' })
       }
     }
     const unitSnap = sanitizeUnitSnapshot(unit)

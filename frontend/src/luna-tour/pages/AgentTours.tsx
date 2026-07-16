@@ -8,6 +8,7 @@
  * — backend operates on the demo agent. Delete luna-tour/ + the routes to remove.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { errText } from '../errText'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { lunaFetch, getClients, type Client } from '../lunaApi'
@@ -222,7 +223,7 @@ export default function AgentTours() {
       })
       const d = await r.json()
       if (!r.ok) {
-        setMatchMsg(`❌ ${d.error || t('lunaTour:matchFailed')}`)
+        setMatchMsg(`❌ ${errText(d, 'lunaTour:matchFailed')}`)
       } else if (!d.matches?.length) {
         setMatchMsg(t('lunaTour:noSuitableProjectsMatched'))
       } else {
@@ -275,7 +276,7 @@ export default function AgentTours() {
           if (d.status === 'failed') {
             stopTimers()
             setGenPhase('error')
-            setGenError(d.error || t('lunaTour:generationFailed6'))
+            setGenError(errText(d, 'lunaTour:generationFailed6'))
             return
           }
           if (d.status === 'ready') {
@@ -347,7 +348,7 @@ export default function AgentTours() {
       if (!r.ok) {
         stopTimers()
         setGenPhase('error')
-        setGenError(d.error || t('lunaTour:generationFailed7'))
+        setGenError(errText(d, 'lunaTour:generationFailed7'))
       } else {
         // generation runs in the background — poll for structure + audio.
         setGenShareCode(d.shareCode || null)
@@ -1079,7 +1080,7 @@ function FlowToggle({
       })
       const r = await lunaFetch(`/sessions/${sessionId}/render`, { method: 'POST' })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || t('lunaTour:publishFailed')}`)
+      if (!r.ok) setMsg(`❌ ${errText(d, 'lunaTour:publishFailed')}`)
       else onRendered?.()
     } catch (e) {
       setMsg(`❌ ${e instanceof Error ? e.message : t('lunaTour:networkError4')}`)
@@ -1115,7 +1116,7 @@ function FlowToggle({
       const up = await lunaFetch(`/media-upload`, { method: 'POST', body: fd })
       const ud = await up.json()
       if (!up.ok || !ud.url) {
-        alert(ud.error || t('lunaTour:uploadFailedVideoImage'))
+        alert(errText(ud, 'lunaTour:uploadFailedVideoImage'))
       } else {
         const r = await lunaFetch(`/sessions/${sessionId}/beat-media`, {
           method: 'POST',
@@ -1182,7 +1183,7 @@ function FlowToggle({
       )
       const r = await lunaFetch(`/sessions/${sessionId}/revise`, { method: 'POST' })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || t('lunaTour:revisionFailed')}`)
+      if (!r.ok) setMsg(`❌ ${errText(d, 'lunaTour:revisionFailed')}`)
       else if (!d.applied) setMsg(`ℹ️ ${d.message || t('lunaTour:aiMadeNoChanges')}`)
       else {
         setComments({})
@@ -1208,7 +1209,7 @@ function FlowToggle({
         body: JSON.stringify({ title, narration }),
       })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || t('lunaTour:saveFailed2')}`)
+      if (!r.ok) setMsg(`❌ ${errText(d, 'lunaTour:saveFailed2')}`)
       else {
         setMsg(t('lunaTour:saved2'))
         onSaved()

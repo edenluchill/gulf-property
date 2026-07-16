@@ -1,4 +1,20 @@
 {
+  "err": {
+    "auth_required": "Veuillez d'abord vous connecter.",
+    "client_name_required": "Le nom du client est requis.",
+    "compare_needs_2_to_4": "Sélectionnez entre 2 et 4 projets à comparer.",
+    "instruction_required": "Indiquez à Luna ce que vous souhaitez modifier.",
+    "invalid_email": "Cette adresse e-mail n'est pas valide.",
+    "lead_already_claimed": "Ce lead a déjà été attribué.",
+    "lead_not_found": "Lead introuvable — il a peut-être été converti ou attribué à quelqu'un d'autre.",
+    "login_required": "Veuillez d'abord vous connecter à votre compte agent.",
+    "needs_2_projects": "Sélectionnez au moins 2 projets.",
+    "payplan_pct_not_100": "Échéancier de paiement invalide : le total des versements doit être de 100%.",
+    "profile_or_brief_required": "Ajoutez d'abord un profil client ou un court descriptif.",
+    "rate_limited": "Ralentissez — réessayez dans 5 secondes.",
+    "subscription_required": "L'Offre de Vente est réservée aux abonnés — choisissez un forfait pour la débloquer.",
+    "upload_rejected": "Aucun fichier, ou format/taille non supporté (vidéo/image, ≤60MB)."
+  },
   "rejoin": "Rejoindre",
   "explore": "Explorer",
   "map": "Carte",
