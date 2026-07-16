@@ -1,5 +1,6 @@
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../DirhamSymbol'
+import i18n from '../../i18n'
 
 /**
  * 5-year returns breakdown as a single stacked bar: rental income vs capital
@@ -15,7 +16,7 @@ export default function ReturnsBar({
   appreciation: number
   lang: string
 }) {
-  const zh = lang?.startsWith('zh')
+  const t = (i18n.getFixedT as (l: string, ns: string) => (k: string, o?: Record<string, unknown>) => string)(lang, 'projectDetail')
   const total = rental + appreciation
   if (total <= 0) return null
   const rentalPct = (rental / total) * 100
@@ -36,14 +37,14 @@ export default function ReturnsBar({
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-teal-400" />
-          {zh ? '租金收入' : 'Rental'} <Amount v={rental} />
+          {t('projectDetail:rental')} <Amount v={rental} />
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          {zh ? '增值' : 'Appreciation'} <Amount v={appreciation} />
+          {t('projectDetail:appreciation')} <Amount v={appreciation} />
         </span>
         <span className="ml-auto font-medium text-slate-800">
-          {zh ? '5 年合计 ' : '5yr total '}+<Amount v={total} />
+          {t('projectDetail:5yrTotal')}+<Amount v={total} />
         </span>
       </div>
     </div>

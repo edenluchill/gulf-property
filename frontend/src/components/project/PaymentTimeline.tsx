@@ -1,6 +1,7 @@
 import { PaymentPlan } from '../../types'
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../DirhamSymbol'
+import i18n from '../../i18n'
 
 /**
  * Payment plan as a proportional timeline: a cumulative segmented bar (each
@@ -19,15 +20,15 @@ export default function PaymentTimeline({
   referencePrice?: number
   lang: string
 }) {
-  const zh = lang?.startsWith('zh')
+  const t = (i18n.getFixedT as (l: string, ns: string) => (k: string, o?: Record<string, unknown>) => string)(lang, 'projectDetail')
   const pct = (m: PaymentPlan) => parseFloat(String(m.percentage)) || 0
   const total = paymentPlan.reduce((s, m) => s + pct(m), 0)
 
   const timing = (m: PaymentPlan): string => {
     if (m.interval_description) return m.interval_description
     if (m.interval_months != null) {
-      if (m.interval_months === 0) return zh ? '签约时' : 'At booking'
-      return zh ? `${m.interval_months} 个月后` : `${m.interval_months}mo later`
+      if (m.interval_months === 0) return t('projectDetail:atBooking2')
+      return t('projectDetail:moLater', { m_interval_months: m.interval_months })
     }
     if (m.milestone_date) return String(m.milestone_date).slice(0, 10)
     return ''
@@ -53,8 +54,8 @@ export default function PaymentTimeline({
           })}
         </div>
         <div className="mt-1.5 flex justify-between text-[11px] text-slate-400">
-          <span>{zh ? '签约' : 'Booking'}</span>
-          <span>{zh ? '交付 / 交付后' : 'Handover'}</span>
+          <span>{t('projectDetail:booking')}</span>
+          <span>{t('projectDetail:handover')}</span>
         </div>
       </div>
 
@@ -86,15 +87,15 @@ export default function PaymentTimeline({
       </div>
 
       <div className="flex items-center justify-between rounded-xl bg-primary px-4 py-3 text-white">
-        <span className="font-medium">{zh ? '合计' : 'Total'}</span>
+        <span className="font-medium">{t('projectDetail:total2')}</span>
         <span className="text-xl font-bold">{total.toFixed(0)}%</span>
       </div>
       {referencePrice && referencePrice > 0 && (
         <p className="text-[11px] text-slate-400">
-          {zh ? '金额按参考价 ' : 'Amounts at reference price '}
+          {t('projectDetail:amountsAtReferencePrice')}
           <DirhamSymbol size="0.8em" className="mx-0.5" />
           {formatMoneyCompact(referencePrice, lang)}
-          {zh ? ' 估算,实际以户型总价为准。' : ' — actual depends on unit price.'}
+          {t('projectDetail:actualDependsOnUnit')}
         </p>
       )}
     </div>

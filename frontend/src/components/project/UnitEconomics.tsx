@@ -3,6 +3,7 @@ import { calcInvestment5yr, paybackYears } from '../../lib/investment'
 import { formatMoneyCompact } from '../../lib/money'
 import DirhamSymbol from '../DirhamSymbol'
 import ReturnsBar from './ReturnsBar'
+import i18n from '../../i18n'
 
 /**
  * Per-unit economics: this unit's 5yr ROI (from its own price + area yield/
@@ -23,7 +24,7 @@ export default function UnitEconomics({
   paymentPlan?: PaymentPlan[]
   lang: string
 }) {
-  const zh = lang?.startsWith('zh')
+  const t = (i18n.getFixedT as (l: string, ns: string) => (k: string, o?: Record<string, unknown>) => string)(lang, 'projectDetail')
   const y = yieldPct || 0
   const g = growthPct || 0
   const inv = price ? calcInvestment5yr(price, y, g) : null
@@ -41,19 +42,19 @@ export default function UnitEconomics({
     <div className="mt-6 space-y-4">
       {inv && (
         <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-          <div className="mb-3 text-sm font-semibold text-slate-800">{zh ? '这套的投资估算' : 'This unit · investment'}</div>
+          <div className="mb-3 text-sm font-semibold text-slate-800">{t('projectDetail:thisUnitInvestment')}</div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <div className="text-lg font-bold text-teal-600">{y ? `${y}%` : '—'}</div>
-              <div className="text-[11px] text-slate-500">{zh ? '租金回报' : 'Yield'}</div>
+              <div className="text-[11px] text-slate-500">{t('projectDetail:yield')}</div>
             </div>
             <div>
               <div className="text-lg font-bold text-emerald-600">{inv.annualized_return_pct}%</div>
-              <div className="text-[11px] text-slate-500">{zh ? '5 年年化' : '5yr annualized'}</div>
+              <div className="text-[11px] text-slate-500">{t('projectDetail:5yrAnnualized')}</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-slate-800">{paybackYears(y) ?? '—'}{paybackYears(y) ? (zh ? ' 年' : 'y') : ''}</div>
-              <div className="text-[11px] text-slate-500">{zh ? '回本年限' : 'Payback'}</div>
+              <div className="text-lg font-bold text-slate-800">{paybackYears(y) ?? '—'}{paybackYears(y) ? (t('projectDetail:y')) : ''}</div>
+              <div className="text-[11px] text-slate-500">{t('projectDetail:payback')}</div>
             </div>
           </div>
           <div className="mt-3">
@@ -65,7 +66,7 @@ export default function UnitEconomics({
       {hasPlan && price ? (
         <div className="rounded-2xl border border-slate-100 bg-white p-4">
           <div className="mb-3 text-sm font-semibold text-slate-800">
-            {zh ? '这套的付款节奏' : 'Payment for this unit'}
+            {t('projectDetail:paymentForThisUnit')}
           </div>
           <div className="space-y-1.5">
             {paymentPlan!.map((m, i) => {

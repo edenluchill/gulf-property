@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PaymentPlan } from '../../types'
 import { formatMoneyCompact } from '../../lib/money'
+import i18n from '../../i18n'
 
 /**
  * 付款时间线交互图表（内联 SVG，无依赖）。
@@ -34,7 +35,7 @@ export default function PaymentChart({
   price: number
   lang: string
 }) {
-  const zh = lang?.startsWith('zh')
+  const t = (i18n.getFixedT as (l: string, ns: string) => (k: string, o?: Record<string, unknown>) => string)(lang, 'projectDetail')
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   const [hover, setHover] = useState<number | null>(null)
@@ -57,7 +58,7 @@ export default function PaymentChart({
       cum += amount
       const timing = m.interval_description
         || (m.interval_months != null
-          ? (m.interval_months === 0 ? (zh ? '签约时' : 'At booking') : (zh ? `第 ${m.interval_months} 个月` : `Month ${m.interval_months}`))
+          ? (m.interval_months === 0 ? (t('projectDetail:atBooking')) : (t('projectDetail:month', { m_interval_months: m.interval_months })))
           : (m.milestone_date ? String(m.milestone_date).slice(0, 10) : ''))
       return {
         name: m.milestone_name,
@@ -69,7 +70,7 @@ export default function PaymentChart({
       }
     })
     return { ms, monthsKnown }
-  }, [paymentPlan, price, zh])
+  }, [paymentPlan, price, lang])
 
   const { ms, monthsKnown } = data
   if (!ms.length || !price) return <div ref={wrapRef} />
@@ -108,17 +109,17 @@ export default function PaymentChart({
       <div className="mb-1.5 flex items-center gap-4 text-[11px] text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: BAR }} />
-          {zh ? '本期应付' : 'Installment'}
+          {t('projectDetail:installment')}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 rounded" style={{ background: LINE }} />
-          {zh ? '累计已付' : 'Cumulative paid'}
+          {t('projectDetail:cumulativePaid')}
         </span>
       </div>
 
       {width > 0 && (
         <svg width={w} height={H} role="img"
-             aria-label={zh ? '付款时间线图表' : 'Payment timeline chart'}>
+             aria-label={t('projectDetail:paymentTimelineChart')}>
           {/* 网格 + y 轴刻度(hairline,不抢数据) */}
           {/* 最顶刻度不标——终点已直接标注总额,避免右上两个相同数字 */}
           {tickVals.map((v, i) => (
@@ -158,7 +159,7 @@ export default function PaymentChart({
           {ms.map((m, i) => (
             <text key={i} x={x(m.month!)} y={H - 10} textAnchor="middle" fontSize={9}
                   fill={hover === i ? TXT : TXT_MUTED}>
-              {monthsKnown ? (m.month === 0 ? (zh ? '签约' : 'Book') : `${m.month}${zh ? '月' : 'mo'}`) : i + 1}
+              {monthsKnown ? (m.month === 0 ? (t('projectDetail:book')) : `${m.month}${t('projectDetail:mo')}`) : i + 1}
             </text>
           ))}
 
@@ -181,20 +182,20 @@ export default function PaymentChart({
              style={{ left: tipX }}>
           {(hovered.name || hovered.timing) && (
             <div className="mb-1 truncate text-[11px] text-slate-300">
-              {[hovered.name, hovered.timing].filter(Boolean).join(' · ') || (zh ? `第 ${(hover ?? 0) + 1} 期` : `Installment ${(hover ?? 0) + 1}`)}
+              {[hovered.name, hovered.timing].filter(Boolean).join(' · ') || t('projectDetail:installmentN', { n: (hover ?? 0) + 1 })}
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-400">
               <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: BAR }} />
-              {zh ? '本期' : 'Due'} {hovered.pct}%
+              {t('projectDetail:due')} {hovered.pct}%
             </span>
             <span className="text-xs font-bold text-white">{formatMoneyCompact(hovered.amount, lang)}</span>
           </div>
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-400">
               <span className="inline-block h-0.5 w-3 rounded" style={{ background: LINE }} />
-              {zh ? '累计' : 'Total'} {price ? Math.round((hovered.cumAmount / price) * 100) : 0}%
+              {t('projectDetail:total')} {price ? Math.round((hovered.cumAmount / price) * 100) : 0}%
             </span>
             <span className="text-xs font-semibold text-slate-200">{formatMoneyCompact(hovered.cumAmount, lang)}</span>
           </div>
