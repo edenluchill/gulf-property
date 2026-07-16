@@ -159,8 +159,9 @@ router.post('/:email/reject', optionalAuth, requireOwner, (req, res) => decide(r
 // telemetry/分析后台(那些仍是 admin/owner)。admin 隐含拥有上传权限。
 
 /** 登录用户查自己有没有上传权限(前端 AuthContext / ProtectedRoute requireUploader 用)。
- *  与服务端强制门 requireUploader 同一真相源:admin/owner | upload_permissions 白名单。
- *  不再看套餐/角色 —— 付费方也走人工 grant 进白名单。 */
+ *  与服务端强制门 requireUploader **同一真相源**(都走 canManageProjects):
+ *  admin/owner | upload_permissions 白名单 | role=developer + 生效订阅。
+ *  这两侧的判据必须永远一致 —— 不一致 = 前端放行、后端 403,用户点了按钮就报错。 */
 router.get('/can-upload', requireAuth, async (req: Request, res: Response) => {
   const email = (req.user?.email || req.ctx?.email || '').toLowerCase().trim()
   res.json({ canUpload: await canManageProjects(email) })

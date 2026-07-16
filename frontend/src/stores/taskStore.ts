@@ -8,6 +8,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { API_BASE_URL } from '../lib/config';
+import { supabase } from '../lib/supabase';
 
 // Task status types
 export type TaskStatus = 'pending' | 'uploading' | 'queued' | 'processing' | 'paused' | 'completed' | 'failed' | 'cancelled';
@@ -62,17 +63,13 @@ interface TaskState {
   getCompletedTasks: () => Task[];
 }
 
-// Get user headers for API calls
-function getUserHeaders(): HeadersInit {
-  // In production, this would get the actual user ID from auth
-  const userId = localStorage.getItem('userId') || 'anonymous';
-  const userEmail = localStorage.getItem('userEmail') || '';
-
-  return {
-    'Content-Type': 'application/json',
-    'x-user-id': userId,
-    'x-user-email': userEmail,
-  };
+// Get auth headers for API calls. /api/tasks/* is now server-side gated by
+// requireAuth + requireUploader, so we must send the real Supabase bearer token.
+async function getUserHeaders(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+  return headers;
 }
 
 export const useTaskStore = create<TaskState>()(
@@ -123,7 +120,7 @@ export const useTaskStore = create<TaskState>()(
 
         try {
           const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-            headers: getUserHeaders(),
+            headers: await getUserHeaders(),
           });
 
           if (!response.ok) {
@@ -148,7 +145,7 @@ export const useTaskStore = create<TaskState>()(
         try {
           const response = await fetch(`${API_BASE_URL}/api/tasks/${jobId}/pause`, {
             method: 'POST',
-            headers: getUserHeaders(),
+            headers: await getUserHeaders(),
           });
 
           if (!response.ok) {
@@ -170,7 +167,7 @@ export const useTaskStore = create<TaskState>()(
         try {
           const response = await fetch(`${API_BASE_URL}/api/tasks/${jobId}/resume`, {
             method: 'POST',
-            headers: getUserHeaders(),
+            headers: await getUserHeaders(),
           });
 
           if (!response.ok) {
@@ -192,7 +189,7 @@ export const useTaskStore = create<TaskState>()(
         try {
           const response = await fetch(`${API_BASE_URL}/api/tasks/${jobId}/cancel`, {
             method: 'POST',
-            headers: getUserHeaders(),
+            headers: await getUserHeaders(),
           });
 
           if (!response.ok) {

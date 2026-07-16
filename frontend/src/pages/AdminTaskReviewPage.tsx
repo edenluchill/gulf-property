@@ -12,6 +12,7 @@ import { Building2, Loader2, ArrowLeft, Trash2, AlertTriangle } from 'lucide-rea
 import { Button } from '../components/ui/button'
 import { API_BASE_URL, API_ENDPOINTS } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import { PropertyWorkspace } from '../components/property-workspace/PropertyWorkspace'
 import {
   PropertyFormData,
@@ -28,6 +29,16 @@ interface TaskData {
   result_data: any
   errors: string[]
   created_at: string
+}
+
+// /api/admin/tasks/* 现在服务端强制 requireAuth + requireUploader,必须带真实
+// Supabase bearer token(旧版的 x-admin:true 头形同虚设,已废弃)。
+async function authHeaders(json = false): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const h: Record<string, string> = {}
+  if (json) h['Content-Type'] = 'application/json'
+  if (session?.access_token) h['Authorization'] = `Bearer ${session.access_token}`
+  return h
 }
 
 export default function AdminTaskReviewPage() {
@@ -55,10 +66,7 @@ export default function AdminTaskReviewPage() {
       try {
         setLoading(true)
         const response = await fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}`, {
-          headers: {
-            'x-user-id': 'admin',
-            'x-admin': 'true',
-          },
+          headers: await authHeaders(),
         })
 
         if (!response.ok) throw new Error('Failed to fetch task')
@@ -113,12 +121,15 @@ export default function AdminTaskReviewPage() {
   useEffect(() => {
     if (!jobId) return
     let stale = false
-    fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}/pdf-links`, {
-      headers: { 'x-user-id': 'admin', 'x-admin': 'true' },
-    })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!stale && d?.links) setPdfLinks(d.links) })
-      .catch(() => { /* 无 PDF 链接不影响审核 */ })
+    ;(async () => {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}/pdf-links`, {
+          headers: await authHeaders(),
+        })
+        const d = r.ok ? await r.json() : null
+        if (!stale && d?.links) setPdfLinks(d.links)
+      } catch { /* 无 PDF 链接不影响审核 */ }
+    })()
     return () => { stale = true }
   }, [jobId])
 
@@ -129,10 +140,7 @@ export default function AdminTaskReviewPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}`, {
         method: 'DELETE',
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       })
 
       if (!response.ok) throw new Error('Failed to delete task')
@@ -181,7 +189,7 @@ export default function AdminTaskReviewPage() {
       // 提交成功 → 释放该任务的源 PDF（"保留到提交为止"）。非致命。
       fetch(`${API_BASE_URL}/api/admin/tasks/${jobId}/pdfs`, {
         method: 'DELETE',
-        headers: { 'x-user-id': 'admin', 'x-admin': 'true' },
+        headers: await authHeaders(),
       }).catch(() => { /* ignore */ })
 
       setSubmitted(true)

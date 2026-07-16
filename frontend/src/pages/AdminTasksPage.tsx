@@ -15,7 +15,18 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../lib/config';
 import { TaskStatus } from '../stores/taskStore';
+import { supabase } from '../lib/supabase';
 import { XCircle, Home, Image, CreditCard, Trees, FileText, X } from 'lucide-react';
+
+// 任务管理接口(/api/admin/tasks/*)现在服务端强制 requireAuth + requireUploader,
+// 必须带真实 Supabase bearer token(旧版发的 x-admin:true 头形同虚设,已废弃)。
+async function authHeaders(json = false): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const h: Record<string, string> = {};
+  if (json) h['Content-Type'] = 'application/json';
+  if (session?.access_token) h['Authorization'] = `Bearer ${session.access_token}`;
+  return h;
+}
 
 // Task interface for admin view
 interface AdminTask {
@@ -108,10 +119,7 @@ export default function AdminTasksPage() {
     setViewingLogs(jobId);
     try {
       const response = await fetch(API_ENDPOINTS.adminTaskLogs(jobId), {
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       });
       if (!response.ok) throw new Error('Failed to fetch logs');
       const data = await response.json();
@@ -136,10 +144,7 @@ export default function AdminTasksPage() {
       }
 
       const response = await fetch(url.toString(), {
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       });
 
       if (!response.ok) throw new Error('Failed to fetch tasks');
@@ -162,10 +167,7 @@ export default function AdminTasksPage() {
   const fetchStats = useCallback(async () => {
     try {
       const response = await fetch(API_ENDPOINTS.adminTaskStats, {
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       });
 
       if (!response.ok) throw new Error('Failed to fetch stats');
@@ -220,11 +222,7 @@ export default function AdminTasksPage() {
     try {
       const response = await fetch(API_ENDPOINTS.adminTasksBatchCancel, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(true),
         body: JSON.stringify({ jobIds: Array.from(selectedTasks) }),
       });
 
@@ -246,11 +244,7 @@ export default function AdminTasksPage() {
     try {
       const response = await fetch(API_ENDPOINTS.adminTasksBatchDelete, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(true),
         body: JSON.stringify({ jobIds: Array.from(selectedTasks) }),
       });
 
@@ -269,10 +263,7 @@ export default function AdminTasksPage() {
     try {
       const response = await fetch(API_ENDPOINTS.adminTaskPause(jobId), {
         method: 'POST',
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       });
 
       if (!response.ok) throw new Error('Failed to pause task');
@@ -290,10 +281,7 @@ export default function AdminTasksPage() {
     try {
       const response = await fetch(API_ENDPOINTS.adminTaskCancel(jobId), {
         method: 'POST',
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       });
 
       if (!response.ok) throw new Error('Failed to cancel task');
@@ -312,10 +300,7 @@ export default function AdminTasksPage() {
     try {
       const response = await fetch(API_ENDPOINTS.adminTask(jobId), {
         method: 'DELETE',
-        headers: {
-          'x-user-id': 'admin',
-          'x-admin': 'true',
-        },
+        headers: await authHeaders(),
       });
 
       if (!response.ok) throw new Error('Failed to delete task');
