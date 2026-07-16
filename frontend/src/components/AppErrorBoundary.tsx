@@ -7,6 +7,7 @@
  */
 import { Component, type ReactNode } from 'react'
 import { trackEvent } from '../lib/track'
+import i18n from '../i18n'
 
 interface State { crashed: boolean }
 
@@ -30,20 +31,20 @@ export default class AppErrorBoundary extends Component<{ children: ReactNode },
 
   render() {
     if (!this.state.crashed) return this.props.children
-    const zh = (typeof navigator !== 'undefined' ? navigator.language : 'zh').startsWith('zh')
+    const t = (i18n.getFixedT as (l: string, ns: string) => (k: string) => string)(i18n.language, 'gate')
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', padding: 16 }}>
         <div style={{ maxWidth: 380, textAlign: 'center', background: '#fff', borderRadius: 16, padding: 32, boxShadow: '0 10px 40px -12px rgba(15,23,42,0.15)' }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>🛠️</div>
-          <h2 style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>{zh ? '页面遇到了一点小状况' : 'Something went wrong'}</h2>
+          <h2 style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>{t('gate:somethingWentWrong')}</h2>
           <p style={{ marginTop: 8, fontSize: 14, color: '#64748b', lineHeight: 1.6 }}>
-            {zh ? '刷新一下就能恢复,你的数据不受影响。' : 'A quick refresh will fix it — your data is safe.'}
+            {t('gate:aQuickRefreshWill')}
           </p>
           <button
             onClick={() => window.location.reload()}
             style={{ marginTop: 16, width: '100%', height: 44, borderRadius: 12, border: 'none', background: '#0d9488', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
           >
-            {zh ? '刷新页面' : 'Reload'}
+            {t('gate:reload')}
           </button>
         </div>
       </div>

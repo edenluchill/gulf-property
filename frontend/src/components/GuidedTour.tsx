@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import { Pause, Play, X, ChevronLeft, ChevronRight, TrendingUp, MapPin, Receipt } from 'lucide-react'
 import { GuidedTourPayload, GuidedStop } from '../hooks/voice-assistant/types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
@@ -30,7 +31,8 @@ const STOP_META: Record<GuidedStop['kind'], { zh: string; en: string; Icon: type
 }
 
 export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Props) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('gate')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = (i18n.language || 'en').startsWith('zh')
   const stops = tour.stops || []
   const [idx, setIdx] = useState(0)
@@ -140,23 +142,23 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
 
       {/* Stop card */}
       <div className="px-4 py-3">
-        <StopCard stop={stop} zh={zh} lang={i18n.language} />
+        <StopCard stop={stop} lang={i18n.language} />
       </div>
 
       {/* Footer nav */}
       <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-2.5">
         <button onClick={() => { setPaused(true); go(idx - 1) }} disabled={idx === 0}
           className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent">
-          <ChevronLeft className="w-4 h-4" />{zh ? '上一步' : 'Back'}
+          <ChevronLeft className="w-4 h-4" />{t('gate:back')}
         </button>
         {isLast ? (
           <button onClick={onClose} className="inline-flex items-center gap-1 rounded-lg bg-teal-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-600">
-            {zh ? '完成' : 'Done'}
+            {t('gate:done')}
           </button>
         ) : (
           <button onClick={() => { setPaused(true); go(idx + 1) }}
             className="inline-flex items-center gap-1 rounded-lg bg-teal-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-600">
-            {zh ? '下一步' : 'Next'}<ChevronRight className="w-4 h-4" />
+            {t('gate:next')}<ChevronRight className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -164,7 +166,8 @@ export default function GuidedTour({ tour, onClose, onCamera, onAmenities }: Pro
   )
 }
 
-function StopCard({ stop, zh, lang }: { stop: GuidedStop; zh: boolean; lang: string }) {
+function StopCard({ stop, lang }: { stop: GuidedStop; lang: string }) {
+  const t = (i18n.getFixedT as (l: string, ns: string) => (k: string, o?: Record<string, unknown>) => string)(lang, 'gate')
   if (stop.kind === 'advantages' && stop.metrics) {
     const m = stop.metrics
     const cell = (label: string, node: React.ReactNode) => (
@@ -175,10 +178,10 @@ function StopCard({ stop, zh, lang }: { stop: GuidedStop; zh: boolean; lang: str
     )
     return (
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {cell(zh ? '中位总价' : 'Median price', m.medianUnitPrice != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyCompact(m.medianUnitPrice, lang)}</> : '—')}
-        {cell(zh ? '均价/m²' : 'Price/m²', m.pricePerSqm != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyFull(m.pricePerSqm)}</> : '—')}
-        {cell(zh ? '租金回报' : 'Yield', m.rentalYield != null ? <span className="text-emerald-600">{m.rentalYield.toFixed(1)}%</span> : '—')}
-        {cell(zh ? '资本增长' : 'Growth', m.capitalGrowth != null ? <span className={m.capitalGrowth >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{m.capitalGrowth >= 0 ? '+' : ''}{m.capitalGrowth.toFixed(1)}%</span> : '—')}
+        {cell(t('gate:medianPrice'), m.medianUnitPrice != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyCompact(m.medianUnitPrice, lang)}</> : '—')}
+        {cell(t('gate:priceM'), m.pricePerSqm != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyFull(m.pricePerSqm)}</> : '—')}
+        {cell(t('gate:yield'), m.rentalYield != null ? <span className="text-emerald-600">{m.rentalYield.toFixed(1)}%</span> : '—')}
+        {cell(t('gate:growth'), m.capitalGrowth != null ? <span className={m.capitalGrowth >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{m.capitalGrowth >= 0 ? '+' : ''}{m.capitalGrowth.toFixed(1)}%</span> : '—')}
       </div>
     )
   }
@@ -186,7 +189,7 @@ function StopCard({ stop, zh, lang }: { stop: GuidedStop; zh: boolean; lang: str
     return (
       <div className="space-y-1.5">
         {stop.tier && (
-          <div className="mb-1 text-xs text-slate-500">{zh ? '生活便利度' : 'Convenience'} <span className="font-semibold text-slate-800">{stop.score}/100 · {stop.tier}</span></div>
+          <div className="mb-1 text-xs text-slate-500">{t('gate:convenience')} <span className="font-semibold text-slate-800">{stop.score}/100 · {stop.tier}</span></div>
         )}
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {stop.spokes.slice(0, 6).map((s, i) => (

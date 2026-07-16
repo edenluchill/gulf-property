@@ -20,8 +20,8 @@ import { isMapPath } from '../lib/isMapPath'
 import { MAP_QUOTA_EVENT } from '../lib/track'
 
 export default function GlobalQuotaGate() {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
+  const { t: tRaw } = useTranslation('gate')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const navigate = useNavigate()
   const loc = useLocation()
   const { signInWithGoogle, user } = useAuth()
@@ -60,32 +60,32 @@ export default function GlobalQuotaGate() {
       <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
         <div className="text-4xl mb-2">📊</div>
         <h3 className="text-lg font-semibold text-slate-900">
-          {zh ? '今天的免费浏览先到这里' : "That's today's free browsing"}
+          {t('gate:thatSTodayS2')}
         </h3>
         <p className="mt-2 text-sm text-slate-500">
-          {zh ? '登录后即可继续 —— 完全免费:' : 'Sign in to continue — completely free:'}
+          {t('gate:signInToContinue2')}
         </p>
         <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-left mx-auto w-fit">
-          <li>✓ {zh ? '真实成交与市场数据不限时' : 'Unlimited market & transaction data'}</li>
-          <li>✓ {zh ? '收藏项目,跨设备同步' : 'Favorites synced across devices'}</li>
-          <li>✓ {zh ? 'Luna 智能助手' : 'Luna AI assistant'}</li>
+          <li>✓ {t('gate:unlimitedMarketTransactionData')}</li>
+          <li>✓ {t('gate:favoritesSyncedAcrossDevices2')}</li>
+          <li>✓ {t('gate:lunaAiAssistant2')}</li>
         </ul>
         <div className="mt-5 space-y-2">
           <button
             className="w-full h-11 rounded-xl bg-teal-600 text-white font-medium hover:bg-teal-700 transition-colors"
             onClick={() => goLogin('google')}
           >
-            {zh ? '用 Google 继续' : 'Continue with Google'}
+            {t('gate:continueWithGoogle2')}
           </button>
           <button
             className="w-full h-11 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
             onClick={() => goLogin('email')}
           >
-            {zh ? '邮箱登录' : 'Sign in with email'}
+            {t('gate:signInWithEmail2')}
           </button>
         </div>
         <p className="mt-3 text-xs text-slate-400">
-          {zh ? '明天额度也会刷新' : 'Your free quota refreshes tomorrow'}
+          {t('gate:yourFreeQuotaRefreshes')}
         </p>
       </div>
     </div>

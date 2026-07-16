@@ -55,8 +55,8 @@ interface Props {
 }
 
 export default function MapMeterGuard({ active, getView }: Props) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
+  const { t: tRaw } = useTranslation('gate')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const navigate = useNavigate()
   const { signInWithGoogle, user } = useAuth()
   const [remaining, setRemaining] = useState<number | null>(null)
@@ -149,12 +149,12 @@ export default function MapMeterGuard({ active, getView }: Props) {
       {showToast && (
         <div className="absolute bottom-6 left-4 z-[550] max-w-[300px] rounded-xl bg-white/95 shadow-lg ring-1 ring-slate-200 backdrop-blur px-4 py-3 flex items-start gap-3">
           <div className="text-sm text-slate-700 leading-relaxed">
-            {zh ? '喜欢这张地图?登录后可以不限时使用,还能收藏项目 ✨' : 'Enjoying the map? Sign in to keep exploring without limits ✨'}
+            {t('gate:enjoyingTheMapSign')}
             <button
               className="ml-2 font-medium text-teal-600 hover:text-teal-700"
               onClick={() => { dismissToast(); goLogin('email') }}
             >
-              {zh ? '登录' : 'Sign in'}
+              {t('gate:signIn')}
             </button>
           </div>
           <button aria-label="close" className="mt-0.5 text-slate-400 hover:text-slate-600" onClick={dismissToast}>
@@ -168,32 +168,32 @@ export default function MapMeterGuard({ active, getView }: Props) {
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 text-center">
             <div className="text-4xl mb-2">🗺️</div>
             <h3 className="text-lg font-semibold text-slate-900">
-              {zh ? '今天的免费探索先到这里' : "That's today's free exploring"}
+              {t('gate:thatSTodayS')}
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              {zh ? '登录后即可继续 —— 完全免费:' : 'Sign in to continue — completely free:'}
+              {t('gate:signInToContinue')}
             </p>
             <ul className="mt-3 space-y-1.5 text-sm text-slate-600 text-left mx-auto w-fit">
-              <li>✓ {zh ? '地图与市场数据不限时' : 'Unlimited map & market data'}</li>
-              <li>✓ {zh ? '收藏项目,跨设备同步' : 'Favorites synced across devices'}</li>
-              <li>✓ {zh ? 'Luna 智能助手' : 'Luna AI assistant'}</li>
+              <li>✓ {t('gate:unlimitedMapMarketData')}</li>
+              <li>✓ {t('gate:favoritesSyncedAcrossDevices')}</li>
+              <li>✓ {t('gate:lunaAiAssistant')}</li>
             </ul>
             <div className="mt-5 space-y-2">
               <button
                 className="w-full h-11 rounded-xl bg-teal-600 text-white font-medium hover:bg-teal-700 transition-colors"
                 onClick={() => goLogin('google')}
               >
-                {zh ? '用 Google 继续' : 'Continue with Google'}
+                {t('gate:continueWithGoogle')}
               </button>
               <button
                 className="w-full h-11 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
                 onClick={() => goLogin('email')}
               >
-                {zh ? '邮箱登录' : 'Sign in with email'}
+                {t('gate:signInWithEmail')}
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-400">
-              {zh ? '你刚才看的位置会原样保留 · 明天额度也会刷新' : 'Your spot on the map is saved · quota refreshes tomorrow'}
+              {t('gate:yourSpotOnThe')}
             </p>
           </div>
         </div>

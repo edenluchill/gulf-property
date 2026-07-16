@@ -672,8 +672,8 @@ function getStatusText(phase: VoicePhase, t: TFunction<'components'>, toolStatus
 // ─── Main Export ───
 
 export function VoiceAssistantButton({ className }: { className?: string }) {
-  const { t, i18n } = useTranslation('components')
-  const typeLabel = i18n.language?.startsWith('zh') ? '打字' : 'Type'
+  const { t, i18n } = useTranslation(['components', 'gate'])
+  const typeLabel = t('gate:type')
   const {
     phase,
     latestBubble,
@@ -778,13 +778,13 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
             </div>
             <h3 className="mt-3 text-center text-[17px] font-bold text-balance text-slate-800">
               {gate.reason === 'anon'
-                ? (zh ? '今日体验额度用完啦' : "That's today's free Luna")
-                : (zh ? '今日额度用完啦' : "Today's Luna is all used up")}
+                ? (t('gate:thatSTodayS3'))
+                : (t('gate:todaySLunaIs'))}
             </h3>
             {/* Depleted energy bar — the concept made visible */}
             <div className="mt-3.5 w-full">
               <div className="flex items-center justify-between text-[10px] font-medium text-slate-400">
-                <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-slate-300" fill="currentColor" />{zh ? '今日能量' : 'Daily energy'}</span>
+                <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-slate-300" fill="currentColor" />{t('gate:dailyEnergy')}</span>
                 <span className="tabular-nums">0 / {formatTokens(gate.reason === 'anon' ? 120000 : 400000, zh)}</span>
               </div>
               <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -799,23 +799,23 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
               <Clock className="h-3.5 w-3.5 text-emerald-400" />
               <span className="text-slate-600">{formatReset(gate.resetMs, zh)}</span>
               <span className="text-slate-300">·</span>
-              <span className="text-slate-400">{zh ? '每日 0 点重置' : 'resets daily at 0:00'}</span>
+              <span className="text-slate-400">{t('gate:resetsDailyAt0')}</span>
             </div>
             <p className="mt-3 text-center text-[13px] leading-relaxed text-slate-500">
               {gate.reason === 'anon'
-                ? (zh ? '登录后每天额度更高,还能保存对话、随时回看。' : 'Log in for a higher daily limit — and to save your chats.')
-                : (zh ? '升级套餐,享受更高每日额度,继续畅聊 Luna。' : 'Upgrade for a higher daily limit and keep chatting.')}
+                ? (t('gate:logInForA'))
+                : (t('gate:upgradeForAHigher'))}
             </p>
             <button
               onClick={() => { dismissGate(); navigate(gate.reason === 'anon' ? '/login' : '/pricing') }}
               className="mt-4 w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-105 hover:shadow-emerald-500/40"
             >
               {gate.reason === 'anon'
-                ? (zh ? '登录 · 解锁更多额度' : 'Log in for more')
-                : (zh ? '升级 · 畅聊无限' : 'Upgrade')}
+                ? (t('gate:logInForMore'))
+                : (t('gate:upgrade'))}
             </button>
             <button onClick={dismissGate} className="mt-2 w-full py-1 text-[12px] text-slate-400 transition hover:text-slate-600">
-              {zh ? '知道了' : 'Later'}
+              {t('gate:later')}
             </button>
           </div>
         </motion.div>

@@ -24,6 +24,7 @@ import payplanEn from './locales/en/payplan.json'
 import areaInsightsEn from './locales/en/areaInsights.json'
 import projectDetailEn from './locales/en/projectDetail.json'
 import miscEn from './locales/en/misc.json'
+import gateEn from './locales/en/gate.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -53,6 +54,7 @@ declare module 'i18next' {
       areaInsights: typeof areaInsightsEn
       projectDetail: typeof projectDetailEn
       misc: typeof miscEn
+      gate: typeof gateEn
     }
   }
 }
