@@ -335,6 +335,12 @@ yield_comparison: {
 ### 11.3 建议顺序
 先 **11.1 周期全指标**(已定、延续已上线的地图/AreaBlock,改动集中在增值率基础设施的泛化)→ 再 **11.2 对比 tab**(新 tab + 近邻查询,独立可增量)。
 
+### 11.4 实现记录(2026-07-15 均已上线)
+- **11.1 周期全指标**(commit 42e45a7):`computeWindowedMetrics` 各周期窗口值(成交量加权月度中位;成交量精确;回报仅 all)。area-insights `metricsByPeriod` + 全区 `/area-appreciation`(响应 number→PeriodMetrics 对象)。地图周期控件对全 5 指标生效;AreaBlock 六卡全窗口化。**后端逻辑真实数据验证自洽**(Downtown:量随窗口增长、价格近高远低、回报稳定、1年增值==YoY)。
+  - ⚠️ **教训**:先单独部署了后端(改了 `/area-appreciation` 结构)造成与线上旧前端短暂形状不一致 → 已 push 前端修复。**改接口结构必须前后端同版部署**。
+- **11.2 对比 tab**(commit 255bcdb):`getNearbyCompare` 经纬度近邻 + 复用缓存 insights 横比;`CompareTab`(YieldVsArea+PriceCheck 从概览移入)+ `NearbyProjectsCompare`。**后端直连 DB 验证**(The Wilds vs 5 近邻,缺数据「—」)。
+- 🔴 **共同待办**:两批的**前端实机视觉均未验**——匿名地图额度(10min/天)被测试刷爆,所有数据端点 429。**登录用户不受限**,可直接看;待额度恢复我补截图验证并 fix-forward。
+
 ## 10. 已定决策（2026-07-15 用户拍板）
 
 1. **周期全档位平铺，短周期不藏**：`1月/3月/半年/1年/2年/3年/5年/自定义` 全部可选，默认近1年；短周期挂"样本波动大"ⓘ 提示替代隐藏。（见 §4.1）
