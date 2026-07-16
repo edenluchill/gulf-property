@@ -15,6 +15,7 @@ import type { PoolClient } from 'pg'
 import { runAudit } from '../quality'
 import { TOUR_RULES } from '../quality/tour-rules'
 import pool from '../db/pool'
+import { placeNameUsable } from '../lib/lang'
 import {
   calculateInvestment5yr,
   calculatePaybackYears,
@@ -78,13 +79,9 @@ interface NearbyResult {
  * 名字不是这场 tour 的语言 → **丢掉名字,只说「🚇 地铁 0.9 公里」**。
  * 还是真的,只是不荒谬。宁可少说一个专名,也不能对着客户念一串他看不懂的阿拉伯字。
  */
-function nameUsable(name: string | null | undefined, lang: string): boolean {
-  const n = (name || '').trim()
-  if (!n) return false
-  if (/[؀-ۿ]/.test(n)) return false                  // 阿拉伯字母 → 一律不用
-  if (lang.startsWith('zh')) return /[一-龥a-zA-Z]/.test(n)  // 中文 tour:中文或拉丁名都行
-  return /[a-zA-Z]/.test(n)                                     // 英文 tour:必须有拉丁字母
-}
+// nameUsable 已提到 lib/lang.ts 的 placeNameUsable() 共用 —— 客户报告那条链路
+// 原本没有这道防线,直接吐原始阿拉伯地名给中文客户。一份实现,所有出口共用。
+const nameUsable = placeNameUsable
 
 async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 'zh'): Promise<NearbyResult> {
   let score = 0

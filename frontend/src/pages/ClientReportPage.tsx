@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, TrendingUp, Home, Star, Train, GraduationCap, Trees, ListChecks, Target, Check, X, AlertTriangle } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
+import { placeNameUsable } from '../lib/tt'
 import i18n from '../i18n'
 import DirhamSymbol from '../components/DirhamSymbol'
 
@@ -266,9 +267,9 @@ export default function ClientReportPage() {
             )}
 
             {/* Detail sections: 交通 / 学校 / 环境 */}
-            {transit.length > 0 && <NearbySection title={t('section.transit')} icon={<Train className="h-4 w-4 text-teal-500" />} intro={t('nearby.transitIntro')} items={transit} />}
-            {schools.length > 0 && <NearbySection title={t('section.schools')} icon={<GraduationCap className="h-4 w-4 text-teal-500" />} intro={t('nearby.schoolsIntro')} items={schools} />}
-            {env.length > 0 && <NearbySection title={t('section.env')} icon={<Trees className="h-4 w-4 text-teal-500" />} intro={t('nearby.envIntro')} items={env} />}
+            {transit.length > 0 && <NearbySection title={t('section.transit')} icon={<Train className="h-4 w-4 text-teal-500" />} intro={t('nearby.transitIntro')} items={transit} t={t} lang={lang} />}
+            {schools.length > 0 && <NearbySection title={t('section.schools')} icon={<GraduationCap className="h-4 w-4 text-teal-500" />} intro={t('nearby.schoolsIntro')} items={schools} t={t} lang={lang} />}
+            {env.length > 0 && <NearbySection title={t('section.env')} icon={<Trees className="h-4 w-4 text-teal-500" />} intro={t('nearby.envIntro')} items={env} t={t} lang={lang} />}
 
             {/* 区域供给 */}
             {p.supply && p.supply.units_pipeline > 0 && (
@@ -573,14 +574,33 @@ function CompareReport({ agent, report, lang }: { agent: any; report: any; lang:
   )
 }
 
-function NearbySection({ title, icon, intro, items }: { title: string; icon: React.ReactNode; intro: string; items: any[] }) {
+// ⚠️ 收 t 形参,**不能**自己 useTranslation —— 这页是锁语言的文档,
+// useTranslation 会跟浏览者 UI 语言跑,得到「阿语标签 + 中文正文」。
+function NearbySection({ title, icon, intro, items, t, lang }: { title: string; icon: React.ReactNode; intro: string; items: any[]; t: TFn; lang: string }) {
   return (
     <Section title={title} icon={icon}>
       <p className="mb-2 text-sm text-slate-600">{intro}</p>
       <div className="flex flex-wrap gap-1.5">
-        {items.slice(0, 8).map((m, k) => (
-          <span key={k} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{m.name} · {km(m.distance_m)}</span>
-        ))}
+        {/* m.name 可能是 null —— 后端按报告语言抹掉了看不懂的专名(见
+            client-report-builder 的 filterNearbyNames)。降级成品类,别渲染出 "null · 2.5km"。
+            连品类都没有就整条不显示。 */}
+        {items.slice(0, 8).map((m, k) => {
+          // 名字得是这份报告的读者**看得懂**的。后端在生成时已按 lang 过滤过
+          // (client-report-builder 的 filterNearbyNames),但**DB 里的存量报告是在那之前
+          // 生成的**,阿拉伯原名已经烤进 jsonb 了(/cr/demo 这个给每个经纪看的样板报告
+          // 就是 —— 中文报告里赫然写着「دبي مول / برج خليفة」)。所以渲染时再挡一道,
+          // 老链接也一并救回来。名字不可读 → 退回品类;连品类都没有 → 整条不显示。
+          const usable = m.name && placeNameUsable(m.name, lang)
+          const label = usable
+            ? m.name
+            : m.category
+              ? t(`poiCat.${String(m.category).toLowerCase()}`, { defaultValue: String(m.category) })
+              : null
+          if (!label) return null
+          return (
+            <span key={k} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{label} · {km(m.distance_m)}</span>
+          )
+        })}
       </div>
     </Section>
   )

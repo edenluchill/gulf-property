@@ -313,8 +313,13 @@ export async function resetCreditsOnConversion(agentId: string): Promise<void> {
  *   call_unit —— 计量型(通话与视频:语音 4 分钟 / 视频 1 分钟 = 1 积分,且套餐送额度)
  */
 export function featureCatalog() {
+  // ⚠️ 不再送 label/labelEn。定价页是**面向客户**的,而 label 恒为中文 ——
+  // 阿语/俄语/法语用户在定价表里会看到「AI 楼书解析」。labelEn 从来没人读
+  // (PricingPage 直接渲染 f.label),等于摆了个没接线的开关。
+  // 现在只送 key,前端按 key 出 t('pricing:feature.<key>') —— 5 语言齐。
+  // (FEATURES[].label 保留:它还用在 creditError 的中文文案和 DB 流水 label 上。)
   return (Object.keys(FEATURES) as Feature[]).map((key) => ({
-    key, label: FEATURES[key].label, labelEn: FEATURES[key].labelEn,
+    key,
     credits: FEATURES[key].credits, minPlan: FEATURES[key].minPlan,
     unit: key === 'live_call' ? ('call_unit' as const)
       : FEATURES[key].credits === 0 ? ('free' as const)

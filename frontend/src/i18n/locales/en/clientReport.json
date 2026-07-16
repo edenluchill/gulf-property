@@ -130,5 +130,30 @@
       "payback": "Payback period"
     },
     "years": "{{n}} yrs"
+  },
+  "poiCat": {
+    "hospital": "Hospital",
+    "clinic": "Clinic",
+    "school": "School",
+    "university": "University",
+    "metro_station": "Metro station",
+    "bus_station": "Bus station",
+    "mall": "Mall",
+    "supermarket": "Supermarket",
+    "bank": "Bank",
+    "atm": "ATM",
+    "gas_station": "Petrol station",
+    "hotel": "Hotel",
+    "mosque": "Mosque",
+    "church": "Church",
+    "park": "Park",
+    "gym": "Gym",
+    "restaurant": "Restaurant",
+    "cafe": "Café",
+    "pharmacy": "Pharmacy",
+    "police": "Police station",
+    "fire_station": "Fire station",
+    "post_office": "Post office",
+    "cinema": "Cinema"
   }
 }

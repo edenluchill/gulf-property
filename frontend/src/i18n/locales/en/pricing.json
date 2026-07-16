@@ -1,0 +1,10 @@
+{
+  "feature": {
+    "reports": "Buyer proposal",
+    "brochures": "AI brochure parsing",
+    "live_tours": "Live tour",
+    "luna_tours": "Luna AI tour",
+    "payplan": "Sales offer",
+    "live_call": "Voice & video"
+  }
+}

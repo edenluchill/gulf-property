@@ -33,3 +33,24 @@ export function tt(m: Multi, lng?: string): string {
 export function isRTL(lng?: string | null): boolean {
   return normLang(lng) === 'ar'
 }
+
+/**
+ * 这个**地名专名**能不能拿去给这个语言的用户看?
+ * (后端 lib/lang.ts 的 placeNameUsable 的镜像 —— 两边判据必须一致。)
+ *
+ * dubai_pois 的 name 混着中文/拉丁/**阿拉伯原名**。不挡的话,一份中文报告的「周边」
+ * 会赫然写着「دبي مول / برج خليفة · 3.6km」,客户一个字看不懂。
+ *
+ * 后端在**生成时**已经挡了一道,但 DB 里的存量报告是在那之前生成的、名字已烤进
+ * jsonb —— 所以渲染时还得挡一道,老链接才救得回来。
+ *
+ * 名字不可读 → 调用方应退回「品类 + 距离」(仍然是真的,只是不荒谬)。
+ */
+export function placeNameUsable(name: string | null | undefined, lng?: string | null): boolean {
+  const n = (name || '').trim()
+  if (!n) return false
+  const lang = normLang(lng)
+  if (/[؀-ۿ]/.test(n)) return lang === 'ar'      // 阿拉伯字母:只有阿语用户能读
+  if (lang === 'zh') return /[一-龥a-zA-Z]/.test(n) // 中文用户:中文名或拉丁名都行
+  return /[a-zA-Z]/.test(n)                                  // 其余:要有拉丁字母
+}

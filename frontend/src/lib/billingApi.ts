@@ -49,8 +49,7 @@ export interface BillingMe {
 
 export interface FeatureCost {
   key: string
-  label: string
-  labelEn?: string              // 英文名(i18n;后端 featureCatalog 提供)
+  // label/labelEn 已由后端移除 —— 按 key 走 t('pricing:feature.<key>')。
   credits: number               // 标准成本(unit='once' 时是每次)
   minPlan: 'explore' | 'rookie' | 'agent' | 'founder'
   /**

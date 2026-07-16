@@ -576,7 +576,9 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
                       : isFree ? t('misc:unlimited') : ''
                     return (
                       <tr key={f.key} className="border-t border-white/[0.05]">
-                        <td className="px-4 py-1 text-slate-300">{f.label}<span className="text-slate-500">{suffix}</span></td>
+                        {/* 曾直接渲染后端的 f.label —— 那是**恒中文**的,定价页是面向客户的。
+                            后端现在只送 key,文案在这边按 key 出,5 语言齐。 */}
+                        <td className="px-4 py-1 text-slate-300">{t(`pricing:feature.${f.key}`)}<span className="text-slate-500">{suffix}</span></td>
                         {isFree ? (
                           <td className="px-4 py-1 text-end font-semibold" colSpan={2} style={{ color: ACCENT }}>
                             {t('misc:free2')}

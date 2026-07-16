@@ -9,7 +9,7 @@ import { getProjectInsights, getProjectTransactions } from '../services/projectI
 import { analyzeProperties } from '../services/property-analyzer'
 import { projectUnits, scoreUnits, analyzeFit } from './client-fit-analyzer'
 import type { ExtractedProfile } from './client-profile-coach'
-import type { LangCode } from '../lib/lang'
+import { placeNameUsable, type LangCode } from '../lib/lang'
 
 const STEPS = [
   { key: 'match', label: '匹配最优项目' },
@@ -138,7 +138,33 @@ function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0): 
 }
 
 /** Enrich one base property with REAL DLD data (shared by proposal + compare). */
-async function enrichProperty(p: any) {
+/**
+ * 地名防线 —— 按报告语言过滤「周边」里的专名。
+ *
+ * dubai_pois 的 name 混着中文/拉丁/**阿拉伯原名**。不过滤的话,一份中文报告的
+ * 「周边」chips 会赫然写着「دبي مول / برج خليفة · 3.6km」,客户一个字看不懂。
+ * (2026-07-16 RTL 巡检抓到的实例。tour 那边早有这道防线,报告这条链路一直没有。)
+ *
+ * 名字不可读 → **丢掉专名,只留品类 + 距离**(仍然是真的,只是不荒谬)。
+ * 连品类都没有的(landmarks 只有名字)→ 整条丢掉,不硬凑。
+ */
+function filterNearbyNames(nearby: any, lang: LangCode) {
+  if (!nearby) return nearby
+  const keepNamed = (arr: any[] | undefined) =>
+    (arr || []).filter((x) => placeNameUsable(x?.name, lang))
+  return {
+    ...nearby,
+    // metro/landmarks 的信息量全在名字上,名字不可读 = 这条没价值 → 丢。
+    metro: keepNamed(nearby.metro),
+    landmarks: keepNamed(nearby.landmarks),
+    // pois 有 category 兜底 → 名字不可读就抹掉名字,保留品类+距离。
+    pois: (nearby.pois || []).map((x: any) =>
+      placeNameUsable(x?.name, lang) ? x : { ...x, name: null }
+    ),
+  }
+}
+
+async function enrichProperty(p: any, lang: LangCode = 'zh') {
   const [insights, tx] = await Promise.all([
     getProjectInsights(p.id).catch(() => null),
     getProjectTransactions(p.id).catch(() => null),
@@ -166,7 +192,11 @@ async function enrichProperty(p: any) {
     price_growth_pct: insights.area.price_growth_pct, transaction_count: insights.area.sales_transaction_count,
   } : null
   const net = netCalc(projection)
-  const nearby = insights?.nearby || null
+  // ⚠️ 两份:评分用**未过滤**的,展示用过滤后的。
+  // radarScores 只看距离/品类,不看名字 —— 拿过滤后的去算,会因为"地铁站的名字是
+  // 阿拉伯文"把它整条丢掉,于是「生活配套」分平白变低。**展示层的过滤绝不能改变评分。**
+  const nearbyRaw = insights?.nearby || null
+  const nearby = filterNearbyNames(nearbyRaw, lang)
   const units = await projectUnits(p.id)
   const comps = (tx?.sales || []).slice(0, 6)
   return {
@@ -182,7 +212,7 @@ async function enrichProperty(p: any) {
     supply,
     nearby,
     units,
-    scores: radarScores(area_metrics, nearby, net, evidence.yoy, comps.length),
+    scores: radarScores(area_metrics, nearbyRaw, net, evidence.yoy, comps.length),  // 评分用未过滤的
   }
 }
 
@@ -236,7 +266,7 @@ export async function generateClientReport(
     await mark(reportId, 'match')
 
     // 2) Enrich each property with REAL data (replaces placeholder projection)
-    let enriched = await Promise.all(report.properties.map(enrichProperty))
+    let enriched = await Promise.all(report.properties.map((x: any) => enrichProperty(x, lang)))
     // ⭐ 两层论证:项目 × 客户 / 户型 × 客户(特点对特点)—— 报告的价值就在这里
     enriched = await Promise.all(enriched.map((e) => attachFit(e, profile, lang)))
     await mark(reportId, 'data')
@@ -309,7 +339,7 @@ export async function generateCompareReport(
     await mark(reportId, 'match')
 
     // 2) Same real-DLD enrichment as the proposal.
-    const enriched = await Promise.all(bases.map(enrichProperty))
+    const enriched = await Promise.all(bases.map((x: any) => enrichProperty(x, lang)))
     await mark(reportId, 'data')
 
     // 3) AI side-by-side verdict (best-effort: a missing key → mock; any error → skip).

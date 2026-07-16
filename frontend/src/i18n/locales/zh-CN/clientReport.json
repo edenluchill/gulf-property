@@ -130,5 +130,30 @@
       "payback": "回本年限"
     },
     "years": "{{n}} 年"
+  },
+  "poiCat": {
+    "hospital": "医院",
+    "clinic": "诊所",
+    "school": "学校",
+    "university": "大学",
+    "metro_station": "地铁站",
+    "bus_station": "公交站",
+    "mall": "商场",
+    "supermarket": "超市",
+    "bank": "银行",
+    "atm": "ATM",
+    "gas_station": "加油站",
+    "hotel": "酒店",
+    "mosque": "清真寺",
+    "church": "教堂",
+    "park": "公园",
+    "gym": "健身房",
+    "restaurant": "餐厅",
+    "cafe": "咖啡馆",
+    "pharmacy": "药房",
+    "police": "警局",
+    "fire_station": "消防局",
+    "post_office": "邮局",
+    "cinema": "电影院"
   }
 }
