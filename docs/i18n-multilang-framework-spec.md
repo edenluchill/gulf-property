@@ -247,35 +247,61 @@ label 随 tour 语言变 → 换语言后匹配返回 undefined,导览卡的地�
 
 ### 🔴 轨道 B 剩余 —— 按优先级
 
-**P0 · 面向客户的公开分享页,零 i18n(这是轨道 A 真正的漏网)**
+**✅ P0 已完成(2026-07-16)· 三个「分享给客户」的页 —— 轨道 A 的真漏网**
 
-轨道 A 自称"全部完成",但这几个页**从没被迁过**,且都是**分享给客户看的**:
+轨道 A 自称"全部完成",但这三个**发给客户看**的页从没被迁过,100% 中文:
 
-| 文件 | 中文串 | 路由 | 状态 |
-|---|---|---|---|
-| `pages/ClientReportPage.tsx` | 73 | `/cr/:code` 客户分析报告 | 零 `useTranslation`,`formatMoneyCompact(v,'zh')` 写死 |
-| `pages/ProjectReportPage.tsx` | 38 | `/r/:code` 经纪品牌报告 | 同上 |
-| `luna-tour/overlays/OverlayLayer.tsx` | 17 | 导览浮层 | 客户直接看 |
+| 页 | 路由 | 结果 |
+|---|---|---|
+| `ClientReportPage` | `/cr/:code` 客户分析报告 | `clientReport` ns · 98 键 × 5 语言 |
+| `ProjectReportPage` | `/r/:code` 经纪品牌报告 | `projectReport` ns · 39 键 × 5 语言 |
+| `OverlayLayer` | 导览浮层(客户直接看) | `lunaTour:tourOverlay` · +25 键 |
 
-⚠️ **ClientReportPage 不是机械迁移,是个 feature。** `lt_client_reports` 表
-**没有 lang 列**,而报告正文是 AI 生成后存进 `report jsonb` 的 —— 正文语言在生成
-那一刻被定死。光翻前端 chrome 没用:标签变阿语、正文还是中文,反而更怪。
+**⭐ 三页的语言模型各不相同 —— 加新页前先想清楚属于哪种:**
+1. **锁 lang**(ClientReportPage):正文是 AI 生成后存 jsonb,**语言在生成那刻定死**。
+   `getFixedT(report.lang)`。跟 UI 语言切 = 「阿语标签 + 中文正文」,比全中文更糟。
+   另需**容器级 `dir`** —— `<html dir>` 跟的是 UI 语言,英文 UI 打开阿语报告会
+   正文阿语但版面 LTR。
+2. **跟 UI 语言**(ProjectReportPage):`lt_project_reports` 只存 project_id/title/品牌,
+   **没有 AI 正文**,端点纯数据 → 没有被冻结的语言,跟 UI 走才对。
+3. **借现成机制**(OverlayLayer):`TourOverlay.tsx:162` 打开 tour 时已全局把
+   `i18n.language` 切成 tour 的语言、卸载还原 → 普通 `useTranslation` 即可,别另造。
 
-> **✅ 已拍板(2026-07-16):照抄报价单范式** —— `lt_client_reports` 加 `lang` 列,
-> 经纪在「生成报告」时从下拉选语言 → AI 按该语言写正文 → 前端
-> `i18n.getFixedT(lang, ns)` 锁定,不跟浏览者 UI 切。
-> (与 `PaymentPlanSharePage` 的 `share.lang` 及 §5 决策 #1 一致。)
-> 三处要一起动:**DB 迁移 + AI prompt 按 lang + 前端 getFixedT**。
+**已落地的 lang 链路**:`lt_client_reports.lang`(CHECK,默认 zh)→ 经纪台
+`AgentReport` 语言下拉(默认=经纪 UI 语言)→ `langInstruction(lang)` 注入 prompt
+→ public 端点回传 lang → 前端 `getFixedT`。
+`LanguageSwitcher` 的 `LANGS` 已导出复用(单一真相源)。
 
-**P1 · 其他后端串**
-- `session-builder.ts:210-213` —— `lang === 'en' ? 'Studio'/'3 Bed' : '开间'/'3 房'`,
-  **只有 en 分支,ar/ru/fr 全部穿透到中文**。`bedrooms` 数字本就在同一对象里,
-  `label` 是冗余的 → 该删掉 label,让前端按 `bedrooms` 自己 t() 渲染。
-- `client-profile-coach.ts:429` `profileToOneLiner()` —— 拼「香港，投资，预算约 300 万
-  迪拉姆」,经 `agent-router:1042` 落到 `/cr/:code` 的 `需求：` 行(`ClientReportPage:67`,
-  **这行的标签本身也是硬编码中文**)。随 ClientReportPage 一起做。
-- `routes/market.ts` `verdictFor()` / `/area-classification` —— 原 spec 点名的病灶,
-  尚未动。范式:返回 code+参数由前端 t() 渲染(价格体检/回报因子已是此范式)。
+**⚠️ 「AI 自动检测语言」在这里是主动错的,别再用。** 喂给模型的画像是**经纪**填的
+(wizard 选项本身就是中文)→ 自动检测检到的是**经纪**的语言。俄罗斯客户收到中文
+报告就是这么来的。`lib/lang.ts` 的 `langInstruction()` 注释里写死了这条。
+
+**✅ P1 已完成(2026-07-16)**
+- `session-builder` 的户型 label:`lang==='en'?...:中文` + 调用处
+  `lang.startsWith('en')?'en':'zh'` **把 5 语言塌缩成 zh|en**。已删 label
+  (bedrooms 本就在同一对象里),交前端 t()。类型标 `@deprecated` + optional
+  (**DB 历史 session 的 jsonb 还带着它**)。
+- `market.ts`:`verdictFor()` 的 label/explanation + price-check 的 summary/methodology
+  = **死负载**(算完、传过网络、被整个丢弃 —— 前端早就读 level 自己 t())→ 删。
+  `/area-classification` 的 label/perspective = tag 的一一映射 → 删,前端按 tag 出 t();
+  reasons → `{ code, params }`;`/area-compare` 的整句中文 summary →
+  `{ yieldWinner, growthWinner }`(拼句子是展示不是数据,中文语序不适用于其他 4 语)。
+- `profileToOneLiner()` **保留** —— 它喂 AI prompt(数据输入,不是展示)。展示侧改走
+  report jsonb 的 `profile_struct` 结构化字段 + 前端枚举白名单渲染。
+
+**⚠️ 两个反复出现的教训**
+1. **前端类型是手写的、不从后端派生** → 后端删字段时 **tsc 不报错**,运行时才空白。
+   改后端契约**必须**手动同步 `lib/api.ts` 的类型,让编译器把破绽指出来。
+2. **后端的中文别当插值塞进译文** —— `t('filter.tag', { label })` 里的 `label` 是后端
+   的中文,于是中文漏进了已经翻好的译文里。
+
+**🔲 剩余**
+- `client-profile-coach.ts` 的 wizard 问题串(~97):经纪端填画像用,面向**经纪**。
+  经纪也是多语言用户(迪拜本地经纪不都懂中文),但优先级低于客户页。
+- `auto-report.ts` / `storyboard-review.ts` 等的 AI prompt:**不用管**(prompt 用中文写、
+  模型按注入的语言输出)。
+- 阿语 `nBed` 复数:阿语 1/2/3-10 各有形态(غرفة/غرفتان/غرف),要走 i18next 的
+  `_one/_two/_few/_other`。目前统一 `{{n}} غرف نوم`。
 
 **⚪ 有意后置 · owner-only 后台(~470 条)**
 `components/analytics/*`(12 个 tab)、`AdminAnalytics.tsx`、`PerfMonitor` 等。
