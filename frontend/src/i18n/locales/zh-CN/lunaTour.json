@@ -487,5 +487,32 @@
     "rate_limited": "慢一点，5 秒后再试",
     "subscription_required": "Sales Offer 报价单是订阅经纪功能,选择套餐即可解锁。",
     "upload_rejected": "没有文件,或类型/大小不支持(视频/图,≤60MB)"
+  },
+  "tourOverlay": {
+    "fromSuffix": "起",
+    "amenityScore": "便利度",
+    "nearestMetro": "最近地铁",
+    "status": "状态",
+    "pickFavorite": "最喜欢哪个?点个心 ❤️",
+    "chatWith": "和 {{name}} 聊聊",
+    "units": "可选户型",
+    "bestFit": "最适合你",
+    "studio": "开间",
+    "nBed": "{{n}} 房",
+    "sqftFrom": "尺起",
+    "compareHead": "这里 vs 隔壁",
+    "compareSub": "同样的地段，走路 5 分钟的差别",
+    "colGrowth": "涨幅",
+    "colYield": "回报",
+    "colPriceSqm": "单价/㎡",
+    "colTxPerYear": "年成交",
+    "compareFoot": "Dubai Land Department · 近 12 个月 · 单价为中位数",
+    "compareNote": "（成交量条 = 流动性：想出手时有没有人接盘）",
+    "roiHead": "{{years}} 年投资展望",
+    "roiThisYear": "今年",
+    "roiInYears": "{{years}} 年后",
+    "roiBuy": "买入",
+    "roiForecast": "{{years}} 年后预测",
+    "roiYield": "参考租金回报率 ~{{pct}}%（非保证，仅供参考）"
   }
 }

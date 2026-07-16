@@ -1170,41 +1170,49 @@ function classifyAreas(rows: AreaMetricRow[]) {
     growth_high_pct: Number(growHi.toFixed(1))
   }
 
+  // 分级结果**只回结构化的 tag + reason code + 参数**,不回中文文案。
+  //
+  // 以前这里还拼 label(「增长区」)、reasons(「成交活跃（123 笔，处于全市前 1/3）」)
+  // 和 perspective(两段投资/自住建议)—— 全是中文,而 /area-classification 是面向
+  // 客户的接口。更要命的是前端把 label 当插值塞进 t('filter.tag', { label }) ——
+  // **中文就这么漏进了已经翻好的译文里**。
+  //
+  // label 和 perspective 完全由 tag 决定(一一映射),属于纯冗余 → 删掉,前端按 tag
+  // 自己 t()。reasons 带数字,改成 { code, params } 由前端 t(code, params) 渲染
+  // (与价格体检 verdict.level 同一范式)。
   const classified = rows.map(r => {
     const vol = r.transaction_count == null ? null : Number(r.transaction_count)
     const grow = r.capital_growth_pct == null ? null : Number(r.capital_growth_pct)
     let tag = 'stable'
-    let label = '平稳区'
-    const reasons: string[] = []
+    const reasons: { code: string; params?: Record<string, number> }[] = []
 
     if (vol == null || grow == null) {
-      tag = 'insufficient'; label = '数据不足'
-      reasons.push('该区域成交样本不足，暂不分级。')
+      tag = 'insufficient'
+      reasons.push({ code: 'insufficientSample' })
     } else if (vol >= volHi && grow >= growHi) {
-      tag = 'growth'; label = '增长区'
-      reasons.push(`成交活跃（${vol} 笔，处于全市前 1/3）`)
-      reasons.push(`价格同比增长 ${grow.toFixed(1)}%（全市前 1/3）`)
+      tag = 'growth'
+      reasons.push({ code: 'volActiveTop', params: { n: vol } })
+      reasons.push({ code: 'growTop', params: { pct: Number(grow.toFixed(1)) } })
     } else if (vol >= volHi && grow < 0) {
-      tag = 'supply_pressure'; label = '供应压力区'
-      reasons.push(`成交量大（${vol} 笔）但价格同比 ${grow.toFixed(1)}%（走弱）`)
-      reasons.push('放量下跌通常提示供应充裕、议价空间较大')
+      tag = 'supply_pressure'
+      reasons.push({ code: 'volHighGrowNeg', params: { n: vol, pct: Number(grow.toFixed(1)) } })
+      reasons.push({ code: 'volHighGrowNegNote' })
     } else if (vol >= volHi) {
-      tag = 'mature'; label = '成熟区'
-      reasons.push(`成交活跃且流动性好（${vol} 笔，全市前 1/3）`)
-      reasons.push(`价格增长温和（${grow.toFixed(1)}%），市场较成熟`)
+      tag = 'mature'
+      reasons.push({ code: 'volActiveLiquid', params: { n: vol } })
+      reasons.push({ code: 'growModerate', params: { pct: Number(grow.toFixed(1)) } })
     } else if (vol <= volLo) {
-      tag = 'future'; label = '未来/新兴区'
-      reasons.push(`成交量较低（${vol} 笔，全市后 1/3）`)
-      reasons.push('早期/新兴区域，数据样本少、不确定性更高')
+      tag = 'future'
+      reasons.push({ code: 'volLowBottom', params: { n: vol } })
+      reasons.push({ code: 'earlyStageNote' })
     } else {
-      reasons.push(`成交量与价格增长均处中位（${vol} 笔，${grow.toFixed(1)}%）`)
+      reasons.push({ code: 'volGrowMedian', params: { n: vol, pct: Number(grow.toFixed(1)) } })
     }
 
     return {
       id: r.id,
       name: r.name,
       tag,
-      label,
       reasons,
       metrics: {
         transactionCount: vol,
@@ -1213,17 +1221,7 @@ function classifyAreas(rows: AreaMetricRow[]) {
         medianUnitPrice: r.median_unit_price != null ? Number(r.median_unit_price) : null,
         medianPriceSqm: r.median_price_sqm != null ? Number(r.median_price_sqm) : null
       },
-      perspective: {
-        invest: tag === 'growth' ? '价格动能强，偏增值型投资可关注，但需注意是否已高位。'
-          : tag === 'supply_pressure' ? '投资角度风险偏高（放量走弱）；但议价空间大，逢低布局者可留意。'
-          : tag === 'mature' ? '流动性好、波动小，适合稳健收租型投资。'
-          : tag === 'future' ? '高风险高潜在回报，押注未来兑现，需长期持有。'
-          : '走势平稳，投资回报预期中性。',
-        live: tag === 'supply_pressure' ? '自住角度反而是机会：选择多、价格有谈判余地。'
-          : tag === 'mature' ? '配套成熟、转手容易，适合自住。'
-          : tag === 'future' ? '新区配套可能未完善，自住需评估生活便利度。'
-          : '自住体验取决于具体项目与配套。'
-      }
+      // label / perspective 已删 —— 二者都是 tag 的一一映射,前端按 tag 出 t() 即可。
     }
   })
 
@@ -1253,9 +1251,8 @@ router.get('/area-classification', async (req: Request, res: Response) => {
       : areas
     res.json({
       thresholds,
-      methodology:
-        '分级基于 DLD 成交：成交量与价格同比增长按全市分位数（前/后 1/3）相对划分，' +
-        '而非武断绝对阈值。数据为定期快照，非实时。标签仅供参考，不构成投资建议。',
+      // methodology 文案已移到前端(t('areaInsights:classification.methodology'))——
+      // 这是面向客户的接口,后端不产中文散文。阈值本身在 thresholds 里,是数据不是文案。
       count: result.length,
       areas: result.sort((a, b) => (b.metrics.transactionCount || 0) - (a.metrics.transactionCount || 0))
     })
@@ -1282,21 +1279,22 @@ router.get('/area-compare', async (req: Request, res: Response) => {
     const A = pick(aKey)
     const B = pick(bKey)
     if (!A || !B) {
-      return res.json({ matched: false, summary: '未能匹配到两个区域，请检查名称。' })
+      return res.json({ matched: false, reason: 'area_unmatched' })
     }
 
+    // summary 曾是后端拼好的一整句中文。这句话的每个成分(两个区名、两组数字、
+    // 两个"谁占优")前端全都有 —— 拼句子是**展示**,不是数据。且中文语序也不适用于
+    // 其他 4 种语言。改成回结构化裁决,前端用 t(..., params) 出句。
     const yA = A.metrics.rentalYieldPct ?? 0
     const yB = B.metrics.rentalYieldPct ?? 0
     const gA = A.metrics.capitalGrowthPct ?? 0
     const gB = B.metrics.capitalGrowthPct ?? 0
-    const summary =
-      `${A.name}（${A.label}）vs ${B.name}（${B.label}）：` +
-      `租金回报 ${yA.toFixed(1)}% vs ${yB.toFixed(1)}%，` +
-      `价格增长 ${gA.toFixed(1)}% vs ${gB.toFixed(1)}%。` +
-      `收租角度 ${yA >= yB ? A.name : B.name} 占优，` +
-      `增值角度 ${gA >= gB ? A.name : B.name} 占优。`
+    const verdict = {
+      yieldWinner: (yA >= yB ? 'a' : 'b') as 'a' | 'b',
+      growthWinner: (gA >= gB ? 'a' : 'b') as 'a' | 'b',
+    }
 
-    res.json({ matched: true, a: A, b: B, summary })
+    res.json({ matched: true, a: A, b: B, verdict })
   } catch (err) {
     console.error('[market/area-compare] error:', err)
     res.status(500).json({ error: 'internal error' })
@@ -1374,16 +1372,14 @@ router.post('/buying-report', async (req: Request, res: Response) => {
       )
       return {
         area: a.name,
+        // label / perspective 已删 —— 都是 tag 的一一映射,前端按 tag 出 t()。
         tag: a.tag,
-        label: a.label,
-        why: a.reasons,
-        perspective: a.perspective,
+        why: a.reasons,   // 现在是 [{ code, params }],前端 t(code, params) 渲染
         metrics: a.metrics,
         assumedPrice: price,
         paybackYears: calculatePaybackYears(yieldPct),
-        dataQualityNote: growthClamped
-          ? '该区原始增长/收益率为低样本极值，已钳制到可辩护区间后再测算。'
-          : null,
+        // 文案交前端:回 code 就够了(这里没有参数)。
+        dataQualityNote: growthClamped ? 'growth_clamped' : null,
         projection: {
           horizonYears: 5,
           conservative: scen(clamp(gNeutral * 0.4, 0, 5)),

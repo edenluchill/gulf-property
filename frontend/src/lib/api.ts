@@ -735,7 +735,8 @@ export interface PriceCheckResult {
   area?: { min: number; p25: number; median: number; p75: number; max: number };
   project?: { pricePerSqm: number | null; source: string | null };
   premiumPct?: number | null;
-  verdict?: { level: string; label: string; explanation: string };
+  /** 后端只回 level(code);文案由 PriceCheckModule 走 t('compare:priceCheck.*') 出。 */
+  verdict?: { level: string };
   methodology?: string;
 }
 
@@ -951,17 +952,20 @@ export async function fetchAreaInsights(areaId: string, usage?: string, segment?
 }
 
 // ---- 区域分级（功能 C）----
+/** 区域分级。**后端只回结构化数据,不回文案** —— label/perspective 都是 tag 的
+ *  一一映射(前端按 tag 出 t());reasons 是 { code, params } 由前端 t(code, params) 渲染。 */
+export interface AreaClassReason { code: string; params?: Record<string, number> }
 export interface AreaClass {
-  id: string; name: string; tag: string; label: string; reasons: string[];
+  id: string; name: string; tag: string; reasons: AreaClassReason[];
   metrics: {
     transactionCount: number | null; capitalGrowthPct: number | null;
     rentalYieldPct: number | null; medianUnitPrice: number | null; medianPriceSqm: number | null;
   };
-  perspective: { invest: string; live: string };
 }
 export interface AreaClassResp {
   thresholds: { volume_high: number; volume_low: number; growth_high_pct: number };
-  methodology: string; count: number; areas: AreaClass[];
+  // methodology 文案已移到前端 t('insights:classification.methodology')。
+  count: number; areas: AreaClass[];
 }
 export async function fetchAreaClassification(): Promise<AreaClassResp | null> {
   try {
@@ -984,10 +988,11 @@ export interface Proj5yr {
   total_profit_5yr: number; annualized_return_pct: number;
 }
 export interface BuyingRec {
-  area: string; tag: string; label: string; why: string[];
-  perspective: { invest: string; live: string };
+  area: string; tag: string; why: AreaClassReason[];
   metrics: { transactionCount: number | null; capitalGrowthPct: number | null; rentalYieldPct: number | null; medianUnitPrice: number | null };
-  assumedPrice: number; paybackYears: number | null; dataQualityNote: string | null;
+  assumedPrice: number; paybackYears: number | null;
+  /** code(目前只有 'growth_clamped')或 null;文案由前端 t() 出。 */
+  dataQualityNote: string | null;
   projection: { horizonYears: number; conservative: Proj5yr | null; neutral: Proj5yr | null; optimistic: Proj5yr | null };
   matchingProjects: { id: string; developer: string; status: string; minPrice: number | null; maxPrice: number | null }[];
 }

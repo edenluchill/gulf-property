@@ -22,7 +22,8 @@ const TAG_STYLE: Record<string, string> = {
 const f = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('en-US'))
 
 function ScenCol({ title, p, accent }: { title: string; p: Proj5yr | null; accent: string }) {
-  const { t } = useTranslation('report')
+  const { t: tRaw } = useTranslation('report')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   return (
     <div className="rounded-lg border border-slate-200 p-3">
       <div className={`text-xs font-medium ${accent}`}>{title}</div>
@@ -38,7 +39,9 @@ function ScenCol({ title, p, accent }: { title: string; p: Proj5yr | null; accen
 }
 
 export default function BuyingReportPage() {
-  const { t } = useTranslation(['report', 'common'])
+  // casted t:tag/reason/perspective 的键运行时按 tag 拼,过不了 i18next 字面量联合类型。
+  const { t: tRaw } = useTranslation(['report', 'common'])
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [goal, setGoal] = useState('invest_both')
   const [budget, setBudget] = useState('')
   const [report, setReport] = useState<BuyingReport | null>(null)
@@ -164,7 +167,7 @@ export default function BuyingReportPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-slate-800">#{i + 1} {r.area}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${TAG_STYLE[r.tag] || TAG_STYLE.stable}`}>{r.label}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${TAG_STYLE[r.tag] || TAG_STYLE.stable}`}>{t(`tag.${r.tag}`)}</span>
                   </div>
                   <div className="text-xs text-slate-500">
                     {t('result.referencePrice', { price: f(r.assumedPrice), years: r.paybackYears ?? '—' })}
@@ -172,7 +175,8 @@ export default function BuyingReportPage() {
                 </div>
 
                 <ul className="mt-3 list-disc ps-5 text-xs text-slate-600 space-y-1">
-                  {r.why.map((w, j) => <li key={j}>{w}</li>)}
+                  {/* why 现在是 { code, params } —— 后端不再回中文句子。 */}
+                  {r.why.map((w, j) => <li key={j}>{t(`reason.${w.code}`, w.params)}</li>)}
                 </ul>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -181,12 +185,12 @@ export default function BuyingReportPage() {
                   <ScenCol title={t('scenario.optimistic')} p={r.projection.optimistic} accent="text-emerald-600" />
                 </div>
                 {r.dataQualityNote && (
-                  <p className="mt-2 text-[11px] text-amber-600">⚠ {r.dataQualityNote}</p>
+                  <p className="mt-2 text-[11px] text-amber-600">⚠ {t(`dataQuality.${r.dataQualityNote}`)}</p>
                 )}
 
                 <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-                  <div><span className="font-medium text-slate-700">{t('result.investPerspective')}</span>{r.perspective.invest}</div>
-                  <div className="mt-1"><span className="font-medium text-slate-700">{t('result.livePerspective')}</span>{r.perspective.live}</div>
+                  <div><span className="font-medium text-slate-700">{t('result.investPerspective')}</span>{t(`perspective.invest.${r.tag}`)}</div>
+                  <div className="mt-1"><span className="font-medium text-slate-700">{t('result.livePerspective')}</span>{t(`perspective.live.${r.tag}`)}</div>
                 </div>
 
                 {r.matchingProjects.length > 0 && (

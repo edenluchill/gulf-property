@@ -1,0 +1,134 @@
+{
+  "generating": "Génération du rapport…",
+  "notFound": "Ce rapport n'existe pas ou n'est plus disponible",
+  "defaultTitle": "Analyse personnalisée",
+  "clientFallback": "notre client",
+  "heroKicker": "Analyse personnalisée · pour {{name}}",
+  "savePdf": "Enregistrer en PDF",
+  "memberBadge": "Membre Pinzos",
+  "contactAgent": "Contacter {{name}}",
+  "profile": {
+    "label": "Critères :",
+    "sep": ", ",
+    "goal": {
+      "live": "Usage propre",
+      "invest": "Investissement",
+      "both": "Louer d'abord, y habiter plus tard"
+    },
+    "payment": {
+      "cash": "Comptant",
+      "installment": "Échéancier promoteur",
+      "mortgage": "Hypothèque"
+    },
+    "horizon": {
+      "rent_long": "Revenus locatifs à long terme",
+      "flip": "Revente dans 3–5 ans",
+      "rent_then_live": "Louer d'abord, y habiter plus tard"
+    },
+    "budget": "Budget environ {{amount}} AED",
+    "budgetRange": "Budget {{min}}–{{max}} AED",
+    "bedrooms": "{{n}} chambres",
+    "familySize": "{{n}} personnes",
+    "hasChildren": "A des enfants (écoles importantes)",
+    "hasMaid": "A du personnel de maison (chambre de service requise)",
+    "cookingOften": "Cuisine souvent (une cuisine ouverte est un inconvénient)",
+    "goldenVisa": "Souhaite un Golden Visa",
+    "firstTimeBuyer": "Premier achat",
+    "readyOnly": "Propriétés prêtes uniquement",
+    "areas": "Préfère {{areas}}"
+  },
+  "section": {
+    "scores": "Scores d'investissement",
+    "fit": "Pourquoi cela vous correspond",
+    "units": "Quelle configuration vous convient",
+    "profit": "Projection de profit (net · 5 ans)",
+    "priceTrend": "Évolution des prix du secteur (transactions réelles DLD)",
+    "comps": "Transactions réelles récentes (DLD)",
+    "transit": "Transports",
+    "schools": "Éducation · Écoles",
+    "env": "Cadre de vie · Commodités",
+    "supply": "Offre du secteur",
+    "market": "Marché et politiques",
+    "others": "Autres recommandations"
+  },
+  "fit": {
+    "score": "Compatibilité",
+    "tradeoffs": "Compromis à prendre en compte"
+  },
+  "units": {
+    "recommended": "Premier choix · {{name}}",
+    "colName": "Configuration",
+    "colArea": "Surface",
+    "colPrice": "Prix",
+    "badge": "Choix",
+    "bedrooms": "{{n}} Ch.",
+    "fallbackName": "Configuration",
+    "priceTbd": "Prix sur demande",
+    "whyNot": "Pourquoi pas les autres configurations"
+  },
+  "net": {
+    "buy": "Prix d'achat",
+    "appreciation": "Plus-value immobilière (croissance annuelle {{rate}})",
+    "growthFallback": "env. 7%",
+    "netRent": "Loyer net sur 5 ans (après ~25% de frais de service / maintenance)",
+    "dldFee": "Frais d'enregistrement DLD 4%",
+    "agentFee": "Frais d'agence 2%",
+    "netProfit": "Bénéfice net sur 5 ans",
+    "annualized": "Rendement annuel net",
+    "netAssetValue": "Valeur nette de l'actif (5 ans)"
+  },
+  "trend": {
+    "yoy": "Prix médian : l'an dernier {{last}} → cette année {{cur}} AED/sqm (Glissement annuel {{delta}}, {{n}} transactions)",
+    "fallback": "Basé sur {{n}} transactions DLD récentes. Le taux de croissance utilise une moyenne de zone prudente."
+  },
+  "nearby": {
+    "transitIntro": "Le projet est bien desservi par les transports en commun, facilitant les déplacements quotidiens :",
+    "schoolsIntro": "Des écoles internationales et établissements scolaires se trouvent à proximité, idéal pour les familles :",
+    "envIntro": "Centres commerciaux, services de santé et loisirs sont à proximité immédiate pour votre confort quotidien :"
+  },
+  "supply": {
+    "text": "{{n}} unités sont en construction dans cette zone, dont {{h}} seront livrées d'ici un an. Cette nouvelle offre influe sur les loyers et les prix à court et moyen terme, et est déjà intégrée dans nos hypothèses de croissance conservatrices."
+  },
+  "market": {
+    "avgYield": "Rendement moyen du secteur",
+    "avgGrowth": "Croissance annuelle du secteur",
+    "pipeline": "En cours de construction"
+  },
+  "others": {
+    "from": "À partir de",
+    "netAnnual": "Net annuel {{pct}}%"
+  },
+  "compare": {
+    "title": "Comparatif des projets",
+    "kicker": "Comparatif des projets · sélection pour {{name}}",
+    "heading": "Comparatif des projets préparé pour {{name}}",
+    "subtitle": "{{n}} projets comparés",
+    "aiPick": "Recommandation IA",
+    "confidence": "Confiance : {{level}}",
+    "conf": {
+      "high": "Haute",
+      "medium": "Moyenne",
+      "low": "Faible"
+    },
+    "summary": "Résumé de la comparaison",
+    "dims": "Évaluation en quatre dimensions",
+    "dim": {
+      "investment": "Investissement",
+      "lifestyle": "Style de vie",
+      "location": "Emplacement",
+      "value": "Rapport qualité-prix"
+    },
+    "advice": "Conseil pour {{name}}",
+    "keyMetrics": "Comparaison des indicateurs clés",
+    "dataCompare": "Comparaison des données",
+    "row": {
+      "area": "Secteur",
+      "minPrice": "Prix total (à partir de)",
+      "yield": "Rendement locatif",
+      "growth": "Croissance des prix",
+      "netAnnual": "Net annuel",
+      "payback": "Période d'amortissement"
+    },
+    "years": "{{n}} ans"
+  }
+}

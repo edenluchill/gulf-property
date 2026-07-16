@@ -22,6 +22,47 @@
   },
   "filter": {
     "all": "All ({{count}})",
-    "tag": "{{label}} ({{count}})"
+    "tag": "{{label}} ({{n}})"
+  },
+  "tag": {
+    "growth": "Growth area",
+    "supply_pressure": "Supply pressure",
+    "mature": "Mature area",
+    "future": "Emerging area",
+    "stable": "Stable area",
+    "insufficient": "Insufficient data"
+  },
+  "reason": {
+    "insufficientSample": "Too few comparable sales in this area to classify it.",
+    "volActiveTop": "Active market ({{n}} sales — top third citywide)",
+    "growTop": "Prices up {{pct}}% year on year (top third citywide)",
+    "volHighGrowNeg": "High volume ({{n}} sales) but prices {{pct}}% year on year (softening)",
+    "volHighGrowNegNote": "Falling prices on high volume usually means ample supply and room to negotiate",
+    "volActiveLiquid": "Active and liquid ({{n}} sales — top third citywide)",
+    "growModerate": "Moderate price growth ({{pct}}%) — a settled market",
+    "volLowBottom": "Lower volume ({{n}} sales — bottom third citywide)",
+    "earlyStageNote": "Early-stage area: fewer data points, higher uncertainty",
+    "volGrowMedian": "Both volume and price growth sit mid-range ({{n}} sales, {{pct}}%)"
+  },
+  "perspective": {
+    "invest": {
+      "growth": "Strong price momentum — worth a look for growth-oriented investors, though check whether it has already run up too far.",
+      "supply_pressure": "Higher risk from an investment angle (falling prices on high volume); but there is real room to negotiate, so it can suit bargain hunters.",
+      "mature": "Liquid and low-volatility — suits steady rental-income investors.",
+      "future": "High risk, high potential — a bet on the area delivering; needs a long hold.",
+      "stable": "Steady trend; expect neutral investment returns.",
+      "insufficient": "Not enough data to take a view."
+    },
+    "live": {
+      "supply_pressure": "For living in, this is actually an opportunity: more choice and room to negotiate on price.",
+      "mature": "Established amenities and easy resale — good to live in.",
+      "future": "Amenities may not be built out yet; check day-to-day convenience before committing.",
+      "growth": "Living experience depends on the specific project and its amenities.",
+      "stable": "Living experience depends on the specific project and its amenities.",
+      "insufficient": "Not enough data to take a view."
+    }
+  },
+  "classification": {
+    "methodology": "Tiers are derived from DLD sales: transaction volume and year-on-year price growth are ranked against citywide quantiles (top/bottom third) rather than arbitrary absolute cut-offs. Data is a periodic snapshot, not real time. Labels are indicative only and are not investment advice."
   }
 }

@@ -1,0 +1,55 @@
+{
+  "notFound": "This report does not exist or has been taken offline",
+  "savePdf": "Save PDF",
+  "defaultArea": "Dubai",
+  "agent": {
+    "yourAdvisor": "Your advisor",
+    "consult": "Enquire",
+    "consultMore": "Message {{name}} to learn more"
+  },
+  "stat": {
+    "startingPrice": "Starting price",
+    "bedrooms": "Layout",
+    "bedroomsValue": "{{range}} Bed",
+    "areaAvgSqm": "Area avg / sqm",
+    "rentalYield": "Rental yield"
+  },
+  "invest": {
+    "title": "5-Year Investment Projection",
+    "invested": "Invested",
+    "projectedTotal": "projected 5-year total return",
+    "annualized": "Annualized return",
+    "annualizedWithPayback": "Annualized return · {{years}}-yr payback",
+    "flowPrincipal": "Principal",
+    "flowAppreciation": "Growth",
+    "flowRent": "Rent",
+    "legPrincipal": "Principal invested",
+    "legAppreciation": "5-yr appreciation",
+    "legRent": "5-yr rental income",
+    "thisArea": "this area",
+    "comps": " ({{n}}+ comparable deals)",
+    "basis": "Based on real DLD transactions in {{area}} over the last 12 months{{comps}} — rental yield {{yieldPct}}, annual growth {{growthPct}}. Total return = 5-year rental income + capital appreciation.",
+    "disclaimer": "Indicative projection, not a guarantee of returns."
+  },
+  "trend": {
+    "title": "Area Price Trend",
+    "badge": "Last 24 months · DLD",
+    "note": "{{area}} median transacted price per sqm (AED), from real Dubai Land Department deals.",
+    "latest": "Latest {{value}} / sqm"
+  },
+  "supply": {
+    "title": "Area Supply",
+    "pipelineProjects": "Projects under construction",
+    "pipelineUnits": "Units under construction",
+    "handover1y": "Handover within 1 year"
+  },
+  "deals": {
+    "title": "Recent Real Transactions",
+    "badge": "Dubai Land Department",
+    "sqm": "{{n}} sqm"
+  },
+  "nearby": {
+    "title": "Nearby Amenities"
+  },
+  "footer": "Data from Dubai Land Department · Indicative information, not investment advice"
+}

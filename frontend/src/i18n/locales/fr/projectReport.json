@@ -1,0 +1,55 @@
+{
+  "notFound": "Ce rapport n'existe pas ou a été mis hors ligne",
+  "savePdf": "Enregistrer le PDF",
+  "defaultArea": "Dubaï",
+  "agent": {
+    "yourAdvisor": "Votre conseiller",
+    "consult": "S'informer",
+    "consultMore": "Contacter {{name}} pour en savoir plus"
+  },
+  "stat": {
+    "startingPrice": "Prix de départ",
+    "bedrooms": "Configuration",
+    "bedroomsValue": "{{range}} Ch.",
+    "areaAvgSqm": "Surface moy. / m²",
+    "rentalYield": "Rendement locatif"
+  },
+  "invest": {
+    "title": "Projection d'investissement sur 5 ans",
+    "invested": "Investi",
+    "projectedTotal": "rendement total projeté sur 5 ans",
+    "annualized": "Rendement annualisé",
+    "annualizedWithPayback": "Rendement annualisé · retour sur {{years}} ans",
+    "flowPrincipal": "Principal",
+    "flowAppreciation": "Plus-value",
+    "flowRent": "Loyers",
+    "legPrincipal": "Principal investi",
+    "legAppreciation": "Plus-value sur 5 ans",
+    "legRent": "Revenus locatifs sur 5 ans",
+    "thisArea": "ce quartier",
+    "comps": " ({{n}}+ transactions comparables)",
+    "basis": "Basé sur les transactions réelles du DLD à {{area}} au cours des 12 derniers mois{{comps}} — rendement locatif de {{yieldPct}}, croissance annuelle de {{growthPct}}. Rendement total = 5 ans de revenus locatifs + plus-value immobilière.",
+    "disclaimer": "Projection indicative, non contractuelle."
+  },
+  "trend": {
+    "title": "Tendance des prix du quartier",
+    "badge": "24 derniers mois · DLD",
+    "note": "Prix médian transacté au m² (AED) à {{area}}, selon les données officielles du Dubai Land Department.",
+    "latest": "Dernier {{value}} / m²"
+  },
+  "supply": {
+    "title": "Offre immobilière du quartier",
+    "pipelineProjects": "Projets en construction",
+    "pipelineUnits": "Logements en construction",
+    "handover1y": "Livraison sous 1 an"
+  },
+  "deals": {
+    "title": "Transactions réelles récentes",
+    "badge": "Dubai Land Department",
+    "sqm": "{{n}} m²"
+  },
+  "nearby": {
+    "title": "À proximité"
+  },
+  "footer": "Données issues du Dubai Land Department · Informations indicatives, ne constituant pas un conseil en investissement"
+}

@@ -29,6 +29,8 @@ import lunaTourEn from './locales/en/lunaTour.json'
 import profileEn from './locales/en/profile.json'
 import roleSelectEn from './locales/en/roleSelect.json'
 import aboutEn from './locales/en/about.json'
+import clientReportEn from './locales/en/clientReport.json'
+import projectReportEn from './locales/en/projectReport.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -63,6 +65,8 @@ declare module 'i18next' {
       profile: typeof profileEn
       roleSelect: typeof roleSelectEn
       about: typeof aboutEn
+      clientReport: typeof clientReportEn
+      projectReport: typeof projectReportEn
     }
   }
 }

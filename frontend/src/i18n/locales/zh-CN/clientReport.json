@@ -1,0 +1,134 @@
+{
+  "generating": "报告生成中…",
+  "notFound": "报告不存在或已下线",
+  "defaultTitle": "专属分析",
+  "clientFallback": "客户",
+  "heroKicker": "专属分析 · 为 {{name}}",
+  "savePdf": "保存 PDF",
+  "memberBadge": "Pinzos 会员",
+  "contactAgent": "咨询 {{name}}",
+  "profile": {
+    "label": "需求：",
+    "sep": "，",
+    "goal": {
+      "live": "自住",
+      "invest": "投资",
+      "both": "先租后住"
+    },
+    "payment": {
+      "cash": "全款",
+      "installment": "分期",
+      "mortgage": "贷款"
+    },
+    "horizon": {
+      "rent_long": "长期收租",
+      "flip": "3-5 年转手",
+      "rent_then_live": "先租后住"
+    },
+    "budget": "预算约 {{amount}}迪拉姆",
+    "budgetRange": "预算 {{min}}–{{max}}迪拉姆",
+    "bedrooms": "{{n}} 房",
+    "familySize": "{{n}} 口人",
+    "hasChildren": "有小孩（学区重要）",
+    "hasMaid": "请保姆（需要女佣房）",
+    "cookingOften": "常做中餐（开放厨房是减分）",
+    "goldenVisa": "要黄金签证",
+    "firstTimeBuyer": "首次置业",
+    "readyOnly": "只要现房",
+    "areas": "偏好 {{areas}}"
+  },
+  "section": {
+    "scores": "投资评分",
+    "fit": "为什么这个适合你",
+    "units": "哪个户型适合你",
+    "profit": "利润测算（净额 · 5 年）",
+    "priceTrend": "区域价格走势（DLD 真实成交）",
+    "comps": "近期真实成交（DLD）",
+    "transit": "交通",
+    "schools": "教育 · 学校",
+    "env": "生活环境 · 配套",
+    "supply": "区域供给",
+    "market": "市场与政策",
+    "others": "其他推荐"
+  },
+  "fit": {
+    "score": "匹配度",
+    "tradeoffs": "需要你知道的取舍"
+  },
+  "units": {
+    "recommended": "主推 · {{name}}",
+    "colName": "户型",
+    "colArea": "面积",
+    "colPrice": "价格",
+    "badge": "推荐",
+    "bedrooms": "{{n}} 居",
+    "fallbackName": "户型",
+    "priceTbd": "价格待定",
+    "whyNot": "为什么不推其它户型"
+  },
+  "net": {
+    "buy": "买入价",
+    "appreciation": "资产增值（年增长 {{rate}}）",
+    "growthFallback": "约 7%",
+    "netRent": "5 年净租金（扣物业费/维护约 25%）",
+    "dldFee": "过户费 DLD 4%",
+    "agentFee": "中介费 2%",
+    "netProfit": "5 年净利润",
+    "annualized": "净年化回报",
+    "netAssetValue": "净资产价值（5 年）"
+  },
+  "trend": {
+    "yoy": "中位价：去年 {{last}} → 今年 {{cur}} AED/㎡（同比 {{delta}}，{{n}} 笔成交）",
+    "fallback": "基于 {{n}} 笔近期 DLD 成交。增长率取区域稳健均值。"
+  },
+  "nearby": {
+    "transitIntro": "项目周边公共交通便利，通勤与出行高效：",
+    "schoolsIntro": "周边覆盖国际学校与教育资源，适合家庭置业：",
+    "envIntro": "商场、医疗、休闲配套齐全，生活便利度高："
+  },
+  "supply": {
+    "text": "区域在建 {{n}} 套，1 年内交付 {{h}} 套。新增供给影响中短期租金与价格，已纳入测算的保守增长假设。"
+  },
+  "market": {
+    "avgYield": "区域平均回报",
+    "avgGrowth": "区域年增长",
+    "pipeline": "在建供给"
+  },
+  "others": {
+    "from": "起",
+    "netAnnual": "净年化 {{pct}}%"
+  },
+  "compare": {
+    "title": "项目对比",
+    "kicker": "项目对比 · 为 {{name}} 精选",
+    "heading": "为 {{name}} 准备的项目对比",
+    "subtitle": "{{n}} 个项目并排对比",
+    "aiPick": "AI 推荐",
+    "confidence": "信心 {{level}}",
+    "conf": {
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    },
+    "summary": "对比综述",
+    "dims": "四维评估",
+    "dim": {
+      "investment": "投资",
+      "lifestyle": "生活",
+      "location": "位置",
+      "value": "性价比"
+    },
+    "advice": "给 {{name}} 的建议",
+    "keyMetrics": "关键指标对比",
+    "dataCompare": "数据对比",
+    "row": {
+      "area": "区域",
+      "minPrice": "总价（起）",
+      "yield": "租金回报",
+      "growth": "价格增长",
+      "netAnnual": "净年化",
+      "payback": "回本年限"
+    },
+    "years": "{{n}} 年"
+  }
+}

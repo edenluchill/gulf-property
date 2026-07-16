@@ -1,0 +1,134 @@
+{
+  "generating": "Generating report…",
+  "notFound": "This report does not exist or is no longer available",
+  "defaultTitle": "Personalised analysis",
+  "clientFallback": "our client",
+  "heroKicker": "Personalised analysis · for {{name}}",
+  "savePdf": "Save PDF",
+  "memberBadge": "Pinzos Member",
+  "contactAgent": "Contact {{name}}",
+  "profile": {
+    "label": "Requirements:",
+    "sep": ", ",
+    "goal": {
+      "live": "Own use",
+      "invest": "Investment",
+      "both": "Rent first, live in later"
+    },
+    "payment": {
+      "cash": "Cash",
+      "installment": "Developer instalments",
+      "mortgage": "Mortgage"
+    },
+    "horizon": {
+      "rent_long": "Long-term rental income",
+      "flip": "Resale in 3–5 years",
+      "rent_then_live": "Rent first, live in later"
+    },
+    "budget": "Budget around {{amount}} AED",
+    "budgetRange": "Budget {{min}}–{{max}} AED",
+    "bedrooms": "{{n}} bedrooms",
+    "familySize": "{{n}} people",
+    "hasChildren": "Has children (schools matter)",
+    "hasMaid": "Has a helper (needs a maid's room)",
+    "cookingOften": "Cooks frequently (an open kitchen is a drawback)",
+    "goldenVisa": "Wants a Golden Visa",
+    "firstTimeBuyer": "First-time buyer",
+    "readyOnly": "Ready properties only",
+    "areas": "Prefers {{areas}}"
+  },
+  "section": {
+    "scores": "Investment scores",
+    "fit": "Why this suits you",
+    "units": "Which layout suits you",
+    "profit": "Profit projection (net · 5 years)",
+    "priceTrend": "Area price trend (real DLD transactions)",
+    "comps": "Recent real transactions (DLD)",
+    "transit": "Transport",
+    "schools": "Education · Schools",
+    "env": "Living environment · Amenities",
+    "supply": "Area supply",
+    "market": "Market & policy",
+    "others": "Other recommendations"
+  },
+  "fit": {
+    "score": "Match",
+    "tradeoffs": "Trade-offs you should know about"
+  },
+  "units": {
+    "recommended": "Top pick · {{name}}",
+    "colName": "Layout",
+    "colArea": "Size",
+    "colPrice": "Price",
+    "badge": "Pick",
+    "bedrooms": "{{n}} Bed",
+    "fallbackName": "Layout",
+    "priceTbd": "Price on request",
+    "whyNot": "Why not the other layouts"
+  },
+  "net": {
+    "buy": "Purchase price",
+    "appreciation": "Capital appreciation (annual growth {{rate}})",
+    "growthFallback": "approx. 7%",
+    "netRent": "5-year net rent (after ~25% service charge / maintenance)",
+    "dldFee": "DLD transfer fee 4%",
+    "agentFee": "Agency fee 2%",
+    "netProfit": "5-year net profit",
+    "annualized": "Net annualised return",
+    "netAssetValue": "Net asset value (5 years)"
+  },
+  "trend": {
+    "yoy": "Median price: last year {{last}} → this year {{cur}} AED/sqm (YoY {{delta}}, {{n}} transactions)",
+    "fallback": "Based on {{n}} recent DLD transactions. The growth rate uses a conservative area average."
+  },
+  "nearby": {
+    "transitIntro": "The project is well served by public transport, making commuting and getting around efficient:",
+    "schoolsIntro": "International schools and educational facilities are nearby, ideal for families:",
+    "envIntro": "Malls, healthcare and leisure amenities are all close by for everyday convenience:"
+  },
+  "supply": {
+    "text": "{{n}} units are under construction in the area, with {{h}} handing over within a year. New supply affects rents and prices in the short to medium term and is already reflected in the conservative growth assumptions used here."
+  },
+  "market": {
+    "avgYield": "Area average yield",
+    "avgGrowth": "Area annual growth",
+    "pipeline": "Under construction"
+  },
+  "others": {
+    "from": "From",
+    "netAnnual": "Net annualised {{pct}}%"
+  },
+  "compare": {
+    "title": "Project comparison",
+    "kicker": "Project comparison · curated for {{name}}",
+    "heading": "Project comparison prepared for {{name}}",
+    "subtitle": "{{n}} projects side by side",
+    "aiPick": "AI recommendation",
+    "confidence": "Confidence: {{level}}",
+    "conf": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "summary": "Comparison summary",
+    "dims": "Four-dimension assessment",
+    "dim": {
+      "investment": "Investment",
+      "lifestyle": "Lifestyle",
+      "location": "Location",
+      "value": "Value for money"
+    },
+    "advice": "Advice for {{name}}",
+    "keyMetrics": "Key metrics comparison",
+    "dataCompare": "Data comparison",
+    "row": {
+      "area": "Area",
+      "minPrice": "Total price (from)",
+      "yield": "Rental yield",
+      "growth": "Price growth",
+      "netAnnual": "Net annualised",
+      "payback": "Payback period"
+    },
+    "years": "{{n}} yrs"
+  }
+}

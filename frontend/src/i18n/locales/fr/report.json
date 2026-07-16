@@ -1,4 +1,45 @@
 {
+  "tag": {
+    "growth": "Zone en croissance",
+    "supply_pressure": "Pression de l'offre",
+    "mature": "Zone mature",
+    "future": "Zone émergente",
+    "stable": "Zone stable",
+    "insufficient": "Données insuffisantes"
+  },
+  "reason": {
+    "insufficientSample": "Trop peu de ventes comparables dans cette zone pour la classer.",
+    "volActiveTop": "Marché actif ({{n}} ventes — tiers supérieur de la ville)",
+    "growTop": "Prix en hausse de {{pct}}% sur un ans (tiers supérieur de la ville)",
+    "volHighGrowNeg": "Volume élevé ({{n}} ventes) mais prix à {{pct}}% sur un an (fléchissement)",
+    "volHighGrowNegNote": "La baisse des prix sur un volume élevé est généralement synonyme d'offre abondante et de marge de négociation",
+    "volActiveLiquid": "Actif et liquide ({{n}} ventes — tiers supérieur de la ville)",
+    "growModerate": "Croissance modérée des prix ({{pct}}%) — un marché stabilisé",
+    "volLowBottom": "Volume plus faible ({{n}} ventes — tiers inférieur de la ville)",
+    "earlyStageNote": "Zone en phase de démarrage : moins de données, incertitude accrue",
+    "volGrowMedian": "Le volume et la croissance des prix se situent dans la moyenne ({{n}} ventes, {{pct}}%)"
+  },
+  "perspective": {
+    "invest": {
+      "growth": "Forte dynamique des prix — à envisager pour les investisseurs axés sur la croissance, tout en vérifiant si les prix n'ont pas déjà trop grimpé.",
+      "supply_pressure": "Risque plus élevé pour l'investissement (baisse des prix sur volume élevé), mais réelle marge de négociation : idéal pour les chasseurs de bonnes affaires.",
+      "mature": "Liquide et peu volatile — idéal pour les investisseurs cherchant des revenus locatifs stables.",
+      "future": "Risque élevé, fort potentiel — un pari sur le développement de la zone, nécessite un investissement à long terme.",
+      "stable": "Tendance stable ; attendez-vous à des rendements neutres.",
+      "insufficient": "Pas assez de données pour se prononcer."
+    },
+    "live": {
+      "supply_pressure": "Pour y vivre, c'est en réalité une opportunité : plus de choix et de marge de négociation sur les prix.",
+      "mature": "Infrastructures établies et revente facile — agréable à vivre.",
+      "future": "Les infrastructures ne sont peut-être pas encore finalisées ; vérifiez le confort au quotidien avant de vous engager.",
+      "growth": "Le cadre de vie dépend du projet spécifique et de ses équipements.",
+      "stable": "Le cadre de vie dépend du projet spécifique et de ses équipements.",
+      "insufficient": "Pas assez de données pour se prononcer."
+    }
+  },
+  "dataQuality": {
+    "growth_clamped": "La croissance/rendement brut de cette zone présentaient des anomalies dues à un faible échantillon ; ils ont été ajustés dans une fourchette raisonnable avant projection."
+  },
   "title": "Rapport de décision immobilière par IA",
   "description": "Indiquez-nous votre objectif et votre budget, et nous générerons des recommandations structurées avec une prévision sur 5 ans basée sur les transactions réelles du DLD.",
   "goals": {

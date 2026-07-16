@@ -1,4 +1,45 @@
 {
+  "tag": {
+    "growth": "Zone en croissance",
+    "supply_pressure": "Pression de l'offre",
+    "mature": "Zone mature",
+    "future": "Zone émergente",
+    "stable": "Zone stable",
+    "insufficient": "Données insuffisantes"
+  },
+  "reason": {
+    "insufficientSample": "Trop peu de ventes comparables dans cette zone pour la classer.",
+    "volActiveTop": "Marché actif ({{n}} ventes — tiers supérieur à l'échelle de la ville)",
+    "growTop": "Prix en hausse de {{pct}}% sur un an (tiers supérieur à l'échelle de la ville)",
+    "volHighGrowNeg": "Volume élevé ({{n}} ventes) mais prix à {{pct}}% sur un an (ralentissement)",
+    "volHighGrowNegNote": "Des prix en baisse sur un volume élevé signifient généralement une offre abondante et une marge de négociation",
+    "volActiveLiquid": "Actif et liquide ({{n}} ventes — tiers supérieur à l'échelle de la ville)",
+    "growModerate": "Croissance modérée des prix ({{pct}}%) — un marché stable",
+    "volLowBottom": "Volume plus faible ({{n}} ventes — tiers inférieur à l'échelle de la ville)",
+    "earlyStageNote": "Zone en phase de démarrage : moins de données, incertitude plus élevée",
+    "volGrowMedian": "Le volume et la croissance des prix se situent dans la moyenne ({{n}} ventes, {{pct}}%)"
+  },
+  "perspective": {
+    "invest": {
+      "growth": "Forte dynamique des prix — intéressant pour les investisseurs axés sur la croissance, bien qu'il faille vérifier si les prix n'ont pas déjà trop grimpé.",
+      "supply_pressure": "Risque plus élevé du point de vue de l'investissement (baisse des prix sur un volume élevé) ; mais il y a une réelle marge de négociation, ce qui peut convenir aux chasseurs de bonnes affaires.",
+      "mature": "Liquide et peu volatile — convient aux investisseurs recherchant des revenus locatifs stables.",
+      "future": "Risque élevé, potentiel élevé — un pari sur le développement de la zone ; nécessite un investissement à long terme.",
+      "stable": "Tendance stable ; attendez-vous à des rendements de placement neutres.",
+      "insufficient": "Pas assez de données pour se prononcer."
+    },
+    "live": {
+      "supply_pressure": "Pour y vivre, c'est en réalité une opportunité : plus de choix et de marge de négociation sur les prix.",
+      "mature": "Infrastructures établies et revente facile — idéal pour y vivre.",
+      "future": "Les commodités ne sont peut-être pas encore construites ; vérifiez la commodité au quotidien avant de vous engager.",
+      "growth": "L'expérience de vie dépend du projet spécifique et de ses commodités.",
+      "stable": "L'expérience de vie dépend du projet spécifique et de ses commodités.",
+      "insufficient": "Pas assez de données pour se prononcer."
+    }
+  },
+  "classification": {
+    "methodology": "Les catégories sont dérivées des ventes DLD : le volume des transactions et la croissance annuelle des prix sont classés par rapport aux quantiles à l'échelle de la ville (tiers supérieur/inférieur) plutôt que par des seuils absolus arbitraires. Les données sont un instantané périodique et non en temps réel. Les étiquettes sont fournies à titre indicatif uniquement et ne constituent pas un conseil en investissement."
+  },
   "title": "Classification des zones",
   "description": "Basé sur les transactions réelles du DLD, les zones sont classées comme matures / en croissance / d'avenir / sous pression de l'offre. Les étiquettes sont attribuées selon les percentiles à l'échelle de la ville — développez pour voir l'explication.",
   "metrics": {
@@ -22,6 +63,6 @@
   },
   "filter": {
     "all": "Tous ({{count}})",
-    "tag": "{{label}} ({{count}})"
+    "tag": "{{label}} ({{n}})"
   }
 }

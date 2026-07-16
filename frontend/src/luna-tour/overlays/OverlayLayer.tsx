@@ -7,6 +7,7 @@
  * favorite_picker, cta.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { RenderOverlay } from '../engine/TimelineEngine'
 import type {
   AreaStats,
@@ -16,6 +17,19 @@ import type {
   TourUnit,
 } from '../types'
 import GrowthChart from './GrowthChart'
+
+type T = (k: string, o?: Record<string, unknown>) => string
+
+/**
+ * 户型名从 `bedrooms` 现算,不用 `unit.label`。
+ * label 是后端拼的展示文案,那里只有 en/zh 两个分支 —— ar/ru/fr 会穿透成中文。
+ * bedrooms 是结构化真值,前端翻能跟着 tour 语言走。
+ */
+function unitLabel(t: T, bedrooms: number): string {
+  return bedrooms === 0
+    ? t('tourOverlay.studio')
+    : t('tourOverlay.nBed', { n: bedrooms })
+}
 
 interface OverlayLayerProps {
   overlays: RenderOverlay[]
@@ -72,6 +86,9 @@ function OverlayItem({
   onFavorite: (id: string) => void
   onCta: () => void
 }) {
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as T
+
   switch (overlay.type) {
     case 'title':
       return (
@@ -120,26 +137,29 @@ function OverlayItem({
             {p.min_price != null && (
               <div className="lt-card-price">
                 {formatAed(p.min_price)}
-                <span className="lt-card-price-unit"> 起</span>
+                <span className="lt-card-price-unit"> {t('tourOverlay.fromSuffix')}</span>
               </div>
             )}
             <div className="lt-card-stats">
               {p.amenity_score != null && (
                 <div className="lt-card-stat">
                   <b style={{ color: accent }}>{p.amenity_score}</b>
-                  <span>便利度{p.amenity_tier ? ` · ${p.amenity_tier}` : ''}</span>
+                  <span>
+                    {t('tourOverlay.amenityScore')}
+                    {p.amenity_tier ? ` · ${p.amenity_tier}` : ''}
+                  </span>
                 </div>
               )}
               {metro && (
                 <div className="lt-card-stat">
                   <b style={{ color: accent }}>{metro.distance_km}km</b>
-                  <span>🚇 最近地铁</span>
+                  <span>🚇 {t('tourOverlay.nearestMetro')}</span>
                 </div>
               )}
               {p.status && (
                 <div className="lt-card-stat lt-card-stat-status">
                   <b>{p.status}</b>
-                  <span>状态</span>
+                  <span>{t('tourOverlay.status')}</span>
                 </div>
               )}
             </div>
@@ -185,7 +205,7 @@ function OverlayItem({
         .filter((x) => x.p) as { id: string; p: PropertySnapshot }[]
       return (
         <div className="lt-ov lt-ov-picker">
-          <div className="lt-picker-title">最喜欢哪个?点个心 ❤️</div>
+          <div className="lt-picker-title">{t('tourOverlay.pickFavorite')}</div>
           <div className="lt-picker-row">
             {cards.map(({ id, p }) => (
               <button
@@ -207,7 +227,9 @@ function OverlayItem({
       return (
         <button className="lt-ov lt-ov-cta" onClick={onCta}>
           {agent.photo_url && <img src={agent.photo_url} alt={agent.name} />}
-          <span className="lt-cta-text">{overlay.text ?? `和 ${agent.name} 聊聊`}</span>
+          <span className="lt-cta-text">
+            {overlay.text ?? t('tourOverlay.chatWith', { name: agent.name })}
+          </span>
           <span className="lt-cta-arrow">→</span>
         </button>
       )
@@ -249,32 +271,36 @@ function UnitCard({
   focus?: number
   accent: string
 }) {
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as T
+
   // 剧本挑中的那个户型排第一并高亮 —— 「这个才是给你的」。
   const focused = focus != null ? units.find((u) => u.bedrooms === focus) : undefined
   const hero = focused ?? units[0]
   const rest = units.filter((u) => u !== hero)
+  const heroLabel = unitLabel(t, hero.bedrooms)
 
   return (
     <div className="lt-ov lt-ov-units">
-      <div className="lt-units-head">可选户型</div>
+      <div className="lt-units-head">{t('tourOverlay.units')}</div>
       <div className="lt-unit-hero">
         {hero.floor_plan_image && (
-          <img className="lt-unit-plan" src={hero.floor_plan_image} alt={hero.label} loading="eager" />
+          <img className="lt-unit-plan" src={hero.floor_plan_image} alt={heroLabel} loading="eager" />
         )}
         <div className="lt-unit-hero-body">
           <div className="lt-unit-label" style={{ color: accent }}>
-            {hero.label}
-            {focused && <span className="lt-unit-fit">最适合你</span>}
+            {heroLabel}
+            {focused && <span className="lt-unit-fit">{t('tourOverlay.bestFit')}</span>}
           </div>
           <div className="lt-unit-figs">
             {hero.area_sqft != null && (
               <span>
-                <b>{hero.area_sqft.toLocaleString()}</b> 尺起
+                <b>{hero.area_sqft.toLocaleString()}</b> {t('tourOverlay.sqftFrom')}
               </span>
             )}
             {hero.price_from != null && (
               <span>
-                <b>{formatAed(hero.price_from)}</b> 起
+                <b>{formatAed(hero.price_from)}</b> {t('tourOverlay.fromSuffix')}
               </span>
             )}
           </div>
@@ -284,8 +310,12 @@ function UnitCard({
         <div className="lt-unit-chips">
           {rest.map((u) => (
             <div key={u.bedrooms} className="lt-unit-chip">
-              <b>{u.label}</b>
-              {u.price_from != null && <span>{formatAed(u.price_from)} 起</span>}
+              <b>{unitLabel(t, u.bedrooms)}</b>
+              {u.price_from != null && (
+                <span>
+                  {formatAed(u.price_from)} {t('tourOverlay.fromSuffix')}
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -301,23 +331,25 @@ function AreaCompareCard({
   ctx: NonNullable<PropertySnapshot['area_context']>
   accent: string
 }) {
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as T
+
   const rows: (AreaStats & { self?: boolean })[] = [
     { ...ctx.self, self: true },
     ...ctx.neighbors.slice(0, 3),
   ]
-  const maxPrice = Math.max(...rows.map((r) => r.price_sqm || 0), 1)
 
   return (
     <div className="lt-ov lt-ov-compare">
-      <div className="lt-cmp-head">这里 vs 隔壁</div>
-      <div className="lt-cmp-sub">同样的地段，走路 5 分钟的差别</div>
+      <div className="lt-cmp-head">{t('tourOverlay.compareHead')}</div>
+      <div className="lt-cmp-sub">{t('tourOverlay.compareSub')}</div>
       <div className="lt-cmp-grid">
         <div className="lt-cmp-row lt-cmp-hdr">
           <span />
-          <span>涨幅</span>
-          <span>回报</span>
-          <span>单价/㎡</span>
-          <span>年成交</span>
+          <span>{t('tourOverlay.colGrowth')}</span>
+          <span>{t('tourOverlay.colYield')}</span>
+          <span>{t('tourOverlay.colPriceSqm')}</span>
+          <span>{t('tourOverlay.colTxPerYear')}</span>
         </div>
         {rows.map((r) => (
           <div key={r.name} className={`lt-cmp-row ${r.self ? 'is-self' : ''}`}>
@@ -350,8 +382,8 @@ function AreaCompareCard({
         ))}
       </div>
       <div className="lt-cmp-foot">
-        Dubai Land Department · 近 12 个月 · 单价为中位数
-        <span className="lt-cmp-note">（{maxPrice > 0 ? '成交量条 = 流动性：想出手时有没有人接盘' : ''}）</span>
+        {t('tourOverlay.compareFoot')}
+        <span className="lt-cmp-note">{t('tourOverlay.compareNote')}</span>
       </div>
     </div>
   )
@@ -364,11 +396,13 @@ function RoiCard({
   data: { buy: number; future: number; years: number; growth_pct: number; yield_pct?: number }
   accent: string
 }) {
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as T
   const future = useCountUp(data.future, 1600)
   return (
     <div className="lt-ov lt-ov-roi">
       <div className="lt-roi-head">
-        <span>{data.years} 年投资展望</span>
+        <span>{t('tourOverlay.roiHead', { years: data.years })}</span>
         <span className="lt-roi-growth" style={{ color: accent }}>
           +{data.growth_pct}%
         </span>
@@ -377,21 +411,21 @@ function RoiCard({
         <GrowthChart buy={data.buy} future={data.future} years={data.years} accent={accent} />
       </div>
       <div className="lt-roi-axis">
-        <span>今年</span>
-        <span>{data.years} 年后</span>
+        <span>{t('tourOverlay.roiThisYear')}</span>
+        <span>{t('tourOverlay.roiInYears', { years: data.years })}</span>
       </div>
       <div className="lt-roi-figures">
         <div>
-          <label>买入</label>
+          <label>{t('tourOverlay.roiBuy')}</label>
           <b>{formatAed(data.buy)}</b>
         </div>
         <div className="lt-roi-right">
-          <label>{data.years} 年后预测</label>
+          <label>{t('tourOverlay.roiForecast', { years: data.years })}</label>
           <b style={{ color: accent }}>{formatAed(future)}</b>
         </div>
       </div>
       {data.yield_pct != null && (
-        <div className="lt-roi-yield">参考租金回报率 ~{data.yield_pct}%（非保证，仅供参考）</div>
+        <div className="lt-roi-yield">{t('tourOverlay.roiYield', { pct: data.yield_pct })}</div>
       )}
     </div>
   )

@@ -2,11 +2,21 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, TrendingUp, Home, Star, Train, GraduationCap, Trees, ListChecks, Target, Check, X, AlertTriangle } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
+import i18n from '../i18n'
 import DirhamSymbol from '../components/DirhamSymbol'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-const M = (v: number | null | undefined) => (v != null ? formatMoneyCompact(v, 'zh') : '—')
-const Dh = ({ v }: { v: number | null | undefined }) => <><DirhamSymbol size="0.7em" className="text-slate-400" />{M(v)}</>
+
+type TFn = (k: string, o?: Record<string, unknown>) => string
+
+// 报告是经纪为客户备好的正式文档:正文由 AI 按 report.lang 写好并存库,
+// 语言在生成那一刻定死。渲染必须锁定同一语言(getFixedT 非响应式),不跟浏览者
+// UI 语言走 —— 否则会出现「阿语标签 + 中文正文」,比全中文更糟。
+const docNs = (lang: string): TFn =>
+  (i18n.getFixedT as (l: string, ns: string) => TFn)(!lang || lang === 'zh' ? 'zh-CN' : lang, 'clientReport')
+
+const M = (v: number | null | undefined, lang: string) => (v != null ? formatMoneyCompact(v, lang) : '—')
+const Dh = ({ v, lang }: { v: number | null | undefined; lang: string }) => <><DirhamSymbol size="0.7em" className="text-slate-400" />{M(v, lang)}</>
 const km = (m: number) => `${(m / 1000).toFixed(1)}km`
 
 export default function ClientReportPage() {
@@ -26,16 +36,25 @@ export default function ClientReportPage() {
   }, [code])
   useEffect(() => { load() }, [load])
 
-  if (state === 'loading' || state === 'generating')
-    return <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-slate-400"><Loader2 className="h-8 w-8 animate-spin text-teal-500" />{state === 'generating' ? '报告生成中…' : ''}</div>
-  if (state === 'error' || !data) return <div className="flex min-h-screen items-center justify-center text-slate-400">报告不存在或已下线</div>
+  // 加载/错误态没有报告可读 → 没有文档语言,只能跟浏览者 UI 语言。
+  if (state === 'loading' || state === 'generating') {
+    const tUi = docNs(i18n.language || 'en')
+    return <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-slate-400"><Loader2 className="h-8 w-8 animate-spin text-teal-500" />{state === 'generating' ? tUi('generating') : ''}</div>
+  }
+  if (state === 'error' || !data) {
+    const tUi = docNs(i18n.language || 'en')
+    return <div className="flex min-h-screen items-center justify-center text-slate-400">{tUi('notFound')}</div>
+  }
 
   const { agent, report } = data
-  if (report?.kind === 'compare') return <CompareReport agent={agent} report={report} />
+  const lang: string = data.lang || 'zh'
+  const t = docNs(lang)
+  if (report?.kind === 'compare') return <CompareReport agent={agent} report={report} lang={lang} />
   const r = report
   const p = (r.properties || [])[0]            // the single featured project
   const others = (r.properties || []).slice(1)
   const yoySane = p?.yoy && p.yoy.growth_pct != null && Math.abs(p.yoy.growth_pct) <= 40
+  const clientName = r.client_name || t('clientFallback')
 
   // categorise nearby into 交通 / 学校 / 环境
   const pois: any[] = p?.nearby?.pois || []
@@ -44,33 +63,35 @@ export default function ClientReportPage() {
   const schools = pois.filter((x) => has(x, 'school', 'educat', 'academy', 'universit', 'college', 'nursery'))
   const env = pois.filter((x) => !has(x, 'metro', 'transport', 'bus', 'tram', 'school', 'educat', 'academy', 'universit', 'college', 'nursery'))
 
+  const profileLine = renderProfile(r.profile_struct, t, lang) || r.profile
+
   return (
-    <div className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
+    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
       <style>{`@media print { .no-print{display:none!important} .pg{box-shadow:none!important;margin:0!important} body{background:#fff} }`}</style>
 
-      <TopBar title={p?.name || '专属分析'} />
+      <TopBar title={p?.name || t('defaultTitle')} t={t} />
 
       <div className="pg relative mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
-        <AgentStamp agent={agent} />
+        <AgentStamp agent={agent} t={t} />
 
         {/* Hero — the project IS the title */}
         {p && (
           <a href={`/project/${p.project_id || p.id}`} target="_blank" rel="noreferrer" className="block">
             {p.image && <img src={p.image} alt={p.name} className="h-44 w-full rounded-xl object-cover sm:h-56" />}
             <div className="mt-3 pe-24">
-              <div className="text-[11px] font-semibold text-teal-600">专属分析 · 为 {r.client_name || '客户'}</div>
+              <div className="text-[11px] font-semibold text-teal-600">{t('heroKicker', { name: clientName })}</div>
               <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">{p.name}<ExternalLink className="h-5 w-5 flex-shrink-0 text-slate-300" /></h1>
               <div className="text-sm text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
             </div>
           </a>
         )}
-        {r.profile && <div className="mt-2 text-sm text-slate-400">需求：{r.profile}</div>}
+        {profileLine && <div className="mt-2 text-sm text-slate-400">{t('profile.label')}{profileLine}</div>}
 
         {p && (
           <>
             {/* 投资评分 radar */}
             {p.scores?.length >= 3 && (
-              <Section title="投资评分" icon={<Star className="h-4 w-4 text-amber-400" />}>
+              <Section title={t('section.scores')} icon={<Star className="h-4 w-4 text-amber-400" />}>
                 <div className="flex flex-col items-center gap-3 sm:flex-row">
                   <div className="flex-shrink-0"><RadarChart data={p.scores} /></div>
                   <div className="flex-1 space-y-1.5 self-stretch">
@@ -90,10 +111,10 @@ export default function ClientReportPage() {
                 这是整份报告的价值所在:不是数据罗列,是**论证**。
                 取舍/风险也要显示 —— 一份全是优点的报告反而不可信,客户不傻。 */}
             {p.fit && (p.fit.project_why?.length > 0 || p.fit.project_tradeoffs?.length > 0) && (
-              <Section title="为什么这个适合你" icon={<Target className="h-4 w-4 text-teal-500" />}>
+              <Section title={t('section.fit')} icon={<Target className="h-4 w-4 text-teal-500" />}>
                 {p.fit.project_fit != null && (
                   <div className="mb-3 flex items-center gap-3">
-                    <span className="text-xs text-slate-500">匹配度</span>
+                    <span className="text-xs text-slate-500">{t('fit.score')}</span>
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                       <div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: `${Math.max(0, Math.min(100, p.fit.project_fit))}%` }} />
                     </div>
@@ -109,7 +130,7 @@ export default function ClientReportPage() {
                 </ul>
                 {p.fit.project_tradeoffs?.length > 0 && (
                   <div className="mt-3 rounded-xl bg-amber-50/70 p-3">
-                    <div className="mb-1.5 text-[11px] font-semibold text-amber-900">需要你知道的取舍</div>
+                    <div className="mb-1.5 text-[11px] font-semibold text-amber-900">{t('fit.tradeoffs')}</div>
                     <ul className="space-y-1.5">
                       {p.fit.project_tradeoffs.map((w: string, i: number) => (
                         <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-amber-900/90">
@@ -127,11 +148,11 @@ export default function ClientReportPage() {
                 并逐条论证「为什么这个户型适合你」+「**为什么不推另外那个**」。
                 ⚠️ price 只有 51% 填充 —— 无价的显示「价格待定」,不隐藏、不猜。 */}
             {p.units?.length > 0 && (
-              <Section title="哪个户型适合你" icon={<Home className="h-4 w-4 text-teal-500" />}>
+              <Section title={t('section.units')} icon={<Home className="h-4 w-4 text-teal-500" />}>
                 {p.fit?.unit_why?.length > 0 && (
                   <div className="mb-3 rounded-xl bg-teal-50/70 p-3">
                     {p.fit.recommended_unit && (
-                      <div className="mb-1.5 text-sm font-bold text-teal-900">主推 · {p.fit.recommended_unit}</div>
+                      <div className="mb-1.5 text-sm font-bold text-teal-900">{t('units.recommended', { name: p.fit.recommended_unit })}</div>
                     )}
                     <ul className="space-y-1.5">
                       {p.fit.unit_why.map((w: string, i: number) => (
@@ -145,9 +166,9 @@ export default function ClientReportPage() {
 
                 <div className="overflow-hidden rounded-xl border border-slate-100">
                   <div className="flex bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-400">
-                    <span className="flex-1">户型</span>
-                    <span className="w-14 text-end">面积</span>
-                    <span className="w-24 text-end">价格</span>
+                    <span className="flex-1">{t('units.colName')}</span>
+                    <span className="w-14 text-end">{t('units.colArea')}</span>
+                    <span className="w-24 text-end">{t('units.colPrice')}</span>
                   </div>
                   {p.units.slice(0, 6).map((u: any, i: number) => {
                     const isTop = p.fit?.recommended_unit && String(u.name || '').includes(p.fit.recommended_unit)
@@ -155,12 +176,12 @@ export default function ClientReportPage() {
                       <div key={i} className={`border-t border-slate-50 px-3 py-2 ${isTop ? 'bg-teal-50/40' : ''}`}>
                         <div className="flex items-center text-sm">
                           <span className="flex flex-1 items-center gap-1.5 truncate text-slate-700">
-                            {isTop && <span className="shrink-0 rounded bg-teal-500 px-1 text-[9px] font-bold text-white">推荐</span>}
-                            <span className="truncate">{u.name || (u.bedrooms != null ? `${u.bedrooms} 居` : '户型')}</span>
+                            {isTop && <span className="shrink-0 rounded bg-teal-500 px-1 text-[9px] font-bold text-white">{t('units.badge')}</span>}
+                            <span className="truncate">{u.name || (u.bedrooms != null ? t('units.bedrooms', { n: u.bedrooms }) : t('units.fallbackName'))}</span>
                           </span>
                           <span className="w-14 text-end text-xs text-slate-500">{u.area != null ? `${Math.round(u.area)}ft²` : '—'}</span>
                           <span className="w-24 text-end font-semibold text-slate-800">
-                            {u.price != null ? <Dh v={u.price} /> : <span className="text-xs font-normal text-slate-400">价格待定</span>}
+                            {u.price != null ? <Dh v={u.price} lang={lang} /> : <span className="text-xs font-normal text-slate-400">{t('units.priceTbd')}</span>}
                           </span>
                         </div>
                         {/* 配置 —— 「特点对特点」的原料(女佣房/洗衣房/开放厨房…) */}
@@ -179,7 +200,7 @@ export default function ClientReportPage() {
                 {/* ⭐ 反向论证 —— 说清不推什么,比只夸一个更有说服力 */}
                 {p.fit?.unit_why_not?.length > 0 && (
                   <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                    <div className="mb-1.5 text-[11px] font-semibold text-slate-600">为什么不推其它户型</div>
+                    <div className="mb-1.5 text-[11px] font-semibold text-slate-600">{t('units.whyNot')}</div>
                     <ul className="space-y-1.5">
                       {p.fit.unit_why_not.map((w: string, i: number) => (
                         <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-slate-600">
@@ -194,20 +215,20 @@ export default function ClientReportPage() {
 
             {/* 利润测算 */}
             {p.net && (
-              <Section title="利润测算（净额 · 5 年）" icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
+              <Section title={t('section.profit')} icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
                 <div className="overflow-hidden rounded-xl border border-slate-100 text-sm">
-                  <Row label="买入价" value={<Dh v={p.net.buy} />} />
-                  <Row label={`资产增值（年增长 ${p.area_metrics?.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : '约 7%'}）`} value={<span className="text-emerald-600">+<Dh v={p.net.appreciation} /></span>} />
-                  <Row label="5 年净租金（扣物业费/维护约 25%）" value={<span className="text-emerald-600">+<Dh v={p.net.net_rent} /></span>} />
-                  <Row label="过户费 DLD 4%" value={<span className="text-rose-500">−<Dh v={p.net.dld_fee} /></span>} />
-                  <Row label="中介费 2%" value={<span className="text-rose-500">−<Dh v={p.net.agent_fee} /></span>} />
-                  <Row label="5 年净利润" value={<span className="font-extrabold text-teal-700"><Dh v={p.net.net_profit} /></span>} strong />
+                  <Row label={t('net.buy')} value={<Dh v={p.net.buy} lang={lang} />} />
+                  <Row label={t('net.appreciation', { rate: p.area_metrics?.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : t('net.growthFallback') })} value={<span className="text-emerald-600">+<Dh v={p.net.appreciation} lang={lang} /></span>} />
+                  <Row label={t('net.netRent')} value={<span className="text-emerald-600">+<Dh v={p.net.net_rent} lang={lang} /></span>} />
+                  <Row label={t('net.dldFee')} value={<span className="text-rose-500">−<Dh v={p.net.dld_fee} lang={lang} /></span>} />
+                  <Row label={t('net.agentFee')} value={<span className="text-rose-500">−<Dh v={p.net.agent_fee} lang={lang} /></span>} />
+                  <Row label={t('net.netProfit')} value={<span className="font-extrabold text-teal-700"><Dh v={p.net.net_profit} lang={lang} /></span>} strong />
                 </div>
                 <div className="mt-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-2">
-                  <span className="text-xs text-teal-700/80">净年化回报</span><span className="text-lg font-extrabold text-teal-700">{p.net.net_annualized_pct}%</span>
+                  <span className="text-xs text-teal-700/80">{t('net.annualized')}</span><span className="text-lg font-extrabold text-teal-700">{p.net.net_annualized_pct}%</span>
                 </div>
                 <div className="mt-3">
-                  <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400"><span>净资产价值（5 年）</span><span className="font-semibold text-emerald-600">+{Math.round((p.net.net_profit / p.net.buy) * 100)}%</span></div>
+                  <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400"><span>{t('net.netAssetValue')}</span><span className="font-semibold text-emerald-600">+{Math.round((p.net.net_profit / p.net.buy) * 100)}%</span></div>
                   <GrowthCurve start={p.net.buy} end={p.net.buy + p.net.net_profit} />
                 </div>
               </Section>
@@ -215,24 +236,29 @@ export default function ClientReportPage() {
 
             {/* 价格走势 — real DLD, with axes */}
             {p.price_trend?.length > 1 && (
-              <Section title="区域价格走势（DLD 真实成交）" icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
+              <Section title={t('section.priceTrend')} icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
                 <TrendChart trend={p.price_trend} />
                 <div className="mt-1.5 text-[11px] text-slate-400">
                   {yoySane
-                    ? `中位价：去年 ${Number(p.yoy.last_year_sqm).toLocaleString()} → 今年 ${Number(p.yoy.this_year_sqm).toLocaleString()} AED/㎡（同比 ${p.yoy.growth_pct > 0 ? '+' : ''}${p.yoy.growth_pct}%，${p.yoy.count} 笔成交）`
-                    : `基于 ${p.yoy?.count ?? p.area_metrics?.transaction_count ?? ''} 笔近期 DLD 成交。增长率取区域稳健均值。`}
+                    ? t('trend.yoy', {
+                        last: Number(p.yoy.last_year_sqm).toLocaleString(),
+                        cur: Number(p.yoy.this_year_sqm).toLocaleString(),
+                        delta: `${p.yoy.growth_pct > 0 ? '+' : ''}${p.yoy.growth_pct}%`,
+                        n: p.yoy.count,
+                      })
+                    : t('trend.fallback', { n: p.yoy?.count ?? p.area_metrics?.transaction_count ?? '' })}
                 </div>
               </Section>
             )}
 
             {/* 真实成交 */}
             {p.comps?.length > 0 && (
-              <Section title="近期真实成交（DLD）" icon={<BadgeCheck className="h-4 w-4 text-emerald-500" />}>
+              <Section title={t('section.comps')} icon={<BadgeCheck className="h-4 w-4 text-emerald-500" />}>
                 <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-100">
                   {p.comps.map((c: any, k: number) => (
                     <div key={k} className="flex items-center justify-between px-3 py-2 text-sm">
                       <span className="truncate text-slate-600">{c.building || p.name} · {c.date}{c.sizeSqm ? ` · ${c.sizeSqm}㎡` : ''}</span>
-                      <span className="font-semibold text-slate-800"><Dh v={c.price} /></span>
+                      <span className="font-semibold text-slate-800"><Dh v={c.price} lang={lang} /></span>
                     </div>
                   ))}
                 </div>
@@ -240,14 +266,14 @@ export default function ClientReportPage() {
             )}
 
             {/* Detail sections: 交通 / 学校 / 环境 */}
-            {transit.length > 0 && <NearbySection title="交通" icon={<Train className="h-4 w-4 text-teal-500" />} intro="项目周边公共交通便利，通勤与出行高效：" items={transit} />}
-            {schools.length > 0 && <NearbySection title="教育 · 学校" icon={<GraduationCap className="h-4 w-4 text-teal-500" />} intro="周边覆盖国际学校与教育资源，适合家庭置业：" items={schools} />}
-            {env.length > 0 && <NearbySection title="生活环境 · 配套" icon={<Trees className="h-4 w-4 text-teal-500" />} intro="商场、医疗、休闲配套齐全，生活便利度高：" items={env} />}
+            {transit.length > 0 && <NearbySection title={t('section.transit')} icon={<Train className="h-4 w-4 text-teal-500" />} intro={t('nearby.transitIntro')} items={transit} />}
+            {schools.length > 0 && <NearbySection title={t('section.schools')} icon={<GraduationCap className="h-4 w-4 text-teal-500" />} intro={t('nearby.schoolsIntro')} items={schools} />}
+            {env.length > 0 && <NearbySection title={t('section.env')} icon={<Trees className="h-4 w-4 text-teal-500" />} intro={t('nearby.envIntro')} items={env} />}
 
             {/* 区域供给 */}
             {p.supply && p.supply.units_pipeline > 0 && (
-              <Section title="区域供给" icon={<Building2 className="h-4 w-4 text-slate-400" />}>
-                <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">区域在建 <b>{Number(p.supply.units_pipeline).toLocaleString()}</b> 套，1 年内交付 {Number(p.supply.units_handover_1y).toLocaleString()} 套。新增供给影响中短期租金与价格，已纳入测算的保守增长假设。</div>
+              <Section title={t('section.supply')} icon={<Building2 className="h-4 w-4 text-slate-400" />}>
+                <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{t('supply.text', { n: Number(p.supply.units_pipeline).toLocaleString(), h: Number(p.supply.units_handover_1y).toLocaleString() })}</div>
               </Section>
             )}
           </>
@@ -255,12 +281,12 @@ export default function ClientReportPage() {
 
         {/* 市场与政策 */}
         {r.market && (
-          <Section title="市场与政策" icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
+          <Section title={t('section.market')} icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
             {(r.market.avg_growth_pct != null || r.market.pipeline_units != null) && (
               <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                {r.market.avg_yield_pct != null && <Stat label="区域平均回报" value={<span className="text-emerald-600">{r.market.avg_yield_pct}%</span>} />}
-                {r.market.avg_growth_pct != null && <Stat label="区域年增长" value={`${r.market.avg_growth_pct}%`} />}
-                {r.market.pipeline_units != null && <Stat label="在建供给" value={Number(r.market.pipeline_units).toLocaleString()} />}
+                {r.market.avg_yield_pct != null && <Stat label={t('market.avgYield')} value={<span className="text-emerald-600">{r.market.avg_yield_pct}%</span>} />}
+                {r.market.avg_growth_pct != null && <Stat label={t('market.avgGrowth')} value={`${r.market.avg_growth_pct}%`} />}
+                {r.market.pipeline_units != null && <Stat label={t('market.pipeline')} value={Number(r.market.pipeline_units).toLocaleString()} />}
               </div>
             )}
             <ul className="space-y-1.5">
@@ -273,7 +299,7 @@ export default function ClientReportPage() {
 
         {/* 其他推荐 */}
         {others.length > 0 && (
-          <Section title="其他推荐" icon={<ListChecks className="h-4 w-4 text-slate-400" />}>
+          <Section title={t('section.others')} icon={<ListChecks className="h-4 w-4 text-slate-400" />}>
             <div className="grid gap-2.5 sm:grid-cols-2">
               {others.map((o: any, i: number) => (
                 <a key={i} href={`/project/${o.project_id || o.id}`} target="_blank" rel="noreferrer" className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:border-teal-300">
@@ -282,8 +308,8 @@ export default function ClientReportPage() {
                     <div className="flex items-center gap-1 truncate text-sm font-semibold text-slate-800">{o.name}<ExternalLink className="h-3 w-3 flex-shrink-0 text-slate-300" /></div>
                     <div className="truncate text-[11px] text-slate-400">{o.developer}{o.area ? ` · ${o.area}` : ''}</div>
                     <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px]">
-                      {o.net?.buy != null && <span className="text-slate-500">起 <Dh v={o.net.buy} /></span>}
-                      {o.net?.net_annualized_pct != null && <span className="font-semibold text-emerald-600">净年化 {o.net.net_annualized_pct}%</span>}
+                      {o.net?.buy != null && <span className="text-slate-500">{t('others.from')} <Dh v={o.net.buy} lang={lang} /></span>}
+                      {o.net?.net_annualized_pct != null && <span className="font-semibold text-emerald-600">{t('others.netAnnual', { pct: o.net.net_annualized_pct })}</span>}
                     </div>
                   </div>
                 </a>
@@ -295,23 +321,64 @@ export default function ClientReportPage() {
         <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-400">{r.assumptions}<br />{r.disclaimer}</div>
       </div>
 
-      <ContactBar agent={agent} />
+      <ContactBar agent={agent} t={t} />
     </div>
   )
+}
+
+/* ---- client profile line ----
+   `profile_struct` 是后端存的**结构化**画像(ExtractedProfile)。以前这行读的是
+   `r.profile` —— profileToOneLiner() 拼的中文串,于是公开页用中文向一个可能不懂
+   中文的客户描述他自己。现在按报告语言渲染。
+   历史报告没有 profile_struct → 调用处回退 `r.profile`(那些报告 lang 本就是 zh)。 */
+const GOALS = ['live', 'invest', 'both']
+const PAYMENTS = ['cash', 'installment', 'mortgage']
+const HORIZONS = ['rent_long', 'flip', 'rent_then_live']
+
+function renderProfile(ps: any, t: TFn, lang: string): string | null {
+  if (!ps || typeof ps !== 'object') return null
+  // 枚举值来自 AI 写的 jsonb —— 没白名单的话,一个意料外的值会把裸 key
+  // (「profile.goal.xyz」)直接印给客户看。认不出就跳过这一条。
+  const enumBit = (allowed: string[], v: unknown, prefix: string) =>
+    typeof v === 'string' && allowed.includes(v) ? t(`${prefix}.${v}`) : null
+  const bits: string[] = []
+  if (ps.nationality) bits.push(String(ps.nationality))
+  const goal = enumBit(GOALS, ps.goal, 'profile.goal')
+  if (goal) bits.push(goal)
+  if (ps.budget_min && ps.budget_max && ps.budget_min !== ps.budget_max) {
+    bits.push(t('profile.budgetRange', { min: M(ps.budget_min, lang), max: M(ps.budget_max, lang) }))
+  } else {
+    const b = ps.budget_max ?? ps.budget_min
+    if (b) bits.push(t('profile.budget', { amount: M(b, lang) }))
+  }
+  if (ps.bedrooms) bits.push(t('profile.bedrooms', { n: ps.bedrooms }))
+  if (ps.family_size) bits.push(t('profile.familySize', { n: ps.family_size }))
+  if (ps.has_children) bits.push(t('profile.hasChildren'))
+  if (ps.has_maid) bits.push(t('profile.hasMaid'))
+  if (ps.cooking === 'often') bits.push(t('profile.cookingOften'))
+  const payment = enumBit(PAYMENTS, ps.payment, 'profile.payment')
+  if (payment) bits.push(payment)
+  const horizon = enumBit(HORIZONS, ps.horizon, 'profile.horizon')
+  if (horizon) bits.push(horizon)
+  if (ps.golden_visa) bits.push(t('profile.goldenVisa'))
+  if (ps.first_time_buyer) bits.push(t('profile.firstTimeBuyer'))
+  if (ps.offplan_ok === false) bits.push(t('profile.readyOnly'))
+  if (ps.preferred_areas?.length) bits.push(t('profile.areas', { areas: ps.preferred_areas.join('/') }))
+  return bits.length ? bits.join(t('profile.sep')) : null
 }
 
 /* ---- shared branded chrome (used by proposal + compare views) ---- */
 
-function TopBar({ title }: { title: string }) {
+function TopBar({ title, t }: { title: string; t: TFn }) {
   return (
     <div className="no-print sticky top-0 z-50 flex items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur">
       <div className="truncate text-sm font-semibold text-slate-700">{title}</div>
-      <button onClick={() => window.print()} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900"><Printer className="h-4 w-4" />保存 PDF</button>
+      <button onClick={() => window.print()} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900"><Printer className="h-4 w-4" />{t('savePdf')}</button>
     </div>
   )
 }
 
-function AgentStamp({ agent }: { agent: any }) {
+function AgentStamp({ agent, t }: { agent: any; t: TFn }) {
   return (
     <div className="absolute end-5 top-5 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 py-1 ps-1 pe-3 shadow-sm">
       {agent.photo
@@ -319,43 +386,50 @@ function AgentStamp({ agent }: { agent: any }) {
         : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-white">{(agent.name || '?').slice(0, 1)}</div>}
       <div className="leading-tight">
         <div className="text-[11px] font-semibold text-slate-700">{agent.name}</div>
-        <div className="flex items-center gap-0.5 text-[9px] text-emerald-600"><BadgeCheck className="h-2.5 w-2.5" />Pinzos 会员</div>
+        <div className="flex items-center gap-0.5 text-[9px] text-emerald-600"><BadgeCheck className="h-2.5 w-2.5" />{t('memberBadge')}</div>
       </div>
     </div>
   )
 }
 
-function ContactBar({ agent }: { agent: any }) {
+function ContactBar({ agent, t }: { agent: any; t: TFn }) {
   const wa = agent.whatsapp || agent.phone
   if (!wa) return null
   const contactHref = agent.whatsapp ? `https://wa.me/${agent.whatsapp.replace(/[^0-9]/g, '')}` : `tel:${agent.phone}`
   return (
     <div className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-      <a href={contactHref} className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white hover:bg-teal-600">{agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}咨询 {agent.name}</a>
+      <a href={contactHref} className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-xl bg-teal-500 py-3 font-semibold text-white hover:bg-teal-600">{agent.whatsapp ? <MessageCircle className="h-5 w-5" /> : <Phone className="h-5 w-5" />}{t('contactAgent', { name: agent.name })}</a>
     </div>
   )
 }
 
 /* ---- compare view (report.kind === 'compare') ---- */
 
-function CompareReport({ agent, report }: { agent: any; report: any }) {
+function CompareReport({ agent, report, lang }: { agent: any; report: any; lang: string }) {
+  const t = docNs(lang)
   const props: any[] = report.properties || []
   const cmp = report.comparison || null
   const rec = cmp?.recommendation || null
   const winnerIdx: number | null = rec?.winnerIndex != null ? rec.winnerIndex : null
   const winnerName = winnerIdx != null && props[winnerIdx] ? props[winnerIdx].name : report.overview?.winner_name
-  const confLabel = ({ high: '高', medium: '中', low: '低' } as Record<string, string>)[rec?.confidence] || ''
+  const confLabel = rec?.confidence && ['high', 'medium', 'low'].includes(rec.confidence) ? t(`compare.conf.${rec.confidence}`) : ''
+  const clientName = report.client_name || t('clientFallback')
 
-  const DIMS: [string, string][] = [['investment', '投资'], ['lifestyle', '生活'], ['location', '位置'], ['value', '性价比']]
+  const DIMS: [string, string][] = [
+    ['investment', t('compare.dim.investment')],
+    ['lifestyle', t('compare.dim.lifestyle')],
+    ['location', t('compare.dim.location')],
+    ['value', t('compare.dim.value')],
+  ]
 
   type RowDef = { label: string; render: (p: any) => React.ReactNode; val: (p: any) => number | null; best?: 'max' | 'min' }
   const rows: RowDef[] = [
-    { label: '区域', render: (p) => p.area || '—', val: () => null },
-    { label: '总价（起）', render: (p) => <Dh v={p.min_price ?? p.net?.buy} />, val: (p) => (p.min_price ?? p.net?.buy ?? null), best: 'min' },
-    { label: '租金回报', render: (p) => (p.area_metrics?.rental_yield_pct != null ? `${Number(p.area_metrics.rental_yield_pct).toFixed(1)}%` : '—'), val: (p) => p.area_metrics?.rental_yield_pct ?? null, best: 'max' },
-    { label: '价格增长', render: (p) => (p.area_metrics?.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : '—'), val: (p) => p.area_metrics?.price_growth_pct ?? null, best: 'max' },
-    { label: '净年化', render: (p) => (p.net?.net_annualized_pct != null ? `${p.net.net_annualized_pct}%` : '—'), val: (p) => p.net?.net_annualized_pct ?? null, best: 'max' },
-    { label: '回本年限', render: (p) => (p.projection?.payback_years != null ? `${p.projection.payback_years} 年` : '—'), val: (p) => p.projection?.payback_years ?? null, best: 'min' },
+    { label: t('compare.row.area'), render: (p) => p.area || '—', val: () => null },
+    { label: t('compare.row.minPrice'), render: (p) => <Dh v={p.min_price ?? p.net?.buy} lang={lang} />, val: (p) => (p.min_price ?? p.net?.buy ?? null), best: 'min' },
+    { label: t('compare.row.yield'), render: (p) => (p.area_metrics?.rental_yield_pct != null ? `${Number(p.area_metrics.rental_yield_pct).toFixed(1)}%` : '—'), val: (p) => p.area_metrics?.rental_yield_pct ?? null, best: 'max' },
+    { label: t('compare.row.growth'), render: (p) => (p.area_metrics?.price_growth_pct != null ? `${Number(p.area_metrics.price_growth_pct).toFixed(1)}%` : '—'), val: (p) => p.area_metrics?.price_growth_pct ?? null, best: 'max' },
+    { label: t('compare.row.netAnnual'), render: (p) => (p.net?.net_annualized_pct != null ? `${p.net.net_annualized_pct}%` : '—'), val: (p) => p.net?.net_annualized_pct ?? null, best: 'max' },
+    { label: t('compare.row.payback'), render: (p) => (p.projection?.payback_years != null ? t('compare.years', { n: p.projection.payback_years }) : '—'), val: (p) => p.projection?.payback_years ?? null, best: 'min' },
   ]
 
   const bestIdxOf = (row: RowDef): number => {
@@ -370,18 +444,18 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
+    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} className="relative min-h-screen bg-slate-100 pb-28 print:bg-white print:pb-0">
       <style>{`@media print { .no-print{display:none!important} .pg{box-shadow:none!important;margin:0!important} body{background:#fff} }`}</style>
 
-      <TopBar title="项目对比" />
+      <TopBar title={t('compare.title')} t={t} />
 
       <div className="pg relative mx-auto my-4 max-w-3xl bg-white p-6 shadow-sm print:my-0 sm:p-8">
-        <AgentStamp agent={agent} />
+        <AgentStamp agent={agent} t={t} />
 
         <div className="pe-24">
-          <div className="text-[11px] font-semibold text-teal-600">项目对比 · 为 {report.client_name || '客户'} 精选</div>
-          <h1 className="text-2xl font-extrabold text-slate-900">为 {report.client_name || '客户'} 准备的项目对比</h1>
-          <div className="text-sm text-slate-500">{props.length} 个项目并排对比</div>
+          <div className="text-[11px] font-semibold text-teal-600">{t('compare.kicker', { name: clientName })}</div>
+          <h1 className="text-2xl font-extrabold text-slate-900">{t('compare.heading', { name: clientName })}</h1>
+          <div className="text-sm text-slate-500">{t('compare.subtitle', { n: props.length })}</div>
         </div>
 
         {/* AI 裁定 */}
@@ -389,10 +463,10 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
           <>
             {rec && winnerName && (
               <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50/60 p-4">
-                <div className="flex items-center gap-2 text-[11px] font-semibold text-teal-600"><Star className="h-3.5 w-3.5 text-amber-400" />AI 推荐</div>
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-teal-600"><Star className="h-3.5 w-3.5 text-amber-400" />{t('compare.aiPick')}</div>
                 <div className="mt-1 flex flex-wrap items-baseline gap-2">
                   <span className="text-xl font-extrabold text-slate-900">{winnerName}</span>
-                  {confLabel && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">信心 {confLabel}</span>}
+                  {confLabel && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">{t('compare.confidence', { level: confLabel })}</span>}
                 </div>
                 {Array.isArray(rec.reasons) && rec.reasons.length > 0 && (
                   <ul className="mt-2.5 space-y-1.5">
@@ -405,13 +479,13 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
             )}
 
             {cmp.summary && (
-              <Section title="对比综述" icon={<ListChecks className="h-4 w-4 text-teal-500" />}>
+              <Section title={t('compare.summary')} icon={<ListChecks className="h-4 w-4 text-teal-500" />}>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{cmp.summary}</p>
               </Section>
             )}
 
             {cmp.dimensions && (
-              <Section title="四维评估" icon={<Star className="h-4 w-4 text-amber-400" />}>
+              <Section title={t('compare.dims')} icon={<Star className="h-4 w-4 text-amber-400" />}>
                 <div className="space-y-4">
                   {DIMS.map(([key, label]) => {
                     const dim = cmp.dimensions[key]
@@ -441,7 +515,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
             )}
 
             {cmp.personalizedAdvice && (
-              <Section title={`给 ${report.client_name || '客户'} 的建议`} icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
+              <Section title={t('compare.advice', { name: clientName })} icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{cmp.personalizedAdvice}</p>
               </Section>
             )}
@@ -449,7 +523,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
         )}
 
         {/* 并排对比表 */}
-        <Section title={cmp ? '关键指标对比' : '数据对比'} icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
+        <Section title={cmp ? t('compare.keyMetrics') : t('compare.dataCompare')} icon={<TrendingUp className="h-4 w-4 text-teal-500" />}>
           <div className="overflow-x-auto rounded-xl border border-slate-100">
             <table className="w-full min-w-[480px] border-collapse text-sm">
               <thead>
@@ -484,7 +558,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
 
         {/* 市场与政策 */}
         {report.market && Array.isArray(report.market.policy) && report.market.policy.length > 0 && (
-          <Section title="市场与政策" icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
+          <Section title={t('section.market')} icon={<ShieldCheck className="h-4 w-4 text-teal-500" />}>
             <ul className="space-y-1.5">
               {report.market.policy.map((pol: string, i: number) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-600"><span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-teal-400" />{pol}</li>
@@ -494,7 +568,7 @@ function CompareReport({ agent, report }: { agent: any; report: any }) {
         )}
       </div>
 
-      <ContactBar agent={agent} />
+      <ContactBar agent={agent} t={t} />
     </div>
   )
 }

@@ -20,14 +20,16 @@ function fmt(n: number | null | undefined) {
 }
 
 function AreaCard({ a }: { a: AreaClass }) {
-  const { t } = useTranslation('insights')
+  // casted t:tag/reason/perspective 的键是**运行时按 tag 拼**的,过不了 i18next 的字面量联合类型。
+  const { t: tRaw } = useTranslation('insights')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [open, setOpen] = useState(false)
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-start justify-between gap-2">
         <div className="font-semibold text-slate-800">{a.name}</div>
         <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${TAG_STYLE[a.tag] || TAG_STYLE.stable}`}>
-          {a.label}
+          {t(`tag.${a.tag}`)}
         </span>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
@@ -41,11 +43,13 @@ function AreaCard({ a }: { a: AreaClass }) {
       {open && (
         <div className="mt-2 space-y-2 text-xs text-slate-600">
           <ul className="list-disc ps-4 space-y-1">
-            {a.reasons.map((r, i) => <li key={i}>{r}</li>)}
+            {/* reasons 是 { code, params } —— 后端不再回中文句子,这里 t() 出。 */}
+            {a.reasons.map((r, i) => <li key={i}>{t(`reason.${r.code}`, r.params)}</li>)}
           </ul>
           <div className="rounded-lg bg-slate-50 p-2 leading-relaxed">
-            <div><span className="font-medium text-slate-700">{t('card.investPerspective')}</span>{a.perspective.invest}</div>
-            <div className="mt-1"><span className="font-medium text-slate-700">{t('card.livePerspective')}</span>{a.perspective.live}</div>
+            {/* perspective 是 tag 的一一映射,后端不再回 —— 按 tag 出译文。 */}
+            <div><span className="font-medium text-slate-700">{t('card.investPerspective')}</span>{t(`perspective.invest.${a.tag}`)}</div>
+            <div className="mt-1"><span className="font-medium text-slate-700">{t('card.livePerspective')}</span>{t(`perspective.live.${a.tag}`)}</div>
           </div>
         </div>
       )}
@@ -54,7 +58,8 @@ function AreaCard({ a }: { a: AreaClass }) {
 }
 
 export default function AreaInsightsPage() {
-  const { t } = useTranslation(['insights', 'common'])
+  const { t: tRaw } = useTranslation(['insights', 'common'])
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [data, setData] = useState<AreaClassResp | null>(null)
   const [loading, setLoading] = useState(true)
   const [tagFilter, setTagFilter] = useState('all')
@@ -67,9 +72,9 @@ export default function AreaInsightsPage() {
   }, [])
 
   const tags = useMemo(() => {
-    const set = new Map<string, string>()
-    data?.areas.forEach(a => set.set(a.tag, a.label))
-    return Array.from(set.entries())
+    const set = new Set<string>()
+    data?.areas.forEach(a => set.add(a.tag))
+    return Array.from(set)
   }, [data])
 
   const filtered = useMemo(() => {
@@ -125,10 +130,11 @@ export default function AreaInsightsPage() {
           className={`rounded-full px-3 py-1 text-xs ring-1 ${tagFilter === 'all' ? 'bg-primary text-white ring-primary' : 'bg-white text-slate-600 ring-slate-200'}`}>
           {t('filter.all', { count: data.count })}
         </button>
-        {tags.map(([tag, label]) => (
+        {tags.map((tag) => (
           <button key={tag} onClick={() => setTagFilter(tag)}
             className={`rounded-full px-3 py-1 text-xs ring-1 ${tagFilter === tag ? 'bg-primary text-white ring-primary' : 'bg-white text-slate-600 ring-slate-200'}`}>
-            {t('filter.tag', { label, count: data.areas.filter(a => a.tag === tag).length })}
+            {/* 曾是 { label } —— 后端的**中文** label 被当插值塞进已翻好的译文里。 */}
+            {t('filter.tag', { label: t(`tag.${tag}`), n: data.areas.filter(a => a.tag === tag).length })}
           </button>
         ))}
       </div>
@@ -137,7 +143,7 @@ export default function AreaInsightsPage() {
         {filtered.map(a => <AreaCard key={a.id} a={a} />)}
       </div>
 
-      <p className="mt-5 text-xs text-slate-400">{data.methodology}</p>
+      <p className="mt-5 text-xs text-slate-400">{t('classification.methodology')}</p>
     </div>
     </div>
   )

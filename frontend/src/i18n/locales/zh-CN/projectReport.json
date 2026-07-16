@@ -1,0 +1,55 @@
+{
+  "notFound": "报告不存在或已下线",
+  "savePdf": "保存 PDF",
+  "defaultArea": "迪拜",
+  "agent": {
+    "yourAdvisor": "您的专属顾问",
+    "consult": "咨询",
+    "consultMore": "咨询 {{name}} 了解更多"
+  },
+  "stat": {
+    "startingPrice": "起售价",
+    "bedrooms": "户型",
+    "bedroomsValue": "{{range}} 居",
+    "areaAvgSqm": "区域均价/㎡",
+    "rentalYield": "租金回报"
+  },
+  "invest": {
+    "title": "5 年投资测算",
+    "invested": "投入",
+    "projectedTotal": "5 年预计总回报",
+    "annualized": "年化回报",
+    "annualizedWithPayback": "年化回报 · {{years}} 年回本",
+    "flowPrincipal": "本金",
+    "flowAppreciation": "增值",
+    "flowRent": "租金",
+    "legPrincipal": "本金投入",
+    "legAppreciation": "5 年增值",
+    "legRent": "5 年租金",
+    "thisArea": "该区域",
+    "comps": "（{{n}}+ 笔可比）",
+    "basis": "测算依据：{{area}} 近 12 个月真实 DLD 成交{{comps}} —— 租金回报 {{yieldPct}}、年增长 {{growthPct}}。总回报 = 5 年租金收入 + 资产增值。",
+    "disclaimer": "指示性测算，非投资保证。"
+  },
+  "trend": {
+    "title": "区域价格走势",
+    "badge": "近 24 个月 · DLD",
+    "note": "{{area}} 每平方米成交中位价（AED），来自 Dubai Land Department 真实成交。",
+    "latest": "最新 {{value}} /㎡"
+  },
+  "supply": {
+    "title": "区域供给",
+    "pipelineProjects": "在建项目",
+    "pipelineUnits": "在建单元",
+    "handover1y": "1 年内交付"
+  },
+  "deals": {
+    "title": "最近真实成交",
+    "badge": "Dubai Land Department",
+    "sqm": "{{n}}㎡"
+  },
+  "nearby": {
+    "title": "周边配套"
+  },
+  "footer": "数据来源 Dubai Land Department · 指示性信息，非投资建议"
+}

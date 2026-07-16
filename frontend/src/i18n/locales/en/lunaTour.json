@@ -487,5 +487,32 @@
     "rate_limited": "Easy there — try again in 5 seconds.",
     "subscription_required": "Sales Offer is a subscriber feature — pick a plan to unlock it.",
     "upload_rejected": "No file, or the type/size isn't supported (video/image, ≤60MB)."
+  },
+  "tourOverlay": {
+    "fromSuffix": "onwards",
+    "amenityScore": "Convenience",
+    "nearestMetro": "Nearest metro",
+    "status": "Status",
+    "pickFavorite": "Which one do you like best? Tap the heart ❤️",
+    "chatWith": "Chat with {{name}}",
+    "units": "Available layouts",
+    "bestFit": "Best fit for you",
+    "studio": "Studio",
+    "nBed": "{{n}} Bed",
+    "sqftFrom": "sqft onwards",
+    "compareHead": "Here vs next door",
+    "compareSub": "Same location — a 5-minute walk apart",
+    "colGrowth": "Growth",
+    "colYield": "Yield",
+    "colPriceSqm": "Price/m²",
+    "colTxPerYear": "Deals/yr",
+    "compareFoot": "Dubai Land Department · last 12 months · prices are medians",
+    "compareNote": "(Volume bar = liquidity: whether there's a buyer when you want to sell)",
+    "roiHead": "{{years}}-year outlook",
+    "roiThisYear": "This year",
+    "roiInYears": "In {{years}} years",
+    "roiBuy": "Purchase",
+    "roiForecast": "Forecast in {{years}} years",
+    "roiYield": "Reference rental yield ~{{pct}}% (not guaranteed, for reference only)"
   }
 }
