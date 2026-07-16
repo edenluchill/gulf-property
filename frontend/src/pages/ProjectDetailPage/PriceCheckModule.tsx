@@ -1,7 +1,6 @@
 /**
- * 价格体检 (Price Check) — 本项目单价 vs 同区近 12 个月真实成交分布，中性可解释。
- * 文案全部由前端按语言组装(level + 溢价% + 样本量),不吃后端中文串 → 中英一致翻译。
- * 数据来源：DLD 成交（定期快照，非实时）。
+ * 价格体检 (Price Check) — 本项目单价 vs 同区近 12 个月真实成交分布。
+ * i18n: 全部串走 t('compare:priceCheck.*'),翻译在 locales 各语言 compare.json。
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,44 +17,14 @@ const LEVEL_STYLE: Record<string, { dot: string; chip: string }> = {
   insufficient: { dot: 'bg-slate-400', chip: 'bg-slate-100 text-slate-600 ring-slate-200' },
   no_project_price: { dot: 'bg-slate-400', chip: 'bg-slate-100 text-slate-600 ring-slate-200' },
 }
-
+const VERDICT_KEY: Record<Level, string> = {
+  high: 'vHigh', above: 'vAbove', below: 'vBelow', inline: 'vInline', insufficient: 'vInsufficient', no_project_price: 'vNoPrice',
+}
 const fmt = (n: number) => n.toLocaleString('en-US')
 
-function verdictLabel(level: Level, zh: boolean): string {
-  switch (level) {
-    case 'high': return zh ? '显著高于区域成交中位数' : 'Well above area median'
-    case 'above': return zh ? '高于区域成交中位数' : 'Above area median'
-    case 'below': return zh ? '低于区域成交中位数' : 'Below area median'
-    case 'inline': return zh ? '与区域中位基本持平' : 'In line with area median'
-    case 'insufficient': return zh ? '样本不足' : 'Insufficient sample'
-    case 'no_project_price': return zh ? '缺少项目单价' : 'No project price'
-  }
-}
-
-function explanation(level: Level, premiumPct: number | null, months: number, zh: boolean): string {
-  const p = premiumPct != null ? Math.abs(Math.round(premiumPct)) : 0
-  if (level === 'high' || level === 'above') {
-    return zh
-      ? `本项目单价相对同区近 ${months} 个月成交中位数高约 ${p}%。新盘相对二手存在溢价较常见，建议结合付款计划、交付时间与楼层/景观综合判断。`
-      : `About ${p}% above the area’s median over the last ${months} months. A premium for new-build over resale is common — weigh it against payment plan, handover timing and floor/view.`
-  }
-  if (level === 'below') {
-    return zh
-      ? `本项目单价相对同区近 ${months} 个月成交中位数低约 ${p}%，可能反映户型、楼龄或具体单元差异。`
-      : `About ${p}% below the area’s median over the last ${months} months — may reflect unit mix, building age or specific units.`
-  }
-  if (level === 'inline') {
-    return zh ? '本项目单价与同区近期成交中位数基本一致。' : 'In line with the area’s recent median.'
-  }
-  if (level === 'no_project_price') {
-    return zh ? '该项目未录入可用的户型单价，仅展示区域成交区间供参考。' : 'No usable unit price on file — showing the area’s range for reference only.'
-  }
-  return zh ? '该区域近期可比成交样本不足，暂不给出价格判断，仅供参考。' : 'Not enough comparable area sales for a price call — indicative only.'
-}
-
 export function PriceCheckModule({ projectId }: { projectId: string }) {
-  const { i18n } = useTranslation()
-  const zh = (i18n.language || 'en').startsWith('zh')
+  const { t } = useTranslation('compare')
+  const tk = (k: string, o?: Record<string, unknown>) => (t as (k: string, o?: Record<string, unknown>) => string)(`priceCheck.${k}`, o)
   const [data, setData] = useState<PriceCheckResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [showWhy, setShowWhy] = useState(false)
@@ -68,22 +37,17 @@ export function PriceCheckModule({ projectId }: { projectId: string }) {
   }, [projectId])
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader><CardTitle>{zh ? '价格体检' : 'Price check'}</CardTitle></CardHeader>
-        <CardContent><div className="text-sm text-slate-400">{zh ? '正在比对同区真实成交…' : 'Comparing area deals…'}</div></CardContent>
-      </Card>
-    )
+    return <Card><CardHeader><CardTitle>{tk('title')}</CardTitle></CardHeader><CardContent><div className="text-sm text-slate-400">{tk('loading')}</div></CardContent></Card>
   }
   if (!data) return null
 
   if (!data.matched || !data.area || !data.sampleCount) {
     return (
       <Card>
-        <CardHeader><CardTitle>{zh ? '价格体检' : 'Price check'}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{tk('title')}</CardTitle></CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-500">{zh ? '暂无足够同区成交数据，无法做价格体检。' : 'Not enough area sales to run a price check.'}</p>
-          <p className="mt-2 text-xs text-slate-400">{zh ? '数据基于 DLD 成交快照；新社区或样本不足时无法给出判断。' : 'Based on DLD sales snapshots; unavailable for new communities or thin samples.'}</p>
+          <p className="text-sm text-slate-500">{tk('noData')}</p>
+          <p className="mt-2 text-xs text-slate-400">{tk('noDataHint')}</p>
         </CardContent>
       </Card>
     )
@@ -96,15 +60,22 @@ export function PriceCheckModule({ projectId }: { projectId: string }) {
   const months = data.windowMonths || 12
   const span = Math.max(a.max - a.min, 1)
   const pct = (v: number) => Math.min(100, Math.max(0, ((v - a.min) / span) * 100))
+  const p = data.premiumPct != null ? Math.abs(Math.round(data.premiumPct)) : 0
+  const explanation =
+    level === 'high' || level === 'above' ? tk('eAbove', { p, months })
+    : level === 'below' ? tk('eBelow', { p, months })
+    : level === 'inline' ? tk('eInline')
+    : level === 'no_project_price' ? tk('eNoPrice')
+    : tk('eInsufficient')
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle>{zh ? '价格体检' : 'Price check'}</CardTitle>
+          <CardTitle>{tk('title')}</CardTitle>
           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ${style.chip}`}>
             <span className={`h-2 w-2 rounded-full ${style.dot}`} />
-            {verdictLabel(level, zh)}
+            {tk(VERDICT_KEY[level])}
           </span>
         </div>
       </CardHeader>
@@ -120,46 +91,31 @@ export function PriceCheckModule({ projectId }: { projectId: string }) {
           </div>
           <div className="mt-2 flex justify-between text-[11px] text-slate-400">
             <span>{fmt(a.min)}</span>
-            <span className="text-slate-600 font-medium">{zh ? '中位' : 'Median'} {fmt(a.median)}</span>
+            <span className="text-slate-600 font-medium">{tk('median')} {fmt(a.median)}</span>
             <span>{fmt(a.max)}</span>
           </div>
-          <div className="mt-1 text-center text-[11px] text-slate-400">
-            {zh ? `AED / m²（${data.areaName} 近 ${months} 个月成交）` : `AED/m² (${data.areaName} · last ${months} months)`}
-          </div>
+          <div className="mt-1 text-center text-[11px] text-slate-400">{tk('aedWindow', { area: data.areaName, months })}</div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-lg bg-slate-50 p-3">
-            <div className="text-xs text-slate-500">{zh ? '本项目单价' : 'This project'}</div>
+            <div className="text-xs text-slate-500">{tk('thisProject')}</div>
             <div className="text-lg font-semibold text-slate-800">{proj != null ? `${fmt(proj)} AED/m²` : '—'}</div>
           </div>
           <div className="rounded-lg bg-slate-50 p-3">
-            <div className="text-xs text-slate-500">{zh ? '相对区域中位数' : 'vs area median'}</div>
-            <div className="text-lg font-semibold text-slate-800">
-              {data.premiumPct != null ? `${data.premiumPct > 0 ? '+' : ''}${data.premiumPct}%` : '—'}
-            </div>
+            <div className="text-xs text-slate-500">{tk('vsMedian')}</div>
+            <div className="text-lg font-semibold text-slate-800">{data.premiumPct != null ? `${data.premiumPct > 0 ? '+' : ''}${data.premiumPct}%` : '—'}</div>
           </div>
         </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-slate-600">{explanation(level, data.premiumPct ?? null, months, zh)}</p>
+        <p className="mt-4 text-sm leading-relaxed text-slate-600">{explanation}</p>
 
         <div className="mt-4 border-t pt-3">
           <div className="flex items-center justify-between text-[11px] text-slate-400">
-            <span>
-              {zh ? `基于 ${data.sampleCount} 笔成交 · 数据截至 ${data.dataThrough || '—'}` : `Based on ${data.sampleCount} sales · through ${data.dataThrough || '—'}`}
-              {data.confidence === 'low' ? (zh ? ' · 样本偏少' : ' · small sample') : ''}
-            </span>
-            <button type="button" onClick={() => setShowWhy((v) => !v)} className="font-medium text-primary hover:underline">
-              {showWhy ? (zh ? '收起' : 'Hide') : zh ? '为什么?' : 'Why?'}
-            </button>
+            <span>{tk('basedOn', { count: data.sampleCount, date: data.dataThrough || '—' })}{data.confidence === 'low' ? tk('smallSample') : ''}</span>
+            <button type="button" onClick={() => setShowWhy((v) => !v)} className="font-medium text-primary hover:underline">{showWhy ? tk('hide') : tk('why')}</button>
           </div>
-          {showWhy && (
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              {zh
-                ? '区域基准 = 该区近 12 个月 DLD 住宅销售（Unit/Villa）每平方米成交价分布，已剔除最高/最低 5% 极端值，取中位数。项目单价 = 各户型单价中位数换算 AED/m²。数据为 DLD 定期快照（非实时），二手登记通常滞后 4–8 周。'
-                : 'Area baseline = the area’s last-12-month DLD residential (Unit/Villa) price/m² distribution, top/bottom 5% trimmed, median taken. Project price = median of unit-type prices in AED/m². DLD periodic snapshot (not live); resale registrations lag 4–8 weeks.'}
-            </p>
-          )}
+          {showWhy && <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{tk('methodology')}</p>}
         </div>
       </CardContent>
     </Card>
