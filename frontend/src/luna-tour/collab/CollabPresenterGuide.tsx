@@ -32,9 +32,8 @@ export default function CollabPresenterGuide({
   hasViewer,
   onDismiss,
 }: CollabPresenterGuideProps) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   // Auto-dismiss shortly after the first client joins — the job is done.
   useEffect(() => {
     if (!hasViewer) return
@@ -64,7 +63,7 @@ export default function CollabPresenterGuide({
             <button
               onClick={onDismiss}
               className="absolute right-3 top-3 rounded-full p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
-              aria-label={L('关闭', 'Close')}
+              aria-label={t('lunaTour:close')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -73,8 +72,8 @@ export default function CollabPresenterGuide({
                 <Radio className="h-5 w-5" />
               </span>
               <div>
-                <div className="text-base font-semibold">{L('实时带看已开启', 'Live tour is on')}</div>
-                <div className="text-xs text-white/50">{L('就差最后一步 —— 把链接发给客户', 'One last step — send the link to your client')}</div>
+                <div className="text-base font-semibold">{t('lunaTour:liveTourIsOn')}</div>
+                <div className="text-xs text-white/50">{t('lunaTour:oneLastStepSend')}</div>
               </div>
             </div>
           </div>
@@ -83,12 +82,10 @@ export default function CollabPresenterGuide({
             {!hasViewer ? (
               <>
                 <p className="mt-1 text-sm leading-relaxed text-white/70">
-                  {L('客户', 'Once your client')}<span className="font-semibold text-white"> {L('打开这条链接', 'opens this link')} </span>
-                  {L('后,就能实时跟着你看房 —— 你拖地图、点项目、讲解,他们屏幕同步跟随。',
-                     ', they follow your tour live — you drag the map, tap projects and explain, and their screen syncs to yours.')}
+                  {t('lunaTour:onceYourClient')}<span className="font-semibold text-white"> {t('lunaTour:opensThisLink')} </span>
+                  {t('lunaTour:theyFollowYourTour')}
                   <span className="mt-1 block text-white/45">
-                    {L('链接是你的专属固定链接,每次带看都一样,客户存下来随时能再进。',
-                       'This is your permanent personal link — the same every time, so clients can save it and rejoin anytime.')}
+                    {t('lunaTour:thisIsYourPermanent')}
                   </span>
                 </p>
 
@@ -101,21 +98,21 @@ export default function CollabPresenterGuide({
                     style={{ background: ACCENT }}
                   >
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? L('已复制', 'Copied') : L('复制链接', 'Copy link')}
+                    {copied ? t('lunaTour:copied') : t('lunaTour:copyLink')}
                   </button>
                 </div>
 
                 {/* waiting indicator */}
                 <div className="mt-4 flex items-center justify-center gap-2 text-xs text-white/45">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {L('等待客户加入… 客户一打开链接,这里会变绿', 'Waiting for your client… this turns green the moment they open the link')}
+                  {t('lunaTour:waitingForYourClient')}
                 </div>
 
                 <button
                   onClick={onDismiss}
                   className="mt-3 w-full rounded-lg py-2 text-xs text-white/40 transition hover:text-white/70"
                 >
-                  {L('先去看地图(链接随时在左下角)', 'Explore the map first (link stays in the bottom-left)')}
+                  {t('lunaTour:exploreTheMapFirst')}
                 </button>
               </>
             ) : (
@@ -127,8 +124,8 @@ export default function CollabPresenterGuide({
                 <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: `${ACCENT}22`, color: ACCENT }}>
                   <Users className="h-6 w-6" />
                 </span>
-                <div className="mt-3 text-base font-semibold">{L('客户已加入 🎉', 'Client joined 🎉')}</div>
-                <p className="mt-1 text-sm text-white/60">{L('开始带他看房吧 —— 你的镜头和点击,他都看得到。', 'Start the tour — they see your camera and every tap.')}</p>
+                <div className="mt-3 text-base font-semibold">{t('lunaTour:clientJoined')}</div>
+                <p className="mt-1 text-sm text-white/60">{t('lunaTour:startTheTourThey')}</p>
               </motion.div>
             )}
           </div>

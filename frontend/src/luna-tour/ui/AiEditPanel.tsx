@@ -66,9 +66,9 @@ export default function AiEditPanel({
   onChanged?: () => void
   injected?: { text: string; nonce: number } | null
 }) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
 
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -95,9 +95,9 @@ export default function AiEditPanel({
       })
       const d = await r.json()
       if (!r.ok) {
-        setMsg(`❌ ${d.error || L('改稿失败', 'Edit failed')}`)
+        setMsg(`❌ ${d.error || t('lunaTour:editFailed')}`)
       } else if (!d.applied) {
-        setMsg(d.message || L('Luna 没找到要改的地方 —— 换个说法再试?', 'Luna found nothing to change — try rephrasing.'))
+        setMsg(d.message || t('lunaTour:lunaFoundNothingTo'))
       } else {
         setDiffs(d.diffs || [])
         setCanUndo(true)
@@ -105,7 +105,7 @@ export default function AiEditPanel({
         onChanged?.()
       }
     } catch {
-      setMsg(L('网络错误', 'Network error'))
+      setMsg(t('lunaTour:networkError7'))
     }
     setBusy(false)
   }
@@ -116,10 +116,10 @@ export default function AiEditPanel({
       await lunaFetch(`/sessions/${sessionId}/undo`, { method: 'POST' })
       setDiffs([])
       setCanUndo(false)
-      setMsg(L('✅ 已撤销', '✅ Reverted'))
+      setMsg(t('lunaTour:reverted'))
       onChanged?.()
     } catch {
-      setMsg(L('撤销失败', 'Undo failed'))
+      setMsg(t('lunaTour:undoFailed'))
     }
     setBusy(false)
   }
@@ -128,11 +128,10 @@ export default function AiEditPanel({
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
       <div className="mb-2 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-indigo-500" />
-        <span className="font-semibold">{L('告诉 Luna 你想改什么', 'Tell Luna what to change')}</span>
+        <span className="font-semibold">{t('lunaTour:tellLunaWhatTo')}</span>
       </div>
       <p className="mb-3 text-xs text-slate-400">
-        {L('用大白话说就行 —— 她自己会找到该改的那几段。（数字来自真实成交数据，不会被改动。）',
-           'Just say it plainly — she finds the right beats herself. (Numbers come from real transaction data and are never changed.)')}
+        {t('lunaTour:justSayItPlainly')}
       </p>
 
       <div className="flex gap-2">
@@ -141,7 +140,7 @@ export default function AiEditPanel({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void apply(text) }}
           disabled={busy}
-          placeholder={L('例：结尾太长了，砍一半；别提那个学校', 'e.g. The ending is too long — halve it. Drop the school.')}
+          placeholder={t('lunaTour:eGTheEnding')}
           className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
         />
         <button
@@ -150,7 +149,7 @@ export default function AiEditPanel({
           className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-40"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-          {busy ? L('改稿中…', 'Editing…') : L('改', 'Apply')}
+          {busy ? t('lunaTour:editing') : t('lunaTour:apply')}
         </button>
       </div>
 
@@ -174,7 +173,7 @@ export default function AiEditPanel({
         <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-bold text-indigo-800">
-              {L(`Luna 改了 ${diffs.length} 处`, `Luna changed ${diffs.length}`)}
+              {t('lunaTour:lunaChanged', { diffs_length: diffs.length })}
             </span>
             {canUndo && (
               <button
@@ -182,7 +181,7 @@ export default function AiEditPanel({
                 disabled={busy}
                 className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
               >
-                <Undo2 className="h-3.5 w-3.5" /> {L('撤销', 'Undo')}
+                <Undo2 className="h-3.5 w-3.5" /> {t('lunaTour:undo')}
               </button>
             )}
           </div>

@@ -86,9 +86,9 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 export default function CelebrationPoster({ name, avatarUrl, link, shareRewardClaimed, shareRewardDays, shareRewardCredits, onClaimed }: Props) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const cfg = zh ? POSTER.zh : POSTER.en
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -178,7 +178,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
     const r = await claimShareReward()
     if (r.ok && r.days > 0) {
       setClaimed(true)
-      setToast(L(`🎁 已到账 ${r.days} 天试用 + ${r.credits} 积分`, `🎁 +${r.days} days & ${r.credits} credits added`))
+      setToast(t('lunaTour:daysCreditsAdded', { r_days: r.days, r_credits: r.credits }))
       onClaimed?.(r.days)
       setTimeout(() => setToast(''), 3200)
     } else if (r.code === 'already_claimed' || r.code === 'no_trial_to_extend') {
@@ -200,7 +200,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
     // 手机:唤起系统分享面板(用户自己挑 App;网页无法直接分到指定 App)
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: 'Pinzos', text: L('迪拜买房新方式,让位置说话', 'The new way to buy in Dubai') })
+        await navigator.share({ files: [file], title: 'Pinzos', text: t('lunaTour:theNewWayTo') })
         await grantOnce(); return
       } catch { return }
     }
@@ -214,7 +214,7 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
   function download() {
     if (!dataUrl) return
     const a = document.createElement('a')
-    a.href = dataUrl; a.download = L('pinzos-恭喜入驻.png', 'pinzos-welcome.png'); a.click()
+    a.href = dataUrl; a.download = t('lunaTour:pinzosWelcomePng'); a.click()
   }
 
   async function copyLink() {
@@ -239,11 +239,11 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
       <div className="mt-4 rounded-2xl bg-white ring-1 ring-slate-100 p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Share2 className="w-4 h-4 text-indigo-500" /> {L('分享海报给更多朋友', 'Share your poster')}
+            <Share2 className="w-4 h-4 text-indigo-500" /> {t('lunaTour:shareYourPoster')}
           </div>
           {!claimed && (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              <Gift className="w-3.5 h-3.5" /> {L(`首次分享 +${shareRewardDays}天 +${shareRewardCredits}积分`, `1st share: +${shareRewardDays}d +${shareRewardCredits} credits`)}
+              <Gift className="w-3.5 h-3.5" /> {t('lunaTour:1stShareDCredits', { shareRewardDays, shareRewardCredits })}
             </span>
           )}
         </div>
@@ -261,11 +261,11 @@ export default function CelebrationPoster({ name, avatarUrl, link, shareRewardCl
         <div className="mt-2.5 grid grid-cols-2 gap-2">
           <button onClick={download} disabled={building}
             className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition active:scale-[0.99] disabled:opacity-50">
-            <Download className="w-4 h-4" /> {L('保存海报', 'Save poster')}
+            <Download className="w-4 h-4" /> {t('lunaTour:savePoster')}
           </button>
           <button onClick={copyLink}
             className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition active:scale-[0.99]">
-            {copied ? <><Check className="w-4 h-4" /> {L('已复制', 'Copied')}</> : <><Copy className="w-4 h-4" /> {L('复制链接', 'Copy link')}</>}
+            {copied ? <><Check className="w-4 h-4" /> {t('lunaTour:copied2')}</> : <><Copy className="w-4 h-4" /> {t('lunaTour:copyLink2')}</>}
           </button>
         </div>
       </div>

@@ -32,9 +32,8 @@ interface LedgerEntry { feature: string }
 const DEMO_SEEN_KEY = 'pz_luna_demo_seen'
 
 export default function ActivationChecklist({ hasClients }: { hasClients: boolean }) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   const [used, setUsed] = useState<Set<string> | null>(null)
   const [onTrial, setOnTrial] = useState(false)
@@ -58,9 +57,9 @@ export default function ActivationChecklist({ hasClients }: { hasClients: boolea
       done: hasClients,
       icon: Users,
       to: '/agent/clients',
-      title: L('建第一个客户', 'Add your first client'),
-      desc: L('档案 + 热度评分 + 活动时间线 —— 之后所有工具都围着他转', 'Profile, heat score, activity timeline — everything else builds on this'),
-      cost: L('免费', 'Free'),
+      title: t('lunaTour:addYourFirstClient'),
+      desc: t('lunaTour:profileHeatScoreActivity'),
+      cost: t('lunaTour:free2'),
     },
     {
       // 带看现在是免费不限场次的(地图协作成本 $0)—— 最成熟、最能打动客户的功能,
@@ -69,9 +68,9 @@ export default function ActivationChecklist({ hasClients }: { hasClients: boolea
       done: used.has('live_tours'),
       icon: Radio,
       to: '/?livetour=1',
-      title: L('开一场实时带看', 'Run a live tour'),
-      desc: L('和客户同屏看房:镜头同步、地图上一起圈项目、语音通话 —— 手机扫码就能进', 'Share your screen with a client: synced camera, draw on the map together, talk over voice — they just tap a link'),
-      cost: L('免费 · 不限场次', 'Free · unlimited'),
+      title: t('lunaTour:runALiveTour'),
+      desc: t('lunaTour:shareYourScreenWith'),
+      cost: t('lunaTour:freeUnlimited'),
     },
     {
       // ⚠️ 链到**预生成的 demo**,不是 /agent/tour(那要花 100 积分)。
@@ -82,9 +81,9 @@ export default function ActivationChecklist({ hasClients }: { hasClients: boolea
       to: '/v/demo',
       external: true,
       onClick: () => { try { localStorage.setItem(DEMO_SEEN_KEY, '1') } catch { /* ignore */ } },
-      title: L('看看 Luna 导览长什么样', 'See what a Luna tour looks like'),
-      desc: L('AI 选盘 + 语音讲解的自助看房链接 —— 先看这条 demo,再决定给你的客户生成一条', 'A self-guided tour with AI-picked homes and narration — try this demo before you make one'),
-      cost: L('免费 · 无需积分', 'Free · no credits'),
+      title: t('lunaTour:seeWhatALuna'),
+      desc: t('lunaTour:aSelfGuidedTour'),
+      cost: t('lunaTour:freeNoCredits'),
     },
   ]
 
@@ -95,9 +94,9 @@ export default function ActivationChecklist({ hasClients }: { hasClients: boolea
     <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-bold text-slate-900">{L('先做这三件事', 'Start with these three')}</h2>
+          <h2 className="text-base font-bold text-slate-900">{t('lunaTour:startWithTheseThree')}</h2>
           <p className="mt-0.5 text-[13px] text-slate-500">
-            {L('三步全部免费,一个积分都不花 —— 200 试用积分完整留给你', 'All three are free — your 200 trial credits stay untouched')}
+            {t('lunaTour:allThreeAreFree')}
           </p>
         </div>
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">

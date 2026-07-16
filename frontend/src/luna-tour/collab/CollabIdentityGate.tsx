@@ -36,9 +36,8 @@ export default function CollabIdentityGate({ presenterName, defaultName, onEnter
   defaultName?: string
   onEnter: (name: string, phone: string, whatsapp: string) => void
 }) {
-  const { i18n } = useTranslation()
-  const zh = (i18n.language || 'en').startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const saved = loadIdentity()
   // 上次填过的自动带出来 —— 回头客不该被罚一遍摩擦
   const [name, setName] = useState(defaultName || saved.name || '')
@@ -79,25 +78,25 @@ export default function CollabIdentityGate({ presenterName, defaultName, onEnter
           </div>
           <div className="min-w-0">
             <h3 className="text-base font-bold text-slate-900">
-              {presenterName ? L(`加入 ${presenterName} 的带看`, `Join ${presenterName}'s tour`) : L('加入实时带看', 'Join the live tour')}
+              {presenterName ? t('lunaTour:joinSTour', { presenterName }) : t('lunaTour:joinTheLiveTour')}
             </h3>
-            <p className="text-xs text-slate-500">{L('填个称呼即可进入,无需注册', 'Just your name to enter — no signup')}</p>
+            <p className="text-xs text-slate-500">{t('lunaTour:justYourNameTo')}</p>
           </div>
         </div>
 
-        <label className="block text-xs font-medium text-slate-600">{L('你的称呼', 'Your name')} <span className="text-rose-500">*</span></label>
+        <label className="block text-xs font-medium text-slate-600">{t('lunaTour:yourName')} <span className="text-rose-500">*</span></label>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-          placeholder={L('如:陈先生', 'e.g. Mr. Chen')}
+          placeholder={t('lunaTour:eGMrChen')}
           className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-400"
         />
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs font-medium text-slate-500">{L('电话(选填)', 'Phone (optional)')}</label>
+            <label className="block text-xs font-medium text-slate-500">{t('lunaTour:phoneOptional')}</label>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -108,12 +107,12 @@ export default function CollabIdentityGate({ presenterName, defaultName, onEnter
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500">{L('微信/WhatsApp', 'WeChat/WhatsApp')}</label>
+            <label className="block text-xs font-medium text-slate-500">{t('lunaTour:wechatWhatsapp')}</label>
             <input
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-              placeholder={L('选填', 'optional')}
+              placeholder={t('lunaTour:optional')}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
             />
           </div>
@@ -124,10 +123,10 @@ export default function CollabIdentityGate({ presenterName, defaultName, onEnter
           disabled={!canEnter}
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
         >
-          {L('进入带看', 'Enter tour')} <ArrowRight className="h-4 w-4" />
+          {t('lunaTour:enterTour')} <ArrowRight className="h-4 w-4" />
         </button>
         <p className="mt-2 text-center text-[11px] text-slate-400">
-          {L('留下联系方式,方便顾问带看后为你跟进', 'Leave contact so the advisor can follow up')}
+          {t('lunaTour:leaveContactSoThe')}
         </p>
       </div>
     </div>

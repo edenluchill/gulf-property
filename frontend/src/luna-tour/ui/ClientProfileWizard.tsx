@@ -65,23 +65,23 @@ export interface ClientProfileWizardProps {
 }
 
 /** 人话:把结构化画像渲染成 chips —— 经纪要看得见 AI 到底读懂了什么。 */
-function profileChips(p: Profile, zh: boolean): string[] {
+function profileChips(p: Profile, t: (k: string, o?: Record<string, unknown>) => string): string[] {
   const out: string[] = []
-  const goal = { live: zh ? '自住' : 'End-use', invest: zh ? '投资' : 'Investment', both: zh ? '先租后住' : 'Rent then live' }
+  const goal = { live: t('lunaTour:endUse3'), invest: t('lunaTour:investment3'), both: t('lunaTour:rentThenLive5') }
   if (p.goal) out.push(goal[p.goal])
   const b = p.budget_max ?? p.budget_min
   if (b) out.push(`AED ${(b / 1_000_000).toFixed(b % 1_000_000 ? 1 : 0)}M`)
-  if (p.payment) out.push({ cash: zh ? '全款' : 'Cash', installment: zh ? '分期' : 'Installments', mortgage: zh ? '贷款' : 'Mortgage' }[p.payment as string] || String(p.payment))
-  if (p.horizon) out.push({ rent_long: zh ? '长期收租' : 'Long-term rental', flip: zh ? '3-5年转手' : 'Flip 3-5y', rent_then_live: zh ? '先租后住' : 'Rent then live' }[p.horizon as string] || String(p.horizon))
-  if (p.family_size) out.push(zh ? `${p.family_size} 口人` : `${p.family_size} people`)
-  if (p.has_children) out.push(zh ? '有小孩' : 'Has children')
-  if (p.has_maid) out.push(zh ? '请保姆' : 'Has a maid')
-  if (p.cooking === 'often') out.push(zh ? '常做饭' : 'Cooks often')
+  if (p.payment) out.push({ cash: t('lunaTour:cash3'), installment: t('lunaTour:installments3'), mortgage: t('lunaTour:mortgage3') }[p.payment as string] || String(p.payment))
+  if (p.horizon) out.push({ rent_long: t('lunaTour:longTermRental'), flip: t('lunaTour:flip35y'), rent_then_live: t('lunaTour:rentThenLive6') }[p.horizon as string] || String(p.horizon))
+  if (p.family_size) out.push(t('lunaTour:people3', { p_family_size: p.family_size }))
+  if (p.has_children) out.push(t('lunaTour:hasChildren'))
+  if (p.has_maid) out.push(t('lunaTour:hasAMaid'))
+  if (p.cooking === 'often') out.push(t('lunaTour:cooksOften2'))
   if (p.bedrooms) out.push(`${p.bedrooms}BR`)
   if (p.nationality) out.push(String(p.nationality))
-  if (p.golden_visa) out.push(zh ? '要黄金签证' : 'Golden visa')
-  if (p.first_time_buyer) out.push(zh ? '首次置业' : 'First-time buyer')
-  if (p.offplan_ok === false) out.push(zh ? '只要现房' : 'Ready only')
+  if (p.golden_visa) out.push(t('lunaTour:goldenVisa3'))
+  if (p.first_time_buyer) out.push(t('lunaTour:firstTimeBuyer'))
+  if (p.offplan_ok === false) out.push(t('lunaTour:readyOnly'))
   if (p.preferred_areas?.length) out.push(...p.preferred_areas.slice(0, 3))
   return out
 }
@@ -92,9 +92,8 @@ function answerToNote(gap: Gap, label: string): string {
 }
 
 export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLabel }: ClientProfileWizardProps) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   const [name, setName] = useState(existing?.name || '')
   const [note, setNote] = useState(existing?.background || '')
@@ -146,13 +145,13 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
         body: JSON.stringify({ text: note, client_id: existing?.id }),
       })
       const j = await r.json()
-      if (!j.success) { setErr(j.error || L('检查失败', 'Check failed')); return }
+      if (!j.success) { setErr(j.error || t('lunaTour:checkFailed')); return }
       setProfile((prev) => ({ ...prev, ...j.extracted }))
       if (j.extracted?.name && !name.trim()) setName(j.extracted.name)
       setGaps(j.gaps || [])
       setKnown(j.known ?? 0); setTotal(j.total ?? 6)
       setChecked(true)
-    } catch { setErr(L('网络错误', 'Network error')) } finally { setChecking(false) }
+    } catch { setErr(t('lunaTour:networkError8')) } finally { setChecking(false) }
   }
 
   /** 点一个选项 → ①写进结构化画像 ②把人话追加进笔记 ③这条问题消失 */
@@ -169,7 +168,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
 
   const save = async () => {
     const nm = (name || String(profile.name || '')).trim()
-    if (!nm) { setErr(L('请填客户姓名', 'Client name is required')); return }
+    if (!nm) { setErr(t('lunaTour:clientNameIsRequired')); return }
     setSaving(true); setErr('')
     try {
       let id = existing?.id
@@ -194,11 +193,11 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
       })
       onSaved(id!, { ...profile, name: nm })
     } catch {
-      setErr(L('保存失败', 'Save failed'))
+      setErr(t('lunaTour:saveFailed3'))
     } finally { setSaving(false) }
   }
 
-  const chips = profileChips(profile, zh)
+  const chips = profileChips(profile, t)
   const pct = Math.min(100, Math.round((known / Math.max(1, total)) * 100))
 
   return (
@@ -212,10 +211,10 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <h3 className="truncate text-base font-bold text-slate-900">
-              {existing ? L('客户画像', 'Client profile') : L('新建客户', 'New client')}
+              {existing ? t('lunaTour:clientProfile') : t('lunaTour:newClient2')}
             </h3>
             <p className="mt-0.5 truncate text-[11px] text-slate-400">
-              {L('随便写，AI 会帮你补齐缺的信息', 'Just write freely — AI fills in the gaps')}
+              {t('lunaTour:justWriteFreelyAi')}
             </p>
           </div>
           <button onClick={onClose} className="ml-2 shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100">
@@ -229,10 +228,10 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
           <div className="mb-3 flex items-center gap-3">
             <input
               value={name} onChange={(e) => setName(e.target.value)}
-              placeholder={L('客户姓名 *', 'Client name *')}
+              placeholder={t('lunaTour:clientName')}
               className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
             />
-            <button onClick={() => setSeeds(Array.from({ length: 6 }, rseed))} title={L('换头像', 'Shuffle avatars')}
+            <button onClick={() => setSeeds(Array.from({ length: 6 }, rseed))} title={t('lunaTour:shuffleAvatars')}
               className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-2 text-xs text-slate-500 hover:bg-slate-50">
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
@@ -240,7 +239,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
           {/* 头像 —— 折叠起来。它对成交没有任何影响,却曾经占着弹窗最显眼的一整行。 */}
           <details className="mb-3">
             <summary className="cursor-pointer list-none text-[11px] font-medium text-slate-400 hover:text-slate-600">
-              {L('选个头像（可选）', 'Pick an avatar (optional)')}
+              {t('lunaTour:pickAnAvatarOptional')}
             </summary>
           <div className="mt-2 mb-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {seeds.map((s) => {
@@ -257,30 +256,27 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
 
           {/* 笔记 —— 一个输入框,不是表单 */}
           <label className="mb-1.5 block text-xs font-medium text-slate-500">
-            {L('客户情况（随便写，像记笔记一样）', 'Client notes (write freely)')}
+            {t('lunaTour:clientNotesWriteFreely')}
           </label>
           <textarea
             ref={noteRef} value={note} onChange={(e) => { setNote(e.target.value); setChecked(false) }}
             rows={5}
-            placeholder={L(
-              '例：陈先生，香港投资客，预算300万现金，一家四口有两个小孩，想地铁近，重视5年回报',
-              'e.g. Mr. Chen, HK investor, AED 3M cash, family of 4 with two kids, wants metro nearby, focused on 5-year return'
-            )}
+            placeholder={t('lunaTour:eGMrChen2')}
             className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
           />
 
           {/* 自动读 —— 这里只报告状态,不再是一个「你必须点」的按钮 */}
           <div className="mt-2 flex min-h-[24px] items-center gap-1.5 text-xs text-slate-400">
             {checking ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {L('AI 正在读…', 'Reading…')}</>
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('lunaTour:reading')}</>
             ) : checked ? (
-              <><Check className="h-3.5 w-3.5 text-emerald-600" /> {L('已读懂 —— 下面点几下补齐就行', 'Understood — just tap to fill the gaps below')}</>
+              <><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('lunaTour:understoodJustTapTo')}</>
             ) : note.trim().length >= 12 ? (
               <button onClick={check} className="flex items-center gap-1.5 font-semibold text-slate-600 hover:text-slate-900">
-                <Wand2 className="h-3.5 w-3.5" /> {L('立即读取', 'Read now')}
+                <Wand2 className="h-3.5 w-3.5" /> {t('lunaTour:readNow')}
               </button>
             ) : (
-              <><Wand2 className="h-3.5 w-3.5" /> {L('写几句，AI 会自动读懂并告诉你还缺什么', "Write a few lines — AI reads it and tells you what's missing")}</>
+              <><Wand2 className="h-3.5 w-3.5" /> {t('lunaTour:writeAFewLines')}</>
             )}
           </div>
 
@@ -290,7 +286,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
           {checked && chips.length > 0 && (
             <div className="mt-4 rounded-xl bg-emerald-50/70 p-3">
               <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
-                <Check className="h-3.5 w-3.5" /> {L('AI 读到了', 'AI understood')}
+                <Check className="h-3.5 w-3.5" /> {t('lunaTour:aiUnderstood')}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {chips.map((c, i) => (
@@ -306,7 +302,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
               <div className="mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
                   <Sparkles className="h-3.5 w-3.5" />
-                  {L(`还缺 ${gaps.length} 条（点一下就补上）`, `${gaps.length} gaps — tap to fill`)}
+                  {t('lunaTour:gapsTapToFill', { gaps_length: gaps.length })}
                 </span>
                 <span className="text-[10px] tabular-nums text-amber-700">{pct}%</span>
               </div>
@@ -336,7 +332,7 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
 
           {checked && gaps.length === 0 && (
             <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-emerald-50/70 p-3 text-xs font-medium text-emerald-800">
-              <Check className="h-4 w-4" /> {L('画像够全了，可以生成精准的分析报告', 'Profile is complete — ready for a precise report')}
+              <Check className="h-4 w-4" /> {t('lunaTour:profileIsCompleteReady')}
             </div>
           )}
         </div>
@@ -346,11 +342,11 @@ export default function ClientProfileWizard({ existing, onClose, onSaved, ctaLab
           <button onClick={save} disabled={saving}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-500 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-600 disabled:opacity-60">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {saving ? L('保存中…', 'Saving…') : (ctaLabel || (existing ? L('保存', 'Save') : L('创建客户', 'Create client')))}
+            {saving ? t('lunaTour:saving3') : (ctaLabel || (existing ? t('lunaTour:save') : t('lunaTour:createClient')))}
           </button>
           {checked && gaps.length > 0 && (
             <p className="mt-1.5 text-center text-[10px] text-slate-400">
-              {L('缺的信息不补也能存 —— 但报告的说服力会打折', 'You can save with gaps — the report will just be less convincing')}
+              {t('lunaTour:youCanSaveWith')}
             </p>
           )}
         </div>

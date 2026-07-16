@@ -36,9 +36,8 @@ export default function StoryboardReview({
   /** 点「让 Luna 改」→ 把这句指令交给 AI 编辑器 */
   onApplyFix?: (instruction: string) => void
 }) {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   const [notes, setNotes] = useState<Note[] | null>(null)
 
@@ -54,7 +53,7 @@ export default function StoryboardReview({
   if (notes === null) {
     return (
       <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-xs text-slate-400">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {L('Luna 正在读这份大纲…', 'Luna is reading the storyboard…')}
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('lunaTour:lunaIsReadingThe')}
       </div>
     )
   }
@@ -63,7 +62,7 @@ export default function StoryboardReview({
   if (!notes.length) {
     return (
       <div className="mb-3 rounded-xl bg-emerald-50/70 px-3 py-2 text-xs font-medium text-emerald-800 ring-1 ring-emerald-100">
-        ✅ {L('Luna 看过了 —— 该讲的都讲到了。', 'Luna read it — nothing important is missing.')}
+        ✅ {t('lunaTour:lunaReadItNothing')}
       </div>
     )
   }
@@ -71,14 +70,14 @@ export default function StoryboardReview({
   return (
     <div className="mb-4 space-y-2">
       <div className="text-xs font-bold text-slate-600">
-        {L(`Luna 的意见（${notes.length} 条）`, `Luna's notes (${notes.length})`)}
+        {t('lunaTour:lunaSNotes', { notes_length: notes.length })}
       </div>
       {notes.map((n, i) => {
-        const t = TONE[n.kind] ?? TONE.idea
+        const tone = TONE[n.kind] ?? TONE.idea
         return (
-          <div key={i} className={`rounded-xl p-3 ring-1 ${t.ring} ${t.bg}`}>
+          <div key={i} className={`rounded-xl p-3 ring-1 ${tone.ring} ${tone.bg}`}>
             <div className="flex items-start gap-2">
-              <span className="mt-0.5 text-sm leading-none">{t.icon}</span>
+              <span className="mt-0.5 text-sm leading-none">{tone.icon}</span>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-800">{n.title}</div>
                 <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{n.why}</p>
@@ -88,7 +87,7 @@ export default function StoryboardReview({
                     className="mt-2 inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-slate-700"
                   >
                     <Wand2 className="h-3 w-3" />
-                    {L('让 Luna 改', 'Let Luna fix it')}
+                    {t('lunaTour:letLunaFixIt')}
                   </button>
                 )}
               </div>

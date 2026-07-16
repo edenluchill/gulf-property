@@ -86,7 +86,8 @@ export default function CollabBar({
   onExit,
   onKick,
 }: CollabBarProps) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = (i18n.language || 'en').startsWith('zh')
   const toggleLang = () => i18n.changeLanguage(zh ? 'en' : 'zh-CN')
   const isFree = followMode === 'free'
@@ -147,12 +148,12 @@ export default function CollabBar({
           <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full" style={{ backgroundColor: isFree ? '#94a3b8' : ACCENT }} />
           {/* viewer follow / detach toggle */}
           {!isPresenter && onDetach && (isFree ? (
-            <button type="button" onClick={onReturnToPresenter} className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-slate-900" style={{ backgroundColor: ACCENT }}>{zh ? '回到经纪视角' : 'Rejoin'}</button>
+            <button type="button" onClick={onReturnToPresenter} className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-slate-900" style={{ backgroundColor: ACCENT }}>{t('lunaTour:rejoin')}</button>
           ) : (
-            <button type="button" onClick={onDetach} className="shrink-0 rounded-full px-2 py-0.5 text-xs text-white ring-1 ring-white/25 transition hover:bg-white/10">{zh ? '自己看' : 'Explore'}</button>
+            <button type="button" onClick={onDetach} className="shrink-0 rounded-full px-2 py-0.5 text-xs text-white ring-1 ring-white/25 transition hover:bg-white/10">{t('lunaTour:explore')}</button>
           ))}
           {offMap && onReturnToMap && (
-            <button type="button" onClick={onReturnToMap} className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-slate-900" style={{ backgroundColor: ACCENT }}>{zh ? '回到地图' : 'Map'}</button>
+            <button type="button" onClick={onReturnToMap} className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-slate-900" style={{ backgroundColor: ACCENT }}>{t('lunaTour:map')}</button>
           )}
           <span className="mx-0.5 h-4 w-px shrink-0 bg-white/10" />
           {/* participant dots */}
@@ -313,9 +314,9 @@ export default function CollabBar({
             type="button"
             onClick={toggleLang}
             className="flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs text-slate-200 transition hover:bg-white/10"
-            title={zh ? '切换语言' : 'Switch language'}
+            title={t('lunaTour:switchLanguage')}
           >
-            <Globe className="h-3.5 w-3.5" /> {zh ? 'EN' : '中'}
+            <Globe className="h-3.5 w-3.5" /> {t('lunaTour:en')}
           </button>
           {onExit && (
             <button
@@ -323,7 +324,7 @@ export default function CollabBar({
               onClick={onExit}
               className="shrink-0 rounded-full px-2 py-0.5 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
-              {isPresenter ? (zh ? '结束' : 'End') : (zh ? '退出' : 'Leave')}
+              {isPresenter ? (t('lunaTour:end')) : (t('lunaTour:leave'))}
             </button>
           )}
         </div>

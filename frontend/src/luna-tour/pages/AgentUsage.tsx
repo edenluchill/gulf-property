@@ -34,9 +34,9 @@ function refHref(e: LedgerEntry): string | null {
 interface Balance { creditsMonth: number; used: number; balance: number; plan: string; status: string; owner?: boolean }
 
 export default function AgentUsage() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
 
   const [bal, setBal] = useState<Balance | null>(null)
   const [entries, setEntries] = useState<LedgerEntry[]>([])
@@ -75,31 +75,31 @@ export default function AgentUsage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="mb-1 text-2xl font-bold text-slate-900">{L('使用记录', 'Usage history')}</h1>
+      <h1 className="mb-1 text-2xl font-bold text-slate-900">{t('lunaTour:usageHistory')}</h1>
       <p className="mb-6 text-sm text-slate-500">
-        {L('每一笔积分消耗的明细 —— 用在哪、扣多少、什么时候。', 'Every credit you spend — on what, how much, and when.')}
-        {pool && ' ' + L('(团队共享池,含所有席位成员)', '(shared team pool, all seats)')}
+        {t('lunaTour:everyCreditYouSpend')}
+        {pool && ' ' + t('lunaTour:sharedTeamPoolAll')}
       </p>
 
       {/* 本月额度能量条 */}
       <div className="mb-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="mb-1 flex items-baseline justify-between">
-          <span className="text-sm text-slate-500">{L('本月积分余额', 'Credits this month')}</span>
+          <span className="text-sm text-slate-500">{t('lunaTour:creditsThisMonth2')}</span>
           <span className="text-sm font-semibold text-slate-900">
             {unlimited
-              ? L('无限', 'Unlimited')
-              : <>{L('剩', '')} <b className="text-emerald-600">{(bal?.balance ?? 0).toLocaleString()}</b> / {(bal?.creditsMonth ?? 0).toLocaleString()}</>}
+              ? t('lunaTour:unlimited4')
+              : <>{t('lunaTour:k2')} <b className="text-emerald-600">{(bal?.balance ?? 0).toLocaleString()}</b> / {(bal?.creditsMonth ?? 0).toLocaleString()}</>}
           </span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
           <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <div className="mt-1 text-[11px] text-slate-400">{L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}</div>
+        <div className="mt-1 text-[11px] text-slate-400">{t('lunaTour:resetsOnThe1st2')}</div>
       </div>
 
       {/* feature 筛选 */}
       <div className="mb-3 flex flex-wrap gap-1.5">
-        <FilterChip active={filter === ''} onClick={() => setFilter('')}>{L('全部', 'All')}</FilterChip>
+        <FilterChip active={filter === ''} onClick={() => setFilter('')}>{t('lunaTour:all2')}</FilterChip>
         {Object.keys(FEATURE_META).map((k) => (
           <FilterChip key={k} active={filter === k} onClick={() => setFilter(k)}>{featLabel(k)}</FilterChip>
         ))}
@@ -107,12 +107,12 @@ export default function AgentUsage() {
 
       {/* 流水 */}
       {loading ? (
-        <div className="py-10 text-center text-sm text-slate-400">{L('加载中…', 'Loading…')}</div>
+        <div className="py-10 text-center text-sm text-slate-400">{t('lunaTour:loading3')}</div>
       ) : entries.length === 0 ? (
         <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-slate-900/[0.06]">
           <Receipt className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-          <div className="text-sm text-slate-500">{L('还没有消耗记录。', 'No usage yet.')}</div>
-          <div className="mt-1 text-xs text-slate-400">{L('生成导览、报价单或报告后会出现在这里。', 'Generate a tour, offer or report and it shows here.')}</div>
+          <div className="text-sm text-slate-500">{t('lunaTour:noUsageYet')}</div>
+          <div className="mt-1 text-xs text-slate-400">{t('lunaTour:generateATourOffer')}</div>
         </div>
       ) : (
         <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
@@ -137,7 +137,7 @@ export default function AgentUsage() {
                   </div>
                 </div>
                 {href && (
-                  <a href={href} target="_blank" rel="noreferrer" title={L('打开', 'Open')}
+                  <a href={href} target="_blank" rel="noreferrer" title={t('lunaTour:open3')}
                      className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50">
                     <ExternalLink className="h-4 w-4" />
                   </a>
@@ -152,7 +152,7 @@ export default function AgentUsage() {
       )}
 
       <p className="mt-3 text-[11px] text-slate-400">
-        {L('记录从本功能上线时刻起统计,更早的消耗无法回溯。', 'History starts when this feature launched; earlier usage can’t be shown.')}
+        {t('lunaTour:historyStartsWhenThis')}
       </p>
     </div>
   )

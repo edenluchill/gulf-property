@@ -48,20 +48,19 @@ function renderBody(text: string) {
   )
 }
 
-function ago(iso: string, zh: boolean): string {
+function ago(iso: string, t: (k: string, o?: Record<string, unknown>) => string): string {
   const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
-  if (m < 1) return zh ? '刚刚' : 'just now'
-  if (m < 60) return zh ? `${m} 分钟前` : `${m}m ago`
+  if (m < 1) return t('lunaTour:justNow3')
+  if (m < 60) return t('lunaTour:mAgo', { m })
   const h = Math.round(m / 60)
-  if (h < 24) return zh ? `${h} 小时前` : `${h}h ago`
+  if (h < 24) return t('lunaTour:hAgo', { h })
   const d = Math.round(h / 24)
-  return zh ? `${d} 天前` : `${d}d ago`
+  return t('lunaTour:dAgo', { d })
 }
 
 export default function IntentFeed() {
-  const { i18n } = useTranslation()
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   const [notes, setNotes] = useState<Note[]>([])
   const [unread, setUnread] = useState(0)
@@ -102,7 +101,7 @@ export default function IntentFeed() {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="h-4 w-4 text-teal-600" />
-          <span className="font-semibold">{L('购买意向', 'Buying signals')}</span>
+          <span className="font-semibold">{t('lunaTour:buyingSignals')}</span>
           {unread > 0 && (
             <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
               {unread}
@@ -111,7 +110,7 @@ export default function IntentFeed() {
         </div>
         {unread > 0 && (
           <button onClick={markAll} className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800">
-            <Check className="h-3.5 w-3.5" /> {L('全部标为已读', 'Mark all read')}
+            <Check className="h-3.5 w-3.5" /> {t('lunaTour:markAllRead')}
           </button>
         )}
       </div>
@@ -128,7 +127,7 @@ export default function IntentFeed() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="text-sm font-semibold text-slate-800">{n.title}</span>
-                <span className="text-[11px] text-slate-400">{ago(n.created_at, zh)}</span>
+                <span className="text-[11px] text-slate-400">{ago(n.created_at, t)}</span>
               </div>
               {n.body && (
                 <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{renderBody(n.body)}</p>
@@ -145,11 +144,11 @@ export default function IntentFeed() {
                 to="/agent/clients"
                 className="shrink-0 self-center rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700"
               >
-                {L('看他的档案', 'Open profile')}
+                {t('lunaTour:openProfile')}
               </Link>
             ) : (
               <span className="shrink-0 self-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-400">
-                {L('匿名访客', 'Anonymous')}
+                {t('lunaTour:anonymous2')}
               </span>
             )}
           </div>

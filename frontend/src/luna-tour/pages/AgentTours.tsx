@@ -64,7 +64,8 @@ interface FlowBeat {
 }
 
 export default function AgentTours() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
 
@@ -221,9 +222,9 @@ export default function AgentTours() {
       })
       const d = await r.json()
       if (!r.ok) {
-        setMatchMsg(`❌ ${d.error || L('匹配失败', 'Match failed')}`)
+        setMatchMsg(`❌ ${d.error || t('lunaTour:matchFailed')}`)
       } else if (!d.matches?.length) {
-        setMatchMsg(L('没有匹配到合适的楼盘,试试补充一句画像。', 'No suitable projects matched — try adding a line about the client.'))
+        setMatchMsg(t('lunaTour:noSuitableProjectsMatched'))
       } else {
         const hits: ProjectHit[] = d.matches.map((m: { id: string; project_name: string; area: string | null }) => ({
           id: m.id,
@@ -239,7 +240,7 @@ export default function AgentTours() {
         setMatchMsg(L(`✨ AI 匹配了 ${hits.length} 个,可继续增删`, `✨ AI matched ${hits.length} project${hits.length === 1 ? '' : 's'} — add or remove as you like`))
       }
     } catch (e) {
-      setMatchMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
+      setMatchMsg(`❌ ${e instanceof Error ? e.message : t('lunaTour:networkError2')}`)
     }
     setMatching(false)
   }
@@ -274,7 +275,7 @@ export default function AgentTours() {
           if (d.status === 'failed') {
             stopTimers()
             setGenPhase('error')
-            setGenError(d.error || L('生成失败', 'Generation failed'))
+            setGenError(d.error || t('lunaTour:generationFailed6'))
             return
           }
           if (d.status === 'ready') {
@@ -346,7 +347,7 @@ export default function AgentTours() {
       if (!r.ok) {
         stopTimers()
         setGenPhase('error')
-        setGenError(d.error || L('生成失败', 'Generation failed'))
+        setGenError(d.error || t('lunaTour:generationFailed7'))
       } else {
         // generation runs in the background — poll for structure + audio.
         setGenShareCode(d.shareCode || null)
@@ -360,13 +361,13 @@ export default function AgentTours() {
     } catch (e) {
       stopTimers()
       setGenPhase('error')
-      setGenError(e instanceof Error ? e.message : L('网络错误', 'Network error'))
+      setGenError(e instanceof Error ? e.message : t('lunaTour:networkError3'))
     }
     setCreating(false)
   }
 
-  const deleteTour = async (sid: string, t: string) => {
-    if (!window.confirm(L(`删除导览「${t}」?此操作不可恢复。`, `Delete tour "${t}"? This cannot be undone.`))) return
+  const deleteTour = async (sid: string, name: string) => {
+    if (!window.confirm(t('lunaTour:deleteTourThisCannot', { t: name }))) return
     try {
       const r = await lunaFetch(`/sessions/${sid}`, { method: 'DELETE' })
       if (r.ok) load()
@@ -413,30 +414,30 @@ export default function AgentTours() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-1">{L('AI 导览', 'AI Tours')}</h1>
-      <p className="text-sm text-slate-500 mb-6">{L('填客户信息 → 搜索或 AI 匹配楼盘 → 一键生成（分享码 / 标题自动生成）', 'Enter client info → search or AI-match projects → generate in one click (share code / title auto-generated)')}</p>
+      <h1 className="text-2xl font-bold mb-1">{t('lunaTour:aiTours')}</h1>
+      <p className="text-sm text-slate-500 mb-6">{t('lunaTour:enterClientInfoSearch')}</p>
 
       {/* create */}
       <div className="rounded-2xl bg-white p-4 mb-8 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-semibold">{L('生成新导览', 'Generate a new tour')}</div>
+          <div className="font-semibold">{t('lunaTour:generateANewTour')}</div>
           {usage && usage.limit >= 0 && (
             <span className={`text-xs ${usage.used >= usage.limit ? 'text-rose-500' : 'text-slate-400'}`}>
-              {L(`本月 ${usage.used}/${usage.limit} · ${usage.plan} 套餐`, `This month ${usage.used}/${usage.limit} · ${usage.plan} plan`)}
+              {t('lunaTour:thisMonthPlan', { usage_used: usage.used, usage_limit: usage.limit, usage_plan: usage.plan })}
             </span>
           )}
         </div>
 
         {/* ① 客户 —— 选一位,画像自动带出来。**不用再手打「一句话画像」** */}
         <div>
-          <label className="mb-1.5 block text-xs font-semibold text-slate-700">{L('① 客户', '① Client')}</label>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700">{t('lunaTour:client2')}</label>
           <div className="flex gap-2">
             <select
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
             >
-              <option value="">{L('从客户雷达选一位…', 'Pick from client radar…')}</option>
+              <option value="">{t('lunaTour:pickFromClientRadar2')}</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <button
@@ -444,7 +445,7 @@ export default function AgentTours() {
               onClick={() => setShowWizard(true)}
               className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
             >
-              + <span className="hidden sm:inline">{L('新客户', 'New')}</span>
+              + <span className="hidden sm:inline">{t('lunaTour:new2')}</span>
             </button>
           </div>
 
@@ -453,9 +454,9 @@ export default function AgentTours() {
             <div className="mt-2 rounded-xl bg-slate-50 p-3">
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(profile).length === 0 ? (
-                  <span className="text-xs text-slate-400">{L('这个客户还没有画像', 'No profile yet')}</span>
+                  <span className="text-xs text-slate-400">{t('lunaTour:noProfileYet2')}</span>
                 ) : (
-                  <TourProfileChips profile={profile} zh={zh} />
+                  <TourProfileChips profile={profile} t={t} />
                 )}
               </div>
               <button
@@ -464,8 +465,8 @@ export default function AgentTours() {
                 className="mt-2 text-[11px] font-semibold text-teal-700 hover:underline"
               >
                 {Object.keys(profile).length === 0
-                  ? L('✨ 做一份画像 —— 导览的旁白会照着他的情况讲', '✨ Build a profile — the narration will speak to their situation')
-                  : L('✨ 补充画像', '✨ Refine profile')}
+                  ? t('lunaTour:buildAProfileThe')
+                  : t('lunaTour:refineProfile')}
               </button>
             </div>
           )}
@@ -473,25 +474,25 @@ export default function AgentTours() {
           {/* 可选补充 —— 画像之外的临时信息 */}
           <input
             className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
-            placeholder={L('这次带看想额外强调什么？(可选)', 'Anything to emphasise this time? (optional)')}
+            placeholder={t('lunaTour:anythingToEmphasiseThis')}
             value={oneLiner}
             onChange={(e) => setOneLiner(e.target.value)}
           />
         </div>
         <div className="mt-2 flex items-center gap-2 text-sm">
-          <span className="text-slate-500">{L('语言', 'Language')}</span>
+          <span className="text-slate-500">{t('lunaTour:language')}</span>
           <select
             className="border rounded-lg px-2 py-1.5 text-sm"
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
           >
-            <option value="">{L('AI 按客户自动判断', 'AI auto-detect from client')}</option>
+            <option value="">{t('lunaTour:aiAutoDetectFrom')}</option>
             <option value="zh">中文</option>
             <option value="en">English</option>
             <option value="ar">العربية</option>
             <option value="ru">Русский</option>
           </select>
-          <span className="text-xs text-slate-400">{L('旁白 + 语音都用此语言生成', 'Narration + voice are generated in this language')}</span>
+          <span className="text-xs text-slate-400">{t('lunaTour:narrationVoiceAreGenerated')}</span>
         </div>
 
         {/* AI match */}
@@ -501,9 +502,9 @@ export default function AgentTours() {
             disabled={!canMatch || matching}
             onClick={aiMatch}
             className="border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            title={canMatch ? '' : L('先选一位客户', 'Pick a client first')}
+            title={canMatch ? '' : t('lunaTour:pickAClientFirst2')}
           >
-            {matching ? L('AI 匹配中…', 'AI matching…') : L('✨ AI 智能匹配房源', '✨ AI smart-match projects')}
+            {matching ? t('lunaTour:aiMatching') : t('lunaTour:aiSmartMatchProjects')}
           </button>
           {matchMsg && <span className="text-sm text-slate-600">{matchMsg}</span>}
         </div>
@@ -513,16 +514,16 @@ export default function AgentTours() {
           <div className="relative">
             <input
               className="border rounded-lg px-3 py-2 text-sm w-full"
-              placeholder={L('或手动搜索楼盘 (名字 / 区域 / 开发商)，点选加入 →', 'Or search projects manually (name / area / developer), click to add →')}
+              placeholder={t('lunaTour:orSearchProjectsManually')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             {(searching || results.length > 0) && query.trim() && (
               <div className="absolute z-20 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
                 {searching && results.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-400">{L('搜索中…', 'Searching…')}</div>
+                  <div className="px-3 py-2 text-sm text-slate-400">{t('lunaTour:searching')}</div>
                 ) : results.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-slate-400">{L('没有匹配的楼盘', 'No matching projects')}</div>
+                  <div className="px-3 py-2 text-sm text-slate-400">{t('lunaTour:noMatchingProjects2')}</div>
                 ) : (
                   results.map((p) => {
                     const already = picked.some((x) => x.id === p.id)
@@ -545,7 +546,7 @@ export default function AgentTours() {
                             {[p.area, p.developer].filter(Boolean).join(' · ') || 'Dubai'}
                           </div>
                         </div>
-                        {already && <span className="text-xs text-emerald-600 shrink-0">{L('已加入', 'Added')}</span>}
+                        {already && <span className="text-xs text-emerald-600 shrink-0">{t('lunaTour:added')}</span>}
                       </button>
                     )
                   })
@@ -564,13 +565,13 @@ export default function AgentTours() {
                 >
                   <span className="text-emerald-700 font-medium text-xs tabular-nums">{i + 1}</span>
                   <span className="truncate max-w-[160px]">{p.project_name}</span>
-                  <button type="button" onClick={() => moveProject(i, -1)} disabled={i === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title={L('前移', 'Move up')}>
+                  <button type="button" onClick={() => moveProject(i, -1)} disabled={i === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title={t('lunaTour:moveUp')}>
                     ↑
                   </button>
-                  <button type="button" onClick={() => moveProject(i, 1)} disabled={i === picked.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title={L('后移', 'Move down')}>
+                  <button type="button" onClick={() => moveProject(i, 1)} disabled={i === picked.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 px-0.5" title={t('lunaTour:moveDown')}>
                     ↓
                   </button>
-                  <button type="button" onClick={() => removeProject(p.id)} className="text-slate-400 hover:text-red-500 px-0.5" title={L('移除', 'Remove')}>
+                  <button type="button" onClick={() => removeProject(p.id)} className="text-slate-400 hover:text-red-500 px-0.5" title={t('lunaTour:remove')}>
                     ✕
                   </button>
                 </div>
@@ -602,7 +603,7 @@ export default function AgentTours() {
 
         <div className="flex items-center gap-3 mt-4">
           <button disabled={creating || genPhase === 'building' || picked.length < 2} onClick={create} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-            {genPhase === 'building' ? L('生成中…', 'Generating…') : genPhase === 'ready' ? L('再生成一个', 'Generate another') : L('生成导览', 'Generate tour')}
+            {genPhase === 'building' ? t('lunaTour:generating3') : genPhase === 'ready' ? t('lunaTour:generateAnother') : t('lunaTour:generateTour3')}
           </button>
           {createMsg && <span className="text-sm">{createMsg}</span>}
         </div>
@@ -634,10 +635,10 @@ export default function AgentTours() {
           <div className="mt-4">
             <div className="mb-2 flex items-center gap-2">
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                {L('草稿 · 未发布', 'Draft · not published')}
+                {t('lunaTour:draftNotPublished')}
               </span>
               <span className="text-xs text-slate-500">
-                {L('语音还没生成 —— 先看看 Luna 打算怎么讲，改完再确认', "Voice isn't generated yet — read how Luna plans to tell it, edit, then approve")}
+                {t('lunaTour:voiceIsnTGenerated')}
               </span>
             </div>
             <FlowToggle
@@ -656,7 +657,7 @@ export default function AgentTours() {
 
         {!draftSessionId && (
           <div className="text-xs text-slate-400 mt-2">
-            {L('先出大纲时间线（不烧语音）→ 你改完确认 → 才生成语音并发布。', 'A storyboard comes first (no voice burned) → you edit and approve → only then is the voice generated and the tour published.')}
+            {t('lunaTour:aStoryboardComesFirst')}
           </div>
         )}
       </div>
@@ -664,17 +665,17 @@ export default function AgentTours() {
       {/* sessions —— **按客户筛**(owner:「一定要有每个客户的 filter」)。
           经纪的脑子是按人组织的,不是按 tour 组织的:他想的是「陈先生那几场怎么样了」。 */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <span className="font-semibold">{L('我的导览', 'My tours')} {loading ? '…' : `(${shownSessions.length})`}</span>
+        <span className="font-semibold">{t('lunaTour:myTours')} {loading ? '…' : `(${shownSessions.length})`}</span>
         <select
           value={filterClient}
           onChange={(e) => setFilterClient(e.target.value)}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-teal-400"
         >
-          <option value="">{L('全部客户', 'All clients')}</option>
+          <option value="">{t('lunaTour:allClients')}</option>
           {[...new Set(sessions.map((x) => x.client_name).filter(Boolean))].map((n) => (
             <option key={n!} value={n!}>{n}</option>
           ))}
-          <option value="__anon">{L('未绑定客户', 'No client')}</option>
+          <option value="__anon">{t('lunaTour:noClient')}</option>
         </select>
       </div>
       <div className="space-y-3">
@@ -686,25 +687,25 @@ export default function AgentTours() {
                   <span className="font-semibold">{s.title}</span>
                   {!s.is_published && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                      {L('草稿', 'Draft')}
+                      {t('lunaTour:draft')}
                     </span>
                   )}
                 </div>
                 <div className="text-xs text-slate-500">
-                  {s.client_name ? L(`客户 ${s.client_name} · `, `Client ${s.client_name} · `) : ''}
+                  {s.client_name ? t('lunaTour:client3', { s_client_name: s.client_name }) : ''}
                   <a className="text-emerald-600 hover:underline" href={`/?toursession=${s.share_code}`} target="_blank" rel="noreferrer">
                     /?toursession={s.share_code} ↗
                   </a>
                 </div>
               </div>
-              <Stat label={L('打开', 'Opens')} v={s.opens} />
-              <Stat label={L('完看', 'Completed')} v={s.completes} />
-              <Stat label={L('联系', 'Contact')} v={s.cta_clicks} />
+              <Stat label={t('lunaTour:opens2')} v={s.opens} />
+              <Stat label={t('lunaTour:completed2')} v={s.completes} />
+              <Stat label={t('lunaTour:contact')} v={s.cta_clicks} />
               <Stat label="❤️" v={s.loves} />
-              <Stat label={L('停留', 'Dwell')} v={fmtDwell(s.total_dwell_ms)} />
+              <Stat label={t('lunaTour:dwell')} v={fmtDwell(s.total_dwell_ms)} />
               <div className="text-center">
                 <div className="text-lg font-bold text-emerald-600">{Math.round(s.lead_score)}</div>
-                <div className="text-[11px] text-slate-400">{L('热度', 'Heat')}</div>
+                <div className="text-[11px] text-slate-400">{t('lunaTour:heat2')}</div>
               </div>
               {/**
                 * 🔴 **四个动作,不是六个。**
@@ -720,46 +721,46 @@ export default function AgentTours() {
                 target="_blank"
                 rel="noreferrer"
                 className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-700"
-                title={L('像客户一样打开这场导览', 'Open the tour as the client sees it')}
+                title={t('lunaTour:openTheTourAs')}
               >
-                {L('▶ 打开', '▶ Open')}
+                {t('lunaTour:open2')}
               </a>
               <Link
                 to={`/agent/tour/${s.id}/edit`}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
-                title={L('改旁白 / 镜头 / 卡片,或直接让 AI 改', 'Edit narration / camera / cards — or just tell the AI')}
+                title={t('lunaTour:editNarrationCameraCards')}
               >
-                {L('编辑', 'Edit')}
+                {t('lunaTour:edit2')}
               </Link>
               <button
                 onClick={() => openEvents(s.id)}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
-                title={L('这个客户看了什么、停在哪几套房上', 'What this client watched and where they lingered')}
+                title={t('lunaTour:whatThisClientWatched')}
               >
-                {eventsId === s.id ? L('收起', 'Collapse') : L('行为', 'Activity')}
+                {eventsId === s.id ? t('lunaTour:collapse') : t('lunaTour:activity')}
               </button>
               <MoreMenu
                 items={[
-                  { label: L('复制链接', 'Copy link'), onClick: () => { void navigator.clipboard?.writeText(`${window.location.origin}/v/${s.share_code}`) } },
-                  { label: L('事实清单（可打印给客户）', 'Fact sheet (printable)'), href: `/factsheet/${s.share_code}` },
-                  { label: L('边看边批注', 'Preview & annotate'), href: `/?toursession=${s.share_code}&edit=1` },
-                  { label: L('删除', 'Delete'), danger: true, onClick: () => deleteTour(s.id, s.title) },
+                  { label: t('lunaTour:copyLink4'), onClick: () => { void navigator.clipboard?.writeText(`${window.location.origin}/v/${s.share_code}`) } },
+                  { label: t('lunaTour:factSheetPrintable'), href: `/factsheet/${s.share_code}` },
+                  { label: t('lunaTour:previewAnnotate'), href: `/?toursession=${s.share_code}&edit=1` },
+                  { label: t('lunaTour:delete'), danger: true, onClick: () => deleteTour(s.id, s.title) },
                 ]}
               />
             </div>
             {eventsId === s.id && insights && (
               <div className="border-t border-slate-100 p-4 bg-indigo-50/40">
-                <div className="text-xs font-semibold text-indigo-700 mb-2">{L('📊 洞察', '📊 Insights')}</div>
+                <div className="text-xs font-semibold text-indigo-700 mb-2">{t('lunaTour:insights')}</div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-2">
-                  <span>{L('观看', 'Views')} <b>{insights.plays}</b></span>
-                  <span>{L('完看', 'Completed')} <b>{insights.completes}</b></span>
-                  {insights.completionPct != null && <span>{L('完看率', 'Completion rate')} <b>{insights.completionPct}%</b></span>}
+                  <span>{t('lunaTour:views4')} <b>{insights.plays}</b></span>
+                  <span>{t('lunaTour:completed3')} <b>{insights.completes}</b></span>
+                  {insights.completionPct != null && <span>{t('lunaTour:completionRate')} <b>{insights.completionPct}%</b></span>}
                 </div>
                 {insights.props.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {insights.props.map((p, i) => (
                       <span key={i} className="text-xs bg-white border border-slate-200 rounded px-2 py-0.5">
-                        {p.name}: {L('停留', 'dwell')} <b>{fmtMin(p.dwell_ms)}</b>{p.loves > 0 ? ` · ❤️${p.loves}` : ''}
+                        {p.name}: {t('lunaTour:dwell2')} <b>{fmtMin(p.dwell_ms)}</b>{p.loves > 0 ? ` · ❤️${p.loves}` : ''}
                       </span>
                     ))}
                   </div>
@@ -772,7 +773,7 @@ export default function AgentTours() {
             {eventsId === s.id && (
               <div className="border-t border-slate-100 p-4 bg-slate-50/50 max-h-72 overflow-y-auto">
                 {events.length === 0 ? (
-                  <div className="text-sm text-slate-400">{L('暂无行为数据', 'No activity data yet')}</div>
+                  <div className="text-sm text-slate-400">{t('lunaTour:noActivityDataYet')}</div>
                 ) : (
                   <ul className="space-y-1.5 text-xs">
                     {events.map((e, i) => (
@@ -793,8 +794,8 @@ export default function AgentTours() {
         {!loading && shownSessions.length === 0 && (
           <div className="text-sm text-slate-400">
             {sessions.length === 0
-              ? L('还没有导览，用上面的表单生成一个。', 'No tours yet — use the form above to generate one.')
-              : L('这个客户还没有导览。', 'No tours for this client yet.')}
+              ? t('lunaTour:noToursYetUse')
+              : t('lunaTour:noToursForThis')}
           </div>
         )}
       </div>
@@ -810,7 +811,7 @@ export default function AgentTours() {
             setProfile(p)
             loadClients()
           }}
-          ctaLabel={L('保存画像', 'Save profile')}
+          ctaLabel={t('lunaTour:saveProfile2')}
         />
       )}
     </div>
@@ -818,17 +819,17 @@ export default function AgentTours() {
 }
 
 /** 画像小标签 —— 让经纪看得见 Luna 拿到了什么(和报告页同一套口径)。 */
-function TourProfileChips({ profile: p, zh }: { profile: Profile; zh: boolean }) {
+function TourProfileChips({ profile: p, t }: { profile: Profile; t: (k: string, o?: Record<string, unknown>) => string }) {
   const out: string[] = []
-  if (p.goal) out.push({ live: zh ? '自住' : 'End-use', invest: zh ? '投资' : 'Investment', both: zh ? '先租后住' : 'Rent then live' }[p.goal])
+  if (p.goal) out.push({ live: t('lunaTour:endUse2'), invest: t('lunaTour:investment2'), both: t('lunaTour:rentThenLive3') }[p.goal])
   const b = p.budget_max ?? p.budget_min
   if (b) out.push(`AED ${(b / 1_000_000).toFixed(b % 1_000_000 ? 1 : 0)}M`)
-  if (p.payment) out.push({ cash: zh ? '全款' : 'Cash', installment: zh ? '分期' : 'Installments', mortgage: zh ? '贷款' : 'Mortgage' }[p.payment as string] || String(p.payment))
-  if (p.horizon) out.push({ rent_long: zh ? '长期收租' : 'Long-term', flip: zh ? '3-5年转手' : 'Flip', rent_then_live: zh ? '先租后住' : 'Rent then live' }[p.horizon as string] || String(p.horizon))
-  if (p.family_size) out.push(zh ? `${p.family_size} 口人` : `${p.family_size} people`)
-  if (p.has_children) out.push(zh ? '有小孩' : 'Kids')
+  if (p.payment) out.push({ cash: t('lunaTour:cash2'), installment: t('lunaTour:installments2'), mortgage: t('lunaTour:mortgage2') }[p.payment as string] || String(p.payment))
+  if (p.horizon) out.push({ rent_long: t('lunaTour:longTerm2'), flip: t('lunaTour:flip2'), rent_then_live: t('lunaTour:rentThenLive4') }[p.horizon as string] || String(p.horizon))
+  if (p.family_size) out.push(t('lunaTour:people2', { p_family_size: p.family_size }))
+  if (p.has_children) out.push(t('lunaTour:kids2'))
   if (p.nationality) out.push(String(p.nationality))
-  if (p.golden_visa) out.push(zh ? '要黄金签证' : 'Golden visa')
+  if (p.golden_visa) out.push(t('lunaTour:goldenVisa2'))
   return (
     <>
       {out.filter(Boolean).map((c, i) => (
@@ -879,7 +880,8 @@ function FlowToggle({
   shareCode?: string | null
   onRendered?: () => void
 }) {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
 
@@ -941,7 +943,7 @@ function FlowToggle({
     }
   }
   const deleteStop = async (actIndex: number, name: string) => {
-    if (!window.confirm(L(`删除停靠点「${name}」?(可在保存的版本里回滚)`, `Delete stop "${name}"? (can be rolled back from a saved version)`))) return
+    if (!window.confirm(t('lunaTour:deleteStopCanBe', { name }))) return
     try {
       const r = await lunaFetch(`/sessions/${sessionId}/delete-stop`, {
         method: 'POST',
@@ -969,7 +971,7 @@ function FlowToggle({
         setPlaceQ('')
         setPlaceResults([])
         await reload()
-        setMsg(L(`✅ 已加入地点「${p.name}」(可在该段加海景视频/改旁白,语音后台生成)`, `✅ Added place "${p.name}" (add a sea-view video / edit narration for this beat; voice is generated in the background)`))
+        setMsg(t('lunaTour:addedPlaceAddA', { p_name: p.name }))
         onSaved()
       }
     } catch {
@@ -1024,7 +1026,7 @@ function FlowToggle({
     if (!previewUrl) return
     if (prepDone) { window.open(previewUrl, '_blank'); return }
     setPrepping(true)
-    setPrepMsg(L('正在生成 Luna 的真人语音…', "Generating Luna's real voice…"))
+    setPrepMsg(t('lunaTour:generatingLunaSReal'))
     try {
       // 先把经纪改过的文案存下来，免得预演听到的是旧稿
       const narration: Record<string, string> = {}
@@ -1042,7 +1044,7 @@ function FlowToggle({
         const g = await lunaFetch(`/sessions/${sessionId}/gen-status`).then((r) => r.json()).catch(() => null)
         const total = g?.audioTotal ?? 0
         const done = g?.audioReady ?? 0
-        if (total > 0) setPrepMsg(L(`语音生成中 ${done}/${total}…`, `Generating voice ${done}/${total}…`))
+        if (total > 0) setPrepMsg(t('lunaTour:generatingVoice', { done, total }))
         if (total > 0 && done >= total) {
           setPrepDone(true)
           setPrepMsg('')
@@ -1051,10 +1053,10 @@ function FlowToggle({
           return
         }
       }
-      setPrepMsg(L('语音还没好，先看画面吧', 'Voice not ready yet — opening anyway'))
+      setPrepMsg(t('lunaTour:voiceNotReadyYet'))
       window.open(previewUrl, '_blank')
     } catch {
-      setPrepMsg(L('语音生成失败，先看画面', 'Voice failed — opening anyway'))
+      setPrepMsg(t('lunaTour:voiceFailedOpeningAnyway'))
       window.open(previewUrl, '_blank')
     }
     setPrepping(false)
@@ -1077,10 +1079,10 @@ function FlowToggle({
       })
       const r = await lunaFetch(`/sessions/${sessionId}/render`, { method: 'POST' })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || L('发布失败', 'Publish failed')}`)
+      if (!r.ok) setMsg(`❌ ${d.error || t('lunaTour:publishFailed')}`)
       else onRendered?.()
     } catch (e) {
-      setMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
+      setMsg(`❌ ${e instanceof Error ? e.message : t('lunaTour:networkError4')}`)
     }
     setRendering(false)
   }
@@ -1113,7 +1115,7 @@ function FlowToggle({
       const up = await lunaFetch(`/media-upload`, { method: 'POST', body: fd })
       const ud = await up.json()
       if (!up.ok || !ud.url) {
-        alert(ud.error || L('上传失败(视频/图,≤60MB)', 'Upload failed (video/image, ≤60MB)'))
+        alert(ud.error || t('lunaTour:uploadFailedVideoImage'))
       } else {
         const r = await lunaFetch(`/sessions/${sessionId}/beat-media`, {
           method: 'POST',
@@ -1130,7 +1132,7 @@ function FlowToggle({
         }
       }
     } catch {
-      alert(L('上传出错', 'Upload error'))
+      alert(t('lunaTour:uploadError'))
     }
     setMediaUploading(false)
   }
@@ -1163,7 +1165,7 @@ function FlowToggle({
   const reviseWithAI = async () => {
     const entries = Object.entries(comments).filter(([, v]) => v.trim())
     if (!entries.length) {
-      setMsg(L('先在某段下面写一句修改意见,例如「短一点」「强调海景」', 'First write a note under a beat, e.g. "shorter" or "emphasize the sea view"'))
+      setMsg(t('lunaTour:firstWriteANote'))
       return
     }
     setRevising(true)
@@ -1180,8 +1182,8 @@ function FlowToggle({
       )
       const r = await lunaFetch(`/sessions/${sessionId}/revise`, { method: 'POST' })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || L('改稿失败', 'Revision failed')}`)
-      else if (!d.applied) setMsg(`ℹ️ ${d.message || L('AI 未产生改动', 'AI made no changes')}`)
+      if (!r.ok) setMsg(`❌ ${d.error || t('lunaTour:revisionFailed')}`)
+      else if (!d.applied) setMsg(`ℹ️ ${d.message || t('lunaTour:aiMadeNoChanges')}`)
       else {
         setComments({})
         await reload()
@@ -1189,7 +1191,7 @@ function FlowToggle({
         onSaved()
       }
     } catch (e) {
-      setMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
+      setMsg(`❌ ${e instanceof Error ? e.message : t('lunaTour:networkError5')}`)
     }
     setRevising(false)
   }
@@ -1206,13 +1208,13 @@ function FlowToggle({
         body: JSON.stringify({ title, narration }),
       })
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error || L('保存失败', 'Save failed')}`)
+      if (!r.ok) setMsg(`❌ ${d.error || t('lunaTour:saveFailed2')}`)
       else {
-        setMsg(L('✅ 已保存', '✅ Saved'))
+        setMsg(t('lunaTour:saved2'))
         onSaved()
       }
     } catch (e) {
-      setMsg(`❌ ${e instanceof Error ? e.message : L('网络错误', 'Network error')}`)
+      setMsg(`❌ ${e instanceof Error ? e.message : t('lunaTour:networkError6')}`)
     }
     setSaving(false)
   }
@@ -1223,7 +1225,7 @@ function FlowToggle({
     <>
       {!draft && (
         <button onClick={toggle} className="text-sm text-slate-600 hover:text-slate-900 border rounded-lg px-3 py-1.5">
-          {open ? L('收起', 'Collapse') : L('流程', 'Flow')}
+          {open ? t('lunaTour:collapse2') : t('lunaTour:flow')}
         </button>
       )}
       {open && (
@@ -1231,15 +1233,15 @@ function FlowToggle({
           ? 'w-full rounded-2xl border border-amber-200 bg-amber-50/40 p-4'
           : 'w-full border-t border-slate-100 mt-2 pt-4'}>
           {loading ? (
-            <div className="text-sm text-slate-400">{L('加载流程中…', 'Loading flow…')}</div>
+            <div className="text-sm text-slate-400">{t('lunaTour:loadingFlow')}</div>
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">{L('标题', 'Title')}</label>
+                <label className="block text-xs text-slate-400 mb-1">{t('lunaTour:title')}</label>
                 <input className="border rounded-lg px-3 py-2 text-sm w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               {beats.length === 0 ? (
-                <div className="text-sm text-slate-400">{L('没有可编辑的脚本。', 'No editable script.')}</div>
+                <div className="text-sm text-slate-400">{t('lunaTour:noEditableScript')}</div>
               ) : (
                 beats.map((b, i) => {
                   const prevGroup = i > 0 ? beats[i - 1].group : null
@@ -1259,9 +1261,9 @@ function FlowToggle({
                           </span>
                           {(b.actIndex ?? -1) >= 0 && (
                             <span className="flex items-center gap-0.5">
-                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title={L('上移', 'Move up')} onClick={() => moveStop(b.actIndex!, -1)}>↑</button>
-                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title={L('下移', 'Move down')} onClick={() => moveStop(b.actIndex!, 1)}>↓</button>
-                              <button className="text-[11px] text-rose-300 hover:text-rose-600 px-1" title={L('删除这个停靠点', 'Delete this stop')} onClick={() => deleteStop(b.actIndex!, b.group)}>✕</button>
+                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title={t('lunaTour:moveUp2')} onClick={() => moveStop(b.actIndex!, -1)}>↑</button>
+                              <button className="text-[11px] text-slate-400 hover:text-slate-700 px-1" title={t('lunaTour:moveDown2')} onClick={() => moveStop(b.actIndex!, 1)}>↓</button>
+                              <button className="text-[11px] text-rose-300 hover:text-rose-600 px-1" title={t('lunaTour:deleteThisStop')} onClick={() => deleteStop(b.actIndex!, b.group)}>✕</button>
                             </span>
                           )}
                         </div>
@@ -1282,10 +1284,10 @@ function FlowToggle({
                               <span key={`o${o.idx}`} className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">
                                 🃏 {o.label}
                                 {o.at > 0 ? ` @${o.at}s` : ''}
-                                <button className="px-0.5 hover:text-amber-900 disabled:opacity-30" disabled={o.dur <= 0} onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: Math.max(0, o.dur - 1) * 1000 }])} title={L('缩短显示', 'Shorten display')}>−</button>
+                                <button className="px-0.5 hover:text-amber-900 disabled:opacity-30" disabled={o.dur <= 0} onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: Math.max(0, o.dur - 1) * 1000 }])} title={t('lunaTour:shortenDisplay')}>−</button>
                                 <span className="tabular-nums">{o.dur}s</span>
-                                <button className="px-0.5 hover:text-amber-900" onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: (o.dur + 1) * 1000 }])} title={L('延长显示', 'Extend display')}>+</button>
-                                <button className="px-0.5 text-rose-400 hover:text-rose-600" onClick={() => editOverlays(b.id, [{ index: o.idx, remove: true }])} title={L('移除这张卡', 'Remove this card')}>×</button>
+                                <button className="px-0.5 hover:text-amber-900" onClick={() => editOverlays(b.id, [{ index: o.idx, duration_ms: (o.dur + 1) * 1000 }])} title={t('lunaTour:extendDisplay')}>+</button>
+                                <button className="px-0.5 text-rose-400 hover:text-rose-600" onClick={() => editOverlays(b.id, [{ index: o.idx, remove: true }])} title={t('lunaTour:removeThisCard')}>×</button>
                               </span>
                             ))}
                             {b.seconds ? <span className="text-[10px] text-slate-400">⏱ ~{b.seconds}s</span> : null}
@@ -1297,20 +1299,20 @@ function FlowToggle({
                                 setMediaCap('')
                               }}
                             >
-                              {L('➕ 视频/图', '➕ Video/Image')}
+                              {t('lunaTour:videoImage')}
                             </button>
                           </div>
                           {mediaOpen === b.id && (
                             <div className="mb-1 flex flex-wrap items-center gap-1.5 bg-indigo-50/60 border border-indigo-100 rounded-md p-1.5">
                               <input
                                 className="flex-1 min-w-[180px] text-xs border border-slate-300 rounded px-2 py-1"
-                                placeholder={L('视频/图片直链 (https://…/clip.mp4 或 …/photo.jpg)', 'Direct video/image link (https://…/clip.mp4 or …/photo.jpg)')}
+                                placeholder={t('lunaTour:directVideoImageLink')}
                                 value={mediaUrl}
                                 onChange={(e) => setMediaUrl(e.target.value)}
                               />
                               <input
                                 className="w-28 text-xs border border-slate-300 rounded px-2 py-1"
-                                placeholder={L('说明(可选)', 'Caption (optional)')}
+                                placeholder={t('lunaTour:captionOptional')}
                                 value={mediaCap}
                                 onChange={(e) => setMediaCap(e.target.value)}
                               />
@@ -1319,10 +1321,10 @@ function FlowToggle({
                                 disabled={mediaUploading || !/^https?:\/\/\S+/i.test(mediaUrl.trim())}
                                 onClick={() => addMedia(b.id)}
                               >
-                                {L('加链接', 'Add link')}
+                                {t('lunaTour:addLink')}
                               </button>
                               <label className="text-xs bg-white border border-indigo-300 text-indigo-600 rounded px-2.5 py-1 cursor-pointer hover:border-indigo-500">
-                                {mediaUploading ? L('上传中…', 'Uploading…') : L('或上传文件', 'Or upload a file')}
+                                {mediaUploading ? t('lunaTour:uploading') : t('lunaTour:orUploadAFile')}
                                 <input
                                   type="file"
                                   accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp"
@@ -1340,7 +1342,7 @@ function FlowToggle({
                           <AutoTextarea value={b.narration} onChange={(v) => setBeats((cur) => cur.map((x) => (x.id === b.id ? { ...x, narration: v } : x)))} />
                           <input
                             className="mt-1 w-full text-xs border border-dashed border-slate-300 rounded-md px-2 py-1.5 placeholder:text-slate-300 focus:border-emerald-400 focus:outline-none"
-                            placeholder={L('💬 给 AI 的修改意见（如 短一点 / 强调海景 / 这个数字改成…）', '💬 Note for AI (e.g. shorter / emphasize sea view / change this number to…)')}
+                            placeholder={t('lunaTour:noteForAiE')}
                             value={comments[b.id] || ''}
                             onChange={(e) => setComments((c) => ({ ...c, [b.id]: e.target.value }))}
                           />
@@ -1352,10 +1354,10 @@ function FlowToggle({
               )}
               {/* E3 — add a place stop (beach / landmark / any POI) */}
               <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/40 p-2.5">
-                <div className="text-xs font-semibold text-indigo-700 mb-1.5">{L('➕ 加地点停靠(海滩 / 地标 / 任意 POI)', '➕ Add a place stop (beach / landmark / any POI)')}</div>
+                <div className="text-xs font-semibold text-indigo-700 mb-1.5">{t('lunaTour:addAPlaceStop')}</div>
                 <input
                   className="w-full text-sm border border-slate-300 rounded px-2 py-1.5"
-                  placeholder={L('搜地点名(如 JBR / Marina Beach / Burj Khalifa)…', 'Search a place name (e.g. JBR / Marina Beach / Burj Khalifa)…')}
+                  placeholder={t('lunaTour:searchAPlaceName')}
                   value={placeQ}
                   onChange={(e) => setPlaceQ(e.target.value)}
                 />
@@ -1374,13 +1376,13 @@ function FlowToggle({
                     ))}
                   </div>
                 )}
-                <div className="text-[11px] text-slate-400 mt-1">{L('加入后会作为一个停靠点(镜头飞过去),可在该段加海景视频、改旁白。', 'Once added it becomes a stop (the camera flies to it); you can add a sea-view video and edit the narration for that beat.')}</div>
+                <div className="text-[11px] text-slate-400 mt-1">{t('lunaTour:onceAddedItBecomes')}</div>
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
                 {!draft && (
                   <button disabled={saving || revising} onClick={save} className="bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-                    {saving ? L('保存中…', 'Saving…') : L('保存修改', 'Save changes')}
+                    {saving ? t('lunaTour:saving2') : t('lunaTour:saveChanges')}
                   </button>
                 )}
                 <button
@@ -1388,7 +1390,7 @@ function FlowToggle({
                   onClick={reviseWithAI}
                   className="bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
-                  {revising ? L('AI 改稿中…', 'AI revising…') : L('✨ 用 AI 应用评论', '✨ Apply notes with AI')}
+                  {revising ? t('lunaTour:aiRevising') : t('lunaTour:applyNotesWithAi')}
                 </button>
                 {msg && <span className="text-sm">{msg}</span>}
               </div>
@@ -1402,8 +1404,8 @@ function FlowToggle({
                     className="rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
                   >
                     {rendering
-                      ? L('生成语音中…', 'Generating voice…')
-                      : L('✓ 确认，生成语音并发布', '✓ Approve — generate voice & publish')}
+                      ? t('lunaTour:generatingVoice2')
+                      : t('lunaTour:approveGenerateVoicePublish')}
                   </button>
                   {previewUrl && (
                     <button
@@ -1412,20 +1414,19 @@ function FlowToggle({
                       className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                     >
                       {prepping
-                        ? (prepMsg || L('准备语音…', 'Preparing voice…'))
+                        ? (prepMsg || t('lunaTour:preparingVoice'))
                         : prepDone
-                          ? L('▶ 再听一遍', '▶ Play again')
-                          : L('🔊 先预演一遍（带 Luna 真声）', '🔊 Preview with Luna’s real voice')}
+                          ? t('lunaTour:playAgain')
+                          : t('lunaTour:previewWithLunaS')}
                     </button>
                   )}
                   <span className="text-xs text-slate-500">
-                    {L('确认后才扣一次额度、才生成语音。在此之前客户点链接是打不开的。',
-                       'Only on approval is a credit spent and the voice generated. Until then the share link is dead for clients.')}
+                    {t('lunaTour:onlyOnApprovalIs')}
                   </span>
                 </div>
               )}
               <span className="text-xs text-slate-400">
-                {L('直接改文字＝手动改；或在每段下写一句意见,点「用 AI 应用评论」让 AI 重写那几段（改动可在保存的版本里回滚）。改文案后该段语音会自动重生成。', 'Edit the text directly to change it manually; or write a note under a beat and click "Apply notes with AI" to have AI rewrite those beats (changes can be rolled back from a saved version). After editing copy, that beat\'s voice regenerates automatically.')}
+                {t('lunaTour:editTheTextDirectly')}
               </span>
             </div>
           )}

@@ -32,7 +32,8 @@ function daysUntil(iso: string | null): number | null {
 }
 
 export default function AgentPromo() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
   const [stats, setStats] = useState<ReferralStats | null>(null)
@@ -51,8 +52,7 @@ export default function AgentPromo() {
   }
   async function shareLink() {
     if (!stats) return
-    const text = L('用我的专属链接注册 Pinzos,首月 8 折 —— 迪拜买房新方式,让位置说话 👇',
-      'Sign up to Pinzos with my link — 20% off your first month. The new way to buy in Dubai 👇')
+    const text = t('lunaTour:signUpToPinzos')
     if (navigator.share) { try { await navigator.share({ title: 'Pinzos', text, url: stats.link }); return } catch { return } }
     copyLink()
   }
@@ -61,7 +61,7 @@ export default function AgentPromo() {
     return <div className="flex items-center justify-center py-24 text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
   }
   if (!stats) {
-    return <div className="py-24 text-center text-slate-400">{L('暂时无法加载推广信息,请稍后再试', 'Could not load — please try again later')}</div>
+    return <div className="py-24 text-center text-slate-400">{t('lunaTour:couldNotLoadPlease')}</div>
   }
 
   const badge = stats.badge.tier !== 'none' ? BADGE_STYLE[stats.badge.tier] : null
@@ -71,7 +71,7 @@ export default function AgentPromo() {
       {/* 标题 */}
       <div className="flex items-center gap-2">
         <Gift className="w-6 h-6 text-indigo-500" />
-        <h1 className="text-xl font-bold text-slate-900">{L('推广有礼', 'Refer & earn')}</h1>
+        <h1 className="text-xl font-bold text-slate-900">{t('lunaTour:referEarn')}</h1>
         {badge && (
           <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold ${badge.bg} ${badge.text}`}>
             {badge.emoji} {L(stats.badge.zh, stats.badge.label)}
@@ -81,49 +81,49 @@ export default function AgentPromo() {
 
       {/* 推荐链接卡:主行动 */}
       <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 p-5 text-white shadow-lg shadow-indigo-500/20">
-        <div className="text-sm font-medium text-indigo-100">{L('我的专属推荐链接', 'Your referral link')}</div>
+        <div className="text-sm font-medium text-indigo-100">{t('lunaTour:yourReferralLink')}</div>
         <div className="mt-2 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
           <span className="flex-1 truncate text-sm font-mono">{stats.link}</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button onClick={copyLink} className="flex items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 transition active:scale-[0.99]">
-            {copied ? <><Check className="w-4 h-4" /> {L('已复制', 'Copied')}</> : <><Copy className="w-4 h-4" /> {L('复制链接', 'Copy link')}</>}
+            {copied ? <><Check className="w-4 h-4" /> {t('lunaTour:copied3')}</> : <><Copy className="w-4 h-4" /> {t('lunaTour:copyLink3')}</>}
           </button>
           <button onClick={shareLink} className="flex items-center justify-center gap-2 rounded-xl bg-indigo-900/40 py-2.5 text-sm font-semibold text-white hover:bg-indigo-900/60 transition active:scale-[0.99]">
-            <Share2 className="w-4 h-4" /> {L('分享给同行', 'Share with peers')}
+            <Share2 className="w-4 h-4" /> {t('lunaTour:shareWithPeers')}
           </button>
         </div>
         <p className="mt-3 text-xs text-indigo-100">
-          {L('同行用此链接注册,', 'Peers who sign up with this link get ')}<b className="text-white">{L('首月 8 折', '20% off month 1')}</b>
-          {L(';每 ', ' — every ')}<b className="text-white">{stats.perReward}</b>{L(' 位付费,你得 ', ' who pay earns you ')}<b className="text-white">{L('1 个月免费', '1 free month')}</b>
+          {t('lunaTour:peersWhoSignUp')}<b className="text-white">{t('lunaTour:20OffMonth1')}</b>
+          {t('lunaTour:every')}<b className="text-white">{stats.perReward}</b>{t('lunaTour:whoPayEarnsYou')}<b className="text-white">{t('lunaTour:1FreeMonth')}</b>
         </p>
       </div>
 
       {/* 进度条 */}
       <div className="rounded-2xl bg-white ring-1 ring-slate-100 p-5">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-500">{L('距离下一个「免费月」', 'Progress to next free month')}</span>
+          <span className="text-sm font-medium text-slate-500">{t('lunaTour:progressToNextFree')}</span>
           <span className="text-sm font-bold text-slate-900">{stats.progress} / {stats.perReward}</span>
         </div>
         <div className="mt-2.5 h-2.5 rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 transition-all" style={{ width: `${(stats.progress / stats.perReward) * 100}%` }} />
         </div>
         <p className="mt-3 text-sm text-slate-500">
-          {L('再推荐 ', 'Refer ')}<b className="text-indigo-600">{stats.towardNext}</b>{L(' 位付费同行,即可获得 ', ' more paying peers to earn ')}<b className="text-indigo-600">{L('1 个月免费', '1 free month')}</b>
+          {t('lunaTour:refer')}<b className="text-indigo-600">{stats.towardNext}</b>{t('lunaTour:morePayingPeersTo')}<b className="text-indigo-600">{t('lunaTour:1FreeMonth2')}</b>
         </p>
       </div>
 
       {/* 漏斗 */}
       <div className="grid grid-cols-3 gap-3">
-        <Stat icon={MousePointerClick} label={L('点击', 'Clicks')} value={stats.clicks} tint="text-sky-500" />
-        <Stat icon={Users} label={L('注册', 'Signups')} value={stats.signups} tint="text-indigo-500" />
-        <Stat icon={BadgeDollarSign} label={L('付费', 'Paid')} value={stats.paid} tint="text-emerald-500" />
+        <Stat icon={MousePointerClick} label={t('lunaTour:clicks')} value={stats.clicks} tint="text-sky-500" />
+        <Stat icon={Users} label={t('lunaTour:signups')} value={stats.signups} tint="text-indigo-500" />
+        <Stat icon={BadgeDollarSign} label={t('lunaTour:paid')} value={stats.paid} tint="text-emerald-500" />
       </div>
 
       {/* 推荐明细 */}
       {stats.referrals.length > 0 && (
         <div className="rounded-2xl bg-white ring-1 ring-slate-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">{L('推荐明细', 'Referral details')}</div>
+          <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">{t('lunaTour:referralDetails')}</div>
           <div className="divide-y divide-slate-50">
             {stats.referrals.map((r, i) => {
               const meta = STATUS_META[r.status]
@@ -134,10 +134,10 @@ export default function AgentPromo() {
                   <div className="text-sm text-slate-600 font-mono">{r.email}</div>
                   <div className="flex items-center gap-2">
                     {r.status === 'pending' && holdDays != null && (
-                      <span className="text-xs text-slate-400">{L(`${holdDays} 天后生效`, `active in ${holdDays}d`)}</span>
+                      <span className="text-xs text-slate-400">{t('lunaTour:activeInD', { holdDays })}</span>
                     )}
                     {r.status === 'attached' && expDays != null && (
-                      <span className="text-xs text-slate-400">{L(`剩 ${expDays} 天`, `${expDays}d left`)}</span>
+                      <span className="text-xs text-slate-400">{t('lunaTour:dLeft', { expDays })}</span>
                     )}
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.cls}`}>{L(meta.zh, meta.en)}</span>
                   </div>
@@ -152,12 +152,12 @@ export default function AgentPromo() {
       {stats.rewards.length > 0 && (
         <div className="rounded-2xl bg-white ring-1 ring-slate-100 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Trophy className="w-4 h-4 text-amber-500" /> {L('已获奖励', 'Rewards earned')}
+            <Trophy className="w-4 h-4 text-amber-500" /> {t('lunaTour:rewardsEarned')}
           </div>
           <div className="divide-y divide-slate-50">
             {stats.rewards.map((r) => (
               <div key={r.milestone} className="flex items-center justify-between px-4 py-3">
-                <div className="text-sm text-slate-600">{L(`第 ${r.milestone} 个免费月`, `Free month #${r.milestone}`)}</div>
+                <div className="text-sm text-slate-600">{t('lunaTour:freeMonth', { r_milestone: r.milestone })}</div>
                 <div className="flex items-center gap-2">
                   {r.amount != null && (
                     <span className="text-sm font-semibold text-emerald-600">
@@ -168,7 +168,7 @@ export default function AgentPromo() {
                     r.status === 'applied' ? 'bg-emerald-100 text-emerald-700'
                     : r.status === 'blocked' ? 'bg-amber-100 text-amber-700'
                     : 'bg-slate-100 text-slate-500'}`}>
-                    {r.status === 'applied' ? L('已抵扣账单', 'Applied') : r.status === 'blocked' ? L('审核中', 'Under review') : L('待生效', 'Pending')}
+                    {r.status === 'applied' ? t('lunaTour:applied') : r.status === 'blocked' ? t('lunaTour:underReview') : t('lunaTour:pending')}
                   </span>
                 </div>
               </div>
@@ -181,10 +181,7 @@ export default function AgentPromo() {
       <div className="flex gap-2 rounded-xl bg-slate-50 p-3.5 text-xs text-slate-500 leading-relaxed">
         <Info className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
         <div>
-          {L(
-            `被推荐的同行通过你的链接注册并真实付费满 30 天,即算 1 个合格推荐;每满 ${stats.perReward} 个,你的下一期账单自动抵扣 1 个月订阅费。被推荐人首月享 8 折。试用不计入。退款/取消会相应扣减进度。`,
-            `A peer who signs up via your link and stays paid for 30 days counts as 1 qualified referral. Every ${stats.perReward} qualified referrals earns you 1 free month, auto-credited to your next invoice. Referees get 20% off their first month. Trials don't count. Refunds/cancellations reduce your progress.`
-          )}
+          {t('lunaTour:aPeerWhoSigns', { stats_perReward: stats.perReward })}
         </div>
       </div>
     </div>

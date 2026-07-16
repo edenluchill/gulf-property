@@ -25,6 +25,7 @@ import areaInsightsEn from './locales/en/areaInsights.json'
 import projectDetailEn from './locales/en/projectDetail.json'
 import miscEn from './locales/en/misc.json'
 import gateEn from './locales/en/gate.json'
+import lunaTourEn from './locales/en/lunaTour.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -55,6 +56,7 @@ declare module 'i18next' {
       projectDetail: typeof projectDetailEn
       misc: typeof miscEn
       gate: typeof gateEn
+      lunaTour: typeof lunaTourEn
     }
   }
 }

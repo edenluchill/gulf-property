@@ -52,11 +52,12 @@ const UNIT_EN: Record<string, string> = {
 }
 
 export default function AgentBilling() {
-  const { i18n } = useTranslation()
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = !!i18n.language?.startsWith('zh')
   const L = (a: string, b: string) => (zh ? a : b)
   const STATUS_LABEL: Record<string, string> = {
-    none: L('未订阅', 'Not subscribed'), trialing: L('试用中', 'Trial'), active: L('生效中', 'Active'), past_due: L('续费失败', 'Renewal failed'), canceled: L('已取消', 'Canceled'),
+    none: t('lunaTour:notSubscribed'), trialing: t('lunaTour:trial'), active: t('lunaTour:active'), past_due: t('lunaTour:renewalFailed'), canceled: t('lunaTour:canceled'),
   }
   const [me, setMe] = useState<BillingMe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -168,7 +169,7 @@ export default function AgentBilling() {
     const error = await inviteTeamMember(inviteEmail.trim())
     setBusy(null)
     if (error) { setTeamMsg(error); return }
-    setInviteEmail(''); setTeamMsg(L('已加入团队 ✓', 'Added to team ✓'))
+    setInviteEmail(''); setTeamMsg(t('lunaTour:addedToTeam'))
     fetchTeam().then(setTeam)
   }
   async function removeMember(id: string) {
@@ -183,7 +184,7 @@ export default function AgentBilling() {
     const error = await setExtraSeats(next)
     setBusy(null)
     if (error) { setTeamMsg(error); return }
-    setTeamMsg(L('席位已调整,账单按比例计费 ✓', 'Seats updated, billed pro-rata ✓'))
+    setTeamMsg(t('lunaTour:seatsUpdatedBilledPro'))
     setTimeout(() => fetchTeam().then(setTeam), 1500) // 等 webhook 镜像
   }
 
@@ -192,32 +193,32 @@ export default function AgentBilling() {
       {badgeDialog}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{L('订阅与用量', 'Subscription & usage')}</h1>
-          <p className="mt-1 text-sm text-slate-500">{L('管理你的套餐、查看本月额度。支付由 Stripe 安全处理。', 'Manage your plan and view this month’s credits. Payments are handled securely by Stripe.')}</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('lunaTour:subscriptionUsage')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('lunaTour:manageYourPlanAnd')}</p>
         </div>
         {canUpgrade && (
           <Link to="/agent/plans"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-            {L('升级套餐', 'Upgrade')} <ArrowUpRight className="h-4 w-4" />
+            {t('lunaTour:upgrade')} <ArrowUpRight className="h-4 w-4" />
           </Link>
         )}
       </div>
 
-      {banner === 'success' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{L('✅ 订阅成功!额度已更新。', '✅ Subscription complete! Your credits are updated.')}</div>}
-      {banner === 'cancel' && <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">{L('已取消结账,未产生费用。', 'Checkout canceled, no charge was made.')}</div>}
+      {banner === 'success' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{t('lunaTour:subscriptionCompleteYourCredits')}</div>}
+      {banner === 'cancel' && <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">{t('lunaTour:checkoutCanceledNoCharge')}</div>}
       {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{err}</div>}
 
       {/* 当前套餐 */}
       <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xs text-slate-400">{L('当前套餐', 'Current plan')}</div>
+            <div className="text-xs text-slate-400">{t('lunaTour:currentPlan')}</div>
             <div className="text-xl font-bold text-slate-900">{me?.plan.name || 'Explore'}</div>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-medium ${
             canceling ? 'bg-amber-50 text-amber-700' : isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
           }`}>
-            {canceling ? L('已取消', 'Canceling') : (STATUS_LABEL[status] || status)}
+            {canceling ? t('lunaTour:canceling') : (STATUS_LABEL[status] || status)}
           </span>
         </div>
         {me?.current_period_end && (
@@ -225,16 +226,16 @@ export default function AgentBilling() {
             {canceling
               ? L(`已取消订阅 —— 到期前仍可正常使用,可用至 ${fmtDate(me.current_period_end)}`, `Subscription canceled — you keep full access until ${fmtDate(me.current_period_end)}`)
               : status === 'canceled'
-                ? L('有效期至 ', 'Valid until ') + fmtDate(me.current_period_end)
+                ? t('lunaTour:validUntil') + fmtDate(me.current_period_end)
                 : status === 'trialing'
-                  ? L('免费试用至 ', 'Free trial until ') + fmtDate(me.current_period_end)
-                  : L('下次续费 ', 'Next renewal ') + fmtDate(me.current_period_end)}
+                  ? t('lunaTour:freeTrialUntil') + fmtDate(me.current_period_end)
+                  : t('lunaTour:nextRenewal') + fmtDate(me.current_period_end)}
           </div>
         )}
         {canceling && (
           <button onClick={manage} disabled={busy === 'portal'}
             className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:underline disabled:opacity-60">
-            {busy === 'portal' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{L('恢复订阅', 'Resume subscription')}
+            {busy === 'portal' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{t('lunaTour:resumeSubscription')}
           </button>
         )}
 
@@ -243,10 +244,10 @@ export default function AgentBilling() {
           <div className="mt-5">
             <div className="mb-1 flex items-baseline justify-between">
               <span className="text-sm text-slate-500">
-                {onTrial ? L('试用积分余额', 'Trial credits') : L('本月积分余额', 'Credits this month')}
+                {onTrial ? t('lunaTour:trialCredits') : t('lunaTour:creditsThisMonth')}
               </span>
               <span className="text-sm font-semibold text-slate-900">
-                {unlimited ? L('无限', 'Unlimited') : <>{L('剩', '')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
+                {unlimited ? t('lunaTour:unlimited') : <>{t('lunaTour:k')} <b className="text-emerald-600">{cBalance.toLocaleString()}</b> / {cMonth.toLocaleString()}</>}
               </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -257,15 +258,15 @@ export default function AgentBilling() {
               {/* ⚠️ 试用积分**不按自然月刷新** —— 它是整个试用期共用的一池,用完即止。
                   对试用用户说"每月 1 日刷新"是假话(而且会让他以为下月还能白嫖一轮)。 */}
               {onTrial
-                ? L('试用期共用这一池积分,用完即止 —— 订阅后立即恢复。', 'One pool for the whole trial — it doesn’t reset. Subscribe and credits come back right away.')
+                ? t('lunaTour:onePoolForThe')
                 : me?.credits_reset_at
                   ? L(`${fmtDate(me.credits_reset_at)} 刷新额度,未用完不累积。`, `Credits reset ${fmtDate(me.credits_reset_at)}; unused don’t roll over.`)
-                  : L('每月 1 日刷新,未用完不累积。', 'Resets on the 1st; unused credits don’t roll over.')}
+                  : t('lunaTour:resetsOnThe1st')}
             </div>
           </div>
         ) : (
           <div className="mt-4 text-sm text-slate-500">
-            {L('订阅后每月自动发放积分,下面这些功能就能用了。', 'Subscribe and credits land every month — that unlocks everything below.')}
+            {t('lunaTour:subscribeAndCreditsLand')}
           </div>
         )}
 
@@ -277,10 +278,10 @@ export default function AgentBilling() {
         {feat.features.length > 0 && (
           <div className="mt-5 overflow-hidden rounded-xl ring-1 ring-slate-900/[0.06]">
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
-              <span className="text-xs font-semibold text-slate-700">{L('积分能买什么', 'What credits buy')}</span>
+              <span className="text-xs font-semibold text-slate-700">{t('lunaTour:whatCreditsBuy')}</span>
               {myMult < 1 && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                  {L(`你的套餐 ×${myMult} · 已含折扣`, `Your plan ×${myMult} · discounted`)}
+                  {t('lunaTour:yourPlanDiscounted', { myMult })}
                 </span>
               )}
             </div>
@@ -306,12 +307,12 @@ export default function AgentBilling() {
                       {/* 余额能做几次 —— 只在有余额时显示,别对着 0 喊 */}
                       {times > 0 && (
                         <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
-                          {L(`还能做 ${times} 次`, `${times} left`)}
+                          {t('lunaTour:left', { times })}
                         </span>
                       )}
                       {unlimited && !isFree && (
                         <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
-                          {L('无限', 'Unlimited')}
+                          {t('lunaTour:unlimited2')}
                         </span>
                       )}
                       {/* 显示**剩余**额度而不是套餐总额 —— 经纪想知道的是「我还能打多久」,
@@ -319,15 +320,15 @@ export default function AgentBilling() {
                       {metered && callTotal !== 0 && (
                         <span className="hidden shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 sm:inline">
                           {callTotal < 0
-                            ? L('无限', 'Unlimited')
-                            : L(`剩 ${callLeft} / ${callTotal} 额度`, `${callLeft} / ${callTotal} left`)}
+                            ? t('lunaTour:unlimited3')
+                            : t('lunaTour:left2', { callLeft, callTotal })}
                         </span>
                       )}
                       <span className="w-20 shrink-0 text-right text-sm font-bold tabular-nums text-slate-900">
                         {isFree ? (
-                          <span className="text-sm font-semibold text-emerald-600">{L('免费', 'Free')}</span>
+                          <span className="text-sm font-semibold text-emerald-600">{t('lunaTour:free')}</span>
                         ) : (
-                          <>{cost} <span className="text-[11px] font-medium text-slate-400">{L('积分', 'cr')}</span></>
+                          <>{cost} <span className="text-[11px] font-medium text-slate-400">{t('lunaTour:cr')}</span></>
                         )}
                       </span>
                     </div>
@@ -344,13 +345,13 @@ export default function AgentBilling() {
           <button onClick={manage} disabled={busy === 'portal'}
             className="mt-5 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">
             {busy === 'portal' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-            {L('管理订阅 / 改套餐 / 取消', 'Manage / change plan / cancel')}
+            {t('lunaTour:manageChangePlanCancel')}
           </button>
         )}
         {onTrial && (
           <Link to="/agent/plans"
             className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
-            {L('订阅 · 积分立即恢复', 'Subscribe · credits reset now')} <ArrowUpRight className="h-4 w-4" />
+            {t('lunaTour:subscribeCreditsResetNow')} <ArrowUpRight className="h-4 w-4" />
           </Link>
         )}
       </div>
@@ -360,7 +361,7 @@ export default function AgentBilling() {
         <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06]">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Users className="h-4 w-4 text-amber-500" />
-            {L('你在 ', 'You’re on ')}<b>{team.owner?.display_name || team.owner?.email}</b>{L(' 的团队中,套餐与积分由团队共享承担。', '’s team — the plan and credits are shared across the team.')}
+            {t('lunaTour:youReOn')}<b>{team.owner?.display_name || team.owner?.email}</b>{t('lunaTour:sTeamThePlan')}
           </div>
         </div>
       )}
@@ -369,13 +370,13 @@ export default function AgentBilling() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-amber-500" />
-              <span className="font-bold text-slate-900">{L('团队席位', 'Team seats')}</span>
+              <span className="font-bold text-slate-900">{t('lunaTour:teamSeats')}</span>
               <span className="text-xs text-slate-400">
-                {1 + (team.members?.length || 0)} / {team.seatLimit} {L('席(含你自己)· 共享积分池', 'seats (incl. you) · shared credit pool')}
+                {1 + (team.members?.length || 0)} / {team.seatLimit} {t('lunaTour:seatsInclYouShared')}
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">{L('加席 $49/席/月:', 'Add seat $49/seat/mo:')}</span>
+              <span className="text-slate-400">{t('lunaTour:addSeat49Seat')}</span>
               <button onClick={() => changeSeats(Math.max(0, (team.extraSeats || 0) - 1))} disabled={busy === 'seats' || (team.extraSeats || 0) === 0}
                 className="h-6 w-6 rounded border border-slate-200 font-bold text-slate-600 disabled:opacity-40">−</button>
               <span className="w-5 text-center font-semibold">{team.extraSeats || 0}</span>
@@ -389,25 +390,25 @@ export default function AgentBilling() {
             {(team.members || []).map((m) => (
               <div key={m.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="text-slate-700">{m.display_name} <span className="text-xs text-slate-400">{m.email}</span></span>
-                <button onClick={() => removeMember(m.id)} disabled={busy === `rm-${m.id}`} title={L('移出团队', 'Remove from team')}
+                <button onClick={() => removeMember(m.id)} disabled={busy === `rm-${m.id}`} title={t('lunaTour:removeFromTeam')}
                   className="text-slate-300 transition hover:text-rose-500">
                   {busy === `rm-${m.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                 </button>
               </div>
             ))}
             {(team.members?.length || 0) === 0 && (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">{L('还没有成员 —— 邀请同事共享 15,000 积分/月和 ×0.6 折扣。', 'No members yet — invite colleagues to share 15,000 credits/mo and the ×0.6 discount.')}</div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">{t('lunaTour:noMembersYetInvite')}</div>
             )}
           </div>
           <div className="mt-3 flex gap-2">
             <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void invite() }}
-              placeholder={L('同事邮箱(登录后自动进入团队)', 'Colleague email (auto-joins on sign-in)')}
+              placeholder={t('lunaTour:colleagueEmailAutoJoins')}
               className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-emerald-400" />
             <button onClick={() => void invite()} disabled={busy === 'invite' || !inviteEmail.trim()}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-50">
               {busy === 'invite' ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {L('邀请', 'Invite')}
+              {t('lunaTour:invite')}
             </button>
           </div>
         </div>
@@ -418,11 +419,11 @@ export default function AgentBilling() {
         <Link to="/agent/plans"
           className="flex items-center justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-slate-900/[0.06] transition hover:ring-slate-300">
           <div>
-            <div className="font-semibold text-slate-900">{L('需要更多额度与功能?', 'Need more credits and features?')}</div>
-            <div className="mt-0.5 text-sm text-slate-500">{L('查看专业版 / 经纪公司版 —— 更大积分池、实时带看、Lead 优先。', 'See Pro / Agency — bigger credit pool, live tours, priority leads.')}</div>
+            <div className="font-semibold text-slate-900">{t('lunaTour:needMoreCreditsAnd')}</div>
+            <div className="mt-0.5 text-sm text-slate-500">{t('lunaTour:seeProAgencyBigger')}</div>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-            {L('查看套餐', 'View plans')} <ArrowUpRight className="h-4 w-4" />
+            {t('lunaTour:viewPlans')} <ArrowUpRight className="h-4 w-4" />
           </span>
         </Link>
       )}
