@@ -329,13 +329,66 @@ label 随 tour 语言变 → 换语言后匹配返回 undefined,导览卡的地�
 2. **后端的中文别当插值塞进译文** —— `t('filter.tag', { label })` 里的 `label` 是后端
    的中文,于是中文漏进了已经翻好的译文里。
 
-**🔲 剩余**
-- `client-profile-coach.ts` 的 wizard 问题串(~97):经纪端填画像用,面向**经纪**。
-  经纪也是多语言用户(迪拜本地经纪不都懂中文),但优先级低于客户页。
-- `auto-report.ts` / `storyboard-review.ts` 等的 AI prompt:**不用管**(prompt 用中文写、
-  模型按注入的语言输出)。
-- 阿语 `nBed` 复数:阿语 1/2/3-10 各有形态(غرفة/غرفتان/غرف),要走 i18next 的
-  `_one/_two/_few/_other`。目前统一 `{{n}} غرف نوم`。
+---
+
+# 🔲 剩余 worklist(2026-07-16 实扫,下个 session 从这儿开工)
+
+扫法(别凭记忆报数,注释会把数字虚高一个量级):
+```
+node <scratchpad>/gap.mjs      # 见下方脚本;或重写:剥注释后按「有无 useTranslation」分桶
+```
+
+## ① 面向经纪、零 i18n 的页(~130 行 / 5 文件)—— 优先级最高的剩余项
+迪拜本地经纪**不都懂中文**,这些页他们天天用:
+
+| 文件 | 行 | 路由 / 场景 |
+|---|---|---|
+| `luna-tour/pages/TourEditor.tsx` | 55 | `/agent/tour/:id/edit` 分镜编辑器 |
+| `luna-tour/pages/FactSheet.tsx` | 34 | `/factsheet/:code` 可核查事实页 |
+| `luna-tour/collab/CollabDrawToolbar.tsx` | 20 | 实时带看的画笔工具条 |
+| `components/AgentCardEditor.tsx` | 13 | 经纪名片编辑 |
+| `luna-tour/pages/GenerationProgress.tsx` | 8 | 导览生成进度 |
+
+⚠️ `TourEditor` 的 `KIND_ZH`(intro/arrival/life… → 中文)是**枚举 map**,
+按 [[三种语言模型]] 里的 ③ 处理(TourEditor 在 tour 语境内)。
+
+## ② `{zh, en}` 两语言数据表(~100 行)—— ar/ru/fr 用户看到的是**英文**
+形如 `{zh ? meta.zh : meta.en}`。**只有两版**,阿/俄/法用户全部落到英文。
+
+- `lib/amenityCategory.ts` `CATEGORY_META`(17)→ 消费方 `AmenitiesTab.tsx:48`
+- `lib/roleBadge.ts` `titleZh/titleEn`(18)→ UserMenu/ProfileShell/ProfileHome/RoleSelect
+- `pages/MapPage.tsx` `{ v:'all', zh:'全部', en:'All' }`(29)
+- `luna-tour/pages/AgentClients.tsx` `{ key:'new', label:'新客', en:'New' }`(18)
+- `lib/progress-i18n.ts`(11)
+
+> ⚠️ **这批之前被 spec 标成「数据驱动双语,有意保留」—— 那个判断要修正。**
+> 当时的理由是「codemod 转不了」,不是「不该翻」。结论:**该翻**,只是得手工
+> 把 map 的 `{zh,en}` 换成 key + 5 语言 JSON。降级不算坏(有英文兜底),
+> 但离「5 语言齐」差这一块。
+
+## ③ 错误/兜底串
+`lib/billingApi.ts`(16,`'网络错误,请重试'` 等)、`luna-tour/collab/useCollabVoice.ts`(11)、
+`pages/ProjectDetailPage.tsx` 的几个 `alert()`。走 `errText()` 范式或直接 t()。
+
+## ④ 后端经纪端问卷(~97)
+`client-profile-coach.ts` 的 wizard 问题串。面向经纪。
+
+## ⑤ 真·有意保留 —— 别去动
+- **AI prompt**(后端 ~1,400 行,大头是 `langgraph/agents/*` 的 PDF 抽取提示词):
+  中文写、模型按注入的语言输出。动它反而会伤抽取质量。
+- **owner-only 后台**(前端 526 行 / 31 文件:`components/analytics/*`、`AdminAnalytics` 等):
+  §5 决策 #2 明确后置。
+- `lib/generateProjectNotes.ts`(21):生成散文,该走后端 AI 按语言生成,不是 static t()。
+- `lib/metricPeriod.ts`(7):1M/3M/1Y 通用缩写。`lib/tt.ts`(2):helper 本体。
+- 测试夹具(`collab.test.ts` 的 `'李先生'` 等)。
+
+## ⑥ 已知细节债
+- **阿语 `nBed` 复数**:阿语 1/2/3-10 各有形态(غرفة/غرفتان/غرف),要走 i18next 的
+  `_one/_two/_few/_other`。现统一 `{{n}} غرف نوم`。
+- **`toLocaleString()` 裸调**会跟浏览器 locale 走(阿语环境可能渲染成 ١٢٣),
+  与走 `'en-US'` 的金额前后打架。迁移前就有,未统一。
+- **阿语译文全是 AI 产的,无母语校对**(§5 决策 #4 允许,但质量无人背书)。
+- 人眼未扫:VoiceAssistantButton 的 `rotate-45` 气泡尖角、导览对比卡 5 列 RTL 语序。
 
 **⚪ 有意后置 · owner-only 后台(~470 条)**
 `components/analytics/*`(12 个 tab)、`AdminAnalytics.tsx`、`PerfMonitor` 等。
