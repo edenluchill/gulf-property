@@ -1973,7 +1973,7 @@ export default function MapPage() {
                         : 'text-slate-500 hover:bg-white/70'
                     }`}
                   >
-                    {segmentLabel(seg, (i18n.language || 'en').startsWith('zh'))}
+                    {segmentLabel(seg)}
                   </button>
                 ))}
               </div>

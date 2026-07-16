@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 /**
  * 市场口径（期房/现房）前端单点配置
  * —— docs/offplan-metrics-segmentation-plan-2026-07-01.md（segment 维度）
@@ -12,11 +13,12 @@ export type MarketSegment = 'offplan' | 'ready' | 'all'
 /** 散客端默认口径（改这一行即全站切换默认） */
 export const CONSUMER_SEGMENT: MarketSegment = 'all'
 
-export function segmentLabel(seg: MarketSegment, zh: boolean): string {
-  if (seg === 'offplan') return zh ? '期房' : 'Off-plan'
-  if (seg === 'ready') return zh ? '现房' : 'Ready'
+export function segmentLabel(seg: MarketSegment): string {
+  const t = i18n.t as (k: string) => string
+  if (seg === 'offplan') return t('misc:segOffplan')
+  if (seg === 'ready') return t('misc:segReady')
   // 「综合」而非「全部」:这是期房+现房合并后的综合口径,不是"未筛选"(2026-07-05 用户定的用词)
-  return zh ? '综合' : 'All'
+  return t('misc:segAll')
 }
 
 /** 口径筛选器持久化（记住用户上次选择，跨会话） */
