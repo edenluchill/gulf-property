@@ -16,9 +16,13 @@ import type {
   TourAgent,
   TourUnit,
 } from '../types'
+import { tierLabel } from '../amenityLabel'
 import GrowthChart from './GrowthChart'
 
 type T = (k: string, o?: Record<string, unknown>) => string
+
+/** 本文件的键都在 `tourOverlay.` 下;amenityLabel 的 helper 约定收「已绑好 ns 的 t」。 */
+const scoped = (t: T): T => (k, o) => t(`tourOverlay.${k}`, o)
 
 /**
  * 户型名从 `bedrooms` 现算,不用 `unit.label`。
@@ -146,7 +150,7 @@ function OverlayItem({
                   <b style={{ color: accent }}>{p.amenity_score}</b>
                   <span>
                     {t('tourOverlay.amenityScore')}
-                    {p.amenity_tier ? ` · ${p.amenity_tier}` : ''}
+                    {tierLabel(scoped(t), p.amenity_tier) ? ` · ${tierLabel(scoped(t), p.amenity_tier)}` : ''}
                   </span>
                 </div>
               )}

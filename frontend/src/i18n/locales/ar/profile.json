@@ -1,4 +1,21 @@
 {
+  "agentCardEditor": {
+    "title": "بطاقة الوكيل",
+    "badImageType": "يرجى تحميل صورة بصيغة JPG / PNG / WEBP",
+    "uploadFailed": "فشل التحميل",
+    "saveFailed": "فشل الحفظ",
+    "uploading": "جاري التحميل…",
+    "uploadAvatar": "تحميل الصورة",
+    "name": "الاسم",
+    "namePlaceholder": "اسمك",
+    "phone": "الهاتف",
+    "whatsappPlaceholder": "971501234567 (أرقام فقط)",
+    "email": "البريد الإلكتروني (يظهر للعملاء، اختياري)",
+    "footnote": "تظهر هذه البطاقة كتوقيع على عروض المبيعات والتقارير الخاصة بك.",
+    "saved": "تم الحفظ",
+    "saving": "جاري الحفظ…",
+    "save": "حفظ"
+  },
   "tabProfile": "الملف الشخصي",
   "tabBilling": "الفواتير",
   "tabDashboard": "لوحة التحكم",

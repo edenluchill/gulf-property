@@ -1573,7 +1573,8 @@ router.post('/sessions/:id/ai-edit', requireAgent, async (req: AgentReq, res: Re
 
     const patches = await reviseWithInstruction(beats, instruction)
     if (!patches.length) {
-      return res.json({ ok: true, applied: 0, diffs: [], message: 'Luna 没找到要改的地方 —— 换个说法再试?' })
+      // message 是给日志看的中文;前端认 code 查译文(见 frontend/src/luna-tour/errText.ts)
+      return res.json({ ok: true, applied: 0, diffs: [], code: 'ai_nothing_to_change', message: 'Luna 没找到要改的地方 —— 换个说法再试?' })
     }
 
     // 撤销点
@@ -1908,7 +1909,8 @@ router.post('/sessions/:id/revise', requireAgent, async (req: AgentReq, res: Res
     const beats: { beat_id: string; narration: string }[] = []
     eachBeat(scriptRow.script, (b) => beats.push({ beat_id: b.id || '', narration: b.narration || '' }))
     const patches = await reviseNarration(beats, cmtRes.rows)
-    if (!patches.length) return res.json({ ok: true, applied: 0, message: 'AI 未产生改动,可换种说法再试' })
+    // 同上:code 决定前端显示什么,message 只进日志
+    if (!patches.length) return res.json({ ok: true, applied: 0, code: 'ai_no_changes', message: 'AI 未产生改动,可换种说法再试' })
 
     // snapshot the current script for undo
     await pool.query(

@@ -233,9 +233,19 @@ export interface PropertySnapshot {
     payback_years?: number
   }
   amenity_score?: number
+  /**
+   * 档位 **code**(`excellent|good|fair|remote`,见后端 AmenityTier)。
+   * 类型是 string 因为**历史 session 的 jsonb 里是中文**('优秀'…)—— 认不出 code 就原样显示。
+   * 渲染走 `tierLabel()`,别直接显示。
+   */
   amenity_tier?: string
-  /** label = 展示文案(随 tour 语言变,只用来显示);cat = 结构化品类,判断请用它。 */
-  distances?: { label: string; cat?: TourAmenityCat; to: LngLat; distance_km: number; placeholder?: boolean }[]
+  /**
+   * cat + name 是**结构化真值**,按语言拼展示文案请用它俩。
+   * `label` 是后端拼死的**中文**(只有 zh 一个分支)—— @deprecated,只为历史 session 保留。
+   * `name` 已过地名防线:不是本语言的专名 = null → 只说品类。
+   */
+  distances?: { label: string; cat?: TourAmenityCat; name?: string | null; to: LngLat; distance_km: number; placeholder?: boolean }[]
+  /** 中文品类词,**只喂后端 prompt,前端从不显示** —— 要显示走 distances 的 cat。 */
   amenities?: { label: string; distance_km: number; placeholder?: boolean }[]
   /** 真实户型(按卧室数聚合)。没有户型数据的项目整个字段缺席 —— 那就不讲这一拍。 */
   units?: TourUnit[]
@@ -259,7 +269,13 @@ export interface AreaStats {
 /** 一个户型(按卧室数聚合)。客户要买的是户型,不是「项目」。 */
 export interface TourUnit {
   bedrooms: number
-  label: string
+  /**
+   * @deprecated 后端(TourPropertyUnit)**早已不产这个字段**,这里的必填 `string` 是
+   * 手抄类型没跟上后端删字段 —— tsc 不报错,页面才空白(FactSheet 的户型行栽过)。
+   * 仍留 optional 只因 DB 历史 session 的 jsonb 里还有值。
+   * 要显示户型名请从 `bedrooms` 现算(见 OverlayLayer.unitLabel)。
+   */
+  label?: string
   variants: number
   area_sqft?: number
   price_from?: number

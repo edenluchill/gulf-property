@@ -77,8 +77,11 @@ function propertyFacts(p: TourProperty): string {
   }
   if (p.distances?.length) {
     for (const d of p.distances) {
+      // cat + name 是结构化真值;`label` 只有历史 session 才有(那是拼死的中文)。
+      // name 已过地名防线 —— 没有就是「不能给这个语言的客户看」,别硬塞回去。
+      const what = d.cat ? (d.name ? `${d.cat} (${d.name})` : d.cat) : d.label
       lines.push(
-        `  distance: "${d.label}" = ${d.distance_km} km, to [${d.to[0]}, ${d.to[1]}]` +
+        `  distance: "${what}" = ${d.distance_km} km, to [${d.to[0]}, ${d.to[1]}]` +
           `${d.placeholder ? ' [PLACEHOLDER — approximate, do not state as exact]' : ''}`
       )
     }

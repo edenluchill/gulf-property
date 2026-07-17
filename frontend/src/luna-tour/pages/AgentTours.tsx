@@ -1184,7 +1184,7 @@ function FlowToggle({
       const r = await lunaFetch(`/sessions/${sessionId}/revise`, { method: 'POST' })
       const d = await r.json()
       if (!r.ok) setMsg(`❌ ${errText(d, 'lunaTour:revisionFailed')}`)
-      else if (!d.applied) setMsg(`ℹ️ ${d.message || t('lunaTour:aiMadeNoChanges')}`)
+      else if (!d.applied) setMsg(`ℹ️ ${errText(d, 'lunaTour:aiMadeNoChanges')}`)
       else {
         setComments({})
         await reload()

@@ -1,0 +1,65 @@
+{
+  "amenityCat": {
+    "metro_station": "Métro",
+    "school": "École",
+    "mall": "Centre commercial",
+    "hospital": "Hôpital",
+    "supermarket": "Supermarché"
+  },
+  "amenityTier": {
+    "excellent": "Excellent",
+    "good": "Bon",
+    "fair": "Moyen",
+    "remote": "Éloigné"
+  },
+  "amenityCatNamed": "{{cat}} ({{name}})",
+  "notFound": "Visite introuvable",
+  "networkError": "Erreur réseau",
+  "generating": "Génération de la fiche technique…",
+  "print": "Imprimer / enregistrer en PDF",
+  "byline": "Fiche technique Luna — chaque chiffre est vérifiable",
+  "dataAsOf": "Données au {{date}}",
+  "priceFrom": "Prix (à partir de)",
+  "amenityScore": "Score d'équipements",
+  "noData": "Cette zone ne dispose pas encore de suffisamment de données publiques sur les transactions ou les commodités (courant pour les nouveaux projets). Nous ne complétons pas avec des estimations : nous préférons en dire moins plutôt que d'inventer.",
+  "units": {
+    "title": "Configurations disponibles (tableau des unités réelles)",
+    "studio": "Studio",
+    "nBed": "{{n}} ch.",
+    "variants": "{{n}} types",
+    "sqftFrom": "à partir de {{n}} sqft",
+    "priceFrom": "à partir de {{price}}"
+  },
+  "neighbors": {
+    "title": "Ici vs quartier voisin (même secteur)",
+    "area": "Quartier",
+    "cols": "Croissance · rendement · prix/m² · ventes annuelles",
+    "source": "Source : Dubai Land Department (12 derniers mois) · les prix sont des médianes"
+  },
+  "invest": {
+    "title": "Perspectives d'investissement ({{years}} ans)",
+    "buy": "Achat",
+    "future": "Valeur projetée",
+    "growth": "Croissance",
+    "yield": "Rendement locatif de référence",
+    "thisYear": "Cette année",
+    "inYears": "Dans {{years}} ans",
+    "disclaimer": "Les chiffres d'investissement sont des estimations basées sur des hypothèses de référence, et non des rendements garantis."
+  },
+  "nearby": {
+    "title": "Commodités réelles à proximité (distances mesurées sur la carte)"
+  },
+  "evidence": {
+    "title": "Transactions réelles constatées ({{granularity}} · {{scope}})",
+    "thisProject": "ce projet",
+    "thisArea": "ce quartier",
+    "window": "Ventes des {{days}} derniers jours",
+    "deals": "{{n}} unités",
+    "medianPsf": "Prix médian",
+    "comparables": "Ventes comparables récentes",
+    "offplan": "sur plan",
+    "source": "Source : {{label}} (au {{asOf}})",
+    "verify": "Vérifier"
+  },
+  "footer": "Généré par Luna · distances des commodités mesurées sur la carte · données de transaction issues des registres publics du Dubai Land Department (DLD) · contactez votre agent {{agent}}"
+}

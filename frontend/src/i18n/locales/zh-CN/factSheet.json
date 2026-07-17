@@ -1,0 +1,65 @@
+{
+  "notFound": "未找到该导览",
+  "networkError": "网络错误",
+  "generating": "正在生成事实清单…",
+  "print": "打印 / 存 PDF",
+  "byline": "Luna 事实清单 —— 所有数据可核验",
+  "dataAsOf": "数据截至 {{date}}",
+  "priceFrom": "价格(起)",
+  "amenityScore": "便利度评分",
+  "noData": "这个区域目前还没有足够的公开成交与配套数据(新开发区常见)。我们不会用估算把它填满 —— 宁可少说,也不编。",
+  "units": {
+    "title": "可选户型(真实户型表)",
+    "studio": "开间",
+    "nBed": "{{n}} 房",
+    "variants": "{{n}} 种",
+    "sqftFrom": "{{n}} 尺起",
+    "priceFrom": "{{price}} 起"
+  },
+  "neighbors": {
+    "title": "这里 vs 隔壁(同样的地段)",
+    "area": "区域",
+    "cols": "涨幅 · 回报 · 单价/㎡ · 年成交",
+    "source": "来源:Dubai Land Department(近 12 个月)· 单价为中位数"
+  },
+  "invest": {
+    "title": "投资展望({{years}} 年)",
+    "buy": "买入",
+    "future": "预测价值",
+    "growth": "增长",
+    "yield": "参考租金回报",
+    "thisYear": "今年",
+    "inYears": "{{years}} 年后",
+    "disclaimer": "投资数字为基于参考假设的估算,非保证回报。"
+  },
+  "nearby": {
+    "title": "周边真实配套(地图实测距离)"
+  },
+  "evidence": {
+    "title": "真实成交证据({{granularity}} · {{scope}})",
+    "thisProject": "本楼盘",
+    "thisArea": "本区域",
+    "window": "近 {{days}} 天成交",
+    "deals": "{{n}} 套",
+    "medianPsf": "中位价",
+    "comparables": "最近可比成交",
+    "offplan": "期房",
+    "source": "来源:{{label}}(截至 {{asOf}})",
+    "verify": "核验"
+  },
+  "footer": "由 Luna 生成 · 配套距离来自地图实测 · 成交数据来自迪拜土地局(DLD)公开记录 · 联系经纪 {{agent}}",
+  "amenityCat": {
+    "metro_station": "地铁",
+    "school": "学校",
+    "mall": "商场",
+    "hospital": "医院",
+    "supermarket": "超市"
+  },
+  "amenityTier": {
+    "excellent": "优秀",
+    "good": "良好",
+    "fair": "一般",
+    "remote": "偏远"
+  },
+  "amenityCatNamed": "{{cat}}（{{name}}）"
+}

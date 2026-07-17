@@ -62,5 +62,22 @@
   "statusPastDue": "续费失败",
   "statusCanceled": "已取消",
   "projectsSuffix": "个项目",
-  "favWithSaves": " · {{n}} 条收藏"
+  "favWithSaves": " · {{n}} 条收藏",
+  "agentCardEditor": {
+    "title": "经纪名片",
+    "badImageType": "请上传 JPG / PNG / WEBP 图片",
+    "uploadFailed": "上传失败",
+    "saveFailed": "保存失败",
+    "uploading": "上传中…",
+    "uploadAvatar": "上传头像",
+    "name": "姓名",
+    "namePlaceholder": "您的姓名",
+    "phone": "电话",
+    "whatsappPlaceholder": "971501234567(只数字)",
+    "email": "邮箱(展示给客户,可空)",
+    "footnote": "这张名片会作为落款出现在你的 Sales Offer 报价单与品牌报告上。",
+    "saved": "已保存",
+    "saving": "保存中…",
+    "save": "保存"
+  }
 }

@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X, Upload, Loader2, Check } from 'lucide-react'
 import { lunaFetch } from '../luna-tour/lunaApi'
+import { errText } from '../luna-tour/errText'
 
 /** Modal: the agent's brand card — avatar upload + name/phone/whatsapp. */
 export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
+  const { t: tRaw } = useTranslation('profile')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
@@ -24,7 +28,7 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert('请上传 JPG / PNG / WEBP 图片'); return }
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert(t('agentCardEditor.badImageType')); return }
     setUploading(true)
     try {
       const fd = new FormData()
@@ -32,8 +36,8 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
       const r = await lunaFetch('/avatar', { method: 'POST', body: fd })
       const j = await r.json()
       if (j?.photoUrl) setPhoto(`${j.photoUrl}?t=${Date.now()}`)
-      else alert('上传失败')
-    } catch { alert('上传失败') } finally { setUploading(false) }
+      else alert(errText(j, 'profile:agentCardEditor.uploadFailed'))
+    } catch { alert(t('agentCardEditor.uploadFailed')) } finally { setUploading(false) }
   }
 
   const save = async () => {
@@ -44,16 +48,16 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ display_name: name, phone, whatsapp, public_email: email }),
       })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) { alert(j?.error || '保存失败'); return }
+      if (!r.ok) { alert(errText(j, 'profile:agentCardEditor.saveFailed')); return }
       setSaved(true); setTimeout(onClose, 700)
-    } catch { alert('保存失败') } finally { setSaving(false) }
+    } catch { alert(t('agentCardEditor.saveFailed')) } finally { setSaving(false) }
   }
 
   return (
     <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900">经纪名片</h3>
+          <h3 className="text-base font-bold text-slate-900">{t('agentCardEditor.title')}</h3>
           <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
 
@@ -67,23 +71,23 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
               {uploading ? <Loader2 className="h-6 w-6 animate-spin text-white" /> : <Upload className="h-6 w-6 text-white" />}
             </div>
           </button>
-          <button onClick={() => fileRef.current?.click()} className="text-xs font-medium text-teal-600">{uploading ? '上传中…' : '上传头像'}</button>
+          <button onClick={() => fileRef.current?.click()} className="text-xs font-medium text-teal-600">{uploading ? t('agentCardEditor.uploading') : t('agentCardEditor.uploadAvatar')}</button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={onPick} />
         </div>
 
         {/* Fields */}
         <div className="space-y-2.5">
-          <Field label="姓名" value={name} onChange={setName} placeholder="您的姓名" />
-          <Field label="电话" value={phone} onChange={setPhone} placeholder="+971 50 123 4567" />
-          <Field label="WhatsApp" value={whatsapp} onChange={setWhatsapp} placeholder="971501234567（只数字）" />
-          <Field label="邮箱（展示给客户,可空）" value={email} onChange={setEmail} placeholder="you@agency.com" />
+          <Field label={t('agentCardEditor.name')} value={name} onChange={setName} placeholder={t('agentCardEditor.namePlaceholder')} />
+          <Field label={t('agentCardEditor.phone')} value={phone} onChange={setPhone} placeholder="+971 50 123 4567" />
+          <Field label="WhatsApp" value={whatsapp} onChange={setWhatsapp} placeholder={t('agentCardEditor.whatsappPlaceholder')} />
+          <Field label={t('agentCardEditor.email')} value={email} onChange={setEmail} placeholder="you@agency.com" />
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-          这张名片会作为落款出现在你的 Sales Offer 报价单与品牌报告上。
+          {t('agentCardEditor.footnote')}
         </p>
 
         <button onClick={save} disabled={saving} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 py-2.5 font-semibold text-white hover:bg-teal-600 disabled:opacity-60">
-          {saved ? <><Check className="h-4 w-4" />已保存</> : saving ? '保存中…' : '保存'}
+          {saved ? <><Check className="h-4 w-4" />{t('agentCardEditor.saved')}</> : saving ? t('agentCardEditor.saving') : t('agentCardEditor.save')}
         </button>
       </div>
     </div>

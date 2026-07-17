@@ -338,19 +338,74 @@ label 随 tour 语言变 → 换语言后匹配返回 undefined,导览卡的地�
 node <scratchpad>/gap.mjs      # 见下方脚本;或重写:剥注释后按「有无 useTranslation」分桶
 ```
 
-## ① 面向经纪、零 i18n 的页(~130 行 / 5 文件)—— 优先级最高的剩余项
-迪拜本地经纪**不都懂中文**,这些页他们天天用:
+## ✅ ① 面向经纪、零 i18n 的页 —— **已完成(2026-07-16)**
 
-| 文件 | 行 | 路由 / 场景 |
+5 个文件全部迁完,`tsc 0 / build 0`,**143 个引用键 × 5 语言逐一验证命中**
+(含 6 个 `kind` / 3 个 `camera` / 3 个 `gen.stage` 运行时拼的动态键 —— 正则抓不到,
+手工枚举断言了)。
+
+| 文件 | ns | 语言模型 |
 |---|---|---|
-| `luna-tour/pages/TourEditor.tsx` | 55 | `/agent/tour/:id/edit` 分镜编辑器 |
-| `luna-tour/pages/FactSheet.tsx` | 34 | `/factsheet/:code` 可核查事实页 |
-| `luna-tour/collab/CollabDrawToolbar.tsx` | 20 | 实时带看的画笔工具条 |
-| `components/AgentCardEditor.tsx` | 13 | 经纪名片编辑 |
-| `luna-tour/pages/GenerationProgress.tsx` | 8 | 导览生成进度 |
+| `TourEditor.tsx` | `lunaTour:editor.*`(58 键) | ③ 跟 UI |
+| `GenerationProgress.tsx` | `lunaTour:gen.*` | ③ 跟 UI |
+| `CollabDrawToolbar.tsx` | `lunaTour:draw.*` | ③ 跟 UI |
+| `AgentCardEditor.tsx` | `profile:agentCardEditor.*` | ③ 跟 UI |
+| `FactSheet.tsx` | **新 `factSheet` ns**(39 键) | **① 锁 lang** |
 
-⚠️ `TourEditor` 的 `KIND_ZH`(intro/arrival/life… → 中文)是**枚举 map**,
-按 [[三种语言模型]] 里的 ③ 处理(TourEditor 在 tour 语境内)。
+**⭐ FactSheet 的归类要改**:spec 原来把它算作「面向经纪」,但 `/factsheet/:code` 是
+经纪**递给客户**的可核查文档,payload 里本来就有 `language`。跟 UI 语言走 = 中文导览的
+清单被英文浏览器打开变英文 —— 就是 ClientReportPage 那条教训。已按模型 ① 处理:
+`getFixedT(data.language)` + **容器级 `dir`**(`<html dir>` 跟的是 UI 语言,挡不住)。
+
+`KIND_ZH` 按预定的模型 ③ 处理:map 删掉,改 `KINDS` Set + `t('editor.kind.<k>')`,
+未知 kind 回退裸值(而不是渲染空白)。
+
+### 🔴 这轮踩到的四个坑(比 i18n 本身值钱)
+
+1. **`profile` ns 里 `agentCard` 撞名 —— 静默毁掉一个在用的键。**
+   profile 本来就有扁平键 `agentCard: "Agent card"`(`ProfileHome.tsx:160` 在渲染它)。
+   我加了个 `agentCard.*` 组 → 深合并把那个字符串**冲成了对象**;
+   更隐蔽的是 `i18n-translate --missing` 的 `unflatten({...gotFlat, ...existingFlat})`:
+   扁平键 `agentCard` 排在 `agentCard.title` 后面 → **把刚翻好的对象覆盖成字符串**,
+   而校验只比对 key 存不存在,**一句警告都不报**。
+   已改名 `agentCardEditor.*`。**加组名前先确认同名扁平键不存在。**
+2. **`TourUnit.label` 是「手抄类型没跟上后端」的现行案例**(即下方教训 #1)。
+   后端 `TourPropertyUnit.label` 早已 `@deprecated` 不再产,前端类型仍写着必填 `string`
+   → **tsc 不报错,FactSheet 的户型行对新导览直接渲染空白**。
+   已把前端类型改 optional + `@deprecated`,户型名改从 `bedrooms` 现算
+   (`units.studio` / `units.nBed`,同 OverlayLayer 范式)。
+3. **`d.message` 上还有三处「反向影子」** —— 批 0 只堵了 `d.error`。
+   `AiEditPanel:101` / `AgentTours:1187` / `TourEditor:217` 全是
+   `d.message || t(...)`,后端一送中文 message 就短路。
+   已给两个端点补 `code`(`ai_no_changes` / `ai_nothing_to_change`)+ 三处改走 `errText()`。
+   **教训:反向影子不只长在 `error` 字段上,任何「后端送人话 + `||` 兜底」都是。**
+4. **翻完标签,数据行仍是中文** —— 见下方 ⑦。
+
+### 🔧 新工具:`frontend/scripts/i18n-key-check.mjs` —— **加键改键必跑**
+
+`node scripts/i18n-key-check.mjs` —— 扫全站 `t()` 静态键,断言**每个键在 5 语言里
+都解析得出字符串**。i18next 找不到译文时**不报错、原样把 key 吐到界面上**,tsc 也拦不住
+(动态键全 cast 成 string)—— 这类 bug 只有真人在那个语言下走到那个分支才看得见。
+现状:**1942 键 × 5 语言全绿**。
+
+它当场抓到一个真 bug:`AgentReport.tsx:234` 的 `t('lunaTour:reportLang')` **键根本不存在**
+→ 报告语言下拉的标签在 5 种语言下**都显示字面量「lunaTour:reportLang」**。
+(是 P0 那批加的,人眼扫图扫过去了。)已补键。
+
+**写这个工具时自己踩的假阳性,规则里都得放过**(三轮才收敛到 0):
+- **复数键**:传 `{count}` 时 i18next 查 `key_one`/`key_other`(阿语还有 `_zero/_two/_few/_many`),
+  裸 `key` 本就不存在 → 第一版报了 **115 处全是假的**。
+  *整齐的 100% 失败 = 规则错了,不是数据错了。*
+- **默认值**:`t('k','Default')` / `t('k',{defaultValue:'x'})` 缺键也不露 key(但 ar/ru/fr 会看到英文 —— 属降级,不属裸键)。
+- **注释里的示例**:`// 走 t('compare:yieldVsArea.KEY')` 是文档不是调用 → 必须先剥注释。
+- **动态键是盲区**:`t(\`editor.kind.${k}\`)` 正则抓不到 → 脚本里 `DYNAMIC` 手工枚举。**加动态键就来补一条。**
+
+### ⚠️ 未做:rtl-audit 够不着这批页
+`rtl-audit.mjs` 要能匿名打开 URL;这 5 个页要登录 / 真实 session / share code。
+裸键这条主要坏法由上面的 key-check 兜住了,但**横向溢出/版面**没自动验过 ——
+TourEditor 的时间线值得人眼看一眼(它靠 inline `left: start*px` 定位,
+**整条时间线在 RTL 下不镜像**,这是有意的:`←/→` 移动按钮的文案已按
+「前移/后移」写,不按左/右)。
 
 ## ② `{zh, en}` 两语言数据表(~100 行)—— ar/ru/fr 用户看到的是**英文**
 形如 `{zh ? meta.zh : meta.en}`。**只有两版**,阿/俄/法用户全部落到英文。
@@ -372,6 +427,28 @@ node <scratchpad>/gap.mjs      # 见下方脚本;或重写:剥注释后按「有
 
 ## ④ 后端经纪端问卷(~97)
 `client-profile-coach.ts` 的 wizard 问题串。面向经纪。
+
+## ⑦ 🔴 tour 快照里烤死的中文(桶① 挖出来的,归轨道 B)—— **翻了标签也没用**
+
+`session-builder.ts` 把**中文**写进 `lt_session_properties.snapshot` 的 jsonb,
+于是英/阿/俄/法的导览里,数据行照样是中文。FactSheet 和 OverlayLayer 都中招:
+
+| 位置 | 现状 | 后果 |
+|---|---|---|
+| `session-builder.ts:117` | `label = \`${s.emoji} ${s.zh}（${name}）\`` | `AMENITY_SPECS` **只有 `zh` 一个分支** → 阿语导览的配套行写着「🚇 地铁」 |
+| `session-builder.ts:62` | `tierOf()` 返回 `优秀/良好/一般/偏远` | `amenity_tier` 直接显示在 FactSheet / OverlayLayer |
+
+**这不是漏翻,是把展示文案当数据存**(同 `distances[].cat` 那个 bug 的病根)。
+正解照抄 `cat` 的范式 —— 后端送**结构化真值**,前端 t():
+- `distances.push({ cat, name: nameUsable(hit.name, lang) ? hit.name : null, ... })`
+  → 前端按 `cat` 出品类词、`name` 有才拼专名。`label` 保留兜底(**DB 历史 session
+  的 jsonb 里只有 label**,不留兜底就是修一个 bug 造一个 —— 同 `cat` 那次)。
+- `tierOf()` 返回 code(`excellent/good/fair/remote`);两个展示点 t(),
+  AI prompt(`tour-generator.ts:70`)吃 code 无妨。历史 session 的中文 tier
+  认不出 code → 原样显示。
+
+⚠️ 动这里**必须**:`quick-deploy.ps1` → `backend/scripts/tour-e2e.ts` 跑分
+(24 条内容体检,见 CLAUDE.md)。桶① 没做它就是因为这条链子比 i18n 长得多。
 
 ## ⑤ 真·有意保留 —— 别去动
 - **AI prompt**(后端 ~1,400 行,大头是 `langgraph/agents/*` 的 PDF 抽取提示词):

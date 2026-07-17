@@ -11,8 +11,21 @@
  */
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import i18n from '../../i18n'
 import { API_BASE_URL } from '../../lib/config'
+import { distanceLabel, tierLabel } from '../amenityLabel'
 import type { WatchPayload, MarketEvidence, PropertySnapshot } from '../types'
+
+type TFn = (k: string, o?: Record<string, unknown>) => string
+
+/**
+ * 事实清单是**经纪递给客户的文档**,不是经纪自己的工作台:正文(旁白/配套 label/
+ * 免责声明)是生成 tour 那一刻按 `payload.language` 写好并存库的。所以标签必须锁同一
+ * 语言(getFixedT 非响应式)—— 跟浏览者 UI 语言走的话,中文导览的清单被英文浏览器打开
+ * 会变成「英文标签 + 中文数据行」。同 ClientReportPage 的范式。
+ */
+const docNs = (lang: string): TFn =>
+  (i18n.getFixedT as (l: string, ns: string) => TFn)(!lang || lang === 'zh' ? 'zh-CN' : lang, 'factSheet')
 
 function fmtAed(n?: number): string {
   if (n == null) return '—'
@@ -20,6 +33,10 @@ function fmtAed(n?: number): string {
   if (n >= 1000) return `AED ${(n / 1000).toFixed(0)}K`
   return `AED ${n}`
 }
+
+/** 户型名从 bedrooms 现算 —— 后端的 `unit.label` 已废弃(见 types.TourUnit)。 */
+const unitLabel = (t: TFn, bedrooms: number): string =>
+  bedrooms === 0 ? t('units.studio') : t('units.nBed', { n: bedrooms })
 
 export default function FactSheet() {
   const { code } = useParams<{ code: string }>()
@@ -34,7 +51,7 @@ export default function FactSheet() {
       try {
         const r = await fetch(`${API_BASE_URL}/api/luna/public/v/${encodeURIComponent(code)}`)
         if (!r.ok) {
-          if (alive) setErr('未找到该导览')
+          if (alive) setErr('notFound')
           return
         }
         const d = (await r.json()) as WatchPayload
@@ -57,7 +74,7 @@ export default function FactSheet() {
           }
         })
       } catch {
-        if (alive) setErr('网络错误')
+        if (alive) setErr('networkError')
       }
     })()
     return () => {
@@ -65,11 +82,23 @@ export default function FactSheet() {
     }
   }, [code])
 
-  if (err) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>{err}</div>
-  if (!data) return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>正在生成事实清单…</div>
+  // 加载/错误态还没有 payload → 没有文档语言可锁,只能跟浏览者 UI 语言。
+  if (err) {
+    const tUi = docNs(i18n.language || 'en')
+    return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>{tUi(err)}</div>
+  }
+  if (!data) {
+    const tUi = docNs(i18n.language || 'en')
+    return <div style={{ padding: 40, fontFamily: 'sans-serif' }}>{tUi('generating')}</div>
+  }
+
+  const lang = data.language || 'zh'
+  const t = docNs(lang)
 
   return (
-    <div className="fs-scroll">
+    // <html dir> 跟的是 UI 语言 → 英文 UI 打开阿语清单会「正文阿语、版面 LTR」。
+    // 文档自己的方向必须由文档语言决定。
+    <div className="fs-scroll" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
     <div className="fs-root">
       <style>{`
         /* 🔴 **必须自己滚。**
@@ -103,11 +132,11 @@ export default function FactSheet() {
           .fs-card { break-inside: avoid; }
         }
       `}</style>
-      <button className="fs-print" onClick={() => window.print()}>🖨 打印 / 存 PDF</button>
+      <button className="fs-print" onClick={() => window.print()}>🖨 {t('print')}</button>
       <div className="fs-h1">{data.session.title}</div>
       <div className="fs-sub">
-        {data.agent.name} · Luna 事实清单 — 所有数据可核验
-        {data.session.data_as_of ? ` · 数据截至 ${data.session.data_as_of}` : ''}
+        {data.agent.name} · {t('byline')}
+        {data.session.data_as_of ? ` · ${t('dataAsOf', { date: data.session.data_as_of })}` : ''}
       </div>
 
       {data.properties.map((p) => {
@@ -121,8 +150,8 @@ export default function FactSheet() {
               {[s.area, s.developer, s.status].filter(Boolean).join(' · ')}
             </div>
             <div className="fs-grid">
-              <div>价格(起): <b>{fmtAed(s.min_price)}</b></div>
-              {s.amenity_score != null && <div>便利度评分: <b>{s.amenity_score}/100{s.amenity_tier ? ` (${s.amenity_tier})` : ''}</b></div>}
+              <div>{t('priceFrom')}: <b>{fmtAed(s.min_price)}</b></div>
+              {s.amenity_score != null && <div>{t('amenityScore')}: <b>{s.amenity_score}/100{tierLabel(t, s.amenity_tier) ? ` (${tierLabel(t, s.amenity_tier)})` : ''}</b></div>}
             </div>
 
             {/**
@@ -137,22 +166,21 @@ export default function FactSheet() {
               */}
             {!s.investment && !s.distances?.length && !ev && (
               <div className="fs-disc" style={{ marginTop: 10 }}>
-                这个区域目前还没有足够的公开成交与配套数据（新开发区常见）。
-                我们**不会**用估算把它填满 —— 宁可少说，也不编。
+                {t('noData')}
               </div>
             )}
 
             {/* 户型 —— 客户真正要买的东西。数据一直都在，只是这张表没展示。 */}
             {s.units && s.units.length > 0 && (
               <>
-                <div className="fs-sec">可选户型（真实户型表）</div>
+                <div className="fs-sec">{t('units.title')}</div>
                 {s.units.map((u) => (
                   <div className="fs-row" key={u.bedrooms}>
-                    <span>{u.label}{u.variants > 1 ? ` · ${u.variants} 种` : ''}</span>
+                    <span>{unitLabel(t, u.bedrooms)}{u.variants > 1 ? ` · ${t('units.variants', { n: u.variants })}` : ''}</span>
                     <b>
-                      {u.area_sqft ? `${u.area_sqft.toLocaleString()} 尺起` : ''}
+                      {u.area_sqft ? t('units.sqftFrom', { n: u.area_sqft.toLocaleString('en-US') }) : ''}
                       {u.area_sqft && u.price_from ? ' · ' : ''}
-                      {u.price_from ? `${fmtAed(u.price_from)} 起` : ''}
+                      {u.price_from ? t('units.priceFrom', { price: fmtAed(u.price_from) }) : ''}
                     </b>
                   </div>
                 ))}
@@ -162,10 +190,10 @@ export default function FactSheet() {
             {/* 邻区对比 —— 「为什么是这里,而不是走路 5 分钟外的那个区」 */}
             {s.area_context && s.area_context.neighbors.length > 0 && (
               <>
-                <div className="fs-sec">这里 vs 隔壁（同样的地段）</div>
+                <div className="fs-sec">{t('neighbors.title')}</div>
                 <div className="fs-row" style={{ color: '#6b7280' }}>
-                  <span>区域</span>
-                  <span>涨幅 · 回报 · 单价/㎡ · 年成交</span>
+                  <span>{t('neighbors.area')}</span>
+                  <span>{t('neighbors.cols')}</span>
                 </div>
                 {[{ ...s.area_context.self, self: true }, ...s.area_context.neighbors.slice(0, 3)].map((n) => (
                   <div className="fs-row" key={n.name}>
@@ -180,18 +208,18 @@ export default function FactSheet() {
                     {s.area_context.weakness.claim} {s.area_context.weakness.rebuttal}
                   </div>
                 )}
-                <div className="fs-src">来源：Dubai Land Department（近 12 个月）· 单价为中位数</div>
+                <div className="fs-src">{t('neighbors.source')}</div>
               </>
             )}
 
             {s.investment && (
               <>
-                <div className="fs-sec">投资展望（{s.investment.years} 年）</div>
+                <div className="fs-sec">{t('invest.title', { years: s.investment.years })}</div>
                 <div className="fs-grid">
-                  <div>买入: <b>{fmtAed(s.investment.buy)}</b></div>
-                  <div>预测价值: <b>{fmtAed(s.investment.future)}</b></div>
-                  <div>增长: <b>+{s.investment.growth_pct}%</b></div>
-                  {s.investment.yield_pct != null && <div>参考租金回报: <b>~{s.investment.yield_pct}%</b></div>}
+                  <div>{t('invest.buy')}: <b>{fmtAed(s.investment.buy)}</b></div>
+                  <div>{t('invest.future')}: <b>{fmtAed(s.investment.future)}</b></div>
+                  <div>{t('invest.growth')}: <b>+{s.investment.growth_pct}%</b></div>
+                  {s.investment.yield_pct != null && <div>{t('invest.yield')}: <b>~{s.investment.yield_pct}%</b></div>}
                 </div>
                 {/* 涨幅图 —— 一条线胜过四个数字 */}
                 <div className="fs-chart">
@@ -207,20 +235,20 @@ export default function FactSheet() {
                     <circle cx="320" cy="8" r="3.5" fill="#0d9488" />
                   </svg>
                   <div className="fs-chart-axis">
-                    <span>今年 · {fmtAed(s.investment.buy)}</span>
-                    <span>{s.investment.years} 年后 · {fmtAed(s.investment.future)}</span>
+                    <span>{t('invest.thisYear')} · {fmtAed(s.investment.buy)}</span>
+                    <span>{t('invest.inYears', { years: s.investment.years })} · {fmtAed(s.investment.future)}</span>
                   </div>
                 </div>
-                <div className="fs-disc">投资数字为基于参考假设的估算,非保证回报。</div>
+                <div className="fs-disc">{t('invest.disclaimer')}</div>
               </>
             )}
 
             {s.distances && s.distances.length > 0 && (
               <>
-                <div className="fs-sec">周边真实配套(地图实测距离)</div>
+                <div className="fs-sec">{t('nearby.title')}</div>
                 {s.distances.map((d, i) => (
                   <div className="fs-row" key={i}>
-                    <span>{d.label}</span>
+                    <span>{distanceLabel(t, d)}</span>
                     <b>{d.distance_km} km</b>
                   </div>
                 ))}
@@ -229,24 +257,24 @@ export default function FactSheet() {
 
             {ev && (
               <>
-                <div className="fs-sec">真实成交证据（{ev.granularity === 'project' ? '本楼盘' : '本区域'} · {ev.scope}）</div>
+                <div className="fs-sec">{t('evidence.title', { granularity: ev.granularity === 'project' ? t('evidence.thisProject') : t('evidence.thisArea'), scope: ev.scope })}</div>
                 <div className="fs-grid">
-                  <div>近 {ev.window_days} 天成交: <b>{ev.volume} 套</b></div>
-                  {ev.median_psf != null && <div>中位价: <b>{ev.median_psf.toLocaleString()} AED/sqft</b></div>}
+                  <div>{t('evidence.window', { days: ev.window_days })}: <b>{t('evidence.deals', { n: ev.volume })}</b></div>
+                  {ev.median_psf != null && <div>{t('evidence.medianPsf')}: <b>{ev.median_psf.toLocaleString('en-US')} AED/sqft</b></div>}
                 </div>
                 {ev.comparables.length > 0 && (
                   <>
-                    <div className="fs-row" style={{ color: '#6b7280', marginTop: 6 }}><span>最近可比成交</span><span></span></div>
+                    <div className="fs-row" style={{ color: '#6b7280', marginTop: 6 }}><span>{t('evidence.comparables')}</span><span></span></div>
                     {ev.comparables.map((c, i) => (
                       <div className="fs-row" key={i}>
-                        <span>{c.date} · {c.rooms || '—'}{c.is_offplan ? ' · 期房' : ''}</span>
-                        <b>{fmtAed(c.worth)} · {c.psf.toLocaleString()}/sqft</b>
+                        <span>{c.date} · {c.rooms || '—'}{c.is_offplan ? ` · ${t('evidence.offplan')}` : ''}</span>
+                        <b>{fmtAed(c.worth)} · {c.psf.toLocaleString('en-US')}/sqft</b>
                       </div>
                     ))}
                   </>
                 )}
                 <div className="fs-src">
-                  来源:{ev.source.label}（截至 {ev.source.as_of}） · <a href={ev.source.url} target="_blank" rel="noreferrer">核验 →</a>
+                  {t('evidence.source', { label: ev.source.label, asOf: ev.source.as_of })} · <a href={ev.source.url} target="_blank" rel="noreferrer">{t('evidence.verify')} →</a>
                 </div>
                 <div className="fs-disc">{ev.disclaimer}</div>
               </>
@@ -256,7 +284,7 @@ export default function FactSheet() {
       })}
 
       <div className="fs-foot">
-        由 Luna 生成 · 配套距离来自地图实测 · 成交数据来自迪拜土地局(DLD)公开记录 · 联系经纪 {data.agent.name}
+        {t('footer', { agent: data.agent.name })}
         {data.agent.phone ? ` · ${data.agent.phone}` : ''}
       </div>
     </div>

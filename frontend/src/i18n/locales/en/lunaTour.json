@@ -486,7 +486,9 @@
     "profile_or_brief_required": "Add a client profile or a one-line brief first.",
     "rate_limited": "Easy there — try again in 5 seconds.",
     "subscription_required": "Sales Offer is a subscriber feature — pick a plan to unlock it.",
-    "upload_rejected": "No file, or the type/size isn't supported (video/image, ≤60MB)."
+    "upload_rejected": "No file, or the type/size isn't supported (video/image, ≤60MB).",
+    "ai_no_changes": "Luna didn't change anything — try phrasing it differently.",
+    "ai_nothing_to_change": "Luna couldn't find anything to change — try phrasing it differently."
   },
   "tourOverlay": {
     "fromSuffix": "onwards",
@@ -513,6 +515,132 @@
     "roiInYears": "In {{years}} years",
     "roiBuy": "Purchase",
     "roiForecast": "Forecast in {{years}} years",
-    "roiYield": "Reference rental yield ~{{pct}}% (not guaranteed, for reference only)"
-  }
+    "roiYield": "Reference rental yield ~{{pct}}% (not guaranteed, for reference only)",
+    "amenityCat": {
+      "metro_station": "Metro",
+      "school": "School",
+      "mall": "Mall",
+      "hospital": "Hospital",
+      "supermarket": "Supermarket"
+    },
+    "amenityTier": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "remote": "Remote"
+    },
+    "amenityCatNamed": "{{cat}} ({{name}})"
+  },
+  "editor": {
+    "kind": {
+      "intro": "Intro",
+      "arrival": "Arrival",
+      "life": "Life",
+      "numbers": "Numbers",
+      "outro": "Outro",
+      "beat": "Beat"
+    },
+    "loading": "Loading editor…",
+    "back": "Back",
+    "preview": "Preview",
+    "save": "Save",
+    "saved": "Saved",
+    "saveFailed": "Save failed",
+    "networkError": "Network error",
+    "advanced": "Advanced",
+    "advancedTitle": "Tracks / durations / camera — only if you want to hand-tune",
+    "advancedHint": "Want to hand-tune tracks, card durations or the camera? Tap \"⚙ Advanced\" at the top right.",
+    "track": {
+      "transition": "Transition",
+      "stops": "Stops",
+      "narration": "Narration",
+      "camera": "Camera",
+      "cards": "Cards"
+    },
+    "transition": {
+      "editTitle": "Tap to edit the transition",
+      "kind": "Transition style",
+      "cut": "Cut",
+      "flyover": "Fly over"
+    },
+    "moveEarlier": "Move earlier",
+    "moveLater": "Move later",
+    "delete": "Delete",
+    "confirmDeleteStop": "Delete the stop \"{{name}}\"?",
+    "stopAdded": "Added \"{{name}}\"",
+    "addStop": "Add a place stop",
+    "searchPlace": "Search a place (JBR / beach / landmark)",
+    "cardDragHint": "{{label}} · drag to move · drag the right edge to trim",
+    "emptyPanel": {
+      "title": "Tap a clip on the timeline to edit it",
+      "what": "Narration · cards · media · AI revisions",
+      "hint": "Cards can be dragged along the track to move / trim them"
+    },
+    "noteLabel": "Note for AI (changes this beat only)",
+    "notePlaceholder": "Shorter / more casual / drop that school",
+    "applyNotes": "Apply these notes with AI",
+    "aiRevised": "AI revised {{n}} beats",
+    "reviseFailed": "Revision failed",
+    "writeNoteFirst": "Write a note for AI on a clip first",
+    "numbersLocked": "The numbers on the cards come from real transaction data and cannot be edited — that is what makes them credible to your client.",
+    "cameraUpdated": "Camera updated",
+    "cameraStyleLabel": "Camera style (how the shot moves)",
+    "cameraStyleHint": "The camera always orbits smoothly; this only picks the rough framing.",
+    "camera": {
+      "orbit": "Orbit",
+      "push": "Push in",
+      "aerial": "Aerial"
+    },
+    "cardsLabel": "Cards shown in this beat (draggable on the track too)",
+    "none": "None",
+    "mediaLabel": "Add media (sea view / interior video or photo)",
+    "mediaUrlPlaceholder": "Direct link https://…/clip.mp4",
+    "mediaCaptionPlaceholder": "Caption (optional)",
+    "addLink": "Add link",
+    "uploading": "Uploading…",
+    "orUploadFile": "or upload a file",
+    "uploadFailed": "Upload failed",
+    "mediaAdded": "Media added",
+    "mediaFailed": "Media failed"
+  },
+  "gen": {
+    "stage": {
+      "confirmProjects": "Confirm projects",
+      "fetchRealData": "Fetch real data",
+      "aiWritesScript": "AI writes the storyboard"
+    },
+    "building": "Generating the tour…",
+    "structureReady": "Tour structure generated",
+    "failed": "Generation failed",
+    "retry": "Please try again",
+    "eta": "About 10–20 seconds",
+    "voiceReady": "Voice narration ready",
+    "voiceProgress": "Generating voice narration… {{done}}/{{total}}",
+    "voiceHint": "(You can open it now — the narration fills in automatically.)",
+    "openTour": "Open tour →",
+    "copyLink": "Copy link"
+  },
+  "draw": {
+    "openTitle": "Pen / markup",
+    "tool": {
+      "pan": "Move the map",
+      "pen": "Pen",
+      "arrow": "Arrow",
+      "text": "Text label",
+      "pin": "Pin",
+      "circle": "Lasso (area data)",
+      "eraser": "Eraser"
+    },
+    "color": "Colour {{color}}",
+    "pinIcon": "Pin {{icon}}",
+    "undo": "Undo",
+    "undoTitle": "Undo the last step",
+    "clearAll": "Clear all",
+    "close": "Close",
+    "closeToolbar": "Close the pen toolbar",
+    "textPlaceholder": "Type a label…",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "reportLang": "Report language"
 }

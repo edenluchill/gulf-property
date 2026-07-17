@@ -486,7 +486,9 @@
     "profile_or_brief_required": "需要客户画像或一句话",
     "rate_limited": "慢一点，5 秒后再试",
     "subscription_required": "Sales Offer 报价单是订阅经纪功能,选择套餐即可解锁。",
-    "upload_rejected": "没有文件,或类型/大小不支持(视频/图,≤60MB)"
+    "upload_rejected": "没有文件,或类型/大小不支持(视频/图,≤60MB)",
+    "ai_no_changes": "AI 未产生改动,可换种说法再试",
+    "ai_nothing_to_change": "Luna 没找到要改的地方 —— 换个说法再试?"
   },
   "tourOverlay": {
     "fromSuffix": "起",
@@ -513,6 +515,132 @@
     "roiInYears": "{{years}} 年后",
     "roiBuy": "买入",
     "roiForecast": "{{years}} 年后预测",
-    "roiYield": "参考租金回报率 ~{{pct}}%（非保证，仅供参考）"
-  }
+    "roiYield": "参考租金回报率 ~{{pct}}%（非保证，仅供参考）",
+    "amenityCat": {
+      "metro_station": "地铁",
+      "school": "学校",
+      "mall": "商场",
+      "hospital": "医院",
+      "supermarket": "超市"
+    },
+    "amenityTier": {
+      "excellent": "优秀",
+      "good": "良好",
+      "fair": "一般",
+      "remote": "偏远"
+    },
+    "amenityCatNamed": "{{cat}}（{{name}}）"
+  },
+  "editor": {
+    "kind": {
+      "intro": "开场",
+      "arrival": "到达",
+      "life": "生活",
+      "numbers": "数字",
+      "outro": "结尾",
+      "beat": "段落"
+    },
+    "loading": "加载编辑器…",
+    "back": "返回",
+    "preview": "预览播放",
+    "save": "保存",
+    "saved": "已保存",
+    "saveFailed": "保存失败",
+    "networkError": "网络错误",
+    "advanced": "高级",
+    "advancedTitle": "轨道 / 时长 / 镜头 —— 想手调才需要",
+    "advancedHint": "想手调轨道、卡片时长、镜头?点右上角的「⚙ 高级」。",
+    "track": {
+      "transition": "转场",
+      "stops": "停靠点",
+      "narration": "旁白",
+      "camera": "镜头",
+      "cards": "卡片"
+    },
+    "transition": {
+      "editTitle": "点击编辑转场",
+      "kind": "转场方式",
+      "cut": "直切",
+      "flyover": "挑高抛远"
+    },
+    "moveEarlier": "前移",
+    "moveLater": "后移",
+    "delete": "删除",
+    "confirmDeleteStop": "删除停靠点「{{name}}」?",
+    "stopAdded": "已加入「{{name}}」",
+    "addStop": "加地点停靠",
+    "searchPlace": "搜地点(JBR / 海滩 / 地标)",
+    "cardDragHint": "{{label}} · 拖动移动 · 拖右端裁剪时长",
+    "emptyPanel": {
+      "title": "点时间线上的片段来编辑",
+      "what": "旁白 · 卡片 · 媒体 · AI 改稿",
+      "hint": "卡片可在轨道上拖动移动 / 裁剪时长"
+    },
+    "noteLabel": "给 AI 的修改意见(只改这一段)",
+    "notePlaceholder": "短一点 / 更口语 / 别提那个学校",
+    "applyNotes": "用 AI 应用这些意见",
+    "aiRevised": "AI 改了 {{n}} 段",
+    "reviseFailed": "改稿失败",
+    "writeNoteFirst": "先在某个片段写一句给 AI 的意见",
+    "numbersLocked": "卡片上的数字来自真实成交数据,不可改动 —— 这样客户才信得过。",
+    "cameraUpdated": "镜头已更新",
+    "cameraStyleLabel": "镜头风格(画面怎么动)",
+    "cameraStyleHint": "镜头会自动平滑环绕运动,这里选大致取景。",
+    "camera": {
+      "orbit": "环绕展示",
+      "push": "推近",
+      "aerial": "俯瞰"
+    },
+    "cardsLabel": "这一段显示的卡片(也可在轨道上拖动)",
+    "none": "无",
+    "mediaLabel": "加媒体(海景/室内视频或图)",
+    "mediaUrlPlaceholder": "直链 https://…/clip.mp4",
+    "mediaCaptionPlaceholder": "说明(可选)",
+    "addLink": "加链接",
+    "uploading": "上传中…",
+    "orUploadFile": "或上传文件",
+    "uploadFailed": "上传失败",
+    "mediaAdded": "已加入媒体",
+    "mediaFailed": "媒体失败"
+  },
+  "gen": {
+    "stage": {
+      "confirmProjects": "确认楼盘",
+      "fetchRealData": "拉取真实数据",
+      "aiWritesScript": "AI 编写分镜脚本"
+    },
+    "building": "正在生成导览…",
+    "structureReady": "导览结构已生成",
+    "failed": "生成失败",
+    "retry": "请重试",
+    "eta": "约 10–20 秒",
+    "voiceReady": "语音旁白就绪",
+    "voiceProgress": "生成语音旁白… {{done}}/{{total}}",
+    "voiceHint": "(可立即打开,旁白会自动补齐)",
+    "openTour": "打开导览 →",
+    "copyLink": "复制链接"
+  },
+  "draw": {
+    "openTitle": "画笔 / 标记",
+    "tool": {
+      "pan": "移动地图",
+      "pen": "画笔",
+      "arrow": "箭头",
+      "text": "文字标签",
+      "pin": "图钉标记",
+      "circle": "圈选(出区域数据)",
+      "eraser": "橡皮擦"
+    },
+    "color": "颜色 {{color}}",
+    "pinIcon": "图钉 {{icon}}",
+    "undo": "撤销",
+    "undoTitle": "撤销上一步",
+    "clearAll": "清除全部",
+    "close": "关闭",
+    "closeToolbar": "关闭画笔",
+    "textPlaceholder": "输入标注文字…",
+    "confirm": "确定",
+    "cancel": "取消"
+  },
+  "reportLang": "报告语言"
 }

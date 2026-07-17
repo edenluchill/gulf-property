@@ -359,8 +359,11 @@ export interface TourPropertyInvestment {
 
 export interface TourPropertyDistance {
   /**
-   * 展示文案（含 emoji + 品类 + 可能的专名）。**只用来显示,永远别拿它做判断** ——
-   * 它会随 tour 语言变。要认品类请用 `cat`。
+   * @deprecated 只为**历史 session** 保留 —— 它是后端拼的展示文案
+   * （`🚇 地铁（Dubai Mall）`）,而 `AMENITY_SPECS` **只有 `zh` 一个分支**,
+   * 于是英/阿/俄/法的导览里也照样写着「地铁」。
+   * 新代码请用 `cat` + `name` 自己在前端按语言拼。
+   * **别删**:DB 里既有 session 的 jsonb 只有这个字段。
    */
   label: string
   /**
@@ -368,6 +371,12 @@ export interface TourPropertyDistance {
    * optional:**DB 里的历史 session 没有这个字段**,消费方必须留兜底。
    */
   cat?: 'metro_station' | 'school' | 'mall' | 'hospital' | 'supermarket'
+  /**
+   * POI 专名,**已过地名防线**（placeNameUsable）—— 名字不是这场 tour 的语言就是 `null`,
+   * 调用方退回只说品类。绝不能把 `dubai_pois.name` 的阿拉伯原名直接给中文客户看。
+   * optional:历史 session 没有该字段。
+   */
+  name?: string | null
   /** [lng, lat] of the destination. */
   to: [number, number]
   distance_km: number
@@ -376,10 +385,17 @@ export interface TourPropertyDistance {
 }
 
 export interface TourPropertyAmenity {
+  /** 中文品类词。**只喂 AI prompt,从不直接显示**（显示走 distances 的 cat）。 */
   label: string
   distance_km: number
   placeholder?: boolean
 }
+
+/**
+ * 便利度档位。**是 code 不是文案** —— 以前这里直接存「优秀/良好/一般/偏远」,
+ * 于是阿语导览的卡片上赫然写着中文。展示方按 code 自己 t()。
+ */
+export type AmenityTier = 'excellent' | 'good' | 'fair' | 'remote'
 
 /**
  * 一个户型（按卧室数聚合）。
@@ -422,9 +438,13 @@ export interface TourProperty {
   min_price?: number
   max_price?: number
   investment?: TourPropertyInvestment
-  /** amenity convenience score 0-100 + tier (placeholder allowed). */
+  /** amenity convenience score 0-100 + tier. */
   amenity_score?: number
-  amenity_tier?: string
+  /**
+   * 档位 **code**(见 AmenityTier)。类型放宽成 string 是因为
+   * **历史 session 的 jsonb 里存的是中文**（'优秀'…）—— 展示方认不出 code 就原样显示。
+   */
+  amenity_tier?: AmenityTier | string
   distances?: TourPropertyDistance[]
   amenities?: TourPropertyAmenity[]
   /** 真实户型（按卧室数聚合）。没有户型数据时整个字段缺席 —— 那就少讲一拍。 */

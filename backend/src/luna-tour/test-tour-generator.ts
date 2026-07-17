@@ -87,9 +87,9 @@ function buildProperty(row: ProjectRow): TourProperty {
         }
       : undefined,
     amenity_score: 90, // placeholder convenience score
-    amenity_tier: '优秀',
+    amenity_tier: 'excellent', // code,不是文案 —— 见 AmenityTier
     distances: [
-      { label: '市中心 Downtown', to: [55.2744, 25.1972], distance_km: 12, placeholder: true },
+      { label: '🛍️ 商场（Dubai Mall）', cat: 'mall', name: 'Dubai Mall', to: [55.2744, 25.1972], distance_km: 12, placeholder: true },
     ],
     amenities: [
       { label: '学校', distance_km: 2, placeholder: true },

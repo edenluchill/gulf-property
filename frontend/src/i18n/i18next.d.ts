@@ -31,6 +31,7 @@ import roleSelectEn from './locales/en/roleSelect.json'
 import aboutEn from './locales/en/about.json'
 import clientReportEn from './locales/en/clientReport.json'
 import projectReportEn from './locales/en/projectReport.json'
+import factSheetEn from './locales/en/factSheet.json'
 import pricingEn from './locales/en/pricing.json'
 
 declare module 'i18next' {
@@ -68,6 +69,7 @@ declare module 'i18next' {
       about: typeof aboutEn
       clientReport: typeof clientReportEn
       projectReport: typeof projectReportEn
+      factSheet: typeof factSheetEn
       pricing: typeof pricingEn
     }
   }

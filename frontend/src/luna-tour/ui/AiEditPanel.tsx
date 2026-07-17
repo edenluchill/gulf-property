@@ -98,7 +98,7 @@ export default function AiEditPanel({
       if (!r.ok) {
         setMsg(`❌ ${errText(d, 'lunaTour:editFailed')}`)
       } else if (!d.applied) {
-        setMsg(d.message || t('lunaTour:lunaFoundNothingTo'))
+        setMsg(errText(d, 'lunaTour:lunaFoundNothingTo'))
       } else {
         setDiffs(d.diffs || [])
         setCanUndo(true)

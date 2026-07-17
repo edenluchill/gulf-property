@@ -1,4 +1,21 @@
 {
+  "agentCardEditor": {
+    "title": "Carte d'agent",
+    "badImageType": "Veuillez importer une image JPG / PNG / WEBP",
+    "uploadFailed": "Échec de l'importation",
+    "saveFailed": "Échec de l'enregistrement",
+    "uploading": "Importation…",
+    "uploadAvatar": "Importer une photo",
+    "name": "Nom",
+    "namePlaceholder": "Votre nom",
+    "phone": "Téléphone",
+    "whatsappPlaceholder": "971501234567 (chiffres uniquement)",
+    "email": "E-mail (visible par les clients, facultatif)",
+    "footnote": "Cette carte sert de signature pour vos offres commerciales et rapports personnalisés.",
+    "saved": "Enregistré",
+    "saving": "Enregistrement…",
+    "save": "Enregistrer"
+  },
   "tabProfile": "Profil",
   "tabBilling": "Facturation",
   "tabDashboard": "Tableau de bord",

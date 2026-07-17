@@ -7,8 +7,9 @@
  * backfill lighting up node-by-node. Purely presentational; AgentTours owns the
  * state + polling. Delete with luna-tour/.
  */
+import { useTranslation } from 'react-i18next'
 
-const BUILD_STAGES = ['确认楼盘', '拉取真实数据', 'AI 编写分镜脚本']
+const BUILD_STAGE_KEYS = ['confirmProjects', 'fetchRealData', 'aiWritesScript'] as const
 
 type NodeState = 'done' | 'active' | 'pending'
 
@@ -56,7 +57,10 @@ export default function GenerationProgress({
   shareCode: string | null
   error?: string
 }) {
-  const nodes = phase === 'ready' ? stops : BUILD_STAGES
+  const { t: tRaw } = useTranslation('lunaTour')
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
+  // stops are DATA (real place names in the tour's language) — never translated.
+  const nodes = phase === 'ready' ? stops : BUILD_STAGE_KEYS.map((k) => t(`gen.stage.${k}`))
   const watchUrl = shareCode ? `${window.location.origin}/?toursession=${shareCode}` : ''
   const audioDone = phase === 'ready' && audioTotal > 0 && audioReady >= audioTotal
 
@@ -64,13 +68,13 @@ export default function GenerationProgress({
     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold text-slate-700">
-          {phase === 'error' ? '生成失败' : phase === 'ready' ? '导览结构已生成' : '正在生成导览…'}
+          {phase === 'error' ? t('gen.failed') : phase === 'ready' ? t('gen.structureReady') : t('gen.building')}
         </div>
-        {phase === 'building' && <div className="text-xs text-emerald-600">约 10–20 秒</div>}
+        {phase === 'building' && <div className="text-xs text-emerald-600">{t('gen.eta')}</div>}
       </div>
 
       {phase === 'error' ? (
-        <div className="text-sm text-rose-600">❌ {error || '请重试'}</div>
+        <div className="text-sm text-rose-600">❌ {error || t('gen.retry')}</div>
       ) : (
         <>
           {/* left→right node pipeline */}
@@ -91,9 +95,9 @@ export default function GenerationProgress({
             <div className="mt-3 border-t border-emerald-100 pt-3">
               <div className="flex items-center gap-2 text-sm">
                 <span className={audioDone ? 'text-emerald-600' : 'text-slate-600'}>
-                  {audioDone ? '✅ 语音旁白就绪' : `🎙 生成语音旁白… ${audioReady}/${audioTotal}`}
+                  {audioDone ? `✅ ${t('gen.voiceReady')}` : `🎙 ${t('gen.voiceProgress', { done: audioReady, total: audioTotal })}`}
                 </span>
-                <span className="text-xs text-slate-400">（可立即打开,旁白会自动补齐)</span>
+                <span className="text-xs text-slate-400">{t('gen.voiceHint')}</span>
               </div>
               {audioTotal > 0 && (
                 <div className="mt-2 h-1.5 rounded-full bg-slate-200 overflow-hidden">
@@ -111,13 +115,13 @@ export default function GenerationProgress({
                     rel="noopener noreferrer"
                     className="bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium"
                   >
-                    打开导览 →
+                    {t('gen.openTour')}
                   </a>
                   <button
                     onClick={() => navigator.clipboard?.writeText(watchUrl)}
                     className="border border-slate-300 text-slate-600 rounded-lg px-3 py-1.5 text-sm"
                   >
-                    复制链接
+                    {t('gen.copyLink')}
                   </button>
                 </div>
               )}

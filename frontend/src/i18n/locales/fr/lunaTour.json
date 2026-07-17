@@ -1,5 +1,19 @@
 {
   "tourOverlay": {
+    "amenityCat": {
+      "metro_station": "Métro",
+      "school": "École",
+      "mall": "Centre commercial",
+      "hospital": "Hôpital",
+      "supermarket": "Supermarché"
+    },
+    "amenityTier": {
+      "excellent": "Excellent",
+      "good": "Bon",
+      "fair": "Moyen",
+      "remote": "Éloigné"
+    },
+    "amenityCatNamed": "{{cat}} ({{name}})",
     "fromSuffix": "et plus",
     "amenityScore": "Commodités",
     "nearestMetro": "Métro le plus proche",
@@ -26,7 +40,10 @@
     "roiForecast": "Prévisions dans {{years}} ans",
     "roiYield": "Rendement locatif de référence ~{{pct}}% (non garanti, à titre indicatif)"
   },
+  "reportLang": "Langue du rapport",
   "err": {
+    "ai_no_changes": "Luna n'a rien changé — essayez de formuler votre demande différemment.",
+    "ai_nothing_to_change": "Luna n'a rien trouvé à modifier — essayez de formuler votre demande différemment.",
     "auth_required": "Veuillez d'abord vous connecter.",
     "client_name_required": "Le nom du client est requis.",
     "compare_needs_2_to_4": "Sélectionnez entre 2 et 4 projets à comparer.",
@@ -41,6 +58,117 @@
     "rate_limited": "Ralentissez — réessayez dans 5 secondes.",
     "subscription_required": "L'Offre de Vente est réservée aux abonnés — choisissez un forfait pour la débloquer.",
     "upload_rejected": "Aucun fichier, ou format/taille non supporté (vidéo/image, ≤60MB)."
+  },
+  "editor": {
+    "kind": {
+      "intro": "Intro",
+      "arrival": "Arrivée",
+      "life": "Vie de quartier",
+      "numbers": "Chiffres",
+      "outro": "Outro",
+      "beat": "Séquence"
+    },
+    "loading": "Chargement de l'éditeur…",
+    "back": "Retour",
+    "preview": "Aperçu",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "saveFailed": "Échec de l'enregistrement",
+    "networkError": "Erreur réseau",
+    "advanced": "Avancé",
+    "advancedTitle": "Pistes / durées / caméra — uniquement pour réglages manuels",
+    "advancedHint": "Vous souhaitez ajuster manuellement les pistes, la durée des cartes ou la caméra ? Appuyez sur « ⚙ Avancé » en haut à droite.",
+    "track": {
+      "transition": "Transition",
+      "stops": "Arrêts",
+      "narration": "Narration",
+      "camera": "Caméra",
+      "cards": "Cartes"
+    },
+    "transition": {
+      "editTitle": "Appuyez pour modifier la transition",
+      "kind": "Style de transition",
+      "cut": "Coupe brute",
+      "flyover": "Survol"
+    },
+    "moveEarlier": "Avancer",
+    "moveLater": "Reculer",
+    "delete": "Supprimer",
+    "confirmDeleteStop": "Supprimer l'arrêt « {{name}} » ?",
+    "stopAdded": "« {{name}} » ajouté",
+    "addStop": "Ajouter un arrêt",
+    "searchPlace": "Rechercher un lieu (JBR / plage / point d'intérêt)",
+    "cardDragHint": "{{label}} · glisser pour déplacer · glisser le bord droit pour ajuster la durée",
+    "emptyPanel": {
+      "title": "Appuyez sur un clip de la timeline pour le modifier",
+      "what": "Narration · cartes · médias · révisions IA",
+      "hint": "Les cartes peuvent être glissées sur la piste pour les déplacer ou les ajuster"
+    },
+    "noteLabel": "Note pour l'IA (modifie cette séquence uniquement)",
+    "notePlaceholder": "Plus court / plus décontracté / retirer cette école",
+    "applyNotes": "Appliquer ces notes avec l'IA",
+    "aiRevised": "L'IA a modifié {{n}} séquences",
+    "reviseFailed": "Échec de la révision",
+    "writeNoteFirst": "Rédigez d'abord une note pour l'IA sur un clip",
+    "numbersLocked": "Les chiffres sur les cartes proviennent de données de transactions réelles et ne peuvent pas être modifiés — c'est ce qui fait leur crédibilité auprès de votre client.",
+    "cameraUpdated": "Caméra mise à jour",
+    "cameraStyleLabel": "Style de caméra (mouvement de la prise de vue)",
+    "cameraStyleHint": "La caméra effectue toujours un orbite fluide ; ce paramètre définit uniquement le cadrage approximatif.",
+    "camera": {
+      "orbit": "Orbite",
+      "push": "Zoom avant",
+      "aerial": "Vue aérienne"
+    },
+    "cardsLabel": "Cartes affichées dans cette séquence (également déplaçables sur la piste)",
+    "none": "Aucune",
+    "mediaLabel": "Ajouter un média (vue mer / vidéo ou photo d'intérieur)",
+    "mediaUrlPlaceholder": "Lien direct https://…/clip.mp4",
+    "mediaCaptionPlaceholder": "Légende (facultatif)",
+    "addLink": "Ajouter un lien",
+    "uploading": "Téléchargement…",
+    "orUploadFile": "ou importer un fichier",
+    "uploadFailed": "Échec de l'importation",
+    "mediaAdded": "Média ajouté",
+    "mediaFailed": "Échec du média"
+  },
+  "gen": {
+    "stage": {
+      "confirmProjects": "Confirmer les projets",
+      "fetchRealData": "Récupérer les données réelles",
+      "aiWritesScript": "L'IA rédige le storyboard"
+    },
+    "building": "Génération de la visite…",
+    "structureReady": "Structure de la visite générée",
+    "failed": "Échec de la génération",
+    "retry": "Veuillez réessayer",
+    "eta": "Environ 10–20 secondes",
+    "voiceReady": "Narration vocale prête",
+    "voiceProgress": "Génération de la narration vocale… {{done}}/{{total}}",
+    "voiceHint": "(Vous pouvez l'ouvrir dès maintenant — la narration s'intègre automatiquement.)",
+    "openTour": "Ouvrir la visite →",
+    "copyLink": "Copier le lien"
+  },
+  "draw": {
+    "openTitle": "Dessin / annotation",
+    "tool": {
+      "pan": "Déplacer la carte",
+      "pen": "Crayon",
+      "arrow": "Flèche",
+      "text": "Texte",
+      "pin": "Repère",
+      "circle": "Lasso (données de zone)",
+      "eraser": "Gomme"
+    },
+    "color": "Couleur {{color}}",
+    "pinIcon": "Repère {{icon}}",
+    "undo": "Annuler",
+    "undoTitle": "Annuler la dernière action",
+    "clearAll": "Tout effacer",
+    "close": "Fermer",
+    "closeToolbar": "Fermer la barre d'outils de dessin",
+    "textPlaceholder": "Saisir un texte…",
+    "confirm": "Confirmer",
+    "cancel": "Annuler"
   },
   "rejoin": "Rejoindre",
   "explore": "Explorer",

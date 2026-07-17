@@ -62,5 +62,22 @@
   "statusPastDue": "Payment failed",
   "statusCanceled": "Canceled",
   "projectsSuffix": " projects",
-  "favWithSaves": " · {{n}} saved"
+  "favWithSaves": " · {{n}} saved",
+  "agentCardEditor": {
+    "title": "Agent card",
+    "badImageType": "Please upload a JPG / PNG / WEBP image",
+    "uploadFailed": "Upload failed",
+    "saveFailed": "Save failed",
+    "uploading": "Uploading…",
+    "uploadAvatar": "Upload photo",
+    "name": "Name",
+    "namePlaceholder": "Your name",
+    "phone": "Phone",
+    "whatsappPlaceholder": "971501234567 (digits only)",
+    "email": "Email (shown to clients, optional)",
+    "footnote": "This card is the sign-off on your Sales Offers and branded reports.",
+    "saved": "Saved",
+    "saving": "Saving…",
+    "save": "Save"
+  }
 }

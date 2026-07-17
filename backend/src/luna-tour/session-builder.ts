@@ -22,7 +22,7 @@ import {
 } from '../services/investment-calculator'
 import { generateTourScript } from './tour-generator'
 import { generateSessionAudio } from './audio-pipeline'
-import { TourInput, TourProperty, TourPropertyUnit, TourConfig } from './tour-script.types'
+import { TourInput, TourProperty, TourPropertyUnit, TourConfig, AmenityTier } from './tour-script.types'
 import { fetchAreaContext } from './area-context'
 
 // ⚠️ 这里曾经有两个常量:PLACEHOLDER_YIELD_PCT = 6.5 / PLACEHOLDER_GROWTH_PCT = 7。
@@ -58,8 +58,13 @@ function num(v: string | number | null): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
-function tierOf(score100: number): string {
-  return score100 >= 75 ? '优秀' : score100 >= 55 ? '良好' : score100 >= 35 ? '一般' : '偏远'
+/**
+ * ⚠️ 返回 **code 不是文案**。这里曾经直接返回「优秀/良好/一般/偏远」,而
+ * `amenity_tier` 会被烤进 snapshot 的 jsonb 再显示到 FactSheet / 导览卡上
+ * → **阿语导览的卡片上写着中文**。展示方按 code 自己 t()。
+ */
+function tierOf(score100: number): AmenityTier {
+  return score100 >= 75 ? 'excellent' : score100 >= 55 ? 'good' : score100 >= 35 ? 'fair' : 'remote'
 }
 
 interface NearbyResult {
@@ -114,12 +119,12 @@ async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 
     amenities.push({ label: s.zh, distance_km: km })
 
     // 名字能用就带上专名,不能用就只说品类 + 距离(仍然是真的)
-    const label = nameUsable(hit.name, lang)
-      ? `${s.emoji} ${s.zh}（${hit.name}）`
-      : `${s.emoji} ${s.zh}`
-    // cat 一并送出:label 是**会变的展示文案**,不能当数据键。
-    // (前端曾用 label.includes('地铁') 找地铁 → label 一换语言,地铁行就静默消失。)
-    distances.push({ label, cat: s.cat, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
+    const name = nameUsable(hit.name, lang) ? hit.name : null
+    // 🔴 送 **cat + name 两个结构化真值**,前端按语言自己拼。
+    //    `label` 只为历史 session 保留 —— 它是这里拼死的中文(`s.zh` 只有中文一个分支),
+    //    英/阿/俄/法的导览里照样写「🚇 地铁」。别再让新代码读它。
+    const label = name ? `${s.emoji} ${s.zh}（${name}）` : `${s.emoji} ${s.zh}`
+    distances.push({ label, cat: s.cat, name, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
   }
 
   const score100 = Math.round(score * 100)
