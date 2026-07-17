@@ -761,8 +761,12 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       recentTransactions: [], recentTransactionsOffplan: [], recentTransactionsReady: [], recentRentals: []
     }
 
-    const monthsWithLookback = monthRange(endYm, 37)  // 含 t-12，给同比用
-    const months = monthsWithLookback.slice(-24)
+    // 展示序列长度 48 个月:前端图表按所选周期(最长 3 年=36)切片放大 → 序列必须够长,
+    // 否则 2 年/3 年图撞 24 个月天花板一模一样。48+12(同比 lookback)=60 ≤ SQL 取的 63,
+    // 且 months=slice(-48) 的首月在 lookback 轴 index 12 → 全 48 个月同比都有效不缺头。
+    const DISPLAY_MONTHS = 48
+    const monthsWithLookback = monthRange(endYm, DISPLAY_MONTHS + 12)  // 含 t-12，给同比用
+    const months = monthsWithLookback.slice(-DISPLAY_MONTHS)
     const idxOf = new Map(monthsWithLookback.map((m, i) => [m, i]))
     const apprMonths = monthRange(endYm, 63)  // 增值率用(最长 5 年 + 平滑窗口)
 
@@ -775,12 +779,12 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
     // 63 月月度中位租金/㎡(仅 all;期房价格做分母无意义),给回报率窗口用
     const rent63 = apprMonths.map(m => rentByMonth.get(m) ?? null)
     const mkSeries = (seg: 'all' | 'offplan' | 'ready') => {
-      const pps37 = monthsWithLookback.map(m => {
+      const ppsAxis = monthsWithLookback.map(m => {
         const r = byMonth.get(m)
         const v = r ? segCols(r, seg).pps : null
         return v != null ? Number(v) : null
       })
-      const smooth = smooth3(pps37)
+      const smooth = smooth3(ppsAxis)
       const price = months.map(m => {
         const r = byMonth.get(m)
         const v = r ? segCols(r, seg).pps : null

@@ -14,6 +14,11 @@ export type MetricPeriodKey = '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '5y'
 
 export const PERIOD_KEYS: MetricPeriodKey[] = ['3m', '6m', '1y', '2y', '3y']
 
+/** 各周期对应的月数 —— 前端把趋势图/柱状图切到所选窗口(与后端 APPRECIATION_PERIODS 一致)。 */
+export const PERIOD_MONTHS: Record<MetricPeriodKey, number> = {
+  '1m': 1, '3m': 3, '6m': 6, '1y': 12, '2y': 24, '3y': 36, '5y': 60,
+}
+
 /** 短周期(区域中位价样本薄，抖动大) —— UI 挂「仅供参考」提示 */
 export const SHORT_PERIODS: MetricPeriodKey[] = ['3m', '6m']
 

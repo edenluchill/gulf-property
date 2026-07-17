@@ -11,7 +11,7 @@ import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
 import { pricePerSqmToPerSqft, sqmToSqft } from '../lib/units'
 import { fetchAreaInsights, fetchTxList, AreaInsights } from '../lib/api'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
-import { MetricPeriodKey, loadSavedPeriod, savePeriod, periodLabel, SHORT_PERIODS } from '../lib/metricPeriod'
+import { MetricPeriodKey, loadSavedPeriod, savePeriod, periodLabel, SHORT_PERIODS, PERIOD_MONTHS } from '../lib/metricPeriod'
 import { PeriodSelector } from './PeriodSelector'
 import DirhamSymbol from './DirhamSymbol'
 
@@ -264,6 +264,16 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   const apprCity = insights?.appreciationCity?.[period] ?? null
   const apprDelta = apprArea != null && apprCity != null ? Number((apprArea - apprCity).toFixed(1)) : null
   const shortPeriod = SHORT_PERIODS.includes(period)
+  // 趋势图/柱状图跟随所选周期:把 48 个月展示序列切到窗口(3月→近3点 … 3年→近36点),
+  // labels 同步切让 hover 读数对齐。这样短周期图各不相同,不再 3月/3年一模一样。
+  const winMonths = PERIOD_MONTHS[period]
+  const sliceWin = <T,>(arr: readonly T[] | undefined | null): T[] =>
+    arr ? arr.slice(-winMonths) : []
+  const chartMonths = sliceWin(insights?.months)
+  const priceChart = sliceWin(insights?.price)
+  const volChart = sliceWin(volSeries)
+  const growthChart = sliceWin(insights?.growth)
+  const yieldChart = sliceWin(insights?.rentalYield)
   // Rent stability is residential-derived → only meaningful in the 'all' view.
   const stabilityNow = usageActive ? null : (area.rentStability ?? null)
   const medianPsm = pick(area.medianPriceSqm, lastNonNull(insights?.price))
@@ -366,7 +376,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           {/* ⚠️ 借用 per-m² 价格系列当**趋势形状**用 —— insights 里没有总价的月度系列
               (medianUnitPrice 只是个标量)。所以 hover 读数跟 937K 的标题本就对不上,
               这是本来就有的错位。这里只保证单位跟面板一致(sqft),别的留给桶②。 */}
-          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(pricePerSqmToPerSqft(v)).toLocaleString()} />
+          <SparkLine data={priceChart} color="#0d9488" labels={chartMonths} fmt={(v) => Math.round(pricePerSqmToPerSqft(v)).toLocaleString()} />
         </StatCard>
 
         {/* 中位数/sqft — DLD 给的是 per-m²,在展示边界换成 sqft,与地图气泡同一个数 */}
@@ -385,7 +395,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
         >
           {/* insights.price is per-m² like the tile above — convert in fmt so the
               hover readout matches the headline instead of being 10.76x off. */}
-          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(pricePerSqmToPerSqft(v)).toLocaleString()} />
+          <SparkLine data={priceChart} color="#0d9488" labels={chartMonths} fmt={(v) => Math.round(pricePerSqmToPerSqft(v)).toLocaleString()} />
         </StatCard>
 
         <StatCard
@@ -397,7 +407,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           chipClass="bg-violet-50 text-violet-700"
           loading={loading}
         >
-          <SparkBars data={volSeries || []} color="#3b82f6" labels={insights?.months} fmt={(v) => v.toLocaleString()} />
+          <SparkBars data={volChart} color="#3b82f6" labels={chartMonths} fmt={(v) => v.toLocaleString()} />
         </StatCard>
 
         <StatCard
@@ -420,7 +430,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
               )}
             </div>
           )}
-          <SparkLine data={insights?.growth || []} color={apprArea != null && apprArea >= 0 ? '#059669' : '#e11d48'} showZero labels={insights?.months} fmt={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`} />
+          <SparkLine data={growthChart} color={apprArea != null && apprArea >= 0 ? '#059669' : '#e11d48'} showZero labels={chartMonths} fmt={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`} />
         </StatCard>
 
         <StatCard
@@ -431,7 +441,7 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           chipClass="bg-emerald-50 text-emerald-700"
           loading={loading}
         >
-          <SparkLine data={insights?.rentalYield || []} color="#7c3aed" labels={insights?.months} fmt={(v) => `${v.toFixed(1)}%`} />
+          <SparkLine data={yieldChart} color="#7c3aed" labels={chartMonths} fmt={(v) => `${v.toFixed(1)}%`} />
         </StatCard>
 
         <StatCard
