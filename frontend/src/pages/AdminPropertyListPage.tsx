@@ -1,19 +1,20 @@
 /**
  * Admin Property List Page - 管理员项目列表
  *
- * Features:
- * - Display all residential projects
- * - Search and filter projects
- * - Navigate to edit page
+ * 紧凑表格视图:一次加载全部项目(不再默认 limit=20 只出一页),带
+ * 状态 / 开发商 / 区域 筛选 + 文字搜索。一屏能看十几到二十个项目。
+ *
+ * WHY 重写:旧版走后端默认 `limit=20` 且从不翻页 → 数据库里 40+ 个项目
+ * 只显示最新 20 个,"地图上有、管理页里没有" 就是这么来的;底部 "20 projects
+ * total" 数的还是已加载行数,不是后端真实 total。现在拉全量 + 显示真 total。
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent } from '../components/ui/card'
-import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { Building2, Edit, Search, Loader2, MapPin, Trash2 } from 'lucide-react'
+import { Button } from '../components/ui/button'
+import { Building2, Edit, Search, Loader2, Trash2, X } from 'lucide-react'
 import { API_ENDPOINTS } from '../lib/config'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -34,45 +35,41 @@ interface Project {
   created_at: string
 }
 
+// 状态五档 —— 与 DB 约束及地图 pin 一致
+const STATUS_OPTIONS = ['selling', 'under-construction', 'completed', 'upcoming', 'sold-out'] as const
+
 export default function AdminPropertyListPage() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [developerFilter, setDeveloperFilter] = useState('')
+  const [areaFilter, setAreaFilter] = useState('')
   const navigate = useNavigate()
   const { t, i18n } = useTranslation(['admin', 'common'])
   const { session } = useAuth()
 
   useEffect(() => {
     fetchProjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
 
   const fetchProjects = async () => {
     try {
       setLoading(true)
-      
-      // Prepare headers with authentication
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      
-      // Add Authorization header if session exists
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-      }
-      
-      const response = await fetch(API_ENDPOINTS.residentialProjects, {
-        headers,
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const data = await response.json()
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
 
-      // Backend returns { projects, total, page, limit } without success field
+      // 拉全量:limit 拉高 + verified=all(admin 应能看到未验证项目)
+      const url = `${API_ENDPOINTS.residentialProjects}?limit=1000&verified=all`
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+
+      const data = await response.json()
       if (data.projects) {
         setProjects(data.projects)
+        setTotal(typeof data.total === 'number' ? data.total : data.projects.length)
       }
     } catch (error) {
       console.error('❌ Failed to fetch projects:', error)
@@ -81,282 +78,259 @@ export default function AdminPropertyListPage() {
     }
   }
 
-  const filteredProjects = projects.filter(project =>
-    project.project_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    project.developer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    project.area?.toLowerCase().includes(searchTerm.toLowerCase())
+  const developers = useMemo(
+    () => Array.from(new Set(projects.map(p => p.developer).filter(Boolean))).sort() as string[],
+    [projects]
+  )
+  const areas = useMemo(
+    () => Array.from(new Set(projects.map(p => p.area).filter(Boolean))).sort() as string[],
+    [projects]
   )
 
+  const filteredProjects = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim()
+    return projects.filter(p => {
+      if (statusFilter && p.status !== statusFilter) return false
+      if (developerFilter && p.developer !== developerFilter) return false
+      if (areaFilter && p.area !== areaFilter) return false
+      if (term) {
+        const hay = `${p.project_name || ''} ${p.developer || ''} ${p.area || ''} ${p.address || ''}`.toLowerCase()
+        if (!hay.includes(term)) return false
+      }
+      return true
+    })
+  }, [projects, searchTerm, statusFilter, developerFilter, areaFilter])
+
+  const hasFilter = !!(searchTerm || statusFilter || developerFilter || areaFilter)
+  const clearFilters = () => {
+    setSearchTerm('')
+    setStatusFilter('')
+    setDeveloperFilter('')
+    setAreaFilter('')
+  }
+
   const deleteProject = async (projectId: number, projectName: string, e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent navigation to edit page
-
-    const confirmed = window.confirm(t('list.deleteConfirm', { name: projectName }))
-
-    if (!confirmed) return
-
+    e.stopPropagation()
+    if (!window.confirm(t('list.deleteConfirm', { name: projectName }))) return
     try {
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-      }
-
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
       const response = await fetch(API_ENDPOINTS.residentialProject(projectId.toString()), {
         method: 'DELETE',
         headers,
       })
-
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Failed to delete project')
       }
-
-      // Remove from local state
       setProjects(prev => prev.filter(p => p.id !== projectId))
-
-      // Show success message
-      alert(t('list.deleteSuccess', { name: projectName }))
+      setTotal(prev => Math.max(0, prev - 1))
     } catch (error) {
       console.error('❌ Failed to delete project:', error)
       alert(t('list.deleteFailed'))
     }
   }
 
-  const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
+  const dateLocale = i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language?.split('-')[0] || 'en-US'
+
+  const statusLabel = (status?: string) =>
+    status === 'sold-out' ? t('common:status.soldOut')
+      : status === 'selling' ? t('common:status.selling')
+      : status === 'completed' ? t('common:status.completed')
+      : status === 'under-construction' ? t('common:status.underConstruction')
+      : t('common:status.upcoming')
+
+  const statusClass = (status?: string) =>
+    status === 'sold-out' ? 'bg-red-100 text-red-700'
+      : status === 'selling' ? 'bg-green-100 text-green-700'
+      : status === 'completed' ? 'bg-emerald-100 text-emerald-700'
+      : status === 'under-construction' ? 'bg-blue-100 text-blue-700'
+      : 'bg-amber-100 text-amber-700'
+
+  const priceCell = (p: Project) => {
+    if (!p.min_price || !p.max_price) return <span className="text-gray-400">—</span>
+    const lo = (p.min_price / 1_000_000).toFixed(1)
+    const hi = (p.max_price / 1_000_000).toFixed(1)
+    return <span className="font-medium text-green-700 tabular-nums">{lo === hi ? lo : `${lo}–${hi}`}</span>
+  }
+
+  const selectCls =
+    'h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-sm text-gray-700 shadow-sm ' +
+    'focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent'
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 overflow-auto">
+    <div className="flex-1 bg-gray-50 overflow-auto">
       {/* Header */}
-      <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border-b border-blue-200">
-        <div className="container mx-auto px-4 py-5 sm:px-6 sm:py-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl shrink-0">
-                  <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-xl sm:text-3xl font-bold text-gray-900 truncate">{t('list.title')}</h1>
-                  <p className="text-xs sm:text-sm text-gray-700 mt-0.5 sm:mt-1">
-                    {t('list.subtitle')}
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/developer/upload')}
-                className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-              >
-                {t('list.newProject')}
-              </Button>
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-[1600px] mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow shrink-0">
+              <Building2 className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate leading-tight">
+                {t('list.title')}
+              </h1>
+              <p className="text-xs text-gray-500 truncate">
+                {t('list.showing', { shown: filteredProjects.length, total })}
+              </p>
             </div>
           </div>
+          <Button
+            onClick={() => navigate('/developer/upload')}
+            className="shrink-0 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+          >
+            + {t('list.newProject')}
+          </Button>
+        </div>
+
+        {/* Filter bar */}
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 pb-3 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+            <Input
+              type="text"
+              placeholder={t('list.searchPlaceholder')}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="ps-8 h-9"
+            />
+          </div>
+          <select className={selectCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">{t('list.allStatuses')}</option>
+            {STATUS_OPTIONS.map(s => (
+              <option key={s} value={s}>{statusLabel(s)}</option>
+            ))}
+          </select>
+          <select className={selectCls} value={developerFilter} onChange={(e) => setDeveloperFilter(e.target.value)}>
+            <option value="">{t('list.allDevelopers')}</option>
+            {developers.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select className={selectCls} value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
+            <option value="">{t('list.allAreas')}</option>
+            {areas.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          {hasFilter && (
+            <button
+              onClick={clearFilters}
+              className="h-9 px-3 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+            >
+              <X className="h-3.5 w-3.5" /> {t('list.clearFilters')}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-5 sm:px-6 sm:py-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Search Bar */}
-          <Card className="mb-4 sm:mb-6 shadow-lg">
-            <CardContent className="pt-6">
-              <div className="relative">
-                <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <Input
-                  type="text"
-                  placeholder={t('list.searchPlaceholder')}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="ps-10 text-base py-6"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Projects List */}
-          {loading ? (
-            <div className="text-center py-16">
-              <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-600" />
-              <p className="text-gray-600">{t('list.loading')}</p>
-            </div>
-          ) : filteredProjects.length === 0 ? (
-            <Card className="shadow-lg">
-              <CardContent className="py-16 text-center">
-                <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-gray-600 text-lg">
-                  {searchTerm ? t('list.noMatch') : t('list.noProjects')}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {filteredProjects.map((project) => {
-                const thumbnail = project.project_images?.[0]
-                const progress = project.construction_progress || 0
-                const isSoldOut = project.status === 'sold-out'
-                const statusColor = isSoldOut ? 'red' : project.status === 'selling' ? 'green' : project.status === 'completed' ? 'green' : project.status === 'under-construction' ? 'blue' : 'yellow'
-                const statusText = isSoldOut ? t('common:status.soldOut') : project.status === 'selling' ? t('common:status.selling') : project.status === 'completed' ? t('common:status.completed') : project.status === 'under-construction' ? t('common:status.underConstruction') : t('common:status.upcoming')
-
-                return (
-                  <Card
-                    key={project.id}
-                    className="shadow-lg hover:shadow-xl transition-all overflow-hidden cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
-                    onClick={() => navigate(`/admin/property/edit/${project.id}`)}
-                  >
-                    <CardContent className="p-0">
-                      <div className="flex flex-col md:flex-row md:items-stretch gap-0">
-                        {/* Thumbnail — 移动端铺满顶部固定高度, 桌面端左侧 w-80 */}
-                        <div className="w-full h-44 md:w-80 md:h-auto flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden flex items-center justify-center p-4">
-                          {thumbnail ? (
-                            <img
-                              src={thumbnail}
-                              alt={project.project_name}
-                              className="w-full h-full object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none'
-                                e.currentTarget.parentElement!.innerHTML = `
-                                  <div class="w-full h-full flex items-center justify-center">
-                                    <div class="text-gray-400 text-center">
-                                      <svg class="h-16 w-16 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                      </svg>
-                                      <p class="text-sm">${t('list.noImage')}</p>
-                                    </div>
-                                  </div>
-                                `
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <div className="text-gray-400 text-center">
-                                <Building2 className="h-16 w-16 mx-auto mb-2" />
-                                <p className="text-sm">{t('list.noProjectImage')}</p>
-                              </div>
+      {/* Table */}
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
+        {loading ? (
+          <div className="text-center py-20">
+            <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-blue-600" />
+            <p className="text-gray-500">{t('list.loading')}</p>
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="py-20 text-center bg-white rounded-2xl border border-gray-100">
+            <Building2 className="h-14 w-14 mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500 text-lg">
+              {hasFilter ? t('list.noMatch') : t('list.noProjects')}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="text-start font-semibold px-3 py-2.5">{t('list.colProject')}</th>
+                    <th className="text-start font-semibold px-3 py-2.5 hidden md:table-cell">{t('list.colDeveloper')}</th>
+                    <th className="text-start font-semibold px-3 py-2.5 hidden lg:table-cell">{t('list.colArea')}</th>
+                    <th className="text-end font-semibold px-3 py-2.5">{t('list.colUnits')}</th>
+                    <th className="text-end font-semibold px-3 py-2.5 hidden sm:table-cell">{t('list.colPrice')}</th>
+                    <th className="text-start font-semibold px-3 py-2.5">{t('list.colStatus')}</th>
+                    <th className="text-start font-semibold px-3 py-2.5 hidden lg:table-cell">{t('list.colCompletion')}</th>
+                    <th className="text-end font-semibold px-3 py-2.5">{t('list.colActions')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredProjects.map((p) => {
+                    const thumb = p.project_images?.[0]
+                    return (
+                      <tr
+                        key={p.id}
+                        onClick={() => navigate(`/admin/property/edit/${p.id}`)}
+                        className="hover:bg-blue-50/50 cursor-pointer transition-colors"
+                      >
+                        {/* Project (thumb + name) */}
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-11 h-11 rounded-lg bg-gray-100 shrink-0 overflow-hidden flex items-center justify-center">
+                              {thumb ? (
+                                <img src={thumb} alt="" className="w-full h-full object-cover"
+                                  onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                              ) : (
+                                <Building2 className="h-5 w-5 text-gray-300" />
+                              )}
                             </div>
-                          )}
-
-                          {/* Status Badge */}
-                          <div className={`absolute top-3 start-3 px-3 py-1 rounded-full text-xs font-semibold shadow-lg
-                            ${statusColor === 'red' ? 'bg-red-600 text-white' :
-                              statusColor === 'green' ? 'bg-green-500 text-white' :
-                              statusColor === 'blue' ? 'bg-blue-500 text-white' :
-                              'bg-yellow-500 text-white'}`}>
-                            {statusText}
-                          </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 p-4 sm:p-6">
-                          <div className="mb-4">
-                            <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-                              <span className="min-w-0 break-words">{project.project_name}</span>
-                              <Edit className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 opacity-70 shrink-0" />
-                            </h3>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 mb-3">
-                              <span className="flex items-center gap-1 min-w-0">
-                                <span className="font-semibold text-gray-700 shrink-0">{t('list.developerLabel')}</span>
-                                <span className="truncate">{project.developer}</span>
-                              </span>
-                              <span className="hidden sm:inline text-gray-300">|</span>
-                              <span className="flex items-center gap-1 min-w-0">
-                                <MapPin className="h-4 w-4 shrink-0" />
-                                <span className="truncate">{project.area || t('list.notSet')}</span>
-                              </span>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-gray-900 truncate max-w-[220px] flex items-center gap-1.5">
+                                {p.project_name}
+                                <Edit className="h-3.5 w-3.5 text-blue-500 opacity-0 group-hover:opacity-100 shrink-0" />
+                              </div>
+                              <div className="text-xs text-gray-400 truncate max-w-[220px] md:hidden">{p.developer}</div>
                             </div>
                           </div>
-
-                          {/* Info Grid */}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 mb-4">
-                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <div className="text-xs text-gray-500 mb-1">{t('list.unitCount')}</div>
-                              <div className="text-xl font-bold text-gray-900">
-                                {project.unit_count || 0} <span className="text-sm font-normal text-gray-600">{t('list.unitSuffix')}</span>
-                              </div>
-                            </div>
-
-                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
-                              <div className="text-xs text-gray-600 mb-1">{t('list.priceRange')}</div>
-                              <div className="text-sm font-bold text-gray-900">
-                                {project.min_price && project.max_price ? (
-                                  <>
-                                    {project.min_price === project.max_price ? (
-                                      <span className="text-green-700">
-                                        {(project.min_price / 1000000).toFixed(1)}M AED
-                                      </span>
-                                    ) : (
-                                      <span className="text-green-700">
-                                        {(project.min_price / 1000000).toFixed(1)}M - {(project.max_price / 1000000).toFixed(1)}M
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-gray-500">{t('list.notSet')}</span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <div className="text-xs text-gray-500 mb-1">{t('list.completionDateLabel')}</div>
-                              <div className="text-sm font-semibold text-gray-900">
-                                {project.completion_date ?
-                                  new Date(project.completion_date).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long' })
-                                  : t('list.notSet')}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Progress Bar */}
-                          {progress > 0 && (
-                            <div className="mb-3">
-                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                                <span>{t('list.constructionProgress')}</span>
-                                <span className="font-semibold">{progress}%</span>
-                              </div>
-                              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
-                                  style={{ width: `${progress}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Address */}
-                          <div className="text-sm text-gray-600 flex items-start gap-2">
-                            <span className="text-gray-400">📍</span>
-                            <span className="flex-1">{project.address || t('list.addressNotSet')}</span>
-                          </div>
-
-                          {/* Footer */}
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs text-gray-500">
-                              {t('list.createdAt')}: {new Date(project.created_at).toLocaleString(dateLocale)}
-                            </span>
+                        </td>
+                        {/* Developer */}
+                        <td className="px-3 py-2 text-gray-600 hidden md:table-cell">
+                          <span className="truncate block max-w-[160px]">{p.developer || '—'}</span>
+                        </td>
+                        {/* Area */}
+                        <td className="px-3 py-2 text-gray-600 hidden lg:table-cell">
+                          <span className="truncate block max-w-[160px]">{p.area || t('list.notSet')}</span>
+                        </td>
+                        {/* Units */}
+                        <td className="px-3 py-2 text-end tabular-nums text-gray-700">{p.unit_count || 0}</td>
+                        {/* Price */}
+                        <td className="px-3 py-2 text-end hidden sm:table-cell">{priceCell(p)}</td>
+                        {/* Status */}
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusClass(p.status)}`}>
+                            {statusLabel(p.status)}
+                          </span>
+                        </td>
+                        {/* Completion */}
+                        <td className="px-3 py-2 text-gray-600 hidden lg:table-cell whitespace-nowrap">
+                          {p.completion_date
+                            ? new Date(p.completion_date).toLocaleDateString(dateLocale, { year: 'numeric', month: 'short' })
+                            : '—'}
+                        </td>
+                        {/* Actions */}
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={(e) => deleteProject(project.id, project.project_name, e)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/admin/property/edit/${p.id}`) }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                              title={t('list.editProject')}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={(e) => deleteProject(p.id, p.project_name, e)}
+                              className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
                               title={t('list.deleteProject')}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              {t('list.delete')}
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
-
-          {/* Results Count */}
-          {!loading && filteredProjects.length > 0 && (
-            <div className="mt-6 text-center text-sm text-gray-600">
-              {t('list.totalProjects', { count: filteredProjects.length })}
-              {searchTerm && ` ${t('list.searchResult', { term: searchTerm })}`}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

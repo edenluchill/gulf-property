@@ -24,7 +24,22 @@
     "deleteProject": "Delete Project",
     "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?\n\nThis action cannot be undone. All unit types and payment plans will also be deleted.",
     "deleteSuccess": "Project \"{{name}}\" has been deleted",
-    "deleteFailed": "Delete failed, please try again"
+    "deleteFailed": "Delete failed, please try again",
+    "allStatuses": "All statuses",
+    "allDevelopers": "All developers",
+    "allAreas": "All areas",
+    "clearFilters": "Clear",
+    "colProject": "Project",
+    "colDeveloper": "Developer",
+    "colArea": "Area",
+    "colUnits": "Units",
+    "colPrice": "Price (M AED)",
+    "colStatus": "Status",
+    "colCompletion": "Completion",
+    "colCreated": "Created",
+    "colActions": "Actions",
+    "editProject": "Edit",
+    "showing": "Showing {{shown}} / {{total}}"
   },
   "edit": {
     "title": "Edit Project",

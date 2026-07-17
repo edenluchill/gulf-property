@@ -24,7 +24,22 @@
     "deleteProject": "حذف المشروع",
     "deleteConfirm": "هل أنت متأكد من رغبتك في حذف \"{{name}}\"؟\n\nلا يمكن التراجع عن هذا الإجراء. سيتم حذف جميع أنواع الوحدات وخطط السداد أيضاً.",
     "deleteSuccess": "تم حذف المشروع \"{{name}}\" بنجاح",
-    "deleteFailed": "فشل الحذف، يرجى المحاولة مرة أخرى"
+    "deleteFailed": "فشل الحذف، يرجى المحاولة مرة أخرى",
+    "allStatuses": "كل الحالات",
+    "allDevelopers": "كل المطورين",
+    "allAreas": "كل المناطق",
+    "clearFilters": "مسح",
+    "colProject": "المشروع",
+    "colDeveloper": "المطور",
+    "colArea": "المنطقة",
+    "colUnits": "الوحدات",
+    "colPrice": "السعر (مليون درهم)",
+    "colStatus": "الحالة",
+    "colCompletion": "الإنجاز",
+    "colCreated": "الإنشاء",
+    "colActions": "إجراءات",
+    "editProject": "تعديل",
+    "showing": "عرض {{shown}} / {{total}}"
   },
   "edit": {
     "title": "تعديل المشروع",

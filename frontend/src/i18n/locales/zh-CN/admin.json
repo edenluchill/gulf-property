@@ -24,7 +24,22 @@
     "deleteProject": "删除项目",
     "deleteConfirm": "确定要删除项目 \"{{name}}\" 吗？\n\n此操作不可恢复，将同时删除所有户型和付款计划数据。",
     "deleteSuccess": "项目 \"{{name}}\" 已删除",
-    "deleteFailed": "删除失败，请重试"
+    "deleteFailed": "删除失败，请重试",
+    "allStatuses": "全部状态",
+    "allDevelopers": "全部开发商",
+    "allAreas": "全部区域",
+    "clearFilters": "清除",
+    "colProject": "项目",
+    "colDeveloper": "开发商",
+    "colArea": "区域",
+    "colUnits": "户型数",
+    "colPrice": "价格 (百万迪拉姆)",
+    "colStatus": "状态",
+    "colCompletion": "完工",
+    "colCreated": "创建时间",
+    "colActions": "操作",
+    "editProject": "编辑",
+    "showing": "显示 {{shown}} / {{total}}"
   },
   "edit": {
     "title": "编辑项目",

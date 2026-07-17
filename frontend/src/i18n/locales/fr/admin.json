@@ -24,7 +24,22 @@
     "deleteProject": "Supprimer le projet",
     "deleteConfirm": "Voulez-vous vraiment supprimer \"{{name}}\" ?\n\nCette action est irréversible. Tous les types d'unités et plans de paiement associés seront également supprimés.",
     "deleteSuccess": "Le projet \"{{name}}\" a été supprimé",
-    "deleteFailed": "Échec de la suppression, veuillez réessayer"
+    "deleteFailed": "Échec de la suppression, veuillez réessayer",
+    "allStatuses": "Tous les statuts",
+    "allDevelopers": "Tous les promoteurs",
+    "allAreas": "Tous les quartiers",
+    "clearFilters": "Effacer",
+    "colProject": "Projet",
+    "colDeveloper": "Promoteur",
+    "colArea": "Quartier",
+    "colUnits": "Unités",
+    "colPrice": "Prix (M AED)",
+    "colStatus": "Statut",
+    "colCompletion": "Livraison",
+    "colCreated": "Créé le",
+    "colActions": "Actions",
+    "editProject": "Modifier",
+    "showing": "Affichage {{shown}} / {{total}}"
   },
   "edit": {
     "title": "Modifier le projet",

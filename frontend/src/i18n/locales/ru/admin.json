@@ -24,7 +24,22 @@
     "deleteProject": "Удалить проект",
     "deleteConfirm": "Вы уверены, что хотите удалить \"{{name}}\"?\n\nЭто действие нельзя отменить. Все типы планировок и планы оплаты также будут удалены.",
     "deleteSuccess": "Проект \"{{name}}\" успешно удален",
-    "deleteFailed": "Ошибка удаления, пожалуйста, попробуйте еще раз"
+    "deleteFailed": "Ошибка удаления, пожалуйста, попробуйте еще раз",
+    "allStatuses": "Все статусы",
+    "allDevelopers": "Все застройщики",
+    "allAreas": "Все районы",
+    "clearFilters": "Сбросить",
+    "colProject": "Проект",
+    "colDeveloper": "Застройщик",
+    "colArea": "Район",
+    "colUnits": "Объекты",
+    "colPrice": "Цена (млн AED)",
+    "colStatus": "Статус",
+    "colCompletion": "Сдача",
+    "colCreated": "Создано",
+    "colActions": "Действия",
+    "editProject": "Изменить",
+    "showing": "Показано {{shown}} / {{total}}"
   },
   "edit": {
     "title": "Редактировать проект",
