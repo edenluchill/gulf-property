@@ -22,9 +22,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const loc = useLocation()
   const path = loc.pathname
   const isCollabViewer = path.startsWith('/t/')
-  // Luna 是面向买家/客户的助手 —— admin 后台(任务审核/项目管理/分析)用不到,反而挡住
-  // 提交按钮等操作区,这里统一不渲染。
-  const isAdmin = path.startsWith('/admin')
+  // Luna 是面向买家/客户的助手 —— admin 后台(任务审核/项目管理/分析)和经纪台
+  // (/agent/*:tour 编辑器、选档、CRM…)都用不到,反而挡住操作区,这里统一不渲染。
+  // ⚠️ 面向客户的分享页不在 /agent 下(/v/·/t/·?toursession),不受影响。
+  const isBackstage = path.startsWith('/admin') || path.startsWith('/agent')
 
   // Agent-branded shareable report (/r/:code), client report (/cr/:code) and
   // payment-plan quote (/pp/:code) — clean client-facing pages with NO app
@@ -94,8 +95,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Favorites Drawer - Global, not inside Header */}
       {!chromeless && <FavoritesDrawer />}
 
-      {/* Voice Assistant - Global, works on all pages (但 admin 后台不显示) */}
-      {!chromeless && !isAdmin && <VoiceAssistantButton />}
+      {/* Voice Assistant - Global, works on all pages (但 admin 后台 + 经纪台不显示) */}
+      {!chromeless && !isBackstage && <VoiceAssistantButton />}
 
       {/* 登录后未选过用户类型(买家/经纪)→ 一次性选择;分享页/回调页内部自静音 */}
       {!chromeless && <RoleSelectModal />}
