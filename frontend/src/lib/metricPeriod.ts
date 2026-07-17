@@ -2,15 +2,20 @@
  * 增值率周期（1月…5年）前端单点配置 —— 见 docs/appreciation-yield-compare-spec.md §4.1
  *
  * 周期跟随市场口径（综合/期房/现房，见 [[marketSegment]]），持久化跨会话。
- * 短周期(1月/3月/半年)样本波动大 → UI 挂 ⓘ 提示但不隐藏（用户 2026-07-15 定：不藏私）。
- * 后端 APPRECIATION_PERIODS(routes/market.ts) 与此一一对应，改一处必改另一处。
+ * 短周期(3月/半年)样本波动大 → UI 挂 ⓘ 提示但不隐藏（用户 2026-07-15 定：不藏私）。
+ *
+ * PERIOD_KEYS 是**UI 可见的周期子集**：后端 APPRECIATION_PERIODS(routes/market.ts)
+ * 仍算全部 7 档(含 1m/5y)，前端只展示这里列出的档位（frontend keys ⊆ backend keys，
+ * 只挑不加，安全）。1月/5年 2026-07-17 应用户要求从选择器移除（后端保留无害）。
+ * MetricPeriodKey 保留全 7 档：让存了 '1m'/'5y' 的老用户经 loadSavedPeriod 校验失败
+ * → 优雅回退默认周期，而不是报错。
  */
 export type MetricPeriodKey = '1m' | '3m' | '6m' | '1y' | '2y' | '3y' | '5y'
 
-export const PERIOD_KEYS: MetricPeriodKey[] = ['1m', '3m', '6m', '1y', '2y', '3y', '5y']
+export const PERIOD_KEYS: MetricPeriodKey[] = ['3m', '6m', '1y', '2y', '3y']
 
 /** 短周期(区域中位价样本薄，抖动大) —— UI 挂「仅供参考」提示 */
-export const SHORT_PERIODS: MetricPeriodKey[] = ['1m', '3m', '6m']
+export const SHORT_PERIODS: MetricPeriodKey[] = ['3m', '6m']
 
 /** 默认周期：近 1 年（房产长周期决策，买家最常问「过去一年涨多少」） */
 export const DEFAULT_PERIOD: MetricPeriodKey = '1y'
