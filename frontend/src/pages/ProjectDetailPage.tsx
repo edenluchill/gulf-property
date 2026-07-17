@@ -139,8 +139,12 @@ export default function ProjectDetailPage() {
   const handleCopyNotes = async () => {
     if (!project) return
     // Get current language from i18next
-    const currentLang = document.documentElement.lang || localStorage.getItem('i18nextLng') || 'en'
-    const notesLang = currentLang.startsWith('zh') ? 'zh-CN' : 'en'
+    // ⚠️ 别从 DOM 读语言:`<html lang>` 是**输出**不是输入(而且曾被 App.tsx 写成未归一的
+    // 原始码)。旧的 localStorage 兜底还写错了 key —— 我们的是 `pinzos-lang`,
+    // `i18nextLng` 从来读不到,那行是死代码。语言的真相源就是 i18n.language。
+    // notesLang 只有 zh|en 两档:generateProjectNotes 目前只有这两版散文(见 spec ⑤,
+    // 治本是改后端 AI 按语言生成),其余语言先落英文。
+    const notesLang = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en'
     const projectUrl = `${window.location.origin}/project/${project.id}`
 
     const notes = generateProjectNotes({
@@ -198,8 +202,12 @@ export default function ProjectDetailPage() {
   const handleShare = async () => {
     if (!project) return
     trackEvent('share_action', { method: typeof navigator.share === 'function' ? 'native' : 'clipboard' }, { project_id: project.id })
-    const currentLang = document.documentElement.lang || localStorage.getItem('i18nextLng') || 'en'
-    const notesLang = currentLang.startsWith('zh') ? 'zh-CN' : 'en'
+    // ⚠️ 别从 DOM 读语言:`<html lang>` 是**输出**不是输入(而且曾被 App.tsx 写成未归一的
+    // 原始码)。旧的 localStorage 兜底还写错了 key —— 我们的是 `pinzos-lang`,
+    // `i18nextLng` 从来读不到,那行是死代码。语言的真相源就是 i18n.language。
+    // notesLang 只有 zh|en 两档:generateProjectNotes 目前只有这两版散文(见 spec ⑤,
+    // 治本是改后端 AI 按语言生成),其余语言先落英文。
+    const notesLang = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en'
     const projectUrl = `${window.location.origin}/project/${project.id}`
 
     const notes = generateProjectNotes({

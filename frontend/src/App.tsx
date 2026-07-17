@@ -74,12 +74,16 @@ function PinchZoomPolicy() {
 }
 
 function App() {
-  const { i18n, t } = useTranslation()
+  const { t } = useTranslation()
   const { updateAvailable } = useVersionCheck()
 
-  useEffect(() => {
-    document.documentElement.lang = i18n.language
-  }, [i18n.language])
+  // ⚠️ 这里曾经有 `document.documentElement.lang = i18n.language` —— **已删,别加回来**。
+  // `<html lang/dir>` 的**唯一真相源**是 i18n/index.ts 的 applyHtmlLangDir(它挂在
+  // languageChanged 上 + 初始化时跑一次,已经全覆盖)。这个 effect 是第二个 writer,
+  // 而且写的是**未归一的原始码** —— 后跑赢,把归一结果冲掉:
+  //   德国访客(de-DE)→ 页面正确回退成英文,`<html lang>` 却写着 "de-DE"
+  //   → 读屏软件用德语音色念英文、Chrome 翻译提示误判、hreflang 信号错。
+  // (实测 fr-FR/ja-JP/zh-TW 全中招。)
 
   return (
     <TourModeProvider>
