@@ -9,8 +9,10 @@ import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { fetchRentFilters, fetchRentProjects, fetchRentSummary, fetchRentList, RentSummary, RentRow } from '../../lib/api'
 import DirhamSymbol from '../../components/DirhamSymbol'
 import { formatMoneyCompact } from '../../lib/money'
+import { pricePerSqmToPerSqft, sqmToSqft } from '../../lib/units'
 
-const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('en-US'))
+// sqft 换算会带小数,这页所有数字都该是整数 → 取整(别摆出「344.445 sqft」)。
+const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n).toLocaleString('en-US'))
 
 // 年租金区间预设(AED)
 const RENT_PRICE_STEPS = [30000, 50000, 75000, 100000, 150000, 200000, 300000, 500000, 1000000]
@@ -112,7 +114,13 @@ export default function RentView() {
     fetchRentList({ ...query, limit: String(limit), offset: String(page * limit) }).then((r) => setRows(r.rows))
   }, [query, page])
 
-  const rps = summary?.rentPerSqm
+  // DLD 租金/面积原生 per-m² / m²,展示统一换成 sqft(见 lib/units.ts),数据不动。
+  const rpsRaw = summary?.rentPerSqm
+  const rps = rpsRaw && {
+    p25: pricePerSqmToPerSqft(rpsRaw.p25),
+    median: pricePerSqmToPerSqft(rpsRaw.median),
+    p75: pricePerSqmToPerSqft(rpsRaw.p75),
+  }
 
   const filterParts = [
     selectedProjects.length === 1 ? selectedProjects[0]
@@ -240,11 +248,11 @@ export default function RentView() {
             <Kpi label={t('misc:contracts')} value={fmt(summary.count)} />
             <Kpi label={t('misc:medianAnnualRent')} value={fmt(summary.medianAnnualRent)} currency />
             <Kpi label={t('misc:medianRentM')} value={fmt(rps?.median)} currency />
-            <Kpi label={t('misc:avgSizeM')} value={fmt(summary.avgSizeSqm)} />
+            <Kpi label={t('misc:avgSizeM')} value={fmt(summary.avgSizeSqm != null ? sqmToSqft(summary.avgSizeSqm) : summary.avgSizeSqm)} />
           </div>
           {rps && (
             <div className="mt-2 text-xs text-slate-500">
-              {t('misc:rentMAnnual')} {fmt(rps.p25)} – {fmt(rps.median)} – {fmt(rps.p75)} AED/m²
+              {t('misc:rentMAnnual')} {fmt(rps.p25)} – {fmt(rps.median)} – {fmt(rps.p75)} AED/sqft
             </div>
           )}
 
@@ -271,8 +279,8 @@ export default function RentView() {
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
                     {r.area && <span>{r.area}</span>}
                     {r.subtype && r.subtype !== '—' && <span>{r.subtype}</span>}
-                    {r.sizeSqm != null && <span>{fmt(r.sizeSqm)} m²</span>}
-                    {r.rentPerSqm != null && <span className="inline-flex items-center gap-0.5"><DirhamSymbol size="0.75em" className="text-slate-400" />{fmt(r.rentPerSqm)}/m²</span>}
+                    {r.sizeSqm != null && <span>{fmt(sqmToSqft(r.sizeSqm))} sqft</span>}
+                    {r.rentPerSqm != null && <span className="inline-flex items-center gap-0.5"><DirhamSymbol size="0.75em" className="text-slate-400" />{fmt(pricePerSqmToPerSqft(r.rentPerSqm))}/sqft</span>}
                     <span className="text-slate-400">{r.date}</span>
                   </div>
                 </div>
@@ -301,9 +309,9 @@ export default function RentView() {
                       <td className="px-3 py-2">{r.area}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate" title={r.building}>{r.building}</td>
                       <td className="px-3 py-2">{r.subtype}</td>
-                      <td className="px-3 py-2 text-end">{fmt(r.sizeSqm)}</td>
+                      <td className="px-3 py-2 text-end">{fmt(r.sizeSqm != null ? sqmToSqft(r.sizeSqm) : r.sizeSqm)}</td>
                       <td className="px-3 py-2 text-end">{fmt(r.annualRent)}</td>
-                      <td className="px-3 py-2 text-end">{fmt(r.rentPerSqm)}</td>
+                      <td className="px-3 py-2 text-end">{fmt(r.rentPerSqm != null ? pricePerSqmToPerSqft(r.rentPerSqm) : r.rentPerSqm)}</td>
                       <td className="px-3 py-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs ${r.regType === 'renew' ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700'}`}>
                           {r.regType === 'renew' ? t('misc:renew2') : t('misc:new2')}

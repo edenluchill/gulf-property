@@ -191,7 +191,7 @@ router.get('/summary', async (req: Request, res: Response) => {
       avgSizeSqm: s.avg_size_sqm ? Math.round(Number(s.avg_size_sqm)) : null,
       totalVolume: s.total_volume ? Math.round(Number(s.total_volume)) : null,
       trend: trend.rows.map((r) => ({ month: r.month, count: r.count, medianSqm: Number(r.median_sqm) })),
-      note: 'DLD/Ejari 住宅租约。租金/㎡ = 年租金 ÷ 面积。数据为定期快照,非实时。',
+      note: 'DLD/Ejari 住宅租约。租金/sqft = 年租金 ÷ 面积。数据为定期快照,非实时。',
     }
     cSet(key, data)
     res.json(data)

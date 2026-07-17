@@ -11,6 +11,7 @@ import {
 } from '../lib/api'
 import DirhamSymbol from '../components/DirhamSymbol'
 import { formatMoneyCompact } from '../lib/money'
+import { pricePerSqmToPerSqft, sqmToSqft } from '../lib/units'
 import RentView from './TransactionsPage/RentView'
 import { CONSUMER_SEGMENT } from '../lib/marketSegment'
 import { useScrollChrome } from '../hooks/useScrollChrome'
@@ -22,7 +23,9 @@ type SaleType = 'all' | 'ready' | 'offplan'
 type Mode = 'sales' | 'rent'
 
 function fmt(n: number | null | undefined) {
-  return n == null ? '—' : n.toLocaleString('en-US')
+  // 面积/单价换算成 sqft 后会带小数(如 1,555.291),而这页所有数字(成交量/总价/
+  // 面积/单价)都该是整数 → 统一取整,别把「344.445 sqft」这种念不出口的数摆出来。
+  return n == null ? '—' : Math.round(n).toLocaleString('en-US')
 }
 
 function TrendChart({ trend }: { trend: TxSummary['trend'] }) {
@@ -138,7 +141,17 @@ export default function TransactionsPage() {
       .then(r => setRows(r.rows))
   }, [query, page])
 
-  const pps = summary?.pricePerSqm
+  // DLD 的单价/面积原生都是 per-m² / m²,但全站 UI 讲 sqft(经纪和买家的锚点),
+  // 在展示边界统一换算(见 lib/units.ts)。DLD 数据本身不动。
+  const ppsRaw = summary?.pricePerSqm
+  const pps = ppsRaw && {
+    min: pricePerSqmToPerSqft(ppsRaw.min),
+    p25: pricePerSqmToPerSqft(ppsRaw.p25),
+    median: pricePerSqmToPerSqft(ppsRaw.median),
+    p75: pricePerSqmToPerSqft(ppsRaw.p75),
+    max: pricePerSqmToPerSqft(ppsRaw.max),
+    avg: pricePerSqmToPerSqft(ppsRaw.avg),
+  }
 
   // DLD 官方多久没发新成交了。成交本该日更 → 2 天以上就该主动说明,
   // 否则用户看到最新一条停在几天前,只会以为是我们的页面坏了。
@@ -369,7 +382,7 @@ export default function TransactionsPage() {
             <Kpi label={t('kpi.count')} value={fmt(summary.count)} />
             <Kpi label={t('kpi.medianPps')} value={fmt(pps?.median)} currency />
             <Kpi label={t('kpi.medianTotal')} value={fmt(summary.medianUnitPrice)} currency />
-            <Kpi label={t('kpi.avgSize')} value={fmt(summary.avgSizeSqm)} />
+            <Kpi label={t('kpi.avgSize')} value={fmt(summary.avgSizeSqm != null ? sqmToSqft(summary.avgSizeSqm) : summary.avgSizeSqm)} />
           </div>
           {pps && (
             <div className="mt-2 text-xs text-slate-500">
@@ -418,8 +431,8 @@ export default function TransactionsPage() {
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
                     {r.area && <span>{r.area}</span>}
                     {r.rooms && <span>{r.rooms}</span>}
-                    {r.sizeSqm != null && <span>{fmt(r.sizeSqm)} m²</span>}
-                    {r.pricePerSqm != null && <span className="inline-flex items-center gap-0.5"><DirhamSymbol size="0.75em" className="text-slate-400" />{fmt(r.pricePerSqm)}/m²</span>}
+                    {r.sizeSqm != null && <span>{fmt(sqmToSqft(r.sizeSqm))} sqft</span>}
+                    {r.pricePerSqm != null && <span className="inline-flex items-center gap-0.5"><DirhamSymbol size="0.75em" className="text-slate-400" />{fmt(pricePerSqmToPerSqft(r.pricePerSqm))}/sqft</span>}
                     <span className="text-slate-400">{r.date}</span>
                   </div>
                 </div>
@@ -448,9 +461,9 @@ export default function TransactionsPage() {
                     <td className="px-3 py-2">{r.area}</td>
                     <td className="px-3 py-2 max-w-[200px] truncate" title={r.building}>{r.building}</td>
                     <td className="px-3 py-2">{r.rooms}</td>
-                    <td className="px-3 py-2 text-end">{fmt(r.sizeSqm)}</td>
+                    <td className="px-3 py-2 text-end">{fmt(r.sizeSqm != null ? sqmToSqft(r.sizeSqm) : r.sizeSqm)}</td>
                     <td className="px-3 py-2 text-end">{fmt(r.price)}</td>
-                    <td className="px-3 py-2 text-end">{fmt(r.pricePerSqm)}</td>
+                    <td className="px-3 py-2 text-end">{fmt(r.pricePerSqm != null ? pricePerSqmToPerSqft(r.pricePerSqm) : r.pricePerSqm)}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${r.saleType === 'offplan' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
                         {r.saleType === 'offplan' ? t('saleType.offplan') : t('saleType.readyShort')}

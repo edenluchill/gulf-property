@@ -32,11 +32,11 @@
   "retry": "重试",
   "kpi": {
     "count": "成交笔数",
-    "medianPps": "中位单价 (AED/m²)",
+    "medianPps": "中位单价 (AED/sqft)",
     "medianTotal": "中位总价 (AED)",
-    "avgSize": "平均面积 (m²)"
+    "avgSize": "平均面积 (sqft)"
   },
-  "ppsRange": "单价区间：{{min}} – {{median}} – {{max}} AED/m²（p25 {{p25}} · p75 {{p75}}）",
+  "ppsRange": "单价区间：{{min}} – {{median}} – {{max}} AED/sqft（p25 {{p25}} · p75 {{p75}}）",
   "dataThrough": "数据截至 {{date}}（DLD 官方最新发布）",
   "dataStale": "DLD 已 {{days}} 天未发布新成交（源头节奏，非页面故障）",
   "trend": {
@@ -47,9 +47,9 @@
     "area": "区域",
     "building": "楼盘/楼栋",
     "rooms": "户型",
-    "size": "面积 m²",
+    "size": "面积 sqft",
     "price": "总价 AED",
-    "pps": "单价 /m²",
+    "pps": "单价 /sqft",
     "type": "类型"
   },
   "pagination": {

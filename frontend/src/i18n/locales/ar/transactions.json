@@ -32,11 +32,11 @@
   "retry": "إعادة المحاولة",
   "kpi": {
     "count": "المعاملات",
-    "medianPps": "متوسط السعر (AED/m²)",
+    "medianPps": "متوسط السعر (AED/sqft)",
     "medianTotal": "متوسط السعر الإجمالي (AED)",
-    "avgSize": "متوسط المساحة (m²)"
+    "avgSize": "متوسط المساحة (sqft)"
   },
-  "ppsRange": "نطاق السعر: {{min}} – {{median}} – {{max}} AED/m² (p25 {{p25}} · p75 {{p75}})",
+  "ppsRange": "نطاق السعر: {{min}} – {{median}} – {{max}} AED/sqft (p25 {{p25}} · p75 {{p75}})",
   "dataThrough": "البيانات حتى {{date}} (آخر تحديث من DLD)",
   "dataStale": "لم تنشر DLD مبيعات جديدة منذ {{days}} أيام (تحديث من المصدر، وليس خطأ في الصفحة)",
   "trend": {
@@ -47,9 +47,9 @@
     "area": "المنطقة",
     "building": "المشروع / المبنى",
     "rooms": "غرف النوم",
-    "size": "المساحة m²",
+    "size": "المساحة sqft",
     "price": "الإجمالي AED",
-    "pps": "السعر /m²",
+    "pps": "السعر /sqft",
     "type": "النوع"
   },
   "pagination": {
