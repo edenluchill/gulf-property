@@ -1,4 +1,20 @@
 {
+  "progress": {
+    "CONNECTED": "✅ Connecté au flux de traitement",
+    "JOB_QUEUED": "⏳ En file d'attente — en attente d'un serveur",
+    "PROCESSING_STARTED": "🚀 Traitement démarré",
+    "CHECKING_CACHE": "🔍 Vérification du cache PDF…",
+    "GENERATING_IMAGES": "🖼️ Génération de toutes les images de pages en lot…",
+    "IMAGES_UPLOADED": "✅ {{totalImages}} images téléchargées sur le stockage cloud",
+    "USING_CACHE": "⚡ Utilisation de {{totalImages}} images en cache (instantané)",
+    "SPLITTING_CHUNKS": "📦 Division des documents en segments de {{pagesPerChunk}} pages…",
+    "CHUNKS_READY": "✅ Divisé en {{totalChunks}} segments ({{totalPages}} pages), lancement de l'analyse IA…",
+    "PROCESSING_PAGES": "🔄 {{totalPages}} pages traitées, {{anchorPagesFound}} types d'unités trouvés",
+    "ASSIGNMENT_COMPLETE": "✅ Attribution intelligente terminée",
+    "GEOCODING": "📍 Récupération des coordonnées du projet à partir de l'adresse…",
+    "COMPLETE": "🎉 Traitement terminé",
+    "ERROR": "❌ Échec du traitement"
+  },
   "title": "Système d'extraction PDF intelligent",
   "subtitle": "Extraction et structuration d'informations de projets immobiliers par IA",
   "readiness": {

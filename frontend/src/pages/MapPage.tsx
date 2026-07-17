@@ -89,14 +89,8 @@ function pointInGeometry(pt: [number, number], geom?: GeoJSON.Geometry): boolean
 }
 
 // Usage filter for the area dialog/sheet (默认全部). No data hidden — just segmented.
-const USAGE_FILTER = [
-  { v: 'all', zh: '全部', en: 'All' },
-  { v: 'residential', zh: '住宅', en: 'Residential' },
-  { v: 'commercial', zh: '商业', en: 'Commercial' },
-  { v: 'hospitality', zh: '酒店', en: 'Hotel' },
-  { v: 'industrial', zh: '工业', en: 'Industrial' },
-  { v: 'other', zh: '其他', en: 'Other' },
-]
+// 文案走 `t('map:usage.<v>')` —— 这里曾内嵌 { zh, en } 两版,ar/ru/fr 全落到英文。
+const USAGE_FILTER = ['all', 'residential', 'commercial', 'hospitality', 'industrial', 'other']
 
 const METRIC_OPTIONS = [
   { value: 'medianUnitPrice' as AreaMetric, labelKey: 'map:metric.medianUnitPrice', Icon: DollarSign },
@@ -155,22 +149,31 @@ checkAndClearCache()
 
 // KHDA official school rating → badge style + Chinese label.
 // Scale (best→worst): Outstanding, Very Good, Good, Acceptable, Weak, Very Weak.
-function getKhdaStyle(rating?: string): { bg: string; text: string; zh: string } | null {
+/**
+ * KHDA 督导评级 → 配色 + 翻译键。
+ *
+ * ⚠️ 这里原本只有 `zh` 一个字段,渲染处还写死 `KHDA {khdaStyle.zh}` **不分语言**
+ * → 英文/阿语用户的地图上赫然写着「KHDA 卓越」。现在只出 `key`,文案走
+ * `t('map:khda.<key>')`;认不出的评级 key=null → 原样显示 DLD 给的英文原值。
+ */
+function getKhdaStyle(rating?: string): { bg: string; text: string; key: string | null } | null {
   if (!rating) return null
   const r = rating.trim().toLowerCase()
-  const map: Record<string, { bg: string; text: string; zh: string }> = {
-    'outstanding': { bg: '#047857', text: '#fff', zh: '卓越' },
-    'very good': { bg: '#059669', text: '#fff', zh: '优秀' },
-    'good': { bg: '#2563eb', text: '#fff', zh: '良好' },
-    'acceptable': { bg: '#d97706', text: '#fff', zh: '合格' },
-    'weak': { bg: '#dc2626', text: '#fff', zh: '欠佳' },
-    'very weak': { bg: '#991b1b', text: '#fff', zh: '很差' },
+  const map: Record<string, { bg: string; text: string; key: string }> = {
+    'outstanding': { bg: '#047857', text: '#fff', key: 'outstanding' },
+    'very good': { bg: '#059669', text: '#fff', key: 'veryGood' },
+    'good': { bg: '#2563eb', text: '#fff', key: 'good' },
+    'acceptable': { bg: '#d97706', text: '#fff', key: 'acceptable' },
+    'weak': { bg: '#dc2626', text: '#fff', key: 'weak' },
+    'very weak': { bg: '#991b1b', text: '#fff', key: 'veryWeak' },
   }
-  return map[r] || { bg: '#475569', text: '#fff', zh: rating }
+  return map[r] || { bg: '#475569', text: '#fff', key: null }
 }
 
 export default function MapPage() {
   const { t, i18n } = useTranslation(['map', 'common', 'misc'])
+  // 运行时拼的键(khda.* / usage.*)→ t 收成字面量联合类型,必须 cast
+  const tk = t as (k: string, o?: Record<string, unknown>) => string
   const navigate = useNavigate()
   const voiceContext = useVoiceAssistantContext()
   // Luna Tour: run a shared session ON this map. Supports both /v/:code and the
@@ -2217,7 +2220,9 @@ export default function MapPage() {
         const hours = d?.opening_hours
         const khda = d?.khda_rating
         const khdaStyle = getKhdaStyle(khda)
-        const khdaNote = khdaStyle ? 'KHDA 官方督导评级 · 截至 2023-24 学年' : null
+        // key 认不出(DLD 出了新档位)→ 原样显示它给的英文原值,别显示空白
+        const khdaLabel = khdaStyle ? (khdaStyle.key ? tk(`khda.${khdaStyle.key}`) : khda) : null
+        const khdaNote = khdaStyle ? tk('khda.note') : null
         // Credit label: "Wikipedia" or the source site's domain.
         const photoCreditLabel = d?.photo_credit
           ? (/^wikipedia/i.test(d.photo_credit) ? 'Wikipedia' : d.photo_credit.split('·')[0].trim())
@@ -2279,7 +2284,7 @@ export default function MapPage() {
                             className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
                             style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
                           >
-                            <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                            <Award className="w-3 h-3" /> KHDA {khdaLabel}
                           </span>
                         )}
                       </div>
@@ -2418,7 +2423,7 @@ export default function MapPage() {
                             className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
                             style={{ backgroundColor: khdaStyle.bg, color: khdaStyle.text }}
                           >
-                            <Award className="w-3 h-3" /> KHDA {khdaStyle.zh}
+                            <Award className="w-3 h-3" /> KHDA {khdaLabel}
                           </span>
                         )}
                       </div>
@@ -2868,13 +2873,13 @@ export default function MapPage() {
               <span className="text-[11px] font-medium text-slate-400 shrink-0">{t('misc:usage2')}</span>
               {USAGE_FILTER.map((u) => (
                 <button
-                  key={u.v}
-                  onClick={() => handleAreaUsageChange(u.v)}
+                  key={u}
+                  onClick={() => handleAreaUsageChange(u)}
                   className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    areaUsage === u.v ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
+                    areaUsage === u ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
                   }`}
                 >
-                  {i18n.language?.startsWith('zh') ? u.zh : u.en}
+                  {tk(`map:usage.${u}`)}
                 </button>
               ))}
             </div>

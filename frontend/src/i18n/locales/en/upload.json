@@ -334,5 +334,21 @@
     "sectionPricing": "Pricing check",
     "sectionExtra": "Extra info",
     "blockedBanner": "These units are missing required info and will be filtered at submission:"
+  },
+  "progress": {
+    "CONNECTED": "✅ Connected to the processing stream",
+    "JOB_QUEUED": "⏳ Queued — waiting for a worker",
+    "PROCESSING_STARTED": "🚀 Processing started",
+    "CHECKING_CACHE": "🔍 Checking PDF cache…",
+    "GENERATING_IMAGES": "🖼️ Generating all page images in batch…",
+    "IMAGES_UPLOADED": "✅ {{totalImages}} images uploaded to cloud storage",
+    "USING_CACHE": "⚡ Using {{totalImages}} cached images (instant)",
+    "SPLITTING_CHUNKS": "📦 Splitting documents into {{pagesPerChunk}}-page chunks…",
+    "CHUNKS_READY": "✅ Split into {{totalChunks}} chunks ({{totalPages}} pages), starting AI analysis…",
+    "PROCESSING_PAGES": "🔄 Processed {{totalPages}} pages, found {{anchorPagesFound}} unit types",
+    "ASSIGNMENT_COMPLETE": "✅ Smart assignment complete",
+    "GEOCODING": "📍 Getting project coordinates from the address…",
+    "COMPLETE": "🎉 Processing complete",
+    "ERROR": "❌ Processing failed"
   }
 }

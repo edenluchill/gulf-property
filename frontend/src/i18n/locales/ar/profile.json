@@ -1,4 +1,10 @@
 {
+  "badge": {
+    "agentMember": "عضو وكيل",
+    "proAgent": "وكيل محترف",
+    "agencyMember": "عضو وكالة",
+    "developerMember": "عضو مطور"
+  },
   "agentCardEditor": {
     "title": "بطاقة الوكيل",
     "badImageType": "يرجى تحميل صورة بصيغة JPG / PNG / WEBP",

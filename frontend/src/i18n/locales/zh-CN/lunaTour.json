@@ -642,5 +642,31 @@
     "confirm": "确定",
     "cancel": "取消"
   },
-  "reportLang": "报告语言"
+  "reportLang": "报告语言",
+  "crm": {
+    "stage": {
+      "new": "新客",
+      "engaged": "互动中",
+      "viewing": "看房",
+      "offer": "报价",
+      "closed": "成交",
+      "lost": "流失"
+    },
+    "kind": {
+      "call": "电话",
+      "whatsapp": "微信",
+      "email": "邮件",
+      "meeting": "会面",
+      "viewing": "看房",
+      "note": "备注"
+    },
+    "outcome": {
+      "interested": "有意向",
+      "follow_up": "待跟进",
+      "not_interested": "没兴趣",
+      "closed_won": "成交",
+      "closed_lost": "流失"
+    },
+    "reportCount_other": "{{count}} 份报告"
+  }
 }

@@ -1,4 +1,21 @@
 {
+  "usage": {
+    "all": "Tous",
+    "residential": "Résidentiel",
+    "commercial": "Commercial",
+    "hospitality": "Hôtelier",
+    "industrial": "Industriel",
+    "other": "Autre"
+  },
+  "khda": {
+    "outstanding": "Remarquable",
+    "veryGood": "Très bon",
+    "good": "Bon",
+    "acceptable": "Acceptable",
+    "weak": "Faible",
+    "veryWeak": "Très faible",
+    "note": "Note d'inspection officielle de la KHDA · année scolaire 2023-24"
+  },
   "searchPlaceholder": "Adresse, numéro MLS, ou autre !",
   "searchArea": "Rechercher des quartiers à Dubai...",
   "flyTo": "Aller à",

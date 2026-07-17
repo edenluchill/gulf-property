@@ -116,5 +116,22 @@
     "offplan": "期房",
     "ready": "现房",
     "dldSource": "数据来源 Dubai Land Department · 近 24 个月 · 截至 {{month}}"
+  },
+  "usage": {
+    "all": "全部",
+    "residential": "住宅",
+    "commercial": "商业",
+    "hospitality": "酒店",
+    "industrial": "工业",
+    "other": "其他"
+  },
+  "khda": {
+    "outstanding": "卓越",
+    "veryGood": "优秀",
+    "good": "良好",
+    "acceptable": "合格",
+    "weak": "欠佳",
+    "veryWeak": "很差",
+    "note": "KHDA 官方督导评级 · 截至 2023-24 学年"
   }
 }

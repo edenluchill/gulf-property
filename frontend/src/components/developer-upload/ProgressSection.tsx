@@ -23,6 +23,22 @@ interface ProgressEvent {
   timestamp: number
 }
 
+/**
+ * 后端的 `message` 是**英文**(`'Checking PDF cache...'`),以前直接渲染 → 上传页
+ * 其余部分都翻好了,唯独进度条一路英文。后端同时发结构化的 `code` + `data`,
+ * 认 code 查 `upload:progress.<code>` 才对。
+ *
+ * ⚠️ **必须留 `e.message` 兜底**:后端随时可能加新 code(现有 11 个里就有 3 个
+ * 是老的 progress-i18n 表从没跟上的),没配译文时显示英文原文,
+ * 总好过显示 `PROCESSING_STARTED` 这种裸 code 或一片空白。
+ */
+function progressText(t: (k: string, o?: Record<string, unknown>) => string, e: ProgressEvent): string {
+  if (!e.code) return e.message
+  const key = `progress.${e.code}`
+  const s = t(key, { ...(e.data || {}), defaultValue: '' })
+  return s || e.message
+}
+
 interface ProgressSectionProps {
   isProcessing: boolean
   progress: number
@@ -47,6 +63,8 @@ export function ProgressSection({
   liveData,
 }: ProgressSectionProps) {
   const { t } = useTranslation('upload')
+  // progress.<CODE> 是运行时拼的 → 必须 cast
+  const tk = t as (k: string, o?: Record<string, unknown>) => string
   const [isPausing, setIsPausing] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
 
@@ -216,7 +234,7 @@ export function ProgressSection({
                     ) : (
                       <Check className="h-3 w-3 mt-0.5 flex-shrink-0 text-green-600" />
                     )}
-                    <span className={isLastItem ? 'text-gray-700' : 'text-gray-500'}>{e.message}</span>
+                    <span className={isLastItem ? 'text-gray-700' : 'text-gray-500'}>{progressText(tk, e)}</span>
                   </div>
                 )
               })}

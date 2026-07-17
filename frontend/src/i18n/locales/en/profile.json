@@ -79,5 +79,11 @@
     "saved": "Saved",
     "saving": "Saving…",
     "save": "Save"
+  },
+  "badge": {
+    "agentMember": "Agent Member",
+    "proAgent": "Pro Agent",
+    "agencyMember": "Agency Member",
+    "developerMember": "Developer Member"
   }
 }

@@ -74,5 +74,16 @@
   },
   "share": "分享",
   "save": "收藏",
-  "saved": "已收藏"
+  "saved": "已收藏",
+  "amenityCat": {
+    "pool": "泳池水景",
+    "fitness": "健身健康",
+    "family": "家庭亲子",
+    "security": "安全服务",
+    "retail": "生活配套",
+    "transport": "交通停车",
+    "outdoor": "户外景观",
+    "leisure": "休闲娱乐",
+    "other": "其他配套"
+  }
 }

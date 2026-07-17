@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Loader2, ChevronRight, BadgeCheck, Upload, ArrowRight, ArrowLeft } from 'lucide-react'
 import { fetchBillingMe, setMyRole, type UserRole } from '../lib/billingApi'
-import { badgeForPlan, ROLE_BY_PLAN, type RoleBadge } from '../lib/roleBadge'
+import { badgeForPlan, badgeTitle, ROLE_BY_PLAN, type RoleBadge } from '../lib/roleBadge'
 import { useAuth } from '../contexts/AuthContext'
 import { lunaFetch } from '../luna-tour/lunaApi'
 
@@ -54,9 +54,8 @@ const ROLE_CARDS: {
 ]
 
 export default function RoleSelectPage() {
-  const { t: tRaw, i18n } = useTranslation('roleSelect')
+  const { t: tRaw } = useTranslation('roleSelect')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
   const { user, loading: authLoading } = useAuth()
   const [saving, setSaving] = useState<UserRole | null>(null)
   // 选付费角色后先收集「认证信息」(姓名 + 可选头像)→ 再进付款,证书用这份信息。
@@ -145,7 +144,7 @@ export default function RoleSelectPage() {
           </span>
           <h1 className="mt-4 flex items-center justify-center gap-1.5 text-xl font-bold text-slate-900">
             <BadgeCheck className="h-5 w-5 text-teal-500" />
-            {zh ? paidBadge.titleZh : paidBadge.titleEn}
+            {badgeTitle(t, paidBadge)}
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">
             {t('roleSelect:yourRoleFollowsYour')}

@@ -37,45 +37,44 @@ const ago = (iso: string | null | undefined, t: (k: string, o?: Record<string, u
   if (m < 1440) return t('lunaTour:hAgo', { h: Math.round(m / 60) })
   return t('lunaTour:dAgo', { d: Math.round(m / 1440) })
 }
+/** 已绑好 lunaTour ns 的 t(键是运行时拼的 → 必须是宽签名)。 */
+type TFn = (k: string, o?: Record<string, unknown>) => string
+
 const isOverdue = (iso?: string | null) => !!iso && new Date(iso).getTime() <= Date.now()
 const dateStr = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : '')
 
-const STAGES: { key: PipelineStage; label: string; en: string; chip: string }[] = [
-  { key: 'new', label: '新客', en: 'New', chip: 'bg-blue-50 text-blue-600 ring-blue-200' },
-  { key: 'engaged', label: '互动中', en: 'Engaged', chip: 'bg-teal-50 text-teal-600 ring-teal-200' },
-  { key: 'viewing', label: '看房', en: 'Viewing', chip: 'bg-amber-50 text-amber-600 ring-amber-200' },
-  { key: 'offer', label: '报价', en: 'Offer', chip: 'bg-purple-50 text-purple-600 ring-purple-200' },
-  { key: 'closed', label: '成交', en: 'Closed', chip: 'bg-emerald-50 text-emerald-600 ring-emerald-200' },
-  { key: 'lost', label: '流失', en: 'Lost', chip: 'bg-slate-100 text-slate-400 ring-slate-200' },
+// ⚠️ 这三张表(STAGES/KINDS/OUTCOMES)原本内嵌 { label:中文, en:英文 } 两版,
+// 渲染写 `L(x.label, x.en)` → **ar/ru/fr 用户全部落到英文**。
+// 现在只留结构化 key + 样式/图标(语言无关),文案走 `t('lunaTour:crm.*')`。
+const STAGES: { key: PipelineStage; chip: string }[] = [
+  { key: 'new', chip: 'bg-blue-50 text-blue-600 ring-blue-200' },
+  { key: 'engaged', chip: 'bg-teal-50 text-teal-600 ring-teal-200' },
+  { key: 'viewing', chip: 'bg-amber-50 text-amber-600 ring-amber-200' },
+  { key: 'offer', chip: 'bg-purple-50 text-purple-600 ring-purple-200' },
+  { key: 'closed', chip: 'bg-emerald-50 text-emerald-600 ring-emerald-200' },
+  { key: 'lost', chip: 'bg-slate-100 text-slate-400 ring-slate-200' },
 ]
 const stageMeta = (s?: PipelineStage | null) => STAGES.find((x) => x.key === s)
+const stageLabel = (t: TFn, s: PipelineStage) => t(`crm.stage.${s}`)
 
 const heatTone = (h: number) =>
   h >= 70 ? 'bg-red-50 text-red-600 ring-red-200'
     : h >= 40 ? 'bg-amber-50 text-amber-600 ring-amber-200'
       : 'bg-slate-100 text-slate-500 ring-slate-200'
 
-const KINDS: { key: InteractionKind; label: string; en: string; icon: typeof Phone }[] = [
-  { key: 'call', label: '电话', en: 'Call', icon: Phone },
-  { key: 'whatsapp', label: '微信', en: 'WhatsApp', icon: MessageCircle },
-  { key: 'email', label: '邮件', en: 'Email', icon: Mail },
-  { key: 'meeting', label: '会面', en: 'Meeting', icon: Users },
-  { key: 'viewing', label: '看房', en: 'Viewing', icon: Home },
-  { key: 'note', label: '备注', en: 'Note', icon: StickyNote },
+const KINDS: { key: InteractionKind; icon: typeof Phone }[] = [
+  { key: 'call', icon: Phone },
+  { key: 'whatsapp', icon: MessageCircle },
+  { key: 'email', icon: Mail },
+  { key: 'meeting', icon: Users },
+  { key: 'viewing', icon: Home },
+  { key: 'note', icon: StickyNote },
 ]
 const kindMeta = (k: InteractionKind) => KINDS.find((x) => x.key === k) || KINDS[5]
+const kindLabel = (t: TFn, k: InteractionKind) => t(`crm.kind.${k}`)
 
-const OUTCOMES: { key: InteractionOutcome; label: string; en: string }[] = [
-  { key: 'interested', label: '有意向', en: 'Interested' },
-  { key: 'follow_up', label: '待跟进', en: 'Follow-up' },
-  { key: 'not_interested', label: '没兴趣', en: 'Not interested' },
-  { key: 'closed_won', label: '成交', en: 'Closed won' },
-  { key: 'closed_lost', label: '流失', en: 'Lost' },
-]
-const outcomeLabel = (o: InteractionOutcome, zh = true) => {
-  const it = OUTCOMES.find((x) => x.key === o)
-  return it ? (zh ? it.label : it.en) : o
-}
+const OUTCOMES: InteractionOutcome[] = ['interested', 'follow_up', 'not_interested', 'closed_won', 'closed_lost']
+const outcomeLabel = (t: TFn, o: InteractionOutcome) => t(`crm.outcome.${o}`)
 
 function engagementInfo(e: ClientEngagement, t: (k: string, o?: Record<string, unknown>) => string): { label: string; icon: typeof Eye } {
   switch (e.event_type) {
@@ -89,10 +88,8 @@ function engagementInfo(e: ClientEngagement, t: (k: string, o?: Record<string, u
 }
 
 export default function AgentClients() {
-  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const { t: tRaw } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
 
   const [clients, setClients] = useState<Client[]>([])
   const [view, setView] = useState<'list' | 'detail'>('list')
@@ -145,7 +142,7 @@ export default function AgentClients() {
           <div className="mb-4 flex flex-wrap gap-1.5">
             <FilterTab active={stage === 'all'} onClick={() => setStage('all')}>{t('lunaTour:all')}</FilterTab>
             {STAGES.map((s) => (
-              <FilterTab key={s.key} active={stage === s.key} onClick={() => setStage(s.key)}>{L(s.label, s.en)}</FilterTab>
+              <FilterTab key={s.key} active={stage === s.key} onClick={() => setStage(s.key)}>{stageLabel(t, s.key)}</FilterTab>
             ))}
           </div>
 
@@ -190,10 +187,8 @@ function FilterTab({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function ClientCard({ c, onClick }: { c: Client; onClick: () => void }) {
-  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const { t: tRaw } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const heat = c.heat ?? 0
   const sm = stageMeta(c.pipeline_stage)
   const overdue = isOverdue(c.next_followup_at)
@@ -203,14 +198,14 @@ function ClientCard({ c, onClick }: { c: Client; onClick: () => void }) {
         <img src={c.avatar_url || AVA(c.name)} alt={c.name} className="h-12 w-12 rounded-full bg-slate-100 ring-1 ring-slate-200" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold text-slate-800">{c.name}</div>
-          <div className="truncate text-xs text-slate-400">{c.budget || '—'}{c.report_count ? ` · ${c.report_count} ${L('份报告', c.report_count > 1 ? 'reports' : 'report')}` : ''}</div>
+          <div className="truncate text-xs text-slate-400">{c.budget || '—'}{c.report_count ? ` · ${t('crm.reportCount', { count: c.report_count })}` : ''}</div>
         </div>
         <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ring-1 ${heatTone(heat)}`}>
           <Flame className="h-3 w-3" />{heat}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-        {sm && <span className={`rounded-full px-2 py-0.5 font-medium ring-1 ${sm.chip}`}>{L(sm.label, sm.en)}</span>}
+        {sm && <span className={`rounded-full px-2 py-0.5 font-medium ring-1 ${sm.chip}`}>{stageLabel(t, sm.key)}</span>}
         {c.last_activity_at && <span className="text-slate-400">{t('lunaTour:active2')} {ago(c.last_activity_at, t)}</span>}
         {c.next_followup_at && (
           <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${overdue ? 'bg-red-50 text-red-600 ring-1 ring-red-200' : 'text-slate-400'}`}>
@@ -223,10 +218,8 @@ function ClientCard({ c, onClick }: { c: Client; onClick: () => void }) {
 }
 
 function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () => void; onEdit: () => void }) {
-  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const { t: tRaw } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const navigate = useNavigate()
   const [phase, setPhase] = useState<'idle' | 'generating' | 'ready'>('idle')
   const [steps, setSteps] = useState<any[]>([])
@@ -333,7 +326,7 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
                   disabled={savingStage}
                   className={`rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors disabled:opacity-60 ${active ? s.chip : 'bg-white text-slate-500 ring-slate-200 hover:bg-slate-50'}`}
                 >
-                  {L(s.label, s.en)}
+                  {stageLabel(t, s.key)}
                 </button>
               )
             })}
@@ -456,6 +449,8 @@ function ClientDetail({ client, onBack, onEdit }: { client: Client; onBack: () =
 function CompareModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const { t: tRaw, i18n } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
+  // ⚠️ 这个 zh **不是**漏掉的双语三元,别去"清理"它:formatMoneyCompact 只认
+  // zh|en —— 中文用「万/亿」,其余语言用 K/M。是数字格式,不是翻译。
   const zh = !!i18n.language?.startsWith('zh')
   const [q, setQ] = useState('')
   const [results, setResults] = useState<CompareSearchProject[]>([])
@@ -614,10 +609,8 @@ function CompareModal({ clientId, onClose }: { clientId: string; onClose: () => 
 }
 
 function InteractionItem({ it }: { it: ClientInteraction }) {
-  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const { t: tRaw } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const km = kindMeta(it.kind)
   const Icon = km.icon
   return (
@@ -625,8 +618,8 @@ function InteractionItem({ it }: { it: ClientInteraction }) {
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-600"><Icon className="h-4 w-4" /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold text-slate-700">{L(km.label, km.en)}</span>
-          {it.outcome && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">{outcomeLabel(it.outcome, zh)}</span>}
+          <span className="font-semibold text-slate-700">{kindLabel(t, km.key)}</span>
+          {it.outcome && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">{outcomeLabel(t, it.outcome)}</span>}
           <span className="ms-auto shrink-0 text-[11px] text-slate-400">{ago(it.created_at, t)}</span>
         </div>
         {it.note && <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{it.note}</div>}
@@ -656,10 +649,8 @@ function EngagementItem({ ev }: { ev: ClientEngagement }) {
 }
 
 function FollowupForm({ clientId, onSaved }: { clientId: string; onSaved: () => void }) {
-  const { t: tRaw, i18n } = useTranslation('lunaTour')
+  const { t: tRaw } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
-  const L = (a: string, b: string) => (zh ? a : b)
   const [kind, setKind] = useState<InteractionKind>('call')
   const [note, setNote] = useState('')
   const [outcome, setOutcome] = useState<'' | InteractionOutcome>('')
@@ -694,7 +685,7 @@ function FollowupForm({ clientId, onSaved }: { clientId: string; onSaved: () => 
               onClick={() => setKind(k.key)}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors ${active ? 'bg-teal-500 text-white ring-teal-500' : 'bg-white text-slate-500 ring-slate-200 hover:bg-slate-50'}`}
             >
-              <Icon className="h-3.5 w-3.5" />{L(k.label, k.en)}
+              <Icon className="h-3.5 w-3.5" />{kindLabel(t, k.key)}
             </button>
           )
         })}
@@ -713,7 +704,7 @@ function FollowupForm({ clientId, onSaved }: { clientId: string; onSaved: () => 
           <span className="text-xs text-slate-500">{t('lunaTour:outcomeOptional')}</span>
           <select value={outcome} onChange={(e) => setOutcome(e.target.value as '' | InteractionOutcome)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
             <option value="">—</option>
-            {OUTCOMES.map((o) => <option key={o.key} value={o.key}>{L(o.label, o.en)}</option>)}
+            {OUTCOMES.map((o) => <option key={o} value={o}>{outcomeLabel(t, o)}</option>)}
           </select>
         </label>
         <label className="block">

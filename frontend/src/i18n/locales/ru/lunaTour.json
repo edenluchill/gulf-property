@@ -1,4 +1,33 @@
 {
+  "crm": {
+    "stage": {
+      "new": "Новый",
+      "engaged": "В работе",
+      "viewing": "Просмотр",
+      "offer": "Предложение",
+      "closed": "Закрыт",
+      "lost": "Утерян"
+    },
+    "kind": {
+      "call": "Звонок",
+      "whatsapp": "WhatsApp",
+      "email": "Email",
+      "meeting": "Встреча",
+      "viewing": "Просмотр",
+      "note": "Заметка"
+    },
+    "outcome": {
+      "interested": "Заинтересован",
+      "follow_up": "Повторный контакт",
+      "not_interested": "Не заинтересован",
+      "closed_won": "Успешно закрыто",
+      "closed_lost": "Проиграно"
+    },
+    "reportCount_one": "{{count}} отчет",
+    "reportCount_other": "{{count}} отчетов",
+    "reportCount_few": "{{count}} отчета",
+    "reportCount_many": "{{count}} отчетов"
+  },
   "tourOverlay": {
     "amenityCat": {
       "metro_station": "Метро",

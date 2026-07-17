@@ -69,6 +69,21 @@ const DYNAMIC = [
   ['lunaTour', 'tourOverlay.amenityCat', CATS],
   ['lunaTour', 'tourOverlay.amenityTier', TIERS],
   ['lunaTour', 'tourOverlay', ['amenityCatNamed']],
+  // 桶②:数据表由 {zh,en} 改成 key 后,文案全是拼出来的
+  ['profile', 'badge', ['agentMember', 'proAgent', 'agencyMember', 'developerMember']],
+  ['project', 'amenityCat', ['pool', 'fitness', 'family', 'security', 'retail', 'transport', 'outdoor', 'leisure', 'other']],
+  ['map', 'usage', ['all', 'residential', 'commercial', 'hospitality', 'industrial', 'other']],
+  ['map', 'khda', ['outstanding', 'veryGood', 'good', 'acceptable', 'weak', 'veryWeak', 'note']],
+  ['lunaTour', 'crm.stage', ['new', 'engaged', 'viewing', 'offer', 'closed', 'lost']],
+  ['lunaTour', 'crm.kind', ['call', 'whatsapp', 'email', 'meeting', 'viewing', 'note']],
+  ['lunaTour', 'crm.outcome', ['interested', 'follow_up', 'not_interested', 'closed_won', 'closed_lost']],
+  ['lunaTour', 'crm', ['reportCount']],
+  // upload:后端发的 progress code(ProgressSection 认 code 查译文,留 e.message 兜底)
+  ['upload', 'progress', [
+    'CONNECTED', 'JOB_QUEUED', 'PROCESSING_STARTED', 'CHECKING_CACHE', 'GENERATING_IMAGES',
+    'IMAGES_UPLOADED', 'USING_CACHE', 'SPLITTING_CHUNKS', 'CHUNKS_READY', 'PROCESSING_PAGES',
+    'ASSIGNMENT_COMPLETE', 'GEOCODING', 'COMPLETE', 'ERROR',
+  ]],
 ]
 
 function walk(dir) {

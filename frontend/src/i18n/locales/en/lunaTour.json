@@ -642,5 +642,32 @@
     "confirm": "Confirm",
     "cancel": "Cancel"
   },
-  "reportLang": "Report language"
+  "reportLang": "Report language",
+  "crm": {
+    "stage": {
+      "new": "New",
+      "engaged": "Engaged",
+      "viewing": "Viewing",
+      "offer": "Offer",
+      "closed": "Closed",
+      "lost": "Lost"
+    },
+    "kind": {
+      "call": "Call",
+      "whatsapp": "WhatsApp",
+      "email": "Email",
+      "meeting": "Meeting",
+      "viewing": "Viewing",
+      "note": "Note"
+    },
+    "outcome": {
+      "interested": "Interested",
+      "follow_up": "Follow-up",
+      "not_interested": "Not interested",
+      "closed_won": "Closed won",
+      "closed_lost": "Lost"
+    },
+    "reportCount_one": "{{count}} report",
+    "reportCount_other": "{{count}} reports"
+  }
 }

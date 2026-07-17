@@ -116,5 +116,22 @@
     "offplan": "Off-plan",
     "ready": "Ready",
     "dldSource": "Source: Dubai Land Department · last 24 months · through {{month}}"
+  },
+  "usage": {
+    "all": "All",
+    "residential": "Residential",
+    "commercial": "Commercial",
+    "hospitality": "Hotel",
+    "industrial": "Industrial",
+    "other": "Other"
+  },
+  "khda": {
+    "outstanding": "Outstanding",
+    "veryGood": "Very Good",
+    "good": "Good",
+    "acceptable": "Acceptable",
+    "weak": "Weak",
+    "veryWeak": "Very Weak",
+    "note": "KHDA official inspection rating · as of the 2023-24 school year"
   }
 }

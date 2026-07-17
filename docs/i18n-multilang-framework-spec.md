@@ -407,19 +407,41 @@ TourEditor 的时间线值得人眼看一眼(它靠 inline `left: start*px` 定�
 **整条时间线在 RTL 下不镜像**,这是有意的:`←/→` 移动按钮的文案已按
 「前移/后移」写,不按左/右)。
 
-## ② `{zh, en}` 两语言数据表(~100 行)—— ar/ru/fr 用户看到的是**英文**
-形如 `{zh ? meta.zh : meta.en}`。**只有两版**,阿/俄/法用户全部落到英文。
+## ✅ ② `{zh, en}` 两语言数据表 —— **已完成(2026-07-16)**
 
-- `lib/amenityCategory.ts` `CATEGORY_META`(17)→ 消费方 `AmenitiesTab.tsx:48`
-- `lib/roleBadge.ts` `titleZh/titleEn`(18)→ UserMenu/ProfileShell/ProfileHome/RoleSelect
-- `pages/MapPage.tsx` `{ v:'all', zh:'全部', en:'All' }`(29)
-- `luna-tour/pages/AgentClients.tsx` `{ key:'new', label:'新客', en:'New' }`(18)
-- `lib/progress-i18n.ts`(11)
+5 个数据源全部改成 **key + 5 语言 JSON**;`tsc 0 / build 0`;key-check **2020 键 × 5 语言全绿**。
+做法统一:**数据表里只留结构化 key + 语言无关的东西**(icon / 配色 / 渐变),文案一律 t()。
 
-> ⚠️ **这批之前被 spec 标成「数据驱动双语,有意保留」—— 那个判断要修正。**
-> 当时的理由是「codemod 转不了」,不是「不该翻」。结论:**该翻**,只是得手工
-> 把 map 的 `{zh,en}` 换成 key + 5 语言 JSON。降级不算坏(有英文兜底),
-> 但离「5 语言齐」差这一块。
+| 数据源 | 处置 |
+|---|---|
+| `lib/amenityCategory.ts` `CATEGORY_META` | 只留 `icon` → `t('project:amenityCat.<cat>')` |
+| `lib/roleBadge.ts` | `titleZh/titleEn` → `titleKey` + 新 `badgeTitle(t, badge)`;4 个消费方改完 |
+| `pages/MapPage.tsx` `USAGE_FILTER` | 变成纯 `string[]` → `t('map:usage.<v>')` |
+| `luna-tour/pages/AgentClients.tsx` | STAGES/KINDS/OUTCOMES 三表 → `t('lunaTour:crm.*')` |
+| `lib/progress-i18n.ts` | **整个删掉**(见下) |
+
+### 🔴 这轮的四个发现
+
+1. **`getKhdaStyle`(MapPage)比桶② 更糟:它只有 `zh`,渲染还写死 `KHDA {khdaStyle.zh}` 不分语言**
+   → **英文/阿语用户的地图上赫然写着「KHDA 卓越」**。已改 key + `t('map:khda.*')`;
+   认不出的评级(DLD 出新档位)→ 原样显示英文原值。旁边的 `khdaNote` 也是恒中文,一并修。
+2. **`lib/progress-i18n.ts` 是第二套 i18n 系统,而且从没接上线。**
+   它自带 locale 表 + 模板函数(只有 en/zh/ar,没有 ru/fr),**全仓库零 import**。
+   同 `credits.ts` 的 `labelEn`「没接线的开关」。更能说明问题的是:**它的 code 表和现实早就对不上**
+   (少了 `GEOCODING`/`JOB_QUEUED`/`PROCESSING_STARTED`,多了对不上的)。
+   真相:后端发 `{code, message}`,`message` 是**英文**,`ProgressSection` 直接渲染它
+   → 上传页其余部分都翻好了,唯独进度条一路英文。
+   已删该文件,改成认 `code` 查 `t('upload:progress.<CODE>')`,**留 `e.message` 兜底**
+   (后端随时会加新 code,没译文时显示英文原文,好过显示裸 code)。
+3. **`roleBadge` 里 `subZh`/`subEn`/`accent` 是死字段**(零读取),同批 0 的 `CAMERA_STYLES.label`。已删。
+   `certTitle` **保留不翻** —— 证书按设计**永远英文**(见 `drawCertificate` 注释)。
+4. **`badgeTitle` 不能用 `planId` 当翻译键** —— 两个团队勋章的 planId 都是 `'member'`,
+   名字却不同(经纪会员/开发商会员)。所以另起 `titleKey`。
+
+### ⚠️ 差点误删的:`formatMoneyCompact(x, zh ? 'zh' : 'en')`
+清理 `const zh` 时 tsc 立刻指出 `AgentClients:559` 还在用它。
+那个 `zh` **不是双语三元** —— 是金额格式(中文「万/亿」vs 其余 K/M),`formatMoneyCompact` 只认 zh|en。
+已就地加注释钉死,别再有人来"清理"。
 
 ## ③ 错误/兜底串
 `lib/billingApi.ts`(16,`'网络错误,请重试'` 等)、`luna-tour/collab/useCollabVoice.ts`(11)、
@@ -460,8 +482,14 @@ TourEditor 的时间线值得人眼看一眼(它靠 inline `left: start*px` 定�
 - 测试夹具(`collab.test.ts` 的 `'李先生'` 等)。
 
 ## ⑥ 已知细节债
-- **阿语 `nBed` 复数**:阿语 1/2/3-10 各有形态(غرفة/غرفتان/غرف),要走 i18next 的
-  `_one/_two/_few/_other`。现统一 `{{n}} غرف نوم`。
+- **🔧 `i18n-translate` 完全不懂复数 —— 每个 count 键都会中招。**
+  它按「翻译 JSON 的值」工作,en 给 `key_one`/`key_other` 两个形态,它就只回两个 →
+  **俄语缺 `_few`(2-4 用「отчёта」,不是「отчётов」)、阿语缺 dual**。
+  i18next 找不到形态会回退 `_other`,所以**不报错、只是数字念错**。
+  桶② 的 `crm.reportCount` 已手工补上 ru 的 `_few/_many`;**阿语的 dual 没补**(我不敢瞎写)。
+  治本 = 给 translate 的 prompt 加「按目标语言的复数规则补全形态」。
+- **阿语 `nBed` 复数**(同上一条的老实例):阿语 1/2/3-10 各有形态(غرفة/غرفتان/غرف),
+  要走 i18next 的 `_one/_two/_few/_other`。现统一 `{{n}} غرف نوم`。
 - **`toLocaleString()` 裸调**会跟浏览器 locale 走(阿语环境可能渲染成 ١٢٣),
   与走 `'en-US'` 的金额前后打架。迁移前就有,未统一。
 - **阿语译文全是 AI 产的,无母语校对**(§5 决策 #4 允许,但质量无人背书)。

@@ -1,4 +1,21 @@
 {
+  "usage": {
+    "all": "الكل",
+    "residential": "سكني",
+    "commercial": "تجاري",
+    "hospitality": "فندقي",
+    "industrial": "صناعي",
+    "other": "أخرى"
+  },
+  "khda": {
+    "outstanding": "متميز",
+    "veryGood": "جيد جداً",
+    "good": "جيد",
+    "acceptable": "مقبول",
+    "weak": "ضعيف",
+    "veryWeak": "ضعيف جداً",
+    "note": "التقييم الرسمي لهيئة المعرفة والتنمية البشرية (KHDA) · للعام الدراسي 2023-24"
+  },
   "searchPlaceholder": "العنوان، رقم MLS، أو أي شيء!",
   "searchArea": "ابحث عن مناطق دبي...",
   "flyTo": "انتقال إلى",

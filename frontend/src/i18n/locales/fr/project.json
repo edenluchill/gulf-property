@@ -1,4 +1,15 @@
 {
+  "amenityCat": {
+    "pool": "Piscines & Eau",
+    "fitness": "Fitness & Bien-être",
+    "family": "Famille & Enfants",
+    "security": "Sécurité & Services",
+    "retail": "Commerces & Restauration",
+    "transport": "Transports & Parking",
+    "outdoor": "Extérieurs & Nature",
+    "leisure": "Loisirs",
+    "other": "Autres"
+  },
   "loadingDetails": "Chargement des détails du projet...",
   "notFound": "Projet introuvable",
   "backToProperties": "Retour aux propriétés",

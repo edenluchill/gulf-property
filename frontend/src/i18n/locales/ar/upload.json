@@ -1,4 +1,20 @@
 {
+  "progress": {
+    "CONNECTED": "✅ متصل بمسار المعالجة",
+    "JOB_QUEUED": "⏳ قيد الانتظار — بانتظار المعالجة",
+    "PROCESSING_STARTED": "🚀 بدأت المعالجة",
+    "CHECKING_CACHE": "🔍 التحقق من ذاكرة التخزين المؤقت لملفات PDF…",
+    "GENERATING_IMAGES": "🖼️ جاري إنشاء صور لجميع الصفحات دفعة واحدة…",
+    "IMAGES_UPLOADED": "✅ تم تحميل {{totalImages}} صورة إلى التخزين السحابي",
+    "USING_CACHE": "⚡ استخدام {{totalImages}} صورة مخزنة مؤقتاً (فوري)",
+    "SPLITTING_CHUNKS": "📦 تقسيم المستندات إلى أجزاء من {{pagesPerChunk}} صفحات…",
+    "CHUNKS_READY": "✅ تم التقسيم إلى {{totalChunks}} أجزاء ({{totalPages}} صفحات)، جاري بدء تحليل الذكاء الاصطناعي…",
+    "PROCESSING_PAGES": "🔄 تم معالجة {{totalPages}} صفحات، وعُثر على {{anchorPagesFound}} من أنواع الوحدات",
+    "ASSIGNMENT_COMPLETE": "✅ اكتمل التعيين الذكي",
+    "GEOCODING": "📍 جاري جلب إحداثيات المشروع من العنوان…",
+    "COMPLETE": "🎉 اكتملت المعالجة",
+    "ERROR": "❌ فشلت المعالجة"
+  },
   "title": "نظام استخراج ذكي لملفات PDF",
   "subtitle": "استخراج وتنسيق معلومات مشروع العقارات المدعوم بالذكاء الاصطناعي",
   "readiness": {

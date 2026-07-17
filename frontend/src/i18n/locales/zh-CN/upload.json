@@ -334,5 +334,21 @@
     "sectionPricing": "定价核对",
     "sectionExtra": "附加信息",
     "blockedBanner": "以下户型缺少必填信息,提交时会被过滤:"
+  },
+  "progress": {
+    "CONNECTED": "✅ 已连接到处理流",
+    "JOB_QUEUED": "⏳ 排队中 —— 等待处理器",
+    "PROCESSING_STARTED": "🚀 开始处理",
+    "CHECKING_CACHE": "🔍 检查 PDF 缓存…",
+    "GENERATING_IMAGES": "🖼️ 批量生成所有页面图片…",
+    "IMAGES_UPLOADED": "✅ {{totalImages}} 张图片已上传到云存储",
+    "USING_CACHE": "⚡ 使用 {{totalImages}} 张缓存图片(秒级返回)",
+    "SPLITTING_CHUNKS": "📦 正在将文档切分成 {{pagesPerChunk}} 页小块…",
+    "CHUNKS_READY": "✅ 已切分成 {{totalChunks}} 个小块({{totalPages}} 页),开始 AI 分析…",
+    "PROCESSING_PAGES": "🔄 已处理 {{totalPages}} 页,找到 {{anchorPagesFound}} 个户型",
+    "ASSIGNMENT_COMPLETE": "✅ 智能分配完成",
+    "GEOCODING": "📍 正在从地址获取项目坐标…",
+    "COMPLETE": "🎉 处理完成",
+    "ERROR": "❌ 处理失败"
   }
 }

@@ -5,50 +5,56 @@
  */
 import QRCode from 'qrcode'
 
+/** 勋章名的翻译键。**不能用 planId 代替** —— 两个团队勋章的 planId 都是 'member',
+ *  名字却不同(经纪会员 / 开发商会员)。 */
+export type BadgeTitleKey = 'agentMember' | 'proAgent' | 'agencyMember' | 'developerMember'
+
 export interface RoleBadge {
   planId: string
-  titleZh: string
-  titleEn: string
-  /** 证书专属英文头衔(逐档更高级;与短 chip 用的 titleEn 分开)。 */
+  /**
+   * 勋章名 → `t('profile:badge.<titleKey>')`。
+   * 这里曾是 `titleZh` / `titleEn` 两个写死的字段,4 个消费方全写
+   * `zh ? badge.titleZh : badge.titleEn` → **ar/ru/fr 用户看到的全是英文**。
+   */
+  titleKey: BadgeTitleKey
+  /** 证书专属英文头衔(逐档更高级)。**证书永远英文**(见 drawCertificate),故不翻。 */
   certTitle: string
-  subZh: string
-  subEn: string
   emoji: string
   /** 分享卡渐变(深色,朋友圈里显质感) */
   from: string
   to: string
-  accent: string
 }
 
 const BADGES: Record<string, RoleBadge> = {
   rookie: {
     planId: 'rookie', emoji: '💼',
-    titleZh: '经纪会员', titleEn: 'Agent Member',
+    titleKey: 'agentMember',
     certTitle: 'Pinzos Member',
-    subZh: 'PINZOS 会员 · 启程', subEn: 'PINZOS Member · Starter',
-    from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
+    from: '#0f2b5b', to: '#1e40af',
   },
   agent: {
     planId: 'agent', emoji: '🏅',
-    titleZh: '金牌经纪人 PRO', titleEn: 'Pro Agent',
+    titleKey: 'proAgent',
     certTitle: 'Pinzos Pro Member',
-    subZh: 'PINZOS 会员 · 专业版', subEn: 'PINZOS Member · Pro',
-    from: '#1e1b4b', to: '#4338ca', accent: '#fbbf24',
+    from: '#1e1b4b', to: '#4338ca',
   },
   founder: {
     planId: 'founder', emoji: '🏢',
-    titleZh: '经纪公司会员', titleEn: 'Agency Member',
+    titleKey: 'agencyMember',
     certTitle: 'Pinzos Agency Partner',
-    subZh: 'PINZOS 会员 · 经纪公司', subEn: 'PINZOS Member · Agency',
-    from: '#2e1065', to: '#7c3aed', accent: '#e9d5ff',
+    from: '#2e1065', to: '#7c3aed',
   },
   developer: {
     planId: 'developer', emoji: '🏗️',
-    titleZh: '开发商会员', titleEn: 'Developer Member',
+    titleKey: 'developerMember',
     certTitle: 'Pinzos Developer Partner',
-    subZh: 'PINZOS 会员 · 开发商', subEn: 'PINZOS Member · Developer',
-    from: '#451a03', to: '#d97706', accent: '#fde68a',
+    from: '#451a03', to: '#d97706',
   },
+}
+
+/** 勋章名 → 当前语言。t 由调用方给(各自已绑好 ns 或用 `profile:` 前缀)。 */
+export function badgeTitle(t: (k: string) => string, badge: RoleBadge): string {
+  return t(`profile:badge.${badge.titleKey}`)
 }
 
 /** 套餐 → 角色(付费才定身份的唯一映射;席位成员按 agent 算) */
@@ -69,17 +75,15 @@ export function badgeForPlan(planId: string | undefined | null, status?: string 
 const MEMBER_BADGES: Record<string, RoleBadge> = {
   founder: {
     planId: 'member', emoji: '💼',
-    titleZh: '经纪会员', titleEn: 'Agent Member',
+    titleKey: 'agentMember',
     certTitle: 'Pinzos Team Member',
-    subZh: 'PINZOS 会员 · 团队成员', subEn: 'PINZOS Member · Team',
-    from: '#0f2b5b', to: '#1e40af', accent: '#60a5fa',
+    from: '#0f2b5b', to: '#1e40af',
   },
   developer: {
     planId: 'member', emoji: '🏗️',
-    titleZh: '开发商会员', titleEn: 'Developer Member',
+    titleKey: 'developerMember',
     certTitle: 'Pinzos Developer Member',
-    subZh: 'PINZOS 会员 · 团队成员', subEn: 'PINZOS Member · Team',
-    from: '#451a03', to: '#d97706', accent: '#fde68a',
+    from: '#451a03', to: '#d97706',
   },
 }
 

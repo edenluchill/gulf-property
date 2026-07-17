@@ -6,7 +6,7 @@ import { LogOut, Settings, ChevronDown, Medal, ArrowLeftRight, UserRound } from 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchBillingMe } from '../../lib/billingApi'
-import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
+import { badgeForPlan, badgeTitle, type RoleBadge } from '../../lib/roleBadge'
 import RoleBadgeDialog from '../RoleBadgeDialog'
 import { useMyRole } from '../../hooks/useMyRole'
 
@@ -163,7 +163,7 @@ export default function UserMenu() {
                   style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
                 >
                   <span aria-hidden>{badge.emoji}</span>
-                  {zh ? badge.titleZh : badge.titleEn}
+                  {badgeTitle(t as unknown as (k: string) => string, badge)}
                 </span>
               )}
             </Link>

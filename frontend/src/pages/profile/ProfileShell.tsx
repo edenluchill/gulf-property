@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
 import { useMyRole } from '../../hooks/useMyRole'
 import { fetchBillingMe, type BillingMe } from '../../lib/billingApi'
-import { badgeForPlan, type RoleBadge } from '../../lib/roleBadge'
+import { badgeForPlan, badgeTitle, type RoleBadge } from '../../lib/roleBadge'
 import { useScrollChrome } from '../../hooks/useScrollChrome'
 import { Sheet, SheetContent } from '../../components/ui/sheet'
 
@@ -71,9 +71,8 @@ const USAGE_TAB: Tab = { to: '/agent/usage', key: 'tabUsage', icon: Receipt }
 const AGENT_NAV_OPEN_KEY = 'pz-agent-nav-open'
 
 export default function ProfileShell() {
-  const { t: tRaw, i18n } = useTranslation('profile')
+  const { t: tRaw } = useTranslation('profile')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
   const { user, loading, isAdmin, signOut } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
@@ -336,7 +335,7 @@ export default function ProfileShell() {
                         style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
                       >
                         <span aria-hidden>{badge.emoji}</span>
-                        {zh ? badge.titleZh : badge.titleEn}
+                        {badgeTitle(t, badge)}
                       </span>
                     )}
                   </div>

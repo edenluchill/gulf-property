@@ -10,16 +10,24 @@ import {
 export type AmenityCategory =
   | 'pool' | 'fitness' | 'family' | 'security' | 'retail' | 'transport' | 'outdoor' | 'leisure' | 'other'
 
-export const CATEGORY_META: Record<AmenityCategory, { zh: string; en: string; icon: LucideIcon }> = {
-  pool: { zh: '泳池水景', en: 'Pools & Water', icon: Waves },
-  fitness: { zh: '健身健康', en: 'Fitness & Wellness', icon: Dumbbell },
-  family: { zh: '家庭亲子', en: 'Family & Kids', icon: Baby },
-  security: { zh: '安全服务', en: 'Security & Services', icon: Shield },
-  retail: { zh: '生活配套', en: 'Retail & Dining', icon: ShoppingBag },
-  transport: { zh: '交通停车', en: 'Transport & Parking', icon: Car },
-  outdoor: { zh: '户外景观', en: 'Outdoor & Nature', icon: Trees },
-  leisure: { zh: '休闲娱乐', en: 'Leisure', icon: Clapperboard },
-  other: { zh: '其他配套', en: 'Other', icon: Sparkles },
+/**
+ * 品类 → 图标。**文案不在这里** —— 走 `t('project:amenityCat.<cat>')`。
+ *
+ * 这里曾是 `{ zh, en }` 两个写死的字段,消费方写 `zh ? meta.zh : meta.en`
+ * → **ar/ru/fr 用户看到的全是英文**。icon 是数据(语言无关),留下。
+ *
+ * ⚠️ key 的顺序 = 展示顺序(groupAmenities 依赖 Object.keys 的顺序),别乱排。
+ */
+export const CATEGORY_META: Record<AmenityCategory, { icon: LucideIcon }> = {
+  pool: { icon: Waves },
+  fitness: { icon: Dumbbell },
+  family: { icon: Baby },
+  security: { icon: Shield },
+  retail: { icon: ShoppingBag },
+  transport: { icon: Car },
+  outdoor: { icon: Trees },
+  leisure: { icon: Clapperboard },
+  other: { icon: Sparkles },
 }
 
 const RULES: { cat: AmenityCategory; re: RegExp }[] = [

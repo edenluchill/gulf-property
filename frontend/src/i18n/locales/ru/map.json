@@ -1,4 +1,21 @@
 {
+  "usage": {
+    "all": "Все",
+    "residential": "Жилая",
+    "commercial": "Коммерческая",
+    "hospitality": "Гостиничная",
+    "industrial": "Промышленная",
+    "other": "Другое"
+  },
+  "khda": {
+    "outstanding": "Выдающийся",
+    "veryGood": "Очень хороший",
+    "good": "Хороший",
+    "acceptable": "Приемлемый",
+    "weak": "Слабый",
+    "veryWeak": "Очень слабый",
+    "note": "Официальный рейтинг KHDA · за 2023-24 учебный год"
+  },
   "searchPlaceholder": "Адрес, номер MLS или любой запрос...",
   "searchArea": "Поиск районов Дубая...",
   "flyTo": "Перейти к",

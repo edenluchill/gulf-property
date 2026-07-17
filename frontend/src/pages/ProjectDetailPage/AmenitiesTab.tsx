@@ -8,8 +8,9 @@ interface AmenitiesTabProps {
 }
 
 export function AmenitiesTab({ amenities }: AmenitiesTabProps) {
-  const { t, i18n } = useTranslation(['project', 'common'])
-  const zh = i18n.language?.startsWith('zh')
+  const { t: tRaw } = useTranslation(['project', 'common'])
+  // 品类键是运行时拼的 → t 收成字面量联合类型,必须 cast(同 spec 的 casted t 约定)
+  const t = tRaw as (k: string, o?: Record<string, unknown>) => string
 
   if (amenities.length === 0) {
     return (
@@ -45,7 +46,7 @@ export function AmenitiesTab({ amenities }: AmenitiesTabProps) {
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="text-sm font-semibold text-slate-900">{zh ? meta.zh : meta.en}</span>
+                  <span className="text-sm font-semibold text-slate-900">{t(`project:amenityCat.${cat}`)}</span>
                   <span className="text-xs text-slate-400">{items.length}</span>
                 </div>
                 <div className="flex flex-wrap gap-2 ps-9">

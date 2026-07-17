@@ -1,4 +1,10 @@
 {
+  "badge": {
+    "agentMember": "Агент-участник",
+    "proAgent": "Pro-агент",
+    "agencyMember": "Агентство-участник",
+    "developerMember": "Застройщик-участник"
+  },
   "agentCardEditor": {
     "title": "Карточка агента",
     "badImageType": "Пожалуйста, загрузите изображение в формате JPG, PNG или WEBP",

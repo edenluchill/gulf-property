@@ -79,5 +79,11 @@
     "saved": "已保存",
     "saving": "保存中…",
     "save": "保存"
+  },
+  "badge": {
+    "agentMember": "经纪会员",
+    "proAgent": "金牌经纪人 PRO",
+    "agencyMember": "经纪公司会员",
+    "developerMember": "开发商会员"
   }
 }

@@ -1,4 +1,31 @@
 {
+  "crm": {
+    "stage": {
+      "new": "جديد",
+      "engaged": "متفاعل",
+      "viewing": "معاينة",
+      "offer": "عرض",
+      "closed": "مغلق",
+      "lost": "خاسرة"
+    },
+    "kind": {
+      "call": "مكالمة",
+      "whatsapp": "واتساب",
+      "email": "بريد إلكتروني",
+      "meeting": "اجتماع",
+      "viewing": "معاينة",
+      "note": "ملاحظة"
+    },
+    "outcome": {
+      "interested": "مهتم",
+      "follow_up": "متابعة",
+      "not_interested": "غير مهتم",
+      "closed_won": "صفقة ناجحة",
+      "closed_lost": "صفقة خاسرة"
+    },
+    "reportCount_one": "تقرير {{count}}",
+    "reportCount_other": "{{count}} تقارير"
+  },
   "tourOverlay": {
     "amenityCat": {
       "metro_station": "مترو",

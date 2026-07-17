@@ -1,4 +1,10 @@
 {
+  "badge": {
+    "agentMember": "Agent membre",
+    "proAgent": "Agent Pro",
+    "agencyMember": "Agence membre",
+    "developerMember": "Promoteur membre"
+  },
   "agentCardEditor": {
     "title": "Carte d'agent",
     "badImageType": "Veuillez importer une image JPG / PNG / WEBP",

@@ -18,6 +18,7 @@ import { useMyRole } from '../../hooks/useMyRole'
 import { getProjectCount, getFavoriteCount } from '../../lib/favorites'
 import { lunaFetch } from '../../luna-tour/lunaApi'
 import RoleBadgeDialog from '../../components/RoleBadgeDialog'
+import { badgeTitle } from '../../lib/roleBadge'
 import WelcomePosterModal from '../../luna-tour/components/WelcomePosterModal'  // 入驻海报(重开入口)
 
 // 会员认证证书(navy+烫金正式奖状)入口开关。2026-07-14 owner:太正式,先撤,
@@ -42,7 +43,6 @@ const STATUS_KEY: Record<string, string> = {
 export default function ProfileHome() {
   const { t: tRaw, i18n } = useTranslation('profile')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
-  const zh = !!i18n.language?.startsWith('zh')
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const role = useMyRole()
@@ -132,7 +132,7 @@ export default function ProfileHome() {
                 style={{ background: `linear-gradient(90deg, ${badge.from}, ${badge.to})` }}
               >
                 <span aria-hidden>{badge.emoji}</span>
-                {zh ? badge.titleZh : badge.titleEn}
+                {badgeTitle(t, badge)}
                 <span className="text-white/70">· {t('profile:share')}</span>
               </button>
             )}

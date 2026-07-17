@@ -1,4 +1,31 @@
 {
+  "crm": {
+    "stage": {
+      "new": "Nouveau",
+      "engaged": "Qualifié",
+      "viewing": "Visite",
+      "offer": "Offre",
+      "closed": "Clôturé",
+      "lost": "Perdu"
+    },
+    "kind": {
+      "call": "Appel",
+      "whatsapp": "WhatsApp",
+      "email": "E-mail",
+      "meeting": "Rendez-vous",
+      "viewing": "Visite",
+      "note": "Note"
+    },
+    "outcome": {
+      "interested": "Intéressé",
+      "follow_up": "Suivi",
+      "not_interested": "Non intéressé",
+      "closed_won": "Gagné",
+      "closed_lost": "Perdu"
+    },
+    "reportCount_one": "{{count}} rapport",
+    "reportCount_other": "{{count}} rapports"
+  },
   "tourOverlay": {
     "amenityCat": {
       "metro_station": "Métro",

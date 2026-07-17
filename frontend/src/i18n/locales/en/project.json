@@ -74,5 +74,16 @@
   },
   "share": "Share",
   "save": "Save",
-  "saved": "Saved"
+  "saved": "Saved",
+  "amenityCat": {
+    "pool": "Pools & Water",
+    "fitness": "Fitness & Wellness",
+    "family": "Family & Kids",
+    "security": "Security & Services",
+    "retail": "Retail & Dining",
+    "transport": "Transport & Parking",
+    "outdoor": "Outdoor & Nature",
+    "leisure": "Leisure",
+    "other": "Other"
+  }
 }
