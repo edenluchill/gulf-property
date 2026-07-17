@@ -8,7 +8,7 @@
  * — backend operates on the demo agent. Delete luna-tour/ + the routes to remove.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { errText } from '../errText'
+import { errText } from '../../lib/errText'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { lunaFetch, getClients, type Client } from '../lunaApi'

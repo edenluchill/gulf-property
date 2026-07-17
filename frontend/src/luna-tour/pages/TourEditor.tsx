@@ -14,7 +14,7 @@ import { Link, useParams } from 'react-router-dom'
 import AiEditPanel from '../ui/AiEditPanel'
 import StoryboardReview from '../ui/StoryboardReview'
 import { lunaFetch } from '../lunaApi'
-import { errText } from '../errText'
+import { errText } from '../../lib/errText'
 import { API_BASE_URL } from '../../lib/config'
 
 /** R2 images need the CORS proxy to render in the editor canvas. */

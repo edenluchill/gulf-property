@@ -21,7 +21,7 @@
  * 所以这不是「缺失的功能」,是**产品的地基**。经纪能控制的只有:要不要显示、什么时候出现。
  */
 import { useEffect, useState } from 'react'
-import { errText } from '../errText'
+import { errText } from '../../lib/errText'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Sparkles, Undo2, Wand2 } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'

@@ -15,7 +15,7 @@
  *    经纪却要从零手打。而且旧版的「适合的户型」是假的(就是最便宜的 8 个)。
  */
 import { useEffect, useRef, useState } from 'react'
-import { errText } from '../errText'
+import { errText } from '../../lib/errText'
 import { LANGS as REPORT_LANGS } from '../../components/LanguageSwitcher'
 import { normLang } from '../../lib/tt'
 import { useTranslation } from 'react-i18next'

@@ -51,12 +51,12 @@ export function __clearRules(): void { rules.length = 0 }
 export async function evaluateAlerts(): Promise<void> {
   if (!rules.length) return
   try {
-    const active = new Map<string, number>()
-    const { rows } = await pool.query<{ id: number; kind: string }>(
+    const active = new Map<string, { id: number; metric: number | null }>()
+    const { rows } = await pool.query<{ id: number; kind: string; metric: string | null }>(
       // 只看状态类:API_5XX 是事故,不归这里管(它永不自动恢复)
-      `SELECT id, kind FROM perf_alerts WHERE resolved_at IS NULL AND kind <> 'API_5XX'`
+      `SELECT id, kind, metric FROM perf_alerts WHERE resolved_at IS NULL AND kind <> 'API_5XX'`
     )
-    for (const r of rows) active.set(r.kind, r.id)
+    for (const r of rows) active.set(r.kind, { id: r.id, metric: r.metric == null ? null : Number(r.metric) })
 
     for (const rule of rules) {
       let v: number | null = null
@@ -64,9 +64,27 @@ export async function evaluateAlerts(): Promise<void> {
       if (v === null || !Number.isFinite(v)) continue
 
       const breached = rule.breach(v)
-      const openId = active.get(rule.kind)
+      const open = active.get(rule.kind)
+      const openId = open?.id
 
-      if (breached && openId === undefined) {
+      if (breached && openId !== undefined && open!.metric !== v) {
+        /**
+         * 🔴 **持续中的状态告警要跟着走。**
+         *
+         * `metric`/`message` 以前只在 INSERT 那一刻写一次 → banner 上的数字**冻死在立案时刻**。
+         * 实测:DLD_RENT_SOURCE_STALE 立案时写「6 天(145h)」,54 小时后源头还没发,
+         * 真实值已经 192h,banner 却还挂着 145h —— owner 一看就问「这 banner 是不是永远不消」。
+         * 数字不动 = 看起来像卡死了,人就不再信它。
+         *
+         * 只更新读数,**不重发邮件**(还是同一起,没恶化成新事件);
+         * 值没变就不写(告警每分钟跑一轮,别为没变化的东西打 DB)。
+         * API_5XX 不在这个查询里 —— 事故要保留立案那一刻的证据,不该被覆盖。
+         */
+        await pool.query(
+          `UPDATE perf_alerts SET metric = $2, message = $3 WHERE id = $1`,
+          [openId, v, rule.message(v)]
+        )
+      } else if (breached && openId === undefined) {
         const message = rule.message(v)
         const ins = await pool.query<{ id: number }>(
           `INSERT INTO perf_alerts (kind, severity, metric, threshold, window_s, message)

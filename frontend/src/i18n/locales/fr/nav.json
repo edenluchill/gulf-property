@@ -29,5 +29,6 @@
     "dubaiMapEditor": "Modifier les itinéraires sur la carte de Dubaï",
     "taskManagement": "Suivre le statut des tâches d'importation",
     "dataManagement": "Analyses des données commerciales et du comportement client"
-  }
+  },
+  "about": "À propos"
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Upload, Loader2, Check } from 'lucide-react'
 import { lunaFetch } from '../luna-tour/lunaApi'
-import { errText } from '../luna-tour/errText'
+import { errText } from '../lib/errText'
 
 /** Modal: the agent's brand card — avatar upload + name/phone/whatsapp. */
 export default function AgentCardEditor({ onClose }: { onClose: () => void }) {

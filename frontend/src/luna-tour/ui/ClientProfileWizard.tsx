@@ -21,7 +21,7 @@
  * 为几厘钱去阻止一个提升主产品（20 积分的报告）质量的动作，不划算。
  */
 import { useEffect, useRef, useState } from 'react'
-import { errText } from '../errText'
+import { errText } from '../../lib/errText'
 import { useTranslation } from 'react-i18next'
 import { Sparkles, Check, X, Loader2, RefreshCw, Wand2 } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, Globe, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -30,7 +30,7 @@ const theme = {
 export default function Header() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { t, i18n } = useTranslation(['common', 'nav', 'auth'])
+  const { t } = useTranslation(['common', 'nav', 'auth'])
   const { user, loading, isAdmin, canUpload } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
@@ -59,12 +59,16 @@ export default function Header() {
   // (旧的 window 滚动隐藏逻辑已删:app 根 h-screen overflow-hidden,window 从不
   //  滚动,那套代码从未触发过。收纳现在由 Layout + hooks/useScrollChrome 驱动。)
 
-  // Mobile language toggle
-  const toggleLanguage = () => {
-    const next = i18n.language?.startsWith('zh') ? 'en' : 'zh-CN'
-    i18n.changeLanguage(next)
-  }
-  const langLabel = i18n.language?.startsWith('zh') ? '中' : 'EN'
+  /**
+   * 🔴 这里曾经是个 **两语言 toggle**(`zh ? 'en' : 'zh-CN'`)—— 5 语言框架上线后
+   * 没人回来改它。三个问题叠在一起,手机/平板上等于**根本切不了语言**:
+   *   1. 真正的 5 语言下拉 <LanguageSwitcher/> 在 `hidden xl:flex` 的 nav 里,
+   *      xl=1280px → **iPad Pro 11" 横向(1180px)差 100px 就够不着**。而经纪全用 iPad。
+   *   2. 剩下的 toggle 只在 zh↔en 之间翻,ar/ru/fr 根本选不到。
+   *   3. 最糟:已经在阿语的用户,标签显示「EN」(因为不是 zh),一点直接跳去**中文** ——
+   *      逻辑上就出不去。
+   * 现在全断点统一用 <LanguageSwitcher/>(单一真相源,5 语言)。
+   */
 
   // 分组导航：地图(主) · 成交记录(直达) · 经纪人 · 管理(下拉)
   // 散客只保留「成交记录」(买家查真实 transaction/rent,有真实使用)。区域分析/AI报告/
@@ -165,14 +169,10 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* Mobile/Tablet Language Toggle */}
-          <button
-            onClick={toggleLanguage}
-            className="xl:hidden flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors"
-          >
-            <Globe className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-xs font-medium text-slate-600">{langLabel}</span>
-          </button>
+          {/* 手机/平板:真正的 5 语言选择器(桌面的那个在下面 nav 里,xl 以下不显示) */}
+          <div className="xl:hidden">
+            <LanguageSwitcher />
+          </div>
 
           {/* Desktop Navigation — 分组 + 流畅动效 */}
           <nav ref={navRef} className="hidden xl:flex items-center gap-1.5">
@@ -188,7 +188,7 @@ export default function Header() {
             {/* 身份入口:买家 → 个人中心;经纪 → 经纪台;未定/匿名 → 成为经纪(强调色) */}
             {isBuyer ? (
               <NavPill to="/profile" active={location.pathname === '/profile'} icon={UserRound}
-                label={i18n.language?.startsWith('zh') ? '个人中心' : 'Profile'}
+                label={t('nav:profile')}
                 idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
             ) : (
               <NavPill to={isAgent ? '/agent' : '/agent/join'} active={isAgentActive} icon={Briefcase}
@@ -198,7 +198,7 @@ export default function Header() {
 
             {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位) */}
             <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
-              label={i18n.language?.startsWith('zh') ? '关于' : 'About'}
+              label={t('nav:about')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {(isAdmin || canUpload === true) && (

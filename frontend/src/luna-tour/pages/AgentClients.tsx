@@ -8,7 +8,7 @@
  * investment proposal or a tour.
  */
 import { useEffect, useRef, useState } from 'react'
-import { errText } from '../errText'
+import { errText } from '../../lib/errText'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
