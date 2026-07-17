@@ -53,6 +53,9 @@ const PRESETS_EN = [
   'Cut the empty adjectives',
   'Make the ending direct',
 ]
+// 选中某一拍时的快捷指令 —— 说的是「这一段」,不是整场
+const PRESETS_SCOPED_ZH = ['这段短一点', '说得更像人话', '把卖点提前', '去掉空话套话', '换个说法']
+const PRESETS_SCOPED_EN = ['Shorter here', 'Sound more human', 'Lead with the highlight', 'Cut the fluff', 'Rephrase this']
 
 export default function AiEditPanel({
   sessionId,
@@ -62,10 +65,17 @@ export default function AiEditPanel({
    * ⚠️ 带 nonce:同一条建议点第二次也要能再跑一遍(只比字符串的话值没变,useEffect 不会触发)。
    */
   injected,
+  /** 选中的那一拍 → 只改那一拍;不传 = 整体改。scopeLabel 只用来给经纪看现在改的是哪段。 */
+  scopeBeatId,
+  scopeLabel,
+  onClearScope,
 }: {
   sessionId: string
   onChanged?: () => void
   injected?: { text: string; nonce: number } | null
+  scopeBeatId?: string | null
+  scopeLabel?: string
+  onClearScope?: () => void
 }) {
   const { t: tRaw, i18n } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
@@ -77,14 +87,15 @@ export default function AiEditPanel({
   const [msg, setMsg] = useState('')
   const [canUndo, setCanUndo] = useState(false)
 
-  // 「让 Luna 改」点进来 → 直接执行那条建议
+  // 「让 Luna 改」点进来 → 直接执行那条建议(Luna 的意见针对整场,强制整体改)
   useEffect(() => {
-    if (injected?.text) void apply(injected.text)
+    if (injected?.text) void apply(injected.text, { global: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [injected?.nonce])
 
-  const apply = async (instruction: string) => {
+  const apply = async (instruction: string, opts?: { global?: boolean }) => {
     if (!instruction.trim() || busy) return
+    const beat_id = opts?.global ? undefined : scopeBeatId || undefined
     setBusy(true)
     setMsg('')
     setDiffs([])
@@ -92,7 +103,7 @@ export default function AiEditPanel({
       const r = await lunaFetch(`/sessions/${sessionId}/ai-edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction }),
+        body: JSON.stringify({ instruction, beat_id }),
       })
       const d = await r.json()
       if (!r.ok) {
@@ -131,9 +142,22 @@ export default function AiEditPanel({
         <Sparkles className="h-4 w-4 text-indigo-500" />
         <span className="font-semibold">{t('lunaTour:tellLunaWhatTo')}</span>
       </div>
-      <p className="mb-3 text-xs text-slate-400">
-        {t('lunaTour:justSayItPlainly')}
-      </p>
+
+      {/* 🎯 改哪儿 —— 一眼看清:选中某拍=只改那拍,没选=整体改 */}
+      <div className="mb-3">
+        {scopeBeatId ? (
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+            🎯 <span className="truncate">{zh ? '只改这一段' : 'Editing only'}：{scopeLabel}</span>
+            {onClearScope && (
+              <button onClick={onClearScope} className="shrink-0 text-indigo-400 hover:text-indigo-700" title={zh ? '改回整体' : 'Edit whole tour'}>✕</button>
+            )}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+            🌐 {zh ? '整体改' : 'Whole tour'} · <span className="text-slate-400">{zh ? '点左侧某一段可只改那段' : 'pick a block on the left to scope'}</span>
+          </span>
+        )}
+      </div>
 
       <div className="flex gap-2">
         <input
@@ -155,7 +179,7 @@ export default function AiEditPanel({
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {(zh ? PRESETS_ZH : PRESETS_EN).map((p) => (
+        {(scopeBeatId ? (zh ? PRESETS_SCOPED_ZH : PRESETS_SCOPED_EN) : (zh ? PRESETS_ZH : PRESETS_EN)).map((p) => (
           <button
             key={p}
             disabled={busy}

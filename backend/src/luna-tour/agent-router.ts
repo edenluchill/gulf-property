@@ -1557,6 +1557,8 @@ router.post('/sessions/:id/ai-edit', requireAgent, async (req: AgentReq, res: Re
     if (!sessionId) return res.status(404).json({ error: 'not found' })
     const instruction = String(req.body?.instruction || '').trim().slice(0, 500)
     if (!instruction) return res.status(400).json({ error: '说一句你想改什么', code: 'instruction_required' })
+    // 选中某一拍 → 只改那一拍(不传 = 整体改,让 AI 自己判断哪几段)
+    const scopeBeatId = String(req.body?.beat_id || '').trim()
 
     const scRes = await pool.query<{ id: string; script: ScriptShape }>(
       `SELECT id, script FROM lt_tour_scripts WHERE session_id=$1 ORDER BY language LIMIT 1`,
@@ -1571,7 +1573,10 @@ router.post('/sessions/:id/ai-edit', requireAgent, async (req: AgentReq, res: Re
     )
     const before = new Map(beats.map((b) => [b.beat_id, b.narration]))
 
-    const patches = await reviseWithInstruction(beats, instruction)
+    // 有选中范围就只喂那一拍给 AI —— 它只可能返回那一拍的 patch,下面的落库循环天然只动它
+    const scoped = scopeBeatId ? beats.filter((b) => b.beat_id === scopeBeatId) : beats
+    if (scopeBeatId && !scoped.length) return res.status(404).json({ error: 'beat not found', code: 'beat_not_found' })
+    const patches = await reviseWithInstruction(scoped, instruction)
     if (!patches.length) {
       // message 是给日志看的中文;前端认 code 查译文(见 frontend/src/luna-tour/errText.ts)
       return res.json({ ok: true, applied: 0, diffs: [], code: 'ai_nothing_to_change', message: 'Luna 没找到要改的地方 —— 换个说法再试?' })

@@ -81,18 +81,17 @@ export default function TourEditor() {
   const [preview, setPreview] = useState(false)
   const [nodes, setNodes] = useState<Node[]>([])
   /**
-   * 🔴 **时间线默认收起。**
+   * 🔴 **统一布局(owner 2026-07-17 要求):编辑器直接显示,AI 辅助进右侧常驻栏。**
    *
-   * owner 实测:「客户已经来看到直接懵逼了 完全不会用」。
-   * 根因不是时间线做得不好,是**我们在让经纪当剪辑师** —— 而他是销售。
-   * 主界面改成「跟 Luna 说你想改什么」;轨道/时长/镜头滑块收进「高级」。
+   * 历史:曾把时间线整个藏进「高级」,默认只留一个 AI 对话框(因为「经纪是销售不是剪辑师」)。
+   * 但那样点「编辑」只看到一个对话框,看不到自己在改什么 —— owner 明确要「直接进编辑器」。
+   * 现在两者并存:时间线是主画布(always),AI 辅助(StoryboardReview + AiEditPanel)
+   * 常驻右侧栏顶部,下面是选中拍的精修。不想碰轨道的经纪照样只用上面那个 AI 框。
    */
-  const [advanced, setAdvanced] = useState(false)
   // 「让 Luna 改」→ 把那句建议直接交给 AI 编辑器执行(nonce:同一条能点第二次)
   const [injected, setInjected] = useState<{ text: string; nonce: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [selId, setSelId] = useState<string | null>(null)
-  const [comments, setComments] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [px, setPx] = useState(16) // pixels per second (zoom)
@@ -207,18 +206,6 @@ export default function TourEditor() {
     } catch { flash(`❌ ${t('editor.networkError')}`) }
     setBusy(false)
   }
-  const applyComments = async () => {
-    const entries = Object.entries(comments).filter(([, v]) => v.trim())
-    if (!entries.length) return flash(t('editor.writeNoteFirst'))
-    setBusy(true)
-    try {
-      await Promise.all(entries.map(([beat_id, body]) => lunaFetch(`/sessions/${id}/comments`, { method: 'POST', body: JSON.stringify({ beat_id, body: body.trim() }) })))
-      const r = await lunaFetch(`/sessions/${id}/revise`, { method: 'POST' })
-      const d = await r.json()
-      if (d.applied) { setComments({}); await reload(); flash(`✅ ${t('editor.aiRevised', { n: d.applied })}`) } else flash(`ℹ️ ${errText(d, 'lunaTour:err.ai_no_changes')}`)
-    } catch { flash(`❌ ${t('editor.reviseFailed')}`) }
-    setBusy(false)
-  }
   const setCameraStyle = async (beatId: string, style: string) => {
     const r = await lunaFetch(`/sessions/${id}/beat-camera`, { method: 'POST', body: JSON.stringify({ beat_id: beatId, style }) })
     if (r.ok) { const d = await r.json(); setNodes((cur) => cur.map((n) => (n.id === beatId ? { ...n, cameraLabel: d.cameraLabel ?? d.camera, cameraStyle: d.cameraStyle } : n))); flash(`✅ ${t('editor.cameraUpdated')}`) }
@@ -274,40 +261,16 @@ export default function TourEditor() {
       <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-white shrink-0">
         <Link to="/agent/tour" className="text-slate-500 hover:text-slate-800 text-sm">← {t('editor.back')}</Link>
         <input className="flex-1 border rounded-lg px-3 py-1.5 text-sm font-medium" value={title} onChange={(e) => setTitle(e.target.value)} />
-        {advanced && (
-          <div className="flex items-center gap-1 text-slate-500">
-            <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.max(6, p - 4))}>−</button>
-            <span className="text-xs w-10 text-center">{px}px/s</span>
-            <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
-          </div>
-        )}
+        <div className="flex items-center gap-1 text-slate-500">
+          <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.max(6, p - 4))}>−</button>
+          <span className="text-xs w-10 text-center">{px}px/s</span>
+          <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
+        </div>
         <button onClick={() => setPreview(true)} disabled={!shareCode} className="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">▶ {t('editor.preview')}</button>
         <button onClick={saveNarration} disabled={busy} className="bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">{t('editor.save')}</button>
-        <button
-          onClick={() => setAdvanced((a) => !a)}
-          className={`rounded-lg border px-3 py-1.5 text-sm transition ${advanced ? 'border-slate-300 bg-slate-100 text-slate-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-          title={t('editor.advancedTitle')}
-        >
-          ⚙ {t('editor.advanced')}
-        </button>
         {msg && <span className="text-sm">{msg}</span>}
       </div>
 
-      {/* 💬 主界面:跟 Luna 说你想改什么。经纪是销售,不是剪辑师。 */}
-      {!advanced && (
-        <div className="shrink-0 overflow-auto bg-slate-100 p-4">
-          <div className="mx-auto max-w-3xl">
-            {/* 🔎 Luna 先说这份大纲缺了什么 —— 经纪不用自己去 12 拍里找问题 */}
-            <StoryboardReview sessionId={id} onApplyFix={(fix) => setInjected({ text: fix, nonce: Date.now() })} />
-            <AiEditPanel sessionId={id} onChanged={reload} injected={injected} />
-            <p className="mt-3 text-center text-xs text-slate-400">
-              {t('editor.advancedHint')}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {advanced && (
       <div className="flex-1 flex min-h-0">
         {/* TIMELINE */}
         <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
@@ -372,7 +335,7 @@ export default function TourEditor() {
               {/* 旁白 track (beats) */}
               <Track label={t('editor.track.narration')} h={104}>
                 {laid.map((b) => (
-                  <button key={b.id} onClick={() => setSelId(b.id)} className={`absolute top-1.5 bottom-1.5 rounded-lg border text-start px-2.5 py-2 overflow-hidden transition ${selId === b.id ? 'ring-2 ring-indigo-300 z-10' : ''} ${(b.actIndex ?? -1) < 0 ? 'bg-slate-700 border-slate-600' : b.isPlace ? 'bg-indigo-600/70 border-indigo-400' : 'bg-emerald-700/70 border-emerald-500'}`} style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
+                  <button key={b.id} onClick={() => setSelId((cur) => (cur === b.id ? null : b.id))} className={`absolute top-1.5 bottom-1.5 rounded-lg border text-start px-2.5 py-2 overflow-hidden transition ${selId === b.id ? 'ring-2 ring-indigo-300 z-10' : ''} ${(b.actIndex ?? -1) < 0 ? 'bg-slate-700 border-slate-600' : b.isPlace ? 'bg-indigo-600/70 border-indigo-400' : 'bg-emerald-700/70 border-emerald-500'}`} style={{ left: b.start * px + 1, width: Math.max(8, b.dur * px - 2) }}>
                     <div className="text-[11px] font-medium text-white/80 mb-0.5">{kindLabel(b.kind)} · ~{b.dur}s</div>
                     <div className="text-[13px] text-white leading-snug line-clamp-4">{b.narration || '—'}</div>
                   </button>
@@ -439,35 +402,19 @@ export default function TourEditor() {
           </div>
         </div>
 
-        {/* side edit panel */}
-        <div className="w-[340px] shrink-0 border-s bg-white overflow-y-auto p-4">
+        {/* side panel: 选中拍精修(上,可滚)+ ✨ Luna 辅助(钉右下) */}
+        <div className="w-[380px] shrink-0 border-s bg-slate-100 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
           {!sel ? (
-            <div className="text-sm text-slate-400 mt-8 text-center">{t('editor.emptyPanel.title')}<br />{t('editor.emptyPanel.what')}<br /><span className="text-xs">{t('editor.emptyPanel.hint')}</span></div>
+            <div className="text-sm text-slate-400 mt-4 text-center">{t('editor.emptyPanel.title')}<br />{t('editor.emptyPanel.what')}<br /><span className="text-xs">{t('editor.emptyPanel.hint')}</span></div>
           ) : (
             <div className="space-y-4">
               <div className="text-xs font-semibold text-emerald-700">{sel.isPlace ? '📍 ' : ''}{sel.group} · {kindLabel(sel.kind)} · {sel.dur}s</div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">{t('editor.track.narration')}</label>
-                <textarea className="w-full border rounded-lg px-3 py-2 text-sm leading-relaxed" rows={5} value={sel.narration} onChange={(e) => setNodes((cur) => cur.map((n) => (n.id === sel.id ? { ...n, narration: e.target.value } : n)))} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">{t('editor.noteLabel')}</label>
-                <input
-                  className="w-full border border-dashed border-slate-300 rounded-lg px-2 py-1.5 text-sm"
-                  placeholder={t('editor.notePlaceholder')}
-                  value={comments[sel.id] || ''}
-                  onChange={(e) => setComments((c) => ({ ...c, [sel.id]: e.target.value }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void applyComments() }}
-                />
-                <button
-                  onClick={() => void applyComments()}
-                  disabled={busy}
-                  className="mt-1.5 w-full rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  ✨ {t('editor.applyNotes')}
-                </button>
-                {/* ⚠️ 数字改不了 —— 而且这是刻意的。卡片上的价格/涨幅/成交量全部来自
-                    真实 DLD 数据;能手改 = 能伪造 = 客户凭什么信我们。 */}
+                <textarea className="w-full border rounded-lg px-3 py-2 text-sm leading-relaxed" rows={6} value={sel.narration} onChange={(e) => setNodes((cur) => cur.map((n) => (n.id === sel.id ? { ...n, narration: e.target.value } : n)))} />
+                {/* ⚠️ 数字改不了 —— 卡片上的价格/涨幅/成交量全来自真实 DLD 数据。
+                    想让 Luna 改这段文案 → 用右下角的 Luna 助手(会自动只改选中这段)。 */}
                 <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
                   {t('editor.numbersLocked')}
                 </p>
@@ -513,9 +460,26 @@ export default function TourEditor() {
               </div>
             </div>
           )}
+          </div>
+          {/* ✨ Luna 助手 —— 独立切割区,钉右下始终可见。选中某拍=只改那拍;没选=整体改 */}
+          <div className={`shrink-0 border-t-4 bg-slate-50 overflow-y-auto ${sel ? 'border-indigo-300' : 'border-slate-200'}`} style={{ maxHeight: '55%' }}>
+            <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-slate-50/95 px-3 py-2 text-xs font-bold text-slate-500 backdrop-blur">
+              <span>✨</span> Luna 助手
+            </div>
+            <div className="px-3 pb-3">
+            <StoryboardReview sessionId={id} onApplyFix={(fix) => setInjected({ text: fix, nonce: Date.now() })} />
+            <AiEditPanel
+              sessionId={id}
+              onChanged={reload}
+              injected={injected}
+              scopeBeatId={selId}
+              scopeLabel={sel ? `${sel.group} · ${kindLabel(sel.kind)}` : ''}
+              onClearScope={() => setSelId(null)}
+            />
+            </div>
+          </div>
         </div>
       </div>
-      )}
 
       {/* in-editor preview — plays the real tour in an iframe */}
       {preview && shareCode && (
