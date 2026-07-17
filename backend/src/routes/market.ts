@@ -464,6 +464,11 @@ function smooth3(series: (number | null)[]): (number | null)[] {
 
 // 增值率周期(月)。与前端 PeriodSelector 一一对应。
 export const APPRECIATION_PERIODS = { '1m': 1, '3m': 3, '6m': 6, '1y': 12, '2y': 24, '3y': 36, '5y': 60 } as const
+
+// 住宅价格口径:算 price/sqft、中位总价、涨幅时只取 Unit/Villa,排除 Land/Building。
+// 否则沙漠地块(便宜/巨大)会把住宅单价拉垮(如 Shharrj ₫262/sqft 实为地价)。
+// 成交量 count 不受此限(全口径=活跃度信号)。地图/对话框/全市三处都用它保持一致。
+const RES_PT = `dt.property_type IN ('Unit','Villa')`
 export type AppreciationPeriod = keyof typeof APPRECIATION_PERIODS
 export type Appreciation = Partial<Record<AppreciationPeriod, number | null>>
 
@@ -612,18 +617,18 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
          SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
                 COUNT(*)::int AS count,
-                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps,
-                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_up,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE ${RES_PT}) AS median_pps,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE ${RES_PT}) AS median_up,
                 COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-                  FILTER (WHERE dt.is_offplan) AS median_pps_offplan,
+                  FILTER (WHERE dt.is_offplan AND ${RES_PT}) AS median_pps_offplan,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
-                  FILTER (WHERE dt.is_offplan) AS median_up_offplan,
+                  FILTER (WHERE dt.is_offplan AND ${RES_PT}) AS median_up_offplan,
                 COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-                  FILTER (WHERE NOT dt.is_offplan) AS median_pps_ready,
+                  FILTER (WHERE NOT dt.is_offplan AND ${RES_PT}) AS median_pps_ready,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
-                  FILTER (WHERE NOT dt.is_offplan) AS median_up_ready
+                  FILTER (WHERE NOT dt.is_offplan AND ${RES_PT}) AS median_up_ready
            FROM dld_transactions dt
            ${txJoin}
           CROSS JOIN bounds b
@@ -722,13 +727,13 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
       // Median TOTAL transaction price (房子中位总价) over the last 12 months — 三口径。
       pool.query(
         `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
-         SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS median_unit_price,
+         SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE ${RES_PT}) AS median_unit_price,
                 COUNT(*)::int AS n,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
-                  FILTER (WHERE dt.is_offplan) AS median_unit_price_offplan,
+                  FILTER (WHERE dt.is_offplan AND ${RES_PT}) AS median_unit_price_offplan,
                 COUNT(*) FILTER (WHERE dt.is_offplan)::int AS n_offplan,
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
-                  FILTER (WHERE NOT dt.is_offplan) AS median_unit_price_ready,
+                  FILTER (WHERE NOT dt.is_offplan AND ${RES_PT}) AS median_unit_price_ready,
                 COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS n_ready
            FROM dld_transactions dt
            ${txJoin}
@@ -879,13 +884,13 @@ async function loadCityAppreciation(): Promise<Record<'all' | 'offplan' | 'ready
     `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
      SELECT to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
             COUNT(*)::int AS count,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS median_pps,
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE ${RES_PT}) AS median_pps,
             COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
             percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-              FILTER (WHERE dt.is_offplan) AS median_pps_offplan,
+              FILTER (WHERE dt.is_offplan AND ${RES_PT}) AS median_pps_offplan,
             COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
             percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
-              FILTER (WHERE NOT dt.is_offplan) AS median_pps_ready
+              FILTER (WHERE NOT dt.is_offplan AND ${RES_PT}) AS median_pps_ready
        FROM dld_transactions dt CROSS JOIN bounds b
       WHERE dt.trans_group = 'Sales' AND dt.meter_sale_price > 0
         AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '63 months'
@@ -917,6 +922,23 @@ const CITY_APPR_KEY = 'mkt:appr:city'
  * 天然不匹配真实 area_id → 不在此 → 地图对手绘区不按周期着色(与其常缺 rolling
  * metrics 的现状一致)。全表 percentile 较重 → microCache 6h + 预热。
  */
+// 增值率月度聚合的 SELECT 列 —— 官方区(area_id bridge)与自定义手绘区(geocode 空间匹配)
+// 共用同一份列,保证两条路(以及 dialog 的 /area-insights)口径一致。
+// 价格中位(pps/up)按 Unit/Villa 过滤:排除 Land/Building,避免沙漠地价冒充住宅单价
+// (如 Shharrj 的 ₫262/sqft 实为大地块 —— 中位 1058㎡、最大 32874㎡)。
+// 成交量 count 仍全口径(活跃度信号,含地块),与既有 volumeAll 约定一致。RES_PT 见文件顶部。
+const apprMonthlyCols = (areaIdSql: string) => `${areaIdSql} AS area_id,
+              to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
+              COUNT(*)::int AS count,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE ${RES_PT}) AS pps,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE ${RES_PT}) AS up,
+              COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE dt.is_offplan AND ${RES_PT}) AS pps_offplan,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE dt.is_offplan AND ${RES_PT}) AS up_offplan,
+              COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE NOT dt.is_offplan AND ${RES_PT}) AS pps_ready,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE NOT dt.is_offplan AND ${RES_PT}) AS up_ready`
+
 type AllAreaAppr = { dataThrough: string | null; areas: Record<string, Record<'all' | 'offplan' | 'ready', MetricsByPeriod>> }
 async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
   const boundsRes = await pool.query(
@@ -924,20 +946,11 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
   )
   const endYm: string = boundsRes.rows[0]?.m
   if (!endYm) return { dataThrough: null, areas: {} }
-  const [salesRows, rentRows] = await Promise.all([
+  const [officialRows, customRows, rentRows] = await Promise.all([
+    // 官方区:走真实 area_id bridge。
     pool.query(
       `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
-       SELECT dla.dubai_area_id AS area_id,
-              to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS month,
-              COUNT(*)::int AS count,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) AS pps,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) AS up,
-              COUNT(*) FILTER (WHERE dt.is_offplan)::int AS count_offplan,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE dt.is_offplan) AS pps_offplan,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE dt.is_offplan) AS up_offplan,
-              COUNT(*) FILTER (WHERE NOT dt.is_offplan)::int AS count_ready,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price) FILTER (WHERE NOT dt.is_offplan) AS pps_ready,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth) FILTER (WHERE NOT dt.is_offplan) AS up_ready
+       SELECT ${apprMonthlyCols('dla.dubai_area_id')}
          FROM dld_transactions dt
          JOIN dld_areas dla ON dla.area_id = dt.area_id
          CROSS JOIN bounds b
@@ -946,7 +959,27 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
           AND dt.instance_date <= b.d
         GROUP BY 1, 2`
     ),
+    // 自定义手绘区:无真实 area_id bridge → 走 geocode 空间匹配(与 /area-insights 同口径)。
+    // 不加这条,地图周期着色对 107 个自定义区一律灰,但 dialog 却有数 → 地图≠dialog。
+    // 空间聚合实测 ~0.7s(走 GiST 索引),6h 缓存 + 预热,可接受。
+    pool.query(
+      `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+       SELECT ${apprMonthlyCols('da.id')}
+         FROM dubai_areas da
+         JOIN dld_project_locations loc ON loc.geom IS NOT NULL AND ST_Covers(da.boundary, loc.geom)
+         JOIN dld_transactions dt ON dt.area_name = loc.area_name
+              AND COALESCE(NULLIF(dt.project_name,''), NULLIF(dt.building_name,''), '__AREA__') = loc.project_name
+         CROSS JOIN bounds b
+        WHERE da.visible AND da.boundary IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM dld_areas dla WHERE dla.dubai_area_id = da.id AND dla.area_id < 900000)
+          AND dt.trans_group = 'Sales' AND dt.meter_sale_price > 0 AND dt.actual_worth > 0
+          AND dt.instance_date >= date_trunc('month', b.d) - INTERVAL '63 months'
+          AND dt.instance_date <= b.d
+        GROUP BY 1, 2`
+    ),
     // 各区月度中位租金/㎡(residential;仅 all 口径回报用)。dubai_area_id 已回填。
+    // 注:此处走 bridge(rc.dubai_area_id),自定义区拿不到 → 其回报在地图上为 null
+    // (可接受,价格/涨幅才是本次要修的着色项;dialog 仍走 spatial 出回报)。
     pool.query(
       `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
        SELECT rc.dubai_area_id AS area_id,
@@ -961,7 +994,8 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
   ])
   const apprMonths = monthRange(endYm, 63)
   const byArea = new Map<string, Map<string, any>>()
-  for (const r of salesRows.rows) {
+  // 官方区与自定义区 id 互斥(前者有 bridge,后者 NOT EXISTS),合并不冲突。
+  for (const r of [...officialRows.rows, ...customRows.rows]) {
     const id = String(r.area_id)
     if (!byArea.has(id)) byArea.set(id, new Map())
     byArea.get(id)!.set(r.month, r)
