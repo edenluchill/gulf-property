@@ -268,8 +268,10 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
         layout: {
           'text-field': ['get', 'label'],
           // Match the area-label layer's font — the style's glyph server serves this
-          // stack (incl. CJK), so Chinese annotations render instead of tofu.
-          'text-font': ['Open Sans Bold'],
+          // stack, so Chinese (via localIdeographFontFamily) and Arabic (via the
+          // 'Noto Sans Bold' fallback, which openmaptiles composites) render instead
+          // of tofu. Open Sans Bold has NO Arabic glyphs on its own.
+          'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
           'text-size': ['case', ['==', ['get', 'mt'], 'circleinfo'], 13, 16],
           'text-anchor': ['case', ['==', ['get', 'mt'], 'circleinfo'], 'top', 'center'],
           'text-offset': ['case', ['==', ['get', 'mt'], 'circleinfo'], ['literal', [0, 0.4]], ['literal', [0, 0]]],

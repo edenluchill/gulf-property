@@ -53,6 +53,9 @@ const SATELLITE_SOURCE = {
 }
 
 // glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
+// ⚠️ 阿语区域名:text-font 必须带 'Noto Sans Bold' 回退 —— 'Open Sans Bold' 无阿拉伯
+// 字形(该 range 的 pbf 是空的),阿语会渲染成空白;中文靠 localIdeographFontFamily
+// 本地字体,但那个 API 不覆盖阿拉伯文,只能靠字体栈里真有阿语字形的 Noto。
 const SATELLITE_STYLE = {
   version: 8 as const,
   glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
@@ -681,7 +684,7 @@ function MapViewMapLibre({
           'text-rotation-alignment': 'viewport',
           'text-pitch-alignment': 'viewport',
           'text-field': ['get', 'name'],
-          'text-font': ['Open Sans Bold'],
+          'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 14, 12],
           'text-anchor': 'top',
           'text-offset': [0, 0.35],
@@ -1397,7 +1400,7 @@ function MapViewMapLibre({
                         'font-scale': 1.25
                       }
                     ],
-                'text-font': ['Open Sans Bold'],
+                'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                 // Keep labels flat-on-screen + upright no matter the bearing/pitch,
                 // so the cinematic orbit doesn't tilt or rotate the area names.
                 'text-rotation-alignment': 'viewport',
@@ -1527,7 +1530,7 @@ function MapViewMapLibre({
               ]}
               layout={{
                 'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Bold'],
+                'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
                   13, 10,
@@ -1598,7 +1601,7 @@ function MapViewMapLibre({
               minzoom={14.5}
               layout={{
                 'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Bold'],
+                'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                 'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 10, 17, 13],
                 'text-offset': [0, 1.2],
                 'text-anchor': 'top',
@@ -1696,7 +1699,7 @@ function MapViewMapLibre({
                 layout={{
                   'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold'],
+                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                   'text-size': 13,
                   'text-allow-overlap': true,
                   'text-ignore-placement': true
@@ -1734,7 +1737,7 @@ function MapViewMapLibre({
                 layout={{
                   'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold'],
+                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                   'text-size': 12
                 }}
                 paint={{ 'text-color': '#b45309', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
@@ -1757,7 +1760,7 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'kind'], 'center']}
                 layout={{
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold'],
+                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                   'text-size': 13,
                   'text-offset': [0, 1.4],
                   'text-anchor': 'top'
@@ -1772,7 +1775,7 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'kind'], 'amenity']}
                 layout={{
                   'text-field': ['get', 'name'],
-                  'text-font': ['Open Sans Bold'],
+                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
                   'text-size': 11,
                   'text-offset': [0, 1.1],
                   'text-anchor': 'top',
