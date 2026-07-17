@@ -18,6 +18,7 @@
  *    拿它做对比是在用噪音说话)。
  */
 import type { PoolClient } from 'pg'
+import { pricePerSqmToPerSqft } from '../lib/units'
 
 export interface AreaStats {
   name: string
@@ -156,8 +157,11 @@ function findWeakness(self: AreaStats, neighbors: AreaStats[]): AreaContext['wea
     const best = cheaper.sort((a, b) => a.price_sqm - b.price_sqm)[0]
     if (self.yield_pct > best.yield_pct + 0.5) {
       const pricier = Math.round(((self.price_sqm - best.price_sqm) / best.price_sqm) * 100)
+      // 百分比与单位无关,但摆出来的数字要跟其余事实块同口径 → sqft
+      const selfPsf = Math.round(pricePerSqmToPerSqft(self.price_sqm))
+      const bestPsf = Math.round(pricePerSqmToPerSqft(best.price_sqm))
       return {
-        claim: `${self.name} 比隔壁的 ${best.name} 贵 ${pricier}%（每平米 ${self.price_sqm.toLocaleString()} vs ${best.price_sqm.toLocaleString()}）。`,
+        claim: `${self.name} 比隔壁的 ${best.name} 贵 ${pricier}%（每平尺 ${selfPsf.toLocaleString()} vs ${bestPsf.toLocaleString()}）。`,
         rebuttal:
           `但这里的租金回报是 ${self.yield_pct}%，${best.name} 只有 ${best.yield_pct}%。` +
           `贵的那部分，租金会替你还回来。`,
@@ -169,18 +173,22 @@ function findWeakness(self: AreaStats, neighbors: AreaStats[]): AreaContext['wea
   return null
 }
 
-/** 喂给 prompt 的事实块。 */
+/** 喂给 prompt 的事实块。
+ *  price_sqm 是 DLD 原生的 per-m²,但**喂给模型的一律换成 sqft** —— 户型事实块
+ *  (tour-generator: `from N sqft`)和证据卡(evidence.ts: AED/sqft)都是 sqft,
+ *  这里再喂 /sqm 模型就会在同一段话里混播两种单位。 */
 export function areaContextFacts(ctx: AreaContext): string[] {
   const lines: string[] = []
+  const psf = (priceSqm: number) => Math.round(pricePerSqmToPerSqft(priceSqm))
   const s = ctx.self
   lines.push(
     `  area_self: ${s.name} | growth ${s.growth_pct}% | yield ${s.yield_pct}% | ` +
-      `median ${s.price_sqm}/sqm | ${s.transactions} transactions/yr`
+      `median ${psf(s.price_sqm)}/sqft | ${s.transactions} transactions/yr`
   )
   for (const n of ctx.neighbors) {
     lines.push(
       `  area_neighbor: ${n.name} (${n.distance_km}km away) | growth ${n.growth_pct}% | ` +
-        `yield ${n.yield_pct}% | median ${n.price_sqm}/sqm | ${n.transactions} transactions/yr`
+        `yield ${n.yield_pct}% | median ${psf(n.price_sqm)}/sqft | ${n.transactions} transactions/yr`
     )
   }
   if (ctx.weakness) {

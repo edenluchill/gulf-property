@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { BadgeCheck, Info } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
+import { pricePerSqmToPerSqft, sqmToSqft } from '../lib/units'
 import { fetchAreaInsights, fetchTxList, AreaInsights } from '../lib/api'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 import { MetricPeriodKey, loadSavedPeriod, savePeriod, periodLabel, SHORT_PERIODS } from '../lib/metricPeriod'
@@ -362,24 +363,29 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
           chipClass={growthChip != null && growthChip >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}
           loading={loading}
         >
-          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(v).toLocaleString()} />
+          {/* ⚠️ 借用 per-m² 价格系列当**趋势形状**用 —— insights 里没有总价的月度系列
+              (medianUnitPrice 只是个标量)。所以 hover 读数跟 937K 的标题本就对不上,
+              这是本来就有的错位。这里只保证单位跟面板一致(sqft),别的留给桶②。 */}
+          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(pricePerSqmToPerSqft(v)).toLocaleString()} />
         </StatCard>
 
-        {/* 均价/m² (median price per square metre) */}
+        {/* 中位数/sqft — DLD 给的是 per-m²,在展示边界换成 sqft,与地图气泡同一个数 */}
         <StatCard
-          label={t('areaInsights:priceM')}
+          label={t('areaInsights:priceSqft')}
           info={<InfoHint title={howTitle} text={t('map:explain.medianPriceSqft')} />}
           value={
             priceShown != null ? (
               <>
                 <DirhamSymbol size="0.7em" className="text-slate-400" />
-                {formatMoneyFull(priceShown)}
+                {formatMoneyFull(pricePerSqmToPerSqft(priceShown))}
               </>
             ) : '—'
           }
           loading={loading}
         >
-          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(v).toLocaleString()} />
+          {/* insights.price is per-m² like the tile above — convert in fmt so the
+              hover readout matches the headline instead of being 10.76x off. */}
+          <SparkLine data={insights?.price || []} color="#0d9488" labels={insights?.months} fmt={(v) => Math.round(pricePerSqmToPerSqft(v)).toLocaleString()} />
         </StatCard>
 
         <StatCard
@@ -592,7 +598,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
                     <div className="mt-0.5 text-xs text-slate-400">
                       {tx.date}
                       {tx.rooms ? ` · ${tx.rooms}` : ''}
-                      {tx.sizeSqm ? ` · ${tx.sizeSqm} m²` : ''}
+                      {tx.sizeSqm ? ` · ${Math.round(sqmToSqft(tx.sizeSqm)).toLocaleString()} sqft` : ''}
                     </div>
                   </div>
                   <div className="shrink-0 text-end">
@@ -635,7 +641,7 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
                 <div className="mt-0.5 text-xs text-slate-400">
                   {r.date}
                   {r.subtype ? ` · ${r.subtype}` : ''}
-                  {r.sizeSqm ? ` · ${r.sizeSqm} m²` : ''}
+                  {r.sizeSqm ? ` · ${Math.round(sqmToSqft(r.sizeSqm)).toLocaleString()} sqft` : ''}
                 </div>
               </div>
               <div className="shrink-0 text-end">

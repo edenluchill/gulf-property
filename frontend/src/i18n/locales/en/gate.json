@@ -34,7 +34,7 @@
   "done": "Done",
   "next": "Next",
   "medianPrice": "Median price",
-  "priceM": "Price/m²",
+  "priceSqft": "Price/sqft",
   "yield": "Yield",
   "growth": "Growth",
   "convenience": "Convenience"

@@ -10,7 +10,7 @@
   "medianPrice": "Median price",
   "how": "How",
   "medianTotalDldSale": "Median total DLD sale price over the last 12 months — actual deals, not asking prices.",
-  "priceM": "Price/m²",
+  "priceSqft": "Price/sqft",
   "volume": "Volume",
   "offPlan": "Off-plan",
   "ready": "Ready",

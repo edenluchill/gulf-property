@@ -1,5 +1,6 @@
 import { DubaiArea } from '../../types'
 import { formatMoneyCompact, formatCountCompact, formatMoneyFull } from '../money'
+import { pricePerSqmToPerSqft } from '../units'
 
 export type AreaMetric = 'none' | 'medianUnitPrice' | 'medianPriceSqft' | 'capitalGrowth' | 'transactionCount' | 'rentalYield' | 'netYield' | 'rentStability'
 
@@ -57,10 +58,11 @@ export function formatMetricValue(area: DubaiArea, metric: AreaMetric, lang: str
       return formatMoneyCompact(v, lang)
     }
     case 'medianPriceSqft': {
-      // medianPriceSqm converted to sqft (1 sqm = 10.764 sqft)
+      // DLD gives per-m²; the UI speaks sqft. Same conversion as AreaInsightsPanel
+      // — they show this same field and must not disagree.
       const v = area.medianPriceSqm
       if (v === undefined || v === null) return ''
-      return formatMoneyFull(v / 10.764)
+      return formatMoneyFull(pricePerSqmToPerSqft(v))
     }
     case 'capitalGrowth': {
       const v = area.capitalAppreciation

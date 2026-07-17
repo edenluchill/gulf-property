@@ -4,6 +4,7 @@ import i18n from '../i18n'
 import { Pause, Play, X, ChevronLeft, ChevronRight, TrendingUp, MapPin, Receipt } from 'lucide-react'
 import { GuidedTourPayload, GuidedStop } from '../hooks/voice-assistant/types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
+import { pricePerSqmToPerSqft } from '../lib/units'
 import { getImageUrl } from '../lib/image-utils'
 import DirhamSymbol from './DirhamSymbol'
 
@@ -179,7 +180,7 @@ function StopCard({ stop, lang }: { stop: GuidedStop; lang: string }) {
     return (
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {cell(t('gate:medianPrice'), m.medianUnitPrice != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyCompact(m.medianUnitPrice, lang)}</> : '—')}
-        {cell(t('gate:priceM'), m.pricePerSqm != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyFull(m.pricePerSqm)}</> : '—')}
+        {cell(t('gate:priceSqft'), m.pricePerSqm != null ? <><DirhamSymbol size="0.7em" className="text-slate-400" />{formatMoneyFull(pricePerSqmToPerSqft(m.pricePerSqm))}</> : '—')}
         {cell(t('gate:yield'), m.rentalYield != null ? <span className="text-emerald-600">{m.rentalYield.toFixed(1)}%</span> : '—')}
         {cell(t('gate:growth'), m.capitalGrowth != null ? <span className={m.capitalGrowth >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{m.capitalGrowth >= 0 ? '+' : ''}{m.capitalGrowth.toFixed(1)}%</span> : '—')}
       </div>

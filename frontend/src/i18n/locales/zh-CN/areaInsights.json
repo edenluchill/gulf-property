@@ -10,7 +10,7 @@
   "medianPrice": "中位总价",
   "how": "怎么算的",
   "medianTotalDldSale": "该口径近 12 个月 DLD 成交总价的中位数 —— 真实成交,不是挂牌价。",
-  "priceM": "均价/m²",
+  "priceSqft": "均价/sqft",
   "volume": "成交量",
   "offPlan": "期房",
   "ready": "现房",

@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/button'
 import { Bed, Bath, Maximize, Waves, Building2 } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
 import { formatMoneyFull } from '../../lib/money'
+import { sqftToSqm } from '../../lib/units'
 import DirhamSymbol from '../../components/DirhamSymbol'
 import { UnitTypeDetailSheet } from './UnitTypeDetailSheet'
 import { UnitType, PaymentPlan } from '../../types'
@@ -22,8 +23,7 @@ type SortKey = 'price' | 'area' | 'beds'
 const isSeaView = (v?: string) => !!v && /sea|marina|water|ocean|海|beach|lagoon/i.test(v)
 
 export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, growthPct, paymentPlan }: UnitTypesTabProps) {
-  const { t, i18n } = useTranslation(['project', 'common', 'projectDetail'])
-  const zh = i18n.language?.startsWith('zh')
+  const { t } = useTranslation(['project', 'common', 'projectDetail'])
   const [selectedUnit, setSelectedUnit] = useState<UnitType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [bedFilter, setBedFilter] = useState<number | 'all'>('all')
@@ -165,14 +165,16 @@ export function UnitTypesTab({ unitTypes, projectId, onUnitSelect, yieldPct, gro
                     {unit.bathrooms}
                   </span>
                   {(() => {
-                    // Chinese buyers think in m²; show their unit first, the other in tooltip.
+                    // Area and price/sqft sit in the same card and must divide into
+                    // each other — so area stays sqft for everyone. m² goes in the
+                    // tooltip (showing 120㎡ next to AED 2,650/sqft was unreadable).
                     const sqft = parseFloat(unit.area)
-                    const sqftStr = Number.isFinite(sqft) ? sqft.toLocaleString() : '—'
-                    const sqm = Number.isFinite(sqft) ? Math.round(sqft * 0.092903) : null
+                    if (!Number.isFinite(sqft)) return null
+                    const sqm = Math.round(sqftToSqm(sqft))
                     return (
-                      <span className="flex items-center gap-1" title={zh ? `${sqftStr} sqft` : (sqm != null ? `${sqm} m²` : '')}>
+                      <span className="flex items-center gap-1" title={`${sqm} m²`}>
                         <Maximize className="h-3.5 w-3.5" />
-                        {zh ? (sqm != null ? `${sqm}㎡` : sqftStr) : sqftStr}
+                        {sqft.toLocaleString()}
                       </span>
                     )
                   })()}
