@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pinzos sitemap.
+
+  在这个文件存在之前,/sitemap.xml **返回 200 + index.html** —— SPA fallback 把所有
+  未知路径都吐成首页。Google 抓到的是一坨 HTML 而不是 XML,等于零 sitemap。
+  加上首页主体是地图应用、没有可爬的 <a href> 目录,Google 就只能靠猜 →
+  实际只索引了 4 个页面。
+
+  ⚠️ 这里**只列公开内容页**。分享短链(/v/ /pp/ /r/ /cr/ …)带真实客户名和报价,
+     绝不能进 sitemap,robots.txt 里也一并 Disallow 了。
+
+  ⚠️ 域名一律 www —— 裸域在边缘 301 过来(functions/_middleware.ts)。
+     sitemap 里写会跳转的 URL 是自找麻烦。
+
+  📌 这是**手写的静态文件**,只有 7 条。真正的 SEO 增量在于把 231 个区域的 DLD 数据
+     做成程序化页面(需要 SSR / 预渲染),那时这个文件应该改为构建期生成。
+     详见 docs/reports/2026-07-18-seo-indexing-diagnosis.md
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.pinzos.com/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.pinzos.com/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.pinzos.com/pricing</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.pinzos.com/areas</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.pinzos.com/transactions</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.pinzos.com/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://www.pinzos.com/terms</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

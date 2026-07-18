@@ -25,6 +25,10 @@ import { formatPrice } from '../lib/utils'
 import { generateProjectNotes } from '../lib/generateProjectNotes'
 import { trackEvent } from '../lib/track'
 
+/** 规范域。canonical / og:url / og:image 一律用它,绝不用 window.location.origin ——
+ *  裸域 pinzos.com 已在边缘 301 到这里(见 functions/_middleware.ts)。 */
+const SITE = 'https://www.pinzos.com'
+
 type DeviceType = 'mobile' | 'tablet' | 'desktop'
 
 function getDeviceType(): DeviceType {
@@ -264,8 +268,12 @@ export default function ProjectDetailPage() {
     const description = project.starting_price
       ? `${project.area} - Starting from ${formatPrice(project.starting_price)}. ${project.min_bedrooms}-${project.max_bedrooms} BR units available.`
       : `${project.area} - Premium off-plan development by ${project.developer}.`
-    const image = project.project_images?.[0] || '/og-image.jpg'
-    const url = `${window.location.origin}/project/${project.id}`
+    // ⚠️ og:image 必须是**绝对 URL** —— 相对路径大多数爬虫直接忽略(index.html 里
+    //    已经为此改过一次,但这条兜底路径当时漏了)。
+    const image = project.project_images?.[0] || `${SITE}/og-image.jpg`
+    // ⚠️ canonical/og:url 一律钉死 www,不用 window.location.origin。规范域是 www,
+    //    从任何别的 origin 打开都不该把那个 origin 写进 canonical。
+    const url = `${SITE}/project/${project.id}`
 
     return { title, description, image, url }
   }, [project])
@@ -381,6 +389,8 @@ export default function ProjectDetailPage() {
       {ogData && (
         <Helmet>
           <title>{ogData.title}</title>
+          <meta name="description" content={ogData.description} />
+          <link rel="canonical" href={ogData.url} />
           <meta property="og:title" content={ogData.title} />
           <meta property="og:description" content={ogData.description} />
           <meta property="og:image" content={ogData.image} />

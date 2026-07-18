@@ -1,0 +1,35 @@
+# Pinzos — robots.txt
+#
+# 在这个文件存在之前,线上跑的是 **Cloudflare 托管的默认版本**,它把
+# ClaudeBot / GPTBot / CCBot / meta-externalagent / Bytespider 全部 Disallow 了。
+# 后果:我们精心写的 /llms.txt(专门给 AI 读的站点说明)**没有任何 AI 读得到**。
+#
+# 而我们的目标客群恰恰是「在 AI 里问迪拜买房」的人。把自己从 AI 答案里删掉,
+# 损失可能比 Google 排名还大。所以这里显式放行。
+#
+# ⚠️ 如果 Cloudflare 面板上开着「AI Scrapers and Crawlers」阻断 / managed robots.txt,
+#    它可能仍会覆盖或追加到这个文件。部署后务必 curl 复核实际生效的内容。
+
+# ── 搜索引擎 + AI:全部放行 ──────────────────────────────
+User-agent: *
+Allow: /
+
+# 不该被索引的:分享短链(客户隐私)与后台
+# 这些页面里有真实客户名/报价/带看记录,进搜索结果是事故。
+Disallow: /v/
+Disallow: /t/
+Disallow: /pp/
+Disallow: /r/
+Disallow: /cr/
+Disallow: /i/
+Disallow: /factsheet/
+Disallow: /verify/
+Disallow: /admin/
+Disallow: /agent/
+Disallow: /profile
+Disallow: /login
+Disallow: /auth/
+Disallow: /langgraph/
+Disallow: /developer/upload
+
+Sitemap: https://www.pinzos.com/sitemap.xml

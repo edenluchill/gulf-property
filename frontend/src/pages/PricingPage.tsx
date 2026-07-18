@@ -332,7 +332,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
       <Helmet>
         <title>{t('misc:pricingPinzosPlans')}</title>
         <meta name="description" content={t('misc:pinzosPlansFreeFor')} />
-        <link rel="canonical" href="https://pinzos.com/pricing" />
+        <link rel="canonical" href="https://www.pinzos.com/pricing" />
       </Helmet>
 
       <section className="mx-auto max-w-6xl px-6 py-5 md:py-7">

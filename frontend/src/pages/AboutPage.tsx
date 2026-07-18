@@ -56,9 +56,9 @@ export default function AboutPage() {
   const ld = {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'Organization', name: 'Pinzos', url: 'https://pinzos.com', description: 'Interactive Dubai off-plan property platform with real DLD data, AI brochure parsing, investment analytics, and agent tools for overseas clients.', areaServed: 'Dubai, United Arab Emirates' },
+      { '@type': 'Organization', name: 'Pinzos', url: 'https://www.pinzos.com', description: 'Interactive Dubai off-plan property platform with real DLD data, AI brochure parsing, investment analytics, and agent tools for overseas clients.', areaServed: 'Dubai, United Arab Emirates' },
       {
-        '@type': 'SoftwareApplication', name: 'Pinzos', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: 'https://pinzos.com',
+        '@type': 'SoftwareApplication', name: 'Pinzos', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', url: 'https://www.pinzos.com',
         description: 'Pinzos helps buyers and agents explore Dubai off-plan property: a satellite map with real DLD transactions/rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, real-time co-presence map tours, AI-guided Luna tours, and buyer-intent reports.',
         offers: [
           { '@type': 'Offer', name: 'Buyers (Free)', price: '0', priceCurrency: 'USD' },
@@ -86,7 +86,9 @@ export default function AboutPage() {
         <meta name="description" content={t('about:pinzosIsAnInteractive')} />
         <meta property="og:title" content="Pinzos — The New Way to Buy Dubai Off-Plan" />
         <meta property="og:description" content="Real DLD data on an interactive map, AI brochure parsing, investment analytics, and real-time co-presence tours for overseas clients." />
-        <link rel="canonical" href="https://pinzos.com/about" />
+        {/* ⚠️ 规范域是 **www**(裸域在边缘 301 过来)。canonical 写裸域 = 让 Google
+            顺着它撞上一次跳转,GSC 直接判「Page with redirect / 未索引」。 */}
+        <link rel="canonical" href="https://www.pinzos.com/about" />
         <script type="application/ld+json">{JSON.stringify(ld)}</script>
       </Helmet>
 

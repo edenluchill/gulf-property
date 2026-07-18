@@ -3,6 +3,7 @@
  * 多维筛选 → 聚合指标 + 月度趋势 + 明细分页
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import {
@@ -177,6 +178,15 @@ export default function TransactionsPage() {
 
   return (
     <div ref={scrollChromeRef} className="flex-1 overflow-auto pb-20 md:pb-8">
+    {/* SEO meta 用英文字面量,理由同 AreaInsightsPage */}
+    <Helmet>
+      <title>Dubai Property Transactions — Real DLD Sale &amp; Rent Records | Pinzos</title>
+      <meta
+        name="description"
+        content="Search real Dubai Land Department transaction records: sale prices, price per sqft, off-plan vs ready, and rental contracts. Filter by area, project, price and bedrooms, with monthly trends."
+      />
+      <link rel="canonical" href="https://www.pinzos.com/transactions" />
+    </Helmet>
     <div className="container mx-auto px-4 py-3 md:py-6 max-w-6xl">
       <h1 className="text-xl md:text-2xl font-bold text-slate-800">{t('title')}</h1>
       <p className="mt-1 hidden md:block text-sm text-slate-500">

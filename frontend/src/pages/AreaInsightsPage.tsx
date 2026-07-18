@@ -3,6 +3,7 @@
  * 方法论透明，标签可展开看依据；中性措辞 + 投资/自住双视角
  */
 import { useEffect, useMemo, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { useTranslation } from 'react-i18next'
 import { fetchAreaClassification, fetchAreaCompare, AreaClass, AreaClassResp } from '../lib/api'
 
@@ -86,11 +87,27 @@ export default function AreaInsightsPage() {
     if (cmpA && cmpB) fetchAreaCompare(cmpA, cmpB).then(setCmp)
   }
 
-  if (loading) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">{t('loading')}</div>
-  if (!data) return <div className="container mx-auto px-4 py-10 text-sm text-slate-400">{t('empty')}</div>
+  // SEO meta 走**英文字面量**,不走 t():这是给搜索引擎看的,要命中的就是英文长尾词;
+  // 而且走 t() 就得新增 5 语言的键、还要过 i18n-key-check —— 没必要。
+  const seo = (
+    <Helmet>
+      <title>Dubai Area Insights — Price Growth, Rental Yield & Supply by District | Pinzos</title>
+      <meta
+        name="description"
+        content="Compare Dubai districts on real DLD data: median price, capital growth, rental yield and supply pressure. Areas classified as mature, growth, future or supply-pressure — with the reasoning shown."
+      />
+      <link rel="canonical" href="https://www.pinzos.com/areas" />
+    </Helmet>
+  )
+
+  // ⚠️ Helmet 必须挂在**早退之前**。Google 的渲染器可能正好在 loading 态截图 ——
+  //    那一帧里如果没有 title/canonical,这页就等于没有 meta。
+  if (loading) return <>{seo}<div className="container mx-auto px-4 py-10 text-sm text-slate-400">{t('loading')}</div></>
+  if (!data) return <>{seo}<div className="container mx-auto px-4 py-10 text-sm text-slate-400">{t('empty')}</div></>
 
   return (
     <div className="flex-1 overflow-auto pb-20 md:pb-8">
+    {seo}
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <h1 className="text-2xl font-bold text-slate-800">{t('title')}</h1>
       <p className="mt-1 text-sm text-slate-500">
