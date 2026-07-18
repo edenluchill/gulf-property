@@ -29,12 +29,14 @@ const page = await browser.newPage()
 let failures = 0
 
 for (const path of PAGES) {
-  try {
-    await page.goto(BASE + path, { waitUntil: 'networkidle', timeout: 60000 })
-  } catch {
-    /* networkidle 在地图页可能永远不到(瓦片流) —— 超时就按现状检查 */
-  }
-  await page.waitForTimeout(2000)
+  // ⚠️ 别用 networkidle + 固定 sleep。首页是地图,瓦片一直在流,networkidle **永远不触发**
+  //    → goto 超时 → 固定等 2 秒时 React 还没挂完 → canonical 报「无」的**假阴性**
+  //    (2026-07-18 就这么误报过一次)。改成等 Helmet 真的把标签注进来。
+  await page.goto(BASE + path, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {})
+  await page
+    .waitForSelector('link[rel=canonical][data-rh], meta[name=description][data-rh]', { timeout: 20000 })
+    .catch(() => {})
+  await page.waitForTimeout(800) // 让页面级 Helmet 覆盖掉 DefaultSeo 的默认值
 
   const r = await page.evaluate(() => ({
     title: document.title,
