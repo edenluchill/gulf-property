@@ -591,8 +591,23 @@ export interface HealthFunnel {
   n: number
   median: number; good: number; source: string
 }
+export interface HealthSignal {
+  severity: 'critical' | 'serious' | 'warning' | 'info'
+  title: string
+  /** 触发它的具体数字。没有这个，建议就是算命。 */
+  evidence: string
+  /** 下一步做什么，尽量具体到人、到页面。 */
+  action: string
+}
+export interface HealthMap {
+  users: number; events: number; engaged: number; multiday: number; gateHit: number
+  daily: { date: string; dau: number; areas: number }[]
+}
 export interface HealthSnapshot {
   days: number
+  /** 判断层 —— 面板存在的理由，排最前 */
+  signals: HealthSignal[]
+  map: HealthMap
   agents: {
     total: number; newCur: number; newPrev: number
     trialStarted: number; activated: number

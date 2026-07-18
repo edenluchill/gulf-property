@@ -24,6 +24,7 @@
  * 见 docs/reports/2026-07-09-admin-dashboard-audit.md 与 analytics-internal-exclusion 记忆条。
  */
 import pool from '../db/pool'
+import { internalVisitorIds } from './analyticsQueries'
 
 export interface HealthRange {
   days: number
@@ -329,14 +330,209 @@ async function funnelRates(agents: Awaited<ReturnType<typeof agentHealth>>): Pro
   ]
 }
 
+/**
+ * 地图使用 —— C 端指标，**这里才需要 internalVisitorIds()**（见文件头两套过滤说明）。
+ *
+ * 为什么地图要单列：它是全站唯一有真实重复使用的功能，但此前面板上完全没有它。
+ * 关键不是「多少人用过」而是**「用过的人第二天还回来吗」** —— 广度好办（发个链接就有），
+ * 习惯难得。这两个数字的差距就是地图的真实处境。
+ */
+async function mapHealth(days: number) {
+  const internal = await internalVisitorIds()
+
+  const { rows: agg } = await pool.query(
+    `WITH u AS (
+       SELECT visitor_id,
+              count(*) FILTER (WHERE event_type = 'area_detail')            AS n,
+              count(DISTINCT created_at::date) FILTER (WHERE event_type = 'area_detail') AS days
+         FROM app_events
+        WHERE created_at > now() - interval '${days} days'
+          AND (visitor_id IS NULL OR visitor_id <> ALL($1::text[]))
+        GROUP BY 1
+     )
+     SELECT
+       (SELECT count(*) FROM u WHERE n > 0)                                       AS users,
+       (SELECT COALESCE(sum(n), 0) FROM u)                                        AS events,
+       (SELECT count(*) FROM u WHERE n >= 5)                                      AS engaged,
+       (SELECT count(*) FROM u WHERE days >= 2)                                   AS multiday,
+       (SELECT count(DISTINCT visitor_id) FROM app_events
+         WHERE created_at > now() - interval '${days} days' AND event_type = 'map_gate_hit'
+           AND (visitor_id IS NULL OR visitor_id <> ALL($1::text[])))             AS gate_hit`,
+    [internal]
+  )
+
+  // 近 14 天 DAU 曲线。稀疏且量小 —— 前端画成单序列面积图，不做多序列。
+  const { rows: daily } = await pool.query(
+    `SELECT d::date AS date,
+            COALESCE(x.dau, 0)   AS dau,
+            COALESCE(x.areas, 0) AS areas
+       FROM generate_series(now()::date - 13, now()::date, '1 day') d
+       LEFT JOIN (
+         SELECT created_at::date AS day,
+                count(DISTINCT visitor_id)                          AS dau,
+                count(*) FILTER (WHERE event_type = 'area_detail')  AS areas
+           FROM app_events
+          WHERE created_at > now() - interval '14 days'
+            AND (visitor_id IS NULL OR visitor_id <> ALL($1::text[]))
+          GROUP BY 1
+       ) x ON x.day = d::date
+      ORDER BY 1`,
+    [internal]
+  )
+
+  const r = agg[0]
+  const n = (v: unknown) => Number(v || 0)
+  return {
+    users: n(r.users), events: n(r.events),
+    engaged: n(r.engaged), multiday: n(r.multiday),
+    gateHit: n(r.gate_hit),
+    daily: daily.map((d) => ({ date: String(d.date).slice(0, 10), dau: n(d.dau), areas: n(d.areas) })),
+  }
+}
+
+/**
+ * 判断层 —— **面板存在的理由。**
+ *
+ * 🔴 owner 的原话：「是数据 但是该怎么做决策？感觉光看这个看不出」。他是对的：
+ *    一屏数字不产生决策。所以规则写在**服务端**（可测试、可版本化、可在 code review
+ *    里争论），每条必须带上**触发它的具体数字**和**一个具体到人的下一步动作**。
+ *
+ * 规则要少而准。宁可只报 2 条真事，也不要凑 8 条正确的废话 ——
+ * 后者会让人学会忽略这个区块，那就跟没有一样。
+ */
+export interface Signal {
+  severity: 'critical' | 'serious' | 'warning' | 'info'
+  title: string
+  /** 触发它的具体数字。没有这个，建议就是算命。 */
+  evidence: string
+  /** 下一步做什么。尽量具体到人、到页面。 */
+  action: string
+}
+
+async function buildSignals(
+  agents: Awaited<ReturnType<typeof agentHealth>>,
+  features: FeatureHealth[],
+  map: Awaited<ReturnType<typeof mapHealth>>,
+  days: number
+): Promise<Signal[]> {
+  const out: Signal[] = []
+
+  // ① 有人想付钱但扣款失败 —— 全场最高优先级：这是钱，而且是**已经想给你的钱**
+  if (agents.pastDue > 0) {
+    const { rows } = await pool.query(
+      `SELECT a.email FROM lt_subscriptions s JOIN lt_agents a ON a.id = s.agent_id
+        WHERE s.status = 'past_due' AND lower(COALESCE(a.email,'')) <> ALL($1::text[]) LIMIT 5`,
+      [INTERNAL_AGENTS]
+    )
+    const who = rows.map((r) => r.email).join('、')
+    out.push({
+      severity: 'critical',
+      title: `${agents.pastDue} 个账号扣款失败`,
+      evidence: who || `${agents.pastDue} 个 past_due 订阅`,
+      action: '今天直接联系他。有人主动要付钱却没扣成，这是最容易挽回的一笔收入。',
+    })
+  }
+
+  // ② 试用规模够大但零付费 —— 说明价值没传递到，不是价格问题
+  if (agents.paying === 0 && agents.trialStarted >= 20) {
+    out.push({
+      severity: 'critical',
+      title: '零真实付费客户',
+      evidence: `${agents.trialStarted} 人开了试用，${agents.paying} 人付费`,
+      action: '别再调价或加功能。先搞清楚试用期里他们到底看到了什么 —— 去问那几个激活过的人。',
+    })
+  }
+
+  // ③ 某功能外部产出为 0 —— 投入和回报完全脱节的信号
+  for (const f of features.filter((x) => x.canSplitInternal && x.produced === 0)) {
+    out.push({
+      severity: 'serious',
+      title: `${f.label}：${days} 天内外部产出为 0`,
+      evidence: '没有任何外部经纪做过一个',
+      action: `要么停止继续投入，要么先找到一个愿意用它的真人。继续打磨一个没人用的功能是最贵的浪费。`,
+    })
+  }
+
+  // ④ 做出来了但没人看 —— 比「没人做」更强的负面信号：经纪自己都不敢发
+  for (const f of features.filter((x) => x.produced > 0 && x.consumed === 0)) {
+    out.push({
+      severity: 'serious',
+      title: `${f.label}：做了 ${f.produced} 个，一个都没被打开`,
+      evidence: `产出 ${f.produced} · 被消费 0`,
+      action: '经纪自己都没发给客户。去问他为什么没发 —— 这比问「为什么不用」更准。',
+    })
+  }
+
+  // ⑤ 你仅有的外部信号源 —— 点名到 email，让「去访谈」变成可执行动作
+  if (agents.activated > 0 && agents.activated <= 5) {
+    const { rows } = await pool.query(
+      `SELECT a.email FROM lt_agents a
+        WHERE lower(COALESCE(a.email,'')) <> ALL($1::text[])
+          AND (EXISTS (SELECT 1 FROM lt_demo_sessions s WHERE s.agent_id = a.id)
+            OR EXISTS (SELECT 1 FROM lt_payment_shares p
+                        WHERE lower(COALESCE(p.created_by_email,'')) = lower(a.email))
+            OR EXISTS (SELECT 1 FROM lt_client_reports r WHERE r.agent_id = a.id))
+        LIMIT 5`,
+      [INTERNAL_AGENTS]
+    )
+    out.push({
+      severity: 'info',
+      title: `你仅有的 ${agents.activated} 个真实激活用户`,
+      evidence: rows.map((r) => r.email).join('、'),
+      action: '这是全部的外部信号源。一人聊 20 分钟，胜过再写两周代码。',
+    })
+  }
+
+  // ⑥ 拉新 vs 漏斗：往漏桶里倒水
+  const actRate = agents.total > 0 ? (agents.activated / agents.total) * 100 : 0
+  if (agents.newCur >= 10 && actRate < 10) {
+    out.push({
+      severity: 'warning',
+      title: '拉新是在往漏桶里倒水',
+      evidence: `近 ${days} 天新注册 ${agents.newCur} 人，激活率 ${actRate.toFixed(1)}%（市场中位 37%）`,
+      action: '暂停推广，直到激活率 > 20%。现在每多拉 100 人 ≈ 多 4 个激活、0 个付费。',
+    })
+  }
+
+  // ⑦ 地图：有广度没习惯
+  if (map.users >= 30) {
+    const back = map.users > 0 ? (map.multiday / map.users) * 100 : 0
+    if (back < 20) {
+      out.push({
+        severity: 'warning',
+        title: '地图有广度，但没有形成习惯',
+        evidence: `${map.users} 人用过区域详情（${map.engaged} 人用了 ≥5 次），但只有 ${map.multiday} 人第二天还回来`,
+        action: '当场愿意用、第二天不回来 = 缺少「回来的理由」。考虑做「我关注的区域有新成交」这类召回，而不是继续加功能。',
+      })
+    }
+    if (map.gateHit <= 10) {
+      out.push({
+        severity: 'info',
+        title: '免费额度墙几乎没人撞到',
+        evidence: `${days} 天内只有 ${map.gateHit} 人触达地图免费额度上限`,
+        action: '地图的收费闸门在当前量级下是无关紧要的。调它不会带来收入，别在这上面花时间。',
+      })
+    }
+  }
+
+  const order = { critical: 0, serious: 1, warning: 2, info: 3 }
+  return out.sort((a, b) => order[a.severity] - order[b.severity])
+}
+
 /** 面板主查询。一次返回全部，前端不用串多个请求。 */
 export async function getHealthSnapshot({ days }: HealthRange) {
   const agents = await agentHealth(days)
-  const [features, funnel] = await Promise.all([featureHealth(days), funnelRates(agents)])
+  const [features, funnel, map] = await Promise.all([
+    featureHealth(days), funnelRates(agents), mapHealth(days),
+  ])
+  const signals = await buildSignals(agents, features, map, days)
   return {
     days,
+    /** 判断层排最前 —— 它是这个面板存在的理由，不是附属品 */
+    signals,
     agents,
     features,
+    map,
     funnel,
     /** 把「谁被算作自己人」透明地交给前端显示 —— 口径不透明的面板没人敢信。 */
     internalAgents: INTERNAL_AGENTS,
