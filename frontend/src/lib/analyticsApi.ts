@@ -603,10 +603,17 @@ export interface HealthMap {
   users: number; events: number; engaged: number; multiday: number; gateHit: number
   daily: { date: string; dau: number; areas: number }[]
 }
+/** C 端受众（访客/买家）。⚠️ 任何「用户数」都必须说清是 C 端还是 B 端。 */
+export interface HealthAudience {
+  visitors: number; usedCore: number; engaged: number
+  returned: number; deep: number
+  lunaUsers: number; lunaConvos: number
+}
 export interface HealthSnapshot {
   days: number
   /** 判断层 —— 面板存在的理由，排最前 */
   signals: HealthSignal[]
+  audience: HealthAudience
   map: HealthMap
   agents: {
     total: number; newCur: number; newPrev: number

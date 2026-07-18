@@ -244,7 +244,7 @@ export default function Health({ days = 30 }: { days?: number }) {
   if (err) return <div className="p-6 text-sm text-rose-600">加载失败：{err}</div>
   if (!data) return <div className="p-6 text-sm text-slate-400">加载中…</div>
 
-  const { agents: a, map } = data
+  const { agents: a, map, audience: c } = data
 
   return (
     <div className="space-y-6">
@@ -267,17 +267,40 @@ export default function Health({ days = 30 }: { days?: number }) {
         )}
       </section>
 
-      {/* ── 经纪侧绝对数 ── */}
+      {/* ── C 端受众 ──
+          🔴 v2 漏了这一整块,导致面板把「2 个经纪做出过产出物」显示成
+             「你仅有的 2 个真实激活用户」。owner 当场反驳「不是有很多客户在用功能吗」——
+             他是对的。C 端排在 B 端**前面**:它人数多一个量级,而且唯一付费的客户也在这条线上。 */}
       <section>
         <h3 className="mb-2 text-sm font-semibold text-slate-700">
-          真实外部经纪
-          <span className="ml-2 text-xs font-normal text-slate-400">已排除 owner / 合伙人 / demo</span>
+          C 端：买家 / 访客
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            用地图和 Luna 语音的人 · 已排除内部
+          </span>
+        </h3>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <StatCard label="访客总数" value={c.visitors} />
+          <StatCard label="用过核心功能" value={c.usedCore} hint="地图 / 项目 / 搜索" />
+          <StatCard label="用了 ≥5 次" value={c.engaged} />
+          <StatCard label="回访过" value={c.returned} hint={`≥3 天的有 ${c.deep} 人`} />
+          <StatCard label="Luna 语音用户" value={c.lunaUsers} />
+          <StatCard label="真实多轮对话" value={c.lunaConvos} hint="≥2 轮，排掉点开就关" />
+        </div>
+      </section>
+
+      {/* ── B 端经纪侧 ── */}
+      <section>
+        <h3 className="mb-2 text-sm font-semibold text-slate-700">
+          B 端：注册经纪
+          <span className="ml-2 text-xs font-normal text-slate-400">
+            用 tour / 报价单 / 报告 的人 · 已排除 owner / 合伙人 / demo
+          </span>
         </h3>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
           <StatCard label="注册总数" value={a.total} />
           <StatCard label={`近 ${days} 天新注册`} value={a.newCur} hint={a.newPrev > 0 ? `上期 ${a.newPrev}` : undefined} />
           <StatCard label="开了试用" value={a.trialStarted} />
-          <StatCard label="做出过产出物" value={a.activated} hint="tour / 报价单 / 报告，任一即算" />
+          <StatCard label="做出过可分享产出物" value={a.activated} hint="tour / 报价单 / 报告，任一即算" />
           <StatCard label="注册日之后回来过" value={a.returned} hint={`≥3 天活动的有 ${a.deepUsers} 人`} />
           <StatCard label="真实付费" value={a.paying} hint="不含 owner 自己" />
         </div>

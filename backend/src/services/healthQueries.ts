@@ -391,6 +391,53 @@ async function mapHealth(days: number) {
 }
 
 /**
+ * C 端受众（访客/买家）—— **v2 漏了它，导致面板严重误导。**
+ *
+ * 🔴 owner 的质问：「为什么说我只有 2 个真实用户？不是有很多客户在用功能吗？」**他是对的。**
+ *
+ * v2 只统计了 B 端（注册经纪做出过多少可分享产出物 = 2），却把这个数字写成
+ * 「你仅有的 2 个真实激活用户」——**把一个很窄的 B 端指标说成了全部用户**。
+ * 事实是同期有 244 人在用地图/项目/搜索、50 人回访过、14 人跟 Luna 语音聊过。
+ *
+ * 教训：这个产品有**两拨完全不同的人**，任何「用户数」都必须说清是哪一拨：
+ *   · C 端 = 买家/访客,用地图和 Luna 语音（**唯一付费客户 slavynchuk 也只用地图**）
+ *   · B 端 = 注册经纪,用 tour / 报价单 / 报告
+ * 混为一谈会直接导致产品方向判断错误。
+ */
+async function audienceHealth(days: number) {
+  const internal = await internalVisitorIds()
+  const { rows } = await pool.query(
+    `WITH v AS (
+       SELECT visitor_id,
+              count(DISTINCT created_at::date) AS days,
+              count(*) FILTER (WHERE event_type IN ('area_detail','property_view','search')) AS core
+         FROM app_events
+        WHERE created_at > now() - interval '${days} days'
+          AND (visitor_id IS NULL OR visitor_id <> ALL($1::text[]))
+        GROUP BY 1
+     )
+     SELECT count(*)                              AS visitors,
+            count(*) FILTER (WHERE core > 0)      AS used_core,
+            count(*) FILTER (WHERE core >= 5)     AS engaged,
+            count(*) FILTER (WHERE days >= 2)     AS returned,
+            count(*) FILTER (WHERE days >= 3)     AS deep,
+            (SELECT count(DISTINCT COALESCE(user_email, visitor_id)) FROM luna_sessions
+              WHERE created_at > now() - interval '${days} days')            AS luna_users,
+            (SELECT count(*) FROM luna_sessions
+              WHERE created_at > now() - interval '${days} days' AND turn_count >= 2) AS luna_convos
+       FROM v`,
+    [internal]
+  )
+  const r = rows[0]
+  const n = (v: unknown) => Number(v || 0)
+  return {
+    visitors: n(r.visitors), usedCore: n(r.used_core), engaged: n(r.engaged),
+    returned: n(r.returned), deep: n(r.deep),
+    lunaUsers: n(r.luna_users), lunaConvos: n(r.luna_convos),
+  }
+}
+
+/**
  * 判断层 —— **面板存在的理由。**
  *
  * 🔴 owner 的原话：「是数据 但是该怎么做决策？感觉光看这个看不出」。他是对的：
@@ -413,6 +460,7 @@ async function buildSignals(
   agents: Awaited<ReturnType<typeof agentHealth>>,
   features: FeatureHealth[],
   map: Awaited<ReturnType<typeof mapHealth>>,
+  aud: Awaited<ReturnType<typeof audienceHealth>>,
   days: number
 ): Promise<Signal[]> {
   const out: Signal[] = []
@@ -463,7 +511,12 @@ async function buildSignals(
     })
   }
 
-  // ⑤ 你仅有的外部信号源 —— 点名到 email，让「去访谈」变成可执行动作
+  // ⑤ 做出过产出物的经纪 —— 点名到 email，让「去访谈」变成可执行动作
+  //
+  // ⚠️ 措辞必须精确到「**经纪**做出过**可分享产出物**」。
+  //    v2 这里写的是「你仅有的 N 个真实激活用户」,owner 立刻反驳「不是有很多客户在用功能吗」——
+  //    他是对的:同期有几百人在用地图。把窄口径的 B 端数字说成「全部用户」会直接
+  //    导致产品方向判断错误。C 端受众另有 audienceHealth() 单独统计。
   if (agents.activated > 0 && agents.activated <= 5) {
     const { rows } = await pool.query(
       `SELECT a.email FROM lt_agents a
@@ -477,9 +530,19 @@ async function buildSignals(
     )
     out.push({
       severity: 'info',
-      title: `你仅有的 ${agents.activated} 个真实激活用户`,
-      evidence: rows.map((r) => r.email).join('、'),
-      action: '这是全部的外部信号源。一人聊 20 分钟，胜过再写两周代码。',
+      title: `只有 ${agents.activated} 个外部经纪做出过可分享产出物`,
+      evidence: `${rows.map((r) => r.email).join('、')}（注意：这是 B 端口径，不代表用户总数——C 端受众见下方）`,
+      action: '经纪工具的信号源就这几个人，一人聊 20 分钟胜过再写两周代码。',
+    })
+  }
+
+  // ⑥ B 端没起量、C 端却有真实使用 —— 这个对比是全站最重要的战略信号
+  if (aud.usedCore >= 50 && agents.activated <= 5) {
+    out.push({
+      severity: 'serious',
+      title: 'C 端在用，B 端没起来',
+      evidence: `${aud.usedCore} 人用过地图/项目/搜索、${aud.returned} 人回访；而只有 ${agents.activated} 个经纪做出过产出物`,
+      action: '真实需求集中在「查迪拜房产数据」，不在「经纪给客户做导览」。定价和产品重心是否该跟着这个事实走，值得认真想一次。',
     })
   }
 
@@ -522,15 +585,17 @@ async function buildSignals(
 /** 面板主查询。一次返回全部，前端不用串多个请求。 */
 export async function getHealthSnapshot({ days }: HealthRange) {
   const agents = await agentHealth(days)
-  const [features, funnel, map] = await Promise.all([
-    featureHealth(days), funnelRates(agents), mapHealth(days),
+  const [features, funnel, map, audience] = await Promise.all([
+    featureHealth(days), funnelRates(agents), mapHealth(days), audienceHealth(days),
   ])
-  const signals = await buildSignals(agents, features, map, days)
+  const signals = await buildSignals(agents, features, map, audience, days)
   return {
     days,
     /** 判断层排最前 —— 它是这个面板存在的理由，不是附属品 */
     signals,
     agents,
+    /** C 端受众。**任何「用户数」都必须说清是 C 端还是 B 端**,见 audienceHealth 注释。 */
+    audience,
     features,
     map,
     funnel,
