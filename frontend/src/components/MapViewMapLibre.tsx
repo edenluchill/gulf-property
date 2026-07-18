@@ -8,7 +8,7 @@ import Map, {
   Layer,
   MapRef
 } from 'react-map-gl/maplibre'
-import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource, setRTLTextPlugin } from 'maplibre-gl'
+import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
 import { Globe, Ruler, X, Box, Eye, EyeOff } from 'lucide-react'
@@ -53,9 +53,6 @@ const SATELLITE_SOURCE = {
 }
 
 // glyphs 指向免费字体服务，保证切换后 area/指标 的文字标签仍能渲染。
-// ⚠️ 阿语区域名:text-font 必须带 'Noto Sans Bold' 回退 —— 'Open Sans Bold' 无阿拉伯
-// 字形(该 range 的 pbf 是空的),阿语会渲染成空白;中文靠 localIdeographFontFamily
-// 本地字体,但那个 API 不覆盖阿拉伯文,只能靠字体栈里真有阿语字形的 Noto。
 const SATELLITE_STYLE = {
   version: 8 as const,
   glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
@@ -64,51 +61,6 @@ const SATELLITE_STYLE = {
     { id: 'sat-bg', type: 'background' as const, paint: { 'background-color': '#0b1722' } },
     { id: 'satellite', type: 'raster' as const, source: 'satellite-tiles' }
   ]
-}
-
-// ─── 阿拉伯语（及其它非拉丁/非CJK文字）地图标签支持 ──────────────────────────
-// 两件事缺一不可,否则阿语区域名/地标名在地图上要么空白要么反向断字:
-//
-// 1) 字形来源:CARTO 底图(voyager/dark)自带的 glyphs 字体服务器**没有阿拉伯字形**
-//    (实测 fonts range 1536-1791 只有 ~50 字节=空,也没有 Noto)。只有 openmaptiles
-//    的合并字体栈(Open Sans + Noto Sans)才有阿语。所以把 CARTO 底图的 glyphs 覆盖成
-//    openmaptiles,并把所有 symbol 层的 text-font 重映射到「有阿语的」合并栈。
-//    (卫星底图本来就用 openmaptiles,不用改。)
-// 2) RTL 成形:MapLibre 默认不做阿拉伯语的双向重排 + 连字成形,必须 setRTLTextPlugin。
-//    自托管在 public/(不引外部 CDN —— 墙内加载稳、且不受 CSP 限制)。
-// RTL 文字插件:整个页面只装一次,lazy(第一次遇到 RTL 文字才真正拉 js)。装不上不致命
-// —— 地图照常跑,只是阿语不成形。
-let rtlPluginRequested = false
-function ensureRTLTextPlugin() {
-  if (rtlPluginRequested) return
-  rtlPluginRequested = true
-  try {
-    // (url, lazy) —— lazy=true:遇到第一段 RTL 文字才真正下载插件
-    Promise.resolve(setRTLTextPlugin('/mapbox-gl-rtl-text.js', true)).catch(() => {})
-  } catch {
-    /* 已装过 / 装不上都无所谓 */
-  }
-}
-ensureRTLTextPlugin()
-
-// CARTO 底图的字体服务器没有阿拉伯字形(也没有 Noto)。与其换整个 style(会打断
-// 地图 onLoad → 加载遮罩卡死),不如在**请求层**动手:凡是 CARTO 发出的、fontstack
-// 里带 Open Sans / Noto Sans 的 glyph 请求(= 我们自己图层用的字体栈),都重定向到
-// openmaptiles(那里有阿语)。CARTO 自己的底图标签用的是别的字体(Montserrat 等),
-// URL 里不含这两个名字 → 不受影响,照常从 CARTO 取。卫星底图本就走 openmaptiles,
-// URL 不含 cartocdn → 天然跳过。
-const CARTO_FONTS_RE = /^(https?:\/\/[^/]*cartocdn\.com)\/fonts\//
-function transformMapRequest(url: string, resourceType?: string) {
-  if (
-    resourceType === 'Glyphs' &&
-    CARTO_FONTS_RE.test(url) &&
-    /Open Sans|Noto Sans/.test(decodeURIComponent(url))
-  ) {
-    // 注意结尾斜杠:正则吃掉了 `/fonts/`,替换串必须自带 `/`,否则拼成
-    // `openmaptiles.orgOpen Sans Bold` → 全部 404 刷屏卡死地图。
-    return { url: url.replace(CARTO_FONTS_RE, 'https://fonts.openmaptiles.org/') }
-  }
-  return undefined
 }
 
 type BaseMap = 'vector' | 'satellite' | 'dark'
@@ -729,7 +681,7 @@ function MapViewMapLibre({
           'text-rotation-alignment': 'viewport',
           'text-pitch-alignment': 'viewport',
           'text-field': ['get', 'name'],
-          'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+          'text-font': ['Open Sans Bold'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 14, 12],
           'text-anchor': 'top',
           'text-offset': [0, 0.35],
@@ -1107,7 +1059,12 @@ function MapViewMapLibre({
         // overview shows only the busiest markets and the rest unfold on zoom.
         const rank = rankById[area.id] ?? Infinity
         const minZoom = getMinZoomForRank(rank)
-        const translatedName = langKey ? area.translations?.[langKey]?.name : undefined
+        // ⚠️ 阿语暂时不用在地图 GL 标签上:CARTO 底图的字体服务器没有阿拉伯字形,
+        // 直接渲染会变空白(见 area i18n 排查)。阿语界面下地图区域名先回退英文
+        // (地标是 DOM marker,阿语能正常显示,不受此影响)。阿语 GL 渲染的正解另做。
+        const translatedName = langKey && langKey !== 'ar'
+          ? area.translations?.[langKey]?.name
+          : undefined
 
         // 单行本地化名称：中文界面只显示中文（原来英中两行 ×100+ 区域是地图
         // 拥挤的最大来源；客户反馈"挤着很乱"后改为单行）
@@ -1357,9 +1314,6 @@ function MapViewMapLibre({
         // the style's glyphs URL (now a fontstack the server actually serves).
         localIdeographFontFamily="'PingFang SC', 'Microsoft YaHei', sans-serif"
         style={{ width: '100%', height: '100%' }}
-        // 阿语等标签的字形靠 transformRequest 把 CARTO glyph 请求转到 openmaptiles
-        // (见 transformMapRequest);这里不动 style,避免热替换打断 onLoad。
-        transformRequest={transformMapRequest}
         mapStyle={
           // 🔴 **Luna Tour 必须用卫星底图。** owner 已经说过很多次了 —— 不要再改。
           //    我先后改成过 dark 和亮色矢量,两次都是错的。tour 期间强制 satellite,
@@ -1448,7 +1402,7 @@ function MapViewMapLibre({
                         'font-scale': 1.25
                       }
                     ],
-                'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                'text-font': ['Open Sans Bold'],
                 // Keep labels flat-on-screen + upright no matter the bearing/pitch,
                 // so the cinematic orbit doesn't tilt or rotate the area names.
                 'text-rotation-alignment': 'viewport',
@@ -1578,7 +1532,7 @@ function MapViewMapLibre({
               ]}
               layout={{
                 'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                'text-font': ['Open Sans Bold'],
                 'text-size': [
                   'interpolate', ['linear'], ['zoom'],
                   13, 10,
@@ -1649,7 +1603,7 @@ function MapViewMapLibre({
               minzoom={14.5}
               layout={{
                 'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                'text-font': ['Open Sans Bold'],
                 'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 10, 17, 13],
                 'text-offset': [0, 1.2],
                 'text-anchor': 'top',
@@ -1747,7 +1701,7 @@ function MapViewMapLibre({
                 layout={{
                   'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 13,
                   'text-allow-overlap': true,
                   'text-ignore-placement': true
@@ -1785,7 +1739,7 @@ function MapViewMapLibre({
                 layout={{
                   'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 12
                 }}
                 paint={{ 'text-color': '#b45309', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }}
@@ -1808,7 +1762,7 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'kind'], 'center']}
                 layout={{
                   'text-field': ['get', 'label'],
-                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 13,
                   'text-offset': [0, 1.4],
                   'text-anchor': 'top'
@@ -1823,7 +1777,7 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'kind'], 'amenity']}
                 layout={{
                   'text-field': ['get', 'name'],
-                  'text-font': ['Open Sans Bold', 'Noto Sans Bold'],
+                  'text-font': ['Open Sans Bold'],
                   'text-size': 11,
                   'text-offset': [0, 1.1],
                   'text-anchor': 'top',
