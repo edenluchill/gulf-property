@@ -214,7 +214,38 @@ User-agent: meta-externalagent  Disallow: /
 User-agent: Google-Extended     Disallow: /
 ```
 
-- **不影响本次 Google 索引问题**（Googlebot 未被挡；`Google-Extended` 只管 AI 训练不管搜索）
-- 但目标客群正是"在 AI 里问迪拜买房"的人。这个默认配置等于把自己从所有 AI 答案里删除。
-- `public/llms.txt` 已经写得很完整（面向 AI 的站点说明）—— **写了却被 robots 挡在门外，白费。**
-- 这一条可能比 Google 排名更值得改，且改动成本极低。
+### ⚠️ 更正（当天晚些时候）
+
+**本报告初版在这里下了个过度的结论**：看到 `ClaudeBot / GPTBot Disallow` 就写成
+"等于把自己从所有 AI 答案里删除"。**这是错的，写下来避免以后重犯。**
+
+上面那份阻断清单里的全部是**训练类**爬虫。决定能否进入 AI 回答的是另一批：
+
+| 类别 | 代表 UA | 作用 | 当前状态 |
+|---|---|---|---|
+| 训练爬虫 | ClaudeBot, GPTBot, CCBot, Google-Extended, Bytespider | 内容进模型权重 | 被挡 |
+| **答案/搜索爬虫** | **OAI-SearchBot, ChatGPT-User, PerplexityBot, Claude-User, Claude-SearchBot** | **实时抓取来回答用户提问** | **本来就放行** |
+
+也就是说现状是「AI 能实时抓你、但你的内容不进模型权重」—— 一个相当合理的默认值，
+不是"AI 看不见你"。`llms.txt` 也并没有被挡在门外。
+
+**教训：robots.txt 里看到 AI 相关 UA 被 Disallow，先分清训练类还是答案类，
+别把两者混为一谈。** 对获客有直接意义的是后者。
+
+### 结论：只需要改一个下拉
+
+Cloudflare 面板 → pinzos.com → 右侧 **Manage AI bot access**：
+
+| 下拉 | 现值 | 应改为 | 理由 |
+|---|---|---|---|
+| Block AI training bots | Block only on pages with ads | **不动** | 是网络层拦截规则，但只作用于有广告的页面 —— 站点没有广告，**它现在什么都没拦**，空转 |
+| **Manage your robots.txt** | Set your preference to block training in robots.txt | **改为不托管** | **真正的元凶**：把 CF 指令插在我们文件前面，而 robots.txt 是「最具体的 UA 组胜出」→ CF 的 `ClaudeBot: Disallow` 永远压过我们的 `*: Allow` |
+
+关掉托管后 `frontend/public/robots.txt` 成为唯一真相源。
+
+### robots.txt 的一个致命写法（已在文件注释里标红）
+
+🔴 **别为某个 AI 爬虫单开一组。** 一个爬虫只读它匹配到的**最具体那一组**。
+一旦写了 `User-agent: GPTBot / Allow: /`，它就**完全不看 `*` 组** ——
+下面那些 `Disallow: /v/ /pp/ …`（分享短链，内含真实客户名和报价）对它全部失效。
+要放行就靠 `*` 组的 `Allow: /`，绝不单开。

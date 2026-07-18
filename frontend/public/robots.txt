@@ -1,21 +1,28 @@
 # Pinzos — robots.txt
 #
-# 在这个文件存在之前,线上跑的是 **Cloudflare 托管的默认版本**,它把
-# ClaudeBot / GPTBot / CCBot / meta-externalagent / Bytespider 全部 Disallow 了。
-# 后果:我们精心写的 /llms.txt(专门给 AI 读的站点说明)**没有任何 AI 读得到**。
+# ⚠️ 这个文件只有在 Cloudflare 面板 **「Manage your robots.txt」设为不托管** 时才是
+#    唯一真相源。托管开着时,Cloudflare 会把它自己的指令**插在前面**,而 robots.txt 的
+#    语义是「最具体的 User-agent 组胜出」—— 于是它的 `User-agent: ClaudeBot / Disallow: /`
+#    永远压过我们下面的 `User-agent: *`。改完面板务必 curl 复核实际生效内容。
 #
-# 而我们的目标客群恰恰是「在 AI 里问迪拜买房」的人。把自己从 AI 答案里删掉,
-# 损失可能比 Google 排名还大。所以这里显式放行。
+# ── 为什么放行 AI ──────────────────────────────────────
+# 我们的目标客群就是「在 AI 里问迪拜买房」的人。要出现在 AI 的回答里,靠的是
+# **搜索/答案类爬虫**(OAI-SearchBot、ChatGPT-User、PerplexityBot、Claude-User …),
+# 不是训练爬虫 —— 前者实时抓取来回答问题,后者只把内容吃进模型权重。
+# 两者都放行:训练类没有实际下行风险(DLD 数据本来就是公开的,我们的资产是产品不是文本),
+# 答案类则是直接的获客通道。/llms.txt 是专门写给它们的站点说明。
 #
-# ⚠️ 如果 Cloudflare 面板上开着「AI Scrapers and Crawlers」阻断 / managed robots.txt,
-#    它可能仍会覆盖或追加到这个文件。部署后务必 curl 复核实际生效的内容。
+# ── 为什么只有一个 `User-agent: *` 组 ──────────────────
+# 🔴 **别为某个 AI 爬虫单开一组。** robots.txt 里一个爬虫**只读它匹配到的最具体那一组**,
+#    一旦给 GPTBot 单开 `User-agent: GPTBot / Allow: /`,它就**完全不看** `*` 组 ——
+#    下面那些 Disallow(分享短链、后台)对它全部失效,客户姓名和报价就漏出去了。
+#    要放行就靠 `*` 组的 Allow,别单开。
 
-# ── 搜索引擎 + AI:全部放行 ──────────────────────────────
 User-agent: *
 Allow: /
 
-# 不该被索引的:分享短链(客户隐私)与后台
-# 这些页面里有真实客户名/报价/带看记录,进搜索结果是事故。
+# 不该被索引的:分享短链(内含真实客户名/报价/带看记录)与后台。
+# 这些进搜索结果或 AI 答案都是事故。
 Disallow: /v/
 Disallow: /t/
 Disallow: /pp/
@@ -31,5 +38,11 @@ Disallow: /login
 Disallow: /auth/
 Disallow: /langgraph/
 Disallow: /developer/upload
+
+# Content Signals(Cloudflare 2025 提的声明式偏好,非强制但主流爬虫已在读):
+#   search    — 收录进传统搜索结果
+#   ai-input  — 作为 AI 实时回答的输入(RAG)← 想进 AI 推荐,这条是关键
+#   ai-train  — 吃进模型训练权重
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 Sitemap: https://www.pinzos.com/sitemap.xml
