@@ -646,19 +646,15 @@ export default function TourOverlay({
       })()}
 
       {/**
-        * 🔴 **绝不静默地用机器音。**
-        *
-        * 草稿(还没确认渲染)的每一拍都没有 audio_url,引擎会回落到浏览器 speechSynthesis
-        * —— owner 实测就被这个坑到了:「怎么是用 browser 机器人语音说话的?」
-        * 他以为坏了,而实际上只是还没点「确认,生成语音并发布」。
-        *
-        * 回落本身是对的(总比没声音好),但它**必须说出来**。
+        * 缺配音的拍 —— 现在**不再回落机器音**(owner:宁愿无配音也不要机器人音),
+        * 而是静默+字幕。这条横幅只对**经纪预览/批注**(editMode)显示,提醒他「还没配音」;
+        * 无配音发布给客户看时**绝不显示**(那是刻意的静默,不是出错)。
         */}
-      {started && missingVoice && state !== 'ended' && (
+      {editMode && started && missingVoice && state !== 'ended' && (
         <div className="lt-voice-warn">
           {zh
-            ? '⚠️ 这是草稿预览 · 当前是浏览器机器音 —— 确认发布后会换成 Luna 的真人语音'
-            : '⚠️ Draft preview · browser robot voice — approve & publish to hear Luna’s real voice'}
+            ? '🔇 暂无配音 · 只有字幕 —— 发布时可选「生成 Luna 配音」或直接「无配音发布」'
+            : '🔇 No voiceover · subtitles only — on publish you can add Luna’s voice or publish silent'}
         </div>
       )}
 

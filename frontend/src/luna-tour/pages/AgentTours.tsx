@@ -377,6 +377,28 @@ export default function AgentTours() {
     }
   }
 
+  /**
+   * 发布草稿 —— 之前草稿在列表里没有任何发布入口(只有创建时那一次性的内联流程),
+   * 保存后就成了「永远发不出去的草稿」。这里补上。
+   *   voice=true  → 烧 Luna 配音再发布(后台 60-120s)
+   *   voice=false → 无配音发布,客户端静默+字幕(owner:宁愿无配音也不要机器人音)
+   */
+  const [publishingId, setPublishingId] = useState<string | null>(null)
+  const publishTour = async (sid: string, voice: boolean) => {
+    setPublishingId(sid)
+    try {
+      const r = await lunaFetch(`/sessions/${sid}/render`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice }),
+      })
+      if (r.ok) await load()
+    } catch {
+      /* ignore */
+    }
+    setPublishingId(null)
+  }
+
   const openEvents = async (id: string) => {
     if (eventsId === id) {
       setEventsId(null)
@@ -717,15 +739,37 @@ export default function AgentTours() {
                 *
                 * 现在:**打开 · 编辑 · 行为 · 删除**。其余收进「⋯」。
                 */}
-              <a
-                href={`/?toursession=${s.share_code}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-700"
-                title={t('lunaTour:openTheTourAs')}
-              >
-                {t('lunaTour:open2')}
-              </a>
+              {/* 草稿:客户点开是 404,所以给「发布」而不是「打开」。两种发布:带配音 / 无配音。 */}
+              {!s.is_published ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => publishTour(s.id, true)}
+                    disabled={publishingId === s.id}
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-50"
+                    title={L('烧 Luna 配音再发布(约 1-2 分钟)', 'Generate Luna voice, then publish (~1-2 min)')}
+                  >
+                    {publishingId === s.id ? L('发布中…', 'Publishing…') : L('▶ 发布·带配音', '▶ Publish · with voice')}
+                  </button>
+                  <button
+                    onClick={() => publishTour(s.id, false)}
+                    disabled={publishingId === s.id}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                    title={L('直接发布,无配音,客户看字幕', 'Publish silent — client reads subtitles')}
+                  >
+                    {L('无配音', 'Silent')}
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href={`/?toursession=${s.share_code}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+                  title={t('lunaTour:openTheTourAs')}
+                >
+                  {t('lunaTour:open2')}
+                </a>
+              )}
               <Link
                 to={`/agent/tour/${s.id}/edit`}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"

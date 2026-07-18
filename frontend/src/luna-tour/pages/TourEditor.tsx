@@ -73,11 +73,14 @@ type DragState = {
 
 export default function TourEditor() {
   const { id = '' } = useParams<{ id: string }>()
-  const { t: tRaw } = useTranslation('lunaTour')
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
+  const zh = !!i18n.language?.startsWith('zh')
   const kindLabel = (k: string) => (KINDS.has(k) ? t(`editor.kind.${k}`) : k)
   const [title, setTitle] = useState('')
   const [shareCode, setShareCode] = useState('')
+  const [isPublished, setIsPublished] = useState(true)
+  const [publishing, setPublishing] = useState(false)
   const [preview, setPreview] = useState(false)
   const [nodes, setNodes] = useState<Node[]>([])
   /**
@@ -108,8 +111,20 @@ export default function TourEditor() {
     const d = await r.json()
     setTitle(d.title || '')
     setShareCode(d.share_code || '')
+    setIsPublished(d.is_published !== false)
     setNodes(d.flow || [])
   }, [id])
+
+  // 发布草稿(草稿对客户 404,必须发布)。voice=false → 无配音,客户静默看字幕。
+  const publish = async (voice: boolean) => {
+    setPublishing(true)
+    try {
+      const r = await lunaFetch(`/sessions/${id}/render`, { method: 'POST', body: JSON.stringify({ voice }) })
+      if (r.ok) { await reload(); flash(voice ? (zh ? '✅ 已发布 · Luna 配音生成中(约 1-2 分钟)' : '✅ Published · Luna voice generating (~1-2 min)') : (zh ? '✅ 已发布 · 无配音(客户看字幕)' : '✅ Published · silent (subtitles)')) }
+      else flash(`❌ ${t('editor.saveFailed')}`)
+    } catch { flash(`❌ ${t('editor.networkError')}`) }
+    setPublishing(false)
+  }
 
   useEffect(() => {
     ;(async () => {
@@ -267,7 +282,18 @@ export default function TourEditor() {
           <button className="px-2 text-lg leading-none hover:text-slate-800" onClick={() => setPx((p) => Math.min(48, p + 4))}>+</button>
         </div>
         <button onClick={() => setPreview(true)} disabled={!shareCode} className="bg-slate-800 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">▶ {t('editor.preview')}</button>
-        <button onClick={saveNarration} disabled={busy} className="bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm disabled:opacity-50">{t('editor.save')}</button>
+        <button onClick={saveNarration} disabled={busy} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 disabled:opacity-50 hover:bg-slate-50">{t('editor.save')}</button>
+        {/* 草稿:客户点开是 404 → 必须发布。带配音 / 无配音两种。已发布则不显示。 */}
+        {!isPublished && (
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => void publish(true)} disabled={publishing || !shareCode} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-50" title={zh ? '烧 Luna 配音再发布(约 1-2 分钟)' : 'Generate Luna voice, then publish'}>
+              {publishing ? (zh ? '发布中…' : 'Publishing…') : (zh ? '发布·带配音' : 'Publish · voice')}
+            </button>
+            <button onClick={() => void publish(false)} disabled={publishing || !shareCode} className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50" title={zh ? '直接发布,无配音,客户看字幕' : 'Publish silent — client reads subtitles'}>
+              {zh ? '无配音' : 'Silent'}
+            </button>
+          </div>
+        )}
         {msg && <span className="text-sm">{msg}</span>}
       </div>
 

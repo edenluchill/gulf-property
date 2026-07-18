@@ -1360,6 +1360,9 @@ router.post('/sessions/:id/render', requireAgent, async (req: AgentReq, res: Res
       // 已经渲染过 —— 不再重复扣额度(重烧语音走 PATCH 那条路)
       return res.json({ ok: true, alreadyRendered: true, shareCode: sess.share_code })
     }
+    // 无配音发布:owner「宁愿无配音也不要机器人音」。voice:false → 只发布,不烧 Gemini TTS,
+    // 客户端没有 audio_url 就静默+字幕(引擎已不再回落机器音)。默认 true = 老行为(带配音)。
+    const withVoice = req.body?.voice !== false
 
     const loggedIn = billable(req)
     if (loggedIn) {
@@ -1382,14 +1385,21 @@ router.post('/sessions/:id/render', requireAgent, async (req: AgentReq, res: Res
     }
 
     tourPublish.step('render')
-    genJobs.set(sess.share_code, { status: 'generating' })
-    res.json({ ok: true, shareCode: sess.share_code, watch_url: `/?toursession=${sess.share_code}` })
+    res.json({ ok: true, shareCode: sess.share_code, voice: withVoice, watch_url: `/?toursession=${sess.share_code}` })
 
+    if (!withVoice) {
+      // 无配音发布 —— 不烧语音,直接就绪。客户端没有 audio_url → 静默+字幕。
+      genJobs.set(sess.share_code, { status: 'ready', audioTotal: 0 })
+      tourPublish.step('audio_ready')
+      return
+    }
+
+    genJobs.set(sess.share_code, { status: 'generating' })
     // 语音在后台烧(11+ 拍 × Gemini TTS + R2,60-120s —— 超过 CF 代理超时)
     void generateSessionAudio(sess.id)
       .then((audio) => {
         // ⚠️ 只有**全部**拍都有声才算真 ready。之前不管成几拍都标 'ready',
-        // 经纪看到「成功」,客户点开却是浏览器机器音。
+        // 经纪看到「成功」,客户点开却缺配音。
         if (audio.ready > 0 && audio.failed === 0) tourPublish.step('audio_ready')
         genJobs.set(sess.share_code, { status: 'ready', audioTotal: audio.total })
         console.log(`[luna] render ${sess.share_code}: ${audio.ready}/${audio.total} audio ready`)
@@ -2311,7 +2321,10 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
   try {
     const agentId = await currentAgentId(req)
     const id = String(req.params.id)
-    const s = await pool.query(`SELECT title, share_code FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`, [id, agentId])
+    const s = await pool.query<{ title: string; share_code: string; is_published: boolean }>(
+      `SELECT title, share_code, is_published FROM lt_demo_sessions WHERE id=$1 AND agent_id=$2`,
+      [id, agentId]
+    )
     if (s.rowCount === 0) return res.status(404).json({ error: 'not found' })
 
     const sc = await pool.query<{ script: ScriptShape }>(
@@ -2374,7 +2387,7 @@ router.get('/sessions/:id/script', async (req: Request, res: Response) => {
       })
       if (script.outro?.id) flow.push(beatItem(script.outro, '结尾', 'outro', -1))
     }
-    res.json({ title: s.rows[0].title, share_code: s.rows[0].share_code, flow })
+    res.json({ title: s.rows[0].title, share_code: s.rows[0].share_code, is_published: s.rows[0].is_published, flow })
   } catch (err) {
     console.error('[luna] agent script error:', err)
     res.status(500).json({ error: 'internal error' })
