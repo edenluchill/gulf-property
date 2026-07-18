@@ -121,6 +121,86 @@ Google 首轮抓取只看到空 `<div id="root">` 与同一个标题，需等渲
 
 ---
 
+---
+
+## 实施记录（2026-07-18 当天完成）
+
+提交：`bc7f42f`、`7ad59c4`、`c04bd6d`
+
+### ✅ 已完成并线上验证
+
+| 项 | 状态 | 验证 |
+|---|---|---|
+| 边缘 301 裸域→www | ✅ | `curl pinzos.com/about → 301 https://www.pinzos.com/about`，query 保留 |
+| sitemap.xml | ✅ | `application/xml`，7 条 `<loc>`，命名空间正确 |
+| canonical 全部指向 www | ✅ | seo-check.mjs 7/7 通过 |
+| /areas /transactions 加 Helmet | ✅ | 有独立 title + description + canonical |
+| /project/:id 加 canonical | ✅ | 钉死 www，不用 `window.location.origin` |
+| robots.txt Disallow 分享短链/后台 | ✅ | 已生效（`*` 组会合并） |
+| **robots.txt 放行 AI 爬虫** | ❌ **未生效** | 见下 |
+
+### 施工中发现的两个既有 bug（不在原诊断里）
+
+**1. 每页有两个 `<meta name="description">`**
+
+index.html 的静态默认值 + 页面 Helmet 注入的，静态那份排在前面。Google 对重复
+description 行为未定义，大概率取第一个 → **各页面精心写的 description 一直是废的**，
+搜索结果里全站共用同一句泛泛介绍。
+
+`curl` 看不出来（Helmet 是客户端注入的，静态 HTML 里只有一份），所以藏了很久。
+是写 `scripts/seo-check.mjs` 做真渲染验证时才撞出来的。
+
+修法：index.html 那份加 `data-rh="true"` 交给 react-helmet-async 认领 → 页面级
+Helmet 变成**替换**而非追加。认领后必须保证任何路由都有人给值，否则 Helmet 会删掉它
+→ 兜底组件 `src/components/DefaultSeo.tsx` 挂在 App 顶层。**两者是一对，别只改一边。**
+
+**2. 首页此前根本没有 canonical**（它没有页面级 Helmet）—— 由 DefaultSeo 一并补上。
+
+**3. ProjectDetailPage 的 og:image 兜底是相对路径** `/og-image.jpg`，爬虫会忽略。
+index.html 里为此改过一次，这条兜底路径当时漏了。
+
+### 新增工具
+
+`frontend/scripts/seo-check.mjs` —— **改 SEO meta 后必跑**。
+真渲染 7 个公开页，校验 title / description / canonical 齐全且指向规范域。
+
+```bash
+cd frontend && node scripts/seo-check.mjs        # 打生产
+cd frontend && node scripts/seo-check.mjs http://localhost:5173
+```
+
+⚠️ 坑：**别用 `networkidle` 等首页**。首页是地图，瓦片一直在流，networkidle 永远不触发
+→ 超时后固定 sleep 时 React 还没挂完 → 报「首页无 canonical」的假阴性（当天误报过一次）。
+已改为等 Helmet 真的注入标签。
+
+---
+
+## ⚠️ 剩下一件事需要你手动做：Cloudflare 面板
+
+**自建的 `public/robots.txt` 没能放行 AI 爬虫。** 实测线上生效的内容是：
+
+```
+User-agent: ClaudeBot        Disallow: /     ← Cloudflare 托管版，排在前面
+User-agent: GPTBot           Disallow: /
+...
+User-agent: *                Allow: /        ← 我们的文件被追加在后
+Disallow: /v/ …
+```
+
+robots.txt 的语义是**最具体的 User-agent 组胜出**，`ClaudeBot` 比 `*` 更具体
+→ **Cloudflare 的阻断依然赢**。我们的 `Disallow: /v/` 等规则生效了（`*` 组会合并），
+但放行 AI 的意图没实现。
+
+**需要在 Cloudflare 面板关掉托管的 AI 爬虫阻断**（位置大致在域名下的
+AI Crawl Control / Bots → "Block AI Scrapers and Crawlers"，或 managed robots.txt 设置）。
+关掉后再 `curl https://www.pinzos.com/robots.txt` 复核。
+
+这条是否要做取决于一个判断：**你愿不愿意让 AI 抓取你的 DLD 数据展示页**。
+放行 = 有机会出现在 AI 答案里；不放行 = 保护数据但对 AI 隐身。
+`public/llms.txt` 已经写好了，只在放行后才有意义。
+
+---
+
 ## 五、附带发现：AI 爬虫被默认配置全挡
 
 线上 `robots.txt` 是 Cloudflare 托管的默认版本，含：
