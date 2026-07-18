@@ -82,7 +82,16 @@
          ⚠️ iOS/WKWebView(微信)**忽略** user-scalable=no,那边靠拦 gesture 事件,同见该文件。 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Pinzos - A New Way to Buy Off-Plan in Dubai</title>
-    <meta name="description" content="Pinzos is an interactive Dubai off-plan property platform: a satellite map with real DLD transactions, rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, plus agent tools — real-time co-presence map tours for overseas clients, AI-guided Luna tours, and buyer-intent reports." />
+    <!-- ⚠️ `data-rh` 不是装饰,别删。
+         它把这个标签**交给 react-helmet-async 管**,于是页面级 Helmet 是**替换**它而不是
+         再追加一个。此前没有这个属性 → 每页都有**两个** <meta name="description">:
+         这份静态默认值(排在前面)+ 页面自己的那份。Google 对重复 description 行为未定义,
+         大概率取第一个 —— 也就是说各页面写的 description 全是废的,搜索结果里全站共用
+         同一句泛泛介绍。(2026-07-18 用 scripts/seo-check.mjs 真渲染才发现;curl 看不出来。)
+
+         认领之后必须保证任何路由下都有人给它值,否则 Helmet 会把它删掉 ——
+         兜底在 src/components/DefaultSeo.tsx,挂在 App 顶层。两者是一对,别只改一边。 -->
+    <meta data-rh="true" name="description" content="Pinzos is an interactive Dubai off-plan property platform: a satellite map with real DLD transactions, rents and area metrics, AI brochure parsing, 5-year ROI & Golden-Visa analysis, plus agent tools — real-time co-presence map tours for overseas clients, AI-guided Luna tours, and buyer-intent reports." />
     <meta name="keywords" content="Dubai off-plan, Dubai real estate, DLD transactions, property investment Dubai, Golden Visa, real-time property tour, 迪拜期房, 迪拜房产, 海外带看" />
 
     <!-- Brand wordmark font (Fraunces display serif) + UI font (Inter)

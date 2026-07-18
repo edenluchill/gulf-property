@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { trackEvent, installTracking } from './lib/track'
 import { installApiErrorCapture } from './lib/errorCapture'
 import { applyPinchZoomPolicy } from './lib/pinchZoom'
+import DefaultSeo from './components/DefaultSeo'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectReportPage from './pages/ProjectReportPage'
 import PaymentPlanSharePage from './pages/PaymentPlanSharePage'  // 付款计划分享页 /pp/:code (客户免登录)
@@ -89,6 +90,10 @@ function App() {
     <TourModeProvider>
     <VoiceAssistantProvider>
     <RouteTracker />
+    {/* 全站 description / canonical 兜底 —— 页面级 Helmet 会覆盖它。
+        必须有:index.html 那份静态 description 已改为 data-rh(交给 Helmet 管),
+        没人给值它就会被删掉。 */}
+    <DefaultSeo />
     <PinchZoomPolicy />
     {/* 新版本提示条（编辑页不自动刷新，避免丢表单） */}
     {updateAvailable && (
