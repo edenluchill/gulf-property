@@ -967,3 +967,24 @@
   .lt-root:has(.lt-ov-compare) .lt-subtitle,
   .lt-tour-host:has(.lt-ov-compare) .lt-subtitle { bottom: 260px; }
 }
+
+/**
+ * 📱 手机运镜期间去掉常驻 chrome 的 backdrop-filter。
+ *
+ * backdrop-filter: blur() 会让合成器**每一帧**对「正在移动的地图」重新采样+模糊 ——
+ * 运镜时地图逐帧在动,这些模糊区就逐帧重算,是移动端卡顿/抖动的又一来源
+ * (和 pixelRatio 叠加)。这些元素背景本就半透明,去掉模糊只是略微通透一点,
+ * 换来 GPU 每帧少做几遍全区模糊。桌面保留模糊(桌面 GPU 有余量,且更精致)。
+ */
+@media (max-width: 640px) {
+  .lt-exit,
+  .lt-agent-badge,
+  .lt-mute,
+  .lt-cc,
+  .lt-subtitle span {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* 去掉模糊后字幕底色略微加深,保证卫星图上依然清晰可读 */
+  .lt-subtitle span { background: rgba(5, 7, 13, 0.72); }
+}

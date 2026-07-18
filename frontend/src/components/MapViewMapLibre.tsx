@@ -458,6 +458,28 @@ function MapViewMapLibre({
     }
   }, [flyToLocation, mapLoaded])
 
+  /**
+   * 🔴 手机运镜抖动的头号元凶:渲染分辨率(pixelRatio)。
+   *
+   * Luna Tour 的电影运镜是**逐帧 jumpTo**。手机 devicePixelRatio 通常 2–3,意味着
+   * 每一帧要着色 4–9 倍的像素;叠加卫星栅格 + 区域填充 + 几百个阿语/中文标签 + 45° 俯角,
+   * 移动端 GPU 根本喂不满 → 掉帧,肉眼就是「疯狂抖动」。
+   *
+   * tour 期间把渲染分辨率压到 ≤1.5x:高速运动中肉眼几乎无差,而每帧像素量砍到约 1/4,
+   * GPU 从「喂不满」回到「有余量」,抖动消失。退出 tour 恢复原生 dpr(静止浏览要清晰)。
+   * 桌面(dpr ≤ 1.5)不受影响。
+   */
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map || !mapLoaded) return
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
+    try {
+      map.setPixelRatio(tourActive && dpr > 1.5 ? 1.5 : dpr)
+    } catch {
+      /* 老引擎没有 setPixelRatio —— 不因它挂掉地图 */
+    }
+  }, [tourActive, mapLoaded])
+
   // 地图加载完成后再渲染 layers
   const handleMapLoad = useCallback(async () => {
     const map = mapRef.current?.getMap()

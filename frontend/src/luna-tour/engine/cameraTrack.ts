@@ -42,8 +42,13 @@ const NOOP_MOVE_EPS = 0.0008
 const MIN_CUE_MS = 800
 /** Don't let the camera pull wider than this — AI sometimes authors zoom 9 wide
  *  establishing shots that, compressed into a short narration, read as a dizzying
- *  zoom-out-then-in. Keep the framing tight + steady. */
-const MIN_TOUR_ZOOM = 10.8
+ *  zoom-out-then-in. Keep the framing tight + steady.
+ *
+ *  🔴 手机必须放宽:同样的 zoom 在窄屏上横向可见范围小得多,10.8 的下限会把
+ *  establishing 里两侧的项目直接挤出画面(owner:「一开始没办法看到全貌」)。
+ *  窄屏下调下限,让 establishing 能退到装得下所有项目的 zoom。桌面不变。 */
+const MIN_TOUR_ZOOM =
+  typeof window !== 'undefined' && window.innerWidth < 700 ? 9.4 : 10.8
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t

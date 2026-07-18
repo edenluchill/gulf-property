@@ -74,6 +74,28 @@ function pickCaption(chunks: string[], atMs: number): string {
   return chunks[chunks.length - 1]
 }
 
+/**
+ * 🔴 开场 establishing shot 的 zoom 必须**装得下所有项目**,不管什么屏幕。
+ *
+ * 后端算出的 establishing zoom(如 10.2)是按宽屏调的:窄屏(手机)上同样的 zoom
+ * 横向可见范围小得多,两侧的项目会被挤出画面 —— owner:「一开始没办法看到全貌」。
+ *
+ * 规则:用后端给的 zoom;但如果在当前视口下它装不下所有项目的经度跨度(留 35% 余量),
+ * 就**只往外退**到刚好装得下(绝不往里推,免得破坏宽屏那张漂亮的城市全景)。
+ * 纯几何(Web Mercator:横向可见经度 ≈ 360 / 2^z × 视口宽/512),不是拍脑袋的常量。
+ */
+function establishingZoom(authoredZoom: number, coords: [number, number][]): number {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 1280
+  if (coords.length < 2) return authoredZoom
+  const lngs = coords.map((c) => c[0])
+  const spanLng = Math.max(...lngs) - Math.min(...lngs)
+  const needSpan = Math.max(spanLng, 1e-4) * 1.35 // 35% breathing room around the pins
+  const visibleAtAuthored = (360 / Math.pow(2, authoredZoom)) * (w / 512)
+  if (visibleAtAuthored >= needSpan) return authoredZoom // wide enough (desktop) — keep the overview
+  const fit = Math.log2((360 * (w / 512)) / needSpan) // zoom OUT just enough to frame every pin
+  return Math.min(authoredZoom, fit)
+}
+
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -324,10 +346,15 @@ export default function TourOverlay({
       (c: any) => Array.isArray(c.center)
     ) as { center?: [number, number]; zoom?: number; pitch?: number; bearing?: number } | undefined
 
+    // 所有项目坐标 —— 用来确保 establishing 在当前屏幕上装得下每一个项目。
+    const coords = data.properties
+      .map((p) => p.snapshot.coords)
+      .filter((c): c is [number, number] => Array.isArray(c))
+
     if (kf?.center) {
       map.jumpTo({
         center: kf.center,
-        zoom: kf.zoom ?? 10.2,
+        zoom: establishingZoom(kf.zoom ?? 10.2, coords),
         pitch: kf.pitch ?? 45,
         bearing: kf.bearing ?? 0,
       })
@@ -335,16 +362,13 @@ export default function TourOverlay({
     }
 
     // 兜底:剧本里没有 camera（不该发生）→ 用所有项目的中心
-    const coords = data.properties
-      .map((p) => p.snapshot.coords)
-      .filter((c): c is [number, number] => Array.isArray(c))
     const center: [number, number] = coords.length
       ? [
           coords.reduce((s, c) => s + c[0], 0) / coords.length,
           coords.reduce((s, c) => s + c[1], 0) / coords.length,
         ]
       : [55.2, 25.12]
-    map.jumpTo({ center, zoom: 10.2, pitch: 45, bearing: 0 })
+    map.jumpTo({ center, zoom: establishingZoom(10.2, coords), pitch: 45, bearing: 0 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap, data])
 
@@ -375,8 +399,29 @@ export default function TourOverlay({
 
   const startEngine = () => {
     if (!data || !mapRef.current || engineRef.current) return
+
+    // 🔴 把 intro 的 establishing 关键帧 zoom 换成「当前屏幕装得下所有项目」的 zoom。
+    // 否则引擎接管后会 snap 回后端那个按宽屏调的 zoom,窄屏上又把两侧项目挤出画面
+    // (欢迎页已经用 establishingZoom 摆好机位了,这里要接上,不能跳回去)。
+    const coords = data.properties
+      .map((p) => p.snapshot.coords)
+      .filter((c): c is [number, number] => Array.isArray(c))
+    let script = data.script
+    const introCam = data.script.intro?.camera ?? []
+    const kfIdx = introCam.findIndex(
+      (c) => !('type' in c) && Array.isArray((c as { center?: unknown }).center)
+    )
+    if (kfIdx >= 0) {
+      const authored = (introCam[kfIdx] as { zoom?: number }).zoom ?? 10.2
+      const fit = establishingZoom(authored, coords)
+      if (fit < authored - 0.01) {
+        const camera = introCam.map((c, i) => (i === kfIdx ? { ...c, zoom: fit } : c))
+        script = { ...data.script, intro: { ...data.script.intro, camera } }
+      }
+    }
+
     const engine = new TimelineEngine({
-      script: data.script,
+      script,
       properties: propertyMap,
       map: mapRef.current,
       onUpdate: (s) => setSnap(s),
