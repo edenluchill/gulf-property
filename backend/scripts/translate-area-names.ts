@@ -25,6 +25,12 @@ const ALL_LANGS: Lang[] = ['ar', 'ru', 'fr']
 const argv = process.argv.slice(2)
 const DRY = argv.includes('--dry')
 const FORCE = argv.includes('--force')
+// 目标表:areas | landmarks | both(默认 both)。两表都是 id/name/translations 同结构。
+const tableArg = argv.includes('--table') ? argv[argv.indexOf('--table') + 1] : 'both'
+const TABLES: string[] =
+  tableArg === 'areas' ? ['dubai_areas']
+    : tableArg === 'landmarks' ? ['dubai_landmarks']
+    : ['dubai_areas', 'dubai_landmarks']
 const langsArg = argv.includes('--langs') ? argv[argv.indexOf('--langs') + 1] : ''
 const LANGS: Lang[] = langsArg
   ? (langsArg.split(',').filter((l): l is Lang => (ALL_LANGS as string[]).includes(l)))
@@ -56,16 +62,30 @@ async function translateBatch(
 
   const langLines = LANGS.map((l) => `  "${l}": "${LANG_NAME[l]} name"`).join(',\n')
 
-  const prompt = `你是迪拜房地产本地化专家。下面是迪拜的区域 / 楼盘名称(英文,部分带中文参考)。
+  const RULES: Record<Lang, string> = {
+    ar: `- 阿拉伯语:优先用迪拜官方 / DLD 常用阿语地名(真实存在,如 Business Bay =
+  الخليج التجاري、Downtown Dubai = وسط مدينة دبي)。楼盘 / 开发商名无官方阿语名则标准音译。
+  **只允许阿拉伯字母,绝不出现拉丁字母,绝不加英文原名括号。**`,
+    ru: `- 俄语:**必须全部用西里尔字母(Cyrillic),整条译名里绝对不能出现任何拉丁字母、
+  英文单词或括号里的英文**。有约定俗成俄译就用,没有的(含 Athlon、Cherrywoods、
+  Arabian Ranches、Villanova 这类楼盘 / 社区名)一律**音译成西里尔**(如 Athlon→Атлон、
+  Cherrywoods→Черривудс、Arabian Ranches 3→Арабиан Ранчес 3、by→от)。品牌名也音译
+  (Emaar→Эмаар、Damac→Дамак、Sobha→Собха、Meraas→Мираас)。`,
+    fr: `- 法语:法语用拉丁字母。有法语常用译名 / 通名的就翻(如 Downtown→Centre-ville、
+  by→par、Gardens→Jardins、Hills→Collines、The Valley→La Vallée、Island→Île)。
+  纯专有名词(Athlon、Villanova、Emaar 等)保持原样即可。**绝不加英文原名括号,不要
+  在译名后附 (English)。**`,
+  }
+  const rulesText = LANGS.map((l) => RULES[l]).join('\n')
+
+  const prompt = `你是迪拜房地产本地化专家。下面是迪拜的区域 / 楼盘 / 地标名称(英文,部分带中文参考)。
 把每一个翻译成:${LANGS.map((l) => LANG_NAME[l]).join('、')}。
 
 规则:
-- 阿拉伯语:优先用迪拜官方 / DLD 常用的阿语地名(这些都是真实存在的迪拜区域,如
-  Business Bay = الخليج التجاري、Downtown Dubai = وسط مدينة دبي)。楼盘 / 开发商名
-  若无官方阿语名,按标准音译。
-- 俄语 / 法语:地名用当地通行译名,没有约定俗成的就音译。人名 / 品牌名(如 Emaar、
-  Damac、Sobha)保留品牌惯用写法。
+${rulesText}
 - 每个名字都必须给出全部目标语言,不能省略;实在无法翻译才填 null。
+- **任何语言的译名里都不允许出现「原文英文括号」这种画蛇添足**(如「Атлон (Athlon)」错,
+  正确是「Атлон」)。
 - 只输出 JSON 数组,不要任何解释。
 
 输出格式(数组长度必须 = ${batch.length},i 与输入编号一一对应):
@@ -115,13 +135,21 @@ async function run() {
   })
   await client.connect()
 
+  console.log(`目标表: ${TABLES.join(', ')} | langs=${LANGS.join(',')}${FORCE ? ' | force' : ''}${DRY ? ' | dry' : ''}`)
+  for (const table of TABLES) {
+    await processTable(client, table)
+  }
+  await client.end()
+}
+
+async function processTable(client: Client, table: string) {
   const { rows } = await client.query(`
     SELECT id, name,
            translations->'zh'->>'name' AS zh,
            translations ? 'ar' AS has_ar,
            translations ? 'ru' AS has_ru,
            translations ? 'fr' AS has_fr
-    FROM dubai_areas
+    FROM ${table}
     WHERE name IS NOT NULL AND name <> ''
     ORDER BY name
   `)
@@ -135,13 +163,8 @@ async function run() {
 
   // 需要处理的:force=全部;否则任一目标语言缺失
   const todo = all.filter((a) => FORCE || LANGS.some((l) => !a.have[l]))
-  console.log(
-    `共 ${all.length} 个区域,需处理 ${todo.length} 个(langs=${LANGS.join(',')}${FORCE ? ', force' : ''}${DRY ? ', dry' : ''})`
-  )
-  if (!todo.length) {
-    await client.end()
-    return
-  }
+  console.log(`\n[${table}] 共 ${all.length} 条,需处理 ${todo.length} 条`)
+  if (!todo.length) return
 
   const BATCH = 40
   let updated = 0
@@ -178,7 +201,7 @@ async function run() {
       // 逐语言 jsonb_set —— 注意:目标语言键是全新的(顶层不存在),jsonb_set 只能
       // 创建**一层**缺失键,若写 '{ar,name}' 会因 ar 这一层也缺失而**静默不改**。
       // 所以整块设 '{ar}' = {"name": v}(只缺 ar 一层),保留已有 en/zh。
-      let sql = `UPDATE dubai_areas SET translations = `
+      let sql = `UPDATE ${table} SET translations = `
       let expr = `COALESCE(translations, '{}'::jsonb)`
       const params: any[] = []
       let p = 1
@@ -195,8 +218,7 @@ async function run() {
     console.log(DRY ? 'done(dry)' : 'written')
   }
 
-  console.log(`\n✅ 完成,${DRY ? '预览' : '更新'} ${updated} 个区域`)
-  await client.end()
+  console.log(`[${table}] ✅ ${DRY ? '预览' : '更新'} ${updated} 条`)
 }
 
 run().catch((e) => {
