@@ -76,10 +76,6 @@ const SATELLITE_STYLE = {
 //    (卫星底图本来就用 openmaptiles,不用改。)
 // 2) RTL 成形:MapLibre 默认不做阿拉伯语的双向重排 + 连字成形,必须 setRTLTextPlugin。
 //    自托管在 public/(不引外部 CDN —— 墙内加载稳、且不受 CSP 限制)。
-const OMT_GLYPHS = 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf'
-const FONT_BOLD = ['Open Sans Bold', 'Noto Sans Bold']
-const FONT_REGULAR = ['Open Sans Regular', 'Noto Sans Regular']
-
 // RTL 文字插件:整个页面只装一次,lazy(第一次遇到 RTL 文字才真正拉 js)。装不上不致命
 // —— 地图照常跑,只是阿语不成形。
 let rtlPluginRequested = false
@@ -95,48 +91,22 @@ function ensureRTLTextPlugin() {
 }
 ensureRTLTextPlugin()
 
-// 把 CARTO style(URL 字符串)取下来,glyphs 换成 openmaptiles,并把每个 symbol 层的
-// text-font 重映射到「含阿语」的合并栈。结果缓存,每个 URL 只 fetch 一次。
-// 注意:本文件的 `Map` 是 react-map-gl 组件,JS 原生 Map 要用 globalThis.Map。
-const patchedStyleCache = new globalThis.Map<string, Promise<Record<string, unknown>>>()
-function patchCartoStyle(url: string): Promise<Record<string, unknown>> {
-  let p = patchedStyleCache.get(url)
-  if (!p) {
-    p = fetch(url)
-      .then((r) => r.json())
-      .then((style: any) => {
-        style.glyphs = OMT_GLYPHS
-        for (const layer of style.layers || []) {
-          const tf = layer?.layout?.['text-font']
-          if (Array.isArray(tf)) {
-            const bold = tf.some((f: string) => /bold|semibold|medium|black/i.test(f))
-            layer.layout['text-font'] = bold ? FONT_BOLD : FONT_REGULAR
-          }
-        }
-        return style as Record<string, unknown>
-      })
-    patchedStyleCache.set(url, p)
+// CARTO 底图的字体服务器没有阿拉伯字形(也没有 Noto)。与其换整个 style(会打断
+// 地图 onLoad → 加载遮罩卡死),不如在**请求层**动手:凡是 CARTO 发出的、fontstack
+// 里带 Open Sans / Noto Sans 的 glyph 请求(= 我们自己图层用的字体栈),都重定向到
+// openmaptiles(那里有阿语)。CARTO 自己的底图标签用的是别的字体(Montserrat 等),
+// URL 里不含这两个名字 → 不受影响,照常从 CARTO 取。卫星底图本就走 openmaptiles,
+// URL 不含 cartocdn → 天然跳过。
+const CARTO_FONTS_RE = /^(https?:\/\/[^/]*cartocdn\.com)\/fonts\//
+function transformMapRequest(url: string, resourceType?: string) {
+  if (
+    resourceType === 'Glyphs' &&
+    CARTO_FONTS_RE.test(url) &&
+    /Open Sans|Noto Sans/.test(decodeURIComponent(url))
+  ) {
+    return { url: url.replace(CARTO_FONTS_RE, 'https://fonts.openmaptiles.org') }
   }
-  return p
-}
-
-// 解析 mapStyle:CARTO 的 URL → 补丁后的 style 对象(带 openmaptiles glyphs);
-// 其它(卫星 style 对象等)原样返回。fetch 期间先用原 URL 顶着(拉丁正常,阿语此刻
-// 空白),补丁到位后一次性切换。
-function usePatchedMapStyle(style: string | Record<string, unknown>) {
-  const [resolved, setResolved] = useState<string | Record<string, unknown>>(style)
-  useEffect(() => {
-    let alive = true
-    if (typeof style === 'string' && style.includes('cartocdn.com')) {
-      patchCartoStyle(style)
-        .then((s) => { if (alive) setResolved(s) })
-        .catch(() => { if (alive) setResolved(style) })
-    } else {
-      setResolved(style)
-    }
-    return () => { alive = false }
-  }, [style])
-  return resolved
+  return undefined
 }
 
 type BaseMap = 'vector' | 'satellite' | 'dark'
@@ -1352,17 +1322,6 @@ function MapViewMapLibre({
     }
   }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks, setDotTip])
 
-  // 选底图 → 过补丁(CARTO 底图换 openmaptiles glyphs,让阿语等非拉丁标签有字形)。
-  // 见 usePatchedMapStyle / patchCartoStyle。
-  const rawMapStyle = tourActive
-    ? SATELLITE_STYLE
-    : baseMap === 'satellite'
-    ? SATELLITE_STYLE
-    : baseMap === 'dark'
-    ? MAP_STYLE_DARK
-    : (areaMetric === 'none' ? MAP_STYLE_LABELED : MAP_STYLE_CLEAN)
-  const mapStyleResolved = usePatchedMapStyle(rawMapStyle)
-
   return (
     <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
       {/* 圆点 hover 名字提示(命令式定位,坐标 = e.point 相对地图容器)
@@ -1396,11 +1355,21 @@ function MapViewMapLibre({
         // the style's glyphs URL (now a fontstack the server actually serves).
         localIdeographFontFamily="'PingFang SC', 'Microsoft YaHei', sans-serif"
         style={{ width: '100%', height: '100%' }}
-        // 🔴 **Luna Tour 必须用卫星底图。** owner 已经说过很多次了 —— 不要再改。
-        //    我先后改成过 dark 和亮色矢量,两次都是错的。tour 期间强制 satellite,
-        //    不管用户自己的底图偏好是什么。选择逻辑见上面 rawMapStyle;这里用的是
-        //    过完 glyphs 补丁的 mapStyleResolved(阿语标签需要)。
-        mapStyle={mapStyleResolved as any}
+        // 阿语等标签的字形靠 transformRequest 把 CARTO glyph 请求转到 openmaptiles
+        // (见 transformMapRequest);这里不动 style,避免热替换打断 onLoad。
+        transformRequest={transformMapRequest}
+        mapStyle={
+          // 🔴 **Luna Tour 必须用卫星底图。** owner 已经说过很多次了 —— 不要再改。
+          //    我先后改成过 dark 和亮色矢量,两次都是错的。tour 期间强制 satellite,
+          //    不管用户自己的底图偏好是什么。
+          tourActive
+            ? SATELLITE_STYLE
+            : baseMap === 'satellite'
+            ? SATELLITE_STYLE
+            : baseMap === 'dark'
+            ? MAP_STYLE_DARK
+            : (areaMetric === 'none' ? MAP_STYLE_LABELED : MAP_STYLE_CLEAN)
+        }
         interactiveLayerIds={mapLoaded ? [
           ...(projectDotsGeoJson.features.length ? ['project-dots'] : []),
           ...(areasGeoJson ? ['area-fills'] : []),
