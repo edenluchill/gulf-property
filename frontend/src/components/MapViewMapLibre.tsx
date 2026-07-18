@@ -104,7 +104,9 @@ function transformMapRequest(url: string, resourceType?: string) {
     CARTO_FONTS_RE.test(url) &&
     /Open Sans|Noto Sans/.test(decodeURIComponent(url))
   ) {
-    return { url: url.replace(CARTO_FONTS_RE, 'https://fonts.openmaptiles.org') }
+    // 注意结尾斜杠:正则吃掉了 `/fonts/`,替换串必须自带 `/`,否则拼成
+    // `openmaptiles.orgOpen Sans Bold` → 全部 404 刷屏卡死地图。
+    return { url: url.replace(CARTO_FONTS_RE, 'https://fonts.openmaptiles.org/') }
   }
   return undefined
 }
