@@ -35,18 +35,18 @@ export interface HealthRange {
  * ⚠️ 这份名单**故意写死在代码里而不是读 env**，因为它直接决定面板上每一个数字，
  *    必须能在 code review 里一眼看到、在 git 里留下修改记录。改它 = 改口径。
  *
- * 🔴 `shelldubai26@gmail.com` 目前**被算作自己人**，这与 2026-07-17 的使用率报告冲突 ——
- *    那份报告把它当作「唯一真实外部经纪」。它同时是全站产出最多的账号
- *    （5 张报价单 / 被客户看 23 次）。
- *    · 若它其实是合作方 → 真实外部激活数是 **0**，不是 1
- *    · 若它是真实客户   → 把它从这个数组里删掉，面板立刻反映真实情况
- *    owner 需拍板。改这一行即可，无需改其它任何地方。
+ * 🔴 **2026-07-18 owner 逐个确认过。这份名单是「谁不算真实客户」的唯一真相源。**
+ *    在此之前，`shelldubai26` 被 2026-07-17 的使用率报告当成「唯一真实外部经纪」，
+ *    并据此得出「真实外部用户建过 tour = 1 人」——**那是错的，他是合伙人。**
+ *    更正后的事实：**至今没有任何外部经纪创建过哪怕一个 Luna Tour。**
+ *    往这个数组里加人 = 让某个「客户」消失，**必须 owner 明确确认过才能加**。
  */
 const INTERNAL_AGENTS = [
   'lzp6529@gmail.com',      // owner
   'demo-agent@luna.tour',   // 内置 demo 账号
-  'edenlu1995@gmail.com',
-  'shelldubai26@gmail.com', // ← 见上方说明，待 owner 确认
+  'edenlu1995@gmail.com',   // owner 另一个账号
+  'shelldubai26@gmail.com', // 合伙人 SHUAI WANG（乙方，见 docs/signed/ 的合伙协议）
+  'admin@yesir.ai',         // owner 另一个账号
   'realtorgptapp@gmail.com',
 ].map((s) => s.toLowerCase())
 

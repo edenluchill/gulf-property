@@ -24,7 +24,12 @@ export interface Range {
 // agent set is derived live from lt_agents + user_profiles (role <> 'buyer').
 const INTERNAL_EMAILS = [
   ...(process.env.OWNER_EMAILS || 'lzp6529@gmail.com').split(','),
-  ...(process.env.ANALYTICS_INTERNAL_EMAILS || 'shelldubai26@gmail.com,edenlu1995@gmail.com').split(','),
+  // shelldubai26 = 合伙人 SHUAI WANG(乙方);edenlu1995 / admin@yesir.ai = owner 的其它账号。
+  // ⚠️ 2026-07-18 owner 逐个确认过。这几个账号被误当成「真实外部客户」过一次,
+  //    直接导致 2026-07-17 报告得出「真实外部用户建过 tour = 1 人」的错误结论
+  //    (实际是 0 人)。往这里加人 = 让某个「客户」消失,必须 owner 确认过才能加。
+  //    与 healthQueries.ts 的 INTERNAL_AGENTS 保持同步。
+  ...(process.env.ANALYTICS_INTERNAL_EMAILS || 'shelldubai26@gmail.com,edenlu1995@gmail.com,admin@yesir.ai').split(','),
 ].map((s) => s.trim().toLowerCase()).filter(Boolean)
 
 let _internalCache: { ids: string[]; at: number } | null = null
