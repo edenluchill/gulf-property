@@ -10,9 +10,9 @@
  * ⚠️ **不阻塞。** 意见只是意见,他可以无视,直接发布。
  *    剧本糙 → 成交难,那是他的选择,不是我们的门禁。
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Wand2 } from 'lucide-react'
+import { Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
 
 interface Note {
@@ -36,41 +36,62 @@ export default function StoryboardReview({
   /** 点「让 Luna 改」→ 把这句指令交给 AI 编辑器 */
   onApplyFix?: (instruction: string) => void
 }) {
-  const { t: tRaw } = useTranslation('lunaTour')
+  const { t: tRaw, i18n } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
+  const zh = !!i18n.language?.startsWith('zh')
 
+  // 🔴 不再进页面就自动烧 AI(慢 + 费钱)。null = 还没读;点按钮才触发。
   const [notes, setNotes] = useState<Note[] | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    let dead = false
-    void lunaFetch(`/sessions/${sessionId}/review`)
-      .then((r) => r.json())
-      .then((d) => { if (!dead) setNotes(d.notes || []) })
-      .catch(() => { if (!dead) setNotes([]) })
-    return () => { dead = true }
-  }, [sessionId])
+  const run = async () => {
+    setLoading(true)
+    try {
+      const r = await lunaFetch(`/sessions/${sessionId}/review`)
+      const d = await r.json()
+      setNotes(d.notes || [])
+    } catch {
+      setNotes([])
+    }
+    setLoading(false)
+  }
 
+  // 还没读 → 只给一个按钮,经纪想听意见时才点(省一次 AI 调用)
   if (notes === null) {
     return (
-      <div className="mb-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-xs text-slate-400">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('lunaTour:lunaIsReadingThe')}
-      </div>
+      <button
+        onClick={() => void run()}
+        disabled={loading}
+        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-60"
+      >
+        {loading
+          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('lunaTour:lunaIsReadingThe')}</>
+          : <><Sparkles className="h-3.5 w-3.5" /> {zh ? '让 Luna 读一遍，挑毛病' : 'Let Luna review this outline'}</>}
+      </button>
     )
   }
 
   // 挑不出毛病 → 说一句就好，别硬凑（凑数的意见会让人把真正重要的一起划走）
   if (!notes.length) {
     return (
-      <div className="mb-3 rounded-xl bg-emerald-50/70 px-3 py-2 text-xs font-medium text-emerald-800 ring-1 ring-emerald-100">
-        ✅ {t('lunaTour:lunaReadItNothing')}
+      <div className="mb-3 flex items-center justify-between gap-2 rounded-xl bg-emerald-50/70 px-3 py-2 text-xs font-medium text-emerald-800 ring-1 ring-emerald-100">
+        <span>✅ {t('lunaTour:lunaReadItNothing')}</span>
+        <button onClick={() => void run()} disabled={loading} className="shrink-0 text-emerald-600 hover:text-emerald-800 disabled:opacity-50" title={zh ? '再读一遍' : 'Re-read'}>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
     )
   }
 
   return (
     <div className="mb-4 space-y-2">
-      <div className="text-xs font-bold text-slate-600">
-        {t('lunaTour:lunaSNotes', { notes_length: notes.length })}
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-bold text-slate-600">
+          {t('lunaTour:lunaSNotes', { notes_length: notes.length })}
+        </div>
+        <button onClick={() => void run()} disabled={loading} className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-700 disabled:opacity-50">
+          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} /> {zh ? '重读' : 'Re-read'}
+        </button>
       </div>
       {notes.map((n, i) => {
         const tone = TONE[n.kind] ?? TONE.idea

@@ -1673,8 +1673,8 @@ router.get('/sessions/:id/review', requireAgent, async (req: AgentReq, res: Resp
     const sessionId = await resolveSessionId(req.params.id)
     if (!sessionId) return res.status(404).json({ error: 'not found' })
 
-    const sres = await pool.query<{ script: TourScript; config: TourConfig; client_name: string | null }>(
-      `SELECT t.script, s.effective_config AS config, c.name AS client_name
+    const sres = await pool.query<{ script: TourScript; config: TourConfig; client_name: string | null; client_id: string | null }>(
+      `SELECT t.script, s.effective_config AS config, c.name AS client_name, s.client_id::text AS client_id
          FROM lt_tour_scripts t
          JOIN lt_demo_sessions s ON s.id = t.session_id
          LEFT JOIN lt_clients c ON c.id = s.client_id
@@ -1699,8 +1699,12 @@ router.get('/sessions/:id/review', requireAgent, async (req: AgentReq, res: Resp
       `SELECT project_id::text, snapshot FROM lt_session_properties WHERE session_id = $1`,
       [sessionId]
     )
-    const clientProfile = req.query.client_id
-      ? await loadProfile(String(req.query.client_id), req.lunaAgentId!).catch(() => ({}))
+    // 🔴 客户档案要从 session 自己的 client_id 加载 —— 之前只在 URL 带 client_id 时才加载,
+    //    而前端从没传,于是 AI 只拿到一个名字,不知道客户是「香港投资客」→ 反过来把真事
+    //    当成套模板的破绽报出来。session 上就绑着 client_id,直接用它。
+    const clientId = row.client_id || (req.query.client_id ? String(req.query.client_id) : '')
+    const clientProfile = clientId
+      ? await loadProfile(clientId, req.lunaAgentId!).catch(() => ({}))
       : {}
 
     const input = {

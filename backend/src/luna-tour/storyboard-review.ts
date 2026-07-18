@@ -160,7 +160,9 @@ ${beats.map((b, i) => `${i + 1}. [${b.kind || '?'}] ${b.narration}`).join('\n')}
       task: 'storyboard-review',
       models: ['gemini-3.5-flash', 'gemini-3.1-flash-lite'],
       contents: prompt,
-      config: { responseMimeType: 'application/json', temperature: 0.5 },
+      // thinking 默认全开 → 审稿要等近 1 分钟。这活不需要深推理,压到 low 快很多也更省。
+      // (Gemini 3.x 用 thinkingLevel,不是 2.5 的 thinkingBudget —— 写错会被静默忽略。)
+      config: { responseMimeType: 'application/json', temperature: 0.5, thinkingConfig: { thinkingLevel: 'low' } },
     })
     const cleaned = (text || '{}').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
     const parsed = JSON.parse(cleaned) as { notes?: ReviewNote[] }
