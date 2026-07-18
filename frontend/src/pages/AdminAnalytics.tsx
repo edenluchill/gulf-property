@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, BadgeCheck, Wifi, Cpu } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, BadgeCheck, Wifi, Cpu, HeartPulse } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
@@ -30,6 +30,7 @@ import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import LiveTourTelemetry from '../components/analytics/LiveTourTelemetry'
 import OpsTelemetry from '../components/analytics/OpsTelemetry'
+import Health from '../components/analytics/Health'
 import AgentRuns from '../components/analytics/AgentRuns'
 import RevenueShare from '../components/analytics/RevenueShare'
 import DeveloperVerification from '../components/analytics/DeveloperVerification'
@@ -48,6 +49,7 @@ const GRANS: { label: string; v: Granularity }[] = [
 ]
 
 const TABS = [
+  { id: 'health', label: '健康度', Icon: HeartPulse },
   { id: 'overview', label: '概览', Icon: LayoutDashboard },
   { id: 'customers', label: '客户', Icon: Users },
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
@@ -83,7 +85,9 @@ export default function AdminAnalytics() {
   const [forbidden, setForbidden] = useState(false)
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  const [tab, setTab] = useState<TabId>('overview')
+  // 落地就是健康度 —— 这个面板存在的意义就是「打开先看它」。
+  // 想回到旧行为把这里改回 'overview' 即可。
+  const [tab, setTab] = useState<TabId>('health')
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
   const [subSummary, setSubSummary] = useState<SubscriptionSummary | null>(null)
 
@@ -361,6 +365,7 @@ export default function AdminAnalytics() {
           {tab === 'guardian' && <AgentRuns days={days} />}
 
           {/* ── 性能负载 ──────────────────────────────────────────────── */}
+          {tab === 'health' && <Health days={days} />}
           {tab === 'perf' && <PerfMonitor />}
 
           {/* ── 实时带看(WS 遥测 / 容量 / 进房漏斗 / 客户端体感 / Agora 成本)── */}

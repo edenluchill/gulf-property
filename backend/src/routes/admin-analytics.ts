@@ -20,6 +20,7 @@ import { getRevenueShare, settleMonth, unsettleMonth } from '../services/revenue
 import {
   getSubscribers, getSubscriptionSummary, getTourScripts, getSalesOffers, getBuyerReports,
 } from '../services/adminBizQueries'
+import { getHealthSnapshot } from '../services/healthQueries'
 
 const router = Router()
 
@@ -53,6 +54,15 @@ router.get('/overview', wrap(async (req) => {
   const [overview, daily] = await Promise.all([q.getOverview(r), q.getDailyVisitors(r)])
   return { overview, daily }
 }))
+
+/**
+ * 健康度快照。
+ * ⚠️ 只吃 ?days=N，**不吃 from/to** —— 它内部要算「上一个等长周期」做环比，
+ *    任意区间会让环比失去意义。默认 30 天。
+ */
+router.get('/health', wrap((req) =>
+  getHealthSnapshot({ days: Math.min(365, Math.max(1, Number(req.query.days) || 30)) })
+))
 
 router.get('/searches', wrap(async (req) => {
   const r = range(req)

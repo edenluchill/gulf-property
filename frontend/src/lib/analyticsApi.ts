@@ -571,3 +571,36 @@ export interface BuyerReportRow {
 export const fetchFeatureTours = (limit = 100) => authedGet<TourScriptRow[]>(`/feature-log/tours?limit=${limit}`)
 export const fetchFeatureSalesOffers = (limit = 100) => authedGet<SalesOfferRow[]>(`/feature-log/sales-offers?limit=${limit}`)
 export const fetchFeatureReports = (limit = 100) => authedGet<BuyerReportRow[]>(`/feature-log/reports?limit=${limit}`)
+
+// ── 健康度面板 ────────────────────────────────────────────────────────────
+// 后端一次返回全部（backend/src/services/healthQueries.ts），前端不串多个请求。
+export interface HealthFeature {
+  key: string; label: string
+  produced: number; producedPrev: number
+  consumed: number; consumedPrev: number
+  consumedDetail: string | null
+  /** false = 该功能的数据无法区分内部测试，前端必须明说，不能假装干净 */
+  canSplitInternal: boolean
+  note: string
+}
+export interface HealthFunnel {
+  key: string; label: string
+  /** 分母为 0 时是 null */
+  value: number | null
+  /** 分母。样本太小时前端显示「样本不足」而不是假精度百分比 */
+  n: number
+  median: number; good: number; source: string
+}
+export interface HealthSnapshot {
+  days: number
+  agents: {
+    total: number; newCur: number; newPrev: number
+    trialStarted: number; activated: number
+    returned: number; returnedCur: number; returnedPrev: number
+    deepUsers: number; paying: number; pastDue: number
+  }
+  features: HealthFeature[]
+  funnel: HealthFunnel[]
+  internalAgents: string[]
+}
+export const fetchHealth = (days = 30) => authedGet<HealthSnapshot>(`/health?days=${days}`)
