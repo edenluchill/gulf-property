@@ -28,7 +28,8 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { alert(t('agentCardEditor.badImageType')); return }
+    // 后端会 sharp 压成 512 webp,格式交给它判断;这里只挡明显不是图片的。
+    if (f.type && !/^image\//.test(f.type)) { alert(t('agentCardEditor.badImageType')); return }
     setUploading(true)
     try {
       const fd = new FormData()
@@ -72,7 +73,7 @@ export default function AgentCardEditor({ onClose }: { onClose: () => void }) {
             </div>
           </button>
           <button onClick={() => fileRef.current?.click()} className="text-xs font-medium text-teal-600">{uploading ? t('agentCardEditor.uploading') : t('agentCardEditor.uploadAvatar')}</button>
-          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={onPick} />
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
         </div>
 
         {/* Fields */}

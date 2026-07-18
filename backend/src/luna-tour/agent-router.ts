@@ -14,6 +14,7 @@ import crypto from 'crypto'
 import { counter, tourPublish } from '../telemetry'
 import path from 'path'
 import multer from 'multer'
+import sharp from 'sharp'
 import { Router, Request, Response, NextFunction } from 'express'
 import pool from '../db/pool'
 import { uploadBufferToR2 } from '../services/r2-storage'
@@ -678,21 +679,62 @@ router.post('/profile', async (req: Request, res: Response) => {
   }
 })
 
-/** Upload an agent avatar → R2 → lt_agents.photo_url. */
-router.post('/avatar', multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }).single('file'), async (req: Request, res: Response) => {
-  try {
-    const agentId = await currentAgentId(req)
-    const f = (req as any).file
-    if (!f?.buffer) return res.status(400).json({ success: false, error: 'no file' })
-    if (!/^image\/(jpeg|png|webp)$/.test(f.mimetype)) return res.status(400).json({ success: false, error: 'jpeg/png/webp only' })
-    const ext = f.mimetype.split('/')[1].replace('jpeg', 'jpg')
-    const url = await uploadBufferToR2(`agent-photos/${agentId}.${ext}`, f.buffer, f.mimetype)
-    await pool.query('UPDATE lt_agents SET photo_url=$2, updated_at=now() WHERE id=$1', [agentId, url])
-    res.json({ success: true, photoUrl: url })
-  } catch (err) {
-    console.error('[agent/avatar] error:', err)
-    res.status(500).json({ success: false, error: 'upload failed' })
-  }
+/**
+ * Upload an agent avatar → 服务端压缩 → R2 → lt_agents.photo_url.
+ *
+ * ⚠️ 这里曾经把上限写成 5MB 且**没接 multer 的错误** —— 手机原图轻松超过 5MB,
+ *    multer 抛 LIMIT_FILE_SIZE 是**中间件层**错误,不进 handler 的 try,
+ *    一路冒泡到全局兜底 → 用户只看到 500「Internal server error」。
+ *    (2026-07-17 有真实经纪连试三次全 500 然后放弃。)
+ *    现在:上限 25MB、错误显式翻译成人话、原图一律 sharp 压到 512px webp。
+ */
+const AVATAR_MAX_BYTES = 25 * 1024 * 1024
+const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } }).single('file')
+
+router.post('/avatar', (req: Request, res: Response) => {
+  avatarUpload(req, res, async (uploadErr: any) => {
+    if (uploadErr) {
+      const tooBig = uploadErr?.code === 'LIMIT_FILE_SIZE'
+      console.error('[agent/avatar] multer error:', uploadErr?.code || uploadErr)
+      return res.status(tooBig ? 413 : 400).json({
+        success: false,
+        error: tooBig ? '图片超过 25MB,换一张小一点的' : '图片没读完整,请重试一次',
+        code: tooBig ? 'avatar_too_large' : 'avatar_read_failed',
+      })
+    }
+    try {
+      const agentId = await currentAgentId(req)
+      const f = (req as any).file
+      if (!f?.buffer) return res.status(400).json({ success: false, error: 'no file', code: 'avatar_no_file' })
+      if (!/^image\//.test(f.mimetype)) return res.status(400).json({ success: false, error: '请选择图片文件', code: 'avatar_not_image' })
+
+      // 原图直传 R2 曾经既费流量又让 CDN 拿着 1 年 immutable 缓存 —— 统一压成 512 webp。
+      let img: Buffer
+      try {
+        img = await sharp(f.buffer, { failOn: 'none' })
+          .rotate()                                        // 吃掉手机 EXIF 方向,否则头像躺着
+          .resize(512, 512, { fit: 'cover', position: 'attention' })
+          .webp({ quality: 82 })
+          .toBuffer()
+      } catch (convErr) {
+        console.error('[agent/avatar] decode failed:', f.mimetype, convErr)
+        return res.status(400).json({
+          success: false,
+          error: '这张图打不开(iPhone 的 HEIC 常见),存成 JPG 或 PNG 再传',
+          code: 'avatar_unsupported_format',
+        })
+      }
+
+      // key 带内容指纹:R2 是 max-age=1年 immutable,固定 key 换头像会一直看到旧图。
+      const fingerprint = crypto.createHash('sha1').update(img).digest('hex').slice(0, 10)
+      const url = await uploadBufferToR2(`agent-photos/${agentId}-${fingerprint}.webp`, img, 'image/webp')
+      await pool.query('UPDATE lt_agents SET photo_url=$2, updated_at=now() WHERE id=$1', [agentId, url])
+      res.json({ success: true, photoUrl: url })
+    } catch (err) {
+      console.error('[agent/avatar] error:', err)
+      res.status(500).json({ success: false, error: 'upload failed', code: 'avatar_upload_failed' })
+    }
+  })
 })
 
 // ── 可验证证书登记(证书二维码 → 公开 /verify 页)──────────────
