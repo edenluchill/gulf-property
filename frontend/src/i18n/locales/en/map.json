@@ -139,14 +139,20 @@
     "play": "Play",
     "pause": "Pause",
     "metric": {
-      "medianRent": "Rent",
       "medianUnitPrice": "Sale price",
-      "growth": "YoY change"
+      "medianPriceSqft": "Price/sqft",
+      "growth": "YoY change",
+      "transactionCount": "Sales volume",
+      "rentalYield": "Gross yield",
+      "medianRent": "Rent"
     },
     "caption": {
-      "medianRent": "Median annual rent · new Ejari contracts · 3-month rolling",
       "medianUnitPrice": "Median sale price · apartments & villas · 3-month rolling",
-      "growth": "Year-on-year change in median price/m² · 3-month rolling"
+      "medianPriceSqft": "Median price per sqft · apartments & villas · 3-month rolling",
+      "growth": "Year-on-year change in median price/sqft · 3-month rolling",
+      "transactionCount": "Registered sales in the trailing 3 months",
+      "rentalYield": "Median rent ÷ median sale price · rent basis is existing stock",
+      "medianRent": "Median annual rent · new Ejari contracts · 3-month rolling"
     },
     "coverage": "{{count}} areas"
   }

@@ -139,14 +139,20 @@
     "play": "播放",
     "pause": "暂停",
     "metric": {
-      "medianRent": "租金",
       "medianUnitPrice": "成交价",
-      "growth": "同比"
+      "medianPriceSqft": "单价",
+      "growth": "同比",
+      "transactionCount": "成交量",
+      "rentalYield": "回报率",
+      "medianRent": "租金"
     },
     "caption": {
-      "medianRent": "年租金中位数 · 新签 Ejari 合同 · 近 3 个月滚动",
       "medianUnitPrice": "成交总价中位数 · 公寓与别墅 · 近 3 个月滚动",
-      "growth": "每平米中位价的同比变化 · 近 3 个月滚动"
+      "medianPriceSqft": "每平方英尺单价中位数 · 公寓与别墅 · 近 3 个月滚动",
+      "growth": "每平方英尺中位价的同比变化 · 近 3 个月滚动",
+      "transactionCount": "近 3 个月登记成交笔数",
+      "rentalYield": "中位租金 ÷ 中位成交价 · 租金基数为现楼",
+      "medianRent": "年租金中位数 · 新签 Ejari 合同 · 近 3 个月滚动"
     },
     "coverage": "{{count}} 个区域"
   }

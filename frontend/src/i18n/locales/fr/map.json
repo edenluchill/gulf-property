@@ -139,14 +139,20 @@
     "play": "Lecture",
     "pause": "Pause",
     "metric": {
-      "medianRent": "Loyer",
       "medianUnitPrice": "Prix de vente",
-      "growth": "Var. annuelle"
+      "medianPriceSqft": "Prix/pi²",
+      "growth": "Var. annuelle",
+      "transactionCount": "Volume de ventes",
+      "rentalYield": "Rendement brut",
+      "medianRent": "Loyer"
     },
     "caption": {
-      "medianRent": "Loyer annuel médian · nouveaux contrats Ejari · moyenne mobile 3 mois",
       "medianUnitPrice": "Prix de vente médian · appartements et villas · moyenne mobile 3 mois",
-      "growth": "Variation annuelle du prix médian au m² · moyenne mobile 3 mois"
+      "medianPriceSqft": "Prix médian au pied carré · moyenne mobile 3 mois",
+      "growth": "Variation annuelle du prix médian au pi² · moyenne mobile 3 mois",
+      "transactionCount": "Ventes enregistrées sur les 3 derniers mois",
+      "rentalYield": "Loyer médian ÷ prix de vente médian · base locative : stock existant",
+      "medianRent": "Loyer annuel médian · nouveaux contrats Ejari · moyenne mobile 3 mois"
     },
     "coverage": "{{count}} zones"
   }

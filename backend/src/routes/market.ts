@@ -1031,7 +1031,15 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
         const r = months.get(m)
         return r ? Number((col === 'all' ? r.count : col === 'offplan' ? r.count_offplan : r.count_ready) || 0) : 0
       })
-      return computeWindowedMetrics(pps, up, cnt, col === 'all' ? rent63 : null)
+      // 🔴 三个口径都喂同一份租金基数。
+      // 原来是 `col === 'all' ? rent63 : null` —— 结果选「现房」或「期房」+ 回报率时
+      // 整张地图一个数都没有(实测 ready/offplan 下 yield 非空的区 = 0),而界面还照常
+      // 显示「Yield · 3Y · existing stock」,是典型的静默失败(见 [[silent-failure-paths]])。
+      // 租约本身没有期房/现房之分(能出租的必然是现房),但那不该让指标整个消失:
+      // 回报率 = 现房市场租金 ÷ 该口径成交价。对期房就是「按期房价买入、按当前市场价
+      // 出租能拿多少」—— 恰恰是买家要的数。租金基数是现房这件事由 UI 的
+      // 「existing stock / 现楼出租参考」角标说明。
+      return computeWindowedMetrics(pps, up, cnt, rent63)
     }
     areas[id] = { all: seg('all'), offplan: seg('offplan'), ready: seg('ready') }
   }
@@ -1151,10 +1159,12 @@ const FIRST_DATA_YEAR = 2021   // 原始表起点,硬事实
 
 /** 各区一条按月轴对齐的序列。null = 该窗口样本不足 → 地图上是灰的。 */
 type AreaSeries = {
-  rent: (number | null)[]    // 近3个月中位年租金(AED, New)
-  price: (number | null)[]   // 近3个月中位成交总价(AED)
-  priceSqm: (number | null)[]// 近3个月中位价/㎡
-  growth: (number | null)[]  // 同比:priceSqm 对 12 个月前之比 %
+  rent: (number | null)[]     // 近3个月中位年租金(AED, New)
+  price: (number | null)[]    // 近3个月中位成交总价(AED)
+  priceSqm: (number | null)[] // 近3个月中位价/㎡
+  growth: (number | null)[]   // 同比:priceSqm 对 12 个月前之比 %
+  count: number[]             // 近3个月成交笔数(精确,不做样本门槛)
+  yieldPct: (number | null)[] // 毛租金回报 = 中位租金/㎡ ÷ 中位价/㎡
 }
 type AreaMonthly = {
   dataThrough: string | null
@@ -1232,7 +1242,9 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
               to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS mo,
               COUNT(*) FILTER (WHERE rc.registration_type = 'New') AS n,
               percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount)
-                FILTER (WHERE rc.registration_type = 'New') AS rent
+                FILTER (WHERE rc.registration_type = 'New') AS rent,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area)
+                FILTER (WHERE rc.registration_type = 'New') AS rent_sqm
          FROM dld_rent_contracts rc
         WHERE rc.usage_type = 'Residential' AND rc.dubai_area_id IS NOT NULL
           AND rc.property_area BETWEEN 15 AND 2000
@@ -1256,11 +1268,11 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
   // 先按月轴摊平成裸序列,再统一做滚动
   const raw = new Map<string, {
     up: (number | null)[]; ps: (number | null)[]; sc: number[]
-    rt: (number | null)[]; rc: number[]
+    rt: (number | null)[]; rs: (number | null)[]; rc: number[]
   }>()
   const bucket = (id: string) => {
     let b = raw.get(id)
-    if (!b) { b = { up: blank(), ps: blank(), sc: zeros(), rt: blank(), rc: zeros() }; raw.set(id, b) }
+    if (!b) { b = { up: blank(), ps: blank(), sc: zeros(), rt: blank(), rs: blank(), rc: zeros() }; raw.set(id, b) }
     return b
   }
   for (const r of [...officialRows.rows, ...customRows.rows]) {
@@ -1275,6 +1287,7 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
     const b = bucket(String(r.area_id))
     b.rc[i] = Number(r.n || 0)
     if (r.rent != null) b.rt[i] = Number(r.rent)
+    if (r.rent_sqm != null) b.rs[i] = Number(r.rent_sqm)
   }
 
   const areas: AreaMonthly['areas'] = {}
@@ -1282,6 +1295,20 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
     const price = roll3(b.up, b.sc, MONTHLY_MIN_SALES)
     const priceSqm = roll3(b.ps, b.sc, MONTHLY_MIN_SALES)
     const rent = roll3(b.rt, b.rc, MONTHLY_MIN_RENT)
+    const rentSqm = roll3(b.rs, b.rc, MONTHLY_MIN_RENT)
+    // 成交量:窗口内笔数,精确值,**不设样本门槛** —— 「这仨月只成交了 3 笔」本身
+    // 就是有效信息(冷清),不该因为「样本不足」被抹成灰。
+    const count = b.sc.map((_, i) => {
+      let n = 0
+      for (let k = Math.max(0, i - (ROLL - 1)); k <= i; k++) n += b.sc[k] || 0
+      return n
+    })
+    // 毛回报 = 中位租金/㎡ ÷ 中位价/㎡。两端任一为空则空。
+    const yieldPct = rentSqm.map((r, i) => {
+      const p = priceSqm[i]
+      if (r == null || p == null || p <= 0) return null
+      return Number(((r / p) * 100).toFixed(2))
+    })
     // 同比:两端都要有值。合理带同 computeAppreciation,免得稀疏区因户型结构漂移
     // 报出 +2000% 这种假信号。
     const growth = priceSqm.map((v, i) => {
@@ -1290,7 +1317,7 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
       const pct = Number((((v - prev) / prev) * 100).toFixed(1))
       return pct > 400 || pct < -80 ? null : pct
     })
-    areas[id] = { rent, price, priceSqm, growth }
+    areas[id] = { rent, price, priceSqm, growth, count, yieldPct }
   }
   // 裁掉开头 ROLL-1 个月:那几帧的滚动窗口不满(2021-01 只有 1 个月的量),覆盖率
   // 明显偏低。留着的话时间轴开头会呈现「区域由少变多」的假象 —— 看着像市场在扩张,
@@ -1301,6 +1328,7 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
     areas[id] = {
       rent: a.rent.slice(cut), price: a.price.slice(cut),
       priceSqm: a.priceSqm.slice(cut), growth: a.growth.slice(cut),
+      count: a.count.slice(cut), yieldPct: a.yieldPct.slice(cut),
     }
   }
   return { dataThrough: endYm, months: months.slice(cut), areas }

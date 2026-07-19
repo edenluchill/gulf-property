@@ -48,7 +48,7 @@ import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart,
-  Clock, Award, Play, Pause
+  Clock, Award, Play, Pause, Home
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
@@ -96,6 +96,16 @@ function pointInGeometry(pt: [number, number], geom?: GeoJSON.Geometry): boolean
 // Usage filter for the area dialog/sheet (默认全部). No data hidden — just segmented.
 // 文案走 `t('map:usage.<v>')` —— 这里曾内嵌 { zh, en } 两版,ar/ru/fr 全落到英文。
 const USAGE_FILTER = ['all', 'residential', 'commercial', 'hospitality', 'industrial', 'other']
+
+// 时间轴指标 → 图标。与 METRIC_OPTIONS 用同一套图标,保证「同图标=同指标」。
+const TIMELINE_METRIC_ICONS: Record<TimelineMetric, typeof DollarSign> = {
+  medianUnitPrice: DollarSign,
+  medianPriceSqft: DollarSign,
+  growth: TrendingUp,
+  transactionCount: BarChart3,
+  rentalYield: Percent,
+  medianRent: Home,
+}
 
 const METRIC_OPTIONS = [
   { value: 'medianUnitPrice' as AreaMetric, labelKey: 'map:metric.medianUnitPrice', Icon: DollarSign },
@@ -2176,18 +2186,27 @@ export default function MapPage() {
               <div className="rounded-2xl bg-white/95 p-2.5 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
                 {/* 第一行:指标切换 + 退出 */}
                 <div className="mb-2 flex items-center gap-1">
-                  <div className="flex min-w-0 flex-1 gap-0.5 rounded-lg bg-slate-100 p-0.5">
-                    {TIMELINE_METRICS.map(m => (
-                      <button
-                        key={m}
-                        onClick={() => setTimelineMetric(m)}
-                        className={`min-w-0 flex-1 truncate whitespace-nowrap rounded-md px-1 py-1 text-[10px] md:text-[11px] font-semibold transition-all duration-150 active:scale-95 ${
-                          timelineMetric === m ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-white/70'
-                        }`}
-                      >
-                        {t(`map:timeline.metric.${m}` as any)}
-                      </button>
-                    ))}
+                  {/* 6 个指标用图标而非文字:文字标签在 414px 上放不下 6 个,
+                      且图标与右上角控制卡同一套语言(同图标=同指标)。当前选中的是什么,
+                      由下面那行 caption 文字说明,不必再在按钮上重复。 */}
+                  <div className="flex min-w-0 flex-1 justify-between gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                    {TIMELINE_METRICS.map(m => {
+                      const Icon = TIMELINE_METRIC_ICONS[m]
+                      const active = timelineMetric === m
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => setTimelineMetric(m)}
+                          title={t(`map:timeline.metric.${m}` as any)}
+                          aria-label={t(`map:timeline.metric.${m}` as any)}
+                          className={`flex h-7 flex-1 items-center justify-center rounded-md transition-all duration-150 active:scale-90 ${
+                            active ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-white/70'
+                          }`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </button>
+                      )
+                    })}
                   </div>
                   <button
                     onClick={exitTimeline}

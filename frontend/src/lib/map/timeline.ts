@@ -23,12 +23,21 @@
 //
 // 数据边界（硬事实）：DLD 原始表最早只到 2021-01-01；前 2 个月因窗口不满已被后端裁掉。
 
-import { formatMoneyCompact } from '../money'
+import { formatMoneyCompact, formatCountCompact } from '../money'
+import { pricePerSqmToPerSqft } from '../units'
 
-/** 时间轴支持的指标。刻意只有三个 —— 时间轴是「看趋势」不是「看全部指标」。 */
-export type TimelineMetric = 'medianRent' | 'medianUnitPrice' | 'growth'
+/**
+ * 时间轴指标。与右上角控制卡的 METRIC_OPTIONS 一一对应(总价/单价/增值率/成交量/
+ * 回报率),外加一个租金 —— owner 要求「时间轴能显示面板里所有选项」。
+ * 顺序刻意与控制卡一致,免得两处图标同款却排序不同。
+ */
+export type TimelineMetric =
+  | 'medianUnitPrice' | 'medianPriceSqft' | 'growth'
+  | 'transactionCount' | 'rentalYield' | 'medianRent'
 
-export const TIMELINE_METRICS: TimelineMetric[] = ['medianRent', 'medianUnitPrice', 'growth']
+export const TIMELINE_METRICS: TimelineMetric[] = [
+  'medianUnitPrice', 'medianPriceSqft', 'growth', 'transactionCount', 'rentalYield', 'medianRent',
+]
 
 /** 各区一条与 months 等长、按月对齐的序列。null = 该窗口样本不足。 */
 export interface AreaSeries {
@@ -36,6 +45,8 @@ export interface AreaSeries {
   price: (number | null)[]
   priceSqm: (number | null)[]
   growth: (number | null)[]
+  count: number[]
+  yieldPct: (number | null)[]
 }
 
 export interface AreaMonthly {
@@ -50,7 +61,10 @@ export function seriesOf(s: AreaSeries | undefined, metric: TimelineMetric): (nu
   switch (metric) {
     case 'medianRent': return s.rent
     case 'medianUnitPrice': return s.price
+    case 'medianPriceSqft': return s.priceSqm      // 展示时再换算成 /sqft
     case 'growth': return s.growth
+    case 'transactionCount': return s.count
+    case 'rentalYield': return s.yieldPct
   }
 }
 
@@ -95,6 +109,9 @@ export function timelineColor(
     if (value >= -15) return '#ef4444'
     return '#dc2626'
   }
+  // 成交量为 0 的月份不是「没数据」,是「真的没人买」—— 给个明确的冷色而不是灰,
+  // 灰会被读成 no-data。
+  if (metric === 'transactionCount' && value === 0) return '#cbd5e1'
   if (value >= scale.p75) return '#059669'
   if (value >= scale.p50) return '#10b981'
   if (value >= scale.p25) return '#fbbf24'
@@ -107,6 +124,10 @@ export function timelineLabel(
 ): string {
   if (value == null) return ''
   if (metric === 'growth') return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
+  if (metric === 'rentalYield') return `${value.toFixed(1)}%`
+  if (metric === 'transactionCount') return formatCountCompact(value, lang)
+  // 迪拜市场端一律 sqft(见 [[area-units-sqft-default]]),后端存的是 /㎡
+  if (metric === 'medianPriceSqft') return formatMoneyCompact(pricePerSqmToPerSqft(value), lang)
   return formatMoneyCompact(value, lang)
 }
 
