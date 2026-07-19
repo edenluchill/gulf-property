@@ -423,9 +423,12 @@ export default function RoiSimulatorPage() {
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">{t('subtitle')}</p>
         </header>
 
-        <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-6">
+        {/* ⚠️ 两栏在 xl(1280) 才展开,不是 lg(1024)。这页挂在经纪台里,左边**已经有一条
+            侧栏**了 —— lg 断点看的是视口不是容器,1024px 视口下内容区只剩 ~780px,
+            360px 参数栏一占,四张图挤在 420px 里没法看。 */}
+        <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)] xl:gap-6">
           {/* 桌面:常驻侧栏。手机/iPad 竖屏:走底部抽屉(见页尾) */}
-          <aside className="hidden lg:block">
+          <aside className="hidden xl:block">
             <div className="sticky top-4 rounded-xl border border-slate-200 bg-white p-4">{paramsPanel}</div>
           </aside>
 
@@ -544,7 +547,7 @@ export default function RoiSimulatorPage() {
       <button
         type="button"
         onClick={() => setPanelOpen(true)}
-        className="fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-lg lg:hidden"
+        className="fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-lg xl:hidden"
       >
         <SlidersHorizontal className="h-4 w-4" />
         {t('mobile.adjust')}

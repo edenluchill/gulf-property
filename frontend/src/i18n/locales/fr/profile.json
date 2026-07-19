@@ -85,5 +85,6 @@
   "statusPastDue": "Échec de paiement",
   "statusCanceled": "Annulé",
   "projectsSuffix": " projets",
-  "favWithSaves": " · {{n}} enregistrés"
+  "favWithSaves": " · {{n}} enregistrés",
+  "tabRoi": "Simulateur de rendement"
 }

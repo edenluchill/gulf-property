@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
   CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
-  Menu, X, ChevronRight, Receipt, Gift,
+  Menu, X, ChevronRight, Receipt, Gift, Calculator,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -63,6 +63,7 @@ const AGENT_TABS: Tab[] = [
   { to: '/agent/clients', key: 'tabClientRadar', icon: Radar },
   { to: '/agent/tour', key: 'tabAiTours', icon: Wand2 },
   { to: '/agent/report', key: 'tabClientFitReports', icon: Zap },
+  { to: '/agent/roi', key: 'tabRoi', icon: Calculator },
   { to: '/agent/promo', key: 'tabReferEarn', icon: Gift },
 ]
 // 使用记录:只在付费后显示(有积分消耗才有意义;免费/未订阅不显示)

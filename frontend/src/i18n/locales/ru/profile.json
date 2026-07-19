@@ -85,5 +85,6 @@
   "statusPastDue": "Ошибка оплаты",
   "statusCanceled": "Отменена",
   "projectsSuffix": " проектов",
-  "favWithSaves": " · Сохранено: {{n}}"
+  "favWithSaves": " · Сохранено: {{n}}",
+  "tabRoi": "Симулятор доходности"
 }

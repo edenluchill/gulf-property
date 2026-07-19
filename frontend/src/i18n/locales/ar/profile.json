@@ -85,5 +85,6 @@
   "statusPastDue": "فشل الدفع",
   "statusCanceled": "ملغي",
   "projectsSuffix": " مشاريع",
-  "favWithSaves": " · تم حفظ {{n}}"
+  "favWithSaves": " · تم حفظ {{n}}",
+  "tabRoi": "محاكي العائد"
 }

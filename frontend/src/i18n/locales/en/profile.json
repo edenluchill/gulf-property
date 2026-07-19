@@ -85,5 +85,6 @@
     "proAgent": "Pro Agent",
     "agencyMember": "Agency Member",
     "developerMember": "Developer Member"
-  }
+  },
+  "tabRoi": "Return simulator"
 }

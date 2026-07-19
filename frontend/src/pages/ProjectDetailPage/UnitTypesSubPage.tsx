@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useMyRole } from '../../hooks/useMyRole'
 import { Button } from '../../components/ui/button'
 import { ArrowLeft, Bed, Bath, Maximize, ZoomIn, LineChart } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
@@ -39,6 +40,9 @@ export function UnitTypesSubPage({
 }: UnitTypesSubPageProps) {
   const { i18n } = useTranslation()
   const { t: tRoi } = useTranslation('roi')
+  // 与 Header/ProfileShell 同规则:agency/developer 也算经纪侧
+  const role = useMyRole()
+  const isAgent = role === 'agent' || role === 'agency' || role === 'developer'
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const selectedUnit = unitTypes.find(u => u.id === selectedUnitId) || unitTypes[0]
 
@@ -196,14 +200,19 @@ export function UnitTypesSubPage({
                 lang={i18n.language}
               />
 
-              {/* 转化价值最高的模拟器入口:参数(总价/面积/物业费/区域回报)全预填成真实值 */}
+              {/* 收益模拟器入口 —— **只对经纪显示**。
+                  合伙人:「感觉客户目前用不到、用不明白」,工具已搬进经纪台。
+                  项目详情页是买家也会看的公开页,所以这里必须按角色收起,
+                  否则买家点进去会撞经纪审批门(看到一个自己进不去的功能比没有更糟)。 */}
+              {isAgent && (
               <Link
-                to={`/roi?project=${encodeURIComponent(projectId)}&unit=${encodeURIComponent(selectedUnit.id)}`}
+                to={`/agent/roi?project=${encodeURIComponent(projectId)}&unit=${encodeURIComponent(selectedUnit.id)}`}
                 className="mt-6 inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-medium text-teal-700 transition hover:bg-teal-100"
               >
                 <LineChart className="h-4 w-4" />
                 {tRoi('entry.simulateUnit')}
               </Link>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-slate-400">

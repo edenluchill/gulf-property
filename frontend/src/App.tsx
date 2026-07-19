@@ -30,7 +30,7 @@ import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
 import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
-import RoiSimulatorPage from './pages/RoiSimulatorPage'  // /roi 蒙特卡洛收益模拟器(免登录可用)
+import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —— 经纪台专用(/agent/roi)
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
@@ -141,6 +141,7 @@ function App() {
             <Route path="leads" element={<AgentLeads />} />
             <Route path="tour" element={<AgentTours />} />
             <Route path="report" element={<AgentReport />} />
+            <Route path="roi" element={<RoiSimulatorPage />} />
             <Route path="promo" element={<AgentPromo />} />
             <Route path="usage" element={<AgentUsage />} />
           </Route>
@@ -165,7 +166,8 @@ function App() {
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         {/* 蒙特卡洛收益模拟器(可分享/可深链 ?project=&unit=;未登录买家也能用) */}
-        <Route path="/roi" element={<RoiSimulatorPage />} />
+        {/* 旧的公开 /roi 已下线(合伙人:客户用不到也用不明白),重定向避免已分享的链接 404 */}
+        <Route path="/roi" element={<Navigate to="/agent/roi" replace />} />
         <Route path="/areas" element={<AreaInsightsPage />} />
         <Route path="/report" element={<BuyingReportPage />} />
         <Route
