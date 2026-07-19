@@ -539,8 +539,19 @@ export function computeWindowedMetrics(
     const priceSqm = enough && pW > 0 ? pSum / pW : null
     const unitPrice = enough && uW > 0 ? round(uSum / uW) : null
     const rentAvg = rN > 0 ? rSum / rN : null
-    const yieldPct = priceSqm != null && priceSqm > 0 && rentAvg != null
+    // 🔴 回报率的**分母**(中位价/㎡)必须有像样的成交样本,MIN_WIN=5 对它远远不够。
+    // 实测:Wadi Al Amardi 3 年只成交 4 笔却有 124 份租约 → 回报率 35.7%;
+    // Al Qusais 2 成交 5 笔 / 租约 7178 份 → 23.0%;Al Khawaneej 2 成交**1 笔** → 13.1%。
+    // 这些是本地人自住、几乎不交易的老城区,拿一两笔成交的中位价当分母就是胡说。
+    // 另加合理带:迪拜住宅毛回报实际落在 4-10%,超过 15% 或低于 1% 说明租金与成交
+    // 描述的根本不是同一批房子(户型/产权/新旧结构错配),宁可显示「—」。
+    // 同 computeAppreciation 的 MAX_GAIN/MAX_LOSS 思路。
+    const MIN_YIELD_SALES = 30
+    const YIELD_MIN = 1, YIELD_MAX = 15
+    const yieldRaw = priceSqm != null && priceSqm > 0 && rentAvg != null
       ? Number(((rentAvg / priceSqm) * 100).toFixed(2)) : null
+    const yieldPct = yieldRaw != null && wCnt >= MIN_YIELD_SALES
+      && yieldRaw >= YIELD_MIN && yieldRaw <= YIELD_MAX ? yieldRaw : null
     out[k] = {
       growth: growth[k] ?? null,
       priceSqm: priceSqm != null ? round(priceSqm) : null,
@@ -1304,10 +1315,13 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
       return n
     })
     // 毛回报 = 中位租金/㎡ ÷ 中位价/㎡。两端任一为空则空。
+    // 合理带同 computeWindowedMetrics:超 15% / 低于 1% 说明租金与成交不是同一批房子。
+    // (priceSqm 本身已有 MONTHLY_MIN_SALES=30 的门槛,分母样本问题在那一层已挡住。)
     const yieldPct = rentSqm.map((r, i) => {
       const p = priceSqm[i]
       if (r == null || p == null || p <= 0) return null
-      return Number(((r / p) * 100).toFixed(2))
+      const y = Number(((r / p) * 100).toFixed(2))
+      return y >= 1 && y <= 15 ? y : null
     })
     // 同比:两端都要有值。合理带同 computeAppreciation,免得稀疏区因户型结构漂移
     // 报出 +2000% 这种假信号。
