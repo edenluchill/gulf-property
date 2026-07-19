@@ -11,7 +11,7 @@ import Map, {
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, X, Box, Eye, EyeOff } from 'lucide-react'
+import { Globe, Ruler, X, Box, Eye, EyeOff, History } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON, fetchRoadRoute, type RoadRoute } from '../lib/api'
@@ -22,8 +22,8 @@ import {
   formatMetricValue, getMetricRawValue, calculatePercentiles, getHeatmapColor
 } from '../lib/map/metrics'
 import {
-  bakeAreaYears, computeTimelineScale, colorKey, valueKey,
-  type TimelineMetric, type AreaYearly,
+  computeTimelineScale, timelineColor, timelineLabel, valueAt, NO_DATA_COLOR,
+  type TimelineMetric, type AreaMonthly,
 } from '../lib/map/timeline'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
 import { isRTL } from '../lib/tt'
@@ -115,7 +115,9 @@ interface MapViewMapLibreProps {
   /** 时间轴模式。非 null 时接管区域着色 + 标签数值，areaMetric 被忽略。
    *  ⚠️ 切年**只改 paint/layout 表达式的 key**，绝不重建 GeoJSON —— 见
    *  lib/map/timeline.ts 文件头铁律 1。年份因此不能进 areasGeoJson 的依赖数组。 */
-  timeline?: { year: number; labelYear: number; metric: TimelineMetric; data: AreaYearly } | null
+  timeline?: { index: number; labelIndex: number; metric: TimelineMetric; data: AreaMonthly } | null
+  /** 进入时间轴模式。传了才在工具卡里显示入口按钮。 */
+  onEnterTimeline?: () => void
   dubaiAreas?: DubaiArea[]
   dubaiLandmarks?: DubaiLandmark[]
   pois?: Poi[]
@@ -179,6 +181,7 @@ function MapViewMapLibre({
   onLandmarkClick,
   areaMetric = 'none',
   timeline = null,
+  onEnterTimeline,
   dubaiAreas = [],
   dubaiLandmarks = [],
   pois = [],
@@ -1063,27 +1066,19 @@ function MapViewMapLibre({
       percentiles = calculatePercentiles(values)
     }
 
-    // 时间轴模式：把**所有年份**的颜色一次性烤进 properties(tc2021..tc2026)。
-    // 之后切年只改 paint 表达式的 key，不再碰这份 GeoJSON。scale 跨年份统一算，
-    // 否则颜色会随各年分布自己漂(见 timeline.ts 铁律 2)。
-    const tlScale = timeline ? computeTimelineScale(timeline.data, timeline.metric) : null
-
     const features = dubaiAreas
       .filter(area => area.boundary?.type === 'Polygon')
       .map((area, i) => {
         // 如果选择了指标，使用热力图颜色
         let fillColor = area.color || '#3b82f6'
         if (timeline) {
-          // 时间轴接管着色：fillColor 只作为无年份数据时的兜底，实际取 tc{year}
-          fillColor = '#94a3b8'
+          // 时间轴接管着色：实际颜色每帧走 feature-state(见 timeline.ts 铁律 1),
+          // 这里只给个「还没上色」的兜底。
+          fillColor = NO_DATA_COLOR
         } else if (areaMetric !== 'none') {
           const rawValue = getMetricRawValue(area, areaMetric)
           fillColor = getHeatmapColor(rawValue, areaMetric, percentiles)
         }
-        const yearColors = timeline
-          ? bakeAreaYears(timeline.data.areas[area.id], timeline.data, timeline.metric, tlScale!, i18n.language || 'en')
-          : null
-
         return {
           type: 'Feature' as const,
           // ⚠️ feature-state(hover 高亮)的渲染路径只认「数字」feature id ——
@@ -1096,16 +1091,44 @@ function MapViewMapLibre({
             name: area.name,
             color: fillColor,
             opacity: area.opacity ?? 0.5,
-            ...(yearColors || {})
           },
           geometry: area.boundary
         }
       })
 
     return { type: 'FeatureCollection' as const, features }
-    // ⚠️ timeline.year 刻意不在依赖里 —— 年份变化只走 paint 表达式，不重建数据。
+    // ⚠️ 时间轴的帧位置(index)刻意不在依赖里 —— 拖动只改 feature-state,绝不重建数据。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric, timeline?.metric, timeline?.data, i18n.language])
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric, !!timeline])
+
+
+  // ── 时间轴着色:每帧只写 feature-state,绝不碰多边形数据 ──
+  //
+  // 这是拖动能跟手的全部本钱。~180 次 setFeatureState 是微秒级的 JS 调用,
+  // 而重建一次 FeatureCollection 要序列化 200+ 个多边形几何再整包传给 GL worker。
+  // feature id 用的是 areasGeoJson 里的 i+1(**必须是数字** —— uuid 字符串时
+  // getFeatureState 查得到但 paint 永远不命中,静默失效,2026-07-05 栽过)。
+  //
+  // scale 跨全部月份统一算一次并缓存:每帧重算分位数会让颜色随当帧分布漂移(铁律 3),
+  // 而且 67 帧 × 全量排序也白烧 CPU。
+  const tlScaleRef = useRef<{ key: string; scale: ReturnType<typeof computeTimelineScale> } | null>(null)
+  useEffect(() => {
+    if (!timeline || !mapLoaded || !areasGeoJson) return
+    const map = mapRef.current?.getMap()
+    if (!map || !map.getSource('areas')) return
+    const key = `${timeline.metric}`
+    if (tlScaleRef.current?.key !== key) {
+      tlScaleRef.current = { key, scale: computeTimelineScale(timeline.data, timeline.metric) }
+    }
+    const scale = tlScaleRef.current.scale
+    for (const f of areasGeoJson.features) {
+      const v = valueAt(timeline.data, f.properties.id, timeline.metric, timeline.index)
+      map.setFeatureState(
+        { source: 'areas', id: f.id as number },
+        { tc: timelineColor(v, timeline.metric, scale) }
+      )
+    }
+  }, [timeline, mapLoaded, areasGeoJson])
 
   // Area labels GeoJSON - 区域名称 + 指标值（同一图层）
   // 指标值和名称必须在同一个 symbol，否则两个 layer 的碰撞检测会互相
@@ -1115,6 +1138,7 @@ function MapViewMapLibre({
 
     const langKey = i18n.language?.split('-')[0]
     const lang = i18n.language || 'en'
+    const tlScale = timeline ? computeTimelineScale(timeline.data, timeline.metric) : null
 
     // 计算分位数用于指标值着色
     let percentiles = { p25: 0, p50: 0, p75: 0 }
@@ -1124,8 +1148,6 @@ function MapViewMapLibre({
         .filter((v): v is number => v !== null)
       percentiles = calculatePercentiles(values)
     }
-    const tlScale = timeline ? computeTimelineScale(timeline.data, timeline.metric) : null
-
     // Importance ranking for progressive disclosure: sort by transaction count
     // (busiest first). Each area's rank drives WHEN its label is revealed, so the
     // low-zoom view is a clean, curated set of the most relevant markets instead
@@ -1169,10 +1191,14 @@ function MapViewMapLibre({
           const rawValue = getMetricRawValue(area, areaMetric)
           metricColor = getHeatmapColor(rawValue, areaMetric, percentiles)
         }
-        // 时间轴：所有年份的文案+颜色一次烤好(tv{year}/tc{year})，切年只换 layout key。
-        const yearLabels = timeline
-          ? bakeAreaYears(timeline.data.areas[area.id], timeline.data, timeline.metric, tlScale!, lang)
-          : null
+        // 时间轴:文案/颜色取**当前帧**。text-field 是 layout 属性,读不到 feature-state
+        // (铁律 2),所以只能进 properties —— 但这是个只有 ~180 个点的 source,
+        // 拖动停下后整体 setData 一次很便宜(贵的是多边形,不是点)。
+        if (timeline) {
+          const v = valueAt(timeline.data, area.id, timeline.metric, timeline.labelIndex)
+          metricValue = timelineLabel(v, timeline.metric, lang)
+          metricColor = timelineColor(v, timeline.metric, tlScale!)
+        }
 
         return {
           type: 'Feature' as const,
@@ -1184,16 +1210,16 @@ function MapViewMapLibre({
             displayName,
             metricValue,
             metricColor,
-            ...(yearLabels || {})
           },
           geometry: { type: 'Point' as const, coordinates: centroid }
         }
       })
 
     return { type: 'FeatureCollection' as const, features }
-    // ⚠️ 同 areasGeoJson：timeline.year 不进依赖，切年只换 layout 表达式的 key。
+    // labelIndex 是**防抖后**的帧(MapPage 里滞后于拖动),所以这里重建只在停下时发生。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric, timeline?.metric, timeline?.data])
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric,
+      timeline?.metric, timeline?.data, timeline?.labelIndex])
 
   // POI GeoJSON for WebGL rendering (no limit needed - symbol layers are fast)
   const poiGeoJson = useMemo(() => {
@@ -1447,9 +1473,11 @@ function MapViewMapLibre({
               id="area-fills"
               type="fill"
               paint={{
-                // 时间轴模式：切年只是把 key 从 tc2024 换成 tc2025 —— react-map-gl
-                // 落到一次 setPaintProperty，零数据上传，拖动滑块可跑满 60fps。
-                'fill-color': timeline ? ['get', colorKey(timeline.year)] : ['get', 'color'],
+                // 时间轴模式:颜色每帧由 setFeatureState 写入(见下面的 useEffect),
+                // 这里用 coalesce 兜底 —— 还没写 state 的 feature 显示灰色而不是黑。
+                'fill-color': timeline
+                  ? ['coalesce', ['feature-state', 'tc'], NO_DATA_COLOR]
+                  : ['get', 'color'],
                 'fill-opacity': ['*', ['get', 'opacity'], timeline ? 0.62 : 0.4]
               }}
             />
@@ -1461,7 +1489,9 @@ function MapViewMapLibre({
               type="fill"
               filter={['==', ['id'], -1]}
               paint={{
-                'fill-color': timeline ? ['get', colorKey(timeline.year)] : ['get', 'color'],
+                'fill-color': timeline
+                  ? ['coalesce', ['feature-state', 'tc'], NO_DATA_COLOR]
+                  : ['get', 'color'],
                 'fill-opacity': ['*', ['get', 'opacity'], 0.3]
               }}
             />
@@ -1484,8 +1514,8 @@ function MapViewMapLibre({
                   ? ['format',
                       ['get', 'displayName'], {},
                       '\n', {},
-                      ['get', valueKey(timeline.labelYear)], {
-                        'text-color': ['get', colorKey(timeline.labelYear)],
+                      ['get', 'metricValue'], {
+                        'text-color': ['get', 'metricColor'],
                         'font-scale': 1.25
                       }
                     ]
@@ -1779,7 +1809,10 @@ function MapViewMapLibre({
             普通模式只显示 recomputeCards 碰撞检测选出的那批(挤了就藏,
             点圆点强制弹出)。手势中(mapMoving)隐藏,与地标同一规则——
             真值层圆点是 GL 的,手势中依然全程可见,项目"点"永不丢失。 */}
-        {tourActive
+        {/* 🔴 时间轴模式隐藏照片卡:那几十张大黑卡会把区域色块盖掉一大半,而时间轴
+            要看的恰恰是色块随时间怎么变(实测手机上尤其严重)。同 tour 播放时隐藏
+            通用 POI 的理由 —— 只留这一刻真正要看的东西。GL 圆点真值层不受影响。 */}
+        {timeline ? null : tourActive
           ? projects.map(project => (
               <ProjectCardMarker key={project.id} project={project} onClick={onProjectClick} flashing={flashProjectIds?.includes(project.id)} />
             ))
@@ -1983,6 +2016,19 @@ function MapViewMapLibre({
               {showCards ? (isZhUi ? '项目' : 'Projects') : (isZhUi ? '已隐藏' : 'Hidden')}
             </span>
           </button>
+          {/* 时间轴入口。放这张工具卡而不是上面的指标卡:它和底图/3D/测距一样是
+              「地图怎么看」的开关,不是「看哪个指标」。onEnterTimeline 由 MapPage 传。 */}
+          {onEnterTimeline && (
+            <button
+              type="button"
+              onClick={onEnterTimeline}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-all duration-150 active:scale-90 hover:bg-slate-100 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold"
+              aria-label={isZhUi ? '时间轴' : 'Timeline'}
+            >
+              <History size={15} className="shrink-0 text-slate-500 md:h-3.5 md:w-3.5" />
+              <span className="hidden whitespace-nowrap md:inline">{isZhUi ? '时间轴' : 'Timeline'}</span>
+            </button>
+          )}
         </div>
       </div>
 

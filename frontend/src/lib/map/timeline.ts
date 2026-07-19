@@ -1,21 +1,27 @@
-// 地图「时间轴模式」数据层。
+// 地图「时间轴模式」数据层 —— 月度(近 3 个月滚动)+ 连续拖动。
 //
 // 设计铁律 —— 改这个文件前必读：
 //
-// 1. **切年绝不能重建 GeoJSON。** 现有着色路径是「JS 算好颜色 → 烤进 feature
-//    properties → useMemo 重建整个 FeatureCollection → setData」。那套路径拖动
-//    滑块会每格重传 200+ 个多边形，必卡。时间轴的做法是**一次性把所有年份的
-//    颜色和文案都烤进 properties**（tc2021..tc2026 / tv2021..tv2026），切年只改
-//    paint/layout 表达式里的 key（['get','tc2025']）——O(1)，零数据上传。
-//    ⇒ 构建 GeoJSON 的 useMemo **依赖数组里绝对不能出现 year**。
+// 1. **拖动时绝不能重建多边形 GeoJSON。** 现有普通着色路径是「JS 算好颜色 → 烤进
+//    feature properties → useMemo 重建整个 FeatureCollection → setData」。那套路径
+//    拖时间轴会每帧重传 200+ 个多边形，必卡。
+//    时间轴改走 **feature-state**：多边形只 setData 一次，每帧只对 ~180 个 feature
+//    调 setFeatureState 换颜色（微秒级）。
+//    ⚠️ 早先的年度版本是把所有帧的颜色烤进 properties(tc2021..tc2026)，帧数少时可行；
+//    换成 67 个月后那样会变成 180 feature × 67 × 2 ≈ 2.4 万个字符串塞进 properties，
+//    所以改成了 feature-state。别再退回去烤属性。
 //
-// 2. **配色阈值必须跨年份统一。** 分位数要用「全部年份合并后的分布」算一次，
-//    而不是每年各算各的。否则颜色会自己漂：某区数值明明没动，只因当年整体分布
-//    变了就换个颜色 —— 时间轴就失去意义了。
+// 2. **标签不能走 feature-state。** MapLibre 的 feature-state 只能用在 **paint** 属性上，
+//    而文字是 `text-field`（**layout** 属性）—— 读不到 feature-state。
+//    所以标签走独立的**点**图层，拖动停下后（防抖）整体 setData 一次。
+//    这很便宜：那个 source 只有 ~180 个点、没有多边形几何。贵的是多边形，不是点。
 //
-// 3. **样本不足就是灰色，不插值、不沿用上一年。** 后端已按 n<30 返回 null。
+// 3. **配色阈值必须跨全部月份统一算一次。** 每帧各算各的话，某区数值没动、只因当帧
+//    整体分布变了就换颜色 —— 拖动时满屏乱闪，趋势就看不出来了。
 //
-// 数据边界（硬事实，别试图往前扩）：DLD 原始表最早只到 2021-01-01。
+// 4. **样本不足就是灰色**，不插值、不沿用上一帧。后端已按 3 个月窗口内 n<30 返回 null。
+//
+// 数据边界（硬事实）：DLD 原始表最早只到 2021-01-01；前 2 个月因窗口不满已被后端裁掉。
 
 import { formatMoneyCompact } from '../money'
 
@@ -24,59 +30,46 @@ export type TimelineMetric = 'medianRent' | 'medianUnitPrice' | 'growth'
 
 export const TIMELINE_METRICS: TimelineMetric[] = ['medianRent', 'medianUnitPrice', 'growth']
 
-export interface YearCell {
-  rent: number | null
-  rentAll: number | null
-  rentN: number
-  price: number | null
-  priceSqm: number | null
-  salesN: number
-  growth: number | null
+/** 各区一条与 months 等长、按月对齐的序列。null = 该窗口样本不足。 */
+export interface AreaSeries {
+  rent: (number | null)[]
+  price: (number | null)[]
+  priceSqm: (number | null)[]
+  growth: (number | null)[]
 }
 
-export interface AreaYearly {
+export interface AreaMonthly {
   dataThrough: string | null
-  years: number[]
-  /** 不完整的当年。前端必须标 YTD，且不拿它做同比。 */
-  ytdYear: number | null
-  areas: Record<string, Record<string, YearCell>>
+  /** 'YYYY-MM' 升序。 */
+  months: string[]
+  areas: Record<string, AreaSeries>
 }
 
-/** 从一格里取出某指标的原值。null = 样本不足或无数据 → 灰。 */
-export function cellValue(cell: YearCell | undefined, metric: TimelineMetric): number | null {
-  if (!cell) return null
+export function seriesOf(s: AreaSeries | undefined, metric: TimelineMetric): (number | null)[] | null {
+  if (!s) return null
   switch (metric) {
-    case 'medianRent': return cell.rent
-    case 'medianUnitPrice': return cell.price
-    case 'growth': return cell.growth
+    case 'medianRent': return s.rent
+    case 'medianUnitPrice': return s.price
+    case 'growth': return s.growth
   }
 }
 
-/** 该指标在该年的样本数（用于「样本不足」提示与 tooltip）。 */
-export function cellSampleSize(cell: YearCell | undefined, metric: TimelineMetric): number {
-  if (!cell) return 0
-  return metric === 'medianRent' ? cell.rentN : cell.salesN
+export function valueAt(
+  data: AreaMonthly, areaId: string, metric: TimelineMetric, i: number
+): number | null {
+  const s = seriesOf(data.areas[areaId], metric)
+  return s ? (s[i] ?? null) : null
 }
 
-export interface TimelineScale {
-  /** 跨全部年份统一的分位数断点。growth 走绝对阈值，不用这个。 */
-  p25: number
-  p50: number
-  p75: number
-}
+export interface TimelineScale { p25: number; p50: number; p75: number }
 
-/**
- * 用**所有年份、所有区域**的值算一次分位数。见文件头铁律 2。
- */
-export function computeTimelineScale(
-  yearly: AreaYearly, metric: TimelineMetric
-): TimelineScale {
+/** 用**所有月份、所有区域**的值算一次分位数。见文件头铁律 3。 */
+export function computeTimelineScale(data: AreaMonthly, metric: TimelineMetric): TimelineScale {
   const values: number[] = []
-  for (const byYear of Object.values(yearly.areas)) {
-    for (const year of yearly.years) {
-      const v = cellValue(byYear[String(year)], metric)
-      if (v != null) values.push(v)
-    }
+  for (const s of Object.values(data.areas)) {
+    const arr = seriesOf(s, metric)
+    if (!arr) continue
+    for (const v of arr) if (v != null) values.push(v)
   }
   if (!values.length) return { p25: 0, p50: 0, p75: 0 }
   values.sort((a, b) => a - b)
@@ -84,16 +77,16 @@ export function computeTimelineScale(
   return { p25: at(0.25), p50: at(0.5), p75: at(0.75) }
 }
 
-const NO_DATA = '#94a3b8'
+export const NO_DATA_COLOR = '#94a3b8'
 
 /**
  * 时间轴配色。growth 用发散色（红↔绿，0 为界），量级指标用统一分位数四色。
- * 色板与 getHeatmapColor 保持一致，避免用户在两种模式间切换时觉得「换了套色」。
+ * 与 getHeatmapColor 同色板，避免用户在两种模式间切换时觉得「换了套色」。
  */
 export function timelineColor(
   value: number | null, metric: TimelineMetric, scale: TimelineScale
 ): string {
-  if (value == null) return NO_DATA
+  if (value == null) return NO_DATA_COLOR
   if (metric === 'growth') {
     if (value >= 15) return '#059669'
     if (value >= 7) return '#10b981'
@@ -117,26 +110,20 @@ export function timelineLabel(
   return formatMoneyCompact(value, lang)
 }
 
-/** properties 里的 key —— 颜色 tc{year}、文案 tv{year}。paint/layout 表达式按年取。 */
-export const colorKey = (year: number) => `tc${year}`
-export const valueKey = (year: number) => `tv${year}`
+/** 'YYYY-MM' → 本地化短标签,例如 中文「2025年3月」/ 英文「Mar 2025」。 */
+export function formatMonth(ym: string, lang: string): string {
+  const [y, m] = ym.split('-')
+  if ((lang || 'en').startsWith('zh')) return `${y}年${Number(m)}月`
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${names[Number(m) - 1]} ${y}`
+}
 
-/**
- * 给一个区域烤出「所有年份」的颜色 + 文案，供 feature.properties 展开。
- * 这是整个时间轴平滑的关键：所有年份一次算完，之后切年不再碰数据。
- */
-export function bakeAreaYears(
-  byYear: Record<string, YearCell> | undefined,
-  yearly: AreaYearly,
-  metric: TimelineMetric,
-  scale: TimelineScale,
-  lang: string
-): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const year of yearly.years) {
-    const v = cellValue(byYear?.[String(year)], metric)
-    out[colorKey(year)] = timelineColor(v, metric, scale)
-    out[valueKey(year)] = timelineLabel(v, metric, lang)
-  }
+/** 月轴上每年 1 月的位置 —— 拖动条上打年份刻度用（不然 67 格看不出走到哪年了）。 */
+export function yearTicks(months: string[]): { index: number; year: number }[] {
+  const out: { index: number; year: number }[] = []
+  months.forEach((m, i) => {
+    const [y, mo] = m.split('-')
+    if (mo === '01') out.push({ index: i, year: Number(y) })
+  })
   return out
 }

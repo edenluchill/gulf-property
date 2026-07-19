@@ -1,5 +1,5 @@
 import { PropertyFilters, MapBounds, DubaiArea, DubaiLandmark } from '../types';
-import type { AreaYearly as AreaYearlyResponse } from './map/timeline';
+import type { AreaMonthly as AreaMonthlyResponse } from './map/timeline';
 import { API_BASE_URL } from './config';
 import { supabase } from './supabase';
 
@@ -958,11 +958,11 @@ export async function fetchRoadRoute(
   } catch { return null; }
 }
 
-// 各区逐年中位租金/成交价/同比 —— 地图时间轴模式用。体积小(≈200 区 × 6 年),
-// 一次全取,切年零请求(切年只改 paint 表达式,见 lib/map/timeline.ts 文件头)。
-export async function fetchAreaYearly(): Promise<AreaYearlyResponse | null> {
+// 各区逐月(近 3 个月滚动)中位租金/成交价/同比 —— 地图时间轴用。gzip 后约 72KB,
+// 一次全取,拖动零请求(着色走 feature-state,见 lib/map/timeline.ts 文件头)。
+export async function fetchAreaMonthly(): Promise<AreaMonthlyResponse | null> {
   try {
-    const r = await fetch(`${API_URL}/market/area-yearly`);
+    const r = await fetch(`${API_URL}/market/area-monthly`);
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }

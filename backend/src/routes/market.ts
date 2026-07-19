@@ -988,6 +988,13 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
          FROM dld_rent_contracts rc CROSS JOIN bounds b
         WHERE rc.usage_type = 'Residential' AND rc.dubai_area_id IS NOT NULL
           AND rc.property_area BETWEEN 15 AND 2000 AND rc.annual_amount BETWEEN 5000 AND 5000000
+          -- 🔴 排除劳工宿舍/整栋打包合同。实测:Jebel Ali Industrial 中位「住宅」
+          -- 租金 38.4 万/年而中位面积只有 20 ㎡(每㎡ 21,857),Muhaisnah 2(Sonapur)
+          -- 同款。那是整栋/多床位合同记在一个小单元面积上,混进来会让工业区在地图上
+          -- 显示成全市最贵的租金区 —— 迪拜经纪一眼就知道是假的。
+          -- 全样本每㎡年租中位数 1018,p95 却到 50,454,明显是两个不同的人群。
+          -- 棕榈岛豪宅约 3000/㎡,6000 上限对真实住宅足够宽松。
+          AND rc.annual_amount / rc.property_area BETWEEN 100 AND 6000
           AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months' AND rc.start_date <= b.d
         GROUP BY 1, 2`
     ),
@@ -1118,61 +1125,78 @@ router.get('/area-insights', async (req: Request, res: Response) => {
   }
 })
 
-// ─────────────────────────── 年度时间轴 (地图 timeline 模式) ───────────────────────────
+// ─────────────────────────── 月度时间轴 (地图 timeline 模式) ───────────────────────────
 //
 // 口径说明(改这里前先读完):
 //   · 原始表最早只到 2021-01-01 —— dld_rent_contracts / dld_transactions 皆然。
-//     所以时间轴只能是 2021..今年,再往前没有。**别去碰 dubai_area_yearly_metrics**:
+//     所以时间轴只能是 2021-01 起,再往前没有。**别去碰 dubai_area_yearly_metrics**:
 //     它带 1975-2026 的 year 列看着正合适,但 2020 年前的值无法从现有原始表复算、
 //     无法校验(源快照已不存在),median_unit_price 更是只有 2025/2026 有值。
+//   · **必须 3 个月滚动窗口,不能用单月值。** 实测单月 ≥30 样本只覆盖 65%(租金)/
+//     46%(成交)的「区×月」,3 个月滚动提到 78%/58%。但更要命的不是覆盖率而是**噪声**:
+//     薄样本的单月中位数会乱跳,拖时间轴时那些抖动看着像市场在动,其实是采样噪声 ——
+//     而拖时间轴的全部目的就是看趋势。滚动窗口口径与 /area-appreciation 的 smooth3 一致。
+//   · 滚动值 = 窗口内**月度中位数按成交量加权平均**(非真·窗口中位数)。这是全站既有
+//     近似(见 computeWindowedMetrics),免去逐窗口重跑 percentile。UI 标「近3个月」。
 //   · 成交必须 trans_group='Sales' —— 22% 是 Mortgages/Gifts,不加这条会得出反向结论。
 //   · 成交价沿用 RES_PT(Unit/Villa),排除 Land/Building,否则沙漠地块拉垮住宅单价。
-//   · 租金给 New / All 两个口径:迪拜续约受 RERA 租金指数管制,把续约混进来会**压平**
-//     年际波动 —— 而时间轴要展示的正是波动。故时间轴默认读 New(真实市场价),
-//     All 一并返回备用。(注:这与 /area-appreciation 里算 yield 的 rentSqm 是不同指标,
-//     不构成 [[map-dialog-metric-path-parity]] 说的双路径口径分裂。)
+//   · 租金取 New:迪拜续约受 RERA 租金指数管制,把续约混进来会**压平**波动 ——
+//     而时间轴要展示的正是波动。
 //   · 自定义手绘区没有 area_id bridge,必须走 ST_Covers 空间匹配 —— 不加这条分支,
 //     地图上 100+ 个自定义区在 timeline 模式下会整片变灰。
-const YEARLY_MIN_SALES = 30   // 少于此不出成交中位数
-const YEARLY_MIN_RENT = 30    // 少于此不出租金中位数
-const FIRST_DATA_YEAR = 2021  // 原始表起点,硬事实
+const MONTHLY_MIN_SALES = 30   // 3 个月窗口内少于此不出成交中位数
+const MONTHLY_MIN_RENT = 30    // 同上,租约
+const ROLL = 3                 // 滚动窗口月数
+const FIRST_DATA_YEAR = 2021   // 原始表起点,硬事实
 
-type YearCell = {
-  rent: number | null       // 年度中位年租金(AED, New 口径)
-  rentAll: number | null    // 同上,New+Renew 全口径
-  rentN: number             // 租约样本数(New)
-  price: number | null      // 年度中位成交总价(AED)
-  priceSqm: number | null   // 年度中位价/㎡
-  salesN: number            // 成交样本数
-  growth: number | null     // 相对上一年的 priceSqm 涨幅 %(第一年恒为 null)
+/** 各区一条按月轴对齐的序列。null = 该窗口样本不足 → 地图上是灰的。 */
+type AreaSeries = {
+  rent: (number | null)[]    // 近3个月中位年租金(AED, New)
+  price: (number | null)[]   // 近3个月中位成交总价(AED)
+  priceSqm: (number | null)[]// 近3个月中位价/㎡
+  growth: (number | null)[]  // 同比:priceSqm 对 12 个月前之比 %
 }
-type AreaYearly = {
+type AreaMonthly = {
   dataThrough: string | null
-  years: number[]
-  ytdYear: number | null    // 不完整的当年(前端要标 YTD,别拿它做同比)
-  areas: Record<string, Record<string, YearCell>>
+  months: string[]           // 'YYYY-MM',升序
+  areas: Record<string, AreaSeries>
 }
 
-export async function loadAreaYearly(): Promise<AreaYearly> {
+/** 成交量加权的 3 个月滚动平均(权重=当月样本数)。窗口内总量 < min 则 null。 */
+function roll3(vals: (number | null)[], cnts: number[], min: number): (number | null)[] {
+  return vals.map((_, i) => {
+    let sum = 0, w = 0, n = 0
+    for (let k = Math.max(0, i - (ROLL - 1)); k <= i; k++) {
+      const c = cnts[k] || 0
+      n += c
+      if (vals[k] != null && c > 0) { sum += (vals[k] as number) * c; w += c }
+    }
+    if (n < min || w === 0) return null
+    return Math.round(sum / w)
+  })
+}
+
+export async function loadAreaMonthly(): Promise<AreaMonthly> {
   const bounds = await pool.query(
-    `SELECT to_char(MAX(instance_date), 'YYYY-MM') AS m,
-            EXTRACT(YEAR FROM MAX(instance_date))::int AS y,
-            EXTRACT(MONTH FROM MAX(instance_date))::int AS mo
-       FROM dld_transactions`
+    `SELECT to_char(date_trunc('month', MAX(instance_date)), 'YYYY-MM') AS m FROM dld_transactions`
   )
   const endYm: string | null = bounds.rows[0]?.m ?? null
-  const lastYear: number | null = bounds.rows[0]?.y ?? null
-  const lastMonth: number = bounds.rows[0]?.mo ?? 12
-  if (!endYm || !lastYear) return { dataThrough: null, years: [], ytdYear: null, areas: {} }
+  if (!endYm) return { dataThrough: null, months: [], areas: {} }
 
-  const years: number[] = []
-  for (let y = FIRST_DATA_YEAR; y <= lastYear; y++) years.push(y)
-  const ytdYear = lastMonth < 12 ? lastYear : null
+  // 从 2021-01 到最新月的连续月轴
+  const [ey, em] = endYm.split('-').map(Number)
+  const months: string[] = []
+  for (let y = FIRST_DATA_YEAR; y <= ey; y++) {
+    for (let mo = 1; mo <= 12; mo++) {
+      if (y === ey && mo > em) break
+      months.push(`${y}-${String(mo).padStart(2, '0')}`)
+    }
+  }
+  const idx = new Map(months.map((m, i) => [m, i]))
 
-  // 成交:官方区(bridge) + 自定义区(空间匹配)。两者 id 互斥,直接合并。
   const salesCols = (idExpr: string) => `
         ${idExpr} AS area_id,
-        EXTRACT(YEAR FROM dt.instance_date)::int AS yr,
+        to_char(date_trunc('month', dt.instance_date), 'YYYY-MM') AS mo,
         COUNT(*) FILTER (WHERE ${RES_PT}) AS n,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.actual_worth)
           FILTER (WHERE ${RES_PT}) AS unit_price,
@@ -1205,78 +1229,100 @@ export async function loadAreaYearly(): Promise<AreaYearly> {
     ),
     pool.query(
       `SELECT rc.dubai_area_id AS area_id,
-              EXTRACT(YEAR FROM rc.start_date)::int AS yr,
-              COUNT(*) FILTER (WHERE rc.registration_type = 'New') AS n_new,
+              to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS mo,
+              COUNT(*) FILTER (WHERE rc.registration_type = 'New') AS n,
               percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount)
-                FILTER (WHERE rc.registration_type = 'New') AS rent_new,
-              percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount) AS rent_all
+                FILTER (WHERE rc.registration_type = 'New') AS rent
          FROM dld_rent_contracts rc
         WHERE rc.usage_type = 'Residential' AND rc.dubai_area_id IS NOT NULL
           AND rc.property_area BETWEEN 15 AND 2000
           AND rc.annual_amount BETWEEN 5000 AND 5000000
+          -- 🔴 排除劳工宿舍/整栋打包合同。实测:Jebel Ali Industrial 中位「住宅」
+          -- 租金 38.4 万/年而中位面积只有 20 ㎡(每㎡ 21,857),Muhaisnah 2(Sonapur)
+          -- 同款。那是整栋/多床位合同记在一个小单元面积上,混进来会让工业区在地图上
+          -- 显示成全市最贵的租金区 —— 迪拜经纪一眼就知道是假的。
+          -- 全样本每㎡年租中位数 1018,p95 却到 50,454,明显是两个不同的人群。
+          -- 棕榈岛豪宅约 3000/㎡,6000 上限对真实住宅足够宽松。
+          AND rc.annual_amount / rc.property_area BETWEEN 100 AND 6000
           AND rc.start_date >= make_date($1, 1, 1)
-          AND rc.start_date < make_date($2, 1, 1)
         GROUP BY 1, 2`,
-      [FIRST_DATA_YEAR, lastYear + 1]
+      [FIRST_DATA_YEAR]
     ),
   ])
 
-  const areas: AreaYearly['areas'] = {}
-  const cell = (id: string, yr: number): YearCell => {
-    const a = (areas[id] ||= {})
-    return (a[String(yr)] ||= {
-      rent: null, rentAll: null, rentN: 0, price: null, priceSqm: null, salesN: 0, growth: null,
-    })
+  const N = months.length
+  const blank = () => new Array(N).fill(null) as (number | null)[]
+  const zeros = () => new Array(N).fill(0) as number[]
+  // 先按月轴摊平成裸序列,再统一做滚动
+  const raw = new Map<string, {
+    up: (number | null)[]; ps: (number | null)[]; sc: number[]
+    rt: (number | null)[]; rc: number[]
+  }>()
+  const bucket = (id: string) => {
+    let b = raw.get(id)
+    if (!b) { b = { up: blank(), ps: blank(), sc: zeros(), rt: blank(), rc: zeros() }; raw.set(id, b) }
+    return b
   }
   for (const r of [...officialRows.rows, ...customRows.rows]) {
-    if (r.area_id == null || r.yr == null) continue
-    const c = cell(String(r.area_id), r.yr)
-    const n = Number(r.n || 0)
-    c.salesN = n
-    if (n >= YEARLY_MIN_SALES) {
-      c.price = r.unit_price != null ? Math.round(Number(r.unit_price)) : null
-      c.priceSqm = r.price_sqm != null ? Math.round(Number(r.price_sqm)) : null
-    }
+    const i = idx.get(r.mo); if (r.area_id == null || i === undefined) continue
+    const b = bucket(String(r.area_id))
+    b.sc[i] = Number(r.n || 0)
+    if (r.unit_price != null) b.up[i] = Number(r.unit_price)
+    if (r.price_sqm != null) b.ps[i] = Number(r.price_sqm)
   }
   for (const r of rentRows.rows) {
-    if (r.area_id == null || r.yr == null) continue
-    const c = cell(String(r.area_id), r.yr)
-    const n = Number(r.n_new || 0)
-    c.rentN = n
-    if (n >= YEARLY_MIN_RENT) {
-      c.rent = r.rent_new != null ? Math.round(Number(r.rent_new)) : null
-      c.rentAll = r.rent_all != null ? Math.round(Number(r.rent_all)) : null
+    const i = idx.get(r.mo); if (r.area_id == null || i === undefined) continue
+    const b = bucket(String(r.area_id))
+    b.rc[i] = Number(r.n || 0)
+    if (r.rent != null) b.rt[i] = Number(r.rent)
+  }
+
+  const areas: AreaMonthly['areas'] = {}
+  for (const [id, b] of raw) {
+    const price = roll3(b.up, b.sc, MONTHLY_MIN_SALES)
+    const priceSqm = roll3(b.ps, b.sc, MONTHLY_MIN_SALES)
+    const rent = roll3(b.rt, b.rc, MONTHLY_MIN_RENT)
+    // 同比:两端都要有值。合理带同 computeAppreciation,免得稀疏区因户型结构漂移
+    // 报出 +2000% 这种假信号。
+    const growth = priceSqm.map((v, i) => {
+      const prev = i >= 12 ? priceSqm[i - 12] : null
+      if (v == null || prev == null || prev <= 0) return null
+      const pct = Number((((v - prev) / prev) * 100).toFixed(1))
+      return pct > 400 || pct < -80 ? null : pct
+    })
+    areas[id] = { rent, price, priceSqm, growth }
+  }
+  // 裁掉开头 ROLL-1 个月:那几帧的滚动窗口不满(2021-01 只有 1 个月的量),覆盖率
+  // 明显偏低。留着的话时间轴开头会呈现「区域由少变多」的假象 —— 看着像市场在扩张,
+  // 其实只是窗口在填满。每一帧都用完整窗口才诚实。
+  const cut = ROLL - 1
+  for (const id of Object.keys(areas)) {
+    const a = areas[id]
+    areas[id] = {
+      rent: a.rent.slice(cut), price: a.price.slice(cut),
+      priceSqm: a.priceSqm.slice(cut), growth: a.growth.slice(cut),
     }
   }
-  // 同比涨幅:两端都要有 priceSqm,否则 null。合理带同 computeAppreciation,
-  // 免得稀疏区因户型结构漂移报出 +2000% 这种假信号。
-  for (const byYear of Object.values(areas)) {
-    for (const y of years) {
-      const cur = byYear[String(y)], prev = byYear[String(y - 1)]
-      if (!cur || !prev || cur.priceSqm == null || !prev.priceSqm) continue
-      const pct = Number((((cur.priceSqm - prev.priceSqm) / prev.priceSqm) * 100).toFixed(1))
-      cur.growth = pct > 400 || pct < -80 ? null : pct
-    }
-  }
-  return { dataThrough: endYm, years, ytdYear, areas }
+  return { dataThrough: endYm, months: months.slice(cut), areas }
 }
 
-const AREA_YEARLY_KEY = 'mkt:yearly:areas'
+const AREA_MONTHLY_KEY = 'mkt:monthly:areas'
 
 /**
- * GET /area-yearly — 各区逐年中位租金/成交价/同比,地图 timeline 模式着色用。
- * 体积很小(≈200 区 × 6 年),前端一次全取、切年零请求。
+ * GET /area-monthly — 各区逐月(近3个月滚动)中位租金/成交价/同比,地图 timeline 拖动条用。
+ * 前端一次全取、拖动零请求(着色走 feature-state,见 lib/map/timeline.ts)。
  */
-router.get('/area-yearly', async (_req: Request, res: Response) => {
+router.get('/area-monthly', async (_req: Request, res: Response) => {
   try {
-    const data = await cached(AREA_YEARLY_KEY, INSIGHTS_TTL_MS, loadAreaYearly)
+    const data = await cached(AREA_MONTHLY_KEY, INSIGHTS_TTL_MS, loadAreaMonthly)
     res.set('Cache-Control', 'public, max-age=1800')
     res.json(data)
   } catch (err) {
-    console.error('[market/area-yearly] error:', err)
+    console.error('[market/area-monthly] error:', err)
     res.status(500).json({ error: 'internal error' })
   }
 })
+
 
 /** GET /area-appreciation — 全部官方区各周期增值率(三口径),地图按周期上色用。 */
 router.get('/area-appreciation', async (_req: Request, res: Response) => {
@@ -1303,7 +1349,7 @@ async function warmAreaInsights() {
     await yieldToLiveTraffic()
     try { prime(ALL_AREA_APPR_KEY, await loadAllAreaAppreciation()) } catch { /* 非致命 */ }
     await yieldToLiveTraffic()
-    try { prime(AREA_YEARLY_KEY, await loadAreaYearly()) } catch { /* 非致命 */ }
+    try { prime(AREA_MONTHLY_KEY, await loadAreaMonthly()) } catch { /* 非致命 */ }
     const r = await pool.query(`SELECT id FROM dubai_areas WHERE visible = true`)
     let ok = 0
     const want = r.rows.length * WARM_USAGES.length

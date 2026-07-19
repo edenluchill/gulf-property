@@ -5,8 +5,8 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
 import {
-  TIMELINE_METRICS, cellValue,
-  type TimelineMetric, type AreaYearly,
+  TIMELINE_METRICS, valueAt, formatMonth, yearTicks,
+  type TimelineMetric, type AreaMonthly,
 } from '../lib/map/timeline'
 import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
 import { createMapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
@@ -48,7 +48,7 @@ import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart,
-  Clock, Award, History, Play, Pause
+  Clock, Award, Play, Pause
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
@@ -69,7 +69,7 @@ import {
   fetchCustomRoutesGeoJSON,
   fetchDataVersion,
   fetchAllAreaAppreciation,
-  fetchAreaYearly,
+  fetchAreaMonthly,
   AllAreaAppreciation,
   TransportGeoJSON,
   MapPinProject
@@ -432,48 +432,46 @@ export default function MapPage() {
   // 数据一次全取(≈200 区 × 6 年,很小),切年零请求 —— 见 lib/map/timeline.ts 文件头。
   const [timelineOn, setTimelineOn] = useState(false)
   const [timelineMetric, setTimelineMetric] = useState<TimelineMetric>('medianRent')
-  const [timelineYear, setTimelineYear] = useState<number | null>(null)
-  const [yearlyData, setYearlyData] = useState<AreaYearly | null>(null)
+  /** 月轴上的帧位置(下标,不是年份)。连续拖动就是改它。 */
+  const [timelineIdx, setTimelineIdx] = useState(0)
+  const [monthlyData, setMonthlyData] = useState<AreaMonthly | null>(null)
   const [timelinePlaying, setTimelinePlaying] = useState(false)
   useEffect(() => {
-    if (!timelineOn || yearlyData) return
+    if (!timelineOn || monthlyData) return
     let alive = true
-    fetchAreaYearly().then(d => {
-      if (!alive || !d) return
-      setYearlyData(d)
-      // 默认停在最后一个**完整**年份 —— YTD 那年是半年数据,不该当默认门面。
-      const full = d.ytdYear ? d.years.filter(y => y !== d.ytdYear) : d.years
-      setTimelineYear(full[full.length - 1] ?? d.years[d.years.length - 1] ?? null)
+    fetchAreaMonthly().then((d: AreaMonthly | null) => {
+      if (!alive || !d?.months?.length) return
+      setMonthlyData(d)
+      setTimelineIdx(d.months.length - 1)   // 默认停在最新
     })
     return () => { alive = false }
-  }, [timelineOn, yearlyData])
-  // 播放:每 900ms 前进一年,走到头停住(不循环 —— 循环会让人以为数据在抖)。
+  }, [timelineOn, monthlyData])
+  // 播放:每 140ms 前进一个月(67 帧约 9 秒放完),走到头停住 —— 不循环,
+  // 循环会让人以为数据在抖。
   useEffect(() => {
-    if (!timelinePlaying || !yearlyData || timelineYear == null) return
+    if (!timelinePlaying || !monthlyData) return
     const id = setTimeout(() => {
-      const i = yearlyData.years.indexOf(timelineYear)
-      if (i < 0 || i >= yearlyData.years.length - 1) { setTimelinePlaying(false); return }
-      setTimelineYear(yearlyData.years[i + 1])
-    }, 900)
+      setTimelineIdx(i => {
+        if (i >= monthlyData.months.length - 1) { setTimelinePlaying(false); return i }
+        return i + 1
+      })
+    }, 140)
     return () => clearTimeout(id)
-  }, [timelinePlaying, timelineYear, yearlyData])
-  // 标签年份**滞后**于填充年份 120ms。
-  //
-  // 为什么要分开:换年时填充色只是一次 setPaintProperty(GPU 侧换个 attribute,几乎
-  // 免费),但标签换 text-field 会触发整个 symbol 图层重排 —— 232 个标签要重跑碰撞
-  // 检测,实测是切年开销的大头。连点/播放时让标签只在停下来后排一次,填充仍然帧帧
-  // 跟手 —— 观感是「颜色瞬间响应、数字随后落位」,比两者一起卡顿好得多。
-  const [labelYear, setLabelYear] = useState<number | null>(null)
+  }, [timelinePlaying, timelineIdx, monthlyData])
+  // 标签帧**滞后**于填充帧 140ms。
+  // 填充色走 feature-state(每帧 ~180 次微秒级调用,可以帧帧跟手);标签是 layout
+  // 属性读不到 feature-state,只能重建那个点 source + 让 symbol 图层重排碰撞检测。
+  // 拖动时让标签只在停下后排一次 —— 观感是「颜色瞬间跟手、数字随后落位」。
+  const [labelIdx, setLabelIdx] = useState(0)
   useEffect(() => {
-    if (timelineYear == null) return
-    const id = setTimeout(() => setLabelYear(timelineYear), 120)
+    const id = setTimeout(() => setLabelIdx(timelineIdx), 140)
     return () => clearTimeout(id)
-  }, [timelineYear])
+  }, [timelineIdx])
   const timelineProp = useMemo(
-    () => (timelineOn && yearlyData && timelineYear != null
-      ? { year: timelineYear, labelYear: labelYear ?? timelineYear, metric: timelineMetric, data: yearlyData }
+    () => (timelineOn && monthlyData
+      ? { index: timelineIdx, labelIndex: labelIdx, metric: timelineMetric, data: monthlyData }
       : null),
-    [timelineOn, yearlyData, timelineYear, labelYear, timelineMetric]
+    [timelineOn, monthlyData, timelineIdx, labelIdx, timelineMetric]
   )
   const exitTimeline = () => { setTimelineOn(false); setTimelinePlaying(false) }
 
@@ -952,7 +950,7 @@ export default function MapPage() {
     // 时间轴三件套必须一起跟 —— 只跟开关不跟年份,客户看到的就是另一年的图。
     if (st.timelineOn !== undefined) setTimelineOn(st.timelineOn)
     if (st.timelineMetric !== undefined) setTimelineMetric(st.timelineMetric as TimelineMetric)
-    if (st.timelineYear !== undefined) setTimelineYear(st.timelineYear)
+    if (st.timelineIdx !== undefined) setTimelineIdx(st.timelineIdx)
   }, [])
 
   const mapStateSync = useCollabMapState({
@@ -973,11 +971,11 @@ export default function MapPage() {
       poiCategories: enabledPoiCategories,
       baseMap,
       timelineOn,
-      timelineYear,
+      timelineIdx,
       timelineMetric,
     })
   }, [collabMode, mapStateSync, areaMetric, filters, showCards, showTransit, enabledPoiCategories, baseMap,
-      timelineOn, timelineYear, timelineMetric])
+      timelineOn, timelineIdx, timelineMetric])
 
   // 带看结束 → 清掉这场画的所有标注 + 测距尺。
   //
@@ -1245,6 +1243,8 @@ export default function MapPage() {
   const [guidedTour, setGuidedTour] = useState<GuidedTourPayload | null>(null)
   // Dev-only test hook so the guided tour can be driven without the live voice pipeline.
   if (import.meta.env.DEV) (window as any).__lunaGuidedTour = setGuidedTour
+  // DEV 探针:区域图层排障用(0 个多边形时先看这里是数据没到还是渲染没接上)
+  if (import.meta.env.DEV) (window as any).__mapDiag = { areas: dubaiAreas.length, mapAreas: mapAreas.length, segment: marketSegment }
   // 区域面板的子状态(tab + 口径)—— **canonical,跨设备统一,collab 同步的线格式**。
   //
   // ⚠️ 桌面 dialog 有三个 tab(成交/租金/项目),移动 sheet 只有两个(市场/项目)。
@@ -1726,6 +1726,7 @@ export default function MapPage() {
             onAreaClick={handleAreaClick}
             areaMetric={areaMetric}
             timeline={timelineProp}
+            onEnterTimeline={() => setTimelineOn(true)}
             dubaiAreas={mapAreas}
             dubaiLandmarks={dubaiLandmarks}
             showDubaiLayer
@@ -1739,7 +1740,8 @@ export default function MapPage() {
             //    而不是把全城几十个 POI 一直摊在客户脸上。
             //
             //    3D 地标 / 区域色块 / 地铁线图层**不受影响**（owner 要保留）。
-            showPois={showPois && !tourCode}
+            // 时间轴模式一并收起 POI 图标层 —— 理由同项目卡:几十个蓝圈盖住色块。
+            showPois={showPois && !tourCode && !timelineOn}
             onPoiClick={setSelectedPoi}
             onStationClick={setSelectedStation}
             onLandmarkClick={setSelectedLandmark}
@@ -2107,8 +2109,6 @@ export default function MapPage() {
                   ⚠️ 时间轴入口刻意塞进**这一行**(而不是新起一行):控制卡每加一行,
                   下面工具卡的 top-[124px]/[164px] 就得跟着重算并三档截图 —— 那条耦合
                   已经栽过两次。横向挤进已有行 = 卡高不变 = 零风险。 */}
-              <div className="flex items-stretch gap-1">
-              <div className="min-w-0 flex-1">
               {(() => {
                 const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
                 // 租金回报永远是"现有房源出租"的全口径数据(期房自己没有租金),
@@ -2135,17 +2135,6 @@ export default function MapPage() {
                   </div>
                 )
               })()}
-              </div>
-              <button
-                type="button"
-                onClick={() => setTimelineOn(true)}
-                className="flex w-6 md:w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-slate-100 active:scale-90"
-                title={t('map:timeline.enter')}
-                aria-label={t('map:timeline.enter')}
-              >
-                <History className="w-3 h-3 md:w-3.5 md:h-3.5" />
-              </button>
-              </div>
             </div>
           </div>
 
@@ -2208,56 +2197,68 @@ export default function MapPage() {
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                {!yearlyData || timelineYear == null ? (
+                {!monthlyData ? (
                   <div className="py-2 text-center text-[11px] text-slate-400">{t('common:loading', { defaultValue: 'Loading…' })}</div>
                 ) : (
                   <>
-                    {/* 第二行:播放 + 刻度。用离散年份按钮而不是连续 slider ——
-                        只有 6 格,按钮比滑块好点(尤其手机),也不会滑到"2023.4 年"这种
-                        没有意义的中间态。 */}
-                    <div className="flex items-center gap-1.5">
+                    {/* 第二行:播放 + 连续拖动条。
+                        67 个月用离散按钮放不下,必须是 range —— 而且「慢慢拖着看变化」
+                        本来就要连续输入。onChange 每一步只改 index,着色走 feature-state,
+                        不重建任何数据(见 lib/map/timeline.ts 铁律 1)。 */}
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          // 已在末年时按播放 → 从头放,否则接着放
-                          const last = yearlyData.years[yearlyData.years.length - 1]
-                          if (!timelinePlaying && timelineYear === last) setTimelineYear(yearlyData.years[0])
+                          const last = monthlyData.months.length - 1
+                          if (!timelinePlaying && timelineIdx >= last) setTimelineIdx(0)
                           setTimelinePlaying(p => !p)
                         }}
                         aria-label={t(timelinePlaying ? 'map:timeline.pause' : 'map:timeline.play')}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition active:scale-90"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition active:scale-90"
                       >
-                        {timelinePlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                        {timelinePlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                       </button>
-                      <div className="flex min-w-0 flex-1 gap-0.5">
-                        {yearlyData.years.map(y => (
-                          <button
-                            key={y}
-                            onClick={() => { setTimelinePlaying(false); setTimelineYear(y) }}
-                            className={`min-w-0 flex-1 rounded-md py-1 text-[10px] md:text-[11px] font-semibold tabular-nums transition-all duration-150 active:scale-95 ${
-                              timelineYear === y
-                                ? 'bg-slate-800 text-white shadow-sm'
-                                : 'text-slate-500 hover:bg-slate-100'
-                            }`}
-                          >
-                            {y}
-                            {y === yearlyData.ytdYear && <span className="opacity-60">*</span>}
-                          </button>
-                        ))}
+                      <div className="min-w-0 flex-1">
+                        <input
+                          type="range"
+                          min={0}
+                          max={monthlyData.months.length - 1}
+                          step={1}
+                          value={timelineIdx}
+                          onChange={e => { setTimelinePlaying(false); setTimelineIdx(Number(e.target.value)) }}
+                          aria-label={t('map:timeline.enter')}
+                          className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-primary
+                                     [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
+                                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
+                                     [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-md"
+                        />
+                        {/* 年份刻度 —— 67 格不打刻度根本看不出拖到哪年了 */}
+                        <div className="relative mt-1 h-3">
+                          {yearTicks(monthlyData.months).map(tk => (
+                            <button
+                              key={tk.year}
+                              onClick={() => { setTimelinePlaying(false); setTimelineIdx(tk.index) }}
+                              className="absolute -translate-x-1/2 text-[9px] tabular-nums text-slate-400 transition hover:text-primary"
+                              style={{ left: `${(tk.index / (monthlyData.months.length - 1)) * 100}%` }}
+                            >
+                              {tk.year}
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                      <span className="w-[68px] shrink-0 text-end text-[11px] font-semibold tabular-nums text-slate-700 md:w-[80px] md:text-xs">
+                        {formatMonth(monthlyData.months[timelineIdx], i18n.language || 'en')}
+                      </span>
                     </div>
                     {/* 第三行:口径说明 + 覆盖度。**必须常显** —— 时间轴最容易被误读成
-                        "全城都有数",实际上样本不足的区是灰的。 */}
+                        「全城都有数」,实际上样本不足的区是灰的;而且这里是滚动窗口值,
+                        不是当月值,不写清楚就是在误导。 */}
                     <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 text-[9px] md:text-[10px] leading-tight text-slate-400">
-                      <span className="truncate">
-                        {t(`map:timeline.caption.${timelineMetric}` as any)}
-                        {timelineYear === yearlyData.ytdYear && ` · ${t('map:timeline.ytd')}`}
-                      </span>
+                      <span className="truncate">{t(`map:timeline.caption.${timelineMetric}` as any)}</span>
                       <span className="shrink-0 tabular-nums">
-                        {(() => {
-                          const n = Object.values(yearlyData.areas)
-                            .filter(a => cellValue(a[String(timelineYear)], timelineMetric) != null).length
-                          return t('map:timeline.coverage', { count: n })
-                        })()}
+                        {t('map:timeline.coverage', {
+                          count: Object.keys(monthlyData.areas)
+                            .filter(id => valueAt(monthlyData, id, timelineMetric, timelineIdx) != null).length
+                        })}
                       </span>
                     </div>
                   </>
