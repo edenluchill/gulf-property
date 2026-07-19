@@ -1,0 +1,108 @@
+{
+  "honesty": {
+    "dldBody": "Le prix d'achat et la superficie du bien proviennent des types d'unités enregistrés par le promoteur. Les frais de service correspondent à un tarif réel en AED-per-sqft — celui du projet si disponible, sinon le tarif de la communauté issu des déclarations de l'association des propriétaires du DLD — et non à un pourcentage générique. Le rendement locatif correspond au loyer médian des nouveaux baux de la zone divisé par son prix de transaction médian, selon les registres du DLD.",
+    "title": "D'où proviennent les chiffres",
+    "dldTitle": "Données réelles",
+    "assumptionTitle": "Vos hypothèses",
+    "assumptionBody": "L'apport personnel, le taux d'intérêt, la durée du prêt, la durée de détention et la volatilité de la croissance sont des variables saisies et non des mesures. Modifiez-les et toute la distribution évoluera.",
+    "vacancyTitle": "Vacance : nous n'avons pas de données",
+    "vacancyBody": "Ejari n'enregistre que les baux effectivement signés — un appartement qui ne se loue jamais n'apparaît pas dans la base de données. Le taux de vacance ici est une hypothèse de marché modélisée, pas une valeur observée.",
+    "growthTitle": "Croissance des prix : notre historique est un boom",
+    "growthBody": "Notre historique des transactions commence en 2021, couvrant la plus forte hausse de l'histoire de Dubaï. L'utiliser comme projection future surestime les rendements d'une manière qui valorise excessivement l'achat. C'est pourquoi le taux par défaut est fixé à un niveau conservateur de 3% et le chiffre historique n'est accessible que via un bouton."
+  },
+  "detail": {
+    "maintenanceArea": "AED {{rate}}/sqft × {{area}} sqft — tarif communautaire de {{areaName}} issu des déclarations de l'association des copropriétaires du DLD, non spécifique à ce projet",
+    "yield": "{{area}} · {{count}} contrats de location · jusqu'au {{through}}",
+    "maintenance": "AED {{rate}}/sqft × {{area}} sqft, d'après les charges de copropriété déclarées du projet"
+  },
+  "nav": "Analyse",
+  "title": "Simulateur de rendement immobilier",
+  "subtitle": "10 000 simulations Monte Carlo sur votre unité réelle. Le prix, les charges de copropriété et le rendement locatif de la zone proviennent de données réelles — tout le reste est clairement indiqué comme hypothèse.",
+  "seo": {
+    "title": "Simulateur de rendement immobilier Dubaï — TRI Monte Carlo | Pinzos",
+    "description": "Simulez 10 000 scénarios pour un investissement immobilier à Dubaï. Le prix d'achat, les charges de copropriété et le rendement locatif de la zone sont issus des données réelles du DLD et du promoteur ; les hypothèses sont étiquetées comme telles."
+  },
+  "badge": {
+    "dld": "Mesuré",
+    "assumption": "Votre hypothèse"
+  },
+  "section": {
+    "property": "Propriété",
+    "market": "Hypothèses de marché"
+  },
+  "field": {
+    "price": "Prix d'achat",
+    "downPct": "Apport personnel",
+    "ratePct": "Taux d'intérêt",
+    "loanYears": "Durée du prêt",
+    "holdYears": "Durée de détention",
+    "yieldPct": "Rendement locatif brut",
+    "yieldBand": "Échantillonné sur {{band}} (triangulaire)",
+    "growthMeanPct": "Croissance annuelle des prix (moyenne)",
+    "growthSdPct": "Volatilité de la croissance (σ)",
+    "growthSdHint": "Une volatilité plus élevée élargit l'écart des résultats dans les deux sens.",
+    "vacancyPct": "Taux de vacance",
+    "vacancyHint": "Hypothèse de marché — nous n'avons pas de données sur la vacance. Ejari n'enregistre que les baux signés.",
+    "maintenancePct": "Charges de copropriété annuelles"
+  },
+  "unit": {
+    "years": "ans"
+  },
+  "growth": {
+    "useHistorical": "Utiliser le taux historique de cette zone ({{value}}%)",
+    "boomWarning": "Nos données ne couvrent que la période 2021-2025, un boom post-pandémie exceptionnel. Extrapoler ces chiffres surestimera les rendements. Le taux par défaut de 3% est volontairement conservateur."
+  },
+  "picker": {
+    "searchPlaceholder": "Rechercher un projet, un quartier ou un promoteur",
+    "noResults": "Aucun projet correspondant",
+    "noUnits": "Ce projet n'a aucun type d'unité enregistré.",
+    "unitLabel": "Type d'unité",
+    "change": "Changer de projet",
+    "rateLimited": "Trop de recherches — veuillez patienter un instant et réessayer."
+  },
+  "summary": {
+    "down": "{{pct}}% d'apport",
+    "rate": "taux de {{pct}}%",
+    "hold": "détention {{years}} ans"
+  },
+  "empty": {
+    "needPrice": "Saisissez un prix d'achat pour lancer la simulation.",
+    "computing": "Calcul de 10 000 simulations…"
+  },
+  "stat": {
+    "medianIrr": "TRI médian",
+    "pLoss": "Probabilité de perte",
+    "pAbove10": "Probabilité de TRI > 10%",
+    "sd": "Écart-type"
+  },
+  "chart": {
+    "hist": {
+      "title": "Distribution des rendements",
+      "sub": "{{runs}} simulations. Les barres rouges représentent les scénarios de perte ; la ligne noire est la médiane."
+    },
+    "percentiles": {
+      "title": "Percentiles",
+      "sub": "P25 signifie : dans 25% des simulations, le TRI était égal ou inférieur à cette valeur."
+    },
+    "cdf": {
+      "title": "Probabilité cumulée",
+      "sub": "Lecture : la probabilité que le TRI soit égal ou inférieur à un niveau donné. La ligne pointillée représente le seuil de rentabilité."
+    },
+    "hold": {
+      "title": "Sensibilité à la durée de détention",
+      "sub": "Les barres représentent le TRI médian ; les moustaches représentent P25–P75. Toutes les périodes partagent les mêmes tirages, les différences proviennent donc de la durée de détention elle-même."
+    },
+    "scatter": {
+      "title": "Croissance des prix vs TRI",
+      "sub": "Échantillon de 2 000 simulations. Plus la bande est étroite, plus votre résultat dépend de la croissance des prix plutôt que des loyers."
+    }
+  },
+  "mobile": {
+    "adjust": "Ajuster les paramètres",
+    "panelTitle": "Paramètres de simulation",
+    "close": "Fermer"
+  },
+  "entry": {
+    "simulateUnit": "Simuler le rendement de cette unité"
+  }
+}

@@ -13,6 +13,7 @@ import {
 import { isR2PdfCacheUrl } from '../services/r2-storage'
 import { requireAuth } from '../middleware/auth'
 import { requireUploader } from '../middleware/requireUploader'
+import { publicSearchLimit } from '../middleware/publicSearchLimit'
 import { invalidateProjectInsights } from '../services/projectInsights'
 
 const MONTH_NAMES: Record<string, number> = {
@@ -481,6 +482,38 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
     } catch (error) {
       console.error('Error resolving area:', error)
       res.status(500).json({ success: false, error: 'Failed to resolve area' })
+    }
+  })
+
+  // ============================================================================
+  // GET /api/residential-projects/search?q=
+  // ANONYMOUS project autocomplete for public tools (ROI simulator at /roi).
+  //
+  // The agent-side twin is `/api/luna/agent/projects/search`. Do NOT point public
+  // pages at that one — it sits in the agent namespace and gets agent-only
+  // behaviour over time. This route is the deliberately narrow public surface:
+  //   • per-IP 429 in the data layer (publicSearchLimit), not a UI-side debounce
+  //   • only already-public catalogue columns; no min/max price ranges beyond
+  //     what the map pins already expose, no developer contact, no unit rows
+  //   • hard LIMIT 12, q >= 2 chars (1 char returns the whole alphabet's worth)
+  // ============================================================================
+  router.get('/search', publicSearchLimit, async (req: Request, res: Response) => {
+    try {
+      const q = String(req.query.q || '').trim()
+      if (q.length < 2) return res.json({ projects: [] })
+      const like = `%${q.replace(/[%_\\]/g, '')}%`
+      const { rows } = await pool.query(
+        `SELECT id::text, project_name, area, developer, primary_image, min_price
+           FROM residential_projects
+          WHERE project_name ILIKE $1 OR area ILIKE $1 OR developer ILIKE $1
+          ORDER BY (project_name ILIKE $1) DESC, project_name
+          LIMIT 12`,
+        [like]
+      )
+      res.json({ projects: rows })
+    } catch (error) {
+      console.error('Error searching projects:', error)
+      res.status(500).json({ error: 'search failed' })
     }
   })
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/ui/button'
-import { ArrowLeft, Bed, Bath, Maximize, ZoomIn } from 'lucide-react'
+import { ArrowLeft, Bed, Bath, Maximize, ZoomIn, LineChart } from 'lucide-react'
 import { formatPrice } from '../../lib/utils'
 import { UnitType, PaymentPlan } from '../../types'
 import { UnitTypeFavoriteButton } from '../../components/favorites'
@@ -37,6 +38,7 @@ export function UnitTypesSubPage({
   paymentPlan,
 }: UnitTypesSubPageProps) {
   const { i18n } = useTranslation()
+  const { t: tRoi } = useTranslation('roi')
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const selectedUnit = unitTypes.find(u => u.id === selectedUnitId) || unitTypes[0]
 
@@ -193,6 +195,15 @@ export function UnitTypesSubPage({
                 paymentPlan={paymentPlan}
                 lang={i18n.language}
               />
+
+              {/* 转化价值最高的模拟器入口:参数(总价/面积/物业费/区域回报)全预填成真实值 */}
+              <Link
+                to={`/roi?project=${encodeURIComponent(projectId)}&unit=${encodeURIComponent(selectedUnit.id)}`}
+                className="mt-6 inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-medium text-teal-700 transition hover:bg-teal-100"
+              >
+                <LineChart className="h-4 w-4" />
+                {tRoi('entry.simulateUnit')}
+              </Link>
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-slate-400">

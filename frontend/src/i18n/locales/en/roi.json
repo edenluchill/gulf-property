@@ -1,0 +1,108 @@
+{
+  "nav": "Analysis",
+  "title": "Property Return Simulator",
+  "subtitle": "10,000 Monte Carlo runs on your actual unit. Price, service charge and area rental yield come from real data — everything else is clearly marked as an assumption.",
+  "seo": {
+    "title": "Dubai Property Return Simulator — Monte Carlo IRR | Pinzos",
+    "description": "Simulate 10,000 outcomes for a Dubai property investment. Purchase price, service charge and area rental yield are filled from real DLD and developer data; assumptions are labelled as such."
+  },
+  "badge": {
+    "dld": "Measured",
+    "assumption": "Your assumption"
+  },
+  "section": {
+    "property": "Property",
+    "market": "Market assumptions"
+  },
+  "field": {
+    "price": "Purchase price",
+    "downPct": "Down payment",
+    "ratePct": "Mortgage rate",
+    "loanYears": "Loan term",
+    "holdYears": "Holding period",
+    "yieldPct": "Gross rental yield",
+    "yieldBand": "Sampled across {{band}} (triangular)",
+    "growthMeanPct": "Annual price growth (mean)",
+    "growthSdPct": "Growth volatility (σ)",
+    "growthSdHint": "Higher volatility widens the outcome spread in both directions.",
+    "vacancyPct": "Vacancy rate",
+    "vacancyHint": "Market assumption — we have no vacancy data. Ejari only records leases that were signed.",
+    "maintenancePct": "Annual service charge"
+  },
+  "unit": {
+    "years": "y"
+  },
+  "detail": {
+    "yield": "{{area}} · {{count}} lease contracts · through {{through}}",
+    "maintenance": "AED {{rate}}/sqft × {{area}} sqft, from the project's filed service charge",
+    "maintenanceArea": "AED {{rate}}/sqft × {{area}} sqft — {{areaName}} community rate from DLD owners-association filings, not this project's own"
+  },
+  "growth": {
+    "useHistorical": "Use this area's historical rate ({{value}}%)",
+    "boomWarning": "Our data only covers 2021–2025, an exceptional post-pandemic boom. Extrapolating it forward will overstate returns. The default 3% is deliberately conservative."
+  },
+  "picker": {
+    "searchPlaceholder": "Search a project, area or developer",
+    "noResults": "No matching projects",
+    "noUnits": "This project has no unit types on file.",
+    "unitLabel": "Unit type",
+    "change": "Change project",
+    "rateLimited": "Too many searches — please wait a moment and try again."
+  },
+  "summary": {
+    "down": "{{pct}}% down",
+    "rate": "{{pct}}% rate",
+    "hold": "hold {{years}}y"
+  },
+  "empty": {
+    "needPrice": "Enter a purchase price to run the simulation.",
+    "computing": "Running 10,000 simulations…"
+  },
+  "stat": {
+    "medianIrr": "Median IRR",
+    "pLoss": "Chance of losing money",
+    "pAbove10": "Chance IRR > 10%",
+    "sd": "Standard deviation"
+  },
+  "chart": {
+    "hist": {
+      "title": "Distribution of returns",
+      "sub": "{{runs}} runs. Red bars are outcomes where you lose money; the black line is the median."
+    },
+    "percentiles": {
+      "title": "Percentiles",
+      "sub": "P25 means: in 25% of runs the IRR was at or below this."
+    },
+    "cdf": {
+      "title": "Cumulative probability",
+      "sub": "Read it as: the chance the IRR lands at or below a given level. The dashed line is break-even."
+    },
+    "hold": {
+      "title": "Holding period sensitivity",
+      "sub": "Bars are the median IRR; whiskers are P25–P75. All periods share the same draws, so the differences are the holding period itself, not sampling noise."
+    },
+    "scatter": {
+      "title": "Price growth vs IRR",
+      "sub": "2,000 sampled runs. The tighter the band, the more your outcome depends on price growth rather than rent."
+    }
+  },
+  "honesty": {
+    "title": "Where each number comes from",
+    "dldTitle": "Filled from real data",
+    "dldBody": "Purchase price and unit size come from the developer's filed unit types. The service charge is a real AED-per-sqft rate — the project's own where we have it, otherwise the community rate from DLD owners-association filings — not a generic percentage. Rental yield is the area's median new lease divided by its median transaction price, from DLD records.",
+    "assumptionTitle": "Your assumptions",
+    "assumptionBody": "Down payment, mortgage rate, loan term, holding period and growth volatility are inputs, not measurements. Change them and the whole distribution moves.",
+    "vacancyTitle": "Vacancy: we have no data on this",
+    "vacancyBody": "Ejari only records leases that were actually signed — a flat that never rents out never enters the database. The vacancy figure here is a market assumption with an assumed shape, not an observed value.",
+    "growthTitle": "Price growth: our history is a boom",
+    "growthBody": "Our transaction history starts in 2021, which covers the strongest run in Dubai's history. Using it as a forward prior overstates returns, and it overstates them in the direction that makes buying look good. That is why the default is a conservative 3% and the historical figure sits behind a button."
+  },
+  "mobile": {
+    "adjust": "Adjust inputs",
+    "panelTitle": "Simulation inputs",
+    "close": "Close"
+  },
+  "entry": {
+    "simulateUnit": "Simulate this unit's returns"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "nav": "分析",
+  "title": "房产投资收益模拟器",
+  "subtitle": "对你选中的这套房跑 1 万次蒙特卡洛。总价、物业费、区域租金回报来自真实数据，其余每一项都明确标注为假设。",
+  "seo": {
+    "title": "迪拜房产收益模拟器 — 蒙特卡洛 IRR | Pinzos",
+    "description": "对一套迪拜房产模拟 1 万种可能结果。购房总价、物业费、区域租金回报由 DLD 与开发商真实数据自动填入，假设项一律如实标注。"
+  },
+  "badge": {
+    "dld": "实测",
+    "assumption": "你的假设"
+  },
+  "section": {
+    "property": "房源",
+    "market": "市场假设"
+  },
+  "field": {
+    "price": "购房总价",
+    "downPct": "首付比例",
+    "ratePct": "贷款年利率",
+    "loanYears": "贷款年限",
+    "holdYears": "持有年限",
+    "yieldPct": "毛租金回报率",
+    "yieldBand": "抽样区间 {{band}}（三角分布）",
+    "growthMeanPct": "房价年涨幅（均值）",
+    "growthSdPct": "涨幅波动率（σ）",
+    "growthSdHint": "波动率越大，结果向两边散得越开。",
+    "vacancyPct": "空置率",
+    "vacancyHint": "市场假设 —— 我们没有这项数据。Ejari 只登记签成的租约。",
+    "maintenancePct": "年物业费率"
+  },
+  "unit": {
+    "years": "年"
+  },
+  "detail": {
+    "yield": "{{area}} · {{count}} 份租约 · 数据截至 {{through}}",
+    "maintenance": "AED {{rate}}/sqft × {{area}} sqft，取自该项目备案物业费",
+    "maintenanceArea": "AED {{rate}}/sqft × {{area}} sqft —— {{areaName}} 片区物业费（DLD 业主委员会备案），不是该项目自己的费率"
+  },
+  "growth": {
+    "useHistorical": "用本区历史值填入（{{value}}%）",
+    "boomWarning": "我们的数据只覆盖 2021–2025，而这恰好是迪拜史上最猛的后疫情繁荣期。直接外推会高估收益，因此默认值刻意给了保守的 3%。"
+  },
+  "picker": {
+    "searchPlaceholder": "搜索项目、区域或开发商",
+    "noResults": "没有匹配的项目",
+    "noUnits": "该项目暂无户型数据。",
+    "unitLabel": "户型",
+    "change": "换一个项目",
+    "rateLimited": "搜索太频繁了，稍等片刻再试。"
+  },
+  "summary": {
+    "down": "首付 {{pct}}%",
+    "rate": "利率 {{pct}}%",
+    "hold": "持有 {{years}} 年"
+  },
+  "empty": {
+    "needPrice": "填入购房总价即可开始模拟。",
+    "computing": "正在跑 1 万次模拟…"
+  },
+  "stat": {
+    "medianIrr": "IRR 中位数",
+    "pLoss": "亏钱概率",
+    "pAbove10": "IRR 超 10% 概率",
+    "sd": "标准差"
+  },
+  "chart": {
+    "hist": {
+      "title": "收益分布",
+      "sub": "共 {{runs}} 次。红色是亏钱的那些结果，黑线是中位数。"
+    },
+    "percentiles": {
+      "title": "分位数",
+      "sub": "P25 的意思是：有 25% 的模拟结果，IRR 不高于这个数。"
+    },
+    "cdf": {
+      "title": "累积概率",
+      "sub": "读法：IRR 落在某个水平及以下的概率有多大。虚线是盈亏平衡点。"
+    },
+    "hold": {
+      "title": "持有年限敏感性",
+      "sub": "柱子是中位 IRR，须线是 P25–P75。所有年限共用同一批抽样，所以差异来自年限本身，不掺抽样噪声。"
+    },
+    "scatter": {
+      "title": "房价涨幅 vs IRR",
+      "sub": "抽样 2000 次。带子越窄，说明你的收益越依赖房价上涨而不是租金。"
+    }
+  },
+  "honesty": {
+    "title": "每个数字从哪来",
+    "dldTitle": "由真实数据填入",
+    "dldBody": "购房总价和面积取自开发商备案的户型数据。物业费用的是真实的每平尺费率 —— 有项目自己的就用项目的，没有就用 DLD 业主委员会备案的片区费率 —— 不是一个通用百分比。租金回报是区域中位新签租金除以区域中位成交价，来自 DLD 记录。",
+    "assumptionTitle": "你的假设",
+    "assumptionBody": "首付、利率、贷款年限、持有年限和涨幅波动率都是输入项，不是观测值。改动它们，整个分布都会跟着动。",
+    "vacancyTitle": "空置率：我们没有这项数据",
+    "vacancyBody": "Ejari 只登记真正签成的租约 —— 一套始终租不出去的房子根本不会进数据库。这里的空置率是一个带假设形状的市场假设，不是观测值。",
+    "growthTitle": "房价涨幅：我们手上的历史是一段繁荣期",
+    "growthBody": "我们的成交数据始于 2021 年，这段时间覆盖了迪拜史上最强的一轮上涨。拿它当未来先验会高估收益，而且是朝着「让买房看起来划算」的方向高估。所以默认值是保守的 3%，历史值放在一个需要你主动点的按钮后面。"
+  },
+  "mobile": {
+    "adjust": "调整参数",
+    "panelTitle": "模拟参数",
+    "close": "关闭"
+  },
+  "entry": {
+    "simulateUnit": "模拟这套的收益"
+  }
+}

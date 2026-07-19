@@ -30,6 +30,7 @@ import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
 import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
+import RoiSimulatorPage from './pages/RoiSimulatorPage'  // /roi 蒙特卡洛收益模拟器(免登录可用)
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
@@ -163,6 +164,8 @@ function App() {
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        {/* 蒙特卡洛收益模拟器(可分享/可深链 ?project=&unit=;未登录买家也能用) */}
+        <Route path="/roi" element={<RoiSimulatorPage />} />
         <Route path="/areas" element={<AreaInsightsPage />} />
         <Route path="/report" element={<BuyingReportPage />} />
         <Route

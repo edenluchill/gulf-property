@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, TrendingUp, BarChart3 } from 'lucide-react'
+import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, TrendingUp, BarChart3, Calculator } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Sheet, SheetContent } from './ui/sheet'
@@ -15,7 +15,7 @@ import { Sheet, SheetContent } from './ui/sheet'
 export default function MobileNav() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useTranslation(['common', 'nav', 'auth'])
+  const { t } = useTranslation(['common', 'nav', 'auth', 'roi'])
   const { user, loading, isAdmin, canUpload } = useAuth()
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
@@ -41,6 +41,8 @@ export default function MobileNav() {
     { path: '/map', label: t('nav:explore'), icon: MapPin },
     { path: '/favorites', label: t('nav:favorites'), icon: Heart },
     { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp },
+    // 收益模拟器(免登录可用;标签走 roi 命名空间,不动 nav.json)
+    { path: '/roi', label: t('roi:nav'), icon: Calculator },
     // 管理 - 仅白名单 admin / uploader
     ...((isAdmin || canUpload === true) ? [{ path: 'admin-menu', label: t('nav:admin'), icon: Settings, isAdminTrigger: true }] : []),
     // 登录态还没确定时给占位,别默认画成「登录」—— 那等于在还不知道你是谁的时候就
@@ -52,7 +54,8 @@ export default function MobileNav() {
         : { path: '/login', label: t('auth:login', 'Login'), icon: LogIn },
   ]
 
-  const gridCols = ({ 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' } as Record<number, string>)[navItems.length] || 'grid-cols-4'
+  // 6 档是 admin/uploader 才会碰到的(多一个「管理」)。普通用户 5 档。
+  const gridCols = ({ 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6' } as Record<number, string>)[navItems.length] || 'grid-cols-4'
 
   const handleNavClick = (item: typeof navItems[0], e: React.MouseEvent) => {
     if ('isAdminTrigger' in item && item.isAdminTrigger) {

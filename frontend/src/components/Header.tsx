@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound, Calculator } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -30,7 +30,7 @@ const theme = {
 export default function Header() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useTranslation(['common', 'nav', 'auth'])
+  const { t } = useTranslation(['common', 'nav', 'auth', 'roi'])
   const { user, loading, isAdmin, canUpload } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
@@ -183,6 +183,11 @@ export default function Header() {
             {/* 成交记录（直达）— 买家查真实 transaction/rent */}
             <NavPill to="/transactions" active={location.pathname === '/transactions'} icon={TrendingUp}
               label={t('nav:transactions')}
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
+            {/* 收益模拟器(免登录可用;标签走自己的 roi 命名空间,不动 nav.json) */}
+            <NavPill to="/roi" active={location.pathname === '/roi'} icon={Calculator}
+              label={t('roi:nav')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {/* 身份入口:买家 → 个人中心;经纪 → 经纪台;未定/匿名 → 成为经纪(强调色) */}

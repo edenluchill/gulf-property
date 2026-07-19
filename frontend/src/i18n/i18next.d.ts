@@ -33,6 +33,7 @@ import clientReportEn from './locales/en/clientReport.json'
 import projectReportEn from './locales/en/projectReport.json'
 import factSheetEn from './locales/en/factSheet.json'
 import pricingEn from './locales/en/pricing.json'
+import roiEn from './locales/en/roi.json'
 
 declare module 'i18next' {
   interface CustomTypeOptions {
@@ -71,6 +72,7 @@ declare module 'i18next' {
       projectReport: typeof projectReportEn
       factSheet: typeof factSheetEn
       pricing: typeof pricingEn
+      roi: typeof roiEn
     }
   }
 }
