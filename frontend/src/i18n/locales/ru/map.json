@@ -133,5 +133,22 @@
     "offplan": "Off-plan",
     "ready": "Готовое",
     "dldSource": "Источник: Dubai Land Department · за последние 24 месяца · по {{month}}"
+  },
+  "timeline": {
+    "enter": "Таймлайн",
+    "play": "Воспроизвести",
+    "pause": "Пауза",
+    "ytd": "с начала года",
+    "metric": {
+      "medianRent": "Аренда",
+      "medianUnitPrice": "Цена продажи",
+      "growth": "Год к году"
+    },
+    "caption": {
+      "medianRent": "Медианная годовая аренда, новые договоры Ejari",
+      "medianUnitPrice": "Медианная цена продажи, квартиры и виллы",
+      "growth": "Изменение медианной цены за м² год к году"
+    },
+    "coverage": "{{count}} районов"
   }
 }

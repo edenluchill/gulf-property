@@ -4,6 +4,10 @@ import { reportFunnelStep } from '../lib/telemetry'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import MapViewMapLibre, { AreaMetric, TransportStation } from '../components/MapViewMapLibre'
+import {
+  TIMELINE_METRICS, cellValue,
+  type TimelineMetric, type AreaYearly,
+} from '../lib/map/timeline'
 import type { MapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
 import { createMapTourHandle } from '../luna-tour/map/mapTourHandle'  // Luna Tour (isolated)
 import { createAmbientLife } from '../luna-tour/map/ambientLife'  // Luna Tour 氛围层:海上的船 + 天上的飞机 (isolated)
@@ -44,7 +48,7 @@ import {
   Search, SlidersHorizontal, RefreshCw, Building2, MapPin, X,
   DollarSign, TrendingUp, BarChart3, Percent,
   Cross, GraduationCap, TrainFront, Phone, Globe, Navigation, ShoppingCart,
-  Clock, Award
+  Clock, Award, History, Play, Pause
 } from 'lucide-react'
 import { useDubaiPois, PoiCategory, POI_CATEGORIES, POI_GROUPS, Poi, PoiDetails, getCategoryInfo, fetchPoiDetails } from '../hooks/useDubaiPois'
 import { MapAction } from '../hooks/voice-assistant'
@@ -65,6 +69,7 @@ import {
   fetchCustomRoutesGeoJSON,
   fetchDataVersion,
   fetchAllAreaAppreciation,
+  fetchAreaYearly,
   AllAreaAppreciation,
   TransportGeoJSON,
   MapPinProject
@@ -420,6 +425,58 @@ export default function MapPage() {
     fetchAllAreaAppreciation().then(d => { if (alive && d) setAreaApprMap(d) })
     return () => { alive = false }
   }, [metricHasPeriod, areaApprMap])
+  // ───────────────── 时间轴模式 ─────────────────
+  // 独立「模式」而非又一个指标开关:进入后接管区域着色、并**隐藏**顶部控制卡/
+  // 搜索 dock/工具卡。这样年份与「指标周期」两个正交时间维度不会同屏打架,也绕开了
+  // 「上控制卡加一行就得同步改下工具卡 top-[124px]/[164px]」那条栽过两次的耦合。
+  // 数据一次全取(≈200 区 × 6 年,很小),切年零请求 —— 见 lib/map/timeline.ts 文件头。
+  const [timelineOn, setTimelineOn] = useState(false)
+  const [timelineMetric, setTimelineMetric] = useState<TimelineMetric>('medianRent')
+  const [timelineYear, setTimelineYear] = useState<number | null>(null)
+  const [yearlyData, setYearlyData] = useState<AreaYearly | null>(null)
+  const [timelinePlaying, setTimelinePlaying] = useState(false)
+  useEffect(() => {
+    if (!timelineOn || yearlyData) return
+    let alive = true
+    fetchAreaYearly().then(d => {
+      if (!alive || !d) return
+      setYearlyData(d)
+      // 默认停在最后一个**完整**年份 —— YTD 那年是半年数据,不该当默认门面。
+      const full = d.ytdYear ? d.years.filter(y => y !== d.ytdYear) : d.years
+      setTimelineYear(full[full.length - 1] ?? d.years[d.years.length - 1] ?? null)
+    })
+    return () => { alive = false }
+  }, [timelineOn, yearlyData])
+  // 播放:每 900ms 前进一年,走到头停住(不循环 —— 循环会让人以为数据在抖)。
+  useEffect(() => {
+    if (!timelinePlaying || !yearlyData || timelineYear == null) return
+    const id = setTimeout(() => {
+      const i = yearlyData.years.indexOf(timelineYear)
+      if (i < 0 || i >= yearlyData.years.length - 1) { setTimelinePlaying(false); return }
+      setTimelineYear(yearlyData.years[i + 1])
+    }, 900)
+    return () => clearTimeout(id)
+  }, [timelinePlaying, timelineYear, yearlyData])
+  // 标签年份**滞后**于填充年份 120ms。
+  //
+  // 为什么要分开:换年时填充色只是一次 setPaintProperty(GPU 侧换个 attribute,几乎
+  // 免费),但标签换 text-field 会触发整个 symbol 图层重排 —— 232 个标签要重跑碰撞
+  // 检测,实测是切年开销的大头。连点/播放时让标签只在停下来后排一次,填充仍然帧帧
+  // 跟手 —— 观感是「颜色瞬间响应、数字随后落位」,比两者一起卡顿好得多。
+  const [labelYear, setLabelYear] = useState<number | null>(null)
+  useEffect(() => {
+    if (timelineYear == null) return
+    const id = setTimeout(() => setLabelYear(timelineYear), 120)
+    return () => clearTimeout(id)
+  }, [timelineYear])
+  const timelineProp = useMemo(
+    () => (timelineOn && yearlyData && timelineYear != null
+      ? { year: timelineYear, labelYear: labelYear ?? timelineYear, metric: timelineMetric, data: yearlyData }
+      : null),
+    [timelineOn, yearlyData, timelineYear, labelYear, timelineMetric]
+  )
+  const exitTimeline = () => { setTimelineOn(false); setTimelinePlaying(false) }
+
   // 地图专用区域数组:选了指标时,把每区的指标值覆盖成所选周期+口径的窗口值,
   // 着色/标签随周期变。只喂给地图层,不动原 dubaiAreas(弹窗 selectedArea 仍取
   // 原数组,见 handleAreaClick)。undefined = 该区该周期样本不足 → 灰色。
@@ -892,6 +949,10 @@ export default function MapPage() {
     // 客户屏幕上却一个学校都没有,那这段话就是空的。
     if (st.poiCategories !== undefined) setEnabledPoiCategories(st.poiCategories as PoiCategory[])
     if (st.baseMap !== undefined) setBaseMap(st.baseMap as 'vector' | 'satellite' | 'dark')
+    // 时间轴三件套必须一起跟 —— 只跟开关不跟年份,客户看到的就是另一年的图。
+    if (st.timelineOn !== undefined) setTimelineOn(st.timelineOn)
+    if (st.timelineMetric !== undefined) setTimelineMetric(st.timelineMetric as TimelineMetric)
+    if (st.timelineYear !== undefined) setTimelineYear(st.timelineYear)
   }, [])
 
   const mapStateSync = useCollabMapState({
@@ -911,8 +972,12 @@ export default function MapPage() {
       showTransit,
       poiCategories: enabledPoiCategories,
       baseMap,
+      timelineOn,
+      timelineYear,
+      timelineMetric,
     })
-  }, [collabMode, mapStateSync, areaMetric, filters, showCards, showTransit, enabledPoiCategories, baseMap])
+  }, [collabMode, mapStateSync, areaMetric, filters, showCards, showTransit, enabledPoiCategories, baseMap,
+      timelineOn, timelineYear, timelineMetric])
 
   // 带看结束 → 清掉这场画的所有标注 + 测距尺。
   //
@@ -1660,6 +1725,7 @@ export default function MapPage() {
             onProjectClick={handleProjectClick}
             onAreaClick={handleAreaClick}
             areaMetric={areaMetric}
+            timeline={timelineProp}
             dubaiAreas={mapAreas}
             dubaiLandmarks={dubaiLandmarks}
             showDubaiLayer
@@ -1872,7 +1938,7 @@ export default function MapPage() {
           {/* 区域搜索 + 筛选 pills，浮在地图左上。collab: 经纪和客户都保留全部工具
               (客户要能自己搜/筛/逛 —— 跟随脱离后用 Free 态探索)。
               pad(md~xl)保持上下两行(搜索/筛选),并限宽给右侧紧凑控制卡让位,防 chips 钻到卡下面 */}
-          {(!tourCode || toolsRevealed) && (<>
+          {(!tourCode || toolsRevealed) && !timelineOn && (<>
           {/* 左上:筛选。手机(<md)竖排贴左边缘一列,每个筛选项直接可点(不再是「筛选」
               单按钮开抽屉 —— 2026-07-11 用户要求手机和桌面一样即点即用),popover 往右
               飞出,地图中间不被压。md+ 保持搜索在上、chips 横排在下。 */}
@@ -1948,7 +2014,7 @@ export default function MapPage() {
 
 
           {/* Luna Tour: hide search controls while playing; reveal them on pause */}
-          {(!tourCode || toolsRevealed) && (<>
+          {(!tourCode || toolsRevealed) && !timelineOn && (<>
           {/* (移除了移动端「当前指标」指示器:右上指标条已高亮选中项,地图每个区也直接
               显示指标值,这个左上 pill 既冗余又会和筛选/找房助手按钮重叠。) */}
 
@@ -2037,7 +2103,12 @@ export default function MapPage() {
                 </button>
               </div>
               {/* 只有图标分不清选了哪个指标(两个 $ 图标长一样)→ 底部常显一条文字标签:
-                  选中时显示指标名,未选时提示可点选,卡片高度稳定不跳动。 */}
+                  选中时显示指标名,未选时提示可点选,卡片高度稳定不跳动。
+                  ⚠️ 时间轴入口刻意塞进**这一行**(而不是新起一行):控制卡每加一行,
+                  下面工具卡的 top-[124px]/[164px] 就得跟着重算并三档截图 —— 那条耦合
+                  已经栽过两次。横向挤进已有行 = 卡高不变 = 零风险。 */}
+              <div className="flex items-stretch gap-1">
+              <div className="min-w-0 flex-1">
               {(() => {
                 const active = METRIC_OPTIONS.find(o => o.value === areaMetric)
                 // 租金回报永远是"现有房源出租"的全口径数据(期房自己没有租金),
@@ -2064,6 +2135,17 @@ export default function MapPage() {
                   </div>
                 )
               })()}
+              </div>
+              <button
+                type="button"
+                onClick={() => setTimelineOn(true)}
+                className="flex w-6 md:w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-all duration-150 hover:bg-slate-100 active:scale-90"
+                title={t('map:timeline.enter')}
+                aria-label={t('map:timeline.enter')}
+              >
+                <History className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              </button>
+              </div>
             </div>
           </div>
 
@@ -2091,6 +2173,99 @@ export default function MapPage() {
           {/* Area fly-to removed — now controlled by AI voice assistant */}
           {/* (原桌面 xl 展开长条 metric/POI 面板已删——全断点统一上面的紧凑卡) */}
           </>)}
+
+          {/* ───────── 时间轴条(模式内唯一可操作的东西) ─────────
+              手机必须用 fixed 不能用 absolute:MobileNav/Luna 都是 fixed 贴可见视口底边,
+              而地图容器在 h-screen(=100vh)里 —— 手机浏览器的 100vh 是「工具栏收起时」
+              的大视口,用 absolute 贴容器底会压住导航栏(同搜索 dock 那条实锤)。
+              nav h-16(64px) → 76px 起,和搜索 dock 同一基线。 */}
+          {timelineOn && (
+            <div
+              className="fixed inset-x-2 z-[1002] md:inset-x-auto md:start-1/2 md:w-[560px] md:-translate-x-1/2"
+              style={{ bottom: 76 }}
+            >
+              <div className="rounded-2xl bg-white/95 p-2.5 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+                {/* 第一行:指标切换 + 退出 */}
+                <div className="mb-2 flex items-center gap-1">
+                  <div className="flex min-w-0 flex-1 gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                    {TIMELINE_METRICS.map(m => (
+                      <button
+                        key={m}
+                        onClick={() => setTimelineMetric(m)}
+                        className={`min-w-0 flex-1 truncate whitespace-nowrap rounded-md px-1 py-1 text-[10px] md:text-[11px] font-semibold transition-all duration-150 active:scale-95 ${
+                          timelineMetric === m ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-white/70'
+                        }`}
+                      >
+                        {t(`map:timeline.metric.${m}` as any)}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={exitTimeline}
+                    aria-label={t('common:close', { defaultValue: 'Close' })}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 active:scale-90"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {!yearlyData || timelineYear == null ? (
+                  <div className="py-2 text-center text-[11px] text-slate-400">{t('common:loading', { defaultValue: 'Loading…' })}</div>
+                ) : (
+                  <>
+                    {/* 第二行:播放 + 刻度。用离散年份按钮而不是连续 slider ——
+                        只有 6 格,按钮比滑块好点(尤其手机),也不会滑到"2023.4 年"这种
+                        没有意义的中间态。 */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          // 已在末年时按播放 → 从头放,否则接着放
+                          const last = yearlyData.years[yearlyData.years.length - 1]
+                          if (!timelinePlaying && timelineYear === last) setTimelineYear(yearlyData.years[0])
+                          setTimelinePlaying(p => !p)
+                        }}
+                        aria-label={t(timelinePlaying ? 'map:timeline.pause' : 'map:timeline.play')}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition active:scale-90"
+                      >
+                        {timelinePlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </button>
+                      <div className="flex min-w-0 flex-1 gap-0.5">
+                        {yearlyData.years.map(y => (
+                          <button
+                            key={y}
+                            onClick={() => { setTimelinePlaying(false); setTimelineYear(y) }}
+                            className={`min-w-0 flex-1 rounded-md py-1 text-[10px] md:text-[11px] font-semibold tabular-nums transition-all duration-150 active:scale-95 ${
+                              timelineYear === y
+                                ? 'bg-slate-800 text-white shadow-sm'
+                                : 'text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            {y}
+                            {y === yearlyData.ytdYear && <span className="opacity-60">*</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* 第三行:口径说明 + 覆盖度。**必须常显** —— 时间轴最容易被误读成
+                        "全城都有数",实际上样本不足的区是灰的。 */}
+                    <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 text-[9px] md:text-[10px] leading-tight text-slate-400">
+                      <span className="truncate">
+                        {t(`map:timeline.caption.${timelineMetric}` as any)}
+                        {timelineYear === yearlyData.ytdYear && ` · ${t('map:timeline.ytd')}`}
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        {(() => {
+                          const n = Object.values(yearlyData.areas)
+                            .filter(a => cellValue(a[String(timelineYear)], timelineMetric) != null).length
+                          return t('map:timeline.coverage', { count: n })
+                        })()}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
 
           {/* POI Full Panel - appears when "More" clicked */}
           {showPoiPanel && (

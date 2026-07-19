@@ -1,4 +1,5 @@
 import { PropertyFilters, MapBounds, DubaiArea, DubaiLandmark } from '../types';
+import type { AreaYearly as AreaYearlyResponse } from './map/timeline';
 import { API_BASE_URL } from './config';
 import { supabase } from './supabase';
 
@@ -933,6 +934,35 @@ export interface AllAreaAppreciation {
 export async function fetchAllAreaAppreciation(): Promise<AllAreaAppreciation | null> {
   try {
     const r = await fetch(`${API_URL}/market/area-appreciation`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+// 路网测距(自建 OSRM)。恒返回结果 —— OSRM 不可用时后端给直线×1.35 的估算值并标
+// mode:'estimate',前端据此画虚线 + 标「估算」,绝不把估算冒充实测路线。
+export interface RoadRoute {
+  mode: 'road' | 'estimate';
+  distanceKm: number;
+  durationMin: number;
+  geometry: { type: 'LineString'; coordinates: [number, number][] } | null;
+}
+export async function fetchRoadRoute(
+  a: { lat: number; lng: number }, b: { lat: number; lng: number }
+): Promise<RoadRoute | null> {
+  try {
+    const q = `a=${a.lat},${a.lng}&b=${b.lat},${b.lng}`;
+    const r = await fetch(`${API_URL}/routing/route?${q}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+// 各区逐年中位租金/成交价/同比 —— 地图时间轴模式用。体积小(≈200 区 × 6 年),
+// 一次全取,切年零请求(切年只改 paint 表达式,见 lib/map/timeline.ts 文件头)。
+export async function fetchAreaYearly(): Promise<AreaYearlyResponse | null> {
+  try {
+    const r = await fetch(`${API_URL}/market/area-yearly`);
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }

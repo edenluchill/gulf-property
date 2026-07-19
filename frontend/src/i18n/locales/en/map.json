@@ -133,5 +133,22 @@
     "weak": "Weak",
     "veryWeak": "Very Weak",
     "note": "KHDA official inspection rating · as of the 2023-24 school year"
+  },
+  "timeline": {
+    "enter": "Timeline",
+    "play": "Play",
+    "pause": "Pause",
+    "ytd": "year to date",
+    "metric": {
+      "medianRent": "Rent",
+      "medianUnitPrice": "Sale price",
+      "growth": "YoY change"
+    },
+    "caption": {
+      "medianRent": "Median annual rent, new Ejari contracts",
+      "medianUnitPrice": "Median sale price, apartments & villas",
+      "growth": "Year-on-year change in median price/m²"
+    },
+    "coverage": "{{count}} areas"
   }
 }

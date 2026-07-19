@@ -133,5 +133,22 @@
     "offplan": "Off-plan",
     "ready": "Prêt",
     "dldSource": "Source : Dubai Land Department · 24 derniers mois · jusqu'à {{month}}"
+  },
+  "timeline": {
+    "enter": "Chronologie",
+    "play": "Lecture",
+    "pause": "Pause",
+    "ytd": "depuis janvier",
+    "metric": {
+      "medianRent": "Loyer",
+      "medianUnitPrice": "Prix de vente",
+      "growth": "Var. annuelle"
+    },
+    "caption": {
+      "medianRent": "Loyer annuel médian, nouveaux contrats Ejari",
+      "medianUnitPrice": "Prix de vente médian, appartements et villas",
+      "growth": "Variation annuelle du prix médian au m²"
+    },
+    "coverage": "{{count}} zones"
   }
 }

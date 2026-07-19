@@ -14,13 +14,17 @@ import { useTranslation } from 'react-i18next'
 import { Globe, Ruler, X, Box, Eye, EyeOff } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
-import { MapPinProject, TransportGeoJSON } from '../lib/api'
+import { MapPinProject, TransportGeoJSON, fetchRoadRoute, type RoadRoute } from '../lib/api'
 import { lat2tileY, haversineKm } from '../lib/map/tiles'
 import {
   type AreaMetric,
   getCentroid, getPolygonSpan, getMinZoomForRank,
   formatMetricValue, getMetricRawValue, calculatePercentiles, getHeatmapColor
 } from '../lib/map/metrics'
+import {
+  bakeAreaYears, computeTimelineScale, colorKey, valueKey,
+  type TimelineMetric, type AreaYearly,
+} from '../lib/map/timeline'
 import { CATEGORY_CONFIG, DEFAULT_CATEGORY_CONFIG, addCustomIcons } from '../lib/map/icons'
 import { isRTL } from '../lib/tt'
 import { ProjectCardMarker, LandmarkMarker } from './map/MapMarkers'
@@ -108,6 +112,10 @@ interface MapViewMapLibreProps {
   onStationClick?: (station: TransportStation) => void
   onLandmarkClick?: (landmark: DubaiLandmark) => void
   areaMetric?: AreaMetric
+  /** 时间轴模式。非 null 时接管区域着色 + 标签数值，areaMetric 被忽略。
+   *  ⚠️ 切年**只改 paint/layout 表达式的 key**，绝不重建 GeoJSON —— 见
+   *  lib/map/timeline.ts 文件头铁律 1。年份因此不能进 areasGeoJson 的依赖数组。 */
+  timeline?: { year: number; labelYear: number; metric: TimelineMetric; data: AreaYearly } | null
   dubaiAreas?: DubaiArea[]
   dubaiLandmarks?: DubaiLandmark[]
   pois?: Poi[]
@@ -170,6 +178,7 @@ function MapViewMapLibre({
   onStationClick,
   onLandmarkClick,
   areaMetric = 'none',
+  timeline = null,
   dubaiAreas = [],
   dubaiLandmarks = [],
   pois = [],
@@ -261,21 +270,58 @@ function MapViewMapLibre({
     return measurePoints.slice(1).map(p => haversineKm(hub, p))
   }, [measurePoints])
 
+  // ── 路网距离 ──
+  // 直线距离先立刻显示(0ms),路网结果回来再替换 —— 别让用户对着 spinner 等一个
+  // 「大概多远」的答案。后端恒返回结果:OSRM 不可用时给 mode:'estimate' 的估算值,
+  // 我们据此画虚线 + 标「估算」,不冒充实测路线。
+  const [roadRoutes, setRoadRoutes] = useState<Record<string, RoadRoute>>({})
+  const spokeKey = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) =>
+    `${a.lng.toFixed(4)},${a.lat.toFixed(4)};${b.lng.toFixed(4)},${b.lat.toFixed(4)}`
+  useEffect(() => {
+    if (measurePoints.length < 2) return
+    const hub = measurePoints[0]
+    let alive = true
+    for (const p of measurePoints.slice(1)) {
+      const k = spokeKey(hub, p)
+      if (roadRoutes[k]) continue
+      fetchRoadRoute(hub, p).then(r => {
+        if (alive && r) setRoadRoutes(prev => (prev[k] ? prev : { ...prev, [k]: r }))
+      })
+    }
+    return () => { alive = false }
+  }, [measurePoints, roadRoutes])
+
   const measureGeoJson = useMemo(() => {
     const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`)
+    const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${Math.round(m % 60)}m` : `${Math.round(m)} min`)
     if (measurePoints.length === 0) {
       const empty = { type: 'FeatureCollection' as const, features: [] }
       return { segments: empty, points: empty }
     }
     const hub = measurePoints[0]
-    // 中心 → 每个目标点,各一条带距离标签的 LineString(放射状)
+    // 中心 → 每个目标点,各一条带距离标签的 LineString(放射状)。
+    // 有路网结果就画真实路线几何,否则退回直线。
     const segments = {
       type: 'FeatureCollection' as const,
-      features: measurePoints.slice(1).map(p => ({
-        type: 'Feature' as const,
-        properties: { label: fmt(haversineKm(hub, p)) },
-        geometry: { type: 'LineString' as const, coordinates: [[hub.lng, hub.lat], [p.lng, p.lat]] }
-      }))
+      features: measurePoints.slice(1).map(p => {
+        const road = roadRoutes[spokeKey(hub, p)]
+        const straight: [number, number][] = [[hub.lng, hub.lat], [p.lng, p.lat]]
+        const useRoad = road?.mode === 'road' && road.geometry?.coordinates?.length
+        return {
+          type: 'Feature' as const,
+          properties: {
+            label: road
+              ? `${fmt(road.distanceKm)} · ${fmtMin(road.durationMin)}${road.mode === 'estimate' ? ' ~' : ''}`
+              : fmt(haversineKm(hub, p)),
+            // 虚线 = 直线/估算,实线 = 实测路网路线
+            dashed: useRoad ? 0 : 1,
+          },
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: useRoad ? road.geometry!.coordinates : straight,
+          }
+        }
+      })
     }
     return {
       segments,
@@ -288,7 +334,7 @@ function MapViewMapLibre({
         }))
       }
     }
-  }, [measurePoints])
+  }, [measurePoints, roadRoutes])
 
   const exitMeasure = useCallback(() => {
     setMeasureMode(false)
@@ -635,6 +681,15 @@ function MapViewMapLibre({
     const map = mapRef.current?.getMap()
     if (map) onMapReady(map)
   }, [mapLoaded, onMapReady])
+
+  // DEV-only 测试钩子(同 __lunaGuidedTour 的做法,生产构建里被 tree-shake 掉)。
+  // 给 scripts/_timeline-check.mjs 用来断言「切年不触发 setData」—— 时间轴平滑与否
+  // 全押在这一条上,靠肉眼看截图或量帧耗时都证不了它。
+  useEffect(() => {
+    if (!import.meta.env.DEV || !mapLoaded) return
+    const map = mapRef.current?.getMap()
+    if (map) (window as any).__mapInstance = map
+  }, [mapLoaded])
 
   // ─── Tour: landmarks as a GL symbol layer (anti-jitter) ───────────────────
   // During a tour the camera is driven frame-by-frame via jumpTo(). DOM markers
@@ -1008,15 +1063,26 @@ function MapViewMapLibre({
       percentiles = calculatePercentiles(values)
     }
 
+    // 时间轴模式：把**所有年份**的颜色一次性烤进 properties(tc2021..tc2026)。
+    // 之后切年只改 paint 表达式的 key，不再碰这份 GeoJSON。scale 跨年份统一算，
+    // 否则颜色会随各年分布自己漂(见 timeline.ts 铁律 2)。
+    const tlScale = timeline ? computeTimelineScale(timeline.data, timeline.metric) : null
+
     const features = dubaiAreas
       .filter(area => area.boundary?.type === 'Polygon')
       .map((area, i) => {
         // 如果选择了指标，使用热力图颜色
         let fillColor = area.color || '#3b82f6'
-        if (areaMetric !== 'none') {
+        if (timeline) {
+          // 时间轴接管着色：fillColor 只作为无年份数据时的兜底，实际取 tc{year}
+          fillColor = '#94a3b8'
+        } else if (areaMetric !== 'none') {
           const rawValue = getMetricRawValue(area, areaMetric)
           fillColor = getHeatmapColor(rawValue, areaMetric, percentiles)
         }
+        const yearColors = timeline
+          ? bakeAreaYears(timeline.data.areas[area.id], timeline.data, timeline.metric, tlScale!, i18n.language || 'en')
+          : null
 
         return {
           type: 'Feature' as const,
@@ -1029,14 +1095,17 @@ function MapViewMapLibre({
             id: area.id,
             name: area.name,
             color: fillColor,
-            opacity: area.opacity ?? 0.5
+            opacity: area.opacity ?? 0.5,
+            ...(yearColors || {})
           },
           geometry: area.boundary
         }
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric])
+    // ⚠️ timeline.year 刻意不在依赖里 —— 年份变化只走 paint 表达式，不重建数据。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, areaMetric, timeline?.metric, timeline?.data, i18n.language])
 
   // Area labels GeoJSON - 区域名称 + 指标值（同一图层）
   // 指标值和名称必须在同一个 symbol，否则两个 layer 的碰撞检测会互相
@@ -1055,6 +1124,7 @@ function MapViewMapLibre({
         .filter((v): v is number => v !== null)
       percentiles = calculatePercentiles(values)
     }
+    const tlScale = timeline ? computeTimelineScale(timeline.data, timeline.metric) : null
 
     // Importance ranking for progressive disclosure: sort by transaction count
     // (busiest first). Each area's rank drives WHEN its label is revealed, so the
@@ -1094,11 +1164,15 @@ function MapViewMapLibre({
 
         let metricValue = ''
         let metricColor = '#94a3b8'
-        if (areaMetric !== 'none') {
+        if (!timeline && areaMetric !== 'none') {
           metricValue = formatMetricValue(area, areaMetric, lang)
           const rawValue = getMetricRawValue(area, areaMetric)
           metricColor = getHeatmapColor(rawValue, areaMetric, percentiles)
         }
+        // 时间轴：所有年份的文案+颜色一次烤好(tv{year}/tc{year})，切年只换 layout key。
+        const yearLabels = timeline
+          ? bakeAreaYears(timeline.data.areas[area.id], timeline.data, timeline.metric, tlScale!, lang)
+          : null
 
         return {
           type: 'Feature' as const,
@@ -1109,14 +1183,17 @@ function MapViewMapLibre({
             minZoom,
             displayName,
             metricValue,
-            metricColor
+            metricColor,
+            ...(yearLabels || {})
           },
           geometry: { type: 'Point' as const, coordinates: centroid }
         }
       })
 
     return { type: 'FeatureCollection' as const, features }
-  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric])
+    // ⚠️ 同 areasGeoJson：timeline.year 不进依赖，切年只换 layout 表达式的 key。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dubaiAreas, showDubaiLayer, mapLoaded, i18n.language, areaMetric, timeline?.metric, timeline?.data])
 
   // POI GeoJSON for WebGL rendering (no limit needed - symbol layers are fast)
   const poiGeoJson = useMemo(() => {
@@ -1370,8 +1447,10 @@ function MapViewMapLibre({
               id="area-fills"
               type="fill"
               paint={{
-                'fill-color': ['get', 'color'],
-                'fill-opacity': ['*', ['get', 'opacity'], 0.4]  // soft (matches production)
+                // 时间轴模式：切年只是把 key 从 tc2024 换成 tc2025 —— react-map-gl
+                // 落到一次 setPaintProperty，零数据上传，拖动滑块可跑满 60fps。
+                'fill-color': timeline ? ['get', colorKey(timeline.year)] : ['get', 'color'],
+                'fill-opacity': ['*', ['get', 'opacity'], timeline ? 0.62 : 0.4]
               }}
             />
             {/* hover 高亮:独立图层 + setAreaHover 里 setFilter 切换,只画命中的
@@ -1382,7 +1461,7 @@ function MapViewMapLibre({
               type="fill"
               filter={['==', ['id'], -1]}
               paint={{
-                'fill-color': ['get', 'color'],
+                'fill-color': timeline ? ['get', colorKey(timeline.year)] : ['get', 'color'],
                 'fill-opacity': ['*', ['get', 'opacity'], 0.3]
               }}
             />
@@ -1398,7 +1477,19 @@ function MapViewMapLibre({
               type="symbol"
               filter={['<=', ['get', 'minZoom'], ['zoom']]}
               layout={{
-                'text-field': areaMetric === 'none'
+                'text-field': timeline
+                  // 时间轴：名称 + 该年数值。用 **labelYear**(比填充年份滞后 120ms)——
+                  // 换 text-field 会让整个 symbol 图层重排 232 个标签跑碰撞检测,是切年
+                  // 开销的大头。连点/播放时标签只在停下后排一次,填充色仍帧帧跟手。
+                  ? ['format',
+                      ['get', 'displayName'], {},
+                      '\n', {},
+                      ['get', valueKey(timeline.labelYear)], {
+                        'text-color': ['get', colorKey(timeline.labelYear)],
+                        'font-scale': 1.25
+                      }
+                    ]
+                  : areaMetric === 'none'
                   ? ['get', 'displayName']
                   : (areaMetric === 'medianUnitPrice' || areaMetric === 'medianPriceSqft')
                   // 金额指标：数值前嵌迪拉姆官方符号——固定中性色（像 ¥/$），
@@ -1712,10 +1803,20 @@ function MapViewMapLibre({
         {mapLoaded && measurePoints.length > 0 && (
           <>
             <Source id="measure-line" type="geojson" data={measureGeoJson.segments}>
+              {/* ⚠️ line-dasharray **不支持 data-driven 表达式**,不能用 ['get','dashed']
+                  切换 —— 只能拆成两个图层各自 filter。虚线=直线/估算,实线=实测路网路线,
+                  两者视觉必须能一眼分开(不然估算值会被当成实测)。 */}
               <Layer
                 id="measure-line-layer"
                 type="line"
+                filter={['==', ['get', 'dashed'], 1]}
                 paint={{ 'line-color': '#2563eb', 'line-width': 3, 'line-dasharray': [2, 1] }}
+              />
+              <Layer
+                id="measure-road-layer"
+                type="line"
+                filter={['==', ['get', 'dashed'], 0]}
+                paint={{ 'line-color': '#2563eb', 'line-width': 4, 'line-opacity': 0.9 }}
               />
               <Layer
                 id="measure-seg-label"
@@ -1814,7 +1915,9 @@ function MapViewMapLibre({
         )}
       </Map>
 
-      {!chromeless && (<>
+      {/* timeline:时间轴模式接管整张地图,底图/3D/测距一并隐藏 —— 模式的意义就是
+          只留一件事可操作(owner 明确要求「进入 mode 让其他功能 disable」)。 */}
+      {!chromeless && !timeline && (<>
       {/* 底图/3D/测距:合并成一张与右上控制卡同风格的竖排小卡(rounded-2xl 白卡
           + 内部 rounded-lg 按钮),全断点通用。原来三颗独立 pill 宽度参差,
           右缘不齐显乱(用户反馈)。

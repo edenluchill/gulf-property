@@ -50,6 +50,14 @@ export interface CollabMapState {
   poiCategories?: string[]
   /** 底图（矢量 / 卫星 / 夜景）—— 经纪切到卫星是为了让客户看清建筑 */
   baseMap?: string
+  /**
+   * 时间轴模式：开关 / 年份 / 指标。三个必须一起同步 —— 只同步开关不同步年份的话，
+   * 经纪讲「你看 2021 到 2025 涨了多少」，客户屏幕却停在另一年，是最糟的一种不同步
+   * （画面看着都正常，讲的和看的对不上）。
+   */
+  timelineOn?: boolean
+  timelineYear?: number | null
+  timelineMetric?: string
 }
 
 interface Opts {
