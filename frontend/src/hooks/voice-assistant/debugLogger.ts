@@ -36,6 +36,7 @@ export interface SessionLog {
     content: string
     timestamp: number
     latency?: number  // Time since user stopped speaking (for assistant messages)
+    interrupted?: boolean  // Assistant message cut off by a barge-in (truncation rate)
   }>
   errors: Array<{
     type: string
@@ -298,9 +299,20 @@ class VoiceDebugLogger {
     this.currentAssistantText += content
   }
 
-  // Call this when assistant turn is complete
-  finalizeAssistantMessage(): void {
-    if (!this.currentSession || !this.currentAssistantText.trim()) return
+  /**
+   * Flush the accumulated assistant utterance as one message.
+   * Call on turnComplete AND on interruption (opts.interrupted) — otherwise the
+   * pending text leaks into the next turn and the two replies concatenate.
+   * Idempotent: a second call with nothing accumulated is a no-op, so it never
+   * emits empty or duplicate messages.
+   */
+  finalizeAssistantMessage(opts?: { interrupted?: boolean }): void {
+    if (!this.currentSession) return
+    if (!this.currentAssistantText.trim()) {
+      // Drop whitespace-only accumulation so it can't glue onto the next turn.
+      this.currentAssistantText = ''
+      return
+    }
     const now = Date.now()
 
     const lastUserMsg = [...this.currentSession.messages]
@@ -312,12 +324,14 @@ class VoiceDebugLogger {
       role: 'assistant',
       content: this.currentAssistantText.trim(),
       timestamp: now,
-      latency
+      latency,
+      ...(opts?.interrupted ? { interrupted: true } : {})
     })
 
     this.log('ASSISTANT_MESSAGE', {
       content: this.currentAssistantText.trim().substring(0, 100),
-      latency
+      latency,
+      interrupted: opts?.interrupted || undefined
     })
     this.currentAssistantText = ''
   }

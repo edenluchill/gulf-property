@@ -55,12 +55,20 @@ for (const t of declared) {
     errors.push(`Frontend declares "${t}" but backend has NO executor (case '${t}') → tool call will fail.`)
   }
 }
-// SOFT: a real tool exists but the prompt never tells Gemini when to use it.
-for (const t of executors) {
-  if (declared.has(t) && !referenced.has(t)) {
-    warns.push(`Tool "${t}" is declared + executable but the prompt never mentions it (model may underuse it).`)
-  }
-}
+// ⚠️ 2026-07-20 删掉了「提示词没提到某工具就告警」这条 SOFT 规则。
+//
+// 它曾经是对的:旧提示词逐个工具枚举触发词("找房/budget → search_projects"…),
+// 漏掉一个工具就等于那个工具事实上不存在。
+//
+// 但提示词已经重写(4000 → ~1030 token),**故意不再枚举触发词** —— 工具该怎么选
+// 是 tool description 的职责,提示词再抄一遍只会跟 description 打架。
+// 于是这条规则开始对 15 个工具同时告警,而每一条都是「按设计如此」。
+//
+// **15 条假警告 = 这个检查从此没人看。** 假红灯比漏报更伤。
+//
+// 真正该守的两条 HARD 规则(提示词点名了但没声明 / 声明了但没执行器)都还在上面。
+// 工具选不对现在由 `backend/scripts/luna-eval-live.ts` 的真实会话来暴露 ——
+// 那才是能证明「模型到底会不会用这个工具」的地方。
 
 console.log(`declared(frontend)=${declared.size}  executors(backend)=${executors.size}  referenced(prompt)=${referenced.size}`)
 if (warns.length) { console.log('\n⚠️  WARNINGS:'); warns.forEach((w) => console.log('  - ' + w)) }

@@ -91,8 +91,8 @@ const voiceTools = [
           type: Type.OBJECT,
           properties: {
             area: { type: Type.STRING, description: 'Dubai area name like "Dubai Marina", "Downtown", "JVC", "Business Bay"' },
-            min_price: { type: Type.NUMBER, description: 'Minimum budget in AED (e.g., 1000000 for 1 million)' },
-            max_price: { type: Type.NUMBER, description: 'Maximum budget in AED (e.g., 3000000 for 3 million)' },
+            min_price: { type: Type.NUMBER, description: 'LOWER bound of the price RANGE in AED. min_price and max_price define a range and min_price MUST be strictly less than max_price — never set them to the same value, that matches almost nothing. If the customer names one approximate figure ("around 1M", "100万左右", "roughly 2 million"), expand it into a range: min_price = 0.8 x figure, max_price = 1.2 x figure (e.g. "around 1M" -> min_price 800000, max_price 1200000). If the customer states a budget or ceiling ("budget 2M", "under 2M", "2M 以内", "up to 2 million"), leave min_price empty and put the figure in max_price. Omit entirely if no budget was mentioned.' },
+            max_price: { type: Type.NUMBER, description: 'UPPER bound of the price RANGE in AED (e.g., 3000000 for 3 million). Must be strictly greater than min_price. This is the field to use for any stated budget, ceiling or "under X" / "X 以内" phrasing. Omit entirely if no budget was mentioned.' },
             bedrooms: { type: Type.NUMBER, description: 'Number of bedrooms: 0=studio, 1, 2, 3, etc.' },
             developer: { type: Type.STRING, description: 'Developer name like "Emaar", "DAMAC", "Sobha"' }
           }
@@ -733,6 +733,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       // Interruption
       if (content.interrupted) {
         voiceDebugLogger.logInterruption()
+        // Commit whatever Luna had said so far as its OWN message. Without this the
+        // accumulated text survives into the next turn and gets string-concatenated
+        // onto the next reply (turnComplete is the only other flush point), which
+        // silently corrupts the transcript and makes truncation impossible to measure.
+        voiceDebugLogger.finalizeAssistantMessage({ interrupted: true })
         playerRef.current?.stop()
         // User barged in → start a fresh caption for the new utterance
         userTurnFreshRef.current = true
@@ -1098,20 +1103,23 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           //   Luna replies AFTER the user stops → kept AGGRESSIVE (HIGH + 350ms) so
           //   she answers ~instantly. (The old LOW + 800ms here caused 10s+ latency.)
           //   START side (startOfSpeechSensitivity + prefixPaddingMs) controls how
-          //   eagerly noise/breath is treated as a barge-in → kept CONSERVATIVE
-          //   (LOW + 400ms) so background noise no longer interrupts Luna mid-sentence
-          //   and clips her endings. (HIGH + 200ms here was cutting her off.)
-          // If endings still get clipped, raise prefixPaddingMs further (debounce);
-          // if replies feel slow again, lower silenceDurationMs — don't cross-tune.
+          //   eagerly noise/breath is treated as a barge-in. Sensitivity stays HIGH
+          //   (LOW made Gemini miss speech onset entirely → "说半天没反应"); the
+          //   debounce against false barge-ins is prefixPaddingMs — that is the ONLY
+          //   knob to touch here.
+          // 2026-07-20: prefixPaddingMs 300 → 700. Production transcript analysis showed
+          // assistant messages ending with no terminal punctuation (i.e. cut off
+          // mid-sentence: "您好，我是" / "What would you like to do? We can") in 27.1% of
+          // sessions that had an interruption vs 13.3% of sessions without one — so most
+          // clipped endings are false barge-ins from background noise, not real ones.
+          // If endings still get clipped, raise prefixPaddingMs further;
+          // if replies feel slow again, lower silenceDurationMs — don't cross-tune,
+          // and don't "fix" either problem by moving a sensitivity enum.
           realtimeInputConfig: {
             automaticActivityDetection: {
-              // HIGH start = Gemini registers the user is talking FAST (this was the
-              // value that actually worked; LOW made it miss speech start entirely →
-              // "说半天没反应"). prefixPaddingMs is the debounce against false barge-ins
-              // (raise it, not the sensitivity, if endings get clipped on speaker).
               startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
               endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
-              prefixPaddingMs: 300,
+              prefixPaddingMs: 700,
               silenceDurationMs: 350,
             },
           },

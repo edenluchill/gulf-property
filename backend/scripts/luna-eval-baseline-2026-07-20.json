@@ -1,0 +1,404 @@
+{
+  "base": "https://api.pinzos.com",
+  "at": "2026-07-20T10:13:02.663Z",
+  "pass": 28,
+  "total": 66,
+  "checks": [
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Harbor\" 不得错配",
+      "ok": false,
+      "detail": "❌ 返回了 \"D3 Dubai Dsign District 3\"（生产事故：美式拼写 Harbor 少一个 u → 旧版按字母序返回 D3）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Harbor\" → Dubai Harbour",
+      "ok": false,
+      "detail": "got \"D3 Dubai Dsign District 3\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Harbor\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Jumeirah Village Circle (JVC)\" 不得错配",
+      "ok": false,
+      "detail": "❌ 返回了 \"Jebel Ali Village\"（生产事故：village 一个词命中 Jebel Ali Village，Je < Ju 靠字母序赢）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Jumeirah Village Circle (JVC)\" → JVC Jumeirah Village Circle",
+      "ok": false,
+      "detail": "got \"Jebel Ali Village\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Jumeirah Village Circle (JVC)\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JVC\" 不得错配",
+      "ok": true,
+      "detail": "ok（返回 \"JVC Jumeirah Village Circle\"）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JVC\" → JVC Jumeirah Village Circle",
+      "ok": true,
+      "detail": "got \"JVC Jumeirah Village Circle\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JVC\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JBR\" → Jumeirah Beach Residence(JBR)",
+      "ok": true,
+      "detail": "got \"Jumeirah Beach Residence(JBR) \" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JBR\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"DIFC\" → DIFC Dubai international financial center",
+      "ok": true,
+      "detail": "got \"DIFC Dubai international financial center\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"DIFC\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JLT\" → JLT Jumeirah Lake tower",
+      "ok": true,
+      "detail": "got \"JLT Jumeirah Lake tower\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"JLT\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Marina\" → Dubai Marina",
+      "ok": true,
+      "detail": "got \"Dubai Marina \" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Marina\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Business Bay\" → Business Bay",
+      "ok": true,
+      "detail": "got \"Business Bay \" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Business Bay\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"The Meadows\" 不得错配",
+      "ok": true,
+      "detail": "ok（返回 \"The meadows \"）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"The Meadows\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Palm Jumeirah\" 不得错配",
+      "ok": true,
+      "detail": "ok（返回 \"Palm Jumeirah\"）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Palm Jumeirah\" → Palm Jumeirah",
+      "ok": true,
+      "detail": "got \"Palm Jumeirah\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Palm Jumeirah\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Palm Jebel Ali\" 不得错配",
+      "ok": true,
+      "detail": "ok（返回 \"Palm Jebel Ali\"）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Palm Jebel Ali\" → Palm Jebel Ali",
+      "ok": true,
+      "detail": "got \"Palm Jebel Ali\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Palm Jebel Ali\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Creek Harbour\" 不得错配",
+      "ok": true,
+      "detail": "ok（返回 \"Dubai Creek Harbour\"）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Creek Harbour\" → Dubai Creek Harbour",
+      "ok": true,
+      "detail": "got \"Dubai Creek Harbour\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Creek Harbour\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Downtown\" 不得错配",
+      "ok": true,
+      "detail": "ok（返回 \"Downtown Dubai\"）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Downtown\" → Downtown Dubai",
+      "ok": true,
+      "detail": "got \"Downtown Dubai\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Downtown\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Downtown Dubai\" → Downtown Dubai",
+      "ok": true,
+      "detail": "got \"Downtown Dubai\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Downtown Dubai\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Hills Estate\" → Dubai hills",
+      "ok": false,
+      "detail": "got \"D3 Dubai Dsign District 3\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Hills Estate\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Emaar South\" → Emaar south",
+      "ok": true,
+      "detail": "got \"Emaar south\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Emaar South\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Motor City\" → Motor city",
+      "ok": true,
+      "detail": "got \"Motor city\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Motor City\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Silicon Oasis\" → Dubai Silicon Oasis",
+      "ok": true,
+      "detail": "got \"Dubai Silicon Oasis\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Dubai Silicon Oasis\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"International City\" → International City",
+      "ok": true,
+      "detail": "got \"International City\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"International City\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"The Oasis by Emaar\" → The Oasis by Emaar",
+      "ok": true,
+      "detail": "got \"The Oasis by Emaar\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"The Oasis by Emaar\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Town Square\" → Town Square",
+      "ok": true,
+      "detail": "got \"Town Square\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Town Square\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Damac Hills\" → Damac hills",
+      "ok": true,
+      "detail": "got \"Damac hills\" conf=?"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Damac Hills\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"village\" 必须承认拿不准",
+      "ok": false,
+      "detail": "❌ status=matched，自信地返回了 \"Jebel Ali Village\"（\"village\" 命中多个区且分不出高下，猜一个就是 50% 概率带客户去错地方）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"village\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"dubai\" 必须承认拿不准",
+      "ok": false,
+      "detail": "❌ status=matched，自信地返回了 \"D3 Dubai Dsign District 3\"（\"dubai\" 出现在 20+ 个区名里，是万能通配符，绝不能自信地挑一个）"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"dubai\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Zzzqqx Nowhere Land\" 必须报查无此区",
+      "ok": false,
+      "detail": "❌ status=matched，返回了 \"Damac Island\""
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Zzzqqx Nowhere Land\" 回执带置信度",
+      "ok": false,
+      "detail": "❌ 缺 confidence 字段"
+    },
+    {
+      "suite": "A·区域解析",
+      "name": "\"Manhattan\" 必须报查无此区",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "suite": "B·ROI 理智",
+      "name": "54 个项目无荒谬 ROI",
+      "ok": false,
+      "detail": "❌ Bay Grove@Dubai Island B 年化 32.8%；Bay Grove@Dubai Island B 5年增值 579万 vs 房价 185万；SAMANA SOUTH HAVEN@Dubai industrial City 年化 51.3%；SAMANA SOUTH HAVEN@Dubai industrial City 5年增值 415万 vs 房价 60万；Bay Grove@Dubai Island B 年化 32.8%；Bay Grove@Dubai Island B 5年增值 579万 vs 房价 185万"
+    },
+    {
+      "suite": "B·ROI 理智",
+      "name": "Business Bay 不得取到写字楼增长率(79.9)",
+      "ok": true,
+      "detail": "area_growth = 10.9"
+    },
+    {
+      "suite": "B·ROI 理智",
+      "name": "detail 路由 8 个项目无荒谬 ROI",
+      "ok": false,
+      "detail": "❌ Binghatti Aquarise 取到写字楼增长率 79.9；AVARRA by PALACE 年化 79.9%（area_growth=79.9）；AVARRA by PALACE 取到写字楼增长率 79.9"
+    },
+    {
+      "suite": "B·ROI 理智",
+      "name": "重复查询结果稳定",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "suite": "C·价格区间",
+      "name": "min==max 被当作「约等于」处理",
+      "ok": false,
+      "detail": "❌ 无 interpreted_as 字段，退化查询 3 个 vs 正常区间 6 个"
+    },
+    {
+      "suite": "C·价格区间",
+      "name": "正常区间能查到房",
+      "ok": true,
+      "detail": "6 个项目"
+    },
+    {
+      "suite": "D·0结果出路",
+      "name": "不存在的开发商 带放宽建议",
+      "ok": false,
+      "detail": "❌ 返回体只有 summary=\"No projects found matching your criteria.\""
+    },
+    {
+      "suite": "D·0结果出路",
+      "name": "荒谬的预算 带放宽建议",
+      "ok": false,
+      "detail": "❌ 返回体只有 summary=\"No projects found matching your criteria.\""
+    }
+  ]
+}

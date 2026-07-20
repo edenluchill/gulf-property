@@ -5,8 +5,17 @@
  * All DB access goes through localhost API endpoints — no direct pool import.
  */
 import { counter, histogram } from '../telemetry'
+// 纯函数（不碰 DB），用来判断「匹配到的区名」和「用户说的」是不是同一个东西
+import { normalizeAreaName } from './area-matcher'
 
-const API_BASE = `http://localhost:${process.env.PORT || 3000}`
+/**
+ * 工具的数据来源。**线上永远是本机回环**（工具和 API 同进程同容器）。
+ *
+ * `LUNA_TOOLS_API_BASE` 只给跑分脚本用 —— `scripts/luna-eval-live.ts` 在我的机器上
+ * 跑真实 Live 会话，但工具得打到**已部署的生产 API**，否则测的是本地旧代码。
+ * 本地起一个后端来凑数是更糟的选择:本机 ts-node-dev 残留会连着生产库作乱。
+ */
+const API_BASE = process.env.LUNA_TOOLS_API_BASE || `http://localhost:${process.env.PORT || 3000}`
 
 /**
  * AED 绝对值 → 中文「万」。
@@ -23,6 +32,36 @@ function wan(aed: number | null | undefined): string {
   const n = Number(aed)
   if (!Number.isFinite(n)) return '—'
   return String(Math.round(n / 10000))
+}
+
+/**
+ * 中文口音/音译的开发商名 → 官方英文名。
+ *
+ * **为什么在这里而不在提示词里**:这张表原来是系统提示词的一部分(30 行中文)。
+ * 模型层跑分抓到:客户全程说英文，Luna 却时不时冒出「带您看看迪拜码头。Dubai Marina
+ * is a stunning…」—— 一句话里中英对切。提示词里**残留的任何中文块都是语言漂移的诱因**,
+ * few-shot 的信号强度远超那条「跟着用户的语言说」的规则。
+ *
+ * 归一化本来就是工具层的活。放这里既消掉了漂移诱因,又让它可测试、可扩展。
+ */
+const DEVELOPER_ALIASES: Record<string, string> = {
+  伊曼: 'Emaar', 艾玛: 'Emaar', 艾马: 'Emaar', 依玛尔: 'Emaar', 埃玛尔: 'Emaar', 伊玛尔: 'Emaar',
+  达马克: 'DAMAC', 达马: 'DAMAC', 迪马克: 'DAMAC', 大马克: 'DAMAC',
+  纳克希尔: 'Nakheel', 纳希尔: 'Nakheel',
+  索巴: 'Sobha', 苏巴: 'Sobha', 哈特兰: 'Sobha', 索巴地产: 'Sobha',
+  迈拉斯: 'Meraas', 美睿思: 'Meraas',
+  宾加提: 'Binghatti', 宾哈提: 'Binghatti', 滨海提: 'Binghatti',
+  多瑙河: 'Danube', 达努比: 'Danube',
+}
+
+/** 有中文就查表；查不到原样返回（后端还有 trigram 模糊匹配兜底）。 */
+function normalizeDeveloper(raw: string | undefined): string | undefined {
+  if (!raw) return raw
+  if (!/[一-鿿]/.test(raw)) return raw
+  for (const [zh, en] of Object.entries(DEVELOPER_ALIASES)) {
+    if (raw.includes(zh)) return en
+  }
+  return raw
 }
 
 /** AED → 「千」(小额:月供、房贷登记费)。 */
@@ -448,7 +487,9 @@ async function executeToolInner(
       if (params.min_price) qs.set('min_price', String(params.min_price))
       if (params.max_price) qs.set('max_price', String(params.max_price))
       if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
-      if (params.developer) qs.set('developer', params.developer)
+      // 中文音译的开发商名在这里归一化（"达马克" → "DAMAC"）。
+      // 后端的 trigram 模糊匹配只对拉丁字母有效，中文进去必然 0 结果。
+      if (params.developer) qs.set('developer', normalizeDeveloper(params.developer)!)
       if (params.status) qs.set('status', params.status)
 
       const data = await apiFetch<{ projects: any[]; count: number; summary: string }>(
@@ -482,25 +523,38 @@ async function executeToolInner(
     }
 
     case 'fly_to_area': {
-      const data = await apiFetch<{ area: { id: number; name: string; lat: number; lng: number } | null }>(
-        `/api/ai/areas/match?q=${encodeURIComponent(params.area_name)}`
-      )
+      // 契约必须和 present_place 完全一致。
+      // 不一致的后果实测到了:模型同时收到「Flying to X」和「找不到 X」两个信号，
+      // 于是说出「Flying to The Village area. I couldn't find an area named "The Village".」
+      // —— 一句话里自相矛盾，客户直接懵掉。
+      const data = await apiFetch<{
+        status: 'matched' | 'ambiguous' | 'not_found'
+        asked: string
+        area: { id: string; name: string; lat: number; lng: number; confidence: number } | null
+        candidates: { name: string; confidence: number }[]
+      }>(`/api/ai/areas/match?q=${encodeURIComponent(params.area_name)}`)
 
-      if (data.area) {
+      if (data?.status === 'ambiguous') {
+        const opts = (data.candidates || []).map(c => c.name).slice(0, 3)
         return {
-          result: { area: data.area.name, lat: data.area.lat, lng: data.area.lng },
-          summary: `Flying to ${data.area.name}.`,
-          mapAction: {
-            type: 'fly_to',
-            lat: data.area.lat,
-            lng: data.area.lng,
-            zoom: 11
-          }
+          result: { status: 'ambiguous', asked: params.area_name, candidates: opts },
+          // 关键:**不给 mapAction**。地图不动，模型也就没有「已经飞过去了」的错觉。
+          summary: `AREA_AMBIGUOUS: "${params.area_name}" could mean ${opts.map(o => `"${o}"`).join(' or ')}. Ask which one they mean before moving the map. Do not say you are flying anywhere yet.`,
+        }
+      }
+      if (!data?.area) {
+        return {
+          result: { status: 'not_found', asked: params.area_name },
+          summary: `AREA_NOT_FOUND: no Dubai area matches "${params.area_name}". Say you don't have it and ask for another. Do not fly anywhere and do not substitute a different area.`,
         }
       }
       return {
-        result: null,
-        summary: `Could not find area ${params.area_name}.`
+        result: { area: data.area.name, lat: data.area.lat, lng: data.area.lng, confidence: data.area.confidence },
+        summary: `Flying to ${data.area.name}.` +
+          (data.area.confidence < 0.8 && normalizeAreaName(data.asked) !== normalizeAreaName(data.area.name)
+            ? ` NOTE: the user said "${data.asked}" — confirm "${data.area.name}" is what they meant.`
+            : ''),
+        mapAction: { type: 'fly_to', lat: data.area.lat, lng: data.area.lng, zoom: 11 },
       }
     }
 
@@ -909,6 +963,7 @@ async function executeToolInner(
       let name = '', area = '', lat: number | null = null, lng: number | null = null
       let uuid: string | null = null, projectId: string | null = null
       let image: string | null = null  // a photo so the customer recognises the place
+      let matchCaveat: string | null = null  // set when the area match wasn't a slam dunk
       if (params.project_id) {
         const d = await apiFetch<{ result: any }>(`/api/ai/projects/${encodeURIComponent(params.project_id)}/detail`).catch(() => null)
         const r = d?.result
@@ -921,9 +976,33 @@ async function executeToolInner(
           uuid = m?.area?.id || null
         }
       } else if (params.area_name) {
-        const m = await apiFetch<{ area: { id: string; name: string; lat: number; lng: number } | null }>(`/api/ai/areas/match?q=${encodeURIComponent(params.area_name)}`).catch(() => null)
-        if (!m?.area) return { result: null, summary: `地图上没找到 "${params.area_name}"，换个区域名我再带你看。` }
+        const m = await apiFetch<{
+          status: 'matched' | 'ambiguous' | 'not_found'
+          asked: string
+          area: { id: string; name: string; lat: number; lng: number; confidence: number } | null
+          candidates: { name: string; confidence: number }[]
+        }>(`/api/ai/areas/match?q=${encodeURIComponent(params.area_name)}`).catch(() => null)
+
+        // 匹配不确定时**绝不猜**。旧版在这里拿到什么就用什么，于是 "Dubai Harbor"
+        // 变成 D3、"JVC" 变成 Jebel Ali Village，Luna 照着错区域讲得有鼻子有眼。
+        if (!m || m.status === 'not_found') {
+          return {
+            result: { status: 'not_found', asked: params.area_name },
+            summary: `AREA_NOT_FOUND: no Dubai area matches "${params.area_name}". Tell the user you don't have that area and ask them to name another. Do NOT substitute a different area.`,
+          }
+        }
+        if (m.status === 'ambiguous' || !m.area) {
+          const opts = (m.candidates || []).map(c => c.name).slice(0, 3)
+          return {
+            result: { status: 'ambiguous', asked: params.area_name, candidates: opts },
+            summary: `AREA_AMBIGUOUS: "${params.area_name}" could mean ${opts.map(o => `"${o}"`).join(' or ')}. Ask the user which one they mean, in their language. Do NOT pick one yourself and do NOT start the walkthrough yet.`,
+          }
+        }
         name = (m.area.name || '').trim(); area = name; uuid = m.area.id; lat = m.area.lat; lng = m.area.lng
+        // 低置信度也放行，但要让模型主动跟客户核对一句
+        if (m.area.confidence < 0.8 && normalizeAreaName(m.asked) !== normalizeAreaName(name)) {
+          matchCaveat = `The user said "${m.asked}"; closest area on the map is "${name}" (confidence ${m.area.confidence}). Confirm this is what they meant before going deep.`
+        }
       } else {
         return { result: null, summary: '告诉我想看哪个项目或区域，我带你走一圈。' }
       }
@@ -1008,21 +1087,56 @@ async function executeToolInner(
       })
 
       if (!stops.length) {
-        return { result: null, summary: `${name} 暂时数据有限，我先帮你飞过去看看。`, mapAction: { type: 'fly_to', lat, lng, zoom: 14 } }
+        return {
+          result: { name, data: 'sparse' },
+          summary: `Walkthrough started for ${name}, but market data is thin here. Say so briefly and offer to look at a nearby area.`,
+          mapAction: { type: 'fly_to', lat, lng, zoom: 14 },
+        }
       }
-      // Feed the three stops' spoken one-liners back to the model so Luna actually
-      // NARRATES the walkthrough (优势→环境→成交) instead of going silent while the
-      // panel animates. The lines are already written in a natural spoken style.
-      const narration = stops.map((s, idx) => `${idx + 1}. ${s.line}`).join('\n')
+
+      // ⚠️ **绝不要把 stops[].line 喂回模型。**
+      //
+      // 那些 line 是**写死的中文**（"先看硬指标。" / "生活很方便——"），是给地图面板
+      // 渲染用的 UI 文案。旧版把它们连同一句中文祈使句一起塞进 summary：
+      //
+      //   `已开始带看 X。请用口语顺着把这三站讲出来，自然连贯…：\n1. 先看硬指标。…`
+      //
+      // 这不是数据，是**一条中文指令**。于是全程说英语的客户会突然听到 Luna 冒出
+      // "好的，我这就带您看看 The Oasis by Emaar" —— 语言乱跳的头号真凶。
+      //
+      // 现在给模型的是**语言中立的结构化事实**，由它用客户的语言自己组织措辞。
+      const facts: Record<string, unknown> = {}
+      if (yieldNow != null) facts.rental_yield_pct = Number(Number(yieldNow).toFixed(1))
+      if (growth != null) facts.price_growth_1y_pct = Number(Number(growth).toFixed(1))
+      if (medianUnit != null) facts.median_unit_price_aed = medianUnit
+      if (spokes.length) {
+        facts.amenities = spokes.slice(0, 3).map(s => ({ kind: s.label, distance_km: Number(s.distanceKm.toFixed(1)) }))
+        if (score100 != null) facts.convenience_score = score100
+      }
+      if (envRatedHit) {
+        facts.nearest_rated_school = {
+          name: envRatedHit.name,
+          // 评级用**语言无关的官方英文档位**，中文由模型按客户语言自己翻。
+          // 直接塞 khda_rating_zh 等于又往模型嘴里塞中文。
+          khda_rating: envRatedHit.khda_rating,
+        }
+      }
+      if (envHospHit) facts.nearest_hospital = { name: envHospHit.name }
+      if (sales.length && sales[0]?.price) facts.recent_sale_price_aed = sales[0].price
+
       return {
         result: {
-          name, area, stops: stops.map(s => s.kind),
-          // Context for Luna to describe a nearby institution if the buyer asks
-          // (don't auto-dump — keep voice concise).
-          nearby_school: envRatedHit ? { name: envRatedHit.name, khda_rating_zh: khdaZh(envRatedHit.khda_rating), description: envRatedHit.description_zh || undefined } : undefined,
-          nearby_hospital: envHospHit ? { name: envHospHit.name, description: envHospHit.description_zh || undefined } : undefined,
+          name, area, stops: stops.map(s => s.kind), facts,
+          // 学校/医院的中文简介只在客户**主动问起**时才用得上；单独放，
+          // 不进 summary，免得模型顺手照读一段中文。
+          nearby_school_detail: envRatedHit?.description_zh || undefined,
+          nearby_hospital_detail: envHospHit?.description_zh || undefined,
         },
-        summary: `已开始带看 ${name}（地图正逐站展示）。请用口语顺着把这三站讲出来，自然连贯、像带客户现场看房，不要照读、不要只说"分三步"：\n${narration}`,
+        summary:
+          `Guided walkthrough started for ${name}; the map is animating through ${stops.length} stops. ` +
+          `Narrate it in 2-3 spoken sentences IN THE USER'S LANGUAGE using only these facts: ${JSON.stringify(facts)}. ` +
+          `Speak like an agent showing the place in person — don't read the JSON, don't enumerate "three stops".` +
+          (matchCaveat ? ` NOTE: ${matchCaveat}` : ''),
         mapAction: { type: 'guided_tour', tour: { kind: projectId ? 'project' : 'area', projectId, name, area, lat, lng, image, stops } },
       }
     }

@@ -5,29 +5,49 @@
 
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
-import { findAreaByName, findAreaWithCentroid, findAreasWithMetrics } from '../services/area-matcher'
+import { findAreaByName, findAreaWithCentroid, findAreasWithMetrics, resolveArea } from '../services/area-matcher'
 import { calculateInvestment5yr } from '../services/investment-calculator'
 
 const router = Router()
 
 /**
- * GET /match — cascading name match + centroid for fly_to_area
+ * GET /match — 区域名解析 + 质心，**带置信度**。
  * Query: q (area name)
+ *
+ * ⚠️ 这个接口以前只回 `{area:{id,name,lat,lng}}` —— 把匹配质量整个扔了。
+ * 于是 "Dubai Harbor" 匹配成 "D3 Dubai Dsign District 3" 时，调用方收到的是一个
+ * 语气笃定的成功回执，Luna 直接张口介绍了另一个区。
+ *
+ * 现在必回 `status`：
+ *   matched   → 可以用，confidence 一并给出
+ *   ambiguous → **不给答案**，只给候选，调用方必须回头问客户
+ *   not_found → 库里真没有
+ * `asked` 永远保留用户原话，让调用方能说「你问的是 X，我这边最接近的是 Y」。
  */
 router.get('/match', async (req: Request, res: Response) => {
   try {
     const name = String(req.query.q || '')
-    if (!name) return res.json({ area: null })
+    if (!name) return res.json({ status: 'not_found', asked: '', area: null, candidates: [] })
 
-    const area = await findAreaWithCentroid(pool, name)
-    if (area) {
-      res.json({ area: { id: area.id, name: area.name, lat: area.lat, lng: area.lng } })
-    } else {
-      res.json({ area: null })
-    }
+    const r = await resolveArea(pool, name)
+    res.json({
+      status: r.status,
+      asked: r.asked,
+      area: r.match
+        ? {
+            id: r.match.id,
+            name: r.match.name,
+            lat: r.match.lat,
+            lng: r.match.lng,
+            confidence: r.match.confidence,
+            matched_via: r.match.matched_via,
+          }
+        : null,
+      candidates: r.candidates,
+    })
   } catch (error) {
     console.error('Error in AI area match:', error)
-    res.json({ area: null })
+    res.json({ status: 'not_found', asked: String(req.query.q || ''), area: null, candidates: [] })
   }
 })
 
