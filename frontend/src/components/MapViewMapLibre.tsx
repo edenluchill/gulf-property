@@ -11,7 +11,7 @@ import Map, {
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, X, Box, Eye, EyeOff, History } from 'lucide-react'
+import { Globe, Ruler, Route, X, Box, Eye, EyeOff, History } from 'lucide-react'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON, fetchRoadRoute, type RoadRoute } from '../lib/api'
@@ -359,6 +359,17 @@ function MapViewMapLibre({
   const exitMeasure = useCallback(() => {
     setMeasureMode(false)
     setMeasurePoints([])
+  }, [])
+
+  const measureKindRef = useRef<'line' | 'route'>('line')
+  measureKindRef.current = measureKind
+  /** 两颗独立按钮各自进入对应模式;点当前激活的那颗=退出。切换模式时保留已落的点。 */
+  const startMeasure = useCallback((kind: 'line' | 'route') => {
+    setMeasureMode((on) => {
+      if (on && measureKindRef.current === kind) { setMeasurePoints([]); return false }
+      setMeasureKind(kind)
+      return true
+    })
   }, [])
 
   // Surface measure points so collab can broadcast them (presenter) / a viewer can
@@ -2005,16 +2016,28 @@ function MapViewMapLibre({
             <Box size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${pitched ? 'text-white' : 'text-slate-500'}`} />
             <span className="hidden whitespace-nowrap md:inline">{pitched ? (isZhUi ? '平视' : '2D') : '3D'}</span>
           </button>
+          {/* 两颗独立按钮:测距(直线)+ 路线(驾车,含时间路程)。两个都保留。 */}
           <button
             type="button"
-            onClick={() => (measureMode ? exitMeasure() : setMeasureMode(true))}
+            onClick={() => startMeasure('line')}
             className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
-              measureMode ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
+              measureMode && measureKind === 'line' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
-            aria-label="测距工具"
+            aria-label="直线测距"
           >
-            <Ruler size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${measureMode ? 'text-white' : 'text-slate-500'}`} />
-            <span className="hidden whitespace-nowrap md:inline">{measureMode ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}</span>
+            <Ruler size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${measureMode && measureKind === 'line' ? 'text-white' : 'text-slate-500'}`} />
+            <span className="hidden whitespace-nowrap md:inline">{measureMode && measureKind === 'line' ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => startMeasure('route')}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
+              measureMode && measureKind === 'route' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            aria-label="路线测距(含时间路程)"
+          >
+            <Route size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${measureMode && measureKind === 'route' ? 'text-white' : 'text-slate-500'}`} />
+            <span className="hidden whitespace-nowrap md:inline">{measureMode && measureKind === 'route' ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '路线' : 'Route')}</span>
           </button>
           {/* 项目卡片显示/隐藏开关:眼睛图标 = 可见性语义,一眼就懂。
               显示态=青底睁眼「项目」;隐藏态=灰底闭眼「已隐藏」,地图只剩圆点。 */}
@@ -2051,26 +2074,12 @@ function MapViewMapLibre({
 
       {/* 指北针已并进左上筛选卡(components/MapCompassButton),不再单独浮在地图上 —— 2026-07-11 */}
 
-      {/* 测距状态条(极简,距离已画在地图线上) */}
+      {/* 测距状态条(极简,距离已画在地图线上)。模式由右上两颗按钮决定,这里只标当前是哪种。 */}
       {measureMode && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2.5 whitespace-nowrap rounded-full bg-white/95 px-2 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
-          {/* 两种测距切换:直线(haversine)/ 路线(实测驾车)。两个都保留。 */}
-          <div className="flex items-center rounded-full bg-slate-100 p-0.5">
-            <button
-              type="button"
-              onClick={() => setMeasureKind('line')}
-              className={`rounded-full px-2.5 py-0.5 font-semibold transition ${measureKind === 'line' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              {isZhUi ? '直线' : 'Line'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMeasureKind('route')}
-              className={`rounded-full px-2.5 py-0.5 font-semibold transition ${measureKind === 'route' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              {isZhUi ? '路线' : 'Route'}
-            </button>
-          </div>
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${measureKind === 'route' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+            {measureKind === 'route' ? (isZhUi ? '路线·驾车' : 'Route · drive') : (isZhUi ? '直线' : 'Straight')}
+          </span>
           <span className="font-medium text-slate-700">
             {measurePoints.length === 0
               ? (isZhUi ? '点地图设中心点' : 'Tap map to set center')
@@ -2082,7 +2091,7 @@ function MapViewMapLibre({
             <button
               type="button"
               onClick={() => setMeasurePoints([])}
-              className="pe-1 font-semibold text-blue-600"
+              className="font-semibold text-blue-600"
             >
               {isZhUi ? '清除' : 'Clear'}
             </button>
