@@ -16,7 +16,10 @@ import pool from '../src/db/pool'
 
 const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R']
 const RENT_BASE = `rc.usage_type = 'Residential' AND rc.annual_amount > 0 AND rc.property_area > 0 AND rc.start_date >= '2000-01-01' AND rc.start_date <= CURRENT_DATE`
-const TX_BASE = `dt.trans_group = 'Sales' AND dt.property_usage = 'Residential' AND dt.property_type IN ('Unit','Villa') AND dt.meter_sale_price BETWEEN 1000 AND 250000 AND dt.procedure_area > 0`
+// ⚠️ 口径必须和 market.ts 的 RES_PT 完全一致 —— 否则「实时查询」和「缓存的默认视图」
+//    会给出不同结果。含命名别墅社区的 Land(DAMAC Lagoons 等期房别墅)。
+//    改这里 → 必须重跑 market-precompute 并 scp 到迪拜盒子。
+const TX_BASE = `dt.trans_group = 'Sales' AND dt.property_usage = 'Residential' AND (dt.property_type IN ('Unit','Villa') OR (dt.property_type = 'Land' AND dt.project_name IS NOT NULL AND dt.project_name <> '')) AND dt.meter_sale_price BETWEEN 1000 AND 250000 AND dt.procedure_area > 0`
 
 async function store(market: string, key: string, payload: any) {
   await pool.query(

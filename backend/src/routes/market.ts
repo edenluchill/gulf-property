@@ -17,6 +17,26 @@ import { readPersisted, persisting } from '../services/persistentCache'
 
 const router = Router()
 
+/**
+ * 住宅价格口径 —— 算 price/sqft、中位总价、涨幅时用它。
+ *
+ * 原来只取 Unit/Villa,排除所有 Land。设计意图是对的:沙漠荒地(便宜/巨大)会把
+ * 住宅单价拉垮(如 Shharrj ₫262/sqft 实为地价)。
+ *
+ * 🔴 但它误伤了**期房别墅社区**。owner 实测:「DAMAC Lagoons 别墅没有搜出来」——
+ *    根因:DLD 把期房别墅登记成 **property_type='Land'**(买的是「地块+建villa合同」)。
+ *    Portofino / Santorini / Costa Brava 这些最有名的别墅子社区,**全是 Land**,
+ *    于是被这个口径整个剔掉 —— 13000+ 笔真实别墅成交,一笔都搜不到。
+ *
+ *    区分很干净(实测):
+ *      • Land **有项目名** → 36,123 笔,中位 13,110/㎡ —— 真别墅社区,价格合理
+ *      • Land **无项目名** → 4,010 笔,中位 5,217/㎡ —— 荒地/自建地块,继续排除
+ *
+ *    所以纯增量放行:Land 且有 project_name = 开发商别墅社区,该算进住宅。
+ *    (property_usage='Residential' 的上游过滤保证了这里的 Land 不含工商业地块。)
+ */
+const RES_PT = `(dt.property_type IN ('Unit','Villa') OR (dt.property_type = 'Land' AND dt.project_name IS NOT NULL AND dt.project_name <> ''))`
+
 const SQFT_PER_SQM = 10.7639
 
 /**
@@ -93,7 +113,7 @@ router.get('/price-check', async (req: Request, res: Response) => {
           WHERE dla.dubai_area_id = $1
             AND dt.trans_group = 'Sales'
             AND dt.property_usage = 'Residential'
-            AND dt.property_type IN ('Unit', 'Villa')
+            AND ${RES_PT}
             AND dt.meter_sale_price BETWEEN 1000 AND 250000
             AND dt.instance_date >= (b.max_d - INTERVAL '12 months')
        )
@@ -213,7 +233,7 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
   const parts: string[] = [
     `dt.trans_group = 'Sales'`,
     `dt.property_usage = 'Residential'`,
-    `dt.property_type IN ('Unit','Villa')`,
+    RES_PT,
     `dt.meter_sale_price BETWEEN 1000 AND 250000`,
     `dt.procedure_area > 0`
   ]
@@ -285,7 +305,7 @@ router.get('/transactions/filters', async (_req: Request, res: Response) => {
       `SELECT mode() WITHIN GROUP (ORDER BY dt.area_name) AS name, COUNT(*)::int AS count
          FROM dld_transactions dt
         WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
-          AND dt.property_type IN ('Unit','Villa')
+          AND ${RES_PT}
           AND dt.meter_sale_price BETWEEN 1000 AND 250000
           AND dt.procedure_area > 0
           AND dt.area_name IS NOT NULL AND dt.area_name <> ''
@@ -319,7 +339,7 @@ async function loadProjects(area: string): Promise<{ name: string; count: number
     `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name, COUNT(*)::int AS count
        FROM dld_transactions dt
       WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential'
-        AND dt.property_type IN ('Unit','Villa')
+        AND ${RES_PT}
         AND dt.meter_sale_price BETWEEN 1000 AND 250000
         AND dt.procedure_area > 0
         ${area ? 'AND UPPER(dt.area_name) = $1' : ''}
@@ -466,10 +486,6 @@ function smooth3(series: (number | null)[]): (number | null)[] {
 // 增值率周期(月)。与前端 PeriodSelector 一一对应。
 export const APPRECIATION_PERIODS = { '1m': 1, '3m': 3, '6m': 6, '1y': 12, '2y': 24, '3y': 36, '5y': 60 } as const
 
-// 住宅价格口径:算 price/sqft、中位总价、涨幅时只取 Unit/Villa,排除 Land/Building。
-// 否则沙漠地块(便宜/巨大)会把住宅单价拉垮(如 Shharrj ₫262/sqft 实为地价)。
-// 成交量 count 不受此限(全口径=活跃度信号)。地图/对话框/全市三处都用它保持一致。
-const RES_PT = `dt.property_type IN ('Unit','Villa')`
 export type AppreciationPeriod = keyof typeof APPRECIATION_PERIODS
 export type Appreciation = Partial<Record<AppreciationPeriod, number | null>>
 
