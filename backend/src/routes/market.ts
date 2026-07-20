@@ -13,6 +13,7 @@ import { calculateInvestment5yr, calculatePaybackYears } from '../services/inves
 import { DEFAULT_SEGMENT, SEGMENT_MIN_SAMPLE, parseSegment, MarketSegment } from '../lib/marketSegment'
 import { beginMaintenance, endMaintenance, yieldToLiveTraffic } from '../services/perfSink'
 import { cached, prime } from '../services/microCache'
+import { readPersisted, persisting } from '../services/persistentCache'
 
 const router = Router()
 
@@ -1132,7 +1133,7 @@ router.get('/area-insights', async (req: Request, res: Response) => {
     // aggregate in parallel. They now share ONE query.
     const [data, cityAppr] = await Promise.all([
       cached(insightsKey(areaId, usage), INSIGHTS_TTL_MS, () => loadAreaInsightsData(areaId, usage)),
-      cached(CITY_APPR_KEY, INSIGHTS_TTL_MS, loadCityAppreciation),
+      cached(CITY_APPR_KEY, INSIGHTS_TTL_MS, persisting(CITY_APPR_KEY, loadCityAppreciation)),
     ])
     const composed = composeAreaInsights(data, segment, strict)
     // 全市基准跟随实际展示口径(priceSegment),保证「本区 vs 全市」同口径可比。
@@ -1356,7 +1357,7 @@ const AREA_MONTHLY_KEY = 'mkt:monthly:areas'
  */
 router.get('/area-monthly', async (_req: Request, res: Response) => {
   try {
-    const data = await cached(AREA_MONTHLY_KEY, INSIGHTS_TTL_MS, loadAreaMonthly)
+    const data = await cached(AREA_MONTHLY_KEY, INSIGHTS_TTL_MS, persisting(AREA_MONTHLY_KEY, loadAreaMonthly))
     res.set('Cache-Control', 'public, max-age=1800')
     res.json(data)
   } catch (err) {
@@ -1369,7 +1370,7 @@ router.get('/area-monthly', async (_req: Request, res: Response) => {
 /** GET /area-appreciation — 全部官方区各周期增值率(三口径),地图按周期上色用。 */
 router.get('/area-appreciation', async (_req: Request, res: Response) => {
   try {
-    const data = await cached(ALL_AREA_APPR_KEY, INSIGHTS_TTL_MS, loadAllAreaAppreciation)
+    const data = await cached(ALL_AREA_APPR_KEY, INSIGHTS_TTL_MS, persisting(ALL_AREA_APPR_KEY, loadAllAreaAppreciation))
     res.set('Cache-Control', 'public, max-age=1800')
     res.json(data)
   } catch (err) {
@@ -1387,11 +1388,11 @@ async function warmAreaInsights() {
   beginMaintenance() // 预热的慢查询不进 SLOW_QUERIES 报警(见 perfSink)
   try {
     // 全市基准 + 全区各周期增值率先暖(全表 percentile 重,别让第一个客户等它)。
-    try { prime(CITY_APPR_KEY, await loadCityAppreciation()) } catch { /* 非致命 */ }
+    try { prime(CITY_APPR_KEY, await persisting(CITY_APPR_KEY, loadCityAppreciation)()) } catch { /* 非致命 */ }
     await yieldToLiveTraffic()
-    try { prime(ALL_AREA_APPR_KEY, await loadAllAreaAppreciation()) } catch { /* 非致命 */ }
+    try { prime(ALL_AREA_APPR_KEY, await persisting(ALL_AREA_APPR_KEY, loadAllAreaAppreciation)()) } catch { /* 非致命 */ }
     await yieldToLiveTraffic()
-    try { prime(AREA_MONTHLY_KEY, await loadAreaMonthly()) } catch { /* 非致命 */ }
+    try { prime(AREA_MONTHLY_KEY, await persisting(AREA_MONTHLY_KEY, loadAreaMonthly)()) } catch { /* 非致命 */ }
     const r = await pool.query(`SELECT id FROM dubai_areas WHERE visible = true`)
     let ok = 0
     const want = r.rows.length * WARM_USAGES.length
@@ -1417,6 +1418,24 @@ async function warmAreaInsights() {
     endMaintenance()
   }
 }
+/**
+ * 启动即从 DB 端出上次算好的结果 —— 这是修「每次发版后第一个开地图的用户等 12-14 秒」
+ * 的关键一步。预热器要 30 秒后才开跑,而且自己也得先算完;在那之前来的请求原本只能冷算。
+ * 数据一天才更一次,端出几小时前的版本不损失新鲜度。
+ */
+async function hydrateFromDb() {
+  for (const key of [CITY_APPR_KEY, ALL_AREA_APPR_KEY, AREA_MONTHLY_KEY]) {
+    try {
+      const hit = await readPersisted(key)
+      if (hit) {
+        prime(key, hit.data)
+        console.log(`[market] 持久缓存水合 ${key}(算于 ${hit.computedAt.toISOString()})`)
+      }
+    } catch { /* 拿不到就照常冷算,绝不因此挂掉启动 */ }
+  }
+}
+void hydrateFromDb()
+
 setTimeout(warmAreaInsights, 30_000)
 setInterval(warmAreaInsights, 5 * 60 * 60 * 1000)
 
