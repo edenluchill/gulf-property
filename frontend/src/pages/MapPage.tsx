@@ -28,6 +28,7 @@ import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
 import { useCollabMapState, type CollabMapState } from '../luna-tour/collab/useCollabMapState'
 import CollabDrawToolbar from '../luna-tour/collab/CollabDrawToolbar'
 import { useAuth } from '../contexts/AuthContext'
+import { API_BASE_URL } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
 import AreaSearch from '../components/AreaSearch'
 import FilterDialog from '../components/FilterDialog'
@@ -737,6 +738,50 @@ export default function MapPage() {
             lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
             bounds: [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
           })
+        }
+        break
+
+      /**
+       * 🔴 **这个 case 以前根本不存在 —— 静默失败了很久。**
+       *
+       * `highlight_areas` 由 compare_areas / compare_market / check_affordability
+       * 三个工具发出，类型定义里有、VoiceAssistantContext 的「要跳回地图」清单里也有，
+       * 但**这个 switch 里没有对应分支** → 客户被导航回地图，然后什么都不发生。
+       * Luna 说着「这几个区更适合你的预算」，地图纹丝不动。
+       *
+       * 现在：把区名解析成坐标，镜头框住这几个区，客户至少看得到 Luna 在说哪里。
+       * （真正的多边形高亮是后续优化；先把「完全没反应」变成「看得见」。）
+       */
+      case 'highlight_areas':
+        if (Array.isArray(action.areas) && action.areas.length) {
+          void (async () => {
+            const pts: [number, number][] = []
+            await Promise.all(
+              action.areas!.slice(0, 6).map(async (name) => {
+                try {
+                  const r = await fetch(`${API_BASE_URL}/api/ai/areas/match?q=${encodeURIComponent(name)}`)
+                  const d = await r.json()
+                  // 只用**确定匹配**的区。歧义/查无此区就跳过 —— 框到错的地方
+                  // 比不动更糟，那等于用镜头给一个错误答案背书。
+                  if (d?.status === 'matched' && d.area?.lat != null && d.area?.lng != null) {
+                    pts.push([Number(d.area.lng), Number(d.area.lat)])
+                  }
+                } catch { /* 单个区失败不影响其他 */ }
+              })
+            )
+            if (!pts.length) return
+            const lngs = pts.map(p => p[0])
+            const lats = pts.map(p => p[1])
+            if (pts.length === 1) {
+              setFlyToLocation({ lat: lats[0], lng: lngs[0], zoom: 12 })
+            } else {
+              setFlyToLocation({
+                lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+                lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+                bounds: [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+              })
+            }
+          })()
         }
         break
 

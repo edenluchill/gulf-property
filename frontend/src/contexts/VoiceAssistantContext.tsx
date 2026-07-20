@@ -72,6 +72,22 @@ const voiceTools = [
         }
       },
       {
+        // 🔴 **这个工具是为了堵一次真实的丢客户事故。**
+        // 2026-07-17 生产日志：客户问 "How can I do live calling?"，Luna 答
+        // "I can't help with live calling" —— 而实时带看是真实存在的功能。
+        // 反向也犯过：客户说「把资料发给我老婆」，她答「我可以发给您」，
+        // 但她发不了任何东西。**凭空发明能力比拒绝更糟。**
+        name: 'explain_feature',
+        description: 'Answer a question about how to USE this product — what a feature does, where to find it, who it is for. Call this whenever the user asks about the app itself rather than about property data: "how do I do a live call", "where is X", "can I send this to my client", "how do I share this", "what does this cost", "怎么把这个发给客户", "实时带看在哪". NEVER guess a product answer, and NEVER offer to send, email or message anything yourself — you have no way to deliver anything. Call this tool and relay what it returns.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            question: { type: Type.STRING, description: "The user's product question in their own words. Pass it verbatim — the matcher handles phrasing." }
+          },
+          required: ['question']
+        }
+      },
+      {
         name: 'capture_contact',
         description: "Save the customer's contact details so the agent can follow up with full property info. Call this ONLY after the customer has shown clear interest and agreed to share contact (e.g. they said yes to receiving details on WhatsApp). Ask naturally; never pressure. Provide whatever details the customer gave.",
         parameters: {

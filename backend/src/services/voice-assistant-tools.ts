@@ -7,6 +7,8 @@
 import { counter, histogram } from '../telemetry'
 // 纯函数（不碰 DB），用来判断「匹配到的区名」和「用户说的」是不是同一个东西
 import { normalizeAreaName } from './area-matcher'
+// 产品说明书（纯数据 + 关键词匹配，不碰 DB）—— Luna 用它回答「这个功能在哪」
+import { findFeatures, describeFeature } from './product-guide'
 
 /**
  * 工具的数据来源。**线上永远是本机回环**（工具和 API 同进程同容器）。
@@ -90,6 +92,20 @@ const khdaZh = (r?: string | null): string | null =>
 export const voiceAssistantTools = [
   {
     functionDeclarations: [
+      {
+        name: 'explain_feature',
+        description: 'Answer a question about how to USE this product — what a feature does, where to find it, who it is for. Call this whenever the user asks about the app itself rather than about property data: "how do I do a live call", "where is X", "can I send this to my client", "how do I share", "what does this cost". NEVER guess a product answer or claim you can do something for them (you cannot send, email, or message anything) — call this tool and relay what it returns.',
+        parameters: {
+          type: 'object',
+          properties: {
+            question: {
+              type: 'string',
+              description: 'The user\'s question about the product, in their own words. Pass it through verbatim — the matcher handles phrasing.'
+            }
+          },
+          required: ['question']
+        }
+      },
       {
         name: 'search_projects',
         description: 'Search for residential projects based on criteria. Returns matching projects to display on map.',
@@ -481,6 +497,42 @@ async function executeToolInner(
   params: any
 ): Promise<{ result: any; summary: string; mapAction?: any }> {
   switch (toolName) {
+    /**
+     * 产品指路。**Luna 对产品本身一无所知曾经害死过一通对话**：
+     * 客户问 "How can I do live calling?"，她答 "I can't help with live calling"
+     * —— 而实时带看是真实存在的功能，房间还免费。
+     * 反向也犯过：客户说「能不能把资料发给我老婆」，她答「我可以发给您」，
+     * 但她**发不了任何东西**。凭空发明能力比拒绝更糟，客户会一直等。
+     */
+    case 'explain_feature': {
+      const q = String(params.question || '')
+      const hits = findFeatures(q)
+      if (!hits.length) {
+        return {
+          result: { status: 'unknown_feature', asked: q },
+          summary:
+            `FEATURE_UNKNOWN: nothing in the product matches "${q}". Say you're not sure that exists here and ask what they're trying to accomplish. ` +
+            `**Do NOT invent a feature, and do NOT offer to send, email, message or deliver anything yourself — you have no way to do that.**`,
+        }
+      }
+      // 语言中立:两种语言都给，由模型按客户的语言挑
+      const top = hits[0].feature
+      const detail = { zh: describeFeature(top, 'zh'), en: describeFeature(top, 'en') }
+      const alsoRelevant = hits.slice(1).map(h => h.feature.name.en)
+      return {
+        result: { matched: top.id, detail, also_relevant: alsoRelevant },
+        summary:
+          `Product answer for "${q}" → ${top.name.en}. Tell the user in THEIR language, in 2-3 spoken sentences: ` +
+          `what it does, and concretely where to click. Facts: ${JSON.stringify(detail.en)}. ` +
+          (top.caveat ? `Mention the caveat — it is the thing people get wrong. ` : '') +
+          (top.audience === 'agent-pro' || top.audience === 'agent'
+            ? `This is an agent-side feature; if they sound like a buyer, say their agent can do it for them. `
+            : '') +
+          `Never claim you will send or deliver anything yourself.` +
+          (alsoRelevant.length ? ` Related, only if they ask: ${alsoRelevant.join(', ')}.` : ''),
+      }
+    }
+
     case 'search_projects': {
       const qs = new URLSearchParams()
       if (params.area) qs.set('area', params.area)

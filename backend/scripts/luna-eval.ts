@@ -310,13 +310,77 @@ async function suiteDeadEnd() {
 
 // ════════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════════════
+// Suite E —— 产品指路
+//
+// Luna 的 16 个工具全是买家侧找房/数据分析，对产品自身一无所知。后果实测两种:
+//   · 客户问 "How can I do live calling?" → "I can't help with that"
+//     （实时带看是真实存在的功能，房间还免费）→ 那通对话到此为止
+//   · 客户说「把资料发给我老婆」→「我可以发给您」→ 她发不了任何东西
+// 这套断言守住两头:该有的必须指对，不该说的必须永远查不到。
+// ════════════════════════════════════════════════════════════════════════════
+
+async function suiteProductGuide() {
+  const S = 'E·产品指路'
+  const { findFeatures, allFeatureIds } = await import('../src/services/product-guide')
+
+  const cases: { q: string; want: string; why?: string }[] = [
+    { q: 'How can I do live calling?', want: 'live-tour', why: '生产事故原句：她当时答「帮不了」' },
+    { q: 'can I do a video call with my client', want: 'live-tour' },
+    { q: '实时带看在哪', want: 'live-tour' },
+    { q: '能跟客户一起看地图吗', want: 'live-tour' },
+    { q: 'can I send this to my client', want: 'ai-tour', why: '「发给客户」是最高频的产品问题' },
+    { q: '怎么把这个发给我客户', want: 'ai-tour' },
+    { q: 'how do I share a tour with my buyer', want: 'ai-tour' },
+    { q: '我想把这个项目的资料发给我老婆看一下，能发吗？', want: 'ai-tour',
+      why: '模型层跑分抓到的：关键词曾写死「发给客户」，客户说「发给我老婆」就全落空，Luna 答「不确定有没有这个功能」' },
+    { q: '怎么分享', want: 'ai-tour' },
+    { q: '我想给客户出个投资分析', want: 'client-report' },
+    { q: '能不能生成报价单', want: 'sales-offer' },
+    { q: 'I need a payment plan quote', want: 'sales-offer' },
+    { q: '怎么看历史价格走势', want: 'map-timeline' },
+    { q: 'how far is it from the metro', want: 'map-measure' },
+    { q: '上传楼书', want: 'upload-brochure' },
+    { q: 'how much does this cost', want: 'billing' },
+    { q: '怎么推荐朋友拿免费月', want: 'referral' },
+  ]
+
+  for (const c of cases) {
+    const hits = findFeatures(c.q)
+    const top = hits[0]?.feature.id
+    expect(S, `"${c.q}" → ${c.want}`, top === c.want,
+      top === c.want ? `ok (score ${hits[0].score})` : `❌ 命中 ${top || '(无)'}${c.why ? `（${c.why}）` : ''}`)
+  }
+
+  // 完全不沾边的必须无匹配 —— 宁可说不知道，也不能硬塞一个功能
+  for (const q of ['asdfgh qwerty', '今天天气怎么样']) {
+    expect(S, `"${q}" 不硬塞功能`, findFeatures(q).length === 0,
+      findFeatures(q).length === 0 ? 'ok' : `❌ 命中 ${findFeatures(q)[0].feature.id}`)
+  }
+
+  // 🔴 最重要的一条:内部/已下架功能绝不能被查出来。
+  // 漏一条，Luna 就会把 admin 看板讲给客户听。
+  const FORBIDDEN = ['admin', 'analytics', 'dashboard', 'leads', 'lead', '线索', '后台', '管理后台']
+  const ids = allFeatureIds()
+  const leaked = FORBIDDEN.filter(f => ids.some(id => id.includes(f)))
+  expect(S, '知识库不含内部/已下架功能', leaked.length === 0,
+    leaked.length ? `❌ 泄露 ${leaked.join(', ')}` : `ok（${ids.length} 条全部可对外）`)
+
+  for (const q of ['admin dashboard', '后台分析', 'leads 线索在哪']) {
+    const hits = findFeatures(q)
+    const bad = hits.some(h => ['admin', 'leads'].includes(h.feature.id))
+    expect(S, `"${q}" 不指向内部功能`, !bad,
+      bad ? `❌ 命中 ${hits[0].feature.id}` : `ok${hits.length ? `（落到 ${hits[0].feature.id}，可接受）` : ''}`)
+  }
+}
+
 async function main() {
   console.log(`\nLuna 工具层跑分 —— ${BASE}\n${'─'.repeat(70)}`)
   const t0 = Date.now()
 
   for (const [label, fn] of [
     ['区域解析', suiteAreas], ['ROI 理智', suiteRoi],
-    ['价格区间', suitePriceRange], ['0结果出路', suiteDeadEnd],
+    ['价格区间', suitePriceRange], ['0结果出路', suiteDeadEnd], ['产品指路', suiteProductGuide],
   ] as const) {
     try { await fn() }
     catch (e: any) { expect(label, `${label} 套件崩了`, false, e?.message || String(e)) }
