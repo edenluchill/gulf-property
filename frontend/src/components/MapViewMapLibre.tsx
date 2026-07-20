@@ -265,6 +265,13 @@ function MapViewMapLibre({
   }
   const [measureMode, setMeasureMode] = useState(false)
   const [measurePoints, setMeasurePoints] = useState<{ lng: number; lat: number }[]>([])
+  /**
+   * 两种测距,都保留(用户:「以前是测距离,现在是测路线,能两个都留吗」):
+   *   'line'  = 直线距离(haversine,虚线)—— 以前的默认,快、不请求路网
+   *   'route' = 路线距离(OSRM 实测驾车路线 + 时间,实线)—— 现在的行为,按需切换
+   * 默认 'line' 恢复旧默认;状态条上一个段控切换。
+   */
+  const [measureKind, setMeasureKind] = useState<'line' | 'route'>('line')
 
   // 放射模式:第 0 个点=中心,其余每点到中心各一段
   const measureSpokeKms = useMemo(() => {
@@ -281,6 +288,7 @@ function MapViewMapLibre({
   const spokeKey = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) =>
     `${a.lng.toFixed(4)},${a.lat.toFixed(4)};${b.lng.toFixed(4)},${b.lat.toFixed(4)}`
   useEffect(() => {
+    if (measureKind !== 'route') return   // 直线模式不请求路网
     if (measurePoints.length < 2) return
     const hub = measurePoints[0]
     let alive = true
@@ -292,7 +300,7 @@ function MapViewMapLibre({
       })
     }
     return () => { alive = false }
-  }, [measurePoints, roadRoutes])
+  }, [measureKind, measurePoints, roadRoutes])
 
   const measureGeoJson = useMemo(() => {
     const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`)
@@ -307,8 +315,17 @@ function MapViewMapLibre({
     const segments = {
       type: 'FeatureCollection' as const,
       features: measurePoints.slice(1).map(p => {
-        const road = roadRoutes[spokeKey(hub, p)]
         const straight: [number, number][] = [[hub.lng, hub.lat], [p.lng, p.lat]]
+        // 直线模式:永远只画直线 + haversine,不看路网。
+        if (measureKind === 'line') {
+          return {
+            type: 'Feature' as const,
+            properties: { label: fmt(haversineKm(hub, p)), dashed: 1 },
+            geometry: { type: 'LineString' as const, coordinates: straight },
+          }
+        }
+        // 路线模式:有路网结果画真实路线(实线),没回来前先退回直线(虚线)。
+        const road = roadRoutes[spokeKey(hub, p)]
         const useRoad = road?.mode === 'road' && road.geometry?.coordinates?.length
         return {
           type: 'Feature' as const,
@@ -337,7 +354,7 @@ function MapViewMapLibre({
         }))
       }
     }
-  }, [measurePoints, roadRoutes])
+  }, [measureKind, measurePoints, roadRoutes])
 
   const exitMeasure = useCallback(() => {
     setMeasureMode(false)
@@ -2036,7 +2053,24 @@ function MapViewMapLibre({
 
       {/* 测距状态条(极简,距离已画在地图线上) */}
       {measureMode && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2.5 whitespace-nowrap rounded-full bg-white/95 px-2 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          {/* 两种测距切换:直线(haversine)/ 路线(实测驾车)。两个都保留。 */}
+          <div className="flex items-center rounded-full bg-slate-100 p-0.5">
+            <button
+              type="button"
+              onClick={() => setMeasureKind('line')}
+              className={`rounded-full px-2.5 py-0.5 font-semibold transition ${measureKind === 'line' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {isZhUi ? '直线' : 'Line'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMeasureKind('route')}
+              className={`rounded-full px-2.5 py-0.5 font-semibold transition ${measureKind === 'route' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {isZhUi ? '路线' : 'Route'}
+            </button>
+          </div>
           <span className="font-medium text-slate-700">
             {measurePoints.length === 0
               ? (isZhUi ? '点地图设中心点' : 'Tap map to set center')
@@ -2048,7 +2082,7 @@ function MapViewMapLibre({
             <button
               type="button"
               onClick={() => setMeasurePoints([])}
-              className="font-semibold text-blue-600"
+              className="pe-1 font-semibold text-blue-600"
             >
               {isZhUi ? '清除' : 'Clear'}
             </button>
