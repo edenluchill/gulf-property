@@ -307,44 +307,47 @@ function MapViewMapLibre({
     const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${Math.round(m % 60)}m` : `${Math.round(m)} min`)
     if (measurePoints.length === 0) {
       const empty = { type: 'FeatureCollection' as const, features: [] }
-      return { segments: empty, points: empty }
+      return { segments: empty, points: empty, labels: empty }
     }
     const hub = measurePoints[0]
-    // 中心 → 每个目标点,各一条带距离标签的 LineString(放射状)。
-    // 有路网结果就画真实路线几何,否则退回直线。
-    const segments = {
-      type: 'FeatureCollection' as const,
-      features: measurePoints.slice(1).map(p => {
-        const straight: [number, number][] = [[hub.lng, hub.lat], [p.lng, p.lat]]
+    // 每段的距离/时间标签**只显示一次** —— 放在这段路线几何的中点(一个 point),
+    // 不用 line 上的重复标签(line-center 对长线不可靠,会沿线重复刷)。
+    const labelFeatures: GeoJSON.Feature[] = []
+    // 中心 → 每个目标点,各一条 LineString(放射状)。有路网结果就画真实路线,否则退回直线。
+    const segFeatures = measurePoints.slice(1).map(p => {
+      const straight: [number, number][] = [[hub.lng, hub.lat], [p.lng, p.lat]]
+      let coords: [number, number][] = straight
+      let label: string
+      let dashed: number
+      if (measureKind === 'line') {
         // 直线模式:永远只画直线 + haversine,不看路网。
-        if (measureKind === 'line') {
-          return {
-            type: 'Feature' as const,
-            properties: { label: fmt(haversineKm(hub, p)), dashed: 1 },
-            geometry: { type: 'LineString' as const, coordinates: straight },
-          }
-        }
+        label = fmt(haversineKm(hub, p))
+        dashed = 1
+      } else {
         // 路线模式:有路网结果画真实路线(实线),没回来前先退回直线(虚线)。
         const road = roadRoutes[spokeKey(hub, p)]
         const useRoad = road?.mode === 'road' && road.geometry?.coordinates?.length
-        return {
-          type: 'Feature' as const,
-          properties: {
-            label: road
-              ? `${fmt(road.distanceKm)} · ${fmtMin(road.durationMin)}${road.mode === 'estimate' ? ' ~' : ''}`
-              : fmt(haversineKm(hub, p)),
-            // 虚线 = 直线/估算,实线 = 实测路网路线
-            dashed: useRoad ? 0 : 1,
-          },
-          geometry: {
-            type: 'LineString' as const,
-            coordinates: useRoad ? road.geometry!.coordinates : straight,
-          }
-        }
+        coords = useRoad ? (road!.geometry!.coordinates as [number, number][]) : straight
+        label = road
+          ? `${fmt(road.distanceKm)} · ${fmtMin(road.durationMin)}${road.mode === 'estimate' ? ' ~' : ''}`
+          : fmt(haversineKm(hub, p))
+        dashed = useRoad ? 0 : 1
+      }
+      const mid = coords[Math.floor(coords.length / 2)] || [p.lng, p.lat]
+      labelFeatures.push({
+        type: 'Feature',
+        properties: { label },
+        geometry: { type: 'Point', coordinates: mid },
       })
-    }
+      return {
+        type: 'Feature' as const,
+        properties: { dashed },
+        geometry: { type: 'LineString' as const, coordinates: coords },
+      }
+    })
     return {
-      segments,
+      segments: { type: 'FeatureCollection' as const, features: segFeatures },
+      labels: { type: 'FeatureCollection' as const, features: labelFeatures },
       points: {
         type: 'FeatureCollection' as const,
         features: measurePoints.map((p, i) => ({
@@ -1435,7 +1438,7 @@ function MapViewMapLibre({
   }, [dubaiAreas, pois, onAreaClick, onPoiClick, onStationClick, measureMode, disableFeatureClicks, setDotTip])
 
   return (
-    <div className={`relative h-full w-full ${disableFeatureClicks ? 'lt-draw-active' : ''}`}>
+    <div className={`relative h-full w-full ${disableFeatureClicks || measureMode ? 'lt-draw-active' : ''}`}>
       {/* 圆点 hover 名字提示(命令式定位,坐标 = e.point 相对地图容器)
           rtl-keep: left-0 必须保持**物理左**。定位靠下面 style 的 transform:translate(x,y)
           命令式写入,x 恒等于 e.point.x —— 从容器左缘算起,与 dir 无关。换成 start-0 后
@@ -1445,11 +1448,10 @@ function MapViewMapLibre({
         className="pointer-events-none absolute left-0 top-0 z-[900] whitespace-nowrap rounded-full bg-slate-900/85 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg ring-1 ring-white/15 backdrop-blur-sm"
         style={{ display: 'none', willChange: 'transform' }}
       />
-      {/* While a markup tool is active, DOM markers (projects/clusters/landmarks)
-          must not eat the pointer — otherwise a tap over a pin opens its panel
-          instead of drawing, and you can't draw over a pin. GL-layer features
-          (POI/area/station) are already gated in handleMapClick above. */}
-      {disableFeatureClicks && (
+      {/* 画笔工具 或 测距/路线模式激活时,DOM marker(项目卡/聚合/地标)不能吃指针 ——
+          否则点到卡片会开详情面板而不是落测距点。GL 层要素(POI/区域/车站/圆点)已在
+          handleMapClick 里拦掉。 */}
+      {(disableFeatureClicks || measureMode) && (
         <style>{`.lt-draw-active .maplibregl-marker{pointer-events:none !important}`}</style>
       )}
       <Map
@@ -1879,11 +1881,13 @@ function MapViewMapLibre({
                 filter={['==', ['get', 'dashed'], 0]}
                 paint={{ 'line-color': '#2563eb', 'line-width': 4, 'line-opacity': 0.9 }}
               />
+            </Source>
+            {/* 距离/时间标签 —— 每段一个 point(线段中点),保证只显示一次,不沿线重复。 */}
+            <Source id="measure-labels" type="geojson" data={measureGeoJson.labels}>
               <Layer
                 id="measure-seg-label"
                 type="symbol"
                 layout={{
-                  'symbol-placement': 'line-center',
                   'text-field': ['get', 'label'],
                   'text-font': ['Open Sans Bold'],
                   'text-size': 13,
