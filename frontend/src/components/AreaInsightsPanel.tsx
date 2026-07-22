@@ -602,6 +602,10 @@ export function AreaPlaceSearch({ areaId, value, onChange, compact = false }: {
     </button>
   )
 
+  // 这个区在 DLD 里一个楼盘/楼栋都没有(手绘区落点全在边界外、纯工业区…)
+  // → 别给一个永远搜不到东西的框。等候选到货再决定显不显示。
+  if (places && !places.projects.length && !places.buildings.length && !value) return null
+
   // 已选中 → 收成一个 chip,腾出空间给列表
   if (value) {
     return (
