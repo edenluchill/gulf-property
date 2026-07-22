@@ -5,10 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { useTranslation } from 'react-i18next'
-import { SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { SlidersHorizontal, ChevronDown, Search, X } from 'lucide-react'
 import {
-  fetchTxFilters, fetchTxSummary, fetchTxList, fetchTxProjects, fetchDataFreshness,
-  TxFilters, TxSummary, TxRow, DataFreshness
+  fetchTxFilters, fetchTxSummary, fetchTxList, fetchTxSuggest, fetchDataFreshness,
+  TxFilters, TxSummary, TxRow, DataFreshness, TxSuggestion
 } from '../lib/api'
 import DirhamSymbol from '../components/DirhamSymbol'
 import { formatMoneyCompact } from '../lib/money'
@@ -22,6 +22,28 @@ const SALE_PRICE_STEPS = [500000, 1000000, 1500000, 2000000, 3000000, 5000000, 1
 
 type SaleType = 'all' | 'ready' | 'offplan'
 type Mode = 'sales' | 'rent'
+
+/**
+ * 一条已选筛选条件。区域有两种来源:搜索框选的(DLD area_name,无 id)和
+ * 地图深链带来的(dubai_areas UUID,手绘区只能这样定位)。
+ */
+type Pick = { type: 'area' | 'project' | 'building'; name: string; id?: string }
+
+/** 已选条件小标签。所有筛选(含抽屉里的)统一用它呈现,一眼看清、一点即removed。 */
+function Chip({ children, onRemove }: { children: React.ReactNode; onRemove: () => void }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 py-1 pe-1 ps-2.5 text-xs text-primary ring-1 ring-primary/20">
+      <span className="truncate">{children}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="shrink-0 rounded-full p-0.5 text-primary/50 hover:bg-primary/10 hover:text-primary"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  )
+}
 
 function fmt(n: number | null | undefined) {
   // 面积/单价换算成 sqft 后会带小数(如 1,555.291),而这页所有数字(成交量/总价/
@@ -71,19 +93,20 @@ export default function TransactionsPage() {
   useScrollChrome(scrollChromeRef)
   const [mode, setMode] = useState<Mode>('sales')
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
-  const [area, setArea] = useState('')
-  // 项目筛选：可搜索 + 多选(经纪要把同社区多个 phase 合在一起看销售)。
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
-  const [projectQuery, setProjectQuery] = useState('')
-  const [projectOpen, setProjectOpen] = useState(false)
-  const [projectSuggestions, setProjectSuggestions] = useState<{ name: string; count: number }[]>([])
+  // 统一搜索:区域 / 楼盘 / 楼栋三类候选进同一个框,选中的一律进 picks。
+  // 楼盘 = 该盘全部楼栋;楼栋 = 只看这一栋 —— 经纪要的「社区名查全部 or 分栋单查」。
+  const [picks, setPicks] = useState<Pick[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState<TxSuggestion[]>([])
+  const searchRef = useRef<HTMLDivElement>(null)
   const [rooms, setRooms] = useState('')
   // 默认口径走 lib/marketSegment.ts 单点配置（2026-07-02 起默认全部；用户可切期房/现房）
   const [type, setType] = useState<SaleType>(CONSUMER_SEGMENT)
   const [year, setYear] = useState('')  // '' = 不限(默认按最新)
   const [minPrice, setMinPrice] = useState('')  // 成交总价区间(AED)
   const [maxPrice, setMaxPrice] = useState('')
-  const [filtersOpen, setFiltersOpen] = useState(false)  // 移动端筛选折叠
+  const [advOpen, setAdvOpen] = useState(false)  // 低频筛选抽屉(户型/价格/年份)
   const [summary, setSummary] = useState<TxSummary | null>(null)
   const [freshness, setFreshness] = useState<DataFreshness | null>(null)
   const [rows, setRows] = useState<TxRow[]>([])
@@ -94,37 +117,77 @@ export default function TransactionsPage() {
   const [retryTick, setRetryTick] = useState(0)
 
   const limit = 25
-  const query = useMemo(() => ({
-    area: area || undefined,
-    project: selectedProjects.length ? selectedProjects : undefined,
-    rooms: rooms || undefined,
-    type: type === 'all' ? undefined : type,
-    from: year ? `${year}-01-01` : undefined,
-    to: year ? `${year}-12-31` : undefined,
-    minPrice: minPrice || undefined,
-    maxPrice: maxPrice || undefined,
-  }), [area, selectedProjects, rooms, type, year, minPrice, maxPrice])
+  const query = useMemo(() => {
+    const projects = picks.filter(p => p.type === 'project').map(p => p.name)
+    const buildings = picks.filter(p => p.type === 'building').map(p => p.name)
+    const areaPick = picks.find(p => p.type === 'area')
+    return {
+      // 地图深链传的是 dubai_areas UUID(手绘区没有 DLD area_name,只能用 id);
+      // 搜索框选的是 DLD area_name。两条路都走 buildTxFilter 的既有参数。
+      areaId: areaPick?.id || undefined,
+      area: areaPick && !areaPick.id ? areaPick.name : undefined,
+      project: projects.length ? projects : undefined,
+      building: buildings.length ? buildings : undefined,
+      rooms: rooms || undefined,
+      type: type === 'all' ? undefined : type,
+      from: year ? `${year}-01-01` : undefined,
+      to: year ? `${year}-12-31` : undefined,
+      minPrice: minPrice || undefined,
+      maxPrice: maxPrice || undefined,
+    }
+  }, [picks, rooms, type, year, minPrice, maxPrice])
 
   useEffect(() => { fetchTxFilters().then(setFilters) }, [])
   // 数据截止日 —— 与筛选无关,只拉一次
   useEffect(() => { fetchDataFreshness().then(setFreshness) }, [])
 
-  // 区域变化 → 重置项目筛选（项目可能不在新区域内）
+  // 地图区域弹窗 → 「查看该区成交」深链(?areaId=<uuid>&label=<显示名>)。
+  // 只在首次挂载读一次:之后用户在本页的增删不该被 URL 覆写。
   useEffect(() => {
-    setSelectedProjects([])
-    setProjectQuery('')
-  }, [area])
+    const sp = new URLSearchParams(window.location.search)
+    const areaId = sp.get('areaId')
+    const label = sp.get('label')
+    const areaName = sp.get('area')
+    if (areaId && label) setPicks([{ type: 'area', name: label, id: areaId }])
+    else if (areaName) setPicks([{ type: 'area', name: areaName }])
+  }, [])
 
-  // 项目搜索建议：按输入关键词（300ms 防抖）+ 当前区域拉取
+  // 统一搜索建议(250ms 防抖)。空串也拉 —— 点开就给最活跃的区域,省得对着空框发呆。
   useEffect(() => {
-    const q = projectQuery.trim()
     let stale = false
     const id = setTimeout(() => {
-      fetchTxProjects({ area: area || undefined, q: q || undefined })
-        .then(p => { if (!stale) setProjectSuggestions(p) })
-    }, 300)
+      fetchTxSuggest(searchQuery.trim()).then(s => { if (!stale) setSuggestions(s) })
+    }, 250)
     return () => { stale = true; clearTimeout(id) }
-  }, [area, projectQuery])
+  }, [searchQuery])
+
+  // 点击外部关掉建议框(下拉是 absolute,不关会盖住指标卡)
+  useEffect(() => {
+    if (!suggestOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSuggestOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [suggestOpen])
+
+  const togglePick = (s: TxSuggestion) => {
+    setPicks(prev => {
+      const hit = prev.find(p => p.type === s.type && p.name === s.name)
+      if (hit) return prev.filter(p => p !== hit)
+      // 区域是单选(两个区域取交集必然是空集);楼盘/楼栋可多选
+      const base = s.type === 'area' ? prev.filter(p => p.type !== 'area') : prev
+      return [...base, { type: s.type, name: s.name }]
+    })
+    setSearchQuery('')
+    setSuggestOpen(false)
+  }
+  const removePick = (target: Pick) => setPicks(prev => prev.filter(p => p !== target))
+  const clearAll = () => {
+    setPicks([]); setRooms(''); setYear(''); setMinPrice(''); setMaxPrice('')
+  }
+  const advCount = (rooms ? 1 : 0) + (year ? 1 : 0) + (minPrice || maxPrice ? 1 : 0)  // 抽屉里生效的条数
+  const activeCount = picks.length + advCount
 
   useEffect(() => {
     setLoading(true)
@@ -161,20 +224,7 @@ export default function TransactionsPage() {
     ? Math.floor((Date.now() - new Date(freshness.txPublishedAt).getTime()) / 86_400_000)
     : null
 
-  // 移动端筛选摘要(让折叠态也能看出当前筛选)
-  const filterParts = [
-    selectedProjects.length === 1 ? selectedProjects[0]
-      : selectedProjects.length > 1 ? t('filter.projectsSelected', { count: selectedProjects.length, defaultValue: `${selectedProjects.length} 个项目` })
-      : null,
-    area || null,
-    rooms || null,
-    (minPrice || maxPrice)
-      ? `${minPrice ? formatMoneyCompact(Number(minPrice), i18n.language) : ''}~${maxPrice ? formatMoneyCompact(Number(maxPrice), i18n.language) : ''}`
-      : null,
-    year ? t('filter.yearLabel', { year }) : null,
-    type !== 'all' ? t(`saleType.${type}`) : null,
-  ].filter(Boolean) as string[]
-  const filterSummary = filterParts.length ? filterParts.join(' · ') : t('filter.summaryAll')
+  // 筛选摘要不再需要:已选条件全部以 chip 常驻显示,折叠的只有「没选就没内容」的抽屉。
 
   return (
     <div ref={scrollChromeRef} className="flex-1 overflow-auto pb-20 md:pb-8">
@@ -208,169 +258,159 @@ export default function TransactionsPage() {
 
       {mode === 'rent' ? <RentView /> : (
       <>
-      {/* 筛选(单一连贯卡片:移动端头部=折叠开关,桌面端头部隐藏) */}
-      <div className="mt-3 md:mt-5 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-      <button
-        onClick={() => setFiltersOpen(o => !o)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-start md:hidden"
-      >
-        <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" />
-        <span className="flex-1 truncate text-sm font-medium text-slate-700">{filterSummary}</span>
-        <span className="shrink-0 text-xs text-slate-400">{t('filter.toggle')}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      <div className={`${filtersOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row md:flex-wrap items-stretch md:items-end gap-3 border-t border-slate-100 px-4 pb-4 pt-3 md:border-t-0 md:p-4`}>
-        {/* 项目放最前：搜索页更看重项目(可多选,把同社区多个 phase 合起来看销售) */}
-        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.project')}
-          <div className="relative">
+      {/* 筛选 —— 一个主搜索框 + 口径三档,其余全部收进「筛选」抽屉。
+          买家视角:绝大多数人只想搜一个社区名看看成交,不该一上来面对 6 个并排下拉。
+          已选条件一律以 chip 呈现(含抽屉里选的),折叠状态下也一眼看得清、点得掉。 */}
+      <div className="mt-3 md:mt-5 rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 md:p-4">
+        {/* 主行:搜索框 + 口径 */}
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
+          <div className="relative flex-1" ref={searchRef}>
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              value={projectQuery}
-              onChange={e => { setProjectQuery(e.target.value); setProjectOpen(true) }}
-              onFocus={() => setProjectOpen(true)}
-              onBlur={() => setTimeout(() => setProjectOpen(false), 150)}
-              placeholder={t('filter.projectPlaceholder')}
-              className="w-full md:min-w-[260px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setSuggestOpen(true) }}
+              onFocus={() => setSuggestOpen(true)}
+              placeholder={t('filter.searchPlaceholder')}
+              className="w-full rounded-lg border border-slate-300 py-2.5 ps-9 pe-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
-            {projectOpen && projectSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                {projectSuggestions.map(p => {
-                  const picked = selectedProjects.includes(p.name)
+            {suggestOpen && (suggestions.length > 0 || searchQuery.trim().length >= 2) && (
+              <div className="absolute inset-x-0 top-full z-30 mt-1 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                {suggestions.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-slate-400">{t('filter.noMatch')}</div>
+                ) : suggestions.map(s => {
+                  const picked = picks.some(p => p.type === s.type && p.name === s.name)
                   return (
                     <button
-                      key={p.name}
+                      key={`${s.type}:${s.name}`}
                       type="button"
-                      onMouseDown={e => {
-                        e.preventDefault()
-                        setSelectedProjects(prev =>
-                          prev.includes(p.name) ? prev.filter(x => x !== p.name) : [...prev, p.name]
-                        )
-                        setProjectQuery('')  // 清空便于继续加下一个
-                      }}
-                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-slate-50 ${picked ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
+                      onMouseDown={e => { e.preventDefault(); togglePick(s) }}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2 text-start hover:bg-slate-50 ${picked ? 'bg-primary/5' : ''}`}
                     >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${picked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'}`}>
-                          {picked ? '✓' : ''}
-                        </span>
-                        <span className="truncate">{p.name}</span>
+                      {/* 类型徽标:让「这是区域还是楼栋」一眼可辨,不用读名字猜 */}
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        s.type === 'area' ? 'bg-emerald-50 text-emerald-700'
+                        : s.type === 'project' ? 'bg-blue-50 text-blue-700'
+                        : 'bg-slate-100 text-slate-600'}`}>
+                        {t(`filter.kind.${s.type}`)}
                       </span>
-                      <span className="shrink-0 text-xs text-slate-400">{p.count}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-slate-800">{s.name}</span>
+                        {(s.type === 'building' ? s.project : s.area) && (
+                          <span className="block truncate text-xs text-slate-400">
+                            {s.type === 'building' ? s.project : s.area}
+                            {s.type === 'project' && s.buildings && s.buildings > 1
+                              ? ` · ${t('filter.nBuildings', { count: s.buildings })}` : ''}
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-slate-400">{fmt(s.count)}</span>
                     </button>
                   )
                 })}
               </div>
             )}
           </div>
-          {/* 已选项目 chips(可移除) */}
-          {selectedProjects.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {selectedProjects.map(name => (
-                <span key={name} className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700 ring-1 ring-blue-200">
-                  <span className="truncate">{name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProjects(prev => prev.filter(x => x !== name))}
-                    className="shrink-0 text-blue-400 hover:text-blue-700"
-                    aria-label={t('filter.clearProject')}
-                  >×</button>
-                </span>
-              ))}
-              {selectedProjects.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedProjects([])}
-                  className="text-xs text-slate-400 underline hover:text-slate-600"
-                >{t('filter.clearAll', { defaultValue: '清空' })}</button>
-              )}
-            </div>
-          )}
-        </label>
-        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.area')}
-          <select
-            value={area}
-            onChange={e => setArea(e.target.value)}
-            className="w-full md:min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-          >
-            <option value="">{t('filter.allAreas')}</option>
-            {filters.areas.map(a => (
-              <option key={a.name} value={a.name}>{t('filter.areaOption', { name: a.name, count: a.count })}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.rooms')}
-          <select
-            value={rooms}
-            onChange={e => setRooms(e.target.value)}
-            className="w-full md:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-          >
-            <option value="">{t('filter.allRooms')}</option>
-            {filters.rooms.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </label>
-        {/* 价格区间(成交总价) */}
-        <div className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.priceRange', { defaultValue: t('misc:price') })}
-          <div className="flex items-center gap-1.5">
-            <select
-              value={minPrice}
-              onChange={e => setMinPrice(e.target.value)}
-              className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
-            >
-              <option value="">{t('misc:min')}</option>
-              {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
-            </select>
-            <span className="text-slate-400">–</span>
-            <select
-              value={maxPrice}
-              onChange={e => setMaxPrice(e.target.value)}
-              className="w-full md:w-auto rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
-            >
-              <option value="">{t('misc:max')}</option>
-              {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
-            </select>
-          </div>
-        </div>
-        <label className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.year')}
-          <select
-            value={year}
-            onChange={e => setYear(e.target.value)}
-            className="w-full md:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-          >
-            <option value="">{t('filter.anyYear')}</option>
-            {['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'].map(y => (
-              <option key={y} value={y}>{t('filter.yearLabel', { year: y })}</option>
-            ))}
-          </select>
-        </label>
-        <div className="flex w-full md:w-auto flex-col gap-1 text-xs text-slate-500">
-          {t('filter.type')}
-          <div className="flex w-full md:w-auto overflow-hidden rounded-lg border border-slate-300 text-sm">
+          {/* 口径 —— 买家切换最频繁(现房 vs 期房),值得留在主行 */}
+          <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-300 text-sm">
             {(['all', 'ready', 'offplan'] as SaleType[]).map(tp => (
               <button
                 key={tp}
                 onClick={() => setType(tp)}
-                className={`flex-1 md:flex-none px-3 py-2 ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                className={`flex-1 px-3 py-2 md:flex-none ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               >
                 {t(`saleType.${tp}`)}
               </button>
             ))}
           </div>
+          {/* 抽屉开关也留在主行 —— 独占一行时那行几乎是空的,白白撑高卡片。
+              有筛选生效时显示计数,不用展开就知道抽屉里还压着几条。 */}
+          <button
+            onClick={() => setAdvOpen(o => !o)}
+            className={`flex shrink-0 items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+              advOpen || advCount > 0
+                ? 'border-primary/30 bg-primary/5 text-primary'
+                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {t('filter.toggle')}
+            {advCount > 0 && <span className="tabular-nums">({advCount})</span>}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
-        {/* 移动端:选完一键收起看数据 */}
-        <button
-          onClick={() => setFiltersOpen(false)}
-          className="mt-1 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-white md:hidden"
-        >
-          {t('filter.apply')}
-        </button>
-      </div>
+        {/* 已选条件 —— 没选就整行不渲染(而不是留个空行) */}
+        {activeCount > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {picks.map(p => (
+              <Chip key={`${p.type}:${p.name}`} onRemove={() => removePick(p)}>{p.name}</Chip>
+            ))}
+            {rooms && <Chip onRemove={() => setRooms('')}>{rooms}</Chip>}
+            {(minPrice || maxPrice) && (
+              <Chip onRemove={() => { setMinPrice(''); setMaxPrice('') }}>
+                {`${minPrice ? formatMoneyCompact(Number(minPrice), i18n.language) : ''}~${maxPrice ? formatMoneyCompact(Number(maxPrice), i18n.language) : ''}`}
+              </Chip>
+            )}
+            {year && <Chip onRemove={() => setYear('')}>{t('filter.yearLabel', { year })}</Chip>}
+            {activeCount > 1 && (
+              <button onClick={clearAll} className="ms-1 text-xs text-slate-400 underline hover:text-slate-600">
+                {t('filter.clearAll')}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 抽屉:低频筛选。默认收起 —— 这四项加起来的使用率远低于「搜个社区」 */}
+        {advOpen && (
+          <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="flex flex-col gap-1 text-xs text-slate-500">
+              {t('filter.rooms')}
+              <select
+                value={rooms}
+                onChange={e => setRooms(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              >
+                <option value="">{t('filter.allRooms')}</option>
+                {filters.rooms.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
+            <div className="flex flex-col gap-1 text-xs text-slate-500 sm:col-span-2">
+              {t('filter.priceRange', { defaultValue: t('misc:price') })}
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={minPrice}
+                  onChange={e => setMinPrice(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
+                >
+                  <option value="">{t('misc:min')}</option>
+                  {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
+                </select>
+                <span className="text-slate-400">–</span>
+                <select
+                  value={maxPrice}
+                  onChange={e => setMaxPrice(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm text-slate-800"
+                >
+                  <option value="">{t('misc:max')}</option>
+                  {SALE_PRICE_STEPS.map(v => <option key={v} value={v}>{formatMoneyCompact(v, i18n.language)}</option>)}
+                </select>
+              </div>
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-slate-500">
+              {t('filter.year')}
+              <select
+                value={year}
+                onChange={e => setYear(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              >
+                <option value="">{t('filter.anyYear')}</option>
+                {['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018'].map(y => (
+                  <option key={y} value={y}>{t('filter.yearLabel', { year: y })}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* 指标卡 */}
@@ -504,7 +544,34 @@ export default function TransactionsPage() {
           <p className="mt-3 text-xs text-slate-400">{summary.note}</p>
         </>
       ) : (
-        <div className="mt-6 text-sm text-slate-400">{t('empty')}</div>
+        /* 空态要能自救 —— 干巴巴一句「暂无成交数据」会让买家以为页面坏了。
+           最常见的元凶是户型:DLD 对别墅/联排(登记成 Land 的那批,如 DAMAC
+           Lagoons 全系)**根本不填 rooms**,所以一选户型这些社区就整体消失。
+           实测 PORTOFINO 不带户型 1299 笔、加「3 房」变 0。 */
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white px-4 py-8 text-center">
+          <p className="text-sm text-slate-500">{t('empty')}</p>
+          {rooms && picks.length > 0 && (
+            <p className="mx-auto mt-2 max-w-md text-xs text-slate-400">{t('emptyRoomsHint')}</p>
+          )}
+          {activeCount > 0 && (
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {rooms && (
+                <button
+                  onClick={() => setRooms('')}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                >
+                  {t('emptyDropRooms')}
+                </button>
+              )}
+              <button
+                onClick={clearAll}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {t('filter.clearAll')}
+              </button>
+            </div>
+          )}
+        </div>
       )}
       </>
       )}

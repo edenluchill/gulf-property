@@ -132,7 +132,8 @@
     "noRecentTx": "Нет недавних записей о продажах жилья в этом районе",
     "offplan": "Off-plan",
     "ready": "Готовое",
-    "dldSource": "Источник: Dubai Land Department · за последние 24 месяца · по {{month}}"
+    "dldSource": "Источник: Dubai Land Department · за последние 24 месяца · по {{month}}",
+    "allTransactions": "Все сделки района"
   },
   "timeline": {
     "enter": "Таймлайн",

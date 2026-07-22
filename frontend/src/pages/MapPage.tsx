@@ -3146,7 +3146,7 @@ export default function MapPage() {
               {sheetTab === 'market' ? (
                 <>
                   <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} usageActive={areaUsage !== 'all'} />
-                  <AreaRecentTx areaId={selectedArea.id} insights={sheetInsights} loading={sheetInsightsLoading} />
+                  <AreaRecentTx areaId={selectedArea.id} areaName={selectedArea.name} insights={sheetInsights} loading={sheetInsightsLoading} />
                 </>
               ) : areaDevelopers.length > 0 ? (
                 <div className="space-y-2">

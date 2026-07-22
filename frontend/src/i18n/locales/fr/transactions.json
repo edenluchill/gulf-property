@@ -19,7 +19,15 @@
     "yearLabel": "{{year}}",
     "toggle": "Filtres",
     "summaryAll": "Toutes les transactions",
-    "apply": "Afficher les résultats"
+    "apply": "Afficher les résultats",
+    "searchPlaceholder": "Rechercher une communauté, un projet ou un bâtiment…",
+    "noMatch": "Aucune communauté ou projet correspondant",
+    "nBuildings": "{{count}} bâtiments",
+    "kind": {
+      "area": "Zone",
+      "project": "Projet",
+      "building": "Bâtiment"
+    }
   },
   "saleType": {
     "all": "Tout",
@@ -72,5 +80,7 @@
   "new": "Nouveau",
   "renew": "Renouvellement",
   "yr": "an",
-  "sourceDubaiLandDepartment": "Source : Dubai Land Department — transactions récentes pour ce projet."
+  "sourceDubaiLandDepartment": "Source : Dubai Land Department — transactions récentes pour ce projet.",
+  "emptyRoomsHint": "Remarque : la DLD n'enregistre pas le nombre de chambres pour les villas et maisons de ville (toutes les phases DAMAC Lagoons, par ex.), ce filtre exclut donc entièrement ces communautés.",
+  "emptyDropRooms": "Retirer le filtre chambres"
 }

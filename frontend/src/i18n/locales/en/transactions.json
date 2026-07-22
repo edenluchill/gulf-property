@@ -19,7 +19,15 @@
     "yearLabel": "{{year}}",
     "toggle": "Filters",
     "summaryAll": "All records",
-    "apply": "View results"
+    "apply": "View results",
+    "searchPlaceholder": "Search a community, project or building…",
+    "noMatch": "No matching community or project",
+    "nBuildings": "{{count}} buildings",
+    "kind": {
+      "area": "Area",
+      "project": "Project",
+      "building": "Building"
+    }
   },
   "saleType": {
     "all": "All",
@@ -72,5 +80,7 @@
   "new": "New",
   "renew": "Renew",
   "yr": "yr",
-  "sourceDubaiLandDepartment": "Source: Dubai Land Department — recent records for this development."
+  "sourceDubaiLandDepartment": "Source: Dubai Land Department — recent records for this development.",
+  "emptyRoomsHint": "Note: DLD does not record bedroom counts for villas and townhouses (e.g. all DAMAC Lagoons phases), so a bedroom filter excludes those communities entirely.",
+  "emptyDropRooms": "Remove bedroom filter"
 }

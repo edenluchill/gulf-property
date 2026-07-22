@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { BadgeCheck, Info } from 'lucide-react'
+import { BadgeCheck, Info, ArrowRight } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
 import { pricePerSqmToPerSqft, sqmToSqft } from '../lib/units'
@@ -510,8 +510,9 @@ type TxItem = AreaInsights['recentTransactions'][number]
 
 type RentItem = NonNullable<AreaInsights['recentRentals']>[number]
 
-export function AreaRecentTx({ areaId, insights, loading, kind }: {
+export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
   areaId: string
+  areaName?: string            // 有名字才给「在成交页查看全部」深链(chip 要显示名字)
   insights: AreaInsights | null
   loading: boolean
   kind?: 'sales' | 'rentals'   // when set, render only that list + hide the internal toggle
@@ -635,6 +636,18 @@ export function AreaRecentTx({ areaId, insights, loading, kind }: {
               >
                 {loadingMore ? t('map:areaDialog.loadingMore') : t('map:areaDialog.loadMore')}
               </button>
+            )}
+            {/* 「在成交页查看全部」—— 弹窗里只给 30 条 + 加载更多,想按户型/价格/年份
+                细筛就得去成交页。以前这里到成交页零链接,用户只能自己再选一遍区域。
+                带 areaId(手绘区没有 DLD area_name,只能靠 id 定位)+ label 供 chip 显示。 */}
+            {areaName && (
+              <a
+                href={`/transactions?areaId=${encodeURIComponent(areaId)}&label=${encodeURIComponent(areaName)}`}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-primary hover:bg-slate-50"
+              >
+                {t('map:areaDialog.allTransactions')}
+                <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
+              </a>
             )}
           </>
         ) : (

@@ -132,7 +132,8 @@
     "noRecentTx": "Aucune vente résidentielle récente enregistrée dans ce quartier",
     "offplan": "Off-plan",
     "ready": "Prêt",
-    "dldSource": "Source : Dubai Land Department · 24 derniers mois · jusqu'à {{month}}"
+    "dldSource": "Source : Dubai Land Department · 24 derniers mois · jusqu'à {{month}}",
+    "allTransactions": "Voir toutes les transactions"
   },
   "timeline": {
     "enter": "Chronologie",

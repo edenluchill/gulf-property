@@ -19,7 +19,15 @@
     "yearLabel": "{{year}} 年",
     "toggle": "筛选",
     "summaryAll": "全部成交",
-    "apply": "查看结果"
+    "apply": "查看结果",
+    "searchPlaceholder": "搜社区、楼盘或楼栋…",
+    "noMatch": "没有匹配的社区或楼盘",
+    "nBuildings": "含 {{count}} 栋",
+    "kind": {
+      "area": "区域",
+      "project": "楼盘",
+      "building": "楼栋"
+    }
   },
   "saleType": {
     "all": "全部",
@@ -72,5 +80,7 @@
   "new": "新签",
   "renew": "续租",
   "yr": "年",
-  "sourceDubaiLandDepartment": "数据来源 Dubai Land Department,展示该开发体近期记录。"
+  "sourceDubaiLandDepartment": "数据来源 Dubai Land Department,展示该开发体近期记录。",
+  "emptyRoomsHint": "提示：DLD 对别墅和联排（如 DAMAC Lagoons 全系）不登记户型，按户型筛选会把这些社区整体排除。",
+  "emptyDropRooms": "去掉户型筛选"
 }

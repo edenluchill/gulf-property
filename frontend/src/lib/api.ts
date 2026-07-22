@@ -802,6 +802,23 @@ export async function fetchTxFilters(): Promise<TxFilters> {
     return await r.json();
   } catch { return { areas: [], rooms: [] }; }
 }
+/** 统一搜索建议:一个框同时搜区域 / 楼盘 / 楼栋。 */
+export interface TxSuggestion {
+  type: 'area' | 'project' | 'building';
+  name: string;
+  count: number;
+  area?: string | null;      // project / building 所属区域
+  project?: string | null;   // building 所属楼盘
+  buildings?: number;        // project 下的楼栋数(>1 才提示「含 N 栋」)
+}
+export async function fetchTxSuggest(q: string): Promise<TxSuggestion[]> {
+  try {
+    const r = await fetch(`${API_URL}/market/transactions/suggest?${txQuery({ q })}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.suggestions || [];
+  } catch { return []; }
+}
 export async function fetchTxProjects(params: { area?: string; q?: string }): Promise<{ name: string; count: number }[]> {
   try {
     const r = await fetch(`${API_URL}/market/transactions/projects?${txQuery(params)}`);

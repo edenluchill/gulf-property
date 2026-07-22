@@ -115,7 +115,8 @@
     "noRecentTx": "该区域近期暂无住宅成交记录",
     "offplan": "期房",
     "ready": "现房",
-    "dldSource": "数据来源 Dubai Land Department · 近 24 个月 · 截至 {{month}}"
+    "dldSource": "数据来源 Dubai Land Department · 近 24 个月 · 截至 {{month}}",
+    "allTransactions": "在成交页查看全部"
   },
   "usage": {
     "all": "全部",

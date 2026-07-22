@@ -231,7 +231,7 @@ export default function AreaDetailDialog({
             <div className="flex-1 overflow-y-auto p-4">
               {tab === 'projects'
                 ? devsEl
-                : <AreaRecentTx areaId={area.id} insights={insights} loading={insightsLoading} kind={tab === 'rentals' ? 'rentals' : 'sales'} />}
+                : <AreaRecentTx areaId={area.id} areaName={area.name} insights={insights} loading={insightsLoading} kind={tab === 'rentals' ? 'rentals' : 'sales'} />}
             </div>
           </div>
         </div>

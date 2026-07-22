@@ -115,7 +115,8 @@
     "noRecentTx": "No recent residential sales recorded in this area",
     "offplan": "Off-plan",
     "ready": "Ready",
-    "dldSource": "Source: Dubai Land Department · last 24 months · through {{month}}"
+    "dldSource": "Source: Dubai Land Department · last 24 months · through {{month}}",
+    "allTransactions": "View all transactions"
   },
   "usage": {
     "all": "All",
