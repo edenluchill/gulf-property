@@ -528,6 +528,24 @@ function computeAppreciation(smoothed: (number | null)[], counts: number[]): App
   return out
 }
 
+/**
+ * 毛租金回报的两道护栏 —— **三条路径共用,别再各写各的**。
+ *
+ * `YIELD_BAND`:迪拜住宅毛回报实际落在 4-10%,超过 15% 或低于 1% 说明租金与成交
+ *   描述的根本不是同一批房子(户型/产权/新旧结构错配),宁可显示「—」。
+ * `MIN_YIELD_SALES`:回报率的**分母**(中位价/㎡)必须有像样的成交样本。
+ *   实测 Wadi Al Amardi 3 年只成交 4 笔却有 124 份租约、Al Qusais 2 成交 5 笔 /
+ *   租约 7178 份、Al Khawaneej 2 成交**1 笔** —— 拿一两笔成交的中位价当分母就是胡说。
+ *
+ * 三条路径:周期指标(computeWindowedMetrics)/ 年份时间轴(loadAreaMonthly)/
+ * 区域详情顶层曲线(loadAreaInsightsData 的 rentalYield)。
+ * 这三处**各写各的硬编码,已经因此栽了三次**(最近一次:顶层曲线两道护栏全无,
+ * 32 个区画假曲线,Wadi Al Amardi 峰值 20125%)。改阈值只改这里。
+ */
+export const YIELD_BAND_MIN = 1
+export const YIELD_BAND_MAX = 15
+export const MIN_YIELD_SALES = 30
+
 /** 单个周期窗口内的全指标值(「近N期」口径)。 */
 export interface PeriodMetrics {
   growth: number | null      // 窗口涨幅(端点滚动窗口中位价之比)
@@ -574,12 +592,10 @@ export function computeWindowedMetrics(
     // 另加合理带:迪拜住宅毛回报实际落在 4-10%,超过 15% 或低于 1% 说明租金与成交
     // 描述的根本不是同一批房子(户型/产权/新旧结构错配),宁可显示「—」。
     // 同 computeAppreciation 的 MAX_GAIN/MAX_LOSS 思路。
-    const MIN_YIELD_SALES = 30
-    const YIELD_MIN = 1, YIELD_MAX = 15
     const yieldRaw = priceSqm != null && priceSqm > 0 && rentAvg != null
       ? Number(((rentAvg / priceSqm) * 100).toFixed(2)) : null
     const yieldPct = yieldRaw != null && wCnt >= MIN_YIELD_SALES
-      && yieldRaw >= YIELD_MIN && yieldRaw <= YIELD_MAX ? yieldRaw : null
+      && yieldRaw >= YIELD_BAND_MIN && yieldRaw <= YIELD_BAND_MAX ? yieldRaw : null
     out[k] = {
       growth: growth[k] ?? null,
       priceSqm: priceSqm != null ? round(priceSqm) : null,
@@ -888,12 +904,29 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
     const sReady = mkSeries('ready')
 
     // 收益率永远用全口径价格做分母（租金全部来自已交付现房，期房价格做分母无意义）
+    //
+    // 🔴 这条序列**前端直接拿去画图**,却曾经一道护栏都没有 —— 越是给客户看的越没护栏。
+    // 稀疏区就拿一两笔非住宅成交当分母:Wadi Al Amardi 每月只成交 1-3 笔且全是
+    // Building/Land/Villa(整栋楼/地块),其中有 **8 迪拉姆/㎡** 的地块成交 →
+    // 曲线画到 **20125%**。全站 32 个区有越界点(Al Layyan 287% / Al Aweer 182%)。
+    //
+    // ⚠️ 只加合理带,**故意不加分母样本门槛**。第一版跟着时间轴抄了
+    // `roll3(pps, cnt, 30)`,结果是过度杀伤 —— 实测阈值扫描:
+    //   门槛 0(仅合理带) → 32 个越界区全清,正常区被砍 0 个
+    //   门槛 10          → 32 个,正常区被砍 24 个
+    //   门槛 30          → 32 个,正常区被砍 31 个,21 个成熟区曲线整条抹光
+    //                      (Al Barsha Second / Al Satwa / Al Manara / Al Bada …)
+    // 收益恒为 32,代价随门槛单调上升 → 门槛毫无价值。原因:分母只有一两笔成交
+    // 的后果**必然是比值离谱**,而离谱本身就会被合理带挡掉,不需要再数一遍样本。
+    // (周期指标那层的 MIN_YIELD_SALES=30 是**周期窗口**口径,别再往 3 个月窗口上套。)
+    // 这些老城区本地人自住、季度成交不足 30 笔,但租赁市场很活跃,曲线是真实有效的。
     const rentSmooth = smooth3(months.map(m => rentByMonth.get(m) ?? null))
     const rentalYield = months.map((m, i) => {
       const rent = rentSmooth[i]
       const pps = sAll.smooth[idxOf.get(m)!]
       if (rent == null || pps == null || pps <= 0) return null
-      return Number(((rent / pps) * 100).toFixed(2))
+      const y = Number(((rent / pps) * 100).toFixed(2))
+      return y >= YIELD_BAND_MIN && y <= YIELD_BAND_MAX ? y : null
     })
 
     const mr = medianRes.rows[0] || {}
@@ -1421,7 +1454,7 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
       const p = priceSqm[i]
       if (r == null || p == null || p <= 0) return null
       const y = Number(((r / p) * 100).toFixed(2))
-      return y >= 1 && y <= 15 ? y : null
+      return y >= YIELD_BAND_MIN && y <= YIELD_BAND_MAX ? y : null
     })
     // 同比:两端都要有值。合理带同 computeAppreciation,免得稀疏区因户型结构漂移
     // 报出 +2000% 这种假信号。
