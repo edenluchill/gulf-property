@@ -262,9 +262,29 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     placeOr.push(`UPPER(dt.area_name) = $${params.length}`)
   }
   if (q.areaId) {
-    // 地图区域（dubai_areas.id）→ 经 dld_areas 桥接到 DLD area_id（吃 idx_trans_area）
+    // 🔴 地图区域（dubai_areas.id）有两种,必须两条路都走 —— 与 area-insights /
+    // area-appreciation 同一套判定(见 [[map-dialog-metric-path-parity]]):
+    //   • 官方区 → dld_areas bridge(area_id < 900000),吃 idx_trans_area;
+    //   • 手绘自定义区 → **没有 bridge**,只能靠 geocode 落点做空间匹配。
+    // 原来只有 bridge 那条,后果是手绘区(Sobha Heartland / Villanova /
+    // Arabian Ranches 3 …)一律查不到成交:弹窗的「加载更多」点了没反应,
+    // 新加的「在成交页查看全部」深链进去也是一片空白。
+    // 第二个分支带 NOT EXISTS 守卫,保证官方区不会再走一遍 spatial(口径唯一)。
+    // 实测 179-236ms(Sobha Heartland 12831 笔 / Arabian Ranches 3 3624 笔),可实时跑。
     params.push(String(q.areaId).trim())
-    placeOr.push(`dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = $${params.length})`)
+    const p = `$${params.length}`
+    placeOr.push(`(
+      dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = ${p} AND area_id < 900000)
+      OR (
+        NOT EXISTS (SELECT 1 FROM dld_areas WHERE dubai_area_id = ${p} AND area_id < 900000)
+        AND (dt.area_name, COALESCE(NULLIF(dt.project_name,''), NULLIF(dt.building_name,''), '__AREA__')) IN (
+          SELECT loc.area_name, loc.project_name
+            FROM dubai_areas da
+            JOIN dld_project_locations loc ON loc.geom IS NOT NULL AND ST_Covers(da.boundary, loc.geom)
+           WHERE da.id = ${p}
+        )
+      )
+    )`)
   }
   // project 多选：经纪常把同一社区的多个 phase/楼盘合在一起看销售
   // (如 Sobha Hartland Greens 的 2 个 project)。前端重复传参 → Express 给 string[]。
