@@ -271,6 +271,17 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
       parts.push(`UPPER(dt.project_name) = ANY($${params.length}::text[])`)
     }
   }
+  // 楼栋筛选 —— 「同一社区分 A/B/C 栋要能分开查」。选楼盘 = 该盘全部楼栋,
+  // 选楼栋 = 只看这一栋。与 project 一样支持多选(经纪常把 Tower A+B 合起来看)。
+  if (q.building) {
+    const list = (Array.isArray(q.building) ? q.building : [q.building])
+      .map((b: any) => String(b).trim().toUpperCase())
+      .filter(Boolean)
+    if (list.length > 0) {
+      params.push(list)
+      parts.push(`UPPER(dt.building_name) = ANY($${params.length}::text[])`)
+    }
+  }
   if (q.rooms && ROOM_OPTIONS.includes(q.rooms)) {
     params.push(q.rooms)
     parts.push(`dt.rooms = $${params.length}`)
@@ -364,6 +375,112 @@ async function loadProjects(area: string): Promise<{ name: string; count: number
   return r.rows
 }
 
+/**
+ * 统一搜索建议 —— 一个搜索框同时搜「区域 / 楼盘 / 楼栋」。
+ *
+ * 经纪的原话:「搜索框直接搜社区名、building 名;如果一个社区分 ABCD 栋或 1-10 栋,
+ * 能分开查成交,也能用社区名查全部。」DLD 的数据结构正好支持:
+ *   project_name = 社区/楼盘(Sobha Creek Vistas Heights)
+ *   building_name = 楼栋(… - Tower A / Tower B)  填充率 82.4%
+ * 所以 project 项 = 「全部楼栋」,building 项 = 单栋,两级都能选。
+ *
+ * 三类候选一次算好缓存(6h + market_cache 持久化):全表 group-by 冷算要数秒,
+ * 而这是用户敲第一个字母就要响应的接口。
+ */
+interface SuggestIndex {
+  areas: { name: string; count: number }[]
+  projects: { name: string; area: string | null; count: number; buildings: number }[]
+  buildings: { name: string; project: string | null; area: string | null; count: number }[]
+}
+
+async function loadSuggestIndex(): Promise<SuggestIndex> {
+  const cached = txCacheGet('suggest')
+  if (cached) return cached
+  const pc = await txPrecomputed('suggest')
+  if (pc) { txCacheSet('suggest', pc); return pc }
+  const [areas, projects, buildings] = await Promise.all([
+    pool.query(
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.area_name) AS name, COUNT(*)::int AS count
+         FROM dld_transactions dt
+        WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential' AND ${RES_PT}
+          AND dt.meter_sale_price BETWEEN 1000 AND 250000 AND dt.procedure_area > 0
+          AND dt.area_name IS NOT NULL AND dt.area_name <> ''
+        GROUP BY UPPER(dt.area_name) HAVING COUNT(*) >= 50 ORDER BY count DESC`
+    ),
+    pool.query(
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name,
+              mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              COUNT(*)::int AS count,
+              COUNT(DISTINCT UPPER(dt.building_name))::int AS buildings
+         FROM dld_transactions dt
+        WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential' AND ${RES_PT}
+          AND dt.meter_sale_price BETWEEN 1000 AND 250000 AND dt.procedure_area > 0
+          AND dt.project_name IS NOT NULL AND dt.project_name <> ''
+        GROUP BY UPPER(dt.project_name) HAVING COUNT(*) >= 10 ORDER BY count DESC`
+    ),
+    pool.query(
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.building_name) AS name,
+              mode() WITHIN GROUP (ORDER BY dt.project_name) AS project,
+              mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              COUNT(*)::int AS count
+         FROM dld_transactions dt
+        WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential' AND ${RES_PT}
+          AND dt.meter_sale_price BETWEEN 1000 AND 250000 AND dt.procedure_area > 0
+          AND dt.building_name IS NOT NULL AND dt.building_name <> ''
+        GROUP BY UPPER(dt.building_name) HAVING COUNT(*) >= 5 ORDER BY count DESC`
+    ),
+  ])
+  const data: SuggestIndex = { areas: areas.rows, projects: projects.rows, buildings: buildings.rows }
+  txCacheSet('suggest', data)
+  return data
+}
+
+/** 打分排序:前缀命中 > 词首命中 > 子串命中;同档按成交量。 */
+function scoreMatch(name: string, q: string): number {
+  const n = name.toLowerCase()
+  if (!n.includes(q)) return -1
+  if (n.startsWith(q)) return 3
+  // 「lagoon」应该命中「DAMAC LAGOONS - NICE 1」的第二个词
+  if (new RegExp(`(^|[^a-z0-9])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(n)) return 2
+  return 1
+}
+
+router.get('/transactions/suggest', async (req: Request, res: Response) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase()
+    const idx = await loadSuggestIndex()
+    if (!q) {
+      // 空查询 = 刚点开搜索框:给最活跃的区域,别一上来就糊一脸楼盘名
+      return res.json({ suggestions: idx.areas.slice(0, 8).map(a => ({ type: 'area', ...a })) })
+    }
+    type S = { type: 'area' | 'project' | 'building'; name: string; count: number; score: number
+               area?: string | null; project?: string | null; buildings?: number }
+    const out: S[] = []
+    for (const a of idx.areas) {
+      const s = scoreMatch(a.name, q)
+      if (s > 0) out.push({ type: 'area', name: a.name, count: a.count, score: s })
+    }
+    for (const p of idx.projects) {
+      const s = scoreMatch(p.name, q)
+      if (s > 0) out.push({ type: 'project', name: p.name, count: p.count, score: s, area: p.area, buildings: p.buildings })
+    }
+    for (const b of idx.buildings) {
+      const s = scoreMatch(b.name, q)
+      // 楼栋名常与楼盘名几乎重复(project「Creek Waters」/ building「Creek Waters」),
+      // 完全同名的楼栋不再单列 —— 选楼盘就已经覆盖它,列出来只是噪音。
+      if (s > 0 && b.name.toLowerCase() !== (b.project || '').toLowerCase())
+        out.push({ type: 'building', name: b.name, count: b.count, score: s, project: b.project, area: b.area })
+    }
+    // 区域优先(买家先想"哪个区"),其次匹配质量,再次成交量
+    const typeRank = { area: 0, project: 1, building: 2 }
+    out.sort((x, y) => (y.score - x.score) || (typeRank[x.type] - typeRank[y.type]) || (y.count - x.count))
+    res.json({ suggestions: out.slice(0, 12).map(({ score, ...rest }) => rest) })
+  } catch (err) {
+    console.error('[market/transactions/suggest] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
 router.get('/transactions/projects', async (req: Request, res: Response) => {
   try {
     const area = String(req.query.area || '').trim()
@@ -389,7 +506,7 @@ router.get('/transactions/summary', async (req: Request, res: Response) => {
     // 前端散客默认 type=offplan（见 frontend lib/marketSegment.ts），所以期房/现房
     // 的无其它筛选场景也各有预计算 key（market-precompute.ts）。
     const q = req.query
-    if (!q.area && !q.areaId && !q.project && !q.rooms && !q.from && !q.to && !q.minPrice && !q.maxPrice) {
+    if (!q.area && !q.areaId && !q.project && !q.building && !q.rooms && !q.from && !q.to && !q.minPrice && !q.maxPrice) {
       const pcKey = q.type === 'offplan' ? 'summary:offplan' : q.type === 'ready' ? 'summary:ready' : !q.type ? 'summary' : null
       if (pcKey) {
         const pc = await txPrecomputed(pcKey)

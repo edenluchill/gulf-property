@@ -81,6 +81,38 @@ async function txFilters() {
   await store('tx', 'filters', { areas: areas.rows, rooms: ROOM_OPTIONS })
 }
 
+/** 统一搜索框(区域/楼盘/楼栋)的候选索引 —— 用户敲第一个字母就要响应,不能冷算。
+ *  ⚠️ payload 形状必须与 market.ts 的 loadSuggestIndex 完全一致。 */
+async function txSuggest() {
+  const [areas, projects, buildings] = await Promise.all([
+    pool.query(
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.area_name) AS name, COUNT(*)::int AS count
+         FROM dld_transactions dt
+        WHERE ${TX_BASE} AND dt.area_name IS NOT NULL AND dt.area_name <> ''
+        GROUP BY UPPER(dt.area_name) HAVING COUNT(*) >= 50 ORDER BY count DESC`
+    ),
+    pool.query(
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name,
+              mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              COUNT(*)::int AS count,
+              COUNT(DISTINCT UPPER(dt.building_name))::int AS buildings
+         FROM dld_transactions dt
+        WHERE ${TX_BASE} AND dt.project_name IS NOT NULL AND dt.project_name <> ''
+        GROUP BY UPPER(dt.project_name) HAVING COUNT(*) >= 10 ORDER BY count DESC`
+    ),
+    pool.query(
+      `SELECT mode() WITHIN GROUP (ORDER BY dt.building_name) AS name,
+              mode() WITHIN GROUP (ORDER BY dt.project_name) AS project,
+              mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              COUNT(*)::int AS count
+         FROM dld_transactions dt
+        WHERE ${TX_BASE} AND dt.building_name IS NOT NULL AND dt.building_name <> ''
+        GROUP BY UPPER(dt.building_name) HAVING COUNT(*) >= 5 ORDER BY count DESC`
+    ),
+  ])
+  await store('tx', 'suggest', { areas: areas.rows, projects: projects.rows, buildings: buildings.rows })
+}
+
 async function txProjectsAll() {
   const r = await pool.query(
     `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name, COUNT(*)::int AS count
@@ -135,7 +167,7 @@ async function main() {
     PRIMARY KEY (market, key))`)
   const t0 = Date.now()
   await rentFilters(); await rentSummary()
-  await txFilters(); await txSummary(); await txSummary('offplan'); await txSummary('ready'); await txProjectsAll()
+  await txFilters(); await txSummary(); await txSummary('offplan'); await txSummary('ready'); await txProjectsAll(); await txSuggest()
   console.log(`[precompute] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
   await pool.end()
 }

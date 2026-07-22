@@ -26,6 +26,14 @@ const master = argVal('--master')
 const limit = Number(argVal('--limit') || 0)
 const minTx = Number(argVal('--min-tx') || 3)
 const retryFailed = args.includes('--retry-failed')
+// --retry-snap: 重新 geocode 被「吸附」到所属 DLD 区中心的项目(source='area_snap')。
+// 这些项目**从来没有真实坐标** —— 实测 559 条 area_snap 只有 47 个不同坐标,
+// 平均 12 个项目挤在同一个区中心点上(REMRAAM 与 Remraam-Al Ramth 同点;
+// TOWN SQUARE 的 HAYAT/JENNA/SAFI/ZAHRA 四个项目同点)。
+// 后果:手绘社区多边形画在真实社区位置,而该社区所有项目的「坐标」却在 1 公里外的
+// 区中心 → ST_Covers 一个都罩不住 → **32 个真迪拜社区整区无任何指标**
+// (Arabian Ranches 3 / Town Square / Jumeirah Park / The Meadows / Remraam …)。
+const retrySnap = args.includes('--retry-snap')
 // --buildings: geocode tx that have only a building_name (no project_name).
 // Stored under project_name = building_name so the COALESCE join in
 // market.ts's area-insights picks them up too. Lifts tx coverage past 91%.
@@ -40,6 +48,16 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 interface Key { area_name: string; project_name: string; tx: number }
 
 async function pending(): Promise<Key[]> {
+  if (retrySnap) {
+    const lim = limit > 0 ? `LIMIT ${limit}` : ''
+    const { rows } = await pool.query(
+      `SELECT l.area_name, l.project_name, COALESCE(l.tx_count, 1)::int AS tx
+         FROM dld_project_locations l
+        WHERE l.source = 'area_snap' AND l.project_name <> '__AREA__'
+        ORDER BY l.tx_count DESC NULLS LAST ${lim}`
+    )
+    return rows
+  }
   if (areasMode) {
     // Distinct area_names (rent + sales) that still have no '__AREA__' centroid.
     const lim = limit > 0 ? `LIMIT ${limit}` : ''
@@ -128,7 +146,7 @@ async function upsert(k: Key, loc: { lat: number; lng: number } | null) {
          source = 'google', tx_count = EXCLUDED.tx_count, geocoded_at = now()`,
       [k.area_name, k.project_name, loc.lat, loc.lng, k.tx]
     )
-  } else {
+  } else if (!retrySnap) {
     await pool.query(
       `INSERT INTO dld_project_locations (area_name, project_name, source, tx_count)
        VALUES ($1,$2,'failed',$3)
@@ -136,6 +154,8 @@ async function upsert(k: Key, loc: { lat: number; lng: number } | null) {
       [k.area_name, k.project_name, k.tx]
     )
   }
+  // retry-snap 且这次没查到 → **什么都不做**,保留原 area_snap 兜底点。
+  // 那个粗坐标虽然只是区中心,但区域级匹配仍靠它工作;标成 'failed' 是纯退化。
 }
 
 async function main() {
