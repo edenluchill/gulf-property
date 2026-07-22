@@ -248,40 +248,42 @@ function buildTxFilter(q: any): { clause: string; params: any[] } {
     `dt.meter_sale_price BETWEEN 1000 AND 250000`,
     `dt.procedure_area > 0`
   ]
+  // 🔴 地点类筛选(区域 / 楼盘 / 楼栋)彼此之间是 **OR**,不是 AND。
+  // 买家的心智是「我想看这几个地方的成交」,不是「同时满足这几个条件」——
+  // 选了 DAMAC LAGOONS - PORTOFINO(楼盘)又选了 Creek Vista Tower B(楼栋),
+  // AND 起来必然是空集,界面只能显示「暂无成交数据」,像个 bug。
+  // 户型 / 价格 / 年份 / 期房现房是**属性约束**,那些才 AND。
+  const placeOr: string[] = []
+  const asList = (v: any) => (Array.isArray(v) ? v : [v]).map((x: any) => String(x).trim().toUpperCase()).filter(Boolean)
   if (q.area) {
     // DLD 原始数据同一区域存在大小写变体（'Business Bay' / 'BUSINESS BAY'），
     // 用 UPPER 等值匹配（吃 idx_dld_tx_res_area_upper 函数索引）把变体并在一起
     params.push(String(q.area).trim().toUpperCase())
-    parts.push(`UPPER(dt.area_name) = $${params.length}`)
+    placeOr.push(`UPPER(dt.area_name) = $${params.length}`)
   }
   if (q.areaId) {
     // 地图区域（dubai_areas.id）→ 经 dld_areas 桥接到 DLD area_id（吃 idx_trans_area）
     params.push(String(q.areaId).trim())
-    parts.push(`dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = $${params.length})`)
+    placeOr.push(`dt.area_id IN (SELECT area_id FROM dld_areas WHERE dubai_area_id = $${params.length})`)
   }
-  // project 支持多选：经纪常把同一社区的多个 phase/楼盘合在一起看销售
-  // (如 Sobha Hartland Greens 的 2 个 project)。前端可重复传 project 参数 →
-  // Express 给出 string[]; 单选时是 string。统一成数组用 = ANY 匹配。
+  // project 多选：经纪常把同一社区的多个 phase/楼盘合在一起看销售
+  // (如 Sobha Hartland Greens 的 2 个 project)。前端重复传参 → Express 给 string[]。
   if (q.project) {
-    const projectList = (Array.isArray(q.project) ? q.project : [q.project])
-      .map((p: any) => String(p).trim().toUpperCase())
-      .filter(Boolean)
-    if (projectList.length > 0) {
-      params.push(projectList)
-      parts.push(`UPPER(dt.project_name) = ANY($${params.length}::text[])`)
-    }
-  }
-  // 楼栋筛选 —— 「同一社区分 A/B/C 栋要能分开查」。选楼盘 = 该盘全部楼栋,
-  // 选楼栋 = 只看这一栋。与 project 一样支持多选(经纪常把 Tower A+B 合起来看)。
-  if (q.building) {
-    const list = (Array.isArray(q.building) ? q.building : [q.building])
-      .map((b: any) => String(b).trim().toUpperCase())
-      .filter(Boolean)
+    const list = asList(q.project)
     if (list.length > 0) {
       params.push(list)
-      parts.push(`UPPER(dt.building_name) = ANY($${params.length}::text[])`)
+      placeOr.push(`UPPER(dt.project_name) = ANY($${params.length}::text[])`)
     }
   }
+  // 楼栋 —— 「同一社区分 A/B/C 栋要能分开查」。选楼盘 = 该盘全部楼栋,选楼栋 = 只看这一栋。
+  if (q.building) {
+    const list = asList(q.building)
+    if (list.length > 0) {
+      params.push(list)
+      placeOr.push(`UPPER(dt.building_name) = ANY($${params.length}::text[])`)
+    }
+  }
+  if (placeOr.length > 0) parts.push(`(${placeOr.join(' OR ')})`)
   if (q.rooms && ROOM_OPTIONS.includes(q.rooms)) {
     params.push(q.rooms)
     parts.push(`dt.rooms = $${params.length}`)
