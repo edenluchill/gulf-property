@@ -471,10 +471,31 @@ router.get('/transactions/suggest', async (req: Request, res: Response) => {
       if (s > 0 && b.name.toLowerCase() !== (b.project || '').toLowerCase())
         out.push({ type: 'building', name: b.name, count: b.count, score: s, project: b.project, area: b.area })
     }
-    // 区域优先(买家先想"哪个区"),其次匹配质量,再次成交量
+    // 🔴 分组配额,不是全局排序。
+    // 曾经是「先按匹配质量、再按类型」排完取前 12 —— 搜「lagoon」时 12 个名额
+    // 被 LAGOON VIEWS x - TOWER y 占满(前缀命中 3 分),而客户真正要找的
+    // DAMAC LAGOONS - PORTOFINO / MALTA / SANTORINI(词首命中 2 分)**一个都进不来**。
+    // 搜社区名却只吐楼栋,正是客户反馈的那个场景。
+    // 配额保证三类都露面;某类不够则把名额让给其他类补齐到 LIMIT。
+    const LIMIT = 12
+    const QUOTA = { area: 3, project: 5, building: 4 } as const
+    const byRank = (a: S, b: S) => (b.score - a.score) || (b.count - a.count)
+    const pools = {
+      area: out.filter(x => x.type === 'area').sort(byRank),
+      project: out.filter(x => x.type === 'project').sort(byRank),
+      building: out.filter(x => x.type === 'building').sort(byRank),
+    }
+    const order = ['area', 'project', 'building'] as const
+    const picked: S[] = []
+    for (const k of order) picked.push(...pools[k].slice(0, QUOTA[k]))
+    if (picked.length < LIMIT) {
+      const rest = order.flatMap(k => pools[k].slice(QUOTA[k])).sort(byRank)
+      picked.push(...rest.slice(0, LIMIT - picked.length))
+    }
+    // 最终展示顺序:区域 → 楼盘 → 楼栋(买家的思考顺序是从大到小)
     const typeRank = { area: 0, project: 1, building: 2 }
-    out.sort((x, y) => (y.score - x.score) || (typeRank[x.type] - typeRank[y.type]) || (y.count - x.count))
-    res.json({ suggestions: out.slice(0, 12).map(({ score, ...rest }) => rest) })
+    picked.sort((x, y) => (typeRank[x.type] - typeRank[y.type]) || byRank(x, y))
+    res.json({ suggestions: picked.slice(0, LIMIT).map(({ score, ...rest }) => rest) })
   } catch (err) {
     console.error('[market/transactions/suggest] error:', err)
     res.status(500).json({ error: 'internal error' })
