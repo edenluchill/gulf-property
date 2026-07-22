@@ -693,6 +693,13 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
             AND rc.usage_type = 'Residential'
             AND rc.property_area BETWEEN 15 AND 2000
             AND rc.annual_amount BETWEEN 5000 AND 5000000
+            -- 🔴 排除劳工宿舍/整栋打包合同(整栋多床位记在一个小单元面积上)。
+            -- 这条护栏 bulk 侧一直有、dialog 侧漏了 → 顶层 rentalYield 序列被污染,
+            -- 而它**没有 1-15% 合理带兜底**(见下方 rentalYield 计算),直接喂前端画图。
+            -- 实测受污染的区:Madinat Hind 3 中位 144,267/㎡/年(真值 455)、
+            -- Grayteesah 22,552(964)、Jebel Ali Industrial 22,569(1,993)、
+            -- Muhaisnah 2 (Sonapur) 12,600(2,037) …… 共 9 个区偏离 >5%。
+            AND rc.annual_amount / rc.property_area BETWEEN 100 AND 6000
             -- 63 月:回报率窗口最长 5 年(60)+ 平滑;原 25 月只够 2 年展示序列
             AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months'
             AND rc.start_date <= b.d
@@ -861,8 +868,15 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
         return v != null ? Number(v) : null
       })
       const appreciation = computeAppreciation(smooth3(pps63), cnt63)
-      // 全指标窗口值(回报只 all 口径给 rent 序列)
-      const metrics = computeWindowedMetrics(pps63, unit63, cnt63, seg === 'all' ? rent63 : null)
+      // 🔴 三个口径都喂同一份租金基数 —— 与 loadAllAreaAppreciation 的 seg() 完全一致。
+      // 原来是 `seg === 'all' ? rent63 : null`,那是地图 bulk 侧早已修掉、dialog 侧
+      // 漏改的同一行。后果:只要该区默认落到期房/现房口径(新盘几乎必然),
+      // metricsByPeriod.yield 就是 null —— 实测抽样 40 个区,**32 个的周期回报率是空的**,
+      // 其中 25 个正是栽在这里。且与自定义区无关,官方区一样中招。
+      // 租约本身没有期房/现房之分(能出租的必然是现房),但那不该让指标整个消失:
+      // 回报率 = 现房市场租金 ÷ 该口径成交价,对期房就是「按期房价买入、按当前市场价
+      // 出租能拿多少」。租金基数是现房这件事由 UI 的「existing stock」角标说明。
+      const metrics = computeWindowedMetrics(pps63, unit63, cnt63, rent63)
       return { smooth, price, volume, growth, appreciation, metrics }
     }
     const sAll = mkSeries('all')
