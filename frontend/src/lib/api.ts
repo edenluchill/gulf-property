@@ -998,6 +998,58 @@ export async function fetchAreaInsights(areaId: string, usage?: string, segment?
   } catch { return null; }
 }
 
+// ---- 区域弹窗内下钻：在本区内搜楼盘 / 楼栋 ----
+//
+// 候选一次全量取回、在内存里匹配 —— 打字零请求（也就零地图额度，见 mapMeter
+// 的 UNMETERED 注释：输入辅助不是数据消费）。跨区细筛仍走成交页深链。
+export interface AreaPlace {
+  name: string;
+  txCount: number;
+  rentCount?: number;     // 楼盘才有（租约表没有 building_name 列）
+  buildings?: number;     // 楼盘名下的楼栋数
+  project?: string | null; // 楼栋所属楼盘
+}
+export interface AreaPlaces { projects: AreaPlace[]; buildings: AreaPlace[] }
+export async function fetchAreaPlaces(areaId: string): Promise<AreaPlaces> {
+  try {
+    const r = await fetch(`${API_URL}/market/area-places?areaId=${encodeURIComponent(areaId)}`);
+    if (!r.ok) return { projects: [], buildings: [] };
+    return await r.json();
+  } catch { return { projects: [], buildings: [] }; }
+}
+/** 弹窗成交列表（下钻 + 翻页）。口径跟随 usage 透镜，与弹窗指标一致。
+ *  行结构刻意与 AreaInsights.recentTransactions 逐字段相同 —— 列表直接拼接。 */
+export type AreaTxRow = AreaInsights['recentTransactions'][number]
+export type AreaRentRow = NonNullable<AreaInsights['recentRentals']>[number]
+export async function fetchAreaTx(p: {
+  areaId: string; usage?: string; type?: string;
+  project?: string; building?: string; limit?: number; offset?: number;
+}): Promise<{ rows: AreaTxRow[] }> {
+  try {
+    const qs = new URLSearchParams();
+    Object.entries(p).forEach(([k, v]) => {
+      if (v === undefined || v === '') return;
+      // 'all' 是 usage/type 的「不筛」哨兵值，别顺手把叫 all 的楼盘名也吃掉
+      if ((k === 'usage' || k === 'type') && v === 'all') return;
+      qs.set(k, String(v));
+    });
+    const r = await fetch(`${API_URL}/market/area-tx?${qs.toString()}`);
+    if (!r.ok) return { rows: [] };
+    return await r.json();
+  } catch { return { rows: [] }; }
+}
+export async function fetchAreaRentals(p: {
+  areaId: string; project?: string; limit?: number; offset?: number;
+}): Promise<{ rows: AreaRentRow[] }> {
+  try {
+    const qs = new URLSearchParams();
+    Object.entries(p).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)); });
+    const r = await fetch(`${API_URL}/market/area-rentals?${qs.toString()}`);
+    if (!r.ok) return { rows: [] };
+    return await r.json();
+  } catch { return { rows: [] }; }
+}
+
 // ---- 区域分级（功能 C）----
 /** 区域分级。**后端只回结构化数据,不回文案** —— label/perspective 都是 tag 的
  *  一一映射(前端按 tag 出 t());reasons 是 { code, params } 由前端 t(code, params) 渲染。 */

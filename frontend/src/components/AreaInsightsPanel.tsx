@@ -2,14 +2,17 @@
  * 区域洞察共享组件 —— 桌面 AreaDetailDialog 和移动端 bottom sheet 共用：
  * useAreaInsights(取数 hook) + AreaTrendGrid(四指标趋势卡) + AreaRecentTx(近期成交,可加载更多)
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { BadgeCheck, Info, ArrowRight } from 'lucide-react'
+import { BadgeCheck, Info, ArrowRight, Search, X, Building2, Home } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { formatMoneyCompact, formatMoneyFull } from '../lib/money'
 import { pricePerSqmToPerSqft, sqmToSqft } from '../lib/units'
-import { fetchAreaInsights, fetchTxList, AreaInsights } from '../lib/api'
+import {
+  fetchAreaInsights, fetchAreaPlaces, fetchAreaTx, fetchAreaRentals,
+  AreaInsights, AreaPlace,
+} from '../lib/api'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 import { MetricPeriodKey, loadSavedPeriod, savePeriod, periodLabel, SHORT_PERIODS, PERIOD_MONTHS } from '../lib/metricPeriod'
 import { PeriodSelector } from './PeriodSelector'
@@ -504,18 +507,175 @@ export function AreaTrendGrid({ area, insights, loading, usageActive = false }: 
   )
 }
 
+// ── 在本区内搜楼盘 / 楼栋 ────────────────────────────────────────────────────
+//
+// 「打开 Dubai Marina 只想看 Marina Gate」以前要跳去成交页从全城重选一遍。
+// 候选(名字+条数,无价格)在弹窗打开时一次全量取回,**打字是纯内存匹配、零请求**
+// —— 也就零地图额度(见 mapMeter 的 UNMETERED:输入辅助不是数据消费)。
+
+export type AreaPlaceSel = { kind: 'project' | 'building'; name: string; project?: string | null }
+
+/** 与后端 /transactions/suggest 的 scoreMatch 同一套打分:前缀 3 / 词首 2 / 包含 1。
+ *  词首那条是必须的 —— 搜「gate」要能命中「MARINA GATE 1」的第二个词。 */
+function scorePlace(name: string, q: string): number {
+  const n = name.toLowerCase()
+  if (!n.includes(q)) return -1
+  if (n.startsWith(q)) return 3
+  if (new RegExp(`(^|[^a-z0-9])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(n)) return 2
+  return 1
+}
+
+export function AreaPlaceSearch({ areaId, value, onChange, compact = false }: {
+  areaId: string
+  value: AreaPlaceSel | null
+  onChange: (v: AreaPlaceSel | null) => void
+  compact?: boolean
+}) {
+  const { t } = useTranslation(['map'])
+  const [places, setPlaces] = useState<{ projects: AreaPlace[]; buildings: AreaPlace[] } | null>(null)
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  // 换区域 = 换候选表,已选的地点也必须清掉(否则 A 区的楼栋名挂在 B 区上)
+  useEffect(() => {
+    setPlaces(null); setQ(''); setOpen(false)
+    let alive = true
+    fetchAreaPlaces(areaId).then(p => { if (alive) setPlaces(p) })
+    return () => { alive = false }
+  }, [areaId])
+
+  // 点外面收起
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const matches = useMemo(() => {
+    if (!places) return { projects: [], buildings: [] }
+    const key = q.trim().toLowerCase()
+    const rank = (list: AreaPlace[], limit: number) => {
+      if (!key) return list.slice(0, limit)   // 空查询 = 刚点开:给条数最多的
+      return list
+        .map(p => ({ p, s: scorePlace(p.name, key) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => (b.s - a.s) || ((b.p.txCount + (b.p.rentCount || 0)) - (a.p.txCount + (a.p.rentCount || 0))))
+        .slice(0, limit)
+        .map(x => x.p)
+    }
+    return { projects: rank(places.projects, 6), buildings: rank(places.buildings, 6) }
+  }, [places, q])
+
+  const total = matches.projects.length + matches.buildings.length
+
+  const pick = (kind: 'project' | 'building', p: AreaPlace) => {
+    onChange({ kind, name: p.name, project: p.project ?? null })
+    setQ(''); setOpen(false)
+  }
+
+  const Row = ({ p, kind }: { p: AreaPlace; kind: 'project' | 'building' }) => (
+    <button
+      type="button"
+      data-kind={kind}
+      onMouseDown={(e) => { e.preventDefault(); pick(kind, p) }}
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-start hover:bg-slate-50"
+    >
+      {kind === 'project'
+        ? <Building2 className="h-4 w-4 shrink-0 text-teal-500" />
+        : <Home className="h-4 w-4 shrink-0 text-slate-400" />}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-slate-800">{p.name}</span>
+        <span className="block truncate text-[11px] text-slate-400">
+          {kind === 'building' && p.project ? p.project : null}
+          {kind === 'project' && p.buildings ? t('map:areaDialog.buildingsCount', { count: p.buildings }) : null}
+        </span>
+      </span>
+      <span className="shrink-0 text-[11px] font-medium text-slate-400">
+        {p.txCount > 0
+          ? t('map:areaDialog.txCount', { count: p.txCount })
+          : t('map:areaDialog.rentCount', { count: p.rentCount || 0 })}
+      </span>
+    </button>
+  )
+
+  // 已选中 → 收成一个 chip,腾出空间给列表
+  if (value) {
+    return (
+      <div className={`flex items-center gap-2 ${compact ? '' : 'mb-2'}`}>
+        <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-teal-50 py-1 ps-2.5 pe-1.5 text-sm font-medium text-teal-700 ring-1 ring-teal-200">
+          {value.kind === 'project' ? <Building2 className="h-3.5 w-3.5 shrink-0" /> : <Home className="h-3.5 w-3.5 shrink-0" />}
+          <span className="truncate">{value.name}</span>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            aria-label={t('map:areaDialog.clearPlace')}
+            className="shrink-0 rounded-full p-0.5 hover:bg-teal-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={boxRef} className={`relative ${compact ? '' : 'mb-2'}`}>
+      <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        value={q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder={t('map:areaDialog.searchPlaceholder')}
+        className="w-full rounded-xl border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+      />
+      {open && places && (
+        <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+          {total === 0 ? (
+            <div className="px-3 py-6 text-center text-sm text-slate-400">{t('map:areaDialog.searchNoMatch')}</div>
+          ) : (
+            <>
+              {matches.projects.length > 0 && (
+                <>
+                  <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    {t('map:areaDialog.searchProjects')}
+                  </div>
+                  {matches.projects.map(p => <Row key={`p:${p.name}`} p={p} kind="project" />)}
+                </>
+              )}
+              {matches.buildings.length > 0 && (
+                <>
+                  <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    {t('map:areaDialog.searchBuildings')}
+                  </div>
+                  {matches.buildings.map(p => <Row key={`b:${p.name}`} p={p} kind="building" />)}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 近期真实成交（可加载更多）────────────────────────────────────────────────
 
 type TxItem = AreaInsights['recentTransactions'][number]
 
 type RentItem = NonNullable<AreaInsights['recentRentals']>[number]
 
-export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
+export function AreaRecentTx({ areaId, areaName, insights, loading, kind, place, usage }: {
   areaId: string
   areaName?: string            // 有名字才给「在成交页查看全部」深链(chip 要显示名字)
   insights: AreaInsights | null
   loading: boolean
   kind?: 'sales' | 'rentals'   // when set, render only that list + hide the internal toggle
+  place?: AreaPlaceSel | null  // 本区内下钻到某楼盘/楼栋(AreaPlaceSearch 选中)
+  usage?: string               // 口径透镜 —— 下钻取数必须跟弹窗指标同口径
 }) {
   const { t, i18n } = useTranslation(['map', 'areaInsights'])
   const lang = i18n.language || 'en'
@@ -534,29 +694,70 @@ export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
   // 混合 top-30 里筛会漏掉更早的记录，所以必须服务端取）。
   const baseRows = insights?.recentTransactions || []
   const effFilter: MarketSegment = (insights?.txSegment as MarketSegment) ?? 'all'
-  const rows = [...baseRows, ...extra]
-  const rentRows = insights?.recentRentals || []
+
+  // ── 下钻(选中了楼盘/楼栋)────────────────────────────────────────────────
+  // 整份列表改由服务端按 area+place 取，不在已加载的 30 条里 filter ——
+  // 大区动辄上万笔，前端过滤只能搜到最近那几条，等于搜不到。
+  const [drillTx, setDrillTx] = useState<TxItem[] | null>(null)
+  const [drillRent, setDrillRent] = useState<RentItem[] | null>(null)
+  const [drilling, setDrilling] = useState(false)
+  // 没在下钻时,drillRent 装的是「加载更多租约」追加出来的那份 —— 换了口径就得丢,
+  // 不然租约列表卡在上一口径的数据上。
+  useEffect(() => { if (!place) setDrillRent(null) }, [insights])
+  // 租约表**没有 building_name 列**：选楼栋时只能退到它所属楼盘（如实告知，
+  // 不做名称模糊猜测）；楼栋连楼盘归属都没有 → 租约侧只能空着。
+  const rentProject = place ? (place.kind === 'project' ? place.name : place.project || null) : null
+  const rentBlocked = !!place && place.kind === 'building' && !place.project
+
+  useEffect(() => {
+    if (!place) { setDrillTx(null); setDrillRent(null); return }
+    let alive = true
+    setDrilling(true)
+    const args = place.kind === 'project' ? { project: place.name } : { building: place.name }
+    Promise.all([
+      fetchAreaTx({ areaId, usage, type: effFilter, limit: 30, ...args }),
+      rentProject && !rentBlocked
+        ? fetchAreaRentals({ areaId, project: rentProject, limit: 8 })
+        : Promise.resolve({ rows: [] as RentItem[] }),
+    ]).then(([tx, rent]) => {
+      if (!alive) return
+      setDrillTx(tx.rows); setDrillRent(rent.rows)
+      setHasMore(tx.rows.length >= 30)
+      setDrilling(false)
+    })
+    return () => { alive = false }
+  }, [areaId, place?.kind, place?.name, place?.project, usage, effFilter])
+
+  const rows = drillTx ?? [...baseRows, ...extra]
+  const rentRows = drillRent ?? (insights?.recentRentals || [])
+  const busy = loading || drilling
+  const PAGE = 20
 
   const loadMore = async () => {
     setLoadingMore(true)
-    const PAGE = 20
-    const r = await fetchTxList({
-      areaId, limit: String(PAGE), offset: String(rows.length),
-      ...(effFilter !== 'all' ? { type: effFilter } : {})
-    })
-    const mapped: TxItem[] = r.rows.map(x => ({
-      date: x.date,
-      building: x.building === '—' ? null : x.building,
-      rooms: x.rooms === '—' ? null : x.rooms,
-      sizeSqm: x.sizeSqm,
-      price: x.price,
-      pricePerSqm: x.pricePerSqm,
-      saleType: x.saleType
-    }))
-    setExtra(prev => [...prev, ...mapped])
-    if (mapped.length < PAGE) setHasMore(false)
+    const placeArgs = place ? (place.kind === 'project' ? { project: place.name } : { building: place.name }) : {}
+    if (tab === 'rentals') {
+      const r = await fetchAreaRentals({
+        areaId, limit: PAGE, offset: rentRows.length,
+        ...(rentProject ? { project: rentProject } : {}),
+      })
+      setDrillRent([...rentRows, ...r.rows])
+      if (r.rows.length < PAGE) setHasMore(false)
+    } else {
+      // 口径必须跟上面 30 条一致(usage 透镜 + 期房/现房)，否则「加载更多」
+      // 拼出来的是另一批数据 —— 以前走 /transactions/list(住宅硬口径)就是这样。
+      const r = await fetchAreaTx({ areaId, usage, type: effFilter, limit: PAGE, offset: rows.length, ...placeArgs })
+      if (drillTx) setDrillTx([...drillTx, ...r.rows])
+      else setExtra(prev => [...prev, ...r.rows])
+      if (r.rows.length < PAGE) setHasMore(false)
+    }
     setLoadingMore(false)
   }
+
+  // 成交:基础列表不足 30 条 = 该区该口径已经没有更多了。租约基础是 8 条。
+  const canLoadMore = tab === 'rentals'
+    ? hasMore && rentRows.length >= 8 && !rentBlocked
+    : hasMore && rows.length >= 30
 
   const TabBtn = ({ id, label }: { id: 'sales' | 'rentals'; label: string }) => (
     <button
@@ -592,7 +793,17 @@ export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
         </span>
       </div>
 
-      {loading ? (
+      {/* 租约只到楼盘级 —— 选了楼栋就如实说明这里显示的是全盘,别让人以为是这一栋 */}
+      {tab === 'rentals' && place?.kind === 'building' && (
+        <div data-testid="rent-project-level-note"
+             className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-700 ring-1 ring-amber-100">
+          {rentBlocked
+            ? t('map:areaDialog.rentNoProject', { building: place.name })
+            : t('map:areaDialog.rentByProject', { project: rentProject })}
+        </div>
+      )}
+
+      {busy ? (
         <div className="space-y-2">
           {[0, 1, 2, 3].map(i => (
             <div key={i} className="h-12 animate-pulse rounded-xl bg-white border border-slate-200" />
@@ -627,7 +838,7 @@ export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
               ))}
             </div>
             {/* 基础列表不足 30 条 = 该区该口径已经没有更多了，不显示按钮 */}
-            {hasMore && baseRows.length >= 30 && (
+            {canLoadMore && (
               <button
                 type="button"
                 onClick={loadMore}
@@ -642,7 +853,11 @@ export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
                 带 areaId(手绘区没有 DLD area_name,只能靠 id 定位)+ label 供 chip 显示。 */}
             {areaName && (
               <a
-                href={`/transactions?areaId=${encodeURIComponent(areaId)}&label=${encodeURIComponent(areaName)}`}
+                href={place
+                  // 下钻中 → 深链只带这个楼盘/楼栋(成交页的地点类条件彼此是 OR,
+                  // 再带上区域会并成「全区 ∪ 这一栋」,等于把下钻丢了)
+                  ? `/transactions?${place.kind}=${encodeURIComponent(place.name)}`
+                  : `/transactions?areaId=${encodeURIComponent(areaId)}&label=${encodeURIComponent(areaName)}`}
                 className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-primary hover:bg-slate-50"
               >
                 {t('map:areaDialog.allTransactions')}
@@ -652,10 +867,11 @@ export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
           </>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-            {t('map:areaDialog.noRecentTx')}
+            {place ? t('map:areaDialog.noTxForPlace', { place: place.name }) : t('map:areaDialog.noRecentTx')}
           </div>
         )
       ) : rentRows.length > 0 ? (
+        <>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
           {rentRows.map((r: RentItem, i) => (
             <div key={i} className="flex items-center gap-3 px-3.5 py-2.5">
@@ -680,9 +896,20 @@ export function AreaRecentTx({ areaId, areaName, insights, loading, kind }: {
             </div>
           ))}
         </div>
+        {canLoadMore && (
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loadingMore ? t('map:areaDialog.loadingMore') : t('map:areaDialog.loadMoreRent')}
+          </button>
+        )}
+        </>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-          {t('map:areaDialog.noRecentRent')}
+          {place && !rentBlocked ? t('map:areaDialog.noRentForPlace', { place: rentProject || place.name }) : t('map:areaDialog.noRecentRent')}
         </div>
       )}
     </div>

@@ -4,7 +4,7 @@ import { X, Building2, Sparkles } from 'lucide-react'
 import { DubaiArea } from '../types'
 import { getImageUrl } from '../lib/image-utils'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
-import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from './AreaInsightsPanel'
+import { useAreaInsights, AreaTrendGrid, AreaRecentTx, AreaPlaceSearch, type AreaPlaceSel } from './AreaInsightsPanel'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 
 interface DeveloperSummary {
@@ -67,6 +67,13 @@ export default function AreaDetailDialog({
   const setTab = (t: AreaTab) => { onTabChange ? onTabChange(t) : setTabLocal(t) }
   // 受控时由 owner 负责重置(MapPage 在 area 变化时重置),这里别抢
   useEffect(() => { if (!controlled) { setUsageLocal('all'); setTabLocal('sales') } }, [area?.id, controlled])
+
+  // 本区内下钻(搜楼盘/楼栋)。状态在这里而不在 AreaRecentTx 里 —— 切到「项目」
+  // tab 时那个组件会卸载,选中的地点不能跟着没。
+  // TODO: collab 带看时还没广播给客户(tab/usage 已经广播了) —— 经纪下钻到某栋,
+  //       客户看到的仍是全区。接 collab 协议时补上。
+  const [place, setPlace] = useState<AreaPlaceSel | null>(null)
+  useEffect(() => { setPlace(null) }, [area?.id])
 
   // 四指标月度序列 + 近期成交（按 usage + 市场口径,后端全区域预热,通常秒回）
   const { insights, loading: insightsLoading } = useAreaInsights(isOpen ? area?.id : undefined, usage, segment)
@@ -228,10 +235,19 @@ export default function AreaDetailDialog({
                 </button>
               ))}
             </div>
+            {/* 在本区内搜楼盘/楼栋 —— 只作用于成交/租约。「项目」tab 是我们自己的
+                项目库,与 DLD 楼盘名对不上(阿语原名,匹配率极低),拿 DLD 名字去筛
+                只会筛出空集,像个 bug —— 所以那个 tab 干脆不给搜索框。 */}
+            {tab !== 'projects' && (
+              <div className="border-b border-slate-100 bg-white px-4 py-2">
+                <AreaPlaceSearch areaId={area.id} value={place} onChange={setPlace} compact />
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto p-4">
               {tab === 'projects'
                 ? devsEl
-                : <AreaRecentTx areaId={area.id} areaName={area.name} insights={insights} loading={insightsLoading} kind={tab === 'rentals' ? 'rentals' : 'sales'} />}
+                : <AreaRecentTx areaId={area.id} areaName={area.name} insights={insights} loading={insightsLoading}
+                                kind={tab === 'rentals' ? 'rentals' : 'sales'} place={place} usage={usage} />}
             </div>
           </div>
         </div>

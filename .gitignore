@@ -64,6 +64,7 @@ frontend/_*.png
 backend/scripts/_*
 # 视觉验证截图输出目录(screenshot.mjs / _shot-*.mjs 都往这儿写)
 frontend/shots/
+frontend/shots-*/
 
 # wrangler pages dev 的本地缓存(跑 scripts/stale-entry-verify.mjs 时产生)
 frontend/.wrangler/

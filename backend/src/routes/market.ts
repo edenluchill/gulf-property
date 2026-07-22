@@ -788,41 +788,57 @@ const mapTxRow = (r: any) => ({
   saleType: r.sale_type
 })
 
-async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
-    // Pick the matching mode for this dubai_area:
-    //  • OFFICIAL area (has a real DLD bridge area_id < 900000) → join by the
-    //    area_id bridge (reliable, covers every transaction in the community).
-    //  • CUSTOM hand-drawn area (only a synthetic 900000+ bridge, or none) →
-    //    SPATIAL: capture transactions whose geocoded project point falls inside
-    //    the polygon (dld_project_locations). This is the only thing that works
-    //    for arbitrary colleague-drawn shapes. See dld-geocode-cache.sql.
-    const modeRes = await pool.query(
-      `SELECT (da.boundary IS NOT NULL) AS has_boundary,
-              EXISTS(SELECT 1 FROM dld_areas dla
-                      WHERE dla.dubai_area_id = da.id AND dla.area_id < 900000) AS official
-         FROM dubai_areas da WHERE da.id = $1`,
-      [areaId]
-    )
-    const spatial = !!modeRes.rows[0] && !modeRes.rows[0].official && !!modeRes.rows[0].has_boundary
+/**
+ * 该 dubai_area 用哪种方式匹配 DLD 记录:
+ *  • OFFICIAL area (has a real DLD bridge area_id < 900000) → join by the
+ *    area_id bridge (reliable, covers every transaction in the community).
+ *  • CUSTOM hand-drawn area (only a synthetic 900000+ bridge, or none) →
+ *    SPATIAL: capture transactions whose geocoded project point falls inside
+ *    the polygon (dld_project_locations). This is the only thing that works
+ *    for arbitrary colleague-drawn shapes. See dld-geocode-cache.sql.
+ *
+ * 🔴 判定必须全站唯一 —— 弹窗指标 / 地图着色 / 弹窗内下钻三条路只要有一条自己
+ *    另写一份,就会出现「地图有色但点开没数据」。见 [[map-dialog-metric-path-parity]]。
+ */
+async function areaMatchMode(areaId: string): Promise<boolean> {
+  const modeRes = await pool.query(
+    `SELECT (da.boundary IS NOT NULL) AS has_boundary,
+            EXISTS(SELECT 1 FROM dld_areas dla
+                    WHERE dla.dubai_area_id = da.id AND dla.area_id < 900000) AS official
+       FROM dubai_areas da WHERE da.id = $1`,
+    [areaId]
+  )
+  return !!modeRes.rows[0] && !modeRes.rows[0].official && !!modeRes.rows[0].has_boundary
+}
 
-    // Transaction ↔ area predicates, swapped by mode. $1 = dubai_areas.id.
-    // COALESCE(...'__AREA__') falls records with no project/building back to the
-    // area centroid row, so the 2% area-only sales + 78% area-only rent are
-    // captured too (coarse — placed at area centre). See dld-area-centroids.sql.
-    const txJoin = spatial
+/**
+ * 成交/租约 ↔ 区域 的 JOIN/WHERE 片段,按模式切换。$1 = dubai_areas.id。
+ * COALESCE(...'__AREA__') falls records with no project/building back to the
+ * area centroid row, so the 2% area-only sales + 78% area-only rent are
+ * captured too (coarse — placed at area centre). See dld-area-centroids.sql.
+ */
+function areaMatchSql(spatial: boolean) {
+  return {
+    txJoin: spatial
       ? `JOIN dld_project_locations loc ON loc.area_name = dt.area_name
            AND loc.project_name = COALESCE(NULLIF(dt.project_name, ''), NULLIF(dt.building_name, ''), '__AREA__')`
-      : `JOIN dld_areas dla ON dla.area_id = dt.area_id`
-    const txWhere = spatial
+      : `JOIN dld_areas dla ON dla.area_id = dt.area_id`,
+    txWhere: spatial
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
-      : `dla.dubai_area_id = $1`
-    const rentJoin = spatial
+      : `dla.dubai_area_id = $1`,
+    rentJoin: spatial
       ? `JOIN dld_project_locations loc ON loc.area_name = rc.area_name
            AND loc.project_name = COALESCE(NULLIF(rc.project_name, ''), '__AREA__')`
-      : ``
-    const rentWhere = spatial
+      : ``,
+    rentWhere: spatial
       ? `loc.geom IS NOT NULL AND ST_Covers((SELECT boundary FROM dubai_areas WHERE id = $1), loc.geom)`
-      : `rc.dubai_area_id = $1`
+      : `rc.dubai_area_id = $1`,
+  }
+}
+
+async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
+    const spatial = await areaMatchMode(areaId)
+    const { txJoin, txWhere, rentJoin, rentWhere } = areaMatchSql(spatial)
 
     const [salesRes, rentRes, recentRes, recentOffplanRes, recentReadyRes, recentRentRes, medianRes] = await Promise.all([
       // 37 个月：算 24 个月同比需要 t-12 的数据。
@@ -1408,6 +1424,229 @@ router.get('/area-insights', async (req: Request, res: Response) => {
     res.json(composed)
   } catch (err) {
     console.error('[market/area-insights] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ───────────────── 区域弹窗内下钻:「在本区内搜楼盘 / 楼栋」 ─────────────────
+//
+// 场景:经纪打开 Dubai Marina 想只看 Marina Gate 的成交,以前只能跳成交页再从
+// 全城重选一遍。这里给弹窗一套**限定在本区内**的候选 + 列表接口。
+//
+// 为什么不复用 /transactions/suggest + /transactions/list:
+//   ① suggest 索引是全城的,且手绘区没有 DLD area_name,按区过滤不出来;
+//   ② buildTxFilter 里地点类条件彼此是 **OR**(见那里的注释)—— 传 areaId + building
+//      得到的是「本区 ∪ 全城同名楼栋」,而下钻要的是 areaId **AND** building。
+//      DLD 里 'TOWER B' 这种通名楼栋跨区重名很常见,OR 会串进别区的成交。
+//   ③ /transactions/* 是住宅硬口径,弹窗的成交/租金列表跟随 usage 透镜
+//      (dld_usage_bucket)。混用会让「加载更多」跟上面 30 条不是同一批数据。
+// 所以弹窗内部自成一套 area-* 接口,与弹窗指标同口径;跨区细筛仍走成交页深链。
+
+const AREA_USAGES = ['all', 'residential', 'commercial', 'hospitality', 'industrial', 'other']
+
+/** areaId 必须是 dubai_areas UUID —— 直接拼进 da.id = $1 的查询,非 UUID 会 500。 */
+function badAreaId(v: string): boolean {
+  return !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+}
+
+/** 地点下钻条件:project / building 在本区内 **AND** 上去,两者之间 OR。 */
+function areaPlaceFilter(q: any, params: any[]): string {
+  const asList = (v: any) => (Array.isArray(v) ? v : [v]).map((x: any) => String(x).trim().toUpperCase()).filter(Boolean)
+  const or: string[] = []
+  const projects = q.project ? asList(q.project) : []
+  const buildings = q.building ? asList(q.building) : []
+  if (projects.length) { params.push(projects); or.push(`UPPER(dt.project_name) = ANY($${params.length}::text[])`) }
+  if (buildings.length) { params.push(buildings); or.push(`UPPER(dt.building_name) = ANY($${params.length}::text[])`) }
+  return or.length ? ` AND (${or.join(' OR ')})` : ''
+}
+
+/**
+ * GET /area-places?areaId= — 本区内的楼盘/楼栋候选(名字 + 条数,无价格)。
+ *
+ * 一次全量返回、前端在内存里做匹配 —— 打字零请求。区内组合数实测:
+ * Dubai Marina 248 条 / 97ms(bridge)、Sobha Heartland 57ms(spatial),
+ * 缓存 6h。**租约表没有 building_name 列**,所以租约侧只能按楼盘计数,
+ * 楼栋级 rentCount 一律 null(不编)。
+ */
+router.get('/area-places', async (req: Request, res: Response) => {
+  try {
+    const areaId = String(req.query.areaId || '').trim()
+    if (!areaId) return res.status(400).json({ error: 'areaId is required' })
+    if (badAreaId(areaId)) return res.status(400).json({ error: 'areaId must be a valid area UUID' })
+    const cacheKey = `area-places:${areaId}`
+    const hit = txCacheGet(cacheKey)
+    if (hit) return res.json(hit)
+
+    const { txJoin, txWhere, rentJoin, rentWhere } = areaMatchSql(await areaMatchMode(areaId))
+    const [txRes, rentRes] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(NULLIF(dt.project_name, ''), '') AS project,
+                COALESCE(NULLIF(dt.building_name, ''), '') AS building,
+                COUNT(*)::int AS n
+           FROM dld_transactions dt
+           ${txJoin}
+          WHERE ${txWhere}
+            AND dt.trans_group = 'Sales'
+            AND dt.meter_sale_price > 0
+          GROUP BY 1, 2`,
+        [areaId]
+      ),
+      pool.query(
+        `SELECT COALESCE(NULLIF(rc.project_name, ''), '') AS project, COUNT(*)::int AS n
+           FROM dld_rent_contracts rc
+           ${rentJoin}
+          WHERE ${rentWhere}
+            AND rc.usage_type = 'Residential'
+            AND rc.property_area BETWEEN 15 AND 2000
+            AND rc.annual_amount BETWEEN 5000 AND 5000000
+          GROUP BY 1`,
+        [areaId]
+      ),
+    ])
+
+    const rentByProject = new Map<string, number>(
+      rentRes.rows.filter(r => r.project).map(r => [String(r.project).toUpperCase(), Number(r.n)])
+    )
+    // 楼盘 = 把它名下所有楼栋的成交加起来;楼栋单列(同名于楼盘的不再单列 ——
+    // 选楼盘已覆盖它,列出来只是噪音,与 /transactions/suggest 同一条规则)。
+    const projects = new Map<string, { name: string; txCount: number; buildings: number }>()
+    const buildings: { name: string; project: string | null; txCount: number }[] = []
+    for (const r of txRes.rows) {
+      const project = String(r.project || '')
+      const building = String(r.building || '')
+      if (project) {
+        const key = project.toUpperCase()
+        const e = projects.get(key) || { name: project, txCount: 0, buildings: 0 }
+        e.txCount += Number(r.n)
+        if (building && building.toUpperCase() !== key) e.buildings++
+        projects.set(key, e)
+      }
+      if (building && building.toUpperCase() !== project.toUpperCase()) {
+        buildings.push({ name: building, project: project || null, txCount: Number(r.n) })
+      }
+    }
+    // 只在租约里出现、成交里没有的楼盘也要能搜到(纯出租盘)
+    for (const key of rentByProject.keys()) {
+      if (!projects.has(key)) {
+        const orig = rentRes.rows.find(r => String(r.project).toUpperCase() === key)?.project
+        projects.set(key, { name: String(orig || key), txCount: 0, buildings: 0 })
+      }
+    }
+    const data = {
+      projects: Array.from(projects.entries())
+        .map(([key, p]) => ({ ...p, rentCount: rentByProject.get(key) ?? 0 }))
+        .sort((a, b) => (b.txCount + b.rentCount) - (a.txCount + a.rentCount)),
+      buildings: buildings.sort((a, b) => b.txCount - a.txCount),
+    }
+    txCacheSet(cacheKey, data)
+    res.json(data)
+  } catch (err) {
+    console.error('[market/area-places] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/**
+ * GET /area-tx?areaId=&usage=&type=&project=&building=&limit=&offset=
+ * 弹窗成交列表(下钻 + 翻页)。口径与 area-insights 的 recent* 完全一致。
+ */
+router.get('/area-tx', async (req: Request, res: Response) => {
+  try {
+    const areaId = String(req.query.areaId || '').trim()
+    if (!areaId) return res.status(400).json({ error: 'areaId is required' })
+    if (badAreaId(areaId)) return res.status(400).json({ error: 'areaId must be a valid area UUID' })
+    const usage = AREA_USAGES.includes(String(req.query.usage)) ? String(req.query.usage) : 'all'
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '30'), 10) || 30, 1), 100)
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0)
+    const { txJoin, txWhere } = areaMatchSql(await areaMatchMode(areaId))
+    const params: any[] = [areaId, usage]
+    let extra = areaPlaceFilter(req.query, params)
+    if (req.query.type === 'offplan') extra += ' AND dt.is_offplan'
+    else if (req.query.type === 'ready') extra += ' AND NOT dt.is_offplan'
+    const rows = await pool.query(
+      `SELECT dt.instance_date AS date, dt.building_name, dt.project_name, dt.rooms,
+              dt.procedure_area AS size_sqm, dt.actual_worth AS price,
+              round(dt.meter_sale_price) AS price_per_sqm,
+              CASE WHEN dt.is_offplan THEN 'offplan' ELSE 'ready' END AS sale_type
+         FROM dld_transactions dt
+         ${txJoin}
+        WHERE ${txWhere}
+          AND dt.trans_group = 'Sales' AND ($2 = 'all' OR dld_usage_bucket(dt.property_usage) = $2)
+          AND dt.meter_sale_price > 0
+          ${extra}
+        ORDER BY dt.instance_date DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
+    )
+    res.json({
+      rows: rows.rows.map(r => ({
+        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+        building: r.building_name || r.project_name || null,
+        rooms: r.rooms || null,
+        sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+        price: r.price ? Math.round(Number(r.price)) : null,
+        pricePerSqm: r.price_per_sqm ? Number(r.price_per_sqm) : null,
+        saleType: r.sale_type,
+      })),
+      limit, offset,
+    })
+  } catch (err) {
+    console.error('[market/area-tx] error:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/**
+ * GET /area-rentals?areaId=&project=&limit=&offset=
+ * 弹窗租约列表(下钻 + 翻页)。口径与 area-insights 的 recentRentals 一致。
+ * ⚠️ 租约表只有 project_name,**没有 building_name** —— 楼栋级筛选在租金侧
+ *    退化成它所属楼盘(前端据此提示),不做名称模糊猜测。
+ */
+router.get('/area-rentals', async (req: Request, res: Response) => {
+  try {
+    const areaId = String(req.query.areaId || '').trim()
+    if (!areaId) return res.status(400).json({ error: 'areaId is required' })
+    if (badAreaId(areaId)) return res.status(400).json({ error: 'areaId must be a valid area UUID' })
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '8'), 10) || 8, 1), 100)
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0)
+    const { rentJoin, rentWhere } = areaMatchSql(await areaMatchMode(areaId))
+    const params: any[] = [areaId]
+    let extra = ''
+    if (req.query.project) {
+      const list = (Array.isArray(req.query.project) ? req.query.project : [req.query.project])
+        .map((x: any) => String(x).trim().toUpperCase()).filter(Boolean)
+      if (list.length) { params.push(list); extra = ` AND UPPER(rc.project_name) = ANY($${params.length}::text[])` }
+    }
+    const rows = await pool.query(
+      `SELECT rc.start_date AS date, rc.project_name, rc.property_subtype,
+              rc.property_area AS size_sqm, rc.annual_amount AS annual_rent,
+              round(rc.annual_amount / NULLIF(rc.property_area, 0)) AS rent_per_sqm,
+              rc.registration_type
+         FROM dld_rent_contracts rc
+         ${rentJoin}
+        WHERE ${rentWhere}
+          AND rc.usage_type = 'Residential'
+          AND rc.property_area BETWEEN 15 AND 2000
+          AND rc.annual_amount BETWEEN 5000 AND 5000000
+          ${extra}
+        ORDER BY rc.start_date DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
+    )
+    res.json({
+      rows: rows.rows.map(r => ({
+        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
+        building: r.project_name || null,
+        subtype: r.property_subtype || null,
+        sizeSqm: r.size_sqm ? Math.round(Number(r.size_sqm)) : null,
+        annualRent: r.annual_rent ? Math.round(Number(r.annual_rent)) : null,
+        rentPerSqm: r.rent_per_sqm ? Number(r.rent_per_sqm) : null,
+        regType: (r.registration_type === 'New' ? 'new' : 'renew') as 'new' | 'renew',
+      })),
+      limit, offset,
+    })
+  } catch (err) {
+    console.error('[market/area-rentals] error:', err)
     res.status(500).json({ error: 'internal error' })
   }
 })

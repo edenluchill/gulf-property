@@ -38,7 +38,7 @@ import MobileBottomSheet from '../components/MobileBottomSheet'
 import { getImageUrl } from '../lib/image-utils'
 import { trackEvent } from '../lib/track'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
-import { useAreaInsights, AreaTrendGrid, AreaRecentTx } from '../components/AreaInsightsPanel'
+import { useAreaInsights, AreaTrendGrid, AreaRecentTx, AreaPlaceSearch, type AreaPlaceSel } from '../components/AreaInsightsPanel'
 import { MarketSegment, loadSavedSegment, saveSegment, segmentLabel } from '../lib/marketSegment'
 import { MetricPeriodKey, loadSavedPeriod, savePeriod, periodLabel } from '../lib/metricPeriod'
 import { PeriodSelector } from '../components/PeriodSelector'
@@ -1315,6 +1315,9 @@ export default function MapPage() {
   useEffect(() => { areaUsageRef.current = areaUsage }, [areaUsage])
   useEffect(() => { selectedAreaRef.current = selectedArea }, [selectedArea])
   const sheetTab: 'market' | 'projects' = areaTab === 'projects' ? 'projects' : 'market'
+  // 移动 sheet 的「在本区内搜楼盘/楼栋」下钻（桌面同款，状态各自持有）
+  const [sheetPlace, setSheetPlace] = useState<AreaPlaceSel | null>(null)
+  useEffect(() => { setSheetPlace(null) }, [selectedArea?.id])
   // 移动端 sheet 的区域洞察（桌面 dialog 内部自取，后端缓存去重）
   const { insights: sheetInsights, loading: sheetInsightsLoading } = useAreaInsights(
     showAreaSheet ? selectedArea?.id : undefined, areaUsage, marketSegment
@@ -3146,7 +3149,10 @@ export default function MapPage() {
               {sheetTab === 'market' ? (
                 <>
                   <AreaTrendGrid area={selectedArea} insights={sheetInsights} loading={sheetInsightsLoading} usageActive={areaUsage !== 'all'} />
-                  <AreaRecentTx areaId={selectedArea.id} areaName={selectedArea.name} insights={sheetInsights} loading={sheetInsightsLoading} />
+                  {/* 在本区内搜楼盘/楼栋(桌面弹窗同款) */}
+                  <AreaPlaceSearch areaId={selectedArea.id} value={sheetPlace} onChange={setSheetPlace} compact />
+                  <AreaRecentTx areaId={selectedArea.id} areaName={selectedArea.name} insights={sheetInsights}
+                                loading={sheetInsightsLoading} place={sheetPlace} usage={areaUsage} />
                 </>
               ) : areaDevelopers.length > 0 ? (
                 <div className="space-y-2">

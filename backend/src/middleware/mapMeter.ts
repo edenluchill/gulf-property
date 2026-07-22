@@ -257,7 +257,12 @@ async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerd
  * ⚠️ 用 originalUrl 不用 path —— mapMeter 是 app.use(paths, ...) 挂的,
  * req.path 会被剥掉匹配到的前缀。见 [[express-req-path-in-finish-callback]]。
  */
-const UNMETERED = ['/transactions/suggest', '/transactions/filters', '/transactions/projects']
+const UNMETERED = [
+  '/transactions/suggest', '/transactions/filters', '/transactions/projects',
+  // 区域弹窗「在本区内搜楼盘/楼栋」的候选表:同样只有名字和条数,是输入辅助。
+  // (下钻后的 /area-tx、/area-rentals 是真数据,照常计量。)
+  '/area-places',
+]
 
 /**
  * 中间件:挂在核心地图数据路由前。额度内 → 顺手记一分钟并放行;

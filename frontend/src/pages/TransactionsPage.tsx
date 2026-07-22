@@ -148,7 +148,12 @@ export default function TransactionsPage() {
     const areaId = sp.get('areaId')
     const label = sp.get('label')
     const areaName = sp.get('area')
-    if (areaId && label) setPicks([{ type: 'area', name: label, id: areaId }])
+    // 弹窗里已经下钻到某楼盘/楼栋时,深链带的是它而不是整个区(见 AreaRecentTx)
+    const project = sp.get('project')
+    const building = sp.get('building')
+    if (project) setPicks([{ type: 'project', name: project }])
+    else if (building) setPicks([{ type: 'building', name: building }])
+    else if (areaId && label) setPicks([{ type: 'area', name: label, id: areaId }])
     else if (areaName) setPicks([{ type: 'area', name: areaName }])
   }, [])
 
