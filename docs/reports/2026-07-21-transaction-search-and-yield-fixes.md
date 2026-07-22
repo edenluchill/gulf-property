@@ -278,6 +278,106 @@ bulk 侧一直有。真正被救回的是 **Al Layyan**（2 年 1876 笔成交�
 
 ---
 
+---
+
+## 追加：② 统一搜索框 · ③ 区域深链 · geocode（第四轮，全部完成）
+
+### ② 统一搜索框 —— 一个框搜社区 / 楼盘 / 楼栋
+
+**筛选区按买家视角重做**（原本桌面端一排 6 个并排控件，一上来就糊一脸）：
+
+```
+主行   = 搜索框(社区/楼盘/楼栋三合一) + 全部|现房|期房 + 「筛选(N)」
+第二行 = 已选条件 chips —— 没选就整行不渲染，不留空行
+抽屉   = 户型 / 价格 / 年份，默认收起，生效条数直接标在按钮上
+```
+
+后端新增 `GET /transactions/suggest`：三类候选一次算好进 `market_cache`
+（全表 group-by 冷算要数秒，而这是敲第一个字母就要响应的接口）。
+建议项带类型徽标 + 所属层级 + 「含 N 栋」+ 成交量。
+`buildTxFilter` 新增 `building` 多选参数：**楼盘 = 该盘全部楼栋，楼栋 = 只看这一栋**。
+
+排查中自己踩了两个坑，都已修：
+
+1. **搜社区名却只吐楼栋。** 第一版按「匹配位置」排序，搜 `lagoon` 时 12 个名额被
+   `LAGOON VIEWS x - TOWER y`（前缀命中 3 分）占满，而客户真正要找的
+   `DAMAC LAGOONS - PORTOFINO/MALTA/SANTORINI`（词首命中 2 分）**一个都进不来**
+   —— 把客户反馈的那个场景又复现了一遍。改成区域3/楼盘5/楼栋4 的分组配额。
+2. **选了楼盘又选楼栋 = 空集。** 地点类条件被 AND 在一起，不同社区的交集必然为空，
+   界面显示「暂无成交数据」像个 bug。买家心智是「我想看这几个地方」→ 改成 OR
+   （户型/价格/年份/口径仍是 AND）。实测 PORTOFINO(1299) + Creek Vista Tower B(789)
+   = **2088**。
+
+**顺带修了一个真实的产品缺陷**：`/api/market` 整个前缀挂着 mapMeter，
+搜索建议每次防抖请求都记一分钟额度 → **买家还没看到任何数据，10 分钟就被自己的
+打字烧光，搜索框直接失效**。已把 suggest / filters / projects 三个「填筛选器用的」
+接口移出计费（它们不返回任何成交价格数据）。成交数据本身仍计额度，口径不变。
+
+**空态可自救**：DLD 对别墅/联排（登记成 Land 的那批，DAMAC Lagoons 全系）不填
+`rooms`，一选户型这些社区就整体消失 —— 实测 PORTOFINO 不带户型 1299 笔、加「3 房」
+变 0。空态现在直接说明原因并给「去掉户型筛选」一键复原。
+
+### ③ 区域弹窗 → 成交页深链
+
+此前全站**除导航栏外没有任何一处链接指向成交页**。现在区域弹窗底部有
+「在成交页查看全部」→ `/transactions?areaId=&label=`。手绘区没有 DLD `area_name`，
+所以走 `areaId` + `label`（后者仅用于 chip 显示）。
+
+**验证时又撞出一个既有 bug**：`buildTxFilter` 的 `areaId` 只有 `dld_areas` bridge
+一条路，而手绘自定义区**没有 bridge**（正是回报率那批 bug 的同一个根源）→
+深链进去一片空白。同一缺陷还让**弹窗里的「加载更多」对手绘区一直是坏的**
+（`baseRows` 走 insights 的 spatial 有数据，`loadMore` 走 `areaId` 的 bridge 没数据，
+按钮点了没反应）。已补 spatial 分支，第二个分支带 `NOT EXISTS` 守卫保证官方区口径不变：
+
+| | 修复前 | 修复后 |
+|---|---|---|
+| Sobha Heartland（手绘） | 0 | **12,831 笔** |
+| Villanova（手绘） | 0 | 3,720 笔 |
+| Arabian Ranches 3（手绘） | 0 | 3,624 笔 |
+| Al Barsha First（官方，回归对照） | 234 | **234**（逐位不变） |
+| Al Bada（官方，回归对照） | 128 | **128**（逐位不变） |
+
+实测 179–236ms，可实时跑，无需缓存。
+
+### geocode —— 原待办基于错误假设，实际根因完全不同
+
+原待办写的是「补 geocode 救活 54 个手绘区」。查下来**假设是错的**：
+
+| 分类 | 数量 | 能否救 |
+|---|---|---|
+| **阿布扎比 / 哈伊马角** | 20 | ❌ 永远不能。Yas / Saadiyat / Reem / Khalifa City / Masdar / ADGM / Marjan…最近的项目点在 **54–76 km 外**，DLD 只登记迪拜 |
+| **真迪拜社区** | 32 | ✅ 已救回 14 |
+| 边缘 | 2 | — |
+
+真迪拜那 32 个的根因**不是 geocode 缺失**，而是 `source='area_snap'` ——
+这些项目**从来没有真实坐标**，被吸附到所属 DLD 区中心：
+
+```
+559 条 area_snap → 只有 47 个不同坐标（平均 12 个项目挤一个点）
+REMRAAM 与 Remraam - Al Ramth          → 同一个点
+TOWN SQUARE 的 HAYAT/JENNA/SAFI/ZAHRA  → 同一个点
+```
+
+手绘多边形画在真实社区位置，而该社区所有项目的「坐标」却在 1 km 外的区中心 →
+`ST_Covers` 一个都罩不住。
+
+给 `geocode-dld-projects.ts` 加了 `--retry-snap`（失败时保留原兜底点，不降级成
+`failed`），重跑 **556/556 全部成功**，无数据区 **54 → 40**：
+
+| 区 | 边界内点数 |
+|---|---|
+| Town Square | 21 |
+| Wasl Gate | 15 |
+| **Arabian Ranches 3**（客户圈的那个） | **9** |
+| Jumeirah Park | 5 |
+| Remraam / Athlon / Latalia | 2 |
+
+**剩余 40 个空区里有 20 个是阿布扎比** —— 它们在地图上永远是灰的，对买家是纯噪音。
+建议加「非迪拜市场区」判定隐藏掉（memory 里 Sharjah 那条同款，之前暂缓过）。
+这是产品决策，未擅自执行。
+
+---
+
 ## 本次改动清单
 
 | 文件 | 改了什么 |
@@ -288,17 +388,37 @@ bulk 侧一直有。真正被救回的是 **Al Layyan**（2 年 1876 笔成交�
 | `backend/src/routes/market.ts`（第二轮） | dialog 的 `metrics` 三口径共用租金基数；dialog 租金聚合补 100~6000 护栏 |
 | `backend/src/routes/market.ts`（第三轮） | 顶层 `rentalYield` 加 1~15% 合理带；提取共享常量 `YIELD_BAND_MIN/MAX` + `MIN_YIELD_SALES` |
 
-commits：`64eb846`（手绘区租金）· `e863e51`（dialog 两处对齐）· `5b77f25`（更正夸大描述）· `7d8d7c2`（回报率曲线合理带）
-部署：tag `20260721-225013` → `20260721-230707` → `20260721-232816`
+| `backend/src/routes/market.ts`（第四轮） | `/transactions/suggest` 统一搜索；`building` 多选参数；地点类条件改 OR |
+| `backend/scripts/market-precompute.ts` | 新增 `txSuggest` 候选索引（已 scp 盒子） |
+| `backend/scripts/geocode-dld-projects.ts` | 新增 `--retry-snap` |
+| `backend/src/middleware/mapMeter.ts` | suggest/filters/projects 移出计费 |
+| `frontend/src/pages/TransactionsPage.tsx` | 筛选区整体重做（搜索框 + chips + 抽屉 + 可自救空态） |
+| `frontend/src/lib/api.ts` | `fetchTxSuggest` + `TxSuggestion` |
+| `frontend/src/components/AreaInsightsPanel.tsx` 等 | 区域弹窗「在成交页查看全部」深链 |
+| i18n × 5 语言 | `transactions.json` + `map.json` 新键 |
+
+commits：`64eb846`（手绘区租金）· `e863e51`（dialog 两处对齐）· `5b77f25`（更正夸大描述）· `7d8d7c2`（回报率曲线合理带）· `3e0397e`（统一搜索 + geocode）· `89f848a`（额度豁免）· `76be919`（分组配额）· `2b0b53c`（OR 语义）· `118f09a`（前端 UI）
+部署：API tag `20260721-225013` → `230707` → `232816` → `235153` → `235348` → `235521` → `20260722-000605`；前端 push `118f09a` 触发 CF Pages
 
 ---
 
 ## 待办（按价值排序）
 
-1. **补 geocode → 救活 54 个手绘区**（Arabian Ranches 3 等整区无数据）。
-   盒子上缺 `geocode-dld-projects.ts`，daily 第⑥步一直静默跳过。
-2. **② 统一搜索框 + 楼栋筛选** —— 客户明确画图要的，数据现成。
-3. **③ 区域→成交深链** —— 后端已支持 `areaId`，纯前端一个按钮。
-4. **① 的副作用提示** —— 选了户型时提示 Land 型别墅社区被排除。
-5. **④ property_type 三档过滤** —— 先跟客户对齐"DLD 没有 townhouse 类型"。
-6. **回绝客户 1.5房/+1保姆房** —— 数据源没有，不编。
+1. **隐藏 20 个非迪拜区**（Yas / Saadiyat / Reem / Khalifa City / Masdar / ADGM / Marjan…）。
+   DLD 不登记阿布扎比，这些区在地图上永远是灰的，对买家是纯噪音。
+   memory 里 Sharjah 那条同款，之前暂缓过 —— 是产品决策，需 Eden 拍板。
+2. **④ property_type 三档过滤**（公寓 / 别墅·联排 / 商业）—— 先跟客户对齐
+   「DLD 没有 townhouse 和 semi-detached 类型」。
+3. **剩余 18 个迪拜手绘区仍无数据** —— `--retry-snap` 已把能救的救了，
+   剩下的多半是多边形画得偏或社区确实没有独立 DLD 项目名，需逐个看。
+4. **回绝客户 1.5房 / 2+1保姆房 / 3+1** —— 数据源没有，不编。
+
+## 已完成（客户 5 条反馈）
+
+| # | 反馈 | 状态 |
+|---|---|---|
+| ① | Damac Lagoons 别墅查不到 | ✅ 已修（部署 + 盒子同步，断掉每日回滚） |
+| ② | 搜索框直接搜社区名 / building 名，分栋可单查可合并 | ✅ 已做 |
+| ③ | 区域页能直接搜成交 | ✅ 已做（弹窗深链） |
+| ④ | 户型细分 / property_type | ⚠️ 补全了 DLD 真有的档（6/7房+Penthouse）；**1.5房/+1保姆房/townhouse 数据源没有，需回绝** |
+| ⑤ | 租金回报率有几个区不显示 | ✅ 已修（76/176 → 115/176），另修好 dialog 侧两个既有 bug |
