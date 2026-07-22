@@ -187,7 +187,18 @@ router.get('/price-check', async (req: Request, res: Response) => {
 // 成交查询（功能 B）—— 直接面向 dld_transactions 的多维聚合
 // ---------------------------------------------------------------------------
 
-const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R']
+/**
+ * 户型下拉。**必须是 dld_transactions.rooms 的原值**（该列是白名单校验用的，
+ * 见 buildTxFilter），DLD 全量取值只有：
+ *   Studio / 1-7 B/R / 9 B/R / PENTHOUSE / Single Room / Shop / Office
+ * ⛔ 经纪要的「1.5 房 / 2+1 保姆房 / 3+1 / 4+1」**DLD 根本不记录**，靠面积倒推
+ *    就是编数据 —— 别加。(2026-07-21 客户反馈，已当面回绝。)
+ * 排除 Single Room(58 笔，劳工房)/Shop/Office(非住宅，被 property_usage 挡掉)、
+ * 9 B/R(全库 4 笔)。6/7 B/R + PENTHOUSE 原来被砍掉了 → 顶豪户型一条都筛不出来。
+ * ⚠️ 改这里必须同步 backend/scripts/market-precompute.ts 的同名常量并重跑预计算，
+ *    否则缓存的下拉还是旧的（那份才是生产实际吐给前端的）。
+ */
+const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R', '6 B/R', '7 B/R', 'PENTHOUSE']
 
 // 数据是定期快照（非实时），聚合结果可放心缓存。
 // dld_transactions 154 万行，无缓存时全表 percentile 聚合要数秒。
@@ -974,7 +985,7 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
   )
   const endYm: string = boundsRes.rows[0]?.m
   if (!endYm) return { dataThrough: null, areas: {} }
-  const [officialRows, customRows, rentRows] = await Promise.all([
+  const [officialRows, customRows, rentRows, customRentRows] = await Promise.all([
     // 官方区:走真实 area_id bridge。
     pool.query(
       `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
@@ -1006,8 +1017,8 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
         GROUP BY 1, 2`
     ),
     // 各区月度中位租金/㎡(residential;仅 all 口径回报用)。dubai_area_id 已回填。
-    // 注:此处走 bridge(rc.dubai_area_id),自定义区拿不到 → 其回报在地图上为 null
-    // (可接受,价格/涨幅才是本次要修的着色项;dialog 仍走 spatial 出回报)。
+    // 官方区走 bridge(rc.dubai_area_id);自定义手绘区没有 bridge,由下面那条
+    // spatial 查询补(见 customRentRows)。
     pool.query(
       `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
        SELECT rc.dubai_area_id AS area_id,
@@ -1026,6 +1037,34 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
           AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months' AND rc.start_date <= b.d
         GROUP BY 1, 2`
     ),
+    // 🔴 自定义手绘区的月度租金 —— 与上面那条的唯一区别是「怎么找到这个区的租约」。
+    // 手绘区没有 DLD area_id bridge,rc.dubai_area_id 永远是 NULL,所以上面那条
+    // 对它们一条都取不到 → rent63 全 null → yield 全 null。实测 176 个区里
+    // 100 个没有回报率,客户直接圈图反馈(Sobha Heartland / Villanova /
+    // Dubai Residence complex / Azizi Rivera 都是成交上千笔却没有回报率)。
+    // 成交侧上次已经补了 spatial 分支(customRows),租金侧漏了 —— 同款
+    // 「地图 ≠ dialog 双路径不对齐」,见 [[map-dialog-metric-path-parity]]。
+    // 匹配口径与 /area-insights 的 rentJoin 完全一致(项目名落点 + 区中心兜底),
+    // 实测 2.4s / 出 40 个区,与其余三条并行 + 6h 缓存 + 预热,可接受。
+    pool.query(
+      `WITH bounds AS (SELECT MAX(instance_date) AS d FROM dld_transactions)
+       SELECT da.id AS area_id,
+              to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS month,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area) AS rent_sqm
+         FROM dubai_areas da
+         JOIN dld_project_locations loc ON loc.geom IS NOT NULL AND ST_Covers(da.boundary, loc.geom)
+         JOIN dld_rent_contracts rc ON rc.area_name = loc.area_name
+              AND COALESCE(NULLIF(rc.project_name, ''), '__AREA__') = loc.project_name
+         CROSS JOIN bounds b
+        WHERE da.visible AND da.boundary IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM dld_areas dla WHERE dla.dubai_area_id = da.id AND dla.area_id < 900000)
+          AND rc.usage_type = 'Residential'
+          AND rc.property_area BETWEEN 15 AND 2000 AND rc.annual_amount BETWEEN 5000 AND 5000000
+          -- 同上:排除劳工宿舍/整栋打包合同(理由见上一条查询的注释)
+          AND rc.annual_amount / rc.property_area BETWEEN 100 AND 6000
+          AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months' AND rc.start_date <= b.d
+        GROUP BY 1, 2`
+    ),
   ])
   const apprMonths = monthRange(endYm, 63)
   const byArea = new Map<string, Map<string, any>>()
@@ -1036,7 +1075,8 @@ async function loadAllAreaAppreciation(): Promise<AllAreaAppr> {
     byArea.get(id)!.set(r.month, r)
   }
   const rentByArea = new Map<string, Map<string, number>>()
-  for (const r of rentRows.rows) {
+  // 官方区(bridge)与自定义区(spatial)的 id 互斥,同 byArea 的合并理由。
+  for (const r of [...rentRows.rows, ...customRentRows.rows]) {
     if (r.rent_sqm == null) continue
     const id = String(r.area_id)
     if (!rentByArea.has(id)) rentByArea.set(id, new Map())
@@ -1241,7 +1281,7 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
         percentile_cont(0.5) WITHIN GROUP (ORDER BY dt.meter_sale_price)
           FILTER (WHERE ${RES_PT}) AS price_sqm`
 
-  const [officialRows, customRows, rentRows] = await Promise.all([
+  const [officialRows, customRows, rentRows, customRentRows] = await Promise.all([
     pool.query(
       `SELECT ${salesCols('dla.dubai_area_id')}
          FROM dld_transactions dt
@@ -1288,6 +1328,31 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
         GROUP BY 1, 2`,
       [FIRST_DATA_YEAR]
     ),
+    // 自定义手绘区的租金(spatial)。理由同 loadAllAreaAppreciation 里的 customRentRows:
+    // 上面那条只认 rc.dubai_area_id,手绘区永远 NULL → 时间轴切到「回报率」时
+    // 这些区整条时间线全灰。成交侧(customRows)早已补过 spatial,租金侧漏了。
+    pool.query(
+      `SELECT da.id AS area_id,
+              to_char(date_trunc('month', rc.start_date), 'YYYY-MM') AS mo,
+              COUNT(*) FILTER (WHERE rc.registration_type = 'New') AS n,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount)
+                FILTER (WHERE rc.registration_type = 'New') AS rent,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY rc.annual_amount / rc.property_area)
+                FILTER (WHERE rc.registration_type = 'New') AS rent_sqm
+         FROM dubai_areas da
+         JOIN dld_project_locations loc ON loc.geom IS NOT NULL AND ST_Covers(da.boundary, loc.geom)
+         JOIN dld_rent_contracts rc ON rc.area_name = loc.area_name
+              AND COALESCE(NULLIF(rc.project_name, ''), '__AREA__') = loc.project_name
+        WHERE da.visible AND da.boundary IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM dld_areas dla WHERE dla.dubai_area_id = da.id AND dla.area_id < 900000)
+          AND rc.usage_type = 'Residential'
+          AND rc.property_area BETWEEN 15 AND 2000
+          AND rc.annual_amount BETWEEN 5000 AND 5000000
+          AND rc.annual_amount / rc.property_area BETWEEN 100 AND 6000
+          AND rc.start_date >= make_date($1, 1, 1)
+        GROUP BY 1, 2`,
+      [FIRST_DATA_YEAR]
+    ),
   ])
 
   const N = months.length
@@ -1310,7 +1375,7 @@ export async function loadAreaMonthly(): Promise<AreaMonthly> {
     if (r.unit_price != null) b.up[i] = Number(r.unit_price)
     if (r.price_sqm != null) b.ps[i] = Number(r.price_sqm)
   }
-  for (const r of rentRows.rows) {
+  for (const r of [...rentRows.rows, ...customRentRows.rows]) {
     const i = idx.get(r.mo); if (r.area_id == null || i === undefined) continue
     const b = bucket(String(r.area_id))
     b.rc[i] = Number(r.n || 0)

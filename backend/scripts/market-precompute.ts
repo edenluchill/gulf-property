@@ -14,7 +14,8 @@ import dotenv from 'dotenv'
 dotenv.config()
 import pool from '../src/db/pool'
 
-const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R']
+// ⚠️ 必须与 market.ts 的同名常量完全一致（那边是筛选白名单，这边是下拉数据源）。
+const ROOM_OPTIONS = ['Studio', '1 B/R', '2 B/R', '3 B/R', '4 B/R', '5 B/R', '6 B/R', '7 B/R', 'PENTHOUSE']
 const RENT_BASE = `rc.usage_type = 'Residential' AND rc.annual_amount > 0 AND rc.property_area > 0 AND rc.start_date >= '2000-01-01' AND rc.start_date <= CURRENT_DATE`
 // ⚠️ 口径必须和 market.ts 的 RES_PT 完全一致 —— 否则「实时查询」和「缓存的默认视图」
 //    会给出不同结果。含命名别墅社区的 Land(DAMAC Lagoons 等期房别墅)。
