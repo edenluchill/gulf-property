@@ -247,11 +247,25 @@ async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerd
 }
 
 /**
+ * 「填筛选器用的」接口 —— 不计额度、不返回任何成交价格数据,只有名字和条数。
+ *
+ * 起因:统一搜索框每敲几个字就防抖请求一次 /transactions/suggest。它挂在
+ * /api/market 前缀下,原本每次都记一分钟 → **买家还没看到任何数据,10 分钟
+ * 额度就被自己的打字烧光,搜索框直接失效**。输入辅助不是数据消费,不该计费。
+ * (同理 filters/projects:区域下拉、户型下拉、项目名列表。)
+ *
+ * ⚠️ 用 originalUrl 不用 path —— mapMeter 是 app.use(paths, ...) 挂的,
+ * req.path 会被剥掉匹配到的前缀。见 [[express-req-path-in-finish-callback]]。
+ */
+const UNMETERED = ['/transactions/suggest', '/transactions/filters', '/transactions/projects']
+
+/**
  * 中间件:挂在核心地图数据路由前。额度内 → 顺手记一分钟并放行;
  * 用尽 → 429 { code: 'map_quota_exhausted' },前端据此弹温和引导。
  */
 export async function mapMeter(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (req.method === 'OPTIONS') return next()
+  if (UNMETERED.some(p => req.originalUrl.includes(p))) return next()
   try {
     const v = await meter(req, { record: true })
     if (!v.metered || !v.exhausted) return next()
