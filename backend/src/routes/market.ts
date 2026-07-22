@@ -696,9 +696,13 @@ async function loadAreaInsightsData(areaId: string, usage: string = 'all') {
             -- 🔴 排除劳工宿舍/整栋打包合同(整栋多床位记在一个小单元面积上)。
             -- 这条护栏 bulk 侧一直有、dialog 侧漏了 → 顶层 rentalYield 序列被污染,
             -- 而它**没有 1-15% 合理带兜底**(见下方 rentalYield 计算),直接喂前端画图。
-            -- 实测受污染的区:Madinat Hind 3 中位 144,267/㎡/年(真值 455)、
-            -- Grayteesah 22,552(964)、Jebel Ali Industrial 22,569(1,993)、
-            -- Muhaisnah 2 (Sonapur) 12,600(2,037) …… 共 9 个区偏离 >5%。
+            -- 租金中位数偏离 >5% 的区有 9 个,但其中多数(Madinat Hind 3 / Grayteesah /
+            -- Jebel Ali Industrial / Muhaisnah 2)住宅成交量是个位数、**没有分母**,
+            -- 曲线本来就是空的 → 护栏对它们无可见影响。
+            -- **真正被这条护栏救回来的是 Al Layyan**:2 年 1876 笔成交、价 14,370/㎡,
+            -- 而污染后的租金中位 14,145/㎡ → 前端画出 ~98% 的回报率曲线。
+            -- ⚠️ 查这类问题必须同时看「租金偏差」和「有没有成交价分母」,
+            --    只按租金偏差排序会得出夸大的结论(本次就先犯了一次)。
             AND rc.annual_amount / rc.property_area BETWEEN 100 AND 6000
             -- 63 月:回报率窗口最长 5 年(60)+ 平滑;原 25 月只够 2 年展示序列
             AND rc.start_date >= date_trunc('month', b.d) - INTERVAL '63 months'
