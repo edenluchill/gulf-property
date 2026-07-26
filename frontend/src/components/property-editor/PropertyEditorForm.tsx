@@ -140,10 +140,11 @@ export function PropertyEditorForm({
               isProcessing={isProcessing}
             />
 
-            {/* Payment Plan */}
+            {/* Payment Plan —— 传 onChange = 可编辑(增删改 + 每月分期) */}
             <PaymentPlanSection
               paymentPlan={formData.paymentPlan}
               isProcessing={isProcessing}
+              onChange={(plan) => handleFormChange('paymentPlan', plan)}
             />
 
             {/* Review Checklist */}

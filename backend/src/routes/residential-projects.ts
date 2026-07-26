@@ -128,10 +128,17 @@ function transformPaymentPlanToJson(paymentPlan: any[] | undefined): any[] {
 
     return {
       milestone: milestone.milestone,
+      // percentage = 该期对总额的**总贡献**。按月分期行 = monthlyPct × monthlyCount,
+      // 所以合计/百分比条/付款结构标签(derivePaymentSplit)这些只读 percentage 的地方
+      // 全都自动正确,无需感知 monthly 字段。
       percentage: milestone.percentage,
       date: cleanedDate,
       intervalMonths,
       intervalDescription,
+      // 按月分期(「1%/月 × 40月」)的可编辑元数据 —— 存下来编辑器才能回填再改。
+      // 有 monthlyCount = 递延分期行;无 = 普通单次里程碑。
+      monthlyPct: milestone.monthlyPct ?? null,
+      monthlyCount: milestone.monthlyCount ?? null,
       description: milestone.description || null,
       displayOrder: i,
     }

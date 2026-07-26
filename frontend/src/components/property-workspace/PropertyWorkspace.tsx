@@ -130,8 +130,12 @@ export function PropertyWorkspace({
   const visibleImageCount = (formData.projectImages || []).filter(
     img => !(formData.hiddenProjectImages || []).includes(img)
   ).length
+  // 合计用「每期总贡献」:按月分期行 = 每月% × 月数,普通行 = percentage。
+  // (percentage 本身已存总贡献,这里对 monthly 行做同样口径以防旧数据 percentage 缺失。)
   const paymentTotal = (formData.paymentPlan || []).reduce(
-    (sum, m) => sum + (parseFloat(String(m.percentage)) || 0), 0
+    (sum, m: any) => sum + (m?.monthlyCount
+      ? (parseFloat(String(m.monthlyPct)) || 0) * (parseFloat(String(m.monthlyCount)) || 0)
+      : (parseFloat(String(m.percentage)) || 0)), 0
   )
   const hasExtraInfo = formData.serviceCharge != null || (formData.landmarks?.length || 0) > 0
 
@@ -404,6 +408,7 @@ export function PropertyWorkspace({
           <PaymentPlanSection
             paymentPlan={formData.paymentPlan}
             isProcessing={isProcessing}
+            onChange={(plan) => handleFormChange('paymentPlan', plan)}
           />
         )
       case 'pricing':

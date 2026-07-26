@@ -108,8 +108,11 @@ export default function AdminPropertyEditPage() {
           milestone: milestone.milestone_name || milestone.milestone,
           percentage: milestone.percentage,
           date: milestone.milestone_date || milestone.date,
-          intervalMonths: milestone.interval_months,
-          intervalDescription: milestone.interval_description,
+          intervalMonths: milestone.interval_months ?? milestone.intervalMonths,
+          intervalDescription: milestone.interval_description ?? milestone.intervalDescription,
+          // 按月分期元数据 —— 不带上就丢了,重开编辑器那行会退化成普通单次
+          monthlyPct: milestone.monthlyPct ?? milestone.monthly_pct ?? undefined,
+          monthlyCount: milestone.monthlyCount ?? milestone.monthly_count ?? undefined,
         })),
         projectImages: project.project_images || [],
         floorPlanImages: project.floor_plan_images || [],
