@@ -29,6 +29,7 @@ import AgentApprovals from '../components/analytics/AgentApprovals'
 import ErrorMonitor from '../components/analytics/ErrorMonitor'
 import PerfMonitor from '../components/analytics/PerfMonitor'
 import LiveTourTelemetry from '../components/analytics/LiveTourTelemetry'
+import CollabSessionList from '../components/analytics/CollabSessionList'
 import OpsTelemetry from '../components/analytics/OpsTelemetry'
 import Health from '../components/analytics/Health'
 import AgentRuns from '../components/analytics/AgentRuns'
@@ -368,8 +369,13 @@ export default function AdminAnalytics() {
           {tab === 'health' && <Health days={days} />}
           {tab === 'perf' && <PerfMonitor />}
 
-          {/* ── 实时带看(WS 遥测 / 容量 / 进房漏斗 / 客户端体感 / Agora 成本)── */}
-          {tab === 'livetour' && <LiveTourTelemetry />}
+          {/* ── 实时带看:遥测(容量/漏斗/体感/成本)+ 每场会话历史与意向报告 ── */}
+          {tab === 'livetour' && (
+            <div className="space-y-5">
+              <LiveTourTelemetry />
+              <CollabSessionList />
+            </div>
+          )}
 
           {/* ── AI 成本 / PDF 管线 / 钱门 / Tour 漏斗 ────────────────── */}
           {tab === 'ops' && <OpsTelemetry />}
