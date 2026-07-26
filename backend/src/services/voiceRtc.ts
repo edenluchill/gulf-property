@@ -1,14 +1,19 @@
 /**
  * Agora 应用内语音 —— RTC token 签发 + 用量额度(成本护栏)。
  *
- * 额度全部在这里硬 enforce:单场 ≤30min(token TTL)、每经纪 ≤3h/日、全局每日兜底。
- * token TTL 是最硬的成本天花板:过期客户端必断,Agora 不再计费。
+ * 🔴 2026-07-26 owner 定:通话**无限时长**,成本靠积分/token 计量,不再卡时间。
+ *   真正的成本闸是 callHeartbeat → settleCallUsage:每 30s 按 user-分钟结算积分,
+ *   套餐免费额度用完扣积分,积分见底 stopCall 挂断(见下方注释)。**那才是限额**。
+ *   这里的三个时间上限都放到「技术/反刷天花板」量级,正常带看永远撞不到:
+ *   - 单场 = Agora token 的最大寿命 24h(token 就是这么长,不是要卡 24h);
+ *   - 每经纪每日 / 全局每日 = 只防伪造身份薅免费通话,给足冗余,别误伤真实带看。
+ *   要收紧就调下面的 env,默认已是「实际不限」。
  *
  * 配置(env):
  *   AGORA_APP_ID / AGORA_APP_CERTIFICATE   —— 必填,缺则语音整体停用(503)
- *   AGORA_AGENT_DAILY_SECONDS  默认 10800(3h)   每经纪每日上限
- *   AGORA_GLOBAL_DAILY_SECONDS 默认 21600(6h)   全局每日兜底(防伪造身份刷)
- *   AGORA_SESSION_MAX_SECONDS  默认 1800(30min)  单场上限
+ *   AGORA_AGENT_DAILY_SECONDS  默认 86400(24h)  每经纪每日(反刷天花板,非产品限额)
+ *   AGORA_GLOBAL_DAILY_SECONDS 默认 604800(7d)  全局每日兜底(防伪造身份刷)
+ *   AGORA_SESSION_MAX_SECONDS  默认 86400(24h)  单场 = token 最大寿命
  */
 import { RtcTokenBuilder, RtcRole } from 'agora-token'
 import pool from '../db/pool'
@@ -16,9 +21,12 @@ import pool from '../db/pool'
 const APP_ID = process.env.AGORA_APP_ID || ''
 const APP_CERT = process.env.AGORA_APP_CERTIFICATE || ''
 
-const SESSION_MAX = Math.max(60, Number(process.env.AGORA_SESSION_MAX_SECONDS) || 30 * 60)
-const AGENT_DAILY = Math.max(60, Number(process.env.AGORA_AGENT_DAILY_SECONDS) || 3 * 60 * 60)
-const GLOBAL_DAILY = Math.max(60, Number(process.env.AGORA_GLOBAL_DAILY_SECONDS) || 6 * 60 * 60)
+// 单场上限 = Agora token 允许的最大寿命(24h)。这不是「产品限时」,只是 token 有寿命;
+// 真实带看几分钟到一小时,永远撞不到。成本由积分计量刹车,见文件头。
+const SESSION_MAX = Math.max(60, Number(process.env.AGORA_SESSION_MAX_SECONDS) || 24 * 60 * 60)
+// 每经纪每日/全局每日 = 反伪造天花板,给足冗余(不再是 3h/6h 的产品限额)。
+const AGENT_DAILY = Math.max(60, Number(process.env.AGORA_AGENT_DAILY_SECONDS) || 24 * 60 * 60)
+const GLOBAL_DAILY = Math.max(60, Number(process.env.AGORA_GLOBAL_DAILY_SECONDS) || 7 * 24 * 60 * 60)
 const MIN_GRANT = 30 // 剩余不足 30s 就别开了
 
 export function isVoiceConfigured(): boolean {

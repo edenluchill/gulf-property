@@ -51,12 +51,6 @@ export interface CollabBarProps {
   onKick?: (connId: string) => void
 }
 
-function mmss(s: number): string {
-  const m = Math.floor(s / 60)
-  const r = s % 60
-  return `${m}:${r.toString().padStart(2, '0')}`
-}
-
 function dotColor(seed: string): string {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360
@@ -225,9 +219,10 @@ export default function CollabBar({
             </div>
           ) : voice.status === 'live' ? (
             <div className="flex shrink-0 items-center gap-1">
-              {/* 通话计时:手机上藏起来(挤位置,且经纪端的画中画已经有观看人数了) */}
-              <span className="hidden items-center gap-1 rounded-full bg-white/10 px-1.5 text-[11px] font-medium tabular-nums text-slate-200 sm:flex" title="通话剩余时长（上限）">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> {mmss(voice.remainingSeconds)}
+              {/* 通话无限时长(2026-07-26 owner 定,成本按积分计量刹车)—— 不再显示倒计时,
+                  只留一个「通话中」呼吸点。额度快没了由经纪专属的 videoNotice 提示。 */}
+              <span className="hidden items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-slate-200 sm:flex" title="通话中">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> 通话中
               </span>
               <button
                 type="button" onClick={voice.toggleMute}
@@ -281,8 +276,9 @@ export default function CollabBar({
               </button>
             </div>
           ) : voice.status === 'limit' ? (
-            <div className="flex h-7 shrink-0 items-center gap-1 px-2 text-[11px] font-medium text-amber-300" title="今日语音已达上限">
-              <Phone className="h-4 w-4 text-slate-400" /> 已达上限
+            // 无限时长后,'limit' 只可能来自积分耗尽的 stopCall(不再是时间到)
+            <div className="flex h-7 shrink-0 items-center gap-1 px-2 text-[11px] font-medium text-amber-300" title="通话额度已用完">
+              <Phone className="h-4 w-4 text-slate-400" /> 额度用完
             </div>
           ) : voicePrompt ? (
             // viewer: presenter is calling → prominent answer button
