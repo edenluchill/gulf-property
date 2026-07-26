@@ -97,6 +97,10 @@ export interface CollabVoiceApi {
   dismissVideoNotice: () => void
   /** 正在说话的 Agora uid(音量超阈值)。0 = 本地自己。CollabBar 据此高亮头像。 */
   speakingUids: number[]
+  /** 麦克风被拒/不可用 → 仍在通话里(能听能看,只是不能说)。UI 提示 + 给重试。 */
+  micDenied: boolean
+  /** 重新申请麦克风(用户在浏览器允许后点)。成功则开始能发言。 */
+  retryMic: () => void
 }
 
 const BASE = `${API_BASE_URL}/api/voice-rtc`
@@ -106,6 +110,7 @@ export function useCollabVoice({ mode, roomCode, agentEmail, connId }: UseCollab
   const [muted, setMuted] = useState(false)
   const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [speakingUids, setSpeakingUids] = useState<number[]>([])
+  const [micDenied, setMicDenied] = useState(false)
 
   // ── 视频 state ────────────────────────────────────────────────────────────
   const [cameraOn, setCameraOn] = useState(false)
@@ -164,6 +169,7 @@ export function useCollabVoice({ mode, roomCode, agentEmail, connId }: UseCollab
     setMuted(false)
     setRemainingSeconds(0)
     setSpeakingUids([])
+    setMicDenied(false)
     setRemoteVideo(null)
     setVideoViewers(0)
     setVideoBlock(null)
@@ -348,9 +354,20 @@ export function useCollabVoice({ mode, roomCode, agentEmail, connId }: UseCollab
         })
       } catch { /* 音量指示不可用 → 没有说话高亮,但通话照常 */ }
 
-      const mic = await AgoraRTC.createMicrophoneAudioTrack()
-      micRef.current = mic
-      await client.publish([mic])
+      // 🔴 麦克风单独 try —— 拒绝/不可用**不能**拖垮整场加入。买家就算不给麦克风,
+      //    也应该**留在通话里**:听得到经纪、看得到摄像头,只是自己不能说(可稍后重试)。
+      //    以前麦克风一抛就 teardown('error') → 拒绝一次浏览器记住 → 每次重试都 error →
+      //    「永远连不上」。
+      try {
+        const mic = await AgoraRTC.createMicrophoneAudioTrack()
+        micRef.current = mic
+        await client.publish([mic])
+        setMicDenied(false)
+      } catch (micErr) {
+        console.warn('[collab-voice] mic unavailable → listen-only', micErr)
+        micRef.current = null
+        setMicDenied(true)
+      }
       syncViewers()
     } catch (err) {
       console.error('[collab-voice] join failed', err)
@@ -421,6 +438,23 @@ export function useCollabVoice({ mode, roomCode, agentEmail, connId }: UseCollab
     setMuted(next)
   }, [muted])
 
+  /** 麦克风之前被拒 → 用户在浏览器允许后点这里,补建麦克风轨并推流,开始能发言。 */
+  const retryMic = useCallback(async () => {
+    const client = clientRef.current
+    if (!client || micRef.current) return
+    try {
+      const AgoraRTC = (await import('agora-rtc-sdk-ng')).default
+      const mic = await AgoraRTC.createMicrophoneAudioTrack()
+      micRef.current = mic
+      await client.publish([mic])
+      setMuted(false)
+      setMicDenied(false)
+    } catch (e) {
+      console.warn('[collab-voice] retry mic still denied', e)
+      setMicDenied(true) // 还是不给 → 保持只听态
+    }
+  }, [])
+
   // 护栏 ①(运行中):摄像头开着时人数涨过上限 → 自动关。
   // 一旦 publish,频道里所有人都会订阅,没法只给 6 个看 —— 成本是按人头涨的。
   useEffect(() => {
@@ -445,6 +479,6 @@ export function useCollabVoice({ mode, roomCode, agentEmail, connId }: UseCollab
     cameraOn, facing, toggleCamera, flipCamera, flipping,
     localVideo, remoteVideo, videoViewers, videoBlock, videoFreeLeft,
     videoNotice, dismissVideoNotice: () => setVideoNotice(null),
-    speakingUids,
+    speakingUids, micDenied, retryMic,
   }
 }

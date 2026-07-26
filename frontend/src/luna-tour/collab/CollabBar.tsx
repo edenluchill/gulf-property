@@ -241,14 +241,25 @@ export default function CollabBar({
               <span className="hidden items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-slate-200 sm:flex" title="通话中">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> 通话中
               </span>
-              <button
-                type="button" onClick={voice.toggleMute}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10"
-                style={{ color: voice.muted ? '#f87171' : ACCENT }}
-                title={voice.muted ? '已静音 · 点击说话' : '通话中 · 点击静音'}
-              >
-                {voice.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </button>
+              {voice.micDenied ? (
+                // 麦克风被拒 → 只听态。点一下重新申请(用户在浏览器允许后)。
+                <button
+                  type="button" onClick={voice.retryMic}
+                  className="flex h-7 shrink-0 items-center gap-1 rounded-full bg-amber-500/90 px-2 text-[11px] font-semibold text-amber-950 transition hover:bg-amber-500"
+                  title="麦克风被拒,你现在只能听。点击重新允许后即可发言"
+                >
+                  <MicOff className="h-4 w-4" /> 只听
+                </button>
+              ) : (
+                <button
+                  type="button" onClick={voice.toggleMute}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10"
+                  style={{ color: voice.muted ? '#f87171' : ACCENT }}
+                  title={voice.muted ? '已静音 · 点击说话' : '通话中 · 点击静音'}
+                >
+                  {voice.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
               {/* 摄像头(presenter 专属)—— 客户端永远不显示,他们不需要开摄像头。
                   额度/人数不足时置灰并说明原因,绝不静默失效。 */}
               {isPresenter && (
