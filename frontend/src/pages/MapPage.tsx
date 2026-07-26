@@ -20,6 +20,7 @@ import CollabVideo from '../luna-tour/collab/CollabVideo'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
+import { chimeJoin, chimeLeave, unlockChimes } from '../luna-tour/collab/chime'
 import { createCollabRoom, getCollabRoom, identifyCollab } from '../luna-tour/collab/collabApi'
 import CollabPresenterGuide from '../luna-tour/collab/CollabPresenterGuide'
 import CollabIdentityGate from '../luna-tour/collab/CollabIdentityGate'
@@ -940,6 +941,11 @@ export default function MapPage() {
         setPresenterVoiceOn(!!a.on)
         return
       }
+      if (a?.type === '__collab_voice_request') {
+        // 买家想通话 → 经纪端自动接通(它有经纪 email,账记对;买家那边等着自动 join)
+        if (collabModeRef.current === 'presenter') voiceConnectRef.current?.()
+        return
+      }
       handleVoiceMapAction(action as MapAction)
     },
     [handleVoiceMapAction]
@@ -1072,9 +1078,61 @@ export default function MapPage() {
     mode: collabMode,
     roomCode: collabCode,
     agentEmail: user?.email ?? undefined,
+    connId: collab.connId,   // 派生稳定 Agora uid → 说话高亮能对回参与者
   })
   // viewer learns the presenter has voice on (proactive "join voice" prompt)
   const [presenterVoiceOn, setPresenterVoiceOn] = useState(false)
+
+  // ── 买家主动发起语音(raise hand)+ 大入口一键接通 ──────────────────────────
+  //
+  // owner:「买家想主动说话却只能等经纪开」。现在买家点大按钮:
+  //   • 已有通话 → 直接加入(join)
+  //   • 还没通话 → 通过 WS 给经纪发「想通话」信号,经纪端**自动接通**(账仍记经纪头上,
+  //     因为是经纪的客户端调 /start),买家这边等 presenterVoiceOn 翻真就自动 join。
+  // 经纪端也能收到,不用先动手 —— 买家想聊就聊得上。
+  const [voiceRequesting, setVoiceRequesting] = useState(false)
+  const voiceConnectRef = useRef<() => void>(() => {})
+  voiceConnectRef.current = voice.connect
+  const collabModeRef = useRef(collabMode)
+  collabModeRef.current = collabMode
+
+  const requestOrJoinVoice = useCallback(() => {
+    unlockChimes()  // 这是用户手势 —— 顺手解锁 iOS 音频
+    if (presenterVoiceOn || voice.status === 'live' || voice.status === 'connecting') {
+      voice.connect()
+      return
+    }
+    // 没在通话 → 请经纪接通(经纪端自动 connect),自己进入「接通中」等它翻真
+    setVoiceRequesting(true)
+    collabSendRef.current.sendMapAction({ type: '__collab_voice_request' })
+  }, [presenterVoiceOn, voice])
+
+  // 有人进/出带看 → 轻轻一声(owner:「进来了有提示音」)。prev>0 才响,避免自己
+  // 首次进房时把在场的人一次性响一遍。
+  const prevPartCountRef = useRef(0)
+  useEffect(() => {
+    if (!collabActive) { prevPartCountRef.current = collab.participants.length; return }
+    const n = collab.participants.length
+    const prev = prevPartCountRef.current
+    if (n > prev && prev > 0) chimeJoin()
+    else if (n < prev && n > 0) chimeLeave()
+    prevPartCountRef.current = n
+  }, [collab.participants.length, collabActive])
+
+  // 经纪已接通 → 买家自动 join;不再显示「接通中」
+  useEffect(() => {
+    if (presenterVoiceOn && voiceRequesting && voice.status !== 'live' && voice.status !== 'connecting') {
+      setVoiceRequesting(false)
+      voice.connect()
+    }
+  }, [presenterVoiceOn, voiceRequesting, voice])
+  useEffect(() => { if (voice.status === 'live') setVoiceRequesting(false) }, [voice.status])
+  // 经纪不在线/没接通 → 别让买家一直卡在「接通中」。12s 兜底,按钮回来可重试。
+  useEffect(() => {
+    if (!voiceRequesting) return
+    const t = setTimeout(() => setVoiceRequesting(false), 12000)
+    return () => clearTimeout(t)
+  }, [voiceRequesting])
   // presenter broadcasts when its voice goes live / ends, so viewers can join
   const prevVoiceLiveRef = useRef(false)
   useEffect(() => {
@@ -1943,6 +2001,9 @@ export default function MapPage() {
               onSendChat={collab.sendChat}
               voice={voice}
               voicePrompt={collabMode === 'viewer' && presenterVoiceOn}
+              onRequestVoice={requestOrJoinVoice}
+              voiceRequesting={voiceRequesting}
+              speakingUids={voice.speakingUids}
               isPresenter={collabMode === 'presenter'}
               presenterName={collabPeerName}
               followMode={collab.followMode}

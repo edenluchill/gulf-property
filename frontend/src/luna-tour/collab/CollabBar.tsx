@@ -20,7 +20,7 @@ import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircl
 import type { ChatEntry, Participant } from './protocol'
 import type { FollowMode } from './useCollabFollow'
 import type { CollabVoiceApi } from './useCollabVoice'
-import { MAX_VIDEO_VIEWERS } from './useCollabVoice'
+import { MAX_VIDEO_VIEWERS, connIdToUid } from './useCollabVoice'
 
 const ACCENT = '#00E0B8'
 
@@ -38,6 +38,12 @@ export interface CollabBarProps {
   voice?: CollabVoiceApi
   /** viewer-only: presenter has voice on → show "answer call" prompt */
   voicePrompt?: boolean
+  /** viewer 主动发起/加入语音(没通话时会请经纪接通)。 */
+  onRequestVoice?: () => void
+  /** viewer 已发「想通话」、正等经纪接通。 */
+  voiceRequesting?: boolean
+  /** 正在说话的 Agora uid(0=本地自己)—— 头像高亮。 */
+  speakingUids?: number[]
   /** true for the presenter (drives call vs answer framing) */
   isPresenter?: boolean
   // ── merged session-bar controls (one unified bottom bar) ──────────────────
@@ -71,6 +77,9 @@ export default function CollabBar({
   presenterName,
   voice,
   voicePrompt,
+  onRequestVoice,
+  voiceRequesting,
+  speakingUids,
   isPresenter,
   followMode,
   onDetach,
@@ -122,6 +131,11 @@ export default function CollabBar({
     setDraft('')
   }
 
+  // 谁在说话:volume-indicator 的 uid。本地自己在事件里 uid 恒为 0,单独判。
+  const spk = new Set(speakingUids || [])
+  const isSpeaking = (connId: string) =>
+    spk.has(connIdToUid(connId)) || (connId === myConnId && spk.has(0))
+
   return createPortal(
     <>
       {/* ONE unified in-session bar, bottom-centre, above the app nav. Viewer is
@@ -155,12 +169,15 @@ export default function CollabBar({
             {participants.slice(0, 5).map((p) => {
               const label = `${p.name}${p.connId === myConnId ? '（你）' : ''} · ${p.role === 'presenter' ? '经纪' : '客户'}`
               const canKick = !!onKick && p.role === 'viewer' && p.connId !== myConnId
+              // 说话中 → 头像换成绿色声浪圈(Discord 式),一眼看到谁在讲。
+              const talking = isSpeaking(p.connId)
+              const ringCls = talking ? 'ring-emerald-400 animate-pulse' : 'ring-slate-900/80'
               if (!canKick) {
                 return (
                   <div
                     key={p.connId}
-                    title={label}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-slate-900/80"
+                    title={`${label}${talking ? ' · 说话中' : ''}`}
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ${ringCls}`}
                     style={{ backgroundColor: dotColor(p.connId) }}
                   >
                     {initial(p.name)}
@@ -172,7 +189,7 @@ export default function CollabBar({
                   key={p.connId}
                   onClick={() => { if (window.confirm(`把「${p.name}」移出这场带看?`)) onKick!(p.connId) }}
                   title={`${label} · 点击移出`}
-                  className="group relative flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-slate-900/80 transition hover:ring-rose-400"
+                  className={`group relative flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 transition hover:ring-rose-400 ${ringCls}`}
                   style={{ backgroundColor: dotColor(p.connId) }}
                 >
                   {initial(p.name)}
@@ -280,10 +297,15 @@ export default function CollabBar({
             <div className="flex h-7 shrink-0 items-center gap-1 px-2 text-[11px] font-medium text-amber-300" title="通话额度已用完">
               <Phone className="h-4 w-4 text-slate-400" /> 额度用完
             </div>
+          ) : voiceRequesting ? (
+            // viewer: 已请经纪接通,等它翻真
+            <div className="flex h-7 shrink-0 items-center gap-1 px-1.5 text-[11px] text-slate-200" title="正在为你接通经纪…">
+              <Loader2 className="h-4 w-4 animate-spin" /> 接通中
+            </div>
           ) : voicePrompt ? (
             // viewer: presenter is calling → prominent answer button
             <button
-              type="button" onClick={voice.connect}
+              type="button" onClick={onRequestVoice || voice.connect}
               className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-slate-900"
               style={{ backgroundColor: ACCENT }}
               title="接听经纪的语音通话"
@@ -291,16 +313,15 @@ export default function CollabBar({
               <PhoneCall className="h-4 w-4" /> 接听
             </button>
           ) : (
-            // presenter: start a call · viewer (no active call): waiting
+            // presenter: 发起 · viewer: 主动「和经纪通话」(没通话时会请经纪接通)
             <button
-              type="button" onClick={voice.connect}
-              className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-200 transition hover:bg-white/10"
-              title={isPresenter ? '发起语音通话' : voice.status === 'error' ? '连接失败 · 重试' : '经纪还没开启语音'}
+              type="button" onClick={isPresenter ? voice.connect : (onRequestVoice || voice.connect)}
+              className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold transition"
+              style={{ backgroundColor: ACCENT, color: '#04211c' }}
+              title={isPresenter ? '发起语音通话' : '和经纪语音通话'}
             >
-              <Phone className="h-4 w-4" style={{ color: ACCENT }} />
-              {isPresenter
-                ? <span className="hidden sm:inline">语音通话</span>
-                : <span className="hidden text-slate-400 sm:inline">等待经纪</span>}
+              <Phone className="h-4 w-4" />
+              <span className="hidden sm:inline">{isPresenter ? '语音通话' : '和经纪通话'}</span>
             </button>
           )}
 
@@ -341,19 +362,30 @@ export default function CollabBar({
         </div>
       )}
 
-      {/* viewer incoming-call banner — bottom-right, above the controls */}
-      {voice && voicePrompt && voice.status !== 'live' && voice.status !== 'connecting' && (
+      {/* 🔴 买家的「语音」大入口(owner:买家找不到怎么加入 + 想主动说话)。
+          买家只要还没在通话,就一直有这颗又大又醒目的按钮 —— 本能就能点:
+            • 经纪已开语音 → 「接听 经纪 的通话」(脉冲,像来电)
+            • 经纪还没开   → 「和经纪语音通话」(点了自动请经纪接通)
+            • 已请求       → 「正在接通…」
+          一旦进了通话就收起,底栏留静音/挂断,不再 nag。 */}
+      {voice && !isPresenter && voice.status !== 'live' && voice.status !== 'connecting' && (
         <div className="fixed left-1/2 z-[2150] w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2"
           style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4rem)' }}>
-          <button
-            type="button"
-            onClick={voice.connect}
-            className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-900 shadow-xl transition hover:opacity-90"
-            style={{ backgroundColor: ACCENT }}
-          >
-            <PhoneCall className="h-4 w-4 animate-pulse" />
-            接听 {presenterName || '经纪'} 的语音通话
-          </button>
+          {voiceRequesting ? (
+            <div className="flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-white shadow-xl ring-1 ring-white/10">
+              <Loader2 className="h-4 w-4 animate-spin" /> 正在为你接通 {presenterName || '经纪'}…
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onRequestVoice || voice.connect}
+              className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-slate-900 shadow-xl transition hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: ACCENT }}
+            >
+              <PhoneCall className={`h-4 w-4 ${voicePrompt ? 'animate-pulse' : ''}`} />
+              {voicePrompt ? `接听 ${presenterName || '经纪'} 的语音通话` : `和 ${presenterName || '经纪'} 语音通话`}
+            </button>
+          )}
         </div>
       )}
 

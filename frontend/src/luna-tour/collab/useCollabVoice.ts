@@ -41,6 +41,21 @@ export interface UseCollabVoiceOpts {
   mode: 'browse' | 'presenter' | 'viewer'
   roomCode?: string
   agentEmail?: string
+  /** 本地 collab connId —— 用它派生一个稳定的 Agora uid,让「谁在说话」能对回参与者。 */
+  connId?: string | null
+}
+
+/**
+ * collab connId(字符串)→ Agora uid(32 位无符号整数)的稳定映射。
+ * 说话高亮要靠它把 volume-indicator 里的 uid 认回是哪个参与者(见 CollabBar)。
+ * 本地用户在 volume-indicator 里 uid 恒为 0,单独判。
+ */
+export function connIdToUid(connId: string | null | undefined): number {
+  const s = connId || ''
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+  // >>>0 转无符号;避开 0(0 被 Agora 当「本地/通配」)
+  return (h >>> 0) || 1
 }
 
 export interface CollabVoiceApi {
@@ -80,14 +95,17 @@ export interface CollabVoiceApi {
    */
   videoNotice: string | null
   dismissVideoNotice: () => void
+  /** 正在说话的 Agora uid(音量超阈值)。0 = 本地自己。CollabBar 据此高亮头像。 */
+  speakingUids: number[]
 }
 
 const BASE = `${API_BASE_URL}/api/voice-rtc`
 
-export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpts): CollabVoiceApi {
+export function useCollabVoice({ mode, roomCode, agentEmail, connId }: UseCollabVoiceOpts): CollabVoiceApi {
   const [status, setStatus] = useState<VoiceStatus>('idle')
   const [muted, setMuted] = useState(false)
   const [remainingSeconds, setRemainingSeconds] = useState(0)
+  const [speakingUids, setSpeakingUids] = useState<number[]>([])
 
   // ── 视频 state ────────────────────────────────────────────────────────────
   const [cameraOn, setCameraOn] = useState(false)
@@ -145,6 +163,7 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
     sessionIdRef.current = null
     setMuted(false)
     setRemainingSeconds(0)
+    setSpeakingUids([])
     setRemoteVideo(null)
     setVideoViewers(0)
     setVideoBlock(null)
@@ -314,7 +333,21 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
         setRemoteVideo((v) => (client.remoteUsers.length ? v : null))
       })
 
-      await client.join(data.appId, data.channel, data.token, null)
+      // 用 connId 派生的稳定 uid 加入(token uid=0 通配,任意 uid 可用)——
+      // 「谁在说话」要靠 volume-indicator 的 uid 认回参与者。
+      const myUid = connId ? connIdToUid(connId) : null
+      await client.join(data.appId, data.channel, data.token, myUid)
+
+      // ── 谁在说话(Discord 式)——每 200ms 报各 uid 音量,超阈值即「说话中」。
+      //    本地自己在事件里 uid 恒为 0。出错/老 SDK 不支持就静默降级(不影响通话)。
+      try {
+        client.enableAudioVolumeIndicator()
+        client.on('volume-indicator', (vols: { level: number; uid: number }[]) => {
+          const speaking = vols.filter((v) => v.level > 5).map((v) => Number(v.uid))
+          setSpeakingUids(speaking)
+        })
+      } catch { /* 音量指示不可用 → 没有说话高亮,但通话照常 */ }
+
       const mic = await AgoraRTC.createMicrophoneAudioTrack()
       micRef.current = mic
       await client.publish([mic])
@@ -378,7 +411,7 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
         } catch { /* 网络抖动不刹车 —— 下个心跳会再判一次(最多多烧 30s) */ }
       }, 30_000)
     }
-  }, [mode, roomCode, agentEmail, status, teardown, stopCamera, refreshVideoQuota])
+  }, [mode, roomCode, agentEmail, connId, status, teardown, stopCamera, refreshVideoQuota])
 
   const toggleMute = useCallback(() => {
     const mic = micRef.current
@@ -412,5 +445,6 @@ export function useCollabVoice({ mode, roomCode, agentEmail }: UseCollabVoiceOpt
     cameraOn, facing, toggleCamera, flipCamera, flipping,
     localVideo, remoteVideo, videoViewers, videoBlock, videoFreeLeft,
     videoNotice, dismissVideoNotice: () => setVideoNotice(null),
+    speakingUids,
   }
 }
