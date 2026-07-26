@@ -11,7 +11,10 @@ import Map, {
 import { type MapLayerMouseEvent, type Map as MaplibreMap, type GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTranslation } from 'react-i18next'
-import { Globe, Ruler, Route, X, Box, Eye, EyeOff, History } from 'lucide-react'
+import { Globe, Ruler, Route, X, Box, Eye, EyeOff, History, Pencil } from 'lucide-react'
+import type { CollabDrawApi } from '../luna-tour/collab/useCollabDraw'
+import DrawPalette from '../luna-tour/collab/DrawPalette'
+import { TextInputOverlay } from '../luna-tour/collab/CollabDrawToolbar'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON, fetchRoadRoute, type RoadRoute } from '../lib/api'
@@ -166,6 +169,10 @@ interface MapViewMapLibreProps {
   /** 相机停稳后回调一次(与 onBoundsChange 同一个 150ms debounce,不新增高频
    *  路径)。MapPage 用它把相机写进 URL(history.replaceState,零重渲染)。 */
   onCameraIdle?: (cam: { lng: number; lat: number; zoom: number; pitch: number; bearing: number }) => void
+  /** 画笔(geo-anchored markup)。传了就在右上工具卡里显示铅笔按钮,选中后底部弹
+   *  横向调色板。collab 与「登录经纪单机演示」共用同一个引擎(useCollabDraw)。
+   *  null/undefined = 不显示画笔(匿名买家)。 */
+  draw?: CollabDrawApi | null
 }
 
 function MapViewMapLibre({
@@ -203,7 +210,8 @@ function MapViewMapLibre({
   baseMapOverride,
   onBaseMapChange,
   initialView,
-  onCameraIdle
+  onCameraIdle,
+  draw = null
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
   const { i18n } = useTranslation()
   // 地图自有控件的双语文案(原来中文硬编码,英文界面也显示中文——2026-07-08 修)
@@ -2073,8 +2081,36 @@ function MapViewMapLibre({
               <span className="hidden whitespace-nowrap md:inline">{isZhUi ? '时间轴' : 'Timeline'}</span>
             </button>
           )}
+          {/* 画笔 —— 只有传了 draw(登录经纪/带看)才出现。点开 = 底部弹调色板;
+              和测距/路线并排在同一张卡里,不再是右缘中间那颗会跟这张卡打架的 FAB。 */}
+          {draw && (
+            <button
+              type="button"
+              onClick={() => draw.setTool(draw.tool === 'none' ? 'pen' : 'none')}
+              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
+                draw.tool !== 'none' ? 'bg-teal-500 text-white shadow-sm shadow-teal-500/40' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              aria-label={isZhUi ? '画笔' : 'Draw'}
+            >
+              <Pencil size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${draw.tool !== 'none' ? 'text-white' : 'text-slate-500'}`} />
+              <span className="hidden whitespace-nowrap md:inline">
+                {draw.tool !== 'none' ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '画笔' : 'Draw')}
+              </span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* 画笔调色板(底部居中,和测距状态条同带,不挡地图中心也不压右上工具卡) */}
+      {draw && draw.tool !== 'none' && <DrawPalette draw={draw} />}
+      {draw?.pendingText && (
+        <TextInputOverlay
+          x={draw.pendingText.x}
+          y={draw.pendingText.y}
+          onCommit={draw.commitText}
+          onCancel={draw.cancelText}
+        />
+      )}
 
       {/* 指北针已并进左上筛选卡(components/MapCompassButton),不再单独浮在地图上 —— 2026-07-11 */}
 

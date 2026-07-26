@@ -144,7 +144,7 @@ export default function CollabDrawToolbar({ draw }: { draw: CollabDrawApi }) {
   )
 }
 
-function TextInputOverlay({ x, y, onCommit, onCancel }: { x: number; y: number; onCommit: (t: string) => void; onCancel: () => void }) {
+export function TextInputOverlay({ x, y, onCommit, onCancel }: { x: number; y: number; onCommit: (t: string) => void; onCancel: () => void }) {
   const [val, setVal] = useState('')
   const ref = useRef<HTMLInputElement>(null)
   const { t: tRaw } = useTranslation('lunaTour')

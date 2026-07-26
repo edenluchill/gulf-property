@@ -26,7 +26,6 @@ import CollabIdentityGate from '../luna-tour/collab/CollabIdentityGate'
 import CollabCursorLayer from '../luna-tour/collab/CollabCursorLayer'
 import { useCollabDraw } from '../luna-tour/collab/useCollabDraw'
 import { useCollabMapState, type CollabMapState } from '../luna-tour/collab/useCollabMapState'
-import CollabDrawToolbar from '../luna-tour/collab/CollabDrawToolbar'
 import { useAuth } from '../contexts/AuthContext'
 import { API_BASE_URL } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
@@ -981,7 +980,14 @@ export default function MapPage() {
 
   // Map drawing / markup (pen / arrow / text / pin / circle), geo-anchored +
   // broadcast to the room. Circle uses getAreaInfoAtPoint for draw-to-query.
-  const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: collabActive, getAreaInfo: getAreaInfoAtPoint })
+  //
+  // 两种场景共用同一个引擎:
+  //   • collab 带看 → client 已连,画的东西广播给客户(collabActive)
+  //   • 登录经纪单机 → client 为 null(broadcast 空转),线下当面在 homepage 画图谈单
+  // 匿名买家不给画笔(界面保持干净)。tour 播放/collab viewer 路径不启用单机画笔。
+  const canSoloDraw = !!user && !tourCode && !collabActive && !isCollabViewerPath
+  const drawEnabled = collabActive || canSoloDraw
+  const draw = useCollabDraw({ getMap: getCollabMap, client: collab.client, active: drawEnabled, getAreaInfo: getAreaInfoAtPoint })
 
   /**
    * 🔴 **地图状态同步** —— 指标热力图 / 筛选 / 项目显示 / 地铁线。
@@ -1811,7 +1817,10 @@ export default function MapPage() {
             // Collab markup: while a draw tool is active, swallow feature clicks so
             // drawing/placing marks never opens a POI/area/project panel (and
             // closing a panel doesn't re-select the feature underneath).
-            disableFeatureClicks={collabActive && draw.tool !== 'none'}
+            disableFeatureClicks={drawEnabled && draw.tool !== 'none'}
+            // 画笔按钮进右上工具卡(和测距/路线并排),选中后底部弹调色板 —— 不再是
+            // 会跟工具卡打架的右缘 FAB。登录经纪/带看有,匿名买家没有。
+            draw={drawEnabled ? draw : null}
             // 带看时项目卡片开关由 MapPage 掌管(要同步给客户);平时组件自己管
             showCardsOverride={collabActive ? showCards : undefined}
             onShowCardsChange={setShowCards}
@@ -1878,9 +1887,9 @@ export default function MapPage() {
             <CollabCursorLayer client={collab.client} active label={collabPeerName || '经纪'} getMap={getCollabMap} />
           )}
 
-          {/* Collab: map drawing/markup toolbar (pen + eraser), strokes geo-anchored
-              and broadcast to everyone in the room. */}
-          {collabActive && <CollabDrawToolbar draw={draw} />}
+          {/* 画笔 UI 已并入地图右上工具卡(见 MapViewMapLibre 的 draw prop):铅笔按钮
+              和测距/路线并排,选中后底部弹调色板。collab 与登录经纪单机共用,不再单独
+              浮一个右缘 FAB(那个会和工具卡重叠)。 */}
 
           {/* Collab: presenter onboarding ("share your link to clients") */}
           {collabMode === 'presenter' && presenterCode && !guideDismissed && (
