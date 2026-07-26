@@ -942,8 +942,16 @@ export default function MapPage() {
         return
       }
       if (a?.type === '__collab_voice_request') {
-        // 买家想通话 → 经纪端自动接通(它有经纪 email,账记对;买家那边等着自动 join)
-        if (collabModeRef.current === 'presenter') voiceConnectRef.current?.()
+        // 买家想通话(经纪端处理):
+        //   • 还没开 → connect() 自动接通(它有经纪 email,账记对)
+        //   • 已经开 → connect() 是 no-op,但必须**重播 voice-on**,让那个后进房、
+        //     presenterVoiceOn 还是 false 的买家知道通话开着 → 触发它自动 join。
+        if (collabModeRef.current === 'presenter') {
+          voiceConnectRef.current?.()
+          if (voiceStatusRef.current === 'live') {
+            collabSendRef.current.sendMapAction({ type: '__collab_voice', on: true })
+          }
+        }
         return
       }
       handleVoiceMapAction(action as MapAction)
@@ -1093,19 +1101,22 @@ export default function MapPage() {
   const [voiceRequesting, setVoiceRequesting] = useState(false)
   const voiceConnectRef = useRef<() => void>(() => {})
   voiceConnectRef.current = voice.connect
+  const voiceStatusRef = useRef(voice.status)
+  voiceStatusRef.current = voice.status
   const collabModeRef = useRef(collabMode)
   collabModeRef.current = collabMode
 
   const requestOrJoinVoice = useCallback(() => {
     unlockChimes()  // 这是用户手势 —— 顺手解锁 iOS 音频
-    if (presenterVoiceOn || voice.status === 'live' || voice.status === 'connecting') {
-      voice.connect()
-      return
-    }
-    // 没在通话 → 请经纪接通(经纪端自动 connect),自己进入「接通中」等它翻真
+    if (voice.status === 'live' || voice.status === 'connecting') return
+    // 🔴 直接先试着加入(经纪已在通话 → /viewer-token 立刻给票就进,能看到摄像头)。
+    //    **不要**只看 presenterVoiceOn —— 后进房的客户可能错过了「语音已开」那一次广播,
+    //    presenterVoiceOn 还是 false,但通话其实开着,直接 connect 就能进。
+    //    同时给经纪发「想通话」兜底:经纪还没开 → 收到自动接通;已经开了 → 重播 voice-on。
+    voice.connect()
     setVoiceRequesting(true)
     collabSendRef.current.sendMapAction({ type: '__collab_voice_request' })
-  }, [presenterVoiceOn, voice])
+  }, [voice])
 
   // 有人进/出带看 → 轻轻一声(owner:「进来了有提示音」)。prev>0 才响,避免自己
   // 首次进房时把在场的人一次性响一遍。
@@ -1143,6 +1154,15 @@ export default function MapPage() {
       collabSendRef.current.sendMapAction({ type: '__collab_voice', on: live })
     }
   }, [voice.status, collabMode])
+
+  // 🔴 后进房的客户会**错过**上面那次一次性广播 → 它以为经纪没开语音(按钮显示
+  //    「和 XX 语音通话」而不是「接听」),也就看不到经纪的摄像头。所以只要经纪在通话,
+  //    有人进/出房就**补广播一次** voice-on,让新来的知道通话开着、能加入看视频。
+  useEffect(() => {
+    if (collabMode === 'presenter' && voice.status === 'live') {
+      collabSendRef.current.sendMapAction({ type: '__collab_voice', on: true })
+    }
+  }, [collab.participants.length, collabMode, voice.status])
 
   // The other party's display name for the session bar / Free pill.
   const collabPeerName = useMemo(() => {
