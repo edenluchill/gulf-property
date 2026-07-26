@@ -15,6 +15,22 @@ import { requireAuth } from '../middleware/auth'
 import { requireUploader } from '../middleware/requireUploader'
 import { publicSearchLimit } from '../middleware/publicSearchLimit'
 import { invalidateProjectInsights } from '../services/projectInsights'
+import { isAdminEmail } from '../lib/adminEmails'
+import { isOwnerEmail } from '../middleware/requireOwner'
+
+/**
+ * 项目归属:谁提交的楼书,只有本人能改/删/在后台看到;owner + Shell(admin)看/管全部。
+ * requireUploader 只判「能不能管理项目」,不判「是不是你的」—— 归属这层在各端点里强制。
+ *
+ * seesAll = owner/Shell → 后台看全部、能改任何项目;
+ * 其他有上传权的(开发商)→ 只碰 submitted_by_email = 自己的行(NULL 历史行碰不到)。
+ */
+function callerEmail(req: Request): string {
+  return (req.user?.email || req.ctx?.email || '').toLowerCase().trim()
+}
+function seesAllProjects(email: string): boolean {
+  return isAdminEmail(email) || isOwnerEmail(email)
+}
 
 const MONTH_NAMES: Record<string, number> = {
   january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
@@ -689,9 +705,25 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
       // INSERT 新项目记录 → 重复上传/重新提交会产生两条项目+两套户型(The Willows 实锤)。
       // 先删同名旧项目(及其户型),把旧项目的收藏迁到新项目,再插新的。
       const oldProjects = await client.query(
-        `SELECT id FROM residential_projects WHERE project_name = $1`,
+        `SELECT id, submitted_by_email FROM residential_projects WHERE project_name = $1`,
         [data.projectName]
       )
+      // 🔒 归属:同名替换不能变成「白嫖别人的项目名」。非 owner/Shell 只能替换自己传的;
+      // 撞到别人的、或 NULL(历史/owner 的)行 → 409,别人的楼书数据碰不到。
+      const me = callerEmail(req)
+      if (!seesAllProjects(me)) {
+        const notMine = oldProjects.rows.find(
+          (r: any) => (r.submitted_by_email || '').toLowerCase() !== me
+        )
+        if (notMine) {
+          await client.query('ROLLBACK')
+          return res.status(409).json({
+            success: false,
+            error: '已存在同名项目且不属于你,无法覆盖。如需修改请联系管理员。',
+            code: 'project_name_taken',
+          })
+        }
+      }
       const oldProjectIds: string[] = oldProjects.rows.map((r: any) => r.id)
       if (oldProjectIds.length > 0) {
         await client.query(`DELETE FROM project_unit_types WHERE project_id = ANY($1)`, [oldProjectIds])
@@ -729,9 +761,10 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           status,
           payment_plan,
           service_charge_per_sqft,
-          landmark_distances
+          landmark_distances,
+          submitted_by_email
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
         )
         RETURNING id
       `, [
@@ -760,6 +793,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         JSON.stringify(paymentPlanJson),
         (data as any).serviceCharge ?? null,
         (data as any).landmarks?.length ? JSON.stringify((data as any).landmarks) : null,
+        me || null,  // 归属:谁传的。owner/Shell 传的也记名,但他们本就能看/管全部
       ])
 
       const projectId = projectResult.rows[0].id
@@ -1003,7 +1037,7 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
 
       // Check if project exists
       const existingProject = await client.query(
-        'SELECT id FROM residential_projects WHERE id = $1',
+        'SELECT id, submitted_by_email FROM residential_projects WHERE id = $1',
         [id]
       )
 
@@ -1013,6 +1047,15 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
           success: false,
           error: 'Project not found',
         })
+        return
+      }
+
+      // 🔒 归属:非 owner/Shell 只能改自己传的项目(NULL 历史行也碰不到)
+      const meUpd = callerEmail(req)
+      if (!seesAllProjects(meUpd) &&
+          (existingProject.rows[0].submitted_by_email || '').toLowerCase() !== meUpd) {
+        await client.query('ROLLBACK')
+        res.status(403).json({ success: false, error: '只能编辑你自己上传的项目', code: 'not_project_owner' })
         return
       }
 
@@ -1312,6 +1355,21 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
     try {
       const { id } = req.params
 
+      // 🔒 归属:非 owner/Shell 删项目前先确认是自己传的,别人的一律 403(不是 404,
+      // 免得靠「404 vs 403」探测项目存不存在)。owner/Shell 直接删。
+      const meDel = callerEmail(req)
+      if (!seesAllProjects(meDel)) {
+        const own = await pool.query(
+          'SELECT submitted_by_email FROM residential_projects WHERE id = $1',
+          [id]
+        )
+        if (own.rows.length === 0) { res.status(404).json({ error: 'Project not found' }); return }
+        if ((own.rows[0].submitted_by_email || '').toLowerCase() !== meDel) {
+          res.status(403).json({ error: '只能删除你自己上传的项目', code: 'not_project_owner' })
+          return
+        }
+      }
+
       const result = await pool.query(
         'DELETE FROM residential_projects WHERE id = $1 RETURNING id',
         [id]
@@ -1367,6 +1425,16 @@ export function createResidentialProjectsRouter(pool: Pool): Router {
         conditions.push(`verified = $${paramIndex}`)
         params.push(verified === 'true')
         paramIndex++
+      } else {
+        // verified=all = 后台管理视图(公开地图用默认 verified=true,不受影响)。
+        // 🔒 非 owner/Shell 的管理视图只回自己传的项目 —— 开发商的后台只看到自己的。
+        // 匿名(email 为空)命中这里 → submitted_by_email = '' 匹配不到 → 空,安全。
+        const meList = callerEmail(req)
+        if (!seesAllProjects(meList)) {
+          conditions.push(`lower(submitted_by_email) = $${paramIndex}`)
+          params.push(meList)
+          paramIndex++
+        }
       }
 
       if (area) {
