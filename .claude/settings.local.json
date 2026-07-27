@@ -124,7 +124,8 @@
       "Skill(schedule)",
       "Skill(dataviz)",
       "Skill(artifact-design)",
-      "Skill(stripe:connect-recommend)"
+      "Skill(stripe:connect-recommend)",
+      "Artifact"
     ],
     "deny": [
       "Read(**/.env)",

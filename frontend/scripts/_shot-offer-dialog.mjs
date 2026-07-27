@@ -86,8 +86,32 @@ for (const vp of VIEWPORTS) {
 
   await entry.click()
   await page.waitForTimeout(1200)
-  // 选个户型 + 展开周期编辑
+  // 选个户型
   await page.locator('text=TOWER B 1 BEDROOM A2').first().click().catch(() => {})
+  await page.waitForTimeout(300)
+
+  // 02 报价:折扣是主输入 —— 填 8% 应自动把成交总价算成 原价 × 0.92
+  const listBox = page.locator('input[placeholder="标价"]')
+  const discBox = page.locator('input[placeholder="开发商折扣,如 8"]')
+  const netBox = page.locator('input[placeholder="输入总价"]')
+  const numOf = async (loc) => Number((await loc.inputValue()).replace(/[^0-9]/g, ''))
+  await discBox.fill('8')
+  await page.waitForTimeout(300)
+  const list = await numOf(listBox)
+  const net = await numOf(netBox)
+  const want = list - Math.round(list * 0.08)
+  console.log(`${vp.tag} discount 8% → net: ${net} (want ${want}) ${net === want ? 'PASS' : 'FAIL'}`)
+  await page.screenshot({ path: `shots-compass/offer-discount-${vp.tag}.png` })
+
+  // % → AED 切换:折扣不能丢,应换算成直减金额
+  await page.locator('button:has-text("AED")').first().click()
+  await page.waitForTimeout(300)
+  const amt = await numOf(page.locator('input[placeholder="直减金额"]'))
+  console.log(`${vp.tag} switch to AED → ${amt} (want ${list - want}) ${amt === list - want ? 'PASS' : 'FAIL'}`)
+  await page.locator('button:has-text("%")').first().click()
+  await page.waitForTimeout(200)
+
+  // 展开周期编辑
   await page.locator('button:has-text("调整")').first().click()
   await page.waitForTimeout(600)
   await page.screenshot({ path: `shots-compass/offer-dialog-${vp.tag}.png` })
