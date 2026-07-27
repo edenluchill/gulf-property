@@ -77,7 +77,7 @@ function actionType(action: any): string {
 export async function getCollabReport(code: string): Promise<CollabReport | null> {
   const { rows } = await pool.query(
     `SELECT code, name, created_at, first_event_at, last_event_at,
-            peak_participants, events
+            peak_participants, event_count, events, ai_report, ai_report_events
        FROM collab_rooms WHERE code = $1 LIMIT 1`,
     [code]
   )
@@ -181,8 +181,51 @@ export async function getCollabReport(code: string): Promise<CollabReport | null
     ai: null,
   }
 
+  /**
+   * 🔴 **AI 叙述必须缓存。**
+   *
+   * 2026-07-27 生产实测:`GET /api/admin/insights/collab/:code` 平均 **6.3 秒**、
+   * 最慢 8.2 秒,而且是**每打开一次就重来一次** —— 同一场已经结束的带看,事件
+   * 一个字都不会再变,却每次都重新调一遍 Gemini:经纪每次点开都干等 6 秒,
+   * token 也白烧一次。它还会把 HIGH_LATENCY 告警顶起来(2026-07-24 那条就是它)。
+   *
+   * 失效判据用 `event_count` 而不是时间:带看**还在进行中**时事件在涨,报告就该
+   * 重算;一旦结束,数字定住,缓存永远有效。
+   *
+   * 写回 fire-and-forget —— 缓存写失败绝不能让经纪看不到报告。
+   */
+  const eventCount: number = Number(row.event_count ?? events.length)
+  const cachedAi = row.ai_report as CollabAi | null
+  if (cachedAi && Number(row.ai_report_events) === eventCount) {
+    report.ai = cachedAi
+    return report
+  }
+
   report.ai = await generateNarrative(report)
+  if (report.ai) {
+    pool.query(
+      `UPDATE collab_rooms SET ai_report = $2, ai_report_events = $3, ai_report_at = now() WHERE code = $1`,
+      [code, JSON.stringify(report.ai), eventCount]
+    ).catch((err) => console.error('[collab-report] cache write failed (ignored):', err?.message ?? err))
+  }
   return report
+}
+
+/**
+ * 带看一结束就把报告先算好(落进 ai_report 缓存)。
+ *
+ * 为什么值得:经纪结束带看后**几乎必然**会去看这场的意向报告。在这里花的 6 秒
+ * 没人在等;等他点开时再花,他就干看 6 秒转圈。总成本一样(每场一次 Gemini),
+ * 只是把等待挪到没人看着的时候。
+ *
+ * best-effort:失败什么也不做 —— 读路径仍会按需生成(只是慢一次)。
+ */
+export async function precomputeCollabReport(code: string): Promise<void> {
+  try {
+    await getCollabReport(code)
+  } catch (err) {
+    console.error('[collab-report] precompute failed (ignored):', err instanceof Error ? err.message : err)
+  }
 }
 
 /** Gemini 叙述:买家意向判断 + 跟进话术。best-effort,失败返回 null。 */

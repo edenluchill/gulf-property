@@ -32,6 +32,7 @@ import {
 } from '../services/collab-rooms'
 import { counter, gauge, collabJoin } from '../telemetry'
 import { startCollabPersistence, flushRoom } from '../services/collab-persistence'
+import { precomputeCollabReport } from '../services/collabReport'
 import { purgeOldCollabRooms } from '../services/collabReport'
 import { checkCredits, spend, creditError } from '../luna-tour/credits'
 import { resolveAgentId } from '../lib/agent-identity'
@@ -71,7 +72,11 @@ export function initCollabWebSocket(server: Server): void {
   })
 
   // 房间被驱逐前最后 flush 一次,确保事件日志不随房间删除而丢。
-  startRoomGc(60 * 1000, (room) => { void flushRoom(room) })
+  // 同「主持人手动结束」那条路径:落库后把意向报告先算好(经纪往往是关了页面
+  // 走人、房间超时被回收,他回头才去 dashboard 看报告 —— 那时就该已经现成)。
+  startRoomGc(60 * 1000, (room) => {
+    void flushRoom(room).then(() => precomputeCollabReport(room.code))
+  })
   // 定时把 dirty 房间落库(15s ≪ 空房 10min TTL,删前必已刷过)。
   startCollabPersistence()
 
@@ -198,7 +203,9 @@ export function initCollabWebSocket(server: Server): void {
       if (msg.k === 'end') {
         if (me.connId === room.presenterConnId) {
           const ended = endRoom(room.code)
-          if (ended) void flushRoom(ended)
+          // 落库后顺手把意向报告先算好 —— 经纪结束带看后几乎必然要看它,
+          // 这 6 秒花在这里没人等,花在他点开时就是干看 6 秒转圈。
+          if (ended) void flushRoom(ended).then(() => precomputeCollabReport(ended.code))
         }
         return
       }

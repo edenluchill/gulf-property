@@ -89,6 +89,32 @@ function endpointKey(req: Request): string {
   return `${req.method} ${norm || '/'}`
 }
 
+/**
+ * 🔴 **漏洞扫描器的 404 不算我们的错误率。**
+ *
+ * 2026-07-26 13:07–13:31 生产实录:一台扫描器 25 分钟打了 **≈11,900 个请求,
+ * 100% 404**(`/.env` `/.git/config` `/aws-credentials.json` `/wp-json/…`),
+ * 我们每个 0.3ms 就拒了 —— 服务本身毫发无损。
+ *
+ * 但它把那天的面板刷成 **15,449 请求 / 13,726 个 4xx = 89% 错误率**。
+ * 一个每隔几天就跳到 89% 的错误率曲线,只有两个结局:要么吓一跳去查一场空,
+ * 要么学会无视这条线 —— 而后者会让**真的** 4xx 激增也没人看见。
+ * 监控被噪音淹没,等于没有监控。
+ *
+ * 判据(只排噪音,绝不排真问题):
+ *   · 必须是 404 —— 401/403/429 都是**我们的**语义,一条不能少
+ *   · 且路径不在 /api/ 下 —— 真用户只会打 /api/*;打 `/wp-login.php` 的不是用户
+ * 我们自己有个 /api 路由挂错了 → 路径仍以 /api/ 开头 → 照常计入。
+ *
+ * ⚠️ 判「是不是 /api 下」必须在**入口**算好存进闭包 —— 和上面 longLived 同一个理由:
+ * done() 跑在 res.on('finish') 里,那时 Express 可能已把 req.url 剥成子路由的相对
+ * 路径。在 done() 里读 req.path 会把真实的 /api 404 误判成扫描噪音 —— 那就正好
+ * 把真问题藏了。
+ */
+function isApiPath(path: string): boolean {
+  return path.startsWith('/api/')
+}
+
 export function perfMetrics(req: Request, res: Response, next: NextFunction): void {
   if (IGNORE.has(req.path)) return next()
 
@@ -102,12 +128,15 @@ export function perfMetrics(req: Request, res: Response, next: NextFunction): vo
   // 上传请求就漏回 p95 样本(2026-07-09 实测:一次 2665ms 上传顶爆 HIGH_LATENCY,
   // 排除逻辑明明已部署却没生效,根因即此)。这里锁定,done() 只读闭包变量。
   const longLived = isLongLived(req.path)
+  const apiPath = isApiPath(req.path)   // 同上,必须在入口锁定
 
   const done = () => {
     if (counted) return
     counted = true
     try {
       decConcurrency()
+      // 扫描器的 404:并发已经减回去了,但一个样本都不进指标(见上方注释)
+      if (res.statusCode === 404 && !apiPath) return
       const ms = Number(process.hrtime.bigint() - start) / 1e6
       // 长连接不进全局延迟分位(报警口径);端点表仍记真实耗时(展示用,诚实)。
       const key = endpointKey(req)

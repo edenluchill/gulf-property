@@ -19,7 +19,21 @@ function reloadOnceForStaleChunk(why: string) {
   if (sessionStorage.getItem(RELOAD_KEY)) return   // 已经刷过一次还坏 → 别再刷,让错误暴露出来
   sessionStorage.setItem(RELOAD_KEY, '1')
   console.warn('[pinzos] 检测到过期的构建产物,强刷一次:', why)
-  window.location.reload()
+  /**
+   * 🔴 **必须换 URL,不能裸 reload()。**
+   *
+   * 同一个病、同一批浏览器,index.html 里的 CSS 兜底早就是这么做的:微信 X5 **无视
+   * no-cache**,`location.reload()` 很可能**还是拿那份缓存的旧 HTML** —— 于是刷一次
+   * 仍是旧 chunk 名,上面那把锁又不让刷第二次,客户就永远停在白屏上。
+   * 这里以前是裸 reload(),等于两条兜底一条带破缓存、一条不带 —— 漏的正是最难自愈的那批人。
+   *
+   * `_r` 是一次性的,启动成功后下面那个 load 处理器会把它从地址栏擦掉
+   * (不擦的话客户复制/分享出去的链接会带着它到处跑)。
+   */
+  const { pathname, search, hash } = window.location
+  window.location.replace(
+    pathname + (search ? search + '&' : '?') + '_r=' + Date.now() + hash
+  )
 }
 // Vite 的懒加载预取失败
 window.addEventListener('vite:preloadError', (e) => {
