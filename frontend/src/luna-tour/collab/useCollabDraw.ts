@@ -23,6 +23,8 @@
  * teardown. Loop-safe: remote ops update local state but are NEVER re-broadcast.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+// 这里在 map 事件回调(非 React 渲染)里取文案,所以用 i18next 实例而不是 useTranslation。
+import { t } from 'i18next'
 import type { Map as MaplibreMap } from 'maplibre-gl'
 import { CollabClient } from './CollabClient'
 import type { ServerMsg } from './protocol'
@@ -432,7 +434,12 @@ export function useCollabDraw(opts: UseCollabDrawOpts): CollabDrawApi {
         else if (cur.t === 'circle') {
           if (cur.radiusM > 30) {
             const info = getAreaInfoRef.current?.(cur.center[0], cur.center[1])
-            cur.info = info || `半径 ${(cur.radiusM / 1000).toFixed(cur.radiusM < 1000 ? 2 : 1)} km`
+            // ⚠️ 这条 fallback(圈在没有区域数据的地方)以前是**硬编码中文**「半径 x km」——
+            //    英文界面的客户圈一下就冒出中文,而且它是画在地图上给客户看的,最显眼。
+            //    走 i18next 的 t(),5 个语言都有(见 locales/*/lunaTour.json 的 draw.radius)。
+            cur.info = info || t('lunaTour:draw.radius', {
+              d: `${(cur.radiusM / 1000).toFixed(cur.radiusM < 1000 ? 2 : 1)} km`,
+            })
             commit(cur)
           } else marks.current.delete(cur.id)
         }

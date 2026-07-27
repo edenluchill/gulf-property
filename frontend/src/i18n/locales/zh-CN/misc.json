@@ -335,5 +335,18 @@
   "searchArea2": "搜索区域…",
   "searching": "搜索中…",
   "noUnitTypes": "暂无户型信息",
-  "thisProjectHasNo": "该项目还没有户型信息——仍可提交，之后可在项目编辑页随时补充。"
+  "thisProjectHasNo": "该项目还没有户型信息——仍可提交，之后可在项目编辑页随时补充。",
+  "measure": {
+    "routeDrive": "路线·驾车",
+    "straight": "直线",
+    "tapCenter": "点地图设中心点",
+    "centerSet": "已设中心 · 点击添加地点",
+    "centerPlus": "中心 + {{n}} 个地点",
+    "clear": "清除",
+    "ariaLine": "直线测距",
+    "ariaRoute": "沿路线测距",
+    "measure": "测距",
+    "route": "路线",
+    "exit": "退出"
+  }
 }

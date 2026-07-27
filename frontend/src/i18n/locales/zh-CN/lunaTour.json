@@ -640,7 +640,8 @@
     "closeToolbar": "关闭画笔",
     "textPlaceholder": "输入标注文字…",
     "confirm": "确定",
-    "cancel": "取消"
+    "cancel": "取消",
+    "radius": "半径 {{d}}"
   },
   "reportLang": "报告语言",
   "crm": {

@@ -195,7 +195,8 @@
     "closeToolbar": "Fermer la barre d'outils de dessin",
     "textPlaceholder": "Saisir un texte…",
     "confirm": "Confirmer",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "radius": "Rayon {{d}}"
   },
   "rejoin": "Rejoindre",
   "explore": "Explorer",

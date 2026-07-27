@@ -15,7 +15,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DockItem, DOCK_ORDER } from '../../components/BottomDock'
+import { DockItem, DockBaseRowItem, DOCK_ORDER } from '../../components/BottomDock'
 import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle, Globe, Video, VideoOff, SwitchCamera } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
 import type { FollowMode } from './useCollabFollow'
@@ -156,7 +156,7 @@ export default function CollabBar({
           • max-w-full(坞已留 px-3 边距)+ overflow-x-auto —— 装不下就横向滚。
           • ⚠️ 内部每个按钮都必须 shrink-0:否则 flex 会在挤不下时**压扁**它们
             (图标变形、互相叠住),这比横向滚动难看得多。 */}
-      <DockItem order={DOCK_ORDER.bar} className="flex w-max max-w-full items-center">
+      <DockBaseRowItem anchor="center" className="flex w-max max-w-full items-center">
         <div className="flex h-9 items-center gap-1 overflow-x-auto rounded-full bg-slate-900/85 px-2 shadow-lg ring-1 ring-white/10 backdrop-blur scrollbar-hide sm:gap-1.5 sm:px-2.5">
           {/* live status */}
           <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full" style={{ backgroundColor: isFree ? '#94a3b8' : ACCENT }} />
@@ -362,7 +362,7 @@ export default function CollabBar({
             </button>
           )}
         </div>
-      </DockItem>
+      </DockBaseRowItem>
 
       {/* 视频额度提示 —— **只给经纪看**。客户看到「经纪额度不够」是难堪的,
           所以严格 isPresenter 门控。8 秒自动消失,也可手动关。 */}

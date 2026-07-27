@@ -18,7 +18,7 @@ import { useCollab, type CollabMode } from '../luna-tour/collab/useCollab'
 import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabVideo from '../luna-tour/collab/CollabVideo'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
-import { DockItem, DOCK_ORDER } from '../components/BottomDock'
+import { DockItem, DockBaseRowItem, DOCK_ORDER } from '../components/BottomDock'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { chimeJoin, chimeLeave, unlockChimes } from '../luna-tour/collab/chime'
@@ -2123,17 +2123,17 @@ export default function MapPage() {
               🔴 **落位交给底部坞**(BottomDock),这里不再自己写 `fixed bottom:76+keyboardInset`。
               以前它和坞里的画笔条/带看底栏在同一条带上各算各的 → 一点画笔就被压住
               (owner 2026-07-27 截图)。现在它就是坞里的一行,排在带看底栏之上。
-              • 收起时 `self-start` 贴左边(保持原来左下角那颗圆钮的观感)
-              • 键盘弹起 → 给这一行加 marginBottom,把它和它上面的行一起顶到键盘之上
-                (坞是 flex 竖列,顶一行等于顶一摞)
+              收起 / 展开是**两种落位**(owner 2026-07-27:「search bar 应该再下面一点?
+              在 navigation bar 正上方」):
+              • 收起 = 一颗 40px 圆钮 → 挤进**最底那一行**,贴左,和带看底栏并排。
+                独占一行等于白吃一条(右边一大片空),而手机底部本来就只剩三行。
+                并排后它就真的贴在 app 导航正上方了。
+              • 展开 = 要铺满宽度 → 自己占一行(order=search),排在底栏**之上**,
+                否则会盖住「结束/语音」。键盘弹起靠 marginBottom 把它和上面整摞顶起来。
               • 右侧 Luna 药丸的让位由坞统一算(见 BottomDock 的 lunaVisible) */}
-          <DockItem
-            order={DOCK_ORDER.search}
-            className={`md:hidden transition-[margin] duration-150 ${searchOpen ? 'w-full' : 'self-start'}`}
-          >
-            <div style={{ marginBottom: keyboardInset }}>
-            {searchOpen ? (
-              <div className="flex items-center gap-1">
+          {searchOpen ? (
+            <DockItem order={DOCK_ORDER.search} className="w-full md:hidden">
+              <div style={{ marginBottom: keyboardInset }} className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
                   <AreaSearch
                     autoFocus
@@ -2151,7 +2151,9 @@ export default function MapPage() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-            ) : (
+            </DockItem>
+          ) : (
+            <DockBaseRowItem anchor="start" className="md:hidden">
               <button
                 onClick={() => setSearchOpen(true)}
                 aria-label={t('misc:searchArea')}
@@ -2159,9 +2161,8 @@ export default function MapPage() {
               >
                 <Search className="h-4 w-4" />
               </button>
-            )}
-            </div>
-          </DockItem>
+            </DockBaseRowItem>
+          )}
           </>)}
 
 

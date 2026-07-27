@@ -197,7 +197,8 @@
     "closeToolbar": "Закрыть панель маркера",
     "textPlaceholder": "Введите текст…",
     "confirm": "Подтвердить",
-    "cancel": "Отмена"
+    "cancel": "Отмена",
+    "radius": "Радиус {{d}}"
   },
   "rejoin": "Вернуться",
   "explore": "Обзор",

@@ -66,7 +66,17 @@ const measure = (page) => page.evaluate(() => {
   }
   const d = document.getElementById('app-bottom-dock')
   if (!d) return null
-  const kids = [...d.children].map((el) => box(el)).filter((k) => k.h > 0 && k.w > 0)
+  /**
+   * 🔴 **最底那一行是个容器,里面还有东西 —— 必须下钻一层。**
+   * 2026-07-27 第二次踩同一个坑:搜索钮挂进 base row 后不再是坞的直接子节点,
+   * 只量 d.children 就把它漏了,而它当时正压在导航栏上 —— 检查还是全 PASS。
+   * 「只量我以为的那一层」和上次「只量坞里不量坞外」是同一个错。
+   */
+  const flatten = (el) => {
+    if (el.id === 'app-bottom-dock-base-row') return [...el.children].map((c) => box(c))
+    return [box(el)]
+  }
+  const kids = [...d.children].flatMap(flatten).filter((k) => k.h > 0 && k.w > 0)
   const outside = []
   const luna = document.querySelector('[data-luna-pill]')
   if (luna) { const b = box(luna, 'Luna 药丸(坞外)'); if (b.h > 0) outside.push(b) }

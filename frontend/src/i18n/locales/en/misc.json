@@ -335,5 +335,18 @@
   "searchArea2": "Search area…",
   "searching": "Searching…",
   "noUnitTypes": "No unit types",
-  "thisProjectHasNo": "This project has no unit types yet — you can still submit and add them later from the project editor."
+  "thisProjectHasNo": "This project has no unit types yet — you can still submit and add them later from the project editor.",
+  "measure": {
+    "routeDrive": "Route · drive",
+    "straight": "Straight",
+    "tapCenter": "Tap map to set center",
+    "centerSet": "Center set · tap to add places",
+    "centerPlus": "Center + {{n}} places",
+    "clear": "Clear",
+    "ariaLine": "Straight-line distance",
+    "ariaRoute": "Distance along roads",
+    "measure": "Measure",
+    "route": "Route",
+    "exit": "Exit"
+  }
 }

@@ -335,5 +335,18 @@
   "searchArea2": "Rechercher une zone…",
   "searching": "Recherche en cours…",
   "noUnitTypes": "Aucun type d'unité",
-  "thisProjectHasNo": "Ce projet n'a pas encore de types d'unités — vous pouvez tout de même le soumettre et les ajouter plus tard depuis l'éditeur de projet."
+  "thisProjectHasNo": "Ce projet n'a pas encore de types d'unités — vous pouvez tout de même le soumettre et les ajouter plus tard depuis l'éditeur de projet.",
+  "measure": {
+    "routeDrive": "Itinéraire · voiture",
+    "straight": "Ligne droite",
+    "tapCenter": "Touchez la carte pour définir le centre",
+    "centerSet": "Centre défini · touchez pour ajouter des lieux",
+    "centerPlus": "Centre + {{n}} lieux",
+    "clear": "Effacer",
+    "ariaLine": "Distance à vol d'oiseau",
+    "ariaRoute": "Distance par la route",
+    "measure": "Mesurer",
+    "route": "Itinéraire",
+    "exit": "Quitter"
+  }
 }

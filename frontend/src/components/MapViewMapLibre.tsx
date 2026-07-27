@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { Globe, Ruler, Route, X, Box, Eye, EyeOff, History, Pencil } from 'lucide-react'
 import type { CollabDrawApi } from '../luna-tour/collab/useCollabDraw'
 import DrawPalette from '../luna-tour/collab/DrawPalette'
-import { TextInputOverlay } from '../luna-tour/collab/CollabDrawToolbar'
+import DrawTextInput from '../luna-tour/collab/DrawTextInput'
 import { DockItem, DOCK_ORDER } from './BottomDock'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
@@ -214,7 +214,8 @@ function MapViewMapLibre({
   onCameraIdle,
   draw = null
 }: MapViewMapLibreProps, ref: React.Ref<MapTourHandle>) {
-  const { i18n } = useTranslation()
+  const { i18n, t: tRawMisc } = useTranslation('misc')
+  const tMisc = tRawMisc as (k: string, o?: Record<string, unknown>) => string
   // 地图自有控件的双语文案(原来中文硬编码,英文界面也显示中文——2026-07-08 修)
   const isZhUi = (i18n.language || 'en').startsWith('zh')
   const mapRef = useRef<MapRef>(null)
@@ -313,7 +314,40 @@ function MapViewMapLibre({
 
   const measureGeoJson = useMemo(() => {
     const fmt = (km: number) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`)
-    const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${Math.round(m % 60)}m` : `${Math.round(m)} min`)
+    /**
+     * 沿折线走到**总长一半**的那个点 —— 标签就贴在这。
+     *
+     * 🔴 以前写的是 `coords[Math.floor(coords.length / 2)]`,注释还写着「线段中点」。
+     * 对一条只有两个点的直线,`floor(2/2) = 1` → 拿到的是**终点**。所以直线模式下
+     * 距离数字永远糊在末端那颗圆点上(owner 截图里的「17.5 km」压着绿点)。
+     * 路网折线点多,凑巧看着还行,于是这个错一直没被发现。
+     *
+     * 按累积长度取,直线和折线都对。
+     */
+    const midpointAlong = (coords: [number, number][]): [number, number] => {
+      if (coords.length < 2) return coords[0]
+      const seg: number[] = []
+      let total = 0
+      for (let i = 1; i < coords.length; i++) {
+        const dx = coords[i][0] - coords[i - 1][0]
+        const dy = coords[i][1] - coords[i - 1][1]
+        const d = Math.hypot(dx, dy)
+        seg.push(d)
+        total += d
+      }
+      let walked = 0
+      for (let i = 0; i < seg.length; i++) {
+        if (walked + seg[i] >= total / 2) {
+          const f = seg[i] === 0 ? 0 : (total / 2 - walked) / seg[i]
+          return [
+            coords[i][0] + (coords[i + 1][0] - coords[i][0]) * f,
+            coords[i][1] + (coords[i + 1][1] - coords[i][1]) * f,
+          ]
+        }
+        walked += seg[i]
+      }
+      return coords[coords.length - 1]
+    }
     if (measurePoints.length === 0) {
       const empty = { type: 'FeatureCollection' as const, features: [] }
       return { segments: empty, points: empty, labels: empty }
@@ -337,12 +371,15 @@ function MapViewMapLibre({
         const road = roadRoutes[spokeKey(hub, p)]
         const useRoad = road?.mode === 'road' && road.geometry?.coordinates?.length
         coords = useRoad ? (road!.geometry!.coordinates as [number, number][]) : straight
+        // 只报距离,不报时间(owner 2026-07-27):驾车分钟数取决于时段和路况,
+        // 我们给的是个无时段的静态估算 —— 客户会当成"现在开过去要这么久"来信,
+        // 那是我们兑现不了的承诺。距离是客观的,时间不是。
         label = road
-          ? `${fmt(road.distanceKm)} · ${fmtMin(road.durationMin)}${road.mode === 'estimate' ? ' ~' : ''}`
+          ? `${fmt(road.distanceKm)}${road.mode === 'estimate' ? ' ~' : ''}`
           : fmt(haversineKm(hub, p))
         dashed = useRoad ? 0 : 1
       }
-      const mid = coords[Math.floor(coords.length / 2)] || [p.lng, p.lat]
+      const mid = midpointAlong(coords)
       labelFeatures.push({
         type: 'Feature',
         properties: { label },
@@ -1891,7 +1928,9 @@ function MapViewMapLibre({
                 paint={{ 'line-color': '#2563eb', 'line-width': 4, 'line-opacity': 0.9 }}
               />
             </Source>
-            {/* 距离/时间标签 —— 每段一个 point(线段中点),保证只显示一次,不沿线重复。 */}
+            {/* 距离标签 —— 每段一个 point(真·中点,见 midpointAlong),只显示一次。
+                text-anchor:bottom + 上移一点 → 数字**浮在线的上方**,不压着线也不压着
+                端点圆圈(以前糊在末端那颗点上,owner:「很难看」)。只报距离不报时间。 */}
             <Source id="measure-labels" type="geojson" data={measureGeoJson.labels}>
               <Layer
                 id="measure-seg-label"
@@ -1900,10 +1939,18 @@ function MapViewMapLibre({
                   'text-field': ['get', 'label'],
                   'text-font': ['Open Sans Bold'],
                   'text-size': 13,
+                  'text-anchor': 'bottom',
+                  'text-offset': [0, -0.5],
                   'text-allow-overlap': true,
                   'text-ignore-placement': true
                 }}
-                paint={{ 'text-color': '#1d4ed8', 'text-halo-color': '#ffffff', 'text-halo-width': 2.5 }}
+                paint={{
+                  'text-color': '#1d4ed8',
+                  'text-halo-color': '#ffffff',
+                  'text-halo-width': 2.5,
+                  // halo 收一点边缘毛刺,卫星底图上更干净
+                  'text-halo-blur': 0.5,
+                }}
               />
             </Source>
             <Source id="measure-points" type="geojson" data={measureGeoJson.points}>
@@ -2036,10 +2083,10 @@ function MapViewMapLibre({
             className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
               measureMode && measureKind === 'line' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
-            aria-label="直线测距"
+            aria-label={tMisc('misc:measure.ariaLine')}
           >
             <Ruler size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${measureMode && measureKind === 'line' ? 'text-white' : 'text-slate-500'}`} />
-            <span className="hidden whitespace-nowrap md:inline">{measureMode && measureKind === 'line' ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '测距' : 'Measure')}</span>
+            <span className="hidden whitespace-nowrap md:inline">{measureMode && measureKind === 'line' ? tMisc('misc:measure.exit') : tMisc('misc:measure.measure')}</span>
           </button>
           <button
             type="button"
@@ -2047,10 +2094,12 @@ function MapViewMapLibre({
             className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-150 active:scale-90 md:h-auto md:w-auto md:justify-start md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs md:font-semibold ${
               measureMode && measureKind === 'route' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40' : 'text-slate-600 hover:bg-slate-100'
             }`}
-            aria-label="路线测距(含时间路程)"
+            // aria-label 以前写着「含时间路程」—— 时间已经不显示了(只报距离),
+            // 留着就是给读屏用户一句假话。
+            aria-label={tMisc('misc:measure.ariaRoute')}
           >
             <Route size={15} className={`shrink-0 md:h-3.5 md:w-3.5 ${measureMode && measureKind === 'route' ? 'text-white' : 'text-slate-500'}`} />
-            <span className="hidden whitespace-nowrap md:inline">{measureMode && measureKind === 'route' ? (isZhUi ? '退出' : 'Exit') : (isZhUi ? '路线' : 'Route')}</span>
+            <span className="hidden whitespace-nowrap md:inline">{measureMode && measureKind === 'route' ? tMisc('misc:measure.exit') : tMisc('misc:measure.route')}</span>
           </button>
           {/* 项目卡片显示/隐藏开关:眼睛图标 = 可见性语义,一眼就懂。
               显示态=青底睁眼「项目」;隐藏态=灰底闭眼「已隐藏」,地图只剩圆点。 */}
@@ -2105,7 +2154,7 @@ function MapViewMapLibre({
       {/* 画笔调色板(底部居中,和测距状态条同带,不挡地图中心也不压右上工具卡) */}
       {draw && draw.tool !== 'none' && <DrawPalette draw={draw} />}
       {draw?.pendingText && (
-        <TextInputOverlay
+        <DrawTextInput
           x={draw.pendingText.x}
           y={draw.pendingText.y}
           onCommit={draw.commitText}
@@ -2122,15 +2171,17 @@ function MapViewMapLibre({
           order={DOCK_ORDER.status}
           className="flex max-w-full items-center gap-2 overflow-x-auto whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur"
         >
+          {/* ⚠️ 这里以前是 `isZhUi ? 中 : 英` 的二元三元 —— 法/俄/阿三个语言的客户
+              一律掉回英文。测距是带看时**客户直接看着**的功能,已走 i18n 五语言。 */}
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${measureKind === 'route' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-            {measureKind === 'route' ? (isZhUi ? '路线·驾车' : 'Route · drive') : (isZhUi ? '直线' : 'Straight')}
+            {measureKind === 'route' ? tMisc('misc:measure.routeDrive') : tMisc('misc:measure.straight')}
           </span>
           <span className="font-medium text-slate-700">
             {measurePoints.length === 0
-              ? (isZhUi ? '点地图设中心点' : 'Tap map to set center')
+              ? tMisc('misc:measure.tapCenter')
               : measurePoints.length === 1
-                ? (isZhUi ? '已设中心 · 点击添加地点' : 'Center set · tap to add places')
-                : (isZhUi ? `中心 + ${measureSpokeKms.length} 个地点` : `Center + ${measureSpokeKms.length} places`)}
+                ? tMisc('misc:measure.centerSet')
+                : tMisc('misc:measure.centerPlus', { n: measureSpokeKms.length })}
           </span>
           {measurePoints.length > 0 && (
             <button
@@ -2138,7 +2189,7 @@ function MapViewMapLibre({
               onClick={() => setMeasurePoints([])}
               className="font-semibold text-blue-600"
             >
-              {isZhUi ? '清除' : 'Clear'}
+              {tMisc('misc:measure.clear')}
             </button>
           )}
         </DockItem>

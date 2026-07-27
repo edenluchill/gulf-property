@@ -195,7 +195,8 @@
     "closeToolbar": "إغلاق شريط أدوات القلم",
     "textPlaceholder": "اكتب نصاً…",
     "confirm": "تأكيد",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "radius": "نصف القطر {{d}}"
   },
   "rejoin": "إعادة الانضمام",
   "explore": "استكشف",

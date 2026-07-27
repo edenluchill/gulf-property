@@ -120,7 +120,13 @@ for (const file of walk(SRC)) {
   // 尾部两个可选组 = 看 key 后面跟的是不是默认值:
   //   (2) `, 'Some default'`      → 字符串形式的 defaultValue
   //   (3) `, { defaultValue: …`   → 选项对象形式
-  const re = /(?:\bt\(|errText\([^,]+,\s*)['"`]([a-zA-Z][\w.]*(?::[\w.]+)?)['"`]\s*(?:(,\s*['"`])|(,\s*\{\s*defaultValue))?/g
+  // `\bt\(` 之外还要认**别名**:`tMisc(...)` / `tRaw(...)` / `tLuna(...)` —— 一个文件
+  // 同时用两个 namespace 时就会起这种名。以前只认裸 `t(`,于是别名调的键**一个都没被
+  // 校验**(2026-07-27 实锤:新加的 tMisc('misc:measure.*') 六个键,巡检的 key 计数一动
+  // 没动 —— 全绿但什么都没查)。判据 `t` + 大写字母,不会误伤 toast(/test(。
+  // 大写字母是**必须**的,不能写成 `t[A-Z]?\w*\(` —— 那样 `trackEvent('…')`、
+  // `toast('…')` 全被当成翻译调用,巡检会喷一屏假红灯(第一版就是这么写错的)。
+  const re = /(?:\bt\(|\bt[A-Z]\w*\(|errText\([^,]+,\s*)['"`]([a-zA-Z][\w.]*(?::[\w.]+)?)['"`]\s*(?:(,\s*['"`])|(,\s*\{\s*defaultValue))?/g
   for (const m of src.matchAll(re)) {
     if (m[2] || m[3]) continue // 有默认值 → 缺键也不会把 key 露给用户
     const k = m[1]
