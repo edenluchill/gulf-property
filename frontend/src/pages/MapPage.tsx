@@ -18,6 +18,7 @@ import { useCollab, type CollabMode } from '../luna-tour/collab/useCollab'
 import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabVideo from '../luna-tour/collab/CollabVideo'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
+import { DockItem, DOCK_ORDER } from '../components/BottomDock'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { chimeJoin, chimeLeave, unlockChimes } from '../luna-tour/collab/chime'
@@ -2116,21 +2117,21 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* 手机:搜索沉到底部 dock(拇指区,底栏之上),结果向上展开。
-              右侧留出 Luna 药丸的宽度,别钻到它下面。
+          {/* 手机:搜索沉到底部(拇指区),结果向上展开。默认只是一颗圆钮(不常年占一条),
+              点开才铺成一行 —— 2026-07-11 用户要求。
 
-              ⚠️ 必须用 fixed,不能用 absolute:MobileNav / Luna 都是 fixed(贴可见视口底边),
-              而地图容器在 h-screen(=100vh)里 —— 手机浏览器的 100vh 是「工具栏收起时」的
-              大视口,比实际可见区高一截,容器底边其实伸到导航栏下面。用 absolute 贴容器底
-              就会压住导航栏(2026-07-11 真机实锤;桌面两者相等所以测不出来)。
-              nav 高 h-16(64px)→ 76px 起,和 nav 永远差 12px。
-              键盘弹起时再抬到键盘之上(fixed 贴的是布局视口底边,直接加 keyboardInset)。 */}
-          {/* 手机默认只是左下角一颗搜索图标(不常年占一条),点开才展开输入框——
-              2026-07-11 用户要求。展开时铺到底部 dock,结果向上开。 */}
-          <div
-            className="md:hidden fixed start-2 z-[1002] transition-[bottom] duration-150"
-            style={{ bottom: 76 + keyboardInset, right: searchOpen ? 62 : undefined }}
+              🔴 **落位交给底部坞**(BottomDock),这里不再自己写 `fixed bottom:76+keyboardInset`。
+              以前它和坞里的画笔条/带看底栏在同一条带上各算各的 → 一点画笔就被压住
+              (owner 2026-07-27 截图)。现在它就是坞里的一行,排在带看底栏之上。
+              • 收起时 `self-start` 贴左边(保持原来左下角那颗圆钮的观感)
+              • 键盘弹起 → 给这一行加 marginBottom,把它和它上面的行一起顶到键盘之上
+                (坞是 flex 竖列,顶一行等于顶一摞)
+              • 右侧 Luna 药丸的让位由坞统一算(见 BottomDock 的 lunaVisible) */}
+          <DockItem
+            order={DOCK_ORDER.search}
+            className={`md:hidden transition-[margin] duration-150 ${searchOpen ? 'w-full' : 'self-start'}`}
           >
+            <div style={{ marginBottom: keyboardInset }}>
             {searchOpen ? (
               <div className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
@@ -2159,7 +2160,8 @@ export default function MapPage() {
                 <Search className="h-4 w-4" />
               </button>
             )}
-          </div>
+            </div>
+          </DockItem>
           </>)}
 
 

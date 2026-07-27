@@ -14,8 +14,8 @@
  * elsewhere (performance hard rule).
  */
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { DockItem, DOCK_ORDER } from '../../components/BottomDock'
 import { Send, X, Mic, MicOff, Phone, PhoneCall, PhoneOff, Loader2, MessageCircle, Globe, Video, VideoOff, SwitchCamera } from 'lucide-react'
 import type { ChatEntry, Participant } from './protocol'
 import type { FollowMode } from './useCollabFollow'
@@ -131,26 +131,32 @@ export default function CollabBar({
     setDraft('')
   }
 
+  /**
+   * 买家还没进通话 → 上方有一颗又大又醒目的「和经纪通话」入口(见下)。
+   * 这时候底栏里那颗小电话是**同一件事的第二个按钮** —— 手机上就变成两行都在喊
+   * 「打电话」,底部平白多占一条。所以有大入口时,底栏这一格直接不渲染。
+   * 'limit'(额度用完)不算:那时候要显示的是提示,不是入口。
+   */
+  const bigVoiceCta =
+    !!voice && !isPresenter && voice.status !== 'live' && voice.status !== 'connecting' && voice.status !== 'limit'
+
   // 谁在说话:volume-indicator 的 uid。本地自己在事件里 uid 恒为 0,单独判。
   const spk = new Set(speakingUids || [])
   const isSpeaking = (connId: string) =>
     spk.has(connIdToUid(connId)) || (connId === myConnId && spk.has(0))
 
-  return createPortal(
+  return (
     <>
-      {/* ONE unified in-session bar, bottom-centre, above the app nav. Viewer is
-          chromeless (no nav) → hug the edge; presenter clears the mobile nav.
-          Portaled to <body> so it shows on every page. */}
-      {/* 底栏定位:
-          • safe-area-inset-bottom —— 手机浏览器底部 UI(Safari 地址栏/手势条)会盖住
-            裸的 bottom-4。客户全在手机上,这条必须守。
-          • max-w 留 0.75rem 边距 + overflow-x-auto —— 装不下就横向滚,不溢出屏幕。
+      {/* ONE unified in-session bar —— 挂进底部坞(BottomDock),永远排在最底下一行。
+          🔴 这里**不再写任何 fixed / bottom / z**:以前它写死
+          `bottom: safe + (isPresenter ? 5rem : 1rem)`,而画笔条写 bottom-24、
+          分享链接写 bottom-32 —— 三条各算各的坐标,同时出现就必然叠在一起
+          (桌面端画笔条压住底栏、手机上三条糊成一坨)。让开底部导航和 iOS 手势条
+          现在只由坞算一次。
+          • max-w-full(坞已留 px-3 边距)+ overflow-x-auto —— 装不下就横向滚。
           • ⚠️ 内部每个按钮都必须 shrink-0:否则 flex 会在挤不下时**压扁**它们
             (图标变形、互相叠住),这比横向滚动难看得多。 */}
-      <div
-        className="fixed left-1/2 z-[2150] flex w-max max-w-[calc(100vw-0.75rem)] -translate-x-1/2 items-center"
-        style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${isPresenter ? '5rem' : '1rem'})` }}
-      >
+      <DockItem order={DOCK_ORDER.bar} className="flex w-max max-w-full items-center">
         <div className="flex h-9 items-center gap-1 overflow-x-auto rounded-full bg-slate-900/85 px-2 shadow-lg ring-1 ring-white/10 backdrop-blur scrollbar-hide sm:gap-1.5 sm:px-2.5">
           {/* live status */}
           <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full" style={{ backgroundColor: isFree ? '#94a3b8' : ACCENT }} />
@@ -230,7 +236,7 @@ export default function CollabBar({
             >
               <Phone className="h-4 w-4" />
             </button>
-          ) : voice.status === 'connecting' ? (
+          ) : bigVoiceCta ? null : voice.status === 'connecting' ? (
             <div className="flex h-7 shrink-0 items-center gap-1 px-1.5 text-[11px] text-slate-200" title="接通中…">
               <Loader2 className="h-4 w-4 animate-spin" /> 接通中
             </div>
@@ -356,13 +362,12 @@ export default function CollabBar({
             </button>
           )}
         </div>
-      </div>
+      </DockItem>
 
       {/* 视频额度提示 —— **只给经纪看**。客户看到「经纪额度不够」是难堪的,
           所以严格 isPresenter 门控。8 秒自动消失,也可手动关。 */}
       {isPresenter && voice?.videoNotice && (
-        <div className="fixed left-1/2 z-[2160] w-[min(360px,calc(100vw-1.5rem))] -translate-x-1/2"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8rem)' }}>
+        <DockItem order={DOCK_ORDER.notice} className="w-[min(360px,100%)]">
           <div className="flex items-start gap-2 rounded-xl bg-amber-500/95 px-3 py-2 text-[12px] font-medium leading-snug text-amber-950 shadow-xl">
             <Video className="mt-0.5 h-4 w-4 shrink-0" />
             <span className="flex-1">{voice.videoNotice}</span>
@@ -370,7 +375,7 @@ export default function CollabBar({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
+        </DockItem>
       )}
 
       {/* 🔴 买家的「语音」大入口(owner:买家找不到怎么加入 + 想主动说话)。
@@ -379,32 +384,33 @@ export default function CollabBar({
             • 经纪还没开   → 「和经纪语音通话」(点了自动请经纪接通)
             • 已请求       → 「正在接通…」
           一旦进了通话就收起,底栏留静音/挂断,不再 nag。 */}
-      {voice && !isPresenter && voice.status !== 'live' && voice.status !== 'connecting' && (
-        <div className="fixed left-1/2 z-[2150] w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4rem)' }}>
+      {bigVoiceCta && voice && (
+        <DockItem order={DOCK_ORDER.cta} className="w-max max-w-full">
           {voiceRequesting ? (
-            <div className="flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-white shadow-xl ring-1 ring-white/10">
-              <Loader2 className="h-4 w-4 animate-spin" /> 正在为你接通 {presenterName || '经纪'}…
+            <div className="flex items-center gap-2 rounded-full bg-slate-900/90 px-4 py-2 text-sm font-semibold text-white shadow-xl ring-1 ring-white/10">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> 正在为你接通 {presenterName || '经纪'}…
             </div>
           ) : (
             <button
               type="button"
               onClick={onRequestVoice || voice.connect}
-              className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-slate-900 shadow-xl transition hover:opacity-90 active:scale-95"
+              className="flex max-w-full items-center gap-2 rounded-full px-5 py-2 text-sm font-bold text-slate-900 shadow-xl transition hover:opacity-90 active:scale-95"
               style={{ backgroundColor: ACCENT }}
             >
-              <PhoneCall className={`h-4 w-4 ${voicePrompt ? 'animate-pulse' : ''}`} />
-              {voicePrompt ? `接听 ${presenterName || '经纪'} 的语音通话` : `和 ${presenterName || '经纪'} 语音通话`}
+              <PhoneCall className={`h-4 w-4 shrink-0 ${voicePrompt ? 'animate-pulse' : ''}`} />
+              <span className="truncate">
+                {voicePrompt ? `接听 ${presenterName || '经纪'} 的语音通话` : `和 ${presenterName || '经纪'} 语音通话`}
+              </span>
             </button>
           )}
-        </div>
+        </DockItem>
       )}
 
-      {/* chat panel — opens above the control capsule (bottom-right) */}
+      {/* chat panel —— 坞里排在最上面,自然浮在其它条之上(不再自己算 bottom) */}
       {chatOpen && (
-        <div
-          className="fixed left-1/2 z-[2150] flex w-[min(320px,calc(100vw-1.5rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur"
-          style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${isPresenter ? '8rem' : '4rem'})` }}
+        <DockItem
+          order={DOCK_ORDER.chat}
+          className="flex w-[min(320px,100%)] flex-col overflow-hidden rounded-2xl bg-slate-900/90 shadow-2xl backdrop-blur"
         >
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
             <span className="text-sm font-semibold text-white">聊天</span>
@@ -461,9 +467,8 @@ export default function CollabBar({
               <Send className="h-4 w-4" />
             </button>
           </div>
-        </div>
+        </DockItem>
       )}
-    </>,
-    document.body,
+    </>
   )
 }

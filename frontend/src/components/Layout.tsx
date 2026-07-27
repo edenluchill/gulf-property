@@ -8,6 +8,7 @@ import { useTourMode } from '../luna-tour/TourModeContext'
 import MapPage from '../pages/MapPage'
 import RoleSelectModal from './RoleSelectModal'
 import GlobalQuotaGate from './GlobalQuotaGate'
+import BottomDock from './BottomDock'
 import { isMapPath } from '../lib/isMapPath'
 import { useAppHeaderHidden } from '../hooks/useScrollChrome'
 
@@ -54,7 +55,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (bareSharePage) {
     // h-screen + overflow-y-auto = a real scroll container (the parent is height-
     // constrained, so min-h-screen alone clips and won't scroll).
-    return <div className="h-screen overflow-y-auto bg-slate-50">{children}</div>
+    return (
+      <div className="h-screen overflow-y-auto bg-slate-50">
+        {children}
+        {/* 带看底栏是全站可见的(经纪可能开着带看去看报价单),坞必须也在。 */}
+        <BottomDock navOffset={false} lunaMounted={false} />
+      </div>
+    )
   }
 
   return (
@@ -91,6 +98,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Navigation */}
       {!chromeless && <MobileNav />}
+
+      {/* 底部浮层坞 —— 带看底栏 / 画笔条 / 分享链接 / 测距状态条全挂这里,
+          由它统一让开底部导航和 iOS 手势条,谁也压不到谁(见 BottomDock)。 */}
+      <BottomDock navOffset={!chromeless} lunaMounted={!chromeless && !isBackstage} />
 
       {/* Favorites Drawer - Global, not inside Header */}
       {!chromeless && <FavoritesDrawer />}

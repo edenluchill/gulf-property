@@ -15,6 +15,7 @@ import { Globe, Ruler, Route, X, Box, Eye, EyeOff, History, Pencil } from 'lucid
 import type { CollabDrawApi } from '../luna-tour/collab/useCollabDraw'
 import DrawPalette from '../luna-tour/collab/DrawPalette'
 import { TextInputOverlay } from '../luna-tour/collab/CollabDrawToolbar'
+import { DockItem, DOCK_ORDER } from './BottomDock'
 import { DubaiArea, DubaiLandmark } from '../types'
 import { Poi } from '../hooks/useDubaiPois'
 import { MapPinProject, TransportGeoJSON, fetchRoadRoute, type RoadRoute } from '../lib/api'
@@ -2114,9 +2115,13 @@ function MapViewMapLibre({
 
       {/* 指北针已并进左上筛选卡(components/MapCompassButton),不再单独浮在地图上 —— 2026-07-11 */}
 
-      {/* 测距状态条(极简,距离已画在地图线上)。模式由右上两颗按钮决定,这里只标当前是哪种。 */}
+      {/* 测距状态条(极简,距离已画在地图线上)。模式由右上两颗按钮决定,这里只标当前是哪种。
+          落位交给底部坞:测距 + 画笔 + 带看底栏三条以前各写各的 bottom,同时开就叠住。 */}
       {measureMode && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-2 whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur">
+        <DockItem
+          order={DOCK_ORDER.status}
+          className="flex max-w-full items-center gap-2 overflow-x-auto whitespace-nowrap rounded-full bg-white/95 px-3.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200 backdrop-blur"
+        >
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${measureKind === 'route' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
             {measureKind === 'route' ? (isZhUi ? '路线·驾车' : 'Route · drive') : (isZhUi ? '直线' : 'Straight')}
           </span>
@@ -2136,7 +2141,7 @@ function MapViewMapLibre({
               {isZhUi ? '清除' : 'Clear'}
             </button>
           )}
-        </div>
+        </DockItem>
       )}
 
       {/* 语音助手：配套便利度评分面板 */}

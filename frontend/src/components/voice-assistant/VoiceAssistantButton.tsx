@@ -822,11 +822,13 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       </motion.div>
     )}
     </AnimatePresence>
-    <div className={cn(
+    <div data-luna-pill className={cn(
       // 紧贴底部导航栏上方,和地图左下角的搜索图标同一条基线(原来 bottom-28 浮在
       // 半空,跟别的底部控件对不齐 —— 2026-07-11 用户反馈"不匹配")。
       // ⚠️ 底栏是 xl:hidden 且 h-16 md:h-20 —— 所以要按 nav 实际高度分三档:
       //   <md : nav 64 → 76px      md~lg(平板): nav 80 → 92px      xl+: 无 nav → 24px
+      // ⚠️ 这颗**不在底部坞里**,却和坞的最底一行同一条带 —— 坞会按 data-luna-pill
+      //    的存在让出右边一截(见 BottomDock)。改这里的落位要同步核对那边。
       'fixed bottom-[76px] md:bottom-[92px] xl:bottom-6 end-0 z-50 flex flex-col items-end gap-1.5',
       className
     )}>
