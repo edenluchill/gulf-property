@@ -28,6 +28,12 @@ export interface ChangeEntry {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-28',
+    kind: 'new',
+    zh: '新增「更新历史」页：能看到我们每周改了什么，也能直接提功能建议、给别人的建议投票、跟帖讨论。建议会标注来自经纪还是买家，但永远不显示是谁提的。',
+    en: "Added this What's new page: see what we ship each week, post feature requests, upvote other people's, and join the thread. Requests are tagged agent or buyer — never by who.",
+  },
+  {
+    date: '2026-07-28',
     kind: 'improve',
     zh: '实时带看的底部工具条重做：画笔、语音、分享链接和搜索不再互相遮挡，手机上尤其明显。',
     en: 'Rebuilt the live-tour toolbar: the pen, voice, share link and search no longer overlap each other — a big difference on phones.',
