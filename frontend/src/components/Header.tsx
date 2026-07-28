@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound, Sparkles } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -171,8 +171,10 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* 手机/平板:真正的 5 语言选择器(桌面的那个在下面 nav 里,xl 以下不显示) */}
-          <div className="xl:hidden">
+          {/* 手机/平板:更新历史 + 5 语言选择器(桌面的那两个在下面 nav 里,xl 以下不显示)。
+              手机底栏已经 5 个 tab 满了,塞不下第 6 个 —— 所以放这里。 */}
+          <div className="flex items-center gap-1 xl:hidden">
+            <ChangelogButton dark={theme.dark} unseen={changelogUnseen} />
             <LanguageSwitcher />
           </div>
 
@@ -200,10 +202,10 @@ export default function Header() {
             )}
 
             {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位)。
-                上次来之后有新的更新历史 → 右上角一颗小红点,点进「关于」页脚就能看到
-                「更新历史」入口。客户看不到我们在做什么,就默认我们没在做。 */}
+                ⚠️ 别在这里也挂更新历史的红点 —— 红点已经在右侧那颗 ChangelogButton 上,
+                两个点亮同一件事只会让人不知道该点哪个。 */}
             <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
-              label={t('nav:about')} dot={changelogUnseen}
+              label={t('nav:about')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {(isAdmin || canUpload === true) && (
@@ -226,6 +228,7 @@ export default function Header() {
             <span className={`mx-1 h-5 w-px ${theme.divider}`} />
 
             <div className="flex items-center gap-1.5">
+              <ChangelogButton dark={theme.dark} unseen={changelogUnseen} />
               <FavoritesButton />
               <LanguageSwitcher />
             </div>
@@ -263,6 +266,39 @@ export default function Header() {
 }
 
 /* ---- 顶级导航胶囊：滑动高亮 + 悬停微动 ---- */
+/**
+ * 更新历史入口 —— header 右侧图标区的一颗小按钮。
+ *
+ * 为什么是图标不是导航文字位:导航已经有 地图/成交/经纪台/关于/管理 五项,
+ * 再加第六个文字 pill 会把这一行挤爆(而且更新历史不是高频入口)。
+ * 图标 + 未读红点:平时安静,有新东西时才叫你一次。
+ *
+ * 🔴 第一版只放在「关于」页脚 + 「关于」pill 上一颗点 —— owner 当场问「去哪看呀?
+ * header 上没有?」。**藏在二级页脚里的入口等于没有入口。**
+ */
+function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
+  const { t } = useTranslation(['misc'])
+  const label = t('misc:changelog.title')
+  return (
+    <Link
+      to="/changelog"
+      title={label}
+      aria-label={label}
+      className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${
+        dark ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+      }`}
+    >
+      <Sparkles className="h-[18px] w-[18px]" />
+      {unseen && (
+        <span
+          className={`absolute end-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ${dark ? 'ring-slate-900' : 'ring-white'}`}
+          aria-hidden
+        />
+      )}
+    </Link>
+  )
+}
+
 function NavPill({
   to, active, icon: Icon, label, accent, idleText, primaryGrad, accentGrad, dot
 }: {

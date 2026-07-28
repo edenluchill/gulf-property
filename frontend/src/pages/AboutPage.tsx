@@ -10,7 +10,6 @@ import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
-import { useUnseenChangelog } from '../hooks/useUnseenChangelog'
 import {
   Map as MapIcon, TrendingUp, Building2, Sparkles, Radio, FileText, Mic,
   Upload, Database, KeyRound, Ruler, Layers, ArrowRight, Languages, ShieldCheck,
@@ -50,7 +49,6 @@ function Glow({ className, color = ACCENT, opacity = 0.18 }: { className?: strin
 }
 
 export default function AboutPage() {
-  const { unseen: changelogUnseen } = useUnseenChangelog()
   const { t: tRaw, i18n } = useTranslation('about')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const zh = (i18n.language || 'en').startsWith('zh')
@@ -118,15 +116,6 @@ export default function AboutPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90" style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>{t('about:openTheMap')} <ArrowRight className="h-4 w-4 rtl:-scale-x-100" /></Link>
               <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">{t('about:seePricing')}</Link>
-              {/* 上次来之后有新更新才出现 —— 导航栏那颗红点点进来要能落到实处,
-                  否则「有更新」提示指向一个找不到的东西。没更新时不占位。 */}
-              {changelogUnseen && (
-                <Link to="/changelog" className="inline-flex items-center gap-1.5 px-1 py-3 text-sm font-medium text-teal-300 transition hover:text-teal-200">
-                  <Sparkles className="h-4 w-4" />
-                  {t('misc:changelog.title')}
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                </Link>
-              )}
             </div>
           </Reveal>
           <Reveal delay={0.12}>
