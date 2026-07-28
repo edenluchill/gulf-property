@@ -20,6 +20,8 @@ export interface CollabSessionRow {
   peak_participants: number
   chat_count: number
   event_count: number
+  /** 开这场的经纪邮箱;null = 未登录建的房(压测/调试) */
+  agent_email?: string | null
 }
 
 export interface CollabChatMsg { from: string; name: string; text: string; at: number | null }
@@ -54,10 +56,13 @@ function stripFence(t: string): string {
 /** 列表:供 dashboard 列出最近带看会话(不含 events 大字段)。 */
 export async function getCollabSessions(limit = 50, offset = 0): Promise<CollabSessionRow[]> {
   const { rows } = await pool.query(
-    `SELECT code, name, created_at, first_event_at, last_event_at,
-            peak_participants, chat_count, event_count
-       FROM collab_rooms
-      ORDER BY COALESCE(last_event_at, created_at) DESC
+    // agent_email:这场是**谁**开的。以前列表里只有一个房号和「名字」(经纪自填的
+    // 显示名,可空可重复),owner 根本认不出哪场是外部经纪、哪场是自己测的。
+    `SELECT r.code, r.name, r.created_at, r.first_event_at, r.last_event_at,
+            r.peak_participants, r.chat_count, r.event_count, a.email AS agent_email
+       FROM collab_rooms r
+       LEFT JOIN lt_agents a ON a.id = r.agent_id
+      ORDER BY COALESCE(r.last_event_at, r.created_at) DESC
       LIMIT $1 OFFSET $2`,
     [limit, offset]
   )

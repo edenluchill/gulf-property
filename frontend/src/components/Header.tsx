@@ -11,6 +11,7 @@ import { useMyRole } from '../hooks/useMyRole'
 import UserMenu from './auth/UserMenu'
 import { FavoritesButton } from './favorites'
 import AboutSheet from './AboutSheet'
+import { useUnseenChangelog } from '../hooks/useUnseenChangelog'
 
 // 精致浅色主题：与亮色 app 统一。质感来自克制 + 真实层级，不是发光特效
 const theme = {
@@ -29,6 +30,7 @@ const theme = {
 
 export default function Header() {
   const location = useLocation()
+  const { unseen: changelogUnseen } = useUnseenChangelog()
   const navigate = useNavigate()
   const { t } = useTranslation(['common', 'nav', 'auth'])
   const { user, loading, isAdmin, canUpload } = useAuth()
@@ -197,9 +199,11 @@ export default function Header() {
                 idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
             )}
 
-            {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位) */}
+            {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位)。
+                上次来之后有新的更新历史 → 右上角一颗小红点,点进「关于」页脚就能看到
+                「更新历史」入口。客户看不到我们在做什么,就默认我们没在做。 */}
             <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
-              label={t('nav:about')}
+              label={t('nav:about')} dot={changelogUnseen}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {(isAdmin || canUpload === true) && (
@@ -260,13 +264,19 @@ export default function Header() {
 
 /* ---- 顶级导航胶囊：滑动高亮 + 悬停微动 ---- */
 function NavPill({
-  to, active, icon: Icon, label, accent, idleText, primaryGrad, accentGrad
+  to, active, icon: Icon, label, accent, idleText, primaryGrad, accentGrad, dot
 }: {
   to: string; active: boolean; icon: typeof MapPin; label: string; accent?: boolean
   idleText: string; primaryGrad: string; accentGrad: string
+  /** 右上角一颗小红点(「有更新」)。故意不做数字角标 —— 这是"顺便看看"级别的提示,
+   *  不是待办;数字会让人觉得有几件事非处理不可。 */
+  dot?: boolean
 }) {
   return (
     <Link to={to} className="relative">
+      {dot && (
+        <span className="pointer-events-none absolute -end-0.5 -top-0.5 z-10 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white/70" aria-hidden />
+      )}
       <motion.div
         whileHover={{ y: -1 }}
         whileTap={{ scale: 0.96 }}

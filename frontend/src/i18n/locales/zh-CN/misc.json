@@ -348,5 +348,9 @@
     "measure": "测距",
     "route": "路线",
     "exit": "退出"
+  },
+  "changelog": {
+    "title": "更新历史",
+    "badge": "有更新"
   }
 }

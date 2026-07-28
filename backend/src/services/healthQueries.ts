@@ -119,18 +119,26 @@ async function featureHealth(days: number): Promise<FeatureHealth[]> {
   )
 
   // ── 实时带看（collab_rooms）──────────────────────────────────────────────
-  // ⚠️ 这张表**没有 agent_id**，无法区分是你自己测试开的房还是经纪真的在带看。
-  //    351 个房间里绝大多数是测试产生的（见 2026-07-17 报告）。
-  //    这里如实标 canSplitInternal=false，前端必须显示「含内部测试」——
-  //    宁可标注不确定，也不要给一个看起来干净其实是脏的数字。
+  // 2026-07-28 加上了 agent_id（并用 lt_credit_ledger 的 live_tours 流水回填历史），
+  // 这个功能**第一次能和其它三个一样剔除内部测试**。
+  //   · 内部号（owner/合伙人/demo）→ 按 INTERNAL_AGENTS 排除
+  //   · agent_id IS NULL → 未登录建的房：07-14 那 251 间压测、以及我自己调试开的房。
+  //     一律**不计入**——它们既不是经纪的产出，也不是客户的消费。
   const collab = await pool.query(
     `SELECT
-       count(*) FILTER (WHERE created_at > ${cur})                                  AS produced,
-       count(*) FILTER (WHERE created_at > ${prevFrom} AND created_at <= ${prevTo})  AS produced_prev,
-       count(*) FILTER (WHERE created_at > ${cur} AND peak_participants >= 2)        AS consumed,
-       count(*) FILTER (WHERE created_at > ${prevFrom} AND created_at <= ${prevTo}
-                          AND peak_participants >= 2)                                AS consumed_prev
-     FROM collab_rooms`
+       count(*) FILTER (WHERE r.created_at > ${cur})                                  AS produced,
+       count(*) FILTER (WHERE r.created_at > ${prevFrom} AND r.created_at <= ${prevTo}) AS produced_prev,
+       count(*) FILTER (WHERE r.created_at > ${cur} AND r.peak_participants >= 2)       AS consumed,
+       count(*) FILTER (WHERE r.created_at > ${prevFrom} AND r.created_at <= ${prevTo}
+                          AND r.peak_participants >= 2)                                 AS consumed_prev,
+       -- 被剔掉的未归属房间要**说出来**,不能静默扣掉(标量子查询:上面的 JOIN 本身
+       -- 就把 agent_id IS NULL 全滤没了,在里面 FILTER 恒等于 0)
+       (SELECT count(*) FROM collab_rooms
+         WHERE created_at > ${cur} AND agent_id IS NULL)                                AS anon_skipped
+     FROM collab_rooms r
+     JOIN lt_agents a ON a.id = r.agent_id
+     WHERE lower(a.email) <> ALL($1)`,
+    [INTERNAL_AGENTS]
   )
 
   // ── Luna 语音对话（luna_sessions）───────────────────────────────────────
@@ -177,9 +185,9 @@ async function featureHealth(days: number): Promise<FeatureHealth[]> {
       label: '实时带看',
       produced: n(c.produced), producedPrev: n(c.produced_prev),
       consumed: n(c.consumed), consumedPrev: n(c.consumed_prev),
-      consumedDetail: null,
-      canSplitInternal: false,
-      note: '⚠️ collab_rooms 表没有 agent_id，无法剔除内部测试。历史房间绝大多数由测试产生，此数字仅供看趋势。被消费 = 峰值人数 ≥ 2（客户真的进来了）。',
+      consumedDetail: n(c.anon_skipped) > 0 ? `另有 ${n(c.anon_skipped)} 间未登录建的房未计入` : null,
+      canSplitInternal: true,
+      note: '被消费 = 峰值人数 ≥ 2（客户真的进来了）。2026-07-28 加了 agent_id 并回填历史，已能剔除内部号；未登录建的房（压测/调试）一律不计入。',
     },
     {
       key: 'luna_voice',

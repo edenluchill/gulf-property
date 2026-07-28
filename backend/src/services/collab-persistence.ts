@@ -19,6 +19,7 @@ export interface CollabRoomRow {
   code: string
   roomId: string
   name: string | null
+  agentId: string | null
   firstEventAt: Date | null
   lastEventAt: Date | null
   peakParticipants: number
@@ -53,6 +54,7 @@ export function buildCollabRoomRow(room: Room): CollabRoomRow | null {
     code: room.code,
     roomId: room.id,
     name: room.name ?? null,
+    agentId: room.agentId ?? null,
     firstEventAt: typeof first?.at === 'number' ? new Date(first.at) : null,
     lastEventAt: typeof last?.at === 'number' ? new Date(last.at) : null,
     peakParticipants: room.peakParticipants,
@@ -76,8 +78,8 @@ export async function flushRoom(room: Room): Promise<void> {
     await pool.query(
       `INSERT INTO collab_rooms
          (code, room_id, name, first_event_at, last_event_at,
-          peak_participants, chat_count, event_count, events)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+          peak_participants, chat_count, event_count, events, agent_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
        ON CONFLICT (code) DO UPDATE SET
          room_id = EXCLUDED.room_id,
          name = EXCLUDED.name,
@@ -86,7 +88,12 @@ export async function flushRoom(room: Room): Promise<void> {
          peak_participants = EXCLUDED.peak_participants,
          chat_count = EXCLUDED.chat_count,
          event_count = EXCLUDED.event_count,
-         events = EXCLUDED.events`,
+         events = EXCLUDED.events,
+         -- ⚠️ COALESCE 而不是直接覆盖:经纪断线/刷新会走 WS 的 ensureRoomWithCode
+         -- 用同一个 code **在内存里复活**房间,那条路拿不到 agentId(没有 HTTP 请求
+         -- 可以 resolve)。直接覆盖 = 一次刷新就把已经记好的归属抹成 null。
+         -- 同 lt_agents.auth_user_id 的写法。
+         agent_id = COALESCE(collab_rooms.agent_id, EXCLUDED.agent_id)`,
       [
         row.code,
         row.roomId,
@@ -97,6 +104,7 @@ export async function flushRoom(room: Room): Promise<void> {
         row.chatCount,
         row.eventCount,
         row.eventsJson,
+        row.agentId,
       ]
     )
   } catch (err) {

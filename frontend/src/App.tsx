@@ -32,6 +32,7 @@ import BuyingReportPage from './pages/BuyingReportPage'
 import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
 import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —— 经纪台专用(/agent/roi)
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
+import ChangelogPage from './pages/ChangelogPage'
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import RoleSelectPage from './pages/RoleSelectPage'  // 四角色选择页(/choose-role)
@@ -161,6 +162,8 @@ function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsPage />} />
+        {/* 更新历史(面向客户的「这周改了什么」)—— 内容手写在 data/changelog.ts */}
+        <Route path="/changelog" element={<ChangelogPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />

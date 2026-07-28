@@ -22,7 +22,7 @@ const CANONICAL_ORIGIN = 'https://www.pinzos.com'
 const DEFAULT_TITLE = 'Pinzos - A New Way to Buy Off-Plan in Dubai'
 
 // 公开可索引页。与 public/sitemap.xml 保持一致。
-const PAGES = ['/', '/about', '/pricing', '/areas', '/transactions', '/privacy', '/terms']
+const PAGES = ['/', '/about', '/pricing', '/areas', '/transactions', '/changelog', '/privacy', '/terms']
 
 const browser = await chromium.launch()
 const page = await browser.newPage()

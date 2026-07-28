@@ -287,7 +287,8 @@ router.post('/rooms', async (req, res) => {
   // 那会让所有客户共用同一条永久链接,上一位客户能拿旧链接进来偷听下一场。
   // 断线/刷新重连仍能复活「当次这场」的房间(前端把 code 存进 ?host,走 WS hello presenter
   // 分支的 ensureRoomWithCode 复活);经纪主动结束(k:'end')后该 code 立即失效。
-  const room = createRoom(creatorName).room
+  // agentId 一路带进房间 → 落库 → 健康度面板终于能按经纪拆开(见 Room.agentId)
+  const room = createRoom(creatorName, agentId).room
   if (agentId) await spend(agentId, 'live_tours', { type: 'live', id: room.code, label: creatorName }).catch(() => {})
   res.json({ code: room.code, url: `${SHARE_BASE_URL}/${room.code}` })
 })

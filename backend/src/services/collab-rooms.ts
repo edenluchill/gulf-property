@@ -30,6 +30,17 @@ export interface Room {
   id: string
   code: string                          // 短分享码
   name?: string                         // 建房时经纪名(可空),落库用
+  /**
+   * 开这场带看的经纪(lt_agents.id)。**没有它整个功能就量不出来。**
+   *
+   * 2026-07-28 之前 collab_rooms 完全没有这一列 —— 于是「开了多少场带看」这个数字
+   * 里混着压测(07-14 一天 251 间)、我自己调试开的房、以及所有人的房,谁也分不开,
+   * 健康度面板上只能挂一句「此数字仅供看趋势」。加上之后第一次能回答
+   * 「**有几个外部经纪真的带着客户跑过一场**」。
+   *
+   * 未登录建房仍然是 null(匿名/压测),这是对的 —— 别硬塞一个假归属。
+   */
+  agentId?: string | null
   presenterConnId: string | null
   participants: Map<string, Participant>
   selected: any | null                  // 最近一次 select 事件 payload
@@ -81,11 +92,12 @@ function genConnId(): string {
   return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-function buildRoom(code: string, creatorName?: string): Room {
+function buildRoom(code: string, creatorName?: string, agentId?: string | null): Room {
   const room: Room = {
     id: genId(),
     code,
     name: creatorName,
+    agentId: agentId ?? null,
     presenterConnId: null,
     participants: new Map(),
     selected: null,
@@ -104,11 +116,11 @@ function buildRoom(code: string, creatorName?: string): Room {
   return room
 }
 
-export function createRoom(creatorName?: string): { room: Room; code: string } {
+export function createRoom(creatorName?: string, agentId?: string | null): { room: Room; code: string } {
   // 保证 code 唯一(碰撞极罕见,但兜一下)
   let code = randomCode()
   while (codeToId.has(code)) code = randomCode()
-  return { room: buildRoom(code, creatorName), code }
+  return { room: buildRoom(code, creatorName, agentId), code }
 }
 
 /** 归一化外部传入的 code(经纪稳定 code / 重连):限我们的字母表与长度,
