@@ -1,0 +1,10 @@
+import { chromium } from 'playwright'
+const b = await chromium.launch()
+const p = await (await b.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 })).newPage()
+await p.goto('http://localhost:5174/changelog', { waitUntil: 'domcontentloaded' })
+await p.waitForTimeout(3000)
+await p.locator('[data-sec="requests"]').scrollIntoViewIfNeeded()
+await p.waitForTimeout(900)
+await p.screenshot({ path: 'shots-changelog/_requests.png' })
+await b.close()
+console.log('ok')

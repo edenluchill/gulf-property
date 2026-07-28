@@ -27,6 +27,7 @@ import collabRouter, { initCollabWebSocket } from './routes/collab'  // 实时�
 import voiceRtcRouter from './routes/voice-rtc'  // Agora 应用内语音 token + 用量额度
 import agentsRouter from './routes/agents'  // 经纪准入审批
 import telemetryRouter from './routes/telemetry'  // 客户端 RUM 上报
+import featureRequestsRouter from './routes/feature-requests'  // 客户功能建议(公开列表,匿名)
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
 import voiceDebugRouter from './routes/voice-debug'
@@ -167,6 +168,7 @@ app.use('/api/collab', collabRouter)  // 实时协作带看 REST (建房/校验)
 app.use('/api/voice-rtc', voiceRtcRouter)  // Agora 应用内语音 token + 用量额度
 app.use('/api/agents', agentsRouter)  // 经纪准入审批(/me + owner 批准)
 app.use('/api/telemetry', telemetryRouter)  // 客户端 RUM 上报(匿名,白名单)— docs/telemetry-spec.md
+app.use('/api/feature-requests', featureRequestsRouter)  // 客户功能建议(列表公开、提交要登录、永不暴露提交人)
 app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/ai/analytics', aiAnalyticsRouter)  // AI investment/ROI/budget analysis (DLD data)
