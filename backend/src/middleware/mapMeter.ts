@@ -54,7 +54,7 @@ const shareCodeCache = new Map<string, { ok: boolean; at: number }>()
 /** 远程 token → 用户 解析缓存(成功 5min / 失败 60s,存 hash 不存原 token)。 */
 const tokenCache = new Map<string, { user: { userId: string; email: string | null } | null; at: number }>()
 /** 「经纪未订阅需付费」判定缓存(60s,按 userId)。 */
-const agentGateCache = new Map<string, { gated: boolean; at: number }>()
+const agentGateCache = new Map<string, { gated: boolean; roleUnset: boolean; at: number }>()
 
 function sweep(map: Map<string, { at: number }>, ttl: number, cap = 2000): void {
   if (map.size < cap) return
@@ -143,13 +143,27 @@ async function resolveTokenUser(token: string): Promise<{ userId: string; email:
 }
 
 /**
- * 登录用户是否要被计量:role=agent 且没有任何生效订阅(自己的/团队席位的/comp)
- * → true(经纪必须选付费档才能不限时用地图)。买家/未选角色/owner/admin → false。
+ * 登录用户的地图准入判定 —— **三态**,不是两态。
+ *
+ *   gated=true            从业者角色但没生效订阅 → 立即锁,引导去选套餐
+ *   roleUnset=true        登录了但**从没选过角色** → 按匿名额度计量(10min/天)
+ *   两个都 false          买家 / 已订阅从业者 / owner / admin → 豁免
+ *
+ * 🔴 `roleUnset` 是 2026-07-28 补的洞。以前「未选角色」和买家走同一条豁免分支 →
+ * **无限免费用地图**。实测有 10 个账号处在这个状态(登录过、lt_agents 有行、
+ * user_profiles 一条记录都没有),其中有人 API 调用几百次还在天天用。
+ * 而且这批人连试用都开不了 —— `/trial/start` 读的就是 user_profiles.role,
+ * 没有角色直接 403 `not_agent`。既拿不到收入,也永远不会转化。
+ *
+ * 给额度而不是直接锁:他们里既可能是还没点完引导的买家,也可能是经纪。
+ * 10 分钟够看明白这是什么产品,用完的提示会把他推回去选角色。
  */
-async function agentNeedsPlan(userId: string, email: string | null): Promise<boolean> {
-  if (isOwnerEmail(email) || isAdminEmail(email)) return false
+interface AgentGate { gated: boolean; roleUnset: boolean }
+
+async function agentGateFor(userId: string, email: string | null): Promise<AgentGate> {
+  if (isOwnerEmail(email) || isAdminEmail(email)) return { gated: false, roleUnset: false }
   const hit = agentGateCache.get(userId)
-  if (hit && Date.now() - hit.at < 60_000) return hit.gated
+  if (hit && Date.now() - hit.at < 60_000) return { gated: hit.gated, roleUnset: hit.roleUnset }
   let gated = false
   const r = await pool.query<{ role: string | null }>(
     `SELECT role FROM user_profiles WHERE user_id = $1`,
@@ -181,9 +195,11 @@ async function agentNeedsPlan(userId: string, email: string | null): Promise<boo
   } else if (PAID_ROLES.includes(r.rows[0]?.role || '') && !email) {
     gated = true
   }
-  agentGateCache.set(userId, { gated, at: Date.now() })
+  // 一条 user_profiles 都没有(或 role 是空串)= 从没走完角色选择
+  const roleUnset = !r.rows[0]?.role
+  agentGateCache.set(userId, { gated, roleUnset, at: Date.now() })
   sweep(agentGateCache, 60_000)
-  return gated
+  return { gated, roleUnset }
 }
 
 /** 角色/订阅变化后立刻生效(profile.ts 改角色、billing webhook 订阅生效时调)。 */
@@ -223,9 +239,11 @@ async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerd
   }
   if (userId) {
     if (req.ctx?.isAdmin || isAdminEmail(email) || isOwnerEmail(email)) return EXEMPT
-    if (!(await agentNeedsPlan(userId, email))) return EXEMPT // 买家/未选角色/已订阅经纪
+    const gate = await agentGateFor(userId, email)
     // 经纪未订阅:立即锁(不给每日额度),前端引导去 /agent/plans
-    return { metered: true, exhausted: true, remaining: 0, requiresPlan: true }
+    if (gate.gated) return { metered: true, exhausted: true, remaining: 0, requiresPlan: true }
+    // 买家 / 已订阅从业者 → 豁免。**未选角色的不再豁免**,往下走匿名那套分钟额度。
+    if (!gate.roleUnset) return EXEMPT
   }
 
   const visitorId = req.ctx?.visitorId || null

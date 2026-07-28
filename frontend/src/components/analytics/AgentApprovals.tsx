@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Loader2, Check, Clock, History, Upload, Plus, CreditCard, Gift, Crown, Search } from 'lucide-react'
+import { Loader2, Check, Clock, History, Upload, Plus, CreditCard, Gift, Crown, Search, ChevronDown } from 'lucide-react'
 import {
   approveAgent, rejectAgent, grantAgentTrial, revokeAgentGrant,
   listUploadPerms, grantUploadPerm, revokeUploadPerm, UploadPermRow,
@@ -24,7 +24,23 @@ const PLAN_LABEL: Record<string, string> = { explore: '探索(免费)', rookie: 
 // 一个月的专业版(1200 积分,实时带看 / Luna 导览全开)。
 const GRANT_NAME = '经纪 Pro 30 天免费套餐(1200 积分)'
 const GRANT_SHORT = 'Pro 30 天'
-const ROLE_LABEL: Record<string, string> = { buyer: '买家', agent: '经纪人', agency: '经纪公司', developer: '开发商' }
+const ROLE_LABEL: Record<string, string> = {
+  buyer: '买家', agent: '经纪人', agency: '经纪公司', developer: '开发商',
+  // 登录了但从没走完角色选择 —— 以前这批人也被标成「经纪人」(lt_agents.role 的
+  // 列默认值),于是后台看到的「经纪注册了不试用」里混着一堆根本不是经纪的人。
+  unset: '没选角色',
+}
+const ROLE_CLS: Record<string, string> = {
+  buyer: 'bg-sky-50 text-sky-600',
+  agent: 'bg-teal-50 text-teal-700',
+  agency: 'bg-teal-50 text-teal-700',
+  developer: 'bg-indigo-50 text-indigo-600',
+  unset: 'bg-amber-50 text-amber-700',
+}
+/** 从业者角色(要订阅才能用地图的那几个) */
+const TRADE_ROLES = ['agent', 'agency']
+/** 钱出了问题的现有客户 —— 不是新注册,该催换卡 */
+const FAILED_STATUS = ['past_due', 'unpaid', 'incomplete']
 
 const ACTION_LABEL: Record<string, { label: string; cls: string }> = {
   subscribed: { label: '订阅', cls: 'bg-emerald-100 text-emerald-700' },
@@ -57,6 +73,8 @@ const FEEDBACK_ZH: Record<string, string> = {
 /** 订阅状态标签:真付费 / 试用 / 赠送 / 自己人。 */
 function SubBadge({ s }: { s: Subscriber }) {
   if (s.is_internal) return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">自己人</span>
+  // 扣款失败排最前:这是**现有付费客户**出了问题,不能和「没订阅」长得一样
+  if (FAILED_STATUS.includes(s.status)) return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">扣款失败</span>
   if (s.status === 'trialing') return <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700">试用中</span>
   if (s.status === 'active' && s.paid) return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">付费</span>
   if (s.status === 'active' && !s.paid) return <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">赠送</span>
@@ -172,7 +190,11 @@ function SubRow({ s, busy, onGrant, onRevoke, onApprove, onReject }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="truncate text-sm font-medium text-slate-800">{s.display_name || s.email}</span>
-            {s.role && <span className="hidden shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500 sm:inline">{ROLE_LABEL[s.role] || s.role}</span>}
+            {s.role && (
+              <span className={`hidden shrink-0 rounded px-1.5 py-px text-[10px] font-medium sm:inline ${ROLE_CLS[s.role] || 'bg-slate-100 text-slate-500'}`}>
+                {ROLE_LABEL[s.role] || s.role}
+              </span>
+            )}
             <SubBadge s={s} />
           </div>
           <div className="truncate text-xs text-slate-400">{s.email}</div>
@@ -374,6 +396,79 @@ const FILTERS: { id: SubFilter; label: string }[] = [
   { id: 'pending', label: '待审批' },
 ]
 
+/**
+ * 可折叠的一组账户。
+ *
+ * 🔴 为什么必须折叠:以前是两个平铺的长列表,账号一多(现在 80 个)就得**滚过
+ * 几十行才能看到下一个 section**,而下面还有「楼书权限」「套餐变更记录」——
+ * owner 原话:「人一多得疯狂 scroll 下面才能看到下一个 section」。
+ *
+ * 规则:
+ *   • 默认只露 PEEK 行,其余收起,标题上写清「还有 N 个」——**绝不静默截断**
+ *   • `alert` 组(扣款失败/待审批)默认展开:那是要立刻处理的事,不能藏
+ *   • 空组直接不渲染,不占一行标题
+ */
+const PEEK = 5
+
+function Group({
+  title, hint, tone = 'plain', rows, render, defaultOpen,
+}: {
+  title: string
+  hint?: string
+  tone?: 'plain' | 'alert' | 'good'
+  rows: Subscriber[]
+  render: (s: Subscriber) => React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [open, setOpen] = useState(defaultOpen ?? true)
+  if (rows.length === 0) return null
+  const shown = expanded ? rows : rows.slice(0, PEEK)
+  const rest = rows.length - shown.length
+  const ring = tone === 'alert' ? 'ring-rose-200' : tone === 'good' ? 'ring-emerald-100' : 'ring-slate-900/[0.06]'
+  const titleCls = tone === 'alert' ? 'text-rose-700' : 'text-slate-800'
+
+  return (
+    <div className={`overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ${ring}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-start transition hover:bg-slate-50/70"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+          <span className={`text-sm font-semibold ${titleCls}`}>{title}</span>
+          <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-px text-[11px] font-medium text-slate-500">{rows.length}</span>
+        </span>
+        {hint && <span className="hidden truncate text-xs text-slate-400 sm:inline">{hint}</span>}
+      </button>
+      {open && (
+        <>
+          <div className="divide-y divide-slate-50">{shown.map(render)}</div>
+          {rest > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="w-full border-t border-slate-100 py-2.5 text-xs font-medium text-teal-600 transition hover:bg-teal-50/60"
+            >
+              展开其余 {rest} 个
+            </button>
+          )}
+          {expanded && rows.length > PEEK && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="w-full border-t border-slate-100 py-2.5 text-xs font-medium text-slate-400 transition hover:bg-slate-50"
+            >
+              收起
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function AgentApprovals() {
   const [data, setData] = useState<{ subscribers: Subscriber[]; summary: SubscriptionSummary } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -382,7 +477,12 @@ export default function AgentApprovals() {
   // 待确认赠送的对象(null = 弹窗关着)。赠送不可逆,不能点一下就发出去。
   const [confirming, setConfirming] = useState<Subscriber | null>(null)
 
-  const load = () => fetchSubscribers().then(setData).catch(() => setData({ subscribers: [], summary: { total_accounts: 0, subscribed: 0, paid: 0, trialing: 0, comp: 0, pending_approval: 0 } }))
+  const EMPTY_SUMMARY: SubscriptionSummary = {
+    total_accounts: 0, subscribed: 0, paid: 0, trialing: 0, comp: 0, pending_approval: 0,
+    payment_failed: 0, agents_total: 0, agents_never_trialed: 0, agents_trial_expired: 0,
+    role_unset: 0, buyers: 0,
+  }
+  const load = () => fetchSubscribers().then(setData).catch(() => setData({ subscribers: [], summary: EMPTY_SUMMARY }))
   useEffect(() => { load() }, [])
 
   // 失败必须让 owner 看见 —— 赠送被后端拒掉(已赠过 / 已有套餐)时静默刷新一下,
@@ -417,9 +517,27 @@ export default function AgentApprovals() {
     }
   }
   const hits = subscribers.filter(match)
-  const subscribed = hits.filter((s) => s.status !== 'none')
-  const notSubscribed = hits.filter((s) => s.status === 'none')
   const grantedCount = subscribers.filter((s) => s.trial_granted_at).length
+
+  /**
+   * 分组 —— 每一组对应一个**不同的结论和不同的动作**,不能再糊成「订阅/未订阅」两坨。
+   *
+   * 2026-07-28 实测 80 个账户,原来那个「未订阅账户 (36)」列表里其实混着:
+   *   14 个真经纪没转化 · 17 个试用过期了 · 9 个买家 · 3 个开发商 · 10 个没选角色
+   *   还有 1 个**扣款失败的付费客户**(全站唯一的外部付费客户!)
+   * 一个标签盖住六种人,看到的数字自然是错的。
+   */
+  const g = {
+    failed: hits.filter((s) => FAILED_STATUS.includes(s.status)),
+    pending: hits.filter((s) => s.approval_status === 'pending' && s.status === 'none'),
+    live: hits.filter((s) => (s.status === 'active' || s.status === 'trialing')),
+    // 从业者(经纪/经纪公司)没订阅:试用过 vs 从没试用 —— 留存问题 vs 激活问题
+    expired: hits.filter((s) => s.status === 'none' && TRADE_ROLES.includes(s.role || '') && s.trial_ever),
+    never: hits.filter((s) => s.status === 'none' && TRADE_ROLES.includes(s.role || '') && !s.trial_ever),
+    developer: hits.filter((s) => s.status === 'none' && s.role === 'developer'),
+    buyer: hits.filter((s) => s.status === 'none' && s.role === 'buyer'),
+    unset: hits.filter((s) => s.status === 'none' && (s.role === 'unset' || !s.role)),
+  }
 
   const renderRow = (s: Subscriber) => (
     <SubRow key={s.agent_id} s={s} busy={busy === s.email}
@@ -444,14 +562,16 @@ export default function AgentApprovals() {
         />
       )}
 
-      {/* 商业化 summary */}
+      {/* 商业化 summary。
+          ⚠️「账户总数」不等于「经纪」—— 每个登录用户(买家/开发商/没选角色的)都会有
+          一行 lt_agents,所以单独标出真经纪的分母,别再拿总数当经纪数看。 */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="经纪账户" value={summary.total_accounts} icon={<CreditCard className="h-4 w-4" />} />
-        <StatCard label="已订阅" value={summary.subscribed} icon={<Check className="h-4 w-4" />} />
+        <StatCard label="账户总数" value={summary.total_accounts} icon={<CreditCard className="h-4 w-4" />} hint="含买家/开发商/没选角色的" />
         <StatCard label="真付费" value={summary.paid} icon={<Crown className="h-4 w-4" />} hint="走 Stripe 扣款" />
         <StatCard label="试用中" value={summary.trialing} icon={<Clock className="h-4 w-4" />} />
-        <StatCard label="手动赠送" value={summary.comp} icon={<Gift className="h-4 w-4" />} />
-        <StatCard label="待审批" value={summary.pending_approval} icon={<Clock className="h-4 w-4" />} />
+        <StatCard label="扣款失败" value={summary.payment_failed} icon={<CreditCard className="h-4 w-4" />} hint="现有付费客户卡出了问题 —— 催换卡,别当新注册" />
+        <StatCard label="经纪未转化" value={summary.agents_never_trialed + summary.agents_trial_expired} icon={<Clock className="h-4 w-4" />} hint={`真经纪共 ${summary.agents_total} 个 · 从没试用 ${summary.agents_never_trialed} · 试用过期 ${summary.agents_trial_expired}`} />
+        <StatCard label="没选角色" value={summary.role_unset} icon={<Clock className="h-4 w-4" />} hint="登录了却没选角色 —— 试用接口会 403 挡回,永远转化不了" />
       </div>
 
       {/* 搜索 + 筛选 —— 两个列表共用 */}
@@ -484,35 +604,28 @@ export default function AgentApprovals() {
         </div>
       </div>
 
-      {/* 订阅客户(主角) */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-800">订阅客户 ({subscribed.length})</h3>
-          <span className="text-xs text-slate-400">谁订阅了我们 · 付费 / 试用 / 赠送</span>
-        </div>
-        {subscribed.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-slate-400">
-            {kw || filter !== 'all' ? '没有符合条件的订阅客户。' : '还没有任何订阅。'}
-          </p>
-        ) : (
-          <div className="divide-y divide-slate-50">{subscribed.map(renderRow)}</div>
-        )}
-      </div>
+      {/* 按「要做什么」排序:先是等着我处理的,再是客户,最后才是各种没转化的池子 */}
+      <Group tone="alert" title="扣款失败" rows={g.failed} render={renderRow} defaultOpen
+        hint="现有付费客户的卡出了问题 —— 该催换卡,不是赠送" />
+      <Group tone="alert" title="待审批" rows={g.pending} render={renderRow} defaultOpen
+        hint="一键批准" />
+      <Group tone="good" title="订阅客户" rows={g.live} render={renderRow} defaultOpen
+        hint="付费 / 试用 / 赠送" />
+      <Group title="试用过期了" rows={g.expired} render={renderRow}
+        hint="试过了没留下 —— 这是留存问题,不是获客问题" />
+      <Group title="经纪·从没试用" rows={g.never} render={renderRow}
+        hint="注册了连试都没试 —— 首次价值的坎" />
+      <Group title="开发商" rows={g.developer} render={renderRow} defaultOpen={false} />
+      <Group title="买家" rows={g.buyer} render={renderRow} defaultOpen={false}
+        hint="买家本来就免费,不订阅是设计如此" />
+      <Group title="没选角色" rows={g.unset} render={renderRow} defaultOpen={false}
+        hint="登录了没选角色 —— 试用接口会 403 挡回,得先把他们推回选择页" />
 
-      {/* 未订阅账户(次要:注册了但没订阅,含待审批) */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-600">未订阅账户 ({notSubscribed.length})</h3>
-          <span className="text-xs text-slate-400">注册了但还没付费 —— 待审批的可一键批准</span>
-        </div>
-        {notSubscribed.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-slate-400">
-            {kw || filter !== 'all' ? '没有符合条件的账户。' : '没有未订阅账户。'}
-          </p>
-        ) : (
-          <div className="divide-y divide-slate-50">{notSubscribed.map(renderRow)}</div>
-        )}
-      </div>
+      {hits.length === 0 && (
+        <p className="rounded-2xl bg-white px-4 py-6 text-xs text-slate-400 shadow-sm ring-1 ring-slate-900/[0.06]">
+          没有符合条件的账户。
+        </p>
+      )}
 
       <UploadPermissions />
       <PlanChangeLog />

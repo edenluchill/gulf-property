@@ -526,11 +526,16 @@ export interface Subscriber {
   agent_id: string
   email: string | null
   display_name: string | null
+  /**
+   * 用户**真选的**角色:agent / agency / developer / buyer / 'unset'(从没选过)。
+   * ⚠️ 不是 lt_agents.role —— 那一列的默认值就是 'agent',而每次登录都会插一行,
+   *    于是买家和没选角色的人也全被标成「经纪人」(2026-07-28 修)。
+   */
   role: string | null
   agent_since: string
   plan_id: string | null
   plan_name: string | null
-  status: string                 // active / trialing / none
+  status: string                 // active / trialing / past_due / unpaid / incomplete / none
   paid: boolean                  // 真付费 vs 手动赠送
   approval_status: string | null // pending/approved/rejected/null
   current_period_end: string | null
@@ -541,6 +546,10 @@ export interface Subscriber {
   // 后台一次性赠送(每人只能一次):谁发的、什么时候发的。非 null = 名额已用掉。
   trial_granted_at: string | null
   trial_granted_by: string | null
+  /** 以前开过试用(不管现在还生效没)——「从没试用」和「试用过期」是两种人。 */
+  trial_ever: boolean
+  /** 最近一次调 API 的时间,null = 从没用过。 */
+  last_seen: string | null
 }
 export interface SubscriptionSummary {
   total_accounts: number
@@ -549,6 +558,13 @@ export interface SubscriptionSummary {
   trialing: number
   comp: number
   pending_approval: number
+  /** 扣款失败的现有客户(past_due/unpaid/incomplete)——该催换卡,不是当新注册 */
+  payment_failed: number
+  agents_total: number
+  agents_never_trialed: number
+  agents_trial_expired: number
+  role_unset: number
+  buyers: number
 }
 export const fetchSubscribers = () =>
   authedGet<{ subscribers: Subscriber[]; summary: SubscriptionSummary }>(`/subscribers`)

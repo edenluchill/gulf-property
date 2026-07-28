@@ -157,10 +157,11 @@ router.get('/collab/:code', wrap(async (req) => {
 }))
 
 // ── 订阅客户(B 端:谁订阅了我们)+ 功能记录 ─────────────────
-router.get('/subscribers', wrap(async () => ({
-  subscribers: await getSubscribers(),
-  summary: await getSubscriptionSummary(),
-})))
+router.get('/subscribers', wrap(async () => {
+  // 一次查询喂两份结果 —— summary 是从同一批行算出来的,别让它自己再查一遍。
+  const subscribers = await getSubscribers()
+  return { subscribers, summary: await getSubscriptionSummary(subscribers) }
+}))
 
 router.get('/feature-log/tours', wrap((req) => getTourScripts(Math.min(300, Number(req.query.limit) || 100))))
 router.get('/feature-log/sales-offers', wrap((req) => getSalesOffers(Math.min(300, Number(req.query.limit) || 100))))

@@ -17,6 +17,15 @@ export interface Subscriber {
   agent_id: string
   email: string | null
   display_name: string | null
+  /**
+   * 🔴 **用户真选的角色(user_profiles.role),不是 lt_agents.role。**
+   *
+   * `lt_agents.role` 的列默认值就是 `'agent'`,而 `ensureAgent()` 在**每次登录**时
+   * 都会给任何登录用户插一行 —— 于是买家、开发商、连角色都没选过的人,在后台
+   * 一律被标成「经纪人」。2026-07-28 实测:36 个「未订阅经纪」里,9 个其实是买家、
+   * 3 个是开发商、10 个从没选过角色 —— 真正没订阅的经纪只有 14 个。
+   * owner 据此得出的「这么多经纪注册了不试用」是个假象。
+   */
   role: string | null
   agent_since: string
   plan_id: string | null
@@ -32,6 +41,15 @@ export interface Subscriber {
   // 后台一次性授予(每人只能一次)。非 null = 已用掉那次名额,不能再授予。
   trial_granted_at: string | null
   trial_granted_by: string | null
+  /**
+   * 以前**开过**试用(不管现在还生效没)。
+   * 「从没试用」和「试用过期了」是两种完全不同的人:前者是激活问题(他连试都没试),
+   * 后者是留存问题(他试了,没留下)。以前后台把两拨人塞进同一个「未订阅账户」列表,
+   * 一个标签盖住了两个截然不同的结论。
+   */
+  trial_ever: boolean
+  /** 最近一次调 API 的时间 —— 判断这个账号是不是还活着。 */
+  last_seen: string | null
 }
 
 /**
@@ -68,7 +86,9 @@ export async function getSubscribers(): Promise<Subscriber[]> {
         a.id                                   AS agent_id,
         a.email,
         a.display_name,
-        a.role,
+        -- 真实角色以 user_profiles 为准(见 Subscriber.role 的注释);
+        -- 没有 user_profiles 记录 = 登录了但从没选过角色,单独标出来,别混进「经纪」。
+        COALESCE(up.role, 'unset')             AS role,
         a.created_at                           AS agent_since,
         s.plan_id,
         p.name                                 AS plan_name,
@@ -94,10 +114,30 @@ export async function getSubscribers(): Promise<Subscriber[]> {
              ELSE COALESCE(u.credits_used, 0)
         END AS credits_used,
         a.trial_granted_at,
-        a.trial_granted_by
+        a.trial_granted_by,
+        EXISTS (SELECT 1 FROM lt_subscriptions ts
+                 WHERE ts.agent_id = a.id AND ts.source = 'free_trial') AS trial_ever,
+        ac.last_seen
        FROM lt_agents a
+       LEFT JOIN user_profiles up ON lower(up.email) = lower(a.email)
+       -- 最近活跃:**一次预聚合**,不要写成每行一个相关子查询。
+       -- idx_api_calls_email 建在 user_email 原值上,一旦谓词写成 lower(user_email)=…
+       -- 索引直接失效 → 80 个账号 = 80 次全表扫,实测整个接口 4.1s。
+       -- 先 GROUP BY 出一张小表再 join:同样的结果,一次扫描。
+       LEFT JOIN (
+         SELECT lower(user_email) AS em, max(created_at) AS last_seen
+           FROM api_calls WHERE user_email IS NOT NULL GROUP BY 1
+       ) ac ON ac.em = lower(a.email)
+       -- 🔴 past_due 必须算「有订阅」。
+       -- 以前只 JOIN active/trialing —— 于是**卡扣失败的付费客户**掉进「未订阅账户」,
+       -- 和从没付过钱的人排在一起,后台给他的唯一操作是「赠 Pro 30 天」。
+       -- 2026-07-28 实测:全站唯一一个外部真付费客户(slavynchuk94)正好就是 past_due,
+       -- 而后台把他显示成「注册了还没付费」。该做的是催他换卡,不是送他 30 天。
+       -- unpaid / incomplete 同理:都是钱出了问题的现有客户,不是新注册。
+       -- ⚠️ 这段在模板字符串里,注释**绝不能带反引号**(会直接把模板字面量截断)。
        LEFT JOIN lt_subscriptions s
-         ON s.agent_id = a.id AND s.status IN ('active','trialing')
+         ON s.agent_id = a.id
+        AND s.status IN ('active','trialing','past_due','unpaid','incomplete')
        LEFT JOIN lt_subscription_plans p ON p.id = s.plan_id
        LEFT JOIN agents ag ON lower(ag.email) = lower(a.email)
        LEFT JOIN lt_usage_counters u
@@ -132,17 +172,29 @@ export async function getSubscribers(): Promise<Subscriber[]> {
     is_internal: isOwnerEmail(r.email),
     trial_granted_at: r.trial_granted_at,
     trial_granted_by: r.trial_granted_by,
+    trial_ever: !!r.trial_ever,
+    last_seen: r.last_seen,
   }))
 }
 
 /** Headline subscription counters for the 概览 / 订阅 tab. */
-export async function getSubscriptionSummary() {
-  const subs = await getSubscribers()
+/**
+ * @param pre 已经取好的账户列表 —— 路由里 subscribers 和 summary 是一起返回的,
+ *   不传的话这里会**把那条不便宜的查询原样再跑一遍**(实测各 1.5s,白等一倍)。
+ */
+export async function getSubscriptionSummary(pre?: Subscriber[]) {
+  const subs = pre ?? await getSubscribers()
   const real = subs.filter((s) => s.status !== 'none')
   const paid = real.filter((s) => s.paid && !s.is_internal)
   const trialing = real.filter((s) => s.status === 'trialing')
-  const comp = real.filter((s) => !s.paid && !s.is_internal) // 手动赠送
-  // MRR 预估:真付费 active 订阅的套餐月价(从 plans 表口径,粗略)。
+  // 手动赠送 = 有订阅、非真付费,且不是扣款失败的(那是付费客户,别混进赠送数)
+  const comp = real.filter((s) => !s.paid && !s.is_internal && s.status === 'active')
+  /**
+   * 「注册了没试用」的真实分母 —— **只数真经纪**。
+   * 买家不订阅是设计如此(他们就是免费那一侧),开发商另有口径,没选过角色的连
+   * 试用入口都摸不到。把他们算进「未转化的经纪」只会得出一个虚高的坏消息。
+   */
+  const agents = subs.filter((s) => s.role === 'agent' && !s.is_internal)
   return {
     total_accounts: subs.length,
     subscribed: real.length,
@@ -150,6 +202,15 @@ export async function getSubscriptionSummary() {
     trialing: trialing.length,
     comp: comp.length,
     pending_approval: subs.filter((s) => s.approval_status === 'pending').length,
+    // 钱出了问题的现有客户 —— 该催换卡,不是当新注册对待
+    payment_failed: real.filter((s) => ['past_due', 'unpaid', 'incomplete'].includes(s.status)).length,
+    // 真经纪里:从没开过试用 vs 试用过但现在没订阅(激活问题 vs 留存问题)
+    agents_total: agents.length,
+    agents_never_trialed: agents.filter((s) => !s.trial_ever && s.status === 'none').length,
+    agents_trial_expired: agents.filter((s) => s.trial_ever && s.status === 'none').length,
+    // 登录了但从没选过角色 —— 他们连试用接口都会被 403(not_agent)挡回
+    role_unset: subs.filter((s) => s.role === 'unset').length,
+    buyers: subs.filter((s) => s.role === 'buyer').length,
   }
 }
 
