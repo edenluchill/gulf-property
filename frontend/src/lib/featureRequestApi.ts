@@ -66,6 +66,14 @@ export async function fetchFeatureRequests(): Promise<FeatureRequest[]> {
   return (json.requests || []) as FeatureRequest[]
 }
 
+/** 单条(每条建议有自己的页面 /requests/:id)。不存在返回 null,由页面显示「找不到」。 */
+export async function fetchFeatureRequest(id: number): Promise<FeatureRequest | null> {
+  const t = await token()
+  const res = await fetch(`${BASE}/${id}`, t ? { headers: { Authorization: `Bearer ${t}` } } : undefined)
+  if (!res.ok) return null
+  return (await res.json()).request as FeatureRequest
+}
+
 export async function submitFeatureRequest(title: string, body: string): Promise<FeatureRequest> {
   const res = await authed('', { title, body })
   if (!res.ok) await readError(res)

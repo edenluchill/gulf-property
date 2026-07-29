@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import {
   Lightbulb, Loader2, Check, Send, ChevronUp, MessageSquare,
   Search as SearchIcon, ChevronDown, X,
@@ -169,12 +170,14 @@ export function ComposeModal({ onClose, onCreated }: {
 // 一条建议：票数 / 状态 / 角色 / 楼层 / admin 内联操作
 // ════════════════════════════════════════════════════════════════════════════
 
-export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpen }: {
+export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpen, linkTitle }: {
   r: FeatureRequest; user: boolean; isAdmin: boolean
   onPatch: (r: FeatureRequest) => void
   onNeedLogin: () => void
-  /** 从 /requests?r=<id> 进来时，直接把这条的楼层展开 */
+  /** 楼层默认展开（详情页点进来就是来看讨论的） */
   defaultOpen?: boolean
+  /** 标题是否渲染成跳详情页的链接（列表 true；详情页自己就是那一页，false） */
+  linkTitle?: boolean
 }) {
   const { t, locale } = useT()
   const [open, setOpen] = useState(!!defaultOpen)
@@ -240,7 +243,16 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
             </span>
           </div>
 
-          <p className="mt-1.5 text-[15px] font-medium leading-snug text-slate-800">{r.title}</p>
+          {/* 标题是**链接** —— 每条建议有自己的页面(可分享的固定地址)。
+              详情页复用这张卡,所以那边不再套一层链接(套了就是点自己)。 */}
+          {linkTitle ? (
+            <Link to={`/requests/${r.id}`}
+              className="mt-1.5 block text-[15px] font-medium leading-snug text-slate-800 transition hover:text-teal-700">
+              {r.title}
+            </Link>
+          ) : (
+            <h1 className="mt-1.5 text-[17px] font-semibold leading-snug text-slate-900">{r.title}</h1>
+          )}
           {r.body && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-500">{r.body}</p>}
 
           {r.reply && (
@@ -412,7 +424,7 @@ export function RequestsBoard({ list, setList, onCompose, focusId }: {
         ) : (
           <ul className="space-y-3">
             {shown.map((r) => (
-              <RequestCard key={r.id} r={r} user={!!user} isAdmin={!!isAdmin}
+              <RequestCard key={r.id} r={r} user={!!user} isAdmin={!!isAdmin} linkTitle
                 onPatch={patch} onNeedLogin={onCompose} defaultOpen={focusId === r.id} />
             ))}
           </ul>

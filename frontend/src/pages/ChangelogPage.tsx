@@ -224,7 +224,7 @@ function HeroRequests({ list }: { list: FeatureRequest[] | null }) {
                 const st = STATUS[r.status] || STATUS.open
                 return (
                   <li key={r.id}>
-                    <Link to={`/requests?r=${r.id}`}
+                    <Link to={`/requests/${r.id}`}
                       className="flex w-full items-start gap-2.5 rounded-xl p-2 text-start transition hover:bg-white/[0.06]">
                       <span className="flex h-9 w-8 shrink-0 flex-col items-center justify-center rounded-lg bg-white/[0.06] text-white/70">
                         <ChevronUp className="h-3 w-3" />

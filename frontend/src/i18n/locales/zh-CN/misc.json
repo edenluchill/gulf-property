@@ -406,6 +406,11 @@
     "seeAll": "看全部 {{n}} 条",
     "heroEmpty": "你想让 Pinzos 加点什么？",
     "heroEmptyCta": "写第一条",
-    "heroEmptyTitle": "还没有人提过建议"
+    "heroEmptyTitle": "还没有人提过建议",
+    "notFound": "找不到这条建议",
+    "notFoundSub": "它可能已经被删除，或者链接不对。",
+    "backToAll": "返回全部建议",
+    "share": "复制链接",
+    "copied": "已复制"
   }
 }

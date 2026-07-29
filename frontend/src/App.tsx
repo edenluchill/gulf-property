@@ -34,6 +34,7 @@ import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —�
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import ChangelogPage from './pages/ChangelogPage'
 import RequestsPage from './pages/RequestsPage'
+import RequestDetailPage from './pages/RequestDetailPage'
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import RoleSelectPage from './pages/RoleSelectPage'  // 四角色选择页(/choose-role)
@@ -168,6 +169,8 @@ function App() {
         {/* 功能建议板 —— **独立一页**:浏览/发帖/点赞/跟帖。
             日记页只在 hero 放一张入口卡,不在页尾再挂一份列表。 */}
         <Route path="/requests" element={<RequestsPage />} />
+        {/* 每条建议自己的页面(可分享的固定链接) */}
+        <Route path="/requests/:id" element={<RequestDetailPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />

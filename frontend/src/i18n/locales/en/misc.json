@@ -406,6 +406,11 @@
     "seeAll": "See all {{n}}",
     "heroEmpty": "What should Pinzos add?",
     "heroEmptyCta": "Write the first one",
-    "heroEmptyTitle": "No requests yet"
+    "heroEmptyTitle": "No requests yet",
+    "notFound": "Request not found",
+    "notFoundSub": "It may have been removed, or the link is wrong.",
+    "backToAll": "Back to all requests",
+    "share": "Copy link",
+    "copied": "Copied"
   }
 }
