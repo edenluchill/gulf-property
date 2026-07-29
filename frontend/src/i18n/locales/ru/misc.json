@@ -416,7 +416,8 @@
     "audienceAll": "Всем",
     "audienceHint": "Кому показывать: всем / только агентам",
     "viewShared": "Видят клиенты",
-    "viewAll": "Всё"
+    "viewAll": "Всё",
+    "titleShort": "Дневник"
   },
   "mapSearch": {
     "placeholder": "Поиск района или проекта",
@@ -429,5 +430,6 @@
     "noResults": "Ничего не найдено по «{{q}}». Попробуйте название района, например Dubai Marina.",
     "recent": "Недавние",
     "clearRecent": "Очистить"
-  }
+  },
+  "metricWindowNote": "Все показатели считаются за это окно."
 }

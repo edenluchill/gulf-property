@@ -61,6 +61,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-29',
+    kind: 'fix',
+    zh: '手机上几处挡住东西的地方:选时间范围的面板会压住左边的筛选栏,里面的说明也太长;顶部「产品日记」按钮在窄屏上会盖住站名。都收拾干净了。',
+    en: 'Cleaned up a few things that got in the way on phones: the time-range panel used to sit on top of the filter bar and carried a wall of explanation, and the "Product diary" button covered the site name on narrow screens.',
+    fr: "Quelques gênes corrigées sur mobile : le panneau de période recouvrait la barre de filtres et affichait un pavé d'explications, et le bouton « Journal de bord » masquait le nom du site sur écran étroit.",
+    ru: 'Убрали несколько помех на телефонах: панель выбора периода перекрывала панель фильтров и была перегружена пояснениями, а кнопка «Дневник продукта» закрывала название сайта на узких экранах.',
+    ar: 'عالجنا بعض ما كان يعترض الطريق على الهواتف: لوحة المدة الزمنية كانت تغطّي شريط الفلاتر وتحمل شرحًا مطوّلًا، وزر «يوميات المنتج» كان يحجب اسم الموقع على الشاشات الضيقة.',
+  },
+  {
+    date: '2026-07-29',
     kind: 'improve',
     zh: '地图上的搜索框重做了:打一个区域名就直接带你过去,现在也能搜楼盘和开发商。名字记不全也没关系 —— "sports city"、"Jumeirah Lake Towers"、"Emaar Beachfront" 这种写法以前搜不到,现在都能找到。还会记住你最近去过的地方,下次点一下就回去。',
     en: 'Rebuilt the search box on the map: type an area and it takes you straight there. It now finds projects and developers too. You no longer need the exact spelling — "sports city", "Jumeirah Lake Towers" or "Emaar Beachfront" used to return nothing and now land on the right place. It also remembers where you went last, so those places are one tap away.',

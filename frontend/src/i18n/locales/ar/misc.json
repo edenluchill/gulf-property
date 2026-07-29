@@ -416,7 +416,8 @@
     "audienceAll": "للجميع",
     "audienceHint": "من يرى هذا: الجميع / الوسطاء فقط",
     "viewShared": "يراها العملاء",
-    "viewAll": "الكل"
+    "viewAll": "الكل",
+    "titleShort": "اليوميات"
   },
   "mapSearch": {
     "placeholder": "ابحث عن منطقة أو مشروع",
@@ -428,5 +429,6 @@
     "noResults": "لا توجد نتائج لـ «{{q}}». جرّب اسم منطقة مثل Dubai Marina.",
     "recent": "الأخيرة",
     "clearRecent": "مسح"
-  }
+  },
+  "metricWindowNote": "تُحتسب كل المؤشرات على هذه المدة."
 }

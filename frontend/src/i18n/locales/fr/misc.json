@@ -416,7 +416,8 @@
     "audienceAll": "Tout le monde",
     "audienceHint": "Basculer la visibilité : tout le monde / agents seulement",
     "viewShared": "Côté client",
-    "viewAll": "Tout"
+    "viewAll": "Tout",
+    "titleShort": "Journal"
   },
   "mapSearch": {
     "placeholder": "Rechercher un quartier ou un projet",
@@ -428,5 +429,6 @@
     "noResults": "Aucun résultat pour « {{q}} ». Essayez un quartier comme Dubai Marina.",
     "recent": "Récents",
     "clearRecent": "Effacer"
-  }
+  },
+  "metricWindowNote": "Toutes les données utilisent cette fenêtre."
 }

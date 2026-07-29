@@ -2192,7 +2192,15 @@ export default function MapPage() {
           {/* 卡片宽度锁死(w-[184px]/md w-[212px]):以前是内容撑宽,切到英文所有文案变长
               → 卡跟着变宽、口径 tab 还折行,整块 UI 抖一下且很难看(2026-07-11 用户反馈)。
               现在 5 个图标按钮的行决定了宽度,文字一律 nowrap + 截断,中英文一样宽。 */}
-          <div data-testid="map-mobile-controls" className="absolute top-2 end-2 z-[1000] w-[148px] md:w-[212px]">
+          {/* 点空白关掉周期 popover。放在卡**外面**当兄弟节点:卡内部有 backdrop-blur,
+              而 backdrop-filter 会给 fixed 后代造一个新的包含块,盖不满全屏
+              (同 [[fixed-modal-portal-backdrop-filter]] 那条坑)。 */}
+          {showPeriodPop && metricHasPeriod && (
+            <div className="fixed inset-0 z-[1002]" onClick={() => setShowPeriodPop(false)} />
+          )}
+          {/* 周期 popover 挂在这张卡**内部**(见下方),开着时整张卡要抬到工具卡之上,
+              否则下面那张 z-[1000] 的工具卡会盖住浮层。 */}
+          <div data-testid="map-mobile-controls" className={`absolute top-2 end-2 ${showPeriodPop && metricHasPeriod ? 'z-[1003]' : 'z-[1000]'} w-[148px] md:w-[212px]`}>
             <div className="flex flex-col gap-1 rounded-2xl bg-white/95 p-1 md:p-1.5 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
               {/* 市场口径行（全部/期房/现房）——与桌面右上口径筛选同源 state。
                   三等分 + 不折行:英文 "Off-plan" 比中文长得多,不锁死就会换行。 */}
@@ -2299,15 +2307,17 @@ export default function MapPage() {
                 )
               })()}
             </div>
-          </div>
 
-          {/* 指标时间范围 popover —— 从控制卡底部「<指标>·近1年 ▾」标签点开。
-              浮层在控制卡左侧空白处,不改任何卡片高度(不触发工具卡 top 铁律)。 */}
-          {showPeriodPop && metricHasPeriod && (
-            <>
-              <div className="fixed inset-0 z-[1000]" onClick={() => setShowPeriodPop(false)} />
-              <div className="absolute top-2 end-[164px] md:end-[224px] z-[1001] w-[200px] rounded-2xl bg-white/95 p-3 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            {/* 指标时间范围 popover —— 从卡底部「<指标>·近1年 ▾」那颗标签点开。
+                🔴 **挂在卡内部、`top-full end-0` 贴着卡的下沿右对齐。**
+                旧版是卡外的一个兄弟节点,写死 `top-2 end-[164px] w-[200px]`
+                —— 在 367px 手机上算下来左边缘落到 x=3px,**正好压在左侧筛选栏上**
+                (owner 2026-07-29 截图)。而且那串偏移量和卡宽是手算的耦合,卡一改就错。
+                `top-full` 让它自动贴着卡的下沿,卡长高长矮都不用重算;`end-0` 右对齐,
+                宽度再大也只往左长,离左侧筛选栏还有 ~65px。 */}
+            {showPeriodPop && metricHasPeriod && (
+              <div className="absolute end-0 top-full mt-1.5 w-[228px] md:w-[240px] rounded-2xl bg-white/95 p-2.5 shadow-xl ring-1 ring-slate-900/[0.06] backdrop-blur-sm">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   {t('misc:metricTimeRange')}
                 </div>
                 <PeriodSelector
@@ -2315,12 +2325,15 @@ export default function MapPage() {
                   onChange={changeApprPeriod}
                   zh={(i18n.language || 'en').startsWith('zh')}
                 />
-                <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] leading-snug text-slate-400">
-                  {t('misc:allMetricsRecomputeOver')}
+                {/* 一句话就够 —— 原来这里是一整段带括号公式的说明
+                    (volume=count, price/yield=window median…),在手机上占了 5 行,
+                    比选择器本身还高。那是文档级细节,不是选周期时要读的东西。 */}
+                <div className="mt-2 border-t border-slate-100 pt-1.5 text-[10px] leading-snug text-slate-400">
+                  {t('misc:metricWindowNote')}
                 </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
 
           {/* Area fly-to removed — now controlled by AI voice assistant */}
           {/* (原桌面 xl 展开长条 metric/POI 面板已删——全断点统一上面的紧凑卡) */}

@@ -416,7 +416,8 @@
     "audienceAll": "所有人可见",
     "audienceHint": "切换这条给谁看：所有人 / 只给经纪侧",
     "viewShared": "客户也看得到",
-    "viewAll": "全部"
+    "viewAll": "全部",
+    "titleShort": "日记"
   },
   "mapSearch": {
     "placeholder": "搜索区域或楼盘",
@@ -427,5 +428,6 @@
     "noResults": "没有匹配「{{q}}」的结果。试试区域名,比如 Dubai Marina。",
     "recent": "最近搜过",
     "clearRecent": "清空"
-  }
+  },
+  "metricWindowNote": "所有指标都按这个时间窗口重算。"
 }

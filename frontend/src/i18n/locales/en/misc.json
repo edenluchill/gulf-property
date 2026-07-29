@@ -416,7 +416,8 @@
     "audienceAll": "Everyone",
     "audienceHint": "Toggle who sees this: everyone / agents only",
     "viewShared": "Client-facing",
-    "viewAll": "Everything"
+    "viewAll": "Everything",
+    "titleShort": "Diary"
   },
   "mapSearch": {
     "placeholder": "Search an area or project",
@@ -428,5 +429,6 @@
     "noResults": "Nothing matches “{{q}}”. Try an area name like Dubai Marina.",
     "recent": "Recent",
     "clearRecent": "Clear"
-  }
+  },
+  "metricWindowNote": "All metrics use this window."
 }

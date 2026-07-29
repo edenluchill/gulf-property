@@ -19,7 +19,11 @@ export function PeriodSelector({
   const isShort = SHORT_PERIODS.includes(value)
   return (
     <div className={className}>
-      <div className="flex flex-wrap gap-1.5">
+      {/* 5 档等分一行,不再 flex-wrap。
+          wrap 的问题是 3M/6M 带 ⓘ 比别的宽,在窄容器里排成 3+2 且右边空一块,
+          看着像没排完(owner 2026-07-29 手机截图)。等分网格宽度恒定、永远一行,
+          中英文和 ⓘ 都不影响布局。 */}
+      <div className="grid grid-cols-5 gap-1">
         {PERIOD_KEYS.map((k) => {
           const active = k === value
           return (
@@ -28,23 +32,27 @@ export function PeriodSelector({
               type="button"
               onClick={() => onChange(k)}
               aria-pressed={active}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition active:scale-90 ${
+              className={`flex min-w-0 items-center justify-center gap-px rounded-full px-1 py-1 text-xs font-semibold transition active:scale-90 ${
                 active
                   ? 'bg-violet-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               }`}
             >
               {periodLabel(k, zh)}
-              {SHORT_PERIODS.includes(k) && <span className="ms-0.5 opacity-70">ⓘ</span>}
+              {SHORT_PERIODS.includes(k) && <span className="text-[9px] opacity-70">ⓘ</span>}
             </button>
           )
         })}
       </div>
+      {/* 短周期的告警:**一行说完**。
+          原文是两句带实现细节的长句(「已按滚动窗口平滑,样本不足会显示「—」」),
+          在 367px 手机上占 4–5 行,比选择器本身还高(owner 2026-07-29:「这个 popup
+          太多字了 手机版一点都不好看」)。要保住的判断只有一个:**这个数字别当准数用**。
+          「样本不足显示 —」那句删了 —— 地图上直接就是灰的,看到了自然会问,
+          而在这里预先解释一个还没发生的现象是把说明书塞进决策路径。 */}
       {isShort && (
         <div className="mt-1.5 text-[11px] leading-snug text-amber-600">
-          {zh
-            ? '短周期区域样本薄、中位价波动大，仅供参考；已按滚动窗口平滑，样本不足会显示「—」'
-            : 'Short windows have thin samples and volatile medians — indicative only; smoothed by rolling window, insufficient samples show “—”.'}
+          {zh ? '短周期样本薄、波动大,仅供参考' : 'Short window — thin samples, indicative only.'}
         </div>
       )}
     </div>

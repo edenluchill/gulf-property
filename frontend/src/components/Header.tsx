@@ -296,10 +296,15 @@ export default function Header() {
 function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
   const { t } = useTranslation(['misc'])
   const label = t('misc:changelog.title')
+  // 窄屏用短名(「Diary」/「日记」)—— 全名 "Product diary" / "Дневник продукта"
+  // 在 367px 上把 logo 和站点副标题挤到换行、直接盖住(owner 2026-07-29 截图)。
+  // 不是缩字号能解决的:法/俄文全名更长,只能换个更短的词。
+  const labelShort = t('misc:changelog.titleShort')
   return (
     <Link
       to="/changelog"
       title={label}
+      aria-label={label}
       className={`relative flex items-center gap-1 rounded-xl px-2 py-1.5 text-[12px] font-medium ring-1 transition ${
         unseen
           ? 'text-teal-700 ring-teal-200 hover:bg-teal-50'
@@ -309,7 +314,8 @@ function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
       }`}
     >
       <NotebookPen className="h-3.5 w-3.5 shrink-0" />
-      <span className="whitespace-nowrap">{label}</span>
+      <span className="whitespace-nowrap sm:hidden">{labelShort}</span>
+      <span className="hidden whitespace-nowrap sm:inline">{label}</span>
       {unseen && (
         <span data-nav-dot="changelog"
           className={`absolute -end-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ${dark ? 'ring-slate-900' : 'ring-white'}`} aria-hidden />
