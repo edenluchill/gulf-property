@@ -11,6 +11,13 @@ const BASE = `${import.meta.env.VITE_API_URL || ''}/api/feature-requests`
 
 export type RequestStatus = 'open' | 'planned' | 'shipped' | 'declined'
 
+/**
+ * 这条建议给谁看:'all' 所有人 / 'agent' 只给经纪侧。
+ * **列表由服务端按登录身份过滤**——买家拉到的数组里根本不会有 agent 的条目,
+ * 前端不用也不该再过滤一遍(两处判据早晚会分叉)。
+ */
+export type RequestAudience = 'all' | 'agent'
+
 export interface FeatureRequest {
   id: number
   created_at: string
@@ -19,6 +26,7 @@ export interface FeatureRequest {
   status: RequestStatus
   reply: string | null
   role: string | null
+  audience: RequestAudience
   votes: number
   comments: number
   voted: boolean
@@ -98,9 +106,9 @@ export async function postReply(id: number, body: string): Promise<RequestCommen
   return (await res.json()).comment as RequestComment
 }
 
-/** owner 专用:改状态 / 写公开回复。非 owner 调用会 403。 */
+/** owner 专用:改状态 / 写公开回复 / 纠正受众。非 owner 调用会 403。 */
 export async function updateRequest(
-  id: number, patch: { status?: RequestStatus; reply?: string },
+  id: number, patch: { status?: RequestStatus; reply?: string; audience?: RequestAudience },
 ): Promise<FeatureRequest> {
   const res = await authed(`/${id}`, patch, 'PATCH')
   if (!res.ok) await readError(res)

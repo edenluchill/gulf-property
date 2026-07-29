@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useUserProfile } from '../contexts/UserProfileContext'
 import { fetchMyRole, type UserRole } from '../lib/billingApi'
 
 const KEY = 'pinzos-role'
@@ -44,4 +45,21 @@ export function useMyRole(): UserRole | null {
   }, [user, loading])
 
   return role
+}
+
+/**
+ * 这个人是不是**经纪侧**的用户(经纪 / 经纪公司 / 开发商)。
+ *
+ * 判据有两条,缺一不可:
+ *   `profile.agent`   —— 已经建了经纪档案(有些老账号 user_profiles.role 是空的,
+ *                        但人家确确实实在用经纪台;只看 role 会把他们当买家)
+ *   `role`            —— 自己选的身份
+ *
+ * 这条规则原先在 Header / ProfileShell / UnitTypesSubPage 各抄了一遍。抄第四遍的时候
+ * 收口到这里 —— 它决定「谁能看到经纪侧的东西」,散在四处早晚会有一处漏改。
+ */
+export function useIsAgentSide(): boolean {
+  const { profile } = useUserProfile()
+  const role = useMyRole()
+  return !!profile?.agent || role === 'agent' || role === 'agency' || role === 'developer'
 }

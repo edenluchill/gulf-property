@@ -14,13 +14,13 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import {
   Lightbulb, Loader2, Check, Send, ChevronUp, MessageSquare,
-  Search as SearchIcon, ChevronDown, X,
+  Search as SearchIcon, ChevronDown, X, Briefcase,
 } from 'lucide-react'
 import { pickLang } from '../../data/changelog'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   fetchFeatureRequests, submitFeatureRequest, toggleVote, fetchThread, postReply, updateRequest,
-  type FeatureRequest, type RequestStatus, type RequestComment,
+  type FeatureRequest, type RequestStatus, type RequestComment, type RequestAudience,
 } from '../../lib/featureRequestApi'
 
 export const ACCENT = '#00E0B8'
@@ -219,6 +219,13 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
     try { onPatch(await updateRequest(r.id, { status })) } catch { /* 403 等 */ }
   }
 
+  // 受众是按提议人角色**推**出来的默认值,推错很正常(经纪提的「地图加个学校筛选」
+  // 买家也该看到)。给 admin 一个一下就能翻的开关,不然错了只能进数据库改。
+  const flipAudience = async () => {
+    const audience: RequestAudience = r.audience === 'agent' ? 'all' : 'agent'
+    try { onPatch(await updateRequest(r.id, { audience })) } catch { /* 403 等 */ }
+  }
+
   return (
     <li id={`r-${r.id}`} className="scroll-mt-24 rounded-2xl border border-slate-100 bg-white p-4 transition hover:border-slate-200 hover:shadow-[0_2px_16px_-6px_rgba(15,23,42,0.15)]">
       <div className="flex gap-3.5">
@@ -238,6 +245,14 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
               {t(s.key)}
             </span>
             <RoleTag role={r.role} />
+            {/* 「经纪专属」只有经纪看得到(买家的列表里根本没有这些条目)——
+                标出来是让他知道这条不会出现在客户那边,别拿去当共同话题。 */}
+            {r.audience === 'agent' && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-600 ring-1 ring-violet-100">
+                <Briefcase className="h-3 w-3" />
+                {t('misc:changelog.agentOnly')}
+              </span>
+            )}
             <span translate="no" className="text-[11px] tabular-nums text-slate-400">
               {new Date(r.created_at).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })}
             </span>
@@ -280,6 +295,14 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
                     {t(STATUS[st].key)}
                   </button>
                 ))}
+                <button type="button" onClick={flipAudience}
+                  title={t('misc:changelog.audienceHint')}
+                  className={`inline-flex min-h-[30px] items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium transition sm:min-h-0 sm:py-0.5 ${
+                    r.audience === 'agent' ? 'bg-violet-100 text-violet-700' : 'bg-slate-50 text-slate-400 ring-1 ring-slate-100 hover:bg-slate-100'
+                  }`}>
+                  <Briefcase className="h-3 w-3" />
+                  {t(r.audience === 'agent' ? 'misc:changelog.agentOnly' : 'misc:changelog.audienceAll')}
+                </button>
               </div>
             )}
           </div>

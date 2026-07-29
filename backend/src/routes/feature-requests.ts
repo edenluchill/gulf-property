@@ -28,6 +28,22 @@ const router = Router()
 const STATUSES = ['open', 'planned', 'shipped', 'declined'] as const
 type Status = (typeof STATUSES)[number]
 
+/**
+ * 受众 —— 这条建议该给谁看。
+ *   'all'    所有人(地图、成交数据、账号…买家也碰得到的东西)
+ *   'agent'  只给经纪侧(带看、报价单、楼书解析、CRM…)
+ *
+ * 默认按**提议人的角色**推:经纪提的建议九成在讲经纪侧的功能,买家读到只会觉得
+ * 这版块跟自己无关。推错了 owner 能在后台 PATCH 改 —— 所以这是个可覆盖的默认值。
+ *
+ * ⚠️ 这是**展示层**分流,不是权限:建议内容本来就是公开的,拿 id 直接访问
+ *    /requests/:id 一样看得到(下面单条接口有意不过滤 —— 别人把链接发给你,
+ *    点开却说"没有这条"比看到一条不相干的建议更糟)。
+ */
+const AUDIENCES = ['all', 'agent'] as const
+type Audience = (typeof AUDIENCES)[number]
+const AGENT_ROLES = new Set(['agent', 'agency', 'developer'])
+
 const TITLE_MAX = 120
 const BODY_MAX = 1000
 const REPLY_MAX = 800
@@ -55,6 +71,13 @@ async function roleOf(email: string): Promise<string | null> {
 }
 
 const isStaff = (email: string) => isOwnerEmail(email) || isAdminEmail(email)
+
+/** 看的人是不是经纪侧(经纪/经纪公司/开发商,或我们自己)。没登录 = 否。 */
+async function viewerIsAgentSide(email: string): Promise<boolean> {
+  if (!email) return false
+  if (isStaff(email)) return true
+  return AGENT_ROLES.has((await roleOf(email)) || '')
+}
 
 /** 有生效订阅(含试用中和扣款失败 —— 后者仍是付费客户,别顺手降级他)。 */
 async function isPaying(email: string): Promise<boolean> {
@@ -85,6 +108,7 @@ interface PublicRow {
   status: Status
   reply: string | null
   role: string | null
+  audience: Audience
   votes: number
   comments: number
   voted: boolean
@@ -100,6 +124,7 @@ function publicShape(r: Record<string, unknown>): PublicRow {
     status: (STATUSES as readonly string[]).includes(String(r.status)) ? (r.status as Status) : 'open',
     reply: (r.reply as string) ?? null,
     role: (r.role as string) ?? null,
+    audience: (AUDIENCES as readonly string[]).includes(String(r.audience)) ? (r.audience as Audience) : 'all',
     votes: Number(r.votes ?? 0),
     comments: Number(r.comments ?? 0),
     voted: !!r.voted,
@@ -134,8 +159,10 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200))
     const me = softEmail(req)
+    // 买家(和未登录访客)看不到经纪侧的建议 —— 那些诉求他既没法评判也用不上
+    const seesAgent = await viewerIsAgentSide(me)
     const { rows } = await pool.query(
-      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role,
+      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role, r.audience,
               COALESCE(v.n, 0)  AS votes,
               COALESCE(c.n, 0)  AS comments,
               ($2 <> '' AND mv.user_email IS NOT NULL) AS voted
@@ -146,12 +173,13 @@ router.get('/', async (req: Request, res: Response) => {
                 ON c.request_id = r.id
          LEFT JOIN feature_request_votes mv
                 ON mv.request_id = r.id AND mv.user_email = $2
+        WHERE ($3 OR r.audience = 'all')
         ORDER BY CASE r.status WHEN 'shipped' THEN 0 WHEN 'planned' THEN 1
                                WHEN 'open' THEN 2 ELSE 3 END,
                  COALESCE(v.n, 0) DESC,
                  r.created_at DESC
         LIMIT $1`,
-      [limit, me]
+      [limit, me, seesAgent]
     )
     res.json({ requests: rows.map(publicShape) })
   } catch (err) {
@@ -170,7 +198,9 @@ router.get('/:id(\\d+)', async (req: Request, res: Response) => {
   try {
     const me = softEmail(req)
     const { rows } = await pool.query(
-      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role,
+      // 单条**有意不按受众过滤**:别人把链接发给你,点开说「没有这条」比读到一条
+      // 不相干的建议糟得多。分流是为了不吵人,不是为了藏东西。
+      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role, r.audience,
               (SELECT count(*) FROM feature_request_votes v WHERE v.request_id = r.id)    AS votes,
               (SELECT count(*) FROM feature_request_comments c WHERE c.request_id = r.id) AS comments,
               ($2 <> '' AND EXISTS (SELECT 1 FROM feature_request_votes mv
@@ -221,11 +251,14 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     }
 
     const role = await roleOf(email)
+    // 受众默认跟提议人走(经纪提的 → 经纪侧)。owner 可以在后台 PATCH 改 ——
+    // 经纪提的「地图能不能按学校筛」其实买家也该看到,那种就手动放回 'all'。
+    const audience: Audience = AGENT_ROLES.has(role || '') ? 'agent' : 'all'
     const { rows } = await pool.query(
-      `INSERT INTO feature_requests (user_id, user_email, title, body, role)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING id, created_at, title, body, status, reply, role`,
-      [req.user?.id ?? null, email, title, body, role]
+      `INSERT INTO feature_requests (user_id, user_email, title, body, role, audience)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING id, created_at, title, body, status, reply, role, audience`,
+      [req.user?.id ?? null, email, title, body, role, audience]
     )
     res.status(201).json({ request: publicShape(rows[0]) })
   } catch (err) {
@@ -307,18 +340,24 @@ router.patch('/:id', requireOwner, async (req: Request, res: Response) => {
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad id' })
   const status = String(req.body?.status || '')
   const reply = req.body?.reply === undefined ? undefined : String(req.body.reply).trim().slice(0, BODY_MAX)
+  // 受众按角色推的默认值经常需要人来纠 —— 经纪提的「地图加个学校筛选」买家也该看到
+  const audience = String(req.body?.audience || '')
   if (status && !(STATUSES as readonly string[]).includes(status)) {
     return res.status(400).json({ error: 'bad status' })
+  }
+  if (audience && !(AUDIENCES as readonly string[]).includes(audience)) {
+    return res.status(400).json({ error: 'bad audience' })
   }
   try {
     const { rows } = await pool.query(
       `UPDATE feature_requests
-          SET status = COALESCE(NULLIF($2,''), status),
-              reply  = COALESCE($3, reply),
+          SET status   = COALESCE(NULLIF($2,''), status),
+              reply    = COALESCE($3, reply),
+              audience = COALESCE(NULLIF($4,''), audience),
               updated_at = now()
         WHERE id = $1
-      RETURNING id, created_at, title, body, status, reply, role`,
-      [id, status, reply ?? null]
+      RETURNING id, created_at, title, body, status, reply, role, audience`,
+      [id, status, reply ?? null, audience]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
     res.json({ request: publicShape(rows[0]) })

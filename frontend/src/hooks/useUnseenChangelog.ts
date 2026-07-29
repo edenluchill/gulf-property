@@ -7,11 +7,18 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { CHANGELOG } from '../data/changelog'
+import { useIsAgentSide } from './useMyRole'
 
 const KEY = 'pz-changelog-seen'
 
-/** 最新一条更新的日期(YYYY-MM-DD);清单为空时返回 null。 */
-export const latestChangelogDate = (): string | null => CHANGELOG[0]?.date ?? null
+/**
+ * **这个人看得到的**最新一条更新的日期(YYYY-MM-DD);没有可见条目时返回 null。
+ *
+ * 必须按受众取,不能无脑取 CHANGELOG[0]:某天只发了经纪侧的更新时,买家会被点亮一颗
+ * 红点、点进去发现什么新东西都没有 —— 一次这样的空跑就够让人以后不再理这颗点了。
+ */
+export const latestChangelogDate = (isAgentSide: boolean): string | null =>
+  CHANGELOG.find((e) => isAgentSide || e.audience !== 'agent')?.date ?? null
 
 /**
  * 规则只有一条:**没读过最新那条就亮,读过就熄。**
@@ -30,10 +37,11 @@ export const latestChangelogDate = (): string | null => CHANGELOG[0]?.date ?? nu
  * 看到半年的更新记录,反而是「这产品活着」的正面信号。简单到不可能错 > 聪明但会错。
  */
 export function useUnseenChangelog(): { unseen: boolean; markSeen: () => void } {
+  const isAgentSide = useIsAgentSide()
   const [unseen, setUnseen] = useState(false)
 
   useEffect(() => {
-    const latest = latestChangelogDate()
+    const latest = latestChangelogDate(isAgentSide)
     if (!latest) return
     try {
       const seen = localStorage.getItem(KEY)
@@ -41,14 +49,16 @@ export function useUnseenChangelog(): { unseen: boolean; markSeen: () => void } 
     } catch {
       /* 隐私模式:当作已看过,宁可不提示也别一直亮 */
     }
-  }, [])
+  }, [isAgentSide])
 
+  // 记的是**自己这一侧**的最新日期。经纪看完再切成买家不会倒亮回来(日期只会更大),
+  // 买家看完之后升级成经纪则可能重新亮起 —— 那是对的:他确实多了一批没看过的更新。
   const markSeen = useCallback(() => {
-    const latest = latestChangelogDate()
+    const latest = latestChangelogDate(isAgentSide)
     if (!latest) return
     try { localStorage.setItem(KEY, latest) } catch { /* 隐私模式 */ }
     setUnseen(false)
-  }, [])
+  }, [isAgentSide])
 
   return { unseen, markSeen }
 }

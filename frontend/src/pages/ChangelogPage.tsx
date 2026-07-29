@@ -23,9 +23,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, ChevronUp } from 'lucide-react'
+import { Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, ChevronUp, Briefcase } from 'lucide-react'
 import { CHANGELOG, type ChangeKind } from '../data/changelog'
 import { useUnseenChangelog } from '../hooks/useUnseenChangelog'
+import { useIsAgentSide } from '../hooks/useMyRole'
 // 建议是**独立一页**（/requests）；这里只留一张 hero 入口卡，共用同一套标签定义
 import { STATUS, ROLE, useT, ACCENT as REQ_ACCENT } from '../components/requests/shared'
 import { fetchFeatureRequests, type FeatureRequest } from '../lib/featureRequestApi'
@@ -278,9 +279,25 @@ export default function ChangelogPage() {
   const [requests, setRequests] = useState<FeatureRequest[] | null>(null)
   useEffect(() => { fetchFeatureRequests().then(setRequests) }, [])
 
+  /**
+   * 🔴 **买家看不到经纪侧的更新。**
+   *
+   * 买家不会用报价单、不会开实时带看、更不会传楼书 —— 给他看「带看工具条重做了」
+   * 只是在告诉他「这页有一多半不是给你的」。经纪反过来要看**全部**:他得知道
+   * 客户那边的地图/数据改了什么,否则客户问起来他答不上。
+   *
+   * ⚠️ 这是**展示层**的分流,不是权限 —— 数据本来就是公开的静态文案,没有秘密。
+   *    所以未登录访客按买家处理(最小惊讶),不做任何提示。
+   */
+  const isAgentSide = useIsAgentSide()
+  const visible = useMemo(
+    () => CHANGELOG.filter((e) => isAgentSide || e.audience !== 'agent'),
+    [isAgentSide],
+  )
+
   const months = useMemo(() => {
     const out: { key: string; label: string; items: typeof CHANGELOG }[] = []
-    for (const e of CHANGELOG) {
+    for (const e of visible) {
       const key = e.date.slice(0, 7)
       const last = out[out.length - 1]
       if (last && last.key === key) last.items.push(e)
@@ -294,7 +311,7 @@ export default function ChangelogPage() {
       }
     }
     return out
-  }, [locale])
+  }, [locale, visible])
 
   const [active, setActive] = useState<string>(months[0]?.key || '')
   const contentRef = useRef<HTMLDivElement>(null)
@@ -332,7 +349,9 @@ export default function ChangelogPage() {
   //    留一个跳不到任何区块的目录项只会点了没反应。
   const navItems = months.map((m) => ({ key: m.key, label: m.label, count: m.items.length as number | null }))
   const jump = (key: string) => document.querySelector(`[data-sec="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  const kindCount = (k: ChangeKind) => CHANGELOG.filter((e) => e.kind === k).length
+  // ⚠️ 统计要数 `visible` 而不是 CHANGELOG —— 买家看到「54 条更新」却只列出 31 条,
+  //    等于当着他的面少给了 23 条,比不分流还糟。屏幕上有几条,数字就写几条。
+  const kindCount = (k: ChangeKind) => visible.filter((e) => e.kind === k).length
 
   return (
     <div className="flex-1 overflow-y-auto bg-white text-slate-700">
@@ -359,7 +378,7 @@ export default function ChangelogPage() {
             {/* 只陈述事实:最近一次更新是什么时候。不写「我们每周都在改」那种自夸。 */}
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-mono text-[11px] tracking-wide" style={{ color: ACCENT }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: ACCENT }} />
-              <span>{t('misc:changelog.lastUpdate')} <span translate="no">{fmtDate(CHANGELOG[0]?.date || '')}</span></span>
+              <span>{t('misc:changelog.lastUpdate')} <span translate="no">{fmtDate(visible[0]?.date || '')}</span></span>
             </span>
 
             <h1 className="mt-5 text-4xl font-bold leading-[1.1] md:text-5xl">{title}</h1>
@@ -371,7 +390,7 @@ export default function ChangelogPage() {
           <Reveal delay={0.08}>
             <div className="mt-8 flex flex-wrap gap-2.5">
               {[
-                { n: CHANGELOG.length, l: t('misc:changelog.statUpdates'), c: '#fff' },
+                { n: visible.length, l: t('misc:changelog.statUpdates'), c: '#fff' },
                 { n: kindCount('new'), l: t('misc:changelog.statNew'), c: ACCENT },
                 { n: kindCount('improve'), l: t('misc:changelog.statImproved'), c: '#7DD3FC' },
                 { n: kindCount('fix'), l: t('misc:changelog.statFixed'), c: '#FCD34D' },
@@ -505,6 +524,14 @@ export default function ChangelogPage() {
                               </span>
                               {/* translate="no":浏览器翻译会把日期搅烂(「1月13日」→「1 month 13 months」) */}
                               <time translate="no" dateTime={e.date} className="text-[11px] tabular-nums text-slate-400">{fmtDate(e.date)}</time>
+                              {/* 只有经纪看得到这一条 —— 顺手告诉他「这条你的客户看不到」,
+                                  免得他截图发给客户,对方打开一脸茫然。 */}
+                              {e.audience === 'agent' && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-600 ring-1 ring-violet-100">
+                                  <Briefcase className="h-3 w-3" />
+                                  {t('misc:changelog.agentOnly')}
+                                </span>
+                              )}
                             </div>
                             <p className="mt-2 text-[15px] leading-relaxed text-slate-700">{e[lang]}</p>
                           </div>

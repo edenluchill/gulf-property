@@ -411,6 +411,9 @@
     "notFoundSub": "它可能已经被删除，或者链接不对。",
     "backToAll": "返回全部建议",
     "share": "复制链接",
-    "copied": "已复制"
+    "copied": "已复制",
+    "agentOnly": "经纪专属",
+    "audienceAll": "所有人可见",
+    "audienceHint": "切换这条给谁看：所有人 / 只给经纪侧"
   }
 }

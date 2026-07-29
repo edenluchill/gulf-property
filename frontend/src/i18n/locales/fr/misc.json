@@ -411,6 +411,9 @@
     "notFoundSub": "Elle a peut-être été supprimée, ou le lien est incorrect.",
     "backToAll": "Retour à toutes les demandes",
     "share": "Copier le lien",
-    "copied": "Copié"
+    "copied": "Copié",
+    "agentOnly": "Agents seulement",
+    "audienceAll": "Tout le monde",
+    "audienceHint": "Basculer la visibilité : tout le monde / agents seulement"
   }
 }

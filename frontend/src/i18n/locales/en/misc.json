@@ -411,6 +411,9 @@
     "notFoundSub": "It may have been removed, or the link is wrong.",
     "backToAll": "Back to all requests",
     "share": "Copy link",
-    "copied": "Copied"
+    "copied": "Copied",
+    "agentOnly": "Agents only",
+    "audienceAll": "Everyone",
+    "audienceHint": "Toggle who sees this: everyone / agents only"
   }
 }

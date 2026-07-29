@@ -21,11 +21,23 @@
  */
 
 export type ChangeKind = 'new' | 'improve' | 'fix'
+
+/**
+ * 这条更新是给谁看的。
+ *   （省略）  所有人 —— 买家、经纪都会碰到的东西（地图、成交数据、账号…）
+ *   'agent'  只有经纪/经纪公司/开发商用得到（带看、报价单、楼书解析、CRM…）
+ *
+ * 买家看到「实时带看的工具条重做了」只会觉得吵 —— 那是他碰不到的东西。
+ * 判据只有一个：**一个纯买家账号能不能碰到这个改动?** 碰不到就是 'agent'。
+ */
+export type ChangeAudience = 'agent'
 export type ChangeLang = 'zh' | 'en' | 'fr' | 'ru' | 'ar'
 
 export interface ChangeEntry {
   date: string          // YYYY-MM-DD
   kind: ChangeKind
+  /** 省略 = 所有人可见；'agent' = 只给经纪侧看（见 ChangeAudience） */
+  audience?: ChangeAudience
   zh: string
   en: string
   fr: string
@@ -59,6 +71,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-28',
     kind: 'improve',
+    audience: 'agent',
     zh: '实时带看的底部工具条重做：画笔、语音、分享链接和搜索不再互相遮挡，手机上尤其明显。',
     en: 'Rebuilt the live-tour toolbar: the pen, voice, share link and search no longer overlap each other — a big difference on phones.',
     fr: "Barre d’outils de la visite en direct refaite : le stylo, la voix, le lien de partage et la recherche ne se chevauchent plus — nette différence sur mobile.",
@@ -86,6 +99,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-27',
     kind: 'improve',
+    audience: 'agent',
     zh: '带看结束后的意向报告改为提前生成，打开时几乎立刻出来（原先要等 6–8 秒）。',
     en: 'The post-tour interest report is now prepared as soon as the session ends, so it opens almost instantly instead of taking 6–8 seconds.',
     fr: "Le rapport d’intention après visite est préparé dès la fin de la session : il s’ouvre presque instantanément au lieu de prendre 6 à 8 secondes.",
@@ -104,6 +118,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-26',
     kind: 'fix',
+    audience: 'agent',
     zh: '实时带看中拒绝了麦克风权限后，整场语音都连不上；现在会自动降级为「只听」，随时可以重新开麦。',
     en: 'Declining the microphone prompt used to break voice for the whole live tour. It now falls back to listen-only, and you can enable your mic again at any time.',
     fr: "Refuser l’accès au micro coupait la voix pour toute la visite. On bascule maintenant en mode écoute seule, et vous pouvez réactiver le micro à tout moment.",
@@ -113,6 +128,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-26',
     kind: 'fix',
+    audience: 'agent',
     zh: '晚进房的客户有时听不到语音、看不到摄像头，已修。',
     en: 'Clients who joined a live tour late sometimes could not hear audio or see the camera. Fixed.',
     fr: "Les clients arrivés en retard n’entendaient parfois pas le son ni ne voyaient la caméra. Corrigé.",
@@ -122,6 +138,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-25',
     kind: 'new',
+    audience: 'agent',
     zh: '实时带看新增语音通话入口：客户可以主动呼叫经纪，并能看到当前是谁在说话。',
     en: 'Live tours got a proper voice-call entry point: clients can call the agent themselves, and everyone can see who is currently speaking.',
     fr: "Les visites en direct ont un vrai point d’entrée pour l’appel vocal : le client peut appeler l’agent lui-même, et chacun voit qui parle.",
@@ -131,6 +148,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-25',
     kind: 'new',
+    audience: 'agent',
     zh: '经纪台的「实时带看」页可以直接查看每一场的历史记录和客户意向报告。',
     en: 'The Live Tours tab in the agent console now lists every past session with its client-interest report.',
     fr: "L’onglet Visites en direct de la console agent liste chaque session passée avec son rapport d’intention client.",
@@ -140,6 +158,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-24",
     kind: "new",
+    audience: 'agent',
     zh: "实时带看的标记工具升级：箭头、文字、图钉、圈选，圈一块地就能出该区域的行情数据。",
     en: "Live-tour markup got arrows, text labels, pins and lasso — circle any patch of land and that area’s market data appears.",
     fr: "Les annotations en visite gagnent flèches, texte, épingles et lasso — encerclez une parcelle et les données de marché du secteur apparaissent.",
@@ -149,6 +168,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-22",
     kind: "improve",
+    audience: 'agent',
     zh: "实时带看改成「一场一码」：经纪一结束，旧链接立刻失效，上一位客户拿不到下一场。",
     en: "Every live tour now gets its own one-time link. The moment the agent ends the session the link dies, so a previous client can never wander into the next tour.",
     fr: "Chaque visite en direct a désormais son lien à usage unique. Dès que l’agent termine, le lien expire : un ancien client ne peut plus tomber sur la visite suivante.",
@@ -158,6 +178,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-20",
     kind: "new",
+    audience: 'agent',
     zh: "客户进入实时带看前会先填个称呼（联系方式选填），带看结束的意向报告能对上人。",
     en: "Clients now enter a name (contact details optional) before joining a live tour, so the post-tour interest report is tied to a real person.",
     fr: "Les clients saisissent un nom (coordonnées facultatives) avant de rejoindre une visite, pour que le rapport d’intention corresponde à une vraie personne.",
@@ -176,6 +197,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-14",
     kind: "new",
+    audience: 'agent',
     zh: "经纪会员欢迎卡：可验证的数字凭证，扫码即可查真伪。",
     en: "Agent welcome cards: a verifiable digital credential with a QR code anyone can scan to check it is genuine.",
     fr: "Cartes de membre agent : un justificatif numérique vérifiable, avec un QR code que chacun peut scanner pour en confirmer l’authenticité.",
@@ -185,6 +207,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-12",
     kind: "new",
+    audience: 'agent',
     zh: "经纪台新增逐笔积分流水和使用记录，每一分积分花在哪都看得见。",
     en: "The agent console now shows a line-by-line credit ledger and usage history — you can see exactly where every credit went.",
     fr: "La console agent affiche le détail des crédits ligne par ligne et l’historique d’utilisation : vous voyez exactement où chaque crédit est passé.",
@@ -194,6 +217,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-10",
     kind: "improve",
+    audience: 'agent',
     zh: "专业版降价至 $49/月，年付送两个月。",
     en: "Pro dropped to $49/month, with two months free on annual billing.",
     fr: "Pro passe à 49 $/mois, avec deux mois offerts en facturation annuelle.",
@@ -221,6 +245,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-07",
     kind: "new",
+    audience: 'agent',
     zh: "经纪报价单（Sales Offer）：选户型、填实际报价、一键转发给客户，60 天有效。",
     en: "Sales Offers: pick a unit, enter your real quote, and send a link to the client. Valid for 60 days.",
     fr: "Offres de vente : choisissez un lot, saisissez votre prix réel et envoyez un lien au client. Valable 60 jours.",
@@ -230,6 +255,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-07-06",
     kind: "new",
+    audience: 'agent',
     zh: "付款计划改版：选户型 → 填报价 → 一键转发客户，附交互式时间线图表。",
     en: "Reworked payment plans: choose a unit, enter the price, share a link — with an interactive payment timeline chart.",
     fr: "Plans de paiement revus : choisissez un lot, saisissez le prix, partagez un lien — avec un graphique d’échéancier interactif.",
@@ -320,6 +346,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-25",
     kind: "new",
+    audience: 'agent',
     zh: "经纪可生成带自己品牌的项目报告和客户投资建议书，一条链接发给客户。",
     en: "Agents can now generate branded project reports and full client investment proposals, shareable as a single link.",
     fr: "Les agents génèrent des rapports projet à leur marque et de véritables dossiers d’investissement client, partageables en un lien.",
@@ -329,6 +356,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-25",
     kind: "new",
+    audience: 'agent',
     zh: "客户 CRM：建立客户档案，再直接从档案生成报告或导览。",
     en: "Client CRM: create a client profile, then generate a report or a tour straight from it.",
     fr: "CRM client : créez un profil client, puis générez un rapport ou une visite directement depuis celui-ci.",
@@ -356,6 +384,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-21",
     kind: "new",
+    audience: 'agent',
     zh: "实时带看上线：经纪和海外客户看同一张地图，镜头同步，可语音通话。",
     en: "Live tours launched: the agent and an overseas client share one map with synced camera movement and in-app voice.",
     fr: "Lancement des visites en direct : l’agent et un client à l’étranger partagent une même carte, avec caméra synchronisée et voix intégrée.",
@@ -401,6 +430,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-16",
     kind: "fix",
+    audience: 'agent',
     zh: "迪拜本地上传大文件经常中断，改成浏览器直传，几百 MB 的楼书也稳了。",
     en: "Large uploads used to drop on Dubai connections. Files now upload straight from the browser, so 500 MB brochures go through reliably.",
     fr: "Les gros fichiers échouaient souvent depuis Dubaï. Ils sont désormais envoyés directement depuis le navigateur : les brochures de 500 Mo passent sans problème.",
@@ -410,6 +440,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-12",
     kind: "new",
+    audience: 'agent',
     zh: "AI 楼书解析：上传开发商 PDF，自动抽出户型、价格、付款计划和效果图。",
     en: "AI brochure parsing: upload a developer PDF and units, prices, payment plans and renderings are extracted automatically.",
     fr: "Analyse de brochures par IA : déposez le PDF d’un promoteur, les lots, prix, plans de paiement et rendus sont extraits automatiquement.",
@@ -437,6 +468,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-06",
     kind: "new",
+    audience: 'agent',
     zh: "Luna 导览可编辑：时间线编辑器、可调镜头、可加地标停留、可上传自己的实拍素材。",
     en: "Luna tours became editable — a timeline editor, adjustable camera moves, extra landmark stops and your own uploaded footage.",
     fr: "Les visites Luna deviennent modifiables : éditeur de scénario, mouvements de caméra réglables, arrêts sur des lieux et vos propres vidéos.",
@@ -446,6 +478,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-06",
     kind: "new",
+    audience: 'agent',
     zh: "每场导览都有一份可核对的「事实清单」页，客户能自己验证数据来源。",
     en: "Every tour now has a verifiable fact sheet page so clients can check where each number came from.",
     fr: "Chaque visite dispose d’une fiche de faits vérifiable : le client peut contrôler l’origine de chaque chiffre.",
@@ -455,6 +488,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-06-02",
     kind: "new",
+    audience: 'agent',
     zh: "Luna 导览加入 AI 配音解说，镜头跟着旁白走。",
     en: "Luna tours gained AI voice narration, with the camera choreographed to the script.",
     fr: "Les visites Luna gagnent une narration vocale par IA, avec une caméra chorégraphiée sur le texte.",
@@ -464,6 +498,7 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     date: "2026-05-31",
     kind: "new",
+    audience: 'agent',
     zh: "Luna 导览上线：在真实地图上跑的电影级看房导览。",
     en: "Luna Tours launched — cinematic property tours that run on the real map.",
     fr: "Lancement des visites Luna — des visites cinématiques qui se déroulent sur la vraie carte.",
