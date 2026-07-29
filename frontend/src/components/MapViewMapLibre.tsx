@@ -39,6 +39,29 @@ import { createMapTourHandle, type MapTourHandle } from '../luna-tour/map/mapTou
 // Re-export so existing importers (MapPage) keep working unchanged.
 export type { AreaMetric } from '../lib/map/metrics'
 
+/**
+ * 相机飞行的**唯一速度口径**。
+ *
+ * 🔴 **用 speed,永远不要写死 duration**(owner 2026-07-29:「飞的太快了」
+ * 「而且无论飞去哪个地方,速度应该都是一样的」)。
+ *
+ * 写死 `duration: 2000` 的意思是「不管多远都用 2 秒走完」—— 隔壁区慢慢爬、
+ * 横穿迪拜一路窜。**距离一变速度就变**,而人眼判断快慢看的是速度,不是总时长。
+ * `speed` 是「每秒飞过几屏」(MapLibre 按对数缩放口径算路径长度),近的自然短、
+ * 远的自然长,观感恒定。实测 0.6 下同为 z13 的四段(0.6/2.5/17/21 km)每屏用时
+ * 1840–1951ms,差 1.06×;横穿迪拜约 3.0s,隔壁区约 0.15s。
+ *
+ * `curve` 是中途把镜头拉多高。拉得越高路径越长、飞得越久 —— 旧值 1.8/2.0 是为了
+ * 「更有电影感」,但配上恒定速度就只剩「更慢」,收回到接近默认的 1.42。
+ *
+ * 改这两个数之前先跑 `node scripts/_probe-fly-speed.mjs`(量各距离的每屏用时)。
+ */
+const FLY_SPEED = 0.6
+const FLY_CURVE = 1.42
+/** 3D 俯冲:略慢一点、拉得略高一点,但不再是另一套时长逻辑 */
+const FLY_SPEED_DIVE = 0.55
+const FLY_CURVE_DIVE = 1.5
+
 // CARTO 无标签风格：选中指标时用，画热力图干净不被街道名干扰
 const MAP_STYLE_CLEAN = 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json'
 // CARTO 带标签风格：未选指标时用，显示街道/地名等细节方便探索
@@ -570,11 +593,14 @@ function MapViewMapLibre({
     if (!map) return
 
     if (flyToLocation.bounds) {
-      // fitBounds for multi-point results
+      // fitBounds for multi-point results。FitBoundsOptions 继承 FlyToOptions,
+      // 且默认 linear:false → 内部就是 flyTo,所以 speed/curve 照样生效,
+      // 和下面单点那条保持同一个速度口径。
       map.fitBounds(flyToLocation.bounds, {
         padding: { top: 80, bottom: 120, left: 40, right: 80 },
         maxZoom: 13,
-        duration: 2000
+        speed: FLY_SPEED,
+        curve: FLY_CURVE,
       })
     } else {
       // 3D 开启时来一段带俯角的电影俯冲;平视时维持原行为
@@ -583,8 +609,8 @@ function MapViewMapLibre({
         center: [flyToLocation.lng, flyToLocation.lat],
         zoom: flyToLocation.zoom ?? 11,
         pitch: dive ? CINEMATIC_PITCH : 0,
-        duration: dive ? 2400 : 2000,
-        curve: dive ? 2.0 : 1.8,
+        speed: dive ? FLY_SPEED_DIVE : FLY_SPEED,
+        curve: dive ? FLY_CURVE_DIVE : FLY_CURVE,
         essential: true
       })
     }
