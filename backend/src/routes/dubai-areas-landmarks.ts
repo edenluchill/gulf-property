@@ -5,6 +5,10 @@ import { requireAuth } from '../middleware/auth';
 import { cachedRender, acceptsGzip, invalidate } from '../services/microCache';
 import { seal } from '../services/seal';
 import { parseSegment } from '../lib/marketSegment';
+import {
+  rankAreas, rankProjects, mergeSuggestions,
+  type AreaCandidateRow, type ProjectCandidateRow,
+} from '../services/map-search';
 
 const router = Router();
 
@@ -27,7 +31,7 @@ const AREA_COORD_DIGITS = Number(process.env.AREA_COORD_DIGITS) || 5;
 // the response finishes, so the editor's post-save refetch always sees fresh data.
 router.use((req, res, next) => {
   if (req.method !== 'GET') {
-    res.on('finish', () => { invalidate('render:areas'); invalidate('render:landmarks'); });
+    res.on('finish', () => { invalidate('render:areas'); invalidate('render:landmarks'); clearSuggestCorpus(); });
   }
   next();
 });
@@ -154,58 +158,121 @@ router.get('/areas', async (req: Request, res: Response) => {
   }
 });
 
+// ─── 地图搜索框 ────────────────────────────────────────────────────────────
+//
+// 「打一个区域名,直接把你带过去」。排序/别名/模糊在 services/map-search.ts,
+// 这里只负责取语料 + 缓存 + 拼响应。
+//
+// ⚠️ 这条路径**不计地图额度**(mapMeter 的 UNMETERED 白名单)。输入辅助不是
+// 数据消费 —— 以前它被计量,买家还没看到任何数据就能被自己的打字烧光额度,
+// 然后 429 被前端静默吞成空数组 = 搜索框看起来「什么都搜不到」。
+//
+// 语料 232 个区 + 全部在售楼盘,总共几百行,整份进内存排序。SQL 那边只做
+// 「取全量」这一件事,所以可以放心缓存 5 分钟,不再每敲一个字打一次 DB。
+let suggestCorpus: { areas: AreaCandidateRow[]; projects: ProjectCandidateRow[]; at: number } | null = null;
+let suggestInflight: Promise<{ areas: AreaCandidateRow[]; projects: ProjectCandidateRow[] }> | null = null;
+
+async function getSuggestCorpus() {
+  if (suggestCorpus && Date.now() - suggestCorpus.at < AREAS_TTL_MS) return suggestCorpus;
+  // single-flight:冷启动时一群人同时打字不该变成一群 DB 查询
+  if (!suggestInflight) {
+    suggestInflight = (async () => {
+      const [areaRes, projRes] = await Promise.all([
+        pool.query(`
+          SELECT
+            da.id::text AS id,
+            da.name,
+            da.name_ar,
+            da.translations,
+            ST_Y(ST_Centroid(da.boundary::geometry)) AS lat,
+            ST_X(ST_Centroid(da.boundary::geometry)) AS lng,
+            m.transaction_count,
+            m.avg_price_sqm,
+            COALESCE(p.cnt, 0)::int AS project_count
+          FROM dubai_areas da
+          LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
+          LEFT JOIN (
+            SELECT LOWER(TRIM(area)) AS area_key, COUNT(*) AS cnt
+              FROM residential_projects
+             WHERE area IS NOT NULL
+             GROUP BY 1
+          ) p ON p.area_key = LOWER(TRIM(da.name))
+          WHERE da.visible = true
+        `),
+        pool.query(`
+          SELECT id::text AS id, project_name, developer, area, latitude, longitude, min_price
+            FROM residential_projects
+        `),
+      ]);
+
+      const areas: AreaCandidateRow[] = areaRes.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        name_ar: row.name_ar,
+        lat: row.lat != null ? parseFloat(row.lat) : null,
+        lng: row.lng != null ? parseFloat(row.lng) : null,
+        transaction_count: row.transaction_count != null ? parseInt(row.transaction_count) : null,
+        avg_price_sqm: row.avg_price_sqm != null ? parseFloat(row.avg_price_sqm) : null,
+        project_count: row.project_count ?? 0,
+        // translations = { zh: { name, description }, ru: {...} } —— 译名也要能搜到,
+        // 俄语/中文用户按母语里记住的名字打字很正常。
+        alt_names: Object.values(row.translations || {})
+          .map((tr: any) => (tr && typeof tr.name === 'string' ? tr.name : ''))
+          .filter(Boolean),
+      }));
+
+      const projects: ProjectCandidateRow[] = projRes.rows.map((row) => ({
+        id: row.id,
+        project_name: row.project_name,
+        developer: row.developer,
+        area: row.area,
+        latitude: row.latitude != null ? Number(row.latitude) : null,
+        longitude: row.longitude != null ? Number(row.longitude) : null,
+        min_price: row.min_price != null ? parseFloat(row.min_price) : null,
+      }));
+
+      return { areas, projects };
+    })().finally(() => { suggestInflight = null; });
+  }
+  const loaded = await suggestInflight;
+  suggestCorpus = { ...loaded, at: Date.now() };
+  return suggestCorpus;
+}
+
+/** 编辑器保存 / 楼盘变更后强制重载(测试也用) */
+export function clearSuggestCorpus(): void { suggestCorpus = null; }
+
+async function handleSuggest(req: Request, res: Response) {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+
+    const limit = Math.min(12, Math.max(4, parseInt(String(req.query.limit || '10'), 10) || 10));
+    const { areas, projects } = await getSuggestCorpus();
+    // 各自多取一些再合并,免得配额让位时没货可让
+    const merged = mergeSuggestions(
+      rankAreas(areas, q, limit),
+      rankProjects(projects, q, limit),
+      limit
+    );
+    res.json(merged);
+  } catch (error) {
+    console.error('Error searching Dubai map:', error);
+    res.status(500).json({ error: 'Failed to search' });
+  }
+}
+
+/**
+ * GET /api/dubai/search?q=&limit=
+ * 统一搜索:区域 + 在售楼盘,每条带 kind 和落点坐标(前端直接 flyTo)。
+ */
+router.get('/search', handleSuggest);
+
 /**
  * GET /api/dubai/areas/search
- * Search areas by name for navigation feature
- * Returns areas with centroid for map fly-to
+ * 旧路径 —— 老前端还在用(用户浏览器里可能缓存着旧 bundle),行为与 /search 一致。
  */
-router.get('/areas/search', async (req: Request, res: Response) => {
-  try {
-    const { q } = req.query;
-
-    if (!q || typeof q !== 'string' || q.length < 2) {
-      return res.json([]);
-    }
-
-    const searchTerm = `%${q.toLowerCase()}%`;
-
-    const result = await pool.query(`
-      SELECT
-        da.id,
-        da.name,
-        da.name_ar,
-        ST_X(ST_Centroid(da.boundary::geometry)) as lng,
-        ST_Y(ST_Centroid(da.boundary::geometry)) as lat,
-        m.transaction_count,
-        m.avg_price_sqm
-      FROM dubai_areas da
-      LEFT JOIN get_dubai_area_metrics() m ON m.id = da.id
-      WHERE da.visible = true
-        AND (LOWER(da.name) LIKE $1 OR LOWER(da.name_ar) LIKE $1)
-      ORDER BY
-        CASE WHEN LOWER(da.name) LIKE $2 THEN 0 ELSE 1 END,
-        m.transaction_count DESC NULLS LAST
-      LIMIT 10
-    `, [searchTerm, `${q.toLowerCase()}%`]);
-
-    const areas = result.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      nameAr: row.name_ar,
-      centroid: {
-        lat: parseFloat(row.lat),
-        lng: parseFloat(row.lng),
-      },
-      transactionCount: row.transaction_count ? parseInt(row.transaction_count) : null,
-      avgPriceSqm: row.avg_price_sqm ? parseFloat(row.avg_price_sqm) : null,
-    }));
-
-    res.json(areas);
-  } catch (error) {
-    console.error('Error searching Dubai areas:', error);
-    res.status(500).json({ error: 'Failed to search Dubai areas' });
-  }
-});
+router.get('/areas/search', handleSuggest);
 
 /**
  * GET /api/dubai/landmarks

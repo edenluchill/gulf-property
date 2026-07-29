@@ -417,5 +417,13 @@
     "audienceHint": "切换这条给谁看：所有人 / 只给经纪侧",
     "viewShared": "客户也看得到",
     "viewAll": "全部"
+  },
+  "mapSearch": {
+    "placeholder": "搜索区域或楼盘",
+    "hint": "输入区域名 —— 直接带你过去",
+    "kindArea": "区域",
+    "kindProject": "楼盘",
+    "projectsInArea_other": "平台上有 {{count}} 个在售楼盘",
+    "noResults": "没有匹配「{{q}}」的结果。试试区域名,比如 Dubai Marina。"
   }
 }

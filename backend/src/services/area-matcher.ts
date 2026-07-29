@@ -82,7 +82,7 @@ export function tokenize(raw: string): string[] {
  * 能靠 Levenshtein 解决的(Harbor→Harbour、Hartland→Heartland)不要写进来,
  * 写进来就得永久维护。
  */
-const ALIASES: Record<string, string> = {
+export const ALIASES: Record<string, string> = {
   'dubai hills estate': 'dubai hills',
   'tecom': 'barsha heights',
   'the oasis': 'the oasis by emaar',
@@ -106,7 +106,7 @@ const ALIASES: Record<string, string> = {
  * 明显不是可售住宅区的条目 —— 命中这些要打折,别让它们赢。
  * 例:查 "downtown" 时 "downtown&local area 外国人无法买卖" 不该跟 "Downtown Dubai" 抢。
  */
-const JUNK_MARKERS = ['vacant', 'labor camp', 'desert area', 'local villa residential area']
+export const JUNK_MARKERS = ['vacant', 'labor camp', 'desert area', 'local villa residential area']
 
 // ── 编辑距离 ────────────────────────────────────────────────────────────────
 

@@ -31,7 +31,7 @@ import { useCollabMapState, type CollabMapState } from '../luna-tour/collab/useC
 import { useAuth } from '../contexts/AuthContext'
 import { API_BASE_URL } from '../lib/config'
 import MapFilterChips from '../components/MapFilterChips'
-import AreaSearch from '../components/AreaSearch'
+import MapSearch from '../components/MapSearch'
 import FilterDialog from '../components/FilterDialog'
 import AreaDetailDialog, { type AreaTab } from '../components/AreaDetailDialog'
 import GuidedTour from '../components/GuidedTour'
@@ -74,7 +74,8 @@ import {
   fetchAreaMonthly,
   AllAreaAppreciation,
   TransportGeoJSON,
-  MapPinProject
+  MapPinProject,
+  MapSuggestion
 } from '../lib/api'
 
 // Ray-casting point-in-ring (ring = array of [lng,lat]). Handles the single-ring
@@ -1699,6 +1700,31 @@ export default function MapPage() {
   }, [isMobile, mapPins])
 
 
+  /**
+   * 搜索框选中一条 —— 「打一个区域名,直接把你带过去」。
+   *
+   * 以前这里只有一句 setFlyToLocation:地图静静飞过去,不高亮、不开弹窗,
+   * 没有任何「到了」的反馈。付费经纪 slavynchuk94@ 2026-07-29 的原话是
+   * "Would be great if we can type an area and it straight away brings you there" ——
+   * 他要的不是镜头位移,是**落地**。所以现在选中就等价于在地图上点了那个区 /
+   * 那个楼盘:飞过去 + 打开详情。
+   */
+  const handleSearchSelect = useCallback((s: MapSuggestion) => {
+    trackEvent('search', { kind: `map_${s.kind}`, query: s.name.trim() })
+    if (s.centroid) {
+      setFlyToLocation({ lat: s.centroid.lat, lng: s.centroid.lng, zoom: s.kind === 'area' ? 13 : 15 })
+    }
+    if (s.kind === 'area') {
+      const area = dubaiAreas.find(a => String(a.id) === String(s.id))
+      if (area) handleAreaClick(area)
+      return
+    }
+    // 楼盘:走和点图钉完全一样的路径(collab 时开就地抽屉并广播,平时跳详情页)
+    const pin = mapPins.find(p => String(p.id) === String(s.id))
+    if (pin) handleProjectClick(pin)
+    else navigate(`/project/${s.id}`)
+  }, [dubaiAreas, mapPins, handleAreaClick, handleProjectClick, navigate])
+
   // 深链：/?area=Business%20Bay 直接打开该区域的详情弹窗（可分享；也供自动化测试）
   const areaParam = searchParams.get('area')
   const areaParamOpenedRef = useRef<string | null>(null)
@@ -2095,11 +2121,7 @@ export default function MapPage() {
               飞出,地图中间不被压。md+ 保持搜索在上、chips 横排在下。 */}
           <div className="absolute top-3 start-2 md:top-4 md:start-4 z-[1002] flex flex-col items-start gap-2 xl:flex-row max-w-[calc(100vw-200px)] xl:max-w-none">
             <div className="hidden md:block">
-              <AreaSearch
-                onSelect={(a) => {
-                  if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
-                }}
-              />
+              <MapSearch onSelect={handleSearchSelect} />
             </div>
             <MapFilterChips
               filters={filters}
@@ -2110,8 +2132,9 @@ export default function MapPage() {
           </div>
 
           {/* 指北针(pad/桌面):维持原来的独立圆盘,不跟着手机版缩进筛选卡 —— 2026-07-11。
-              md 左上是搜索+筛选两行(~104px)→ top-[112px];xl 单行(~52px)→ top-[68px]。 */}
-          <div className="pointer-events-none absolute start-4 top-[112px] z-[1000] hidden md:block xl:top-[68px]">
+              md 左上是搜索+筛选两行(~108px)→ top-[116px];xl 单行(~56px)→ top-[72px]。
+              ⚠️ 搜索框长高/变矮就要同步挪这里(2026-07-29 搜索框字号 xs→sm,+4px)。 */}
+          <div className="pointer-events-none absolute start-4 top-[116px] z-[1000] hidden md:block xl:top-[72px]">
             <div className="pointer-events-auto">
               <MapCompassButton map={liveMap} variant="disc" />
             </div>
@@ -2135,12 +2158,9 @@ export default function MapPage() {
             <DockItem order={DOCK_ORDER.search} className="w-full md:hidden">
               <div style={{ marginBottom: keyboardInset }} className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
-                  <AreaSearch
+                  <MapSearch
                     autoFocus
-                    onSelect={(a) => {
-                      if (a.centroid) setFlyToLocation({ lat: a.centroid.lat, lng: a.centroid.lng, zoom: 13 })
-                      setSearchOpen(false)
-                    }}
+                    onSelect={(s) => { handleSearchSelect(s); setSearchOpen(false) }}
                   />
                 </div>
                 <button
@@ -2156,7 +2176,7 @@ export default function MapPage() {
             <DockBaseRowItem anchor="start" className="md:hidden">
               <button
                 onClick={() => setSearchOpen(true)}
-                aria-label={t('misc:searchArea')}
+                aria-label={t('misc:mapSearch.placeholder')}
                 className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/95 text-slate-600 shadow-lg ring-1 ring-slate-900/[0.06] backdrop-blur-sm transition-transform active:scale-90"
               >
                 <Search className="h-4 w-4" />

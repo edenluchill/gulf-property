@@ -123,28 +123,37 @@ export async function fetchDubaiAreas(usage?: string, segment?: string): Promise
 }
 
 /**
- * Search Dubai areas by name for map navigation
+ * 地图搜索框:区域 + 在售楼盘的统一候选。
+ * 后端 GET /api/dubai/search(排序/别名/模糊在 backend/src/services/map-search.ts)。
  */
-export interface AreaSearchResult {
+export interface MapSuggestion {
+  kind: 'area' | 'project';
   id: string;
   name: string;
   nameAr: string | null;
-  centroid: { lat: number; lng: number };
+  /** 楼盘:「开发商 · 区域」;区域为 null(前端用 projectCount 组装副标题) */
+  subtitle: string | null;
+  /** 地图落点。理论上都有,防御性留 null。 */
+  centroid: { lat: number; lng: number } | null;
   transactionCount: number | null;
   avgPriceSqm: number | null;
+  /** 区域:平台上该区的在售楼盘数 */
+  projectCount: number | null;
+  minPrice: number | null;
 }
 
-export async function searchDubaiAreas(query: string): Promise<AreaSearchResult[]> {
+export async function searchMap(query: string): Promise<MapSuggestion[]> {
   if (!query || query.length < 2) return [];
 
   try {
-    const response = await fetch(`${API_URL}/dubai/areas/search?q=${encodeURIComponent(query)}`);
-    // 非 200(如计量门 429)返回 {success:false,...} —— 直接当数组用会让下游 .map 崩掉整棵树
+    const response = await fetch(`${API_URL}/dubai/search?q=${encodeURIComponent(query)}`);
+    // 非 200 返回 {success:false,...} —— 直接当数组用会让下游 .map 崩掉整棵树。
+    // (这条路径已移出地图计量白名单,不会再被 429 静默打成空数组。)
     if (!response.ok) return [];
     const results = await response.json();
     return Array.isArray(results) ? results : [];
   } catch (error) {
-    console.error('Error searching Dubai areas:', error);
+    console.error('Error searching map:', error);
     return [];
   }
 }

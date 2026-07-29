@@ -417,5 +417,14 @@
     "audienceHint": "Basculer la visibilité : tout le monde / agents seulement",
     "viewShared": "Côté client",
     "viewAll": "Tout"
+  },
+  "mapSearch": {
+    "placeholder": "Rechercher un quartier ou un projet",
+    "hint": "Tapez un quartier — nous vous y emmenons directement",
+    "kindArea": "Quartier",
+    "kindProject": "Projet",
+    "projectsInArea_one": "{{count}} projet sur Pinzos",
+    "projectsInArea_other": "{{count}} projets sur Pinzos",
+    "noResults": "Aucun résultat pour « {{q}} ». Essayez un quartier comme Dubai Marina."
   }
 }

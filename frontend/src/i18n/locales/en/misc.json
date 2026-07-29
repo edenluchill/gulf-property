@@ -417,5 +417,14 @@
     "audienceHint": "Toggle who sees this: everyone / agents only",
     "viewShared": "Client-facing",
     "viewAll": "Everything"
+  },
+  "mapSearch": {
+    "placeholder": "Search an area or project",
+    "hint": "Type an area — we'll take you straight there",
+    "kindArea": "Area",
+    "kindProject": "Project",
+    "projectsInArea_one": "{{count}} project on Pinzos",
+    "projectsInArea_other": "{{count}} projects on Pinzos",
+    "noResults": "Nothing matches “{{q}}”. Try an area name like Dubai Marina."
   }
 }

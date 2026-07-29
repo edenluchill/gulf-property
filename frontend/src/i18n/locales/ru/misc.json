@@ -417,5 +417,15 @@
     "audienceHint": "Кому показывать: всем / только агентам",
     "viewShared": "Видят клиенты",
     "viewAll": "Всё"
+  },
+  "mapSearch": {
+    "placeholder": "Поиск района или проекта",
+    "hint": "Введите район — мы сразу перенесём вас туда",
+    "kindArea": "Район",
+    "kindProject": "Проект",
+    "projectsInArea_one": "{{count}} проект на Pinzos",
+    "projectsInArea_few": "{{count}} проекта на Pinzos",
+    "projectsInArea_many": "{{count}} проектов на Pinzos",
+    "noResults": "Ничего не найдено по «{{q}}». Попробуйте название района, например Dubai Marina."
   }
 }

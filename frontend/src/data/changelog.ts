@@ -61,6 +61,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-29',
+    kind: 'improve',
+    zh: '地图上的搜索框重做了:打一个区域名就直接带你过去,并当场打开这个区的行情;现在也能搜楼盘和开发商。名字记不全也没关系 —— "sports city"、"Jumeirah Lake Towers"、"Emaar Beachfront" 这种写法以前搜不到,现在都能找到。',
+    en: 'Rebuilt the search box on the map: type an area and it takes you straight there and opens that area\'s market data. It now finds projects and developers too. You no longer need the exact spelling — "sports city", "Jumeirah Lake Towers" or "Emaar Beachfront" used to return nothing and now land on the right place.',
+    fr: "Barre de recherche de la carte refaite : tapez un quartier et elle vous y emmène directement, en ouvrant ses données de marché. Elle trouve aussi les projets et les promoteurs. Plus besoin de l'orthographe exacte : « sports city », « Jumeirah Lake Towers » ou « Emaar Beachfront » ne donnaient rien et tombent désormais au bon endroit.",
+    ru: 'Поиск на карте переработан: введите район — и вы сразу окажетесь там, с открытой аналитикой по этому району. Теперь ищутся и проекты, и застройщики. Точное написание больше не нужно: «sports city», «Jumeirah Lake Towers» или «Emaar Beachfront» раньше не находились, а теперь ведут куда надо.',
+    ar: 'أُعيد بناء مربع البحث على الخريطة: اكتب اسم منطقة لينتقل بك إليها مباشرةً ويفتح بيانات سوقها. صار يبحث أيضًا في المشاريع والمطوّرين. ولم تعد بحاجة إلى الإملاء الدقيق — عبارات مثل «sports city» أو «Jumeirah Lake Towers» أو «Emaar Beachfront» لم تكن تُرجع شيئًا، وأصبحت الآن تصل إلى المكان الصحيح.',
+  },
+  {
+    date: '2026-07-29',
     kind: 'fix',
     zh: "修好了手机上导览底部被浏览器地址栏切掉的问题(房子的价格卡、字幕开关、音量按钮以前会被挡住);手机开场视野也抛高了,一开始就能看到整个迪拜",
     en: "Fixed the bottom of the tour being cut off on phones by the browser address bar — the price card, the captions toggle and the volume button used to be hidden. The opening shot on phones is also higher now, so you see the whole of Dubai from the start.",

@@ -280,6 +280,11 @@ const UNMETERED = [
   // 区域弹窗「在本区内搜楼盘/楼栋」的候选表:同样只有名字和条数,是输入辅助。
   // (下钻后的 /area-tx、/area-rentals 是真数据,照常计量。)
   '/area-places',
+  // 地图搜索框(/api/dubai/search,以及老前端还在打的 /api/dubai/areas/search)。
+  // 同样是输入辅助:只回名字 + 落点坐标 + 条数。**漏加过一次** —— 它挂在
+  // /api/dubai 前缀下被逐字计量,额度烧光后 429 被前端吞成空数组,表现为
+  // 「搜索框什么都搜不到」,而不是任何看得见的提示。
+  '/dubai/search', '/areas/search',
 ]
 
 /**
