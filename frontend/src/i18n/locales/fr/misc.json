@@ -402,6 +402,10 @@
     "emptyNone": "Aucune demande pour l’instant — soyez le premier.",
     "emptyFilter": "Aucun résultat pour ces filtres.",
     "newRequest": "Nouvelle demande",
-    "failed": "Envoi impossible"
+    "failed": "Envoi impossible",
+    "heroReqTitle": "Ce que les gens demandent",
+    "seeAll": "Voir les {{n}}",
+    "heroEmpty": "Personne n'a encore demandé — soyez le premier",
+    "heroEmptyCta": "Écrire la première"
   }
 }

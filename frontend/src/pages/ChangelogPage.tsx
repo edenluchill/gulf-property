@@ -1,8 +1,13 @@
 /**
  * /changelog —— 更新历史 + 功能建议（同一页）。
  *
- * 两件事放一页是有意的：上半页是「我们改了什么」，下半页是「你要我们改什么」。
+ * 两件事放一页是有意的：日记是「我们改了什么」，建议是「你要我们改什么」。
  * 分成两页就断了回路 —— 提建议的人看不到东西真的上线，提一次就不会再提。
+ *
+ * 🔴 但**建议不能只在页尾**：日记是我们想给的，建议是用户来这页要用的。
+ * 把用户要用的东西埋在 54 条日记底下，等于让他为了提一句话先读半年更新，
+ * 而且看不到别人提过没有 → 要么重复提，要么干脆不提。所以 hero 右侧常驻一张
+ * 「大家在提什么」（最热 4 条 + 票数 + 状态 + 提建议），完整列表仍在页尾。
  *
  * 视觉/交互决定（都来自 owner 的实际反馈）：
  *   · hero 里一次把三个出口给全（提建议 / 打开地图 / 了解 Pinzos），页面**底部不再重复**
@@ -14,7 +19,7 @@
  *
  * 内容手写在 data/changelog.ts —— **绝不从 git commit 自动生成**（原因见那个文件）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -214,6 +219,98 @@ function SpineNav({ items, active, onJump }: {
   )
 }
 
+/**
+ * hero 里的「大家在提什么」——一进页面就看得到别人提了什么。
+ *
+ * 只放**最热 4 条**:这是决定「要不要开口」用的,不是完整列表。
+ * 每条给三件事:多少人附议(票数)、我们的处理状态、来自经纪还是买家。
+ * 有人已经提过 → 他去点赞(更有用的信号);没人提过 → 他自己写一条。
+ */
+function HeroRequests({ list, onCompose, onSeeAll }: {
+  list: FeatureRequest[] | null
+  onCompose: () => void
+  onSeeAll: () => void
+}) {
+  const { t } = useT()
+  /**
+   * ⚠️ 这里**不能用服务端那个排序**。服务端给完整列表排的是「已上线 > 计划中 >
+   * 待评估」—— 那是给来看进度的人的。而这张卡叫「大家在提什么」,要回答的是
+   * 「现在最多人想要什么」:一个 0 票的「已上线」排在 7 票的前面,看起来就是坏的。
+   * 这里按票数来。
+   */
+  const top = [...(list || [])]
+    .sort((a, b) => b.votes - a.votes || b.created_at.localeCompare(a.created_at))
+    .slice(0, 4)
+
+  return (
+    <Reveal delay={0.1}>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Lightbulb className="h-4 w-4 text-amber-300" />
+          <h2 className="text-sm font-semibold text-white">{t('misc:changelog.heroReqTitle')}</h2>
+        </div>
+
+        {list === null ? (
+          <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-white/30" /></div>
+        ) : top.length === 0 ? (
+          <div className="py-2">
+            <p className="text-[13px] leading-relaxed text-slate-400">{t('misc:changelog.heroEmpty')}</p>
+            <button type="button" onClick={onCompose}
+              className="mt-3 w-full rounded-xl border border-white/15 py-2 text-[13px] font-medium text-white transition hover:bg-white/10">
+              {t('misc:changelog.heroEmptyCta')}
+            </button>
+          </div>
+        ) : (
+          <>
+            <ul className="space-y-2">
+              {top.map((r) => {
+                const st = STATUS[r.status] || STATUS.open
+                return (
+                  <li key={r.id}>
+                    <button type="button" onClick={onSeeAll}
+                      className="flex w-full items-start gap-2.5 rounded-xl p-2 text-start transition hover:bg-white/[0.06]">
+                      <span className="flex h-9 w-8 shrink-0 flex-col items-center justify-center rounded-lg bg-white/[0.06] text-white/70">
+                        <ChevronUp className="h-3 w-3" />
+                        <span translate="no" className="text-[11px] font-semibold tabular-nums">{r.votes}</span>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-2 block text-[13px] leading-snug text-slate-200">{r.title}</span>
+                        <span className="mt-1 flex items-center gap-1.5">
+                          <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium ${
+                            r.status === 'shipped' ? 'bg-emerald-400/15 text-emerald-300'
+                              : r.status === 'planned' ? 'bg-sky-400/15 text-sky-300'
+                              : 'bg-white/10 text-slate-400'
+                          }`}>
+                            {t(st.key)}
+                          </span>
+                          {r.role && ROLE[r.role] && (
+                            <span className="text-[10px] text-slate-500">{t(ROLE[r.role].key)}</span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+              <button type="button" onClick={onCompose}
+                className="flex-1 rounded-xl py-2 text-[13px] font-semibold text-slate-900 transition hover:opacity-90"
+                style={{ background: ACCENT }}>
+                {t('misc:changelog.requestShort')}
+              </button>
+              <button type="button" onClick={onSeeAll}
+                className="shrink-0 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white">
+                {t('misc:changelog.seeAll', { n: (list || []).length })}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Reveal>
+  )
+}
+
 export default function ChangelogPage() {
   const { t, lang, locale } = useT()
   const { markSeen } = useUnseenChangelog()
@@ -221,6 +318,10 @@ export default function ChangelogPage() {
 
   const title = t('misc:changelog.title')
   const [composeOpen, setComposeOpen] = useState(false)
+  // 建议列表放在页面级：hero 卡片和下面的完整列表**共用一次请求**，
+  // 也共用同一份状态（在任何一处点赞/提交，两边一起更新）
+  const [requests, setRequests] = useState<FeatureRequest[] | null>(null)
+  useEffect(() => { fetchFeatureRequests().then(setRequests) }, [])
 
   const months = useMemo(() => {
     const out: { key: string; label: string; items: typeof CHANGELOG }[] = []
@@ -287,7 +388,12 @@ export default function ChangelogPage() {
         <link rel="canonical" href="https://www.pinzos.com/changelog" />
       </Helmet>
 
-      {composeOpen && <ComposeModal onClose={() => setComposeOpen(false)} />}
+      {composeOpen && (
+        <ComposeModal
+          onClose={() => setComposeOpen(false)}
+          onCreated={(r) => setRequests((p) => [r, ...(p || [])])}
+        />
+      )}
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section
@@ -300,7 +406,8 @@ export default function ChangelogPage() {
         <div aria-hidden className="pointer-events-none absolute -start-28 bottom-[-8rem] h-80 w-80 rounded-full"
           style={{ background: `radial-gradient(circle, ${GOLD}1f 0%, transparent 70%)` }} />
 
-        <div className="relative mx-auto max-w-5xl px-5 py-14 sm:px-6 md:py-20">
+        <div className="relative mx-auto grid max-w-5xl gap-10 px-5 py-14 sm:px-6 md:py-20 lg:grid-cols-[1fr_20rem]">
+          <div>
           <Reveal>
             {/* 只陈述事实:最近一次更新是什么时候。不写「我们每周都在改」那种自夸。 */}
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 font-mono text-[11px] tracking-wide" style={{ color: ACCENT }}>
@@ -348,6 +455,21 @@ export default function ChangelogPage() {
               </Link>
             </div>
           </Reveal>
+          </div>
+
+          {/* 🔴 **「大家在提什么」必须在这里，不能只在页尾。**
+              owner:「建议不应该提在底部啊 而且其他建议怎么看?也在一开始那个 session
+              能看看其他人的提议」——他说得对,而且这是我把顺序搞反了:
+              **日记是我想给的,建议是用户来这一页要用的**。把用户要用的东西埋在 54 条
+              日记底下,等于让他为了提一句话先读半年更新;更要命的是他看不到别人提过没有,
+              于是要么重复提,要么干脆不提。
+              这张卡片给的正是决定要不要开口之前需要的三件事:有没有人提过、多少人附议、
+              我们答了没有。 */}
+          <HeroRequests
+            list={requests}
+            onCompose={() => setComposeOpen(true)}
+            onSeeAll={() => jump(REQ_ID)}
+          />
         </div>
       </section>
 
@@ -454,7 +576,7 @@ export default function ChangelogPage() {
               </section>
             ))}
 
-            <FeatureRequests onCompose={() => setComposeOpen(true)} />
+            <FeatureRequests list={requests} setList={setRequests} onCompose={() => setComposeOpen(true)} />
           </div>
         </div>
       </div>
@@ -466,7 +588,7 @@ export default function ChangelogPage() {
 // 提建议弹窗 —— 没登录也能打开，弹窗里再说要登录
 // ════════════════════════════════════════════════════════════════════════════
 
-function ComposeModal({ onClose }: { onClose: () => void }) {
+function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: (r: FeatureRequest) => void }) {
   const { t } = useT()
   const { user, signInWithGoogle } = useAuth()
   const [title, setTitle] = useState('')
@@ -484,7 +606,7 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
   const send = async () => {
     setErr(''); setBusy(true)
     try {
-      await submitFeatureRequest(title.trim(), body.trim())
+      onCreated(await submitFeatureRequest(title.trim(), body.trim()))
       setOk(true)
       setTimeout(onClose, 1400)
     } catch (e) {
@@ -577,16 +699,16 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
 type Filter = 'all' | RequestStatus
 type Sort = 'top' | 'new'
 
-function FeatureRequests({ onCompose }: { onCompose: () => void }) {
+function FeatureRequests({ list, setList, onCompose }: {
+  list: FeatureRequest[] | null
+  setList: React.Dispatch<React.SetStateAction<FeatureRequest[] | null>>
+  onCompose: () => void
+}) {
   const { t } = useT()
   const { user, isAdmin } = useAuth()
-  const [list, setList] = useState<FeatureRequest[] | null>(null)
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('top')
-
-  const reload = useCallback(() => { fetchFeatureRequests().then(setList) }, [])
-  useEffect(() => { reload() }, [reload])
 
   const patch = (r: FeatureRequest) => setList((p) => (p || []).map((x) => (x.id === r.id ? r : x)))
 

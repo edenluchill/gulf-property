@@ -402,6 +402,10 @@
     "emptyNone": "还没有人提过建议 —— 你可以是第一个。",
     "emptyFilter": "没有符合条件的建议。",
     "newRequest": "提建议",
-    "failed": "提交失败"
+    "failed": "提交失败",
+    "heroReqTitle": "大家在提什么",
+    "seeAll": "看全部 {{n}} 条",
+    "heroEmpty": "还没有人提过 —— 你可以是第一个",
+    "heroEmptyCta": "写第一条"
   }
 }

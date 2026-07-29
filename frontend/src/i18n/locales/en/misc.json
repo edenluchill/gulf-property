@@ -402,6 +402,10 @@
     "emptyNone": "No requests yet — you could be the first.",
     "emptyFilter": "Nothing matches those filters.",
     "newRequest": "New request",
-    "failed": "Could not submit"
+    "failed": "Could not submit",
+    "heroReqTitle": "What people are asking for",
+    "seeAll": "See all {{n}}",
+    "heroEmpty": "Nobody has asked yet — you could be first",
+    "heroEmptyCta": "Write the first one"
   }
 }
