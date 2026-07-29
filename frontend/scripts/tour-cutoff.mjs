@@ -86,6 +86,16 @@ async function audit(label, hidden) {
     ({ list, hidden }) => {
       const host = document.querySelector('.lt-tour-host')
       if (!host) return { err: 'no host' }
+      /**
+       * ⚠️ 自检:host 必须差不多就是一屏高。
+       * 点暂停时如果不小心点开了项目详情抽屉(一个很高的可滚动面板),量出来的坐标会
+       * 跑到几千 px —— 那**不是产品 bug,是这个脚本自己点歪了**,会一次报出二十来个
+       * 假的「被裁」。宁可明说「这一轮不算」也不要给假红灯。
+       */
+      const hr = host.getBoundingClientRect()
+      if (hr.height > window.innerHeight * 1.5) {
+        return { err: `host 高 ${Math.round(hr.height)}px(远超一屏)—— 大概点开了详情抽屉,这一轮不算` }
+      }
       // 模拟手机浏览器 UI 吃掉底部 hidden 像素
       host.style.setProperty('--lt-hidden-bottom', `${hidden}px`)
       const visibleTop = 0
@@ -178,9 +188,15 @@ await page.waitForTimeout(22000)
 bad += await audit('到访项目', HIDDEN)
 await page.screenshot({ path: `${OUT}/cutoff-arrival.png` })
 
-// 暂停（继续观看 / 问问 Luna / 自己看看条）
-await page.mouse.click(195, 300)
+// 暂停（继续观看 / 问问 Luna / 自己看看条）。
+// 点上半屏空白处 —— 别点到项目 pin/探索卡上，那会打开详情抽屉（见 audit 的自检）。
+await page.mouse.click(195, 190)
 await page.waitForTimeout(1200)
+// 万一还是开了抽屉，关掉再量
+if (await page.locator('[data-lt-detail], .lt-detail-close').count()) {
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(600)
+}
 bad += await audit('暂停', HIDDEN)
 await page.screenshot({ path: `${OUT}/cutoff-paused.png` })
 

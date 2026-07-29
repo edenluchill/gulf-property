@@ -61,6 +61,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 export const CHANGELOG: ChangeEntry[] = [
   {
     date: '2026-07-29',
+    kind: 'fix',
+    zh: "修好了手机上导览底部被浏览器地址栏切掉的问题(房子的价格卡、字幕开关、音量按钮以前会被挡住);手机开场视野也抛高了,一开始就能看到整个迪拜",
+    en: "Fixed the bottom of the tour being cut off on phones by the browser address bar — the price card, the captions toggle and the volume button used to be hidden. The opening shot on phones is also higher now, so you see the whole of Dubai from the start.",
+    fr: "Corrigé : sur mobile, le bas de la visite était coupé par la barre d'adresse du navigateur — la carte de prix, le bouton sous-titres et le volume étaient masqués. Le plan d'ouverture sur mobile est aussi plus haut : on voit tout Dubaï dès le début.",
+    ru: "Исправлено: на телефонах низ экскурсии обрезался адресной строкой браузера — карточка цены, кнопка субтитров и звук были не видны. Начальный кадр на телефонах теперь выше — весь Дубай виден с первой секунды.",
+    ar: "أُصلح قصّ الجزء السفلي من الجولة على الهواتف بسبب شريط عنوان المتصفح — كانت بطاقة السعر وزر الترجمة وزر الصوت مخفية. كما أصبح المشهد الافتتاحي على الهواتف أعلى، فتظهر دبي بكاملها من البداية.",
+  },
+  {
+    date: '2026-07-29',
     kind: 'improve',
     zh: "AI 导览的开场重做了:从高空俯瞰整个迪拜、缓缓环绕着介绍,推荐给你的房子一开始就在画面正中;手机上运镜不再一顿一顿地拽",
     en: "The AI tour now opens differently: a high aerial view of Dubai that slowly orbits while Luna introduces the area, with every recommended home framed in the middle of the screen from the first second. Camera movement on phones no longer lurches.",
