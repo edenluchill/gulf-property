@@ -47,6 +47,10 @@ try {
   const chips = await page.getByText(/经纪专属|Agents only|Agents seulement|Только агентам|للوسطاء فقط/).count()
   check('匿名页面无「经纪专属」标记', chips === 0, `找到 ${chips} 个`)
 
+  // ②b 视角切换是经纪的东西 —— 买家只有一份内容,给他一个开关是噪音
+  const switcher = await page.getByText(/客户也看得到|Client-facing|Côté client|Видят клиенты|يراها العملاء/).count()
+  check('匿名页面无视角切换', switcher === 0, `找到 ${switcher} 个`)
+
   // ③ hero 统计数字要和屏幕上的条数一致(CountUp 动画结束后再读)
   await page.waitForTimeout(2000)
   const heroStat = await page.locator('section .tabular-nums').first().innerText()

@@ -33,6 +33,10 @@ import { fetchFeatureRequests, type FeatureRequest } from '../lib/featureRequest
 
 const ACCENT = REQ_ACCENT
 const GOLD = '#E8C37E'
+
+/** 经纪侧的三个视角(见页面里 `view` 的注释)。买家没有这个开关。 */
+type DiaryView = 'agent' | 'shared' | 'both'
+const VIEW_KEY = 'pz-changelog-view'
 const GRID = 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)'
 
 const KIND: Record<ChangeKind, { icon: React.ReactNode; dot: string; chip: string; key: string }> = {
@@ -290,10 +294,34 @@ export default function ChangelogPage() {
    *    所以未登录访客按买家处理(最小惊讶),不做任何提示。
    */
   const isAgentSide = useIsAgentSide()
-  const visible = useMemo(
-    () => CHANGELOG.filter((e) => isAgentSide || e.audience !== 'agent'),
-    [isAgentSide],
-  )
+
+  /**
+   * 经纪那一侧**再分一道**:混在一起看不出哪些是自己的工具、哪些是客户那边的。
+   *   'agent'   经纪专属 —— 「我的工具改了什么」
+   *   'shared'  客户也看得到 —— 「我能拿去跟客户说的」
+   *   'both'    全部,按时间混排
+   *
+   * 默认落在 'agent':他点进这一页多半是想知道自己手上的东西改了什么;
+   * 客户那边的更新他要用的时候是**带着目的**来的(要发给客户),那时再切一下。
+   * 选择记在本地 —— 每次进来都被打回默认,等于这个开关白给。
+   */
+  const [view, setView] = useState<DiaryView>(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY)
+      return v === 'shared' || v === 'both' || v === 'agent' ? v : 'agent'
+    } catch { return 'agent' }
+  })
+  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* 隐私模式 */ } }, [view])
+
+  const visible = useMemo(() => {
+    // 买家没有第二种东西可看,压根不该出现这个开关 —— 直接给他客户侧那一份
+    if (!isAgentSide) return CHANGELOG.filter((e) => e.audience !== 'agent')
+    if (view === 'agent') return CHANGELOG.filter((e) => e.audience === 'agent')
+    if (view === 'shared') return CHANGELOG.filter((e) => e.audience !== 'agent')
+    return CHANGELOG
+  }, [isAgentSide, view])
+
+  const agentCount = useMemo(() => CHANGELOG.filter((e) => e.audience === 'agent').length, [])
 
   const months = useMemo(() => {
     const out: { key: string; label: string; items: typeof CHANGELOG }[] = []
@@ -330,6 +358,12 @@ export default function ChangelogPage() {
     els.forEach((el) => io.observe(el))
     return () => io.disconnect()
   }, [months.length])
+
+  // 切换视角后月份会变 —— 当前高亮的那个月可能已经不在了。不兜这一下的话，
+  // 书脊上会一个高亮都没有（observer 要等你滚动才会重新报），像是坏了。
+  useEffect(() => {
+    if (months.length && !months.some((m) => m.key === active)) setActive(months[0].key)
+  }, [months, active])
 
   // hero 滚出视野 → 顶部贴一条细导航条（owner：「往下 scroll 时可以 attach 小一点在上面」）
   const heroRef = useRef<HTMLDivElement>(null)
@@ -402,6 +436,38 @@ export default function ChangelogPage() {
               ))}
             </div>
           </Reveal>
+
+          {/* 🔴 **经纪的两份更新必须能分开看。**
+              owner:「经纪看时不要整理在一起 要区分开 单独展示」——混排的问题是
+              他要的答案(我手上的工具改了什么)被埋在客户侧的更新里,得自己一条条挑。
+              开关放在**统计数字下面**是有讲究的:切换时上面那四个数字跟着重新数,
+              一眼就看得出「这一份有 23 条」,不用滚到下面去数。
+              买家看不到这一行 —— 他只有一份东西,给他一个只有一个选项的开关是噪音。 */}
+          {isAgentSide && (
+            <Reveal delay={0.11}>
+              <div className="mt-5 inline-flex flex-wrap gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-1">
+                {([
+                  { id: 'agent', label: t('misc:changelog.agentOnly'), n: agentCount },
+                  { id: 'shared', label: t('misc:changelog.viewShared'), n: CHANGELOG.length - agentCount },
+                  { id: 'both', label: t('misc:changelog.viewAll'), n: CHANGELOG.length },
+                ] as { id: DiaryView; label: string; n: number }[]).map((v) => (
+                  <button key={v.id} type="button" onClick={() => setView(v.id)}
+                    className={`relative inline-flex min-h-[34px] items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
+                      view === v.id ? 'text-slate-900' : 'text-slate-400 hover:text-white'
+                    }`}>
+                    {/* 高亮块滑过去 —— 和月份导航是同一套语言:滑动那一下让人看懂「我换到了哪」 */}
+                    {view === v.id && (
+                      <motion.span layoutId="diary-view-pill" className="absolute inset-0 rounded-xl"
+                        style={{ background: ACCENT }}
+                        transition={{ type: 'spring', stiffness: 420, damping: 36 }} />
+                    )}
+                    <span className="relative">{v.label}</span>
+                    <span translate="no" className="relative tabular-nums opacity-60">{v.n}</span>
+                  </button>
+                ))}
+              </div>
+            </Reveal>
+          )}
 
           {/* 三个出口一次给全 —— 页面底部**不再重复**一遍(owner:「打开地图和了解 pinzos
               感觉都是多余，可以放在一开始那个 section」) */}
@@ -525,8 +591,10 @@ export default function ChangelogPage() {
                               {/* translate="no":浏览器翻译会把日期搅烂(「1月13日」→「1 month 13 months」) */}
                               <time translate="no" dateTime={e.date} className="text-[11px] tabular-nums text-slate-400">{fmtDate(e.date)}</time>
                               {/* 只有经纪看得到这一条 —— 顺手告诉他「这条你的客户看不到」,
-                                  免得他截图发给客户,对方打开一脸茫然。 */}
-                              {e.audience === 'agent' && (
+                                  免得他截图发给客户,对方打开一脸茫然。
+                                  ⚠️ 只在**混排**时标:单看「经纪专属」那一份时每条都挂一个,
+                                  等于没标,纯噪音。 */}
+                              {e.audience === 'agent' && view === 'both' && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-600 ring-1 ring-violet-100">
                                   <Briefcase className="h-3 w-3" />
                                   {t('misc:changelog.agentOnly')}

@@ -414,6 +414,8 @@
     "copied": "تم النسخ",
     "agentOnly": "للوسطاء فقط",
     "audienceAll": "للجميع",
-    "audienceHint": "من يرى هذا: الجميع / الوسطاء فقط"
+    "audienceHint": "من يرى هذا: الجميع / الوسطاء فقط",
+    "viewShared": "يراها العملاء",
+    "viewAll": "الكل"
   }
 }

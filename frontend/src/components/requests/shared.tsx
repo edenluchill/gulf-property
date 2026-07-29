@@ -368,6 +368,8 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
 
 type Filter = 'all' | RequestStatus
 type Sort = 'top' | 'new'
+/** 受众筛选:'any' 不分 / 'agent' 只看经纪侧 / 'all' 只看客户也看得到的 */
+type AudFilter = 'any' | RequestAudience
 
 export function RequestsBoard({ list, setList, onCompose, focusId }: {
   list: FeatureRequest[] | null
@@ -380,6 +382,15 @@ export function RequestsBoard({ list, setList, onCompose, focusId }: {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('top')
+  const [aud, setAud] = useState<AudFilter>('any')
+
+  /**
+   * 受众那一排**只在列表里真的有经纪侧条目时**才出现。
+   *
+   * 不去问「你是不是经纪」—— 服务端已经按身份把买家的经纪侧条目滤掉了,买家手上
+   * 这个数组永远是 0,开关自动消失。少一处判据 = 少一处会跟服务端分叉的地方。
+   */
+  const hasAgentSide = (list || []).some((r) => r.audience === 'agent')
 
   const patch = (r: FeatureRequest) => setList((p) => (p || []).map((x) => (x.id === r.id ? r : x)))
 
@@ -395,13 +406,14 @@ export function RequestsBoard({ list, setList, onCompose, focusId }: {
     const kw = q.trim().toLowerCase()
     const hit = list.filter((r) => {
       if (filter !== 'all' && r.status !== filter) return false
+      if (aud !== 'any' && r.audience !== aud) return false
       if (kw && !`${r.title} ${r.body || ''}`.toLowerCase().includes(kw)) return false
       return true
     })
     // 服务端已按「已上线 > 计划中 > 待评估 > 暂不做」再按票数排好；
     // 只在用户明确选「最新」时才重排，别把默认顺序也搅了。
     return sort === 'new' ? [...hit].sort((a, b) => b.created_at.localeCompare(a.created_at)) : hit
-  }, [list, q, filter, sort])
+  }, [list, q, filter, sort, aud])
 
   const FILTERS: { id: Filter; label: string }[] = [
     { id: 'all', label: t('misc:changelog.fAll') },
@@ -429,6 +441,27 @@ export function RequestsBoard({ list, setList, onCompose, focusId }: {
             {f.label}<span translate="no" className="ms-1 opacity-50 tabular-nums">{countOf(f.id)}</span>
           </button>
         ))}
+        {/* 经纪侧的建议单独切出来看 —— 和产品日记上那个开关是同一件事:
+            「客户在要什么」和「同行在要什么」是两个问题,混在一起两个都看不清。 */}
+        {hasAgentSide && (
+          <>
+            <span className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" />
+            {([
+              { id: 'agent', label: t('misc:changelog.agentOnly') },
+              { id: 'all', label: t('misc:changelog.viewShared') },
+            ] as { id: AudFilter; label: string }[]).map((a) => (
+              <button key={a.id} type="button" onClick={() => setAud(aud === a.id ? 'any' : a.id)}
+                className={`inline-flex min-h-[34px] items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition sm:min-h-0 sm:px-2.5 sm:py-1 ${
+                  aud === a.id ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-600 ring-1 ring-violet-100 hover:bg-violet-100'
+                }`}>
+                <Briefcase className="h-3 w-3" />{a.label}
+                <span translate="no" className="opacity-60 tabular-nums">
+                  {(list || []).filter((r) => r.audience === a.id).length}
+                </span>
+              </button>
+            ))}
+          </>
+        )}
         <span className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" />
         <button type="button" onClick={() => setSort(sort === 'top' ? 'new' : 'top')}
           className="inline-flex min-h-[34px] items-center rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-100 transition hover:bg-slate-100 sm:min-h-0 sm:px-2.5 sm:py-1">

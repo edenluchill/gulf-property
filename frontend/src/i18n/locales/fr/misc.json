@@ -414,6 +414,8 @@
     "copied": "Copié",
     "agentOnly": "Agents seulement",
     "audienceAll": "Tout le monde",
-    "audienceHint": "Basculer la visibilité : tout le monde / agents seulement"
+    "audienceHint": "Basculer la visibilité : tout le monde / agents seulement",
+    "viewShared": "Côté client",
+    "viewAll": "Tout"
   }
 }
