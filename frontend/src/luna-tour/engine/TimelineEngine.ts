@@ -73,7 +73,35 @@ const MAX_BEAT_MS = 60000
  * MAX_BEAT_MS. Guarantees the backstop can NEVER fire before a line finishes. */
 const AUDIO_BACKSTOP_PAD_MS = 5000
 
+/**
+ * 🔴 单帧位移上限（屏幕像素）—— 「疯狂颤抖」的最后一道闸。
+ *
+ * 相机是**按时间采样**的：`camera = f(clock)`。所以只要有一帧迟到（手机上瓦片解码、
+ * GC、合成器一忙就迟到 300~1000ms），下一帧就会把这段时间的位移**一次性补完** ——
+ * 实测单帧跳 230px。运镜本身是丝滑的，眼睛看到的却是一记猛拽。**掉一帧 = 一次猛拽**，
+ * 连着掉就是「疯狂颤抖」。
+ *
+ * 所以画面**永远不许一帧跨过这么多像素**：迟到就慢慢追（每帧最多这么多），
+ * 追平之前画面只是稍微落后于时钟 —— 而落后是看不出来的，猛拽是看得出来的。
+ *
+ * 正常运镜有多快？实测 60fps 下 p95 只有 7px/帧，12fps 下约 35px/帧。
+ * 45px 高于任何正常运镜，只会削掉病态的那一跳。
+ */
+const MAX_STEP_PX = 45
+/** 落后超过这么多屏宽 → 不是掉帧，是真的换机位（跳拍/换幕）→ 直接切过去。 */
+const SNAP_IF_BEHIND_SCREENS = 3
+
 const STICKY_OVERLAYS = new Set(['progress_dots', 'cta', 'favorite_picker'])
+
+/**
+ * 剧本没写 `duration_ms` 时的默认停留时长。
+ *
+ * 🔴 `title` 必须有默认值。没有 duration 的 overlay 会**留到这一拍结束**,而开场那一拍
+ * 长达旁白全长(demo 里 20 秒)—— 于是那张大标题卡在三个项目 pin 上面挂了 20 秒,
+ * 客户想看的东西全被它压着(owner:「要集中中间屏幕能看到重要信息」)。
+ * 标题是**片头字幕**,不是水印:亮几秒,然后把画面交回给房子。
+ */
+const DEFAULT_OVERLAY_MS: Record<string, number> = { title: 5500 }
 const MAP_OVERLAYS = new Set(['distance_line', 'amenity_spokes', 'highlight_all_pins'])
 
 /** Overlay cue scheduled within a beat. Camera is NOT a cue anymore — it's the
@@ -133,9 +161,14 @@ export class TimelineEngine {
   // with audio + overlays.
   private camTrack: CameraTrack | null = null
   private camEntry: CameraState | null = null // where the camera is now (chains beats)
-  // Time-warp factor: camera track is stretched so its motion runs for exactly
-  // the narration (audio) length. 1 until the real audio duration is known.
-  private camScale = 1
+  /**
+   * Time-warp target: the camera track is stretched so its motion spans exactly the
+   * narration (audio) length. 0 until the real audio duration is known (= no warp).
+   * ⚠️ 只有**停留**被拉长，赶路按剧本秒数走 —— 见 cameraTrack.ts 的 `rigid`。
+   */
+  private camTargetMs = 0
+  /** 上一帧真正交给地图的机位（单帧位移限幅用；null = 下一帧直接切过去） */
+  private camShown: CameraState | null = null
   // gates
   private narrationDone = false
   private minTimeDone = false
@@ -216,7 +249,7 @@ export class TimelineEngine {
       } else if (seg && !this.narrationDone) {
         // TTS (or a cancelled clip) can't resume mid-utterance → restart THIS
         // beat from 0 so re-spoken narration + camera + overlays run together on
-        // the one clock (no frozen camera, no desync). camScale is recomputed
+        // the one clock (no frozen camera, no desync). camTargetMs is recomputed
         // when the real clip length re-loads.
         this.restartBeatClock(seg)
         this.audio.play(
@@ -228,9 +261,7 @@ export class TimelineEngine {
           },
           (durationMs) => {
             this.armBackstop(Math.max(MAX_BEAT_MS, durationMs + AUDIO_BACKSTOP_PAD_MS))
-            if (this.camTrack && this.camTrack.duration > 0) {
-              this.camScale = Math.max(0.05, durationMs / this.camTrack.duration)
-            }
+            if (this.camTrack && this.camTrack.duration > 0) this.camTargetMs = durationMs
           }
         )
       } else {
@@ -271,7 +302,7 @@ export class TimelineEngine {
     this.activeOverlays = this.activeOverlays.filter(
       (o) => STICKY_OVERLAYS.has(o.overlay.type) || !o.key.startsWith(seg.key + ':')
     )
-    if (this.camTrack?.initial) this.map.jumpTo(this.camTrack.initial)
+    if (this.camTrack?.initial) this.cutTo(this.camTrack.initial)
   }
 
   enterAsking() {
@@ -295,12 +326,14 @@ export class TimelineEngine {
     const i = Math.max(0, Math.min(index, this.segments.length - 1))
     this.paused = false
     this.camEntry = null // re-establish camera from the new beat
+    this.camShown = null // 跳拍是真的「切」,不要被单帧限幅拖成一段平移
     void this.playFrom(i, true)
   }
 
   replay() {
     this.paused = false
     this.camEntry = null
+    this.camShown = null
     void this.playFrom(0)
   }
 
@@ -373,10 +406,10 @@ export class TimelineEngine {
 
       // compile the camera track for this beat (single clock samples it)
       this.camTrack = compileCameraTrack(cameraCues, this.camEntry)
-      this.camScale = 1 // until audio length is known (set in onMeta below)
+      this.camTargetMs = 0 // no time-warp until the audio length is known (onMeta below)
       // snap to its initial state instantly so the first frame is correct — but
       // keep the carried bearing (don't reset rotation at a beat boundary).
-      if (this.camTrack.initial) this.map.jumpTo(this.camTrack.initial)
+      if (this.camTrack.initial) this.cutTo(this.camTrack.initial)
 
       // gates
       this.narrationDone = false
@@ -401,11 +434,10 @@ export class TimelineEngine {
         (durationMs) => {
           // Real narration length known → (1) extend the safety backstop past it
           // so it can never cut a line, and (2) time-warp the camera so its
-          // motion spans exactly the narration (no early stop, no overrun).
+          // motion spans exactly the narration (no early stop, no overrun) —
+          // stretching only the DWELL, never the travel (cameraTrack `rigid`).
           this.armBackstop(Math.max(MAX_BEAT_MS, durationMs + AUDIO_BACKSTOP_PAD_MS))
-          if (this.camTrack && this.camTrack.duration > 0) {
-            this.camScale = Math.max(0.05, durationMs / this.camTrack.duration)
-          }
+          if (this.camTrack && this.camTrack.duration > 0) this.camTargetMs = durationMs
         }
       )
 
@@ -435,8 +467,9 @@ export class TimelineEngine {
       //    drive BEARING ourselves at a constant gentle rate (carried across
       //    beats) so rotation is even and never snaps.
       if (this.camTrack) {
-        const cs = this.camTrack.sampleAt(this.beatElapsed / this.camScale)
-        if (cs) this.map.jumpTo(cs)   // bearing 来自剧本,引擎不加戏
+        const cs = this.camTrack.sampleAt(this.camTrack.remap(this.beatElapsed, this.camTargetMs))
+        // bearing 来自剧本,引擎不加戏。只做一件事:限住单帧位移(见 MAX_STEP_PX)。
+        if (cs) this.applyCamera(cs)
       }
       // 2) overlay cues at their at_ms
       for (const c of this.beatCues) {
@@ -451,7 +484,7 @@ export class TimelineEngine {
         this.minTimeDone = true
         this.checkBeatDone()
       }
-      if (this.camTrack && this.beatElapsed >= this.camTrack.duration * this.camScale) {
+      if (this.camTrack && this.beatElapsed >= this.camTrack.wallDuration(this.camTargetMs)) {
         // camera track exhausted — contributes to "beat done" via checkBeatDone
         this.checkBeatDone()
       }
@@ -468,6 +501,38 @@ export class TimelineEngine {
     this.raf = requestAnimationFrame(tick)
   }
 
+  /**
+   * 把采样出来的机位交给地图 —— 但**一帧最多走 MAX_STEP_PX 个屏幕像素**。
+   *
+   * 相机是时间的函数，所以一帧迟到 500ms，下一帧就会想一次性补完 500ms 的位移
+   * （实测 230px 的猛拽）。这里把那一跳摊到接下来几帧上：画面短暂落后于时钟，
+   * 但**永远是连续的**。落后看不出来，猛拽看得出来。
+   *
+   * 真·换机位（跳拍、换幕、暂停后重开）走 `cutTo()` —— 那时候就该是「切」。
+   */
+  private applyCamera(target: CameraState) {
+    const prev = this.camShown
+    if (!prev) return this.cutTo(target)
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1000
+    const dist = screenDistPx(prev, target, vw)
+    if (dist > vw * SNAP_IF_BEHIND_SCREENS) return this.cutTo(target) // 不是掉帧,是换机位
+    if (dist <= MAX_STEP_PX) return this.cutTo(target)
+    const f = MAX_STEP_PX / dist
+    this.cutTo({
+      center: [prev.center[0] + (target.center[0] - prev.center[0]) * f,
+               prev.center[1] + (target.center[1] - prev.center[1]) * f],
+      zoom: prev.zoom + (target.zoom - prev.zoom) * f,
+      pitch: prev.pitch + (target.pitch - prev.pitch) * f,
+      bearing: prev.bearing + (target.bearing - prev.bearing) * f,
+    })
+  }
+
+  /** 直接切到这个机位（并把限幅器的参考点对齐到它）。 */
+  private cutTo(s: CameraState) {
+    this.camShown = s
+    this.map.jumpTo(s)
+  }
+
   private stopClock() {
     if (this.raf) {
       cancelAnimationFrame(this.raf)
@@ -477,7 +542,7 @@ export class TimelineEngine {
 
   private checkBeatDone() {
     if (this.paused || !this.resolveBeat) return // never advance a beat while paused
-    const cameraDone = !this.camTrack || this.beatElapsed >= this.camTrack.duration * this.camScale
+    const cameraDone = !this.camTrack || this.beatElapsed >= this.camTrack.wallDuration(this.camTargetMs)
     if (this.narrationDone && this.minTimeDone && cameraDone) {
       // chain the next beat's camera entry from where this one ended
       if (this.camTrack) this.camEntry = finalState(this.camTrack) ?? this.camEntry
@@ -554,7 +619,7 @@ export class TimelineEngine {
     const next = this.activeOverlays.filter((o) => {
       if (STICKY_OVERLAYS.has(o.overlay.type)) return true
       if (!o.key.startsWith(seg.key + ':')) return true
-      const dur = o.overlay.duration_ms ?? 0
+      const dur = o.overlay.duration_ms ?? DEFAULT_OVERLAY_MS[o.overlay.type] ?? 0
       if (dur <= 0) return true // persist to end of beat (cleared on next beat enter)
       return beatElapsed < o.overlay.at_ms + dur
     })
@@ -618,4 +683,18 @@ export class TimelineEngine {
 
 function segKey(beat: { id: string }, actIndex: number): string {
   return actIndex < 0 ? beat.id : `a${actIndex}-${beat.id}`
+}
+
+/**
+ * 两个机位之间画面大约移动多少像素 —— 平移 + 旋转（画面边缘的位移最大）+ 缩放。
+ * 只用来判断「这一步是不是跨得太远」，所以要的是量级，不是投影精度。
+ */
+function screenDistPx(a: CameraState, b: CameraState, vw: number): number {
+  const pxPerDeg = (256 * Math.pow(2, a.zoom)) / 360
+  const cos = Math.max(0.1, Math.cos((a.center[1] * Math.PI) / 180))
+  const pan = Math.hypot((b.center[0] - a.center[0]) * pxPerDeg, ((b.center[1] - a.center[1]) * pxPerDeg) / cos)
+  const rot = (Math.abs(b.bearing - a.bearing) * Math.PI * (vw / 2)) / 180
+  const zoom = Math.abs(b.zoom - a.zoom) * (vw / 2) * Math.LN2
+  const tilt = (Math.abs(b.pitch - a.pitch) * Math.PI * (vw / 2)) / 180
+  return pan + rot + zoom + tilt
 }

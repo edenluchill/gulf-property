@@ -19,6 +19,12 @@ import OverlayLayer from './overlays/OverlayLayer'
 import GreetingScreen from './overlays/GreetingScreen'
 import EvidenceCard from './overlays/EvidenceCard'
 import { TimelineEngine, EngineSnapshot } from './engine/TimelineEngine'
+import {
+  establishingShot,
+  introCameraCues,
+  outroCameraCues,
+  tourViewportPadding,
+} from './engine/openingShot'
 import type { MapTourHandle } from './map/mapTourHandle'
 import type { WatchPayload, PropertySnapshot, AmenityPayload, MarketEvidence } from './types'
 import { fetchAmenity } from './amenities'
@@ -72,28 +78,6 @@ function pickCaption(chunks: string[], atMs: number): string {
     if (atMs < acc) return c
   }
   return chunks[chunks.length - 1]
-}
-
-/**
- * 🔴 开场 establishing shot 的 zoom 必须**装得下所有项目**,不管什么屏幕。
- *
- * 后端算出的 establishing zoom(如 10.2)是按宽屏调的:窄屏(手机)上同样的 zoom
- * 横向可见范围小得多,两侧的项目会被挤出画面 —— owner:「一开始没办法看到全貌」。
- *
- * 规则:用后端给的 zoom;但如果在当前视口下它装不下所有项目的经度跨度(留 35% 余量),
- * 就**只往外退**到刚好装得下(绝不往里推,免得破坏宽屏那张漂亮的城市全景)。
- * 纯几何(Web Mercator:横向可见经度 ≈ 360 / 2^z × 视口宽/512),不是拍脑袋的常量。
- */
-function establishingZoom(authoredZoom: number, coords: [number, number][]): number {
-  const w = typeof window !== 'undefined' ? window.innerWidth : 1280
-  if (coords.length < 2) return authoredZoom
-  const lngs = coords.map((c) => c[0])
-  const spanLng = Math.max(...lngs) - Math.min(...lngs)
-  const needSpan = Math.max(spanLng, 1e-4) * 1.35 // 35% breathing room around the pins
-  const visibleAtAuthored = (360 / Math.pow(2, authoredZoom)) * (w / 512)
-  if (visibleAtAuthored >= needSpan) return authoredZoom // wide enough (desktop) — keep the overview
-  const fit = Math.log2((360 * (w / 512)) / needSpan) // zoom OUT just enough to frame every pin
-  return Math.min(authoredZoom, fit)
 }
 
 type LoadState =
@@ -323,6 +307,45 @@ export default function TourOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
+  /** 所有项目坐标 —— 开场机位/构图全靠它算（不是「第一个项目」）。 */
+  const tourCoords = useMemo(
+    () =>
+      (data?.properties ?? [])
+        .map((p) => p.snapshot.coords)
+        .filter((c): c is [number, number] => Array.isArray(c)),
+    [data]
+  )
+
+  /** 后端算好的建立机位（中心 + zoom）—— 开场以它为基准，只会更宽不会更紧。 */
+  const authoredEstablishing = useMemo(() => {
+    const kf = (data?.script?.intro?.camera ?? []).find(
+      (c) => !('type' in c) && Array.isArray((c as { center?: unknown }).center)
+    ) as { center?: [number, number]; zoom?: number } | undefined
+    return { center: kf?.center, zoom: kf?.zoom ?? 10.2 }
+  }, [data])
+
+  /**
+   * 🔴 相机要对准的是「**看得见的那块**的中心」，不是画布中心。
+   *
+   * owner:「要集中中间屏幕能看到重要信息」。画布中心在手机上被字幕和卡片压着 ——
+   * Luna 正在介绍的那栋楼恰好躺在字幕底下。MapLibre 的 padding 就是干这个的：
+   * 设一次，之后每一帧 jumpTo 都自动沿用（jumpTo 不带 padding 不会覆盖它）。
+   * 转屏/改窗口要重算。退出 tour 时清掉，别污染普通地图。
+   */
+  useEffect(() => {
+    if (!data) return
+    const apply = () => mapRef.current?.setViewportPadding(tourViewportPadding())
+    apply()
+    window.addEventListener('resize', apply)
+    window.addEventListener('orientationchange', apply)
+    return () => {
+      window.removeEventListener('resize', apply)
+      window.removeEventListener('orientationchange', apply)
+      mapRef.current?.setViewportPadding(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
   /**
    * 🔴 欢迎页:相机**静止**停在 tour 的第一帧机位。
    *
@@ -330,47 +353,17 @@ export default function TourOverlay({
    * 而欢迎页的遮罩是**半透明**的 —— 客户**看得见**地图在背景里缓慢打转。
    * **那就是「莫名其妙的平移」。** （顺带 60fps 空转烧 GPU。）
    *
-   * 而且它用的机位（zoom 10.2 / pitch 55）和剧本 intro 的第一帧对不上 ——
-   * 点「开始」的瞬间还会再跳一下。
-   *
-   * 现在:直接读剧本 intro 的第一个 keyframe，jumpTo 过去，**一次，不循环**。
-   * 于是欢迎页看到的就是 tour 的第一帧，点开始完全无缝。
+   * 现在:用和 tour 第一帧**完全同一个** establishingShot()，jumpTo 过去，
+   * **一次，不循环**。点「开始」的瞬间无缝接上那圈环绕。
    */
   useEffect(() => {
     if (snap || !data) return // snap becomes non-null once the engine starts
     const map = mapRef.current
     if (!map) return
-
-    // 剧本 intro 的第一个 keyframe = establishing shot（后端算好的，能装下所有项目）
-    const kf = (data.script?.intro?.camera ?? []).find(
-      (c: any) => Array.isArray(c.center)
-    ) as { center?: [number, number]; zoom?: number; pitch?: number; bearing?: number } | undefined
-
-    // 所有项目坐标 —— 用来确保 establishing 在当前屏幕上装得下每一个项目。
-    const coords = data.properties
-      .map((p) => p.snapshot.coords)
-      .filter((c): c is [number, number] => Array.isArray(c))
-
-    if (kf?.center) {
-      map.jumpTo({
-        center: kf.center,
-        zoom: establishingZoom(kf.zoom ?? 10.2, coords),
-        pitch: kf.pitch ?? 45,
-        bearing: kf.bearing ?? 0,
-      })
-      return
-    }
-
-    // 兜底:剧本里没有 camera（不该发生）→ 用所有项目的中心
-    const center: [number, number] = coords.length
-      ? [
-          coords.reduce((s, c) => s + c[0], 0) / coords.length,
-          coords.reduce((s, c) => s + c[1], 0) / coords.length,
-        ]
-      : [55.2, 25.12]
-    map.jumpTo({ center, zoom: establishingZoom(10.2, coords), pitch: 45, bearing: 0 })
+    const shot = establishingShot(tourCoords, authoredEstablishing.zoom, authoredEstablishing.center)
+    map.jumpTo(shot)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap, data])
+  }, [snap, data, tourCoords, authoredEstablishing])
 
   const clearMapFeatures = () => {
     onMeasure?.(null)
@@ -400,24 +393,22 @@ export default function TourOverlay({
   const startEngine = () => {
     if (!data || !mapRef.current || engineRef.current) return
 
-    // 🔴 把 intro 的 establishing 关键帧 zoom 换成「当前屏幕装得下所有项目」的 zoom。
-    // 否则引擎接管后会 snap 回后端那个按宽屏调的 zoom,窄屏上又把两侧项目挤出画面
-    // (欢迎页已经用 establishingZoom 摆好机位了,这里要接上,不能跳回去)。
-    const coords = data.properties
-      .map((p) => p.snapshot.coords)
-      .filter((c): c is [number, number] => Array.isArray(c))
-    let script = data.script
-    const introCam = data.script.intro?.camera ?? []
-    const kfIdx = introCam.findIndex(
-      (c) => !('type' in c) && Array.isArray((c as { center?: unknown }).center)
-    )
-    if (kfIdx >= 0) {
-      const authored = (introCam[kfIdx] as { zoom?: number }).zoom ?? 10.2
-      const fit = establishingZoom(authored, coords)
-      if (fit < authored - 0.01) {
-        const camera = introCam.map((c, i) => (i === kfIdx ? { ...c, zoom: fit } : c))
-        script = { ...data.script, intro: { ...data.script.intro, camera } }
-      }
+    /**
+     * 🔴 **开场和收尾的运镜由我们算，不用剧本里模型写的那两段。**
+     *
+     * 模型给的开场是「静止广角 + 慢慢推近 1 级 zoom」，摊到 20 秒旁白上基本是
+     * 一张静止的图（owner:「一开始的动作也不好」）。而开场是第一印象，不该每次
+     * 碰运气 —— 它本来就是纯几何题。见 engine/openingShot.ts：
+     *   高空(比剧本更宽一点) + 一圈**缓慢环绕**，转多久由旁白长度决定。
+     * 收尾同理：退到高空一起看完所有的家，继续慢慢转，而不是定格。
+     *
+     * 中间每一幕（到访/生活/户型/数字…）**完全按剧本走** —— 那是内容，模型说了算。
+     */
+    const shot = establishingShot(tourCoords, authoredEstablishing.zoom, authoredEstablishing.center)
+    const script = {
+      ...data.script,
+      intro: { ...data.script.intro, camera: introCameraCues(shot) },
+      outro: { ...data.script.outro, camera: outroCameraCues(shot) },
     }
 
     const engine = new TimelineEngine({

@@ -28,8 +28,15 @@ const LAYER = 'lt-ambient-life'
 const IMG_BOAT = 'lt-ambient-boat'
 const IMG_PLANE = 'lt-ambient-plane'
 
-/** 15Hz —— 船和飞机没人盯着看，60Hz 是纯浪费。 */
-const TICK_MS = 66
+/**
+ * 更新频率。**船和飞机没人盯着看。**
+ *
+ * ⚠️ 每次 tick 都是一次 `source.setData()` —— 那不是「改个坐标」，而是
+ * 序列化 → 丢给 worker → 重建 geojson 索引 → 重算 symbol 布局 → 回主线程。
+ * 15Hz 时它就是运镜帧的一个稳定竞争者(profile 里 worker `receive` 排到第三)。
+ * 手机上尤其亏:船一秒才走 0.0016°,5Hz 和 15Hz 肉眼没有任何区别。
+ */
+const TICK_MS = typeof window !== 'undefined' && window.innerWidth < 700 ? 200 : 125
 
 /**
  * 航线。全是**离岸**的真实水域 / 迪拜机场的进离场走廊方向。
@@ -175,8 +182,9 @@ export function createAmbientLife(deps: { getMap: () => MaplibreMap | null | und
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
-          // 拉远时缩小,凑近时别放大到糊 —— 它是氛围,不是主角
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.45, 12, 0.7, 15, 0.9],
+          // 固定尺寸。**layout 属性一旦依赖 zoom,运镜每帧都要重算这一层的 symbol
+          // 布局**(zoom 每帧都在变) —— 为一艘船付这个钱不值。它是氛围,不是主角。
+          'icon-size': 0.7,
         },
         paint: {
           /**

@@ -1,0 +1,144 @@
+/**
+ * Luna Tour — 开场机位与构图（纯几何，无 React / 无地图）。
+ *
+ * ── 为什么这件事不能交给 AI ────────────────────────────────────────────────
+ * 剧本里的开场是模型写的。prompt 明写着「cut 到建立机位，然后**缓慢高空环绕**」，
+ * 而 demo 实际生成出来的是：
+ *     [ keyframe zoom 10.2 (瞬切), keyframe zoom 11.2 (2.5s 推近) ]
+ * —— 一个**静止的广角**，然后慢慢推近，全程 bearing 不动。旁白有 20 秒，
+ * 于是这 1 级 zoom 被时间伸缩摊到 20 秒里：画面基本是**静止**的。
+ * owner:「一开始的动作也不好，他要高一点，围着迪拜缓慢旋转边介绍」。
+ *
+ * 开场是**每一场 tour 的第一印象**，不能靠模型每次碰运气。它也本来就是纯几何题
+ * （装得下几个点、留多少余量、屏幕多宽），所以这里算死：
+ *   1. `establishingShot()` —— 高空、装得下所有项目、留出被 UI 挡住的部分
+ *   2. `introCameraCues()`  —— 瞬切到机位 + **一圈缓慢环绕**（时长由旁白决定）
+ *   3. `outroCameraCues()`  —— 收尾同样退到高空慢慢转，一起看完所有的家
+ *
+ * 时长交给引擎：环绕段是 elastic 的，会被拉伸到刚好等于旁白长度
+ * （见 cameraTrack.ts 的 `rigid`），所以 80° 在 20 秒的旁白下就是 4°/秒 —— 缓慢。
+ */
+import { isNarrowViewport } from './cameraTrack'
+import type { Camera, LngLat } from '../types'
+
+export interface Shot {
+  center: LngLat
+  zoom: number
+  pitch: number
+  bearing: number
+}
+
+/**
+ * 被 UI 遮住的上下边距 —— 相机要对准的是**剩下那块看得见的区域**的中心。
+ *
+ * 手机:顶部章节条 ≈56px,底部字幕 + 卡片 ≈170px。
+ * 桌面:章节条更靠上、字幕带在下方,占得少。
+ * (右侧的经纪卡片/工具卡不动构图 —— 左右留白会把城市挤扁,而横向本来就最紧。)
+ */
+export function tourViewportPadding(): { top: number; bottom: number } {
+  return isNarrowViewport() ? { top: 56, bottom: 170 } : { top: 64, bottom: 120 }
+}
+
+/** 开场再往外退这么多级 —— owner:「他要高一点」。 */
+const OPENING_PULL = 0.35
+/**
+ * 环绕的角度。旁白多长它就转多久 —— demo 的开场旁白约 19 秒 → 65° ≈ 3.4°/秒。
+ *
+ * ⚠️ **别加大。** 转得越快,每秒扫进画面的新卫星瓦片就越多,而瓦片解码+上纹理是
+ * 手机上唯一还在制造长帧的东西(实测 80° 那版长帧占比 10%,65° 明显更稳)。
+ * 而 owner 要的本来就是「**缓慢**旋转」。
+ */
+const INTRO_ORBIT_DEG = 65
+const OUTRO_ORBIT_DEG = 42
+/**
+ * 高空俯瞰的俯角。
+ *
+ * ⚠️ **别调高。** 45° 那种「电影感」的俯角放在城市级全景上是净损失:
+ * 实测 pitch 34 / zoom 9.9 的开场,画面**下面一半多是空沙漠**(近景地面),
+ * 三个项目全被挤到上面三分之一 —— 正是 owner 说的「要集中中间屏幕能看到重要信息」
+ * 的反面。而且俯角越大,朝地平线铺出去的远景瓦片越多(手机上最贵的一项)。
+ *
+ * 20~26° 仍有明显的立体感(配上缓慢环绕更像航拍),但构图基本回到「所见即所算」:
+ * 三个项目就落在画面中间。走到项目跟前再抬俯角(那时候画面里就是楼,不是沙漠)。
+ */
+const openingPitch = () => (isNarrowViewport() ? 20 : 26)
+/** 项目群四周留的余量(1 = 贴边)。 */
+const FIT_MARGIN = 1.35
+
+function viewport(): { w: number; h: number } {
+  if (typeof window === 'undefined') return { w: 1280, h: 800 }
+  return { w: window.innerWidth, h: window.innerHeight }
+}
+
+/**
+ * 恰好能把 spanLng × spanLat 一起框进**可见区域**的 zoom。
+ *
+ * Web Mercator：世界宽度 = 512·2^z 像素 →
+ *   可见经度 = 360·W / (512·2^z)，可见纬度 ≈ 360·H·cos(φ) / (512·2^z)
+ * 反解取两者更小的那个（两个方向都要装得下）。
+ * ⚠️ 高度用的是**扣掉 padding 之后**的高度 —— 不然算出来「装得下」，
+ *    实际下面 1/5 被字幕盖着。
+ */
+export function zoomToFit(coords: LngLat[], pad = tourViewportPadding()): number | null {
+  if (coords.length < 2) return null
+  const { w, h } = viewport()
+  const usableH = Math.max(180, h - pad.top - pad.bottom)
+  const lngs = coords.map((c) => c[0])
+  const lats = coords.map((c) => c[1])
+  const spanLng = Math.max(Math.max(...lngs) - Math.min(...lngs), 1e-4) * FIT_MARGIN
+  const spanLat = Math.max(Math.max(...lats) - Math.min(...lats), 1e-4) * FIT_MARGIN
+  const midLat = (Math.min(...lats) + Math.max(...lats)) / 2
+  const cos = Math.max(0.2, Math.cos((midLat * Math.PI) / 180))
+  const zLng = Math.log2((360 * w) / (512 * spanLng))
+  const zLat = Math.log2((360 * usableH * cos) / (512 * spanLat))
+  return Math.min(zLng, zLat)
+}
+
+/**
+ * 开场机位。
+ *
+ * `authoredZoom` = 后端按项目分布算出来的建立机位 zoom(见 tour-generator.ts)。
+ * 规则:**取「剧本给的」和「当前屏幕装得下的」里更宽的那个,再往外退一点。**
+ * 只往外退,不往里推 —— 宽屏那张城市全景是刻意的,不能因为「算出来能装下」就推近。
+ */
+export function establishingShot(coords: LngLat[], authoredZoom: number, authoredCenter?: LngLat): Shot {
+  const center = authoredCenter ?? centroid(coords) ?? [55.2, 25.12]
+  const fit = zoomToFit(coords)
+  const base = fit != null ? Math.min(authoredZoom, fit) : authoredZoom
+  return {
+    center,
+    zoom: base - OPENING_PULL,
+    pitch: openingPitch(),
+    // 正北朝上的城市看起来像一张地图；斜一点才像航拍。环绕从这里开始转。
+    bearing: -25,
+  }
+}
+
+/** 所有项目的中点（不是第一个项目 —— 那会让开场偏到城市一角）。 */
+export function centroid(coords: LngLat[]): LngLat | null {
+  if (!coords.length) return null
+  const lngs = coords.map((c) => c[0])
+  const lats = coords.map((c) => c[1])
+  return [(Math.min(...lngs) + Math.max(...lngs)) / 2, (Math.min(...lats) + Math.max(...lats)) / 2]
+}
+
+/**
+ * 开场运镜 = 瞬切到机位 + 一圈缓慢环绕。
+ *
+ * duration_ms 只是个「相对时长」:引擎会把 elastic 段拉伸到旁白长度,所以这里写
+ * 9000 还是 6000 都一样 —— 真正决定快慢的是**角度**。
+ */
+export function introCameraCues(shot: Shot): Camera[] {
+  return [
+    { at_ms: 0, duration_ms: 0, center: shot.center, zoom: shot.zoom, pitch: shot.pitch, bearing: shot.bearing },
+    { type: 'orbit', at_ms: 0, center: shot.center, degrees: INTRO_ORBIT_DEG, duration_ms: 9000 },
+  ]
+}
+
+/** 收尾:退回高空(比开场稍紧一点,几个家都在画面里),继续慢慢转。 */
+export function outroCameraCues(shot: Shot, entryBearing = 0): Camera[] {
+  return [
+    { at_ms: 0, duration_ms: 2200, center: shot.center, zoom: shot.zoom + 0.3, pitch: shot.pitch, bearing: entryBearing },
+    { type: 'orbit', at_ms: 0, center: shot.center, degrees: OUTRO_ORBIT_DEG, duration_ms: 8000 },
+  ]
+}

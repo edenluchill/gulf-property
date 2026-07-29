@@ -42,6 +42,8 @@ export interface MapTourHandle {
   /** 相机现在在哪 —— 引擎用它来接管，而不是**猜**一个起点。
    *  (执行层曾经写死过一个「迪拜市中心」当起点 → 每场 tour 都从 20km 外平移过来。) */
   getCamera(): { center: LngLat; zoom: number; pitch: number; bearing: number } | null
+  /** 让相机对准「视觉上的中间」而不是画布中心 —— 上下有字幕/章节条挡着。null 清除。 */
+  setViewportPadding(p: { top: number; bottom: number } | null): void
   drawDistanceLine(o: DistanceLineOpts): void
   showAmenitySpokes(o: AmenitySpokesOpts): void
   highlightPins(ids: string[]): void
@@ -137,35 +139,55 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
 
   // ---- layer stacking (pins > distance > transit > area), see HOST_DISTANCE_LAYERS ----
   let raiseTimer: number | null = null
+  let raiseCoalesce: number | null = null
+  /**
+   * 🔴 只在顺序**真的不对**的时候才 moveLayer。
+   *
+   * 每次 moveLayer 都会让 MapLibre 重排整条渲染顺序 + 重新校验 style。而每进一拍,
+   * 四个 sink(measure / amenities / transit / areaMetric)各调一次 raiseTourLayers,
+   * 每次又自带 6 次重试 —— 一拍里 100+ 次 moveLayer,**全都发生在镜头刚要起飞的那一刻**。
+   * 那正是「一开始动就顿一下」的来源。
+   *
+   * 顺序本来就对(绝大多数情况)→ 一次 moveLayer 都不做。
+   */
   const raiseNow = () => {
     const map = getMap()
     if (!map || !map.isStyleLoaded()) return
     // bottom→top: host distance lines, then standalone lt-* lines, focus ring, pins.
-    // moveLayer() with no beforeId lifts each to the very top in turn → final stack
-    // is exactly this order, above transit/area/poi.
-    const order = [...HOST_DISTANCE_LAYERS, ...overlayLayerIds, 'lt-focus-ring', PROP_LAYER]
+    const order = [...HOST_DISTANCE_LAYERS, ...overlayLayerIds, 'lt-focus-ring', PROP_LAYER].filter((id) =>
+      map.getLayer(id)
+    )
+    if (!order.length) return
+    const styleIds = map.getStyle()?.layers?.map((l) => l.id) ?? []
+    // 我们的层必须(a)按 order 的相对顺序排列,且(b)全部压在最上面。
+    const tailStart = styleIds.length - order.length
+    const alreadyRight = order.every((id, i) => styleIds[tailStart + i] === id)
+    if (alreadyRight) return
     for (const id of order) {
-      if (map.getLayer(id)) {
-        try {
-          map.moveLayer(id)
-        } catch {
-          /* layer mid-removal — ignore */
-        }
+      try {
+        map.moveLayer(id)
+      } catch {
+        /* layer mid-removal — ignore */
       }
     }
   }
   /** Re-assert + briefly retry (host transit/measure layers mount async via
-   *  react-map-gl, after the synchronous beat-enter that triggered them). */
+   *  react-map-gl, after the synchronous beat-enter that triggered them).
+   *  多个 sink 在同一拍里连着调 → 合并成一次。 */
   const raiseTourLayers = () => {
-    raiseNow()
-    if (raiseTimer) clearTimeout(raiseTimer)
-    let n = 0
-    const tick = () => {
+    if (raiseCoalesce) return
+    raiseCoalesce = window.setTimeout(() => {
+      raiseCoalesce = null
       raiseNow()
-      if (++n < 6) raiseTimer = window.setTimeout(tick, 60)
-      else raiseTimer = null
-    }
-    raiseTimer = window.setTimeout(tick, 50)
+      if (raiseTimer) clearTimeout(raiseTimer)
+      let n = 0
+      const tick = () => {
+        raiseNow()
+        if (++n < 3) raiseTimer = window.setTimeout(tick, 120)
+        else raiseTimer = null
+      }
+      raiseTimer = window.setTimeout(tick, 120)
+    }, 0)
   }
 
   function flyTo(o: {
@@ -224,6 +246,26 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       zoom: map.getZoom(),
       pitch: map.getPitch(),
       bearing: map.getBearing(),
+    }
+  }
+
+  /**
+   * 🔴 「要集中中间屏幕能看到重要信息」(owner)。
+   *
+   * 相机把目标放在**画布**正中,但画布的正中在手机上被挡住了:上面是章节条,
+   * 下面是字幕 + 卡片。于是 Luna 正在介绍的那栋楼,恰好躺在字幕底下。
+   *
+   * MapLibre 的 `padding` 就是干这个的:它把「相机对准的那个点」移到**留白之后的
+   * 那块可见区域的中心**。设一次,之后所有 jumpTo 自动沿用(jumpTo 不带 padding
+   * 时不会覆盖它)。这比每个机位手算一个偏移可靠得多。
+   */
+  function setViewportPadding(p: { top: number; bottom: number } | null) {
+    const map = getMap()
+    if (!map) return
+    try {
+      map.setPadding(p ? { top: p.top, bottom: p.bottom, left: 0, right: 0 } : { top: 0, bottom: 0, left: 0, right: 0 })
+    } catch {
+      /* 老引擎没有 setPadding —— 构图退化成画布居中,不影响可用性 */
     }
   }
 
@@ -332,15 +374,27 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     })
     raiseNow()
     const start = performance.now()
+    /**
+     * 🔴 脉冲圈 **12Hz,不是 60Hz**。
+     *
+     * `setPaintProperty` 不是「写个数字」——它会让 MapLibre 重建这一层的 paint 绑定、
+     * 重新求值、再排一次重绘。每帧两次 × 60fps,就是白白挤在运镜帧里的一份开销,
+     * 而这是一个 1.7 秒一轮的呼吸动画:12Hz 肉眼完全看不出差别。
+     */
+    let lastPulse = 0
     const tick = () => {
       const m = getMap()
       if (!m || !m.getLayer('lt-focus-ring')) {
         pulseRaf = null
         return
       }
-      const t = ((performance.now() - start) % 1700) / 1700
-      m.setPaintProperty('lt-focus-ring', 'circle-radius', 10 + t * 30)
-      m.setPaintProperty('lt-focus-ring', 'circle-stroke-opacity', 0.9 * (1 - t))
+      const now = performance.now()
+      if (now - lastPulse >= 80) {
+        lastPulse = now
+        const t = ((now - start) % 1700) / 1700
+        m.setPaintProperty('lt-focus-ring', 'circle-radius', 10 + t * 30)
+        m.setPaintProperty('lt-focus-ring', 'circle-stroke-opacity', 0.9 * (1 - t))
+      }
       pulseRaf = requestAnimationFrame(tick)
     }
     pulseRaf = requestAnimationFrame(tick)
@@ -396,10 +450,22 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       source: PROP_SRC,
       layout: {
         'icon-image': ['get', 'icon'],
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.55, 14, 0.9, 17, 1.1],
+        /**
+         * 🔴 **不带 zoom 插值。**
+         *
+         * `icon-size` 是 layout 属性:一旦它依赖 zoom,而运镜每一帧 zoom 都在变,
+         * MapLibre 就得每帧重算这一层的 symbol 布局(placement)。图标本身还会跟着
+         * 逐帧微缩放 —— 于是在移动的地图上,卡片自己在**抖**。
+         * 固定尺寸:一帧布局都不用重算,卡片稳如钉在地上。
+         */
+        'icon-size': 0.85,
         'icon-anchor': 'bottom',
+        // 项目 pin **永远画出来**(allow-overlap),但它**占位**(ignore-placement:false)——
+        // 于是地标名字会自己让开,不会再糊在客户要看的那张房子卡片上。
         'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
+        'icon-ignore-placement': false,
+        // 先排 pin,再排别人(数字越小越优先)。
+        'symbol-sort-key': 0,
       },
     })
     raiseNow()
@@ -450,6 +516,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     flyTo,
     jumpTo,
     getCamera,
+    setViewportPadding,
     drawDistanceLine,
     showAmenitySpokes,
     highlightPins,

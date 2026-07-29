@@ -40,15 +40,28 @@ const EASE = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) // ease
 const NOOP_MOVE_EPS = 0.0008
 /** Floor so a 0-duration cue still occupies a sliver of the track. */
 const MIN_CUE_MS = 800
+
+/** 窄屏(手机)。一处判定,下面几个上下限都跟着它走。 */
+export const isNarrowViewport = (): boolean =>
+  typeof window !== 'undefined' && window.innerWidth < 700
+
 /** Don't let the camera pull wider than this — AI sometimes authors zoom 9 wide
  *  establishing shots that, compressed into a short narration, read as a dizzying
  *  zoom-out-then-in. Keep the framing tight + steady.
  *
  *  🔴 手机必须放宽:同样的 zoom 在窄屏上横向可见范围小得多,10.8 的下限会把
  *  establishing 里两侧的项目直接挤出画面(owner:「一开始没办法看到全貌」)。
- *  窄屏下调下限,让 establishing 能退到装得下所有项目的 zoom。桌面不变。 */
-const MIN_TOUR_ZOOM =
-  typeof window !== 'undefined' && window.innerWidth < 700 ? 9.4 : 10.8
+ *  窄屏下调下限,让 establishing 能退到装得下所有项目的 zoom。桌面不变。
+ *
+ *  2026-07-28 两端都放宽(手机 8.6 / 桌面 9.4)。owner 要求开场「**高一点**,围着迪拜
+ *  缓慢旋转」,而这个下限正好卡在那个高度上:
+ *   • 手机「装得下所有项目」的 zoom 约 9.9,再抛高一点就撞 9.4;
+ *   • 桌面更糟 —— 后端算的建立机位是 10.2,**一直被 10.8 悄悄夹紧**,
+ *     所以桌面从来没真正拍到过那张城市全景。
+ *  这个下限原本是为了防「AI 写个 zoom 9 的大广角,压在短旁白里变成一拉一推」。
+ *  现在**开场机位由 openingShot.ts 按几何算死、不再由 AI 决定**,那个风险没了,
+ *  下限只需要留着当一道兜底护栏。 */
+const MIN_TOUR_ZOOM = isNarrowViewport() ? 8.6 : 9.4
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -69,6 +82,18 @@ interface Segment {
   arc?: boolean
   /** lowest zoom reached at mid-flight for an arc */
   midZoom?: number
+  /**
+   * 🔴 RIGID = **不许被旁白拉长**。
+   *
+   * 引擎会把整条相机轨道 time-warp 到旁白长度(「镜头动多久 = Luna 说多久」)。
+   * 那对**停留**(orbit/push/crane)完全正确,对**赶路**(flyover)是灾难:
+   * 一段本该 2.5 秒到位的飞行,配上 20 秒的旁白就被拉成 **11 秒的空中平移** ——
+   * 画面里没有任何信息(owner:「travel is dead time」),而且正是这几秒在手机上
+   * 疯狂拉新 zoom 的卫星瓦片。
+   *
+   * 所以:赶路按剧本的秒数走,**多出来的时间全部给停留吸收**(到了目的地慢慢看)。
+   */
+  rigid?: boolean
 }
 
 /**
@@ -84,17 +109,25 @@ function zoomToFitSpan(spanDeg: number): number {
 }
 /** 抛高不足这么多级就不值得抛 —— 两点本来就在一个画面里，平飞就好。 */
 const MIN_ARC_PULL = 0.8
-/** 抛高的硬上限。再高客户就只看见沙漠了，而那几秒画面里没有任何信息。 */
-const MAX_ARC_PULL = 2.2
+/** 抛高的硬上限。再高客户就只看见沙漠了，而那几秒画面里没有任何信息。
+ *
+ *  🔴 手机压到 1.2:抛高 2.2 级 = 途中把**整整两级新 zoom 的卫星瓦片**全拉一遍,
+ *  落地再拉回来。这是手机上最贵的一段(实测每次跨 zoom 都是一次 30+ 瓦片的爆发),
+ *  而画面上什么信息都没有。 */
+const MAX_ARC_PULL = isNarrowViewport() ? 1.2 : 2.2
 
 const ARRIVAL_ZOOM = 15
 /** Cap the cinematic tilt. A steep pitch (55°+) makes the camera see toward the
  *  horizon, so a SLOW orbit streams a huge, ever-changing fan of satellite tiles
  *  (incl. low-zoom far-field tiles) — the periodic "still fetching while rotating"
  *  hitch. ~45° keeps a clear 3D feel while cutting the visible footprint (and the
- *  POIs/labels in view) a lot. Applies to authored pitch too. */
-const MAX_TOUR_PITCH = 48
-const ARRIVAL_PITCH = 45
+ *  POIs/labels in view) a lot. Applies to authored pitch too.
+ *
+ *  🔴 手机 38°:俯角每高一度,画面里就多一片朝地平线延伸的远景瓦片。窄屏本来就窄,
+ *  45° 换来的「立体感」很有限,换走的却是每帧的瓦片量。顺带也更符合 owner 要的
+ *  「高一点」的俯瞰感。 */
+const MAX_TOUR_PITCH = isNarrowViewport() ? 38 : 48
+const ARRIVAL_PITCH = isNarrowViewport() ? 38 : 45
 
 export interface CameraTrack {
   /** total ms this track spans (0 if no camera) */
@@ -103,6 +136,15 @@ export interface CameraTrack {
   sampleAt(t: number): CameraState | null
   /** the state the camera should hold at the very start (for instant seek) */
   readonly initial: CameraState | null
+  /** ms of RIGID (travel) motion — never stretched to fit the narration */
+  readonly rigidDuration: number
+  /**
+   * 把「墙上时钟走了多久」换算成「轨道时间」，使整条轨道刚好铺满 targetMs 毫秒 ——
+   * 但**赶路段保持原速**，只有停留段被拉长/压短。targetMs<=0 → 不做时间伸缩。
+   */
+  remap(wallMs: number, targetMs: number): number
+  /** 这条轨道在 targetMs 的伸缩下，墙上时钟总共要走多久 */
+  wallDuration(targetMs: number): number
 }
 
 /**
@@ -113,9 +155,7 @@ export interface CameraTrack {
  */
 export function compileCameraTrack(cues: Camera[], entry: CameraState | null): CameraTrack {
   const fallback: CameraState = { center: [55.27, 25.2], zoom: 11, pitch: 45, bearing: 0 }
-  if (!cues.length) {
-    return { duration: 0, sampleAt: () => null, initial: entry }
-  }
+  if (!cues.length) return emptyTrack(entry)
 
   /**
    * 🔴 相机的起点。
@@ -218,10 +258,10 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       const pull = lowZoom - fitZoom
       if (moved && pull > MIN_ARC_PULL) {
         const midZoom = Math.max(MIN_TOUR_ZOOM, lowZoom - Math.min(pull, MAX_ARC_PULL))
-        segs.push({ start: t, end: t + flyDur, from: cur, to, arc: true, midZoom })
+        segs.push({ start: t, end: t + flyDur, from: cur, to, arc: true, midZoom, rigid: true })
       } else {
         // 两点本来就在一个画面里（POI、同项目内的小移动）→ 直接平移过去。
-        segs.push({ start: t, end: t + flyDur, from: cur, to })
+        segs.push({ start: t, end: t + flyDur, from: cur, to, rigid: moved })
       }
       cur = to
       t += flyDur
@@ -234,19 +274,57 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
         pitch: Math.min(MAX_TOUR_PITCH, cam.pitch ?? cur.pitch),
         bearing: cam.bearing ?? cur.bearing,   // 剧本说什么就是什么
       }
-      segs.push({ start: t, end: t + dur, from: cur, to })
+      // 换了地方的关键帧也是**赶路** → 按剧本的秒数走，别被旁白拉成慢动作平移。
+      const travelled = Math.hypot(to.center[0] - cur.center[0], to.center[1] - cur.center[1])
+      segs.push({ start: t, end: t + dur, from: cur, to, rigid: dur > 0 && travelled >= NOOP_MOVE_EPS })
       cur = to
       t += dur
     }
   }
 
-  if (!segs.length) {
-    // every cue was a no-op → hold entry, no motion
-    return { duration: 0, sampleAt: () => null, initial: entry ?? cur }
-  }
+  // every cue was a no-op → hold entry, no motion
+  if (!segs.length) return emptyTrack(entry ?? cur)
 
   const duration = t
   const initial = segs[0].from
+  const rigidDuration = segs.reduce((s, g) => s + (g.rigid ? g.end - g.start : 0), 0)
+  const elasticDuration = duration - rigidDuration
+
+  /**
+   * 停留段的伸缩倍数。赶路段固定不动，多出来（或少掉）的时间全部由停留段吸收。
+   * 旁白比赶路本身还短（少见）→ 退回整体等比压缩，不然轨道会盖不住旁白。
+   */
+  const elasticScale = (targetMs: number): number => {
+    if (targetMs <= 0) return 1
+    if (elasticDuration <= 0) return Math.max(0.05, targetMs / duration)
+    return Math.max(0.15, (targetMs - rigidDuration) / elasticDuration)
+  }
+  /** 旁白连赶路都装不下 → 整体等比压缩（赶路也一起压）。 */
+  const uniform = (targetMs: number): boolean =>
+    targetMs > 0 && (elasticDuration <= 0 || targetMs <= rigidDuration * 1.05)
+
+  const wallDuration = (targetMs: number): number => {
+    if (targetMs <= 0) return duration
+    if (uniform(targetMs)) return duration * Math.max(0.05, targetMs / duration)
+    return rigidDuration + elasticDuration * elasticScale(targetMs)
+  }
+
+  const remap = (wallMs: number, targetMs: number): number => {
+    if (targetMs <= 0) return wallMs
+    if (uniform(targetMs)) return wallMs / Math.max(0.05, targetMs / duration)
+    const k = elasticScale(targetMs)
+    let wall = 0
+    for (const s of segs) {
+      const span = s.end - s.start
+      const wallSpan = s.rigid ? span : span * k
+      if (wallMs < wall + wallSpan || s === segs[segs.length - 1]) {
+        const local = wallSpan > 0 ? (wallMs - wall) / wallSpan : 1
+        return s.start + span * local
+      }
+      wall += wallSpan
+    }
+    return duration
+  }
 
   const sampleAt = (tt: number): CameraState | null => {
     if (tt <= 0) return segs[0].from
@@ -288,7 +366,18 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
     }
   }
 
-  return { duration, sampleAt, initial }
+  return { duration, sampleAt, initial, rigidDuration, remap, wallDuration }
+}
+
+function emptyTrack(initial: CameraState | null): CameraTrack {
+  return {
+    duration: 0,
+    sampleAt: () => null,
+    initial,
+    rigidDuration: 0,
+    remap: (w) => w,
+    wallDuration: () => 0,
+  }
 }
 
 /** Final state of a track (for chaining the next beat's entry). */

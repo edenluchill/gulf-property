@@ -79,6 +79,12 @@ type BaseMap = 'vector' | 'satellite' | 'dark'
 // moves go through map.flyTo. (Per the project's own map perf rule.)
 const INITIAL_VIEW = { longitude: 55.089, latitude: 25.019, zoom: 10.115216007819594, pitch: 0, bearing: 0 }
 
+/**
+ * 栅格瓦片缓存上限。react-map-gl 只在初始化时读它,所以这里必须是一个**模块级常量**
+ * (不能等 tourActive 变了再改)。窄屏一律走小缓存 —— 显存预算见下面 maxTileCacheSize 处。
+ */
+const TILE_CACHE_SIZE = typeof window !== 'undefined' && window.innerWidth < 700 ? 140 : 600
+
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -604,6 +610,10 @@ function MapViewMapLibre({
     } catch {
       /* 老引擎没有 setPixelRatio —— 不因它挂掉地图 */
     }
+    // ℹ️ 试过关掉「父级瓦片预取」(mapbox 的 setPrefetchZoomDelta) —— **MapLibre 5.18
+    //    根本没有这个 API**（grep 过 dist,一处都没有,它压根不做父级预取）。
+    //    所以降落那几秒的密集长帧就是**真正需要的那些瓦片**在解码+上纹理,
+    //    没有可以砍的冗余请求。别再往这里加这个调用。
   }, [tourActive, mapLoaded])
 
   // 地图加载完成后再渲染 layers
@@ -842,11 +852,17 @@ function MapViewMapLibre({
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 14, 12],
           'text-anchor': 'top',
           'text-offset': [0, 0.35],
-          // Skip the collision pass: MapLibre re-runs symbol placement on every
-          // camera rotation, which was a periodic hitch while orbiting a property.
-          // Few landmarks, well spread → overlap is rare and smoothness wins.
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
+          /**
+           * 🔴 名字**要参加碰撞检测**;图标不参加。
+           *
+           * 之前两个都关了(理由是「MapLibre 每次旋转都重排 placement」)。但地标在
+           * Downtown 一带是**密集**的:开场高空俯瞰时「黄金市场 / 迪拜画框 / 未来博物馆 /
+           * 迪拜国际金融中心 / 迪拜购物中心」五个名字直接叠成一坨,还盖住项目 pin。
+           * 只有 15 个标签 —— 让它们排一下队的开销可以忽略,而叠字是肉眼可见的廉价感。
+           * 图标(那些立体剪影)仍然 allow-overlap:owner 明确要求地标永远显示。
+           */
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
           'text-optional': true,
         },
         paint: {
@@ -1508,7 +1524,12 @@ function MapViewMapLibre({
         attributionControl={false}
         // Keep more raster tiles cached so zooming in/out and back doesn't refetch
         // (and re-pixelate) tiles already seen this session.
-        maxTileCacheSize={600}
+        //
+        // 🔴 **手机上不能这么贪。** 600 张 256×256 的卫星栅格 ≈ 600×256KB ≈ **157MB
+        // 显存**。桌面无感,手机(尤其 iOS)会撞 GPU 内存上限 → 纹理反复换入换出,
+        // 甚至丢 GL context —— 表现就是运镜时一阵一阵地卡。tour 期间窄屏压到 140
+        // (≈37MB),重访瓦片仍然命中缓存,而显存有余量。
+        maxTileCacheSize={TILE_CACHE_SIZE}
         // CJK (Chinese area/POI names) render locally with a system font instead
         // of being fetched from the glyph server — fast, and the openmaptiles
         // glyph server doesn't carry CJK anyway. Latin/symbols still come from
@@ -1581,7 +1602,22 @@ function MapViewMapLibre({
             <Layer
               id="area-label-text"
               type="symbol"
-              filter={['<=', ['get', 'minZoom'], ['zoom']]}
+              /**
+               * 🔴 tour 里把区域名的出现门槛**推后 2.2 级**。
+               *
+               * tour 期间碰撞检测是关掉的(见下面 text-allow-overlap —— 环绕时每帧重排
+               * placement 会周期性打嗝)。当时的判断是「tour 的 zoom 下画面里只有几个
+               * 标签,重叠可以忽略」——**那是错的**:开场建立机位在 zoom≈9.9,画面里
+               * 挤了三四十个中文区域名,层层叠在一起糊成一片,把三个项目 pin 全埋了。
+               *
+               * 所以门槛推后:开场那张城市全景**干净无标签**,随着镜头下降到项目附近,
+               * 名字才一层层浮出来。既不用打开碰撞检测,也不再糊屏。
+               */
+              filter={
+                tourActive
+                  ? ['<=', ['get', 'minZoom'], ['-', ['zoom'], 2.2]]
+                  : ['<=', ['get', 'minZoom'], ['zoom']]
+              }
               layout={{
                 'text-field': timeline
                   // 时间轴：名称 + 该年数值。用 **labelYear**(比填充年份滞后 120ms)——
