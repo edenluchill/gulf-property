@@ -350,12 +350,12 @@
     "exit": "Quitter"
   },
   "changelog": {
-    "title": "Nouveautés",
+    "title": "Journal de bord",
     "badge": "Mis à jour",
-    "lastUpdate": "Dernière mise à jour",
-    "tagline": "Ce qui a changé dans Pinzos. Il vous manque quelque chose ? Dites-le-nous.",
-    "metaDesc": "Ce que nous avons livré dans Pinzos — nouveautés, améliorations et corrections, ainsi que les demandes des clients.",
-    "statUpdates": "mises à jour",
+    "lastUpdate": "Dernière entrée",
+    "tagline": "Ce que nous changeons, noté au fil des jours. Il vous manque quelque chose ? Écrivez-nous.",
+    "metaDesc": "Le journal de bord de Pinzos — ce que nous avons construit, corrigé, et ce que demandent les clients.",
+    "statUpdates": "entrées",
     "statNew": "nouveautés",
     "statImproved": "améliorations",
     "statFixed": "corrections",

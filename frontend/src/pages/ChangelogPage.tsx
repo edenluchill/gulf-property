@@ -7,7 +7,7 @@
  * 视觉/交互决定（都来自 owner 的实际反馈）：
  *   · hero 里一次把三个出口给全（提建议 / 打开地图 / 了解 Pinzos），页面**底部不再重复**
  *   · 提建议走**弹窗**，不用滚到页尾；没登录也能点开，弹窗里再说要登录
- *   · 往下滚 → 顶部贴一条**细导航条**（月份 + 提建议），桌面手机都有
+ *   · 桌面用左侧「书脊」目录（一直在，读到哪线亮到哪）；手机才用滚动后贴顶的细条 —— 一个断点一个导航，别打架
  *   · 文案只陈述事实，不自夸（「每周都在改」那种话删掉了）
  *   · 动效走 CSS + IntersectionObserver 的入场揭示。**不用 Remotion** —— 那是渲染
  *     视频的，跑不进网页运行时；这里要的是轻量、不掉帧。
@@ -19,6 +19,7 @@ import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
+import { motion } from 'framer-motion'
 import {
   Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, Check, Send,
   ChevronUp, MessageSquare, Search as SearchIcon, ChevronDown, X,
@@ -127,6 +128,90 @@ function CountUp({ to, className, style }: { to: number; className?: string; sty
   // translate="no":浏览器自带翻译会把数字/日期一起「翻译」掉(实测中文页被 Chrome
   // 译成英文后,「1月13日」变成「1 month 13 months」)。数字不需要翻译。
   return <span translate="no" className={className} style={style}>{n}</span>
+}
+
+/**
+ * 「书脊」目录 —— 一根竖线，每个月一个刻度，读到哪里线就亮到哪里。
+ *
+ * 为什么不是普通的一列按钮：这是**日记**，目录本身就该像书脊/胶片边缘，
+ * 而不是设置面板里的一排选项。功能上完全等价（点了跳过去），只是它顺手把
+ * 「你读到哪儿了」也画了出来 —— 一个普通列表做不到的事。
+ *
+ * 动效都交给 framer-motion 的 `layoutId`：高亮块在两个月份之间**滑过去**，
+ * 不是闪一下。滑动的那 200ms 正是让人看懂「我从这里到了那里」的东西。
+ */
+function SpineNav({ items, active, onJump }: {
+  items: { key: string; label: string; count: number | null }[]
+  active: string
+  onJump: (k: string) => void
+}) {
+  const idx = Math.max(0, items.findIndex((i) => i.key === active))
+  // 进度：读到第几个刻度（最后一项是功能建议，算满）
+  const pct = items.length > 1 ? (idx / (items.length - 1)) * 100 : 0
+
+  return (
+    <ul className="relative ps-1">
+      {/* 书脊本体：整根淡线 + 一段随进度生长的亮线 */}
+      <span aria-hidden className="absolute bottom-2 start-[7px] top-2 w-px bg-slate-200/80" />
+      <motion.span
+        aria-hidden
+        className="absolute start-[7px] top-2 w-px origin-top"
+        style={{ background: ACCENT }}
+        initial={false}
+        animate={{ height: `calc(${pct}% - 0px)` }}
+        transition={{ type: 'spring', stiffness: 260, damping: 32 }}
+      />
+
+      {items.map((n) => {
+        const on = active === n.key
+        return (
+          <li key={n.key} className="relative">
+            <button
+              type="button"
+              onClick={() => onJump(n.key)}
+              className="group flex w-full items-center gap-3 py-1.5 text-start"
+            >
+              {/* 刻度：当前那个变成实心大点 + 光晕 */}
+              <span className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                {on && (
+                  <motion.span
+                    layoutId="spine-halo"
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: `${ACCENT}33` }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 34 }}
+                  />
+                )}
+                <span
+                  className={`rounded-full ring-2 ring-white transition-all duration-200 ${
+                    on ? 'h-2 w-2' : 'h-1.5 w-1.5 group-hover:h-2 group-hover:w-2'
+                  }`}
+                  style={{ background: on ? ACCENT : '#CBD5E1' }}
+                />
+              </span>
+
+              <span
+                translate="no"
+                className={`min-w-0 flex-1 truncate text-[13px] transition-all duration-200 ${
+                  on ? 'font-semibold text-slate-900' : 'text-slate-400 group-hover:translate-x-0.5 group-hover:text-slate-700'
+                }`}
+              >
+                {n.label}
+              </span>
+
+              {n.count != null && (
+                <span
+                  translate="no"
+                  className={`shrink-0 text-[11px] tabular-nums transition-colors ${on ? 'text-slate-500' : 'text-slate-300'}`}
+                >
+                  {n.count}
+                </span>
+              )}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 export default function ChangelogPage() {
@@ -266,8 +351,11 @@ export default function ChangelogPage() {
         </div>
       </section>
 
-      {/* ── 滚动后贴顶的细导航条 ─────────────────────────────────────────── */}
-      <div className={`sticky top-0 z-30 border-b border-slate-100 bg-white/90 backdrop-blur transition-all duration-200 ${
+      {/* ── 滚动后贴顶的细导航条 ── **只在手机/平板**。
+             桌面有左边那根书脊(sticky,一直在),再来一条贴顶条就是两个导航打架 ——
+             而且书脊被它盖掉后,只有滚动最初那 600px 能看见,等于白做。
+             一个断点一个导航。 ─────────────────────────────────────────── */}
+      <div className={`sticky top-0 z-30 border-b border-slate-100 bg-white/90 backdrop-blur transition-all duration-200 md:hidden ${
         stuck ? 'pointer-events-auto opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'
       }`}>
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-5 py-2 sm:px-6">
@@ -275,12 +363,18 @@ export default function ChangelogPage() {
             <Sparkles className="h-3.5 w-3.5" style={{ color: ACCENT }} />{title}
           </span>
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* 高亮块用 layoutId 在月份之间**滑过去**（手机上同一套）。
+                滑动的那一下正是让人看懂「我从这里到了那里」的东西。 */}
             {navItems.map((n) => (
               <button key={n.key} type="button" onClick={() => jump(n.key)}
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition ${
-                  active === n.key ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'
+                className={`relative shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  active === n.key ? 'text-white' : 'text-slate-500 hover:text-slate-800'
                 }`}>
-                <span translate="no">{n.label}</span>
+                {active === n.key && (
+                  <motion.span layoutId="topnav-pill" className="absolute inset-0 rounded-full bg-slate-900"
+                    transition={{ type: 'spring', stiffness: 420, damping: 36 }} />
+                )}
+                <span translate="no" className="relative">{n.label}</span>
               </button>
             ))}
           </div>
@@ -294,37 +388,33 @@ export default function ChangelogPage() {
 
       <div className="mx-auto max-w-5xl px-5 sm:px-6">
         <div className="flex gap-10 py-10 md:py-14">
-          {/* 桌面：左侧 sticky 目录（细导航条出现后它就多余了，淡出） */}
-          <nav className={`hidden w-44 shrink-0 transition-opacity duration-200 md:block ${stuck ? 'opacity-0' : 'opacity-100'}`}>
+          {/* 桌面：左侧「书脊」目录 —— 一直在，它就是这一页的导航 */}
+          <nav className="hidden w-44 shrink-0 md:block">
             <div className="sticky top-24">
-              <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="mb-4 ps-7 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 {t('misc:changelog.jumpTo')}
               </p>
-              <ul className="space-y-0.5">
-                {navItems.map((n) => {
-                  const on = active === n.key
-                  return (
-                    <li key={n.key}>
-                      <button type="button" onClick={() => jump(n.key)}
-                        className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-start text-[13px] transition ${
-                          on ? 'bg-slate-900 font-medium text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                        }`}>
-                        <span className="truncate" translate="no">{n.label}</span>
-                        {n.count != null && (
-                          <span translate="no" className={`shrink-0 text-[11px] tabular-nums ${on ? 'text-white/60' : 'text-slate-300'}`}>{n.count}</span>
-                        )}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <SpineNav items={navItems} active={active} onJump={jump} />
             </div>
           </nav>
 
           <div ref={contentRef} className="min-w-0 flex-1">
             {months.map((m) => (
               <section key={m.key} data-sec={m.key} className="mb-12 scroll-mt-20">
-                <h2 translate="no" className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">{m.label}</h2>
+                {/* 月份标题：当前这个月加一条短横线 + 变深，像日记里翻到的那一页 */}
+                <h2 translate="no" className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                  <motion.span
+                    aria-hidden
+                    className="block h-px"
+                    style={{ background: ACCENT }}
+                    initial={false}
+                    animate={{ width: active === m.key ? 20 : 0, opacity: active === m.key ? 1 : 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  />
+                  <span className={`transition-colors duration-300 ${active === m.key ? 'text-slate-800' : 'text-slate-400'}`}>
+                    {m.label}
+                  </span>
+                </h2>
 
                 {/* 时间线：竖线在**独立的 24px 栏**里，圆点在栏中间，卡片在右边。
                     以前用 border-s + 圆点负边距，圆点会骑在文字块左缘上。 */}
@@ -334,8 +424,15 @@ export default function ChangelogPage() {
                     const last = i === m.items.length - 1
                     return (
                       <li key={`${e.date}-${i}`} className="flex gap-3">
+                        {/* 刻度：当前正在读的这个月，圆点亮起来并微微放大 ——
+                            和左边书脊上的那个刻度是同一件事，两头呼应。 */}
                         <div className="relative flex w-6 shrink-0 flex-col items-center">
-                          <span className="mt-4 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white" style={{ background: k.dot }} />
+                          <span
+                            className={`mt-4 shrink-0 rounded-full ring-4 ring-white transition-all duration-300 ${
+                              active === m.key ? 'h-2.5 w-2.5' : 'h-2 w-2'
+                            }`}
+                            style={{ background: k.dot, opacity: active === m.key ? 1 : 0.45 }}
+                          />
                           {!last && <span className="mt-1 w-px flex-1 bg-slate-100" />}
                         </div>
                         <Reveal delay={Math.min(i, 6) * 0.03} className="min-w-0 flex-1">
