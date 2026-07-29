@@ -33,6 +33,7 @@ import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
 import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —— 经纪台专用(/agent/roi)
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import ChangelogPage from './pages/ChangelogPage'
+import RequestsPage from './pages/RequestsPage'
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
 import AgentJoin from './pages/AgentJoin'  // become-an-agent onboarding
 import RoleSelectPage from './pages/RoleSelectPage'  // 四角色选择页(/choose-role)
@@ -162,8 +163,11 @@ function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        {/* 更新历史(面向客户的「这周改了什么」)—— 内容手写在 data/changelog.ts */}
+        {/* 产品日记(面向客户的「我们改了什么」)—— 内容手写在 data/changelog.ts */}
         <Route path="/changelog" element={<ChangelogPage />} />
+        {/* 功能建议板 —— **独立一页**:浏览/发帖/点赞/跟帖。
+            日记页只在 hero 放一张入口卡,不在页尾再挂一份列表。 */}
+        <Route path="/requests" element={<RequestsPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/compare" element={<ComparePage />} />

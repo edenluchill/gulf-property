@@ -22,71 +22,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
-import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import {
-  Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, Check, Send,
-  ChevronUp, MessageSquare, Search as SearchIcon, ChevronDown, X,
-} from 'lucide-react'
-import { CHANGELOG, pickLang, type ChangeKind } from '../data/changelog'
+import { Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, ChevronUp } from 'lucide-react'
+import { CHANGELOG, type ChangeKind } from '../data/changelog'
 import { useUnseenChangelog } from '../hooks/useUnseenChangelog'
-import { useAuth } from '../contexts/AuthContext'
-import {
-  fetchFeatureRequests, submitFeatureRequest, toggleVote, fetchThread, postReply, updateRequest,
-  type FeatureRequest, type RequestStatus, type RequestComment,
-} from '../lib/featureRequestApi'
+// 建议是**独立一页**（/requests）；这里只留一张 hero 入口卡，共用同一套标签定义
+import { STATUS, ROLE, useT, ACCENT as REQ_ACCENT } from '../components/requests/shared'
+import { fetchFeatureRequests, type FeatureRequest } from '../lib/featureRequestApi'
 
-const ACCENT = '#00E0B8'
+const ACCENT = REQ_ACCENT
 const GOLD = '#E8C37E'
 const GRID = 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)'
-const REQ_ID = 'requests'
 
 const KIND: Record<ChangeKind, { icon: React.ReactNode; dot: string; chip: string; key: string }> = {
   new: { icon: <Sparkles className="h-3.5 w-3.5" />, dot: '#00E0B8', chip: 'bg-teal-50 text-teal-700 ring-teal-100', key: 'misc:changelog.kindNew' },
   improve: { icon: <Wrench className="h-3.5 w-3.5" />, dot: '#38BDF8', chip: 'bg-sky-50 text-sky-700 ring-sky-100', key: 'misc:changelog.kindImprove' },
   fix: { icon: <Bug className="h-3.5 w-3.5" />, dot: '#FBBF24', chip: 'bg-amber-50 text-amber-700 ring-amber-100', key: 'misc:changelog.kindFix' },
-}
-
-const STATUS: Record<RequestStatus, { chip: string; key: string }> = {
-  shipped: { chip: 'bg-emerald-50 text-emerald-700 ring-emerald-100', key: 'misc:changelog.fShipped' },
-  planned: { chip: 'bg-sky-50 text-sky-700 ring-sky-100', key: 'misc:changelog.fPlanned' },
-  open: { chip: 'bg-slate-100 text-slate-600 ring-slate-200', key: 'misc:changelog.fOpen' },
-  // 「暂不做」也照常显示 —— 悄悄让它消失比明说更伤人，提议的人会觉得石沉大海
-  declined: { chip: 'bg-slate-50 text-slate-400 ring-slate-100', key: 'misc:changelog.fDeclined' },
-}
-
-/** 角色标记：**群体属性，不是身份**。指认不到具体的人，但能看出诉求来自哪一侧。 */
-const ROLE: Record<string, { chip: string; key: string }> = {
-  agent: { chip: 'bg-teal-50 text-teal-700 ring-teal-100', key: 'misc:changelog.roleAgent' },
-  agency: { chip: 'bg-teal-50 text-teal-700 ring-teal-100', key: 'misc:changelog.roleAgency' },
-  developer: { chip: 'bg-indigo-50 text-indigo-600 ring-indigo-100', key: 'misc:changelog.roleDeveloper' },
-  buyer: { chip: 'bg-sky-50 text-sky-600 ring-sky-100', key: 'misc:changelog.roleBuyer' },
-}
-
-/** Intl 用完整 BCP-47；数据字段(zh/en/fr/ru/ar)用 pickLang。两件事，别混。 */
-const INTL_LOCALE = { zh: 'zh-CN', en: 'en-GB', fr: 'fr-FR', ru: 'ru-RU', ar: 'ar-AE' } as const
-
-/** 页面里到处要 t()，统一从这里拿（带宽松签名，免得每处都写 as）。 */
-function useT() {
-  const { t: raw, i18n } = useTranslation('misc')
-  return {
-    t: raw as (k: string, o?: Record<string, unknown>) => string,
-    i18n,
-    lang: pickLang(i18n.language),
-    locale: INTL_LOCALE[pickLang(i18n.language)],
-  }
-}
-
-function RoleTag({ role }: { role: string | null }) {
-  const { t } = useT()
-  const r = role && ROLE[role]
-  if (!r) return null
-  return (
-    <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium ring-1 ${r.chip}`}>
-      {t(r.key)}
-    </span>
-  )
 }
 
 /**
@@ -226,11 +177,7 @@ function SpineNav({ items, active, onJump }: {
  * 每条给三件事:多少人附议(票数)、我们的处理状态、来自经纪还是买家。
  * 有人已经提过 → 他去点赞(更有用的信号);没人提过 → 他自己写一条。
  */
-function HeroRequests({ list, onCompose, onSeeAll }: {
-  list: FeatureRequest[] | null
-  onCompose: () => void
-  onSeeAll: () => void
-}) {
+function HeroRequests({ list }: { list: FeatureRequest[] | null }) {
   const { t } = useT()
   /**
    * ⚠️ 这里**不能用服务端那个排序**。服务端给完整列表排的是「已上线 > 计划中 >
@@ -263,12 +210,12 @@ function HeroRequests({ list, onCompose, onSeeAll }: {
           <div className="py-1">
             <p className="text-[15px] font-semibold text-white">{t('misc:changelog.heroEmptyTitle')}</p>
             <p className="mt-1 text-[13px] leading-relaxed text-slate-400">{t('misc:changelog.heroEmpty')}</p>
-            <button type="button" onClick={onCompose}
+            <Link to="/requests?new=1"
               className="mt-3.5 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-semibold text-slate-900 transition hover:opacity-90 active:scale-95"
               style={{ background: ACCENT }}>
               <Lightbulb className="h-4 w-4" />
               {t('misc:changelog.heroEmptyCta')}
-            </button>
+            </Link>
           </div>
         ) : (
           <>
@@ -277,7 +224,7 @@ function HeroRequests({ list, onCompose, onSeeAll }: {
                 const st = STATUS[r.status] || STATUS.open
                 return (
                   <li key={r.id}>
-                    <button type="button" onClick={onSeeAll}
+                    <Link to={`/requests?r=${r.id}`}
                       className="flex w-full items-start gap-2.5 rounded-xl p-2 text-start transition hover:bg-white/[0.06]">
                       <span className="flex h-9 w-8 shrink-0 flex-col items-center justify-center rounded-lg bg-white/[0.06] text-white/70">
                         <ChevronUp className="h-3 w-3" />
@@ -298,21 +245,21 @@ function HeroRequests({ list, onCompose, onSeeAll }: {
                           )}
                         </span>
                       </span>
-                    </button>
+                    </Link>
                   </li>
                 )
               })}
             </ul>
             <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
-              <button type="button" onClick={onCompose}
-                className="flex-1 rounded-xl py-2 text-[13px] font-semibold text-slate-900 transition hover:opacity-90"
+              <Link to="/requests?new=1"
+                className="flex-1 rounded-xl py-2 text-center text-[13px] font-semibold text-slate-900 transition hover:opacity-90"
                 style={{ background: ACCENT }}>
                 {t('misc:changelog.requestShort')}
-              </button>
-              <button type="button" onClick={onSeeAll}
+              </Link>
+              <Link to="/requests"
                 className="shrink-0 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-300 transition hover:bg-white/10 hover:text-white">
                 {t('misc:changelog.seeAll', { n: (list || []).length })}
-              </button>
+              </Link>
             </div>
           </>
         )}
@@ -327,9 +274,7 @@ export default function ChangelogPage() {
   useEffect(() => { markSeen() }, [markSeen])
 
   const title = t('misc:changelog.title')
-  const [composeOpen, setComposeOpen] = useState(false)
-  // 建议列表放在页面级：hero 卡片和下面的完整列表**共用一次请求**，
-  // 也共用同一份状态（在任何一处点赞/提交，两边一起更新）
+  // hero 那张入口卡要展示最热几条，所以这里也拉一次（只读，不做任何写操作）
   const [requests, setRequests] = useState<FeatureRequest[] | null>(null)
   useEffect(() => { fetchFeatureRequests().then(setRequests) }, [])
 
@@ -383,10 +328,9 @@ export default function ChangelogPage() {
   const fmtDate = (d: string) =>
     new Date(d + 'T00:00:00').toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 
-  const navItems = [
-    ...months.map((m) => ({ key: m.key, label: m.label, count: m.items.length as number | null })),
-    { key: REQ_ID, label: t('misc:changelog.requestsNav'), count: null },
-  ]
+  // ⚠️ 这里**不能**再有「功能建议」——它已经是独立一页(/requests),
+  //    留一个跳不到任何区块的目录项只会点了没反应。
+  const navItems = months.map((m) => ({ key: m.key, label: m.label, count: m.items.length as number | null }))
   const jump = (key: string) => document.querySelector(`[data-sec="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const kindCount = (k: ChangeKind) => CHANGELOG.filter((e) => e.kind === k).length
 
@@ -397,13 +341,6 @@ export default function ChangelogPage() {
         <meta name="description" content={t('misc:changelog.metaDesc')} />
         <link rel="canonical" href="https://www.pinzos.com/changelog" />
       </Helmet>
-
-      {composeOpen && (
-        <ComposeModal
-          onClose={() => setComposeOpen(false)}
-          onCreated={(r) => setRequests((p) => [r, ...(p || [])])}
-        />
-      )}
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section
@@ -451,12 +388,12 @@ export default function ChangelogPage() {
               感觉都是多余，可以放在一开始那个 section」) */}
           <Reveal delay={0.14}>
             <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <button type="button" onClick={() => setComposeOpen(true)}
+              <Link to="/requests?new=1"
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90 active:scale-95"
                 style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
                 <Lightbulb className="h-4 w-4" />
                 {t('misc:changelog.requestCta')}
-              </button>
+              </Link>
               <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-300 transition hover:text-white">
                 {t('misc:changelog.openMap')} <ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
               </Link>
@@ -475,11 +412,7 @@ export default function ChangelogPage() {
               于是要么重复提,要么干脆不提。
               这张卡片给的正是决定要不要开口之前需要的三件事:有没有人提过、多少人附议、
               我们答了没有。 */}
-          <HeroRequests
-            list={requests}
-            onCompose={() => setComposeOpen(true)}
-            onSeeAll={() => jump(REQ_ID)}
-          />
+          <HeroRequests list={requests} />
         </div>
       </section>
 
@@ -510,11 +443,11 @@ export default function ChangelogPage() {
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => setComposeOpen(true)}
+          <Link to="/requests"
             className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-slate-900 transition hover:opacity-90"
             style={{ background: ACCENT }}>
             {t('misc:changelog.requestShort')}
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -586,377 +519,9 @@ export default function ChangelogPage() {
               </section>
             ))}
 
-            <FeatureRequests list={requests} setList={setRequests} onCompose={() => setComposeOpen(true)} />
           </div>
         </div>
       </div>
     </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// 提建议弹窗 —— 没登录也能打开，弹窗里再说要登录
-// ════════════════════════════════════════════════════════════════════════════
-
-function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: (r: FeatureRequest) => void }) {
-  const { t } = useT()
-  const { user, signInWithGoogle } = useAuth()
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const [ok, setOk] = useState(false)
-
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', esc)
-    return () => window.removeEventListener('keydown', esc)
-  }, [onClose])
-
-  const send = async () => {
-    setErr(''); setBusy(true)
-    try {
-      onCreated(await submitFeatureRequest(title.trim(), body.trim()))
-      setOk(true)
-      setTimeout(onClose, 1400)
-    } catch (e) {
-      // 后端把「每天最多 5 条」「标题太短」写在 message 里 —— 原样显示，
-      // 静默失败会让人以为提交成功了
-      setErr(e instanceof Error ? e.message : t('misc:changelog.failed'))
-    } finally { setBusy(false) }
-  }
-
-  // 铁律:fixed modal 必须 portal 到 body(否则被祖先的 transform/backdrop-filter 困住)
-  return createPortal(
-    <div className="fixed inset-0 z-[9000] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl motion-safe:animate-[slideUp_.22s_ease-out] sm:rounded-3xl"
-      >
-        <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}`}</style>
-
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
-              <Lightbulb className="h-5 w-5" />
-            </span>
-            <h3 className="text-base font-semibold text-slate-900">{t('misc:changelog.requestCta')}</h3>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="px-5 py-4">
-          {ok ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <Check className="h-5 w-5" />
-              </span>
-              <p className="text-sm font-medium text-slate-800">{t('misc:changelog.submitted')}</p>
-              <p className="text-xs text-slate-400">{t('misc:changelog.submittedSub')}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} autoFocus
-                placeholder={t('misc:changelog.phTitle')}
-                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
-              <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={1000} rows={4}
-                placeholder={t('misc:changelog.phBody')}
-                className="w-full resize-y rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
-
-              {err && <p className="text-xs font-medium text-rose-600">{err}</p>}
-
-              {/* 🔴 没登录**也能一路填到这里** —— 登录提示放在最后一步。
-                  一上来就拿登录墙拦住,大多数人根本不会去登录,那条建议就永远没了。 */}
-              {user ? (
-                <button type="button" disabled={busy || title.trim().length < 4} onClick={send}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                  style={{ background: ACCENT }}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {t('misc:changelog.submit')}
-                </button>
-              ) : (
-                <div className="rounded-xl bg-slate-50 p-3.5 ring-1 ring-slate-100">
-                  <p className="text-xs leading-relaxed text-slate-500">
-                    {t('misc:changelog.needLogin')}
-                  </p>
-                  <button type="button" onClick={() => void signInWithGoogle()}
-                    className="mt-2.5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
-                    {t('misc:changelog.signInSubmit')}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// 功能建议列表
-// ════════════════════════════════════════════════════════════════════════════
-
-type Filter = 'all' | RequestStatus
-type Sort = 'top' | 'new'
-
-function FeatureRequests({ list, setList, onCompose }: {
-  list: FeatureRequest[] | null
-  setList: React.Dispatch<React.SetStateAction<FeatureRequest[] | null>>
-  onCompose: () => void
-}) {
-  const { t } = useT()
-  const { user, isAdmin } = useAuth()
-  const [q, setQ] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [sort, setSort] = useState<Sort>('top')
-
-  const patch = (r: FeatureRequest) => setList((p) => (p || []).map((x) => (x.id === r.id ? r : x)))
-
-  const shown = useMemo(() => {
-    if (!list) return []
-    const kw = q.trim().toLowerCase()
-    const hit = list.filter((r) => {
-      if (filter !== 'all' && r.status !== filter) return false
-      if (kw && !`${r.title} ${r.body || ''}`.toLowerCase().includes(kw)) return false
-      return true
-    })
-    // 服务端已按「已上线 > 计划中 > 待评估 > 暂不做」再按票数排好；
-    // 只在用户明确选「最新」时才重排，别把默认顺序也搅了。
-    return sort === 'new' ? [...hit].sort((a, b) => b.created_at.localeCompare(a.created_at)) : hit
-  }, [list, q, filter, sort])
-
-  const FILTERS: { id: Filter; label: string }[] = [
-    { id: 'all', label: t('misc:changelog.fAll') },
-    { id: 'open', label: t('misc:changelog.fOpen') },
-    { id: 'planned', label: t('misc:changelog.fPlanned') },
-    { id: 'shipped', label: t('misc:changelog.fShipped') },
-    { id: 'declined', label: t('misc:changelog.fDeclined') },
-  ]
-  const countOf = (f: Filter) => (f === 'all' ? (list?.length || 0) : (list || []).filter((r) => r.status === f).length)
-
-  return (
-    <section data-sec={REQ_ID} className="scroll-mt-20 border-t border-slate-100 pt-10">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
-            <Lightbulb className="h-5 w-5" />
-          </span>
-          <h2 className="text-xl font-bold text-slate-900">{t('misc:changelog.requestsTitle')}</h2>
-        </div>
-        <button type="button" onClick={onCompose}
-          className="rounded-xl px-3.5 py-2 text-sm font-semibold text-slate-900 transition hover:opacity-90 active:scale-95"
-          style={{ background: ACCENT }}>
-          {t('misc:changelog.newRequest')}
-        </button>
-      </div>
-      <p className="mb-5 max-w-2xl text-sm leading-relaxed text-slate-500">
-        {t('misc:changelog.requestsIntro')}
-      </p>
-
-      {/* 搜索 + 筛选 + 排序 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-60">
-          <SearchIcon className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder={t('misc:changelog.search')}
-            className="w-full rounded-xl border border-slate-200 py-2 ps-9 pe-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
-        </div>
-        {FILTERS.map((f) => (
-          <button key={f.id} type="button" onClick={() => setFilter(f.id)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-              filter === f.id ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-100 hover:bg-slate-100'
-            }`}>
-            {f.label}<span translate="no" className="ms-1 opacity-50 tabular-nums">{countOf(f.id)}</span>
-          </button>
-        ))}
-        <span className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" />
-        <button type="button" onClick={() => setSort(sort === 'top' ? 'new' : 'top')}
-          className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-100 transition hover:bg-slate-100">
-          {t(sort === 'top' ? 'misc:changelog.sortTop' : 'misc:changelog.sortNew')}
-        </button>
-      </div>
-
-      <div className="mt-5">
-        {list === null ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
-        ) : shown.length === 0 ? (
-          <button type="button" onClick={onCompose}
-            className="w-full rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400 transition hover:border-teal-300 hover:text-slate-600">
-            {t(list.length === 0 ? 'misc:changelog.emptyNone' : 'misc:changelog.emptyFilter')}
-          </button>
-        ) : (
-          <ul className="space-y-3">
-            {shown.map((r, i) => (
-              <Reveal key={r.id} delay={Math.min(i, 6) * 0.03}>
-                <RequestCard r={r} user={!!user} isAdmin={!!isAdmin} onPatch={patch} onNeedLogin={onCompose} />
-              </Reveal>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  )
-}
-
-/** 一条建议：票数 / 状态 / 角色 / 楼层 / admin 内联操作。 */
-function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin }: {
-  r: FeatureRequest; user: boolean; isAdmin: boolean
-  onPatch: (r: FeatureRequest) => void
-  onNeedLogin: () => void
-}) {
-  const { t, locale } = useT()
-  const [open, setOpen] = useState(false)
-  const [thread, setThread] = useState<RequestComment[] | null>(null)
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
-  const s = STATUS[r.status] || STATUS.open
-
-  const loadThread = async () => {
-    setOpen((v) => !v)
-    if (thread === null) setThread(await fetchThread(r.id))
-  }
-
-  const vote = async () => {
-    // 没登录**照样能点** —— 点了就告诉他要登录,而不是把按钮画成灰色让他猜
-    if (!user) { onNeedLogin(); return }
-    // 乐观更新：点赞要**立刻**有反馈，一个要等一圈网络才动的赞没人点第二次
-    const before = { votes: r.votes, voted: r.voted }
-    onPatch({ ...r, votes: r.votes + (r.voted ? -1 : 1), voted: !r.voted })
-    try {
-      onPatch({ ...r, ...(await toggleVote(r.id)) })
-    } catch {
-      onPatch({ ...r, ...before })   // 失败回滚，绝不留一个假的赞
-    }
-  }
-
-  const reply = async () => {
-    const body = draft.trim()
-    if (body.length < 2) return
-    setBusy(true)
-    try {
-      const c = await postReply(r.id, body)
-      setThread((p) => [...(p || []), c])
-      setDraft('')
-      onPatch({ ...r, comments: r.comments + 1 })
-    } catch { /* 失败保留草稿,让他能重试 */ } finally { setBusy(false) }
-  }
-
-  const setStatus = async (status: RequestStatus) => {
-    try { onPatch(await updateRequest(r.id, { status })) } catch { /* 403 等 */ }
-  }
-
-  return (
-    <li className="rounded-2xl border border-slate-100 bg-white p-4 transition hover:border-slate-200 hover:shadow-[0_2px_16px_-6px_rgba(15,23,42,0.15)]">
-      <div className="flex gap-3.5">
-        <button type="button" onClick={vote}
-          title={t(user ? 'misc:changelog.upvote' : 'misc:changelog.signInVote')}
-          className={`flex h-14 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border transition active:scale-95 ${
-            r.voted ? 'border-teal-200 bg-teal-50 text-teal-700'
-                    : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
-          }`}>
-          <ChevronUp className="h-4 w-4" />
-          <span translate="no" className="text-xs font-semibold tabular-nums">{r.votes}</span>
-        </button>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${s.chip}`}>
-              {t(s.key)}
-            </span>
-            <RoleTag role={r.role} />
-            <span translate="no" className="text-[11px] tabular-nums text-slate-400">
-              {new Date(r.created_at).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })}
-            </span>
-          </div>
-
-          <p className="mt-1.5 text-[15px] font-medium leading-snug text-slate-800">{r.title}</p>
-          {r.body && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-500">{r.body}</p>}
-
-          {r.reply && (
-            <p className="mt-2.5 rounded-xl bg-teal-50/70 px-3 py-2 text-sm leading-relaxed text-teal-800 ring-1 ring-teal-100">
-              <span className="font-semibold">Pinzos：</span>{r.reply}
-            </p>
-          )}
-
-          <div className="mt-2.5 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={loadThread}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 transition hover:text-slate-700">
-              <MessageSquare className="h-3.5 w-3.5" />
-              {r.comments > 0 ? `${r.comments} ${t('misc:changelog.replies')}` : t('misc:changelog.reply')}
-              <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* admin：直接在这条上决定要不要纳入 */}
-            {isAdmin && (
-              <div className="flex flex-wrap items-center gap-1">
-                {(['open', 'planned', 'shipped', 'declined'] as RequestStatus[]).map((st) => (
-                  <button key={st} type="button" onClick={() => setStatus(st)}
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition ${
-                      r.status === st ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-400 ring-1 ring-slate-100 hover:bg-slate-100'
-                    }`}>
-                    {t(STATUS[st].key)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {open && (
-            <div className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
-              {thread === null ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-300" />
-              ) : thread.length === 0 ? (
-                <p className="text-xs text-slate-400">{t('misc:changelog.noReplies')}</p>
-              ) : (
-                thread.map((c, i) => (
-                  <div key={c.id} className="flex gap-2.5">
-                    <span translate="no" className="mt-0.5 w-7 shrink-0 text-end text-[11px] tabular-nums text-slate-300">#{i + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        {c.is_staff ? (
-                          <span className="inline-flex items-center rounded-full bg-slate-900 px-1.5 py-px text-[10px] font-medium text-white">Pinzos</span>
-                        ) : (
-                          <>
-                            <span className="text-[11px] text-slate-400">{t('misc:changelog.anonymous')}</span>
-                            <RoleTag role={c.role} />
-                          </>
-                        )}
-                        <span translate="no" className="text-[10px] tabular-nums text-slate-300">
-                          {new Date(c.created_at).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{c.body}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-
-              {user ? (
-                <div className="flex items-start gap-2 pt-1">
-                  <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} maxLength={800}
-                    placeholder={t(isAdmin ? 'misc:changelog.phReplyStaff' : 'misc:changelog.phReply')}
-                    className="min-w-0 flex-1 resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
-                  <button type="button" onClick={reply} disabled={busy || draft.trim().length < 2}
-                    className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-900 transition hover:opacity-90 disabled:opacity-40"
-                    style={{ background: ACCENT }}>
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </button>
-                </div>
-              ) : (
-                <button type="button" onClick={onNeedLogin}
-                  className="pt-1 text-xs text-teal-600 underline-offset-2 hover:underline">
-                  {t('misc:changelog.signInReply')}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </li>
   )
 }

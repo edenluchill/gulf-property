@@ -49,6 +49,11 @@
     <priority>0.4</priority>
   </url>
   <url>
+    <loc>https://www.pinzos.com/requests</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
     <loc>https://www.pinzos.com/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
