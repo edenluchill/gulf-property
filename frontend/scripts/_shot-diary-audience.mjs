@@ -79,19 +79,21 @@ try {
   const fresh = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const p2 = await fresh.newPage()
   await p2.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await p2.waitForSelector('a[href="/changelog"]', { timeout: 20000 })
-  const lit = await p2.locator('[data-nav-dot="changelog"]').first().isVisible().catch(() => false)
+  // ⚠️ 必须带 :visible。header 里有两个 /changelog 入口(手机那个 xl:hidden),
+  //    裸 .first() 会挑中隐藏的那个,永远等不到 —— 这个坑踩过一次了。
+  await p2.waitForSelector('a[href="/changelog"]:visible', { timeout: 20000 })
+  const lit = (await p2.locator('[data-nav-dot="changelog"]:visible').count()) > 0
   check('新访客红点亮着', lit, lit ? '亮' : '不亮(该提示的人看不到提示)')
 
   await p2.locator('a[href="/changelog"]:visible').first().click()
   await p2.waitForURL('**/changelog', { timeout: 20000 })
   await p2.waitForTimeout(1200)      // 给 markSeen 的 effect 一点时间
-  const stillLit = await p2.locator('[data-nav-dot="changelog"]').count()
+  const stillLit = await p2.locator('[data-nav-dot="changelog"]:visible').count()
   check('看过后当场就灭(不用刷新)', stillLit === 0, stillLit ? `还剩 ${stillLit} 颗` : '灭了')
 
   await p2.reload({ waitUntil: 'domcontentloaded' })
   await p2.waitForTimeout(1200)
-  const afterReload = await p2.locator('[data-nav-dot="changelog"]').count()
+  const afterReload = await p2.locator('[data-nav-dot="changelog"]:visible').count()
   check('刷新后仍然是灭的', afterReload === 0, afterReload ? `又亮了 ${afterReload} 颗` : '灭了')
   await fresh.close()
 } finally {
