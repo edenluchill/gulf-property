@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound, Sparkles } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound, NotebookPen } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -194,7 +194,7 @@ export default function Header() {
                 🔴 **必须带文字标签**。上一版只放了一颗 Sparkles 图标在右侧图标区,
                 owner 的反馈是「不太明显 完全看不出」—— 一排文字导航里夹一个裸图标,
                 眼睛根本不会停在那。 */}
-            <NavPill to="/changelog" active={location.pathname === '/changelog'} icon={Sparkles}
+            <NavPill to="/changelog" active={location.pathname === '/changelog'} icon={NotebookPen}
               label={t('misc:changelog.title')} dot={changelogUnseen}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
@@ -308,7 +308,7 @@ function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
             : 'text-slate-500 ring-slate-200 hover:bg-slate-100 hover:text-slate-800'
       }`}
     >
-      <Sparkles className="h-3.5 w-3.5 shrink-0" />
+      <NotebookPen className="h-3.5 w-3.5 shrink-0" />
       <span className="whitespace-nowrap">{label}</span>
       {unseen && (
         <span data-nav-dot="changelog"

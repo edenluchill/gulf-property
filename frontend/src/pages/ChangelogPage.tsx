@@ -23,7 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, ChevronUp, Briefcase } from 'lucide-react'
+import { Sparkles, Wrench, Bug, ArrowRight, Lightbulb, Loader2, ChevronUp, Briefcase, NotebookPen } from 'lucide-react'
 import { CHANGELOG, type ChangeKind } from '../data/changelog'
 import { useUnseenChangelog } from '../hooks/useUnseenChangelog'
 import { useIsAgentSide } from '../hooks/useMyRole'
@@ -507,7 +507,7 @@ export default function ChangelogPage() {
       }`}>
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-5 py-2 sm:px-6">
           <span className="hidden shrink-0 items-center gap-1.5 text-[13px] font-semibold text-slate-800 sm:flex">
-            <Sparkles className="h-3.5 w-3.5" style={{ color: ACCENT }} />{title}
+            <NotebookPen className="h-3.5 w-3.5" style={{ color: ACCENT }} />{title}
           </span>
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* 高亮块用 layoutId 在月份之间**滑过去**（手机上同一套）。
