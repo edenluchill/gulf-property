@@ -19,6 +19,8 @@ import { readFileSync } from 'node:fs'
 
 const BASE = (process.argv.find((a) => a.startsWith('--base=')) || '').split('=')[1]
   || 'https://www.pinzos.com'
+const API = (process.argv.find((a) => a.startsWith('--api=')) || '').split('=')[1]
+  || 'https://api.pinzos.com'
 
 // 从数据文件直接数,不 import(那是 TS) —— 数 `audience: 'agent'` 出现几次
 const src = readFileSync(new URL('../src/data/changelog.ts', import.meta.url), 'utf8')
@@ -52,13 +54,16 @@ try {
     `hero 写 ${heroStat.trim()} / 实际 ${shown} 条`)
 
   // ④ 建议板:匿名拉到的列表里不该有经纪侧的
-  const reqs = await page.evaluate(async () => {
-    const r = await fetch('/api/feature-requests').catch(() => null)
+  // ⚠️ 必须打 API 域名。www.pinzos.com 上的 /api/* 会落到 SPA fallback ——
+  //    返回 200 + index.html,JSON.parse 直接炸(不是 404,查起来很懵)。
+  const reqs = await page.evaluate(async (api) => {
+    const r = await fetch(api).catch(() => null)
     if (!r || !r.ok) return null
-    return (await r.json()).requests || []
-  })
+    const txt = await r.text()
+    try { return JSON.parse(txt).requests || [] } catch { return null }
+  }, `${API}/api/feature-requests`)
   if (reqs === null) {
-    check('建议列表按受众过滤', false, '接口没拉到(前端域名不代理 /api?换 --base 指向后端)')
+    check('建议列表按受众过滤', false, `接口没拉到:${API}/api/feature-requests`)
   } else {
     const leaked = reqs.filter((x) => x.audience === 'agent')
     check('建议列表按受众过滤', leaked.length === 0,
