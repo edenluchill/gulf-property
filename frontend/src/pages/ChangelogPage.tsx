@@ -241,22 +241,32 @@ function HeroRequests({ list, onCompose, onSeeAll }: {
   const top = [...(list || [])]
     .sort((a, b) => b.votes - a.votes || b.created_at.localeCompare(a.created_at))
     .slice(0, 4)
+  const empty = list !== null && top.length === 0
 
   return (
     <Reveal delay={0.1}>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className={`rounded-2xl border p-4 transition ${
+        empty ? 'border-teal-400/30 bg-teal-400/[0.06]' : 'border-white/10 bg-white/[0.04]'
+      }`}>
         <div className="mb-3 flex items-center gap-2">
-          <Lightbulb className="h-4 w-4 text-amber-300" />
+          <Lightbulb className={`h-4 w-4 ${empty ? 'text-teal-300' : 'text-amber-300'}`} />
           <h2 className="text-sm font-semibold text-white">{t('misc:changelog.heroReqTitle')}</h2>
         </div>
 
         {list === null ? (
           <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-white/30" /></div>
         ) : top.length === 0 ? (
-          <div className="py-2">
-            <p className="text-[13px] leading-relaxed text-slate-400">{t('misc:changelog.heroEmpty')}</p>
+          /* 空态必须**看起来像个入口**。原来是「一行灰字 + 一个描边按钮」,
+             在深色 hero 上几乎看不见 —— owner:「这里哪里显示入口了」。
+             一条建议都没有的时候这张卡没东西可展示,那它的全部工作就是发出邀请:
+             实心主按钮 + 一句直接的问句。 */
+          <div className="py-1">
+            <p className="text-[15px] font-semibold text-white">{t('misc:changelog.heroEmptyTitle')}</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-slate-400">{t('misc:changelog.heroEmpty')}</p>
             <button type="button" onClick={onCompose}
-              className="mt-3 w-full rounded-xl border border-white/15 py-2 text-[13px] font-medium text-white transition hover:bg-white/10">
+              className="mt-3.5 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-semibold text-slate-900 transition hover:opacity-90 active:scale-95"
+              style={{ background: ACCENT }}>
+              <Lightbulb className="h-4 w-4" />
               {t('misc:changelog.heroEmptyCta')}
             </button>
           </div>
@@ -631,12 +641,7 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
               <Lightbulb className="h-5 w-5" />
             </span>
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">{t('misc:changelog.requestCta')}</h3>
-              <p className="text-xs text-slate-400">
-                {t('misc:changelog.modalSub')}
-              </p>
-            </div>
+            <h3 className="text-base font-semibold text-slate-900">{t('misc:changelog.requestCta')}</h3>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
             <X className="h-4 w-4" />

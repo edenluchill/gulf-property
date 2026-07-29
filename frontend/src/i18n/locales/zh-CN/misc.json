@@ -370,7 +370,6 @@
     "requestsNav": "功能建议",
     "requestsTitle": "功能建议",
     "requestsIntro": "缺什么就说。会标注提议人是经纪还是买家，但永远不显示是谁。",
-    "modalSub": "公开列出，会标注你是经纪还是买家，但不显示是谁。",
     "phTitle": "一句话说清楚你想要什么",
     "phBody": "（选填）什么场景下需要它？现在你是怎么将就的？",
     "submit": "提交",
@@ -405,7 +404,8 @@
     "failed": "提交失败",
     "heroReqTitle": "大家在提什么",
     "seeAll": "看全部 {{n}} 条",
-    "heroEmpty": "还没有人提过 —— 你可以是第一个",
-    "heroEmptyCta": "写第一条"
+    "heroEmpty": "你想让 Pinzos 加点什么？",
+    "heroEmptyCta": "写第一条",
+    "heroEmptyTitle": "还没有人提过建议"
   }
 }

@@ -370,7 +370,6 @@
     "requestsNav": "Requests",
     "requestsTitle": "Feature requests",
     "requestsIntro": "Tell us what is missing. Tagged agent or buyer — never by who.",
-    "modalSub": "Listed publicly, tagged agent or buyer — never by who.",
     "phTitle": "In one line — what do you want?",
     "phBody": "(Optional) When would you use it? How do you work around it today?",
     "submit": "Submit",
@@ -405,7 +404,8 @@
     "failed": "Could not submit",
     "heroReqTitle": "What people are asking for",
     "seeAll": "See all {{n}}",
-    "heroEmpty": "Nobody has asked yet — you could be first",
-    "heroEmptyCta": "Write the first one"
+    "heroEmpty": "What should Pinzos add?",
+    "heroEmptyCta": "Write the first one",
+    "heroEmptyTitle": "No requests yet"
   }
 }

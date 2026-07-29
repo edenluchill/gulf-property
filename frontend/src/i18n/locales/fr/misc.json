@@ -370,7 +370,6 @@
     "requestsNav": "Demandes",
     "requestsTitle": "Demandes de fonctionnalités",
     "requestsIntro": "Dites-nous ce qui manque. Étiqueté agent ou acheteur — jamais par nom.",
-    "modalSub": "Publié publiquement, étiqueté agent ou acheteur — jamais par nom.",
     "phTitle": "En une phrase — que voulez-vous ?",
     "phBody": "(Facultatif) Dans quel cas l’utiliseriez-vous ? Comment faites-vous aujourd’hui ?",
     "submit": "Envoyer",
@@ -405,7 +404,8 @@
     "failed": "Envoi impossible",
     "heroReqTitle": "Ce que les gens demandent",
     "seeAll": "Voir les {{n}}",
-    "heroEmpty": "Personne n'a encore demandé — soyez le premier",
-    "heroEmptyCta": "Écrire la première"
+    "heroEmpty": "Qu'est-ce que Pinzos devrait ajouter ?",
+    "heroEmptyCta": "Écrire la première",
+    "heroEmptyTitle": "Aucune demande pour l'instant"
   }
 }
