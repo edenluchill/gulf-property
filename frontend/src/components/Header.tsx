@@ -311,7 +311,8 @@ function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
       <Sparkles className="h-3.5 w-3.5 shrink-0" />
       <span className="whitespace-nowrap">{label}</span>
       {unseen && (
-        <span className={`absolute -end-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ${dark ? 'ring-slate-900' : 'ring-white'}`} aria-hidden />
+        <span data-nav-dot="changelog"
+          className={`absolute -end-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ${dark ? 'ring-slate-900' : 'ring-white'}`} aria-hidden />
       )}
     </Link>
   )
@@ -328,8 +329,11 @@ function NavPill({
 }) {
   return (
     <Link to={to} className="relative">
+      {/* data-nav-dot:给跑分用的钩子。红点「点进去看了却不灭」是个**不报错**的 bug
+          (两个 hook 实例各存各的 state,得刷新才消),只能靠自动化盯着。 */}
       {dot && (
-        <span className="pointer-events-none absolute -end-0.5 -top-0.5 z-10 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white/70" aria-hidden />
+        <span data-nav-dot="changelog"
+          className="pointer-events-none absolute -end-0.5 -top-0.5 z-10 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white/70" aria-hidden />
       )}
       <motion.div
         whileHover={{ y: -1 }}

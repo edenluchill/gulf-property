@@ -73,6 +73,27 @@ try {
     check('建议列表按受众过滤', leaked.length === 0,
       `${reqs.length} 条里有 ${leaked.length} 条经纪侧`)
   }
+  // ⑤ 红点:亮 → 点进去**当场**灭(不刷新)→ 刷新后还是灭的
+  //    owner 报的 bug 就是中间那一步:两个 hook 实例各存各的 state,页面把自己那份
+  //    关了,Header 完全不知情。**不报错**,就是永远消不掉。
+  const fresh = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const p2 = await fresh.newPage()
+  await p2.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+  await p2.waitForSelector('a[href="/changelog"]', { timeout: 20000 })
+  const lit = await p2.locator('[data-nav-dot="changelog"]').first().isVisible().catch(() => false)
+  check('新访客红点亮着', lit, lit ? '亮' : '不亮(该提示的人看不到提示)')
+
+  await p2.locator('a[href="/changelog"]:visible').first().click()
+  await p2.waitForURL('**/changelog', { timeout: 20000 })
+  await p2.waitForTimeout(1200)      // 给 markSeen 的 effect 一点时间
+  const stillLit = await p2.locator('[data-nav-dot="changelog"]').count()
+  check('看过后当场就灭(不用刷新)', stillLit === 0, stillLit ? `还剩 ${stillLit} 颗` : '灭了')
+
+  await p2.reload({ waitUntil: 'domcontentloaded' })
+  await p2.waitForTimeout(1200)
+  const afterReload = await p2.locator('[data-nav-dot="changelog"]').count()
+  check('刷新后仍然是灭的', afterReload === 0, afterReload ? `又亮了 ${afterReload} 颗` : '灭了')
+  await fresh.close()
 } finally {
   await browser.close()
 }

@@ -5,11 +5,42 @@
  * 存的是**最新一条的日期**,不是「看过/没看过」的布尔 —— 布尔会在下次更新时忘记
  * 该重新亮起来。
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { CHANGELOG } from '../data/changelog'
 import { useIsAgentSide } from './useMyRole'
 
 const KEY = 'pz-changelog-seen'
+
+/**
+ * 🔴 **「看过了」必须是全应用一份状态,不能每个 hook 实例各存各的。**
+ *
+ * 踩过的坑:这个 hook 同时挂在 Header(那颗红点)和 /changelog 页(进页面就
+ * markSeen)。各自 useState 的话,页面把**自己那份** unseen 设成 false,Header 那份
+ * 完全不知情 —— 于是「点进去看了,红点还在」,得刷新整页才消。而且它不报错,
+ * 就是永远消不掉,看着像红点坏了。
+ *
+ * 所以状态存在模块级(localStorage 是真相源),用 useSyncExternalStore 订阅:
+ * 谁写了,所有实例同一帧一起更新。顺带白拿跨标签页同步(storage 事件)。
+ */
+const listeners = new Set<() => void>()
+const emit = () => listeners.forEach((l) => l())
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb)
+  window.addEventListener('storage', cb)   // 另一个标签页看过了,这边的点也该灭
+  return () => { listeners.delete(cb); window.removeEventListener('storage', cb) }
+}
+
+/**
+ * localStorage 写不进去时的兜底(无痕模式 / 禁了存储)。只活到关标签页为止,
+ * 但至少**本次会话里点进去看过之后红点会灭** —— 不然它会一直亮着追着人跑。
+ */
+let memSeen = ''
+
+/** 快照必须是**值稳定**的(字符串按值比较),否则 React 会判定每次都变了。 */
+function readSeen(): string {
+  try { return localStorage.getItem(KEY) || memSeen } catch { return memSeen }
+}
 
 /**
  * **这个人看得到的**最新一条更新的日期(YYYY-MM-DD);没有可见条目时返回 null。
@@ -38,26 +69,19 @@ export const latestChangelogDate = (isAgentSide: boolean): string | null =>
  */
 export function useUnseenChangelog(): { unseen: boolean; markSeen: () => void } {
   const isAgentSide = useIsAgentSide()
-  const [unseen, setUnseen] = useState(false)
+  const seen = useSyncExternalStore(subscribe, readSeen, () => '')
 
-  useEffect(() => {
-    const latest = latestChangelogDate(isAgentSide)
-    if (!latest) return
-    try {
-      const seen = localStorage.getItem(KEY)
-      setUnseen(!seen || seen < latest)
-    } catch {
-      /* 隐私模式:当作已看过,宁可不提示也别一直亮 */
-    }
-  }, [isAgentSide])
+  const latest = latestChangelogDate(isAgentSide)
+  const unseen = !!latest && seen < latest
 
   // 记的是**自己这一侧**的最新日期。经纪看完再切成买家不会倒亮回来(日期只会更大),
   // 买家看完之后升级成经纪则可能重新亮起 —— 那是对的:他确实多了一批没看过的更新。
   const markSeen = useCallback(() => {
-    const latest = latestChangelogDate(isAgentSide)
-    if (!latest) return
-    try { localStorage.setItem(KEY, latest) } catch { /* 隐私模式 */ }
-    setUnseen(false)
+    const d = latestChangelogDate(isAgentSide)
+    if (!d) return
+    memSeen = d
+    try { localStorage.setItem(KEY, d) } catch { /* 无痕模式:靠 memSeen 撑过这次会话 */ }
+    emit()
   }, [isAgentSide])
 
   return { unseen, markSeen }
