@@ -247,7 +247,7 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
               详情页复用这张卡,所以那边不再套一层链接(套了就是点自己)。 */}
           {linkTitle ? (
             <Link to={`/requests/${r.id}`}
-              className="mt-1.5 block text-[15px] font-medium leading-snug text-slate-800 transition hover:text-teal-700">
+              className="-my-1 mt-1 block py-1 text-[15px] font-medium leading-snug text-slate-800 transition hover:text-teal-700">
               {r.title}
             </Link>
           ) : (
@@ -263,7 +263,7 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
 
           <div className="mt-2.5 flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 transition hover:text-slate-700">
+              className="-my-1.5 inline-flex min-h-[34px] items-center gap-1.5 py-1.5 text-xs font-medium text-slate-400 transition hover:text-slate-700">
               <MessageSquare className="h-3.5 w-3.5" />
               {r.comments > 0 ? `${r.comments} ${t('misc:changelog.replies')}` : t('misc:changelog.reply')}
               <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -274,7 +274,7 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
               <div className="flex flex-wrap items-center gap-1">
                 {(['open', 'planned', 'shipped', 'declined'] as RequestStatus[]).map((st) => (
                   <button key={st} type="button" onClick={() => setStatus(st)}
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition ${
+                    className={`inline-flex min-h-[30px] items-center rounded-full px-2.5 py-1 text-[10px] font-medium transition sm:min-h-0 sm:py-0.5 ${
                       r.status === st ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-400 ring-1 ring-slate-100 hover:bg-slate-100'
                     }`}>
                     {t(STATUS[st].key)}
@@ -327,7 +327,7 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
                 </div>
               ) : (
                 <button type="button" onClick={onNeedLogin}
-                  className="pt-1 text-xs text-teal-600 underline-offset-2 hover:underline">
+                  className="inline-flex min-h-[34px] items-center py-1.5 text-xs text-teal-600 underline-offset-2 hover:underline">
                   {t('misc:changelog.signInReply')}
                 </button>
               )}
@@ -400,7 +400,7 @@ export function RequestsBoard({ list, setList, onCompose, focusId }: {
         </div>
         {FILTERS.map((f) => (
           <button key={f.id} type="button" onClick={() => setFilter(f.id)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+            className={`inline-flex min-h-[34px] items-center rounded-full px-3 py-1.5 text-xs font-medium transition sm:min-h-0 sm:px-2.5 sm:py-1 ${
               filter === f.id ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-100 hover:bg-slate-100'
             }`}>
             {f.label}<span translate="no" className="ms-1 opacity-50 tabular-nums">{countOf(f.id)}</span>
@@ -408,7 +408,7 @@ export function RequestsBoard({ list, setList, onCompose, focusId }: {
         ))}
         <span className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" />
         <button type="button" onClick={() => setSort(sort === 'top' ? 'new' : 'top')}
-          className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-100 transition hover:bg-slate-100">
+          className="inline-flex min-h-[34px] items-center rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-100 transition hover:bg-slate-100 sm:min-h-0 sm:px-2.5 sm:py-1">
           {t(sort === 'top' ? 'misc:changelog.sortTop' : 'misc:changelog.sortNew')}
         </button>
       </div>

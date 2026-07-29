@@ -388,12 +388,9 @@ export default function ChangelogPage() {
               感觉都是多余，可以放在一开始那个 section」) */}
           <Reveal delay={0.14}>
             <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <Link to="/requests?new=1"
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-900 transition hover:opacity-90 active:scale-95"
-                style={{ background: ACCENT, boxShadow: `0 8px 30px -8px ${ACCENT}` }}>
-                <Lightbulb className="h-4 w-4" />
-                {t('misc:changelog.requestCta')}
-              </Link>
+              {/* ⚠️ 这里**不要**再放「提一个功能建议」——右边那张卡上已经有一颗了,
+                  同一屏里两个一模一样的主按钮只会让人犹豫点哪个。
+                  这一行只留「去别处」的出口。 */}
               <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-300 transition hover:text-white">
                 {t('misc:changelog.openMap')} <ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
               </Link>
@@ -432,7 +429,7 @@ export default function ChangelogPage() {
                 滑动的那一下正是让人看懂「我从这里到了那里」的东西。 */}
             {navItems.map((n) => (
               <button key={n.key} type="button" onClick={() => jump(n.key)}
-                className={`relative shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`relative inline-flex min-h-[34px] shrink-0 items-center rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   active === n.key ? 'text-white' : 'text-slate-500 hover:text-slate-800'
                 }`}>
                 {active === n.key && (
@@ -444,7 +441,7 @@ export default function ChangelogPage() {
             ))}
           </div>
           <Link to="/requests"
-            className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-slate-900 transition hover:opacity-90"
+            className="inline-flex min-h-[34px] shrink-0 items-center rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-900 transition hover:opacity-90"
             style={{ background: ACCENT }}>
             {t('misc:changelog.requestShort')}
           </Link>

@@ -162,10 +162,14 @@ export default function Header() {
                     e.stopPropagation()
                     navigate('/about')
                   }}
-                  className="flex items-center justify-center w-3.5 h-3.5 xl:w-4 xl:h-4 rounded-full bg-teal-100 hover:bg-teal-200 transition-colors"
+                  /* 视觉还是那颗小圆点,但**热区撑到 32px** —— 原来整个可点区域只有
+                     14px 高,手指基本点不中(手机体检抓到的)。负 margin 保证版面不变。 */
+                  className="-m-2 flex h-8 w-8 items-center justify-center rounded-full p-2 transition-colors"
                   aria-label={t('nav:learnMore')}
                 >
-                  <HelpCircle className="h-2.5 w-2.5 xl:h-3 xl:w-3 text-teal-600" />
+                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-teal-100 transition-colors group-hover:bg-teal-200 xl:h-4 xl:w-4">
+                    <HelpCircle className="h-2.5 w-2.5 text-teal-600 xl:h-3 xl:w-3" />
+                  </span>
                 </button>
               </div>
             </div>

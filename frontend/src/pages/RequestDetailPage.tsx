@@ -55,14 +55,14 @@ export default function RequestDetailPage() {
       <div className="mx-auto max-w-3xl px-5 py-10 sm:px-6 md:py-14">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link to="/requests"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-400 transition hover:text-slate-700">
+            className="-my-2 inline-flex min-h-[40px] items-center gap-1.5 py-2 text-sm text-slate-400 transition hover:text-slate-700">
             <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
             {t('misc:changelog.requestsTitle')}
           </Link>
 
           {req && req !== 'loading' && (
             <button type="button" onClick={copy}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-slate-800">
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-slate-800">
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Link2 className="h-3.5 w-3.5" />}
               {t(copied ? 'misc:changelog.copied' : 'misc:changelog.share')}
             </button>

@@ -57,7 +57,7 @@ export default function RequestsPage() {
 
       <div className="mx-auto max-w-3xl px-5 py-10 sm:px-6 md:py-14">
         <Link to="/changelog"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-400 transition hover:text-slate-700">
+          className="-my-2 inline-flex min-h-[40px] items-center gap-1.5 py-2 text-sm text-slate-400 transition hover:text-slate-700">
           <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
           {t('misc:changelog.title')}
         </Link>
