@@ -32,7 +32,7 @@ export default function Header() {
   const location = useLocation()
   const { unseen: changelogUnseen } = useUnseenChangelog()
   const navigate = useNavigate()
-  const { t } = useTranslation(['common', 'nav', 'auth'])
+  const { t } = useTranslation(['common', 'nav', 'auth', 'misc'])
   const { user, loading, isAdmin, canUpload } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
@@ -180,6 +180,20 @@ export default function Header() {
 
           {/* Desktop Navigation — 分组 + 流畅动效 */}
           <nav ref={navRef} className="hidden xl:flex items-center gap-1.5">
+            {/* 关于 —— 排在**第一位**(owner 2026-07-28 指定):新访客先看懂这是什么,
+                再进地图。 */}
+            <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
+              label={t('nav:about')}
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
+            {/* 更新历史 —— 紧跟「关于」(两者都是「这产品是什么/在往哪走」)。
+                🔴 **必须带文字标签**。上一版只放了一颗 Sparkles 图标在右侧图标区,
+                owner 的反馈是「不太明显 完全看不出」—— 一排文字导航里夹一个裸图标,
+                眼睛根本不会停在那。 */}
+            <NavPill to="/changelog" active={location.pathname === '/changelog'} icon={Sparkles}
+              label={t('misc:changelog.title')} dot={changelogUnseen}
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
             {/* 地图探索（主入口） */}
             <NavPill to="/" active={isMapActive} icon={MapPin} label={t('nav:mapExplore')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
@@ -201,13 +215,6 @@ export default function Header() {
                 idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
             )}
 
-            {/* 关于(功能介绍 + 定价区块;/pricing 直链保留但不占导航位)。
-                ⚠️ 别在这里也挂更新历史的红点 —— 红点已经在右侧那颗 ChangelogButton 上,
-                两个点亮同一件事只会让人不知道该点哪个。 */}
-            <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
-              label={t('nav:about')}
-              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
-
             {(isAdmin || canUpload === true) && (
               <>
                 <span className={`mx-1 h-5 w-px ${theme.divider}`} />
@@ -228,7 +235,6 @@ export default function Header() {
             <span className={`mx-1 h-5 w-px ${theme.divider}`} />
 
             <div className="flex items-center gap-1.5">
-              <ChangelogButton dark={theme.dark} unseen={changelogUnseen} />
               <FavoritesButton />
               <LanguageSwitcher />
             </div>
@@ -276,6 +282,13 @@ export default function Header() {
  * 🔴 第一版只放在「关于」页脚 + 「关于」pill 上一颗点 —— owner 当场问「去哪看呀?
  * header 上没有?」。**藏在二级页脚里的入口等于没有入口。**
  */
+/**
+ * 手机/平板的更新历史入口（桌面版是 nav 里的 NavPill）。
+ *
+ * 🔴 **带文字**。上一版是个裸 Sparkles 图标，owner 的反馈是「不太明显 完全看不出」——
+ * 图标本身没有含义,一个从没见过这功能的人不会去点一个不认识的星星。
+ * 未读时整颗描边换成品牌青 + 红点,安静但看得见。
+ */
 function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
   const { t } = useTranslation(['misc'])
   const label = t('misc:changelog.title')
@@ -283,17 +296,18 @@ function ChangelogButton({ dark, unseen }: { dark: boolean; unseen: boolean }) {
     <Link
       to="/changelog"
       title={label}
-      aria-label={label}
-      className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${
-        dark ? 'text-white/70 hover:bg-white/10 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+      className={`relative flex items-center gap-1 rounded-xl px-2 py-1.5 text-[12px] font-medium ring-1 transition ${
+        unseen
+          ? 'text-teal-700 ring-teal-200 hover:bg-teal-50'
+          : dark
+            ? 'text-white/70 ring-white/15 hover:bg-white/10 hover:text-white'
+            : 'text-slate-500 ring-slate-200 hover:bg-slate-100 hover:text-slate-800'
       }`}
     >
-      <Sparkles className="h-[18px] w-[18px]" />
+      <Sparkles className="h-3.5 w-3.5 shrink-0" />
+      <span className="whitespace-nowrap">{label}</span>
       {unseen && (
-        <span
-          className={`absolute end-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ${dark ? 'ring-slate-900' : 'ring-white'}`}
-          aria-hidden
-        />
+        <span className={`absolute -end-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ${dark ? 'ring-slate-900' : 'ring-white'}`} aria-hidden />
       )}
     </Link>
   )
