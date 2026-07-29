@@ -130,11 +130,20 @@ mapMeter 自己的注释里写得很清楚「输入辅助不是数据消费,不�
 
 2. **↑↓ / Enter / Esc 键盘操作** —— 以前完全没有,搜索框缺这个就是半成品
 
-3. **选中真的落地** —— 以前只 `setFlyToLocation`,地图静静飞过去,没有任何「到了」
-   的反馈。现在选中 = 在地图上点了那个区 / 那个楼盘:飞过去 **+ 打开详情弹窗**
-   (手机是底部 sheet)。这正是她要的 "straight away brings you there"。
+3. **选中真的带你过去** —— 选中即 `flyTo`(区 zoom 13,楼盘 zoom 15),
+   这正是她要的 "straight away brings you there"。
 
-4. **补上文字搜索的埋点**(`trackEvent('search', { kind: 'map_area' | 'map_project' })`)
+   > **改过一版**:第一版飞完顺手打开该区的行情弹窗,想给一个「到了」的反馈。
+   > owner 当天否掉了(「不用打开 details,飞过去就好了」)—— 那等于替用户决定
+   > 下一步:搜索往往只是**换个地方看地图**,弹窗(手机上是整屏 sheet)一上来就
+   > 把刚飞到的地图盖住了,还得先关掉。要看行情,点地图上那块区就是了。
+
+4. **「最近搜过」**(owner 当天追加的要求)—— 空态先给最近 5 条(存 localStorage,
+   带 Clear),行的排版复用结果行、图标换成时钟,↑↓/Enter 同样可用。
+   没有历史的新用户才给示例 chips:那时「这框能搜什么」比「你上次搜了什么」更重要。
+   经纪一天里翻来覆去就那几个区,每次重打一遍字是纯粹的浪费。
+
+5. **补上文字搜索的埋点**(`trackEvent('search', { kind: 'map_area' | 'map_project' })`)
    —— 之前正是因为没有埋点,才无法从数据看出「没人用这个框」。
 
 手机端的落位(收起 = 底部一颗圆钮、展开 = 独占一行)**没有动** —— 那是 owner
@@ -186,10 +195,11 @@ cd backend && npx ts-node -T scripts/map-search-check.ts
 > Thank you — that is exactly the kind of feedback we need, and both points are now fixed.
 >
 > **Typing an area now takes you straight there.** The search box on the map has been
-> rebuilt: type a community name, press Enter, and the map flies there and opens that
-> area's market data in one step. It also searches projects and developers now, and it
-> no longer needs the exact spelling — "sports city", "Jumeirah Lake Towers" and
-> "Emaar Beachfront" all used to return nothing, and now land on the right place.
+> rebuilt: type a community name, press Enter, and the map flies you there. It also
+> searches projects and developers now, and it no longer needs the exact spelling —
+> "sports city", "Jumeirah Lake Towers" and "Emaar Beachfront" all used to return
+> nothing, and now land on the right place. It also remembers the areas you looked at
+> last, so they are one tap away next time.
 >
 > **On the off-plan coverage** — you are right, and we are adding a large batch of
 > projects this week. If there are specific developers or communities you work with
