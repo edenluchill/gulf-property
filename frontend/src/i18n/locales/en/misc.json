@@ -425,6 +425,8 @@
     "kindProject": "Project",
     "projectsInArea_one": "{{count}} project on Pinzos",
     "projectsInArea_other": "{{count}} projects on Pinzos",
-    "noResults": "Nothing matches “{{q}}”. Try an area name like Dubai Marina."
+    "noResults": "Nothing matches “{{q}}”. Try an area name like Dubai Marina.",
+    "recent": "Recent",
+    "clearRecent": "Clear"
   }
 }

@@ -425,6 +425,8 @@
     "kindProject": "Projet",
     "projectsInArea_one": "{{count}} projet sur Pinzos",
     "projectsInArea_other": "{{count}} projets sur Pinzos",
-    "noResults": "Aucun résultat pour « {{q}} ». Essayez un quartier comme Dubai Marina."
+    "noResults": "Aucun résultat pour « {{q}} ». Essayez un quartier comme Dubai Marina.",
+    "recent": "Récents",
+    "clearRecent": "Effacer"
   }
 }

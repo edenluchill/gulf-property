@@ -1703,27 +1703,19 @@ export default function MapPage() {
   /**
    * 搜索框选中一条 —— 「打一个区域名,直接把你带过去」。
    *
-   * 以前这里只有一句 setFlyToLocation:地图静静飞过去,不高亮、不开弹窗,
-   * 没有任何「到了」的反馈。付费经纪 slavynchuk94@ 2026-07-29 的原话是
-   * "Would be great if we can type an area and it straight away brings you there" ——
-   * 他要的不是镜头位移,是**落地**。所以现在选中就等价于在地图上点了那个区 /
-   * 那个楼盘:飞过去 + 打开详情。
+   * 🔴 **只飞,不开详情弹窗**(owner 2026-07-29:「带我们过去挺好的,不过不用打开
+   * details,飞过去就好了」)。
+   * 试过飞完顺手 `handleAreaClick` 打开该区行情,想给一个「到了」的反馈 —— 但那等于
+   * 替用户决定下一步:搜索往往只是**换个地方看地图**,弹窗(手机上是整屏 sheet)
+   * 一上来就把刚飞到的地图盖住了,还得先关掉它。要看行情,点地图上那块区就是了。
+   * 想再改回去之前先问 owner。
    */
   const handleSearchSelect = useCallback((s: MapSuggestion) => {
     trackEvent('search', { kind: `map_${s.kind}`, query: s.name.trim() })
     if (s.centroid) {
       setFlyToLocation({ lat: s.centroid.lat, lng: s.centroid.lng, zoom: s.kind === 'area' ? 13 : 15 })
     }
-    if (s.kind === 'area') {
-      const area = dubaiAreas.find(a => String(a.id) === String(s.id))
-      if (area) handleAreaClick(area)
-      return
-    }
-    // 楼盘:走和点图钉完全一样的路径(collab 时开就地抽屉并广播,平时跳详情页)
-    const pin = mapPins.find(p => String(p.id) === String(s.id))
-    if (pin) handleProjectClick(pin)
-    else navigate(`/project/${s.id}`)
-  }, [dubaiAreas, mapPins, handleAreaClick, handleProjectClick, navigate])
+  }, [])
 
   // 深链：/?area=Business%20Bay 直接打开该区域的详情弹窗（可分享；也供自动化测试）
   const areaParam = searchParams.get('area')

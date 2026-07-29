@@ -426,6 +426,8 @@
     "projectsInArea_one": "{{count}} проект на Pinzos",
     "projectsInArea_few": "{{count}} проекта на Pinzos",
     "projectsInArea_many": "{{count}} проектов на Pinzos",
-    "noResults": "Ничего не найдено по «{{q}}». Попробуйте название района, например Dubai Marina."
+    "noResults": "Ничего не найдено по «{{q}}». Попробуйте название района, например Dubai Marina.",
+    "recent": "Недавние",
+    "clearRecent": "Очистить"
   }
 }

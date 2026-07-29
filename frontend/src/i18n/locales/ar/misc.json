@@ -425,6 +425,8 @@
     "kindProject": "مشروع",
     "projectsInArea_one": "مشروع واحد على Pinzos",
     "projectsInArea_other": "{{count}} مشاريع على Pinzos",
-    "noResults": "لا توجد نتائج لـ «{{q}}». جرّب اسم منطقة مثل Dubai Marina."
+    "noResults": "لا توجد نتائج لـ «{{q}}». جرّب اسم منطقة مثل Dubai Marina.",
+    "recent": "الأخيرة",
+    "clearRecent": "مسح"
   }
 }

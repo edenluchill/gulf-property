@@ -424,6 +424,8 @@
     "kindArea": "区域",
     "kindProject": "楼盘",
     "projectsInArea_other": "平台上有 {{count}} 个在售楼盘",
-    "noResults": "没有匹配「{{q}}」的结果。试试区域名,比如 Dubai Marina。"
+    "noResults": "没有匹配「{{q}}」的结果。试试区域名,比如 Dubai Marina。",
+    "recent": "最近搜过",
+    "clearRecent": "清空"
   }
 }
