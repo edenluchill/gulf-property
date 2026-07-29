@@ -325,22 +325,41 @@ export default function TourOverlay({
   }, [data])
 
   /**
-   * 🔴 相机要对准的是「**看得见的那块**的中心」，不是画布中心。
+   * 🔴 两件事共用同一个测量结果:
+   *   ① 把 host 的底边收到**真正看得见的那条线**上(`--lt-hidden-bottom`)——
+   *      地图容器在 100vh 里,而手机浏览器露出地址栏/导航栏时可见区域更矮,
+   *      于是 bottom:12 的项目卡被切一半、bottom:14 的 CC/喇叭整个消失。
+   *      改 host 的底边 = 所有贴底子元素一起上移(见 luna-tour.css 的注释)。
+   *   ② 相机 padding —— 相机要对准「看得见的那块」的中心,不是画布中心
+   *      (owner:「要集中中间屏幕能看到重要信息」)。被浏览器挡掉的那一条也算进去。
    *
-   * owner:「要集中中间屏幕能看到重要信息」。画布中心在手机上被字幕和卡片压着 ——
-   * Luna 正在介绍的那栋楼恰好躺在字幕底下。MapLibre 的 padding 就是干这个的：
-   * 设一次，之后每一帧 jumpTo 都自动沿用（jumpTo 不带 padding 不会覆盖它）。
-   * 转屏/改窗口要重算。退出 tour 时清掉，别污染普通地图。
+   * visualViewport 会在地址栏收放时连续触发,所以两者都必须跟着变。
    */
+  const hostRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!data) return
-    const apply = () => mapRef.current?.setViewportPadding(tourViewportPadding())
+    const vv = window.visualViewport
+    const apply = () => {
+      const el = hostRef.current
+      // host 底边（布局视口坐标）与「可见区域底边」的差 = 被浏览器 UI 吃掉的那一条
+      let hidden = 0
+      if (el && vv) {
+        const rect = el.getBoundingClientRect()
+        hidden = Math.max(0, Math.round(rect.bottom - (vv.offsetTop + vv.height)))
+      }
+      el?.style.setProperty('--lt-hidden-bottom', `${hidden}px`)
+      mapRef.current?.setViewportPadding(tourViewportPadding(hidden))
+    }
     apply()
     window.addEventListener('resize', apply)
     window.addEventListener('orientationchange', apply)
+    vv?.addEventListener('resize', apply)
+    vv?.addEventListener('scroll', apply)
     return () => {
       window.removeEventListener('resize', apply)
       window.removeEventListener('orientationchange', apply)
+      vv?.removeEventListener('resize', apply)
+      vv?.removeEventListener('scroll', apply)
       mapRef.current?.setViewportPadding(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -592,7 +611,7 @@ export default function TourOverlay({
   const started = !!snap
 
   return (
-    <div className="lt-tour-host" style={{ ['--lt-accent' as string]: accent }}>
+    <div className="lt-tour-host" ref={hostRef} style={{ ['--lt-accent' as string]: accent }}>
       <div className="lt-vignette" style={{ position: 'absolute', inset: 0 }} />
 
       {/* exit demo */}

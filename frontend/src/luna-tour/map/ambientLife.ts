@@ -234,9 +234,21 @@ export function createAmbientLife(deps: { getMap: () => MaplibreMap | null | und
     ]
   }
 
+  /**
+   * 🔴 看不见的时候**一次 setData 都不要发。**
+   *
+   * `icon-opacity` 在 zoom>15.5 时是 0（凑到项目跟前不该有飞机掠过），但计时器照旧
+   * 每 tick 调一次 `setData` —— 而 setData 会让 MapLibre 重建这个 geojson 源、
+   * **重跑一次 symbol placement**。placement 是**所有 symbol 图层一起排**的，
+   * 于是项目 pin 和地标名字每秒被重排好几次：owner 说的「围着项目转/停留时还在疯狂抖动」
+   * 正好落在整段 zoom 15~16 的项目环节上，而这段时间它一帧都不该干活。
+   */
+  const VISIBLE_MAX_ZOOM = 15.5
+
   function tick() {
     const map = deps.getMap()
     if (!map || !running) return
+    if (map.getZoom() > VISIBLE_MAX_ZOOM) return // 完全透明 → 不重建源，不触发重排
     if (!ensureLayers(map)) return
 
     const dtSec = TICK_MS / 1000

@@ -32,10 +32,24 @@ export interface CameraState {
 const EASE = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) // easeInOut
 
 /**
- * ⚠️ 这里曾经有 `AMBIENT_ORBIT_DEG = 24` —— **每个静止关键帧都被偷偷加上 24° 旋转**
- *    (注释理直气壮地写着「让静止镜头不至于冻住」)。但客户到了目的地要的是**读信息**,
- *    不是继续晕。已删除。**静止就是静止。**
+ * 🔴 **永远不许出现「完全静止」的一拍。**（owner 2026-07-29 明确要求)
+ *
+ * 原话:「这个 demo 的 script 有时候介绍 project 时**地图完全没有在动**。核心就两点:
+ * 永远保持他在舒服的 smooth 的运动、带客户看看附近环境;然后移动时不能出现任何抖动。」
+ *
+ * 怎么会静止的:剧本里 `weakness` / 部分 `numbers` 拍写的是「关键帧到当前机位」——
+ * from 和 to 完全一样。而引擎会把这一拍的相机轨道拉伸到旁白长度,于是变成
+ * **十几秒在两个相同机位之间插值 = 死画面**。
+ *
+ * ⚠️ 这条曾经反过来:早先有个 `AMBIENT_ORBIT_DEG = 24` 给每个静止关键帧加旋转,
+ *    被我删掉了(理由是「到了目的地要读信息,不是继续晕」)。**owner 现在明确否了那个判断。**
+ *    但要记住他当时嫌晕的是**快**,不是**动** —— 所以这里给的是很慢的一圈
+ *    (14° 摊到整段旁白 ≈ 0.7~1°/秒),客户读数字时不会被抢注意力,画面又始终活着。
+ *    别把它调大。
  */
+const AMBIENT_ORBIT_DEG = 14
+/** 一段的屏幕位移小于这么多像素,就当它是「死住了」。 */
+const STATIC_SEG_EPS_PX = 6
 /** A flyover whose target is within ~this (deg ≈ 80m) of us is a no-op → drop. */
 const NOOP_MOVE_EPS = 0.0008
 /** Floor so a 0-duration cue still occupies a sliver of the track. */
@@ -78,6 +92,8 @@ interface Segment {
   to: CameraState
   /** orbit adds continuous bearing rotation across the segment */
   orbitDegrees?: number
+  /** 匀速（不做 easeInOut）—— 氛围环绕必须匀速，否则开头结尾看起来是静止的 */
+  linear?: boolean
   /** flyover travels with a pull-back arc (zoom out mid-flight, then in) */
   arc?: boolean
   /** lowest zoom reached at mid-flight for an arc */
@@ -216,7 +232,10 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       const center = cam.center
       const from: CameraState = { ...cur }
       const to: CameraState = { ...cur, center, bearing: cur.bearing + cam.degrees }
-      segs.push({ start: t, end: t + dur, from, to, orbitDegrees: cam.degrees })
+      // 环绕一律**匀速**。easeInOut 的环绕在开头和结尾几乎不动 —— 而一段 20 秒的开场
+      // 环绕被 ease 之后,前后各三四秒看起来就是「地图没在动」(owner 的原话)。
+      // 无人机绕着一栋楼飞本来也是匀速的。
+      segs.push({ start: t, end: t + dur, from, to, orbitDegrees: cam.degrees, linear: true })
       cur = to
       t += dur
     } else if ('type' in cam && cam.type === 'flyover') {
@@ -282,8 +301,47 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
     }
   }
 
-  // every cue was a no-op → hold entry, no motion
-  if (!segs.length) return emptyTrack(entry ?? cur)
+  /**
+   * 一个 cue 都没剩(全是 no-op)→ 以前是「原地冻住」。给它一段缓慢环绕。
+   * （时长写多少都行:引擎会把它拉伸到旁白长度,真正决定快慢的是角度。）
+   */
+  if (!segs.length) {
+    const base = entry ?? cur
+    segs.push({
+      start: 0,
+      end: 6000,
+      from: base,
+      to: { ...base, bearing: base.bearing + AMBIENT_ORBIT_DEG },
+      orbitDegrees: AMBIENT_ORBIT_DEG,
+      linear: true,
+    })
+    t = 6000
+  }
+
+  /**
+   * 🔴 把「死住的段」变成缓慢环绕。
+   *
+   * `weakness` 那类拍写的是「关键帧到当前机位」——from 和 to 一模一样,再被拉伸到
+   * 十几秒旁白,就是十几秒静止画面。这里逐段量屏幕位移,几乎没动的段就挂上环绕。
+   * (真的有运动的段一律不碰 —— 剧本要 push 就 push,要 crane 就 crane。)
+   *
+   * `linear: true` —— 氛围环绕必须**匀速**。用 easeInOut 的话开头结尾几乎不动,
+   * 而「开头不动」正是 owner 抱怨的那个感觉。
+   */
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1000
+  for (const s of segs) {
+    if (s.orbitDegrees != null || s.arc) continue
+    const pxPerDeg = (256 * Math.pow(2, s.from.zoom)) / 360
+    const moved =
+      Math.hypot((s.to.center[0] - s.from.center[0]) * pxPerDeg, (s.to.center[1] - s.from.center[1]) * pxPerDeg) +
+      Math.abs(s.to.zoom - s.from.zoom) * (vw / 2) * Math.LN2 +
+      (Math.abs(s.to.bearing - s.from.bearing) * Math.PI * (vw / 2)) / 180 +
+      (Math.abs(s.to.pitch - s.from.pitch) * Math.PI * (vw / 2)) / 180
+    if (moved >= STATIC_SEG_EPS_PX) continue
+    s.orbitDegrees = AMBIENT_ORBIT_DEG
+    s.linear = true
+    s.to = { ...s.to, bearing: s.from.bearing + AMBIENT_ORBIT_DEG }
+  }
 
   const duration = t
   const initial = segs[0].from
@@ -336,10 +394,12 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
     }
     if (tt >= active.end) return active.to // only true past the very last segment
     const local = (tt - active.start) / Math.max(1, active.end - active.start)
-    const e = EASE(Math.min(1, Math.max(0, local)))
+    const clamped = Math.min(1, Math.max(0, local))
+    // linear = 匀速（氛围环绕）；否则 easeInOut（剧本写的运镜要有起伏）
+    const e = active.linear ? clamped : EASE(clamped)
     if (active.orbitDegrees != null) {
       // glide centre in over the first 40%, rotate bearing across the whole span
-      const cp = EASE(Math.min(1, local / 0.4))
+      const cp = active.linear ? Math.min(1, local / 0.4) : EASE(Math.min(1, local / 0.4))
       return {
         center: lerpLngLat(active.from.center, active.to.center, cp),
         zoom: lerp(active.from.zoom, active.to.zoom, e),

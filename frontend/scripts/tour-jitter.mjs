@@ -149,6 +149,29 @@ function analyse(frames, vw) {
     if (sb) prevSb = sb
     if (sl) prevSl = sl
   }
+  /**
+   * 🔴 **真正决定观感的是「画面动了」之间的间隔,不是 rAF 的间隔。**
+   *
+   * 引擎现在会**主动降到设备跑得动的匀速节拍**(不再每一帧都要求重绘)。所以 rAF 仍是
+   * 60Hz、每帧位移接近 0 —— 光看 fps 会觉得完美,而客户看到的是每 33/50ms 动一次。
+   * 这里只取「相机真的变了」的那些帧,算它们之间的间隔:**均匀 = 顺,忽快忽慢 = 抖。**
+   * (真·静止镜头没有 move,不进统计,不会污染。)
+   */
+  const moveDts = []
+  let lastMoveT = null
+  for (let i = 1; i < frames.length; i++) {
+    const a = frames[i - 1]
+    const b = frames[i]
+    const moved = a[1] !== b[1] || a[2] !== b[2] || a[3] !== b[3] || a[4] !== b[4] || a[5] !== b[5]
+    if (!moved) continue
+    if (lastMoveT != null) {
+      const d = b[0] - lastMoveT
+      if (d > 0 && d < 400) moveDts.push(d) // >400ms 多半是「这一拍本来就定住了」
+    }
+    lastMoveT = b[0]
+  }
+  const smd = [...moveDts].sort((a, b) => a - b)
+
   const sd = [...dts].sort((a, b) => a - b)
   const sp = [...pxs].sort((a, b) => a - b)
   const span = frames.length > 1 ? (frames[frames.length - 1][0] - frames[0][0]) / 1000 : 1
@@ -167,6 +190,14 @@ function analyse(frames, vw) {
     px_max: +(sp[sp.length - 1] ?? 0).toFixed(1),
     rev_per_sec: +((revZoom + revBear + revLng) / span).toFixed(2),
     rev: { zoom: revZoom, bearing: revBear, lng: revLng },
+    // ── 「画面动了」之间的间隔 = 观感的直接读数 ──
+    move_hz: smd.length ? +(1000 / pct(smd, 0.5)).toFixed(1) : 0,
+    move_p50: pct(smd, 0.5),
+    move_p95: pct(smd, 0.95),
+    move_max: smd[smd.length - 1] ?? 0,
+    /** 匀不匀 —— 1.0 = 完美匀速。这就是「抖」的数字定义。 */
+    move_unevenness: +(pct(smd, 0.95) / Math.max(1, pct(smd, 0.5))).toFixed(2),
+    move_samples: smd.length,
   }
 }
 
@@ -263,6 +294,10 @@ for (const vp of PLAN) {
 
   console.log(`  帧:      ${m.frames} 帧 / ${m.seconds}s  →  ${m.fps} fps`)
   console.log(`  帧间隔:  p50 ${m.dt_p50}ms · p95 ${m.dt_p95}ms · max ${m.dt_max}ms · >33ms ${m.long_frames_pct}%`)
+  console.log(
+    `  画面移动:  ${m.move_hz}Hz(每 ${m.move_p50}ms 动一次) · p95 ${m.move_p95}ms · max ${m.move_max}ms · ` +
+      `匀速度 ${m.move_unevenness} ${m.move_unevenness > 2 ? '❌ 忱快忽慢=抖' : m.move_unevenness > 1.6 ? '⚠️' : '✅'}`
+  )
   console.log(`  长帧占比 >33ms = ${m.long_frames_pct}%  (不均匀度 p95/p50 = ${m.dt_jitter}) ${m.long_frames_pct > 60 ? '❌ 一路在掉帧' : m.long_frames_pct > 30 ? '⚠️' : '✅'}`)
   console.log(`  每帧位移: p50 ${m.px_p50}px · p95 ${m.px_p95}px · max ${m.px_max}px ${m.px_max > 60 ? '❌ 单帧跳太远' : ''}`)
   console.log(`  方向反转: ${m.rev_per_sec}/s  (zoom ${m.rev.zoom} · bearing ${m.rev.bearing} · lng ${m.rev.lng}) ${m.rev_per_sec > 2 ? '❌ 真·振动' : '✅'}`)
@@ -287,6 +322,7 @@ if (RUNS > 1) {
       `  ${name.padEnd(8)} fps ${median(runs.map((r) => r.fps))}` +
         ` · >33ms ${median(runs.map((r) => r.long_frames_pct))}%` +
         ` · 单帧最大 ${median(runs.map((r) => r.px_max))}px` +
+        ` · 移动 ${median(runs.map((r) => r.move_hz))}Hz 匀速度 ${median(runs.map((r) => r.move_unevenness))}` +
         ` · longtask ${median(runs.map((r) => r.longtask_ms_per_sec))}ms/s`
     )
   }

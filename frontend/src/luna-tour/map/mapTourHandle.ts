@@ -364,40 +364,29 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
       type: 'circle',
       source: FOCUS_SRC,
       paint: {
-        'circle-radius': 12,
+        // 静态但足够醒目：稍大的半透明光斑 + 清晰的描边环（原来靠动画吸引注意力）
+        'circle-radius': 17,
         'circle-color': accent,
-        'circle-opacity': 0.18,
+        'circle-opacity': 0.16,
         'circle-stroke-color': accent,
-        'circle-stroke-width': 2.5,
-        'circle-stroke-opacity': 0.9,
+        'circle-stroke-width': 3,
+        'circle-stroke-opacity': 0.95,
       },
     })
     raiseNow()
-    const start = performance.now()
     /**
-     * 🔴 脉冲圈 **12Hz,不是 60Hz**。
+     * 🔴 焦点圈是**静态**的 —— 不再逐帧 setPaintProperty 做呼吸动画。
      *
-     * `setPaintProperty` 不是「写个数字」——它会让 MapLibre 重建这一层的 paint 绑定、
-     * 重新求值、再排一次重绘。每帧两次 × 60fps,就是白白挤在运镜帧里的一份开销,
-     * 而这是一个 1.7 秒一轮的呼吸动画:12Hz 肉眼完全看不出差别。
+     * 两个理由,都是实测出来的:
+     * ① 它长在客户正在盯的那栋楼底下。我一度把它节流到 12Hz 省开销 →
+     *    半径每 80ms 跳 ~3px,**在停住的画面里就是一处明显的抽动**
+     *    (owner:「停留时还在疯狂抖动」)。而 60Hz 平滑版本又意味着
+     *    **每一帧都要 setPaintProperty + 强制重绘**,连真正静止的时刻都在满帧渲染。
+     * ② 现在每一拍都保证有缓慢运镜了(见 cameraTrack 的 AMBIENT_ORBIT_DEG),
+     *    画面本来就是活的,圈不需要再靠自己"喘气"来证明存在。
+     *
+     * **别再把 rAF 动画加回来。** 要更醒目就调粗描边/调色,不要动它的几何。
      */
-    let lastPulse = 0
-    const tick = () => {
-      const m = getMap()
-      if (!m || !m.getLayer('lt-focus-ring')) {
-        pulseRaf = null
-        return
-      }
-      const now = performance.now()
-      if (now - lastPulse >= 80) {
-        lastPulse = now
-        const t = ((now - start) % 1700) / 1700
-        m.setPaintProperty('lt-focus-ring', 'circle-radius', 10 + t * 30)
-        m.setPaintProperty('lt-focus-ring', 'circle-stroke-opacity', 0.9 * (1 - t))
-      }
-      pulseRaf = requestAnimationFrame(tick)
-    }
-    pulseRaf = requestAnimationFrame(tick)
   }
 
   /**

@@ -10,6 +10,7 @@
  */
 import { chromium } from 'playwright'
 import fs from 'node:fs'
+import path from 'node:path'
 
 const arg = (k, d) => {
   const hit = process.argv.find((a) => a.startsWith(`--${k}=`))
@@ -18,6 +19,9 @@ const arg = (k, d) => {
 const URL = arg('url', `https://www.pinzos.com/?toursession=${arg('code', 'demo')}`)
 const SECS = Number(arg('secs', 25))
 const CPU = Number(arg('cpu', 4))
+/** 跳过前面这么多秒再开始采样 —— 想单独看「停在项目上环绕」那一段就用它（--skip=30）。 */
+const SKIP = Number(arg('skip', 0))
+const DIST = arg('dist', '')
 const OUT = 'scripts/_tour-jitter'
 fs.mkdirSync(OUT, { recursive: true })
 
@@ -33,6 +37,23 @@ const ctx = await browser.newContext({
   locale: 'zh-CN',
 })
 const page = await ctx.newPage()
+await page.addInitScript((v) => {
+  try {
+    localStorage.setItem('app-visitor-id', v)
+  } catch {
+    /* ignore */
+  }
+}, arg('visitor', 'ce2a07df-7273-4992-af45-eda9d385f164'))
+if (DIST) {
+  const root = path.resolve(DIST)
+  const origin = new globalThis.URL(URL).origin
+  await page.route(`${origin}/**`, async (route) => {
+    const rel = new globalThis.URL(route.request().url()).pathname
+    const file = path.join(root, rel === '/' ? '/index.html' : rel)
+    if (path.extname(rel) && fs.existsSync(file)) return route.fulfill({ path: file })
+    return route.fulfill({ path: path.join(root, 'index.html') })
+  })
+}
 const cdp = await ctx.newCDPSession(page)
 if (CPU > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU })
 
@@ -41,7 +62,7 @@ await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 90000 })
 await page.locator('.lt-greet-btn').waitFor({ state: 'visible', timeout: 60000 })
 await page.waitForTimeout(2500)
 await page.locator('.lt-greet-btn').click()
-await page.waitForTimeout(1500) // skip the start transient
+await page.waitForTimeout(1500 + SKIP * 1000) // skip the start transient (+ --skip 秒)
 
 await cdp.send('Profiler.enable')
 await cdp.send('Profiler.setSamplingInterval', { interval: 200 })

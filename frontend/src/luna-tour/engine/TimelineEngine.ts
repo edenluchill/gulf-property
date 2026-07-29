@@ -91,6 +91,17 @@ const MAX_STEP_PX = 45
 /** 落后超过这么多屏宽 → 不是掉帧，是真的换机位（跳拍/换幕）→ 直接切过去。 */
 const SNAP_IF_BEHIND_SCREENS = 3
 
+/**
+ * ⚠️ 这里试过一版「**自适应匀速节拍**」(EMA 测帧耗时 → 主动降到 45/30/20fps 匀速下发),
+ *    理由是「均匀的 20fps 比忽快忽慢的 8~30fps 好看」。**实测不成立,已删。**
+ *
+ *    cpu×6 下:移动频率从 58.8Hz 掉到 30.3Hz,而不均匀度只从 2.41 到 2.24 ——
+ *    **把运动频率砍掉一半,几乎没换到均匀。** 因为长帧不是「我们要得太勤」造成的,
+ *    是卫星瓦片解码/上纹理这类**外部工作**,少要几次重绘并不会让它变快。
+ *
+ *    结论:相机就该每一个 rAF 都下发。要更顺只能继续砍每帧成本,不能靠降频装顺。
+ */
+
 const STICKY_OVERLAYS = new Set(['progress_dots', 'cta', 'favorite_picker'])
 
 /**
@@ -463,12 +474,10 @@ export class TimelineEngine {
     const tick = () => {
       if (this.disposed || this.paused) return
       this.beatElapsed = performance.now() - this.beatClockStart
-      // 1) camera — sample the (time-warped) track for center/zoom/pitch, but
-      //    drive BEARING ourselves at a constant gentle rate (carried across
-      //    beats) so rotation is even and never snaps.
+      // 1) camera — sample the (time-warped) track. bearing 来自剧本,引擎不加戏。
+      //    唯一的保护:单帧位移限幅(见 MAX_STEP_PX)。
       if (this.camTrack) {
         const cs = this.camTrack.sampleAt(this.camTrack.remap(this.beatElapsed, this.camTargetMs))
-        // bearing 来自剧本,引擎不加戏。只做一件事:限住单帧位移(见 MAX_STEP_PX)。
         if (cs) this.applyCamera(cs)
       }
       // 2) overlay cues at their at_ms

@@ -21,9 +21,24 @@
 
 /* Transparent host: the tour chrome/overlays float OVER the main map
    (which renders behind). Children re-enable pointer-events as needed. */
+/* 🔴 **贴底的东西被手机浏览器裁掉的唯一根因,修在这一处。**
+
+   地图容器在 `h-screen`(=100vh)里,而手机浏览器的 100vh 是「地址栏收起时」的大视口。
+   地址栏和系统导航栏一露出来,**页面底部那一条就在可见区域之外** —— 于是 bottom:12 的
+   项目卡被切掉一半,bottom:14 的 CC/喇叭按钮**整个消失**(owner 的截图里就是这样)。
+
+   所以 host 不用 `inset: 0`,而是把底边收到**真正看得见的那条线**上:
+   `--lt-hidden-bottom` 由 TourOverlay 用 visualViewport 量出来并写在这个元素上,
+   `env(safe-area-inset-bottom)` 再让开 iOS 的小黑条。
+
+   ⭐ 这样一改,**所有 `bottom:` 定位的子元素自动跟着上移** —— 以后新加的贴底浮条
+   不用各自记得加偏移(别再回去给每条规则手算 bottom,那是三次栽跟头的老路)。 */
 .lt-tour-host {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--lt-hidden-bottom, 0px) + env(safe-area-inset-bottom, 0px));
   z-index: 20;
   pointer-events: none;
   color: #fff;
@@ -884,6 +899,18 @@
  * 用 :has() 让**字幕自己知道**底下有东西:手机上户型卡在场时抬到卡片之上。
  * 桌面不需要 —— 桌面的户型卡在右侧,本来就不挡字幕。
  */
+/**
+ * 🔴 暂停时把**项目卡收起来**。
+ *
+ * 暂停界面底部已经排着三张大探索卡（同样的图、名字、价格），项目卡纯冗余;
+ * 而「继续观看」按钮正好落在它上面 —— 实测把「Serenz / AED 920K」整块盖死。
+ * 「被按钮盖住」和「被屏幕裁掉」对客户是同一件事:该看的东西看不见。
+ *
+ * 同 `:has()` 那一套:让**卡片自己知道**现在是暂停态,而不是去给按钮手算一个新的 bottom。
+ */
+.lt-tour-host:has(.lt-resume) .lt-ov-card,
+.lt-root:has(.lt-resume) .lt-ov-card { display: none; }
+
 @media (max-width: 640px) {
   .lt-root:has(.lt-ov-units) .lt-subtitle,
   .lt-tour-host:has(.lt-ov-units) .lt-subtitle { bottom: 234px; }

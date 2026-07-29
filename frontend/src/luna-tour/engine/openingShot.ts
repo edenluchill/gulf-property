@@ -34,13 +34,40 @@ export interface Shot {
  * 手机:顶部章节条 ≈56px,底部字幕 + 卡片 ≈170px。
  * 桌面:章节条更靠上、字幕带在下方,占得少。
  * (右侧的经纪卡片/工具卡不动构图 —— 左右留白会把城市挤扁,而横向本来就最紧。)
+ *
+ * `hiddenBottom` = 被**手机浏览器 UI**(地址栏/系统导航栏)吃掉的那一条。地图画布是
+ * 100vh 高,比可见区域更长,所以画布底部那一段根本看不到 —— 不算进来的话,
+ * 相机会把主角对准一条客户看不见的线。由 TourOverlay 用 visualViewport 量。
  */
-export function tourViewportPadding(): { top: number; bottom: number } {
-  return isNarrowViewport() ? { top: 56, bottom: 170 } : { top: 64, bottom: 120 }
+export function tourViewportPadding(hiddenBottom = 0): { top: number; bottom: number } {
+  const base = isNarrowViewport() ? { top: 56, bottom: 170 } : { top: 64, bottom: 120 }
+  return { top: base.top, bottom: base.bottom + Math.max(0, hiddenBottom) }
 }
 
 /** 开场再往外退这么多级 —— owner:「他要高一点」。 */
 const OPENING_PULL = 0.35
+
+/**
+ * 🔴 开场**至少**要能横向看到这么多经度 —— 也就是「看得见整个迪拜」。
+ *
+ * owner:「手机时能让他视野抛高一点吗 因为 desktop 的 view 一开始能看到更多东西
+ * 但是手机版视野就很窄 看不完整个迪拜」。
+ *
+ * 为什么手机会窄:同一个 zoom 下可见经度 ∝ 屏幕宽度。桌面 1440px 能看到约 1.1°,
+ * 手机 390px 只有 0.36° —— 差 3 倍。而「装得下那几个项目」这条规则在手机上算出来
+ * 恰好就是紧紧框住三个 pin,周围的城市全在画面外。
+ *
+ * 所以再加一条**下限**:不管项目怎么分布,开场都要能看到这么宽的一片。
+ * 迪拜主城区(棕榈岛 → Downtown → Deira)东西向约 0.45°,取 0.52° 留点余量。
+ * ⚠️ 别再放大:再宽三个 pin 就挤到一起、名字互相压,而且沙漠占的比例开始超过城市。
+ */
+const MIN_VISIBLE_LNG = isNarrowViewport() ? 0.52 : 0.9
+
+/** 恰好能横向看到 spanLng 度经度的 zoom（Web Mercator，见 zoomToFit 的注释）。 */
+function zoomForVisibleLng(spanLng: number): number {
+  const { w } = viewport()
+  return Math.log2((360 * w) / (512 * spanLng))
+}
 /**
  * 环绕的角度。旁白多长它就转多久 —— demo 的开场旁白约 19 秒 → 65° ≈ 3.4°/秒。
  *
@@ -105,9 +132,11 @@ export function establishingShot(coords: LngLat[], authoredZoom: number, authore
   const center = authoredCenter ?? centroid(coords) ?? [55.2, 25.12]
   const fit = zoomToFit(coords)
   const base = fit != null ? Math.min(authoredZoom, fit) : authoredZoom
+  // 三条一起取最外面的那个:剧本给的 / 装得下所有项目的 / 看得见整个迪拜的。
+  const zoom = Math.min(base - OPENING_PULL, zoomForVisibleLng(MIN_VISIBLE_LNG))
   return {
     center,
-    zoom: base - OPENING_PULL,
+    zoom,
     pitch: openingPitch(),
     // 正北朝上的城市看起来像一张地图；斜一点才像航拍。环绕从这里开始转。
     bearing: -25,

@@ -605,8 +605,11 @@ function MapViewMapLibre({
     const map = mapRef.current?.getMap()
     if (!map || !mapLoaded) return
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
+    // 窄屏再压一档到 1.25(2026-07-29):owner 实测手机上「围着项目转还是疯狂抖动」。
+    // 高速运镜中肉眼分辨不出 1.25 和 1.5,但着色像素再少 ~30%。桌面(dpr≤1.5)不受影响。
+    const tourCap = window.innerWidth < 700 ? 1.25 : 1.5
     try {
-      map.setPixelRatio(tourActive && dpr > 1.5 ? 1.5 : dpr)
+      map.setPixelRatio(tourActive && dpr > tourCap ? tourCap : dpr)
     } catch {
       /* 老引擎没有 setPixelRatio —— 不因它挂掉地图 */
     }
