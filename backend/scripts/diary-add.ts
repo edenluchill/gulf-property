@@ -118,11 +118,18 @@ async function main() {
   if (has('dry')) { console.log('\n--dry:没写文件。'); return }
 
   const src = readFileSync(FILE, 'utf8')
-  const anchor = 'export const CHANGELOG: ChangeEntry[] = [\n'
-  const at = src.indexOf(anchor)
-  if (at < 0) { console.error('没找到 CHANGELOG 数组开头,文件结构变了?'); process.exit(1) }
-  const cut = at + anchor.length
-  writeFileSync(FILE, src.slice(0, cut) + entry + '\n' + src.slice(cut), 'utf8')
+  /**
+   * ⚠️ **换行符不能写死。** 原来锚点是 `'...= [\n'`,而 changelog.ts 在 Windows 上
+   * 被 git 换成了 CRLF → `indexOf` 找不到,脚本翻译烧完钱才报「文件结构变了?」。
+   * 现在用正则匹配行尾,并**沿用文件自己的换行符**写回去(免得插进去一行 LF、
+   * 其余 CRLF,diff 整片泛红)。
+   */
+  const m = /export const CHANGELOG: ChangeEntry\[\] = \[\r?\n/.exec(src)
+  if (!m) { console.error('没找到 CHANGELOG 数组开头,文件结构变了?'); process.exit(1) }
+  const eol = m[0].endsWith('\r\n') ? '\r\n' : '\n'
+  const cut = m.index + m[0].length
+  const block = entry.split('\n').join(eol)
+  writeFileSync(FILE, src.slice(0, cut) + block + eol + src.slice(cut), 'utf8')
   console.log(`✅ 已插到 changelog.ts 开头。跑一下 frontend/scripts/_shot-diary-audience.mjs 对个账。`)
 }
 

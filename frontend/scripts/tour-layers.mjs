@@ -26,6 +26,20 @@ const ctx = await browser.newContext({
   locale: 'zh-CN',
 })
 const page = await ctx.newPage()
+// 内部 visitor id → mapMeter 豁免。不带的话跑几轮就 429,`/api/dubai/landmarks` 和
+// `/api/dubai/areas` 全空 → 图层压根不上图,而这个脚本正是用来确认它们在不在的。
+// (同 tour-jitter.mjs 的注释。)
+await page.addInitScript((v) => {
+  try {
+    localStorage.setItem('app-visitor-id', v)
+  } catch {
+    /* ignore */
+  }
+}, arg('visitor', 'ce2a07df-7273-4992-af45-eda9d385f164'))
+let q429 = 0
+page.on('response', (r) => {
+  if (r.status() === 429) q429++
+})
 if (DIST) {
   const root = path.resolve(DIST)
   const origin = new URL(TOUR_URL).origin
@@ -94,4 +108,5 @@ console.log(
     `   (pin/地标 = owner 要求必须一直在,别改没了)`
 )
 console.log(`带 zoom 插值属性的层: ${zoomDep} / ${info.count}  ← 每帧都要 recalculate 这些`)
+if (q429) console.log(`⛔ ${q429} 个 429(地图额度用尽)—— 图层缺失是额度问题,不是代码问题`)
 await browser.close()

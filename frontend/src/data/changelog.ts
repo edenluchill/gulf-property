@@ -60,6 +60,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-07-29',
+    kind: 'improve',
+    zh: "AI 导览的开场重做了:从高空俯瞰整个迪拜、缓缓环绕着介绍,推荐给你的房子一开始就在画面正中;手机上运镜不再一顿一顿地拽",
+    en: "The AI tour now opens differently: a high aerial view of Dubai that slowly orbits while Luna introduces the area, with every recommended home framed in the middle of the screen from the first second. Camera movement on phones no longer lurches.",
+    fr: "L'ouverture de la visite IA a été repensée : une vue aérienne de Dubaï qui pivote lentement pendant que Luna présente le secteur, avec tous les biens recommandés cadrés au centre de l'écran dès la première seconde. Les mouvements de caméra sur mobile ne saccadent plus.",
+    ru: "Начало ИИ-экскурсии переработано: вид на Дубай с высоты, который медленно облетает город, пока Luna рассказывает о районе, — и все рекомендованные объекты с первой секунды в центре кадра. Камера на телефоне больше не дёргается.",
+    ar: "أُعيد تصميم بداية الجولة بالذكاء الاصطناعي: مشهد جوي مرتفع لدبي يدور ببطء أثناء تقديم Luna للمنطقة، مع ظهور كل العقارات المقترحة في منتصف الشاشة من الثانية الأولى. لم تعد حركة الكاميرا على الهاتف متقطعة.",
+  },
+  {
     date: '2026-07-28',
     kind: 'new',
     zh: '新增「更新历史」页：能看到我们每周改了什么，也能直接提功能建议、给别人的建议投票、跟帖讨论。建议会标注来自经纪还是买家，但永远不显示是谁提的。',
