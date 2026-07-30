@@ -669,5 +669,25 @@
       "closed_lost": "流失"
     },
     "reportCount_other": "{{count}} 份报告"
+  },
+  "projectTours": {
+    "ctaTitle": "带你看懂这个位置",
+    "ctaSub": "Luna 带你看位置、周边和能买到的户型",
+    "ctaGo": "开始",
+    "navLabel": "楼盘导览",
+    "pageTitle": "楼盘导览",
+    "pageLead": "不知道从哪看起？让 Luna 带你飞一遍：这个盘在迪拜的哪儿、周围有什么、能买到什么户型。",
+    "count": "{{n}} 个楼盘",
+    "empty": "导览正在一个个做，很快就有了。",
+    "sortLabel": "排序",
+    "sortNewest": "最新上线",
+    "sortPrice": "起价低到高",
+    "sortName": "按名称",
+    "sortUnits": "户型选择多",
+    "areaAll": "全部区域",
+    "priceTba": "价格待公布",
+    "unitsN": "{{n}} 种户型",
+    "watch": "看导览",
+    "priceFromWord": "起"
   }
 }

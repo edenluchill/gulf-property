@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, TrendingUp, BarChart3 } from 'lucide-react'
+import { MapPin, Heart, User, LogIn, Settings, Building2, MapPinned, ClipboardList, Upload, X, TrendingUp, BarChart3, Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Sheet, SheetContent } from './ui/sheet'
@@ -15,7 +15,7 @@ import { Sheet, SheetContent } from './ui/sheet'
 export default function MobileNav() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useTranslation(['common', 'nav', 'auth'])
+  const { t } = useTranslation(['common', 'nav', 'auth', 'lunaTour'])
   const { user, loading, isAdmin, canUpload } = useAuth()
   const [adminSheetOpen, setAdminSheetOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
@@ -39,6 +39,8 @@ export default function MobileNav() {
   // 底栏 tab:探索 · 收藏 · 成交 · [管理] · 我的/登录
   const navItems = [
     { path: '/map', label: t('nav:explore'), icon: MapPin },
+    // 楼盘导览目录 —— 买家找得到的入口(项目详情页那条横条是另一个入口)
+    { path: '/tours', label: t('lunaTour:projectTours.navLabel'), icon: Compass },
     { path: '/favorites', label: t('nav:favorites'), icon: Heart },
     { path: '/transactions', label: t('nav:transactions'), icon: TrendingUp },
     // 管理 - 仅白名单 admin / uploader

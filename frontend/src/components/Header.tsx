@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound, NotebookPen } from 'lucide-react'
+import { Building2, MapPin, Settings, LogIn, ClipboardList, HelpCircle, Upload, MapPinned, TrendingUp, Briefcase, ChevronDown, Tag, BarChart3, UserRound, NotebookPen, Compass } from 'lucide-react'
 import { Button } from './ui/button'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -32,7 +32,7 @@ export default function Header() {
   const location = useLocation()
   const { unseen: changelogUnseen } = useUnseenChangelog()
   const navigate = useNavigate()
-  const { t } = useTranslation(['common', 'nav', 'auth', 'misc'])
+  const { t } = useTranslation(['common', 'nav', 'auth', 'misc', 'lunaTour'])
   const { user, loading, isAdmin, canUpload } = useAuth()
   const { profile } = useUserProfile()
   const role = useMyRole()
@@ -200,6 +200,13 @@ export default function Header() {
 
             {/* 地图探索（主入口） */}
             <NavPill to="/" active={isMapActive} icon={MapPin} label={t('nav:mapExplore')}
+              idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
+
+            {/* 楼盘导览 —— 买家自己能逛的「有哪些盘可以一分钟看一遍」。
+                排在地图后面:地图是「我自己找」,导览是「带我看」。
+                (经纪版 tour 被外部客户播放 0 次 —— 它一直没有一个买家找得到的入口。) */}
+            <NavPill to="/tours" active={location.pathname.startsWith('/tours')} icon={Compass}
+              label={t('lunaTour:projectTours.navLabel')}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {/* 成交记录（直达）— 买家查真实 transaction/rent */}

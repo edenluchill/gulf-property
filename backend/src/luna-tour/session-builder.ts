@@ -296,6 +296,16 @@ export interface CreateSessionInput {
    *  HTTP path leaves it false so the request returns fast (audio backfills). */
   awaitAudio?: boolean
   /**
+   * 可用楼盘的下限,默认 **2**。
+   *
+   * 为什么默认是 2 而不是 1:经纪版 tour 的意义在于**比较**(「这三个里哪个是你的家」)。
+   * 而且这道门槛还挡住一个真实事故 —— 挑了 3 个盘、其中 2 个售罄被剔掉,
+   * 剩一个盘也照样生成一场「精选」,客户看到的是一场很尬的独角戏。
+   *
+   * **每个楼盘一条的公开导览**(lt_project_tours)明确传 1:它本来就只讲一个盘。
+   */
+  minProjects?: number
+  /**
    * 草稿模式:**只出剧本,不烧语音,不发布**。
    *
    * 两段式生成的第一段 —— 经纪要先在时间线上看见 Luna 打算怎么讲、改完确认了,
@@ -368,8 +378,12 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
       rows.filter((r) => !(r.status ?? '').toLowerCase().includes('sold')).map((r) => [r.id, r])
     )
     const ordered = input.projectIds.map((id) => byId.get(id)).filter((r): r is ProjectRow => !!r)
-    if (ordered.length < 2) {
-      throw new Error(`Need ≥2 usable projects with coords; got ${ordered.length} of ${input.projectIds.length}`)
+    const minProjects = input.minProjects ?? 2
+    if (ordered.length < minProjects) {
+      throw new Error(
+        `Need ≥${minProjects} usable projects with coords; got ${ordered.length} of ${input.projectIds.length}` +
+          (soldOut.length ? ` (${soldOut.length} 个售罄被剔掉)` : '')
+      )
     }
 
     // tour 的语言 —— POI 名字要按它过滤（阿语名不能念给中文客户听）

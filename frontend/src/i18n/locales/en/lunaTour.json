@@ -670,5 +670,25 @@
     },
     "reportCount_one": "{{count}} report",
     "reportCount_other": "{{count}} reports"
+  },
+  "projectTours": {
+    "ctaTitle": "See where this actually is",
+    "ctaSub": "Luna flies you over the location, what surrounds it, and what you can buy",
+    "ctaGo": "Play",
+    "navLabel": "Tours",
+    "pageTitle": "Project tours",
+    "pageLead": "Not sure where to start? Let Luna fly you over a project: where it sits in Dubai, what's around it, and which homes you can actually buy.",
+    "count": "{{n}} projects",
+    "empty": "We're adding tours one project at a time — check back soon.",
+    "sortLabel": "Sort",
+    "sortNewest": "Newest",
+    "sortPrice": "Lowest price",
+    "sortName": "Name",
+    "sortUnits": "Most layouts",
+    "areaAll": "All areas",
+    "priceTba": "Price to be announced",
+    "unitsN": "{{n}} layouts",
+    "watch": "Watch",
+    "priceFromWord": "from"
   }
 }

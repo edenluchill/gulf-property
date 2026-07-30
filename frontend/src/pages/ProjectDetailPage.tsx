@@ -24,6 +24,8 @@ import { CollapsibleDetails } from './ProjectDetailPage/CollapsibleDetails'
 import { formatPrice } from '../lib/utils'
 import { generateProjectNotes } from '../lib/generateProjectNotes'
 import { trackEvent } from '../lib/track'
+// 楼盘公开导览的入口（isolated：删掉这行 + 下面那一行组件即可移除）
+import ProjectTourCta from '../luna-tour/components/ProjectTourCta'
 
 /** 规范域。canonical / og:url / og:image 一律用它,绝不用 window.location.origin ——
  *  裸域 pinzos.com 已在边缘 301 到这里(见 functions/_middleware.ts)。 */
@@ -429,6 +431,13 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
+
+        {/**
+          * 🔴 导览入口放在**所有布局、所有 tab 共用的这一条**上,而不是塞进三套
+          * header(手机/pad/桌面各一套)里。塞三遍必然有一天漏改一处,而这是整个页面
+          * 最该被看见的东西:客户第一次看迪拜楼盘,最想知道的是「这地方到底在哪」。
+          * 没有导览时组件自己渲染 null。 */}
+        <ProjectTourCta projectId={project.id} />
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-0">

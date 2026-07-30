@@ -670,5 +670,25 @@
   "lunaIsReadingThe": "Luna analyse le storyboard…",
   "lunaReadItNothing": "Luna l'a lu — aucun élément important ne manque.",
   "lunaSNotes": "Notes de Luna ({{notes_length}})",
-  "letLunaFixIt": "Laisser Luna corriger"
+  "letLunaFixIt": "Laisser Luna corriger",
+  "projectTours": {
+    "ctaTitle": "Voir où se situe vraiment ce projet",
+    "ctaSub": "Luna vous survole l’emplacement, les environs et les logements disponibles",
+    "ctaGo": "Lancer",
+    "navLabel": "Visites",
+    "pageTitle": "Visites de projets",
+    "pageLead": "Vous ne savez pas par où commencer ? Laissez Luna vous survoler un projet : où il se situe à Dubaï, ce qui l’entoure et quels logements vous pouvez acheter.",
+    "count": "{{n}} projets",
+    "empty": "Nous ajoutons les visites projet par projet — revenez bientôt.",
+    "sortLabel": "Trier",
+    "sortNewest": "Plus récentes",
+    "sortPrice": "Prix le plus bas",
+    "sortName": "Nom",
+    "sortUnits": "Le plus de typologies",
+    "areaAll": "Tous les quartiers",
+    "priceTba": "Prix à annoncer",
+    "unitsN": "{{n}} typologies",
+    "watch": "Voir",
+    "priceFromWord": "dès"
+  }
 }

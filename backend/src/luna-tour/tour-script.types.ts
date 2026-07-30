@@ -345,6 +345,17 @@ export interface TourConfig {
   banned_phrases?: string[]
   /** Hard rules the narration must respect (e.g. "no guaranteed returns"). */
   guardrails?: string[]
+  /**
+   * 这条 tour 是给谁的 —— 决定了**内容合约**,不只是文案口吻。
+   *
+   *   'client'（默认）经纪给某个具体客户生成的私下导览:可以带客户名、比较多个盘、
+   *                   讲 5 年投资测算(roi_card)。
+   *   'project'        **公开**的单楼盘导览(/tours 目录 + 项目详情页入口)。
+   *                   任何人都能看、能被搜索引擎和 AI 爬虫抓走 —— 所以门槛更严:
+   *                   零客户信息、零预测、零 ROI、零「值得投资」,只讲有出处的事实。
+   *                   见 buildPrompt 里的 PUBLIC 段落。
+   */
+  variant?: 'client' | 'project'
 }
 
 /** Pre-computed 5-year ROI facts (from investment-calculator). */

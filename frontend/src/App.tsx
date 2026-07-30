@@ -33,6 +33,8 @@ import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
 import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —— 经纪台专用(/agent/roi)
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import ChangelogPage from './pages/ChangelogPage'
+// 楼盘公开导览目录(每个楼盘一条常驻导览)—— isolated,删这行+下面那条路由即可移除
+import ToursPage from './pages/ToursPage'
 import RequestsPage from './pages/RequestsPage'
 import RequestDetailPage from './pages/RequestDetailPage'
 import PricingPage from './pages/PricingPage'  // standalone pricing page (Stripe billing)
@@ -162,6 +164,10 @@ function App() {
         <Route path="/luna/agent/*" element={<Navigate to="/agent" replace />} />
         <Route path="/project/:id" element={<ProjectDetailPage />} />
         <Route path="/about" element={<AboutPage />} />
+        {/* 楼盘导览目录 —— 买家自己能逛的「有哪些盘可以看一遍」。
+            经纪版 tour(经纪给某个客户生成)两个月被外部客户播放 0 次,而项目详情页
+            同期有 442 次外部访问 —— 这一页 + 详情页的入口是把导览搬到人流上。 */}
+        <Route path="/tours" element={<ToursPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         {/* 产品日记(面向客户的「我们改了什么」)—— 内容手写在 data/changelog.ts */}

@@ -28,6 +28,14 @@ export const ALLOWED_EVENTS = new Set([
   'image_view',        // opened the gallery lightbox            (payload: image_count, index, view_type)
   'area_detail',       // opened/closed an area dialog           (payload: action, area_name)
   'tab_switch',        // switched a project-detail tab          (payload: tab_name, source)
+  /**
+   * 楼盘公开导览的**入口点击率** —— 这个实验要回答的第一个问题。
+   *
+   * 至今没有任何证据说明「有人想看 tour」:经纪版两个月 15 场、外部客户播放 0 次。
+   * 而同期 211 个外部访客看了 442 次项目详情页。把导览搬到详情页之后,
+   * 「有多少人愿意点」就是这条埋点。(播放/看完走 lt_engagement_events 那套。)
+   */
+  'tour_entry_click',  // 点了详情页/目录页的导览入口            (payload: project_id, share_code, from)
   // Error telemetry (see ErrorMonitor in the owner dashboard). Same fail-safe
   // ingest path — these just carry diagnostic fields in `payload`.
   'auth_failure', // OAuth/login callback failed (provider error, race, storage blocked, …)

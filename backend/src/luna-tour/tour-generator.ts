@@ -36,7 +36,23 @@ const TOTAL_DURATION_TOLERANCE = 0.2 // ±20% of target_seconds
 // Prompt building
 // ---------------------------------------------------------------------------
 
-function propertyFacts(p: TourProperty): string {
+/**
+ * 距离要按**人说话的精度**给它,不是按数据库的精度。
+ *
+ * OSRM 给的是 0.54 / 1.28 / 2.12 公里,模型照抄,旁白就念出「零点五四公里」
+ * 「二点一二公里」—— 又拗口又在假装我们量到了十米级。没人这样说话:
+ * 一公里以内说「约五百米」,再远说「约 1.3 公里」。
+ *
+ * ⚠️ 只影响**给模型看的文本**。地图上的 distance_line / amenity_spokes 标签走的是
+ *    snapshot 里的原始数值,不受影响。
+ */
+function spokenDistance(km: number): string {
+  if (!isFinite(km) || km <= 0) return '?'
+  if (km < 1) return `about ${Math.max(50, Math.round((km * 1000) / 50) * 50)} m`
+  return `about ${km.toFixed(1)} km`
+}
+
+function propertyFacts(p: TourProperty, opts?: { publicTour?: boolean }): string {
   const lines: string[] = []
   lines.push(`- id: ${p.id}`)
   lines.push(`  name: ${p.name}`)
@@ -46,7 +62,16 @@ function propertyFacts(p: TourProperty): string {
   lines.push(`  coords (lng,lat): [${p.coords[0]}, ${p.coords[1]}]`)
   if (p.min_price != null) lines.push(`  min_price: ${p.min_price}`)
   if (p.max_price != null) lines.push(`  max_price: ${p.max_price}`)
-  if (p.investment) {
+  /**
+   * 🔴 公开导览**根本不给它看 5 年测算**。
+   *
+   * prompt 里写「不许讲预测」是不够的 —— 上一次审计的结论就是「ROI 数字全是编的,
+   * 而且被当事实播报」。而这些页面是公开的、会被搜索引擎和 AI 爬走的,
+   * 说错一个开发商项目的收益预测不是丢人,是责任。
+   *
+   * **「LLM 会违反 prompt,代码不会。」** 看不到的数字它编不出来。
+   */
+  if (p.investment && !opts?.publicTour) {
     const i = p.investment
     lines.push(
       `  investment (5yr): buy ${i.buy} -> future ${i.future} over ${i.years} yrs | ` +
@@ -65,13 +90,20 @@ function propertyFacts(p: TourProperty): string {
      * 但 amenity_spokes overlay 需要它 → 不能不给,只能**明确标记不许念**。
      * (prompt 也写了规则,这里是双保险 —— 「LLM 会违反 prompt,代码不会」。)
      */
-    const weak = p.amenity_score < 70
+    /**
+     * 公开导览里**任何分数都不许念**,高分也不行。
+     * 实测公开版第一稿开口就是「这里的综合配套评测拿到了高分」—— 那是**我们自己合成的
+     * 一个分**,客户没有参照系,而在一个公开页面上它读起来像一份权威评级。
+     * 真实距离本来就更有说服力,而且是可核对的。
+     */
+    const weak = p.amenity_score < 70 || opts?.publicTour
     lines.push(
       `  amenity_score: ${p.amenity_score}${p.amenity_tier ? ` (${p.amenity_tier})` : ''}` +
         (weak
-          ? ' [WEAK — for the amenity_spokes overlay ONLY. Do NOT say this number in the' +
-            ' narration and do NOT characterise the area as poorly served. Narrate the' +
-            ' real distances below instead — they are concrete and let the client judge.]'
+          ? ' [FOR THE amenity_spokes OVERLAY ONLY. Do NOT say this number or any rating' +
+            ' word ("高分"/"评测"/"tier") in the narration, and do NOT characterise the area' +
+            ' as well- or poorly-served. Narrate the real distances below instead — they' +
+            ' are concrete and let the viewer judge.]'
           : '')
     )
   }
@@ -81,7 +113,7 @@ function propertyFacts(p: TourProperty): string {
       // name 已过地名防线 —— 没有就是「不能给这个语言的客户看」,别硬塞回去。
       const what = d.cat ? (d.name ? `${d.cat} (${d.name})` : d.cat) : d.label
       lines.push(
-        `  distance: "${what}" = ${d.distance_km} km, to [${d.to[0]}, ${d.to[1]}]` +
+        `  distance: "${what}" = ${spokenDistance(d.distance_km)}, to [${d.to[0]}, ${d.to[1]}]` +
           `${d.placeholder ? ' [PLACEHOLDER — approximate, do not state as exact]' : ''}`
       )
     }
@@ -89,13 +121,21 @@ function propertyFacts(p: TourProperty): string {
   if (p.amenities?.length) {
     for (const a of p.amenities) {
       lines.push(
-        `  amenity: "${a.label}" = ${a.distance_km} km` +
+        `  amenity: "${a.label}" = ${spokenDistance(a.distance_km)}` +
           `${a.placeholder ? ' [PLACEHOLDER]' : ''}`
       )
     }
   }
-  // 区域对比 —— 地理套利 + 能被反驳的短板。没有就整个不出现，那两拍跳过。
-  if (p.area_context) {
+  /**
+   * 区域对比 —— 地理套利 + 能被反驳的短板。没有就整个不出现，那两拍跳过。
+   *
+   * 🔴 **公开导览拿不到它。** 里面是涨幅/成交量/单价对比,而它们一进旁白就变成
+   * 「隔壁涨 12.1%、这里 10.9%,但成交量是八倍,变现时永远有充沛买盘支撑」——
+   * 实测第一稿原话。数字是真的(DLD),但那三句话合起来是**投资建议**,
+   * 而这是一个任何人都能打开、会被 AI 爬走的页面。
+   * 公开版的「实话」那一拍改用真实距离讲「这个盘不适合谁」,不碰涨幅。
+   */
+  if (p.area_context && !opts?.publicTour) {
     lines.push(...areaContextFacts(p.area_context as never))
   }
   // 户型 —— 客户真正要买的东西。没有就整个不出现，那个项目跳过 homes 拍。
@@ -147,7 +187,12 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
   const guardrails = config.guardrails?.length
     ? config.guardrails.map((g, i) => `${i + 1}. ${g}`).join('\n')
     : '(none)'
-  const facts = properties.map(propertyFacts).join('\n')
+  /**
+   * 公开的单楼盘导览(`/tours` 目录 + 项目详情页的入口)。
+   * 内容合约比经纪版严得多 —— 见 TourConfig.variant 和下面的 PUBLIC 段落。
+   */
+  const isPublic = config.variant === 'project'
+  const facts = properties.map((p) => propertyFacts(p, { publicTour: isPublic })).join('\n')
   const ids = properties.map((p) => p.id).join(', ')
 
   /**
@@ -183,11 +228,45 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
       .filter(Boolean)
       .join(', ') || '(generic buyer)'
 
+  /**
+   * 🔴 公开导览的内容合约。
+   *
+   * 这些页面**任何人都能打开**,而且 robots.txt 放行了答案型 AI 爬虫 ——
+   * 等于我们在替一个真实开发商的项目做公开陈述。所以:
+   *   • 没有「客户」,不许出现任何人名、身份、预算、目的
+   *   • 零预测、零回报率、零「值得投资/极具潜力」—— 只讲有出处的事实
+   *   • 主线是**地理**:这个盘在哪、周围有什么、走过去多远、能买到什么户型
+   * 上一次审计的结论是「ROI 数字全是编的且被当事实播报」;那放在经纪的私下 demo 里
+   * 只是丢人,放在公开页面上是责任。(代码层面也没给它 investment 数据。)
+   */
+  const publicContract = [
+    'AUDIENCE: this is a PUBLIC, evergreen tour of ONE project. Anyone can open it;',
+    'search engines and AI crawlers index it. There is NO specific client.',
+    '⛔ NEVER address a named person, and never mention a budget, nationality, persona',
+    '   or goal. Speak to "you" as any curious buyer would be addressed.',
+    '⛔ NEVER forecast, project, annualise or characterise returns. No "升值潜力",',
+    '   no "值得投资", no yields, no 5-year numbers, no "prices will rise".',
+    '   You have not been given any investment figures — do not invent any.',
+    '⛔ NEVER use the `roi_card` or `area_compare` overlays. They do not exist for you.',
+    '⛔ NEVER say a PERCENTAGE of any kind, and never compare this area\'s price growth,',
+    '   transaction volume or resale liquidity with anywhere else. Not even with real',
+    '   numbers — "隔壁涨 12.1%，这里 10.9%，但成交量是八倍" is investment advice',
+    '   dressed as a fact, and this page is public.',
+    '⛔ NEVER quote a score, rating or tier of ours (e.g. "配套评测高分"). We invented',
+    '   that number; on a public page it reads as an official rating. Say the distances.',
+    '✅ DO narrate GEOGRAPHY and what is verifiably there: where this project sits,',
+    '   what surrounds it, the REAL distances given below, and the REAL layouts and',
+    '   starting prices from the `unit:` lines. A buyer who has never been to Dubai',
+    '   should finish knowing WHERE this is and WHAT DAILY LIFE around it looks like.',
+    '✅ DO say plainly who this project is NOT for. That is what makes the rest credible',
+    '   — and on a public page it is the difference between a guide and an ad.',
+  ].join('\n')
+
   return [
     'You are Luna, a cinematic real-estate tour director. You produce ONE',
     'TourScript v2 JSON object that drives a map-based guided video tour.',
     '',
-    `CLIENT: ${clientLabel}.`,
+    isPublic ? publicContract : `CLIENT: ${clientLabel}.`,
     `LANGUAGE: write ALL narration strings in "${config.language}".`,
     `NARRATIVE FOCUS: lean the story toward "${config.narrative_focus}".`,
     `TARGET TOTAL DURATION: about ${config.target_seconds} seconds (${targetMs} ms).`,
@@ -363,6 +442,46 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '  read, not flown over.',
     '- outro: pull back, highlight_all_pins + favorite_picker + cta.',
     '',
+    /**
+     * 单楼盘公开版的结构 —— **写死**,不让模型自由发挥。
+     *
+     * 理由和开场机位一样:这 53 条导览是产品的门面,不能每条都碰运气。
+     * 而且 60~90 秒里只装得下四拍,让它自己挑必然会漏掉「周边环境」那一拍 ——
+     * 而那一拍正是地图能做、楼书做不到的唯一一件事。
+     */
+    isPublic
+      ? [
+          '════════ PUBLIC SINGLE-PROJECT STRUCTURE (this OVERRIDES the act/beat guidance above) ════════',
+          'EXACTLY ONE act, for the one project below. `acts[0].property_id` = that id.',
+          'EXACTLY these four beats, in this order, and NOTHING else:',
+          '  1. id "arrival"  kind "arrival"  ~14000ms',
+          '     Where it is, in words a stranger to Dubai understands: name the area and',
+          '     anchor it to something famous from the `poi:`/`dist:` lines. Then the',
+          '     developer and the entry price (min_price) — plainly, no adjectives.',
+          '     Camera: ONE flyover (≤2500ms) to the coords, then a push (+0.5).',
+          '     Overlay: property_card at_ms 0.',
+          '  2. id "life"     kind "life"     ~22000ms  ⭐ THE POINT OF THE WHOLE TOUR',
+          '     What daily life around it is: metro, schools, malls, beach, hospital —',
+          '     using the REAL distances. Group them the way a person lives them',
+          '     ("上班往哪走 / 孩子上学 / 周末去哪"), not as a list of numbers.',
+          '     Camera: SLOW orbit (60–90°) while the distance lines draw.',
+          '     Overlays: amenity_spokes at_ms 0, plus up to 2 distance_line.',
+          '  3. id "homes"    kind "homes"    ~22000ms',
+          '     What you can actually buy: bedroom counts, sizes, starting prices —',
+          '     ONLY from the `unit:` lines. Say which layout suits which kind of household.',
+          '     Camera: slower, tighter orbit (60–90°). Overlay: unit_card at_ms 0.',
+          '  4. id "truth"    kind "weakness" ~14000ms',
+          '     `weakness_claim:` plainly, then `weakness_rebuttal:`. If neither is given,',
+          '     instead say who this project is NOT for, based on the real distances',
+          '     (e.g. no metro within 3km → not for someone without a car).',
+          '     Camera: HOLD. Overlay: none.',
+          'Then `outro` (~8000ms): one sentence inviting a question, cta overlay. NO favorite_picker.',
+          '`intro` still exists but keep it ONE keyframe + ONE short line naming the project',
+          'and its area — the app replaces the opening camera anyway.',
+          '⛔ NO arbitrage beat, NO numbers beat, NO roi_card, NO area_compare.',
+          '',
+        ].join('\n')
+      : '',
     'PROPERTY DATA:',
     facts,
     '',
@@ -667,11 +786,14 @@ export function validateTourScript(
     }
   }
 
-  if (summed !== script.total_ms) {
-    errors.push(
-      `total_ms (${script.total_ms}) != sum of beat durations (${summed})`
-    )
-  }
+  /**
+   * ⚠️ `total_ms` 是**可以算出来的**,所以就算出来 —— 别再让模型当计算器。
+   *
+   * 原来这里是一条校验:模型只要加错一次(实测 80000 vs 86000)就两次生成全判失败,
+   * 于是每条 tour 都带着两条 warning 出厂。而这个字段的正确值**只有一个可能**,
+   * 根本不需要它同意。真正该校验的是**总时长有没有跑偏目标**(下面那条)。
+   */
+  if (summed !== script.total_ms) script.total_ms = summed
 
   const targetMs = input.config.target_seconds * 1000
   const low = targetMs * (1 - TOTAL_DURATION_TOLERANCE)
@@ -713,8 +835,27 @@ function parseAndValidate(
     )
     return { errors: errs }
   }
+  if (input.config.variant === 'project') stripNonPublicOverlays(parsed.data)
   const semantic = validateTourScript(parsed.data, input)
   return { script: parsed.data, errors: semantic }
+}
+
+/**
+ * 🔴 公开导览里**代码层面**摘掉不该出现的卡片。
+ *
+ * prompt 已经说了「NO roi_card / NO area_compare」,但 prompt 是请求,不是保证 ——
+ * 这条链路上每一个「让模型自己遵守」的约定最后都被违反过至少一次。
+ * 这些页面是公开且可被抓取的,一张编出来的 5 年回报卡就是一次对外失实陈述。
+ * 所以在这里**无条件删掉**,而不是校验失败后重试(重试也可能再犯)。
+ */
+function stripNonPublicOverlays(script: TourScript): void {
+  const BANNED = new Set(['roi_card', 'area_compare'])
+  const beats = [script.intro, ...script.acts.flatMap((a) => a.beats), script.outro]
+  for (const b of beats) {
+    if (!b?.overlays?.length) continue
+    const kept = b.overlays.filter((o) => !BANNED.has(o.type))
+    if (kept.length !== b.overlays.length) b.overlays = kept
+  }
 }
 
 export async function generateTourScript(

@@ -37,6 +37,9 @@ export type AppEvent =
   | 'image_view'
   | 'area_detail'
   | 'tab_switch'
+  // 楼盘公开导览的入口点击(详情页横条 / /tours 目录卡)。这个实验的第一个数字 ——
+  // 至今没有任何证据说明有人想看 tour(经纪版被外部客户播放 0 次)。
+  | 'tour_entry_click'
   // Error telemetry — surfaced in the owner dashboard's 错误监控 tab so we can
   // see failures real users hit (esp. mobile login) instead of losing them silently.
   | 'auth_failure'
@@ -236,10 +239,19 @@ export async function identifyVisitor(): Promise<void> {
  * fetch wrapper covers all call sites (current and future) with no per-call
  * change. Scoped to API_BASE_URL only; other origins are untouched. Idempotent.
  */
-/** 分享路由(/t /v /r /cr /factsheet)的 code —— 带给后端换取地图计量豁免(服务端验真)。 */
+/**
+ * 分享链接的 code —— 带给后端换取地图计量豁免(服务端验真)。
+ *
+ * 🔴 **`?toursession=` 也算,别只看路径。** 那才是 tour 的主力形态(经纪台复制出去的
+ * 链接、About 页的 demo 入口、项目页的导览按钮全是它),而它一直没被匹配到 ——
+ * 于是客户看一场 tour 就白烧掉匿名 10 分钟地图额度的一大半,再点第二个 tour 就被
+ * 「今天的免费探索时长已用完」拦在门外。而 tour 本该是完全豁免的。
+ */
 function shareCodeFromPath(): string | null {
   const m = window.location.pathname.match(/^\/(?:t|v|r|cr|factsheet)\/([\w-]{1,64})/)
-  return m ? m[1] : null
+  if (m) return m[1]
+  const q = new URLSearchParams(window.location.search).get('toursession')
+  return q && /^[\w-]{1,64}$/.test(q) ? q : null
 }
 
 /** 地图配额 429 → 全局事件,MapPage 的 overlay 监听它。detail.requiresPlan = 经纪未订阅。 */

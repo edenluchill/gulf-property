@@ -313,6 +313,112 @@ router.post('/public/v/:code/live-token', async (req: Request, res: Response) =>
 })
 
 /**
+ * ── 每个楼盘一条的**公开常驻导览** ────────────────────────────────────────
+ *
+ * 经纪版 tour(经纪给某个客户生成)两个月 15 场、外部客户播放 0 次;而同期 211 个
+ * 外部访客看了 442 次项目详情页。所以这两个端点做的事只有一件:
+ * **把导览摆到买家已经在的那一页,以及一个他能自己逛的目录里。**
+ *
+ *   GET /api/luna/public/project-tours              → 目录（/tours 页）
+ *   GET /api/luna/public/project-tours/:projectId   → 单个楼盘有没有导览（详情页入口）
+ *
+ * 只返回 status='ready' 的 —— 半成品绝不能出现在公开目录里。
+ */
+
+/** 目录/入口共用的一行。`plays` 现在只采不用(见下面注释)。 */
+const PROJECT_TOUR_SELECT = `
+  SELECT t.project_id::text            AS project_id,
+         t.share_code,
+         t.duration_ms,
+         t.published_at,
+         t.featured,
+         p.project_name,
+         p.area,
+         p.developer,
+         p.status,
+         p.min_price,
+         p.handover_date,
+         -- ⚠️ project_images 是 text[](不是 jsonb)—— 用 [1] 取,别写 ->>0
+         COALESCE(p.primary_image, p.project_images[1]) AS image,
+         (SELECT COUNT(*) FROM lt_engagement_events e
+           WHERE e.session_id = t.session_id AND e.event_type = 'tour_play') AS plays,
+         -- 户型数是**覆盖率最好**的那个信号(49 个盘全都有),而 min_price 只有 27 个、
+         -- handover_date 只有 17 个 —— 所以目录卡以「户型」兜底,别拿空字段撑门面。
+         (SELECT COUNT(*) FROM project_unit_types u WHERE u.project_id = t.project_id) AS unit_count
+    FROM lt_project_tours t
+    JOIN residential_projects p ON p.id = t.project_id
+   WHERE t.status = 'ready'`
+
+interface TourRow {
+  project_id: string
+  share_code: string
+  duration_ms: number | null
+  published_at: string | null
+  featured: number
+  project_name: string
+  area: string | null
+  developer: string | null
+  status: string | null
+  min_price: string | number | null
+  handover_date: string | null
+  image: string | null
+  plays: string | number
+  unit_count: string | number
+}
+
+const shapeTour = (r: TourRow) => ({
+  project_id: r.project_id,
+  share_code: r.share_code,
+  project_name: r.project_name,
+  area: r.area,
+  developer: r.developer,
+  status: r.status,
+  min_price: r.min_price != null ? Number(r.min_price) : null,
+  handover_date: r.handover_date,
+  image: r.image,
+  duration_ms: r.duration_ms,
+  published_at: r.published_at,
+  featured: r.featured,
+  plays: Number(r.plays) || 0,
+  unit_count: Number(r.unit_count) || 0,
+})
+
+router.get('/public/project-tours', async (_req: Request, res: Response) => {
+  try {
+    /**
+     * 🔴 **默认排序里没有「热度」。**
+     *
+     * 一个全是 0 次播放的热度榜等于公开宣布「这里没人」—— 比不排序更糟。
+     * 所以服务端只按「策展权重 → 上线时间」给一个诚实的默认顺序,
+     * 播放数照样返回(前端等真有量了再拿它做排序选项)。
+     */
+    const { rows } = await pool.query<TourRow>(
+      `${PROJECT_TOUR_SELECT} ORDER BY t.featured DESC, t.published_at DESC NULLS LAST, p.project_name`
+    )
+    res.set('Cache-Control', 'public, max-age=120')
+    res.json({ tours: rows.map(shapeTour) })
+  } catch (err) {
+    console.error('[luna] project-tours list error:', err)
+    res.status(500).json({ error: 'failed' })
+  }
+})
+
+router.get('/public/project-tours/:projectId', async (req: Request, res: Response) => {
+  const projectId = String(req.params.projectId || '')
+  if (!UUID_RE.test(projectId)) return res.status(400).json({ error: 'invalid project id' })
+  try {
+    const { rows } = await pool.query<TourRow>(`${PROJECT_TOUR_SELECT} AND t.project_id = $1 LIMIT 1`, [projectId])
+    // 没有导览是**正常状态**(53 个盘会一个一个铺开),所以 200 + tour:null,
+    // 不是 404 —— 详情页只是不显示那个按钮,不该在控制台里报错。
+    res.set('Cache-Control', 'public, max-age=120')
+    res.json({ tour: rows[0] ? shapeTour(rows[0]) : null })
+  } catch (err) {
+    console.error('[luna] project-tour lookup error:', err)
+    res.status(500).json({ error: 'failed' })
+  }
+})
+
+/**
  * Image proxy with CORS — lets the tour map load property thumbnails as WebGL
  * textures (R2 public URLs don't send Access-Control-Allow-Origin, so a browser
  * canvas/GL can't use them directly). Only proxies the known R2 public host.
