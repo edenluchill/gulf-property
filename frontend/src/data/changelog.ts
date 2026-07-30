@@ -60,6 +60,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-07-30',
+    kind: 'improve',
+    zh: "楼盘导览现在把周边一个一个讲给你听:超市、学校、地铁、商场、医院各占一段,每段都标清楚是哪一类、叫什么、多远,地图上只画到那一个地方;还能贴上项目实拍和视频",
+    en: "Property guides now present nearby locations individually. Supermarkets, schools, metro stations, malls, and hospitals are shown in separate sections. Each section specifies the category, name, and distance, with the map highlighting only that location. Real project photos and videos can also be attached.",
+    fr: "Les guides immobiliers présentent désormais les lieux d'intérêt individuellement. Supermarchés, écoles, métros, centres commerciaux et hôpitaux ont leur propre section indiquant la catégorie, le nom et la distance, avec un repère unique sur la carte. Des photos et vidéos réelles du projet peuvent également être ajoutées.",
+    ru: "В путеводителях по объектам теперь отдельно представлены близлежащие места. Супермаркеты, школы, метро, торговые центры и больницы разделены по разделам с указанием категории, названия и расстояния, а на карте отображается только это место. Также можно прикрепить реальные фото и видео проекта.",
+    ar: "تعرض أدلة العقارات الآن الأماكن القريبة بشكل فردي. تم تخصيص أقسام منفصلة لكل من السوبرماركت، المدارس، المترو، المراكز التجارية، والمستشفيات، حيث يوضح كل قسم التصنيف، الاسم، والمسافة، مع تحديد هذا الموقع فقط على الخريطة. يمكن أيضاً إرفاق صور وفيديوهات حقيقية للمشروع.",
+  },
+  {
     date: '2026-07-29',
     kind: 'fix',
     zh: '手机上几处挡住东西的地方:选时间范围的面板会压住左边的筛选栏,里面的说明也太长;顶部「产品日记」按钮在窄屏上会盖住站名。都收拾干净了。',
