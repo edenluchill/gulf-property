@@ -692,5 +692,11 @@
     "unitsN": "{{n}} планировок",
     "watch": "Смотреть",
     "priceFromWord": "от"
+  },
+  "poiSpotlight": {
+    "metres": "м",
+    "km": "км",
+    "onFoot": "пешком",
+    "shortDrive": "пара минут на машине"
   }
 }

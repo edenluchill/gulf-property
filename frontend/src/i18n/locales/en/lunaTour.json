@@ -690,5 +690,11 @@
     "unitsN": "{{n}} layouts",
     "watch": "Watch",
     "priceFromWord": "from"
+  },
+  "poiSpotlight": {
+    "metres": "m",
+    "km": "km",
+    "onFoot": "on foot",
+    "shortDrive": "short drive"
   }
 }

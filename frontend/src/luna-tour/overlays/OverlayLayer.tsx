@@ -14,6 +14,7 @@ import type {
   Overlay,
   PropertySnapshot,
   TourAgent,
+  TourAmenityCat,
   TourUnit,
 } from '../types'
 import { tierLabel } from '../amenityLabel'
@@ -33,6 +34,25 @@ function unitLabel(t: T, bedrooms: number): string {
   return bedrooms === 0
     ? t('tourOverlay.studio')
     : t('tourOverlay.nBed', { n: bedrooms })
+}
+
+/**
+ * 每个配套品类的**身份色 + emoji**。owner 要的就是这个:「要标好能看出人家是医院还是学校」。
+ * emoji 不进译文(语言无关,五份 JSON 各存一遍只会漂移 —— 同 amenityLabel.ts 的判断)。
+ * 颜色按现实约定挑:医院红、学校橙、地铁蓝、商场紫、超市绿。
+ */
+const POI_STYLE: Record<TourAmenityCat, { emoji: string; bg: string }> = {
+  hospital: { emoji: '🏥', bg: 'linear-gradient(135deg,#ef4444,#b91c1c)' },
+  school: { emoji: '🏫', bg: 'linear-gradient(135deg,#f59e0b,#c2410c)' },
+  metro_station: { emoji: '🚇', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' },
+  mall: { emoji: '🛍️', bg: 'linear-gradient(135deg,#a855f7,#7e22ce)' },
+  supermarket: { emoji: '🛒', bg: 'linear-gradient(135deg,#10b981,#047857)' },
+}
+
+/** 单楼盘导览里只有一个项目 —— overlay 省略 property_id 时就用它。 */
+function firstOf(properties: Map<string, PropertySnapshot>): PropertySnapshot | undefined {
+  for (const v of properties.values()) return v
+  return undefined
 }
 
 interface OverlayLayerProps {
@@ -237,6 +257,48 @@ function OverlayItem({
           <span className="lt-cta-arrow">→</span>
         </button>
       )
+
+    /**
+     * 配套聚光灯 —— 一次只讲一个地方。
+     *
+     * owner:「要标好能看出人家是医院还是学校」。所以这张卡的主角是**品类**:
+     * 一个占满视线的彩色徽章 + emoji + 本语言的品类词,底下才是专名和真实距离。
+     * 一眼就知道「这是医院」,而不是地图上一条没有身份的线。
+     *
+     * 数据全部从 snapshot 的 distances[] 按 cat 查真值 —— overlay 里只有 cat。
+     * 查不到就渲染 null(那个品类在半径内没有 → 这一拍本来就不该存在)。
+     */
+    case 'poi_spotlight': {
+      const snap = overlay.property_id ? properties.get(overlay.property_id) : firstOf(properties)
+      const d = snap?.distances?.find((x) => x.cat === overlay.cat)
+      if (!d) return null
+      const style = POI_STYLE[overlay.cat]
+      // ⚠️ 品类词住在 `tourOverlay.amenityCat.*` 下 —— 必须走 scoped(t),
+      //    直接 t('amenityCat.x') 会原样吐出键名(我第一次就是这样,卡上写着
+      //    「amenityCat.supermarket」)。
+      const catWord = scoped(t)(`amenityCat.${overlay.cat}`)
+      // 一公里以内说米(「550 米」),再远说公里 —— 和旁白同一套口径
+      const near = d.distance_km < 1
+      const num = near ? String(Math.max(50, Math.round((d.distance_km * 1000) / 50) * 50)) : d.distance_km.toFixed(1)
+      const unit = near ? t('poiSpotlight.metres') : t('poiSpotlight.km')
+      return (
+        <div className="lt-ov lt-ov-poi">
+          <div className="lt-poi-badge" style={{ background: style.bg }}>
+            <span className="lt-poi-emoji">{style.emoji}</span>
+            <span className="lt-poi-cat">{catWord}</span>
+          </div>
+          <div className="lt-poi-body">
+            {/* 专名可能是 null —— 那是「这个语言不该看到这个地名」,只说品类仍然是真的 */}
+            {d.name && <div className="lt-poi-name">{d.name}</div>}
+            <div className="lt-poi-dist" translate="no">
+              <b>{num}</b>
+              <span>{unit}</span>
+              <em>{near ? t('poiSpotlight.onFoot') : t('poiSpotlight.shortDrive')}</em>
+            </div>
+          </div>
+        </div>
+      )
+    }
 
     case 'media': {
       // Real footage (sea view / interior) the agent attached — proof a chart

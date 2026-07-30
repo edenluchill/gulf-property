@@ -490,6 +490,56 @@
   box-shadow: 0 0 0 1px var(--lt-accent, #00E0B8) inset;
 }
 
+/**
+ * 配套聚光灯卡 —— 一次只讲一个地方（地铁/学校/医院/商场/超市）。
+ *
+ * owner:「要标好能看出人家是医院还是学校」。所以**品类徽章是主角**:一整块彩色
+ * (颜色按现实约定:医院红、学校橙、地铁蓝…) + emoji + 品类词,占了卡片的左半边。
+ * 专名和距离在右边。一眼定身份,不用读字。
+ *
+ * 位置:顶部章节条之下、左上角 —— 项目卡在手机上贴底、字幕在底部中间,这里不撞。
+ */
+.lt-ov-poi {
+  position: absolute; left: 20px; top: 96px; z-index: 7;
+  display: flex; align-items: stretch; overflow: hidden;
+  border-radius: 16px;
+  background: rgba(8, 11, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  animation: lt-slide-left 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lt-poi-badge {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 12px 14px; min-width: 86px;
+}
+.lt-poi-emoji { font-size: 26px; line-height: 1; }
+.lt-poi-cat {
+  font-size: 12px; font-weight: 800; color: #fff; letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.lt-poi-body { padding: 12px 16px 12px 14px; display: flex; flex-direction: column; justify-content: center; }
+.lt-poi-name {
+  font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px;
+  max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lt-poi-dist { display: flex; align-items: baseline; gap: 4px; }
+.lt-poi-dist b { font-size: 24px; font-weight: 800; color: var(--lt-accent); line-height: 1; }
+.lt-poi-dist span { font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.lt-poi-dist em {
+  font-style: normal; font-size: 11px; color: rgba(255, 255, 255, 0.5);
+  margin-inline-start: 6px;
+}
+@media (max-width: 640px) {
+  /* 手机:横条,让开右上的工具卡(右边留 96px);字号收一档 */
+  .lt-ov-poi { left: 10px; right: 96px; top: 64px; border-radius: 14px; }
+  .lt-poi-badge { min-width: 72px; padding: 9px 10px; }
+  .lt-poi-emoji { font-size: 22px; }
+  .lt-poi-cat { font-size: 11px; }
+  .lt-poi-body { padding: 9px 12px; min-width: 0; }
+  .lt-poi-name { font-size: 13px; max-width: 100%; }
+  .lt-poi-dist b { font-size: 20px; }
+}
+
 /* E3 — media overlay (real sea-view / interior footage). Framed inset, bottom-
    left so it clears the left property card (top) and bottom-centre controls. */
 .lt-ov-media {
@@ -508,7 +558,9 @@
   color: #fff; font-size: 12px; font-weight: 600; padding: 14px 10px 6px;
 }
 @media (max-width: 640px) {
-  .lt-ov-media { left: 10px; bottom: 150px; width: 52vw; }
+  /* 46vw 而不是 52vw —— 窄屏上素材、字幕、项目卡三样都在下半屏,素材收一点
+     才留得出字幕的位置(字幕的让位规则见上面 `:has(.lt-ov-media)`)。 */
+  .lt-ov-media { left: 10px; bottom: 150px; width: 46vw; }
 }
 
 /* E2b — agent edit-mode: comment composer (on pause) + mode banner */
@@ -900,20 +952,49 @@
  * 桌面不需要 —— 桌面的户型卡在右侧,本来就不挡字幕。
  */
 /**
- * 🔴 暂停时把**项目卡收起来**。
+ * 🔴 暂停时把**这一拍的信息卡全部收起来**。
  *
- * 暂停界面底部已经排着三张大探索卡（同样的图、名字、价格），项目卡纯冗余;
- * 而「继续观看」按钮正好落在它上面 —— 实测把「Serenz / AED 920K」整块盖死。
- * 「被按钮盖住」和「被屏幕裁掉」对客户是同一件事:该看的东西看不见。
+ * 暂停是另一个模式:底部整片归「继续观看 / 问问 Luna / 自己看看条」。而这些卡的
+ * 位置本来就是那一片 —— 实测「继续观看」把项目卡整块盖死、户型卡被提示行盖掉 95%。
+ * **「被按钮盖住」和「被屏幕裁掉」对客户是同一件事:该看的东西看不见。**
  *
- * 同 `:has()` 那一套:让**卡片自己知道**现在是暂停态,而不是去给按钮手算一个新的 bottom。
+ * 同 `:has()` 那一套:让**卡片自己知道**现在是暂停态,而不是去给按钮手算 bottom
+ * (给每张卡手算偏移这条路已经栽过三次)。暂停界面的探索卡本来就讲同样的信息。
+ *
+ * ⚠️ 加新的「贴底信息卡」时**要把它加进这个列表**,否则暂停时它会被按钮压住。
+ *    回归验收 `node scripts/tour-cutoff.mjs` 会量出「互相盖住」并报红。
  */
 .lt-tour-host:has(.lt-resume) .lt-ov-card,
-.lt-root:has(.lt-resume) .lt-ov-card { display: none; }
+.lt-tour-host:has(.lt-resume) .lt-ov-units,
+.lt-tour-host:has(.lt-resume) .lt-ov-compare,
+.lt-tour-host:has(.lt-resume) .lt-ov-roi,
+.lt-tour-host:has(.lt-resume) .lt-ov-media,
+.lt-root:has(.lt-resume) .lt-ov-card,
+.lt-root:has(.lt-resume) .lt-ov-units,
+.lt-root:has(.lt-resume) .lt-ov-compare,
+.lt-root:has(.lt-resume) .lt-ov-roi,
+.lt-root:has(.lt-resume) .lt-ov-media { display: none; }
 
 @media (max-width: 640px) {
   .lt-root:has(.lt-ov-units) .lt-subtitle,
   .lt-tour-host:has(.lt-ov-units) .lt-subtitle { bottom: 234px; }
+
+  /**
+   * 真实素材(视频/照片)在场时,字幕要抬到它上面 —— 手机上素材在左下、字幕居中,
+   * 在 390px 宽的屏幕上必然重叠(实测字幕正好压在照片上)。
+   * 素材 46vw 宽、16:9 → 约 101px 高,底边 150 → 顶边 251,字幕给到 262。
+   */
+  .lt-root:has(.lt-ov-media) .lt-subtitle,
+  .lt-tour-host:has(.lt-ov-media) .lt-subtitle { bottom: 262px; }
+
+  /**
+   * 🔴 户型卡在场时**不显示素材**。
+   * 那一拍的主角是「你能买到什么」,而手机上户型卡本来就占到 bottom:56 往上一大片 ——
+   * 再塞一段视频进去只能互相压。别去算第三个 bottom 偏移(那条路我栽过三次),
+   * 直接让位。桌面空间够,两个都留着。
+   */
+  .lt-root:has(.lt-ov-units) .lt-ov-media,
+  .lt-tour-host:has(.lt-ov-units) .lt-ov-media { display: none; }
 }
 
 /* 草稿预览的机器音提示 —— 回落可以，但**必须说出来**（见 TourOverlay 的注释）。 */

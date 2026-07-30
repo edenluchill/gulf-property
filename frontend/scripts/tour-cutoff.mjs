@@ -40,7 +40,8 @@ const OVERLAYS = [
   ['.lt-ov-roi', '投资卡'],
   ['.lt-ov-cta', 'CTA'],
   ['.lt-ov-picker', '收藏选择'],
-  ['.lt-ov-media', '媒体'],
+  ['.lt-ov-media', '真实素材'],
+  ['.lt-ov-poi', '配套聚光灯'],
   ['.lt-evidence', '成交证据卡'],
   ['.lt-resume', '继续观看'],
   ['.lt-ask-luna', '问问 Luna'],
@@ -181,6 +182,15 @@ await page.locator('.lt-greet-btn').click()
 // 开场（标题卡 + 字幕）
 await page.waitForTimeout(4000)
 bad += await audit('开场', HIDDEN)
+
+// 落地那一拍 —— 真实素材(视频/照片)在场，最容易和字幕/项目卡撞
+for (let i = 0; i < 30; i++) {
+  await page.waitForTimeout(1000)
+  if (await page.evaluate(() => !!document.querySelector('.lt-ov-media'))) break
+}
+await page.waitForTimeout(1500)
+bad += await audit('落地(带素材)', HIDDEN)
+await page.screenshot({ path: `${OUT}/cutoff-media.png` })
 await page.screenshot({ path: `${OUT}/cutoff-intro.png` })
 
 // 到访项目（项目卡 —— owner 截图里被切一半的那张）

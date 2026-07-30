@@ -690,5 +690,11 @@
     "unitsN": "{{n}} نوع وحدة",
     "watch": "شاهد",
     "priceFromWord": "من"
+  },
+  "poiSpotlight": {
+    "metres": "م",
+    "km": "كم",
+    "onFoot": "سيرًا",
+    "shortDrive": "دقائق بالسيارة"
   }
 }

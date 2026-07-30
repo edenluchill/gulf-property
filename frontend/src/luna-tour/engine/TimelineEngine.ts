@@ -588,6 +588,25 @@ export class TimelineEngine {
       { type: 'distance_line' }
     >[]
     const snap = seg.propertyId ? this.properties.get(seg.propertyId) : undefined
+    /**
+     * 🔴 配套聚光灯拍 —— **只画那一条线**。
+     *
+     * 这是「一个一个介绍」的地图侧:一次一个目的地,线有身份(卡片写着「医院」),
+     * 而不是从项目射出五条谁也认不出的射线。坐标从 snapshot 按 cat 查真值 ——
+     * overlay 里没有坐标可抄。
+     */
+    const spot = seg.beat.overlays.find((o) => o.type === 'poi_spotlight') as
+      | Extract<Overlay, { type: 'poi_spotlight' }>
+      | undefined
+    if (spot) {
+      const d = snap?.distances?.find((x) => x.cat === spot.cat)
+      this.sink.amenities(null)
+      if (d && hub) this.sink.measure([hub, d.to])
+      else this.sink.measure(null)
+      this.sink.transit(spot.cat === 'metro_station')
+      this.sink.areaMetric(null)
+      return
+    }
     if (hasAmenity && realAmenity) {
       this.sink.amenities(realAmenity)
       this.sink.measure(null)

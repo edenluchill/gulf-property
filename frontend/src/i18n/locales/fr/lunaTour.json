@@ -690,5 +690,11 @@
     "unitsN": "{{n}} typologies",
     "watch": "Voir",
     "priceFromWord": "dès"
+  },
+  "poiSpotlight": {
+    "metres": "m",
+    "km": "km",
+    "onFoot": "à pied",
+    "shortDrive": "quelques minutes en voiture"
   }
 }

@@ -37,6 +37,13 @@ const TOTAL_DURATION_TOLERANCE = 0.2 // ±20% of target_seconds
 // ---------------------------------------------------------------------------
 
 /**
+ * 配套聚光灯的出场顺序 —— 按**一天的用法**排,不按距离排。
+ * 先是每天要走的(超市)、然后是每天要送的(学校)、通勤(地铁)、周末(商场)、
+ * 最后是那个平时不想但必须有的(医院)。
+ */
+const POI_ORDER = ['supermarket', 'school', 'metro_station', 'mall', 'hospital'] as const
+
+/**
  * 距离要按**人说话的精度**给它,不是按数据库的精度。
  *
  * OSRM 给的是 0.54 / 1.28 / 2.12 公里,模型照抄,旁白就念出「零点五四公里」
@@ -260,6 +267,17 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
     '   should finish knowing WHERE this is and WHAT DAILY LIFE around it looks like.',
     '✅ DO say plainly who this project is NOT for. That is what makes the rest credible',
     '   — and on a public page it is the difference between a guide and an ad.',
+    '',
+    '🎙 VOICE — speak from the VIEWER\'S side of the table, not the developer\'s.',
+    '   The viewer is standing in front of a map wondering "what would MY life be here?".',
+    '   So narrate what HE does, sees and walks to — in second person ("你"/"you").',
+    '   ⛔ NOT brochure voice: "项目由知名开发商倾力打造，坐落于繁华核心，标志性都市水岸',
+    '      生活方式" — that is the developer talking about itself. Cut every adjective',
+    '      that a salesperson would use and a resident would not.',
+    '   ✅ Resident voice: "从这里出门左转，走五分钟就是超市" / "孩子上学在一公里出头，',
+    '      开车三四分钟" / "要去机场，你得先上谢赫扎耶德路".',
+    '   Rule of thumb: if the sentence could appear unchanged in the developer\'s own ad,',
+    '   rewrite it. Say what the viewer would DO, not how remarkable the project is.',
   ].join('\n')
 
   return [
@@ -453,24 +471,35 @@ function buildPrompt(input: TourInput, repairNote?: string): string {
       ? [
           '════════ PUBLIC SINGLE-PROJECT STRUCTURE (this OVERRIDES the act/beat guidance above) ════════',
           'EXACTLY ONE act, for the one project below. `acts[0].property_id` = that id.',
-          'EXACTLY these four beats, in this order, and NOTHING else:',
+          'These beats, in this order, and NOTHING else (the middle block repeats per neighbour):',
           '  1. id "arrival"  kind "arrival"  ~14000ms',
           '     Where it is, in words a stranger to Dubai understands: name the area and',
           '     anchor it to something famous from the `poi:`/`dist:` lines. Then the',
           '     developer and the entry price (min_price) — plainly, no adjectives.',
           '     Camera: ONE flyover (≤2500ms) to the coords, then a push (+0.5).',
           '     Overlay: property_card at_ms 0.',
-          '  2. id "life"     kind "life"     ~22000ms  ⭐ THE POINT OF THE WHOLE TOUR',
-          '     What daily life around it is: metro, schools, malls, beach, hospital —',
-          '     using the REAL distances. Group them the way a person lives them',
-          '     ("上班往哪走 / 孩子上学 / 周末去哪"), not as a list of numbers.',
-          '     Camera: SLOW orbit (60–90°) while the distance lines draw.',
-          '     Overlays: amenity_spokes at_ms 0, plus up to 2 distance_line.',
-          '  3. id "homes"    kind "homes"    ~22000ms',
+          `  2. ⭐ THE POINT OF THE WHOLE TOUR — ONE BEAT PER NEIGHBOUR, NOT ONE LIST.`,
+          `     Emit one beat for EACH of these categories, in this exact order, skipping any`,
+          `     that is not in the data: ${POI_ORDER.join(', ')}.`,
+          `     id "nearby_<cat>", kind "nearby", ~11000ms each. Overlay: exactly one`,
+          `     poi_spotlight { cat: "<cat>" } at_ms 0 — and NOTHING else on that beat.`,
+          `     ⛔ The overlay carries ONLY \`cat\`. No name, no distance, no coordinates —`,
+          `        the app fills those in from real data. Do not put numbers in overlays.`,
+          `     ⛔ NO amenity_spokes and NO distance_line anywhere: the app draws the single`,
+          `        line to that one place and frames the camera so you can SEE both ends.`,
+          `     Camera: leave \`camera\` as [] — the app computes the framing per neighbour.`,
+          `     Narration: ONE or TWO sentences about THAT place only, from the viewer's side`,
+          `     — what he'd use it for and how he'd get there (walk / short drive), using the`,
+          `     real distance. Do not mention the other categories in this beat.`,
+          `     WHY one at a time: five distances read out in one breath ("超市 550 米、学校`,
+          `     1.3 公里、医院 1.7、商场 1.8、地铁 2.1") leaves the viewer remembering none of`,
+          `     them, and the map shows a fan of anonymous lines. One place, named and`,
+          `     labelled, is something he can actually picture.`,
+          '  3. id "homes"    kind "homes"    ~20000ms',
           '     What you can actually buy: bedroom counts, sizes, starting prices —',
           '     ONLY from the `unit:` lines. Say which layout suits which kind of household.',
           '     Camera: slower, tighter orbit (60–90°). Overlay: unit_card at_ms 0.',
-          '  4. id "truth"    kind "weakness" ~14000ms',
+          '  4. id "truth"    kind "weakness" ~13000ms',
           '     `weakness_claim:` plainly, then `weakness_rebuttal:`. If neither is given,',
           '     instead say who this project is NOT for, based on the real distances',
           '     (e.g. no metro within 3km → not for someone without a car).',

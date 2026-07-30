@@ -12,6 +12,8 @@
  *   npx ts-node -T scripts/project-tour.ts "Serenz" --no-voice    # 只出剧本(改稿阶段省 TTS)
  *   npx ts-node -T scripts/project-tour.ts --all --limit=5        # 批量铺开(调满意之后再用)
  *   npx ts-node -T scripts/project-tour.ts "Serenz" --hide        # 从公开目录里撤下
+ *   npx ts-node -T scripts/project-tour.ts "Serenz" --media-add=./seaview.mp4 --slot=arrival --caption="阳台看出去的海"
+ *   npx ts-node -T scripts/project-tour.ts --media-list        # 已经贴了哪些素材
  *
  * share_code 形如 `p-serenz`(`p-` 前缀让它一眼区别于经纪的分享码),
  * **同一个楼盘重生成会复用同一个 code** —— 已经发出去的链接不能失效。
@@ -92,8 +94,12 @@ async function generateOne(row: Row, opts: { voice: boolean }): Promise<void> {
     config: {
       variant: 'project',
       narrative_focus: 'location',
-      // 60~90 秒。四拍(落地/周边/户型/实话)+ 收尾刚好装满,再长买家就走了。
-      target_seconds: 80,
+      /**
+       * 落地 14s + **每个配套各一拍** ~11s × 最多 5 个 + 户型 20s + 实话 13s + 开场/收尾 14s
+       * ≈ 115 秒。比原来的 80 秒长,是因为 owner 要求配套「一个一个介绍」——
+       * 五个距离一口气念完客户一个都记不住,那省下来的 35 秒等于白省。
+       */
+      target_seconds: 115,
     },
   })
   if (res.warnings.length) res.warnings.forEach((w) => console.log(`  ! ${w}`))
@@ -122,7 +128,7 @@ async function generateOne(row: Row, opts: { voice: boolean }): Promise<void> {
 async function main(): Promise<void> {
   const rows = await candidates()
 
-  if (has('list') || (!positional.length && !has('all'))) {
+  if (has('list') || (!positional.length && !has('all') && !has('media-list') && !has('media-add'))) {
     console.log(`\n可做公开导览的楼盘(已排除售罄):${rows.length} 个\n`)
     for (const r of rows) {
       const mark = r.tour_code ? (r.tour_status === 'ready' ? '✅' : '🕓') : '  '
@@ -137,6 +143,65 @@ async function main(): Promise<void> {
   }
 
   const voice = !has('no-voice')
+
+  /**
+   * 贴素材:`--media-add <本地文件|URL>`。
+   *   npx ts-node -T scripts/project-tour.ts "Serenz" --media-add ./seaview.mp4 \
+   *       --slot=arrival --caption="从阳台看出去的海"
+   * 本地文件会上传到 R2;给 URL 就直接记下来。加完要**重新生成一次**才会贴进剧本
+   * (素材是在生成时按 slot 贴上去的,不是播放时查的 —— 剧本必须自包含)。
+   */
+  if (has('media-add')) {
+    const key = positional[0]
+    const src = val('media-add') || positional[1]
+    if (!key || !src) throw new Error('用法:project-tour.ts "<楼盘名>" --media-add=<文件或URL> [--slot=arrival|nearby|homes|outro] [--caption="..."] [--kind=video|image]')
+    const row = rows.find((r) => (UUID_RE.test(key) ? r.id === key : r.project_name.toLowerCase().includes(key.toLowerCase())))
+    if (!row) throw new Error(`没找到楼盘:${key}`)
+
+    const slot = (val('slot') || 'arrival') as 'arrival' | 'nearby' | 'homes' | 'outro'
+    let url = src
+    let kind = (val('kind') || '') as 'video' | 'image' | ''
+    if (!/^https?:\/\//i.test(src)) {
+      const fs = await import('node:fs')
+      const path = await import('node:path')
+      if (!fs.existsSync(src)) throw new Error(`文件不存在:${src}`)
+      const ext = path.extname(src).toLowerCase()
+      const MIME: Record<string, string> = {
+        '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
+      }
+      const ct = MIME[ext]
+      if (!ct) throw new Error(`不支持的类型 ${ext}(支持 mp4/webm/mov/jpg/png/webp)`)
+      if (!kind) kind = ct.startsWith('video') ? 'video' : 'image'
+      const buf = fs.readFileSync(src)
+      const mb = (buf.length / 1024 / 1024).toFixed(1)
+      const { uploadBufferToR2 } = await import('../src/services/r2-storage')
+      const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
+      url = await uploadBufferToR2(`tour-media/${row.id}/${stamp}${ext}`, buf, ct)
+      console.log(`  ⬆️  上传了 ${mb}MB → ${url}`)
+    }
+    if (!kind) kind = /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : 'image'
+
+    await pool.query(
+      `INSERT INTO lt_project_tour_media (project_id, kind, url, caption, slot, sort_order)
+       VALUES ($1,$2,$3,$4,$5, COALESCE((SELECT MAX(sort_order)+1 FROM lt_project_tour_media WHERE project_id=$1 AND slot=$5), 0))`,
+      [row.id, kind, url, val('caption') || null, slot]
+    )
+    console.log(`✅ ${row.project_name} 的「${slot}」那一拍加了一段 ${kind}。`)
+    console.log(`   重新生成才会贴进剧本:npx ts-node -T scripts/project-tour.ts "${row.project_name}"`)
+    return
+  }
+
+  if (has('media-list')) {
+    const { rows: m } = await pool.query<{ project_name: string; slot: string; kind: string; url: string; caption: string | null }>(
+      `SELECT p.project_name, m.slot, m.kind, m.url, m.caption
+         FROM lt_project_tour_media m JOIN residential_projects p ON p.id = m.project_id
+        ORDER BY p.project_name, m.slot, m.sort_order`
+    )
+    if (!m.length) console.log('还没有任何人工素材(导览会用楼盘封面兜底)。')
+    for (const x of m) console.log(`  ${x.project_name} · ${x.slot} · ${x.kind}${x.caption ? ` · ${x.caption}` : ''}\n      ${x.url}`)
+    return
+  }
 
   if (has('hide')) {
     const key = positional[0]

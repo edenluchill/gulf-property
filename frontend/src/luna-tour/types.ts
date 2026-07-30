@@ -150,6 +150,19 @@ export interface CtaOverlay {
   prefill?: string
   text?: string
 }
+/**
+ * 一个配套的聚光灯 —— 一次只讲一个（地铁/学校/医院/商场/超市）。
+ *
+ * 🔴 **只有 `cat`。** 名字、距离、坐标全部由前端从 snapshot 的 `distances[]` 里按 cat
+ * 查真值 —— 同 unit_card 的规矩:让模型往 overlay 里填数字它就会编,填坐标更会指到沙漠里。
+ */
+export interface PoiSpotlightOverlay {
+  type: 'poi_spotlight'
+  at_ms: number
+  duration_ms?: number
+  property_id?: string
+  cat: TourAmenityCat
+}
 export interface MediaOverlay {
   type: 'media'
   at_ms: number
@@ -171,11 +184,13 @@ export type Overlay =
   | HighlightAllPinsOverlay
   | FavoritePickerOverlay
   | CtaOverlay
+  | PoiSpotlightOverlay
   | MediaOverlay
 
 export interface Beat {
   id: string
-  kind?: 'arrival' | 'life' | 'homes' | 'arbitrage' | 'weakness' | 'numbers'
+  /** `nearby` = 一个配套的聚光灯拍(一次只讲一个,见 PoiSpotlightOverlay)。 */
+  kind?: 'arrival' | 'life' | 'nearby' | 'homes' | 'arbitrage' | 'weakness' | 'numbers'
   narration: string
   audio_url?: string
   duration_ms: number

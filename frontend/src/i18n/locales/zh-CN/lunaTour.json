@@ -689,5 +689,11 @@
     "unitsN": "{{n}} 种户型",
     "watch": "看导览",
     "priceFromWord": "起"
+  },
+  "poiSpotlight": {
+    "metres": "米",
+    "km": "公里",
+    "onFoot": "走过去",
+    "shortDrive": "开车几分钟"
   }
 }

@@ -23,6 +23,7 @@ import {
   establishingShot,
   introCameraCues,
   outroCameraCues,
+  poiCameraCues,
   tourViewportPadding,
 } from './engine/openingShot'
 import type { MapTourHandle } from './map/mapTourHandle'
@@ -424,9 +425,29 @@ export default function TourOverlay({
      * 中间每一幕（到访/生活/户型/数字…）**完全按剧本走** —— 那是内容，模型说了算。
      */
     const shot = establishingShot(tourCoords, authoredEstablishing.zoom, authoredEstablishing.center)
+    /**
+     * 🔴 配套聚光灯那几拍的机位也由代码算。
+     *
+     * 每一拍只讲一个地方(医院/学校/地铁…),所以画面**必须同时装得下项目和那个地方** ——
+     * 否则卡片写着「医院 1.7 公里」而观众只看得见项目,那还是在「boring 地带着走」。
+     * 剧本里这些拍的 camera 是空的(prompt 就是这么要求的),几何在这里补。
+     */
+    const acts = data.script.acts.map((act) => ({
+      ...act,
+      beats: act.beats.map((b) => {
+        const spot = b.overlays.find((o) => o.type === 'poi_spotlight')
+        if (!spot || spot.type !== 'poi_spotlight') return b
+        const snap = act.property_id ? propertyMap.get(act.property_id) : undefined
+        const poi = snap?.distances?.find((d) => d.cat === spot.cat)
+        // 查不到这个品类 = 半径内本来就没有 → 这一拍不该存在,保持原样(引擎会给它氛围环绕)
+        if (!snap || !poi || !Array.isArray(snap.coords)) return b
+        return { ...b, camera: poiCameraCues(snap.coords, poi.to) }
+      }),
+    }))
     const script = {
       ...data.script,
       intro: { ...data.script.intro, camera: introCameraCues(shot) },
+      acts,
       outro: { ...data.script.outro, camera: outroCameraCues(shot) },
     }
 

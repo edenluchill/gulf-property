@@ -151,6 +151,25 @@ export const AmenitySpokesOverlaySchema = OverlayBase.extend({
   anim: z.literal('pop').optional(),
 })
 
+/**
+ * 一个配套的**聚光灯** —— 一次只讲一个（地铁 / 学校 / 医院 / 商场 / 超市）。
+ *
+ * owner:「介绍附近东西要**一个一个**介绍，比如地标/学校/医院，而且要标好能看出人家是
+ * 医院还是学校 …… 而不是很 boring 地带着走。」
+ * 原来一整拍把五个距离一口气念完(「超市 550 米、学校 1.3 公里、医院 1.7、商场 1.8、
+ * 地铁 2.1」)—— 听完一个数字都记不住,画面上也只有一堆没有身份的线。
+ *
+ * 🔴 **只带 `cat`,不带名字、距离、坐标。**
+ *    这三样前端从 snapshot 的 `distances[]` 里按 cat 查真值。
+ *    同 unit_card / area_compare 的规矩:**只要让模型往 overlay 里填数字它就会编**
+ *    (roi_card 那次已经证明过了)。坐标更不能让它抄 —— 抄错一位就指到沙漠里。
+ */
+export const PoiSpotlightOverlaySchema = OverlayBase.extend({
+  type: z.literal('poi_spotlight'),
+  property_id: z.string().optional(),
+  cat: z.enum(['metro_station', 'school', 'mall', 'hospital', 'supermarket']),
+})
+
 export const RoiCardOverlaySchema = OverlayBase.extend({
   type: z.literal('roi_card'),
   property_id: z.string().optional(),
@@ -237,6 +256,7 @@ export const OverlaySchema = z.discriminatedUnion('type', [
   PropertyCardOverlaySchema,
   DistanceLineOverlaySchema,
   AmenitySpokesOverlaySchema,
+  PoiSpotlightOverlaySchema,
   RoiCardOverlaySchema,
   UnitCardOverlaySchema,
   AreaCompareOverlaySchema,
@@ -262,7 +282,8 @@ export const BeatSchema = z.object({
    *   numbers   投资数字
    * 后三个都**只在有真数据时才有**；没有就整拍不讲。
    */
-  kind: z.enum(['arrival', 'life', 'homes', 'arbitrage', 'weakness', 'numbers']).optional(),
+  /** `nearby` = 一个配套的聚光灯拍（一次只讲一个，见 PoiSpotlightOverlaySchema）。 */
+  kind: z.enum(['arrival', 'life', 'nearby', 'homes', 'arbitrage', 'weakness', 'numbers']).optional(),
   narration: z.string().min(1),
   /** Pre-generated audio URL; empty/absent → browser TTS fallback (§4.5). */
   audio_url: z.string().optional(),

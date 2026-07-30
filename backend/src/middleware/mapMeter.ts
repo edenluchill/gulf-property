@@ -105,7 +105,36 @@ async function usedMinutes(vKey: string | null, ipK: string, day: string): Promi
   return out
 }
 
-/** X-Share-Code 真实性:必须存在于任一分享码表(报告/导览/客户报告)。 */
+/**
+ * 这个请求属于哪个分享链接。
+ *
+ * 🔴 **两个来源,缺一不可。**
+ *   ① `X-Share-Code` 头 —— 前端 fetch 包装器注入的正常通道。
+ *   ② `Referer` 里的分享地址 —— **兜底**。
+ *
+ * 为什么要 ②:头是前端「记得带」才有的东西。`?toursession=` 这个形态就曾经**整整漏掉**
+ * (shareCodeFromPath 只匹配路径式),于是客户看一场导览白烧掉匿名 10 分钟额度的一大半,
+ * 点第二场直接被拦 —— 而且不报错、不弹窗,我们自己测又都是登录态,所以很久没人发现。
+ * 前端修好了,但**豁免这件事不该只有一个脆弱来源**:浏览器在同源导航里一定会带 Referer,
+ * 而分享码本身在服务端还要过 `isValidShareCode` 验真,所以拿它当第二条线索是安全的。
+ */
+function shareCodeOf(req: Request): string {
+  const hdr = typeof req.headers['x-share-code'] === 'string' ? (req.headers['x-share-code'] as string) : ''
+  if (hdr) return hdr
+  const ref = typeof req.headers.referer === 'string' ? req.headers.referer : ''
+  if (!ref) return ''
+  try {
+    const u = new URL(ref)
+    const q = u.searchParams.get('toursession')
+    if (q) return q
+    const m = u.pathname.match(/^\/(?:t|v|r|cr|factsheet)\/([\w-]{1,64})/)
+    return m ? m[1] : ''
+  } catch {
+    return ''
+  }
+}
+
+/** 分享码真实性:必须存在于任一分享码表(报告/导览/客户报告)。 */
 async function isValidShareCode(code: string): Promise<boolean> {
   if (!/^[\w-]{1,64}$/.test(code)) return false
   const hit = shareCodeCache.get(code)
@@ -226,8 +255,8 @@ const EXEMPT: MeterVerdict = { metered: false, exhausted: false, remaining: -1, 
  * 且该判定在内部号豁免之前,内部浏览器上测试也能看到锁(owner/admin 按邮箱豁免)。
  */
 async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerdict> {
-  // 0) 有效分享码(经纪拉新回路 /r /t /v /cr,访客视角)→ 豁免
-  const shareCode = typeof req.headers['x-share-code'] === 'string' ? (req.headers['x-share-code'] as string) : ''
+  // 0) 有效分享码(经纪拉新回路 /r /t /v /cr、以及 ?toursession=)→ 豁免
+  const shareCode = shareCodeOf(req)
   if (shareCode && (await isValidShareCode(shareCode))) return EXEMPT
 
   // 1) 登录身份:本地验签的 ctx,或 Bearer 远程验签(缓存 5min,常态成本≈0)

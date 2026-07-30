@@ -21,6 +21,7 @@ import {
   calculatePaybackYears,
 } from '../services/investment-calculator'
 import { generateTourScript } from './tour-generator'
+import { fetchTourMedia, attachMedia } from './tour-media'
 import { generateSessionAudio } from './audio-pipeline'
 import { TourInput, TourProperty, TourPropertyUnit, TourConfig, AmenityTier } from './tour-script.types'
 import { fetchAreaContext } from './area-context'
@@ -413,6 +414,17 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
     }
 
     const { script, warnings } = await generateTourScript(tourInput)
+
+    /**
+     * 真实素材（海景/环境视频、实拍照片）—— **由代码贴,不由模型填 url**。
+     * 一个楼盘一条公开导览时才贴(单楼盘 = 有明确的「这个盘的素材」);
+     * 经纪的多盘导览暂不贴,否则三个盘的素材抢同一个位置。
+     */
+    if (config.variant === 'project' && ordered.length === 1) {
+      const media = await fetchTourMedia(client, ordered[0].id, properties[0]?.image ?? null)
+      const n = attachMedia(script, media)
+      if (n) console.log(`  🎬 贴了 ${n} 段真实素材(${media.map((m) => `${m.slot}:${m.kind}`).join(', ')})`)
+    }
 
     /**
      * 生产质检 —— **每一场真实生成的 tour 都体检**(不只是我手动跑测试的时候)。

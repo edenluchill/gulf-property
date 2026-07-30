@@ -164,6 +164,37 @@ export function introCameraCues(shot: Shot): Camera[] {
   ]
 }
 
+/**
+ * 一个配套的机位 —— **必须同时看得见项目和那个地方**,否则「一个一个介绍」就没有意义:
+ * 卡片写着「医院 1.7 公里」,而画面上只有项目、医院在屏幕外三倍远的地方。
+ *
+ * 为什么由代码算:模型不知道观众的屏幕多宽,也不该抄坐标(抄错一位就指到沙漠里)。
+ * 同开场机位一个道理 —— 纯几何题就用几何解。
+ *
+ * 旋转安全:把两点间距塞进**较短的那一边**(手机竖屏是宽度),
+ * 这样 20° 的缓慢环绕转到任何角度,两个点都还在画面里。
+ */
+const POI_FIT_MARGIN = 1.6
+const POI_ORBIT_DEG = 20
+const poiPitch = () => (isNarrowViewport() ? 24 : 30)
+
+export function poiCameraCues(project: LngLat, poi: LngLat, entryBearing = 0): Camera[] {
+  const mid: LngLat = [(project[0] + poi[0]) / 2, (project[1] + poi[1]) / 2]
+  const cos = Math.max(0.2, Math.cos((mid[1] * Math.PI) / 180))
+  // 纬度方向换算成「经度度数」再和经度方向合成 —— 直接勾股会把南北向的距离算小
+  const span = Math.max(1e-4, Math.hypot(poi[0] - project[0], (poi[1] - project[1]) / cos)) * POI_FIT_MARGIN
+  const { w, h } = viewport()
+  const pad = tourViewportPadding()
+  const usable = Math.min(w, Math.max(180, h - pad.top - pad.bottom))
+  const zoom = Math.log2((360 * usable) / (512 * span))
+  return [
+    // 2.2 秒挪到「两点的中间」并调好高度(赶路段,不会被旁白拉长)
+    { at_ms: 0, duration_ms: 2200, center: mid, zoom, pitch: poiPitch(), bearing: entryBearing },
+    // 剩下的时间缓慢环绕 —— 画面一直活着,而两点始终在框内
+    { type: 'orbit', at_ms: 0, center: mid, degrees: POI_ORBIT_DEG, duration_ms: 9000 },
+  ]
+}
+
 /** 收尾:退回高空(比开场稍紧一点,几个家都在画面里),继续慢慢转。 */
 export function outroCameraCues(shot: Shot, entryBearing = 0): Camera[] {
   return [
