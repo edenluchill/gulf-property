@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { trackEvent, installTracking } from './lib/track'
+import { gaPageView } from './lib/ga'
 import { installApiErrorCapture } from './lib/errorCapture'
 import { applyPinchZoomPolicy } from './lib/pinchZoom'
 import DefaultSeo from './components/DefaultSeo'
@@ -58,7 +59,13 @@ import AgentPromo from './luna-tour/pages/AgentPromo'  // 经纪推广有礼(推
 
 /** Behaviour analytics: install page-hide flushing once + emit a page_view on
  *  every route change. Fully decoupled; remove this component + its render to
- *  drop page tracking. */
+ *  drop page tracking.
+ *
+ *  两套并行,各答各的问题,别想着合并:
+ *   • 自建(trackEvent → app_events):**这个人**做了什么。按 email 串得起来、
+ *     能和订阅/额度/tour 表 join,是查具体客户问题时唯一能用的东西。
+ *   • GA4(gaPageView):**人从哪来**。referrer / 搜索词 / 广告渠道,自建那套拿不到。
+ *  GA 在墙内加载不上,所以它永远只是补充,不能让任何功能依赖它。 */
 function RouteTracker() {
   const location = useLocation()
   useEffect(() => {
@@ -67,6 +74,7 @@ function RouteTracker() {
   }, [])
   useEffect(() => {
     trackEvent('page_view', { path: location.pathname })
+    gaPageView(location.pathname)
   }, [location.pathname])
   return null
 }

@@ -68,6 +68,54 @@
       })()
     </script>
 
+    <!--
+      Google Analytics 4 (G-94R0GDSRHK)
+
+      🔴 **`async` 一个字都不能少。** 墙内 googletagmanager.com 的行为是**丢包**
+      (接住请求永不回应),不是干脆拒绝:
+        • 带 async → 首屏 272ms 照常渲染,只有 window.load 事件挂着(没人等它)
+        • 漏了 async → 解析器停在这一行等超时 → **整站白屏**
+      实测数据见 scripts/_probe-ga-china.mjs 和
+      docs/reports/2026-07-30-ga-search-console-seo.md。以后加任何第三方脚本,
+      先拿那个脚本把域名换掉跑一遍再上。
+
+      ⚠️ 位置在**规范域跳转之后**。Google 的说明写「紧跟在 <head> 之后」,照做会
+      让裸域访问先加载一次 GA 再 301 跳走 —— 多一次请求,还多算一个会话。
+
+      ⚠️ `send_page_view: false` 是**故意的**。这是 SPA:自动上报会在路由切换的瞬间
+      触发,那时 Helmet 还没把 <title> 换掉,GA 里每一页都会记成上一页的标题。
+      改由 src/lib/ga.ts 在 effect 冲完之后手动发。
+
+      🔴 **分享短链上一整个不加载 GA。**
+      `/v/aB3xK9` 里那串就是访问凭证 —— 谁拿到谁就能看这场带看(客户姓名、他家的报价)。
+      光把 page_view 的地址打码**不够**:GA4 的「增强测量」会自己发 scroll /
+      user_engagement,那些事件带的是**浏览器里的真实 URL**,照样把 code 抄进 Google 的
+      日志(scripts/_probe-ga-verify.mjs 实测抓到过)。唯一干净的做法是这些路径下
+      根本不把 gtag.js 拉起来。robots.txt 里它们本来就全部 Disallow,分析上报没道理比
+      爬虫更宽。这些页面的访问量自建埋点里一条不少。
+
+      ⚠️ 改成动态插入之后**仍然是非阻塞的** —— 动态创建的 <script> 默认就是 async
+      (这里还显式写了一遍)。实测墙内丢包场景首屏 344ms 正常渲染。
+    -->
+    <script>
+      (function () {
+        var ID = 'G-94R0GDSRHK'
+        // 带访问凭证的分享短链(与 public/robots.txt 的 Disallow 名单、
+        // src/lib/ga.ts 的 SHARE_PREFIXES 三处必须一致)
+        if (/^\/(v|t|pp|r|cr|i|factsheet|verify)\//.test(location.pathname)) return
+
+        window.dataLayer = window.dataLayer || []
+        window.gtag = function () { window.dataLayer.push(arguments) }
+        gtag('js', new Date())
+        gtag('config', ID, { send_page_view: false })
+
+        var s = document.createElement('script')
+        s.async = true
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ID
+        document.head.appendChild(s)
+      })()
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
