@@ -295,6 +295,22 @@ function OverlayItem({
               <span>{unit}</span>
               <em>{near ? t('poiSpotlight.onFoot') : t('poiSpotlight.shortDrive')}</em>
             </div>
+            {/**
+              * 细节行(owner:「细节信息稍微详细一点」)。两条都是**有才显示**:
+              *  • 地址 —— dubai_pois 里只有 22~31% 有(地铁 0%)
+              *  • 「附近一共 N 家」—— 100% 可得,而且回答的正是客户会想的「就这一家吗」
+              * 都没有就整行不出现,不留一条空白。
+              */}
+            {(d.address || (d.nearby_count ?? 0) > 1) && (
+              <div className="lt-poi-meta">
+                {d.address && <span className="lt-poi-addr">{d.address}</span>}
+                {(d.nearby_count ?? 0) > 1 && (
+                  <span className="lt-poi-more" translate="no">
+                    {t('poiSpotlight.alsoNearby', { n: d.nearby_count })}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )

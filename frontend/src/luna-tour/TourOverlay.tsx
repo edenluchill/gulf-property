@@ -441,14 +441,14 @@ export default function TourOverlay({
         const poi = snap?.distances?.find((d) => d.cat === spot.cat)
         // 查不到这个品类 = 半径内本来就没有 → 这一拍不该存在,保持原样(引擎会给它氛围环绕)
         if (!snap || !poi || !Array.isArray(snap.coords)) return b
-        return { ...b, camera: poiCameraCues(snap.coords, poi.to) }
+        return { ...b, camera: poiCameraCues(snap.coords, poi.to, b.duration_ms) }
       }),
     }))
     const script = {
       ...data.script,
-      intro: { ...data.script.intro, camera: introCameraCues(shot) },
+      intro: { ...data.script.intro, camera: introCameraCues(shot, data.script.intro.duration_ms) },
       acts,
-      outro: { ...data.script.outro, camera: outroCameraCues(shot) },
+      outro: { ...data.script.outro, camera: outroCameraCues(shot, data.script.outro.duration_ms) },
     }
 
     const engine = new TimelineEngine({

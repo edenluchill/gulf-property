@@ -694,6 +694,7 @@
     "metres": "米",
     "km": "公里",
     "onFoot": "走过去",
-    "shortDrive": "开车几分钟"
+    "shortDrive": "开车几分钟",
+    "alsoNearby": "附近共 {{n}} 家"
   }
 }

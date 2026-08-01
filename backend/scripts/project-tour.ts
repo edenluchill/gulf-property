@@ -95,11 +95,13 @@ async function generateOne(row: Row, opts: { voice: boolean }): Promise<void> {
       variant: 'project',
       narrative_focus: 'location',
       /**
-       * 落地 14s + **每个配套各一拍** ~11s × 最多 5 个 + 户型 20s + 实话 13s + 开场/收尾 14s
-       * ≈ 115 秒。比原来的 80 秒长,是因为 owner 要求配套「一个一个介绍」——
-       * 五个距离一口气念完客户一个都记不住,那省下来的 35 秒等于白省。
+       * 开场 18s(高空缓慢环绕看周围环境,owner 指定要更长)+ 落地 14s +
+       * **每个配套各一拍** ~11s × 最多 5 个 + 户型 20s + 实话 13s + 收尾 9s ≈ 129 秒。
+       *
+       * 比最初的 80 秒长了一半,两笔都是 owner 明确要的:配套「一个一个介绍」
+       * (五个距离一口气念完客户一个都记不住),开场「稍微高空慢慢围绕带客户看看周围环境」。
        */
-      target_seconds: 115,
+      target_seconds: 129,
     },
   })
   if (res.warnings.length) res.warnings.forEach((w) => console.log(`  ! ${w}`))

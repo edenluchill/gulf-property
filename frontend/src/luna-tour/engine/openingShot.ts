@@ -69,14 +69,20 @@ function zoomForVisibleLng(spanLng: number): number {
   return Math.log2((360 * w) / (512 * spanLng))
 }
 /**
- * 环绕的角度。旁白多长它就转多久 —— demo 的开场旁白约 19 秒 → 65° ≈ 3.4°/秒。
+ * 🔴 环绕按**角速度**给,不按固定角度。
  *
- * ⚠️ **别加大。** 转得越快,每秒扫进画面的新卫星瓦片就越多,而瓦片解码+上纹理是
- * 手机上唯一还在制造长帧的东西(实测 80° 那版长帧占比 10%,65° 明显更稳)。
- * 而 owner 要的本来就是「**缓慢**旋转」。
+ * 原来写死 65°:开场旁白 19 秒时是 3.4°/秒(刚好),但换个楼盘旁白只有 8 秒,
+ * 同样的 65° 就变成 **8°/秒** —— 那不是「缓慢围绕」,那是甩头。
+ * 反过来旁白 30 秒时又慢到看不出在动(owner:「镜头不转」)。
+ * **「慢」是一个速度,不是一个角度。**
+ *
+ * ⚠️ 速度别调高:转得越快,每秒扫进画面的新卫星瓦片越多,而瓦片解码+上纹理是手机上
+ * 唯一还在制造长帧的东西。3°/秒 是「明显在动」和「稳」之间试出来的。
  */
-const INTRO_ORBIT_DEG = 65
-const OUTRO_ORBIT_DEG = 42
+const INTRO_DEG_PER_SEC = 3.2
+const OUTRO_DEG_PER_SEC = 2.8
+/** 上下限:再少看不出在动,再多就绕过头(开场绕超过大半圈会让人失去方向感)。 */
+const clampOrbit = (deg: number, lo = 24, hi = 130) => Math.max(lo, Math.min(hi, Math.round(deg)))
 /**
  * 高空俯瞰的俯角。
  *
@@ -157,10 +163,17 @@ export function centroid(coords: LngLat[]): LngLat | null {
  * duration_ms 只是个「相对时长」:引擎会把 elastic 段拉伸到旁白长度,所以这里写
  * 9000 还是 6000 都一样 —— 真正决定快慢的是**角度**。
  */
-export function introCameraCues(shot: Shot): Camera[] {
+export function introCameraCues(shot: Shot, beatMs = 12000): Camera[] {
   return [
     { at_ms: 0, duration_ms: 0, center: shot.center, zoom: shot.zoom, pitch: shot.pitch, bearing: shot.bearing },
-    { type: 'orbit', at_ms: 0, center: shot.center, degrees: INTRO_ORBIT_DEG, duration_ms: 9000 },
+    {
+      type: 'orbit',
+      at_ms: 0,
+      center: shot.center,
+      // 角度 = 速度 × 这一拍多长(beatMs 是剧本对旁白长度的估计,引擎再按真实音频微调)
+      degrees: clampOrbit((INTRO_DEG_PER_SEC * beatMs) / 1000),
+      duration_ms: 9000,
+    },
   ]
 }
 
@@ -175,10 +188,11 @@ export function introCameraCues(shot: Shot): Camera[] {
  * 这样 20° 的缓慢环绕转到任何角度,两个点都还在画面里。
  */
 const POI_FIT_MARGIN = 1.6
-const POI_ORBIT_DEG = 20
+/** 配套那几拍也按角速度转 —— 同 INTRO_DEG_PER_SEC 的理由。 */
+const POI_DEG_PER_SEC = 3.0
 const poiPitch = () => (isNarrowViewport() ? 24 : 30)
 
-export function poiCameraCues(project: LngLat, poi: LngLat, entryBearing = 0): Camera[] {
+export function poiCameraCues(project: LngLat, poi: LngLat, beatMs = 11000, entryBearing = 0): Camera[] {
   const mid: LngLat = [(project[0] + poi[0]) / 2, (project[1] + poi[1]) / 2]
   const cos = Math.max(0.2, Math.cos((mid[1] * Math.PI) / 180))
   // 纬度方向换算成「经度度数」再和经度方向合成 —— 直接勾股会把南北向的距离算小
@@ -191,14 +205,27 @@ export function poiCameraCues(project: LngLat, poi: LngLat, entryBearing = 0): C
     // 2.2 秒挪到「两点的中间」并调好高度(赶路段,不会被旁白拉长)
     { at_ms: 0, duration_ms: 2200, center: mid, zoom, pitch: poiPitch(), bearing: entryBearing },
     // 剩下的时间缓慢环绕 —— 画面一直活着,而两点始终在框内
-    { type: 'orbit', at_ms: 0, center: mid, degrees: POI_ORBIT_DEG, duration_ms: 9000 },
+    {
+      type: 'orbit',
+      at_ms: 0,
+      center: mid,
+      // 减掉 2.2 秒的飞入 —— 环绕只占剩下的时间
+      degrees: clampOrbit((POI_DEG_PER_SEC * Math.max(3000, beatMs - 2200)) / 1000, 14, 60),
+      duration_ms: 9000,
+    },
   ]
 }
 
 /** 收尾:退回高空(比开场稍紧一点,几个家都在画面里),继续慢慢转。 */
-export function outroCameraCues(shot: Shot, entryBearing = 0): Camera[] {
+export function outroCameraCues(shot: Shot, beatMs = 9000, entryBearing = 0): Camera[] {
   return [
     { at_ms: 0, duration_ms: 2200, center: shot.center, zoom: shot.zoom + 0.3, pitch: shot.pitch, bearing: entryBearing },
-    { type: 'orbit', at_ms: 0, center: shot.center, degrees: OUTRO_ORBIT_DEG, duration_ms: 8000 },
+    {
+      type: 'orbit',
+      at_ms: 0,
+      center: shot.center,
+      degrees: clampOrbit((OUTRO_DEG_PER_SEC * Math.max(3000, beatMs - 2200)) / 1000, 16, 90),
+      duration_ms: 8000,
+    },
   ]
 }

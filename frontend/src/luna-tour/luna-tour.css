@@ -1096,3 +1096,20 @@
   /* 去掉模糊后字幕底色略微加深,保证卫星图上依然清晰可读 */
   .lt-subtitle span { background: rgba(5, 7, 13, 0.72); }
 }
+
+/* 配套聚光灯的细节行(地址 / 附近还有几家)。两条都是「有才显示」—— 见 OverlayLayer。 */
+.lt-poi-meta {
+  display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  font-size: 11px; color: rgba(255, 255, 255, 0.55);
+}
+.lt-poi-addr {
+  max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lt-poi-more {
+  flex-shrink: 0; padding: 1px 6px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.75);
+}
+@media (max-width: 640px) {
+  .lt-poi-meta { font-size: 10px; gap: 6px; }
+  .lt-poi-addr { max-width: 38vw; }
+}

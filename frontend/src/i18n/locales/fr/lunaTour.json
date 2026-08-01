@@ -695,6 +695,7 @@
     "metres": "m",
     "km": "km",
     "onFoot": "à pied",
-    "shortDrive": "quelques minutes en voiture"
+    "shortDrive": "quelques minutes en voiture",
+    "alsoNearby": "{{n}} à proximité"
   }
 }

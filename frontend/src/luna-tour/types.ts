@@ -259,7 +259,18 @@ export interface PropertySnapshot {
    * `label` 是后端拼死的**中文**(只有 zh 一个分支)—— @deprecated,只为历史 session 保留。
    * `name` 已过地名防线:不是本语言的专名 = null → 只说品类。
    */
-  distances?: { label: string; cat?: TourAmenityCat; name?: string | null; to: LngLat; distance_km: number; placeholder?: boolean }[]
+  distances?: {
+    label: string
+    cat?: TourAmenityCat
+    name?: string | null
+    to: LngLat
+    distance_km: number
+    /** 地址(已过地名防线)。填充率只有 22~31%,有才显示。 */
+    address?: string
+    /** 同品类半径内一共几家 —— 100% 可得,回答「就这一家吗」。 */
+    nearby_count?: number
+    placeholder?: boolean
+  }[]
   /** 中文品类词,**只喂后端 prompt,前端从不显示** —— 要显示走 distances 的 cat。 */
   amenities?: { label: string; distance_km: number; placeholder?: boolean }[]
   /** 真实户型(按卧室数聚合)。没有户型数据的项目整个字段缺席 —— 那就不讲这一拍。 */

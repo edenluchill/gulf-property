@@ -54,6 +54,8 @@ export interface MapTourHandle {
   setPropertyPins(pins: { id: string; coord: LngLat; label?: string; image?: string | null }[]): void
   /** pulse a single focus ring at a coord (current property). null clears it. */
   pulseAt(coord: LngLat | null): void
+  /** 在地图上标出**正在介绍的那个配套**（品类图标 + 名字）。null 清除。 */
+  setPoiMarker(poi: { coord: LngLat; emoji: string; label: string; color: string } | null): void
   /** Re-assert the canonical tour stacking (pins > distance lines/labels > transit
    *  routes > area). Call after the host map toggles transit/measure/amenity (they
    *  mount on top asynchronously). Self-retries briefly to catch the async mount. */
@@ -390,6 +392,66 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
   }
 
   /**
+   * 🔴 **正在介绍的那个配套,要在地图上真的标出来。**
+   *
+   * owner:「介绍医院或者 POI 时能在地图上显示那个地点吗」。之前那一头只有一个
+   * 测距工具画的小圆点 —— 客户看到一条线指向一个**无名的点**,不知道那是医院还是学校。
+   * 现在在终点画一个和卡片同色的图钉:品类 emoji + 名字,和左上那张聚光灯卡对得上。
+   *
+   * 和项目 pin 一样走 **GL symbol**(canvas 预合成图标 → addImage → symbol layer):
+   * DOM marker 在逐帧 jumpTo 的相机下永远慢一帧,会抖(见 setPropertyPins 的注释)。
+   */
+  const POI_SRC = 'lt-poi'
+  const POI_LAYER = 'lt-poi-sym'
+  let poiIconSeq = 0
+
+  async function setPoiMarker(poi: { coord: LngLat; emoji: string; label: string; color: string } | null) {
+    const map = getMap()
+    if (!map) return
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => void setPoiMarker(poi))
+      return
+    }
+    if (!poi) {
+      if (map.getLayer(POI_LAYER)) map.removeLayer(POI_LAYER)
+      if (map.getSource(POI_SRC)) map.removeSource(POI_SRC)
+      return
+    }
+    // 图标随「品类+名字」变 → 每个配套一张,复用同名的就不重画
+    const iconId = `lt-poi-${poi.emoji}-${poi.label}`.slice(0, 60)
+    if (!map.hasImage(iconId)) {
+      const img = buildPoiIcon(poi.emoji, poi.label, poi.color)
+      if (img && !map.hasImage(iconId)) map.addImage(iconId, img, { pixelRatio: 2 })
+    }
+    const fc: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', properties: { icon: iconId }, geometry: { type: 'Point', coordinates: poi.coord } }],
+    }
+    const src = map.getSource(POI_SRC) as maplibregl.GeoJSONSource | undefined
+    if (src) {
+      src.setData(fc)
+      raiseNow()
+      return
+    }
+    map.addSource(POI_SRC, { type: 'geojson', data: fc })
+    map.addLayer({
+      id: POI_LAYER,
+      type: 'symbol',
+      source: POI_SRC,
+      layout: {
+        'icon-image': ['get', 'icon'],
+        'icon-size': 0.85, // 常量 —— layout 依赖 zoom 会让运镜每帧重排布局
+        'icon-anchor': 'bottom',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': false, // 占位:地标名字自己让开
+        'symbol-sort-key': 1, // 项目 pin 是 0,先排它
+      },
+    })
+    poiIconSeq++
+    raiseNow()
+  }
+
+  /**
    * Tour property pins as a GL SYMBOL layer. The pin (thumbnail card + optional
    * name + stem) is pre-composed into a canvas image and added via map.addImage,
    * then drawn by a symbol layer — so it renders in the SAME GL frame as the
@@ -506,6 +568,7 @@ export function createMapTourHandle(deps: MapTourHandleDeps): MapTourHandle {
     jumpTo,
     getCamera,
     setViewportPadding,
+    setPoiMarker,
     drawDistanceLine,
     showAmenitySpokes,
     highlightPins,
@@ -640,6 +703,78 @@ async function buildPinIcon(
   ctx.moveTo(cx - 6, cardY + card - 1)
   ctx.lineTo(cx + 6, cardY + card - 1)
   ctx.lineTo(cx, cardY + card + stemH)
+  ctx.closePath()
+  ctx.fill()
+
+  return ctx.getImageData(0, 0, cnv.width, cnv.height)
+}
+
+/**
+ * 配套图钉:一枚圆形彩色徽章(品类 emoji)+ 下面一条名字胶囊 + 指向地面的尖角。
+ * 颜色和左上那张聚光灯卡同源(医院红/学校橙/…),两边一眼对得上。
+ */
+function buildPoiIcon(emoji: string, label: string, color: string): ImageData | null {
+  if (typeof document === 'undefined') return null
+  const S = 2
+  const FONT = '700 12px -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
+  const R = 17          // 徽章半径
+  const gap = 4
+  const pillH = 20
+  const stem = 8
+
+  const measure = document.createElement('canvas').getContext('2d')
+  if (!measure) return null
+  measure.font = FONT
+  let name = label
+  if (name.length > 18) name = name.slice(0, 17) + '…'
+  const pillW = Math.ceil(measure.measureText(name).width) + 16
+
+  const W = Math.max(R * 2, pillW)
+  const H = R * 2 + gap + pillH + stem
+  const cx = W / 2
+
+  const cnv = document.createElement('canvas')
+  cnv.width = Math.ceil(W * S)
+  cnv.height = Math.ceil(H * S)
+  const ctx = cnv.getContext('2d')
+  if (!ctx) return null
+  ctx.scale(S, S)
+
+  // 徽章
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'
+  ctx.shadowBlur = 8
+  ctx.shadowOffsetY = 3
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(cx, R, R, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(cx, R, R - 1, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.font = '18px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, cx, R + 1)
+
+  // 名字胶囊
+  const pillY = R * 2 + gap
+  ctx.fillStyle = 'rgba(5,7,13,0.85)'
+  roundRect(ctx, cx - pillW / 2, pillY, pillW, pillH, 7)
+  ctx.fill()
+  ctx.fillStyle = '#fff'
+  ctx.font = FONT
+  ctx.fillText(name, cx, pillY + pillH / 2 + 1)
+
+  // 指向地面的尖角
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(cx - 5, pillY + pillH - 1)
+  ctx.lineTo(cx + 5, pillY + pillH - 1)
+  ctx.lineTo(cx, pillY + pillH + stem)
   ctx.closePath()
   ctx.fill()
 

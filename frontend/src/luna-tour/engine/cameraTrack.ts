@@ -41,13 +41,24 @@ const EASE = (t: number) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t) // ease
  * from 和 to 完全一样。而引擎会把这一拍的相机轨道拉伸到旁白长度,于是变成
  * **十几秒在两个相同机位之间插值 = 死画面**。
  *
- * ⚠️ 这条曾经反过来:早先有个 `AMBIENT_ORBIT_DEG = 24` 给每个静止关键帧加旋转,
+ * ⚠️ 这条曾经反过来:早先有个固定 24° 的氛围环绕给每个静止关键帧加旋转,
  *    被我删掉了(理由是「到了目的地要读信息,不是继续晕」)。**owner 现在明确否了那个判断。**
  *    但要记住他当时嫌晕的是**快**,不是**动** —— 所以这里给的是很慢的一圈
  *    (14° 摊到整段旁白 ≈ 0.7~1°/秒),客户读数字时不会被抢注意力,画面又始终活着。
  *    别把它调大。
  */
-const AMBIENT_ORBIT_DEG = 14
+/**
+ * 🔴 按**角速度**给,不是固定角度 —— 和 openingShot 里那几个同一个道理。
+ *
+ * 原来写死 14°:一拍 22 秒时就是 **0.64°/秒 ≈ 1.2 px/秒**。机制上「在转」,
+ * 肉眼上就是**定格**(实测逐秒跑分里它和真静止一起被标红)。
+ * 「慢」是一个速度,不是一个角度。
+ */
+const AMBIENT_DEG_PER_SEC = 2.8
+/** 兜底(拿不到这一拍多长时)。 */
+const AMBIENT_FALLBACK_MS = 12000
+const ambientDegrees = (beatMs: number): number =>
+  Math.max(12, Math.min(120, Math.round((AMBIENT_DEG_PER_SEC * (beatMs || AMBIENT_FALLBACK_MS)) / 1000)))
 /** 一段的屏幕位移小于这么多像素,就当它是「死住了」。 */
 const STATIC_SEG_EPS_PX = 6
 /** A flyover whose target is within ~this (deg ≈ 80m) of us is a no-op → drop. */
@@ -169,7 +180,13 @@ export interface CameraTrack {
  * so keyframes that omit fields inherit smoothly. Cues are laid out SEQUENTIALLY
  * (gap-free); authored at_ms is not used for layout.
  */
-export function compileCameraTrack(cues: Camera[], entry: CameraState | null): CameraTrack {
+export function compileCameraTrack(
+  cues: Camera[],
+  entry: CameraState | null,
+  /** 这一拍大概多长（剧本对旁白长度的估计）—— 只用来把氛围环绕换算成角速度。 */
+  beatMs = AMBIENT_FALLBACK_MS
+): CameraTrack {
+  const ambientDeg = ambientDegrees(beatMs)
   const fallback: CameraState = { center: [55.27, 25.2], zoom: 11, pitch: 45, bearing: 0 }
   if (!cues.length) return emptyTrack(entry)
 
@@ -311,8 +328,8 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       start: 0,
       end: 6000,
       from: base,
-      to: { ...base, bearing: base.bearing + AMBIENT_ORBIT_DEG },
-      orbitDegrees: AMBIENT_ORBIT_DEG,
+      to: { ...base, bearing: base.bearing + ambientDeg },
+      orbitDegrees: ambientDeg,
       linear: true,
     })
     t = 6000
@@ -338,9 +355,35 @@ export function compileCameraTrack(cues: Camera[], entry: CameraState | null): C
       (Math.abs(s.to.bearing - s.from.bearing) * Math.PI * (vw / 2)) / 180 +
       (Math.abs(s.to.pitch - s.from.pitch) * Math.PI * (vw / 2)) / 180
     if (moved >= STATIC_SEG_EPS_PX) continue
-    s.orbitDegrees = AMBIENT_ORBIT_DEG
+    s.orbitDegrees = ambientDeg
     s.linear = true
-    s.to = { ...s.to, bearing: s.from.bearing + AMBIENT_ORBIT_DEG }
+    s.to = { ...s.to, bearing: s.from.bearing + ambientDeg }
+  }
+
+  /**
+   * 🔴 **轨道里必须至少有一段「可拉伸」的运动 —— 否则这一拍的画面是死的。**
+   *
+   * 实测的死画面(owner:「还是经常有停顿,镜头不转」):`weakness` 那一拍剧本只写了
+   * 一个 `duration_ms: 0` 的关键帧 —— 那是**机位**(瞬切),不是运动。于是:
+   *   • 轨道总长 = 0 → `camTargetMs` 因为 `duration > 0` 不成立而永远是 0
+   *   • `sampleAt(t>0)` 直接返回 `to` → **整整 13 秒定格**,然后下一拍猛地切走。
+   * 全是赶路段(flyover)的拍也一样:飞完就没事干了,剩下的旁白全程静止。
+   *
+   * 所以在这里补一段缓慢环绕:瞬切照旧是瞬切,切到位之后画面继续活着。
+   * (这条也顺带干掉了 `duration === 0` 时 `targetMs/duration` 除零的那条路径。)
+   */
+  const rigidBefore = segs.reduce((s, g) => s + (g.rigid ? g.end - g.start : 0), 0)
+  if (t - rigidBefore <= 0) {
+    const base = segs[segs.length - 1].to
+    segs.push({
+      start: t,
+      end: t + 6000,
+      from: base,
+      to: { ...base, bearing: base.bearing + ambientDeg },
+      orbitDegrees: ambientDeg,
+      linear: true,
+    })
+    t += 6000
   }
 
   const duration = t

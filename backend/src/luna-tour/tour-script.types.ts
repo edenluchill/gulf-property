@@ -412,6 +412,14 @@ export interface TourPropertyDistance {
   /** [lng, lat] of the destination. */
   to: [number, number]
   distance_km: number
+  /** 地址，**已过地名防线** —— 阿语地址不给中文客户看。填充率只有 22~31%，有才显示。 */
+  address?: string
+  /**
+   * 同品类在半径内**一共有几家**（含这一家）。
+   * owner 要「细节详细一点」，而这是唯一 100% 可得的那个:address 只有两三成、
+   * subcategory 全是 null。它回答的也正是客户会问的那句「就这一家吗?」。
+   */
+  nearby_count?: number
   /** true when the distance is a placeholder, not a measured value. */
   placeholder?: boolean
 }

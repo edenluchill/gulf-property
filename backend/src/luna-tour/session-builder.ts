@@ -100,8 +100,21 @@ async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 
   //    照样被当成「配套」讲给客户听。`zero` 字段一直存在,但只用来算分,从不用来过滤。
   //    （而前端的同名实现是卡了 10km 的 → 地图上画的和旁白说的根本不是同一份数据。）
   for (const s of AMENITY_SPECS) {
-    const { rows } = await client.query<{ name: string; km: string; lng: string; lat: string }>(
-      `SELECT name,
+    const { rows } = await client.query<{
+      name: string
+      km: string
+      lng: string
+      lat: string
+      address: string | null
+    }>(
+      /**
+       * owner 要「细节信息稍微详细一点」。查过填充率之后**只取 address**:
+       *   subcategory  → 这五个品类下 **100% 是 null**,一个字段都没有(取了也白取)
+       *   address      → 22~31%(地铁 0%)—— 有就显示,没有就不显示
+       *   website/phone→ 19~38%,而且客户在导览里不会去打电话,不值得占版面
+       * 「填充率 0% 的字段绝不进展示」是这个项目自己的规矩,先查再取。
+       */
+      `SELECT name, address,
               ST_Distance(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)/1000 AS km,
               ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat
          FROM dubai_pois
@@ -114,6 +127,19 @@ async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 
     const hit = rows[0]
     if (!hit) continue   // 半径内根本没有 → 这个品类**整个不提**,不是硬凑一个远的上来
 
+    /**
+     * 同品类在半径内**还有几家**。这是唯一一个 100% 可得的「细节」——
+     * address 只有 22~31%、subcategory 全是 null。而且它回答的是客户真正会想的
+     * 那个问题:「就这一家吗?」——「半径内还有 4 家超市」比「有一家超市」有用得多。
+     */
+    const { rows: cnt } = await client.query<{ n: string }>(
+      `SELECT COUNT(*) n FROM dubai_pois
+        WHERE category = $3::poi_category
+          AND ST_DWithin(location::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $4)`,
+      [lng, lat, s.cat, s.zero * 1000]
+    )
+    const nearbyCount = Number(cnt[0]?.n) || 1
+
     const km = Number(parseFloat(hit.km).toFixed(2))
     const sub = Math.max(0, Math.min(1, (s.zero - km) / (s.zero - s.ideal)))
     score += s.weight * sub
@@ -125,7 +151,17 @@ async function fetchNearby(client: PoolClient, lng: number, lat: number, lang = 
     //    `label` 只为历史 session 保留 —— 它是这里拼死的中文(`s.zh` 只有中文一个分支),
     //    英/阿/俄/法的导览里照样写「🚇 地铁」。别再让新代码读它。
     const label = name ? `${s.emoji} ${s.zh}（${name}）` : `${s.emoji} ${s.zh}`
-    distances.push({ label, cat: s.cat, name, to: [parseFloat(hit.lng), parseFloat(hit.lat)], distance_km: km })
+    distances.push({
+      label,
+      cat: s.cat,
+      name,
+      to: [parseFloat(hit.lng), parseFloat(hit.lat)],
+      distance_km: km,
+      // 细节:子类型(clinic / pharmacy / primary_school…)和地址。
+      // 地名防线同样适用 —— 阿语地址不能给中文客户看。
+      address: hit.address && nameUsable(hit.address, lang) ? hit.address : undefined,
+      nearby_count: nearbyCount,
+    })
   }
 
   const score100 = Math.round(score * 100)

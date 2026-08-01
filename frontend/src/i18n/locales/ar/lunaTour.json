@@ -695,6 +695,7 @@
     "metres": "م",
     "km": "كم",
     "onFoot": "سيرًا",
-    "shortDrive": "دقائق بالسيارة"
+    "shortDrive": "دقائق بالسيارة",
+    "alsoNearby": "{{n}} في الجوار"
   }
 }

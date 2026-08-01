@@ -102,6 +102,19 @@ const SNAP_IF_BEHIND_SCREENS = 3
  *    结论:相机就该每一个 rAF 都下发。要更顺只能继续砍每帧成本,不能靠降频装顺。
  */
 
+/**
+ * 地图图钉的品类样式。**颜色必须和左上那张聚光灯卡同源**（OverlayLayer 的 POI_STYLE）——
+ * 卡片是红的、图上的点是灰的，客户就得自己在两者之间连线。
+ * `fallback`:名字过不了地名防线时（阿语专名不给中文客户看）图钉只写品类。
+ */
+const POI_MARKER: Record<string, { emoji: string; color: string; fallback: string }> = {
+  hospital: { emoji: '🏥', color: '#dc2626', fallback: 'Hospital' },
+  school: { emoji: '🏫', color: '#ea580c', fallback: 'School' },
+  metro_station: { emoji: '🚇', color: '#2563eb', fallback: 'Metro' },
+  mall: { emoji: '🛍️', color: '#9333ea', fallback: 'Mall' },
+  supermarket: { emoji: '🛒', color: '#059669', fallback: 'Supermarket' },
+}
+
 const STICKY_OVERLAYS = new Set(['progress_dots', 'cta', 'favorite_picker'])
 
 /**
@@ -357,6 +370,7 @@ export class TimelineEngine {
     this.sink?.transit(false)
     this.sink?.areaMetric(null)
     this.map.pulseAt(null)
+    this.map.setPoiMarker(null)
     this.map.clearOverlays()
     this.audio.dispose()
   }
@@ -416,7 +430,8 @@ export class TimelineEngine {
       if (!this.camEntry) this.camEntry = this.map.getCamera?.() ?? null
 
       // compile the camera track for this beat (single clock samples it)
-      this.camTrack = compileCameraTrack(cameraCues, this.camEntry)
+      // 第三个参数:这一拍大概多长 —— 氛围环绕据此换算成角速度(固定角度在长拍上会慢到看不见)
+      this.camTrack = compileCameraTrack(cameraCues, this.camEntry, seg.beat.duration_ms)
       this.camTargetMs = 0 // no time-warp until the audio length is known (onMeta below)
       // snap to its initial state instantly so the first frame is correct — but
       // keep the carried bearing (don't reset rotation at a beat boundary).
@@ -605,8 +620,20 @@ export class TimelineEngine {
       else this.sink.measure(null)
       this.sink.transit(spot.cat === 'metro_station')
       this.sink.areaMetric(null)
+      /**
+       * 在地图上**真的标出那个地点**(owner 要的)。之前线的那一头只有测距工具的一个
+       * 小圆点 —— 客户看到一条线指向一个无名的点,不知道那是医院还是学校。
+       */
+      if (d) {
+        const s = POI_MARKER[spot.cat]
+        this.map.setPoiMarker({ coord: d.to, emoji: s.emoji, label: d.name || s.fallback, color: s.color })
+      } else {
+        this.map.setPoiMarker(null)
+      }
       return
     }
+    // 不是配套拍 → 收起图钉(它是「正在讲的那个地方」,讲完就不该留在图上)
+    this.map.setPoiMarker(null)
     if (hasAmenity && realAmenity) {
       this.sink.amenities(realAmenity)
       this.sink.measure(null)
