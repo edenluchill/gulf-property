@@ -38,6 +38,9 @@ const SECS = Number(arg('secs', 40))
 const CPU = Number(arg('cpu', 4))
 const ONLY = arg('only', '')
 const DIST = arg('dist', '')
+/** 跳过开头这么多秒再开始采样 —— 开场那 18 秒的高空环绕是全片最贵的一段,
+ *  拿它和「45 秒窗口里只有 8 秒开场」的旧数字比就是在比不同的东西。 */
+const SKIP = Number(arg('skip', 0))
 const OUT = 'scripts/_tour-jitter'
 
 /** Serve a local `dist/` under the production origin (so the real API + CORS work). */
@@ -212,6 +215,38 @@ function analyse(frames, vw) {
 const RUNS = Number(arg('runs', 1))
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
 
+/**
+ * 🔴 **`--cpu=N` 是在本机当前负载之上再乘 N 倍。**
+ *
+ * 本机空闲时 cpu×6 ≈ 一台低端手机;本机在跑 vite build(或者刚跑完还没凉)时,
+ * 同样的 cpu×6 会量出 5fps —— 而那**不是代码的问题**。
+ * 我为此追过一次「回归」:反复 bisect,最后把上一个 commit 的相机代码 build 出来一量,
+ * 它更慢(736 vs 686 ms/s)。**代码没退步,是机器在忙。**
+ * 所以每次跑分先报一下本机负载,高了就直接喊停。
+ */
+async function hostLoad() {
+  try {
+    const { execSync } = await import('node:child_process')
+    const out = execSync(
+      'powershell -NoProfile -Command "(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average"',
+      { encoding: 'utf8', timeout: 15000 }
+    )
+    return Number(out.trim())
+  } catch {
+    return NaN
+  }
+}
+const LOAD = await hostLoad()
+if (Number.isFinite(LOAD)) {
+  const warn = LOAD > 25 && CPU > 1
+  console.log(
+    `本机 CPU 负载 ${LOAD}%` +
+      (warn
+        ? `  ⛔ **偏高,配合 --cpu=${CPU} 会量出假的「回归」** —— 等机器凉下来（别和 vite build 同时跑）再测,或改用 --cpu=1 看绝对值。`
+        : '  ✅')
+  )
+}
+
 const report = {}
 const PLAN = VIEWPORTS.flatMap((vp) => Array.from({ length: RUNS }, (_, i) => ({ ...vp, run: i + 1 })))
 for (const vp of PLAN) {
@@ -253,6 +288,7 @@ for (const vp of PLAN) {
   }
   await page.waitForTimeout(2500) // let tiles settle so we measure motion, not first paint
   await start.click()
+  if (SKIP) await page.waitForTimeout(SKIP * 1000)
   await page.evaluate(() => {
     const w = window
     w.__jit.frames.length = 0
