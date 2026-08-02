@@ -60,6 +60,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-08-02',
+    kind: 'improve',
+    zh: "楼盘导览的开场改成斜角航拍视角(以前像正上方俯视);照片会像影片一样缓缓推移;手机上的项目卡缩成一条窄条不再挡住地图,点一下展开能看到户型跨度、面积和周边五类配套的实际距离",
+    en: "The project tour now starts with an oblique aerial view instead of a top-down view. Photos pan slowly like a film. On mobile, the project card is minimized to a narrow bar that does not block the map, expanding with a tap to show unit types, sizes, and exact distances to five categories of nearby amenities.",
+    fr: "La visite du projet commence désormais par une vue aérienne oblique au lieu d'une vue de dessus. Les photos défilent lentement comme un film. Sur mobile, la carte du projet est réduite à une bande étroite qui ne bloque plus la carte, et se développe d'un simple toucher pour afficher les typologies, les surfaces et les distances réelles vers cinq catégories d'équipements à proximité.",
+    ru: "Тур по проекту теперь начинается с косой аэрофотосъемки вместо вида сверху вниз. Фотографии плавно перемещаются, как в кино. На мобильных устройствах карточка проекта свернута в узкую полосу и не блокирует карту; при нажатии она раскрывается, показывая планировки, площади и точные расстояния до пяти категорий объектов инфраструктуры.",
+    ar: "تبدأ جولة المشروع الآن بمنظور جوي مائل بدلاً من المنظور العمودي من الأعلى. وتتحرك الصور ببطء مثل الفيلم. على الهاتف المحمول، تم تصغير بطاقة المشروع إلى شريط ضيق لا يحجب الخريطة، ويتسع بنقرة واحدة ليعرض أنواع الوحدات، والمساحات، والمسافات الفعلية لخمس فئات من المرافق المجاورة.",
+  },
+  {
     date: '2026-07-30',
     kind: 'improve',
     zh: "楼盘导览现在把周边一个一个讲给你听:超市、学校、地铁、商场、医院各占一段,每段都标清楚是哪一类、叫什么、多远,地图上只画到那一个地方;还能贴上项目实拍和视频",
