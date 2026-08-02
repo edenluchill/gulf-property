@@ -26,7 +26,18 @@ const FEATURE_LABEL: Record<string, string> = {
   luna_tours: 'Luna 导览', payplan: 'Sales Offer', live_call: '通话与视频',
 }
 
-const money = (usd: number) => (usd < 0.01 && usd > 0 ? '<$0.01' : `$${usd.toFixed(2)}`)
+const money = (usd: number) => (usd < 0.01 && usd > 0 ? '<$0.01' : `$${num(usd)}`)
+
+/**
+ * 安全的数字格式化。**别在这个面板里直接写 `.toFixed()`。**
+ *
+ * WHY(2026-08-01 白屏事故):后端字段叫 `projectedUsd`,前端类型手写成
+ * `projectedMonthlyUsd` —— 两份类型对不上,tsc 抓不到,`undefined.toFixed()`
+ * 直接把**整个运维面板**炸成 error boundary。运维面板恰恰是出事时要看的东西,
+ * 它不该因为一个字段改名就整页打不开。
+ */
+const num = (v: number | null | undefined, p = 2): string =>
+  typeof v === 'number' && Number.isFinite(v) ? v.toFixed(p) : '—'
 
 /**
  * 功能名 → 人话。task 是埋点用的低基数枚举,直接显示看不懂是哪块功能。
@@ -86,7 +97,7 @@ export default function OpsTelemetry() {
           <div className="rounded-xl bg-slate-900 p-3 text-white">
             <div className="text-[10px] text-slate-400">预计本月</div>
             <div className="mt-0.5 text-2xl font-semibold tabular-nums">
-              ${forecast.projectedMonthlyUsd.toFixed(2)}
+              ${num(forecast.projectedMonthlyUsd)}
             </div>
           </div>
           {[
@@ -104,7 +115,7 @@ export default function OpsTelemetry() {
             <div className="text-[10px] text-slate-400">趋势</div>
             <div className={`mt-0.5 text-lg font-semibold tabular-nums ${
               forecast.trend > 1.5 ? 'text-rose-600' : 'text-slate-800'}`}>
-              {forecast.trend > 0 ? `${forecast.trend.toFixed(2)}×` : '—'}
+              {forecast.trend > 0 ? `${num(forecast.trend)}×` : '—'}
             </div>
           </div>
         </div>
@@ -139,10 +150,10 @@ export default function OpsTelemetry() {
                 </span>
                 <span className="w-20 text-end tabular-nums text-slate-400">{t.calls7}</span>
                 <span className="w-24 text-end tabular-nums text-slate-500">
-                  {t.usdPerCall > 0 ? `$${t.usdPerCall.toFixed(4)}` : '—'}
+                  {t.usdPerCall > 0 ? `$${num(t.usdPerCall, 4)}` : '—'}
                 </span>
                 <span className="w-24 text-end font-semibold tabular-nums text-slate-800">
-                  ${t.projectedMonthlyUsd.toFixed(2)}
+                  ${num(t.projectedMonthlyUsd)}
                 </span>
               </div>
             ))}
@@ -156,8 +167,8 @@ export default function OpsTelemetry() {
           <ArrowLeftRight className="h-4 w-4 text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-800">换模型要多少钱</h3>
           <span className="text-xs text-slate-400">
-            拿近 7 天真实的 {(whatIf.basis.inTokens / 1e6).toFixed(1)}M 进 /{' '}
-            {(whatIf.basis.outTokens / 1e6).toFixed(1)}M 出,按各家单价重算
+            拿近 7 天真实的 {num(whatIf.basis.inTokens / 1e6, 1)}M 进 /{' '}
+            {num(whatIf.basis.outTokens / 1e6, 1)}M 出,按各家单价重算
           </span>
         </div>
         <div className="mt-3 divide-y divide-slate-50">
@@ -180,10 +191,10 @@ export default function OpsTelemetry() {
                 )}
                 <span className={`w-20 shrink-0 text-end tabular-nums ${
                   diff < 0 ? 'text-emerald-600' : diff > 0 ? 'text-slate-400' : 'text-slate-300'}`}>
-                  {diff === 0 ? '—' : `${diff < 0 ? '' : '+'}${diff.toFixed(0)}`}
+                  {diff === 0 ? '—' : `${diff < 0 ? '' : '+'}${num(diff, 0)}`}
                 </span>
                 <span className="w-24 shrink-0 text-end font-semibold tabular-nums text-slate-700">
-                  ${c.projectedMonthlyUsd.toFixed(2)}
+                  ${num(c.projectedMonthlyUsd)}
                 </span>
               </div>
             )
@@ -229,7 +240,7 @@ export default function OpsTelemetry() {
                   </span>
                 )}
                 <span className="w-16 shrink-0 text-end tabular-nums text-slate-400">{t.calls} 次</span>
-                <span className="w-20 shrink-0 text-end tabular-nums text-slate-400">p95 {(t.p95 / 1000).toFixed(1)}s</span>
+                <span className="w-20 shrink-0 text-end tabular-nums text-slate-400">p95 {num(t.p95 / 1000, 1)}s</span>
                 <span className="w-20 shrink-0 text-end font-semibold tabular-nums text-slate-700">{money(t.usd)}</span>
               </div>
             ))}

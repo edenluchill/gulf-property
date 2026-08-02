@@ -123,15 +123,20 @@ export async function aiForecast() {
     .map(([task, v]) => ({
       task,
       usd7: round(v.usd7),
-      /** 按近期速率外推的**月成本**(这条才是能和订阅收入比的数) */
-      projectedUsd: round((v.usd7 / 7) * 30, 2),
+      /**
+       * 按近期速率外推的**月成本**(这条才是能和订阅收入比的数)。
+       * ⚠️ 字段名必须和 `frontend/src/lib/analyticsApi.ts` 里的 OpsTelemetry 类型一致 ——
+       * 那份类型是**手写**的,两边对不上 tsc 抓不到,只会在页面上炸成白屏
+       * (2026-08-01 就这么炸过一次:这里叫 projectedUsd,前端读 projectedMonthlyUsd)。
+       */
+      projectedMonthlyUsd: round((v.usd7 / 7) * 30, 2),
       calls7: v.calls7,
       inTokens7: v.in7,
       outTokens7: v.out7,
       /** 每次调用多少钱 —— 优化时先看这个,再看总量 */
       usdPerCall: v.calls7 > 0 ? round(v.usd7 / v.calls7, 6) : 0,
     }))
-    .sort((a, b) => b.projectedUsd - a.projectedUsd)
+    .sort((a, b) => b.projectedMonthlyUsd - a.projectedMonthlyUsd)
 
   return {
     perDay7: round(perDay7, 4),
