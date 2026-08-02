@@ -140,56 +140,7 @@ function OverlayItem({
     case 'property_card': {
       const p = properties.get(overlay.property_id)
       if (!p) return null
-      // 认品类走结构化的 cat,不看 label —— label 是展示文案,一换 tour 语言
-      // 「地铁」就没了,这一行会**静默消失**(客户端不报错,只是少了个信息)。
-      // ‖ 兜底:DB 里的历史 session 是在 cat 之前生成的,没有该字段 → 回退到旧的
-      //   中文子串匹配。等历史 session 过期后可以删掉后半截。
-      const metro = p.distances?.find((d) =>
-        d.cat ? d.cat === 'metro_station' : d.label.includes('地铁')
-      )
-      return (
-        <div className="lt-ov lt-ov-card">
-          {p.image && (
-            <div className="lt-card-img">
-              <img src={p.image} alt={p.name} loading="eager" />
-            </div>
-          )}
-          <div className="lt-card-body">
-            {p.area && <div className="lt-card-area">📍 {p.area}</div>}
-            <div className="lt-card-name">{p.name}</div>
-            {p.developer && <div className="lt-card-dev">{p.developer}</div>}
-            {p.min_price != null && (
-              <div className="lt-card-price">
-                {formatAed(p.min_price)}
-                <span className="lt-card-price-unit"> {t('tourOverlay.fromSuffix')}</span>
-              </div>
-            )}
-            <div className="lt-card-stats">
-              {p.amenity_score != null && (
-                <div className="lt-card-stat">
-                  <b style={{ color: accent }}>{p.amenity_score}</b>
-                  <span>
-                    {t('tourOverlay.amenityScore')}
-                    {tierLabel(scoped(t), p.amenity_tier) ? ` · ${tierLabel(scoped(t), p.amenity_tier)}` : ''}
-                  </span>
-                </div>
-              )}
-              {metro && (
-                <div className="lt-card-stat">
-                  <b style={{ color: accent }}>{metro.distance_km}km</b>
-                  <span>🚇 {t('tourOverlay.nearestMetro')}</span>
-                </div>
-              )}
-              {p.status && (
-                <div className="lt-card-stat lt-card-stat-status">
-                  <b>{p.status}</b>
-                  <span>{t('tourOverlay.status')}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )
+      return <PropertyCard p={p} accent={accent} t={t} />
     }
 
     case 'roi_card':
@@ -319,6 +270,11 @@ function OverlayItem({
     case 'media': {
       // Real footage (sea view / interior) the agent attached — proof a chart
       // can't give. Muted (narration is the audio), looping, framed inset.
+      //
+      // 🔴 静态照片要**像影片一样慢慢走**（owner:「能类似慢慢 scroll 像影片一样慢慢
+      //    显示一下环境」）。一张钉住不动的图在一个全程都在缓慢运镜的画面里显得很死。
+      //    `lt-ken` 是一段 18 秒的极慢推移+缩放（Ken Burns），只给**图片**加 ——
+      //    视频本身就在动，再叠一层位移只会让人晕。
       const fit = overlay.fit === 'contain' ? 'contain' : 'cover'
       return (
         <div className="lt-ov lt-ov-media">
@@ -332,7 +288,7 @@ function OverlayItem({
               style={{ objectFit: fit }}
             />
           ) : (
-            <img src={overlay.url} alt={overlay.caption || ''} style={{ objectFit: fit }} loading="eager" />
+            <img className="lt-ken" src={overlay.url} alt={overlay.caption || ''} style={{ objectFit: fit }} loading="eager" />
           )}
           {overlay.caption && <div className="lt-media-cap">{overlay.caption}</div>}
         </div>
@@ -342,6 +298,123 @@ function OverlayItem({
     default:
       return null
   }
+}
+
+/**
+ * 项目卡。
+ *
+ * ── 手机上它必须**先小、点了才大**（owner 2026-08-02）────────────────────────
+ * 「手机版的卡片不能遮住任何信息，可能更小的卡片，然后客户可以点击打开信息。」
+ * 地图就是信息。一张常驻的大卡片在 390px 的屏幕上永远在挡着什么，而客户来看的
+ * 正是被挡住的那一块。所以手机默认只是一条 ~46px 的窄条（缩略图 + 名字 + 起价 + ⌃），
+ * 点一下才展开完整信息；桌面空间够，一直展开。
+ *
+ * ── 同时「信息太少」也要治（owner 同一句话里说的）─────────────────────────
+ * 原来展开也只有:名字 / 开发商 / 起价 / 便利度 / 最近地铁。客户真正在问的是
+ * **「我能买到什么」和「周围到底有什么」**，而这两样 snapshot 里本来就有:
+ *   • units[]     → 户型跨度（开间–4房）、面积跨度、起价 —— 一整行「你能买到什么」
+ *   • distances[] → 五个品类各自的真实距离 —— 一行彩色小片，比一个「便利度 96」有用
+ * 都是真值，没有一个是算出来或编出来的。缺的字段整块不出现。
+ */
+function PropertyCard({ p, accent, t }: { p: PropertySnapshot; accent: string; t: T }) {
+  const [open, setOpen] = useState(false)
+  // 认品类走结构化的 cat,不看 label —— label 是展示文案,一换 tour 语言「地铁」就没了,
+  // 这一行会**静默消失**。兜底:历史 session 没有 cat → 回退中文子串匹配。
+  const metro = p.distances?.find((d) => (d.cat ? d.cat === 'metro_station' : d.label.includes('地铁')))
+  const units = p.units ?? []
+  const beds = units.map((u) => u.bedrooms).filter((n) => Number.isFinite(n))
+  const sizes = units.map((u) => u.area_sqft).filter((n): n is number => typeof n === 'number' && n > 0)
+  const bedSpan =
+    beds.length === 0
+      ? null
+      : Math.min(...beds) === Math.max(...beds)
+      ? unitLabel(t, beds[0])
+      : `${unitLabel(t, Math.min(...beds))}–${unitLabel(t, Math.max(...beds))}`
+  const sizeSpan = sizes.length
+    ? Math.min(...sizes) === Math.max(...sizes)
+      ? `${Math.round(sizes[0])}`
+      : `${Math.round(Math.min(...sizes))}–${Math.round(Math.max(...sizes))}`
+    : null
+  // 五个品类的距离小片。按距离近→远排,近的先看见。
+  const chips = (p.distances ?? [])
+    .filter((d) => d.cat)
+    .slice()
+    .sort((a, b) => a.distance_km - b.distance_km)
+
+  return (
+    <div className={`lt-ov lt-ov-card${open ? ' is-open' : ''}`}>
+      <button className="lt-card-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        {p.image && (
+          <span className="lt-card-img">
+            <img src={p.image} alt={p.name} loading="eager" />
+          </span>
+        )}
+        <span className="lt-card-headline">
+          <span className="lt-card-name">{p.name}</span>
+          <span className="lt-card-sub">
+            {p.min_price != null ? (
+              <b className="lt-card-price" translate="no">
+                {formatAed(p.min_price)}
+                <span className="lt-card-price-unit"> {t('tourOverlay.fromSuffix')}</span>
+              </b>
+            ) : (
+              p.area && <span>{p.area}</span>
+            )}
+            {bedSpan && <span className="lt-card-beds">{bedSpan}</span>}
+          </span>
+        </span>
+        {/* 手机上这个箭头是唯一的「还有更多」信号 —— 桌面一直展开,不显示 */}
+        <span className="lt-card-toggle" aria-hidden>
+          {open ? '⌄' : '⌃'}
+        </span>
+      </button>
+
+      <div className="lt-card-more">
+        <div className="lt-card-meta">
+          {p.area && <span>📍 {p.area}</span>}
+          {p.developer && <span>{p.developer}</span>}
+        </div>
+        {(bedSpan || sizeSpan) && (
+          <div className="lt-card-row">
+            <span className="lt-card-row-k">{t('tourOverlay.units')}</span>
+            <span className="lt-card-row-v" translate="no">
+              {bedSpan}
+              {sizeSpan && ` · ${sizeSpan} ${t('tourOverlay.sqftFrom')}`}
+            </span>
+          </div>
+        )}
+        {chips.length > 0 && (
+          <div className="lt-card-chips">
+            {chips.map((d) => (
+              <span key={d.cat} className="lt-card-chip" translate="no">
+                <i>{POI_STYLE[d.cat as TourAmenityCat]?.emoji}</i>
+                {d.distance_km < 1 ? `${Math.round(d.distance_km * 1000)}m` : `${d.distance_km.toFixed(1)}km`}
+              </span>
+            ))}
+          </div>
+        )}
+        {(p.amenity_score != null || metro) && (
+          <div className="lt-card-stats">
+            {p.amenity_score != null && (
+              <div className="lt-card-stat">
+                <b style={{ color: accent }}>{p.amenity_score}</b>
+                <span>
+                  {t('tourOverlay.amenityScore')}
+                  {tierLabel(scoped(t), p.amenity_tier) ? ` · ${tierLabel(scoped(t), p.amenity_tier)}` : ''}
+                </span>
+              </div>
+            )}
+            {metro && (
+              <div className="lt-card-stat">
+                <b style={{ color: accent }}>{metro.distance_km}km</b>
+                <span>🚇 {t('tourOverlay.nearestMetro')}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function UnitCard({

@@ -171,6 +171,23 @@ async function audit(label, hidden) {
   return bad
 }
 
+
+/**
+ * 等某个浮层出现。**等不到就明说「这一段没测到」** —— 静默跳过正是让 bug 藏起来的原因:
+ * 这个脚本默认跑 demo（经纪三盘导览，没有 media overlay），我加的「等素材」那一步
+ * 因此空转 30 秒、落到项目卡消失之后,于是「卡片展开」整段**从来没跑过**,
+ * 而输出里一个字都没说。
+ */
+async function waitFor(sel, secs, label) {
+  for (let i = 0; i < secs; i++) {
+    await page.waitForTimeout(1000)
+    if (await page.evaluate((s) => !!document.querySelector(s), sel)) return true
+  }
+  console.log(`
+── ${label}:等了 ${secs}s 没出现 ${sel} —— **这一段没测到**(这条 tour 可能就没有它)`)
+  return false
+}
+
 await page.goto(TOUR_URL, { waitUntil: 'domcontentloaded', timeout: 90000 })
 await page.locator('.lt-greet-btn').waitFor({ state: 'visible', timeout: 60000 })
 await page.waitForTimeout(1500)
@@ -184,19 +201,37 @@ await page.waitForTimeout(4000)
 bad += await audit('开场', HIDDEN)
 
 // 落地那一拍 —— 真实素材(视频/照片)在场，最容易和字幕/项目卡撞
-for (let i = 0; i < 30; i++) {
-  await page.waitForTimeout(1000)
-  if (await page.evaluate(() => !!document.querySelector('.lt-ov-media'))) break
+if (await waitFor('.lt-ov-media', 25, '落地(带素材)')) {
+  await page.waitForTimeout(1200)
+  bad += await audit('落地(带素材)', HIDDEN)
+  await page.screenshot({ path: `${OUT}/cutoff-media.png` })
 }
-await page.waitForTimeout(1500)
-bad += await audit('落地(带素材)', HIDDEN)
-await page.screenshot({ path: `${OUT}/cutoff-media.png` })
 await page.screenshot({ path: `${OUT}/cutoff-intro.png` })
 
-// 到访项目（项目卡 —— owner 截图里被切一半的那张）
-await page.waitForTimeout(22000)
-bad += await audit('到访项目', HIDDEN)
+/**
+ * 到访项目（项目卡 —— owner 截图里被切一半的那张）。
+ * ⚠️ **等元素,别等固定秒数。** tour 的长度会变(80s → 129s),写死的 22 秒曾经
+ *    刚好落在项目卡出现之前,于是「卡片展开」那一量整段被静默跳过。
+ */
+const hasCard = await waitFor('.lt-ov-card', 45, '到访项目')
+await page.waitForTimeout(1000)
+if (hasCard) bad += await audit('到访项目', HIDDEN)
 await page.screenshot({ path: `${OUT}/cutoff-arrival.png` })
+
+/**
+ * 🔴 **把项目卡展开再量一次。**
+ * 手机上它默认是一条窄条,点开才占地方 —— 只量收起态等于没量到真正会挡人的那个状态。
+ * (实测就是这么抓到「展开的卡被真实素材照片盖住项目名」的。)
+ */
+const cardHead = page.locator('.lt-card-head').first()
+if (hasCard && (await cardHead.count())) {
+  await cardHead.click()
+  await page.waitForTimeout(700)
+  bad += await audit('到访项目(卡片展开)', HIDDEN)
+  await page.screenshot({ path: `${OUT}/cutoff-card-open.png` })
+  await cardHead.click() // 收回去,别影响后面的暂停那一量
+  await page.waitForTimeout(500)
+}
 
 // 暂停（继续观看 / 问问 Luna / 自己看看条）。
 // 点上半屏空白处 —— 别点到项目 pin/探索卡上，那会打开详情抽屉（见 audit 的自检）。

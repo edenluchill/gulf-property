@@ -266,20 +266,52 @@
   animation: lt-slide-left 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
+/* 卡头 = 缩略图 + 名字 + 起价/户型跨度 + 展开箭头。手机上默认只有这一条。 */
+.lt-card-head {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: none; border: none; padding: 0; margin: 0; color: inherit;
+  text-align: start; cursor: pointer; font: inherit;
+}
 .lt-card-img {
-  margin: -18px -20px 12px; /* bleed to card edges */
-  height: 150px; overflow: hidden;
+  flex: 0 0 auto;
+  margin: -18px -20px 12px; /* 桌面:出血到卡片边缘 */
+  height: 150px; width: calc(100% + 40px); overflow: hidden;
   border-radius: 18px 18px 0 0;
+  display: block;
 }
 .lt-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 桌面:body 只是个透传容器(卡片是竖排的)。手机会把它变成横排里的文字列。 */
-.lt-card-body { min-width: 0; }
-.lt-card-area { font-size: 13px; color: var(--lt-accent); font-weight: 600; }
-.lt-card-name { font-size: 23px; font-weight: 800; line-height: 1.2; margin: 6px 0; }
-.lt-card-dev { font-size: 13px; opacity: 0.7; }
-.lt-card-price { font-size: 26px; font-weight: 800; color: #fff; margin-top: 10px; }
+/* 桌面把卡头拆成竖排(图在上,文字在下) —— 手机才是横排窄条 */
+.lt-ov-card .lt-card-head { flex-direction: column; align-items: stretch; }
+.lt-card-headline { display: block; min-width: 0; }
+.lt-card-name { font-size: 23px; font-weight: 800; line-height: 1.2; margin: 0 0 6px; }
+.lt-card-sub { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lt-card-price { font-size: 26px; font-weight: 800; color: #fff; }
 .lt-card-price-unit { font-size: 13px; font-weight: 500; opacity: 0.7; }
-.lt-card-stats { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+/* 户型跨度(开间–4房)—— 客户第一眼真正想知道的「我能买到什么」 */
+.lt-card-beds {
+  font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1); border-radius: 999px; padding: 2px 8px;
+}
+.lt-card-toggle { display: none; }
+
+/* 展开区 —— 桌面一直显示,手机点了才显示 */
+.lt-card-more { margin-top: 12px; }
+.lt-card-meta {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  font-size: 12px; color: rgba(255, 255, 255, 0.62); margin-bottom: 8px;
+}
+.lt-card-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.lt-card-row-k { font-size: 11px; color: rgba(255, 255, 255, 0.5); flex: 0 0 auto; }
+.lt-card-row-v { font-size: 13px; font-weight: 700; }
+/* 五个品类的真实距离 —— 比一个合成的「便利度 96」有用得多 */
+.lt-card-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lt-card-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.09); border-radius: 999px; padding: 3px 8px;
+}
+.lt-card-chip i { font-style: normal; font-size: 12px; }
+.lt-card-stats { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
 .lt-card-stat { display: flex; flex-direction: column; gap: 2px; }
 .lt-card-stat b { font-size: 17px; font-weight: 800; }
 .lt-card-stat span { font-size: 11px; opacity: 0.65; }
@@ -831,46 +863,56 @@
 
 /* ---- mobile (portrait phones): side card → bottom card, tighter chrome ---- */
 @media (max-width: 640px) {
-  /* 🔴 MOBILE: 项目卡 = **底部横向小卡**（缩略图 + 名字 + 价格），占屏 ~13%。
+  /* 🔴 MOBILE: 项目卡 = **一条 ~46px 的窄条，点了才展开**。
 
-     以前它是「贴顶 + 全宽 + 竖排 + 150px 大图」→ 占掉 39% 的屏幕，
-     **正好盖住项目本身**（pin 就在卡片正下方），还和顶部的经纪头像重叠，
-     项目名只露出半截。客户是来看房的，房子被卡片挡了。
+     owner 2026-08-02:「手机版的卡片不能遮住任何信息，可能更小的卡片，然后客户可以
+     点击打开信息。」**地图就是信息** —— 一张常驻的大卡在 390px 上永远在挡着什么，
+     而客户来看的正是被挡住的那一块。
+
+     演进史（别再往回走）:贴顶全宽竖排 150px 大图（占屏 39%，正好盖住项目 pin）
+     → 底部横向小卡（占屏 ~13%）→ 现在:默认只有一条窄条，信息在里面，点开才占地方。
 
      右侧留 92px 给 mute/CC 按钮，别叠在一起。 */
   .lt-ov-card {
     left: 10px; right: 92px; top: auto; bottom: 12px;
     width: auto; max-width: none;
-    display: flex; align-items: center; gap: 11px;
-    padding: 10px 12px; border-radius: 14px;
+    padding: 8px 10px; border-radius: 14px;
     animation: lt-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  /* 手机的卡头是**横排**（桌面是竖排:图在上文字在下） */
+  .lt-ov-card .lt-card-head { flex-direction: row; align-items: center; gap: 10px; }
   .lt-card-img {
     margin: 0; flex: 0 0 auto;
-    width: 62px; height: 62px; border-radius: 10px;
+    width: 40px; height: 40px; border-radius: 9px;
   }
-  .lt-card-body { min-width: 0; flex: 1; }
-  /* 手机上信息要极简 —— 区域/开发商/状态是噪音，旁白正在说，地图正在指。
-     卡片只回答三件事：哪个项目、多少钱、离地铁多远。 */
-  .lt-card-area { display: none; }
-  .lt-card-dev { display: none; }
-  .lt-card-stat-status { display: none; }
+  .lt-card-headline { flex: 1; min-width: 0; }
   .lt-card-name {
-    font-size: 15px; margin: 0;
+    font-size: 14px; margin: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .lt-card-price { font-size: 17px; margin: 1px 0 0; }
-  .lt-card-price-unit { font-size: 10px; }
-  /* ⚠️ 基类是 flex-wrap: wrap —— 在 62px 缩略图旁边的窄栏里，两个指标必然换行，
-     把卡片撑到 145px 高，价格和名字就被字幕吃掉了。这里必须 nowrap。 */
+  .lt-card-sub { gap: 7px; margin-top: 1px; }
+  .lt-card-price { font-size: 14px; }
+  .lt-card-price-unit { font-size: 9px; }
+  .lt-card-beds { font-size: 10px; padding: 1px 6px; }
+  /* 箭头只在手机出现 —— 它是「还有更多」的唯一信号 */
+  .lt-card-toggle {
+    display: block; flex: 0 0 auto;
+    width: 26px; height: 26px; line-height: 26px; text-align: center;
+    border-radius: 50%; background: rgba(255, 255, 255, 0.1);
+    font-size: 13px; color: rgba(255, 255, 255, 0.75);
+  }
+  /* 🔴 默认收起。展开的内容不该在客户没要求的时候占住地图。 */
+  .lt-ov-card .lt-card-more { display: none; }
+  .lt-ov-card.is-open .lt-card-more {
+    display: block; margin-top: 10px;
+    max-height: 38vh; overflow-y: auto;
+  }
+  .lt-card-meta { font-size: 11px; }
+  .lt-card-row-v { font-size: 12px; }
   .lt-card-stats {
-    display: flex; flex-wrap: nowrap; gap: 9px; margin: 2px 0 0;
-    overflow: hidden;
+    display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 0;
   }
-  .lt-card-stat {
-    flex-direction: row; align-items: baseline; gap: 3px;
-    white-space: nowrap;
-  }
+  .lt-card-stat { flex-direction: row; align-items: baseline; gap: 3px; white-space: nowrap; }
   .lt-card-stat b { font-size: 12px; }
   .lt-card-stat span { font-size: 9px; }
 
@@ -1112,4 +1154,39 @@
 @media (max-width: 640px) {
   .lt-poi-meta { font-size: 10px; gap: 6px; }
   .lt-poi-addr { max-width: 38vw; }
+}
+
+/**
+ * Ken Burns —— 静态照片**像影片一样慢慢走**。
+ * owner:「显示照片是能类似慢慢 scroll 像影片一样慢慢显示一下环境」。
+ * 一张钉住不动的图,放在一个全程都在缓慢运镜的画面里,显得特别死。
+ *
+ * 18 秒一轮、放大到 1.12、位移 3%:慢到你不会注意到它在动,但停下来就会觉得少了点什么。
+ * ⚠️ 只给 <img>。视频本身在动,再叠一层位移会晕。
+ * ⚠️ 尊重「减少动效」偏好 —— 那类用户开这个就是为了别动。
+ */
+@keyframes lt-ken-burns {
+  0%   { transform: scale(1.02) translate3d(-1.5%, 1%, 0); }
+  50%  { transform: scale(1.12) translate3d(1.5%, -1.5%, 0); }
+  100% { transform: scale(1.02) translate3d(-1.5%, 1%, 0); }
+}
+.lt-ov-media .lt-ken {
+  animation: lt-ken-burns 18s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lt-ov-media .lt-ken { animation: none; }
+}
+
+@media (max-width: 640px) {
+  /**
+   * 项目卡**展开**的时候把字幕收起来。
+   * 展开是客户主动点的,他此刻在读卡片;而卡片最高会长到 38vh,和 bottom:114 的字幕
+   * 必然重叠。语音还在放,字幕只是辅助 —— 让位比互相压好。收起就回来。
+   * (这条排在所有 `:has()` 让位规则之后,故意让它赢。)
+   */
+  .lt-tour-host:has(.lt-ov-card.is-open) .lt-subtitle,
+  .lt-tour-host:has(.lt-ov-card.is-open) .lt-ov-media,
+  .lt-root:has(.lt-ov-card.is-open) .lt-subtitle,
+  .lt-root:has(.lt-ov-card.is-open) .lt-ov-media { display: none; }
 }
