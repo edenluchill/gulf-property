@@ -39,20 +39,13 @@ export const TTS_CHAIN = [
 export const DEFAULT_CHAIN = [FLASH, FLASH_LITE] as const
 
 /**
- * 每百万 token 的美元单价(in / out)。用来把 usageMetadata 换算成**真金白银**。
- * 之前全站**零**成本统计 —— 不知道花了多少、也不知道哪个功能在烧。
+ * 单价**不在这里** —— 见 `services/ai/pricing.ts`。
+ *
+ * 分开的理由:这张表只管「叫什么名字」(会因为 Google 关停模型而变),
+ * 价格表要管「多少钱」且要覆盖**别的 provider**(以后换 ChatGPT/Claude)。
+ * 混在一起,换 provider 就得动模型常量。
  */
-export const PRICING: Record<string, { in: number; out: number }> = {
-  [FLASH]: { in: 1.5, out: 9.0 },
-  [FLASH_LITE]: { in: 0.25, out: 1.5 },
-  [PRO]: { in: 2.0, out: 12.0 },
-}
-
-/** 算这次调用花了多少美元。未知模型按 FLASH 估(宁可高估也别显示 0)。 */
-export function costUsd(model: string, inTokens: number, outTokens: number): number {
-  const p = PRICING[model] || PRICING[FLASH]
-  return (inTokens / 1e6) * p.in + (outTokens / 1e6) * p.out
-}
+export { costUsd, priceOf, whatIfUsd, PRICES } from './pricing'
 
 /**
  * ❌ 别再写这些(全是死的或将死的):

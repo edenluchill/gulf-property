@@ -11,13 +11,13 @@
  * preferred over vision output when the two disagree (anti-hallucination).
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 import { appearsInText } from '../utils/text-layer';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('text-insights-extractor');
 
 export interface TextInsights {
   developer?: string;

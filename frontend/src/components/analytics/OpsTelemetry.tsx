@@ -7,7 +7,10 @@
  *   ④ Tour 漏斗  辛苦生成的 tour,到底有没有人看?
  */
 import { useEffect, useState } from 'react'
-import { Loader2, Cpu, DollarSign, FileStack, Lock, Film, AlertTriangle } from 'lucide-react'
+import {
+  Loader2, Cpu, DollarSign, FileStack, Lock, Film, AlertTriangle,
+  TrendingUp, ArrowLeftRight,
+} from 'lucide-react'
 import { fetchOpsTelemetry, type OpsTelemetry as Data } from '../../lib/analyticsApi'
 
 const TOUR_STEP: Record<string, string> = {
@@ -25,6 +28,35 @@ const FEATURE_LABEL: Record<string, string> = {
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '<$0.01' : `$${usd.toFixed(2)}`)
 
+/**
+ * 功能名 → 人话。task 是埋点用的低基数枚举,直接显示看不懂是哪块功能。
+ * 名字取自生产库里真实出现过的 task 值;没登记的直接显示原名(不会漏数)。
+ */
+const TASK_LABEL: Record<string, string> = {
+  'tour-generator': 'Tour 脚本生成',
+  'storyboard-review': 'Tour 分镜自查',
+  'revise-instruction': 'Tour 文案修改',
+  'luna-tour.tts': 'Tour 旁白合成(TTS)',
+  'luna-live': 'Luna 实时语音',
+  'luna-summary': 'Luna 会话摘要',
+  'collab-report': '带看报告',
+  'auto-config': '自动配置',
+  'auto-match': '自动选盘',
+  'auto-report': '自动报告',
+  'client-fit': '客户匹配分析',
+  'profile-coach': '客户画像追问',
+  // PDF 楼书管线(2026-08-01 才开始计量,之前这条线的钱一分没记)
+  'pdf.page-classifier': '楼书·页面分类',
+  'pdf.pricing-extractor': '楼书·价格表',
+  'pdf.unit-detail-extractor': '楼书·户型',
+  'pdf.payment-plan-extractor': '楼书·付款计划',
+  'pdf.project-info-extractor': '楼书·项目信息',
+  'pdf.project-description-generator': '楼书·项目描述',
+  'pdf.amenity-extractor': '楼书·配套',
+  'pdf.section-reconstructor': '楼书·章节重建',
+  'pdf.text-insights-extractor': '楼书·文本洞察',
+}
+
 export default function OpsTelemetry() {
   const [d, setD] = useState<Data | null>(null)
   useEffect(() => {
@@ -36,11 +68,140 @@ export default function OpsTelemetry() {
 
   if (!d) return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-teal-500" /></div>
 
-  const { ai, pdf, paywall, tourFunnel } = d
+  const { ai, forecast, whatIf, pdf, paywall, tourFunnel } = d
   const q = pdf.queue
+  const maxDay = Math.max(...forecast.daily.map((x) => x.usd), 0.0001)
+  const cheaper = whatIf.candidates.filter((c) => c.projectedMonthlyUsd < whatIf.current)
 
   return (
     <div className="space-y-5">
+      {/* ⓪ 月成本预测 —— 唯一能和收入比较的数 */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-slate-400" />
+          <h3 className="text-sm font-semibold text-slate-800">AI 月成本预测</h3>
+          <span className="text-xs text-slate-400">按最近 7 天速率外推 —— 别等账单来了才知道</span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl bg-slate-900 p-3 text-white">
+            <div className="text-[10px] text-slate-400">预计本月</div>
+            <div className="mt-0.5 text-2xl font-semibold tabular-nums">
+              ${forecast.projectedMonthlyUsd.toFixed(2)}
+            </div>
+          </div>
+          {[
+            { label: '近 7 天 / 日均', v: money(forecast.perDay7) },
+            { label: '近 30 天 / 日均', v: money(forecast.perDay30) },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+              <div className="text-[10px] text-slate-400">{s.label}</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums text-slate-800">{s.v}</div>
+            </div>
+          ))}
+          <div className={`rounded-xl p-3 ring-1 ${
+            forecast.trend > 1.5 ? 'bg-rose-50 ring-rose-200' : 'bg-slate-50 ring-slate-100'}`}
+            title="7 日均 ÷ 30 日均。>1 = 在涨">
+            <div className="text-[10px] text-slate-400">趋势</div>
+            <div className={`mt-0.5 text-lg font-semibold tabular-nums ${
+              forecast.trend > 1.5 ? 'text-rose-600' : 'text-slate-800'}`}>
+              {forecast.trend > 0 ? `${forecast.trend.toFixed(2)}×` : '—'}
+            </div>
+          </div>
+        </div>
+
+        {/* 每日花费趋势 */}
+        {forecast.daily.length > 1 && (
+          <div className="mt-4">
+            <div className="mb-1 text-[11px] text-slate-400">近 30 天每天花了多少</div>
+            <div className="flex h-16 items-end gap-px">
+              {forecast.daily.map((x) => (
+                <div key={x.date} className="flex-1 rounded-t bg-teal-400/70 hover:bg-teal-500"
+                  style={{ height: `${Math.max(2, (x.usd / maxDay) * 100)}%` }}
+                  title={`${x.date} — ${money(x.usd)}`} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 按功能拆:每个功能的月成本 + 单次成本 */}
+        {forecast.tasks.length > 0 && (
+          <div className="mt-4 border-t border-slate-50 pt-2">
+            <div className="mb-1 flex items-center gap-2 text-[11px] text-slate-400">
+              <span className="flex-1">按功能拆(近 7 天)</span>
+              <span className="w-20 text-end">调用</span>
+              <span className="w-24 text-end">单次成本</span>
+              <span className="w-24 text-end">预计月成本</span>
+            </div>
+            {forecast.tasks.map((t) => (
+              <div key={t.task} className="flex items-center gap-2 py-1.5 text-xs">
+                <span className="min-w-0 flex-1 truncate font-medium text-slate-700">
+                  {TASK_LABEL[t.task] || t.task}
+                </span>
+                <span className="w-20 text-end tabular-nums text-slate-400">{t.calls7}</span>
+                <span className="w-24 text-end tabular-nums text-slate-500">
+                  {t.usdPerCall > 0 ? `$${t.usdPerCall.toFixed(4)}` : '—'}
+                </span>
+                <span className="w-24 text-end font-semibold tabular-nums text-slate-800">
+                  ${t.projectedMonthlyUsd.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ⓪′ 换模型试算 */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
+        <div className="flex items-center gap-2">
+          <ArrowLeftRight className="h-4 w-4 text-slate-400" />
+          <h3 className="text-sm font-semibold text-slate-800">换模型要多少钱</h3>
+          <span className="text-xs text-slate-400">
+            拿近 7 天真实的 {(whatIf.basis.inTokens / 1e6).toFixed(1)}M 进 /{' '}
+            {(whatIf.basis.outTokens / 1e6).toFixed(1)}M 出,按各家单价重算
+          </span>
+        </div>
+        <div className="mt-3 divide-y divide-slate-50">
+          {whatIf.candidates.map((c) => {
+            const diff = c.projectedMonthlyUsd - whatIf.current
+            return (
+              <div key={c.model} className="flex items-center gap-3 py-2 text-xs">
+                <span className="w-16 shrink-0 rounded bg-slate-50 px-1.5 py-0.5 text-center text-[10px] text-slate-500">
+                  {c.provider}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-slate-700">
+                  {c.model.split(':')[1]}
+                  {c.note && <span className="ms-2 text-slate-400">{c.note}</span>}
+                </span>
+                {!c.verified && (
+                  <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700"
+                    title={`单价录于 ${c.asOf},未对官方价目表核对`}>
+                    单价待核对
+                  </span>
+                )}
+                <span className={`w-20 shrink-0 text-end tabular-nums ${
+                  diff < 0 ? 'text-emerald-600' : diff > 0 ? 'text-slate-400' : 'text-slate-300'}`}>
+                  {diff === 0 ? '—' : `${diff < 0 ? '' : '+'}${diff.toFixed(0)}`}
+                </span>
+                <span className="w-24 shrink-0 text-end font-semibold tabular-nums text-slate-700">
+                  ${c.projectedMonthlyUsd.toFixed(2)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+          ⚠️ 各家 tokenizer 切分不同(±10~30% 常见),这里按等量 token 估算 ——
+          用来排序和判断量级,不是报价单。
+          {cheaper.length > 0 && (
+            <> 目前有 <b className="text-slate-600">{cheaper.length}</b> 个候选比现状便宜。</>
+          )}
+          {whatIf.stale.length > 0 && (
+            <> 另有 <b className="text-amber-600">{whatIf.stale.length}</b> 条单价过期或未核对
+            (跑 <code className="text-slate-500">scripts/check-ai-pricing.ts</code>)。</>
+          )}
+        </p>
+      </div>
+
       {/* ① AI 成本 */}
       <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
         <div className="flex items-center gap-2">

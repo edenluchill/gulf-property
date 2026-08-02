@@ -13,8 +13,35 @@
  */
 import { Router, Request, Response } from 'express'
 import { counter, histogram, collabJoin, COLLAB_JOIN_STEPS } from '../telemetry'
+import { LIVE_AUDIO } from '../services/ai/models'
+import { costUsd, type Usage } from '../services/ai/pricing'
 
 const router = Router()
+
+/**
+ * 把客户端报上来的 Live token 折算成钱,记进和其它 AI 功能**同一套**指标
+ * (task='luna-live')→ 成本看板上 Luna 语音能和 tour 生成、楼书解析并排比较。
+ *
+ * 模态很重要:native audio 的**音频输出单价是文本输出的 6 倍**,
+ * 全按文本算会把一通电话的成本低估到零头。
+ */
+function meterLiveVoice(labels: Record<string, string>, tokens: number): void {
+  try {
+    const dir = labels.dir === 'in' ? 'in' : 'out'
+    const isAudio = (labels.modality || '').toLowerCase() === 'audio'
+    const u: Usage =
+      dir === 'in'
+        ? isAudio ? { audioInTokens: tokens } : { inTokens: tokens }
+        : isAudio ? { audioOutTokens: tokens } : { outTokens: tokens }
+    const task = 'luna-live'
+    counter('ai.tokens', { task, dir: isAudio ? `audio_${dir}` : dir }).inc(tokens)
+    counter('ai.cost.usd_micro', { task, model: LIVE_AUDIO }).inc(
+      Math.round(costUsd(LIVE_AUDIO, u) * 1e6)
+    )
+  } catch {
+    /* 静默 —— 上报永远不许把请求搞崩 */
+  }
+}
 
 /**
  * 允许上报的指标 —— 白名单即契约。加新指标要同时改这里和前端。
@@ -29,10 +56,20 @@ const ALLOWED: Record<string, { kind: 'histogram' | 'counter'; max: number }> = 
   // 通用页面性能(任何页面都能用)
   'rum.page.dcl.ms':        { kind: 'histogram', max: 300_000 },  // DOMContentLoaded(弱网实测 7.8s)
   'rum.page.error':         { kind: 'counter',   max: 100 },
+  /**
+   * Luna 实时语音的 token 用量。**只能从客户端来** —— 前端直连 Gemini Live,
+   * 后端不在链路里,服务端拿不到 usageMetadata。不收这条,Live 的成本
+   * (而且是全站单价最贵的音频输出)在账上就是**零**。
+   * 单条上限按「一场 30 分钟通话的量级」定,超了当脏数据丢。
+   */
+  'rum.luna_live.tokens':   { kind: 'counter',   max: 5_000_000 },
 }
 
-/** 低基数 label 白名单 —— 绝不接受客户端传任意 key(会炸基数)。 */
-const ALLOWED_LABEL_KEYS = new Set(['page', 'net', 'device'])
+/**
+ * 低基数 label 白名单 —— 绝不接受客户端传任意 key(会炸基数)。
+ * modality: text/audio —— Live 的音频输出单价是文本的 6 倍,不分模态就算不出钱。
+ */
+const ALLOWED_LABEL_KEYS = new Set(['page', 'net', 'device', 'modality', 'dir'])
 const MAX_LABEL_LEN = 24
 
 function cleanLabels(raw: unknown): Record<string, string> {
@@ -66,6 +103,9 @@ router.post('/rum', (req: Request, res: Response) => {
       const labels = cleanLabels(it?.labels)
       if (spec.kind === 'histogram') histogram(name, labels).observe(v)
       else counter(name, labels).inc(Math.min(v, spec.max))
+      // Live 语音:客户端只报 token 数,**钱一律在服务端按单价算**
+      // (成本绝不能让客户端传 —— 那是可以随便编的数字)。
+      if (name === 'rum.luna_live.tokens') meterLiveVoice(labels, Math.min(v, spec.max))
     }
 
     // 进房漏斗的前两步只有前端知道(点开链接 / 提交称呼)

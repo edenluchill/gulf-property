@@ -13,8 +13,48 @@
  */
 import { GoogleGenAI } from '@google/genai'
 import { TTS_CHAIN } from '../services/ai/models'
+import { costUsd } from '../services/ai/pricing'
+import { counter } from '../telemetry'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+
+/**
+ * TTS 的钱记进通用遥测(task='luna-tour.tts')。
+ *
+ * WHY 单独写:TTS 不走 callGemini,原来**一分钱都没记**。而且它的计费主体是
+ * **音频输出 token**,单价比文本输出高一个档 —— 之前哪怕记了,按文本价算也是错的。
+ * 一条 tour 有十几拍旁白,每次「确认渲染」都要全量合成一遍,量不小。
+ */
+function meterTts(model: string, resp: unknown): void {
+  try {
+    const u = (resp as {
+      usageMetadata?: {
+        promptTokenCount?: number
+        candidatesTokenCount?: number
+        responseTokensDetails?: Array<{ modality?: string; tokenCount?: number }>
+      }
+    }).usageMetadata
+    const inTokens = u?.promptTokenCount ?? 0
+    // 输出按模态拆:能拆就拆(AUDIO 单价 ≫ TEXT),拆不出来一律当音频(宁可高估)
+    const details = u?.responseTokensDetails || []
+    const audioOut = details
+      .filter((d) => (d.modality || '').toUpperCase() === 'AUDIO')
+      .reduce((a, d) => a + (d.tokenCount || 0), 0)
+    const totalOut = u?.candidatesTokenCount ?? 0
+    const audio = audioOut || totalOut
+    const text = Math.max(0, totalOut - audio)
+    if (!inTokens && !totalOut) return
+    const usd = costUsd(model, { inTokens, outTokens: text, audioOutTokens: audio })
+    const task = 'luna-tour.tts'
+    counter('ai.call', { task, model }).inc()
+    counter('ai.tokens', { task, dir: 'in' }).inc(inTokens)
+    counter('ai.tokens', { task, dir: 'out' }).inc(totalOut)
+    if (audio > 0) counter('ai.tokens', { task, dir: 'audio_out' }).inc(audio)
+    counter('ai.cost.usd_micro', { task, model }).inc(Math.round(usd * 1e6))
+  } catch {
+    /* 计量绝不许挡住语音合成 */
+  }
+}
 
 // Try the configured model first, then known TTS preview names. The first that
 // returns audio wins (mirrors tour-generator's model-fallback resilience).
@@ -89,6 +129,7 @@ export async function synthesizeSpeech(text: string, opts: SynthOptions = {}): P
       const data = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data
       if (!data) continue
       resolvedModel = model
+      meterTts(model, resp)
       return pcmToWav(Buffer.from(data, 'base64'))
     } catch (err) {
       console.warn(`[luna-tts] model ${model} failed:`, err instanceof Error ? err.message : err)

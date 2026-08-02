@@ -49,23 +49,53 @@ const GRANS: { label: string; v: Granularity }[] = [
   { label: '月', v: 'month' },
 ]
 
+/**
+ * 两级导航:**组**(3 个)→ 组内 tab。
+ *
+ * WHY:13 个 tab 平铺在一行,窄屏要横向滚才能看全,而且「订阅」和「性能负载」
+ * 并排显示 —— 它们是完全不同的两件事(一个是生意,一个是机器)。
+ * 平铺的代价是每次都要在一串图标里扫一遍找目标。
+ *
+ * 分组的口径就一句话:**这个 tab 是在回答哪种问题**
+ *   生意 —— 有没有人用、用得怎么样
+ *   钱   —— 谁付钱、分多少、能不能准入
+ *   系统 —— 机器有没有事、花了多少钱
+ *
+ * ⚠️ 组不是新的一层 state:`group` 由当前 tab **推导**出来。
+ * 否则告警横幅 `setTab('perf')` 会切了 tab 却停在旧组上,页面看着像没反应。
+ */
 const TABS = [
-  { id: 'health', label: '健康度', Icon: HeartPulse },
-  { id: 'overview', label: '概览', Icon: LayoutDashboard },
-  { id: 'customers', label: '客户', Icon: Users },
-  { id: 'search', label: '搜索 & 项目', Icon: SearchIcon },
-  { id: 'features', label: '功能记录', Icon: Sparkles },
-  { id: 'subscriptions', label: '订阅', Icon: CreditCard },
-  { id: 'devverify', label: '开发商验证', Icon: BadgeCheck },
-  { id: 'revenue', label: '分成对账', Icon: Handshake },
-  { id: 'errors', label: '错误监控', Icon: AlertTriangle },
-  { id: 'guardian', label: '看护', Icon: ShieldCheck },
-  { id: 'perf', label: '性能负载', Icon: Activity },
-  { id: 'livetour', label: '实时带看', Icon: Wifi },
-  { id: 'ops', label: 'AI & 管线', Icon: Cpu },
+  // 生意:有没有人用
+  { id: 'health', label: '健康度', Icon: HeartPulse, group: 'biz' },
+  { id: 'overview', label: '概览', Icon: LayoutDashboard, group: 'biz' },
+  { id: 'customers', label: '客户', Icon: Users, group: 'biz' },
+  { id: 'search', label: '搜索 & 项目', Icon: SearchIcon, group: 'biz' },
+  { id: 'features', label: '功能记录', Icon: Sparkles, group: 'biz' },
+  // 钱:谁付、分多少、能不能进
+  { id: 'subscriptions', label: '订阅', Icon: CreditCard, group: 'money' },
+  { id: 'revenue', label: '分成对账', Icon: Handshake, group: 'money' },
+  { id: 'devverify', label: '开发商验证', Icon: BadgeCheck, group: 'money' },
+  // 系统:机器有没有事 + 花了多少
+  { id: 'ops', label: 'AI 成本', Icon: Cpu, group: 'sys' },
+  { id: 'perf', label: '性能负载', Icon: Activity, group: 'sys' },
+  { id: 'errors', label: '错误监控', Icon: AlertTriangle, group: 'sys' },
+  { id: 'livetour', label: '实时带看', Icon: Wifi, group: 'sys' },
+  { id: 'guardian', label: '看护', Icon: ShieldCheck, group: 'sys' },
+] as const
+
+const GROUPS = [
+  { id: 'biz', label: '生意', hint: '有没有人用' },
+  { id: 'money', label: '钱', hint: '谁在付费' },
+  { id: 'sys', label: '系统', hint: '机器 & 成本' },
 ] as const
 
 type TabId = typeof TABS[number]['id']
+type GroupId = typeof GROUPS[number]['id']
+
+const groupOf = (id: TabId): GroupId =>
+  TABS.find((t) => t.id === id)?.group ?? 'biz'
+const firstTabOf = (g: GroupId): TabId =>
+  (TABS.find((t) => t.group === g) as { id: TabId }).id
 
 interface DashData {
   overview: Overview
@@ -89,6 +119,9 @@ export default function AdminAnalytics() {
   // 落地就是健康度 —— 这个面板存在的意义就是「打开先看它」。
   // 想回到旧行为把这里改回 'overview' 即可。
   const [tab, setTab] = useState<TabId>('health')
+  // 组是**推导**出来的,不是第二份 state —— 否则告警横幅 setTab('perf') 之后
+  // 组还停在原地,内容切了导航却没切,看起来像点了没反应。
+  const group = groupOf(tab)
   const [perfAlerts, setPerfAlerts] = useState<ActiveAlert[]>([])
   const [subSummary, setSubSummary] = useState<SubscriptionSummary | null>(null)
 
@@ -221,8 +254,25 @@ export default function AdminAnalytics() {
               ))}
             </div>
           </div>
+          {/* 一级:三个大方向。切组 = 跳到该组第一个 tab。 */}
+          <div className="mb-1 inline-flex rounded-xl bg-slate-200/70 p-0.5">
+            {GROUPS.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => setTab(firstTabOf(g.id))}
+                title={g.hint}
+                className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  group === g.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {g.label}
+                <span className="ms-1.5 hidden text-[11px] font-normal text-slate-400 sm:inline">{g.hint}</span>
+              </button>
+            ))}
+          </div>
+          {/* 二级:只显示当前组的 tab —— 一行放得下,不用横滚去找 */}
           <nav className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {TABS.map((tb) => (
+            {TABS.filter((tb) => tb.group === group).map((tb) => (
               <button
                 key={tb.id}
                 onClick={() => setTab(tb.id)}

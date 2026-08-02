@@ -4,12 +4,12 @@
  * 从payment plan页面提取结构化的付款计划信息
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { readFileSync } from 'fs';
 import { parseJsonResponse } from '../utils/json-parser';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('payment-plan-extractor');
 
 export interface PaymentMilestone {
   milestone: string;        // 阶段名称（如 "On Booking", "On Handover"）

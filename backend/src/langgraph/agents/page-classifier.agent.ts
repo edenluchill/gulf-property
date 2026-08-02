@@ -7,13 +7,13 @@
  * - 快速分类，减少 timeout
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { PageType } from '../types/page-metadata';
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('page-classifier');
 
 export interface ClassificationResult {
   pageType: PageType;

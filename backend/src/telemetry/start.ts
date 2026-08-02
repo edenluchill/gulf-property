@@ -113,6 +113,35 @@ function registerIncidentAlerts(): void {
       `模型被 Google 关停了 —— 跑 scripts/check-gemini-models.ts 看是哪个,改 services/ai/models.ts。`,
   })
 
+  /**
+   * AI 花钱**失速**告警。
+   *
+   * 这条盯的不是「花了多少」而是「花得多快」:一分钟内的 AI 支出超过阈值,
+   * 说明有东西在打转 —— 重试风暴、循环调用、或者某个客户在刷。等月底看账单
+   * 才发现,钱已经花掉了。
+   *
+   * 阈值 $0.50/分钟 ≈ $720/月的速率。参照:2026-07 整月 Google Cloud 账单
+   * CA$197.80,正常速率远在这之下,所以这个值只会在真出事时响。
+   * 用 AI_COST_BUDGET_PER_MIN_USD 可以调。
+   */
+  const costPerMinLimit = Number(process.env.AI_COST_BUDGET_PER_MIN_USD) || 0.5
+  defineAlert({
+    kind: 'AI_COST_SPIKE',
+    severity: 'warn',
+    threshold: costPerMinLimit,
+    read: () =>
+      Math.round(
+        (peek()
+          .filter((s) => s.name === 'ai.cost.usd_micro')
+          .reduce((a, s) => a + (s.count ?? 0), 0) / 1e6) * 100
+      ) / 100,
+    breach: (v) => v > costPerMinLimit,
+    message: (v) =>
+      `AI 这一分钟花了 $${v}(阈值 $${costPerMinLimit}/分钟 ≈ $${Math.round(costPerMinLimit * 60 * 24 * 30)}/月的速率)。` +
+      `去 Admin「AI & 管线」看是哪个功能 —— 通常是重试风暴或某个调用在打转,不是流量真涨了。`,
+    recovered: (v) => `AI 支出速率回落到 $${v}/分钟。`,
+  })
+
   defineAlert({
     kind: 'AI_EXHAUSTED',
     severity: 'warn',

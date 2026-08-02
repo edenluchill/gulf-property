@@ -7,12 +7,12 @@
  * - 使用详细的提取 prompt
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('unit-detail-extractor');
 
 export interface UnitDetailResult {
   specs: {

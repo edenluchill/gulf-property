@@ -32,7 +32,51 @@ import { AudioRecorder, AudioPlayer } from '../hooks/voice-assistant/audioUtils'
 import { buildBubbleAttachment } from '../hooks/voice-assistant/buildAttachment'
 import { voiceDebugLogger } from '../hooks/voice-assistant/debugLogger'
 import { trackEvent, visitorId } from '../lib/track'
+import { reportMetric } from '../lib/telemetry'
 import { useAuth } from './AuthContext'
+
+// ── Live 语音的成本上报 ─────────────────────────────────────────────────────
+// 后端**不在这条链路上**(浏览器直连 Gemini Live),所以服务端永远拿不到
+// usageMetadata。不从这里报,Luna 语音在成本看板上就是一个 0 —— 而它用的
+// native-audio 模型,音频输出单价是文本的 6 倍,大概率是单位时间最贵的一项。
+//
+// usageMetadata 是**按连接累计**的(重连归零),所以按 (dir,modality) 记住上次的
+// 累计值、只报增量。钱在**后端**按单价算 —— 客户端只报 token 数。
+const liveSeen = new Map<string, number>()
+
+/** 新连接 → Gemini 的累计计数从 0 重新开始。 */
+function resetLiveUsage(): void { liveSeen.clear() }
+
+function reportLiveUsage(u: LiveServerMessage['usageMetadata']): void {
+  try {
+    if (!u) return
+    const send = (dir: 'in' | 'out', modality: string, total: number) => {
+      const key = `${dir}:${modality}`
+      const delta = Math.max(0, total - (liveSeen.get(key) || 0))
+      liveSeen.set(key, total)
+      if (delta > 0) reportMetric('rum.luna_live.tokens', delta, { dir, modality })
+    }
+    type Detail = { modality?: string; tokenCount?: number }
+    const dirs: Array<['in' | 'out', Detail[] | undefined, number | undefined]> = [
+      ['in', u.promptTokensDetails as Detail[] | undefined, u.promptTokenCount ?? undefined],
+      ['out', u.responseTokensDetails as Detail[] | undefined, u.responseTokenCount ?? undefined],
+    ]
+    for (const [dir, details, fallbackTotal] of dirs) {
+      if (details?.length) {
+        // 同一模态可能出现多条 → 先合并再比对累计值
+        const byModality = new Map<string, number>()
+        for (const d of details) {
+          const m = (d.modality || 'text').toLowerCase()
+          byModality.set(m, (byModality.get(m) || 0) + (d.tokenCount || 0))
+        }
+        for (const [m, n] of byModality) send(dir, m === 'audio' ? 'audio' : 'text', n)
+      } else if (fallbackTotal != null) {
+        // 拆不出模态时,语音会话按音频算 —— 宁可高估也别把最贵的一项记成文本价
+        send(dir, 'audio', fallbackTotal)
+      }
+    }
+  } catch { /* 静默:埋点绝不能影响通话 */ }
+}
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
@@ -707,6 +751,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     // Any inbound model message = activity → push the idle finalize back.
     resetIdleTimer()
 
+    // Cost telemetry — runs for EVERY session, including quota-exempt shared tours.
+    // Quota exemption is a billing decision for the agent; the tokens are still spent
+    // and still cost us money. Skipping them here is how Luna's real cost stayed at
+    // zero on the dashboard: the backend isn't in this path at all (the browser talks
+    // to Gemini Live directly), so this report is the ONLY place the spend is visible.
+    reportLiveUsage(message.usageMetadata)
+
     // Token metering: usageMetadata.totalTokenCount is CUMULATIVE per WS connection
     // (resets to 0 on reconnect). Track the delta and add it to the daily quota.
     // Skipped entirely in a shared tour — that usage is the agent's demo, unmetered.
@@ -1157,6 +1208,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
             reconnectAttemptsRef.current = 0
             // New connection → Gemini's cumulative token count restarts at 0.
             lastConnTokensRef.current = 0
+            resetLiveUsage()
             voiceDebugLogger.logConnected(connectStart)
 
             // Text mode never opens the mic — it drives the session via sendClientContent.

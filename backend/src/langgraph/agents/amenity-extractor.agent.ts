@@ -4,10 +4,10 @@
  * 由page-analyzer调用，在页面分析时直接提取
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('amenity-extractor');
 
 /**
  * ⭐ AI智能去重、规范化和过滤

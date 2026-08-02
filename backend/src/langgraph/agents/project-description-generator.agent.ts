@@ -8,10 +8,10 @@
  * - 生成3-5句话的专业描述
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('project-description-generator');
 
 export interface ProjectSummary {
   projectName?: string;

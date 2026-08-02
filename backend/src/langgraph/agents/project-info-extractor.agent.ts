@@ -9,12 +9,12 @@
  * - 项目描述
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { readFileSync } from 'fs';
 import { parseJsonResponse } from '../utils/json-parser';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('project-info-extractor');
 
 export interface ProjectBasicInfo {
   projectName?: string;

@@ -19,7 +19,8 @@
  */
 import { GoogleGenAI } from '@google/genai'
 import { counter, histogram } from '../../telemetry'
-import { DEFAULT_CHAIN, costUsd } from './models'
+import { DEFAULT_CHAIN } from './models'
+import { costUsd } from './pricing'
 
 // 单例 —— 原来每个文件一个 client。
 let client: GoogleGenAI | null = null
@@ -107,7 +108,12 @@ export async function callGemini<T = unknown>(opts: GeminiCall): Promise<GeminiR
        */
       const thinkTokens = u?.thoughtsTokenCount ?? 0
       const outTokens = (u?.candidatesTokenCount ?? 0) + thinkTokens
-      const usd = costUsd(model, inTokens, outTokens)
+      // thinking 单独传 —— 它按 output 价计费,和 candidates 同价但要能分开看用量
+      const usd = costUsd(model, {
+        inTokens,
+        outTokens: outTokens - thinkTokens,
+        thinkingTokens: thinkTokens,
+      })
 
       counter('ai.call', { task: opts.task, model }).inc()
       histogram('ai.call.ms', { task: opts.task }).observe(ms)
@@ -115,7 +121,8 @@ export async function callGemini<T = unknown>(opts: GeminiCall): Promise<GeminiR
       counter('ai.tokens', { task: opts.task, dir: 'out' }).inc(outTokens)
       if (thinkTokens > 0) counter('ai.tokens', { task: opts.task, dir: 'thinking' }).inc(thinkTokens)
       // counter 只累加整数 → 存微美元(1 USD = 1e6)。读的时候再除回去。
-      counter('ai.cost.usd_micro', { task: opts.task }).inc(Math.round(usd * 1e6))
+      // **带 model label**:换模型后要能按模型分开看单价效果,只按 task 聚合看不出来。
+      counter('ai.cost.usd_micro', { task: opts.task, model }).inc(Math.round(usd * 1e6))
       // 退到备用模型 = 主模型有问题(废弃/限流/挂了)。这个指标就是模型漂移的哨兵。
       if (i > 0) counter('ai.call.fallback', { task: opts.task }).inc()
 

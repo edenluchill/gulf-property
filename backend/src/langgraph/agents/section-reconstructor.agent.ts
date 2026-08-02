@@ -13,7 +13,7 @@
  * 失败语义：返回 null，调用方回退本地边界扫描结果，不阻塞 job。
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { PageMetadata, PageType } from '../types/page-metadata';
 import { UnitBoundary } from '../types/assignment-result';
@@ -21,7 +21,7 @@ import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 import { TextLayerRegistry } from '../utils/text-layer';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('section-reconstructor');
 
 const AI_TIMEOUT = 60000;
 

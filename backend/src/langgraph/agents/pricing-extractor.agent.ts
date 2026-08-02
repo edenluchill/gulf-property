@@ -9,12 +9,12 @@
  * 同时提取 Building/Tower 上下文
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { meteredGenAI } from '../utils/metered-genai';
 import { FLASH } from '../../services/ai/models'
 import { parseJsonResponse } from '../utils/json-parser';
 import { withRetry } from '../utils/ai-retry';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = meteredGenAI('pricing-extractor');
 
 /**
  * 单条价格记录

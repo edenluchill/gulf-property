@@ -215,13 +215,16 @@ router.get('/quality', wrap((req) =>
 // ── AI 成本 / PDF 管线 / 钱门(之前全是盲的)────────────────────────────────
 router.get('/telemetry/ops', wrap(async (req) => {
   const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24))
-  const [ai, pdf, paywall, tourFunnel] = await Promise.all([
+  const [ai, forecast, whatIf, pdf, paywall, tourFunnel] = await Promise.all([
     aiq.aiCost(hours),
+    // 「照这个速度月底多少钱」+「换成别的模型多少钱」—— 24h 的数回答不了这两个问题
+    aiq.aiForecast(),
+    aiq.aiWhatIf(),
     aiq.pdfPipeline(hours),
     aiq.paywallHits(168),
     tq.tourFunnel(hours),
   ])
-  return { ai, pdf, paywall, tourFunnel }
+  return { ai, forecast, whatIf, pdf, paywall, tourFunnel }
 }))
 
 // ── 分成对账(FINDHOMEGO 25% / 运营方 75%,按 Stripe 实收净额)──────────

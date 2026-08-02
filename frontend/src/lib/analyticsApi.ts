@@ -513,6 +513,35 @@ export interface OpsTelemetry {
     jobs: { completed: number; failed: number }
     agents: { agent: string; ok: number; failed: number; invalid: number; total: number }[]
   }
+  /** 「照这个速度月底多少钱」—— 24h 的总额回答不了这个,而这才是要决策的数 */
+  forecast: {
+    perDay7: number
+    perDay30: number
+    /** 按最近 7 天速率外推的月成本 */
+    projectedMonthlyUsd: number
+    /** 7 日均 ÷ 30 日均。>1 = 在涨 */
+    trend: number
+    daily: { date: string; usd: number }[]
+    tasks: {
+      task: string; usd7: number; projectedMonthlyUsd: number
+      calls7: number; inTokens7: number; outTokens7: number
+      /** 每次调用多少钱 —— 优化先看这个 */
+      usdPerCall: number
+    }[]
+    totalInTokens7: number
+    totalOutTokens7: number
+  }
+  /** 换模型试算:拿真实 token 量按各家单价重算(排序用,不是报价单) */
+  whatIf: {
+    basis: { days: number; inTokens: number; outTokens: number }
+    current: number
+    candidates: {
+      model: string; provider: string; verified: boolean; asOf: string
+      note?: string; projectedMonthlyUsd: number
+    }[]
+    /** 单价过期/未核对 —— 拿它做决定前先去官网核对 */
+    stale: { key: string; asOf: string; verified: boolean; ageDays: number }[]
+  }
   paywall: { feature: string; reason: string; trial: boolean; count: number }[]
   tourFunnel: { step: string; count: number; fromPrevPct: number | null; fromFirstPct: number | null }[]
 }
