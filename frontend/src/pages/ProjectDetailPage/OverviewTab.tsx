@@ -4,7 +4,6 @@ import { ProjectInsights } from '../../lib/api'
 import { useTranslation } from 'react-i18next'
 import InvestmentScorecard from '../../components/project/InvestmentScorecard'
 import BuyerConfidence from '../../components/project/BuyerConfidence'
-import FindAgentCard from '../../components/agentMatch/FindAgentCard'
 
 interface OverviewTabProps {
   project: ResidentialProject
@@ -133,12 +132,6 @@ export function OverviewTab({ project, insights }: OverviewTabProps) {
         )}
       </CardContent>
     </Card>
-
-    {/* 「找经纪帮我」—— 放在概览最底部:买家看完开发商、价格、户型配比之后,
-        才是「我想找个人问问」的时刻。放顶部会像广告,而且会挡住他来看的数据。
-        ⚠️ 别再往 ProjectInfoCard 里放 —— 那个组件是**死代码**,详情页改版后
-        没有任何地方 import 它(2026-08-09 踩过)。 */}
-    <FindAgentCard projectId={project.id} source="project" />
     </div>
   )
 }

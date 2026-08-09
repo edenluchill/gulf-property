@@ -440,6 +440,13 @@ export default function ProjectDetailPage() {
           * 没有导览时组件自己渲染 null。 */}
         <ProjectTourCta projectId={project.id} />
 
+        {/* 「找经纪帮我」—— 同理放这条**共用的**横条上,不塞进三套 header。
+            我先把它放进了 OverviewTab 的最底部,结果:桌面要滚到页尾才看得见,
+            手机/平板那两套 JSX 里压根没有(owner 2026-08-09 截图指出「看不到任何入口」)。
+            这里是唯一一处所有布局、所有 tab 都会渲染的地方。
+            池子空时组件自己 return null,不会留个空条。 */}
+        <FindAgentCard projectId={project.id} source="project" variant="bar" />
+
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-0">
             {/* Mobile: Compact header + gallery only */}
@@ -524,15 +531,6 @@ export default function ProjectDetailPage() {
                     currentImageIndex={currentImageIndex}
                     onImageIndexChange={setCurrentImageIndex}
                   />
-
-                  {/* 「找经纪帮我」—— 手机/平板分支**必须各加一遍**。
-                      这一页按宽度分成 mobile(<768) / tablet(<1280) / desktop 三套独立 JSX，
-                      没有共用底座 —— 只在 desktop 的 OverviewTab 里加过一次的话，
-                      iPad 和手机上这个入口根本不存在（2026-08-09 踩过）。
-                      放容器**内部**：外层的 pb-24 是给底部浮条留的空档，卡片该在它上面。 */}
-                  <div className="mt-4">
-                    <FindAgentCard projectId={project.id} source="project" />
-                  </div>
                 </div>
               </>
             ) : isTablet ? (
@@ -625,15 +623,6 @@ export default function ProjectDetailPage() {
                     currentImageIndex={currentImageIndex}
                     onImageIndexChange={setCurrentImageIndex}
                   />
-
-                  {/* 「找经纪帮我」—— 手机/平板分支**必须各加一遍**。
-                      这一页按宽度分成 mobile(<768) / tablet(<1280) / desktop 三套独立 JSX，
-                      没有共用底座 —— 只在 desktop 的 OverviewTab 里加过一次的话，
-                      iPad 和手机上这个入口根本不存在（2026-08-09 踩过）。
-                      放容器**内部**：外层的 pb-24 是给底部浮条留的空档，卡片该在它上面。 */}
-                  <div className="mt-4">
-                    <FindAgentCard projectId={project.id} source="project" />
-                  </div>
                 </div>
               </>
             ) : (

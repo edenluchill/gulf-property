@@ -19,6 +19,7 @@ import CollabBar from '../luna-tour/collab/CollabBar'
 import CollabVideo from '../luna-tour/collab/CollabVideo'
 import CollabFrame from '../luna-tour/collab/CollabFrame'
 import { DockItem, DockBaseRowItem, DOCK_ORDER } from '../components/BottomDock'
+import FindAgentDock from '../components/agentMatch/FindAgentDock'
 import ProjectDetailDialog from '../luna-tour/collab/ProjectDetailDialog'
 import { useCollabVoice } from '../luna-tour/collab/useCollabVoice'
 import { chimeJoin, chimeLeave, unlockChimes } from '../luna-tour/collab/chime'
@@ -2131,6 +2132,13 @@ export default function MapPage() {
               <MapCompassButton map={liveMap} variant="disc" />
             </div>
           </div>
+
+          {/* 「找经纪帮我」—— 地图上唯一一处**不用点开任何东西**就看得见的入口。
+              原来只藏在区域弹窗里,得先点一个区域才有(owner 2026-08-09 截图:
+              「地图上看不到任何入口」)。走 BottomDock 的 cta 槽位,不自己写 fixed。
+              带看期间藏起来:那个槽位归 CollabBar,而且那时客户身边已经有经纪了;
+              tour 播放期间也藏(那是一段连贯的片子,不该被按钮打断)。 */}
+          <FindAgentDock hidden={collabActive || !!tourCode} />
 
           {/* 手机:搜索沉到底部(拇指区),结果向上展开。默认只是一颗圆钮(不常年占一条),
               点开才铺成一行 —— 2026-07-11 用户要求。

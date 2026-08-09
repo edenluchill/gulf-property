@@ -10,17 +10,25 @@
  * 池子空(没有任何付费/试用且留了联系方式的经纪)时**整个组件不渲染** ——
  * 摆一个点了说"暂时没有经纪"的按钮,比没有按钮更伤。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, ChevronRight } from 'lucide-react'
 import { matchAgent, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
 import { trackEvent } from '../../lib/track'
 
-export default function FindAgentCard({ projectId, source, compact }: {
+export default function FindAgentCard({ projectId, source, compact, variant = 'card', autoStart }: {
   projectId?: string
   source: 'project' | 'map'
   /** 地图弹窗里空间紧,收窄留白 */
   compact?: boolean
+  /**
+   * 'card' 独立卡片(地图区域弹窗内)
+   * 'bar'  **通栏横条** —— 项目详情页顶部那条,和 ProjectTourCta 并排,不用滚就看得见
+   */
+  variant?: 'card' | 'bar'
+  /** 挂载即派单。**只给"用户已经点过一次才会挂载"的场景用**(例如弹窗内部)。
+   *  普通页面绝不能开 —— 那就变成预取了,轮换名额会被没想找经纪的人消耗掉。 */
+  autoStart?: boolean
 }) {
   const { t } = useTranslation('misc')
   const [state, setState] = useState<'idle' | 'loading' | 'matched' | 'revealed' | 'empty'>('idle')
@@ -29,6 +37,9 @@ export default function FindAgentCard({ projectId, source, compact }: {
   const [contact, setContact] = useState<RevealedContact | null>(null)
   const [note, setNote] = useState('')
   const [myContact, setMyContact] = useState('')
+
+  // autoStart:弹窗里用户已经点过一次了,不要再让他点第二下
+  useEffect(() => { if (autoStart) void ask() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [autoStart])
 
   const ask = async () => {
     setState('loading')
@@ -57,6 +68,26 @@ export default function FindAgentCard({ projectId, source, compact }: {
   const pad = compact ? 'p-3' : 'p-4'
 
   if (state === 'idle') {
+    // 通栏横条 —— 项目详情页顶部,紧挨着导览入口。和 ProjectTourCta 一个调性:
+    // 满宽、有底色、不用滚就看得见。
+    if (variant === 'bar') {
+      return (
+        <div className="border-b border-teal-100 bg-gradient-to-r from-white via-emerald-50 to-teal-50">
+          <div className="container mx-auto px-4">
+            <button type="button" onClick={ask} className="group flex w-full items-center gap-3 py-3 text-start sm:gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md shadow-emerald-600/25 transition-transform group-hover:scale-105 sm:h-12 sm:w-12">
+                <UserRound className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-bold text-slate-900 sm:text-base">{t('agentMatch.cta')}</span>
+                <span className="block truncate text-xs text-slate-500">{t('agentMatch.ctaSub')}</span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400 rtl:rotate-180" />
+            </button>
+          </div>
+        </div>
+      )
+    }
     return (
       <button type="button" onClick={ask}
         className={`flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 ${pad} text-start text-white shadow-sm transition hover:opacity-95 active:scale-[0.99]`}>
@@ -80,7 +111,7 @@ export default function FindAgentCard({ projectId, source, compact }: {
     )
   }
 
-  return (
+  const body = (
     <div className={`rounded-2xl bg-white ${pad} ring-1 ring-slate-200`}>
       <div className="flex items-start gap-3">
         {agent?.photo_url ? (
@@ -139,4 +170,14 @@ export default function FindAgentCard({ projectId, source, compact }: {
       )}
     </div>
   )
+
+  // bar 变体展开后仍留在那条横条的位置上,套一层 container 免得贴边
+  if (variant === 'bar') {
+    return (
+      <div className="border-b border-teal-100 bg-emerald-50/40">
+        <div className="container mx-auto px-4 py-3">{body}</div>
+      </div>
+    )
+  }
+  return body
 }
