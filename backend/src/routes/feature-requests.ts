@@ -131,6 +131,8 @@ interface PublicRow {
   body: string | null
   status: Status
   reply: string | null
+  /** 官方回复的时间。**不是** updated_at(那个会被改状态/受众刷新)。 */
+  replied_at: string | null
   role: string | null
   audience: Audience
   votes: number
@@ -156,6 +158,7 @@ function publicShape(r: Record<string, unknown>, viewerIsStaff = false): PublicR
     body: (r.body as string) ?? null,
     status: (STATUSES as readonly string[]).includes(String(r.status)) ? (r.status as Status) : 'open',
     reply: (r.reply as string) ?? null,
+    replied_at: r.replied_at ? String(r.replied_at) : null,
     role: (r.role as string) ?? null,
     audience: (AUDIENCES as readonly string[]).includes(String(r.audience)) ? (r.audience as Audience) : 'all',
     votes: Number(r.votes ?? 0),
@@ -202,7 +205,7 @@ router.get('/', async (req: Request, res: Response) => {
     const seesAgent = await viewerIsAgentSide(me)
     const staff = isStaff(me)
     const { rows } = await pool.query(
-      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role, r.audience,
+      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.replied_at, r.role, r.audience,
               r.author_name, r.is_anonymous, r.user_email,
               COALESCE(v.n, 0)  AS votes,
               COALESCE(c.n, 0)  AS comments,
@@ -257,7 +260,7 @@ router.get('/:id(\\d+)', async (req: Request, res: Response) => {
     const { rows } = await pool.query(
       // 单条**有意不按受众过滤**:别人把链接发给你,点开说「没有这条」比读到一条
       // 不相干的建议糟得多。分流是为了不吵人,不是为了藏东西。
-      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role, r.audience,
+      `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.replied_at, r.role, r.audience,
               r.author_name, r.is_anonymous, r.user_email,
               (SELECT count(*) FROM feature_request_votes v WHERE v.request_id = r.id)    AS votes,
               (SELECT count(*) FROM feature_request_comments c WHERE c.request_id = r.id) AS comments,
@@ -316,7 +319,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     const { rows } = await pool.query(
       `INSERT INTO feature_requests (user_id, user_email, title, body, role, audience, author_name, is_anonymous)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING id, created_at, title, body, status, reply, role, audience, author_name, is_anonymous, user_email`,
+       RETURNING id, created_at, title, body, status, reply, replied_at, role, audience, author_name, is_anonymous, user_email`,
       [req.user?.id ?? null, email, title, body, role, audience, authorName, !authorName]
     )
     res.status(201).json({ request: publicShape(rows[0], isStaff(email)) })
@@ -415,13 +418,19 @@ router.patch('/:id', requireOwner, async (req: Request, res: Response) => {
   }
   try {
     const { rows } = await pool.query(
+      // replied_at 只在**回复内容真的变了**的时候才动。
+      // 写成 `CASE WHEN $3 IS NOT NULL` 是不够的:前端翻个受众开关也可能把当前
+      // reply 原样回传,那样日期就会跳到今天 —— 页面上看起来像我们刚回的。
+      // 所以判据是「新值非空 且 与库里现有的不同」。
       `UPDATE feature_requests
           SET status   = COALESCE(NULLIF($2,''), status),
               reply    = COALESCE($3, reply),
               audience = COALESCE(NULLIF($4,''), audience),
+              replied_at = CASE WHEN $3 IS NOT NULL AND $3 IS DISTINCT FROM reply
+                                THEN now() ELSE replied_at END,
               updated_at = now()
         WHERE id = $1
-      RETURNING id, created_at, title, body, status, reply, role, audience,
+      RETURNING id, created_at, title, body, status, reply, replied_at, role, audience,
                 author_name, is_anonymous, user_email`,
       [id, status, reply ?? null, audience]
     )

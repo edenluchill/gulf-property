@@ -366,7 +366,16 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
 
           {r.reply && (
             <div className="mt-2.5 rounded-xl bg-teal-50/70 px-3 py-2 ring-1 ring-teal-100">
-              <PinzosMark />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <PinzosMark />
+                {/* 日期走 replied_at,**不是** updated_at —— 后者会被改状态/受众刷新,
+                    那样一条半年前的回复会因为今天点了下「已上线」而显示成今天。 */}
+                {r.replied_at && (
+                  <span translate="no" className="text-[10px] tabular-nums text-teal-600/70">
+                    {new Date(r.replied_at).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </div>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-teal-800">{r.reply}</p>
             </div>
           )}

@@ -28,6 +28,8 @@ export interface FeatureRequest {
   body: string | null
   status: RequestStatus
   reply: string | null
+  /** 官方回复的时间。**不是** updated_at —— 那个会被改状态/受众刷新。 */
+  replied_at: string | null
   role: string | null
   audience: RequestAudience
   votes: number
