@@ -26,6 +26,7 @@ import { generateProjectNotes } from '../lib/generateProjectNotes'
 import { trackEvent } from '../lib/track'
 // 楼盘公开导览的入口（isolated：删掉这行 + 下面那一行组件即可移除）
 import ProjectTourCta from '../luna-tour/components/ProjectTourCta'
+import FindAgentCard from '../components/agentMatch/FindAgentCard'
 
 /** 规范域。canonical / og:url / og:image 一律用它,绝不用 window.location.origin ——
  *  裸域 pinzos.com 已在边缘 301 到这里(见 functions/_middleware.ts)。 */
@@ -523,6 +524,15 @@ export default function ProjectDetailPage() {
                     currentImageIndex={currentImageIndex}
                     onImageIndexChange={setCurrentImageIndex}
                   />
+
+                  {/* 「找经纪帮我」—— 手机/平板分支**必须各加一遍**。
+                      这一页按宽度分成 mobile(<768) / tablet(<1280) / desktop 三套独立 JSX，
+                      没有共用底座 —— 只在 desktop 的 OverviewTab 里加过一次的话，
+                      iPad 和手机上这个入口根本不存在（2026-08-09 踩过）。
+                      放容器**内部**：外层的 pb-24 是给底部浮条留的空档，卡片该在它上面。 */}
+                  <div className="mt-4">
+                    <FindAgentCard projectId={project.id} source="project" />
+                  </div>
                 </div>
               </>
             ) : isTablet ? (
@@ -615,6 +625,15 @@ export default function ProjectDetailPage() {
                     currentImageIndex={currentImageIndex}
                     onImageIndexChange={setCurrentImageIndex}
                   />
+
+                  {/* 「找经纪帮我」—— 手机/平板分支**必须各加一遍**。
+                      这一页按宽度分成 mobile(<768) / tablet(<1280) / desktop 三套独立 JSX，
+                      没有共用底座 —— 只在 desktop 的 OverviewTab 里加过一次的话，
+                      iPad 和手机上这个入口根本不存在（2026-08-09 踩过）。
+                      放容器**内部**：外层的 pb-24 是给底部浮条留的空档，卡片该在它上面。 */}
+                  <div className="mt-4">
+                    <FindAgentCard projectId={project.id} source="project" />
+                  </div>
                 </div>
               </>
             ) : (
