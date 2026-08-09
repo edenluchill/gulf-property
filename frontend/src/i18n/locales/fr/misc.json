@@ -469,6 +469,11 @@
     "colAcked": "Traités",
     "colLast": "Dernier",
     "onDuty": "De permanence",
-    "askHim": "Demander de l’aide"
+    "askHim": "Demander de l’aide",
+    "yourContactRequired": "Votre téléphone ou WhatsApp (obligatoire — le conseiller en a besoin pour vous joindre)",
+    "contactRequired": "Laissez un moyen de contact, sinon le conseiller ne pourra pas vous répondre",
+    "sendRequest": "Envoyer ma demande",
+    "relaySent": "Votre demande a été transmise à {{name}}. Il vous répondra rapidement.",
+    "relayFailed": "L'envoi a échoué. Merci de réessayer dans un instant."
   }
 }

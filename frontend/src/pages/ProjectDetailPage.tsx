@@ -26,7 +26,7 @@ import { generateProjectNotes } from '../lib/generateProjectNotes'
 import { trackEvent } from '../lib/track'
 // 楼盘公开导览的入口（isolated：删掉这行 + 下面那一行组件即可移除）
 import ProjectTourCta from '../luna-tour/components/ProjectTourCta'
-import FindAgentCard from '../components/agentMatch/FindAgentCard'
+import FindAgentChip from '../components/agentMatch/FindAgentChip'
 
 /** 规范域。canonical / og:url / og:image 一律用它,绝不用 window.location.origin ——
  *  裸域 pinzos.com 已在边缘 301 到这里(见 functions/_middleware.ts)。 */
@@ -130,6 +130,14 @@ export default function ProjectDetailPage() {
     if (!project) return
     toggleProjectFavorite(project.id)
   }
+
+  /**
+   * 值班经纪小卡片 —— 放进**三套 header 各自的按钮排**(手机/平板/桌面)。
+   * owner 2026-08-09:「小卡片放到 project 那个 bar 上」。
+   * 定义在这里、三处只写 `{agentChip}`:markup 只有一份,漏改的风险最小
+   * (这一页已经因为"三套 JSX 各写一遍"栽过两次)。
+   */
+  const agentChip = <FindAgentChip projectId={project?.id} />
 
   const isFav = project ? isProjectFavorite(project.id) : false
 
@@ -440,13 +448,6 @@ export default function ProjectDetailPage() {
           * 没有导览时组件自己渲染 null。 */}
         <ProjectTourCta projectId={project.id} />
 
-        {/* 「找经纪帮我」—— 同理放这条**共用的**横条上,不塞进三套 header。
-            我先把它放进了 OverviewTab 的最底部,结果:桌面要滚到页尾才看得见,
-            手机/平板那两套 JSX 里压根没有(owner 2026-08-09 截图指出「看不到任何入口」)。
-            这里是唯一一处所有布局、所有 tab 都会渲染的地方。
-            池子空时组件自己 return null,不会留个空条。 */}
-        <FindAgentCard projectId={project.id} source="project" variant="bar" />
-
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-0">
             {/* Mobile: Compact header + gallery only */}
@@ -495,6 +496,8 @@ export default function ProjectDetailPage() {
                       )}
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
+                      {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
+                      {agentChip}
                       <Button
                         variant="outline"
                         size="icon"
@@ -587,6 +590,8 @@ export default function ProjectDetailPage() {
                         <Share2 className="me-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
                       </Button>
                       <Button variant="outline" size="sm" className="h-10 px-3" onClick={() => setShowCardEditor(true)}>名片</Button>
+                      {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
+                      {agentChip}
                       <Button
                         variant="outline"
                         size="icon"
@@ -668,6 +673,8 @@ export default function ProjectDetailPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
+                        {agentChip}
                         <Button
                           variant="outline"
                           size="sm"

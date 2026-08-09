@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck } from 'lucide-react'
+import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, Mail } from 'lucide-react'
 import { matchAgent, peekNextAgent, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
 import { trackEvent } from '../../lib/track'
 
@@ -57,6 +57,7 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
   const [contact, setContact] = useState<RevealedContact | null>(null)
   const [note, setNote] = useState('')
   const [myContact, setMyContact] = useState('')
+  const [err, setErr] = useState('')
   /** 值班中的那位 —— **只读 peek,不落库**。用来在按钮上直接显示头像和名字。 */
   const [onDuty, setOnDuty] = useState<(MatchedAgent & { id: string }) | null>(null)
   const [peeked, setPeeked] = useState(false)
@@ -84,8 +85,13 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
     if (r.revealed) setContact(await revealContact(r.matchId))
   }
 
+  /** relay 渠道下买家看不到任何地址,只能靠我们转发 —— 没有回址等于死信。 */
+  const needContact = (agent?.channel ?? onDuty?.channel) === 'relay'
+
   const reveal = async () => {
     if (!matchId) return
+    if (needContact && !myContact.trim()) { setErr(t('agentMatch.contactRequired')); return }
+    setErr('')
     setState('loading')
     trackEvent('contact_attempt', { contact_type: 'agent_match_reveal' }, { project_id: projectId, immediate: true })
     const c = await revealContact(matchId, { contact: myContact, note })
@@ -189,19 +195,37 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
           {/* 两个输入都**可留空** —— 强制留手机会把大部分人挡在门外,
               而我们现在最缺的就是任何一条真实询盘。 */}
           <input value={myContact} onChange={(e) => setMyContact(e.target.value)} maxLength={120}
-            placeholder={t('agentMatch.yourContact')}
+            placeholder={needContact ? t('agentMatch.yourContactRequired') : t('agentMatch.yourContact')}
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
             placeholder={t('agentMatch.yourNote')}
             className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+          {err && <p className="text-xs font-medium text-rose-600">{err}</p>}
           <button type="button" onClick={reveal} disabled={state === 'loading'}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
             {state === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-            {t('agentMatch.getContact')}
+            {needContact ? t('agentMatch.sendRequest') : t('agentMatch.getContact')}
           </button>
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
+          {/* relay:买家拿不到地址 —— 如实告诉他需求转过去了/没转成功。
+              relayed=false 一定要说,不然他以为发了、一直在等。 */}
+          {contact?.channel === 'relay' && (
+            <p className={`w-full rounded-xl px-3 py-2.5 text-sm ${
+              contact.relayed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
+            }`}>
+              {contact.relayed
+                ? t('agentMatch.relaySent', { name: contact.display_name || '' })
+                : t('agentMatch.relayFailed')}
+            </p>
+          )}
+          {contact?.email && (
+            <a href={`mailto:${contact.email}`}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
+              <Mail className="h-4 w-4" />{contact.email}
+            </a>
+          )}
           {contact?.whatsapp && (
             <a href={`https://wa.me/${contact.whatsapp.replace(/[^\d]/g, '')}`} target="_blank" rel="noreferrer"
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600">

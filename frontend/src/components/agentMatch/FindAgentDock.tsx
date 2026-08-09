@@ -12,11 +12,10 @@
  * 带看(collab)期间不渲染:那个槽位归 CollabBar,而且带看时客户身边已经有经纪了。
  */
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { X } from 'lucide-react'
 import { DockItem, DOCK_ORDER } from '../BottomDock'
-import FindAgentCard, { AgentAvatar } from './FindAgentCard'
+import { AgentAvatar } from './FindAgentCard'
+import AgentMatchModal from './AgentMatchModal'
 import { peekNextAgent, type MatchedAgent } from '../../lib/agentMatchApi'
 
 export default function FindAgentDock({ hidden }: { hidden?: boolean }) {
@@ -46,8 +45,11 @@ export default function FindAgentDock({ hidden }: { hidden?: boolean }) {
   return (
     <>
       {/* 卫星底图上是彩色噪声,一颗纯色药丸糊在里面很难看(owner:「太丑了」)。
-          改成白底卡片 + 真人头像:既压得住底图,又一眼看出对面是个人不是个功能。 */}
-      <DockItem order={DOCK_ORDER.cta} className="w-max max-w-[92vw]">
+          改成白底卡片 + 真人头像:既压得住底图,又一眼看出对面是个人不是个功能。
+          🔴 `self-end` 靠右 —— 坞默认 items-center,正中间那颗挡住地图中心
+          (owner 2026-08-09:「方正中间太丑了」)。坞已经为 Luna 预留了右侧内边距
+          (pe-[4.25rem]),所以靠右不会和 Luna 撞。 */}
+      <DockItem order={DOCK_ORDER.cta} className="w-max max-w-[92vw] self-end">
         <button type="button" onClick={() => setOpen(true)}
           className="group flex items-center gap-2.5 rounded-full bg-white/95 py-1.5 pe-4 ps-1.5 shadow-xl ring-1 ring-black/5 backdrop-blur transition hover:bg-white active:scale-95">
           <span className="relative shrink-0">
@@ -63,26 +65,7 @@ export default function FindAgentDock({ hidden }: { hidden?: boolean }) {
         </button>
       </DockItem>
 
-      {/* 铁律:transform/backdrop-filter 里的 fixed modal 必须 portal 到 body */}
-      {open && createPortal(
-        <div className="fixed inset-0 z-[9000] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={() => setOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-t-3xl bg-white p-4 shadow-2xl sm:rounded-3xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">{t('agentMatch.cta')}</h3>
-              <button type="button" onClick={() => setOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {/* autoStart:用户点药丸那一下就是「我要找经纪」,不该再让他点第二次。
-                这不违反「点了才派单」—— 这个组件只有点开弹窗才会挂载。 */}
-            <FindAgentCard source="map" autoStart compact />
-          </div>
-        </div>,
-        document.body,
-      )}
+      <AgentMatchModal open={open} onClose={() => setOpen(false)} source="map" />
     </>
   )
 }

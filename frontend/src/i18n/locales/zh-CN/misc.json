@@ -468,6 +468,11 @@
     "colAcked": "已跟进",
     "colLast": "最近一次",
     "onDuty": "值班顾问",
-    "askHim": "找他帮忙"
+    "askHim": "找他帮忙",
+    "yourContactRequired": "你的微信 / 电话（必填，顾问要靠它联系你）",
+    "contactRequired": "请留下联系方式，否则顾问没法回复你",
+    "sendRequest": "把需求发给他",
+    "relaySent": "已经把你的需求发给 {{name}} 了，他会尽快联系你。",
+    "relayFailed": "没能送达，请稍后再试一次。"
   }
 }

@@ -21,6 +21,13 @@ export interface MatchedAgent {
   title: string | null
   brokerage: string | null
   rera_brn: string | null
+  /**
+   * 联系渠道 —— 决定买家侧的流程:
+   *   'whatsapp' 直接给 WhatsApp / 电话
+   *   'email'    直接给他主动公开的邮箱
+   *   'relay'    **买家看不到地址**,由我们转发 → 所以必须让他留下自己的联系方式
+   */
+  channel?: 'whatsapp' | 'email' | 'relay'
 }
 
 export interface MatchResult {
@@ -33,8 +40,13 @@ export interface MatchResult {
 
 export interface RevealedContact {
   display_name: string | null
-  phone: string | null
-  whatsapp: string | null
+  channel?: 'whatsapp' | 'email' | 'relay'
+  phone?: string | null
+  whatsapp?: string | null
+  email?: string | null
+  /** relay 专用:需求是否真的发出去了。**false 要如实告诉买家**,
+   *  不然他以为发了、一直在等。 */
+  relayed?: boolean
 }
 
 async function token(): Promise<string | null> {

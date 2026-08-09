@@ -23,6 +23,7 @@ import pool from '../db/pool'
 import { requireAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import { ADMIN_EMAILS } from '../lib/adminEmails'
+import { sendAlertEmail } from '../services/notify'
 
 const router = Router()
 
@@ -64,12 +65,36 @@ const POOL_JOIN = `
   FROM lt_agents a
   JOIN lt_subscriptions s ON s.agent_id = COALESCE(a.billing_agent_id, a.id)
 `
+/**
+ * ⚠️ **联系渠道不再要求手机号。** owner 2026-08-09:「没有手机那可以 email 呀」。
+ *
+ * 实测:付费/试用 33 人里只有 **2 人**填了手机/WhatsApp,但 **33 人全都有登录邮箱**。
+ * 卡在手机号上等于这个功能永远只有 2 个人能接单。
+ *
+ * 但**不是**把登录邮箱丢给买家看 —— 那是人家注册用的私人地址,没同意过公开。
+ * 走中转:买家提交需求 → **我们把邮件发给经纪**(见 reveal 里的 relay 分支),
+ * 买家全程看不到那个地址。这也是门户的通行做法(Zillow / Bayut 都这样),
+ * 而且顺带解决了另一个问题:以前连手机那条路,经纪都不知道有买家被派给了他。
+ */
 const POOL_WHERE = `
   s.status IN ('active','trialing','past_due')
-  AND COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,'')) IS NOT NULL
+  AND COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,''), NULLIF(a.public_email,''), NULLIF(a.email,'')) IS NOT NULL
   AND a.match_paused_at IS NULL
   AND lower(a.email) <> ALL($1::text[])
 `
+
+/**
+ * 这个经纪该用哪条渠道联系。
+ *   'whatsapp' 有手机/WhatsApp → 买家直接点 WhatsApp / 打电话(最快,首选)
+ *   'email'    只填了 public_email(他主动公开的) → 直接给买家看
+ *   'relay'    只有登录邮箱 → **买家看不到地址**,我们把需求转发给他
+ */
+type Channel = 'whatsapp' | 'email' | 'relay'
+function channelOf(r: { phone?: string | null; whatsapp?: string | null; public_email?: string | null }): Channel {
+  if ((r.whatsapp || '').trim() || (r.phone || '').trim()) return 'whatsapp'
+  if ((r.public_email || '').trim()) return 'email'
+  return 'relay'
+}
 
 /** 对外的经纪卡片 —— **没有任何联系方式**。 */
 function agentCard(r: Record<string, unknown>) {
@@ -80,6 +105,9 @@ function agentCard(r: Record<string, unknown>) {
     title: (r.brand as { title?: string } | null)?.title ?? null,
     brokerage: (r.brokerage_name as string) || null,
     rera_brn: (r.rera_brn as string) || null,
+    // relay 渠道下买家看不到任何联系方式,只能靠我们转发 —— 所以前端要**强制**
+    // 他留一个自己的联系方式,否则经纪收到需求也回不过去。
+    channel: channelOf(r as { phone?: string; whatsapp?: string; public_email?: string }),
   }
 }
 
@@ -98,7 +126,7 @@ function visitorOf(req: Request): string {
  * 不 COALESCE 的话新人永远排不到最前面 —— 和「公平」正好相反。
  */
 const NEXT_IN_ROTATION = `
-  SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
+  SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
     ${POOL_JOIN}
     LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
     LEFT JOIN (
@@ -130,7 +158,7 @@ router.get('/next', async (req: Request, res: Response) => {
   try {
     if (visitor) {
       const { rows } = await pool.query(
-        `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
+        `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
            FROM agent_match_assignments m
            JOIN lt_agents a ON a.id = m.agent_id
            LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
@@ -171,7 +199,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     // 已经派过就还他同一个人(sticky) —— 刷新一次换个经纪会让人觉得这平台不靠谱
     const existing = await client.query(
-      `SELECT m.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name,
+      `SELECT m.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name,
               m.revealed_at IS NOT NULL AS revealed
          FROM agent_match_assignments m
          JOIN lt_agents a ON a.id = m.agent_id
@@ -207,7 +235,7 @@ router.get('/', async (req: Request, res: Response) => {
     let pick = { rows: [] as Record<string, unknown>[] }
     if (/^[0-9a-f-]{36}$/i.test(prefer)) {
       pick = await client.query(
-        `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
+        `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
            ${POOL_JOIN}
            LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
           WHERE ${POOL_WHERE} AND a.id = $2`,
@@ -255,24 +283,59 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
     // visitor_id 一起进 WHERE:光有自增 id 的话,把 id 从 1 数到 N 就能把全池的
     // 手机号刷出来。带上 visitor 之后,别人的匹配记录你 reveal 不了。
     const { rows } = await pool.query(
-      `UPDATE agent_match_assignments
-          SET revealed_at   = COALESCE(revealed_at, now()),
-              buyer_contact = COALESCE($3, buyer_contact),
-              buyer_note    = COALESCE($4, buyer_note)
-        WHERE id = $1 AND visitor_id = $2
-      RETURNING agent_id`,
+      `UPDATE agent_match_assignments m
+          SET revealed_at   = COALESCE(m.revealed_at, now()),
+              buyer_contact = COALESCE($3, m.buyer_contact),
+              buyer_note    = COALESCE($4, m.buyer_note)
+        WHERE m.id = $1 AND m.visitor_id = $2
+      RETURNING m.agent_id,
+                (SELECT p.project_name FROM residential_projects p WHERE p.id = m.project_id) AS project_name`,
       [id, visitor, buyerContact, buyerNote]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
     const { rows: ag } = await pool.query(
-      `SELECT display_name, phone, whatsapp FROM lt_agents WHERE id = $1`, [rows[0].agent_id]
+      `SELECT display_name, email, phone, whatsapp, public_email FROM lt_agents WHERE id = $1`, [rows[0].agent_id]
     )
     const a = ag[0] || {}
+    const channel = channelOf(a)
+
+    /**
+     * relay:经纪只有登录邮箱 —— **绝不把那个地址给买家**(注册用的私人地址,
+     * 他没同意过公开)。改成我们把需求转发过去,买家全程看不到它。
+     *
+     * 转发失败不能当成功:买家会以为"已经发出去了"然后一直等。所以 sendAlertEmail
+     * 的返回值要看,失败就如实告诉他没送到。
+     */
+    if (channel === 'relay') {
+      if (!buyerContact) {
+        // 这条路买家看不到任何联系方式,经纪只能回过去 —— 没有回址就是死信
+        return res.status(400).json({ error: 'contact_required', channel })
+      }
+      const projName = String(rows[0].project_name || '').trim()
+      const subject = `【Pinzos】有买家想找你${projName ? ` —— ${projName}` : ''}`
+      const text = [
+        `${a.display_name || '你好'},`,
+        '',
+        `有位买家在 Pinzos 上${projName ? `看${projName}时` : ''}点了「找经纪帮我」,系统把他分给了你。`,
+        '',
+        `买家联系方式:${buyerContact}`,
+        buyerNote ? `买家留言:${buyerNote}` : '买家没有留言。',
+        '',
+        '越快联系上,成的概率越高。',
+        '在经纪台的「买家匹配」里可以看到全部分给你的买家:https://www.pinzos.com/agent/matches',
+      ].join('\n')
+      const sent = await sendAlertEmail(subject, text, undefined, [String(a.email)])
+      return res.json({ display_name: a.display_name || null, channel, relayed: sent })
+    }
+
     res.json({
       display_name: a.display_name || null,
+      channel,
       phone: a.phone || null,
       // 没单独填 whatsapp 就用手机号 —— 迪拜这边 WhatsApp 就是主要联系方式
       whatsapp: a.whatsapp || a.phone || null,
+      // public_email 是他**主动填的公开邮箱**,可以直接给买家(登录邮箱不行)
+      email: channel === 'email' ? a.public_email : null,
     })
   } catch (err) {
     console.error('[agent-match] reveal failed:', err)
