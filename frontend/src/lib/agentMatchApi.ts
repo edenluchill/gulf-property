@@ -172,8 +172,12 @@ export interface RosterRow {
   email: string
   display_name: string | null
   has_contact: boolean
+  /** 联系渠道:whatsapp 最快 / email 他主动公开的 / relay 由我们转发 */
+  channel: 'whatsapp' | 'email' | 'relay'
   paused: boolean
   subscribed: boolean
+  /** **服务端算好的**。别在前端拿几个布尔量再拼一遍 —— 两处判据必然分叉。 */
+  in_pool: boolean
   matched_30d: number
   revealed_30d: number
   acked_30d: number

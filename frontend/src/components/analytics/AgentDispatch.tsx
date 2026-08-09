@@ -278,22 +278,31 @@ export default function AgentDispatch() {
 
 /** 经纪状态标 —— 桌面表格和手机卡片共用,免得两处漂移。 */
 function Badges({ r }: { r: MatchAdmin['roster'][number] }) {
+  const CH = {
+    whatsapp: { label: 'WhatsApp', cls: 'bg-emerald-50 text-emerald-700' },
+    email: { label: '公开邮箱', cls: 'bg-sky-50 text-sky-700' },
+    relay: { label: '邮件中转', cls: 'bg-slate-100 text-slate-500' },
+  }[r.channel] ?? { label: '联系不上', cls: 'bg-amber-50 text-amber-700' }
   return (
     <div className="flex shrink-0 flex-wrap justify-end gap-1">
-      {!r.subscribed && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">未订阅</span>}
-      {!r.has_contact && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
-          <PhoneOff className="h-3 w-3" />联系不上
-        </span>
-      )}
+      {/* in_pool 直接用服务端算的 —— 前端再拼一遍必然和真实派单条件分叉,
+          而分叉的后果就是「表里说在池中,实际根本不会被派到」 */}
+      {r.in_pool
+        ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">在池中</span>
+        : !r.subscribed
+          ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">未订阅</span>
+          : null}
       {r.paused && (
         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
           <Pause className="h-3 w-3" />已暂停
         </span>
       )}
-      {r.subscribed && r.has_contact && !r.paused && (
-        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">在池中</span>
-      )}
+      {/* 渠道比二值「联系不上」有信息量:relay 的人是联系得上的,只是要走中转 */}
+      {r.has_contact
+        ? <span className={`rounded-full px-2 py-0.5 text-[10px] ${CH.cls}`}>{CH.label}</span>
+        : <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+            <PhoneOff className="h-3 w-3" />联系不上
+          </span>}
     </div>
   )
 }

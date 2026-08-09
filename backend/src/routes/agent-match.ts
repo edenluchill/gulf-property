@@ -540,13 +540,35 @@ router.patch('/pool', requireAuth, async (req: Request, res: Response) => {
 router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
   try {
     // 排班:池子里每个人最近 30 天被派了几次、多少条真的要了联系方式、多少条跟进了
+    /**
+     * 排班表。
+     *
+     * 🔴 **必须排除自己人**(owner 2026-08-09:「排班别派给我」)。派单本身早就排了,
+     *    但这张表漏了 —— 于是 owner、合伙人、demo 号都躺在排班里,还标着「在池中」,
+     *    看起来像随时会被派到。表和真实池子用**同一份 INTERNAL_EMAILS**。
+     *
+     * 🔴 **「联系得上」的判据要和派单池一致**。原来只看手机号 —— 但邮箱中转上线后,
+     *    只有登录邮箱的 31 个人其实也联系得上,表里却全标着「联系不上」。
+     *    直接返回 channel(whatsapp / email / relay),比一个二值更有信息量。
+     *
+     * `in_pool` **在服务端算**,不让前端拿三个布尔量再拼一遍 —— 两处判据必然分叉,
+     * 而分叉的结果就是这次这种「表里说在池中,实际根本不会被派到」。
+     */
     const roster = await pool.query(
       `SELECT a.email, a.display_name,
-              COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,'')) IS NOT NULL AS has_contact,
+              COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,''),
+                       NULLIF(a.public_email,''), NULLIF(a.email,'')) IS NOT NULL AS has_contact,
+              CASE WHEN COALESCE(NULLIF(a.whatsapp,''), NULLIF(a.phone,'')) IS NOT NULL THEN 'whatsapp'
+                   WHEN NULLIF(a.public_email,'') IS NOT NULL THEN 'email'
+                   ELSE 'relay' END AS channel,
               a.match_paused_at IS NOT NULL AS paused,
               EXISTS (SELECT 1 FROM lt_subscriptions s
                        WHERE s.agent_id = COALESCE(a.billing_agent_id, a.id)
                          AND s.status IN ('active','trialing','past_due')) AS subscribed,
+              (a.match_paused_at IS NULL
+                AND EXISTS (SELECT 1 FROM lt_subscriptions s
+                             WHERE s.agent_id = COALESCE(a.billing_agent_id, a.id)
+                               AND s.status IN ('active','trialing','past_due'))) AS in_pool,
               COALESCE(m.n, 0)        AS matched_30d,
               COALESCE(m.revealed, 0) AS revealed_30d,
               COALESCE(m.acked, 0)    AS acked_30d,
@@ -561,9 +583,13 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
             WHERE created_at > now() - interval '30 days'
             GROUP BY agent_id
          ) m ON m.agent_id = a.id
-        WHERE COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,'')) IS NOT NULL
-           OR COALESCE(m.n, 0) > 0
-        ORDER BY COALESCE(m.n, 0) DESC, a.display_name`
+        WHERE lower(a.email) <> ALL($1::text[])
+          AND (EXISTS (SELECT 1 FROM lt_subscriptions s
+                        WHERE s.agent_id = COALESCE(a.billing_agent_id, a.id)
+                          AND s.status IN ('active','trialing','past_due'))
+               OR COALESCE(m.n, 0) > 0)
+        ORDER BY COALESCE(m.n, 0) DESC, a.display_name`,
+      [INTERNAL_EMAILS]
     )
     const matches = await pool.query(
       `SELECT m.id, m.created_at, m.revealed_at, m.agent_ack_at, m.source,
