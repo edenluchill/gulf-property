@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { Loader2, UserRound, Phone, MessageSquare, Check, Pause, Play, AlertTriangle } from 'lucide-react'
+import { Loader2, UserRound, Phone, MessageSquare, Check, Pause, Play, AlertTriangle, Copy, Mail } from 'lucide-react'
 import {
   fetchMyMatches, fetchPoolStatus, setPaused, ackMatch,
   type MyMatch, type PoolStatus,
@@ -21,6 +21,7 @@ export default function AgentMatches() {
   const [matches, setMatches] = useState<MyMatch[] | null>(null)
   const [pool, setPool] = useState<PoolStatus | null>(null)
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState<number | null>(null)
   const locale = i18n.language.startsWith('zh') ? 'zh-CN' : i18n.language
 
   useEffect(() => {
@@ -126,6 +127,46 @@ export default function AgentMatches() {
                   <MessageSquare className="me-1 inline h-3.5 w-3.5 text-slate-400" />{m.buyer_note}
                 </p>
               )}
+              {/* ── 现成的联系邮件 ────────────────────────────────────────
+                  我们**不替经纪发信**(owner:「不用帮他发邮件 给他准备模板就好」)——
+                  署名、回信地址、后续往来都该在他自己手里。这里只把写好的主题和
+                  正文摆出来:复制,或者直接打开邮件客户端。
+                  文案是按**买家的语言**生成的(后端 agentOutreachTemplate),
+                  不是按经纪的 —— 收信的是买家。
+                  之前没有模板时,实测经纪发出去的是一封无主题的一句话邮件。 */}
+              {m.template && (
+                <div className="mt-2.5 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">
+                      {m.template.subject}
+                    </p>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button type="button"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(`${m.template!.subject}
+
+${m.template!.body}`)
+                          setCopied(m.id); setTimeout(() => setCopied(null), 1600)
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">
+                        {copied === m.id ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                        {t('agentMatch.copyTemplate')}
+                      </button>
+                      {/* 买家留的是邮箱才给 mailto —— 留手机的话这个链接没意义 */}
+                      {m.buyer_contact && m.buyer_contact.includes('@') && (
+                        <a href={`mailto:${m.buyer_contact}?subject=${encodeURIComponent(m.template.subject)}&body=${encodeURIComponent(m.template.body)}`}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-slate-800">
+                          <Mail className="h-3 w-3" />{t('agentMatch.openMail')}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-sans text-[11px] leading-relaxed text-slate-500">
+                    {m.template.body}
+                  </pre>
+                </div>
+              )}
+
               <button type="button" onClick={() => toggleAck(m)}
                 className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
                   m.agent_ack_at ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 ring-1 ring-slate-200 hover:bg-slate-100'

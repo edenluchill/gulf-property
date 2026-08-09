@@ -24,6 +24,7 @@ import { requireAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import { ADMIN_EMAILS } from '../lib/adminEmails'
 import { sendAlertEmail } from '../services/notify'
+import { buildOutreach, outreachLang } from '../lib/agentOutreachTemplate'
 
 const router = Router()
 
@@ -279,6 +280,8 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
   if (!visitor) return res.status(400).json({ error: 'visitor required' })
   const buyerContact = String(req.body?.contact || '').trim().slice(0, CONTACT_MAX) || null
   const buyerNote = String(req.body?.note || '').trim().slice(0, NOTE_MAX) || null
+  // 买家界面语言 —— 给经纪生成联系模板用。默认英文(见 agentOutreachTemplate)
+  const buyerLang = String(req.body?.lang || '').trim().slice(0, 10) || null
   try {
     // visitor_id 一起进 WHERE:光有自增 id 的话,把 id 从 1 数到 N 就能把全池的
     // 手机号刷出来。带上 visitor 之后,别人的匹配记录你 reveal 不了。
@@ -297,13 +300,14 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
        UPDATE agent_match_assignments m
           SET revealed_at   = COALESCE(m.revealed_at, now()),
               buyer_contact = COALESCE($3, m.buyer_contact),
-              buyer_note    = COALESCE($4, m.buyer_note)
+              buyer_note    = COALESCE($4, m.buyer_note),
+              buyer_lang    = COALESCE(m.buyer_lang, $5)
          FROM before
         WHERE m.id = before.id
       RETURNING m.agent_id,
                 (SELECT p.project_name FROM residential_projects p WHERE p.id = m.project_id) AS project_name,
                 (before.revealed_at IS NULL) AS first_reveal`,
-      [id, visitor, buyerContact, buyerNote]
+      [id, visitor, buyerContact, buyerNote, buyerLang]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
     const { rows: ag } = await pool.query(
@@ -325,28 +329,39 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'contact_required', channel })
       }
       const projName = String(rows[0].project_name || '').trim()
-      const subject = `【Pinzos】有买家想找你${projName ? ` —— ${projName}` : ''}`
-      const text = [
-        `${a.display_name || '你好'},`,
-        '',
-        `有位买家在 Pinzos 上${projName ? `看${projName}时` : ''}点了「找经纪帮我」,系统把他分给了你。`,
-        '',
-        `买家联系方式:${buyerContact}`,
-        buyerNote ? `买家留言:${buyerNote}` : '买家没有留言。',
-        '',
-        '越快联系上,成的概率越高。',
-        '在经纪台的「买家匹配」里可以看到全部分给你的买家:https://www.pinzos.com/agent/matches',
-      ].join('\n')
       /**
-       * 🔴 **只在第一次 reveal 时发信。**
-       * reveal 是幂等的(revealed_at 用 COALESCE 只写一次),但发信原来没跟着幂等 ——
-       * 买家多点两下、或者刷新后再点一次,经纪就收到两三封一模一样的邮件。
-       * 2026-08-09 我自己测试时就往一个真实经纪那儿连发了两封。
-       * 重复调用直接回 relayed:true(需求确实已经在他那儿了),不再发。
+       * 给**经纪**的通知信。两个原则:
+       *   ① 必须有清楚的主题 —— 他要在一堆邮件里一眼认出这是条线索
+       *   ② 把**写好的模板**一起给他,而不是让他自己现编
+       *      (2026-08-09 实测:不给模板,他发出去的是一封无主题的一句话邮件)
+       * 模板按**买家的**语言,不是经纪的 —— 收信的是买家。
        */
-      if (!rows[0].first_reveal) {
-        return res.json({ display_name: a.display_name || null, channel, relayed: true, resent: false })
-      }
+      const tpl = buildOutreach(outreachLang(buyerLang), {
+        agentName: a.display_name, agentTitle: (a.brand as { title?: string } | null)?.title,
+        brokerage: null, projectName: projName, buyerNote,
+      })
+      const subject = projName
+        ? `【Pinzos】新买家线索 · ${projName}`
+        : '【Pinzos】新买家线索'
+      const text = [
+        `${a.display_name || ''}你好,`,
+        '',
+        `有位买家在 Pinzos 上${projName ? `浏览 ${projName} 时` : ''}请求联系顾问,系统按轮值把他分给了你。`,
+        '',
+        '─── 买家信息 ───',
+        `联系方式:${buyerContact}`,
+        `留言:${buyerNote || '(未填写)'}`,
+        `使用语言:${buyerLang || '未知(按英文处理)'}`,
+        '',
+        '─── 可直接发给他的邮件(已按买家语言写好)───',
+        `主题:${tpl.subject}`,
+        '',
+        tpl.body,
+        '',
+        '────────────',
+        '这封模板只是给你省事,发信请用你自己的邮箱 —— 署名和后续往来都在你手里。',
+        `全部分给你的买家:https://www.pinzos.com/agent/matches`,
+      ].join('\n')
       const sent = await sendAlertEmail(subject, text, undefined, [String(a.email)])
       return res.json({ display_name: a.display_name || null, channel, relayed: sent })
     }
@@ -373,8 +388,8 @@ router.get('/mine', requireAuth, async (req: Request, res: Response) => {
   try {
     const { rows } = await pool.query(
       `SELECT m.id, m.created_at, m.revealed_at, m.buyer_contact, m.buyer_note,
-              m.agent_ack_at, m.source, m.project_id,
-              p.project_name
+              m.agent_ack_at, m.source, m.project_id, m.buyer_lang,
+              p.project_name, a.display_name AS agent_name, a.brand AS agent_brand
          FROM agent_match_assignments m
          JOIN lt_agents a ON a.id = m.agent_id
          LEFT JOIN residential_projects p ON p.id = m.project_id
@@ -383,7 +398,23 @@ router.get('/mine', requireAuth, async (req: Request, res: Response) => {
         LIMIT 200`,
       [email]
     )
-    res.json({ matches: rows })
+    /**
+     * 每条记录都带一份**写好的联系模板**(主题 + 正文,按买家语言)。
+     * owner:「不用帮他发邮件 给他准备模板就好」—— 我们不夹在中间发信,
+     * 署名和后续往来都在经纪自己手里,但也不让他从零开始编
+     * (不给模板的实测结果是一封无主题的一句话邮件)。
+     */
+    res.json({
+      matches: rows.map((r) => ({
+        ...r,
+        template: buildOutreach(outreachLang(r.buyer_lang), {
+          agentName: r.agent_name,
+          agentTitle: (r.agent_brand as { title?: string } | null)?.title,
+          projectName: r.project_name,
+          buyerNote: r.buyer_note,
+        }),
+      })),
+    })
   } catch (err) {
     console.error('[agent-match] mine failed:', err)
     res.status(500).json({ error: 'internal error' })

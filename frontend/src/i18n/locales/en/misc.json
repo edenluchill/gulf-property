@@ -474,6 +474,8 @@
     "contactRequired": "Please leave a contact — otherwise the advisor cannot reply",
     "sendRequest": "Send my request",
     "relaySent": "Your request has been sent to {{name}}. They will get back to you shortly.",
-    "relayFailed": "Could not be delivered. Please try again in a moment."
+    "relayFailed": "Could not be delivered. Please try again in a moment.",
+    "copyTemplate": "Copy email",
+    "openMail": "Open in mail"
   }
 }

@@ -104,12 +104,14 @@ export async function peekNextAgent(projectId?: string): Promise<(MatchedAgent &
 
 /** 买家要联系方式。留言和自己的联系方式都可选 —— 强制填会把大部分人挡在门外。 */
 export async function revealContact(
-  matchId: number, buyer?: { contact?: string; note?: string },
+  matchId: number, buyer?: { contact?: string; note?: string; lang?: string },
 ): Promise<RevealedContact | null> {
   const res = await fetch(`${BASE}/${matchId}/reveal`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contact: buyer?.contact || '', note: buyer?.note || '' }),
+    // lang = **买家**当前的界面语言。经纪拿到的联系模板按它生成 ——
+    // 收信的是买家,不是经纪。默认英文(后端 outreachLang 回落)。
+    body: JSON.stringify({ contact: buyer?.contact || '', note: buyer?.note || '', lang: buyer?.lang || '' }),
   })
   if (!res.ok) return null
   return await res.json()
@@ -126,6 +128,9 @@ export interface MyMatch {
   agent_ack_at: string | null
   source: string
   project_name: string | null
+  buyer_lang?: string | null
+  /** 后端按**买家语言**生成的现成邮件(主题+正文)。经纪复制就能发。 */
+  template?: { subject: string; body: string }
 }
 
 export async function fetchMyMatches(): Promise<MyMatch[]> {

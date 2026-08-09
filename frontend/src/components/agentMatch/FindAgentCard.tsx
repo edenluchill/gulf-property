@@ -50,7 +50,7 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
    *  普通页面绝不能开 —— 那就变成预取了,轮换名额会被没想找经纪的人消耗掉。 */
   autoStart?: boolean
 }) {
-  const { t } = useTranslation('misc')
+  const { t, i18n } = useTranslation('misc')
   const [state, setState] = useState<'idle' | 'loading' | 'matched' | 'revealed' | 'empty'>('idle')
   const [matchId, setMatchId] = useState<number | null>(null)
   const [agent, setAgent] = useState<MatchedAgent | null>(null)
@@ -94,7 +94,7 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
     setErr('')
     setState('loading')
     trackEvent('contact_attempt', { contact_type: 'agent_match_reveal' }, { project_id: projectId, immediate: true })
-    const c = await revealContact(matchId, { contact: myContact, note })
+    const c = await revealContact(matchId, { contact: myContact, note, lang: i18n.language })
     setContact(c)
     setState('revealed')
   }

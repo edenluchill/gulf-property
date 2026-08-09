@@ -473,6 +473,8 @@
     "contactRequired": "请留下联系方式，否则顾问没法回复你",
     "sendRequest": "把需求发给他",
     "relaySent": "已经把你的需求发给 {{name}} 了，他会尽快联系你。",
-    "relayFailed": "没能送达，请稍后再试一次。"
+    "relayFailed": "没能送达，请稍后再试一次。",
+    "copyTemplate": "复制邮件",
+    "openMail": "用邮件发"
   }
 }

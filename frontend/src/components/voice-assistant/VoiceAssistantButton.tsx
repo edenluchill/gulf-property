@@ -17,6 +17,7 @@ import type { TFunction } from 'i18next'
 import { useVoiceAssistantContext } from '../../contexts/VoiceAssistantContext'
 import { VoicePhase, ProjectCard, AreaInfoCard, BubbleContent, Investment5yr, MessageAttachment } from '../../hooks/voice-assistant/types'
 import { cn } from '../../lib/utils'
+import { LUNA_RAIL_ID } from '../LunaRail'
 
 // Text mode is built (keyboard icon + panel + backend /api/voice/text) but the
 // backend Gemini tool-understanding is currently ERRATIC from the production
@@ -831,7 +832,11 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       //    的存在让出右边一截(见 BottomDock)。改这里的落位要同步核对那边。
       'fixed bottom-[76px] md:bottom-[92px] xl:bottom-6 end-0 z-50 flex flex-col items-end gap-1.5',
       className
-    )}>
+    )}
+    // 右边缘这一列是**共享**的:别的悬浮件(「找经纪帮我」)会 portal 进来,
+    // 靠 flex order 排在 Luna 上面。见 components/LunaRail.tsx。
+    // 各摆各的 fixed 会变成一个在左一个在右、还得手算 bottom 对齐。
+    id={LUNA_RAIL_ID}>
       {/* Luna's daily energy — slim capsule docked to the right edge above the pill.
           Only appears once some energy is spent / a conversation was active. */}
       {showGauge && (() => {
