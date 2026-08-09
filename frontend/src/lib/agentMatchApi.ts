@@ -204,6 +204,13 @@ export interface MatchAdmin {
   round_done: number
   /** 本轮还没轮到的人(队列就在这里面) */
   round_waiting: string[]
+  /**
+   * 漏斗总量。三个数含义差很多:assigned=看到了卡片,revealed=真提交了需求
+   * (**唯一消耗轮次的事件**),acked=经纪自己标的。
+   */
+  totals: { assigned: number; revealed: number; acked: number; queued: number; visitors: number }
+  /** 近 30 天逐日(**含没有数据的天**,缺口不能被折叠掉) */
+  daily: { day: string; assigned: number; revealed: number }[]
 }
 
 export async function fetchMatchAdmin(): Promise<MatchAdmin | null> {

@@ -595,11 +595,40 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
           AND NOT EXISTS (SELECT 1 FROM agent_match_assignments x WHERE x.agent_id = a.id AND x.round_no = cur.r)`,
       [INTERNAL_EMAILS]
     )
+    /**
+     * 漏斗总量 —— 三个数的含义差很多,别混着看:
+     *   assigned  买家点开了卡片(看到了这个人)
+     *   revealed  买家真的提交了需求 = **一条 lead**,也是唯一消耗轮次的事件
+     *   acked     经纪自己标了「已跟进」
+     * assigned 高而 revealed 为 0,说明卡片没说服力,不是派单不公平。
+     */
+    const totals = await pool.query(
+      `SELECT count(*)::int AS assigned,
+              count(*) FILTER (WHERE revealed_at  IS NOT NULL)::int AS revealed,
+              count(*) FILTER (WHERE agent_ack_at IS NOT NULL)::int AS acked,
+              count(*) FILTER (WHERE revealed_at IS NOT NULL AND notified_at IS NULL)::int AS queued,
+              count(DISTINCT visitor_id)::int AS visitors
+         FROM agent_match_assignments`
+    )
+    /**
+     * 近 30 天逐日 —— 生成完整日历序列再 LEFT JOIN,**不能只 GROUP BY 有数据的天**:
+     * 缺口天会被折叠掉,图上看起来就像"一直在涨",而不是"中间三天一条都没有"。
+     */
+    const daily = await pool.query(
+      `SELECT d::date AS day,
+              count(m.id) FILTER (WHERE m.id IS NOT NULL)::int AS assigned,
+              count(m.id) FILTER (WHERE m.revealed_at IS NOT NULL)::int AS revealed
+         FROM generate_series(current_date - interval '29 days', current_date, interval '1 day') d
+         LEFT JOIN agent_match_assignments m ON m.created_at::date = d::date
+        GROUP BY d ORDER BY d`
+    )
     res.json({
       roster: roster.rows, matches: matches.rows, pool_size: size.rows[0]?.n ?? 0,
       round_no: round.rows[0]?.round_no ?? 1,
       round_done: round.rows[0]?.done ?? 0,
       round_waiting: waiting.rows.map((r) => r.email),
+      totals: totals.rows[0],
+      daily: daily.rows,
     })
   } catch (err) {
     console.error('[agent-match] admin failed:', err)
