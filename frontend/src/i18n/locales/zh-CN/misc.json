@@ -436,7 +436,7 @@
   "metricWindowNote": "所有指标都按这个时间窗口重算。",
   "agentMatch": {
     "cta": "找经纪帮我",
-    "ctaSub": "我们会为你分配一位持牌顾问",
+    "ctaSub": "我们会为你匹配一位房产顾问",
     "roleFallback": "房产顾问",
     "yourContact": "你的微信 / 电话（选填）",
     "yourNote": "想问什么？比如预算、户型、什么时候看房（选填）",

@@ -437,7 +437,7 @@
   "metricWindowNote": "All metrics use this window.",
   "agentMatch": {
     "cta": "Find an agent to help",
-    "ctaSub": "We'll assign you a licensed advisor",
+    "ctaSub": "We'll connect you with a property advisor",
     "roleFallback": "Property advisor",
     "yourContact": "Your phone or WhatsApp (optional)",
     "yourNote": "What do you want to ask? Budget, layout, when to view (optional)",

@@ -437,7 +437,7 @@
   "metricWindowNote": "Toutes les données utilisent cette fenêtre.",
   "agentMatch": {
     "cta": "Trouver un agent",
-    "ctaSub": "Nous vous attribuons un conseiller agréé",
+    "ctaSub": "Nous vous mettons en relation avec un conseiller immobilier",
     "roleFallback": "Conseiller immobilier",
     "yourContact": "Votre téléphone ou WhatsApp (facultatif)",
     "yourNote": "Que souhaitez-vous demander ? Budget, typologie, date de visite (facultatif)",
