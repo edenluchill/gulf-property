@@ -87,6 +87,68 @@ function visitorOf(req: Request): string {
   return String(req.headers['x-visitor-id'] || req.body?.visitorId || req.query.visitorId || '').trim().slice(0, 64)
 }
 
+/**
+ * 「下一个轮到谁」的查询 —— 挑人和 peek 共用同一条 SQL,**必须共用**:
+ * 两份各写一遍的话,peek 显示的脸和真正派到的人迟早会不一致,
+ * 而那正是这个功能最不能出的错(买家看到 A 的头像,点开变成 B)。
+ *
+ * 最少曝光优先,同数按最久没派过的优先。窗口 30 天,让排班自己愈合
+ * (不设窗口的话上个月接多了的人会被永久压在队尾,即使现在很闲)。
+ * 计数用 LEFT JOIN + COALESCE(n,0):从没被派过的人计数是 NULL,
+ * 不 COALESCE 的话新人永远排不到最前面 —— 和「公平」正好相反。
+ */
+const NEXT_IN_ROTATION = `
+  SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
+    ${POOL_JOIN}
+    LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
+    LEFT JOIN (
+      SELECT agent_id, count(*) AS n, max(created_at) AS last_at
+        FROM agent_match_assignments
+       WHERE created_at > now() - interval '30 days'
+       GROUP BY agent_id
+    ) m ON m.agent_id = a.id
+   WHERE ${POOL_WHERE}
+   ORDER BY COALESCE(m.n, 0) ASC, COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC
+   LIMIT 1
+`
+
+/**
+ * ── 值班中的经纪是谁(只读 peek)─────────────────────────────────────────────
+ *
+ * 买家侧要在按钮上直接显示**头像和名字**(owner 2026-08-09:「要显示值班的经纪的
+ * 头像和名字」)。所以需要一个能先看一眼、又**不落库**的接口。
+ *
+ * 🔴 **绝不能拿 GET / 来做这件事。** 那个接口会写一条派单记录并占用轮换名额 ——
+ *    每个打开地图的人都触发一次的话,轮换会被一堆压根没想找经纪的人消耗光,
+ *    而库里全是从没发生过的"匹配"。
+ *
+ * 同一访客已经派过的话,peek 直接回他自己那位(不然按钮上是 A、点开是 B)。
+ */
+router.get('/next', async (req: Request, res: Response) => {
+  const visitor = visitorOf(req)
+  const projectId = String(req.query.projectId || '').trim() || NO_PROJECT
+  try {
+    if (visitor) {
+      const { rows } = await pool.query(
+        `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
+           FROM agent_match_assignments m
+           JOIN lt_agents a ON a.id = m.agent_id
+           LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
+          WHERE m.visitor_id = $1 AND m.project_id = $2`,
+        [visitor, projectId]
+      )
+      if (rows.length) return res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) }, mine: true })
+    }
+    const { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+    if (!rows.length) return res.json({ agent: null, empty: true })
+    // id 一起给出去:点击时带回来当 prefer,保证「看到谁点开就是谁」
+    res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) } })
+  } catch (err) {
+    console.error('[agent-match] peek failed:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
 // ── 派单 ────────────────────────────────────────────────────────────────────
 router.get('/', async (req: Request, res: Response) => {
   const visitor = visitorOf(req)
@@ -132,21 +194,29 @@ router.get('/', async (req: Request, res: Response) => {
      * 注意计数用 LEFT JOIN 而不是子查询相关列 —— 从没被派过的人计数是 NULL,
      * COALESCE 成 0 才能排到最前面(否则新人永远进不来,和"公平"正好相反)。
      */
-    const pick = await client.query(
-      `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
-         ${POOL_JOIN}
-         LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
-         LEFT JOIN (
-           SELECT agent_id, count(*) AS n, max(created_at) AS last_at
-             FROM agent_match_assignments
-            WHERE created_at > now() - interval '30 days'
-            GROUP BY agent_id
-         ) m ON m.agent_id = a.id
-        WHERE ${POOL_WHERE}
-        ORDER BY COALESCE(m.n, 0) ASC, COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC
-        LIMIT 1`,
-      [INTERNAL_EMAILS]
-    )
+    /**
+     * `prefer` = 买家在按钮上**已经看到的那张脸**(来自 /next 的 peek)。
+     *
+     * 优先用它,但**必须重新验一遍他还在池子里** —— 直接信前端传来的 id 的话,
+     * 谁都能指定任意一个 agent id 把买家派给自己人,连暂停接单/掉订阅都绕过去了。
+     * 验完发现不在池里就退回正常轮换(宁可换个人,也不能派给一个已经停接的人)。
+     *
+     * 这会让被 peek 到的人偶尔连拿两单,但排班是按 30 天滚动计数的,下一轮自己就平回来了。
+     */
+    const prefer = String(req.query.prefer || '').trim()
+    let pick = { rows: [] as Record<string, unknown>[] }
+    if (/^[0-9a-f-]{36}$/i.test(prefer)) {
+      pick = await client.query(
+        `SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, b.name AS brokerage_name
+           ${POOL_JOIN}
+           LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
+          WHERE ${POOL_WHERE} AND a.id = $2`,
+        [INTERNAL_EMAILS, prefer]
+      )
+    }
+    if (!pick.rows.length) {
+      pick = await client.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+    }
     if (!pick.rows.length) {
       await client.query('COMMIT')
       // 池子空是**正常状态**,不是错误 —— 前端据此不渲染入口,而不是弹个报错

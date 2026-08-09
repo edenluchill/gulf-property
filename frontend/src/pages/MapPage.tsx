@@ -2137,8 +2137,12 @@ export default function MapPage() {
               原来只藏在区域弹窗里,得先点一个区域才有(owner 2026-08-09 截图:
               「地图上看不到任何入口」)。走 BottomDock 的 cta 槽位,不自己写 fixed。
               带看期间藏起来:那个槽位归 CollabBar,而且那时客户身边已经有经纪了;
-              tour 播放期间也藏(那是一段连贯的片子,不该被按钮打断)。 */}
-          <FindAgentDock hidden={collabActive || !!tourCode} />
+              tour 播放期间也藏(那是一段连贯的片子,不该被按钮打断)。
+              🔴 **必须判 isMapPath**:地图是常驻挂在 Layout 上的(不在 Routes),
+              非地图路由只是 display:none —— 但 DockItem 是 portal 到坞里的,
+              **不受父级 display:none 影响**,所以不判路由的话这颗药丸会跟着
+              出现在项目详情页等所有页面上(owner 2026-08-09 截图抓到)。 */}
+          <FindAgentDock hidden={collabActive || !!tourCode || !isMapPath(location.pathname, location.search)} />
 
           {/* 手机:搜索沉到底部(拇指区),结果向上展开。默认只是一颗圆钮(不常年占一条),
               点开才铺成一行 —— 2026-07-11 用户要求。

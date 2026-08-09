@@ -466,6 +466,8 @@
     "colMatched": "分到",
     "colRevealed": "要了联系方式",
     "colAcked": "已跟进",
-    "colLast": "最近一次"
+    "colLast": "最近一次",
+    "onDuty": "值班顾问",
+    "askHim": "找他帮忙"
   }
 }

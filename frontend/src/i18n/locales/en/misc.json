@@ -467,6 +467,8 @@
     "colMatched": "Assigned",
     "colRevealed": "Contact requested",
     "colAcked": "Followed up",
-    "colLast": "Last"
+    "colLast": "Last",
+    "onDuty": "On duty now",
+    "askHim": "Ask for help"
   }
 }

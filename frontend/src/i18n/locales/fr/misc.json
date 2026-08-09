@@ -467,6 +467,8 @@
     "colMatched": "Attribués",
     "colRevealed": "Coordonnées demandées",
     "colAcked": "Traités",
-    "colLast": "Dernier"
+    "colLast": "Dernier",
+    "onDuty": "De permanence",
+    "askHim": "Demander de l’aide"
   }
 }

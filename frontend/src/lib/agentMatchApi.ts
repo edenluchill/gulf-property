@@ -60,12 +60,34 @@ async function authed(path: string, init?: RequestInit): Promise<Response> {
  *
  * X-Visitor-Id 由 track.ts 的全局 fetch 包装统一盖上,这里不用管。
  */
-export async function matchAgent(opts: { projectId?: string; source: 'project' | 'map' }): Promise<MatchResult> {
+export async function matchAgent(opts: { projectId?: string; source: 'project' | 'map'; prefer?: string }): Promise<MatchResult> {
   const qs = new URLSearchParams({ source: opts.source })
   if (opts.projectId) qs.set('projectId', opts.projectId)
+  // prefer = peek 时看到的那个人。**保证「看到谁、点开就是谁」** ——
+  // 不带的话高并发下可能被别人抢走名额,买家看到 A 的头像却分到 B。
+  if (opts.prefer) qs.set('prefer', opts.prefer)
   const res = await fetch(`${BASE}?${qs}`)
   if (!res.ok) return { matchId: null, agent: null, empty: true }
   return await res.json()
+}
+
+/**
+ * 「现在值班的是谁」—— **只读,不落库**。
+ *
+ * 🔴 别拿 matchAgent() 来做这件事:那个会写一条派单记录并占用轮换名额。
+ *    入口要在按钮上直接显示头像和名字,也就是**每个打开页面的人**都会触发一次;
+ *    用 matchAgent 的话轮换会被一堆压根没想找经纪的人消耗光。
+ */
+export async function peekNextAgent(projectId?: string): Promise<(MatchedAgent & { id: string }) | null> {
+  try {
+    const qs = new URLSearchParams()
+    if (projectId) qs.set('projectId', projectId)
+    const res = await fetch(`${BASE}/next?${qs}`)
+    if (!res.ok) return null
+    return (await res.json()).agent ?? null
+  } catch {
+    return null
+  }
 }
 
 /** 买家要联系方式。留言和自己的联系方式都可选 —— 强制填会把大部分人挡在门外。 */

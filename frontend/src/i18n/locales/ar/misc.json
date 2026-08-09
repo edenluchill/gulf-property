@@ -467,6 +467,8 @@
     "colMatched": "مُخصَّص",
     "colRevealed": "طلبوا التواصل",
     "colAcked": "تمت المتابعة",
-    "colLast": "الأخير"
+    "colLast": "الأخير",
+    "onDuty": "متاح الآن",
+    "askHim": "اطلب المساعدة"
   }
 }

@@ -12,9 +12,29 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, ChevronRight } from 'lucide-react'
-import { matchAgent, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
+import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck } from 'lucide-react'
+import { matchAgent, peekNextAgent, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
 import { trackEvent } from '../../lib/track'
+
+/**
+ * 头像;没传照片就画一个中性图标 —— **绝不用姓名首字母拼一个假头像**。
+ *
+ * ⚠️ 尺寸走这张查表,**不要写 `h-${size}`** —— Tailwind 是静态扫源码生成 CSS 的,
+ *    拼出来的类名它看不见,结果是头像没有宽高、塌成 0×0。
+ */
+const AVATAR_SIZE = { 9: 'h-9 w-9', 10: 'h-10 w-10', 11: 'h-11 w-11' } as const
+
+export function AgentAvatar({ agent, size = 10 }: {
+  agent: { photo_url?: string | null } | null
+  size?: keyof typeof AVATAR_SIZE
+}) {
+  const cls = AVATAR_SIZE[size]
+  return agent?.photo_url
+    ? <img src={agent.photo_url} alt="" className={`${cls} rounded-full object-cover ring-1 ring-slate-200`} />
+    : <span className={`${cls} flex items-center justify-center rounded-full bg-slate-100 text-slate-400 ring-1 ring-slate-200`}>
+        <UserRound className="h-1/2 w-1/2" />
+      </span>
+}
 
 export default function FindAgentCard({ projectId, source, compact, variant = 'card', autoStart }: {
   projectId?: string
@@ -37,6 +57,17 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
   const [contact, setContact] = useState<RevealedContact | null>(null)
   const [note, setNote] = useState('')
   const [myContact, setMyContact] = useState('')
+  /** 值班中的那位 —— **只读 peek,不落库**。用来在按钮上直接显示头像和名字。 */
+  const [onDuty, setOnDuty] = useState<(MatchedAgent & { id: string }) | null>(null)
+  const [peeked, setPeeked] = useState(false)
+
+  // 先 peek 一下现在值班的是谁 —— 按钮上要显示他的头像和名字(owner 要求)。
+  // 这是**只读**的,不写库、不占轮换名额,所以可以在挂载时就调。
+  useEffect(() => {
+    let alive = true
+    peekNextAgent(projectId).then((a) => { if (alive) { setOnDuty(a); setPeeked(true) } })
+    return () => { alive = false }
+  }, [projectId])
 
   // autoStart:弹窗里用户已经点过一次了,不要再让他点第二下
   useEffect(() => { if (autoStart) void ask() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [autoStart])
@@ -44,7 +75,7 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
   const ask = async () => {
     setState('loading')
     trackEvent('contact_attempt', { contact_type: 'agent_match_open' }, { project_id: projectId, immediate: true })
-    const r = await matchAgent({ projectId, source })
+    const r = await matchAgent({ projectId, source, prefer: onDuty?.id })
     if (!r.agent || !r.matchId) { setState('empty'); return }
     setAgent(r.agent)
     setMatchId(r.matchId)
@@ -62,8 +93,12 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
     setState('revealed')
   }
 
-  // 池子空 → 什么都不渲染(见文件头)
+  // 池子空 → 什么都不渲染(见文件头)。peek 回来是 null 也一样 ——
+  // 摆一个「暂时没有经纪」的按钮比没有按钮更伤。
   if (state === 'empty') return null
+  if (state === 'idle' && peeked && !onDuty) return null
+  // peek 还没回来时不闪一下占位骨架:入口在页面顶部,闪一下比晚 200ms 出现更难看
+  if (state === 'idle' && !peeked) return null
 
   const pad = compact ? 'p-3' : 'p-4'
 
@@ -72,33 +107,46 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
     // 满宽、有底色、不用滚就看得见。
     if (variant === 'bar') {
       return (
-        <div className="border-b border-teal-100 bg-gradient-to-r from-white via-emerald-50 to-teal-50">
+        <div className="border-b border-slate-100 bg-white">
           <div className="container mx-auto px-4">
-            <button type="button" onClick={ask} className="group flex w-full items-center gap-3 py-3 text-start sm:gap-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md shadow-emerald-600/25 transition-transform group-hover:scale-105 sm:h-12 sm:w-12">
-                <UserRound className="h-5 w-5" />
+            <div className="flex items-center gap-3 py-2.5">
+              <span className="relative shrink-0">
+                <AgentAvatar agent={onDuty} size={9} />
+                {/* 绿点 = 现在有人在接。它说明的是「有人值班」,不是「已认证」 */}
+                <span className="absolute -end-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-bold text-slate-900 sm:text-base">{t('agentMatch.cta')}</span>
-                <span className="block truncate text-xs text-slate-500">{t('agentMatch.ctaSub')}</span>
+                <span className="block truncate text-sm font-semibold text-slate-900">{onDuty?.display_name}</span>
+                <span className="block truncate text-xs text-slate-500">
+                  {[onDuty?.title, onDuty?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.onDuty')}
+                </span>
               </span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400 rtl:rotate-180" />
-            </button>
+              <button type="button" onClick={ask}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 active:scale-95 sm:text-sm">
+                <MessageCircle className="h-3.5 w-3.5" />
+                {t('agentMatch.askHim')}
+              </button>
+            </div>
           </div>
         </div>
       )
     }
     return (
       <button type="button" onClick={ask}
-        className={`flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 ${pad} text-start text-white shadow-sm transition hover:opacity-95 active:scale-[0.99]`}>
-        <span className="flex items-center gap-2.5">
-          <UserRound className="h-5 w-5 shrink-0" />
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold">{t('agentMatch.cta')}</span>
-            <span className="block text-[11px] text-white/80">{t('agentMatch.ctaSub')}</span>
+        className={`flex w-full items-center gap-3 rounded-2xl bg-white ${pad} text-start ring-1 ring-slate-200 transition hover:ring-slate-300 active:scale-[0.99]`}>
+        <span className="relative shrink-0">
+          <AgentAvatar agent={onDuty} size={10} />
+          <span className="absolute -end-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-slate-900">{onDuty?.display_name}</span>
+          <span className="block truncate text-xs text-slate-500">
+            {[onDuty?.title, onDuty?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.onDuty')}
           </span>
         </span>
-        <ChevronRight className="h-4 w-4 shrink-0 opacity-80 rtl:rotate-180" />
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+          <MessageCircle className="h-3.5 w-3.5" />{t('agentMatch.askHim')}
+        </span>
       </button>
     )
   }
