@@ -5,8 +5,10 @@
  * 只在 hero 放一张「大家在提什么」的入口卡。两边都要用状态/角色标签，
  * 抽出来才不会两份定义各自漂移。
  *
- * 🔴 匿名是产品承诺：这里渲染的任何字段都来自服务端的 publicShape()，
- * 里面根本没有提交人。角色（经纪/买家）是**群体属性，不是身份**。
+ * 🔴 这里渲染的任何字段都来自服务端的 publicShape()/commentShape()。
+ * 署名走 `author`（null = 匿名，包括 2026-08-08 之前的全部存量帖）；
+ * `author_email` 服务端只发给 owner/admin —— 前端**不判断权限，有就显示**，
+ * 免得判据两处分叉。角色（经纪/买家）独立于署名，匿名帖也照常显示。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,13 +16,14 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import {
   Lightbulb, Loader2, Check, Send, ChevronUp, MessageSquare,
-  Search as SearchIcon, ChevronDown, X, Briefcase,
+  Search as SearchIcon, ChevronDown, X, Briefcase, Eye,
 } from 'lucide-react'
 import { pickLang } from '../../data/changelog'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   fetchFeatureRequests, submitFeatureRequest, toggleVote, fetchThread, postReply, updateRequest,
-  type FeatureRequest, type RequestStatus, type RequestComment, type RequestAudience,
+  fetchWhoami,
+  type FeatureRequest, type RequestStatus, type RequestComment, type RequestAudience, type WhoAmI,
 } from '../../lib/featureRequestApi'
 
 export const ACCENT = '#00E0B8'
@@ -64,6 +67,73 @@ export function RoleTag({ role }: { role: string | null }) {
   )
 }
 
+/**
+ * 把整句翻译里的某个片段加粗（这里用来突出「会公开成什么名字」）。
+ *
+ * 之所以不把句子拆成 signedAs + signedAsTail 两个键：中/英/法/俄/阿的语序不一样，
+ * 拆开就等于把语序**写死成中文的**，其余四种语言必然读起来是坏的。整句一个键 +
+ * {{name}} 插值，翻译能自由排语序；这里只负责在结果里找到那个名字并加粗。
+ */
+function emphasize(text: string, needle: string) {
+  const at = needle ? text.indexOf(needle) : -1
+  if (at < 0) return text
+  return (
+    <>
+      {text.slice(0, at)}
+      <b className="font-semibold text-slate-700">{needle}</b>
+      {text.slice(at + needle.length)}
+    </>
+  )
+}
+
+/**
+ * 官方标记 —— logo + Pinzos，一眼把我们的答复和其他人的跟帖分开。
+ *
+ * 用 <img src="/logo.svg"> 而不是把 Header 里那段 SVG 抄过来：Header 在同一页上，
+ * 它的 <linearGradient id="pinzosPin"> 是**写死的 id**，抄一份进来就是同页两个同名
+ * id —— 浏览器只认第一个，渲染顺序一变就可能画出个没有渐变的灰色图钉。
+ */
+export function PinzosMark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      translate="no"
+      className={`inline-flex items-center gap-1 rounded-full bg-slate-900 py-px pe-2 ps-1 text-[10px] font-semibold text-white ${className}`}
+    >
+      <img src="/logo.svg" alt="" aria-hidden className="h-3 w-3" />
+      Pinzos
+    </span>
+  )
+}
+
+/**
+ * 一条建议 / 一层楼的署名行。
+ *
+ * `author` 为 null 就是匿名 —— **不要拿 email 前缀或者角色去顶**：存量帖是在页面
+ * 明写「匿名」时提交的，给它编一个名字等于替人家改了当时的约定。
+ *
+ * `email` 只有 owner/admin 收得到（服务端决定），用更淡的样式挂在后面：
+ * 它是给你回访用的，不是这一行的主角。
+ */
+export function Byline({ author, role, email }: {
+  author: string | null; role: string | null; email?: string
+}) {
+  const { t } = useT()
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span className={`text-[11px] ${author ? 'font-medium text-slate-600' : 'text-slate-400'}`}>
+        {author || t('misc:changelog.anonymous')}
+      </span>
+      <RoleTag role={role} />
+      {email && (
+        <span translate="no" title={t('misc:changelog.ownerOnlyEmail')}
+          className="inline-flex items-center rounded bg-amber-50 px-1.5 py-px text-[10px] text-amber-700 ring-1 ring-amber-100">
+          {email}
+        </span>
+      )}
+    </span>
+  )
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // 发帖弹窗 —— 没登录也能打开、能填，登录提示放在最后一步
 // ════════════════════════════════════════════════════════════════════════════
@@ -79,12 +149,16 @@ export function ComposeModal({ onClose, onCreated }: {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [ok, setOk] = useState(false)
+  const [who, setWho] = useState<WhoAmI | null>(null)
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onClose])
+
+  // 登录了才问 —— 没登录时署名还没定，问了也只能得到 null
+  useEffect(() => { if (user) void fetchWhoami().then(setWho) }, [user])
 
   const send = async () => {
     setErr(''); setBusy(true)
@@ -138,6 +212,26 @@ export function ComposeModal({ onClose, onCreated }: {
                 className="w-full resize-y rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
 
               {err && <p className="text-xs font-medium text-rose-600">{err}</p>}
+
+              {/* 🔴 署名告知 —— 这条**不能省**。建议板从匿名改成公开署名（2026-08-08），
+                  不先告诉人就把名字挂出去，比一直匿名糟得多。而且这里显示的名字来自
+                  服务端 whoami，跟真正写库用的是同一个判据，不会出现「提示写着 A、
+                  公开出去是 B」。取不到名字就如实说会匿名发布。 */}
+              {user && who && (
+                <div className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100">
+                  <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <p className="text-[11px] leading-relaxed text-slate-500">
+                    {who.author
+                      ? emphasize(t('misc:changelog.signedAs', { name: who.author }), who.author)
+                      : t('misc:changelog.willBeAnonymous')}
+                    {who.author && (
+                      <Link to="/profile" onClick={onClose} className="ms-1 text-teal-600 underline-offset-2 hover:underline">
+                        {t('misc:changelog.changeName')}
+                      </Link>
+                    )}
+                  </p>
+                </div>
+              )}
 
               {/* 🔴 没登录**也能一路填到这里** —— 登录提示放在最后一步。
                   一上来就拿登录墙拦住，大多数人根本不会去登录，那条建议就永远没了。 */}
@@ -244,7 +338,7 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${s.chip}`}>
               {t(s.key)}
             </span>
-            <RoleTag role={r.role} />
+            <Byline author={r.author} role={r.role} email={r.author_email} />
             {/* 「经纪专属」只有经纪看得到(买家的列表里根本没有这些条目)——
                 标出来是让他知道这条不会出现在客户那边,别拿去当共同话题。 */}
             {r.audience === 'agent' && (
@@ -271,9 +365,10 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
           {r.body && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-500">{r.body}</p>}
 
           {r.reply && (
-            <p className="mt-2.5 rounded-xl bg-teal-50/70 px-3 py-2 text-sm leading-relaxed text-teal-800 ring-1 ring-teal-100">
-              <span className="font-semibold">Pinzos：</span>{r.reply}
-            </p>
+            <div className="mt-2.5 rounded-xl bg-teal-50/70 px-3 py-2 ring-1 ring-teal-100">
+              <PinzosMark />
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-teal-800">{r.reply}</p>
+            </div>
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-3">
@@ -318,14 +413,11 @@ export function RequestCard({ r, user, isAdmin, onPatch, onNeedLogin, defaultOpe
                   <div key={c.id} className="flex gap-2.5">
                     <span translate="no" className="mt-0.5 w-7 shrink-0 text-end text-[11px] tabular-nums text-slate-300">#{i + 1}</span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {c.is_staff ? (
-                          <span className="inline-flex items-center rounded-full bg-slate-900 px-1.5 py-px text-[10px] font-medium text-white">Pinzos</span>
+                          <PinzosMark />
                         ) : (
-                          <>
-                            <span className="text-[11px] text-slate-400">{t('misc:changelog.anonymous')}</span>
-                            <RoleTag role={c.role} />
-                          </>
+                          <Byline author={c.author} role={c.role} email={c.author_email} />
                         )}
                         <span translate="no" className="text-[10px] tabular-nums text-slate-300">
                           {new Date(c.created_at).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}

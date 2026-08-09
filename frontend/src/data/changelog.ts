@@ -60,6 +60,24 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-08-08',
+    kind: 'fix',
+    zh: '「交易记录 → 出租」里搜楼盘时，候选名不再被截断 —— 以前 Springs 1 和 Springs 11、Santorini (1) 和 (2) 在列表里显示出来一模一样，根本分不出选的是哪个；现在名字完整换行显示，搜的那几个字会高亮。租约笔数较少的楼盘现在也搜得到了。',
+    en: 'When searching for a project under Transactions → Rentals, names are no longer cut off. Previously Springs 1 and Springs 11, or Santorini (1) and (2), looked identical in the list, so you could not tell which one you were picking. Names now wrap in full and your search term is highlighted. Projects with fewer rental contracts are also searchable now.',
+    fr: "Lors d'une recherche de projet dans Transactions → Locations, les noms ne sont plus tronqués. Auparavant, Springs 1 et Springs 11, ou Santorini (1) et (2), apparaissaient identiques dans la liste, sans possibilité de distinguer lequel on sélectionnait. Les noms s'affichent désormais en entier sur plusieurs lignes et votre terme de recherche est surligné. Les projets comptant peu de contrats de location sont également accessibles à la recherche.",
+    ru: 'При поиске проекта в разделе «Сделки → Аренда» названия больше не обрезаются. Раньше Springs 1 и Springs 11 или Santorini (1) и (2) выглядели в списке одинаково, и было невозможно понять, какой именно вы выбираете. Теперь названия переносятся целиком, а искомые символы подсвечиваются. Проекты с небольшим числом договоров аренды тоже стали доступны для поиска.',
+    ar: 'عند البحث عن مشروع في «المعاملات ← الإيجارات»، لم تعد الأسماء تُقتطع. في السابق كان Springs 1 و Springs 11، أو Santorini ‏(1) و‏(2)، تبدو متطابقة في القائمة فلا يمكنك تمييز أيها تختار. أصبحت الأسماء الآن تُعرض كاملة على أكثر من سطر مع تمييز نص البحث. كما صارت المشاريع ذات عقود الإيجار القليلة قابلة للبحث أيضًا.',
+  },
+  {
+    date: '2026-08-08',
+    kind: 'new',
+    zh: '功能建议现在会署上提议人的名字。发布前会先告诉你将署成什么名，想换可以去个人资料里改；没设显示名就仍然匿名发布。我们的官方答复带上了 Pinzos 标识，一眼就能和其他人的跟帖分开。2026-08-08 之前提的建议保持匿名不变 —— 那时候页面写的是匿名。',
+    en: 'Feature requests now carry the name of the person who posted them. Before you publish, we show you exactly which name will appear; you can change it in your profile, and if you have not set a display name your request stays anonymous. Our official replies now carry the Pinzos mark so they are easy to tell apart from other people’s comments. Requests posted before 8 August 2026 remain anonymous, because that is what the page promised at the time.',
+    fr: "Les demandes de fonctionnalités affichent désormais le nom de leur auteur. Avant publication, nous vous indiquons exactement quel nom apparaîtra ; vous pouvez le modifier dans votre profil, et si vous n'avez pas défini de nom d'affichage, votre demande reste anonyme. Nos réponses officielles portent maintenant la marque Pinzos, faciles à distinguer des commentaires des autres. Les demandes publiées avant le 8 août 2026 restent anonymes, conformément à ce que la page promettait alors.",
+    ru: 'Предложения по функциям теперь публикуются с именем автора. Перед публикацией мы показываем, какое именно имя появится; его можно изменить в профиле, а если отображаемое имя не задано, предложение останется анонимным. Наши официальные ответы теперь отмечены знаком Pinzos, поэтому их легко отличить от комментариев других пользователей. Предложения, опубликованные до 8 августа 2026 года, остаются анонимными — именно это обещала страница на тот момент.',
+    ar: 'أصبحت اقتراحات الميزات تحمل الآن اسم صاحبها. قبل النشر نعرض لك بالضبط الاسم الذي سيظهر، ويمكنك تغييره من ملفك الشخصي؛ وإن لم تحدّد اسمًا للعرض يبقى اقتراحك دون اسم. كما صارت ردودنا الرسمية تحمل شعار Pinzos ليسهل تمييزها عن تعليقات الآخرين. تبقى الاقتراحات المنشورة قبل ٨ أغسطس ٢٠٢٦ دون اسم، لأن هذا ما وعدت به الصفحة حينها.',
+  },
+  {
     date: '2026-08-02',
     kind: 'improve',
     zh: "楼盘导览的开场改成斜角航拍视角(以前像正上方俯视);照片会像影片一样缓缓推移;手机上的项目卡缩成一条窄条不再挡住地图,点一下展开能看到户型跨度、面积和周边五类配套的实际距离",

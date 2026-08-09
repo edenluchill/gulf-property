@@ -375,7 +375,7 @@
     "submit": "Submit",
     "submitted": "Got it — thank you",
     "submittedSub": "We will reply in the thread below.",
-    "needLogin": "You need to sign in to post — only to prevent spam. Your name and email never appear on this page.",
+    "needLogin": "You need to sign in to post — only to prevent spam. Your name is shown publicly on your request; your email is not.",
     "signInSubmit": "Sign in to submit",
     "signInVote": "Sign in to vote",
     "signInReply": "Sign in to reply",
@@ -417,7 +417,11 @@
     "audienceHint": "Toggle who sees this: everyone / agents only",
     "viewShared": "Client-facing",
     "viewAll": "Everything",
-    "titleShort": "Diary"
+    "titleShort": "Diary",
+    "signedAs": "This will be posted publicly as {{name}}.",
+    "willBeAnonymous": "You haven't set a display name, so this will be posted anonymously.",
+    "changeName": "Change name",
+    "ownerOnlyEmail": "Visible to admins only"
   },
   "mapSearch": {
     "placeholder": "Search an area or project",

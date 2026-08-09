@@ -2,8 +2,11 @@
  * 功能建议 API —— /changelog 页面用。
  *
  * 列表是**公开**的(不登录也能看别人提了什么、多少人赞);提交/点赞/跟帖要登录。
- * 服务端永远不返回提交人 —— 前端这边也就没有任何字段可以不小心渲染出来。
- * 唯一会显示的身份信息是 `role`(经纪/买家/开发商):那是**群体属性,不是身份**。
+ *
+ * 署名(2026-08-08 起):`author` 是公开显示名,null = 匿名(2026-08-08 之前的存量帖
+ * 全是 null,它们提交时页面写的是"匿名")。`author_email` **只有 owner/admin 拿得到**
+ * ——服务端按登录身份决定给不给,前端只管有就显示、没有就不显示,别自己判断权限
+ * (判据放两处早晚分叉)。
  */
 import { supabase } from './supabase'
 
@@ -30,6 +33,10 @@ export interface FeatureRequest {
   votes: number
   comments: number
   voted: boolean
+  /** 公开署名;null = 匿名(存量帖 + 取不到名字的新帖)。 */
+  author: string | null
+  /** 只有 owner/admin 会收到这个字段。 */
+  author_email?: string
 }
 
 export interface RequestComment {
@@ -38,6 +45,15 @@ export interface RequestComment {
   body: string
   role: string | null
   is_staff: boolean
+  author: string | null
+  author_email?: string
+}
+
+/** 我这条会以什么名义公开发布 —— 发帖弹窗如实显示用。 */
+export interface WhoAmI {
+  author: string | null
+  signed_in: boolean
+  staff?: boolean
 }
 
 async function token(): Promise<string | null> {
@@ -94,10 +110,29 @@ export async function toggleVote(id: number): Promise<{ votes: number; voted: bo
   return await res.json()
 }
 
+/** 楼层。**带 token** —— owner 靠它才能在楼层里看到 author_email(去回访提议人)。 */
 export async function fetchThread(id: number): Promise<RequestComment[]> {
-  const res = await fetch(`${BASE}/${id}/thread`)
+  const t = await token()
+  const res = await fetch(`${BASE}/${id}/thread`, t ? { headers: { Authorization: `Bearer ${t}` } } : undefined)
   if (!res.ok) return []
   return ((await res.json()).comments || []) as RequestComment[]
+}
+
+/**
+ * 发帖前问一句"我会署成什么名"。
+ *
+ * 不复用别处的 profile 接口:那些要么没挂在这页、要么返回一大坨。这里只要一个字符串,
+ * 而且必须和服务端写库时用的是**同一个判据**(后端 whoami 和写库都走 displayNameOf)。
+ */
+export async function fetchWhoami(): Promise<WhoAmI> {
+  try {
+    const t = await token()
+    const res = await fetch(`${BASE}/whoami`, t ? { headers: { Authorization: `Bearer ${t}` } } : undefined)
+    if (!res.ok) return { author: null, signed_in: false }
+    return await res.json()
+  } catch {
+    return { author: null, signed_in: false }
+  }
 }
 
 export async function postReply(id: number, body: string): Promise<RequestComment> {

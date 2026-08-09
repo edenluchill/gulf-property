@@ -9,13 +9,21 @@
  *   POST   /api/feature-requests/:id/reply  跟一层楼                          [requireAuth]
  *   PATCH  /api/feature-requests/:id        改状态 / 写公开回复                [requireOwner]
  *
- * 🔴 **匿名是产品承诺,不是实现细节。**
+ * 🔴 **email 永远不进公开返回。**
  * 库里存 user_email(要防刷、要能去回访提议人、投票要去重),但**任何公开返回里都
  * 不许出现它**。所以对外只走 publicShape()/commentShape() 这两个出口 —— 别处手拼
  * 对象迟早会把 email 带出去,而这种泄露一旦发生就收不回来(页面会被爬、被缓存)。
  *
- * 「角色」是例外且是有意的:显示「经纪 / 买家 / 开发商」让别人知道这条诉求来自谁那
- * 一侧的人 —— 那是**群体属性,不是身份**,指认不到具体的人。
+ * 署名(2026-08-08 起):新帖公开显示 author_name(发帖时的 display_name 快照)。
+ * 三条约束,改这块之前先读:
+ *   1. **存量帖永远匿名** —— 它们是在页面明写"匿名"时提交的,追溯署名等于替人家
+ *      改了当时的约定。靠 is_anonymous 标记,见 db/feature-requests-author.sql。
+ *   2. **发帖界面必须先告诉他会署名**。不告知就公开别人名字,比匿名糟得多。
+ *   3. **署名只出 display_name,绝不出 email**。很多人的 display_name 是系统按邮箱
+ *      前缀填的默认值(tczhulei2001@msn.com → "tczhulei2001"),那已经等于半个邮箱;
+ *      再把 email 放出去就是彻底泄露。email 只给 owner/admin(authorEmailFor)。
+ *
+ * 「角色」独立于署名:显示「经纪 / 买家 / 开发商」是**群体属性**,匿名帖也照常显示。
  */
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
@@ -59,6 +67,22 @@ const REPLY_MAX = 800
 const PER_WEEK_FREE = 3
 const PER_WEEK_PAID = 10
 const PER_WEEK_STAFF = 50
+
+/**
+ * 发帖时的显示名 —— 存进 author_name 快照。取不到返回 null(= 那条帖子显示"匿名",
+ * 而不是显示一个编出来的名字)。
+ *
+ * ⚠️ 只读 lt_agents.display_name。**绝不拿 email 前缀兜底** —— 那等于把邮箱公开了,
+ *    而用户以为自己只是公开了一个名字。
+ */
+async function displayNameOf(email: string): Promise<string | null> {
+  try {
+    const { rows } = await pool.query<{ display_name: string | null }>(
+      `SELECT display_name FROM lt_agents WHERE lower(email) = $1 LIMIT 1`, [email]
+    )
+    return rows[0]?.display_name?.trim() || null
+  } catch { return null }
+}
 
 /** 显示用的角色(群体属性)。取不到就 null,**绝不猜**。 */
 async function roleOf(email: string): Promise<string | null> {
@@ -112,11 +136,20 @@ interface PublicRow {
   votes: number
   comments: number
   voted: boolean
+  /** 公开署名。匿名帖(含全部存量帖)、或发帖时取不到名字 → null,前端显示「匿名」。 */
+  author: string | null
+  /** **只有 owner/admin 拿得到**。给你回访提议人用,别渲染在公开位置。 */
+  author_email?: string
 }
 
-/** 对外的**唯一**出口:只有这几个字段能出去。 */
-function publicShape(r: Record<string, unknown>): PublicRow {
-  return {
+/**
+ * 对外的**唯一**出口:只有这几个字段能出去。
+ *
+ * `viewerIsStaff` 决定要不要附 author_email —— 默认 false,也就是**忘了传就是不给**。
+ * 反过来写(默认给、需要时再关)的话,以后新增一个调用点忘了传参就会静默泄露 email。
+ */
+function publicShape(r: Record<string, unknown>, viewerIsStaff = false): PublicRow {
+  const out: PublicRow = {
     id: Number(r.id),
     created_at: String(r.created_at),
     title: String(r.title),
@@ -128,17 +161,23 @@ function publicShape(r: Record<string, unknown>): PublicRow {
     votes: Number(r.votes ?? 0),
     comments: Number(r.comments ?? 0),
     voted: !!r.voted,
+    author: r.is_anonymous ? null : ((r.author_name as string) ?? null),
   }
+  if (viewerIsStaff && r.user_email) out.author_email = String(r.user_email)
+  return out
 }
 
-function commentShape(r: Record<string, unknown>) {
-  return {
+function commentShape(r: Record<string, unknown>, viewerIsStaff = false) {
+  const out: Record<string, unknown> = {
     id: Number(r.id),
     created_at: String(r.created_at),
     body: String(r.body),
     role: (r.role as string) ?? null,
     is_staff: !!r.is_staff,
+    author: r.is_anonymous ? null : ((r.author_name as string) ?? null),
   }
+  if (viewerIsStaff && r.user_email) out.author_email = String(r.user_email)
+  return out
 }
 
 /**
@@ -161,8 +200,10 @@ router.get('/', async (req: Request, res: Response) => {
     const me = softEmail(req)
     // 买家(和未登录访客)看不到经纪侧的建议 —— 那些诉求他既没法评判也用不上
     const seesAgent = await viewerIsAgentSide(me)
+    const staff = isStaff(me)
     const { rows } = await pool.query(
       `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role, r.audience,
+              r.author_name, r.is_anonymous, r.user_email,
               COALESCE(v.n, 0)  AS votes,
               COALESCE(c.n, 0)  AS comments,
               ($2 <> '' AND mv.user_email IS NOT NULL) AS voted
@@ -181,10 +222,26 @@ router.get('/', async (req: Request, res: Response) => {
         LIMIT $1`,
       [limit, me, seesAgent]
     )
-    res.json({ requests: rows.map(publicShape) })
+    res.json({ requests: rows.map((r) => publicShape(r, staff)) })
   } catch (err) {
     console.error('[feature-requests] list failed:', err)
     res.status(500).json({ error: 'internal error' })
+  }
+})
+
+// ── 我会以什么名义发布 ─────────────────────────────────────────────────────
+// 发帖弹窗要**如实**告诉他署名是什么。前端自己拼一个(或者写死"你的名字")的话,
+// 迟早会和这里的 displayNameOf 分叉 —— 那就变成了"提示写着 A,公开出去是 B"。
+// 取不到名字 → author:null,前端显示"将匿名发布"。
+//
+// ⚠️ 路由顺序无关:上面的单条是 /:id(\d+),数字限定,吞不掉 /whoami。
+router.get('/whoami', async (req: Request, res: Response) => {
+  const email = softEmail(req)
+  if (!email) return res.json({ author: null, signed_in: false })
+  try {
+    res.json({ author: await displayNameOf(email), signed_in: true, staff: isStaff(email) })
+  } catch {
+    res.json({ author: null, signed_in: true })
   }
 })
 
@@ -201,6 +258,7 @@ router.get('/:id(\\d+)', async (req: Request, res: Response) => {
       // 单条**有意不按受众过滤**:别人把链接发给你,点开说「没有这条」比读到一条
       // 不相干的建议糟得多。分流是为了不吵人,不是为了藏东西。
       `SELECT r.id, r.created_at, r.title, r.body, r.status, r.reply, r.role, r.audience,
+              r.author_name, r.is_anonymous, r.user_email,
               (SELECT count(*) FROM feature_request_votes v WHERE v.request_id = r.id)    AS votes,
               (SELECT count(*) FROM feature_request_comments c WHERE c.request_id = r.id) AS comments,
               ($2 <> '' AND EXISTS (SELECT 1 FROM feature_request_votes mv
@@ -209,7 +267,7 @@ router.get('/:id(\\d+)', async (req: Request, res: Response) => {
       [id, me]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
-    res.json({ request: publicShape(rows[0]) })
+    res.json({ request: publicShape(rows[0], isStaff(me)) })
   } catch (err) {
     console.error('[feature-requests] get one failed:', err)
     res.status(500).json({ error: 'internal error' })
@@ -250,17 +308,18 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       })
     }
 
-    const role = await roleOf(email)
+    const [role, authorName] = await Promise.all([roleOf(email), displayNameOf(email)])
     // 受众默认跟提议人走(经纪提的 → 经纪侧)。owner 可以在后台 PATCH 改 ——
     // 经纪提的「地图能不能按学校筛」其实买家也该看到,那种就手动放回 'all'。
     const audience: Audience = AGENT_ROLES.has(role || '') ? 'agent' : 'all'
+    // 取不到名字 → 匿名。绝不退回 email 前缀顶上(见文件头第 3 条)。
     const { rows } = await pool.query(
-      `INSERT INTO feature_requests (user_id, user_email, title, body, role, audience)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       RETURNING id, created_at, title, body, status, reply, role, audience`,
-      [req.user?.id ?? null, email, title, body, role, audience]
+      `INSERT INTO feature_requests (user_id, user_email, title, body, role, audience, author_name, is_anonymous)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id, created_at, title, body, status, reply, role, audience, author_name, is_anonymous, user_email`,
+      [req.user?.id ?? null, email, title, body, role, audience, authorName, !authorName]
     )
-    res.status(201).json({ request: publicShape(rows[0]) })
+    res.status(201).json({ request: publicShape(rows[0], isStaff(email)) })
   } catch (err) {
     console.error('[feature-requests] create failed:', err)
     res.status(500).json({ error: 'internal error' })
@@ -299,13 +358,14 @@ router.get('/:id/thread', async (req: Request, res: Response) => {
   const id = Number(req.params.id)
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad id' })
   try {
+    const staff = isStaff(softEmail(req))
     const { rows } = await pool.query(
-      `SELECT id, created_at, body, role, is_staff
+      `SELECT id, created_at, body, role, is_staff, author_name, is_anonymous, user_email
          FROM feature_request_comments WHERE request_id = $1
         ORDER BY created_at ASC LIMIT 200`,
       [id]
     )
-    res.json({ comments: rows.map(commentShape) })
+    res.json({ comments: rows.map((r) => commentShape(r, staff)) })
   } catch (err) {
     console.error('[feature-requests] thread failed:', err)
     res.status(500).json({ error: 'internal error' })
@@ -320,14 +380,19 @@ router.post('/:id/reply', requireAuth, async (req: Request, res: Response) => {
   if (body.length < 2) return res.status(400).json({ error: 'too_short', message: '说点什么吧。' })
   try {
     const staff = isStaff(email)
-    const role = staff ? null : await roleOf(email)
+    // staff 回复不署个人名 —— 它代表 Pinzos,前端渲染成 logo + Pinzos。
+    // 署上个人名反而弱化了"这是官方答复"这件事。
+    const [role, authorName] = await Promise.all([
+      staff ? Promise.resolve(null) : roleOf(email),
+      staff ? Promise.resolve(null) : displayNameOf(email),
+    ])
     const { rows } = await pool.query(
-      `INSERT INTO feature_request_comments (request_id, user_email, role, is_staff, body)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING id, created_at, body, role, is_staff`,
-      [id, email, role, staff, body]
+      `INSERT INTO feature_request_comments (request_id, user_email, role, is_staff, body, author_name, is_anonymous)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id, created_at, body, role, is_staff, author_name, is_anonymous, user_email`,
+      [id, email, role, staff, body, authorName, !staff && !authorName]
     )
-    res.status(201).json({ comment: commentShape(rows[0]) })
+    res.status(201).json({ comment: commentShape(rows[0], staff) })
   } catch (err) {
     console.error('[feature-requests] reply failed:', err)
     res.status(500).json({ error: 'internal error' })
@@ -356,11 +421,13 @@ router.patch('/:id', requireOwner, async (req: Request, res: Response) => {
               audience = COALESCE(NULLIF($4,''), audience),
               updated_at = now()
         WHERE id = $1
-      RETURNING id, created_at, title, body, status, reply, role, audience`,
+      RETURNING id, created_at, title, body, status, reply, role, audience,
+                author_name, is_anonymous, user_email`,
       [id, status, reply ?? null, audience]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
-    res.json({ request: publicShape(rows[0]) })
+    // requireOwner 已经把关,到这里必然是 staff → 带上 author_email
+    res.json({ request: publicShape(rows[0], true) })
   } catch (err) {
     console.error('[feature-requests] patch failed:', err)
     res.status(500).json({ error: 'internal error' })

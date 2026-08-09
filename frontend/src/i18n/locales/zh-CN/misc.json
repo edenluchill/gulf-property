@@ -375,7 +375,7 @@
     "submit": "提交",
     "submitted": "收到了，谢谢",
     "submittedSub": "我们会在下面回复你。",
-    "needLogin": "提交前需要登录一下 —— 只用来防刷，你的名字和邮箱永远不会出现在这一页。",
+    "needLogin": "提建议需要先登录 —— 用来防刷。你的名字会公开显示在这条建议上，邮箱不会。",
     "signInSubmit": "登录并提交",
     "signInVote": "登录后可点赞",
     "signInReply": "登录后可以回复",
@@ -417,7 +417,11 @@
     "audienceHint": "切换这条给谁看：所有人 / 只给经纪侧",
     "viewShared": "客户也看得到",
     "viewAll": "全部",
-    "titleShort": "日记"
+    "titleShort": "日记",
+    "signedAs": "这条建议将以 {{name}} 的名义公开发布。",
+    "willBeAnonymous": "你还没设置显示名，这条会匿名发布。",
+    "changeName": "改名字",
+    "ownerOnlyEmail": "只有管理员看得到"
   },
   "mapSearch": {
     "placeholder": "搜索区域或楼盘",

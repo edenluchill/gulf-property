@@ -17,6 +17,27 @@ const fmt = (n: number | null | undefined) => (n == null ? '—' : Math.round(n)
 // 年租金区间预设(AED)
 const RENT_PRICE_STEPS = [30000, 50000, 75000, 100000, 150000, 200000, 300000, 500000, 1000000]
 
+/**
+ * 把候选名里命中查询的那一段加粗。
+ *
+ * 名字不截断之后,下拉里会同时出现 `Emirates Living - Springs 1/10/11/12`,
+ * 光是"都显示全了"还不够 —— 得让眼睛一下子落在不同的那几个字符上。
+ * 用 <mark> 而不是给整行上色:一行里只有命中片段变,其余保持原样才好扫。
+ */
+function highlight(name: string, query: string) {
+  const q = query.trim()
+  if (!q) return name
+  const at = name.toLowerCase().indexOf(q.toLowerCase())
+  if (at < 0) return name
+  return (
+    <>
+      {name.slice(0, at)}
+      <mark className="bg-transparent font-semibold text-emerald-700">{name.slice(at, at + q.length)}</mark>
+      {name.slice(at + q.length)}
+    </>
+  )
+}
+
 function RentTrend({ trend }: { trend: RentSummary['trend'] }) {
   if (!trend.length) return null
   const w = 720, h = 160, pad = 28
@@ -161,8 +182,15 @@ export default function RentView() {
                 placeholder={t('misc:searchProjectsMultiSelect')}
                 className="w-full md:min-w-[260px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
               />
+              {/* 🔴 候选名**绝不能 truncate**(客户建议 #10,2026-08-01)。
+                  迪拜楼盘名的区分符全长在末尾 —— `Springs 1/10/11/12`、`Phase 1/3`、
+                  `SANTORINI (1)/(2)`、`SILVER SPRINGS 2/3`。截尾正好把唯一能分辨
+                  它们的那几个字符切掉:实测 1501 个楼盘里,有 15 组共 69 个盘截断后
+                  长得**一模一样**(最狠的一组是 34 个 MBR City District One 的盘
+                  全部显示成 `Mohammed Bin Rashid Al Makt…`)。
+                  所以这里让它换行,并且下拉比输入框宽。 */}
               {projectOpen && projectSuggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                <div className="absolute start-0 top-full z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg md:w-[28rem] md:max-w-[calc(100vw-4rem)]">
                   {projectSuggestions.map((p) => {
                     const picked = selectedProjects.includes(p.name)
                     return (
@@ -174,13 +202,13 @@ export default function RentView() {
                           setSelectedProjects((prev) => prev.includes(p.name) ? prev.filter((x) => x !== p.name) : [...prev, p.name])
                           setProjectQuery('')
                         }}
-                        className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-slate-50 ${picked ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700'}`}
+                        className={`flex w-full items-start justify-between gap-2 px-3 py-2 text-start text-sm hover:bg-slate-50 ${picked ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700'}`}
                       >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${picked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>{picked ? '✓' : ''}</span>
-                          <span className="truncate">{p.name}</span>
+                        <span className="flex min-w-0 items-start gap-2">
+                          <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${picked ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'}`}>{picked ? '✓' : ''}</span>
+                          <span className="min-w-0 break-words leading-snug">{highlight(p.name, projectQuery)}</span>
                         </span>
-                        <span className="shrink-0 text-xs text-slate-400">{p.count}</span>
+                        <span className="mt-0.5 shrink-0 tabular-nums text-xs text-slate-400">{p.count}</span>
                       </button>
                     )
                   })}
@@ -191,7 +219,8 @@ export default function RentView() {
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {selectedProjects.map((name) => (
                   <span key={name} className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200">
-                    <span className="truncate">{name}</span>
+                    {/* 同上:选中的 chip 也不截断 —— 截了就分不清自己选的是 Springs 1 还是 11 */}
+                    <span className="break-words">{name}</span>
                     <button type="button" onClick={() => setSelectedProjects((prev) => prev.filter((x) => x !== name))} className="shrink-0 text-emerald-400 hover:text-emerald-700" aria-label={t('misc:remove')}>×</button>
                   </span>
                 ))}

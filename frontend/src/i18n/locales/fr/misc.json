@@ -375,7 +375,7 @@
     "submit": "Envoyer",
     "submitted": "Bien reçu — merci",
     "submittedSub": "Nous répondrons dans le fil ci-dessous.",
-    "needLogin": "Connectez-vous pour publier — uniquement pour éviter le spam. Votre nom et votre e-mail n’apparaissent jamais sur cette page.",
+    "needLogin": "Connectez-vous pour publier — uniquement pour éviter le spam. Votre nom apparaît publiquement sur votre demande ; votre e-mail, jamais.",
     "signInSubmit": "Se connecter et envoyer",
     "signInVote": "Connectez-vous pour voter",
     "signInReply": "Connectez-vous pour répondre",
@@ -417,7 +417,11 @@
     "audienceHint": "Basculer la visibilité : tout le monde / agents seulement",
     "viewShared": "Côté client",
     "viewAll": "Tout",
-    "titleShort": "Journal"
+    "titleShort": "Journal",
+    "signedAs": "Cette demande sera publiée publiquement sous le nom {{name}}.",
+    "willBeAnonymous": "Vous n'avez pas défini de nom d'affichage : cette demande sera publiée de façon anonyme.",
+    "changeName": "Changer de nom",
+    "ownerOnlyEmail": "Visible uniquement par les administrateurs"
   },
   "mapSearch": {
     "placeholder": "Rechercher un quartier ou un projet",

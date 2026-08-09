@@ -124,7 +124,7 @@ async function loadRentProjects(area: string): Promise<{ name: string; count: nu
         ${area ? 'AND UPPER(rc.area_name) = $1' : ''}
         AND rc.project_name IS NOT NULL AND rc.project_name <> ''
       GROUP BY UPPER(rc.project_name)
-     HAVING COUNT(*) >= 10
+     HAVING COUNT(*) >= 3
       ORDER BY count DESC`,
     area ? [area.toUpperCase()] : []
   )
@@ -132,12 +132,32 @@ async function loadRentProjects(area: string): Promise<{ name: string; count: nu
   return r.rows
 }
 
+/**
+ * 搜出来的候选怎么排 —— 词首命中优先,同档再按租约数。
+ *
+ * 纯按 count DESC 排会让搜 `springs` 的人先看到一堆 `DAMAC HILLS - SILVER SPRINGS`
+ * (因为它租约多),而他要的 `Emirates Living - Springs 1` 排在后面。命中位置比
+ * 热度更能说明"他找的是不是这个"。
+ *
+ * 注:这里**不需要**成交页那种分组配额。租约口径全库 1501 个楼盘、没有楼栋维度,
+ * 实测最热的关键词(`creek`)也只命中 26 个,一屏就装得下,不存在名额被挤占的问题。
+ */
+function rankRentProjects(rows: { name: string; count: number }[], q: string) {
+  const score = (name: string) => {
+    const n = name.toLowerCase()
+    if (n.startsWith(q)) return 0          // 整名就是以它开头
+    if (new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(n)) return 1  // 某个词以它开头
+    return 2                               // 只是包含(SILVER SPRING**S**)
+  }
+  return [...rows].sort((a, b) => score(a.name) - score(b.name) || b.count - a.count)
+}
+
 router.get('/projects', async (req: Request, res: Response) => {
   try {
     const area = String(req.query.area || '').trim()
     const q = String(req.query.q || '').trim().toLowerCase()
     let projects = await loadRentProjects(area)
-    if (q) projects = projects.filter((p) => p.name.toLowerCase().includes(q))
+    if (q) projects = rankRentProjects(projects.filter((p) => p.name.toLowerCase().includes(q)), q)
     res.json({ projects: projects.slice(0, q ? 50 : 100) })
   } catch (err) {
     console.error('[market/rent/projects] error:', err)
