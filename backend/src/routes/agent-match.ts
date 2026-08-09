@@ -23,7 +23,6 @@ import pool from '../db/pool'
 import { requireAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import { ADMIN_EMAILS } from '../lib/adminEmails'
-import { sendAlertEmail } from '../services/notify'
 import { buildOutreach, outreachLang } from '../lib/agentOutreachTemplate'
 
 const router = Router()
@@ -82,6 +81,22 @@ const POOL_WHERE = `
   AND COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,''), NULLIF(a.public_email,''), NULLIF(a.email,'')) IS NOT NULL
   AND a.match_paused_at IS NULL
   AND lower(a.email) <> ALL($1::text[])
+  /**
+   * ⚠️ **手上压着没跟进的真 lead 就不进排班**(owner 2026-08-09:
+   * 「它收到 lead 后就不应该再出现在排班了」)。
+   * 判据用 revealed_at 而不是 created_at —— 光被分配到、买家没提交,那不算 lead,
+   * 不该把人锁出去。点了「已跟进」(agent_ack_at)就回来。
+   *
+   * 🔴 24 小时**自动释放**是必须的:没人点「已跟进」的话池子会一点点干掉,
+   *    最后所有人都被锁在外面、功能静默失效(而且没有任何报错)。
+   */
+  AND NOT EXISTS (
+    SELECT 1 FROM agent_match_assignments x
+     WHERE x.agent_id = a.id
+       AND x.revealed_at IS NOT NULL
+       AND x.agent_ack_at IS NULL
+       AND x.revealed_at > now() - interval '24 hours'
+  )
 `
 
 /**
@@ -320,50 +335,27 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
      * relay:经纪只有登录邮箱 —— **绝不把那个地址给买家**(注册用的私人地址,
      * 他没同意过公开)。改成我们把需求转发过去,买家全程看不到它。
      *
-     * 转发失败不能当成功:买家会以为"已经发出去了"然后一直等。所以 sendAlertEmail
-     * 的返回值要看,失败就如实告诉他没送到。
+     * 通知是**异步批量**发的(见 services/agentMatchNotifier),所以这里只保证
+     * "需求已收下并入队",不保证"邮件已送达"。发信失败由通知器自己重试。
      */
     if (channel === 'relay') {
       if (!buyerContact) {
         // 这条路买家看不到任何联系方式,经纪只能回过去 —— 没有回址就是死信
         return res.status(400).json({ error: 'contact_required', channel })
       }
-      const projName = String(rows[0].project_name || '').trim()
       /**
-       * 给**经纪**的通知信。两个原则:
-       *   ① 必须有清楚的主题 —— 他要在一堆邮件里一眼认出这是条线索
-       *   ② 把**写好的模板**一起给他,而不是让他自己现编
-       *      (2026-08-09 实测:不给模板,他发出去的是一封无主题的一句话邮件)
-       * 模板按**买家的**语言,不是经纪的 —— 收信的是买家。
+       * **不在这里同步发信**(owner:「不要一次性发,每次发的间隔要有 5 分钟,
+       * 收集好 lead 一次性发给他」)。这里只把它留在待发队列里
+       * (notified_at IS NULL),由 services/agentMatchNotifier 每分钟扫一次:
+       * 距该经纪上次通知 ≥5 分钟才发,并把攒下的多条合成一封。
+       *
+       * 所以这里返回的 relayed 是「需求已收下」,不是「邮件已送达」——
+       * 前端文案也要照这个说,别承诺"已经发给他了"。
        */
-      const tpl = buildOutreach(outreachLang(buyerLang), {
-        agentName: a.display_name, agentTitle: (a.brand as { title?: string } | null)?.title,
-        brokerage: null, projectName: projName, buyerNote,
-      })
-      const subject = projName
-        ? `【Pinzos】新买家线索 · ${projName}`
-        : '【Pinzos】新买家线索'
-      const text = [
-        `${a.display_name || ''}你好,`,
-        '',
-        `有位买家在 Pinzos 上${projName ? `浏览 ${projName} 时` : ''}请求联系顾问,系统按轮值把他分给了你。`,
-        '',
-        '─── 买家信息 ───',
-        `联系方式:${buyerContact}`,
-        `留言:${buyerNote || '(未填写)'}`,
-        `使用语言:${buyerLang || '未知(按英文处理)'}`,
-        '',
-        '─── 可直接发给他的邮件(已按买家语言写好)───',
-        `主题:${tpl.subject}`,
-        '',
-        tpl.body,
-        '',
-        '────────────',
-        '这封模板只是给你省事,发信请用你自己的邮箱 —— 署名和后续往来都在你手里。',
-        `全部分给你的买家:https://www.pinzos.com/agent/matches`,
-      ].join('\n')
-      const sent = await sendAlertEmail(subject, text, undefined, [String(a.email)])
-      return res.json({ display_name: a.display_name || null, channel, relayed: sent })
+      if (!rows[0].first_reveal) {
+        return res.json({ display_name: a.display_name || null, channel, relayed: true, resent: false })
+      }
+      return res.json({ display_name: a.display_name || null, channel, relayed: true, queued: true })
     }
 
     res.json({

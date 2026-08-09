@@ -29,6 +29,7 @@ import agentsRouter from './routes/agents'  // 经纪准入审批
 import telemetryRouter from './routes/telemetry'  // 客户端 RUM 上报
 import featureRequestsRouter from './routes/feature-requests'  // 客户功能建议(公开列表,匿名)
 import agentMatchRouter from './routes/agent-match'  // 买家找经纪派单(最少曝光优先轮换)
+import { startAgentMatchNotifier } from './services/agentMatchNotifier'  // 派单通知:攒 5 分钟合成一封
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
 import voiceDebugRouter from './routes/voice-debug'
@@ -223,6 +224,10 @@ const server = app.listen(PORT, async () => {
 
   // Initialize WebSocket server for collab tour (co-presence) — same http server, path /api/collab
   initCollabWebSocket(server)
+
+  // 派单通知:攒着,每 5 分钟给同一个经纪最多发一封(多条 lead 合成一封)。
+  // 定时器 unref 过,不会拖着进程不退出。
+  startAgentMatchNotifier()
 
   // Recover any tasks that were interrupted by server restart
   await taskManager.recoverInterruptedTasks()
