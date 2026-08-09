@@ -194,9 +194,19 @@ export interface AdminMatchRow {
   project_name: string | null
 }
 
-export async function fetchMatchAdmin(): Promise<{
-  roster: RosterRow[]; matches: AdminMatchRow[]; pool_size: number
-} | null> {
+export interface MatchAdmin {
+  roster: RosterRow[]
+  matches: AdminMatchRow[]
+  pool_size: number
+  /** 第几轮。轮次**没有时间成分** —— 池里每个人都拿到一条 lead 才进下一轮。 */
+  round_no: number
+  /** 本轮已经拿到 lead 的人数 */
+  round_done: number
+  /** 本轮还没轮到的人(队列就在这里面) */
+  round_waiting: string[]
+}
+
+export async function fetchMatchAdmin(): Promise<MatchAdmin | null> {
   const res = await authed('/admin')
   if (!res.ok) return null
   return await res.json()

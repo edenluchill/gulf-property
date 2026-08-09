@@ -81,22 +81,6 @@ const POOL_WHERE = `
   AND COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,''), NULLIF(a.public_email,''), NULLIF(a.email,'')) IS NOT NULL
   AND a.match_paused_at IS NULL
   AND lower(a.email) <> ALL($1::text[])
-  /**
-   * ⚠️ **手上压着没跟进的真 lead 就不进排班**(owner 2026-08-09:
-   * 「它收到 lead 后就不应该再出现在排班了」)。
-   * 判据用 revealed_at 而不是 created_at —— 光被分配到、买家没提交,那不算 lead,
-   * 不该把人锁出去。点了「已跟进」(agent_ack_at)就回来。
-   *
-   * 🔴 24 小时**自动释放**是必须的:没人点「已跟进」的话池子会一点点干掉,
-   *    最后所有人都被锁在外面、功能静默失效(而且没有任何报错)。
-   */
-  AND NOT EXISTS (
-    SELECT 1 FROM agent_match_assignments x
-     WHERE x.agent_id = a.id
-       AND x.revealed_at IS NOT NULL
-       AND x.agent_ack_at IS NULL
-       AND x.revealed_at > now() - interval '24 hours'
-  )
 `
 
 /**
@@ -141,15 +125,58 @@ function visitorOf(req: Request): string {
  * 计数用 LEFT JOIN + COALESCE(n,0):从没被派过的人计数是 NULL,
  * 不 COALESCE 的话新人永远排不到最前面 —— 和「公平」正好相反。
  */
+/**
+ * 「下一个轮到谁」—— **真正的轮次制**,没有任何时间成分。
+ *
+ * owner 2026-08-09:「32 个全都拿到 lead 了就自动轮到新的一轮,不能每天 24 小时
+ * reset —— 每天只有 10 个客户的话后面的经纪永远收不到 email」。
+ *
+ * 两条:
+ *   ① 只从**本轮还没拿过 lead 的人**里挑;都拿过了 → 下面那个 LEFT JOIN 匹配不到
+ *      任何 round_no,等于自动开新一轮。
+ *   ② 轮次在 **reveal(买家真提交)** 时才消耗,不是被分配时。
+ *      只看了卡片不算 —— 否则经纪会在**从没收到过邮件**的情况下被排到队尾,
+ *      10 个买家里 3 个真提交的话,后面的人永远轮不到。
+ *
+ * 同轮内的先后:被分配次数少的优先(把"卡片曝光"也摊平),再按最久没被分配的。
+ * 这一层只影响同轮内顺序,不影响"每人一轮一条"这个硬保证。
+ *
+ * ⚠️ peek 和真派单**必须共用这条 SQL**。各写一遍的话,按钮上显示的脸和真正
+ *    派到的人迟早不一致,而那是这功能最不能出的错。
+ */
 const NEXT_IN_ROTATION = `
+  WITH cur AS (
+    SELECT COALESCE(MAX(round_no), 1) AS r FROM agent_match_assignments WHERE round_no IS NOT NULL
+  )
+  SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
+    ${POOL_JOIN}
+    CROSS JOIN cur
+    LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
+    LEFT JOIN (
+      SELECT agent_id, count(*) AS n, max(created_at) AS last_at
+        FROM agent_match_assignments GROUP BY agent_id
+    ) m ON m.agent_id = a.id
+   WHERE ${POOL_WHERE}
+     -- 本轮已经拿过 lead 的人,这一轮不再排他
+     AND NOT EXISTS (
+       SELECT 1 FROM agent_match_assignments x
+        WHERE x.agent_id = a.id AND x.round_no = cur.r
+     )
+   ORDER BY COALESCE(m.n, 0) ASC, COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC
+   LIMIT 1
+`
+
+/**
+ * 上面那条一个人都挑不出来 = **本轮 32 个人全拿过了** → 开新一轮。
+ * 这里不带 round 条件,纯按同轮内的顺序挑。
+ */
+const NEXT_NEW_ROUND = `
   SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
     ${POOL_JOIN}
     LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
     LEFT JOIN (
       SELECT agent_id, count(*) AS n, max(created_at) AS last_at
-        FROM agent_match_assignments
-       WHERE created_at > now() - interval '30 days'
-       GROUP BY agent_id
+        FROM agent_match_assignments GROUP BY agent_id
     ) m ON m.agent_id = a.id
    WHERE ${POOL_WHERE}
    ORDER BY COALESCE(m.n, 0) ASC, COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC
@@ -183,7 +210,9 @@ router.get('/next', async (req: Request, res: Response) => {
       )
       if (rows.length) return res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) }, mine: true })
     }
-    const { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+    let { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+    // 本轮全拿过了 → 自动开新一轮(见 NEXT_NEW_ROUND 的说明)
+    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS]))
     if (!rows.length) return res.json({ agent: null, empty: true })
     // id 一起给出去:点击时带回来当 prefer,保证「看到谁点开就是谁」
     res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) } })
@@ -260,6 +289,8 @@ router.get('/', async (req: Request, res: Response) => {
     }
     if (!pick.rows.length) {
       pick = await client.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+      // 本轮 32 个人全拿过 lead 了 → 自动开新一轮
+      if (!pick.rows.length) pick = await client.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS])
     }
     if (!pick.rows.length) {
       await client.query('COMMIT')
@@ -316,7 +347,23 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
           SET revealed_at   = COALESCE(m.revealed_at, now()),
               buyer_contact = COALESCE($3, m.buyer_contact),
               buyer_note    = COALESCE($4, m.buyer_note),
-              buyer_lang    = COALESCE(m.buyer_lang, $5)
+              buyer_lang    = COALESCE(m.buyer_lang, $5),
+              /**
+               * 轮次在**这一刻**才消耗 —— 买家真的提交了需求才算一条 lead。
+               * 只被分配、没提交的行 round_no 保持 NULL,不占名额。
+               *
+               * 本人本轮已经拿过 → 说明轮次该往前走了,记到下一轮;
+               * 否则记当前轮。挑人那边保证了正常情况下不会走到"下一轮"这个分支
+               * (它只在本轮全员拿满时才会派到已拿过的人)。
+               */
+              round_no      = COALESCE(m.round_no, (
+                SELECT CASE WHEN EXISTS (
+                         SELECT 1 FROM agent_match_assignments y
+                          WHERE y.agent_id = m.agent_id AND y.round_no = c.r
+                       ) THEN c.r + 1 ELSE c.r END
+                  FROM (SELECT COALESCE(MAX(round_no), 1) AS r
+                          FROM agent_match_assignments WHERE round_no IS NOT NULL) c
+              ))
          FROM before
         WHERE m.id = before.id
       RETURNING m.agent_id,
@@ -530,7 +577,30 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
     )
     // 池子大小单独给 —— 它是这个功能能不能转起来的**唯一**先决条件
     const size = await pool.query(`SELECT count(*)::int AS n ${POOL_JOIN} WHERE ${POOL_WHERE}`, [INTERNAL_EMAILS])
-    res.json({ roster: roster.rows, matches: matches.rows, pool_size: size.rows[0]?.n ?? 0 })
+    /**
+     * 轮次进度 —— 运营真正要看的是「本轮还剩谁没拿到」,不是谁接得多。
+     * done = 本轮已拿到 lead 的人数,pool_size - done = 本轮还没轮到的人。
+     */
+    const round = await pool.query(
+      `WITH cur AS (SELECT COALESCE(MAX(round_no), 1) AS r FROM agent_match_assignments WHERE round_no IS NOT NULL)
+       SELECT cur.r AS round_no,
+              (SELECT count(DISTINCT x.agent_id)::int FROM agent_match_assignments x, cur WHERE x.round_no = cur.r) AS done
+         FROM cur`
+    )
+    // 本轮还没拿到 lead 的人(排班队列的队首就在这里面)
+    const waiting = await pool.query(
+      `WITH cur AS (SELECT COALESCE(MAX(round_no), 1) AS r FROM agent_match_assignments WHERE round_no IS NOT NULL)
+       SELECT a.email ${POOL_JOIN} CROSS JOIN cur
+        WHERE ${POOL_WHERE}
+          AND NOT EXISTS (SELECT 1 FROM agent_match_assignments x WHERE x.agent_id = a.id AND x.round_no = cur.r)`,
+      [INTERNAL_EMAILS]
+    )
+    res.json({
+      roster: roster.rows, matches: matches.rows, pool_size: size.rows[0]?.n ?? 0,
+      round_no: round.rows[0]?.round_no ?? 1,
+      round_done: round.rows[0]?.done ?? 0,
+      round_waiting: waiting.rows.map((r) => r.email),
+    })
   } catch (err) {
     console.error('[agent-match] admin failed:', err)
     res.status(500).json({ error: 'internal error' })

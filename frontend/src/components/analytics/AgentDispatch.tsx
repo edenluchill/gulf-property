@@ -12,10 +12,10 @@
  */
 import { useEffect, useState } from 'react'
 import { Loader2, Users, Pause, PhoneOff } from 'lucide-react'
-import { fetchMatchAdmin, type RosterRow, type AdminMatchRow } from '../../lib/agentMatchApi'
+import { fetchMatchAdmin, type MatchAdmin } from '../../lib/agentMatchApi'
 
 export default function AgentDispatch() {
-  const [data, setData] = useState<{ roster: RosterRow[]; matches: AdminMatchRow[]; pool_size: number } | null>(null)
+  const [data, setData] = useState<MatchAdmin | null>(null)
   const [err, setErr] = useState(false)
 
   useEffect(() => { void fetchMatchAdmin().then((d) => (d ? setData(d) : setErr(true))) }, [])
@@ -42,8 +42,36 @@ export default function AgentDispatch() {
         </div>
       </div>
 
+      {/* 轮次进度 —— 运营真正要看的是「本轮还剩谁没拿到」。
+          轮次**没有时间成分**:池里每个人都拿到一条 lead 才进下一轮,
+          所以每天只有 10 个买家也不会让后面的人永远轮不到。 */}
+      <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              第 <span className="tabular-nums">{data.round_no}</span> 轮 ·
+              已发 <span className="tabular-nums">{data.round_done}</span> / {data.pool_size}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              本轮每人一条，发满 {data.pool_size} 人自动进下一轮（不按天重置）
+            </p>
+          </div>
+          <div className="h-2 w-40 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-emerald-500"
+              style={{ width: `${data.pool_size ? Math.round((data.round_done / data.pool_size) * 100) : 0}%` }} />
+          </div>
+        </div>
+        {data.round_waiting.length > 0 && (
+          <p className="mt-2 text-xs text-slate-500">
+            本轮还没轮到（{data.round_waiting.length}）：
+            <span className="text-slate-400">{data.round_waiting.slice(0, 12).join('、')}</span>
+            {data.round_waiting.length > 12 && ` …+${data.round_waiting.length - 12}`}
+          </p>
+        )}
+      </div>
+
       <section>
-        <h3 className="mb-2 text-sm font-semibold text-slate-800">排班（近 30 天，按分配数升序＝下一个轮到最上面）</h3>
+        <h3 className="mb-2 text-sm font-semibold text-slate-800">排班（按累计分配数升序＝下一个轮到最上面）</h3>
         <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500">
