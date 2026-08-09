@@ -283,13 +283,26 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
     // visitor_id 一起进 WHERE:光有自增 id 的话,把 id 从 1 数到 N 就能把全池的
     // 手机号刷出来。带上 visitor 之后,别人的匹配记录你 reveal 不了。
     const { rows } = await pool.query(
-      `UPDATE agent_match_assignments m
+      /**
+       * `first_reveal` 必须拿**更新前**的值判。
+       * UPDATE…RETURNING 给的是新值,而 revealed_at 已经被这次写上了 ——
+       * 我第一版用「revealed_at 在 5 秒内」近似,结果连点三次都在 5 秒内、
+       * 三次都被判成"第一次",邮件照样发了三封(2026-08-09 实测)。
+       * 用 CTE 先把旧值取出来,判据就精确了。
+       */
+      `WITH before AS (
+          SELECT id, revealed_at FROM agent_match_assignments
+           WHERE id = $1 AND visitor_id = $2
+       )
+       UPDATE agent_match_assignments m
           SET revealed_at   = COALESCE(m.revealed_at, now()),
               buyer_contact = COALESCE($3, m.buyer_contact),
               buyer_note    = COALESCE($4, m.buyer_note)
-        WHERE m.id = $1 AND m.visitor_id = $2
+         FROM before
+        WHERE m.id = before.id
       RETURNING m.agent_id,
-                (SELECT p.project_name FROM residential_projects p WHERE p.id = m.project_id) AS project_name`,
+                (SELECT p.project_name FROM residential_projects p WHERE p.id = m.project_id) AS project_name,
+                (before.revealed_at IS NULL) AS first_reveal`,
       [id, visitor, buyerContact, buyerNote]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
@@ -324,6 +337,16 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
         '越快联系上,成的概率越高。',
         '在经纪台的「买家匹配」里可以看到全部分给你的买家:https://www.pinzos.com/agent/matches',
       ].join('\n')
+      /**
+       * 🔴 **只在第一次 reveal 时发信。**
+       * reveal 是幂等的(revealed_at 用 COALESCE 只写一次),但发信原来没跟着幂等 ——
+       * 买家多点两下、或者刷新后再点一次,经纪就收到两三封一模一样的邮件。
+       * 2026-08-09 我自己测试时就往一个真实经纪那儿连发了两封。
+       * 重复调用直接回 relayed:true(需求确实已经在他那儿了),不再发。
+       */
+      if (!rows[0].first_reveal) {
+        return res.json({ display_name: a.display_name || null, channel, relayed: true, resent: false })
+      }
       const sent = await sendAlertEmail(subject, text, undefined, [String(a.email)])
       return res.json({ display_name: a.display_name || null, channel, relayed: sent })
     }
