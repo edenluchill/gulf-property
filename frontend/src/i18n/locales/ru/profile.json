@@ -86,5 +86,6 @@
   "statusCanceled": "Отменена",
   "projectsSuffix": " проектов",
   "favWithSaves": " · Сохранено: {{n}}",
-  "tabRoi": "Симулятор доходности"
+  "tabRoi": "Симулятор доходности",
+  "tabBuyerMatches": "Назначенные покупатели"
 }

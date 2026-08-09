@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { generateProjectNotes } from '../../lib/generateProjectNotes'
 import { trackEvent } from '../../lib/track'
+import FindAgentCard from '../../components/agentMatch/FindAgentCard'
 
 interface ProjectInfoCardProps {
   project: ResidentialProject
@@ -230,13 +231,11 @@ export function ProjectInfoCard({ project, units, paymentPlan, isFavorite, onTog
 
         {/* CTA Button */}
         <div className="pt-4 border-t">
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={() => trackEvent('contact_attempt', { contact_type: 'form_request' }, { project_id: project.id, immediate: true })}
-          >
-            {t('common:buttons.requestInfo')}
-          </Button>
+          {/* 🔴 这里原来是一颗**死按钮**:onClick 只发了个 contact_attempt 埋点,
+              然后什么都不做 —— 没有弹窗、没有表单、没人收到通知。
+              90 天里有 2 个真人点过它,然后什么也没发生(2026-08-09 查库)。
+              现在接到派单:点了会分到一个付费/试用中且留了联系方式的经纪。 */}
+          <FindAgentCard projectId={project.id} source="project" />
           {project.brochure_url && (
             <Button
               variant="outline"

@@ -24,6 +24,7 @@ import TrendChart from '../components/analytics/TrendChart'
 import TopList from '../components/analytics/TopList'
 import Funnel from '../components/analytics/Funnel'
 import Customers from '../components/analytics/Customers'
+import AgentDispatch from '../components/analytics/AgentDispatch'
 import FeatureLog from '../components/analytics/FeatureLog'
 import AgentApprovals from '../components/analytics/AgentApprovals'
 import ErrorMonitor from '../components/analytics/ErrorMonitor'
@@ -71,6 +72,7 @@ const TABS = [
   { id: 'customers', label: '客户', Icon: Users, group: 'biz' },
   { id: 'search', label: '搜索 & 项目', Icon: SearchIcon, group: 'biz' },
   { id: 'features', label: '功能记录', Icon: Sparkles, group: 'biz' },
+  { id: 'dispatch', label: '经纪派单', Icon: Handshake, group: 'biz' },
   // 钱:谁付、分多少、能不能进
   { id: 'subscriptions', label: '订阅', Icon: CreditCard, group: 'money' },
   { id: 'revenue', label: '分成对账', Icon: Handshake, group: 'money' },
@@ -399,6 +401,9 @@ export default function AdminAnalytics() {
 
           {/* ── 功能记录(Luna导览/对话/带看/SalesOffer/报告)──────────── */}
           {tab === 'features' && <FeatureLog />}
+
+          {/* 经纪派单 —— 排班(下一个轮到谁)+ 全量分配记录 */}
+          {tab === 'dispatch' && <AgentDispatch />}
 
           {/* ── 订阅(谁付费,原经纪审批弱化)──────────────────────────── */}
           {tab === 'subscriptions' && <AgentApprovals />}

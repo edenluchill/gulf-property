@@ -86,5 +86,6 @@
     "agencyMember": "Agency Member",
     "developerMember": "Developer Member"
   },
-  "tabRoi": "Return simulator"
+  "tabRoi": "Return simulator",
+  "tabBuyerMatches": "Buyer matches"
 }

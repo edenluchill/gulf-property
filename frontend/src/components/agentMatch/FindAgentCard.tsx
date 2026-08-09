@@ -1,0 +1,142 @@
+/**
+ * 「找经纪帮我」—— 买家侧入口。项目详情页和地图区域弹窗共用这一个件。
+ *
+ * 三段式,每一段都是有意的:
+ *   ① 按钮      —— **点了才去派单**。挂载就预取的话,轮换名额会被一堆压根没想找
+ *                   经纪的人消耗掉,"派给谁"就失去意义了(而且库里全是假记录)。
+ *   ② 经纪卡片  —— 只有名字/头像/头衔。**没有电话**。
+ *   ③ 联系方式  —— 再点一次才发。这一下才是真正的转化信号。
+ *
+ * 池子空(没有任何付费/试用且留了联系方式的经纪)时**整个组件不渲染** ——
+ * 摆一个点了说"暂时没有经纪"的按钮,比没有按钮更伤。
+ */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, ChevronRight } from 'lucide-react'
+import { matchAgent, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
+import { trackEvent } from '../../lib/track'
+
+export default function FindAgentCard({ projectId, source, compact }: {
+  projectId?: string
+  source: 'project' | 'map'
+  /** 地图弹窗里空间紧,收窄留白 */
+  compact?: boolean
+}) {
+  const { t } = useTranslation('misc')
+  const [state, setState] = useState<'idle' | 'loading' | 'matched' | 'revealed' | 'empty'>('idle')
+  const [matchId, setMatchId] = useState<number | null>(null)
+  const [agent, setAgent] = useState<MatchedAgent | null>(null)
+  const [contact, setContact] = useState<RevealedContact | null>(null)
+  const [note, setNote] = useState('')
+  const [myContact, setMyContact] = useState('')
+
+  const ask = async () => {
+    setState('loading')
+    trackEvent('contact_attempt', { contact_type: 'agent_match_open' }, { project_id: projectId, immediate: true })
+    const r = await matchAgent({ projectId, source })
+    if (!r.agent || !r.matchId) { setState('empty'); return }
+    setAgent(r.agent)
+    setMatchId(r.matchId)
+    setState(r.revealed ? 'revealed' : 'matched')
+    // 之前 reveal 过就直接把联系方式取回来(同一个人刷新页面不该再走一遍流程)
+    if (r.revealed) setContact(await revealContact(r.matchId))
+  }
+
+  const reveal = async () => {
+    if (!matchId) return
+    setState('loading')
+    trackEvent('contact_attempt', { contact_type: 'agent_match_reveal' }, { project_id: projectId, immediate: true })
+    const c = await revealContact(matchId, { contact: myContact, note })
+    setContact(c)
+    setState('revealed')
+  }
+
+  // 池子空 → 什么都不渲染(见文件头)
+  if (state === 'empty') return null
+
+  const pad = compact ? 'p-3' : 'p-4'
+
+  if (state === 'idle') {
+    return (
+      <button type="button" onClick={ask}
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 ${pad} text-start text-white shadow-sm transition hover:opacity-95 active:scale-[0.99]`}>
+        <span className="flex items-center gap-2.5">
+          <UserRound className="h-5 w-5 shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{t('agentMatch.cta')}</span>
+            <span className="block text-[11px] text-white/80">{t('agentMatch.ctaSub')}</span>
+          </span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 opacity-80 rtl:rotate-180" />
+      </button>
+    )
+  }
+
+  if (state === 'loading' && !agent) {
+    return (
+      <div className={`flex items-center justify-center rounded-2xl bg-slate-50 ${pad} ring-1 ring-slate-100`}>
+        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
+  return (
+    <div className={`rounded-2xl bg-white ${pad} ring-1 ring-slate-200`}>
+      <div className="flex items-start gap-3">
+        {agent?.photo_url ? (
+          <img src={agent.photo_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-100" />
+        ) : (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-600">
+            <UserRound className="h-5 w-5" />
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900">{agent?.display_name}</p>
+          <p className="truncate text-xs text-slate-500">
+            {[agent?.title, agent?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.roleFallback')}
+          </p>
+          {/* RERA 牌照号只在**真有**的时候显示。没有就什么都不写 ——
+              编一个「已认证」徽章出来是在替一个我们没验证过的人背书。 */}
+          {agent?.rera_brn && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-px text-[10px] font-medium text-emerald-700">
+              <BadgeCheck className="h-3 w-3" />BRN {agent.rera_brn}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {state !== 'revealed' ? (
+        <div className="mt-3 space-y-2">
+          {/* 两个输入都**可留空** —— 强制留手机会把大部分人挡在门外,
+              而我们现在最缺的就是任何一条真实询盘。 */}
+          <input value={myContact} onChange={(e) => setMyContact(e.target.value)} maxLength={120}
+            placeholder={t('agentMatch.yourContact')}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
+            placeholder={t('agentMatch.yourNote')}
+            className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+          <button type="button" onClick={reveal} disabled={state === 'loading'}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
+            {state === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+            {t('agentMatch.getContact')}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {contact?.whatsapp && (
+            <a href={`https://wa.me/${contact.whatsapp.replace(/[^\d]/g, '')}`} target="_blank" rel="noreferrer"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600">
+              <MessageCircle className="h-4 w-4" />WhatsApp
+            </a>
+          )}
+          {contact?.phone && (
+            <a href={`tel:${contact.phone}`}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
+              <Phone className="h-4 w-4" />{t('agentMatch.call')}
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

@@ -5,6 +5,7 @@ import { DubaiArea } from '../types'
 import { getImageUrl } from '../lib/image-utils'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx, AreaPlaceSearch, type AreaPlaceSel } from './AreaInsightsPanel'
+import FindAgentCard from './agentMatch/FindAgentCard'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 
 interface DeveloperSummary {
@@ -248,6 +249,13 @@ export default function AreaDetailDialog({
                 ? devsEl
                 : <AreaRecentTx areaId={area.id} areaName={area.name} insights={insights} loading={insightsLoading}
                                 kind={tab === 'rentals' ? 'rentals' : 'sales'} place={place} usage={usage} />}
+              {/* 「找经纪帮我」放在这里而不是地图别处:`area_detail` 是全站**第一大事件**
+                  (30 天 2,339 次,远超房源详情),买家真正停留的地方就是这个弹窗。
+                  放在列表下方而不是顶部 —— 先让他看数据,看完了才是想找人的时刻。
+                  池子空时组件自己不渲染,不会留个空壳。 */}
+              <div className="mt-4">
+                <FindAgentCard source="map" compact />
+              </div>
             </div>
           </div>
         </div>

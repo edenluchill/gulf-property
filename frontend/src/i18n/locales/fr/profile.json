@@ -86,5 +86,6 @@
   "statusCanceled": "Annulé",
   "projectsSuffix": " projets",
   "favWithSaves": " · {{n}} enregistrés",
-  "tabRoi": "Simulateur de rendement"
+  "tabRoi": "Simulateur de rendement",
+  "tabBuyerMatches": "Acheteurs attribués"
 }

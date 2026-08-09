@@ -86,5 +86,6 @@
     "agencyMember": "经纪公司会员",
     "developerMember": "开发商会员"
   },
-  "tabRoi": "收益模拟器"
+  "tabRoi": "收益模拟器",
+  "tabBuyerMatches": "买家匹配"
 }

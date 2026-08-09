@@ -50,6 +50,7 @@ import AgentBilling from './luna-tour/pages/AgentBilling'  // 经纪订阅/升�
 import AgentTours from './luna-tour/pages/AgentTours'  // Luna Tour agent MVP (isolated)
 import AgentReport from './luna-tour/pages/AgentReport'  // Luna Tour agent MVP (isolated)
 import AgentClients from './luna-tour/pages/AgentClients'  // Agent CRM: client profiles
+import AgentMatches from './luna-tour/pages/AgentMatches'  // 平台派过来的买家(派单)
 import AgentUsage from './luna-tour/pages/AgentUsage'  // 使用记录(逐笔积分流水)
 import AgentLeads from './luna-tour/pages/AgentLeads'  // 共享线索池 + 认领
 import FactSheet from './luna-tour/pages/FactSheet'  // Luna Tour verifiable fact sheet (isolated)
@@ -151,6 +152,7 @@ function App() {
           <Route path="/agent" element={<AgentLayout />}>
             <Route index element={<AgentOverview />} />
             <Route path="clients" element={<AgentClients />} />
+            <Route path="matches" element={<AgentMatches />} />
             <Route path="leads" element={<AgentLeads />} />
             <Route path="tour" element={<AgentTours />} />
             <Route path="report" element={<AgentReport />} />

@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
   CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
-  Menu, X, ChevronRight, Receipt, Gift, Calculator,
+  Menu, X, ChevronRight, Receipt, Gift, Calculator, UserPlus,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
@@ -61,6 +61,9 @@ const ACCOUNT_TABS: Tab[] = [
 const AGENT_TABS: Tab[] = [
   { to: '/agent', end: true, key: 'tabDashboard', icon: LayoutDashboard },
   { to: '/agent/clients', key: 'tabClientRadar', icon: Radar },
+  // 「分配给我的买家」—— 排在客户雷达后面:两者都是"人",但这个是平台派过来的,
+  // 不是他自己录的。放前面会让第一次进来的经纪以为这里全是自己的客户。
+  { to: '/agent/matches', key: 'tabBuyerMatches', icon: UserPlus },
   { to: '/agent/tour', key: 'tabAiTours', icon: Wand2 },
   { to: '/agent/report', key: 'tabClientFitReports', icon: Zap },
   { to: '/agent/roi', key: 'tabRoi', icon: Calculator },

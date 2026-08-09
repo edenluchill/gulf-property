@@ -86,5 +86,6 @@
   "statusCanceled": "ملغي",
   "projectsSuffix": " مشاريع",
   "favWithSaves": " · تم حفظ {{n}}",
-  "tabRoi": "محاكي العائد"
+  "tabRoi": "محاكي العائد",
+  "tabBuyerMatches": "المشترون المخصّصون"
 }

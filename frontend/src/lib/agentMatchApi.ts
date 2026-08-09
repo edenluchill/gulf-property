@@ -1,0 +1,164 @@
+/**
+ * 买家找经纪 —— 派单 API 客户端。
+ *
+ * 🔴 **匹配和「要联系方式」是两步,别合并。**
+ * `matchAgent()` 只拿到"这个人是谁"(名字/头像/头衔),电话要再调 `revealContact()`。
+ * 后端故意这么分的:公开接口直接吐经纪私人手机号 = 送给爬虫;而且 reveal 那一下
+ * 才是真正的转化信号(光看到一张卡说明不了买家想不想联系)。
+ *
+ * 🔴 **matchAgent 只在用户真的点了之后调,绝不在挂载时预取。**
+ * 每调一次就会在库里落一条派单记录并占用轮换名额 —— 预取的话,轮换会被一堆
+ * 压根没想找经纪的人消耗掉,而"派给谁"这件事就失去意义了。
+ */
+import { supabase } from './supabase'
+
+const BASE = `${import.meta.env.VITE_API_URL || ''}/api/agent-match`
+
+/** 对外的经纪卡片 —— 没有任何联系方式(那要 reveal)。 */
+export interface MatchedAgent {
+  display_name: string | null
+  photo_url: string | null
+  title: string | null
+  brokerage: string | null
+  rera_brn: string | null
+}
+
+export interface MatchResult {
+  matchId: number | null
+  agent: MatchedAgent | null
+  revealed?: boolean
+  /** 池子里一个人都没有 —— **正常状态,不是错误**,前端据此不渲染入口。 */
+  empty?: boolean
+}
+
+export interface RevealedContact {
+  display_name: string | null
+  phone: string | null
+  whatsapp: string | null
+}
+
+async function token(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
+async function authed(path: string, init?: RequestInit): Promise<Response> {
+  const t = await token()
+  return fetch(`${BASE}${path}`, {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      ...(t ? { Authorization: `Bearer ${t}` } : {}),
+      ...(init?.headers || {}),
+    },
+  })
+}
+
+/**
+ * 给这个访客派一个经纪。同一访客对同一项目**永远是同一个人**(服务端 sticky) ——
+ * 所以重复调用是安全的,不会把人换掉。
+ *
+ * X-Visitor-Id 由 track.ts 的全局 fetch 包装统一盖上,这里不用管。
+ */
+export async function matchAgent(opts: { projectId?: string; source: 'project' | 'map' }): Promise<MatchResult> {
+  const qs = new URLSearchParams({ source: opts.source })
+  if (opts.projectId) qs.set('projectId', opts.projectId)
+  const res = await fetch(`${BASE}?${qs}`)
+  if (!res.ok) return { matchId: null, agent: null, empty: true }
+  return await res.json()
+}
+
+/** 买家要联系方式。留言和自己的联系方式都可选 —— 强制填会把大部分人挡在门外。 */
+export async function revealContact(
+  matchId: number, buyer?: { contact?: string; note?: string },
+): Promise<RevealedContact | null> {
+  const res = await fetch(`${BASE}/${matchId}/reveal`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ contact: buyer?.contact || '', note: buyer?.note || '' }),
+  })
+  if (!res.ok) return null
+  return await res.json()
+}
+
+// ── 经纪台 ──────────────────────────────────────────────────────────────────
+
+export interface MyMatch {
+  id: number
+  created_at: string
+  revealed_at: string | null
+  buyer_contact: string | null
+  buyer_note: string | null
+  agent_ack_at: string | null
+  source: string
+  project_name: string | null
+}
+
+export async function fetchMyMatches(): Promise<MyMatch[]> {
+  const res = await authed('/mine')
+  if (!res.ok) return []
+  return (await res.json()).matches || []
+}
+
+export async function ackMatch(id: number, done: boolean): Promise<boolean> {
+  const res = await authed(`/mine/${id}`, { method: 'PATCH', body: JSON.stringify({ done }) })
+  return res.ok
+}
+
+/** 我在不在派单池里 —— 以及**还差什么**(这才是让经纪去补资料的钩子)。 */
+export interface PoolStatus {
+  in_pool: boolean
+  subscribed: boolean
+  has_contact: boolean
+  has_photo?: boolean
+  has_brn?: boolean
+  paused?: boolean
+  matched_30d?: number
+}
+
+export async function fetchPoolStatus(): Promise<PoolStatus | null> {
+  const res = await authed('/pool')
+  if (!res.ok) return null
+  return await res.json()
+}
+
+export async function setPaused(paused: boolean): Promise<boolean> {
+  const res = await authed('/pool', { method: 'PATCH', body: JSON.stringify({ paused }) })
+  return res.ok
+}
+
+// ── admin ───────────────────────────────────────────────────────────────────
+
+export interface RosterRow {
+  email: string
+  display_name: string | null
+  has_contact: boolean
+  paused: boolean
+  subscribed: boolean
+  matched_30d: number
+  revealed_30d: number
+  acked_30d: number
+  last_at: string | null
+}
+
+export interface AdminMatchRow {
+  id: number
+  created_at: string
+  revealed_at: string | null
+  agent_ack_at: string | null
+  source: string
+  buyer_contact: string | null
+  buyer_note: string | null
+  visitor_id: string
+  agent_email: string
+  agent_name: string | null
+  project_name: string | null
+}
+
+export async function fetchMatchAdmin(): Promise<{
+  roster: RosterRow[]; matches: AdminMatchRow[]; pool_size: number
+} | null> {
+  const res = await authed('/admin')
+  if (!res.ok) return null
+  return await res.json()
+}
