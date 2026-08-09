@@ -10,9 +10,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { Loader2, UserRound, Phone, MessageSquare, Check, Pause, Play, AlertTriangle, Copy, Mail } from 'lucide-react'
+import { Loader2, UserRound, Phone, MessageSquare, Check, Pause, Play, AlertTriangle, Copy, Mail, RotateCcw } from 'lucide-react'
 import {
-  fetchMyMatches, fetchPoolStatus, setPaused, ackMatch,
+  fetchMyMatches, fetchPoolStatus, setPaused, ackMatch, markDeadLead,
   type MyMatch, type PoolStatus,
 } from '../../lib/agentMatchApi'
 
@@ -120,7 +120,21 @@ export default function AgentMatches() {
                   <Phone className="me-1 inline h-3.5 w-3.5 text-slate-400" />{m.buyer_contact}
                 </p>
               ) : (
-                <p className="mt-1.5 text-sm text-slate-400">{t('agentMatch.notLeft')}</p>
+                /* 买家没留联系方式(WhatsApp 渠道下是允许的:他拿了号自己去发消息)。
+                   **说清楚该怎么办**,别只写一句「未留」让人干瞪眼。 */
+                <div className="mt-1.5 rounded-xl bg-amber-50 px-3 py-2">
+                  <p className="text-xs leading-relaxed text-amber-800">{t('agentMatch.noContactHint')}</p>
+                  <button type="button"
+                    onClick={async () => {
+                      if (await markDeadLead(m.id)) {
+                        setMatches((p) => (p || []).filter((x) => x.id !== m.id))
+                        void fetchPoolStatus().then(setPool)
+                      }
+                    }}
+                    className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100">
+                    <RotateCcw className="h-3 w-3" />{t('agentMatch.markDead')}
+                  </button>
+                </div>
               )}
               {m.buyer_note && (
                 <p className="mt-1 whitespace-pre-wrap rounded-xl bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-600">

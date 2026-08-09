@@ -144,6 +144,17 @@ export async function ackMatch(id: number, done: boolean): Promise<boolean> {
   return res.ok
 }
 
+/**
+ * 「没联系上」—— **把轮次退回去**,本轮重新可被派到。
+ *
+ * 只对**买家没留联系方式**的那种有效(服务端也验)。留了联系方式的经纪本来就能
+ * 主动联系,再给退路就变成"不想跟进就退掉",轮值会被玩坏。
+ */
+export async function markDeadLead(id: number): Promise<boolean> {
+  const res = await authed(`/mine/${id}`, { method: 'PATCH', body: JSON.stringify({ dead: true }) })
+  return res.ok
+}
+
 /** 我在不在派单池里 —— 以及**还差什么**(这才是让经纪去补资料的钩子)。 */
 export interface PoolStatus {
   in_pool: boolean

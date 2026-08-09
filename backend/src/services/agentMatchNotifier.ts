@@ -59,9 +59,15 @@ async function pending(): Promise<PendingRow[]> {
        FROM agent_match_assignments m
        JOIN lt_agents a ON a.id = m.agent_id
        LEFT JOIN last l ON l.agent_id = m.agent_id
+      /**
+       * ⚠️ **不再要求 buyer_contact 非空。**
+       * WhatsApp 渠道的买家是"拿了号自己去发消息"的,留联系方式是可选的 ——
+       * 原来这里卡着非空,结果那种买家出现时经纪**一封邮件都收不到**,
+       * 连"有人看过我的号"都不知道,而他的轮次已经被消耗掉了。
+       * 现在照样通知,只是正文写法不同(见 compose 里的 hasContact 分支)。
+       */
       WHERE m.notified_at IS NULL
         AND m.revealed_at IS NOT NULL
-        AND COALESCE(m.buyer_contact, '') <> ''
         AND (l.t IS NULL OR l.t < now() - interval '${MIN_GAP_MINUTES} minutes')
       GROUP BY m.agent_id, a.email, a.display_name, a.brand`
   )
@@ -75,7 +81,9 @@ function compose(r: PendingRow): { subject: string; text: string } {
     ? `【Pinzos】${n} 条新买家线索`
     : `【Pinzos】新买家线索${first.project_name ? ` · ${first.project_name}` : ''}`
 
+  const anyContact = r.leads.some((L) => (L.buyer_contact || '').trim())
   const blocks = r.leads.map((L, i) => {
+    const has = !!(L.buyer_contact || '').trim()
     // 模板按**买家**的语言 —— 收信的是买家,不是经纪
     const tpl = buildOutreach(outreachLang(L.buyer_lang), {
       agentName: r.agent_name,
@@ -83,6 +91,23 @@ function compose(r: PendingRow): { subject: string; text: string } {
       projectName: L.project_name,
       buyerNote: L.buyer_note,
     })
+    /**
+     * 买家没留联系方式(WhatsApp 渠道下是允许的 —— 他拿了号自己去发消息)。
+     * 这种**别给他模板** —— 没有收件地址,一封发不出去的信只会让人白忙。
+     * 改成告诉他:会从哪来、该盯什么、等不到怎么把轮次要回去。
+     */
+    if (!has) {
+      return [
+        n > 1 ? `───────── 线索 ${i + 1}/${n} ─────────` : '─────────────────',
+        L.project_name ? `项目:${L.project_name}` : '来源:地图',
+        '这位买家**拿走了你的 WhatsApp / 电话,但没有留下自己的联系方式**。',
+        '他很可能会直接发消息给你 —— 这两天留意一下陌生号码。',
+        L.buyer_note ? `他留的话:${L.buyer_note}` : '',
+        '',
+        '如果一直没人来找你,在经纪台把这条标成「没联系上」——',
+        '你的轮次会退回去,下一位买家还会轮到你。',
+      ].filter(Boolean).join('\n')
+    }
     return [
       n > 1 ? `───────── 线索 ${i + 1}/${n} ─────────` : '─────────────────',
       L.project_name ? `项目:${L.project_name}` : '来源:地图',
@@ -107,7 +132,7 @@ function compose(r: PendingRow): { subject: string; text: string } {
     ...blocks,
     '',
     '────────────',
-    '上面的模板只是给你省事 —— 发信请用你自己的邮箱,署名和后续往来都在你手里。',
+    anyContact ? '上面的模板只是给你省事 —— 发信请用你自己的邮箱,署名和后续往来都在你手里。' : '',
     '在经纪台点「已跟进」之后,你才会重新进入排班接下一条:',
     'https://www.pinzos.com/agent/matches',
   ].join('\n')

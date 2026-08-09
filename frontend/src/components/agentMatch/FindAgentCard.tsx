@@ -36,8 +36,10 @@ export function AgentAvatar({ agent, size = 10 }: {
       </span>
 }
 
-export default function FindAgentCard({ projectId, source, compact, variant = 'card', autoStart }: {
+export default function FindAgentCard({ projectId, projectName, source, compact, variant = 'card', autoStart }: {
   projectId?: string
+  /** 预填 WhatsApp 开场白时写进去 —— 让经纪一眼知道买家在看哪个盘 */
+  projectName?: string
   source: 'project' | 'map'
   /** 地图弹窗里空间紧,收窄留白 */
   compact?: boolean
@@ -211,6 +213,14 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
         <div className="mt-3 flex flex-wrap gap-2">
           {/* relay:买家拿不到地址 —— 如实告诉他需求转过去了/没转成功。
               relayed=false 一定要说,不然他以为发了、一直在等。 */}
+          {/* WhatsApp 渠道 + 买家没留联系方式 —— **如实说清楚**:
+              经纪没有他的联系方式,得他自己发出去那条消息。
+              不说的话买家会干等,而经纪那边什么也没有。 */}
+          {contact?.channel !== 'relay' && !myContact.trim() && (
+            <p className="w-full rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+              {t('agentMatch.mustReachOut')}
+            </p>
+          )}
           {contact?.channel === 'relay' && (
             <p className={`w-full rounded-xl px-3 py-2.5 text-sm ${
               contact.relayed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
@@ -227,7 +237,15 @@ export default function FindAgentCard({ projectId, source, compact, variant = 'c
             </a>
           )}
           {contact?.whatsapp && (
-            <a href={`https://wa.me/${contact.whatsapp.replace(/[^\d]/g, '')}`} target="_blank" rel="noreferrer"
+            /**
+             * 🔴 **预填第一条消息。**
+             * 匿名买家可以什么都不留就拿走号码 —— 那样经纪收到一条陌生消息也
+             * 不知道来自哪个项目、是不是 Pinzos 来的。把开场白写好,买家点一下
+             * 就发出去,经纪那头至少认得出这是谁、在看哪个盘。
+             * 这也是"匿名买家怎么被联系"这条路唯一的抓手。
+             */
+            <a href={`https://wa.me/${contact.whatsapp.replace(/[^\d]/g, '')}?text=${encodeURIComponent(t('agentMatch.waPrefill', { project: projectName || '' }).trim())}`}
+              target="_blank" rel="noreferrer"
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600">
               <MessageCircle className="h-4 w-4" />WhatsApp
             </a>

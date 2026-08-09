@@ -14,7 +14,7 @@ import { peekNextAgent, type MatchedAgent } from '../../lib/agentMatchApi'
 import { AgentAvatar } from './FindAgentCard'
 import AgentMatchModal from './AgentMatchModal'
 
-export default function FindAgentChip({ projectId }: { projectId?: string }) {
+export default function FindAgentChip({ projectId, projectName }: { projectId?: string; projectName?: string }) {
   const { t } = useTranslation('misc')
   const [onDuty, setOnDuty] = useState<(MatchedAgent & { id: string }) | null>(null)
   const [open, setOpen] = useState(false)
@@ -47,7 +47,7 @@ export default function FindAgentChip({ projectId }: { projectId?: string }) {
           <span className="block text-[10px] leading-tight text-emerald-600">{t('agentMatch.askHim')}</span>
         </span>
       </button>
-      <AgentMatchModal open={open} onClose={() => setOpen(false)} source="project" projectId={projectId} />
+      <AgentMatchModal open={open} onClose={() => setOpen(false)} source="project" projectId={projectId} projectName={projectName} />
     </>
   )
 }

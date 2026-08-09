@@ -476,6 +476,10 @@
     "relaySent": "Votre demande a été transmise à {{name}}. Il vous répondra rapidement.",
     "relayFailed": "L'envoi a échoué. Merci de réessayer dans un instant.",
     "copyTemplate": "Copier l'e-mail",
-    "openMail": "Ouvrir dans le courrier"
+    "openMail": "Ouvrir dans le courrier",
+    "waPrefill": "Bonjour, je vous ai trouvé sur Pinzos en tant que conseiller{{project}} et j'aimerais en savoir plus.",
+    "mustReachOut": "Vous n'avez pas laissé de coordonnées : le conseiller ne peut donc pas vous joindre. Touchez ci-dessus pour envoyer votre message afin qu'il sache qui vous êtes.",
+    "noContactHint": "Cet acheteur a pris votre WhatsApp / téléphone sans laisser ses propres coordonnées — il vous écrira probablement directement, surveillez les numéros inconnus.",
+    "markDead": "Aucun contact · rendre mon tour"
   }
 }

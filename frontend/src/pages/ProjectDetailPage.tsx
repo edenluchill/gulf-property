@@ -137,7 +137,7 @@ export default function ProjectDetailPage() {
    * 定义在这里、三处只写 `{agentChip}`:markup 只有一份,漏改的风险最小
    * (这一页已经因为"三套 JSX 各写一遍"栽过两次)。
    */
-  const agentChip = <FindAgentChip projectId={project?.id} />
+  const agentChip = <FindAgentChip projectId={project?.id} projectName={project?.project_name} />
 
   const isFav = project ? isProjectFavorite(project.id) : false
 

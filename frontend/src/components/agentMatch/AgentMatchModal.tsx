@@ -10,11 +10,13 @@ import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import FindAgentCard from './FindAgentCard'
 
-export default function AgentMatchModal({ open, onClose, source, projectId }: {
+export default function AgentMatchModal({ open, onClose, source, projectId, projectName }: {
   open: boolean
   onClose: () => void
   source: 'project' | 'map'
   projectId?: string
+  /** 预填 WhatsApp 开场白用 —— 让经纪一眼知道买家在看哪个盘 */
+  projectName?: string
 }) {
   const { t } = useTranslation('misc')
 
@@ -42,7 +44,7 @@ export default function AgentMatchModal({ open, onClose, source, projectId }: {
         </div>
         {/* autoStart:用户点入口那一下就是「我要找经纪」,不该再点第二次。
             不违反「点了才派单」—— 这个组件只有点开弹窗才挂载。 */}
-        <FindAgentCard source={source} projectId={projectId} autoStart compact />
+        <FindAgentCard source={source} projectId={projectId} projectName={projectName} autoStart compact />
       </div>
     </div>,
     document.body,

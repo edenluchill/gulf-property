@@ -460,12 +460,37 @@ router.get('/mine', requireAuth, async (req: Request, res: Response) => {
   }
 })
 
-/** 经纪标记「已跟进」。只能改派给自己的那些。 */
-router.patch('/mine/:id(\\d+)', requireAuth, async (req: Request, res: Response) => {
+/**
+ * 经纪标记「已跟进」/「没联系上」。只能改派给自己的那些。
+ *
+ * `dead: true` = **没联系上,把轮次退回去**。
+ *
+ * 为什么需要这个:WhatsApp 渠道的买家可以只拿走号码、什么都不留。经纪的轮次
+ * 已经被消耗掉了,但那位买家可能压根没来找他 —— 于是他白白排到队尾。
+ * 退回 = `round_no` 置空,本轮他重新可被派到。
+ *
+ * ⚠️ 只退**没留联系方式**的那种。留了联系方式的经纪本来就能主动联系,
+ *    再给退路等于"不想跟进就退掉",轮值会被玩坏。
+ */
+router.patch('/mine/:id(\d+)', requireAuth, async (req: Request, res: Response) => {
   const email = (req.ctx?.email || req.user?.email || '').toLowerCase()
   const id = Number(req.params.id)
   if (!email) return res.status(401).json({ error: 'auth required' })
+  const dead = req.body?.dead === true
   try {
+    if (dead) {
+      const { rows } = await pool.query(
+        `UPDATE agent_match_assignments m
+            SET round_no = NULL, agent_ack_at = now()
+           FROM lt_agents a
+          WHERE m.id = $1 AND m.agent_id = a.id AND lower(a.email) = $2
+            AND COALESCE(m.buyer_contact, '') = ''
+        RETURNING m.id`,
+        [id, email]
+      )
+      if (!rows.length) return res.status(400).json({ error: 'not_eligible' })
+      return res.json({ match: { id: rows[0].id, round_returned: true } })
+    }
     const { rows } = await pool.query(
       `UPDATE agent_match_assignments m
           SET agent_ack_at = CASE WHEN $3 THEN now() ELSE NULL END

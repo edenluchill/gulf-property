@@ -475,6 +475,10 @@
     "relaySent": "已经把你的需求发给 {{name}} 了，他会尽快联系你。",
     "relayFailed": "没能送达，请稍后再试一次。",
     "copyTemplate": "复制邮件",
-    "openMail": "用邮件发"
+    "openMail": "用邮件发",
+    "waPrefill": "你好，我在 Pinzos 上看到你是这边的顾问{{project}}，想了解一下。",
+    "mustReachOut": "你没有留联系方式，所以顾问没法主动找你 —— 点上面的按钮把消息发出去，他才知道你是谁。",
+    "noContactHint": "这位买家拿走了你的 WhatsApp / 电话，但没留自己的联系方式 —— 他很可能会直接发消息给你，留意陌生号码。",
+    "markDead": "没联系上 · 退回轮次"
   }
 }
