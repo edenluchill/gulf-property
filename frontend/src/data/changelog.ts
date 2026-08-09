@@ -60,6 +60,25 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-08-09',
+    kind: 'new',
+    zh: '看到中意的项目、想找人帮你下 offer 时，现在项目页和地图上都能直接找到一位正在值班的顾问 —— 头像和名字都看得见。留下联系方式和你想问的（比如预算、户型、什么时候方便看房），他会联系你。',
+    en: 'When you find a project you like and want someone to help you make an offer, you can now reach an advisor who is on duty — their name and photo are shown up front, both on the project page and on the map. Leave your contact and what you want to ask (budget, layout, when you can view) and they will get back to you.',
+    fr: "Lorsqu'un projet vous plaît et que vous souhaitez être accompagné pour faire une offre, vous pouvez désormais joindre un conseiller de permanence — son nom et sa photo sont affichés, sur la fiche du projet comme sur la carte. Laissez vos coordonnées et vos questions (budget, typologie, date de visite) et il vous recontactera.",
+    ru: 'Если вам понравился проект и нужна помощь с офертой, теперь можно связаться с консультантом, который сейчас на связи — его имя и фото видны сразу, и на странице проекта, и на карте. Оставьте контакт и свои вопросы (бюджет, планировка, когда удобно на просмотр), и он свяжется с вами.',
+    ar: 'عندما يعجبك مشروع وترغب بمن يساعدك في تقديم عرض، يمكنك الآن الوصول إلى مستشار متاح الآن — يظهر اسمه وصورته مباشرة، في صفحة المشروع وعلى الخريطة. اترك وسيلة تواصلك وما تودّ السؤال عنه (الميزانية، نوع الوحدة، موعد المعاينة) وسيتواصل معك.',
+  },
+  {
+    date: '2026-08-09',
+    kind: 'new',
+    audience: 'agent',
+    zh: '经纪台新增「买家匹配」：买家在项目页或地图上主动找顾问时，会**轮流**分配给正在接单的经纪 —— 每一轮里每人一条，本轮所有人都收到过之后才开始下一轮，不按天重置。分到的买家会连同一封写好的开场邮件一起给你（主题和正文按买家的语言生成，复制就能发）。要开始接买家，先在个人资料里补上手机号。',
+    en: 'New in the agent hub: Buyer matches. When a buyer asks for an advisor on a project page or the map, they are assigned in rotation among agents who are taking enquiries — one per agent per round, and a new round only starts once everyone has had one. It does not reset daily. Each buyer comes with a ready-to-send opening email, written in the buyer’s own language — copy it and send from your own address. To start receiving buyers, add a phone number to your profile.',
+    fr: "Nouveau dans l'espace agent : Acheteurs attribués. Lorsqu'un acheteur demande un conseiller depuis une fiche projet ou la carte, il est attribué par rotation entre les agents qui acceptent les demandes — un par agent et par tour, et un nouveau tour ne commence qu'une fois que chacun en a reçu un. Aucune remise à zéro quotidienne. Chaque acheteur arrive avec un e-mail d'introduction prêt à envoyer, rédigé dans la langue de l'acheteur — copiez-le et envoyez-le depuis votre propre adresse. Pour commencer à recevoir des acheteurs, ajoutez un numéro de téléphone à votre profil.",
+    ru: 'Новое в кабинете агента: «Назначенные покупатели». Когда покупатель запрашивает консультанта на странице проекта или на карте, он распределяется по очереди между агентами, принимающими заявки, — по одному на агента за круг, и новый круг начинается только после того, как каждый получил своего. Ежедневного сброса нет. К каждому покупателю прилагается готовое вступительное письмо на языке покупателя — скопируйте и отправьте со своего адреса. Чтобы начать получать покупателей, добавьте номер телефона в профиль.',
+    ar: 'جديد في مركز الوسطاء: «المشترون المخصّصون». عندما يطلب مشترٍ مستشارًا من صفحة مشروع أو من الخريطة، يُوزَّع بالتناوب بين الوسطاء الذين يستقبلون الطلبات — واحد لكل وسيط في كل جولة، ولا تبدأ جولة جديدة إلا بعد أن يحصل الجميع على واحد. ولا توجد إعادة ضبط يومية. ويصل كل مشترٍ مصحوبًا برسالة تعارف جاهزة للإرسال بلغة المشتري — انسخها وأرسلها من بريدك الخاص. ولبدء استقبال المشترين، أضف رقم هاتف إلى ملفك الشخصي.',
+  },
+  {
     date: '2026-08-08',
     kind: 'fix',
     zh: '「交易记录 → 出租」里搜楼盘时，候选名不再被截断 —— 以前 Springs 1 和 Springs 11、Santorini (1) 和 (2) 在列表里显示出来一模一样，根本分不出选的是哪个；现在名字完整换行显示，搜的那几个字会高亮。租约笔数较少的楼盘现在也搜得到了。',
