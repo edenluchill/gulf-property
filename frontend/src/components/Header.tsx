@@ -152,8 +152,13 @@ export default function Header() {
                 {t('brand')}
               </motion.span>
               {/* Subtitle with info icon - visible on all screens */}
+              {/* 🔴 `whitespace-nowrap`:这句一旦折成两行,整个 header 从 ~80px 撑到 96px,
+                  一排导航胶囊跟着上下失衡 —— 这就是 owner 说的「space 不合理」的另一半。
+                  法语/俄语的 tagline 比英语长 30%+,不锁住必折。
+                  锁住之后如果哪天还是放不下,它会**溢出**(看得见,跑分会抓),
+                  而不是悄悄折行(看着"还能用")。 */}
               <div className="flex items-center gap-1 -mt-0.5">
-                <span className={`text-[9px] xl:text-[11px] font-medium tracking-tight transition-colors ${theme.tagline}`}>
+                <span className={`whitespace-nowrap text-[9px] xl:text-[11px] font-medium tracking-tight transition-colors ${theme.tagline}`}>
                   {t('tagline')}
                 </span>
                 <button
@@ -183,7 +188,7 @@ export default function Header() {
           </div>
 
           {/* Desktop Navigation — 分组 + 流畅动效 */}
-          <nav ref={navRef} className="hidden xl:flex items-center gap-1.5">
+          <nav ref={navRef} className="hidden xl:flex items-center gap-0.5 2xl:gap-1.5">
             {/* 关于 —— 排在**第一位**(owner 2026-07-28 指定):新访客先看懂这是什么,
                 再进地图。 */}
             <NavPill to="/about" active={location.pathname === '/about'} icon={Tag}
@@ -194,8 +199,11 @@ export default function Header() {
                 🔴 **必须带文字标签**。上一版只放了一颗 Sparkles 图标在右侧图标区,
                 owner 的反馈是「不太明显 完全看不出」—— 一排文字导航里夹一个裸图标,
                 眼睛根本不会停在那。 */}
+            {/* 标签用 titleShort 而不是 title:title 是 /changelog 和 /requests 的 H1
+                ("Product diary"/"Journal de bord"/"Дневник продукта"),放进导航会折行。
+                短标题五种语言都是单词:Diary / 日记 / Journal / Дневник / اليوميات。 */}
             <NavPill to="/changelog" active={location.pathname === '/changelog'} icon={NotebookPen}
-              label={t('misc:changelog.title')} dot={changelogUnseen}
+              label={t('misc:changelog.titleShort')} dot={changelogUnseen}
               idleText={theme.idleText} primaryGrad={theme.primaryGrad} accentGrad={theme.accentGrad} />
 
             {/* 地图探索（主入口） */}
@@ -351,7 +359,15 @@ function NavPill({
       <motion.div
         whileHover={{ y: -1 }}
         whileTap={{ scale: 0.96 }}
-        className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-200 ${
+        /* 🔴 `whitespace-nowrap` 是**硬要求**,别拿掉。
+           少了它,任何两个词的标签("Product diary"/"Agent Hub"/"Explorer la carte")
+           在导航挤的时候会各自折成两行 —— 每颗胶囊高度不一样,整条 bar 看起来是坏的
+           (owner 2026-08-09 截图)。宁可整体溢出被我们在跑分里抓到,也不要静悄悄地
+           折行:溢出看得见,折行看着"还能用"。 */
+        /* px-4 → px-3 / gap-2 → gap-1.5:六颗胶囊各省 ~10px。
+           实测 1280px 法语版原来只剩 7px 余量,而 owner 是登录+admin 状态,
+           比这还多一个「Admin」下拉 —— 不腾地方,法语一登录就又挤回去了。 */
+        className={`relative flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-xl text-sm font-medium transition-colors duration-200 ${
           active ? 'text-white' : idleText
         }`}
       >
