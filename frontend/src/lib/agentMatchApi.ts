@@ -181,13 +181,24 @@ export async function markDeadLead(id: number): Promise<boolean> {
 
 /** 我在不在派单池里 —— 以及**还差什么**(这才是让经纪去补资料的钩子)。 */
 export interface PoolStatus {
+  /** **服务端算的**,含内部账号排除。前端别自己拼 —— 拼出来的必然和真实派单分叉。 */
   in_pool: boolean
   subscribed: boolean
   has_contact: boolean
+  channel?: 'whatsapp' | 'email' | 'relay'
   has_photo?: boolean
   has_brn?: boolean
   paused?: boolean
+  /** owner 的号 / demo —— 永远不进派单,整张状态卡对他们没意义 */
+  internal?: boolean
+  round_no?: number
+  /** 本轮已经分到过 → 要等下一轮 */
+  got_this_round?: boolean
+  /** 本轮还有几位排在我前面。排不出名次时是 null(**不编数字**) */
+  queue_position?: number | null
+  queue_length?: number | null
   matched_30d?: number
+  leads_total?: number
 }
 
 export async function fetchPoolStatus(): Promise<PoolStatus | null> {

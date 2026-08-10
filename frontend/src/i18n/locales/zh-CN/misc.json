@@ -484,6 +484,12 @@
     "pickHint": "选一位顾问，他会联系你",
     "pickOne": "先选一位顾问",
     "tryAgain": "暂时没排到人，稍后再试",
-    "noneAvailable": "现在没有在线的顾问，稍后再来看看"
+    "noneAvailable": "现在没有在线的顾问，稍后再来看看",
+    "queuePos": "轮值中：还有 {{pos}} 位排在你前面（本轮共 {{len}} 位在等）",
+    "gotThisRound": "第 {{round}} 轮你已经分到过了 —— 等这一轮发完就轮到你",
+    "inQueue": "在轮值队列里",
+    "leadsTotal": "累计买家",
+    "viewAll": "查看",
+    "goFillContact": "去补手机号"
   }
 }

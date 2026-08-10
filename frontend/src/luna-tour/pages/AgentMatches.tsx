@@ -9,8 +9,8 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { Loader2, UserRound, Phone, MessageSquare, Check, Pause, Play, AlertTriangle, Copy, Mail, RotateCcw } from 'lucide-react'
+import { Loader2, Phone, MessageSquare, Check, Pause, Play, Copy, Mail, RotateCcw } from 'lucide-react'
+import DispatchStatusCard from '../../components/agentMatch/DispatchStatusCard'
 import {
   fetchMyMatches, fetchPoolStatus, setPaused, ackMatch, markDeadLead,
   type MyMatch, type PoolStatus,
@@ -53,44 +53,17 @@ export default function AgentMatches() {
         <p className="mt-1 text-sm text-slate-500">{t('agentMatch.hubSub')}</p>
       </div>
 
-      {/* ── 接单状态 —— 这一块是这页最重要的东西 ─────────────────────────── */}
-      {pool && (
-        <div className={`rounded-2xl p-4 ring-1 ${
-          pool.in_pool ? 'bg-emerald-50/60 ring-emerald-100' : 'bg-amber-50/60 ring-amber-100'
-        }`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              {pool.in_pool
-                ? <UserRound className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                : <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />}
-              <div>
-                <p className={`text-sm font-semibold ${pool.in_pool ? 'text-emerald-800' : 'text-amber-800'}`}>
-                  {pool.paused ? t('agentMatch.paused') : pool.in_pool ? t('agentMatch.inPool')
-                    : !pool.subscribed ? t('agentMatch.needSub') : t('agentMatch.needContact')}
-                </p>
-                {/* 差手机号是**最常见**的原因,而且一步就能解决 —— 直接给个到个人资料的链接,
-                    别只说"资料不全"让人自己找。 */}
-                {!pool.has_contact && pool.subscribed && (
-                  <Link to="/profile" className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-amber-700 underline-offset-2 hover:underline">
-                    <Phone className="h-3 w-3" />{t('agentMatch.needContact')}
-                  </Link>
-                )}
-                {pool.in_pool && typeof pool.matched_30d === 'number' && (
-                  <p className="mt-0.5 text-xs text-emerald-700">
-                    {t('agentMatch.matched30d')}: <b className="tabular-nums">{pool.matched_30d}</b>
-                  </p>
-                )}
-              </div>
-            </div>
-            {pool.subscribed && pool.has_contact && (
-              <button type="button" onClick={togglePause} disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-50">
-                {pool.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-                {pool.paused ? t('agentMatch.resume') : t('agentMatch.pause')}
-              </button>
-            )}
-          </div>
-        </div>
+      {/* 状态卡和经纪台首页**共用同一个件** —— 各画一遍必然漂移
+          (排班表就因为"前端再拼一遍 in_pool"显示过「正在接单」而实际轮不到)。 */}
+      <DispatchStatusCard compact />
+
+      {/* 暂停/恢复接单 —— 只有真在池子里的人才需要这个开关 */}
+      {pool?.in_pool && (
+        <button type="button" onClick={togglePause} disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-50">
+          {pool.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+          {pool.paused ? t('agentMatch.resume') : t('agentMatch.pause')}
+        </button>
       )}
 
       {/* ── 买家列表 ──────────────────────────────────────────────────────── */}

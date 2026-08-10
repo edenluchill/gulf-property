@@ -538,29 +538,89 @@ router.get('/pool', requireAuth, async (req: Request, res: Response) => {
   const email = (req.ctx?.email || req.user?.email || '').toLowerCase()
   if (!email) return res.status(401).json({ error: 'auth required' })
   try {
+    /**
+     * ⚠️ 三处判据必须和**真实派单**完全一致,否则经纪台会显示
+     * 「正在接单」而实际根本轮不到他 —— 排班表刚犯过一模一样的错:
+     *   ① 联系渠道:手机/WhatsApp/公开邮箱/登录邮箱 都算(不是只看手机号)
+     *   ② 内部账号排除
+     *   ③ 轮次:本轮拿过就要等下一轮
+     */
     const { rows } = await pool.query(
-      `SELECT a.id, a.match_paused_at,
-              COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,'')) IS NOT NULL AS has_contact,
+      `WITH cur AS (
+         SELECT COALESCE(MAX(round_no), 1) AS r FROM agent_match_assignments WHERE round_no IS NOT NULL
+       )
+       SELECT a.id, a.match_paused_at, cur.r AS round_no,
+              COALESCE(NULLIF(a.phone,''), NULLIF(a.whatsapp,''),
+                       NULLIF(a.public_email,''), NULLIF(a.email,'')) IS NOT NULL AS has_contact,
+              CASE WHEN COALESCE(NULLIF(a.whatsapp,''), NULLIF(a.phone,'')) IS NOT NULL THEN 'whatsapp'
+                   WHEN NULLIF(a.public_email,'') IS NOT NULL THEN 'email'
+                   ELSE 'relay' END AS channel,
               COALESCE(a.photo_url,'') <> '' AS has_photo,
               COALESCE(a.rera_brn,'')  <> '' AS has_brn,
+              lower(a.email) = ANY($2::text[]) AS internal,
               EXISTS (SELECT 1 FROM lt_subscriptions s
                        WHERE s.agent_id = COALESCE(a.billing_agent_id, a.id)
                          AND s.status IN ('active','trialing','past_due')) AS subscribed,
+              EXISTS (SELECT 1 FROM agent_match_assignments x
+                       WHERE x.agent_id = a.id AND x.round_no = cur.r) AS got_this_round,
               (SELECT count(*) FROM agent_match_assignments x
-                WHERE x.agent_id = a.id AND x.created_at > now() - interval '30 days') AS matched_30d
-         FROM lt_agents a WHERE lower(a.email) = $1 LIMIT 1`,
-      [email]
+                WHERE x.agent_id = a.id) AS matched_total,
+              (SELECT count(*) FROM agent_match_assignments x
+                WHERE x.agent_id = a.id AND x.revealed_at IS NOT NULL) AS leads_total
+         FROM lt_agents a CROSS JOIN cur WHERE lower(a.email) = $1 LIMIT 1`,
+      [email, DISPATCH_EXCLUDED_EMAILS]
     )
     if (!rows.length) return res.json({ in_pool: false, subscribed: false, has_contact: false })
     const r = rows[0]
+    const inPool = r.subscribed && r.has_contact && !r.match_paused_at && !r.internal
+
+    /**
+     * 「本轮排第几」—— 经纪最想知道的其实是这个:还要等几个人才轮到我。
+     * 算法用的是同一套排序键(累计分配少的优先,再按最久没被派的),
+     * 所以这里数出来的名次就是真实队列里的名次。
+     * 本轮已经拿过 / 不在池里 → 没有名次,返回 null(**不编一个数字**)。
+     */
+    let queuePos: number | null = null
+    let queueLen: number | null = null
+    if (inPool && !r.got_this_round) {
+      const q = await pool.query(
+        `WITH cur AS (
+           SELECT COALESCE(MAX(round_no), 1) AS r FROM agent_match_assignments WHERE round_no IS NOT NULL
+         ), q AS (
+           SELECT a.id,
+                  ROW_NUMBER() OVER (ORDER BY COALESCE(m.n, 0) ASC,
+                                              COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC) AS pos
+             ${POOL_JOIN}
+             CROSS JOIN cur
+             LEFT JOIN (SELECT agent_id, count(*) AS n, max(created_at) AS last_at
+                          FROM agent_match_assignments GROUP BY agent_id) m ON m.agent_id = a.id
+            WHERE ${POOL_WHERE}
+              AND NOT EXISTS (SELECT 1 FROM agent_match_assignments x
+                               WHERE x.agent_id = a.id AND x.round_no = cur.r)
+         )
+         SELECT (SELECT pos FROM q WHERE id = $2) AS pos, (SELECT count(*) FROM q) AS len`,
+        [DISPATCH_EXCLUDED_EMAILS, r.id]
+      )
+      queuePos = q.rows[0]?.pos ? Number(q.rows[0].pos) : null
+      queueLen = q.rows[0]?.len ? Number(q.rows[0].len) : null
+    }
+
     res.json({
-      in_pool: r.subscribed && r.has_contact && !r.match_paused_at,
+      in_pool: inPool,
       subscribed: r.subscribed,
       has_contact: r.has_contact,
+      channel: r.channel,
       has_photo: r.has_photo,
       has_brn: r.has_brn,
       paused: !!r.match_paused_at,
-      matched_30d: Number(r.matched_30d),
+      /** 内部账号(owner 的号/demo)—— 永远不进派单,如实告诉他,别显示「正在接单」 */
+      internal: r.internal,
+      round_no: Number(r.round_no),
+      got_this_round: r.got_this_round,
+      queue_position: queuePos,
+      queue_length: queueLen,
+      matched_30d: Number(r.matched_total),
+      leads_total: Number(r.leads_total),
     })
   } catch (err) {
     console.error('[agent-match] pool status failed:', err)

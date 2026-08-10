@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
 import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
+import DispatchStatusCard from '../../components/agentMatch/DispatchStatusCard'
 import { SectionHeader, StatCard } from '../ui/Panel'
 import ActivationChecklist from '../ui/ActivationChecklist'
 import IntentFeed from '../ui/IntentFeed'
@@ -97,6 +98,13 @@ export default function AgentOverview() {
           最值钱的一刻是客户刚看完的那一分钟(他此刻正在想这件事),
           所以它不能藏在某个 tab 里。一条都没有时不占地方。 */}
       <IntentFeed />
+
+      {/* 「我的派单状态」—— owner 2026-08-09:「经纪台没办法看到自己的派单状态呀」。
+          原来只藏在「买家匹配」那一页里,而经纪落地的是这一页,等于要先知道
+          它存在才看得到。内部账号/池子外时组件自己不渲染,不占地方。 */}
+      <div className="mb-5">
+        <DispatchStatusCard />
+      </div>
 
       {/* 试用期激活清单(全部完成后自动消失) */}
       {!loading && <ActivationChecklist hasClients={clients.length > 0} />}

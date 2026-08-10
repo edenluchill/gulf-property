@@ -485,6 +485,12 @@
     "pickHint": "Choisissez un conseiller — il vous recontactera",
     "pickOne": "Choisissez d'abord un conseiller",
     "tryAgain": "Personne n'est disponible pour le moment, réessayez sous peu",
-    "noneAvailable": "Aucun conseiller n'est de permanence — revenez un peu plus tard"
+    "noneAvailable": "Aucun conseiller n'est de permanence — revenez un peu plus tard",
+    "queuePos": "Dans la file — {{pos}} devant vous ({{len}} en attente ce tour)",
+    "gotThisRound": "Vous en avez déjà eu un au tour {{round}} — votre tour revient au prochain",
+    "inQueue": "Dans la rotation",
+    "leadsTotal": "Acheteurs",
+    "viewAll": "Voir",
+    "goFillContact": "Ajouter un téléphone"
   }
 }

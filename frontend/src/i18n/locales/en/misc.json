@@ -485,6 +485,12 @@
     "pickHint": "Pick an advisor — they will get in touch",
     "pickOne": "Please pick an advisor first",
     "tryAgain": "No one is free right now, please try again shortly",
-    "noneAvailable": "No advisor is on duty right now — please check back later"
+    "noneAvailable": "No advisor is on duty right now — please check back later",
+    "queuePos": "In queue — {{pos}} ahead of you ({{len}} waiting this round)",
+    "gotThisRound": "You already got one in round {{round}} — your turn comes again next round",
+    "inQueue": "In the rotation",
+    "leadsTotal": "Buyers",
+    "viewAll": "View",
+    "goFillContact": "Add a phone number"
   }
 }
