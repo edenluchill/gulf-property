@@ -188,9 +188,13 @@ export default function ProfileShell() {
   const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User'
   const avatarUrl = user.user_metadata?.avatar_url
 
+  /**
+   * 导航项 —— 控制台密度:py-2 → py-1.5、text-sm → text-[13px]、圆角收小。
+   * 一屏能多放 3~4 项,而这一列本来就该让人一眼扫完,不是一个个"卡片"。
+   */
   const navItemCls = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
-      isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100/80'
+    `flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition ${
+      isActive ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'
     }`
 
   // 使用记录 tab 只在付费(active/trialing)后出现;免费/未订阅不显示。
@@ -337,13 +341,27 @@ export default function ProfileShell() {
         </SheetContent>
       </Sheet>
 
-      <div className="mx-auto max-w-6xl p-4 md:p-6">
-        <div className="flex gap-6">
-          {/* 桌面左侧栏 */}
-          <aside className="hidden w-60 shrink-0 md:block">
-            <div className="sticky top-6 space-y-4">
+      {/**
+        * 控制台式布局(owner 2026-08-09:「做成 supabase 那种,空间使用更合理,
+        * 现在太多 space 被浪费了」)。
+        *
+        * 三处改动,每处都在换回被浪费的空间:
+        *   ① 去掉 `mx-auto max-w-6xl` —— 原来内容被夹在中间,两侧各空一大条。
+        *      控制台类页面(表格/列表/看板)本来就该吃满宽度。
+        *   ② 侧栏**贴左边缘、全高**,右边一条 1px 分隔线 —— 不再是浮在留白里的
+        *      圆角卡片(卡片外面那圈 padding 是纯浪费)。
+        *   ③ 行高和间距整体收紧(见 navItemCls)。
+        */}
+      {/* min-h-full:flex 默认 stretch,但容器高度由内容撑 —— 内容短的页面
+          侧栏会断在半空、下面露出灰底(实拍 840px 处断掉)。 */}
+      <div className="md:flex md:min-h-full">
+          {/* 桌面左侧栏 —— 贴边、全高、右侧一条分隔线 */}
+          <aside className="hidden w-56 shrink-0 border-e border-slate-200 bg-white md:block">
+            <div className="sticky top-0 max-h-screen overflow-y-auto p-3">
               {/* 身份小卡(紧凑;详细信息在「个人资料」hero 里) */}
-              <div className="flex items-center gap-2.5 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.06]">
+              {/* 身份行 —— 去掉 ring/shadow 的"卡中卡":侧栏本身已经是一个面板了,
+                  里面再套卡片等于多一圈白边 */}
+              <div className="flex items-center gap-2.5 px-1 pb-3">
                 {avatarUrl && !avatarError ? (
                   <img
                     src={avatarUrl}
@@ -396,7 +414,9 @@ export default function ProfileShell() {
               </nav>
 
               {/* 经纪工作台:浅色分组卡(与页面协调;左侧青色竖条 + 标签头点明"经纪专属") */}
-              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+              {/* 分组区:不再套卡片壳。侧栏自身就是面板,里面再包一层 ring+shadow
+                  等于每组外面又多一圈白边(owner:「太多 space 被浪费了」)。 */}
+              <div className="overflow-hidden">
                 {isAgent ? (
                   <>
                     <button
@@ -407,20 +427,18 @@ export default function ProfileShell() {
                         <Briefcase className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-bold text-slate-900">{t('profile:agentWorkspace2')}</span>
-                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-teal-600">
-                          {t('profile:agentsOnly')}
-                        </span>
+                        {/* 一行放下 —— 原来标题+副标题各占一行,窄侧栏里还会折成 3 行 */}
+                        <span className="block truncate text-[13px] font-bold text-slate-900">{t('profile:agentWorkspace2')}</span>
                       </span>
                       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${agentOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {agentOpen && (
-                      <div className="border-t border-slate-100 p-1.5">
+                      <div className="pt-1">
                         {agentGroups.map((g) => (
-                          <div key={g.titleKey} className="mb-1.5 last:mb-0">
+                          <div key={g.titleKey} className="mb-2 last:mb-0">
                             {/* 组标题:小、全大写、灰 —— 它是路标,不是可点的东西,
                                 不该和下面的导航项抢注意力 */}
-                            <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            <div className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                               {t(`profile:${g.titleKey}`)}
                             </div>
                             <div className="space-y-0.5">
@@ -468,10 +486,11 @@ export default function ProfileShell() {
 
           {/* 内容区(个人资料 / 经纪台各 tab)。context 给 ProfileHome 复用勋章,
               避免同一份 billing/me 拉两遍。 */}
-          <main className="min-w-0 flex-1">
+          {/* 内容区吃满剩余宽度。内边距放这里而不是外层 —— 外层不能有 padding,
+              否则侧栏就贴不到边了。 */}
+          <main className="min-w-0 flex-1 p-4 md:p-6">
             <Outlet context={{ badge, me } satisfies ProfileShellContext} />
           </main>
-        </div>
       </div>
     </div>
   )

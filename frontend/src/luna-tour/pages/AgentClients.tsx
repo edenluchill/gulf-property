@@ -116,7 +116,7 @@ export default function AgentClients() {
   const openDetail = (c: Client) => { setSel(c); setView('detail') }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">   {/* 列表页放宽:侧栏贴边满宽后 3xl 会缩在左边一条;仍留上限,超宽屏一行铺到 2500px 反而扫不动 */}
       {view === 'list' ? (
         <>
           <div className="mb-5 flex items-center justify-between">

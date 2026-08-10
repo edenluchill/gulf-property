@@ -121,7 +121,7 @@ export default function AgentReport() {
   const copy = async () => { try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* */ } }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">   {/* 表单保留可读行宽,靠左不居中 —— 居中会在满宽布局里两侧各空一条 */}
       <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="text-2xl font-bold">{t('lunaTour:clientFitReport')}</h1>
         {/* 样板报告 —— 不知道能产出什么的人不敢用 */}

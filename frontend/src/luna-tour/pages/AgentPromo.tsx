@@ -67,7 +67,7 @@ export default function AgentPromo() {
   const badge = stats.badge.tier !== 'none' ? BADGE_STYLE[stats.badge.tier] : null
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-3xl space-y-6">   {/* 去掉 mx-auto/px-4:外层 main 已有内边距,再居中会两侧留白 */}
       {/* 标题 */}
       <div className="flex items-center gap-2">
         <Gift className="w-6 h-6 text-indigo-500" />

@@ -74,7 +74,7 @@ export default function AgentUsage() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">   {/* 表格页放宽,理由同 AgentClients */}
       <h1 className="mb-1 text-2xl font-bold text-slate-900">{t('lunaTour:usageHistory')}</h1>
       <p className="mb-6 text-sm text-slate-500">
         {t('lunaTour:everyCreditYouSpend')}
