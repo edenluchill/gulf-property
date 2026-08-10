@@ -1200,7 +1200,17 @@ export interface CompareRow {
   tier: 'development' | 'area' | 'area_name' | null;
   confidence: 'high' | 'medium' | 'low' | null;
 }
+/**
+ * 项目 id 的守卫。调用方五花八门(详情页 / 地图弹窗 / ROI 深链 / 协作带看),
+ * 只要有一个在 id 到位之前就发请求,模板串就会拼出字面量 `undefined` 打到后端。
+ * 2026-08-09 就这么打出 7 条 500(事故 #704)。后端已加 404 守卫,这里再挡一道:
+ * **根本不发这个请求** —— 省一个必然失败的往返,也不再污染错误监控。
+ */
+const PROJECT_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const isProjectId = (id: unknown): id is string => typeof id === 'string' && PROJECT_UUID_RE.test(id)
+
 export async function fetchNearbyCompare(id: string): Promise<{ subject: CompareRow; nearby: CompareRow[] } | null> {
+  if (!isProjectId(id)) return null;
   try {
     const r = await fetch(`${API_URL}/residential-projects/${id}/nearby-compare`);
     if (!r.ok) return null;
@@ -1210,6 +1220,7 @@ export async function fetchNearbyCompare(id: string): Promise<{ subject: Compare
 }
 
 export async function fetchProjectInsights(id: string): Promise<ProjectInsights | null> {
+  if (!isProjectId(id)) return null;
   try {
     const r = await fetch(`${API_URL}/residential-projects/${id}/insights`);
     if (!r.ok) return null;
@@ -1229,6 +1240,7 @@ export interface ProjectTransactions {
 }
 
 export async function fetchProjectTransactions(id: string): Promise<ProjectTransactions | null> {
+  if (!isProjectId(id)) return null
   try {
     const r = await fetch(`${API_URL}/residential-projects/${id}/transactions`)
     if (!r.ok) return null

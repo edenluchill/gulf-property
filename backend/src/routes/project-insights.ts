@@ -12,6 +12,20 @@ import { beginMaintenance, endMaintenance, yieldToLiveTraffic } from '../service
 
 const router = Router()
 
+// 非法 id(前端传了 `undefined`)直接进 `WHERE id = $1` → Postgres uuid 转型报错
+// → catch 成 500。2026-07-11 给 residential-projects 主路由加过同样的守卫,但
+// **这个 router 是单独挂载的**(index.ts,且挂在主路由之前),漏了 —— 2026-08-09
+// 事故 #704 就是这么来的:7 条 500 全是 /api/residential-projects/undefined/insights。
+// 加守卫的地方必须是每个 router 自己,`router.param` 不跨 router 生效。
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+router.param('id', (_req: Request, res: Response, next, id: string) => {
+  if (!UUID_RE.test(id)) {
+    res.status(404).json({ success: false, error: 'project not found' })
+    return
+  }
+  next()
+})
+
 // ── 全项目预热:构建一次 ~8.5s(DLD 聚合),但项目只有 ~21 个 ────────────────
 // 启动 45s 后跑一轮,之后每 6h 强刷(TTL 7h,热度无缝)。用户请求从此永远打热
 // 缓存(2026-07-07 前该端点 avg 7.8s / p95 15s,是 HIGH_LATENCY 报警主源)。

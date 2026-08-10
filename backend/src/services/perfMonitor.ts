@@ -14,6 +14,7 @@
 import pool from '../db/pool'
 import * as sink from './perfSink'
 import { sendAlertEmail } from './notify'
+import { INCIDENT_KINDS } from './alertKinds'
 
 // ── Tunable thresholds (env-overridable) ────────────────────────────────────
 const P95_MS = Number(process.env.PERF_P95_MS) || 2000
@@ -190,11 +191,12 @@ async function ingestSlowRequests(): Promise<sink.SlowHit[]> {
 }
 
 async function reconcileAlerts(rules: RuleResult[], hasTraffic: boolean): Promise<void> {
-  // Current active (unresolved) STATE alerts keyed by kind. API_5XX incidents are
+  // Current active (unresolved) STATE alerts keyed by kind. Incident kinds are
   // excluded: they are not state, they never auto-resolve, and several can be open
-  // at once (one per endpoint).
+  // at once (one per endpoint / per crashing page).
   const { rows } = await pool.query(
-    `SELECT id, kind FROM perf_alerts WHERE resolved_at IS NULL AND kind <> 'API_5XX'`
+    `SELECT id, kind FROM perf_alerts WHERE resolved_at IS NULL AND kind <> ALL($1)`,
+    [INCIDENT_KINDS]
   )
   const active = new Map<string, number>()
   for (const r of rows) active.set(r.kind, Number(r.id))

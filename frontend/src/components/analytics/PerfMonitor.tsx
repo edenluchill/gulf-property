@@ -14,6 +14,7 @@ import TrendChart from './TrendChart'
 
 const KIND_LABEL: Record<string, string> = {
   API_5XX: '接口报错',
+  CLIENT_CRASH: '客户页面崩溃',
   HIGH_LATENCY: '延迟过高',
   HIGH_ERROR_RATE: '错误率过高',  // 已废弃的旧规则,历史记录里还有
   SLOW_QUERIES: '慢查询过多',
@@ -23,7 +24,8 @@ const KIND_LABEL: Record<string, string> = {
 // 事故(incident)≠ 状态告警。5xx 是发生过的事,不会"恢复"——它只能被人查清根因后
 // 关闭。状态告警(延迟/连接池)才有"当前是否还超阈值"这回事。两者的关闭语义不同,
 // UI 必须说不同的话,否则「已恢复」就是在骗人。
-const INCIDENT_KINDS = new Set(['API_5XX'])
+// CLIENT_CRASH 同理:客户浏览器里页面已经崩过了,那件事不会"恢复"。
+const INCIDENT_KINDS = new Set(['API_5XX', 'CLIENT_CRASH'])
 
 /** ISO minute → "MM-DD HH:MM" (TrendChart slices off the first 5 chars). */
 function fmtMinute(iso: string): string {

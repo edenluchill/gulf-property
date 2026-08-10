@@ -9,6 +9,7 @@ import { Request } from 'express'
 import { createHash } from 'crypto'
 import pool from '../db/pool'
 import { processEventsForLeads } from './leadEngine'
+import { pickCrashes, fileCrashIncidents } from './clientCrashIncidents'
 
 export const ALLOWED_EVENTS = new Set([
   'search',
@@ -177,6 +178,15 @@ export async function ingestEvents(rawEvents: unknown, ctx: IngestContext): Prom
   void processEventsForLeads(clean, ctx).catch((err) =>
     console.error('[leadEngine] trigger failed:', err)
   )
+
+  // 渲染崩溃 → perf_alerts 事故(和 5xx 同等级:会发邮件、永不自动恢复)。
+  // 同样 fire-and-forget:告警立不起来也绝不能让客户这条上报请求失败。
+  const crashes = pickCrashes(clean, ctx)
+  if (crashes.length) {
+    void fileCrashIncidents(crashes).catch((err) =>
+      console.error('[clientCrash] trigger failed:', err)
+    )
+  }
 
   return clean.length
 }

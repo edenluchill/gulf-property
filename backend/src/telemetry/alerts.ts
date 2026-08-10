@@ -15,6 +15,7 @@
  */
 import pool from '../db/pool'
 import { sendAlertEmail } from '../services/notify'
+import { INCIDENT_KINDS } from '../services/alertKinds'
 
 const APP_URL = process.env.APP_URL || 'https://www.pinzos.com'
 
@@ -53,8 +54,9 @@ export async function evaluateAlerts(): Promise<void> {
   try {
     const active = new Map<string, { id: number; metric: number | null }>()
     const { rows } = await pool.query<{ id: number; kind: string; metric: string | null }>(
-      // 只看状态类:API_5XX 是事故,不归这里管(它永不自动恢复)
-      `SELECT id, kind, metric FROM perf_alerts WHERE resolved_at IS NULL AND kind <> 'API_5XX'`
+      // 只看状态类:事故(API_5XX / CLIENT_CRASH)不归这里管(它们永不自动恢复)
+      `SELECT id, kind, metric FROM perf_alerts WHERE resolved_at IS NULL AND kind <> ALL($1)`,
+      [INCIDENT_KINDS]
     )
     for (const r of rows) active.set(r.kind, { id: r.id, metric: r.metric == null ? null : Number(r.metric) })
 

@@ -88,9 +88,13 @@ import { AuthProvider } from './contexts/AuthContext'
 import { FavoritesProvider } from './contexts/FavoritesContext'
 import { UserProfileProvider } from './contexts/UserProfileContext'
 import { startPagePerf } from './lib/pagePerf'
+import { installDomGuard } from './lib/domGuard'
 import './i18n'
 import './index.css'
 import 'leaflet/dist/leaflet.css'
+
+// 浏览器翻译插件搬走文本节点 → React removeChild 抛错 → 整页崩。必须在 render 之前装。
+installDomGuard()
 
 // 客户端真实体验上报(首屏 / 瓦片字节)。全站自动覆盖,不用逐页埋点。
 startPagePerf()
