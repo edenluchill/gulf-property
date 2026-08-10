@@ -5,7 +5,7 @@ import { DubaiArea } from '../types'
 import { getImageUrl } from '../lib/image-utils'
 import { satelliteThumbUrl, geomCenter } from '../lib/map/tiles'
 import { useAreaInsights, AreaTrendGrid, AreaRecentTx, AreaPlaceSearch, type AreaPlaceSel } from './AreaInsightsPanel'
-import FindAgentCard from './agentMatch/FindAgentCard'
+import FindAgentChip from './agentMatch/FindAgentChip'
 import { CONSUMER_SEGMENT, MarketSegment } from '../lib/marketSegment'
 
 interface DeveloperSummary {
@@ -253,8 +253,10 @@ export default function AreaDetailDialog({
                   (30 天 2,339 次,远超房源详情),买家真正停留的地方就是这个弹窗。
                   放在列表下方而不是顶部 —— 先让他看数据,看完了才是想找人的时刻。
                   池子空时组件自己不渲染,不会留个空壳。 */}
-              <div className="mt-4">
-                <FindAgentCard source="map" compact />
+              {/* 用 chip + 弹窗,和项目页/地图入口一致 —— 直接铺一张表单会把
+                  这个本来就挤的弹窗撑开,而且买家还没想找人时就摆输入框很吵。 */}
+              <div className="mt-4 flex justify-center">
+                <FindAgentChip />
               </div>
             </div>
           </div>

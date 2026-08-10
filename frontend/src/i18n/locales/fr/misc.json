@@ -436,7 +436,7 @@
   },
   "metricWindowNote": "Toutes les données utilisent cette fenêtre.",
   "agentMatch": {
-    "cta": "Trouver un agent",
+    "cta": "Parler à un vrai agent",
     "ctaSub": "Nous vous mettons en relation avec un conseiller immobilier",
     "roleFallback": "Conseiller immobilier",
     "yourContact": "Votre téléphone ou WhatsApp (facultatif)",
@@ -480,6 +480,11 @@
     "waPrefill": "Bonjour, je vous ai trouvé sur Pinzos en tant que conseiller{{project}} et j'aimerais en savoir plus.",
     "mustReachOut": "Vous n'avez pas laissé de coordonnées : le conseiller ne peut donc pas vous joindre. Touchez ci-dessus pour envoyer votre message afin qu'il sache qui vous êtes.",
     "noContactHint": "Cet acheteur a pris votre WhatsApp / téléphone sans laisser ses propres coordonnées — il vous écrira probablement directement, surveillez les numéros inconnus.",
-    "markDead": "Aucun contact · rendre mon tour"
+    "markDead": "Aucun contact · rendre mon tour",
+    "dockLabel": "Agent",
+    "pickHint": "Choisissez un conseiller — il vous recontactera",
+    "pickOne": "Choisissez d'abord un conseiller",
+    "tryAgain": "Personne n'est disponible pour le moment, réessayez sous peu",
+    "noneAvailable": "Aucun conseiller n'est de permanence — revenez un peu plus tard"
   }
 }

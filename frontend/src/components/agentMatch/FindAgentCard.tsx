@@ -1,19 +1,23 @@
 /**
- * 「找经纪帮我」—— 买家侧入口。项目详情页和地图区域弹窗共用这一个件。
+ * 「找真人帮忙」—— 买家侧的选人 + 留言表单。弹窗和地图区域弹窗共用。
  *
- * 三段式,每一段都是有意的:
- *   ① 按钮      —— **点了才去派单**。挂载就预取的话,轮换名额会被一堆压根没想找
- *                   经纪的人消耗掉,"派给谁"就失去意义了(而且库里全是假记录)。
- *   ② 经纪卡片  —— 只有名字/头像/头衔。**没有电话**。
- *   ③ 联系方式  —— 再点一次才发。这一下才是真正的转化信号。
+ * 流程是两态,**不是三态**(owner 2026-08-09 定的形态):
+ *   ① 选人 + 留言 —— 摆 3 位正在排班的顾问让买家挑,同屏留联系方式和想问的
+ *   ② 结果       —— 拿到 WhatsApp / 公开邮箱,或者"需求已转交"
  *
- * 池子空(没有任何付费/试用且留了联系方式的经纪)时**整个组件不渲染** ——
- * 摆一个点了说"暂时没有经纪"的按钮,比没有按钮更伤。
+ * 🔴 **入口按钮上不显示是谁**(那在 FindAgentDock / FindAgentChip 里)。
+ *    像 Uber:点之前不知道会是谁,点开才看到人选。
+ *
+ * 🔴 **看到候选 ≠ 消耗轮次。** 候选是只读拉的;轮次只在买家真的选了人并提交
+ *    (matchAgent + reveal)时才消耗。否则每个点开弹窗的人都会一次吃掉 3 个名额。
+ *
+ * 🔴 **候选按轮值顺序取,展示顺序才是随机的。** 真随机会跳过等最久的人,
+ *    轮值就白做了 —— 打乱只影响观感,被提名的机会严格按队列走(见 fetchCandidates)。
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, Mail } from 'lucide-react'
-import { matchAgent, peekNextAgent, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
+import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, Mail, Check } from 'lucide-react'
+import { matchAgent, fetchCandidates, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
 import { trackEvent } from '../../lib/track'
 
 /**
@@ -36,238 +40,178 @@ export function AgentAvatar({ agent, size = 10 }: {
       </span>
 }
 
-export default function FindAgentCard({ projectId, projectName, source, compact, variant = 'card', autoStart }: {
+type Cand = MatchedAgent & { id: string }
+
+export default function FindAgentCard({ projectId, projectName, source, compact }: {
   projectId?: string
   /** 预填 WhatsApp 开场白时写进去 —— 让经纪一眼知道买家在看哪个盘 */
   projectName?: string
   source: 'project' | 'map'
   /** 地图弹窗里空间紧,收窄留白 */
   compact?: boolean
-  /**
-   * 'card' 独立卡片(地图区域弹窗内)
-   * 'bar'  **通栏横条** —— 项目详情页顶部那条,和 ProjectTourCta 并排,不用滚就看得见
-   */
-  variant?: 'card' | 'bar'
-  /** 挂载即派单。**只给"用户已经点过一次才会挂载"的场景用**(例如弹窗内部)。
-   *  普通页面绝不能开 —— 那就变成预取了,轮换名额会被没想找经纪的人消耗掉。 */
-  autoStart?: boolean
 }) {
   const { t, i18n } = useTranslation('misc')
-  const [state, setState] = useState<'idle' | 'loading' | 'matched' | 'revealed' | 'empty'>('idle')
-  const [matchId, setMatchId] = useState<number | null>(null)
-  const [agent, setAgent] = useState<MatchedAgent | null>(null)
+  const [cands, setCands] = useState<Cand[] | null>(null)
+  const [chosen, setChosen] = useState<Cand | null>(null)
   const [contact, setContact] = useState<RevealedContact | null>(null)
   const [note, setNote] = useState('')
   const [myContact, setMyContact] = useState('')
   const [err, setErr] = useState('')
-  /** 值班中的那位 —— **只读 peek,不落库**。用来在按钮上直接显示头像和名字。 */
-  const [onDuty, setOnDuty] = useState<(MatchedAgent & { id: string }) | null>(null)
-  const [peeked, setPeeked] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  // 先 peek 一下现在值班的是谁 —— 按钮上要显示他的头像和名字(owner 要求)。
-  // 这是**只读**的,不写库、不占轮换名额,所以可以在挂载时就调。
+  // 候选是**只读**拉的:不写库、不占轮换名额,所以挂载时调是安全的
   useEffect(() => {
     let alive = true
-    peekNextAgent(projectId).then((a) => { if (alive) { setOnDuty(a); setPeeked(true) } })
+    fetchCandidates(projectId, 3).then((list) => {
+      if (!alive) return
+      setCands(list)
+      if (list.length === 1) setChosen(list[0])   // 只有一位就不用挑
+    })
     return () => { alive = false }
   }, [projectId])
 
-  // autoStart:弹窗里用户已经点过一次了,不要再让他点第二下
-  useEffect(() => { if (autoStart) void ask() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [autoStart])
-
-  const ask = async () => {
-    setState('loading')
-    trackEvent('contact_attempt', { contact_type: 'agent_match_open' }, { project_id: projectId, immediate: true })
-    const r = await matchAgent({ projectId, source, prefer: onDuty?.id })
-    if (!r.agent || !r.matchId) { setState('empty'); return }
-    setAgent(r.agent)
-    setMatchId(r.matchId)
-    setState(r.revealed ? 'revealed' : 'matched')
-    // 之前 reveal 过就直接把联系方式取回来(同一个人刷新页面不该再走一遍流程)
-    if (r.revealed) setContact(await revealContact(r.matchId))
-  }
-
   /** relay 渠道下买家看不到任何地址,只能靠我们转发 —— 没有回址等于死信。 */
-  const needContact = (agent?.channel ?? onDuty?.channel) === 'relay'
+  const needContact = chosen?.channel === 'relay'
 
-  const reveal = async () => {
-    if (!matchId) return
+  const submit = async () => {
+    if (!chosen) { setErr(t('agentMatch.pickOne')); return }
     if (needContact && !myContact.trim()) { setErr(t('agentMatch.contactRequired')); return }
-    setErr('')
-    setState('loading')
-    trackEvent('contact_attempt', { contact_type: 'agent_match_reveal' }, { project_id: projectId, immediate: true })
-    const c = await revealContact(matchId, { contact: myContact, note, lang: i18n.language })
-    setContact(c)
-    setState('revealed')
+    setErr(''); setBusy(true)
+    trackEvent('contact_attempt', { contact_type: 'agent_match_submit' }, { project_id: projectId, immediate: true })
+    /**
+     * prefer 带上买家选中的那位。服务端会**重新验此人还在池子里** ——
+     * 直接信前端传来的 id 的话,谁都能指定任意 agent 把买家派给自己人,
+     * 连"暂停接单/掉订阅"都绕过去了。
+     */
+    const r = await matchAgent({ projectId, source, prefer: chosen.id })
+    if (!r.agent || !r.matchId) { setErr(t('agentMatch.tryAgain')); setBusy(false); return }
+    setContact(await revealContact(r.matchId, { contact: myContact, note, lang: i18n.language }))
+    setBusy(false)
   }
-
-  // 池子空 → 什么都不渲染(见文件头)。peek 回来是 null 也一样 ——
-  // 摆一个「暂时没有经纪」的按钮比没有按钮更伤。
-  if (state === 'empty') return null
-  if (state === 'idle' && peeked && !onDuty) return null
-  // peek 还没回来时不闪一下占位骨架:入口在页面顶部,闪一下比晚 200ms 出现更难看
-  if (state === 'idle' && !peeked) return null
 
   const pad = compact ? 'p-3' : 'p-4'
 
-  if (state === 'idle') {
-    // 通栏横条 —— 项目详情页顶部,紧挨着导览入口。和 ProjectTourCta 一个调性:
-    // 满宽、有底色、不用滚就看得见。
-    if (variant === 'bar') {
-      return (
-        <div className="border-b border-slate-100 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="flex items-center gap-3 py-2.5">
-              <span className="relative shrink-0">
-                <AgentAvatar agent={onDuty} size={9} />
-                {/* 绿点 = 现在有人在接。它说明的是「有人值班」,不是「已认证」 */}
-                <span className="absolute -end-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900">{onDuty?.display_name}</span>
-                <span className="block truncate text-xs text-slate-500">
-                  {[onDuty?.title, onDuty?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.onDuty')}
-                </span>
-              </span>
-              <button type="button" onClick={ask}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 active:scale-95 sm:text-sm">
-                <MessageCircle className="h-3.5 w-3.5" />
-                {t('agentMatch.askHim')}
-              </button>
-            </div>
+  // 池子空 —— 什么都不渲染(外层入口也是靠这个判断隐藏的)
+  if (cands && cands.length === 0) {
+    return <p className="py-6 text-center text-sm text-slate-400">{t('agentMatch.noneAvailable')}</p>
+  }
+  if (!cands) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-slate-300" /></div>
+  }
+
+  // ── ② 结果 ────────────────────────────────────────────────────────────────
+  if (contact) {
+    const waText = t('agentMatch.waPrefill', { project: projectName ? ` (${projectName})` : '' }).trim()
+    return (
+      <div className={`rounded-2xl bg-white ${pad} ring-1 ring-slate-200`}>
+        <div className="flex items-center gap-3">
+          <AgentAvatar agent={chosen} size={10} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900">{contact.display_name}</p>
+            <p className="truncate text-xs text-slate-500">
+              {[chosen?.title, chosen?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.roleFallback')}
+            </p>
           </div>
         </div>
-      )
-    }
-    return (
-      <button type="button" onClick={ask}
-        className={`flex w-full items-center gap-3 rounded-2xl bg-white ${pad} text-start ring-1 ring-slate-200 transition hover:ring-slate-300 active:scale-[0.99]`}>
-        <span className="relative shrink-0">
-          <AgentAvatar agent={onDuty} size={10} />
-          <span className="absolute -end-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-slate-900">{onDuty?.display_name}</span>
-          <span className="block truncate text-xs text-slate-500">
-            {[onDuty?.title, onDuty?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.onDuty')}
-          </span>
-        </span>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
-          <MessageCircle className="h-3.5 w-3.5" />{t('agentMatch.askHim')}
-        </span>
-      </button>
-    )
-  }
 
-  if (state === 'loading' && !agent) {
-    return (
-      <div className={`flex items-center justify-center rounded-2xl bg-slate-50 ${pad} ring-1 ring-slate-100`}>
-        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-      </div>
-    )
-  }
-
-  const body = (
-    <div className={`rounded-2xl bg-white ${pad} ring-1 ring-slate-200`}>
-      <div className="flex items-start gap-3">
-        {agent?.photo_url ? (
-          <img src={agent.photo_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-100" />
-        ) : (
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-600">
-            <UserRound className="h-5 w-5" />
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900">{agent?.display_name}</p>
-          <p className="truncate text-xs text-slate-500">
-            {[agent?.title, agent?.brokerage].filter(Boolean).join(' · ') || t('agentMatch.roleFallback')}
+        {contact.channel === 'relay' && (
+          <p className={`mt-3 rounded-xl px-3 py-2.5 text-sm leading-relaxed ${
+            contact.relayed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
+          }`}>
+            {contact.relayed
+              ? t('agentMatch.relaySent', { name: contact.display_name || '' })
+              : t('agentMatch.relayFailed')}
           </p>
-          {/* RERA 牌照号只在**真有**的时候显示。没有就什么都不写 ——
-              编一个「已认证」徽章出来是在替一个我们没验证过的人背书。 */}
-          {agent?.rera_brn && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-px text-[10px] font-medium text-emerald-700">
-              <BadgeCheck className="h-3 w-3" />BRN {agent.rera_brn}
-            </span>
-          )}
-        </div>
-      </div>
+        )}
 
-      {state !== 'revealed' ? (
-        <div className="mt-3 space-y-2">
-          {/* 两个输入都**可留空** —— 强制留手机会把大部分人挡在门外,
-              而我们现在最缺的就是任何一条真实询盘。 */}
-          <input value={myContact} onChange={(e) => setMyContact(e.target.value)} maxLength={120}
-            placeholder={needContact ? t('agentMatch.yourContactRequired') : t('agentMatch.yourContact')}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
-            placeholder={t('agentMatch.yourNote')}
-            className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
-          {err && <p className="text-xs font-medium text-rose-600">{err}</p>}
-          <button type="button" onClick={reveal} disabled={state === 'loading'}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
-            {state === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-            {needContact ? t('agentMatch.sendRequest') : t('agentMatch.getContact')}
-          </button>
-        </div>
-      ) : (
+        {/* 没留联系方式时**如实说**:顾问没法主动找你,得你把消息发出去。
+            不说的话买家会干等,而经纪那边什么也没有。 */}
+        {contact.channel !== 'relay' && !myContact.trim() && (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+            {t('agentMatch.mustReachOut')}
+          </p>
+        )}
+
         <div className="mt-3 flex flex-wrap gap-2">
-          {/* relay:买家拿不到地址 —— 如实告诉他需求转过去了/没转成功。
-              relayed=false 一定要说,不然他以为发了、一直在等。 */}
-          {/* WhatsApp 渠道 + 买家没留联系方式 —— **如实说清楚**:
-              经纪没有他的联系方式,得他自己发出去那条消息。
-              不说的话买家会干等,而经纪那边什么也没有。 */}
-          {contact?.channel !== 'relay' && !myContact.trim() && (
-            <p className="w-full rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-              {t('agentMatch.mustReachOut')}
-            </p>
-          )}
-          {contact?.channel === 'relay' && (
-            <p className={`w-full rounded-xl px-3 py-2.5 text-sm ${
-              contact.relayed ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
-            }`}>
-              {contact.relayed
-                ? t('agentMatch.relaySent', { name: contact.display_name || '' })
-                : t('agentMatch.relayFailed')}
-            </p>
-          )}
-          {contact?.email && (
-            <a href={`mailto:${contact.email}`}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
-              <Mail className="h-4 w-4" />{contact.email}
-            </a>
-          )}
-          {contact?.whatsapp && (
-            /**
-             * 🔴 **预填第一条消息。**
-             * 匿名买家可以什么都不留就拿走号码 —— 那样经纪收到一条陌生消息也
-             * 不知道来自哪个项目、是不是 Pinzos 来的。把开场白写好,买家点一下
-             * 就发出去,经纪那头至少认得出这是谁、在看哪个盘。
-             * 这也是"匿名买家怎么被联系"这条路唯一的抓手。
-             */
-            <a href={`https://wa.me/${contact.whatsapp.replace(/[^\d]/g, '')}?text=${encodeURIComponent(t('agentMatch.waPrefill', { project: projectName || '' }).trim())}`}
+          {contact.whatsapp && (
+            /* 预填第一条消息 —— 匿名买家可以什么都不留就拿走号码,
+               不预填的话经纪收到一条陌生消息,不知道来自哪个盘、是不是 Pinzos。 */
+            <a href={`https://wa.me/${contact.whatsapp.replace(/[^\d]/g, '')}?text=${encodeURIComponent(waText)}`}
               target="_blank" rel="noreferrer"
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600">
               <MessageCircle className="h-4 w-4" />WhatsApp
             </a>
           )}
-          {contact?.phone && (
+          {contact.phone && (
             <a href={`tel:${contact.phone}`}
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
               <Phone className="h-4 w-4" />{t('agentMatch.call')}
             </a>
           )}
+          {contact.email && (
+            <a href={`mailto:${contact.email}`}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">
+              <Mail className="h-4 w-4" />{contact.email}
+            </a>
+          )}
         </div>
-      )}
-    </div>
-  )
-
-  // bar 变体展开后仍留在那条横条的位置上,套一层 container 免得贴边
-  if (variant === 'bar') {
-    return (
-      <div className="border-b border-teal-100 bg-emerald-50/40">
-        <div className="container mx-auto px-4 py-3">{body}</div>
       </div>
     )
   }
-  return body
+
+  // ── ① 选人 + 留言 ─────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-3">
+      {cands.length > 1 && (
+        <>
+          <p className="text-xs text-slate-500">{t('agentMatch.pickHint')}</p>
+          <ul className="space-y-2">
+            {cands.map((c) => {
+              const on = chosen?.id === c.id
+              return (
+                <li key={c.id}>
+                  <button type="button" onClick={() => { setChosen(c); setErr('') }}
+                    className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-start transition ${
+                      on ? 'bg-teal-50 ring-2 ring-teal-500' : 'bg-white ring-1 ring-slate-200 hover:ring-slate-300'
+                    }`}>
+                    <AgentAvatar agent={c} size={10} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-900">{c.display_name}</span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {[c.title, c.brokerage].filter(Boolean).join(' · ') || t('agentMatch.roleFallback')}
+                      </span>
+                      {/* RERA 牌照号只在**真有**的时候显示 —— 编一个「已认证」徽章出来
+                          是在替一个我们没验证过的人背书 */}
+                      {c.rera_brn && (
+                        <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700">
+                          <BadgeCheck className="h-3 w-3" />BRN {c.rera_brn}
+                        </span>
+                      )}
+                    </span>
+                    {on && <Check className="h-4 w-4 shrink-0 text-teal-600" />}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
+
+      {/* 两个输入:relay 渠道下联系方式是**必填**(他看不到地址,经纪只能回过去) */}
+      <input value={myContact} onChange={(e) => setMyContact(e.target.value)} maxLength={120}
+        placeholder={needContact ? t('agentMatch.yourContactRequired') : t('agentMatch.yourContact')}
+        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
+        placeholder={t('agentMatch.yourNote')}
+        className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+
+      {err && <p className="text-xs font-medium text-rose-600">{err}</p>}
+
+      <button type="button" onClick={submit} disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+        {needContact ? t('agentMatch.sendRequest') : t('agentMatch.getContact')}
+      </button>
+    </div>
+  )
 }

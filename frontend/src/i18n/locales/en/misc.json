@@ -436,7 +436,7 @@
   },
   "metricWindowNote": "All metrics use this window.",
   "agentMatch": {
-    "cta": "Find an agent to help",
+    "cta": "Talk to a real agent",
     "ctaSub": "We'll connect you with a property advisor",
     "roleFallback": "Property advisor",
     "yourContact": "Your phone or WhatsApp (optional)",
@@ -480,6 +480,11 @@
     "waPrefill": "Hello, I found you on Pinzos as an advisor{{project}} and would like to know more.",
     "mustReachOut": "You did not leave a contact, so the advisor cannot reach you — tap above to send your message so they know who you are.",
     "noContactHint": "This buyer took your WhatsApp / phone but left no contact of their own — they will most likely message you directly, so watch for unknown numbers.",
-    "markDead": "No contact made · return my turn"
+    "markDead": "No contact made · return my turn",
+    "dockLabel": "Agent",
+    "pickHint": "Pick an advisor — they will get in touch",
+    "pickOne": "Please pick an advisor first",
+    "tryAgain": "No one is free right now, please try again shortly",
+    "noneAvailable": "No advisor is on duty right now — please check back later"
   }
 }

@@ -9,43 +9,35 @@
  *    markup 只有一份,漏改的风险降到最低。
  */
 import { useEffect, useState } from 'react'
+import { UserRoundSearch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { peekNextAgent, type MatchedAgent } from '../../lib/agentMatchApi'
-import { AgentAvatar } from './FindAgentCard'
+import { peekNextAgent } from '../../lib/agentMatchApi'
 import AgentMatchModal from './AgentMatchModal'
 
 export default function FindAgentChip({ projectId, projectName }: { projectId?: string; projectName?: string }) {
   const { t } = useTranslation('misc')
-  const [onDuty, setOnDuty] = useState<(MatchedAgent & { id: string }) | null>(null)
+  /** 只判断池子里有没有人 —— **按钮上不显示是谁**(像 Uber,点开才知道)。 */
+  const [hasPool, setHasPool] = useState(false)
   const [open, setOpen] = useState(false)
 
   // 只读 peek,不落库 —— 每个打开页面的人都会渲染这个件,用会写库的接口
   // 会把轮换名额全消耗在压根没想找经纪的人身上。
   useEffect(() => {
     let alive = true
-    peekNextAgent(projectId).then((a) => { if (alive) setOnDuty(a) })
+    peekNextAgent(projectId).then((a) => { if (alive) setHasPool(!!a) })
     return () => { alive = false }
   }, [projectId])
 
   // 池子空就不渲染 —— 摆一个点了说「暂时没有经纪」的按钮比没有按钮更伤
-  if (!onDuty) return null
+  if (!hasPool) return null
 
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-        title={`${onDuty.display_name || ''} · ${t('agentMatch.askHim')}`}
-        className="group inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pe-3 ps-1 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95">
-        <span className="relative shrink-0">
-          <AgentAvatar agent={onDuty} size={9} />
-          {/* 绿点 = 现在有人在接;它说明的是「有人值班」,不是「已认证」 */}
-          <span className="absolute -end-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-        </span>
-        <span className="min-w-0 text-start">
-          <span className="block max-w-[9rem] truncate text-xs font-semibold leading-tight text-slate-900">
-            {onDuty.display_name}
-          </span>
-          <span className="block text-[10px] leading-tight text-emerald-600">{t('agentMatch.askHim')}</span>
-        </span>
+        title={t('agentMatch.cta')}
+        className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/60 bg-gradient-to-b from-teal-200/90 to-emerald-100/90 px-3 py-1.5 text-xs font-semibold text-teal-800 transition hover:from-teal-200 hover:to-emerald-100 active:scale-95">
+        <UserRoundSearch className="h-3.5 w-3.5" />
+        {t('agentMatch.dockLabel')}
       </button>
       <AgentMatchModal open={open} onClose={() => setOpen(false)} source="project" projectId={projectId} projectName={projectName} />
     </>

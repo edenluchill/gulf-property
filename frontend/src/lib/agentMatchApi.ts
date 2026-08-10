@@ -102,6 +102,30 @@ export async function peekNextAgent(projectId?: string): Promise<(MatchedAgent &
   }
 }
 
+/**
+ * 给买家挑的候选名单 —— **只读,不落库、不消耗轮次**。
+ *
+ * 后端按轮值顺序取队首 N 个(不是真随机 —— 真随机会跳过等最久的人,轮值就白做了)。
+ * **展示顺序在这里打乱**:买家看着是随机的,但被提名的机会仍严格按轮值走。
+ */
+export async function fetchCandidates(projectId?: string, n = 3): Promise<(MatchedAgent & { id: string })[]> {
+  try {
+    const qs = new URLSearchParams({ n: String(n) })
+    if (projectId) qs.set('projectId', projectId)
+    const res = await fetch(`${BASE}/candidates?${qs}`)
+    if (!res.ok) return []
+    const list = ((await res.json()).agents || []) as (MatchedAgent & { id: string })[]
+    // Fisher–Yates:顺序只影响观感,不影响谁被提名
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[list[i], list[j]] = [list[j], list[i]]
+    }
+    return list
+  } catch {
+    return []
+  }
+}
+
 /** 买家要联系方式。留言和自己的联系方式都可选 —— 强制填会把大部分人挡在门外。 */
 export async function revealContact(
   matchId: number, buyer?: { contact?: string; note?: string; lang?: string },

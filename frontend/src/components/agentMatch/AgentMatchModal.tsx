@@ -42,9 +42,9 @@ export default function AgentMatchModal({ open, onClose, source, projectId, proj
             <X className="h-4 w-4" />
           </button>
         </div>
-        {/* autoStart:用户点入口那一下就是「我要找经纪」,不该再点第二次。
-            不违反「点了才派单」—— 这个组件只有点开弹窗才挂载。 */}
-        <FindAgentCard source={source} projectId={projectId} projectName={projectName} autoStart compact />
+        {/* 打开就直接是「选人 + 留言」—— 候选是**只读**拉的,不落库不占轮换名额,
+            所以不需要再让用户点一次"开始"。真正派单发生在他提交那一下。 */}
+        <FindAgentCard source={source} projectId={projectId} projectName={projectName} compact />
       </div>
     </div>,
     document.body,

@@ -163,7 +163,7 @@ const NEXT_IN_ROTATION = `
         WHERE x.agent_id = a.id AND x.round_no = cur.r
      )
    ORDER BY COALESCE(m.n, 0) ASC, COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC
-   LIMIT 1
+   LIMIT $2
 `
 
 /**
@@ -180,7 +180,7 @@ const NEXT_NEW_ROUND = `
     ) m ON m.agent_id = a.id
    WHERE ${POOL_WHERE}
    ORDER BY COALESCE(m.n, 0) ASC, COALESCE(m.last_at, 'epoch'::timestamptz) ASC, a.id ASC
-   LIMIT 1
+   LIMIT $2
 `
 
 /**
@@ -210,14 +210,41 @@ router.get('/next', async (req: Request, res: Response) => {
       )
       if (rows.length) return res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) }, mine: true })
     }
-    let { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+    let { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS, 1])
     // 本轮全拿过了 → 自动开新一轮(见 NEXT_NEW_ROUND 的说明)
-    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS]))
+    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS, 1]))
     if (!rows.length) return res.json({ agent: null, empty: true })
     // id 一起给出去:点击时带回来当 prefer,保证「看到谁点开就是谁」
     res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) } })
   } catch (err) {
     console.error('[agent-match] peek failed:', err)
+    res.status(500).json({ error: 'internal error' })
+  }
+})
+
+/**
+ * ── 给买家挑的候选名单(只读,不落库)───────────────────────────────────────
+ *
+ * owner 2026-08-09:「点进去后输入联系方法的地方,显示 3 个随机现在排班的人让他们选」。
+ *
+ * 🔴 **候选按轮值顺序取,不是真随机。** 真随机会让排在队首、等最久的人被跳过,
+ *    轮值就白做了。这里取的是**本轮还没拿到 lead 的队首 3 个**;
+ *    展示顺序在前端打乱,买家看着是随机的,但被"提名"的机会仍然严格按轮值走。
+ *
+ * 🔴 **看到候选 ≠ 消耗轮次。** 轮次只在买家真的选了人并提交需求(reveal)时才消耗。
+ *    否则每个点开弹窗的人都会一次吃掉 3 个人的名额。
+ *
+ * 池子不足 3 人就有几个给几个。
+ */
+router.get('/candidates', async (req: Request, res: Response) => {
+  const want = Math.min(5, Math.max(1, Number(req.query.n) || 3))
+  try {
+    let { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS, want])
+    // 本轮全拿过了 → 开新一轮
+    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS, want]))
+    res.json({ agents: rows.map((r) => ({ ...agentCard(r), id: String(r.id) })) })
+  } catch (err) {
+    console.error('[agent-match] candidates failed:', err)
     res.status(500).json({ error: 'internal error' })
   }
 })
@@ -288,9 +315,9 @@ router.get('/', async (req: Request, res: Response) => {
       )
     }
     if (!pick.rows.length) {
-      pick = await client.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS])
+      pick = await client.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS, 1])
       // 本轮 32 个人全拿过 lead 了 → 自动开新一轮
-      if (!pick.rows.length) pick = await client.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS])
+      if (!pick.rows.length) pick = await client.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS, 1])
     }
     if (!pick.rows.length) {
       await client.query('COMMIT')
