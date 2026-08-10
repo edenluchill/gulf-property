@@ -129,7 +129,7 @@ export default function ClientReportPage() {
                   <div className="w-full flex-1 space-y-2">
                     {p.scores.map((s: any) => (
                       <div key={s.k} className="flex items-center gap-2">
-                        <span className="w-20 flex-shrink-0 text-xs text-slate-500">{scoreLabel(s.k, t)}</span>
+                        <span className="w-28 flex-shrink-0 text-xs leading-tight text-slate-500">{scoreLabel(s.k, t)}</span>
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-500" style={{ width: `${s.v}%` }} /></div>
                         <span className="w-7 flex-shrink-0 text-end text-xs font-semibold text-slate-700">{s.v}</span>
                       </div>
@@ -666,18 +666,24 @@ function Row({ label, value, strong }: { label: string; value: React.ReactNode; 
   )
 }
 
+/**
+ * ⚠️ **viewBox 要留给最长的那个语言。** 轴名是文字:中文「增值潜力」四个字,
+ *    英文 "Growth potential" 十六个字符,俄文更长。原来 220 宽,英文报告里
+ *    右边的轴名被直接切成「Growth potentia」。
+ *    留 60px 的左右余量,并把标签压到 9px —— 别把 R 调大。
+ */
 function RadarChart({ data, t }: { data: { k: string; v: number }[]; t: TFn }) {
-  const N = data.length, R = 64, cx = 110, cy = 100
+  const N = data.length, R = 58, cx = 150, cy = 96
   const ang = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / N
   const pt = (i: number, rad: number) => [cx + Math.cos(ang(i)) * rad, cy + Math.sin(ang(i)) * rad]
   const poly = data.map((d, i) => pt(i, R * Math.max(0.06, d.v / 100)).map((n) => n.toFixed(1)).join(',')).join(' ')
   const rings = [0.25, 0.5, 0.75, 1].map((f) => data.map((_, i) => pt(i, R * f).join(',')).join(' '))
   return (
-    <svg viewBox="0 0 220 200" style={{ width: 240, maxWidth: '100%' }}>
+    <svg viewBox="0 0 300 190" style={{ width: 300, maxWidth: '100%' }}>
       {rings.map((g, i) => <polygon key={i} points={g} fill="none" stroke="#e2e8f0" strokeWidth="1" />)}
       {data.map((_, i) => { const [x, y] = pt(i, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#e2e8f0" strokeWidth="1" /> })}
       <polygon points={poly} fill="#14b8a6" fillOpacity="0.25" stroke="#0d9488" strokeWidth="2" />
-      {data.map((d, i) => { const [x, y] = pt(i, R + 16); return <text key={i} x={x} y={y} fontSize="10" fontWeight="600" textAnchor="middle" fill="#64748b" dominantBaseline="middle">{scoreLabel(d.k, t)}</text> })}
+      {data.map((d, i) => { const [x, y] = pt(i, R + 18); return <text key={i} x={x} y={y} fontSize="9" fontWeight="600" textAnchor="middle" fill="#64748b" dominantBaseline="middle">{scoreLabel(d.k, t)}</text> })}
     </svg>
   )
 }
