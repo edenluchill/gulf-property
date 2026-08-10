@@ -22,7 +22,7 @@ import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
 import { requireAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
-import { ADMIN_EMAILS } from '../lib/adminEmails'
+import { DISPATCH_EXCLUDED_EMAILS } from '../lib/internalAccounts'
 import { buildOutreach, outreachLang } from '../lib/agentOutreachTemplate'
 
 const router = Router()
@@ -33,17 +33,14 @@ const NOTE_MAX = 500
 const CONTACT_MAX = 120
 
 /**
- * **自己人绝不进派单池。** owner 2026-08-09:「不要发给我,要匹配给付费/试用的经纪」。
+ * 派单池排除的账号 —— **走 lib/internalAccounts 的单一真源**。
  *
- * 不排的话池子里 4 个人有 2 个是我们自己(owner + 合伙人,两人都有生效订阅和手机号),
- * 等于把一半买家派回给自己 —— 而且会把「派单是否真的转起来」这个指标彻底污染。
- * demo 号也一起排:它的手机号是 +971500000000,派出去买家永远打不通。
- */
-const INTERNAL_EMAILS = [
-  ...ADMIN_EMAILS,                 // lzp6529 / shelldubai26(单一真源,别在这里再抄一遍)
-  'admin@yesir.ai',
-  'demo-agent@luna.tour',
-].map((e) => e.toLowerCase())
+ * ⚠️ 别再在这里自己拼名单。2026-08-09 我就是自己拼了 4 个,漏掉
+ *    `edenlu1995@gmail.com`(owner 另一个号)和 `realtorgptapp@gmail.com`,
+ *    结果 owner 的小号真的出现在给买家挑的候选里。
+ *
+ * 注意用的是 DISPATCH_EXCLUDED_EMAILS 而不是 INTERNAL_EMAILS ——
+ * **合伙人留在池子里**(owner 明确要求:他是迪拜本地真能接待买家的人)。
 
 /**
  * 谁能进派单池。
@@ -55,7 +52,7 @@ const INTERNAL_EMAILS = [
  *   ③ 没有自己按暂停
  *   ④ 不是自己人
  *
- * ⚠️ 用到的查询都要把 INTERNAL_EMAILS 当 $1 传进去。
+ * ⚠️ 用到的查询都要把 DISPATCH_EXCLUDED_EMAILS 当 $1 传进去。
  *
  * ⚠️ **JOIN 段和 WHERE 段必须分开两个常量。** 合成一个 `FROM…JOIN…WHERE…` 的话,
  *    调用方想再接一个 LEFT JOIN(挑人时要 join 曝光计数)就变成
@@ -210,9 +207,9 @@ router.get('/next', async (req: Request, res: Response) => {
       )
       if (rows.length) return res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) }, mine: true })
     }
-    let { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS, 1])
+    let { rows } = await pool.query(NEXT_IN_ROTATION, [DISPATCH_EXCLUDED_EMAILS, 1])
     // 本轮全拿过了 → 自动开新一轮(见 NEXT_NEW_ROUND 的说明)
-    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS, 1]))
+    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [DISPATCH_EXCLUDED_EMAILS, 1]))
     if (!rows.length) return res.json({ agent: null, empty: true })
     // id 一起给出去:点击时带回来当 prefer,保证「看到谁点开就是谁」
     res.json({ agent: { ...agentCard(rows[0]), id: String(rows[0].id) } })
@@ -239,9 +236,9 @@ router.get('/next', async (req: Request, res: Response) => {
 router.get('/candidates', async (req: Request, res: Response) => {
   const want = Math.min(5, Math.max(1, Number(req.query.n) || 3))
   try {
-    let { rows } = await pool.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS, want])
+    let { rows } = await pool.query(NEXT_IN_ROTATION, [DISPATCH_EXCLUDED_EMAILS, want])
     // 本轮全拿过了 → 开新一轮
-    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS, want]))
+    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [DISPATCH_EXCLUDED_EMAILS, want]))
     res.json({ agents: rows.map((r) => ({ ...agentCard(r), id: String(r.id) })) })
   } catch (err) {
     console.error('[agent-match] candidates failed:', err)
@@ -311,13 +308,13 @@ router.get('/', async (req: Request, res: Response) => {
            ${POOL_JOIN}
            LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
           WHERE ${POOL_WHERE} AND a.id = $2`,
-        [INTERNAL_EMAILS, prefer]
+        [DISPATCH_EXCLUDED_EMAILS, prefer]
       )
     }
     if (!pick.rows.length) {
-      pick = await client.query(NEXT_IN_ROTATION, [INTERNAL_EMAILS, 1])
+      pick = await client.query(NEXT_IN_ROTATION, [DISPATCH_EXCLUDED_EMAILS, 1])
       // 本轮 32 个人全拿过 lead 了 → 自动开新一轮
-      if (!pick.rows.length) pick = await client.query(NEXT_NEW_ROUND, [INTERNAL_EMAILS, 1])
+      if (!pick.rows.length) pick = await client.query(NEXT_NEW_ROUND, [DISPATCH_EXCLUDED_EMAILS, 1])
     }
     if (!pick.rows.length) {
       await client.query('COMMIT')
@@ -597,7 +594,7 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
      *
      * 🔴 **必须排除自己人**(owner 2026-08-09:「排班别派给我」)。派单本身早就排了,
      *    但这张表漏了 —— 于是 owner、合伙人、demo 号都躺在排班里,还标着「在池中」,
-     *    看起来像随时会被派到。表和真实池子用**同一份 INTERNAL_EMAILS**。
+     *    看起来像随时会被派到。表和真实池子用**同一份 DISPATCH_EXCLUDED_EMAILS**。
      *
      * 🔴 **「联系得上」的判据要和派单池一致**。原来只看手机号 —— 但邮箱中转上线后,
      *    只有登录邮箱的 31 个人其实也联系得上,表里却全标着「联系不上」。
@@ -641,7 +638,7 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
                           AND s.status IN ('active','trialing','past_due'))
                OR COALESCE(m.n, 0) > 0)
         ORDER BY COALESCE(m.n, 0) DESC, a.display_name`,
-      [INTERNAL_EMAILS]
+      [DISPATCH_EXCLUDED_EMAILS]
     )
     const matches = await pool.query(
       `SELECT m.id, m.created_at, m.revealed_at, m.agent_ack_at, m.source,
@@ -654,7 +651,7 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
         ORDER BY m.created_at DESC LIMIT 300`
     )
     // 池子大小单独给 —— 它是这个功能能不能转起来的**唯一**先决条件
-    const size = await pool.query(`SELECT count(*)::int AS n ${POOL_JOIN} WHERE ${POOL_WHERE}`, [INTERNAL_EMAILS])
+    const size = await pool.query(`SELECT count(*)::int AS n ${POOL_JOIN} WHERE ${POOL_WHERE}`, [DISPATCH_EXCLUDED_EMAILS])
     /**
      * 轮次进度 —— 运营真正要看的是「本轮还剩谁没拿到」,不是谁接得多。
      * done = 本轮已拿到 lead 的人数,pool_size - done = 本轮还没轮到的人。
@@ -671,7 +668,7 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
        SELECT a.email ${POOL_JOIN} CROSS JOIN cur
         WHERE ${POOL_WHERE}
           AND NOT EXISTS (SELECT 1 FROM agent_match_assignments x WHERE x.agent_id = a.id AND x.round_no = cur.r)`,
-      [INTERNAL_EMAILS]
+      [DISPATCH_EXCLUDED_EMAILS]
     )
     /**
      * 漏斗总量 —— 三个数的含义差很多,别混着看:

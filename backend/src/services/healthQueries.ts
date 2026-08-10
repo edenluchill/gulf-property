@@ -25,6 +25,7 @@
  */
 import pool from '../db/pool'
 import { internalVisitorIds } from './analyticsQueries'
+import { INTERNAL_EMAILS } from '../lib/internalAccounts'
 
 export interface HealthRange {
   days: number
@@ -42,14 +43,8 @@ export interface HealthRange {
  *    更正后的事实：**至今没有任何外部经纪创建过哪怕一个 Luna Tour。**
  *    往这个数组里加人 = 让某个「客户」消失，**必须 owner 明确确认过才能加**。
  */
-const INTERNAL_AGENTS = [
-  'lzp6529@gmail.com',      // owner
-  'demo-agent@luna.tour',   // 内置 demo 账号
-  'edenlu1995@gmail.com',   // owner 另一个账号
-  'shelldubai26@gmail.com', // 合伙人 SHUAI WANG（乙方，见 docs/signed/ 的合伙协议）
-  'admin@yesir.ai',         // owner 另一个账号
-  'realtorgptapp@gmail.com',
-].map((s) => s.toLowerCase())
+// 名单走 lib/internalAccounts 的单一真源(这里是**统计口径**,合伙人也算自己人)
+const INTERNAL_AGENTS = INTERNAL_EMAILS
 
 /** 一个「产出 → 被消费」的功能。produced 是经纪做出来的，consumed 是客户真的看了。 */
 export interface FeatureHealth {
