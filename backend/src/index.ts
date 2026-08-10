@@ -29,6 +29,7 @@ import agentsRouter from './routes/agents'  // 经纪准入审批
 import telemetryRouter from './routes/telemetry'  // 客户端 RUM 上报
 import featureRequestsRouter from './routes/feature-requests'  // 客户功能建议(公开列表,匿名)
 import agentMatchRouter from './routes/agent-match'  // 买家找经纪派单(最少曝光优先轮换)
+import myActivityRouter from './routes/my-activity'  // 买家的收藏/看过/联系过的顾问
 import { startAgentMatchNotifier } from './services/agentMatchNotifier'  // 派单通知:攒 5 分钟合成一封
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
@@ -172,6 +173,7 @@ app.use('/api/agents', agentsRouter)  // 经纪准入审批(/me + owner 批准)
 app.use('/api/telemetry', telemetryRouter)  // 客户端 RUM 上报(匿名,白名单)— docs/telemetry-spec.md
 app.use('/api/feature-requests', featureRequestsRouter)  // 客户功能建议(列表公开、提交要登录、永不暴露提交人)
 app.use('/api/agent-match', agentMatchRouter)  // 买家找经纪(派单公开;联系方式要 reveal 才发)
+app.use('/api/my-activity', myActivityRouter)  // 买家个人页:收藏/看过/联系过的顾问
 app.use('/api/ai/projects', aiProjectsRouter)  // AI project search & detail
 app.use('/api/ai/areas', aiAreasRouter)  // AI area match, info & compare
 app.use('/api/ai/analytics', aiAnalyticsRouter)  // AI investment/ROI/budget analysis (DLD data)

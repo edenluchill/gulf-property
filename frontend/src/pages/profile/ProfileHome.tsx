@@ -26,6 +26,7 @@ import WelcomePosterModal from '../../luna-tour/components/WelcomePosterModal'  
 const MEMBERSHIP_CERT_ENABLED = false
 import AgentCardEditor from '../../components/AgentCardEditor'
 import TrialClaimCard from '../../components/TrialClaimCard'
+import MyActivity from '../../components/profile/MyActivity'
 import type { ProfileShellContext } from './ProfileShell'
 
 interface AgentCard {
@@ -147,6 +148,15 @@ export default function ProfileHome() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── 我的东西:收藏 / 看过的房源 / 联系过的顾问 / 对比 ──────────────────
+          owner 2026-08-09:「买家 profile 也可以有点用的工具」。
+          这些数据早就在采,只是买家自己看不到 —— 他收藏了、逛了十几个盘、
+          找过顾问,回到这一页却只有一张资料卡和「成为经纪」入口。
+          三块全空时组件自己不渲染(新用户不该先看到三个空盒子)。 */}
+      <div className="mb-4">
+        <MyActivity />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

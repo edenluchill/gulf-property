@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom'
 import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
 import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
 import DispatchStatusCard from '../../components/agentMatch/DispatchStatusCard'
+import ProfileGapsCard from '../../components/agentMatch/ProfileGapsCard'
 import { SectionHeader, StatCard } from '../ui/Panel'
 import ActivationChecklist from '../ui/ActivationChecklist'
 import IntentFeed from '../ui/IntentFeed'
@@ -102,8 +103,11 @@ export default function AgentOverview() {
       {/* 「我的派单状态」—— owner 2026-08-09:「经纪台没办法看到自己的派单状态呀」。
           原来只藏在「买家匹配」那一页里,而经纪落地的是这一页,等于要先知道
           它存在才看得到。内部账号/池子外时组件自己不渲染,不占地方。 */}
-      <div className="mb-5">
+      {/* 派单状态 + 资料补全 —— 并排。「差什么」紧挨着「我排第几」才有意义:
+          两者回答的是同一个问题的两半(我接不接得到买家 / 为什么接不到)。 */}
+      <div className="mb-5 grid gap-3 lg:grid-cols-2">
         <DispatchStatusCard />
+        <ProfileGapsCard />
       </div>
 
       {/* 试用期激活清单(全部完成后自动消失) */}

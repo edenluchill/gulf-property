@@ -557,6 +557,11 @@ router.get('/pool', requireAuth, async (req: Request, res: Response) => {
                    ELSE 'relay' END AS channel,
               COALESCE(a.photo_url,'') <> '' AS has_photo,
               COALESCE(a.rera_brn,'')  <> '' AS has_brn,
+              -- 系统注册时按邮箱前缀填的默认名 —— 那不算"填了名字":
+              -- 摆到买家面前是一串 tczhulei2001 而不是人名。
+              -- ⚠️ 这段在 JS 模板字符串里,注释里**别写反引号**,会把字符串截断。
+              (COALESCE(a.display_name,'') <> ''
+               AND lower(a.display_name) <> lower(split_part(a.email,'@',1))) AS has_real_name,
               lower(a.email) = ANY($2::text[]) AS internal,
               EXISTS (SELECT 1 FROM lt_subscriptions s
                        WHERE s.agent_id = COALESCE(a.billing_agent_id, a.id)
@@ -612,6 +617,7 @@ router.get('/pool', requireAuth, async (req: Request, res: Response) => {
       channel: r.channel,
       has_photo: r.has_photo,
       has_brn: r.has_brn,
+      has_real_name: r.has_real_name,
       paused: !!r.match_paused_at,
       /** 内部账号(owner 的号/demo)—— 永远不进派单,如实告诉他,别显示「正在接单」 */
       internal: r.internal,

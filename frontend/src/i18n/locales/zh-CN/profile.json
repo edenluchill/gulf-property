@@ -87,5 +87,8 @@
     "developerMember": "开发商会员"
   },
   "tabRoi": "收益模拟器",
-  "tabBuyerMatches": "买家匹配"
+  "tabBuyerMatches": "买家匹配",
+  "groupClients": "客户",
+  "groupTools": "工具",
+  "groupAccount": "账户"
 }

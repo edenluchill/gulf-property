@@ -87,5 +87,8 @@
     "developerMember": "Developer Member"
   },
   "tabRoi": "Return simulator",
-  "tabBuyerMatches": "Buyer matches"
+  "tabBuyerMatches": "Buyer matches",
+  "groupClients": "Clients",
+  "groupTools": "Tools",
+  "groupAccount": "Account"
 }

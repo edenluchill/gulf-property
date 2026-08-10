@@ -490,6 +490,35 @@
     "inQueue": "在轮值队列里",
     "leadsTotal": "累计买家",
     "viewAll": "查看",
-    "goFillContact": "去补手机号"
+    "goFillContact": "去补手机号",
+    "gapsTitle": "还差这些资料",
+    "goComplete": "去补全资料",
+    "gap_contact": "手机号 / WhatsApp",
+    "gapWhy_contact": "没填就完全接不到买家 —— 你不会出现在派单轮值里。",
+    "gap_name": "真实姓名",
+    "gapWhy_name": "现在买家看到的是你的邮箱前缀，不是名字。",
+    "gap_photo": "头像",
+    "gapWhy_photo": "买家挑顾问时你是一个灰色圆圈，旁边有照片的人更容易被选中。",
+    "gap_brn": "RERA 牌照号（BRN）",
+    "gapWhy_brn": "填了才会在你的卡片上显示持牌徽章；不填我们不会替你标注任何资质。"
+  },
+  "activity": {
+    "title": "我的东西",
+    "tabFav": "收藏",
+    "tabViewed": "看过",
+    "tabAdvisors": "顾问",
+    "pickToCompare": "勾选 2–4 个可以并排对比",
+    "compare": "并排对比",
+    "rowDeveloper": "开发商",
+    "rowArea": "区域",
+    "rowPrice": "起价",
+    "rowHandover": "交房",
+    "emptyFav": "还没有收藏。看到中意的项目点一下心形就存下来了。",
+    "emptyFavAnon": "登录后收藏才会留下来 —— 换个设备也还在。",
+    "emptyViewed": "还没有浏览记录。",
+    "emptyAdvisors": "还没有联系过顾问。",
+    "goExplore": "去地图逛逛 →",
+    "contacted": "已要联系方式",
+    "notContacted": "未联系"
   }
 }

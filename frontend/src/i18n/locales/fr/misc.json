@@ -491,6 +491,35 @@
     "inQueue": "Dans la rotation",
     "leadsTotal": "Acheteurs",
     "viewAll": "Voir",
-    "goFillContact": "Ajouter un téléphone"
+    "goFillContact": "Ajouter un téléphone",
+    "gapsTitle": "Informations manquantes",
+    "goComplete": "Compléter mon profil",
+    "gap_contact": "Téléphone / WhatsApp",
+    "gapWhy_contact": "Sans cela vous ne recevez aucun acheteur — vous n'êtes pas dans la rotation.",
+    "gap_name": "Votre vrai nom",
+    "gapWhy_name": "Les acheteurs voient actuellement le préfixe de votre e-mail, pas un nom.",
+    "gap_photo": "Photo de profil",
+    "gapWhy_photo": "Vous apparaissez comme un cercle gris ; ceux qui ont une photo sont choisis plus souvent.",
+    "gap_brn": "Licence RERA (BRN)",
+    "gapWhy_brn": "Le badge d'agréé n'apparaît qu'avec ce numéro — nous n'attestons jamais d'une qualification non vérifiée."
+  },
+  "activity": {
+    "title": "Mes éléments",
+    "tabFav": "Favoris",
+    "tabViewed": "Consultés",
+    "tabAdvisors": "Conseillers",
+    "pickToCompare": "Cochez 2 à 4 pour comparer côte à côte",
+    "compare": "Comparaison",
+    "rowDeveloper": "Promoteur",
+    "rowArea": "Quartier",
+    "rowPrice": "À partir de",
+    "rowHandover": "Livraison",
+    "emptyFav": "Aucun favori. Touchez le cœur sur un projet qui vous plaît.",
+    "emptyFavAnon": "Connectez-vous pour conserver vos favoris — sur tous vos appareils.",
+    "emptyViewed": "Aucun historique.",
+    "emptyAdvisors": "Vous n'avez encore contacté aucun conseiller.",
+    "goExplore": "Explorer la carte →",
+    "contacted": "Coordonnées demandées",
+    "notContacted": "Non contacté"
   }
 }

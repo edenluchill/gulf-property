@@ -188,6 +188,8 @@ export interface PoolStatus {
   channel?: 'whatsapp' | 'email' | 'relay'
   has_photo?: boolean
   has_brn?: boolean
+  /** display_name 不是邮箱前缀那种系统默认值 */
+  has_real_name?: boolean
   paused?: boolean
   /** owner 的号 / demo —— 永远不进派单,整张状态卡对他们没意义 */
   internal?: boolean

@@ -491,6 +491,35 @@
     "inQueue": "In the rotation",
     "leadsTotal": "Buyers",
     "viewAll": "View",
-    "goFillContact": "Add a phone number"
+    "goFillContact": "Add a phone number",
+    "gapsTitle": "Missing from your profile",
+    "goComplete": "Complete my profile",
+    "gap_contact": "Phone / WhatsApp",
+    "gapWhy_contact": "Without it you receive no buyers at all — you are not in the rotation.",
+    "gap_name": "Your real name",
+    "gapWhy_name": "Buyers currently see your email prefix, not a name.",
+    "gap_photo": "Profile photo",
+    "gapWhy_photo": "You appear as a grey circle when buyers pick an advisor; those with a photo get picked more.",
+    "gap_brn": "RERA licence (BRN)",
+    "gapWhy_brn": "Only then does a licensed badge show on your card — we never claim credentials we have not seen."
+  },
+  "activity": {
+    "title": "My stuff",
+    "tabFav": "Saved",
+    "tabViewed": "Viewed",
+    "tabAdvisors": "Advisors",
+    "pickToCompare": "Tick 2–4 to compare side by side",
+    "compare": "Side by side",
+    "rowDeveloper": "Developer",
+    "rowArea": "Area",
+    "rowPrice": "From",
+    "rowHandover": "Handover",
+    "emptyFav": "Nothing saved yet. Tap the heart on a project you like.",
+    "emptyFavAnon": "Sign in and your saves stay with you — on any device.",
+    "emptyViewed": "No browsing history yet.",
+    "emptyAdvisors": "You have not contacted an advisor yet.",
+    "goExplore": "Explore the map →",
+    "contacted": "Contact requested",
+    "notContacted": "Not contacted"
   }
 }

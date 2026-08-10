@@ -87,5 +87,8 @@
   "projectsSuffix": " projets",
   "favWithSaves": " · {{n}} enregistrés",
   "tabRoi": "Simulateur de rendement",
-  "tabBuyerMatches": "Acheteurs attribués"
+  "tabBuyerMatches": "Acheteurs attribués",
+  "groupClients": "Clients",
+  "groupTools": "Outils",
+  "groupAccount": "Compte"
 }

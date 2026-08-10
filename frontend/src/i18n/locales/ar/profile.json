@@ -87,5 +87,8 @@
   "projectsSuffix": " مشاريع",
   "favWithSaves": " · تم حفظ {{n}}",
   "tabRoi": "محاكي العائد",
-  "tabBuyerMatches": "المشترون المخصّصون"
+  "tabBuyerMatches": "المشترون المخصّصون",
+  "groupClients": "العملاء",
+  "groupTools": "الأدوات",
+  "groupAccount": "الحساب"
 }

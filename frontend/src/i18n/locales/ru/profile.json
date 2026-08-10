@@ -87,5 +87,8 @@
   "projectsSuffix": " проектов",
   "favWithSaves": " · Сохранено: {{n}}",
   "tabRoi": "Симулятор доходности",
-  "tabBuyerMatches": "Назначенные покупатели"
+  "tabBuyerMatches": "Назначенные покупатели",
+  "groupClients": "Клиенты",
+  "groupTools": "Инструменты",
+  "groupAccount": "Аккаунт"
 }

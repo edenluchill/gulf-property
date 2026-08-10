@@ -58,17 +58,43 @@ const ACCOUNT_TABS: Tab[] = [
 // 路由和后端**保留**(数据继续采,owner 直接访问 /agent/leads 仍可看)——
 // 只藏导航入口,随时可以放回来。要恢复:把下面这行取消注释。
 //   { to: '/agent/leads', zh: '线索', en: 'Leads', icon: Inbox },
-const AGENT_TABS: Tab[] = [
-  { to: '/agent', end: true, key: 'tabDashboard', icon: LayoutDashboard },
-  { to: '/agent/clients', key: 'tabClientRadar', icon: Radar },
-  // 「分配给我的买家」—— 排在客户雷达后面:两者都是"人",但这个是平台派过来的,
-  // 不是他自己录的。放前面会让第一次进来的经纪以为这里全是自己的客户。
-  { to: '/agent/matches', key: 'tabBuyerMatches', icon: UserPlus },
-  { to: '/agent/tour', key: 'tabAiTours', icon: Wand2 },
-  { to: '/agent/report', key: 'tabClientFitReports', icon: Zap },
-  { to: '/agent/roi', key: 'tabRoi', icon: Calculator },
-  { to: '/agent/promo', key: 'tabReferEarn', icon: Gift },
+/**
+ * 经纪工作台的导航 —— **按用途分组**(owner 2026-08-09:「左侧导航要分组,像 Supabase 那样」)。
+ *
+ * 原来是 7 个平铺项,一个第一次进来的经纪没法一眼看出哪些是"看人"、哪些是"做东西"。
+ * 分组不是为了好看:它把"我现在想干嘛"这个问题的答案从 7 选 1 变成 3 选 1 再 3 选 1。
+ *
+ * 顺序 = 一个经纪一天里的动线:先看有没有人找我(客户)→ 给他做点东西(工具)→ 账户。
+ */
+type TabGroup = { titleKey: string; tabs: Tab[] }
+
+const AGENT_GROUPS: TabGroup[] = [
+  {
+    titleKey: 'groupClients',
+    tabs: [
+      { to: '/agent', end: true, key: 'tabDashboard', icon: LayoutDashboard },
+      // 「分配给我的买家」排在客户雷达前面:平台派过来的比自己录的更紧急
+      // (那边有人正在等回复)
+      { to: '/agent/matches', key: 'tabBuyerMatches', icon: UserPlus },
+      { to: '/agent/clients', key: 'tabClientRadar', icon: Radar },
+    ],
+  },
+  {
+    titleKey: 'groupTools',
+    tabs: [
+      { to: '/agent/tour', key: 'tabAiTours', icon: Wand2 },
+      { to: '/agent/report', key: 'tabClientFitReports', icon: Zap },
+      { to: '/agent/roi', key: 'tabRoi', icon: Calculator },
+    ],
+  },
+  {
+    titleKey: 'groupAccount',
+    tabs: [
+      { to: '/agent/promo', key: 'tabReferEarn', icon: Gift },
+    ],
+  },
 ]
+
 // 使用记录:只在付费后显示(有积分消耗才有意义;免费/未订阅不显示)
 const USAGE_TAB: Tab = { to: '/agent/usage', key: 'tabUsage', icon: Receipt }
 
@@ -169,7 +195,12 @@ export default function ProfileShell() {
 
   // 使用记录 tab 只在付费(active/trialing)后出现;免费/未订阅不显示。
   const isPaid = !!me && ['active', 'trialing'].includes(me.status)
-  const agentTabs: Tab[] = isPaid ? [...AGENT_TABS, USAGE_TAB] : AGENT_TABS
+  /** 付费后在「账户」组末尾追加使用记录 —— 别单开一组,一组一项很怪 */
+  const agentGroups: TabGroup[] = isPaid
+    ? AGENT_GROUPS.map((g, i) => (i === AGENT_GROUPS.length - 1 ? { ...g, tabs: [...g.tabs, USAGE_TAB] } : g))
+    : AGENT_GROUPS
+  /** 扁平版 —— 只给「当前板块识别」用,不用于渲染 */
+  const agentTabs: Tab[] = agentGroups.flatMap((g) => g.tabs)
 
   // 手机端全部可达板块(个人资料 → 工作台各功能(经纪)→ 订阅),
   // 用于顶栏标题识别 + 菜单 Sheet 列表。
@@ -266,12 +297,20 @@ export default function ProfileShell() {
                 {t('profile:agentWorkspace')}
               </div>
               {isAgent ? (
-                agentTabs.map((tab) => (
-                  <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
-                    <tab.icon className="h-[18px] w-[18px]" />
-                    <span className="flex-1">{t(`profile:${tab.key}`)}</span>
-                    <ChevronRight className="h-4 w-4 text-slate-300 rtl:-scale-x-100" />
-                  </NavLink>
+                /* 手机 Sheet 也按同一份分组渲染 —— 两处各写一份必然漂移 */
+                agentGroups.map((g) => (
+                  <div key={g.titleKey}>
+                    <div className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {t(`profile:${g.titleKey}`)}
+                    </div>
+                    {g.tabs.map((tab) => (
+                      <NavLink key={tab.to} to={tab.to} end={tab.end} className={sheetRowCls}>
+                        <tab.icon className="h-[18px] w-[18px]" />
+                        <span className="flex-1">{t(`profile:${tab.key}`)}</span>
+                        <ChevronRight className="h-4 w-4 text-slate-300 rtl:-scale-x-100" />
+                      </NavLink>
+                    ))}
+                  </div>
                 ))
               ) : (
                 <Link to="/choose-role" className="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium text-slate-700 transition active:bg-slate-100">
@@ -376,12 +415,23 @@ export default function ProfileShell() {
                       <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${agentOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {agentOpen && (
-                      <div className="space-y-0.5 border-t border-slate-100 p-1.5">
-                        {agentTabs.map((tab) => (
-                          <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
-                            <tab.icon className="h-4 w-4" />
-                            {t(`profile:${tab.key}`)}
-                          </NavLink>
+                      <div className="border-t border-slate-100 p-1.5">
+                        {agentGroups.map((g) => (
+                          <div key={g.titleKey} className="mb-1.5 last:mb-0">
+                            {/* 组标题:小、全大写、灰 —— 它是路标,不是可点的东西,
+                                不该和下面的导航项抢注意力 */}
+                            <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                              {t(`profile:${g.titleKey}`)}
+                            </div>
+                            <div className="space-y-0.5">
+                              {g.tabs.map((tab) => (
+                                <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
+                                  <tab.icon className="h-4 w-4" />
+                                  {t(`profile:${tab.key}`)}
+                                </NavLink>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
