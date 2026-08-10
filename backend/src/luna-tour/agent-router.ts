@@ -1506,7 +1506,7 @@ router.post('/sessions/:id/preview-audio', requireAgent, async (req: AgentReq, r
 router.get('/notifications', requireAgent, async (req: AgentReq, res: Response) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id::text, kind, title, body, share_code, client_id::text,
+      `SELECT id::text, kind, title, body, params, share_code, client_id::text,
               read_at, created_at
          FROM lt_notifications
         WHERE agent_id = $1

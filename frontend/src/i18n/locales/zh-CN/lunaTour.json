@@ -704,5 +704,21 @@
   "barQueueGot": "本轮已拿",
   "barLeads": "买家要了联系",
   "barTours": "导览场次",
-  "barOpens": "累计打开"
+  "barOpens": "累计打开",
+  "sig": {
+    "title_tour_known": "{{who}}看完了《{{tour}}》",
+    "title_tour_anon": "有人看完了《{{tour}}》",
+    "title_cta_known": "{{who}}点了「联系经纪」",
+    "title_cta_anon": "有人点了「联系经纪」",
+    "title_fav_known": "{{who}}收藏了「{{project}}」",
+    "title_fav_known_any": "{{who}}收藏了一套房",
+    "title_fav_anon": "有人收藏了「{{project}}」",
+    "title_fav_anon_any": "有人收藏了一套房",
+    "body_tour_known": "他从头看到了尾。现在联系他，他脑子里还全是这几套房。",
+    "body_tour_anon": "有人从头看到了尾 —— 但这是公开链接，**我们不知道他是谁**。下次从「客户雷达」选一位客户再生成，行为就会挂到他名下。",
+    "body_cta_known": "他主动点了联系你。如果你还没收到消息，主动打过去 —— 他刚才是想的。",
+    "body_cta_anon": "有人点了联系你，接下来他可能会给你发消息。**我们不知道他是谁** —— 从「客户雷达」选客户再生成，就能对上号。",
+    "body_fav_known": "这就是他想要的类型。",
+    "body_fav_anon": "**我们不知道他是谁**（公开链接）。从「客户雷达」选客户再生成，就能对上号。"
+  }
 }

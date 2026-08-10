@@ -29,6 +29,16 @@
  *      **我们真的不知道他是谁。** 那就**明说**,并告诉经纪下次怎么做才能知道
  *     (从客户雷达里选一个客户再生成 → 行为就会挂到那个名字下面)。
  *
+ * ── 🌍 2026-08-09:文案**不在这里定语言** ────────────────────────────────
+ * 原来 title/body 是在这里拼成中文成品存库的 → 英文界面的经纪看到的是
+ * 「有人点了「联系经纪」」(owner 实拍工作台)。
+ * 现在同时写一份 `params`(who / known / tour / project),**前端按经纪的
+ * 界面语言渲染**。他换语言,历史通知也跟着换 —— 写入时定死做不到这件事。
+ * title/body 照旧写,只当兜底(旧客户端 / 以后的邮件模板)。
+ *
+ * 🔴 新增通知类型时:**params 和 i18n 键要一起加**,否则新类型会静默掉回中文。
+ *    前端键在 `lunaTour.json` 的 `sig.*`。
+ *
  * ISOLATION: 只写 lt_notifications,失败绝不冒泡(埋点不能拖垮客户的播放)。
  */
 import pool from '../db/pool'
@@ -123,14 +133,25 @@ export async function notifyAgentOfIntent(ctx: Ctx): Promise<void> {
         : `${projectName ? `有人挑中了「${projectName}」。` : ''}**我们不知道他是谁**（公开链接）。`
     }
 
+    /**
+     * 前端渲染用的参数。**这才是真正的内容**,上面的 title/body 只是兜底。
+     * who 只在 known 时有意义(匿名那一半的「有人」是前端按语言出的)。
+     */
+    const params = {
+      known,
+      who: known ? s.client_name : null,
+      tour: s.title || null,
+      project: projectName || null,
+    }
+
     // 同一访客 + 同一场 tour + 同一类事件 = 一条。看三遍不刷三条。
     const dedupe = `${ctx.sessionId}:${ctx.visitorId}:${kind}${kind === 'favorite' && ctx.projectId ? ':' + ctx.projectId : ''}`
 
     await pool.query(
-      `INSERT INTO lt_notifications (agent_id, kind, title, body, session_id, client_id, share_code, dedupe_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO lt_notifications (agent_id, kind, title, body, session_id, client_id, share_code, dedupe_key, params)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (dedupe_key) DO NOTHING`,
-      [s.agent_id, kind, title, body, ctx.sessionId, s.client_id, s.share_code, dedupe]
+      [s.agent_id, kind, title, body, ctx.sessionId, s.client_id, s.share_code, dedupe, JSON.stringify(params)]
     )
 
     /**

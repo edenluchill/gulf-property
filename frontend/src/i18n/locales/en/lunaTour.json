@@ -705,5 +705,21 @@
   "barQueueGot": "Got this round",
   "barLeads": "Buyers took contact",
   "barTours": "Tours",
-  "barOpens": "Total opens"
+  "barOpens": "Total opens",
+  "sig": {
+    "title_tour_known": "{{who}} finished “{{tour}}”",
+    "title_tour_anon": "Someone finished “{{tour}}”",
+    "title_cta_known": "{{who}} tapped “Contact agent”",
+    "title_cta_anon": "Someone tapped “Contact agent”",
+    "title_fav_known": "{{who}} saved “{{project}}”",
+    "title_fav_known_any": "{{who}} saved a property",
+    "title_fav_anon": "Someone saved “{{project}}”",
+    "title_fav_anon_any": "Someone saved a property",
+    "body_tour_known": "They watched it all the way through. Reach out now — those properties are still fresh in their mind.",
+    "body_tour_anon": "Someone watched it all the way through — but this was a public link, so **we do not know who they are**. Next time, pick a client in Client radar before generating, and the activity will be tied to that name.",
+    "body_cta_known": "They tapped to contact you. If nothing has come through yet, call them — they were interested a moment ago.",
+    "body_cta_anon": "Someone tapped to contact you and may message you shortly. **We do not know who they are** — pick a client in Client radar before generating and the next one will have a name.",
+    "body_fav_known": "That is the kind of place they are after.",
+    "body_fav_anon": "**We do not know who they are** (public link). Pick a client in Client radar before generating and the next one will have a name."
+  }
 }

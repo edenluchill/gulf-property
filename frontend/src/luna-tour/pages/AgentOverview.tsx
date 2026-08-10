@@ -3,7 +3,7 @@
  *
  * 版面顺序 = **今天要做什么** → **拿什么去做** → **做得怎么样**:
  *   ① 信息栏:待跟进 / 逾期 / 派单排位 / 客户数 —— 一眼看完,不用点
- *   ② 动静(默认收起,见 IntentFeed)
+ *   ② 动静:标题栏右上角的铃铛,**不占正文一行**(见 IntentFeed)
  *   ③ 两个动作入口:实时带看 / Luna 导览
  *   ④ 派单状态 + 资料补全
  *   ⑤ 该追谁(CRM 热度 Top5)· 导览表现
@@ -139,9 +139,13 @@ export default function AgentOverview() {
     <div>
       {/* 首登自动弹一次恭喜入驻海报(试用也弹);之后去「推广有礼」tab 再看 */}
       <WelcomePosterModal />
-      <div className="mb-4">
-        <h1 className="mb-1 text-2xl font-bold">{t('lunaTour:agentWorkbench')}</h1>
-        <p className="text-sm text-slate-500">{t('lunaTour:twoWaysToShow')}</p>
+      {/* 标题栏:左边标题,右边一颗通知铃铛(见 IntentFeed —— 通知不占正文一行) */}
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="mb-1 text-2xl font-bold">{t('lunaTour:agentWorkbench')}</h1>
+          <p className="text-sm text-slate-500">{t('lunaTour:twoWaysToShow')}</p>
+        </div>
+        <IntentFeed />
       </div>
 
       {/* ── ① 信息栏 ─────────────────────────────────────────────────────
@@ -167,11 +171,6 @@ export default function AgentOverview() {
           </>
         )}
       </dl>
-
-      {/* 🔔 客户动静 —— **第一屏**。谁刚看完、谁想联系你、谁收藏了哪套。
-          最值钱的一刻是客户刚看完的那一分钟(他此刻正在想这件事),
-          所以它不能藏在某个 tab 里。一条都没有时不占地方。 */}
-      <IntentFeed />
 
       {/* 「我的派单状态」—— owner 2026-08-09:「经纪台没办法看到自己的派单状态呀」。
           原来只藏在「买家匹配」那一页里,而经纪落地的是这一页,等于要先知道

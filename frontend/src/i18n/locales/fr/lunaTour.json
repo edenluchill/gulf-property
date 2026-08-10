@@ -705,5 +705,21 @@
   "barQueueGot": "Reçu ce tour",
   "barLeads": "Contacts demandés",
   "barTours": "Visites",
-  "barOpens": "Ouvertures"
+  "barOpens": "Ouvertures",
+  "sig": {
+    "title_tour_known": "{{who}} a terminé « {{tour}} »",
+    "title_tour_anon": "Quelqu’un a terminé « {{tour}} »",
+    "title_cta_known": "{{who}} a cliqué sur « Contacter l’agent »",
+    "title_cta_anon": "Quelqu’un a cliqué sur « Contacter l’agent »",
+    "title_fav_known": "{{who}} a mis « {{project}} » en favori",
+    "title_fav_known_any": "{{who}} a mis un bien en favori",
+    "title_fav_anon": "Quelqu’un a mis « {{project}} » en favori",
+    "title_fav_anon_any": "Quelqu’un a mis un bien en favori",
+    "body_tour_known": "Il a tout regardé jusqu’au bout. Contactez-le maintenant : ces biens sont encore frais dans son esprit.",
+    "body_tour_anon": "Quelqu’un a tout regardé jusqu’au bout — mais il s’agissait d’un lien public, donc **nous ignorons de qui il s’agit**. La prochaine fois, choisissez un client dans le Radar clients avant de générer : l’activité sera rattachée à ce nom.",
+    "body_cta_known": "Il a cliqué pour vous contacter. Si vous n’avez encore rien reçu, appelez-le : il était intéressé il y a un instant.",
+    "body_cta_anon": "Quelqu’un a cliqué pour vous contacter et vous écrira peut-être bientôt. **Nous ignorons de qui il s’agit** — choisissez un client dans le Radar clients avant de générer et le prochain aura un nom.",
+    "body_fav_known": "C’est exactement le type de bien qu’il recherche.",
+    "body_fav_anon": "**Nous ignorons de qui il s’agit** (lien public). Choisissez un client dans le Radar clients avant de générer et le prochain aura un nom."
+  }
 }
