@@ -500,7 +500,19 @@
     "gap_photo": "头像",
     "gapWhy_photo": "买家挑顾问时你是一个灰色圆圈，旁边有照片的人更容易被选中。",
     "gap_brn": "RERA 牌照号（BRN）",
-    "gapWhy_brn": "填了才会在你的卡片上显示持牌徽章；不填我们不会替你标注任何资质。"
+    "gapWhy_brn": "填了才会在你的卡片上显示持牌徽章；不填我们不会替你标注任何资质。",
+    "internalNote": "这是内部账号 —— 不参与派单轮值,所以这里永远是空的。想看真实派单情况请去后台的「买家派单」面板。",
+    "statRound": "当前轮次",
+    "statQueue": "本轮排位",
+    "statQueueGot": "已拿",
+    "statTotal": "累计派单",
+    "statRevealed": "买家要了联系方式",
+    "statTodo": "待跟进",
+    "filterAll": "全部",
+    "filterTodo": "待跟进",
+    "filterDone": "已跟进",
+    "roundLabel": "第 {{n}} 轮",
+    "roundNone": "已退回轮值"
   },
   "activity": {
     "title": "我的东西",

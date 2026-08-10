@@ -200,19 +200,17 @@ export function UnitTypesSubPage({
                 lang={i18n.language}
               />
 
-              {/* 收益模拟器入口 —— **只对经纪显示**。
-                  合伙人:「感觉客户目前用不到、用不明白」,工具已搬进经纪台。
-                  项目详情页是买家也会看的公开页,所以这里必须按角色收起,
-                  否则买家点进去会撞经纪审批门(看到一个自己进不去的功能比没有更糟)。 */}
-              {isAgent && (
+              {/* 收益模拟器入口 —— **所有人可见**(owner 2026-08-09 推翻了原来的只给经纪)。
+                  之前收起来的理由是「买家点进去会撞经纪审批门」,那个理由现在没了:
+                  /roi 是公开路由,不需要登录。经纪仍走 /agent/roi 以保留经纪台侧栏。
+                  ⚠️ 改回按角色隐藏之前先确认 /roi 还在 —— 光加 isAgent 会让买家点了没反应。 */}
               <Link
-                to={`/agent/roi?project=${encodeURIComponent(projectId)}&unit=${encodeURIComponent(selectedUnit.id)}`}
+                to={`${isAgent ? '/agent/roi' : '/roi'}?project=${encodeURIComponent(projectId)}&unit=${encodeURIComponent(selectedUnit.id)}`}
                 className="mt-6 inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-medium text-teal-700 transition hover:bg-teal-100"
               >
                 <LineChart className="h-4 w-4" />
                 {tRoi('entry.simulateUnit')}
               </Link>
-              )}
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-slate-400">

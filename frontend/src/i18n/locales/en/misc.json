@@ -501,7 +501,19 @@
     "gap_photo": "Profile photo",
     "gapWhy_photo": "You appear as a grey circle when buyers pick an advisor; those with a photo get picked more.",
     "gap_brn": "RERA licence (BRN)",
-    "gapWhy_brn": "Only then does a licensed badge show on your card — we never claim credentials we have not seen."
+    "gapWhy_brn": "Only then does a licensed badge show on your card — we never claim credentials we have not seen.",
+    "internalNote": "This is an internal account — it never enters the dispatch rotation, so this page stays empty. Use the admin Buyer dispatch panel to see real activity.",
+    "statRound": "Round",
+    "statQueue": "Your place",
+    "statQueueGot": "Received",
+    "statTotal": "Total assigned",
+    "statRevealed": "Buyer took contact",
+    "statTodo": "To follow up",
+    "filterAll": "All",
+    "filterTodo": "To follow up",
+    "filterDone": "Followed up",
+    "roundLabel": "Round {{n}}",
+    "roundNone": "Returned to rotation"
   },
   "activity": {
     "title": "My stuff",

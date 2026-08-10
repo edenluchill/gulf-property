@@ -31,7 +31,7 @@ import TransactionsPage from './pages/TransactionsPage'
 import AreaInsightsPage from './pages/AreaInsightsPage'
 import BuyingReportPage from './pages/BuyingReportPage'
 import AboutPage from './pages/AboutPage'  // marketing / features / SEO page
-import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —— 经纪台专用(/agent/roi)
+import RoiSimulatorPage from './pages/RoiSimulatorPage'  // 收益模拟器 —— 公开 /roi + 经纪台 /agent/roi
 import { PrivacyPolicyPage, TermsPage } from './pages/LegalPages'  // required by Google OAuth brand verification
 import ChangelogPage from './pages/ChangelogPage'
 // 楼盘公开导览目录(每个楼盘一条常驻导览)—— isolated,删这行+下面那条路由即可移除
@@ -140,6 +140,10 @@ function App() {
         <Route path="/verify/:code" element={<VerifyPage />} />
         {/* Comprehensive client investment proposal (shareable, printable) */}
         <Route path="/cr/:code" element={<ClientReportPage />} />
+        {/* 收益模拟器 —— **买家也能用**(owner 2026-08-09:「return simulator 给普通用户也能用」)。
+            同一个组件挂两处:公开 /roi 给所有人,/agent/roi 留在经纪台里保持深链不变。
+            这一页的接口全是公开的(项目/区域 insights),不需要登录。 */}
+        <Route path="/roi" element={<RoiSimulatorPage />} />
         {/* Full-screen visual storyboard editor */}
         <Route path="/agent/tour/:id/edit" element={<TourEditor />} />
         {/* 个人中心(统一外壳:左侧栏 = 个人资料 + 经纪台各 tab)。

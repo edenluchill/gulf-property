@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
-import { Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, TrendingUp, Home, Star, Train, GraduationCap, Trees, ListChecks, Target, Check, X, AlertTriangle } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Phone, MessageCircle, BadgeCheck, Loader2, Printer, ShieldCheck, Building2, ExternalLink, TrendingUp, Home, Star, Train, GraduationCap, Trees, ListChecks, Target, Check, X, AlertTriangle } from 'lucide-react'
 import { formatMoneyCompact } from '../lib/money'
 import { placeNameUsable } from '../lib/tt'
 import i18n from '../i18n'
@@ -15,6 +15,25 @@ type TFn = (k: string, o?: Record<string, unknown>) => string
 // UI 语言走 —— 否则会出现「阿语标签 + 中文正文」,比全中文更糟。
 const docNs = (lang: string): TFn =>
   (i18n.getFixedT as (l: string, ns: string) => TFn)(!lang || lang === 'zh' ? 'zh-CN' : lang, 'clientReport')
+
+/**
+ * 雷达图/评分条的轴名。
+ *
+ * 后端从 2026-08-09 起按报告语言存,但**库里已有的报告存的是中文** ——
+ * 一份英文报告照样会渲染出「租金回报」。这张表把历史值翻回去,
+ * 认不出来的原样显示(新语言/以后改词都不会炸)。
+ * 等历史报告都过期了可以删,但删之前先查一遍库。
+ */
+const LEGACY_SCORE_KEY: Record<string, string> = {
+  '租金回报': 'yield', '增值潜力': 'growth', '生活配套': 'amenities',
+  '市场活跃': 'activity', '综合净回报': 'net',
+}
+const scoreLabel = (k: string, t: TFn): string => {
+  const id = LEGACY_SCORE_KEY[k]
+  if (!id) return k
+  const s = t(`scoreLabel.${id}`)
+  return s && !s.startsWith('scoreLabel.') ? s : k
+}
 
 const M = (v: number | null | undefined, lang: string) => (v != null ? formatMoneyCompact(v, lang) : '—')
 const Dh = ({ v, lang }: { v: number | null | undefined; lang: string }) => <><DirhamSymbol size="0.7em" className="text-slate-400" />{M(v, lang)}</>
@@ -82,23 +101,35 @@ export default function ClientReportPage() {
             <div className="mt-3 pe-24">
               <div className="text-[11px] font-semibold text-teal-600">{t('heroKicker', { name: clientName })}</div>
               <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">{p.name}<ExternalLink className="h-5 w-5 flex-shrink-0 text-slate-300" /></h1>
-              <div className="text-sm text-slate-500">{p.developer}{p.area ? ` · ${p.area}` : ''}</div>
+              <div className="text-sm text-slate-500">{[p.developer, p.area].filter(Boolean).join(' · ')}</div>
             </div>
           </a>
         )}
         {profileLine && <div className="mt-2 text-sm text-slate-400">{t('profile.label')}{profileLine}</div>}
+
+        {/* 🔴 **结论先行。** 客户点开链接的第一眼要看到「所以呢」,不是雷达图。
+            summary 一直在生成(FIT_SCHEMA 里就有),但**从来没有渲染过** ——
+            owner 2026-08-09:「这个 report 能不能更好的排版 对人类友好一点」。 */}
+        {p?.fit?.summary && (
+          <p className="mt-4 border-s-2 border-teal-400 ps-3 text-[15px] leading-relaxed text-slate-700">
+            {p.fit.summary}
+          </p>
+        )}
 
         {p && (
           <>
             {/* 投资评分 radar */}
             {p.scores?.length >= 3 && (
               <Section title={t('section.scores')} icon={<Star className="h-4 w-4 text-amber-400" />}>
-                <div className="flex flex-col items-center gap-3 sm:flex-row">
-                  <div className="flex-shrink-0"><RadarChart data={p.scores} /></div>
-                  <div className="flex-1 space-y-1.5 self-stretch">
+                {/* 雷达和条形是**同一组数**的两种画法(dataviz 里叫 double encoding)。
+                    留着雷达是因为它一眼看出形状,条形负责给准确数字 ——
+                    但必须 items-center 并排,原来的 self-stretch 让右边空出一大片死白。 */}
+                <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+                  <div className="flex-shrink-0"><RadarChart data={p.scores} t={t} /></div>
+                  <div className="w-full flex-1 space-y-2">
                     {p.scores.map((s: any) => (
                       <div key={s.k} className="flex items-center gap-2">
-                        <span className="w-20 flex-shrink-0 text-xs text-slate-500">{s.k}</span>
+                        <span className="w-20 flex-shrink-0 text-xs text-slate-500">{scoreLabel(s.k, t)}</span>
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-500" style={{ width: `${s.v}%` }} /></div>
                         <span className="w-7 flex-shrink-0 text-end text-xs font-semibold text-slate-700">{s.v}</span>
                       </div>
@@ -113,7 +144,7 @@ export default function ClientReportPage() {
                 取舍/风险也要显示 —— 一份全是优点的报告反而不可信,客户不傻。 */}
             {p.fit && (p.fit.project_why?.length > 0 || p.fit.project_tradeoffs?.length > 0) && (
               <Section title={t('section.fit')} icon={<Target className="h-4 w-4 text-teal-500" />}>
-                {p.fit.project_fit != null && (
+                {p.fit.project_fit != null && p.fit.project_fit >= 20 && (
                   <div className="mb-3 flex items-center gap-3">
                     <span className="text-xs text-slate-500">{t('fit.score')}</span>
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
@@ -370,10 +401,31 @@ function renderProfile(ps: any, t: TFn, lang: string): string | null {
 
 /* ---- shared branded chrome (used by proposal + compare views) ---- */
 
+/**
+ * 顶栏。
+ *
+ * 🔴 **后退必须两条腿。** 这个页面有两种到达方式,不能只写 `navigate(-1)`:
+ *   · 经纪从后台点进来 → 有历史,退回去才对
+ *   · 客户从微信/WhatsApp 的链接直接打开 → **history.length === 1**,
+ *     `navigate(-1)` 什么都不会发生(按钮看起来是坏的)→ 退回首页
+ * owner 2026-08-09:「这个页面没有后退」。
+ */
+function BackButton({ t }: { t: TFn }) {
+  const navigate = useNavigate()
+  const go = () => { if (window.history.length > 1) navigate(-1); else navigate('/') }
+  return (
+    <button onClick={go} aria-label={t('back')} title={t('back')}
+      className="-ms-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
+      <ArrowLeft className="h-4.5 w-4.5 rtl:rotate-180" />
+    </button>
+  )
+}
+
 function TopBar({ title, t }: { title: string; t: TFn }) {
   return (
     <div className="no-print sticky top-0 z-50 flex items-center justify-between gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur">
-      <div className="truncate text-sm font-semibold text-slate-700">{title}</div>
+      <BackButton t={t} />
+      <div className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{title}</div>
       <button onClick={() => window.print()} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900"><Printer className="h-4 w-4" />{t('savePdf')}</button>
     </div>
   )
@@ -614,7 +666,7 @@ function Row({ label, value, strong }: { label: string; value: React.ReactNode; 
   )
 }
 
-function RadarChart({ data }: { data: { k: string; v: number }[] }) {
+function RadarChart({ data, t }: { data: { k: string; v: number }[]; t: TFn }) {
   const N = data.length, R = 64, cx = 110, cy = 100
   const ang = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / N
   const pt = (i: number, rad: number) => [cx + Math.cos(ang(i)) * rad, cy + Math.sin(ang(i)) * rad]
@@ -625,7 +677,7 @@ function RadarChart({ data }: { data: { k: string; v: number }[] }) {
       {rings.map((g, i) => <polygon key={i} points={g} fill="none" stroke="#e2e8f0" strokeWidth="1" />)}
       {data.map((_, i) => { const [x, y] = pt(i, R); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#e2e8f0" strokeWidth="1" /> })}
       <polygon points={poly} fill="#14b8a6" fillOpacity="0.25" stroke="#0d9488" strokeWidth="2" />
-      {data.map((d, i) => { const [x, y] = pt(i, R + 16); return <text key={i} x={x} y={y} fontSize="10" fontWeight="600" textAnchor="middle" fill="#64748b" dominantBaseline="middle">{d.k}</text> })}
+      {data.map((d, i) => { const [x, y] = pt(i, R + 16); return <text key={i} x={x} y={y} fontSize="10" fontWeight="600" textAnchor="middle" fill="#64748b" dominantBaseline="middle">{scoreLabel(d.k, t)}</text> })}
     </svg>
   )
 }

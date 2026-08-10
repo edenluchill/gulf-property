@@ -155,5 +155,13 @@
     "fire_station": "Fire station",
     "post_office": "Post office",
     "cinema": "Cinema"
+  },
+  "back": "Back",
+  "scoreLabel": {
+    "yield": "Rental yield",
+    "growth": "Growth potential",
+    "amenities": "Amenities",
+    "activity": "Market activity",
+    "net": "Net return"
   }
 }

@@ -17,11 +17,17 @@
  * 所以:
  *   • 知道是谁(这场 tour 是发给某个客户的)→ 指名道姓,可以去他的档案
  *   • 不知道是谁(公开链接)→ **明说不知道**,并告诉他下次怎么做才能知道
+ *
+ * ── 📉 2026-08-09:**默认收起** ────────────────────────────────────────
+ * owner:「dashboard 上面那些 notification 太脏了 应该放在不太显眼或者一个信息栏」。
+ * 之前是六条卡片糊在工作台第一屏,把真正的动作入口挤到了折叠线以下。
+ * 现在缩成一条:`🔔 N 条新动静` —— **有未读才自动展开**,读过的要点一下才看。
+ * 🔴 别改回默认展开:这块是**信号**不是待办,它不该比「开始带看」还抢眼。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { Bell, Check } from 'lucide-react'
+import { Bell, Check, ChevronDown } from 'lucide-react'
 import { lunaFetch } from '../lunaApi'
 
 interface Note {
@@ -65,6 +71,11 @@ export default function IntentFeed() {
   const [notes, setNotes] = useState<Note[]>([])
   const [unread, setUnread] = useState(0)
   const [loaded, setLoaded] = useState(false)
+  const [open, setOpen] = useState(false)
+  /** 用户手动收/放过就以他的意思为准。
+   *  ⚠️ 必须是 ref 不是 state:轮询用的是 useEffect([]) 里那份闭包,
+   *     state 会永远停在 false —— 他收起来,下一分钟又被弹开。 */
+  const touched = useRef(false)
 
   const load = () => {
     void lunaFetch('/notifications')
@@ -72,6 +83,7 @@ export default function IntentFeed() {
       .then((d) => {
         setNotes(d.notifications || [])
         setUnread(d.unread || 0)
+        if (!touched.current) setOpen((d.unread || 0) > 0)
       })
       .catch(() => {})
       .finally(() => setLoaded(true))
@@ -97,25 +109,29 @@ export default function IntentFeed() {
   if (loaded && notes.length === 0) return null
 
   return (
-    <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.06]">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bell className="h-4 w-4 text-teal-600" />
-          <span className="font-semibold">{t('lunaTour:buyingSignals')}</span>
+    <div className="mb-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+      {/* 一条窄栏 —— 整行可点开合 */}
+      <div className="flex items-center gap-2 px-4 py-2.5">
+        <button type="button" onClick={() => { touched.current = true; setOpen((v) => !v) }}
+          className="flex min-w-0 flex-1 items-center gap-2 text-start">
+          <Bell className="h-4 w-4 shrink-0 text-slate-400" />
+          <span className="truncate text-sm font-medium text-slate-600">{t('lunaTour:buyingSignals')}</span>
+          <span className="shrink-0 text-xs tabular-nums text-slate-400">{notes.length}</span>
           {unread > 0 && (
-            <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">
+            <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
               {unread}
             </span>
           )}
-        </div>
-        {unread > 0 && (
-          <button onClick={markAll} className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800">
+          <ChevronDown className={`ms-auto h-4 w-4 shrink-0 text-slate-300 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {unread > 0 && open && (
+          <button onClick={markAll} className="flex shrink-0 items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-800">
             <Check className="h-3.5 w-3.5" /> {t('lunaTour:markAllRead')}
           </button>
         )}
       </div>
 
-      <div className="space-y-1.5">
+      <div className={`space-y-1.5 px-3 pb-3 ${open ? '' : 'hidden'}`}>
         {notes.slice(0, 6).map((n) => (
           <div
             key={n.id}

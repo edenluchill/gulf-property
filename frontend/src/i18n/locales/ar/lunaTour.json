@@ -697,5 +697,13 @@
     "onFoot": "سيرًا",
     "shortDrive": "دقائق بالسيارة",
     "alsoNearby": "{{n}} في الجوار"
-  }
+  },
+  "barOverdue": "متابعات متأخرة",
+  "barClients": "عملائي",
+  "barQueue": "ترتيب التوزيع",
+  "barQueueOut": "خارج القائمة",
+  "barQueueGot": "استلمت هذه الجولة",
+  "barLeads": "طلبوا التواصل",
+  "barTours": "الجولات",
+  "barOpens": "مرات الفتح"
 }

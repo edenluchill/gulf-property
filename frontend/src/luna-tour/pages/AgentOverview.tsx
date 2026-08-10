@@ -1,8 +1,18 @@
 /**
  * Luna Tour — agent "工作台" tab (route: /agent).
  *
- * 两个核心动作(实时带看 / Luna 导览)+ 该追谁(客户雷达 CRM 的热度 Top5,
- * 不再用旧 tour-session 榜)+ Luna 导览表现汇总。
+ * 版面顺序 = **今天要做什么** → **拿什么去做** → **做得怎么样**:
+ *   ① 信息栏:待跟进 / 逾期 / 派单排位 / 客户数 —— 一眼看完,不用点
+ *   ② 动静(默认收起,见 IntentFeed)
+ *   ③ 两个动作入口:实时带看 / Luna 导览
+ *   ④ 派单状态 + 资料补全
+ *   ⑤ 该追谁(CRM 热度 Top5)· 导览表现
+ *
+ * owner 2026-08-09:「overview 一点都不好看没有有用信息」「live tour 和 luna tour
+ * 入口太难看了」。原来第一屏是六条通知 + 两张深色渐变大卡,**没有一个数字**。
+ *
+ * 🔴 **信息栏里的数只能是"要采取行动"的数。** 累计打开数放在页尾的表现区,
+ *    放到顶上只是虚荣指标 —— 经纪看完不知道该干什么。
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +20,7 @@ import { Link } from 'react-router-dom'
 import { Radio, Sparkles, ArrowRight, Flame, CalendarClock } from 'lucide-react'
 import { lunaFetch, getClients, type Client, type PipelineStage } from '../lunaApi'
 import DispatchStatusCard from '../../components/agentMatch/DispatchStatusCard'
+import { fetchPoolStatus, type PoolStatus } from '../../lib/agentMatchApi'
 import ProfileGapsCard from '../../components/agentMatch/ProfileGapsCard'
 import { SectionHeader, StatCard } from '../ui/Panel'
 import ActivationChecklist from '../ui/ActivationChecklist'
@@ -52,6 +63,40 @@ const ago = (iso: string | null | undefined, t: (k: string, o?: Record<string, u
 }
 const isOverdue = (iso?: string | null) => !!iso && new Date(iso).getTime() <= Date.now()
 
+/** 信息栏一格。整格可点 —— 看到「3 条逾期」的下一个动作就是点进去。 */
+function Cell({ to, label, value, tone }: {
+  to: string; label: string; value: string; tone?: 'alert' | 'good'
+}) {
+  return (
+    <Link to={to} className="group bg-white px-3 py-2.5 transition hover:bg-slate-50">
+      <dt className="truncate text-[10px] text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 truncate text-lg font-semibold tabular-nums ${
+        tone === 'alert' ? 'text-rose-600' : tone === 'good' ? 'text-emerald-600' : 'text-slate-900'
+      }`}>{value}</dd>
+    </Link>
+  )
+}
+
+/** 动作入口卡。两个入口长得一样,只有图标和文案不同 —— 一样才像一套工具。 */
+function ActionCard({ to, icon, badge, title, desc, cta }: {
+  to: string; icon: React.ReactNode; badge: string; title: string; desc: string; cta: string
+}) {
+  return (
+    <Link to={to}
+      className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-teal-300 hover:shadow-sm">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">{icon}</span>
+        <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-slate-900">{title}</h2>
+        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-slate-500">{badge}</span>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-slate-500">{desc}</p>
+      <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-teal-600">
+        {cta}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100" />
+      </span>
+    </Link>
+  )
+}
+
 export default function AgentOverview() {
   const { t: tRaw, i18n } = useTranslation('lunaTour')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
@@ -60,6 +105,7 @@ export default function AgentOverview() {
 
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [pool, setPool] = useState<PoolStatus | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -72,6 +118,8 @@ export default function AgentOverview() {
       setClients(cls)
       setLoading(false)
     })()
+    // 派单状态单独拿 —— 它比 CRM 快得多,不该被慢的那个拖住整条信息栏
+    void fetchPoolStatus().then(setPool)
   }, [])
 
   const tot = sessions.reduce(
@@ -83,6 +131,7 @@ export default function AgentOverview() {
     }),
     { opens: 0, completes: 0, cta: 0, loves: 0 }
   )
+  const overdueCount = clients.filter((c) => isOverdue(c.next_followup_at)).length
   // 该追谁:客户雷达(CRM)按热度排,而不是旧 tour-session 榜
   const hot = [...clients].sort((a, b) => (b.heat ?? 0) - (a.heat ?? 0)).slice(0, 5)
 
@@ -90,10 +139,34 @@ export default function AgentOverview() {
     <div>
       {/* 首登自动弹一次恭喜入驻海报(试用也弹);之后去「推广有礼」tab 再看 */}
       <WelcomePosterModal />
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold mb-1">{t('lunaTour:agentWorkbench')}</h1>
+      <div className="mb-4">
+        <h1 className="mb-1 text-2xl font-bold">{t('lunaTour:agentWorkbench')}</h1>
         <p className="text-sm text-slate-500">{t('lunaTour:twoWaysToShow')}</p>
       </div>
+
+      {/* ── ① 信息栏 ─────────────────────────────────────────────────────
+          四个**要采取行动**的数。派单两格来自服务端 /pool(前端不拼判据),
+          客户两格来自 CRM。内部账号没有派单,那两格自动不画。 */}
+      <dl className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-4">
+        <Cell to="/agent/clients" label={t('lunaTour:barOverdue')}
+          value={loading ? '…' : String(overdueCount)} tone={overdueCount > 0 ? 'alert' : undefined} />
+        <Cell to="/agent/clients" label={t('lunaTour:barClients')} value={loading ? '…' : String(clients.length)} />
+        {pool && !pool.internal ? (
+          <>
+            <Cell to="/agent/matches" label={t('lunaTour:barQueue')}
+              value={!pool.in_pool ? t('lunaTour:barQueueOut')
+                : pool.got_this_round ? t('lunaTour:barQueueGot')
+                : pool.queue_position != null ? `${pool.queue_position}/${pool.queue_length}` : '—'}
+              tone={!pool.in_pool ? 'alert' : undefined} />
+            <Cell to="/agent/matches" label={t('lunaTour:barLeads')} value={String(pool.leads_total ?? 0)} tone="good" />
+          </>
+        ) : (
+          <>
+            <Cell to="/agent/tour" label={t('lunaTour:barTours')} value={loading ? '…' : String(sessions.length)} />
+            <Cell to="/agent/tour" label={t('lunaTour:barOpens')} value={loading ? '…' : String(tot.opens)} />
+          </>
+        )}
+      </dl>
 
       {/* 🔔 客户动静 —— **第一屏**。谁刚看完、谁想联系你、谁收藏了哪套。
           最值钱的一刻是客户刚看完的那一分钟(他此刻正在想这件事),
@@ -113,53 +186,32 @@ export default function AgentOverview() {
       {/* 试用期激活清单(全部完成后自动消失) */}
       {!loading && <ActivationChecklist hasClients={clients.length > 0} />}
 
-      {/* The two hero actions — the heart of the agent console */}
-      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* ── ③ 两个动作入口 ────────────────────────────────────────────────
+          owner 2026-08-09:「这个 live tour 和 luna tour 入口太难看了」。
+          原来一张墨黑一张青绿渐变,和这一页其余全白的卡片完全不是一套东西,
+          而且色块比字还响 —— 看起来像两条广告。
+          现在:白底 + 细边 + 一个上色的图标,和信息栏/客户卡同一套语言;
+          hover 才让边框和箭头亮起来。 */}
+      <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-2">
         {/* 1. Live co-presence tour */}
-        <Link
+        <ActionCard
           to="/?livetour=1"
-          className="group relative overflow-hidden rounded-2xl bg-ink-800 p-5 text-white shadow-md ring-1 ring-black/20 transition hover:shadow-xl hover:-translate-y-0.5"
-        >
-          <div className="absolute -end-8 -top-8 h-28 w-28 rounded-full opacity-25 blur-2xl" style={{ background: '#14b8a6' }} />
-          <div className="relative">
-            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-400/15">
-              <Radio className="h-6 w-6 text-teal-300" />
-            </div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">{t('lunaTour:liveTour')}</h2>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-teal-300">LIVE</span>
-            </div>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-300">
-              {t('lunaTour:tourPropertiesWithYour')}
-            </p>
-            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-teal-300">
-              {t('lunaTour:startTour')} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100" />
-            </span>
-          </div>
-        </Link>
+          icon={<Radio className="h-5 w-5" />}
+          badge="LIVE"
+          title={t('lunaTour:liveTour')}
+          desc={t('lunaTour:tourPropertiesWithYour')}
+          cta={t('lunaTour:startTour')}
+        />
 
         {/* 2. Luna async self-serve tour */}
-        <Link
+        <ActionCard
           to="/agent/tour"
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 p-5 text-white shadow-md ring-1 ring-emerald-600/20 transition hover:shadow-xl hover:-translate-y-0.5"
-        >
-          <div className="absolute -end-8 -top-8 h-28 w-28 rounded-full bg-white/20 opacity-40 blur-2xl" />
-          <div className="relative">
-            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
-              <Sparkles className="h-6 w-6 text-white" />
-            </div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">{t('lunaTour:lunaAiTour')}</h2>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold">AI</span>
-            </div>
-            <p className="mt-1.5 text-sm leading-relaxed text-white/90">
-              {t('lunaTour:generateAShareableSelf')}
-            </p>
-            <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-white">
-              {t('lunaTour:generateTour2')} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100" />
-            </span>
-          </div>
-        </Link>
+          icon={<Sparkles className="h-5 w-5" />}
+          badge="AI"
+          title={t('lunaTour:lunaAiTour')}
+          desc={t('lunaTour:generateAShareableSelf')}
+          cta={t('lunaTour:generateTour2')}
+        />
       </div>
 
       {/* 该追谁:客户雷达热度 Top5 */}

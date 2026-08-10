@@ -699,5 +699,13 @@
     "onFoot": "пешком",
     "shortDrive": "пара минут на машине",
     "alsoNearby": "{{n}} поблизости"
-  }
+  },
+  "barOverdue": "Просроченные",
+  "barClients": "Мои клиенты",
+  "barQueue": "Очередь",
+  "barQueueOut": "Вне пула",
+  "barQueueGot": "Есть в круге",
+  "barLeads": "Взяли контакт",
+  "barTours": "Туры",
+  "barOpens": "Открытий"
 }

@@ -697,5 +697,13 @@
     "onFoot": "on foot",
     "shortDrive": "short drive",
     "alsoNearby": "{{n}} nearby"
-  }
+  },
+  "barOverdue": "Follow-ups overdue",
+  "barClients": "My clients",
+  "barQueue": "Dispatch queue",
+  "barQueueOut": "Not in pool",
+  "barQueueGot": "Got this round",
+  "barLeads": "Buyers took contact",
+  "barTours": "Tours",
+  "barOpens": "Total opens"
 }

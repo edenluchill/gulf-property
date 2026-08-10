@@ -32,16 +32,48 @@ async function mark(reportId: string, key: string) {
   ).catch(() => {})
 }
 
-// Stable, well-known Dubai facts (policy context for any proposal).
-const POLICY = [
-  '0% 个人所得税、0% 资本利得税 —— 租金与增值收益免税。',
-  '房产投资 ≥ 200 万 AED 可申请 10 年黄金签证（含家属）。',
-  '指定 freehold 区域外国人可 100% 持有永久产权。',
-  '期房常见灵活付款计划（如交付前分期 + 交付后尾款），资金占用低。',
-]
+/**
+ * 迪拜的四条稳定政策事实(任何提案的背景)。
+ *
+ * 🔴 **必须按报告语言出。** 这几条是**直接印在报告上的成品文案**,
+ *    不是提示词 —— 写死中文就等于给英语买家发一份中英夹杂的报告
+ *    (owner 2026-08-09 实拍 /cr/emte3b)。
+ */
+const POLICY: Record<LangCode, string[]> = {
+  zh: [
+    '0% 个人所得税、0% 资本利得税 —— 租金与增值收益免税。',
+    '房产投资 ≥ 200 万 AED 可申请 10 年黄金签证（含家属）。',
+    '指定 freehold 区域外国人可 100% 持有永久产权。',
+    '期房常见灵活付款计划（如交付前分期 + 交付后尾款），资金占用低。',
+  ],
+  en: [
+    '0% personal income tax and 0% capital gains tax — rental income and appreciation are untaxed.',
+    'A property investment of AED 2M or more qualifies for the 10-year Golden Visa (family included).',
+    'Foreign buyers can hold 100% freehold title in designated freehold areas.',
+    'Off-plan projects typically offer flexible payment plans (instalments before handover, balance after), so less capital is tied up.',
+  ],
+  fr: [
+    'Aucun impôt sur le revenu ni sur les plus-values — les loyers et la valorisation ne sont pas imposés.',
+    'Un investissement immobilier d’au moins 2 M AED ouvre droit au Golden Visa de 10 ans (famille incluse).',
+    'Les acheteurs étrangers peuvent détenir la pleine propriété à 100 % dans les zones « freehold » désignées.',
+    'Les projets sur plan proposent souvent des plans de paiement souples (échéances avant livraison, solde après), ce qui immobilise moins de capital.',
+  ],
+  ru: [
+    'Нет подоходного налога и налога на прирост капитала — арендный доход и рост стоимости не облагаются.',
+    'Инвестиция в недвижимость от 2 млн AED даёт право на 10-летнюю «золотую визу» (вместе с семьёй).',
+    'В designated freehold зонах иностранцы могут владеть недвижимостью на 100 % в полную собственность.',
+    'У проектов на стадии строительства обычно гибкие планы оплаты (рассрочка до передачи, остаток после) — меньше замороженных средств.',
+  ],
+  ar: [
+    'لا ضريبة دخل شخصي ولا ضريبة أرباح رأسمالية — دخل الإيجار والارتفاع في القيمة معفيان.',
+    'الاستثمار العقاري بقيمة مليوني درهم فأكثر يؤهّل للإقامة الذهبية لعشر سنوات (شاملة العائلة).',
+    'يمكن للمشترين الأجانب التملّك الحر بنسبة 100% في مناطق التملّك الحر المحدّدة.',
+    'مشاريع البيع على الخارطة عادةً بخطط سداد مرنة (أقساط قبل التسليم والباقي بعده)، أي رأس مال مجمَّد أقل.',
+  ],
+}
 
 /** Market overview from the already-resolved per-project metrics (reliable). */
-function buildMarketSection(enriched: any[]) {
+function buildMarketSection(enriched: any[], lang: LangCode) {
   const areas = [...new Set(enriched.map((p) => (p.area || '').trim()).filter(Boolean))]
   const avg = (vals: number[]) => vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : null
   const yields = enriched.map((p) => p.area_metrics?.rental_yield_pct).filter((v: any) => v != null).map(Number)
@@ -52,7 +84,7 @@ function buildMarketSection(enriched: any[]) {
     avg_yield_pct: avg(yields),
     avg_growth_pct: avg(growths),
     pipeline_units: supply || null,
-    policy: POLICY,
+    policy: POLICY[lang] || POLICY.en,
   }
 }
 
@@ -114,7 +146,24 @@ function netCalc(proj: any) {
 //    真打分。见该文件顶部的数据现实说明。
 
 /** 5-axis radar scores (0–100) — an at-a-glance investment rating. */
-function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0): { k: string; v: number }[] {
+/**
+ * 五个评分轴的标签 —— **按报告语言出**。
+ *
+ * 🔴 原来这五个字符串是**写死的中文**,而报告本身是按客户语言生成的 ——
+ *    一份英文报告里赫然是「租金回报 / 增值潜力 / 生活配套 / 市场活跃 / 综合净回报」,
+ *    英语买家一个字看不懂(owner 2026-08-09 实拍 /cr/emte3b)。
+ *    这和下面 filterNearbyNames 防的是同一类问题:**报告是给客户看的,
+ *    任何一处漏了语言,那一处对他就是乱码**。
+ */
+const SCORE_LABELS: Record<LangCode, [string, string, string, string, string]> = {
+  zh: ['租金回报', '增值潜力', '生活配套', '市场活跃', '综合净回报'],
+  en: ['Rental yield', 'Growth potential', 'Amenities', 'Market activity', 'Net return'],
+  fr: ['Rendement locatif', 'Potentiel de croissance', 'Commodités', 'Activité du marché', 'Rendement net'],
+  ru: ['Доходность аренды', 'Потенциал роста', 'Инфраструктура', 'Активность рынка', 'Чистая доходность'],
+  ar: ['العائد الإيجاري', 'إمكانية النمو', 'المرافق', 'نشاط السوق', 'صافي العائد'],
+}
+
+function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0, lang: LangCode = 'zh'): { k: string; v: number }[] {
   const yld = am?.rental_yield_pct ?? 5
   const grw = Math.max(0, am?.price_growth_pct ?? 6)
   // recent real DLD activity — area YoY count, else project comps as a presence signal
@@ -128,12 +177,13 @@ function radarScores(am: any, nearby: any, net: any, yoy: any, compsCount = 0): 
   const netA = net?.net_annualized_pct ?? 8
   // floor at 15 so a data-gap axis renders as a sensible shape, not a broken "0"
   const fl = (n: number) => Math.max(15, Math.round(Math.min(100, n)))
+  const L = SCORE_LABELS[lang] || SCORE_LABELS.en
   return [
-    { k: '租金回报', v: fl((yld / 8) * 100) },
-    { k: '增值潜力', v: fl((grw / 12) * 100) },
-    { k: '生活配套', v: fl(amenity) },
-    { k: '市场活跃', v: fl((txn / 400) * 100) },
-    { k: '综合净回报', v: fl((netA / 12) * 100) },
+    { k: L[0], v: fl((yld / 8) * 100) },
+    { k: L[1], v: fl((grw / 12) * 100) },
+    { k: L[2], v: fl(amenity) },
+    { k: L[3], v: fl((txn / 400) * 100) },
+    { k: L[4], v: fl((netA / 12) * 100) },
   ]
 }
 
@@ -212,7 +262,7 @@ async function enrichProperty(p: any, lang: LangCode = 'zh') {
     supply,
     nearby,
     units,
-    scores: radarScores(area_metrics, nearbyRaw, net, evidence.yoy, comps.length),  // 评分用未过滤的
+    scores: radarScores(area_metrics, nearbyRaw, net, evidence.yoy, comps.length, lang),  // 评分用未过滤的
   }
 }
 
@@ -223,7 +273,7 @@ async function enrichProperty(p: any, lang: LangCode = 'zh') {
  * best-effort:AI 挂了就只带打过分的户型(规则分仍然有效),报告照出。
  */
 async function attachFit(enriched: any, profile: ExtractedProfile, lang: LangCode) {
-  const scored = scoreUnits(enriched.units || [], profile)
+  const scored = scoreUnits(enriched.units || [], profile, lang)
   const fit = await analyzeFit(profile, enriched, scored, lang).catch(() => null)
   return { ...enriched, units: scored, fit }
 }
@@ -272,7 +322,7 @@ export async function generateClientReport(
     await mark(reportId, 'data')
 
     // 3) Overall market + policy + trends (from the resolved per-project metrics)
-    const market = buildMarketSection(enriched)
+    const market = buildMarketSection(enriched, lang)
     await mark(reportId, 'market')
 
     // Structured (non-chatty) executive overview from the numbers.
@@ -358,7 +408,7 @@ export async function generateCompareReport(
     }
     await mark(reportId, 'market')
 
-    const market = buildMarketSection(enriched)
+    const market = buildMarketSection(enriched, lang)
     const nets = enriched.map((p: any) => p.net?.net_annualized_pct).filter((v: any) => v != null)
     const overview = {
       count: enriched.length,

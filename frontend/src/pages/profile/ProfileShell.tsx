@@ -13,7 +13,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2, LogIn, LogOut, UserRound, LayoutDashboard, Radar, Wand2, Zap,
-  CreditCard, ArrowRight, ShieldCheck, Briefcase, Lock, ChevronDown,
+  CreditCard, ArrowRight, ShieldCheck, Lock,
   Menu, X, ChevronRight, Receipt, Gift, Calculator, UserPlus,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -98,8 +98,6 @@ const AGENT_GROUPS: TabGroup[] = [
 // 使用记录:只在付费后显示(有积分消耗才有意义;免费/未订阅不显示)
 const USAGE_TAB: Tab = { to: '/agent/usage', key: 'tabUsage', icon: Receipt }
 
-const AGENT_NAV_OPEN_KEY = 'pz-agent-nav-open'
-
 export default function ProfileShell() {
   const { t: tRaw } = useTranslation('profile')
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
@@ -110,21 +108,6 @@ export default function ProfileShell() {
   // 与 Header/MobileNav 同规则:agency/developer 也走经纪台
   const isAgent = !!profile?.agent || role === 'agent' || role === 'agency' || role === 'developer'
   const roleChip = role ? ROLE_CHIP[role] : null
-
-  // 当前是否在经纪工作台的功能页(订阅页除外——它是通用 tab)
-  const onAgentWorkspace = location.pathname.startsWith('/agent') && !location.pathname.startsWith('/agent/billing')
-
-  // 经纪工作台展开状态(记住上次选择;进入工作台路由时强制展开)
-  const [agentOpen, setAgentOpen] = useState(() => {
-    try { return localStorage.getItem(AGENT_NAV_OPEN_KEY) !== '0' } catch { return true }
-  })
-  useEffect(() => { if (onAgentWorkspace) setAgentOpen(true) }, [onAgentWorkspace])
-  const toggleAgentOpen = () => {
-    setAgentOpen((v) => {
-      try { localStorage.setItem(AGENT_NAV_OPEN_KEY, v ? '0' : '1') } catch { /* noop */ }
-      return !v
-    })
-  }
 
   // 订阅信息 + 认证勋章(付费订阅推导;买家/无订阅勋章 = null)
   const [me, setMe] = useState<BillingMe | null>(null)
@@ -418,42 +401,30 @@ export default function ProfileShell() {
                   等于每组外面又多一圈白边(owner:「太多 space 被浪费了」)。 */}
               <div className="overflow-hidden">
                 {isAgent ? (
-                  <>
-                    <button
-                      onClick={toggleAgentOpen}
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-start transition hover:bg-slate-50"
-                    >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 ring-1 ring-teal-100">
-                        <Briefcase className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        {/* 一行放下 —— 原来标题+副标题各占一行,窄侧栏里还会折成 3 行 */}
-                        <span className="block truncate text-[13px] font-bold text-slate-900">{t('profile:agentWorkspace2')}</span>
-                      </span>
-                      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${agentOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {agentOpen && (
-                      <div className="pt-1">
-                        {agentGroups.map((g) => (
-                          <div key={g.titleKey} className="mb-2 last:mb-0">
-                            {/* 组标题:小、全大写、灰 —— 它是路标,不是可点的东西,
-                                不该和下面的导航项抢注意力 */}
-                            <div className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                              {t(`profile:${g.titleKey}`)}
-                            </div>
-                            <div className="space-y-0.5">
-                              {g.tabs.map((tab) => (
-                                <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
-                                  <tab.icon className="h-4 w-4" />
-                                  {t(`profile:${tab.key}`)}
-                                </NavLink>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                  /* 🔴 **没有「经纪工作台」这个折叠头。** owner 2026-08-09:
+                     「左边这个 agent workspace 的 button 太难看了 没必要」。
+                     他说得对 —— 组标题(客户/工具/账户)已经把这堆导航分好了,
+                     再套一个只能开合的按钮,唯一的作用是让人**可以把自己的功能藏起来**。
+                     ⚠️ 想加回来之前先想清楚它解决什么问题:侧栏一共 7 项,不需要折叠。 */
+                  <div>
+                    {agentGroups.map((g) => (
+                      <div key={g.titleKey} className="mb-2 last:mb-0">
+                        {/* 组标题:小、全大写、灰 —— 它是路标,不是可点的东西,
+                            不该和下面的导航项抢注意力 */}
+                        <div className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          {t(`profile:${g.titleKey}`)}
+                        </div>
+                        <div className="space-y-0.5">
+                          {g.tabs.map((tab) => (
+                            <NavLink key={tab.to} to={tab.to} end={tab.end} className={navItemCls}>
+                              <tab.icon className="h-4 w-4" />
+                              {t(`profile:${tab.key}`)}
+                            </NavLink>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                  </>
+                    ))}
+                  </div>
                 ) : (
                   /* 非经纪:上锁,点击去开通 */
                   <Link to="/choose-role" className="group flex w-full items-center gap-2.5 px-3 py-2.5 transition hover:bg-slate-50">

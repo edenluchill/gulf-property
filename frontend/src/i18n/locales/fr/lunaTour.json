@@ -697,5 +697,13 @@
     "onFoot": "à pied",
     "shortDrive": "quelques minutes en voiture",
     "alsoNearby": "{{n}} à proximité"
-  }
+  },
+  "barOverdue": "Relances en retard",
+  "barClients": "Mes clients",
+  "barQueue": "File d’attribution",
+  "barQueueOut": "Hors file",
+  "barQueueGot": "Reçu ce tour",
+  "barLeads": "Contacts demandés",
+  "barTours": "Visites",
+  "barOpens": "Ouvertures"
 }

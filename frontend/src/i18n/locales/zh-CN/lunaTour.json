@@ -696,5 +696,13 @@
     "onFoot": "走过去",
     "shortDrive": "开车几分钟",
     "alsoNearby": "附近共 {{n}} 家"
-  }
+  },
+  "barOverdue": "跟进逾期",
+  "barClients": "我的客户",
+  "barQueue": "派单排位",
+  "barQueueOut": "未在池",
+  "barQueueGot": "本轮已拿",
+  "barLeads": "买家要了联系",
+  "barTours": "导览场次",
+  "barOpens": "累计打开"
 }

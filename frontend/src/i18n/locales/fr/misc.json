@@ -501,7 +501,19 @@
     "gap_photo": "Photo de profil",
     "gapWhy_photo": "Vous apparaissez comme un cercle gris ; ceux qui ont une photo sont choisis plus souvent.",
     "gap_brn": "Licence RERA (BRN)",
-    "gapWhy_brn": "Le badge d'agréé n'apparaît qu'avec ce numéro — nous n'attestons jamais d'une qualification non vérifiée."
+    "gapWhy_brn": "Le badge d'agréé n'apparaît qu'avec ce numéro — nous n'attestons jamais d'une qualification non vérifiée.",
+    "internalNote": "Compte interne — il n’entre jamais dans la rotation, cette page reste donc vide. Consultez le panneau « Répartition des acheteurs » dans l’admin.",
+    "statRound": "Tour",
+    "statQueue": "Votre place",
+    "statQueueGot": "Reçu",
+    "statTotal": "Total attribué",
+    "statRevealed": "Contact demandé",
+    "statTodo": "À relancer",
+    "filterAll": "Tout",
+    "filterTodo": "À relancer",
+    "filterDone": "Relancés",
+    "roundLabel": "Tour {{n}}",
+    "roundNone": "Remis en rotation"
   },
   "activity": {
     "title": "Mes éléments",

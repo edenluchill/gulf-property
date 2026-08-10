@@ -1,13 +1,21 @@
 /**
  * 经纪台 →「分配给我的买家」。
  *
- * 这一页有两个职责,第二个才是重点:
+ * 这一页有四个职责,第二个才是重点:
  *   ① 列出派给我的买家
  *   ② **告诉我为什么没有买家** —— 2026-08-09 实测:付费/试用 33 人里只有 2 人
  *      填了手机号,其余 31 人**永远不会被派到**,而他们自己完全不知道。
  *      所以「差一个手机号」这行提示比列表本身更重要,放在最上面。
+ *   ③ **信息栏** —— 本轮第几 / 排第几位 / 累计几条 / 几条真要了联系方式 / 几条待跟进。
+ *      owner 2026-08-09:「一点也看不到排班状况和历史 也没有信息栏」。
+ *   ④ **历史按轮分段** —— 派单是轮值制,「第 3 轮」比「8 月 7 日」更能说明
+ *      "我在这一轮里拿到了",时间只是次要坐标。
+ *
+ * 🔴 **内部账号会看到一张空页。** DispatchStatusCard 对内部号返回 null(对他们无意义),
+ *    列表也永远是空的 —— owner 自己看到的就是一片空白,所以才觉得"这页没用"。
+ *    这里必须给一条明说的说明条,不能什么都不画。
  */
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Phone, MessageSquare, Check, Pause, Play, Copy, Mail, RotateCcw } from 'lucide-react'
 import DispatchStatusCard from '../../components/agentMatch/DispatchStatusCard'
@@ -22,6 +30,7 @@ export default function AgentMatches() {
   const [pool, setPool] = useState<PoolStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
+  const [filter, setFilter] = useState<'all' | 'todo' | 'done'>('all')
   const locale = i18n.language.startsWith('zh') ? 'zh-CN' : i18n.language
 
   useEffect(() => {
@@ -44,6 +53,11 @@ export default function AgentMatches() {
     }
   }
 
+  const revealed = (matches || []).filter((m) => m.revealed_at).length
+  const todo = (matches || []).filter((m) => !m.agent_ack_at).length
+  const shown = (matches || []).filter((m) =>
+    filter === 'all' ? true : filter === 'todo' ? !m.agent_ack_at : !!m.agent_ack_at)
+
   const fmt = (s: string) => new Date(s).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   return (
@@ -56,6 +70,28 @@ export default function AgentMatches() {
       {/* 状态卡和经纪台首页**共用同一个件** —— 各画一遍必然漂移
           (排班表就因为"前端再拼一遍 in_pool"显示过「正在接单」而实际轮不到)。 */}
       <DispatchStatusCard compact />
+
+      {/* 内部号:状态卡不渲染 + 列表恒空 = 一片空白。明说一句,别让人以为坏了。 */}
+      {pool?.internal && (
+        <p className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-200">
+          {t('agentMatch.internalNote')}
+        </p>
+      )}
+
+      {/* ── 信息栏 ────────────────────────────────────────────────────────
+          五个数一行摆开。**一个都不许在前端拼**(in_pool / 轮次都来自服务端),
+          能在前端算的只有列表自己的计数。 */}
+      {pool && !pool.internal && (
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-5">
+          <Stat label={t('agentMatch.statRound')} value={pool.round_no != null ? `#${pool.round_no}` : '—'} />
+          <Stat label={t('agentMatch.statQueue')}
+            value={pool.got_this_round ? t('agentMatch.statQueueGot')
+              : pool.queue_position != null ? `${pool.queue_position}/${pool.queue_length}` : '—'} />
+          <Stat label={t('agentMatch.statTotal')} value={String(matches?.length ?? '—')} />
+          <Stat label={t('agentMatch.statRevealed')} value={String(revealed)} accent />
+          <Stat label={t('agentMatch.statTodo')} value={String(todo)} />
+        </dl>
+      )}
 
       {/* 暂停/恢复接单 —— 只有真在池子里的人才需要这个开关 */}
       {pool?.in_pool && (
@@ -74,9 +110,33 @@ export default function AgentMatches() {
           {t('agentMatch.hubEmpty')}
         </p>
       ) : (
+        <>
+          {/* 过滤 —— 「待跟进」是经纪每天真正要打开的那一档,放在中间最好按 */}
+          <div className="flex flex-wrap gap-1.5">
+            {([['all', matches.length], ['todo', todo], ['done', matches.length - todo]] as const).map(([f, n]) => (
+              <button key={f} type="button" onClick={() => setFilter(f)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  filter === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50'
+                }`}>
+                {f === 'all' ? t('agentMatch.filterAll') : f === 'todo' ? t('agentMatch.filterTodo') : t('agentMatch.filterDone')}
+                <span className="tabular-nums opacity-60">{n}</span>
+              </button>
+            ))}
+          </div>
+
         <ul className="space-y-2.5">
-          {matches.map((m) => (
-            <li key={m.id} className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+          {shown.map((m, idx) => (
+          <Fragment key={m.id}>
+          {/* 轮次分隔 —— 历史按轮读才有意义(见文件头 ④) */}
+          {(idx === 0 || shown[idx - 1].round_no !== m.round_no) && (
+            <li className="flex items-center gap-2 pt-1 first:pt-0">
+              <span className="text-[11px] font-semibold text-slate-400">
+                {m.round_no != null ? t('agentMatch.roundLabel', { n: m.round_no }) : t('agentMatch.roundNone')}
+              </span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </li>
+          )}
+            <li className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                 <span className="tabular-nums">{fmt(m.created_at)}</span>
                 {m.project_name && <span className="font-medium text-slate-600">{m.project_name}</span>}
@@ -161,9 +221,21 @@ ${m.template!.body}`)
                 <Check className="h-3 w-3" />{m.agent_ack_at ? t('agentMatch.doneMark') : t('agentMatch.markDone')}
               </button>
             </li>
+          </Fragment>
           ))}
         </ul>
+        </>
       )}
+    </div>
+  )
+}
+
+/** 信息栏的一格。数字用 tabular-nums,否则一行里五个数会左右跳。 */
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="bg-white px-3 py-2.5">
+      <dt className="truncate text-[10px] text-slate-400">{label}</dt>
+      <dd className={`mt-0.5 text-lg font-semibold tabular-nums ${accent ? 'text-emerald-600' : 'text-slate-900'}`}>{value}</dd>
     </div>
   )
 }

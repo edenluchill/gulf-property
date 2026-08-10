@@ -153,6 +153,8 @@ export interface MyMatch {
   source: string
   project_name: string | null
   buyer_lang?: string | null
+  /** 属于第几轮轮值。用来把历史按轮分段(null = 已被「没联系上」退回) */
+  round_no?: number | null
   /** 后端按**买家语言**生成的现成邮件(主题+正文)。经纪复制就能发。 */
   template?: { subject: string; body: string }
 }

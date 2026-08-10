@@ -155,5 +155,13 @@
       "payback": "Période d'amortissement"
     },
     "years": "{{n}} ans"
+  },
+  "back": "Retour",
+  "scoreLabel": {
+    "yield": "Rendement locatif",
+    "growth": "Potentiel de hausse",
+    "amenities": "Commodités",
+    "activity": "Activité du marché",
+    "net": "Rendement net"
   }
 }

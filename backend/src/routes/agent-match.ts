@@ -451,7 +451,7 @@ router.get('/mine', requireAuth, async (req: Request, res: Response) => {
   try {
     const { rows } = await pool.query(
       `SELECT m.id, m.created_at, m.revealed_at, m.buyer_contact, m.buyer_note,
-              m.agent_ack_at, m.source, m.project_id, m.buyer_lang,
+              m.agent_ack_at, m.source, m.project_id, m.buyer_lang, m.round_no,
               p.project_name, a.display_name AS agent_name, a.brand AS agent_brand
          FROM agent_match_assignments m
          JOIN lt_agents a ON a.id = m.agent_id

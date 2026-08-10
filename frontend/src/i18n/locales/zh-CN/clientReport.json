@@ -155,5 +155,13 @@
     "fire_station": "消防局",
     "post_office": "邮局",
     "cinema": "电影院"
+  },
+  "back": "返回",
+  "scoreLabel": {
+    "yield": "租金回报",
+    "growth": "增值潜力",
+    "amenities": "生活配套",
+    "activity": "市场活跃",
+    "net": "综合净回报"
   }
 }

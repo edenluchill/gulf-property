@@ -109,7 +109,30 @@ export interface ScoredUnit extends UnitRow {
  * 为什么要规则:AI 擅长论证,不擅长算数。预算够不够、卧室数够不够,这些是**事实**,
  * 不该交给模型去"感觉"。规则先排好序 + 标出硬伤,AI 只负责把「为什么」讲透。
  */
-export function scoreUnits(units: UnitRow[], p: ExtractedProfile): ScoredUnit[] {
+/**
+ * 硬伤原因 —— 同样会被模型抄进输出,所以也要按语言出。
+ * (见 UNIT_LABELS 上面那段:任何进入提示词的字面量都会漏进输出。)
+ */
+const FAIL_LABELS: Record<LangCode, {
+  overBudget: (pct: number) => string
+  tooSmall: (bed: number, fam: number) => string
+  noMaid: string
+  openKitchen: string
+}> = {
+  zh: { overBudget: (n) => `超预算 ${n}%`, tooSmall: (b, f) => `${b} 房住不下 ${f} 口人`,
+        noMaid: '没有女佣房', openKitchen: '开放式厨房（常做饭油烟大）' },
+  en: { overBudget: (n) => `${n}% over budget`, tooSmall: (b, f) => `${b} bed is tight for ${f} people`,
+        noMaid: 'no maid’s room', openKitchen: 'open kitchen (a drawback if you cook often)' },
+  fr: { overBudget: (n) => `${n}% au-dessus du budget`, tooSmall: (b, f) => `${b} ch. est juste pour ${f} personnes`,
+        noMaid: 'pas de chambre de bonne', openKitchen: 'cuisine ouverte (gênant si vous cuisinez souvent)' },
+  ru: { overBudget: (n) => `на ${n}% выше бюджета`, tooSmall: (b, f) => `${b} спальни маловато для ${f} человек`,
+        noMaid: 'нет комнаты для помощницы', openKitchen: 'открытая кухня (минус при частой готовке)' },
+  ar: { overBudget: (n) => `يتجاوز الميزانية بنسبة ${n}%`, tooSmall: (b, f) => `${b} غرفة ضيّقة على ${f} أشخاص`,
+        noMaid: 'لا توجد غرفة خادمة', openKitchen: 'مطبخ مفتوح (عيب لمن يطبخ كثيرًا)' },
+}
+
+export function scoreUnits(units: UnitRow[], p: ExtractedProfile, lang: LangCode = 'zh'): ScoredUnit[] {
+  const F = FAIL_LABELS[lang] || FAIL_LABELS.en
   const budget = p.budget_max ?? p.budget_min ?? null
   const fam = p.family_size ?? null
   const invest = p.goal === 'invest'
@@ -122,14 +145,14 @@ export function scoreUnits(units: UnitRow[], p: ExtractedProfile): ScoredUnit[] 
     if (budget && u.price) {
       if (u.price <= budget) fit += 20
       else if (u.price <= budget * 1.1) { fit += 5; fails.push(`超预算 ${Math.round((u.price / budget - 1) * 100)}%（可谈）`) }
-      else { fit -= 30; fails.push(`超预算 ${Math.round((u.price / budget - 1) * 100)}%`) }
+      else { fit -= 30; fails.push(F.overBudget(Math.round((u.price / budget - 1) * 100))) }
     }
 
     // 卧室 vs 家庭人数(自住才算 —— 投资客不住)
     if (!invest && fam && u.bedrooms != null) {
       const need = fam <= 2 ? 1 : fam <= 4 ? 2 : 3
       if (u.bedrooms >= need) fit += 15
-      else { fit -= 25; fails.push(`${u.bedrooms} 房住不下 ${fam} 口人`) }
+      else { fit -= 25; fails.push(F.tooSmall(u.bedrooms, fam)) }
     }
     // 客户明确要几房
     if (p.bedrooms != null && u.bedrooms != null) {
@@ -142,11 +165,11 @@ export function scoreUnits(units: UnitRow[], p: ExtractedProfile): ScoredUnit[] 
 
     // 女佣房 —— 请保姆 / 大家庭的刚需(194 个户型有)
     if (p.has_maid === true && has('maid')) fit += 12
-    if (p.has_maid === true && !has('maid')) { fit -= 10; fails.push('没有女佣房') }
+    if (p.has_maid === true && !has('maid')) { fit -= 10; fails.push(F.noMaid) }
     if ((fam ?? 0) >= 4 && has('maid')) fit += 5
 
     // 开放厨房 —— 中式爆炒的减分项
-    if (p.cooking === 'often' && has('open kitchen')) { fit -= 8; fails.push('开放式厨房（常做饭油烟大）') }
+    if (p.cooking === 'often' && has('open kitchen')) { fit -= 8; fails.push(F.openKitchen) }
 
     // 长期自住的信号
     if ((p.goal === 'live' || p.goal === 'both') && (has('laundry') || has('storage') || has('utility'))) fit += 4
@@ -172,7 +195,9 @@ const FIT_SCHEMA = {
   type: 'object',
   properties: {
     // Layer 1 — 项目 × 客户
-    project_fit: N('number'),
+    // ⚠️ **量表必须写进 description。** 不写的话模型会自己挑一个 —— 实测它给过 4,
+    //    前端照着 0-100 画就是一条几乎空的进度条,客户看到「Match 4」。
+    project_fit: { ...N('number'), description: '0-100 的整数匹配度。60 以下=勉强，60-75=不错，75-90=很合适，90+=极其合适。**必须落在 0-100**，不要用 0-5 或 0-10 的量表' },
     project_why: { ...SARR, description: '3-5 条「为什么这个项目适合他」，每条都要引用他的具体情况' },
     project_tradeoffs: { ...SARR, description: '1-2 条诚实的取舍/风险。客户不傻，全是优点反而不可信' },
     // Layer 2 — 户型 × 客户
@@ -194,39 +219,80 @@ export interface FitAnalysis {
   summary: string | null
 }
 
-function profileLines(p: ExtractedProfile): string {
+/**
+ * 客户画像 —— 喂给 AI 的上下文。
+ *
+ * 只有中文和英文两套(不是五套):这是**提示词上下文**,模型会重写成目标语言,
+ * 真正会被原样抄走的是 unitLines 那种逐条枚举。中文上下文漏进英文报告刺眼,
+ * 英文上下文漏进法/俄/阿则基本无害(而且 budget / Golden Visa 这些词本来就通用)。
+ */
+function profileLines(p: ExtractedProfile, lang: LangCode = 'zh'): string {
+  const zh = lang === 'zh'
   const L: string[] = []
-  const goal = p.goal === 'live' ? '自住' : p.goal === 'invest' ? '投资' : p.goal === 'both' ? '先出租、以后自住' : null
-  if (goal) L.push(`目的：${goal}`)
-  if (p.budget_max || p.budget_min) L.push(`预算：AED ${(p.budget_max ?? p.budget_min)!.toLocaleString('en-US')}`)
-  if (p.payment) L.push(`付款：${{ cash: '全款', installment: '开发商分期', mortgage: '银行贷款' }[p.payment]}`)
-  if (p.horizon) L.push(`投资周期：${{ rent_long: '长期收租', flip: '3-5 年转手', rent_then_live: '先租后自住' }[p.horizon]}`)
-  if (p.family_size) L.push(`家庭：${p.family_size} 口人${p.has_children ? '，有小孩' : ''}`)
-  if (p.has_maid === true) L.push('请保姆（需要女佣房）')
-  if (p.cooking === 'often') L.push('常在家做饭（开放式厨房是减分项）')
-  if (p.nationality) L.push(`来自：${p.nationality}`)
-  if (p.bedrooms) L.push(`想要 ${p.bedrooms} 房`)
-  if (p.preferred_areas?.length) L.push(`偏好区域：${p.preferred_areas.join('、')}`)
-  if (p.golden_visa === true) L.push('想办黄金签证（房产需 ≥ AED 200 万）')
-  if (p.first_time_buyer === true) L.push('第一次在迪拜买房（要把 DLD 手续费、物业费讲清楚）')
-  if (p.offplan_ok === false) L.push('只要现房，不接受期房')
-  return L.length ? L.join('\n') : '（经纪没提供画像 —— 只能做通用论证，说服力会打折）'
+  const goal = p.goal === 'live' ? (zh ? '自住' : 'to live in')
+    : p.goal === 'invest' ? (zh ? '投资' : 'investment')
+    : p.goal === 'both' ? (zh ? '先出租、以后自住' : 'rent out first, live in it later') : null
+  if (goal) L.push(zh ? `目的：${goal}` : `Purpose: ${goal}`)
+  if (p.budget_max || p.budget_min) L.push(`${zh ? '预算' : 'Budget'}: AED ${(p.budget_max ?? p.budget_min)!.toLocaleString('en-US')}`)
+  if (p.payment) L.push(`${zh ? '付款' : 'Payment'}: ${(zh
+    ? { cash: '全款', installment: '开发商分期', mortgage: '银行贷款' }
+    : { cash: 'cash in full', installment: 'developer payment plan', mortgage: 'bank mortgage' })[p.payment]}`)
+  if (p.horizon) L.push(`${zh ? '投资周期' : 'Horizon'}: ${(zh
+    ? { rent_long: '长期收租', flip: '3-5 年转手', rent_then_live: '先租后自住' }
+    : { rent_long: 'long-term rental income', flip: 'resell in 3-5 years', rent_then_live: 'rent first, move in later' })[p.horizon]}`)
+  if (p.family_size) L.push(zh
+    ? `家庭：${p.family_size} 口人${p.has_children ? '，有小孩' : ''}`
+    : `Household: ${p.family_size} people${p.has_children ? ', with children' : ''}`)
+  if (p.has_maid === true) L.push(zh ? '请保姆（需要女佣房）' : 'Employs a live-in helper (needs a maid’s room)')
+  if (p.cooking === 'often') L.push(zh ? '常在家做饭（开放式厨房是减分项）' : 'Cooks at home often (an open kitchen is a drawback)')
+  if (p.nationality) L.push(`${zh ? '来自' : 'From'}: ${p.nationality}`)
+  if (p.bedrooms) L.push(zh ? `想要 ${p.bedrooms} 房` : `Wants ${p.bedrooms} bedroom(s)`)
+  if (p.preferred_areas?.length) L.push(`${zh ? '偏好区域' : 'Preferred areas'}: ${p.preferred_areas.join(zh ? '、' : ', ')}`)
+  if (p.golden_visa === true) L.push(zh ? '想办黄金签证（房产需 ≥ AED 200 万）' : 'Wants the Golden Visa (property must be AED 2M or more)')
+  if (p.first_time_buyer === true) L.push(zh
+    ? '第一次在迪拜买房（要把 DLD 手续费、物业费讲清楚）'
+    : 'First-time buyer in Dubai (spell out DLD fees and service charges)')
+  if (p.offplan_ok === false) L.push(zh ? '只要现房，不接受期房' : 'Ready properties only — will not consider off-plan')
+  if (L.length) return L.join('\n')
+  return zh
+    ? '（经纪没提供画像 —— 只能做通用论证，说服力会打折）'
+    : '(The agent provided no client profile — the argument can only be generic, which is less persuasive.)'
 }
 
-function unitLines(units: ScoredUnit[]): string {
+/**
+ * 喂给 AI 的户型清单。
+ *
+ * 🔴 **标签必须按报告语言出。** 这段是**提示词上下文**,不是最终文案 ——
+ *    但模型会把上下文里的字面量原样抄进输出。写死中文的后果是:
+ *    一份英文报告里出现「Top pick · 1 Bedroom · 1 房 · 1 卫 · 757.46 ft²」
+ *    (owner 2026-08-09 实拍 /cr/emte3b)。英语买家看到这个只会觉得不专业。
+ *
+ *    教训比这一处大:**任何进入提示词的字面量都会漏进输出**,
+ *    所以提示词里的语言必须和目标语言一致。
+ */
+const UNIT_LABELS: Record<LangCode, { bed: string; bath: string; balcony: string; tbd: string; psf: string; feat: string; sep: string }> = {
+  zh: { bed: '房', bath: '卫', balcony: '阳台', tbd: '价格待定（需向开发商询价）', psf: '单价', feat: '配置', sep: '、' },
+  en: { bed: 'bed', bath: 'bath', balcony: 'balcony', tbd: 'price on request (ask the developer)', psf: 'per sqft', feat: 'Features', sep: ', ' },
+  fr: { bed: 'ch.', bath: 'sdb', balcony: 'balcon', tbd: 'prix sur demande (à confirmer auprès du promoteur)', psf: 'au pied carré', feat: 'Équipements', sep: ', ' },
+  ru: { bed: 'спальни', bath: 'санузла', balcony: 'балкон', tbd: 'цена по запросу (уточнить у застройщика)', psf: 'за кв. фут', feat: 'Оснащение', sep: ', ' },
+  ar: { bed: 'غرفة', bath: 'حمام', balcony: 'شرفة', tbd: 'السعر عند الطلب (يُراجع مع المطوّر)', psf: 'للقدم المربع', feat: 'المواصفات', sep: '، ' },
+}
+
+function unitLines(units: ScoredUnit[], lang: LangCode = 'zh'): string {
+  const L = UNIT_LABELS[lang] || UNIT_LABELS.en
   return units.slice(0, 6).map((u, i) => {
     const bits = [
       `${i + 1}. ${u.name}`,
-      u.bedrooms != null ? `${u.bedrooms} 房` : null,
-      u.bathrooms != null ? `${u.bathrooms} 卫` : null,
+      u.bedrooms != null ? `${u.bedrooms} ${L.bed}` : null,
+      u.bathrooms != null ? `${u.bathrooms} ${L.bath}` : null,
       u.area != null ? `${u.area} ft²` : null,
-      u.balcony_area ? `阳台 ${u.balcony_area} ft²` : null,
+      u.balcony_area ? `${L.balcony} ${u.balcony_area} ft²` : null,
       // ⚠️ price 只有 51% 填充 —— 没有就明说「价格待定」,别让 AI 猜
-      u.price != null ? `AED ${u.price.toLocaleString('en-US')}` : '价格待定（需向开发商询价）',
-      u.price_per_sqft != null ? `单价 ${Math.round(u.price_per_sqft)}/ft²` : null,
+      u.price != null ? `AED ${u.price.toLocaleString('en-US')}` : L.tbd,
+      u.price_per_sqft != null ? `${L.psf} ${Math.round(u.price_per_sqft)}/ft²` : null,
     ].filter(Boolean).join(' · ')
-    const feat = u.features.length ? `\n   配置：${u.features.join('、')}` : ''
-    const fail = u.hard_fails.length ? `\n   ⚠️ ${u.hard_fails.join('；')}` : ''
+    const feat = u.features.length ? `\n   ${L.feat}: ${u.features.join(L.sep)}` : ''
+    const fail = u.hard_fails.length ? `\n   ⚠️ ${u.hard_fails.join('; ')}` : ''
     return bits + feat + fail
   }).join('\n')
 }
@@ -301,9 +367,9 @@ export async function analyzeFit(
   ].filter(Boolean).join('\n')
 
   const contents = PROMPT
-    .replace('{{PROFILE}}', profileLines(profile))
+    .replace('{{PROFILE}}', profileLines(profile, lang))
     .replace('{{PROJECT}}', projectLines)
-    .replace('{{UNITS}}', unitLines(units))
+    .replace('{{UNITS}}', unitLines(units, lang))
     .replace('{{LANG}}', langInstruction(lang))
 
   try {
