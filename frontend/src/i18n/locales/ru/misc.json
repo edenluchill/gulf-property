@@ -514,7 +514,8 @@
     "filterTodo": "К отработке",
     "filterDone": "Отработаны",
     "roundLabel": "Круг {{n}}",
-    "roundNone": "Возвращено в ротацию"
+    "roundNone": "Возвращено в ротацию",
+    "openAdminDispatch": "Открыть панель распределения"
   },
   "activity": {
     "title": "Моё",

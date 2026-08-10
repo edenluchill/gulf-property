@@ -703,8 +703,6 @@
   "barQueueOut": "未在池",
   "barQueueGot": "本轮已拿",
   "barLeads": "买家要了联系",
-  "barTours": "导览场次",
-  "barOpens": "累计打开",
   "sig": {
     "title_tour_known": "{{who}}看完了《{{tour}}》",
     "title_tour_anon": "有人看完了《{{tour}}》",

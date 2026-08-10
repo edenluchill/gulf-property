@@ -513,7 +513,8 @@
     "filterTodo": "À relancer",
     "filterDone": "Relancés",
     "roundLabel": "Tour {{n}}",
-    "roundNone": "Remis en rotation"
+    "roundNone": "Remis en rotation",
+    "openAdminDispatch": "Ouvrir le panneau d’attribution"
   },
   "activity": {
     "title": "Mes éléments",

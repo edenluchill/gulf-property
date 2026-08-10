@@ -150,8 +150,12 @@ export default function AgentOverview() {
 
       {/* ── ① 信息栏 ─────────────────────────────────────────────────────
           四个**要采取行动**的数。派单两格来自服务端 /pool(前端不拼判据),
-          客户两格来自 CRM。内部账号没有派单,那两格自动不画。 */}
-      <dl className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-slate-200 sm:grid-cols-4">
+          客户两格来自 CRM。内部账号没有派单,那两格**留空不补**:
+          曾经拿「导览场次/累计打开」去凑满四格,结果和页尾的「Luna 导览表现」
+          一字不差地重复了一遍 —— 同一个数在一屏里出现两次,读的人会以为是两件事。 */}
+      <dl className={`mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-slate-200 ring-1 ring-slate-200 ${
+        pool && !pool.internal ? 'sm:grid-cols-4' : 'sm:grid-cols-2'
+      }`}>
         <Cell to="/agent/clients" label={t('lunaTour:barOverdue')}
           value={loading ? '…' : String(overdueCount)} tone={overdueCount > 0 ? 'alert' : undefined} />
         <Cell to="/agent/clients" label={t('lunaTour:barClients')} value={loading ? '…' : String(clients.length)} />
@@ -164,12 +168,7 @@ export default function AgentOverview() {
               tone={!pool.in_pool ? 'alert' : undefined} />
             <Cell to="/agent/matches" label={t('lunaTour:barLeads')} value={String(pool.leads_total ?? 0)} tone="good" />
           </>
-        ) : (
-          <>
-            <Cell to="/agent/tour" label={t('lunaTour:barTours')} value={loading ? '…' : String(sessions.length)} />
-            <Cell to="/agent/tour" label={t('lunaTour:barOpens')} value={loading ? '…' : String(tot.opens)} />
-          </>
-        )}
+        ) : null}
       </dl>
 
       {/* 「我的派单状态」—— owner 2026-08-09:「经纪台没办法看到自己的派单状态呀」。

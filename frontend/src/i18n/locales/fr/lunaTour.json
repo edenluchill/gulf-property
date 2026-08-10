@@ -704,8 +704,6 @@
   "barQueueOut": "Hors file",
   "barQueueGot": "Reçu ce tour",
   "barLeads": "Contacts demandés",
-  "barTours": "Visites",
-  "barOpens": "Ouvertures",
   "sig": {
     "title_tour_known": "{{who}} a terminé « {{tour}} »",
     "title_tour_anon": "Quelqu’un a terminé « {{tour}} »",

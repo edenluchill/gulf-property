@@ -17,7 +17,9 @@
  */
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Phone, MessageSquare, Check, Pause, Play, Copy, Mail, RotateCcw } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
+import { Loader2, Phone, MessageSquare, Check, Pause, Play, Copy, Mail, RotateCcw, ChevronRight } from 'lucide-react'
 import DispatchStatusCard from '../../components/agentMatch/DispatchStatusCard'
 import {
   fetchMyMatches, fetchPoolStatus, setPaused, ackMatch, markDeadLead,
@@ -26,6 +28,7 @@ import {
 
 export default function AgentMatches() {
   const { t, i18n } = useTranslation('misc')
+  const { isAdmin } = useAuth()
   const [matches, setMatches] = useState<MyMatch[] | null>(null)
   const [pool, setPool] = useState<PoolStatus | null>(null)
   const [busy, setBusy] = useState(false)
@@ -71,10 +74,17 @@ export default function AgentMatches() {
           (排班表就因为"前端再拼一遍 in_pool"显示过「正在接单」而实际轮不到)。 */}
       <DispatchStatusCard compact />
 
-      {/* 内部号:状态卡不渲染 + 列表恒空 = 一片空白。明说一句,别让人以为坏了。 */}
+      {/* 内部号:状态卡不渲染 + 列表恒空 = 一片空白。明说一句,别让人以为坏了。
+          admin 再给一个**能点的**去处 —— 只写「去后台看」而不给链接等于让人自己找。 */}
       {pool?.internal && (
         <p className="rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-200">
           {t('agentMatch.internalNote')}
+          {isAdmin && (
+            <Link to="/admin/analytics?tab=dispatch"
+              className="ms-1 inline-flex items-center gap-1 font-medium text-teal-600 underline-offset-2 hover:underline">
+              {t('agentMatch.openAdminDispatch')}<ChevronRight className="h-3 w-3 rtl:rotate-180" />
+            </Link>
+          )}
         </p>
       )}
 

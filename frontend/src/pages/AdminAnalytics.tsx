@@ -118,9 +118,24 @@ export default function AdminAnalytics() {
   const [forbidden, setForbidden] = useState(false)
   const [gran, setGran] = useState<Granularity>('day')
   const [searchSeries, setSearchSeries] = useState<Timeseries | null>(null)
-  // 落地就是健康度 —— 这个面板存在的意义就是「打开先看它」。
-  // 想回到旧行为把这里改回 'overview' 即可。
-  const [tab, setTab] = useState<TabId>('health')
+  /**
+   * 落地就是健康度 —— 这个面板存在的意义就是「打开先看它」。
+   * 想回到旧行为把这里改回 'overview' 即可。
+   *
+   * `?tab=` 可深链:别处(比如经纪台的「买家匹配」)要能直接把人送到某个面板。
+   * 认不出来的值忽略,仍然落到 health —— 别让一个手打错的 URL 变成白屏。
+   */
+  const [tab, setTabRaw] = useState<TabId>(() => {
+    const q = new URLSearchParams(window.location.search).get('tab')
+    return TABS.some((t) => t.id === q) ? (q as TabId) : 'health'
+  })
+  const setTab = (id: TabId) => {
+    setTabRaw(id)
+    // replaceState 而不是 push —— 换 tab 不该在浏览器历史里堆一串条目
+    const u = new URL(window.location.href)
+    u.searchParams.set('tab', id)
+    window.history.replaceState({}, '', u)
+  }
   // 组是**推导**出来的,不是第二份 state —— 否则告警横幅 setTab('perf') 之后
   // 组还停在原地,内容切了导航却没切,看起来像点了没反应。
   const group = groupOf(tab)

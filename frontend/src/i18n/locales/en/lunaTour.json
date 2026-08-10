@@ -704,8 +704,6 @@
   "barQueueOut": "Not in pool",
   "barQueueGot": "Got this round",
   "barLeads": "Buyers took contact",
-  "barTours": "Tours",
-  "barOpens": "Total opens",
   "sig": {
     "title_tour_known": "{{who}} finished “{{tour}}”",
     "title_tour_anon": "Someone finished “{{tour}}”",

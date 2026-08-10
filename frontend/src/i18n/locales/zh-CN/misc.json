@@ -512,7 +512,8 @@
     "filterTodo": "待跟进",
     "filterDone": "已跟进",
     "roundLabel": "第 {{n}} 轮",
-    "roundNone": "已退回轮值"
+    "roundNone": "已退回轮值",
+    "openAdminDispatch": "去后台看派单"
   },
   "activity": {
     "title": "我的东西",

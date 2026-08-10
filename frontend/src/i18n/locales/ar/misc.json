@@ -513,7 +513,8 @@
     "filterTodo": "بحاجة متابعة",
     "filterDone": "تمت المتابعة",
     "roundLabel": "الجولة {{n}}",
-    "roundNone": "أُعيد إلى التناوب"
+    "roundNone": "أُعيد إلى التناوب",
+    "openAdminDispatch": "افتح لوحة التوزيع"
   },
   "activity": {
     "title": "أشيائي",

@@ -706,8 +706,6 @@
   "barQueueOut": "Вне пула",
   "barQueueGot": "Есть в круге",
   "barLeads": "Взяли контакт",
-  "barTours": "Туры",
-  "barOpens": "Открытий",
   "sig": {
     "title_tour_known": "{{who}} досмотрел(а) «{{tour}}»",
     "title_tour_anon": "Кто-то досмотрел «{{tour}}»",

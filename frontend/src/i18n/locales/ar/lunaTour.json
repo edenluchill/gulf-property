@@ -704,8 +704,6 @@
   "barQueueOut": "خارج القائمة",
   "barQueueGot": "استلمت هذه الجولة",
   "barLeads": "طلبوا التواصل",
-  "barTours": "الجولات",
-  "barOpens": "مرات الفتح",
   "sig": {
     "title_tour_known": "{{who}} أنهى مشاهدة «{{tour}}»",
     "title_tour_anon": "شخص ما أنهى مشاهدة «{{tour}}»",

@@ -513,7 +513,8 @@
     "filterTodo": "To follow up",
     "filterDone": "Followed up",
     "roundLabel": "Round {{n}}",
-    "roundNone": "Returned to rotation"
+    "roundNone": "Returned to rotation",
+    "openAdminDispatch": "Open the dispatch panel"
   },
   "activity": {
     "title": "My stuff",
