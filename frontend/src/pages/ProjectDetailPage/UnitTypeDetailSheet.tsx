@@ -1,5 +1,7 @@
-import { Bed, Bath, Maximize } from 'lucide-react'
+import { Bed, Bath, Maximize, LineChart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
+import { useMyRole } from '../../hooks/useMyRole'
 import MobileBottomSheet from '../../components/MobileBottomSheet'
 import { formatPrice } from '../../lib/utils'
 import { UnitType, PaymentPlan } from '../../types'
@@ -18,6 +20,9 @@ interface UnitTypeDetailSheetProps {
 
 export function UnitTypeDetailSheet({ unit, projectId, isOpen, onClose, yieldPct, growthPct, paymentPlan }: UnitTypeDetailSheetProps) {
   const { i18n } = useTranslation()
+  const { t: tRoi } = useTranslation('roi')
+  const role = useMyRole()
+  const isAgent = role === 'agent' || role === 'agency' || role === 'developer'
   if (!unit) return null
 
   return (
@@ -96,6 +101,21 @@ export function UnitTypeDetailSheet({ unit, projectId, isOpen, onClose, yieldPct
           paymentPlan={paymentPlan}
           lang={i18n.language}
         />
+
+        {/* 收益模拟器 —— **手机上原来根本没有这个入口**。
+            桌面的两栏版(UnitTypesSubPage)有,手机走的是这张底部卡片,
+            两边是两套完全独立的 markup。把模拟器开放给买家却只开在桌面,
+            等于对大多数买家没开(他们都在手机上)。
+            ⚠️ 以后往户型详情加东西:**这里和 UnitTypesSubPage 都要加**。 */}
+        {projectId && (
+          <Link
+            to={`${isAgent ? '/agent/roi' : '/roi'}?project=${encodeURIComponent(projectId)}&unit=${encodeURIComponent(unit.id)}`}
+            className="flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-medium text-teal-700 transition active:scale-[0.99]"
+          >
+            <LineChart className="h-4 w-4" />
+            {tRoi('entry.simulateUnit')}
+          </Link>
+        )}
       </div>
     </MobileBottomSheet>
   )
