@@ -124,12 +124,15 @@ owner 打开这页什么都没有,结论自然是"这页没用"。
 
 ---
 
-## 验证
+## 第一轮验证(2026-08-09)
 
 - `tsc --noEmit` 前后端均过;`i18n-key-check.mjs` 2258 键 × 5 语言全命中
 - `npm run build` 通过
 - 线上 `https://www.pinzos.com/cr/emte3b` 抓取正文:**中文字符数 0**(修前 12 处)
 - `https://www.pinzos.com/roi` 匿名访问 200,正常渲染
+
+⚠️ 这一轮**全部是机器验证**,经纪台没有被人眼看过 —— 下面「收尾」里那两处
+就是这么漏掉的。tsc 和 build 不会告诉你「这两个数在一屏里出现了两次」。
 
 ## 收尾(2026-08-10)—— owner:「剩下的也做完 直接 publish 到 production」
 
@@ -181,7 +184,7 @@ owner 截图里工作台的通知全是中文而界面是英文。`lt_notificati
 
 剩下 `DLD_SOURCE_STALE`(源头停更,不是我们的问题),不关。
 
-## 验证
+## 第二轮验证(2026-08-10)
 
 - `tsc --noEmit` 前后端均过;`i18n-key-check.mjs` 2270 键 × 5 语言全命中;`npm run build` 通过
 - `/cr/emte3b` `/cr/xqz7wz` 抓取正文:**中文字符 0**
@@ -189,7 +192,7 @@ owner 截图里工作台的通知全是中文而界面是英文。`lt_notificati
 - 经纪台/买家匹配/admin 派单面板:**在 owner 的浏览器里逐页看过**
 - `_verify-roi-entry.mjs` 桌面+手机连跑 3 次全绿
 
-### 两次假红灯(harness 的教训)
+### 三次假红灯(harness 的教训)
 
 | 症状 | 真因 |
 |---|---|
