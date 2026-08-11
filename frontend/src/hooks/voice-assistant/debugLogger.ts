@@ -128,14 +128,29 @@ class VoiceDebugLogger {
   endSession(): SessionLog | null {
     if (!this.currentSession) return null
 
+    /**
+     * 🔴 **通话时长要按最后一次活动算,不是按 endSession 被调用的时刻算。**
+     *
+     * 生产实测:一场会话记了 **17274 秒 = 4.8 小时**(id 53)。人当然没聊 4.8 小时 ——
+     * `CONVO_IDLE_MS` 的 5 分钟空闲定时器在**后台标签页里被浏览器节流**,
+     * 没能按时开火,于是 endSession 直到用户回到页面(或关闭)才被调用,
+     * 中间的挂机时间全算进了通话时长。
+     *
+     * 后果不只是数字难看:**native audio 是按时长计费的**,4.8 小时的记录会让人
+     * 以为烧了一大笔钱,也把「平均通话时长」这个指标彻底污染。
+     *
+     * 必须**在 finalize 之前**取 —— finalizeUserMessage 会 log 一条,把
+     * lastEventTime 推到现在。
+     */
+    const lastActive = Math.max(this.lastEventTime, this.currentSession.startTime)
+
     // Flush any pending utterances so a trailing user/assistant turn isn't lost
     // (e.g. session ends right after the customer speaks).
     this.finalizeUserMessage()
     this.finalizeAssistantMessage()
 
-    const now = Date.now()
-    this.currentSession.endTime = now
-    this.currentSession.duration = now - this.currentSession.startTime
+    this.currentSession.endTime = lastActive
+    this.currentSession.duration = lastActive - this.currentSession.startTime
 
     // Calculate final metrics
     this.calculateMetrics()
