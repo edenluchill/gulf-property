@@ -627,15 +627,43 @@ async function judge(sc: Scenario, turns: Turn[]): Promise<{ score: number; verd
     }
     return out
   }
+  /**
+   * 数字同理，而且比名字更容易误判 —— **同一个坑栽了三次**：
+   *   ① Serenz / SAMANA SOUTH HAVEN（项目名在列表第 2、3 条，被截掉）
+   *   ② 3.1 的 roi-sane「53万租金、302万房价没有数据支撑」
+   *      —— 工具实际返回 `rental_income_5y_aed: 529867`、`future_price_aed: 3027211`，
+   *      只是嵌在 `projection_5y` 里，在 700 字符之外
+   *   ③ 2.5 的 ambiguous-village 同款判词
+   *
+   * 数字溯源是裁判最爱冤枉人的地方，所以**所有数值单独抽出来，永不截断**。
+   * 大额同时给「万」单位 —— Luna 播报中文时说的是「53万」，裁判要能对上。
+   */
+  const collectNumbers = (v: any, out: Set<string> = new Set(), depth = 0): Set<string> => {
+    if (v == null || depth > 8 || out.size >= 80) return out
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out.add(Math.abs(v) >= 10000 ? `${v}(${(v / 10000).toFixed(1)}万)` : String(v))
+      return out
+    }
+    if (typeof v === 'string') {
+      const n = Number(v)
+      if (Number.isFinite(n) && v.trim() !== '') out.add(Math.abs(n) >= 10000 ? `${n}(${(n / 10000).toFixed(1)}万)` : String(n))
+      return out
+    }
+    if (Array.isArray(v)) { v.forEach(x => collectNumbers(x, out, depth + 1)); return out }
+    if (typeof v === 'object') Object.values(v).forEach(x => collectNumbers(x, out, depth + 1))
+    return out
+  }
   const brief = (v: any) => {
     const summary = v?.summary
     const inner = v?.result !== undefined ? v.result : v
     const names = collectNames(inner)
+    const nums = [...collectNumbers(inner)]
     const s = JSON.stringify(inner)
-    const body = s && s.length > 700 ? s.slice(0, 700) + '…(截断)' : s
+    const body = s && s.length > 700 ? s.slice(0, 700) + '…(RAW 在此截断——名字和数字见上,那两行是完整的)' : s
     return (
       (summary ? `\n  SUMMARY: ${summary}` : '') +
-      (names.length ? `\n  ENTITIES RETURNED (complete list, none omitted): ${names.join(' | ')}` : '') +
+      (names.length ? `\n  ENTITIES RETURNED (complete, nothing omitted): ${names.join(' | ')}` : '') +
+      (nums.length ? `\n  NUMBERS RETURNED (complete, nothing omitted): ${nums.join(' , ')}` : '') +
       `\n  RAW: ${body}`
     )
   }
