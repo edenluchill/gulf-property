@@ -287,6 +287,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // Latency diagnostics: stamp when this turn's user speech is first/last seen so we
   // can print the exact gap to Luna's first reply token in the console.
   const turnUserFirstTsRef = useRef<number>(0)
+  // 这一轮 Luna 有没有问过 Brain,以及问出了哪些工具。
+  // 上报给 /tools/turn —— **没问 Brain 就开口的轮次是幻觉高危区**,
+  // 后端只有靠这个才看得见它们。
+  const turnAskedBrainRef = useRef<boolean>(false)
+  const turnToolsRef = useRef<string[]>([])
   const turnUserLastTsRef = useRef<number>(0)
   const turnReplyLoggedRef = useRef<boolean>(false)
 
@@ -577,6 +582,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
      */
     if (toolName === 'ask_luna' || toolName === 'ask_luna_more') {
       const more = toolName === 'ask_luna_more'
+      turnAskedBrainRef.current = true
+      turnToolsRef.current = [...turnToolsRef.current, toolName]
       try {
         const response = await fetch(`${API_BASE}/api/voice/tools/${more ? 'ask-more' : 'ask'}`, {
           method: 'POST',
@@ -799,6 +806,37 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
       // Turn complete
       if (content.turnComplete) {
+        /**
+         * 🔴 **每轮都上报，不等 endSession。**
+         *
+         * 关键是 `askedBrain` —— 这一轮 Luna 到底问没问 Brain。
+         * 所有护栏(数据边界/诚实规则/澄清出路)都在 Brain 里,Live 绕过它
+         * 直接开口时**后端完全不知道这轮存在过**,而且必然裸奔。
+         * owner 报的「AI 说自己能卖二手房」就是这么冒出来的 ——
+         * 同样的问题直接问 Brain,答案是对的。
+         *
+         * 也不能等 `endSession` 才上报:它只在正常结束时跑,用户关标签页
+         * 就永远丢。实测 12 小时内 luna_sessions 一行都没有,而人明明用过。
+         */
+        const spokenThisTurn = assistantTextAccumRef.current.trim()
+        if (spokenThisTurn || turnAskedBrainRef.current) {
+          fetch(`${API_BASE}/api/voice/tools/turn`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,   // 页面正在关也要发出去
+            body: JSON.stringify({
+              sessionId: voiceDebugLogger.currentSessionId,
+              visitorId: visitorId(),
+              speech: spokenThisTurn.slice(0, 4000),
+              askedBrain: turnAskedBrainRef.current,
+              tools: turnToolsRef.current,
+              ms: turnUserFirstTsRef.current ? Math.round(performance.now() - turnUserFirstTsRef.current) : undefined,
+            }),
+          }).catch(() => { /* 观测失败绝不影响对话 */ })
+        }
+        turnAskedBrainRef.current = false
+        turnToolsRef.current = []
+
         if (textModeRef.current) {
           // Finalize the current assistant message (text already streamed in).
           const id = turnAsstIdRef.current

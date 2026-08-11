@@ -8,6 +8,7 @@
 import { Router } from 'express'
 import { executeTool } from '../services/voice-assistant-tools'
 import { askLuna, startAsk, awaitAsk } from '../services/luna-brain'
+import { logTurn } from '../services/luna-turn-log'
 
 const router = Router()
 
@@ -30,15 +31,34 @@ router.post('/ask', async (req, res) => {
   }
 
   /**
-   * **两段式**:秒回一句过渡语让 Luna 立刻开口,正文由 `/ask-more` 取。
-   * 干掉的是开口前那 4-7 秒静默 —— 见 `luna-brain.ts` 的两段式说明。
+   * 🔴 **两段式默认关闭 —— 它在真实语音链路上会把客户挂断。**
    *
-   * 没有 sessionId 就退回单段(拿不回结果),行为与改造前完全一致。
+   * 设计是:秒回过渡句让 Luna 立刻开口,正文由 Live 再调 `ask_luna_more` 取。
+   * Tier2(文字注入)里试了几次都成功,我就信了。**生产埋点打脸**:
+   *
+   *     luna.brain.two_stage{stage:start} = 8
+   *     luna.brain.two_stage{stage:resume} = 4      ← 一半没走完
+   *
+   * 没走完 = 客户听到「好，我看一下」然后**永远的沉默**。owner 的原话是
+   * 「一开始跟他说话得等一分钟它才开口」—— 那不是慢,那是坏了。
+   *
+   * 根因跟「说了 filler 就不调工具」是同一个病:**2.5 native audio 说完一句话
+   * 之后会不会接着调工具,是不可靠的**。前端 bundle 里 `ask_luna_more` 声明
+   * 明明在(已核验线上 bundle),它就是不调。
+   *
+   * 教训:**几次成功不等于可靠。** 一个「失败就等于挂断客户」的机制,
+   * 不能建立在模型自觉上。
+   *
+   * 想重开先解决「不依赖模型自觉」:由前端在拿到 pending 后主动去取正文,
+   * 再 `sendClientContent` 塞回给 Live 念 —— 那条路不靠它记得调工具。
+   * 在那之前 `LUNA_TWO_STAGE=1` 只用于开发环境验证。
    */
-  const staged = startAsk({ question, language, sessionId, context })
-  if (staged.pending) {
-    console.log(`[LunaBrain] "${question.slice(0, 60)}" → staged, filler out`)
-    return res.json({ success: true, speech: staged.speech, pending: true, attachments: [] })
+  if (process.env.LUNA_TWO_STAGE === '1') {
+    const staged = startAsk({ question, language, sessionId, context })
+    if (staged.pending) {
+      console.log(`[LunaBrain] "${question.slice(0, 60)}" → staged, filler out`)
+      return res.json({ success: true, speech: staged.speech, pending: true, attachments: [] })
+    }
   }
 
   const answer = await askLuna({ question, language, sessionId, context })
@@ -52,6 +72,16 @@ router.post('/ask', async (req, res) => {
 
   const { toolLog, ...lightDebug } = answer.debug   // toolLog 只给跑分,别塞进每次语音往返
 
+  // 逐轮落库 —— 会话级的 luna_sessions 只在 endSession 时上报,用户直接关页面
+  // 就永远看不到。出了问题要能查「他问了什么、Luna 答了什么」。
+  logTurn({
+    sessionId, visitorId: req.body?.visitorId, source: 'brain',
+    question, speech: answer.speech, tools: answer.debug.toolsUsed,
+    ms: answer.debug.ms, askedBrain: true,
+    degraded: answer.debug.degraded, outOfScope: answer.debug.outOfScope,
+    clarifying: answer.debug.clarifying,
+  })
+
   res.json({
     success: true,
     speech: answer.speech,
@@ -59,6 +89,25 @@ router.post('/ask', async (req, res) => {
     attachments: answer.attachments,
     debug: lightDebug,
   })
+})
+
+/**
+ * POST /api/voice/tools/turn —— 前端每轮结束上报 Luna **实际说了什么**。
+ *
+ * 🔴 **这是唯一能看见「Live 层没问 Brain 就自己编」的地方。**
+ * 服务端只知道被问过的轮次；Luna 绕过 Brain 直接开口时后端毫无察觉,
+ * 而所有护栏(数据边界/诚实规则/澄清出路)都在 Brain 里 —— 绕过 = 裸奔。
+ * owner 报的「AI 说自己能卖二手房」就是这么来的(Brain 的回答实测是对的)。
+ *
+ * 不等 `endSession` 上报,因为那个太容易丢(关标签页/会话还开着)。
+ */
+router.post('/turn', (req, res) => {
+  const { sessionId, visitorId, speech, askedBrain, tools, ms } = req.body || {}
+  logTurn({
+    sessionId, visitorId, source: 'live',
+    speech, tools, ms, askedBrain: !!askedBrain,
+  })
+  res.status(204).end()
 })
 
 /**
