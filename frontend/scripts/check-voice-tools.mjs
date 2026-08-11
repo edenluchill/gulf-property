@@ -25,7 +25,8 @@ const BE = read('backend/src/services/voice-assistant-tools.ts')
 // 2026-08-10 两层架构:`ask_luna` 是 Live 层唯一的知识入口,它走专属端点
 // /api/voice/tools/ask → luna-brain.ts,而不是 executeTool 的 switch。
 // 后端那 22 个执行器现在**只有 Brain 会看见**。
-const SPECIAL_ROUTED = new Set(['capture_contact', 'ask_luna'])
+// `ask_luna_more` 是两段式作答的第二段(/api/voice/tools/ask-more),同样不走 switch。
+const SPECIAL_ROUTED = new Set(['capture_contact', 'ask_luna', 'ask_luna_more'])
 
 const names = (re, src) => {
   const out = new Set()
@@ -79,6 +80,19 @@ if (!/tools:\s*\(scope \|\| lastRound\) \? undefined : voiceAssistantTools/.test
     'luna-brain.ts no longer passes `voiceAssistantTools` to the model as expected — ' +
     'the Brain is the ONLY caller of those executors now; a subset silently removes capabilities.'
   )
+}
+// HARD: 两段式的两端必须成对存在。只有 ask_luna 没有 ask_luna_more,
+// Luna 会说完「我看一下」就再也不出声 —— 客户被挂在线上,而且不报任何错。
+if (declared.has('ask_luna_more') !== /pending:\s*true/.test(BRAIN)) {
+  errors.push(
+    'Two-stage answering is half-wired: the frontend declares ask_luna_more=' +
+    `${declared.has('ask_luna_more')} but luna-brain.ts returns pending=${/pending:\s*true/.test(BRAIN)}. ` +
+    'Either both or neither — half of it means Luna says the holding line and then goes silent forever.'
+  )
+}
+const TOOLS_ROUTE = read('backend/src/routes/voice-tools.ts')
+if (declared.has('ask_luna_more') && !/['"`]\/ask-more['"`]/.test(TOOLS_ROUTE)) {
+  errors.push('Frontend declares ask_luna_more but backend has no POST /ask-more route → the second half of every answer 404s.')
 }
 // ⚠️ 2026-07-20 删掉了「提示词没提到某工具就告警」这条 SOFT 规则。
 //
