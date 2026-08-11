@@ -631,6 +631,7 @@ function LunaTextPanel({
         <div className="flex items-end gap-1.5 px-2.5 py-2 border-t border-blue-50">
           <textarea
             ref={taRef}
+            data-testid="luna-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
@@ -640,6 +641,7 @@ function LunaTextPanel({
           />
           <button
             onClick={handleSend}
+            data-testid="luna-send"
             disabled={!input.trim() || textPending}
             className={cn(
               'flex-shrink-0 rounded-full p-1.5 transition-colors',
@@ -1011,6 +1013,7 @@ export function VoiceAssistantButton({ className }: { className?: string }) {
       {TEXT_MODE_ENABLED && (
       <button
         onClick={handleKeyboard}
+        data-testid="luna-keyboard"   /* 真机跑分靠它定位 —— 见 frontend/scripts/luna-live-audit.mjs */
         className={cn(
           'flex w-[52px] flex-col items-center gap-0.5 rounded-s-2xl py-2 px-1.5 backdrop-blur-xl',
           'shadow-md border transition-all duration-300',
