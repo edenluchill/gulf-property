@@ -101,37 +101,46 @@ const setDailyTokens = (n:number) => { try { localStorage.setItem(LUNA_QUOTA_KEY
 const addDailyTokens = (delta:number) => setDailyTokens(getDailyTokens() + Math.max(0, delta))
 
 // Tool definitions
+//
+// 🔴 **2026-08-10:17 个工具砍到 2 个 —— 这是两层架构的核心改动。**
+//
+// 旧版把 17 个工具压给 `gemini-2.5-flash-native-audio-preview`(2.5 世代小号
+// 预览版,**没有 thinking 也配不了**),让它同时负责听、说、打断、选工具、
+// 判断置信度、组织话术。生产数据证明这超纲了:
+//   · 每场对话**平均只调用 1 次工具** —— 它基本不查就开口
+//   · 十场 transcript **只有一场**进入房产话题
+//   · prompt 明令禁止说「抱歉」,session 52 照说不误(**指令跟随已崩的铁证**)
+//
+// 现在:**Live 只当嘴和耳朵**。所有知识/搜索/分析/产品问题一律走 `ask_luna`
+// → 后端 Brain(gemini-3.5-flash + thinking)选工具、查数据、**写好最终话术**,
+// Live 照念不改。核心不变量:**Live 层永远不生成事实。**
+//
+// 见 `docs/luna-two-layer-spec.md`
+//     `docs/reports/2026-08-10-luna-conversation-quality-audit.md`
+//
+// ⚠️ 工具声明历来在三处漂移(前端/后端/提示词) —— 见 memory `voice-tool-declaration-drift`。
+//    砍到 2 个之后漂移面基本消失:后端那 22 个执行器现在只有 Brain 会看见。
 const voiceTools = [
   {
     functionDeclarations: [
       {
-        name: 'present_place',
-        description: 'Start a short guided walkthrough of ONE project or ONE area on the map: it auto-plays 3 stops — advantages (区域指标), environment (nearby amenities + distances), and recent DLD transactions (成交). Use this when the customer asks whether a specific project/area is good, says "show me / 带我看 / 介绍一下 X", or wants a tour of a place. Prefer this over answering in one long sentence — the walkthrough shows each thing visually. After calling it, say ONE short intro sentence only (the on-screen panel narrates each stop).',
+        /**
+         * **唯一的知识入口。** Live 模型自己什么都不知道 —— 它看不见地图,
+         * 不认识任何项目/区域/价格/收益率/功能。全部问这里。
+         */
+        name: 'ask_luna',
+        description: 'The ONLY way you can answer anything real. You have NO knowledge of your own: you cannot see the map, and you do not know a single project, area, price, yield, distance, or product feature. Call this for EVERY question that is not pure greeting or small talk — property, places, prices, investment returns, comparisons, "is X any good", and questions about how to use this product. Pass the customer\'s words through VERBATIM; do not clean them up, do not translate them, do not guess at a place name. It returns a "speech" field — say exactly that, as written: never add a number, a project name, or a claim of your own on top of it.',
         parameters: {
           type: Type.OBJECT,
           properties: {
-            project_id: { type: Type.STRING, description: 'The project id to walk through (when the customer is asking about a specific project). Provide this OR area_name.' },
-            area_name: { type: Type.STRING, description: 'The Dubai area name to walk through (e.g. "Dubai Marina"). Provide this OR project_id.' }
-          }
-        }
-      },
-      {
-        // 🔴 **这个工具是为了堵一次真实的丢客户事故。**
-        // 2026-07-17 生产日志：客户问 "How can I do live calling?"，Luna 答
-        // "I can't help with live calling" —— 而实时带看是真实存在的功能。
-        // 反向也犯过：客户说「把资料发给我老婆」，她答「我可以发给您」，
-        // 但她发不了任何东西。**凭空发明能力比拒绝更糟。**
-        name: 'explain_feature',
-        description: 'Answer a question about how to USE this product — what a feature does, where to find it, who it is for. Call this whenever the user asks about the app itself rather than about property data: "how do I do a live call", "where is X", "can I send this to my client", "how do I share this", "what does this cost", "怎么把这个发给客户", "实时带看在哪". NEVER guess a product answer, and NEVER offer to send, email or message anything yourself — you have no way to deliver anything. Call this tool and relay what it returns.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            question: { type: Type.STRING, description: "The user's product question in their own words. Pass it verbatim — the matcher handles phrasing." }
+            question: { type: Type.STRING, description: "The customer's question in their own words, verbatim. Speech recognition mangles Dubai place names constantly — pass what you heard, unedited. The analyst runs a proper matcher and reports its own confidence." },
+            context: { type: Type.STRING, description: 'Optional: what the conversation has been about so far, if this question only makes sense with it (e.g. "was asking about the 2-bed in Marina").' }
           },
           required: ['question']
         }
       },
       {
+        // 纯写入,不查任何数据 —— 多绕一层 Brain 没有意义,留在前端直连。
         name: 'capture_contact',
         description: "Save the customer's contact details so the agent can follow up with full property info. Call this ONLY after the customer has shown clear interest and agreed to share contact (e.g. they said yes to receiving details on WhatsApp). Ask naturally; never pressure. Provide whatever details the customer gave.",
         parameters: {
@@ -142,186 +151,6 @@ const voiceTools = [
             phone: { type: Type.STRING, description: 'Phone number if different from WhatsApp' },
             email: { type: Type.STRING, description: 'Email address if given' }
           }
-        }
-      },
-      {
-        name: 'search_projects',
-        description: 'Search for properties/projects in Dubai. Use when user asks to find, search, or look for properties, apartments, villas, or real estate. Returns list of matching projects.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area: { type: Type.STRING, description: 'Dubai area name like "Dubai Marina", "Downtown", "JVC", "Business Bay"' },
-            min_price: { type: Type.NUMBER, description: 'LOWER bound of the price RANGE in AED. min_price and max_price define a range and min_price MUST be strictly less than max_price — never set them to the same value, that matches almost nothing. If the customer names one approximate figure ("around 1M", "100万左右", "roughly 2 million"), expand it into a range: min_price = 0.8 x figure, max_price = 1.2 x figure (e.g. "around 1M" -> min_price 800000, max_price 1200000). If the customer states a budget or ceiling ("budget 2M", "under 2M", "2M 以内", "up to 2 million"), leave min_price empty and put the figure in max_price. Omit entirely if no budget was mentioned.' },
-            max_price: { type: Type.NUMBER, description: 'UPPER bound of the price RANGE in AED (e.g., 3000000 for 3 million). Must be strictly greater than min_price. This is the field to use for any stated budget, ceiling or "under X" / "X 以内" phrasing. Omit entirely if no budget was mentioned.' },
-            bedrooms: { type: Type.NUMBER, description: 'Number of bedrooms: 0=studio, 1, 2, 3, etc.' },
-            developer: { type: Type.STRING, description: 'Developer name like "Emaar", "DAMAC", "Sobha"' }
-          }
-        }
-      },
-      {
-        name: 'fly_to_area',
-        description: 'Navigate/zoom the map to show a specific Dubai area. Use when user says "show me", "go to", "zoom to" an area.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area_name: { type: Type.STRING, description: 'Area name to navigate to' }
-          },
-          required: ['area_name']
-        }
-      },
-      {
-        name: 'get_area_info',
-        description: 'Get market data and statistics about a Dubai area: rental yield, price trends, transaction volume. Use when user asks about an area\'s investment potential or market performance.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area_name: { type: Type.STRING, description: 'Area name to get info about' }
-          },
-          required: ['area_name']
-        }
-      },
-      {
-        name: 'show_nearby_pois',
-        description: 'Show (or hide) a category of points-of-interest on the map as labeled markers. Drives the SAME map filter the customer can toggle by hand. Use when asked to show/hide schools, hospitals, malls, parks, restaurants, etc. near a location. Pass hide=true to hide a category.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            category: {
-              type: Type.STRING,
-              description: 'Category: hospital, clinic, pharmacy, school, university, mall, supermarket, restaurant, cafe, bank, atm, gas_station, hotel, mosque, church, park, gym, beach, cinema, police, fire_station, post_office, embassy'
-            },
-            hide: {
-              type: Type.BOOLEAN,
-              description: 'Set true to HIDE this category instead of showing it'
-            }
-          },
-          required: ['category']
-        }
-      },
-      {
-        name: 'analyze_area_amenities',
-        description: 'Analyze how convenient a Dubai area is by measuring straight-line distance from the area to its NEAREST hospital, school, shopping mall, metro station and supermarket. Draws labeled distance spokes on the map and returns a 0-100 convenience score with a tier. Use this whenever the customer asks how good/convenient/livable a location is, whether amenities are close, or "how far is the nearest school/hospital/metro".',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area_name: { type: Type.STRING, description: 'The Dubai area to analyze, e.g. "Dubai Marina", "JVC", "Business Bay"' }
-          },
-          required: ['area_name']
-        }
-      },
-      {
-        name: 'navigate_to_project',
-        description: 'Navigate to a project: fly to it on map, show unit types and investment analysis, then open detail page. Use when user wants details, floor plans, investment analysis, or more info about a specific project.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            project_id: { type: Type.STRING, description: 'The project ID to navigate to (from search results)' },
-            project_name: { type: Type.STRING, description: 'The project name (for confirmation)' }
-          },
-          required: ['project_id']
-        }
-      },
-      {
-        name: 'recommend_by_budget',
-        description: 'Recommend the best Dubai areas to buy for a given budget. Use when the customer states a budget/income and a goal. Returns areas within budget ranked by goal with median price, gross rental yield %, 3-year price growth %, and confidence. Real DLD data.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            budget: { type: Type.NUMBER, description: 'Budget in AED (total purchase price), e.g. 1500000' },
-            goal: { type: Type.STRING, description: "Goal: 'yield' (rental income), 'growth' (capital gain), or 'balanced' (default)" },
-            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', or 'townhouse'" },
-            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2, 3… Omit for any.' }
-          },
-          required: ['budget']
-        }
-      },
-      {
-        name: 'get_investment_breakdown',
-        description: 'Investment analysis for a specific area + property type + bedrooms: median price, gross rental yield %, 3-year CAGR, and an INDICATIVE 5-year ROI projection with payback years. Use when the customer asks the ROI/yield/return for a specific area & unit type. Always relay confidence; projections are indicative, not guaranteed.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area: { type: Type.STRING, description: 'Dubai area name, e.g. "Business Bay", "Dubai Marina"' },
-            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', or 'townhouse'" },
-            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' },
-            offplan: { type: Type.BOOLEAN, description: 'true=off-plan only, false=ready only, omit=both' }
-          },
-          required: ['area']
-        }
-      },
-      {
-        name: 'compare_market',
-        description: 'Controlled comparison over real DLD sales: hold conditions constant and vary ONE dimension to isolate its price effect. Use for "is off-plan pricier than ready here?" (vary=is_offplan), "price by bedroom?" (vary=bedrooms), "priciest areas?" (vary=area_name). Returns each group with transaction count + median price.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            vary: { type: Type.STRING, description: "Dimension to break down by: 'is_offplan', 'bedrooms', 'area_name', 'ptype', 'size_band', or 'year'" },
-            property_type: { type: Type.STRING, description: "Hold property type constant: 'apartment', 'villa', 'townhouse'" },
-            bedrooms: { type: Type.NUMBER, description: 'Hold bedrooms constant (0=studio)' },
-            area: { type: Type.STRING, description: 'Restrict to an area (fuzzy), e.g. "Marina"' }
-          },
-          required: ['vary']
-        }
-      },
-      {
-        name: 'area_investment_report',
-        description: 'Full investment report for an area + property type + bedrooms in ONE call: price level & range, 3-year & YoY growth, gross rental yield, indicative 5-year ROI & payback, liquidity, price vs city average, off-plan share, confidence, and an explicit list of data gaps. Use this as the DEFAULT for any "analyze / is it a good investment / give me the numbers" question — it is the most complete. Relay confidence and gaps honestly; projections are indicative.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area: { type: Type.STRING, description: 'Dubai area, e.g. "Business Bay", "Dubai Marina", "JVC"' },
-            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', 'townhouse'" },
-            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' }
-          },
-          required: ['area']
-        }
-      },
-      {
-        name: 'check_affordability',
-        description: 'Work out what the customer can afford from their monthly income OR cash for down-payment, then recommend areas within that budget. Use when the customer gives an income/salary or savings and asks what/where they can buy. Returns max purchase price, required down payment, monthly mortgage, and affordable areas with yield & growth.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            income: { type: Type.NUMBER, description: 'Monthly income in AED (for mortgage capacity)' },
-            cash: { type: Type.NUMBER, description: 'Cash available for down payment in AED' },
-            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', 'townhouse'" },
-            bedrooms: { type: Type.NUMBER, description: 'Bedrooms: 0=studio, 1, 2…' }
-          }
-        }
-      },
-      {
-        name: 'project_value_check',
-        description: "Check whether a specific project's asking price is above or below the DLD resale median for its area & bedrooms. Use when the customer asks 'is this project fairly priced / a good deal / pricier than the area'. Needs project_id (from search results).",
-        parameters: {
-          type: Type.OBJECT,
-          properties: { project_id: { type: Type.STRING, description: 'Project ID from search results' } },
-          required: ['project_id']
-        }
-      },
-      {
-        name: 'purchase_costs',
-        description: 'Break down one-time purchase costs of buying in Dubai (DLD 4% transfer, agent 2%, admin/trustee, mortgage registration) and the all-in total. Use when the customer asks about fees / total cost / extra cost to buy.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            price: { type: Type.NUMBER, description: 'Property price in AED' },
-            mortgage: { type: Type.BOOLEAN, description: 'true if buying with a mortgage' }
-          },
-          required: ['price']
-        }
-      },
-      {
-        name: 'rent_vs_buy',
-        description: 'Indicative rent-vs-buy comparison for an area/unit over N years. Use when the customer asks "should I rent or buy". Ignores mortgage interest & service charges (data gaps) — say so.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            area: { type: Type.STRING, description: 'Dubai area' },
-            property_type: { type: Type.STRING, description: "'apartment' (default), 'villa', 'townhouse'" },
-            bedrooms: { type: Type.NUMBER, description: 'Bedrooms (0=studio)' },
-            years: { type: Type.NUMBER, description: 'Holding horizon in years (default 5)' }
-          },
-          required: ['area']
         }
       }
     ]
@@ -499,8 +328,13 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   }, [endConversationNow])
 
   // Tool display names
+  //
+  // 表里除 ask_luna / capture_contact 外的名字现在由**后端 Brain** 内部调用,
+  // Live 层已经看不到它们了(2026-08-10 两层架构)。留着是因为文字模式和
+  // 回放视图仍按工具名显示状态 —— 删了那两处会掉成 "Processing..."。
   const getToolDisplayName = useCallback((toolName: string): string => {
     const names: Record<string, string> = {
+      'ask_luna': currentLanguage === 'zh' ? '查询中...' : 'Looking that up...',
       'search_projects': currentLanguage === 'zh' ? '搜索项目中...' : 'Searching projects...',
       'fly_to_area': currentLanguage === 'zh' ? '定位区域中...' : 'Locating area...',
       'get_area_info': currentLanguage === 'zh' ? '获取区域信息...' : 'Getting area info...',
@@ -650,6 +484,16 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // 🔴 打字模式的用户输入必须**手动**进 transcript。
+      //
+      // 语音模式靠 `inputTranscription` 回调喂 logUserMessage —— 打字模式不开麦克风,
+      // 那个回调永远不来。结果:2026-08-10 审计的 10 场会话里 **8 场没有用户的话**,
+      // 后台「Luna 对话」回看等于只能看 Luna 自言自语,根本没法诊断她答得对不对。
+      // (2026-06-25 修过一次同款 —— 那次是语音路径漏调 finalize,这次是打字路径
+      //  压根没接上。**加任何新的输入形态都要问一句:它进 transcript 了吗?**)
+      voiceDebugLogger.logUserMessage(trimmed)
+      voiceDebugLogger.finalizeUserMessage()
+
       // Send the typed turn; the reply (text + tool map actions + card) arrives
       // asynchronously through handleMessage, and textPending clears on turnComplete.
       sessionRef.current.sendClientContent({
@@ -709,6 +553,64 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    /**
+     * 🧠 **两层架构的接缝** —— Live 层唯一的知识入口。
+     *
+     * 后端 Brain(gemini-3.5-flash + thinking)选工具、查数据、**写好话术**,
+     * 这里把 `speech` 原样交回给 Live 模型念。见 `docs/luna-two-layer-spec.md`。
+     *
+     * 它比旧的单工具调用慢(~2s vs ~150ms) —— Live 层的 prompt 因此要求
+     * 先说一句不承诺结果的等待语。这是**故意**用一点延迟换掉一整类
+     * 「自信地说错」和「反复说找不到」。
+     */
+    if (toolName === 'ask_luna') {
+      try {
+        const response = await fetch(`${API_BASE}/api/voice/tools/ask`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: params?.question,
+            context: params?.context,
+            language: currentLanguage,
+            sessionId: voiceDebugLogger.currentSessionId,
+          })
+        })
+        const data = await response.json()
+
+        if (data.mapAction) handleMapAction(data.mapAction)
+
+        // 气泡卡片。**拆层最容易碰掉的就是这里** —— buildBubbleAttachment 靠
+        // 工具名分派,所以 Brain 必须把它内部调用过的工具名回传。后来的覆盖
+        // 先前的,与旧的「每次工具调用覆盖一次」行为一致。
+        for (const a of (data.attachments || [])) {
+          const attachment = buildBubbleAttachment(a.toolName, a.result, a.params)
+          if (attachment) pendingAttachmentRef.current = attachment
+
+          // navigate_to_project 仍然在飞行动画之后自动打开详情页。
+          if (a.toolName === 'navigate_to_project' && a.result?.projectId) {
+            setTimeout(() => {
+              handleMapAction({ type: 'navigate', path: `/project/${a.result.projectId}` })
+            }, 2500)
+          }
+        }
+
+        voiceDebugLogger.logToolCallEnd(callId, { speech: data.speech, ...data.debug })
+        // speech 是**最终稿**。字段名就叫 speech,配合 Live 层 prompt 的
+        // 「照念不改」—— 换成 result/data 之类的名字模型会当成素材去改写。
+        return { speech: data.speech }
+      } catch (err) {
+        console.error('[Voice] ask_luna failed:', err)
+        voiceDebugLogger.logToolCallEnd(callId, null, String(err))
+        setToolStatus(null)
+        // 语音链路上返回错误对象 = 一段死寂。永远给一句能说出口的话。
+        return {
+          speech: currentLanguage === 'zh'
+            ? '这个我得再查一下。你先说说预算和想看的区域?'
+            : "Let me look into that one. What's your budget and which area are you thinking about?",
+        }
+      }
+    }
+
     try {
       const response = await fetch(`${API_BASE}/api/voice/tools/execute`, {
         method: 'POST',
@@ -744,7 +646,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       setToolStatus(null) // Clear on error only
       return { success: false, error: 'Tool execution failed' }
     }
-  }, [getToolDisplayName, handleMapAction])
+  }, [getToolDisplayName, handleMapAction, currentLanguage])
 
   // Handle Gemini messages
   const handleMessage = useCallback(async (message: LiveServerMessage) => {

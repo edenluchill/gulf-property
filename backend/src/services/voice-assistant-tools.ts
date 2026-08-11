@@ -481,8 +481,7 @@ export async function executeTool(
   const t0 = Date.now()
   try {
     const out = await executeToolInner(toolName, params)
-    const unknown = typeof out?.summary === 'string' && out.summary.startsWith('Unknown tool')
-    counter('voice.tool', { tool: toolName.slice(0, 40), result: unknown ? 'unknown' : 'ok' }).inc()
+    counter('voice.tool', { tool: toolName.slice(0, 40), result: classifyOutcome(out) }).inc()
     histogram('voice.tool.ms', { tool: toolName.slice(0, 40) }).observe(Date.now() - t0)
     return out
   } catch (e) {
@@ -490,6 +489,34 @@ export async function executeTool(
     histogram('voice.tool.ms', { tool: toolName.slice(0, 40) }).observe(Date.now() - t0)
     throw e
   }
+}
+
+/**
+ * 工具**业务结果**分类。
+ *
+ * 🔴 2026-08-10 审计发现:旧版只分 `ok`/`unknown`/`error`,于是
+ * `AREA_NOT_FOUND`、`AREA_AMBIGUOUS`、0 结果**全部记成 `ok`**。
+ * 看板上 60 天 32 次调用 0 失败、一片健康 —— 而同期真实 transcript 里
+ * session 51 连着两轮「找不到 Diamond 2」、session 53 三轮全在澄清,
+ * 用户当场就走了。**"没干活"和"干成了"记成同一件事,等于监控是瞎的。**
+ * 见 memory `silent-failure-paths`(同款:返回 200 但没干活)。
+ *
+ * 这几档要**分开看**:`not_found` 高 = 数据缺口;`ambiguous` 高 = 匹配器该调;
+ * `empty` 高 = 搜索条件太窄。三种病因完全不同,混成 ok 就一个都定位不了。
+ */
+function classifyOutcome(out: { result: any; summary: string }): string {
+  const s = typeof out?.summary === 'string' ? out.summary : ''
+  if (s.startsWith('Unknown tool')) return 'unknown'
+  if (/AREA_AMBIGUOUS|needs_disambiguation/i.test(s)) return 'ambiguous'
+  if (/AREA_NOT_FOUND|FEATURE_UNKNOWN|NOT_FOUND/i.test(s)) return 'not_found'
+  // 0 结果:搜索类工具查到了但一条没有 —— 和"查不到这个地方"是两回事。
+  const r = out?.result
+  if (r && typeof r === 'object') {
+    if (Array.isArray(r) && r.length === 0) return 'empty'
+    if (typeof r.count === 'number' && r.count === 0) return 'empty'
+    if (Array.isArray(r.projects) && r.projects.length === 0) return 'empty'
+  }
+  return 'ok'
 }
 
 async function executeToolInner(

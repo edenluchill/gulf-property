@@ -53,8 +53,48 @@ import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai'
 import { writeFileSync, readFileSync, existsSync } from 'fs'
 import { LIVE_AUDIO, FLASH } from '../src/services/ai/models'
 import { getSystemInstruction } from '../src/routes/voice-token'
-import { convertToolsForSDK } from '../src/services/voice-assistant'
 import { executeTool } from '../src/services/voice-assistant-tools'
+import { askLuna } from '../src/services/luna-brain'
+
+/**
+ * **Live 层的工具声明** —— 必须和 `frontend/src/contexts/VoiceAssistantContext.tsx`
+ * 的 `voiceTools` 保持一致。
+ *
+ * 2026-08-10 两层架构之前,这里读的是 `convertToolsForSDK()`(后端 22 个执行器),
+ * 而生产 Luna 拿到的是前端的 16 个声明 —— **两份历来漂移,跑分绿≠生产绿**
+ * (memory `voice-tool-declaration-drift`)。
+ *
+ * 拆层把这个缺口收窄到了 2 个工具:后端那 22 个执行器现在只有 Brain 会看见,
+ * 而 Brain 在这个脚本里是**真的被调用**的。`frontend/scripts/check-voice-tools.mjs`
+ * 守着 `ask_luna` 不许从前端声明里消失。
+ */
+const LIVE_TOOLS = [
+  {
+    name: 'ask_luna',
+    description: 'The ONLY way you can answer anything real. You have NO knowledge of your own: you cannot see the map, and you do not know a single project, area, price, yield, distance, or product feature. Call this for EVERY question that is not pure greeting or small talk. Pass the customer\'s words through VERBATIM. It returns a "speech" field — say exactly that, as written.',
+    parameters: {
+      type: 'OBJECT' as any,
+      properties: {
+        question: { type: 'STRING' as any, description: "The customer's question in their own words, verbatim." },
+        context: { type: 'STRING' as any, description: 'Optional: what the conversation has been about so far.' },
+      },
+      required: ['question'],
+    },
+  },
+  {
+    name: 'capture_contact',
+    description: "Save the customer's contact details so the agent can follow up. Call this ONLY after the customer has shown clear interest and agreed to share contact.",
+    parameters: {
+      type: 'OBJECT' as any,
+      properties: {
+        name: { type: 'STRING' as any, description: "Customer's name if given" },
+        whatsapp: { type: 'STRING' as any, description: 'WhatsApp number with country code' },
+        phone: { type: 'STRING' as any, description: 'Phone number if different from WhatsApp' },
+        email: { type: 'STRING' as any, description: 'Email address if given' },
+      },
+    },
+  },
+]
 
 const VERBOSE = process.argv.includes('--verbose')
 const jsonIdx = process.argv.indexOf('--json')
@@ -250,7 +290,7 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
       // 只要文字转写 —— 音频我们不听，但 native-audio 模型必须开 AUDIO 模态
       outputAudioTranscription: {},
       systemInstruction: { parts: [{ text: getSystemInstruction('auto') }] },
-      tools: [{ functionDeclarations: convertToolsForSDK() }],
+      tools: [{ functionDeclarations: LIVE_TOOLS }],
     },
     callbacks: {
       onopen: () => {},
@@ -262,12 +302,33 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
           for (const fc of m.toolCall.functionCalls || []) {
             let result: any = null, summary = ''
             try {
-              const r = await executeTool(fc.name!, (fc.args as any) || {})
-              result = r.result; summary = r.summary
+              if (fc.name === 'ask_luna') {
+                // 两层架构:Live 层唯一的知识入口。走真 Brain,和生产完全一致。
+                const a = await askLuna({
+                  question: String((fc.args as any)?.question || ''),
+                  context: (fc.args as any)?.context,
+                  sessionId: sc.id,
+                })
+                // **把 Brain 内部调用过的工具原样摊进 toolLog** —— 下面的
+                // 「数字溯源」「遵守不确定信号」两条断言读的就是它。不摊开的话
+                // 拆层等于把这两条断言弄瞎(它们只会看到一个 ask_luna)。
+                for (const t of a.debug.toolLog) {
+                  toolLog.push({ name: t.name, args: t.args, result: { result: t.result, summary: t.summary } })
+                }
+                result = { speech: a.speech }; summary = a.speech
+              } else if (fc.name === 'capture_contact') {
+                // 前端直连 /api/leads/contact,这里不真写库。
+                result = { ok: true }; summary = 'Contact saved.'
+              } else {
+                const r = await executeTool(fc.name!, (fc.args as any) || {})
+                result = r.result; summary = r.summary
+              }
             } catch (e: any) {
               summary = `Failed: ${e?.message}`
             }
-            toolLog.push({ name: fc.name!, args: fc.args, result: { result, summary } })
+            if (fc.name !== 'ask_luna') {
+              toolLog.push({ name: fc.name!, args: fc.args, result: { result, summary } })
+            }
             responses.push({ id: fc.id, name: fc.name, response: { result: JSON.stringify(result), summary } })
           }
           session.sendToolResponse({ functionResponses: responses })

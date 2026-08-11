@@ -19,9 +19,13 @@ const FE = read('frontend/src/contexts/VoiceAssistantContext.tsx')
 const PROMPT = read('backend/src/routes/voice-token.ts')
 const BE = read('backend/src/services/voice-assistant-tools.ts')
 
-// Tools handled entirely on the frontend (intercepted in executeTool before the
-// backend call) — they legitimately have no backend executor case.
-const FRONTEND_ONLY = new Set(['capture_contact'])
+// Tools intercepted in the frontend's executeTool BEFORE the generic
+// /api/voice/tools/execute call — they legitimately have no backend executor case.
+//
+// 2026-08-10 两层架构:`ask_luna` 是 Live 层唯一的知识入口,它走专属端点
+// /api/voice/tools/ask → luna-brain.ts,而不是 executeTool 的 switch。
+// 后端那 22 个执行器现在**只有 Brain 会看见**。
+const SPECIAL_ROUTED = new Set(['capture_contact', 'ask_luna'])
 
 const names = (re, src) => {
   const out = new Set()
@@ -51,9 +55,30 @@ for (const t of referenced) {
 }
 // HARD: frontend declares a tool with no backend executor → the tool call will fail.
 for (const t of declared) {
-  if (!executors.has(t) && !FRONTEND_ONLY.has(t)) {
+  if (!executors.has(t) && !SPECIAL_ROUTED.has(t)) {
     errors.push(`Frontend declares "${t}" but backend has NO executor (case '${t}') → tool call will fail.`)
   }
+}
+
+// ── 两层架构的新不变量（2026-08-10）──────────────────────────────────────
+//
+// HARD: `ask_luna` 是 Live 层**唯一**的知识入口。它一旦从前端声明里掉了,
+// Luna 就再也拿不到任何数据 —— 而且不会报错,她会安静地开始凭空作答,
+// 正是这次重构要根除的那个失败模式。这条比任何单个工具的漂移都致命。
+if (!declared.has('ask_luna')) {
+  errors.push(
+    'Frontend does NOT declare "ask_luna" — the Live layer has no way to reach the Brain. ' +
+    'Luna will answer from nothing and sound confident doing it (see docs/luna-two-layer-spec.md).'
+  )
+}
+// HARD: Brain 必须拿到全部执行器。它是现在唯一能调工具的地方,
+// 传错常量(比如只传一个子集)会让一部分能力静默消失。
+const BRAIN = read('backend/src/services/luna-brain.ts')
+if (!/tools:\s*\(scope \|\| lastRound\) \? undefined : voiceAssistantTools/.test(BRAIN)) {
+  errors.push(
+    'luna-brain.ts no longer passes `voiceAssistantTools` to the model as expected — ' +
+    'the Brain is the ONLY caller of those executors now; a subset silently removes capabilities.'
+  )
 }
 // ⚠️ 2026-07-20 删掉了「提示词没提到某工具就告警」这条 SOFT 规则。
 //

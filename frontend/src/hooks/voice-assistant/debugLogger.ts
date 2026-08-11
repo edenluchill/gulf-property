@@ -116,6 +116,15 @@ class VoiceDebugLogger {
     return sessionId
   }
 
+  /**
+   * 当前会话 id。给 Brain 层做「连续澄清」计数用 —— 连着两轮只会反问的对话
+   * 要强制降级出内容(见 `luna-brain.ts` 的 clarifyStreak)。
+   * 没有会话时返回 undefined,Brain 侧会跳过计数。
+   */
+  get currentSessionId(): string | undefined {
+    return this.currentSession?.sessionId
+  }
+
   endSession(): SessionLog | null {
     if (!this.currentSession) return null
 
