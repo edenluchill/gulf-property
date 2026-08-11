@@ -82,7 +82,10 @@ const run = async () => {
         net.token = { model: j.model, tools: (j.tools || []).length, promptChars: (j.systemInstruction || '').length }
       } else if (u.includes('/api/voice/tools/ask')) {
         const req = res.request()
-        net.asks.push({ body: JSON.parse(req.postData() || '{}'), status: res.status(), at: Date.now() })
+        // 服务端自己报的耗时才是 Brain 的真实延迟 —— 墙钟里混着浏览器和轮询
+        let serverMs = null
+        try { serverMs = (await res.json())?.debug?.ms ?? null } catch { /* ignore */ }
+        net.asks.push({ body: JSON.parse(req.postData() || '{}'), status: res.status(), serverMs, at: Date.now() })
       } else if (u.includes('/api/voice/tools/turn')) {
         net.turns.push(JSON.parse(res.request().postData() || '{}'))
       }
@@ -132,6 +135,16 @@ const run = async () => {
 
   for (const c of CASES) {
     const asksBefore = net.asks.length
+    /**
+     * ⚠️ **用 `/tools/turn` 上报当「这一轮真结束」的信号。**
+     *
+     * 第一版看到 `/tools/ask` 就 break，然后立刻打下一条 —— 上一轮还没
+     * `turnComplete`，Live 于是把每个问题**答了两遍**（生产埋点里能看到
+     * 每题两次 turn 上报）。那是测试制造的假象，不是产品问题，
+     * 但它会让所有延迟数字失真（实测 Brain 真实耗时 2.5-6s，
+     * 脚本却报 20-29s）。
+     */
+    const turnsBefore = net.turns.length
     const t0 = Date.now()
     await input.click({ noWaitAfter: true })
     await page.keyboard.type(c.text, { delay: 10 })
@@ -148,10 +161,11 @@ const run = async () => {
         return panel ? panel.innerText : document.body.innerText
       }).catch(() => '')
       if (texts && texts.length > c.text.length + 20) { reply = texts }
-      // 工具调用已经发生 + 已有文本 → 这一轮基本结束
-      if (net.asks.length > asksBefore && reply) break
-      if (!c.mustCallTool && reply) break
+      // 前端每轮结束会 POST /tools/turn —— 那才是真正的 turnComplete
+      if (net.turns.length > turnsBefore) break
     }
+    // 让音频/状态落定，再打下一条
+    await page.waitForTimeout(1200)
     const ms = Date.now() - t0
     const calledTool = net.asks.length > asksBefore
     const bad = []
@@ -165,7 +179,9 @@ const run = async () => {
 
     const ok = bad.length === 0
     ok ? pass++ : failures.push(`${c.id}: ${bad.join(' / ')}`)
-    console.log(`${ok ? '✅' : '❌'} ${c.id.padEnd(12)} ${calledTool ? '🔧 调了工具' : '⚠️  没调工具'}  ${Math.round(ms / 100) / 10}s`)
+    const brainMs = net.asks.length > asksBefore ? (net.asks[net.asks.length - 1].serverMs ?? null) : null
+    console.log(`${ok ? '✅' : '❌'} ${c.id.padEnd(12)} ${calledTool ? '🔧 调了工具' : '⚠️  没调工具'}  ` +
+      `墙钟 ${Math.round(ms / 100) / 10}s${brainMs ? ` · Brain ${(brainMs / 1000).toFixed(1)}s` : ''}`)
     if (calledTool) {
       const a = net.asks[net.asks.length - 1]
       console.log(`     wants=${a.body.intendedTool || '-'}  q="${String(a.body.question || '').slice(0, 40)}"`)
