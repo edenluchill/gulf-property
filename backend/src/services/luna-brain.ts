@@ -27,7 +27,7 @@
  *
  * ⚠️ 改这里之前先跑 `scripts/luna-eval.ts` 拿基线。见 memory `luna-eval-harness`。
  */
-import { FLASH } from './ai/models'
+import { FLASH, FLASH_LITE } from './ai/models'
 import { callGemini } from './ai/gemini'
 import { counter, histogram } from '../telemetry'
 import { executeTool, voiceAssistantTools } from './voice-assistant-tools'
@@ -181,7 +181,7 @@ function bumpStreak(sessionId: string | undefined, clarifying: boolean): number 
  */
 const NO_ANSWER_MARKERS = /AREA_AMBIGUOUS|AREA_NOT_FOUND|FEATURE_UNKNOWN|NOT_FOUND|no results|0 results/i
 
-function systemPrompt(language: string | undefined, forceContent: boolean): string {
+function systemPrompt(question: string, language: string | undefined, forceContent: boolean): string {
   return `You are the analyst behind Luna, a Dubai real estate consultant.
 
 A live voice model is talking to the customer. It cannot think and it has no data.
@@ -207,7 +207,7 @@ another second of silence.
 
 ## YOUR OUTPUT
 
-- **${language && language !== 'auto' ? `Write in the customer's language: ${language}.` : "Write in the same language the customer used."}** Tool output is English and sometimes contains Chinese instructions — that is internal wiring, not a cue to switch languages.
+- **Write in the language the customer is actually speaking — detected from their own words as: ${detectLang(question, language)}.** (The UI language they happen to have set is NOT the same thing: agents with a Chinese interface demo to English-speaking clients all the time.) Tool output is English and sometimes contains Chinese instructions — that is internal wiring, not a cue to switch languages.
 - 2-3 spoken sentences. No markdown, no bullet points, no JSON, no headings — this is read aloud.
 - Speak amounts the way a person would ("2.7 million dirhams"). **Never change the magnitude.**
 - Lead with the single most useful fact for THIS person, then one concrete next step.
@@ -295,6 +295,34 @@ const PENDING_TTL_MS = 60 * 1000
  * **不可能承诺结果**,这正是当初禁 filler 的原因(「这就带你去 Marina」——
  * 可能根本找不到)。
  */
+/**
+ * 🔴 **说什么语言看用户原话，`language` 只是最后的兜底。**
+ *
+ * 前端传来的 `language` 是**界面语言**，不是他正在说的语言。中文 UI 的经纪
+ * 拿着手机给英语客户演示是这个产品的常态场景，反过来也一样。
+ *
+ * 实测踩到两次：
+ *   · 过渡句 "Let me pull that up." 接中文正文 —— 一句话两种语言
+ *   · 英文提问 "is Business Bay good for investment?" + 中文 UI → **整段回中文**
+ *
+ * 第二个更严重：客户问英文，Luna 全程说中文。旧 systemPrompt 里那句
+ * `Write in the customer's language: ${language}` 就是元凶 —— 它把界面语言
+ * 当成了「客户的语言」。见 memory `ui-language-leaks-three-layers`。
+ */
+function detectLang(question?: string, ui?: string): string {
+  const q = question || ''
+  if (/[一-鿿]/.test(q)) return 'zh'
+  if (/[؀-ۿ]/.test(q)) return 'ar'
+  if (/[Ѐ-ӿ]/.test(q)) return 'ru'
+  // 有拉丁字母 = 说的是某种拉丁语系。分不出英/法/西时才拿界面语言当提示,
+  // 但**绝不能因为界面是中文就判成中文** —— 他明明在用拉丁字母打字/说话。
+  if (/[a-zA-Z]/.test(q)) {
+    if (ui && /^(fr|es|de|pt|it)/.test(ui)) return ui.slice(0, 2)
+    return 'en'
+  }
+  return ui && ui !== 'auto' ? ui.slice(0, 2) : 'en'
+}
+
 function fillerFor(question?: string, language?: string): string {
   /**
    * ⚠️ **语言优先看用户原话,不看前端传的 `language`。**
@@ -306,15 +334,14 @@ function fillerFor(question?: string, language?: string): string {
    *
    * 过渡句是唯一不经模型的一句话,所以语言必须在这里判对,没有第二次机会。
    */
-  const q = question || ''
-  if (/[一-鿿]/.test(q)) return '好，我看一下。'
-  if (/[؀-ۿ]/.test(q)) return 'لحظة، دعني أتحقق من ذلك.'
-  if (/[Ѐ-ӿ]/.test(q)) return 'Секунду, сейчас посмотрю.'
-  // 拉丁字母分不出语种 —— 这时才退回界面语言。
-  if (language?.startsWith('zh')) return '好，我看一下。'
-  if (language?.startsWith('fr')) return 'Un instant, je regarde ça.'
-  if (language?.startsWith('es')) return 'Un momento, déjame ver.'
-  return 'Let me pull that up.'
+  switch (detectLang(question, language)) {
+    case 'zh': return '好，我看一下。'
+    case 'ar': return 'لحظة، دعني أتحقق من ذلك.'
+    case 'ru': return 'Секунду, сейчас посмотрю.'
+    case 'fr': return 'Un instant, je regarde ça.'
+    case 'es': return 'Un momento, déjame ver.'
+    default: return 'Let me pull that up.'
+  }
 }
 
 /** 启动一次后台推理并立刻返回过渡句。 */
@@ -414,10 +441,10 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
 
       const r = await callGemini({
         task: lastRound ? 'luna-brain.finalize' : 'luna-brain',
-        models: [FLASH],
+        models: [FLASH, FLASH_LITE],
         contents,
         config: {
-          systemInstruction: systemPrompt(ask.language, forceContent),
+          systemInstruction: systemPrompt(ask.question, ask.language, forceContent),
           tools: (scope || lastRound) ? undefined : voiceAssistantTools,
           // Gemini 3.x 用 thinkingLevel(不是 2.5 的 thinkingBudget,写错会被静默忽略)。
           // 'low' 而不是 'high' —— 这是延迟敏感场景,每多一秒就是一段死寂。
@@ -476,10 +503,10 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
     if (!speech) {
       const r = await callGemini({
         task: 'luna-brain.finalize',
-        models: [FLASH],
+        models: [FLASH, FLASH_LITE],
         contents: [...contents, { role: 'user', parts: [{ text: 'Now say it out loud, in 2-3 sentences. No more tools.' }] }],
         config: {
-          systemInstruction: systemPrompt(ask.language, true),
+          systemInstruction: systemPrompt(ask.question, ask.language, true),
           thinkingConfig: { thinkingLevel: 'low' },
         },
       })
@@ -499,7 +526,7 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
     if (streak >= 2) counter('luna.brain.clarify_streak', {}).inc()
 
     return {
-      speech: speech || fallbackSpeech(ask.language),
+      speech: speech || fallbackSpeech(ask.language, ask.question),
       mapAction,
       attachments,
       debug: { toolsUsed, toolLog, rounds, ms, clarifying, degraded: !speech, outOfScope: scope?.id },
@@ -510,7 +537,7 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
     histogram('luna.brain.ms', {}).observe(Date.now() - t0)
     console.error('[LunaBrain] failed:', e)
     return {
-      speech: fallbackSpeech(ask.language),
+      speech: fallbackSpeech(ask.language, ask.question),
       attachments,
       debug: { toolsUsed, toolLog, rounds, ms: Date.now() - t0, clarifying: false, degraded: true },
     }
@@ -521,8 +548,9 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
  * 降级话术。**不道歉、不解释技术故障** —— 客户不关心我们的后端。
  * 给一个能继续对话的问题，把主动权交回去。
  */
-function fallbackSpeech(language?: string): string {
-  const zh = language?.startsWith('zh')
+function fallbackSpeech(language?: string, question?: string): string {
+  // 降级话术也要说对语言 —— 它出现的时机恰恰是最不能再犯错的时候。
+  const zh = detectLang(question, language) === 'zh'
   return zh
     ? '这个我得再查一下。你先说说预算和想看的区域，我按这个给你找。'
     : "Let me look into that one. Tell me your budget and the area you have in mind, and I'll pull it up."
