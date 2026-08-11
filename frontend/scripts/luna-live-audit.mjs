@@ -39,6 +39,19 @@ const arg = (k, d) => {
 const URL = arg('--url', 'https://www.pinzos.com')
 const HEADED = process.argv.includes('--headed')
 const TIMEOUT = parseInt(arg('--timeout', '60000'))
+/**
+ * 登录态文件（Playwright storageState）。
+ *
+ * ⚠️ **生产站有匿名额度墙**：跑几次之后会弹「今天的免费探索先到这里」，
+ * 一个 z-[600] 的全屏遮罩把所有点击都吃掉 —— 第二版就栽在这，
+ * 表现是 click 一直 retry 到超时，看不出原因。
+ *
+ * 存一次登录态：
+ *   npx playwright open --save-storage=luna-auth.json https://www.pinzos.com
+ * 然后：
+ *   node frontend/scripts/luna-live-audit.mjs --storage luna-auth.json
+ */
+const STORAGE = arg('--storage', null)
 
 /** 每条都来自真实事故。`mustCallTool` 是这一层的核心断言。 */
 const CASES = [
@@ -56,7 +69,7 @@ const CASES = [
 
 const run = async () => {
   const browser = await chromium.launch({ headless: !HEADED })
-  const ctx = await browser.newContext({ permissions: [] })
+  const ctx = await browser.newContext({ permissions: [], ...(STORAGE ? { storageState: STORAGE } : {}) })
   const page = await ctx.newPage()
 
   // ── 网络监听：Live 到底调没调工具，这是全部意义所在 ──────────────────
@@ -79,12 +92,40 @@ const run = async () => {
   console.log(`\nLuna 真机跑分 —— ${URL}\n${'─'.repeat(66)}`)
   await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT })
 
+  /**
+   * ⚠️ **必须等地图稳定下来再操作。**
+   * 首屏地图会把相机状态写进 URL（`?v=10.12_25.019_55.089`），
+   * Playwright 的 auto-wait 会一直卡在「等导航完成」上，
+   * locator 直接超时 —— 第一版就栽在这。
+   */
+  await page.waitForTimeout(6000)
+
+  // ── 额度墙检测：不识别它的话，下面所有点击都会静默超时 ──────────────
+  const wall = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('div')].find(d => {
+      const cs = getComputedStyle(d)
+      return parseInt(cs.zIndex || '0') >= 600 && cs.pointerEvents === 'auto'
+        && d.getBoundingClientRect().width > 500 && /登录|Sign in|免费探索/.test(d.innerText || '')
+    })
+    return el ? (el.innerText || '').slice(0, 80).replace(/\s+/g, ' ') : null
+  })
+  if (wall) {
+    console.log(`
+❌ 被额度墙挡住了：「${wall}」`)
+    console.log('   匿名额度用尽。存一份登录态再跑：')
+    console.log('   npx playwright open --save-storage=luna-auth.json https://www.pinzos.com')
+    console.log('   node frontend/scripts/luna-live-audit.mjs --storage luna-auth.json')
+    await browser.close()
+    process.exit(3)
+  }
+
   const kb = page.getByTestId('luna-keyboard')
   await kb.waitFor({ state: 'visible', timeout: 30000 })
-  await kb.click()
+  await kb.click({ noWaitAfter: true })
 
   const input = page.getByTestId('luna-input')
-  await input.waitFor({ state: 'visible', timeout: 15000 })
+  await input.waitFor({ state: 'visible', timeout: 20000 })
+  await page.waitForTimeout(800)   // 面板滑入动画
 
   let pass = 0
   const failures = []
@@ -92,8 +133,9 @@ const run = async () => {
   for (const c of CASES) {
     const asksBefore = net.asks.length
     const t0 = Date.now()
-    await input.fill(c.text)
-    await page.getByTestId('luna-send').click()
+    await input.click({ noWaitAfter: true })
+    await page.keyboard.type(c.text, { delay: 10 })
+    await page.getByTestId('luna-send').click({ noWaitAfter: true })
 
     // 等这一轮出现回复文本（打字模式把回复渲染进面板）
     let reply = ''
