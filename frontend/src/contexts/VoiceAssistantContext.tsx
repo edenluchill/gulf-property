@@ -89,6 +89,19 @@ const AUTO_RECONNECT_BASE_MS = 1000
 // A conversation record ends after 5 min of no activity (or on page close); tap-close
 // only disconnects so a re-open within this window is the SAME record.
 const CONVO_IDLE_MS = 5 * 60 * 1000
+/**
+ * 🔴 **通话硬上限 —— 麦克风开着就在烧钱。**
+ *
+ * Live 是**持续上传音频**的:没人说话也一样按时长计费($0.005/分钟输入)。
+ * 一个忘了关的标签页挂一小时 = $0.3,挂一天 = $7 —— 而且客户毫无察觉。
+ *
+ * 只靠 `setTimeout(CONVO_IDLE_MS)` 不够:**后台标签页的定时器会被浏览器节流**,
+ * 该开火时不开火(session 53 记了 4.8 小时就是这类现象的表亲)。
+ * 所以再加两道:
+ *   ① 每次收到消息时用 `Date.now()` 硬核对(不信定时器,信墙钟)
+ *   ② 标签页切走就停录音(不断连接 —— 切回来还能接着说)
+ */
+const CONVO_HARD_CAP_MS = 20 * 60 * 1000
 // TOKEN-based daily quota. Luna is metered by Gemini Live tokens consumed per Dubai
 // calendar day (persisted in localStorage). Anonymous gets a smaller budget → prompt
 // login; logged-in free tier gets a larger budget → prompt upgrade. Resets at Dubai
@@ -244,6 +257,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // 后端只有靠这个才看得见它们。
   const turnAskedBrainRef = useRef<boolean>(false)
   const turnToolsRef = useRef<string[]>([])
+  /** 最后一次「有人真的在说话/打字」的墙钟时间 —— 硬上限靠它，不靠定时器。 */
+  const lastActivityAtRef = useRef<number>(0)
   /** 后端下发的 Live 模型名（换模型不用发前端）。 */
   const liveModelRef = useRef<string>('')
   /** 后端下发的工具声明（唯一真相源，随 /api/voice/token 返回）。 */
@@ -301,6 +316,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const resetIdleTimer = useCallback(() => {
+    lastActivityAtRef.current = Date.now()
     if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
     idleTimerRef.current = setTimeout(() => {
       idleTimerRef.current = null
@@ -620,6 +636,16 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
   // Handle Gemini messages
   const handleMessage = useCallback(async (message: LiveServerMessage) => {
+    /**
+     * 🔴 **先按墙钟核对硬上限，再谈别的。**
+     * `setTimeout` 在后台标签页会被节流到不开火；`Date.now()` 不会骗人。
+     * 超过上限直接挂断 —— 麦克风开着就在按分钟计费。
+     */
+    if (lastActivityAtRef.current && Date.now() - lastActivityAtRef.current > CONVO_HARD_CAP_MS) {
+      console.warn('[Voice] 超过通话硬上限，自动结束（避免忘关的标签页一直计费）')
+      endConversationNow()
+      return
+    }
     // Any inbound model message = activity → push the idle finalize back.
     resetIdleTimer()
 
@@ -1178,6 +1204,26 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // and reset transient UI, but do NOT end the debug session. The conversation record
   // lives on and is finalized only by the idle timer (armed below) or pagehide, so a
   // re-open within CONVO_IDLE_MS resumes the SAME record.
+  /**
+   * 🔴 **标签页切走就停录音** —— 不断连接，切回来还能接着说。
+   *
+   * Live 的输入音频是**持续上传**的：人切去别的标签页、Luna 还在听空气，
+   * 而那一样按分钟计费。这也是 owner 担心的「有人开很久一直不关」里
+   * 最常见的那一半 —— 大多数人不是盯着它不说话，是**切走了忘了**。
+   */
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden && recorderRef.current) {
+        console.log('[Voice] 标签页切走 → 停止录音（连接保留）')
+        recorderRef.current.stop()
+        recorderRef.current = null
+        setPhase('idle')
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+
   const deactivate = useCallback(() => {
     trackEvent('luna_close')  // Behaviour analytics: user-initiated close.
     textModeRef.current = false
