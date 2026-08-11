@@ -90,6 +90,35 @@ export interface TestCase {
   ms: number
 }
 
+export interface ToolStat {
+  tool: string
+  calls: string
+  ok: string
+  empty: string
+  not_found: string
+  ambiguous: string
+  errored: string
+  live_picked: string
+  avg_ms: string | null
+  last_at: string
+}
+export interface ToolCallSample {
+  created_at: string
+  session_id: string | null
+  params: unknown
+  outcome: string
+  ms: number | null
+  summary: string | null
+  /** 客户原话 —— 和 params 并排看才能判断模型填得合不合理 */
+  user_said: string | null
+  intended: boolean | null
+}
+
+export const lunaTools = (days = 30) =>
+  authed<{ days: number; tools: ToolStat[]; neverCalled: Array<{ tool: string; description: string }> }>(`/tools?days=${days}`)
+export const lunaToolCalls = (name: string, outcome?: string) =>
+  authed<{ calls: ToolCallSample[] }>(`/tool/${encodeURIComponent(name)}${outcome ? `?outcome=${outcome}` : ''}`)
+
 export const lunaHealth = (days = 7) => authed<LunaHealth>(`/health?days=${days}`)
 export const lunaSessions = (days = 14) => authed<{ sessions: LunaSessionRow[] }>(`/sessions?days=${days}`)
 export const lunaSession = (id: string) => authed<{ turns: LunaTurn[] }>(`/session/${encodeURIComponent(id)}`)

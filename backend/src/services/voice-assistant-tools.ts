@@ -504,7 +504,7 @@ export async function executeTool(
  * 这几档要**分开看**:`not_found` 高 = 数据缺口;`ambiguous` 高 = 匹配器该调;
  * `empty` 高 = 搜索条件太窄。三种病因完全不同,混成 ok 就一个都定位不了。
  */
-function classifyOutcome(out: { result: any; summary: string }): string {
+export function classifyOutcome(out: { result: any; summary: string }): string {
   const s = typeof out?.summary === 'string' ? out.summary : ''
   if (s.startsWith('Unknown tool')) return 'unknown'
   if (/AREA_AMBIGUOUS|needs_disambiguation/i.test(s)) return 'ambiguous'
@@ -1134,10 +1134,22 @@ async function executeToolInner(
       const score100 = Math.round(score * 100)
       const tier = score100 >= 75 ? '优秀' : score100 >= 55 ? '良好' : score100 >= 35 ? '一般' : '偏远'
 
-      // 成交 — project comps (precise) or area recent transactions
+      /**
+       * 成交 —— 优先这个盘自己的 comp，没有才退回**同区**最近成交。
+       *
+       * 🔴 **必须标明是谁的成交。** 2026-08-11 owner 实测:卡片标题写着
+       * 「113 RESIDENCES」,底下列的却是「Shahrukhz by Danube」的四笔成交,
+       * 而 Luna 口头说「没有匹配到 113 Residences 的交易登记」——
+       * **她说得对,是卡片在骗人**:回退到区域成交时没有任何标记,
+       * 话术还是「最近成交也活跃」,看起来就像这个盘成交了别人家的房子。
+       *
+       * `salesScope` 同时驱动话术和前端卡片的来源标签。
+       */
       let sales: any[] = []
+      let salesScope: 'project' | 'area' = 'project'
       if (tx?.sales?.length) sales = tx.sales.slice(0, 5)
       else if (insights?.recentTransactions?.length) {
+        salesScope = 'area'
         sales = insights.recentTransactions.slice(0, 5).map((t: any) => ({ date: t.date, building: t.building, rooms: t.rooms, sizeSqm: t.sizeSqm, price: t.price }))
       }
 
@@ -1161,7 +1173,12 @@ async function executeToolInner(
       })
       if (sales.length) stops.push({
         kind: 'transactions',
-        line: `最近成交也活跃${sales[0]?.price ? `，比如 ${wan(sales[0].price)}` : ''}。`,
+        // 项目自己的 vs 同区的，话术必须不一样 —— 否则就是拿别人家的成交冒充这个盘。
+        line: salesScope === 'project'
+          ? `这个盘最近成交也活跃${sales[0]?.price ? `，比如 ${wan(sales[0].price)}` : ''}。`
+          : `这个盘暂时没有成交登记，不过${area || '同区'}最近成交挺活跃${sales[0]?.price ? `，比如 ${wan(sales[0].price)}` : ''}。`,
+        salesScope,
+        salesScopeLabel: salesScope === 'project' ? (name || '本项目') : `${area || '同区'}·同区成交`,
         sales,
       })
 

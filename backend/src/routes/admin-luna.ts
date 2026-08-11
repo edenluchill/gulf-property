@@ -25,6 +25,7 @@ import { Router } from 'express'
 import pool from '../db/pool'
 import { requireAdmin } from '../middleware/auth'
 import { runSelfTest, listScenarios } from '../services/luna-self-test'
+import { liveToolManifest } from '../services/luna-live-manifest'
 
 const router = Router()
 router.use(requireAdmin)
@@ -102,6 +103,77 @@ router.get('/session/:id', async (req, res) => {
     res.json({ sessionId: req.params.id, turns: rows })
   } catch (e) {
     console.error('[AdminLuna] session failed:', e)
+    res.status(500).json({ error: 'query failed' })
+  }
+})
+
+/**
+ * GET /api/admin/luna/tools —— **每个工具用得多不多、错得多不多**。
+ *
+ * owner 的原话：「感觉现在有些工具不够智能，经常返回错误。能把 list of tools
+ * 显示在 admin 里面么，让我们观察哪些 AI tools 用的多、使用率如何、犯错率如何，
+ * 然后也显示 input，这样 admin 就能知道是否合理、是否要改进。」
+ *
+ * `outcome` 口径和 `voice.tool` 埋点完全一致：
+ *   ok / empty(查到了但 0 条) / not_found(这个地方不存在) /
+ *   ambiguous(名字有歧义) / error / unknown(工具名都不对)
+ *
+ * **这三档要分开看**，混成「失败率」定位不了问题：
+ *   `not_found` 高 = 数据缺口 · `ambiguous` 高 = 匹配器该调 · `empty` 高 = 条件太窄
+ *
+ * 还带上 `declared` —— 声明了但**从来没被调用过**的工具同样是信号：
+ * 要么 description 写得模型看不懂，要么这个能力根本没人要。
+ */
+router.get('/tools', async (req, res) => {
+  const days = Math.min(parseInt(String(req.query.days || '30')) || 30, 180)
+  try {
+    const { rows } = await pool.query(
+      `SELECT tool,
+              count(*)                                                   AS calls,
+              count(*) FILTER (WHERE outcome = 'ok')                     AS ok,
+              count(*) FILTER (WHERE outcome = 'empty')                  AS empty,
+              count(*) FILTER (WHERE outcome = 'not_found')              AS not_found,
+              count(*) FILTER (WHERE outcome = 'ambiguous')              AS ambiguous,
+              count(*) FILTER (WHERE outcome IN ('error','unknown'))     AS errored,
+              count(*) FILTER (WHERE intended)                           AS live_picked,
+              round(avg(ms))                                             AS avg_ms,
+              max(created_at)                                            AS last_at
+       FROM luna_tool_calls
+       WHERE created_at > now() - ($1 || ' days')::interval
+       GROUP BY tool ORDER BY calls DESC`,
+      [String(days)]
+    )
+    const used = new Set(rows.map(r => r.tool))
+    const declared = liveToolManifest()
+      .filter(t => !used.has(t.name))
+      .map(t => ({ tool: t.name, calls: '0', description: String(t.description || '').slice(0, 160) }))
+    res.json({ days, tools: rows, neverCalled: declared })
+  } catch (e) {
+    console.error('[AdminLuna] tools failed:', e)
+    res.status(500).json({ error: 'query failed' })
+  }
+})
+
+/**
+ * GET /api/admin/luna/tool/:name —— 某个工具的**真实调用样本**。
+ *
+ * 关键是 `user_said` 和 `params` 并排看：客户说的话 vs 模型填的参数。
+ * 「是否合理、是否要改进」只能这样判断 —— 光看失败率不知道该改 description
+ * 还是该改工具本身。
+ */
+router.get('/tool/:name', async (req, res) => {
+  const outcome = req.query.outcome ? String(req.query.outcome) : null
+  try {
+    const { rows } = await pool.query(
+      `SELECT created_at, session_id, params, outcome, ms, summary, user_said, intended
+       FROM luna_tool_calls
+       WHERE tool = $1 ${outcome ? 'AND outcome = $3' : ''}
+       ORDER BY created_at DESC LIMIT $2`,
+      outcome ? [req.params.name, 40, outcome] : [req.params.name, 40]
+    )
+    res.json({ tool: req.params.name, calls: rows })
+  } catch (e) {
+    console.error('[AdminLuna] tool detail failed:', e)
     res.status(500).json({ error: 'query failed' })
   }
 })

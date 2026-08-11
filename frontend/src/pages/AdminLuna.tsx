@@ -18,7 +18,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   lunaHealth, lunaSessions, lunaSession, lunaTests, lunaTest, startLunaTest, lunaScenarios,
+  lunaTools, lunaToolCalls,
   type LunaHealth, type LunaSessionRow, type LunaTurn, type TestRun, type TestCase,
+  type ToolStat, type ToolCallSample,
 } from '../lib/lunaAdminApi'
 
 const fmtMs = (v: number | string | null | undefined) => {
@@ -50,13 +52,20 @@ export default function AdminLuna() {
   const [openRun, setOpenRun] = useState<string | null>(null)
   const [cases, setCases] = useState<TestCase[]>([])
   const [scenarioCount, setScenarioCount] = useState(0)
+  const [tools, setTools] = useState<ToolStat[]>([])
+  const [neverCalled, setNeverCalled] = useState<Array<{ tool: string; description: string }>>([])
+  const [openTool, setOpenTool] = useState<string | null>(null)
+  const [toolCalls, setToolCalls] = useState<ToolCallSample[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
-      const [h, s, t, sc] = await Promise.all([lunaHealth(7), lunaSessions(14), lunaTests(), lunaScenarios()])
+      const [h, s, t, sc, tl] = await Promise.all([
+        lunaHealth(7), lunaSessions(14), lunaTests(), lunaScenarios(), lunaTools(30),
+      ])
       setHealth(h); setSessions(s.sessions); setRuns(t.runs); setScenarioCount(sc.scenarios.length)
+      setTools(tl.tools); setNeverCalled(tl.neverCalled)
       setErr(null)
     } catch (e) { setErr(String((e as Error)?.message || e)) }
   }, [])
@@ -73,6 +82,11 @@ export default function AdminLuna() {
     return () => clearInterval(t)
   }, [runs, openRun])
 
+  const openT = async (name: string) => {
+    if (openTool === name) { setOpenTool(null); return }
+    setOpenTool(name); setToolCalls([])
+    try { setToolCalls((await lunaToolCalls(name)).calls) } catch (e) { setErr(String(e)) }
+  }
   const openS = async (id: string) => {
     setOpenSession(id); setTurns([])
     try { setTurns((await lunaSession(id)).turns) } catch (e) { setErr(String(e)) }
@@ -192,6 +206,85 @@ export default function AdminLuna() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* ── 工具使用与犯错率 ──────────────────────────────────── */}
+        <section className="rounded-lg border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-sm font-medium text-slate-700">工具使用与犯错率（近 30 天）</h2>
+            <p className="text-[11px] text-slate-400">
+              点开看真实调用：<b>客户原话</b> 和 <b>模型填的参数</b> 并排 —— 光看失败率不知道该改 description 还是改工具
+            </p>
+          </div>
+
+          {/* 三档失败要分开看：not_found=数据缺口 · ambiguous=匹配器该调 · empty=条件太窄 */}
+          <div className="grid grid-cols-[1fr_auto] gap-x-4 px-4 py-2 text-[10px] uppercase tracking-wide text-slate-400">
+            <span>工具</span>
+            <span>调用 · ok / 空 / 查无 / 歧义 / 错</span>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {tools.length === 0 && <p className="px-4 py-6 text-center text-xs text-slate-400">近 30 天还没有工具调用记录</p>}
+            {tools.map(t => {
+              const n = parseInt(t.calls)
+              const bad = parseInt(t.empty) + parseInt(t.not_found) + parseInt(t.ambiguous) + parseInt(t.errored)
+              const badPct = n ? Math.round((bad / n) * 100) : 0
+              return (
+                <div key={t.tool}>
+                  <button onClick={() => openT(t.tool)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-slate-50">
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700">{t.tool}</span>
+                    <span className="shrink-0 text-xs text-slate-500">{t.calls} 次</span>
+                    <span className="shrink-0 text-[11px] tabular-nums">
+                      <span className="text-emerald-600">{t.ok}</span>
+                      <span className="text-slate-300"> / </span>
+                      <span className={parseInt(t.empty) ? 'text-amber-600' : 'text-slate-300'}>{t.empty}</span>
+                      <span className="text-slate-300"> / </span>
+                      <span className={parseInt(t.not_found) ? 'text-orange-600' : 'text-slate-300'}>{t.not_found}</span>
+                      <span className="text-slate-300"> / </span>
+                      <span className={parseInt(t.ambiguous) ? 'text-blue-600' : 'text-slate-300'}>{t.ambiguous}</span>
+                      <span className="text-slate-300"> / </span>
+                      <span className={parseInt(t.errored) ? 'text-red-600' : 'text-slate-300'}>{t.errored}</span>
+                    </span>
+                    <span className={`w-12 shrink-0 text-right text-xs font-medium ${badPct >= 40 ? 'text-red-600' : badPct >= 20 ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {badPct}%
+                    </span>
+                    <span className="w-14 shrink-0 text-right text-[11px] text-slate-400">{fmtMs(t.avg_ms)}</span>
+                  </button>
+
+                  {openTool === t.tool && (
+                    <div className="space-y-1.5 bg-slate-50 px-4 py-3">
+                      {toolCalls.length === 0 && <p className="text-xs text-slate-400">载入中…</p>}
+                      {toolCalls.map((c, i) => (
+                        <div key={i} className={`rounded border p-2 ${c.outcome === 'ok' ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'}`}>
+                          <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                            <span className={`rounded px-1.5 py-0.5 font-medium ${
+                              c.outcome === 'ok' ? 'bg-emerald-100 text-emerald-700' :
+                              c.outcome === 'error' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{c.outcome}</span>
+                            {c.intended && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">Live 点名</span>}
+                            <span className="ml-auto text-slate-400">{fmtTime(c.created_at)}</span>
+                          </div>
+                          {c.user_said && <p className="mt-1 text-[11px] text-slate-600">👤 {c.user_said}</p>}
+                          <p className="mt-0.5 break-all font-mono text-[10px] text-slate-500">
+                            {typeof c.params === 'string' ? c.params : JSON.stringify(c.params)}
+                          </p>
+                          {c.summary && <p className="mt-0.5 text-[10px] text-slate-400">{c.summary.slice(0, 200)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {neverCalled.length > 0 && (
+            <div className="border-t border-slate-100 px-4 py-2.5">
+              <p className="text-[11px] text-slate-400">
+                <b className="text-slate-500">从没被调用过（{neverCalled.length}）</b> —— 要么 description 模型看不懂，要么这个能力没人要：
+                <span className="font-mono"> {neverCalled.map(t => t.tool).join(' · ')}</span>
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ── 真实会话 ─────────────────────────────────────────── */}

@@ -81,6 +81,13 @@ export interface GuidedStop {
   spokes?: { category: string; label: string; emoji: string; name: string; lng: number; lat: number; distanceKm: number }[]
   // transactions
   sales?: { date: string | null; building: string | null; rooms: string | null; sizeSqm: number | null; price: number | null }[]
+  /**
+   * 这些成交是**谁的** —— 项目自己的，还是同区的。
+   * 🔴 没有它就会出现「113 RESIDENCES 卡片下列着 Shahrukhz by Danube 的成交」
+   * （2026-08-11 owner 实测）。回退到区域数据时必须写在脸上。
+   */
+  salesScope?: 'project' | 'area'
+  salesScopeLabel?: string
 }
 
 export interface GuidedTourPayload {

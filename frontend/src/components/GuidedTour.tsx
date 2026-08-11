@@ -205,7 +205,15 @@ function StopCard({ stop, lang }: { stop: GuidedStop; lang: string }) {
   }
   if (stop.kind === 'transactions' && stop.sales?.length) {
     return (
-      <div className="overflow-hidden rounded-xl border border-slate-100 divide-y divide-slate-100">
+      <div className="overflow-hidden rounded-xl border border-slate-100">
+        {/* 🔴 成交归属必须写在脸上。回退到同区数据时不标，卡片就在骗人：
+            标题是项目名、底下却是别家楼盘的成交（2026-08-11 owner 实测）。 */}
+        {stop.salesScope === 'area' && (
+          <div className="border-b border-amber-100 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-700">
+            本项目暂无成交登记 · 以下为{stop.salesScopeLabel || '同区'}成交
+          </div>
+        )}
+      <div className="divide-y divide-slate-100">
         {stop.sales.slice(0, 4).map((r, i) => (
           <div key={i} className="flex items-center justify-between gap-3 px-3 py-2">
             <div className="min-w-0">
@@ -217,6 +225,7 @@ function StopCard({ stop, lang }: { stop: GuidedStop; lang: string }) {
             </div>
           </div>
         ))}
+      </div>
       </div>
     )
   }

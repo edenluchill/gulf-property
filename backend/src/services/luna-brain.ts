@@ -30,7 +30,8 @@
 import { FLASH, FLASH_LITE } from './ai/models'
 import { callGemini } from './ai/gemini'
 import { counter, histogram } from '../telemetry'
-import { executeTool, voiceAssistantTools } from './voice-assistant-tools'
+import { executeTool, voiceAssistantTools, classifyOutcome } from './voice-assistant-tools'
+import { logToolCall } from './luna-turn-log'
 import { checkScope, describeBoundaries } from './luna-data-boundaries'
 import { UI_ACTION_TOOLS } from './luna-live-manifest'
 
@@ -485,6 +486,11 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
         const out = await executeTool(ask.intendedTool!, ask.intendedParams || {})
         toolsUsed.push(ask.intendedTool!)
         toolLog.push({ name: ask.intendedTool!, args: ask.intendedParams, result: out.result, summary: out.summary })
+        logToolCall({
+          sessionId: ask.sessionId, tool: ask.intendedTool!, params: ask.intendedParams,
+          outcome: classifyOutcome(out), summary: out.summary,
+          userSaid: ask.question, intended: true,
+        })
         if (NO_ANSWER_MARKERS.test(out.summary || '')) sawNoAnswer = true
         if (out.mapAction) mapAction = out.mapAction
         if (out.result) attachments.push({ toolName: ask.intendedTool!, result: out.result, params: ask.intendedParams })
@@ -534,6 +540,11 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
           return { name: c.name, args: c.args, out }
         } catch (e) {
           // 单个工具挂掉不该拖垮整轮 —— 告诉模型它挂了，让它换个说法。
+          logToolCall({
+            sessionId: ask.sessionId, tool: c.name, params: c.args, outcome: 'error',
+            summary: String((e as Error)?.message || e).slice(0, 300),
+            userSaid: ask.question, intended: c.name === ask.intendedTool,
+          })
           return {
             name: c.name, args: c.args,
             out: { result: null, summary: `TOOL_ERROR: ${c.name} failed. Do not retry it; answer with what you already have.` },
@@ -544,6 +555,12 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
       for (const o of outs) {
         toolsUsed.push(o.name)
         toolLog.push({ name: o.name, args: o.args, result: o.out.result, summary: o.out.summary })
+        // 逐次落库 —— admin 靠它看「哪个工具用得多、错得多、参数长什么样」
+        logToolCall({
+          sessionId: ask.sessionId, tool: o.name, params: o.args,
+          outcome: classifyOutcome(o.out), summary: o.out.summary,
+          userSaid: ask.question, intended: o.name === ask.intendedTool,
+        })
         if (NO_ANSWER_MARKERS.test(o.out.summary || '')) sawNoAnswer = true
         const ma = (o.out as { mapAction?: unknown }).mapAction
         if (ma) mapAction = ma

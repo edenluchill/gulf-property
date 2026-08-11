@@ -84,3 +84,44 @@ export function logTurn(t: TurnLog): void {
     ]
   ).catch(e => console.warn('[LunaTurnLog] insert failed (ignored):', e?.message))
 }
+
+/**
+ * 每一次**工具调用**落一行 —— owner 要看「哪些工具用得多、错得多、参数长什么样」。
+ *
+ * 为什么单独一张表：`luna_turns.tools` 只有名字数组，回答不了
+ * 「`search_projects` 是不是经常查不到东西」「模型给它填的参数合不合理」。
+ * 而 owner 的原话是「感觉现在有些工具不够智能，经常返回错误」——
+ * **要改进就得先看见错在哪、输入是什么。**
+ *
+ * `outcome` 用的是 `classifyOutcome()` 那套口径（ok/empty/not_found/
+ * ambiguous/error/unknown），跟 `voice.tool` 埋点一致，两边对得上。
+ */
+export interface ToolCallLog {
+  sessionId?: string
+  tool: string
+  params?: unknown
+  outcome: string
+  ms?: number
+  summary?: string
+  /** 客户原话 —— 判断「模型填的参数合不合理」必须对照它 */
+  userSaid?: string
+  /** 这个工具是不是 Live 层自己点名要的（intendedTool） */
+  intended?: boolean
+}
+
+export function logToolCall(t: ToolCallLog): void {
+  pool.query(
+    `INSERT INTO luna_tool_calls (session_id, tool, params, outcome, ms, summary, user_said, intended)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [
+      t.sessionId || null,
+      t.tool.slice(0, 60),
+      t.params != null ? JSON.stringify(t.params).slice(0, 2000) : null,
+      t.outcome,
+      t.ms ?? null,
+      t.summary?.slice(0, 1000) || null,
+      t.userSaid?.slice(0, 500) || null,
+      t.intended ?? null,
+    ]
+  ).catch(e => console.warn('[LunaToolLog] insert failed (ignored):', e?.message))
+}
