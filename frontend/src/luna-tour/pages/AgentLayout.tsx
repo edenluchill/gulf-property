@@ -12,6 +12,7 @@ import { Loader2, Clock, ShieldX, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 import { setMyRole } from '../../lib/billingApi'
+import AgentCoach from '../../components/AgentCoach'
 import TrialBanner from '../../components/TrialBanner'
 
 /** 自助开通:记角色为经纪 → 去选档页(付款成功 webhook 自动 approve,无需等审批)。 */
@@ -101,6 +102,10 @@ export default function AgentLayout() {
     <>
       <TrialBanner />
       <Outlet />
+      {/* 产品教练 —— 只在**审批通过的经纪台内**出现。
+          2026-08-11:经纪一直在 Luna 里问「怎么把软件发给客人」这类操作问题,
+          而 Luna 是对客户说话的房产顾问。把教学挪出来,各归各位。 */}
+      <AgentCoach />
     </>
   )
 }

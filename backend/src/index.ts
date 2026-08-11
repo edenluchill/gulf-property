@@ -33,6 +33,7 @@ import { startAgentMatchNotifier } from './services/agentMatchNotifier'  // 派�
 import voiceTokenRouter from './routes/voice-token'
 import voiceToolsRouter from './routes/voice-tools'
 import adminLunaRouter from './routes/admin-luna'
+import agentCoachRouter from './routes/agent-coach'
 import voiceDebugRouter from './routes/voice-debug'
 import aiProjectsRouter from './routes/ai-projects'
 import aiAreasRouter from './routes/ai-areas'
@@ -160,6 +161,7 @@ app.use('/api/compare', createCompareRouter(pool))  // AI property comparison
 app.use('/api/tasks', tasksRouter)  // PDF processing task management
 app.use('/api/admin/tasks', adminTasksRouter)  // Admin task management
 app.use('/api/admin/luna', adminLunaRouter)    // Luna 可观测 + 一键自测(人手/AI 同一条路径)
+app.use('/api/agent', agentCoachRouter)        // 经纪产品教练(教经纪怎么用,与 Luna 严格分开)
 app.use('/api/transport', dubaiTransportRouter)  // Dubai transport (Metro, Tram, future lines)
 app.use('/api/custom-routes', customRoutesRouter)  // Custom routes and stops (replaces transport)
 app.use('/api/geocode', geocodeRouter)  // Google Maps geocoding API proxy

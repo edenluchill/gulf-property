@@ -317,6 +317,18 @@ export function allFeatureIds(): string[] {
   return FEATURES.map((f) => f.id)
 }
 
+/**
+ * 全部功能。给**经纪产品教练**（`agent-coach.ts`）把整本手册喂给模型 ——
+ * 经纪的问题常常要串好几个功能（"想让客户看资料" = 建导览 → 发布 → 复制链接），
+ * 只给关键词匹配到的一条串不起来。
+ *
+ * ⚠️ 安全前提:这张表里**只有能对外说的功能**（见上方那条注释），
+ * 所以全量下发是安全的 —— admin/* 和已下架的从来就没进来过。
+ */
+export function allFeatures(): readonly Feature[] {
+  return FEATURES
+}
+
 /** 按语言取一份可直接朗读的说明 */
 export function describeFeature(f: Feature, lang: 'zh' | 'en' = 'en') {
   return {
