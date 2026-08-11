@@ -101,6 +101,16 @@ const jsonIdx = process.argv.indexOf('--json')
 const OUT = jsonIdx >= 0 ? process.argv[jsonIdx + 1] : null
 const diffIdx = process.argv.indexOf('--diff')
 const DIFF = diffIdx >= 0 ? process.argv[diffIdx + 1] : null
+/**
+ * `--model <id>` —— **换 Live 模型时用同一套场景做 A/B**。
+ *
+ * 2026-08-10 才发现 `gemini-3.1-flash-live-preview` 一直存在(实测 models.list()
+ * 有,能 bidiGenerateContent),而我们跑的还是 2.5 世代。**别再靠读文档判断
+ * 有哪些模型** —— 这个项目的模型表错过一次,写着的两个 ID 全是 404
+ * (见 CLAUDE.md 的 Gemini 模型表)。要换先在这里跑一遍对比。
+ */
+const modelIdx = process.argv.indexOf('--model')
+const MODEL = modelIdx >= 0 ? process.argv[modelIdx + 1] : LIVE_AUDIO
 const onlyIdx = process.argv.indexOf('--only')
 const ONLY = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null
 
@@ -284,7 +294,7 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
   let turnDone: (() => void) | null = null
 
   const session = await ai.live.connect({
-    model: LIVE_AUDIO,
+    model: MODEL,
     config: {
       responseModalities: [Modality.AUDIO],
       // 只要文字转写 —— 音频我们不听，但 native-audio 模型必须开 AUDIO 模态
@@ -607,7 +617,7 @@ ${convo}`,
 
 async function main() {
   const pool = ONLY ? SCENARIOS.filter(s => s.tag === ONLY || s.id === ONLY) : SCENARIOS
-  console.log(`\nLuna 模型层跑分 —— ${LIVE_AUDIO}`)
+  console.log(`\nLuna 模型层跑分 —— ${MODEL}${MODEL !== LIVE_AUDIO ? `  ⚠️ 非生产模型(生产是 ${LIVE_AUDIO})` : ''}`)
   console.log(`${pool.length} 条用例（真实 Live 会话 + 真实工具执行）\n${'─'.repeat(70)}`)
 
   const findings: Finding[] = []
@@ -684,7 +694,7 @@ async function main() {
 
   if (OUT) {
     writeFileSync(OUT, JSON.stringify({
-      at: new Date().toISOString(), model: LIVE_AUDIO,
+      at: new Date().toISOString(), model: MODEL,
       pass, total: findings.length, avgScore: avg, findings, judged,
     }, null, 2))
     console.log(`\n  结果已存 ${OUT}`)
