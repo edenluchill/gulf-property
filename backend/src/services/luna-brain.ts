@@ -110,6 +110,57 @@ export interface BrainAnswer {
 const clarifyStreak = new Map<string, { n: number; at: number }>()
 const STREAK_TTL_MS = 10 * 60 * 1000
 
+/**
+ * 🔴 **上一轮说了什么** —— 没有它,「第一个」「那个盘」「它旁边」全会答错。
+ *
+ * Brain 默认是**无状态**的:每次 ask_luna 都是一次全新的推理。而 Live 层只会
+ * 把用户这一句话传过来。于是客户说 "tell me about the first one" 时,Brain
+ * 重新搜了一遍,「第一个」变成了另一个项目 —— Tier2 实测:客户问的是 Emaar
+ * 的 Albero,Luna 介绍了 Binghatti Aquarise,而且语气笃定。
+ *
+ * **这是拆层新引入的失败模式**,单层时不存在(那时模型自己带着对话历史)。
+ * 指代("第一个/那个/它")在真实对话里极其常见,不能靠 Live 层填 context 参数
+ * —— 它填的是自己的转述,而转述恰恰是错误的来源。
+ *
+ * 存的是**事实清单**(上一轮工具真正返回的项目名+id),不是话术。
+ */
+const lastTurn = new Map<string, { at: number; note: string }>()
+const TURN_MEMORY_TTL_MS = 15 * 60 * 1000
+const NOTE_MAX = 700
+
+function recallTurn(sessionId?: string): string | null {
+  if (!sessionId) return null
+  const v = lastTurn.get(sessionId)
+  if (!v || Date.now() - v.at > TURN_MEMORY_TTL_MS) return null
+  return v.note
+}
+
+function rememberTurn(sessionId: string | undefined, speech: string, toolLog: BrainAnswer['debug']['toolLog']) {
+  if (!sessionId) return
+  const now = Date.now()
+  for (const [k, v] of lastTurn) if (now - v.at > TURN_MEMORY_TTL_MS) lastTurn.delete(k)
+
+  // 从工具返回里抠出**按原顺序**的项目/区域名 —— "第一个"指的就是这个顺序。
+  const named: string[] = []
+  const walk = (v: unknown) => {
+    if (named.length >= 8 || !v) return
+    if (Array.isArray(v)) { v.forEach(walk); return }
+    if (typeof v === 'object') {
+      const o = v as Record<string, unknown>
+      const label = o.name || o.project_name || o.title || o.area_name
+      const id = o.id ?? o.project_id
+      if (typeof label === 'string') named.push(id != null ? `${label} (id ${id})` : label)
+      else Object.values(o).forEach(walk)
+    }
+  }
+  toolLog.forEach(t => walk(t.result))
+
+  const note =
+    (named.length ? `shown to them, in this order: ${named.join('; ')}. ` : '') +
+    `you said: "${speech.slice(0, 300)}"`
+  lastTurn.set(sessionId, { at: now, note: note.slice(0, NOTE_MAX) })
+}
+
 function bumpStreak(sessionId: string | undefined, clarifying: boolean): number {
   if (!sessionId) return 0
   const now = Date.now()
@@ -227,6 +278,9 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
   // 直接把「没有什么 + 有什么替代」交给模型去组织话术，省一整轮工具调用。
   const scope = checkScope(ask.question)
 
+  // 上一轮的事实清单 —— "第一个 / 那个 / 它" 全靠它才能指对。
+  const recalled = recallTurn(ask.sessionId)
+
   try {
     const contents: unknown[] = [{
       role: 'user',
@@ -236,7 +290,13 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
             `SCOPE: ${scope.lacks}\nOFFER INSTEAD: ${scope.have_instead}\n\n` +
             `Tell them plainly that we don't have it, then pivot to what we do have — in one breath, not as two separate thoughts. ` +
             `Do not call a tool to look for the thing we don't have.`
-          : ask.question + (ask.context ? `\n\n[context: ${ask.context}]` : ''),
+          : ask.question +
+            (recalled
+              // **顺序是有意义的** —— 客户说「第一个」指的就是上一轮列表的第一条,
+              // 重新搜一次很可能换个顺序,然后你会笃定地介绍错的那个盘。
+              ? `\n\n[earlier this call — ${recalled}\nIf they are referring back ("the first one", "that one", "it"), resolve it against THIS list, in this order. Do not re-search to figure out what they meant.]`
+              : '') +
+            (ask.context ? `\n\n[context: ${ask.context}]` : ''),
       }],
     }]
 
@@ -333,6 +393,7 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
     // 「纯澄清」= 工具说没答案，而且话术里没带出任何可看的东西。
     const clarifying = sawNoAnswer && !mapAction && attachments.length === 0
     const streak = bumpStreak(ask.sessionId, clarifying)
+    rememberTurn(ask.sessionId, speech, toolLog)
 
     const ms = Date.now() - t0
     counter('luna.brain', {
