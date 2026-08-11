@@ -441,9 +441,36 @@ function checkObeyedUncertainty(sc: Scenario, turns: Turn[]): Finding[] {
  */
 function checkNumbersGrounded(sc: Scenario, turns: Turn[]): Finding[] {
   const out: Finding[] = []
+
+  /**
+   * ⚠️ **用户自己说的数字也算有出处 —— 而且要跨整场会话累积。**
+   *
+   * 两次栽在这条上，是同一个问题的两个版本：
+   *   ① 第一版根本没有豁免 → 客户说「100万左右」，Luna 复述「in your 1 million
+   *      budget」被判成编数字。
+   *   ② 修完仍只看**当轮** `t.user` → `asr-offplan-confusion` 里客户第 1 轮说
+   *      「100万的二手房」，Luna 第 2 轮复述 1,000,000，又被判成编数字。
+   *
+   * 客户的预算在整通电话里都有效，好顾问本来就该一直记着它。
+   * **假红灯比漏报更伤 —— 跑分一旦不可信就没人看了。**
+   */
+  const userSaid: number[] = []
+  const harvest = (text: string, into: number[]) => {
+    for (const m of text.matchAll(/([\d]+(?:\.\d+)?)\s*(万|亿|million|m\b|k\b)?/gi)) {
+      let n = parseFloat(m[1])
+      const u = (m[2] || '').toLowerCase()
+      if (u === '万') n *= 1e4
+      else if (u === '亿') n *= 1e8
+      else if (u === 'million' || u === 'm') n *= 1e6
+      else if (u === 'k') n *= 1e3
+      into.push(n)
+    }
+  }
+
   for (const t of turns) {
+    harvest(t.user, userSaid)          // 先累积,再判 —— 当轮说的当轮也算数
     if (!t.tools.length || !t.reply) continue
-    const pool: number[] = []
+    const pool: number[] = [...userSaid]
     const walk = (v: any) => {
       if (v == null) return
       if (typeof v === 'number') { pool.push(v); return }
@@ -453,19 +480,6 @@ function checkNumbersGrounded(sc: Scenario, turns: Turn[]): Finding[] {
     }
     t.tools.forEach(x => walk(x.result))
     if (!pool.length) continue
-
-    // ⚠️ **用户自己说的数字也算有出处。**
-    // 第一版漏了这条 → 客户说「100万左右」，Luna 复述「in your 1 million budget」
-    // 被判成「编数字」。复述客户的话是好顾问的表现，不是幻觉。
-    for (const m of t.user.matchAll(/([\d]+(?:\.\d+)?)\s*(万|亿|million|m\b|k\b)?/gi)) {
-      let n = parseFloat(m[1])
-      const u = (m[2] || '').toLowerCase()
-      if (u === '万') n *= 1e4
-      else if (u === '亿') n *= 1e8
-      else if (u === 'million' || u === 'm') n *= 1e6
-      else if (u === 'k') n *= 1e3
-      pool.push(n)
-    }
 
     const spoken: number[] = []
     for (const m of t.reply.matchAll(/([\d]+(?:\.\d+)?)\s*(万|亿|million|m\b|k\b)?/gi)) {
