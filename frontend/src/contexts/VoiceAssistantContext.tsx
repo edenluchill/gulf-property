@@ -250,6 +250,12 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   const liveToolsRef = useRef<Array<{ name: string; description: string; parameters?: unknown }>>([])
   /** 这一轮客户实际说的话 —— 转给 Brain 当 question，比模型的转述可靠。 */
   const turnUserSaidRef = useRef<string>('')
+  /** 客户说完 → Luna 第一个音（体感延迟）。落库用。 */
+  const turnFirstAudioMsRef = useRef<number>(0)
+  /** 客户说了多久。 */
+  const turnUserSpeechMsRef = useRef<number>(0)
+  /** Live 这一轮想调的工具（意图信号），上报用。 */
+  const turnIntendedToolRef = useRef<string>('')
   const turnUserLastTsRef = useRef<number>(0)
   const turnReplyLoggedRef = useRef<boolean>(false)
 
@@ -545,6 +551,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       const more = toolName === 'ask_luna_more'
       turnAskedBrainRef.current = true
       turnToolsRef.current = [...turnToolsRef.current, toolName]
+      if (!turnIntendedToolRef.current) turnIntendedToolRef.current = toolName
       try {
         const response = await fetch(`${API_BASE}/api/voice/tools/${more ? 'ask-more' : 'ask'}`, {
           method: 'POST',
@@ -639,6 +646,15 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       if (turnReplyLoggedRef.current || !turnUserFirstTsRef.current) return
       turnReplyLoggedRef.current = true
       const now = performance.now()
+      /**
+       * 🔴 **体感延迟落库**（原来只有 console.log）。
+       *
+       * 「客户说话到 AI 回话隔了多久」是 owner 最想看的数字，而它一直只存在于
+       * 开发者自己的 DevTools 里 —— 线上一条都没有。现在存进 ref，
+       * 每轮结束随 /tools/turn 上报。
+       */
+      turnFirstAudioMsRef.current = Math.round(now - turnUserLastTsRef.current)
+      turnUserSpeechMsRef.current = Math.round(turnUserLastTsRef.current - turnUserFirstTsRef.current)
       console.log(
         `[VoiceTiming] Luna reply START (${kind}) — ` +
         `${Math.round(now - turnUserLastTsRef.current)}ms after user STOPPED, ` +
@@ -763,8 +779,14 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
               sessionId: voiceDebugLogger.currentSessionId,
               visitorId: visitorId(),
               speech: spokenThisTurn.slice(0, 4000),
+              userSaid: turnUserSaidRef.current.slice(0, 2000),
               askedBrain: turnAskedBrainRef.current,
               tools: turnToolsRef.current,
+              intendedTool: turnIntendedToolRef.current || undefined,
+              // 三个延迟:客户说了多久 / 说完到第一个音(体感) / 说完到说完
+              userSpeechMs: turnUserSpeechMsRef.current || undefined,
+              toFirstAudioMs: turnFirstAudioMsRef.current || undefined,
+              totalMs: turnUserLastTsRef.current ? Math.round(performance.now() - turnUserLastTsRef.current) : undefined,
               ms: turnUserFirstTsRef.current ? Math.round(performance.now() - turnUserFirstTsRef.current) : undefined,
             }),
           }).catch(() => { /* 观测失败绝不影响对话 */ })
@@ -772,6 +794,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         turnAskedBrainRef.current = false
         turnToolsRef.current = []
         turnUserSaidRef.current = ''
+        turnFirstAudioMsRef.current = 0
+        turnUserSpeechMsRef.current = 0
+        turnIntendedToolRef.current = ''
 
         if (textModeRef.current) {
           // Finalize the current assistant message (text already streamed in).

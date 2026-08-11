@@ -25,10 +25,16 @@ const router = Router()
  * askLuna 内部已兜底，任何失败都返回一句能说的话。
  */
 router.post('/ask', async (req, res) => {
-  const { question, language, sessionId, context } = req.body || {}
-  if (!question || typeof question !== 'string') {
-    return res.status(400).json({ error: 'question is required' })
+  const { question, language, sessionId, context, intendedTool, intendedParams, visitorId } = req.body || {}
+  /**
+   * `question` 是客户原话。**允许为空** —— 转写偶尔拿不到，
+   * 这时 `intendedTool` + `intendedParams` 就是唯一的意图来源，
+   * 直接 400 等于把这一轮变成静默。
+   */
+  if ((!question || typeof question !== 'string') && !intendedTool) {
+    return res.status(400).json({ error: 'question or intendedTool is required' })
   }
+  const q = typeof question === 'string' ? question : ''
 
   /**
    * 🔴 **两段式默认关闭 —— 它在真实语音链路上会把客户挂断。**
@@ -54,17 +60,17 @@ router.post('/ask', async (req, res) => {
    * 在那之前 `LUNA_TWO_STAGE=1` 只用于开发环境验证。
    */
   if (process.env.LUNA_TWO_STAGE === '1') {
-    const staged = startAsk({ question, language, sessionId, context })
+    const staged = startAsk({ question: q, language, sessionId, context, intendedTool, intendedParams })
     if (staged.pending) {
-      console.log(`[LunaBrain] "${question.slice(0, 60)}" → staged, filler out`)
+      console.log(`[LunaBrain] "${q.slice(0, 60)}" → staged, filler out`)
       return res.json({ success: true, speech: staged.speech, pending: true, attachments: [] })
     }
   }
 
-  const answer = await askLuna({ question, language, sessionId, context })
+  const answer = await askLuna({ question: q, language, sessionId, context, intendedTool, intendedParams })
 
   console.log(
-    `[LunaBrain] "${question.slice(0, 60)}" → ${answer.debug.ms}ms, ` +
+    `[LunaBrain] "${q.slice(0, 60)}" wants=${intendedTool || '-'} → ${answer.debug.ms}ms, ` +
     `tools=[${answer.debug.toolsUsed.join(',')}]` +
     (answer.debug.outOfScope ? ` scope=${answer.debug.outOfScope}` : '') +
     (answer.debug.degraded ? ' DEGRADED' : '')
@@ -75,8 +81,9 @@ router.post('/ask', async (req, res) => {
   // 逐轮落库 —— 会话级的 luna_sessions 只在 endSession 时上报,用户直接关页面
   // 就永远看不到。出了问题要能查「他问了什么、Luna 答了什么」。
   logTurn({
-    sessionId, visitorId: req.body?.visitorId, source: 'brain',
-    question, speech: answer.speech, tools: answer.debug.toolsUsed,
+    sessionId, visitorId, source: 'brain',
+    question: q, userSaid: q, intendedTool,
+    speech: answer.speech, tools: answer.debug.toolsUsed,
     ms: answer.debug.ms, askedBrain: true,
     degraded: answer.debug.degraded, outOfScope: answer.debug.outOfScope,
     clarifying: answer.debug.clarifying,
@@ -102,10 +109,12 @@ router.post('/ask', async (req, res) => {
  * 不等 `endSession` 上报,因为那个太容易丢(关标签页/会话还开着)。
  */
 router.post('/turn', (req, res) => {
-  const { sessionId, visitorId, speech, askedBrain, tools, ms } = req.body || {}
+  const b = req.body || {}
   logTurn({
-    sessionId, visitorId, source: 'live',
-    speech, tools, ms, askedBrain: !!askedBrain,
+    sessionId: b.sessionId, visitorId: b.visitorId, source: 'live',
+    speech: b.speech, userSaid: b.userSaid, tools: b.tools, ms: b.ms,
+    askedBrain: !!b.askedBrain, intendedTool: b.intendedTool,
+    userSpeechMs: b.userSpeechMs, toFirstAudioMs: b.toFirstAudioMs, totalMs: b.totalMs,
   })
   res.status(204).end()
 })

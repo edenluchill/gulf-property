@@ -29,6 +29,17 @@
 import pool from '../db/pool'
 
 export interface TurnLog {
+  /** 客户这一轮说了什么（live 源才有） */
+  userSaid?: string
+  /** Live 想调的工具（意图信号） */
+  intendedTool?: string
+  turnIndex?: number
+  /** 客户说了多久 */
+  userSpeechMs?: number
+  /** 🔴 **体感延迟**:客户说完 → Luna 第一个音出来。前端本来只 console.log 它。 */
+  toFirstAudioMs?: number
+  /** 客户说完 → Luna 说完 */
+  totalMs?: number
   sessionId?: string
   visitorId?: string
   /** 'brain' = 服务端记的（Live 问了 Brain）；'live' = 前端记的（Luna 开口了） */
@@ -49,8 +60,9 @@ export function logTurn(t: TurnLog): void {
   // 故意不 await：观测不该给语音链路加一次 DB 往返的延迟。
   pool.query(
     `INSERT INTO luna_turns
-      (session_id, visitor_id, source, question, speech, tools, ms, asked_brain, degraded, out_of_scope, clarifying)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      (session_id, visitor_id, source, question, speech, tools, ms, asked_brain, degraded, out_of_scope, clarifying,
+       user_said, intended_tool, turn_index, user_speech_ms, to_first_audio_ms, total_ms)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
     [
       t.sessionId || null,
       t.visitorId || null,
@@ -63,6 +75,12 @@ export function logTurn(t: TurnLog): void {
       t.degraded ?? null,
       t.outOfScope || null,
       t.clarifying ?? null,
+      t.userSaid?.slice(0, 2000) || null,
+      t.intendedTool || null,
+      t.turnIndex ?? null,
+      t.userSpeechMs ?? null,
+      t.toFirstAudioMs ?? null,
+      t.totalMs ?? null,
     ]
   ).catch(e => console.warn('[LunaTurnLog] insert failed (ignored):', e?.message))
 }

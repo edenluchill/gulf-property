@@ -19,7 +19,8 @@ import AdminPropertyListPage from './pages/AdminPropertyListPage'
 import AdminPropertyEditPage from './pages/AdminPropertyEditPage'
 import AdminTasksPage from './pages/AdminTasksPage'
 import AdminTaskReviewPage from './pages/AdminTaskReviewPage'
-import AdminAnalytics from './pages/AdminAnalytics'  // Owner-only behaviour dashboard (isolated)
+import AdminAnalytics from './pages/AdminAnalytics'
+import AdminLuna from './pages/AdminLuna'  // Luna 体验看板 + 自测台  // Owner-only behaviour dashboard (isolated)
 import Layout from './components/Layout'
 import AuthCallback from './components/auth/AuthCallback'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -257,6 +258,15 @@ function App() {
           element={
             <ProtectedRoute requireAdmin>
               <AdminAnalytics />
+            </ProtectedRoute>
+          }
+        />
+        {/* Luna 体验看板 + 自测台 —— 逐轮延迟/说了什么/有没有问 Brain，一键跑分 */}
+        <Route
+          path="/admin/luna"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminLuna />
             </ProtectedRoute>
           }
         />
