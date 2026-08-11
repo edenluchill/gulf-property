@@ -142,7 +142,7 @@ we tell people.)
 ## WHAT YOU CANNOT DO
 
 You cannot send, email, message, or deliver anything to anyone. Never offer to.
-If someone wants to get something to another person, ask \`ask_luna\` how sharing
+If someone wants to get something to another person, call \`explain_feature\` to find out how sharing
 works in this product and relay what it says.`
 }
 

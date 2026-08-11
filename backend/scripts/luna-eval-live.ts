@@ -55,6 +55,7 @@ import { LIVE_AUDIO, FLASH } from '../src/services/ai/models'
 import { getSystemInstruction } from '../src/routes/voice-token'
 import { executeTool } from '../src/services/voice-assistant-tools'
 import { askLuna, startAsk, awaitAsk } from '../src/services/luna-brain'
+import { liveToolManifest } from '../src/services/luna-live-manifest'
 
 /**
  * **Live 层的工具声明** —— 必须和 `frontend/src/contexts/VoiceAssistantContext.tsx`
@@ -68,39 +69,14 @@ import { askLuna, startAsk, awaitAsk } from '../src/services/luna-brain'
  * 而 Brain 在这个脚本里是**真的被调用**的。`frontend/scripts/check-voice-tools.mjs`
  * 守着 `ask_luna` 不许从前端声明里消失。
  */
-const LIVE_TOOLS = [
-  {
-    name: 'ask_luna',
-    description: 'The ONLY way you can answer anything real. You have NO knowledge of your own: you cannot see the map, and you do not know a single project, area, price, yield, distance, or product feature. Call this for EVERY question that is not pure greeting or small talk. Pass the customer\'s words through VERBATIM. It returns a "speech" field — say exactly that, as written.',
-    parameters: {
-      type: 'OBJECT' as any,
-      properties: {
-        question: { type: 'STRING' as any, description: "The customer's question in their own words, verbatim." },
-        context: { type: 'STRING' as any, description: 'Optional: what the conversation has been about so far.' },
-      },
-      required: ['question'],
-    },
-  },
-  {
-    // 两段式作答的第二段 —— 跑分必须复刻它,否则测的是一个生产上不存在的流程。
-    name: 'ask_luna_more',
-    description: 'Call this IMMEDIATELY after you finish saying an ask_luna reply that came back with "pending": true. That reply was only a holding line — the real answer is still being prepared and this is how you collect it. It takes no arguments. If you skip this call, the customer hears you say you are looking something up and then nothing at all.',
-    parameters: { type: 'OBJECT' as any, properties: {} },
-  },
-  {
-    name: 'capture_contact',
-    description: "Save the customer's contact details so the agent can follow up. Call this ONLY after the customer has shown clear interest and agreed to share contact.",
-    parameters: {
-      type: 'OBJECT' as any,
-      properties: {
-        name: { type: 'STRING' as any, description: "Customer's name if given" },
-        whatsapp: { type: 'STRING' as any, description: 'WhatsApp number with country code' },
-        phone: { type: 'STRING' as any, description: 'Phone number if different from WhatsApp' },
-        email: { type: 'STRING' as any, description: 'Email address if given' },
-      },
-    },
-  },
-]
+/**
+ * **Live 层的工具声明 = 后端 manifest。**
+ *
+ * 2026-08-10 之前这里内联了第二份声明,于是跑分测的是一个生产上不存在的配置
+ * (memory `voice-tool-declaration-drift`)。现在直接 import 生产同一个函数 ——
+ * **前端、跑分、后端三处同源**,漂移面归零。
+ */
+const LIVE_TOOLS = liveToolManifest()
 
 const VERBOSE = process.argv.includes('--verbose')
 const jsonIdx = process.argv.indexOf('--json')
@@ -139,6 +115,8 @@ interface Scenario {
   mustHedge?: boolean
   /** 回复里**必须**出现其中至少一个（用来验产品指路答对了没有） */
   mustMentionAny?: string[]
+  /** 这一轮**允许**不调工具（纯寒暄/身份试探/乱码）。默认都必须调。 */
+  noToolOk?: boolean
   why: string
 }
 
@@ -230,7 +208,7 @@ const SCENARIOS: Scenario[] = [
     why: '一句话三个意图（找房+配套+分享）。人就是这么说话的，不会一次只问一件事',
   },
   {
-    id: 'is-this-a-bot', tag: 'human',
+    id: 'is-this-a-bot', tag: 'human', noToolOk: true,
     turns: ['Are you a real person or a bot?'],
     why: '几乎每个新用户都会试探一次。答得僵硬就再也不聊了',
   },
@@ -240,12 +218,12 @@ const SCENARIOS: Scenario[] = [
     why: '带情绪的质疑。这时候堆数据是最差的答法，但也不能顺着说「是的很贵」',
   },
   {
-    id: 'vague-browsing', tag: 'human', wantLang: 'zh',
+    id: 'vague-browsing', tag: 'human', noToolOk: true, wantLang: 'zh',
     turns: ['随便看看'],
     why: '最常见的开场。她必须能把话头接住并收敛到一个具体问题，不能反问一串',
   },
   {
-    id: 'gibberish', tag: 'human', mustHedge: true,
+    id: 'gibberish', tag: 'human', noToolOk: true, mustHedge: true,
     turns: ['asdfgh qwerty'],
     why: 'ASR 噪音/误触。不该假装听懂，也不该报错，要自然地请对方再说一次',
   },
@@ -297,6 +275,8 @@ interface Turn {
   staged?: boolean
   /** 两段式:这一轮真的回来取了正文 */
   resumed?: boolean
+  /** 这一轮 Live 有没有调工具（= 有没有问 Brain） */
+  askedBrain?: boolean
 }
 
 async function runScenario(sc: Scenario): Promise<Turn[]> {
@@ -307,6 +287,10 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
   // 两段式作答的追踪 —— 只说了过渡句却没调 ask_luna_more,就是把客户挂在了线上。
   let stagedThisTurn = false
   let sawAskMore = false
+  // 🔴 这一轮 Live 到底有没有调工具 —— 生产事故「AI 自己编」就发生在这条路径上,
+  // 而以前的跑分完全看不到它。
+  let askedBrainThisTurn = false
+  let turnIdx = 0
 
   const session = await ai.live.connect({
     model: MODEL,
@@ -327,36 +311,33 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
           for (const fc of m.toolCall.functionCalls || []) {
             let result: any = null, summary = ''
             try {
-              if (fc.name === 'ask_luna') {
-                // 两段式:秒回过渡句 + 后台启动 Brain,和生产完全一致。
-                const staged = startAsk({
-                  question: String((fc.args as any)?.question || ''),
-                  context: (fc.args as any)?.context,
+              if (fc.name === 'capture_contact') {
+                // 前端直连 /api/leads/contact,这里不真写库。
+                result = { ok: true }; summary = 'Contact saved.'
+              } else {
+                /**
+                 * **所有工具都走 Brain** —— 与生产完全一致。
+                 * Live 选的工具降级成 intendedTool(意图信号),Brain 决定真正调什么。
+                 * 这正是跑分以前测不到的那条路径。
+                 */
+                askedBrainThisTurn = true
+                const a = await askLuna({
+                  question: sc.turns[turnIdx] || '',
+                  intendedTool: fc.name!,
+                  intendedParams: (fc.args as any) || {},
                   sessionId: sc.id,
                 })
-                stagedThisTurn = true
-                result = { speech: staged.speech, pending: true }; summary = staged.speech
-              } else if (fc.name === 'ask_luna_more') {
-                const a = await awaitAsk(sc.id)
-                sawAskMore = true
-                // **把 Brain 内部调用过的工具原样摊进 toolLog** —— 下面的
-                // 「数字溯源」「遵守不确定信号」两条断言读的就是它。不摊开的话
-                // 拆层等于把这两条断言弄瞎(它们只会看到一个 ask_luna)。
+                // 把 Brain 内部调用过的工具摊进 toolLog —— 「数字溯源」「遵守不确定
+                // 信号」两条断言读的就是它。
                 for (const t of a.debug.toolLog) {
                   toolLog.push({ name: t.name, args: t.args, result: { result: t.result, summary: t.summary } })
                 }
                 result = { speech: a.speech }; summary = a.speech
-              } else if (fc.name === 'capture_contact') {
-                // 前端直连 /api/leads/contact,这里不真写库。
-                result = { ok: true }; summary = 'Contact saved.'
-              } else {
-                const r = await executeTool(fc.name!, (fc.args as any) || {})
-                result = r.result; summary = r.summary
               }
             } catch (e: any) {
               summary = `Failed: ${e?.message}`
             }
-            if (fc.name !== 'ask_luna' && fc.name !== 'ask_luna_more') {
+            if (fc.name === 'capture_contact') {
               toolLog.push({ name: fc.name!, args: fc.args, result: { result, summary } })
             }
             responses.push({ id: fc.id, name: fc.name, response: { result: JSON.stringify(result), summary } })
@@ -375,11 +356,13 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
       replyBuf = ''
       stagedThisTurn = false
       sawAskMore = false
+      askedBrainThisTurn = false
+      turnIdx = sc.turns.indexOf(user)
       const before = toolLog.length
       const done = new Promise<void>((res) => { turnDone = res })
       session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: user }] }], turnComplete: true })
       await Promise.race([done, new Promise<void>((r) => setTimeout(r, 45_000))])
-      turns.push({ user, reply: replyBuf.trim(), tools: toolLog.slice(before), staged: stagedThisTurn, resumed: sawAskMore })
+      turns.push({ user, reply: replyBuf.trim(), tools: toolLog.slice(before), staged: stagedThisTurn, resumed: sawAskMore, askedBrain: askedBrainThisTurn })
       if (VERBOSE) {
         console.log(`\n  👤 ${user}`)
         console.log(`  🤖 ${replyBuf.trim() || '(无回复)'}`)
@@ -455,6 +438,29 @@ function checkForbidden(sc: Scenario, turns: Turn[]): Finding[] {
  * 同一个坑之前踩过一次 —— 让 Live 自己先说 filler 再调工具,它说完就不调了
  * (「买房能拿迪拜身份吗?」→「让我查一下。」→ 沉默)。
  */
+/**
+ * 🔴 **这一轮到底调没调工具** —— 抓「Luna 没查就自己说」的唯一手段。
+ *
+ * 这是 2026-08-10 两起生产事故的共同路径,而**以前的跑分完全看不到它**:
+ *   · owner 报「AI 说自己能卖二手房」—— 同样的问题直接问 Brain,答案全对,
+ *     所以那句话是 Live 自己编的,它压根没调工具
+ *   · 所有护栏(数据边界/诚实规则/澄清出路)都在 Brain 里,
+ *     **Live 绕过 Brain = 护栏全失效,而且不留痕迹**
+ *
+ * 根因是我把 17 个具体工具砍成一个抽象入口,模型从「语义匹配」被迫改做
+ * 「元判断」。恢复完整工具清单之后,这条断言就是它的验收标准。
+ */
+function checkAskedBrain(sc: Scenario, turns: Turn[]): Finding[] {
+  if (sc.noToolOk) return []
+  return turns.map((t, i) => ({
+    ok: !!t.askedBrain,
+    name: `${sc.id} 第${i + 1}轮调了工具(没有自己编)`,
+    detail: t.askedBrain
+      ? 'ok'
+      : `❌ 一次工具都没调就开口了：「${(t.reply || '(沉默)').slice(0, 60)}」—— 这一轮完全绕过了 Brain 的护栏`,
+  }))
+}
+
 function checkTwoStageCompleted(sc: Scenario, turns: Turn[]): Finding[] {
   const out: Finding[] = []
   for (const t of turns) {
@@ -749,6 +755,7 @@ async function main() {
       ...checkNumbersGrounded(sc, turns),
       ...checkNoEmptyPromise(sc, turns),
       ...checkTwoStageCompleted(sc, turns),
+      ...checkAskedBrain(sc, turns),
     ]
     const j = await judge(sc, turns)
 
