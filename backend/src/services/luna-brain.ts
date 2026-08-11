@@ -61,6 +61,14 @@ export interface BrainAsk {
   sessionId?: string
   /** 地图当前状态等上下文，可选。 */
   context?: string
+  /**
+   * 两段式:客户**已经听到**的那句过渡语。
+   *
+   * 不告诉 Brain 的后果实测到了:过渡句说「好，我看一下」,正文接
+   * 「请告诉我您的预算和区域」—— 裁判判「前后矛盾且机械重复」3/5。
+   * 从客户耳朵里听就是:说要去查,结果转头问我要条件。
+   */
+  fillerSaid?: string
 }
 
 export interface BrainAnswer {
@@ -181,7 +189,21 @@ function bumpStreak(sessionId: string | undefined, clarifying: boolean): number 
  */
 const NO_ANSWER_MARKERS = /AREA_AMBIGUOUS|AREA_NOT_FOUND|FEATURE_UNKNOWN|NOT_FOUND|no results|0 results/i
 
-function systemPrompt(question: string, language: string | undefined, forceContent: boolean): string {
+function systemPrompt(question: string, language: string | undefined, forceContent: boolean, fillerSaid?: string): string {
+  // 两段式:客户已经听过过渡句了,这里必须接着往下说,不能再应答一次。
+  const heard = fillerSaid
+    ? `## THEY HAVE ALREADY HEARD YOU SAY THIS
+
+The customer just heard you say: "${fillerSaid}"
+
+Continue straight on from there. **Do not say again that you are looking something
+up, and do not open with another acknowledgement** — you already acknowledged them.
+If what you need next is a question (their budget, their area), just ask it warmly.
+Do not let it land as "let me check… so what's your budget?", which sounds like you
+contradicting yourself one sentence later.
+
+`
+    : ''
   return `You are the analyst behind Luna, a Dubai real estate consultant.
 
 A live voice model is talking to the customer. It cannot think and it has no data.
@@ -205,7 +227,7 @@ another second of silence.
   complete answer — the extra detail can come in the next exchange, they're still on
   the line. Do not go fetch a second opinion.
 
-## YOUR OUTPUT
+${heard}## YOUR OUTPUT
 
 - **Write in the language the customer is actually speaking — detected from their own words as: ${detectLang(question, language)}.** (The UI language they happen to have set is NOT the same thing: agents with a Chinese interface demo to English-speaking clients all the time.) Tool output is English and sometimes contains Chinese instructions — that is internal wiring, not a cue to switch languages.
 - 2-3 spoken sentences. No markdown, no bullet points, no JSON, no headings — this is read aloud.
@@ -356,7 +378,7 @@ export function startAsk(ask: BrainAsk): { speech: string; pending: boolean } {
 
   // askLuna 自己不抛（失败走降级话术），catch 只是防御性的：
   // 一个没人 await 的 rejected promise 会让 Node 打 unhandled rejection。
-  const p = askLuna(ask)
+  const p = askLuna({ ...ask, fillerSaid: fillerFor(ask.question, ask.language) })
   p.catch(() => {})
   pendingAsks.set(key, { at: now, p })
 
@@ -444,7 +466,7 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
         models: [FLASH, FLASH_LITE],
         contents,
         config: {
-          systemInstruction: systemPrompt(ask.question, ask.language, forceContent),
+          systemInstruction: systemPrompt(ask.question, ask.language, forceContent, ask.fillerSaid),
           tools: (scope || lastRound) ? undefined : voiceAssistantTools,
           // Gemini 3.x 用 thinkingLevel(不是 2.5 的 thinkingBudget,写错会被静默忽略)。
           // 'low' 而不是 'high' —— 这是延迟敏感场景,每多一秒就是一段死寂。
@@ -506,7 +528,7 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
         models: [FLASH, FLASH_LITE],
         contents: [...contents, { role: 'user', parts: [{ text: 'Now say it out loud, in 2-3 sentences. No more tools.' }] }],
         config: {
-          systemInstruction: systemPrompt(ask.question, ask.language, true),
+          systemInstruction: systemPrompt(ask.question, ask.language, true, ask.fillerSaid),
           thinkingConfig: { thinkingLevel: 'low' },
         },
       })
