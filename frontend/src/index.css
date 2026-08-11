@@ -397,3 +397,23 @@
 .scrollbar-thin.scrollbar-track-transparent:hover {
   scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
 }
+
+/**
+ * 经纪产品教练的步骤逐条淡入。
+ *
+ * owner 对第一版的原话:「这个 guide 没有 animation 感觉很难 follow」。
+ * 这不是装饰 —— 一次性糊上来一整块文字,人不知道从哪读起;
+ * 每条差 90ms 依次进场,眼睛自然跟着序号往下走。
+ *
+ * `backwards` 是关键:延迟期间要保持起始态(透明),否则会先闪一下再动。
+ */
+@keyframes coachStepIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.coach-step {
+  animation: coachStepIn 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-step { animation: none; }
+}

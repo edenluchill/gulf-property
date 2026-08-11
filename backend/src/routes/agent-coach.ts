@@ -27,7 +27,7 @@ router.post('/coach', requireAuth, async (req, res) => {
    * 白点一个用不了的按钮。
    */
   const out = await askCoach({ question: question.slice(0, 500), language, path })
-  console.log(`[AgentCoach] "${question.slice(0, 50)}" → ${out.debug.ms}ms${out.debug.degraded ? ' DEGRADED' : ''}`)
+  console.log(`[AgentCoach] "${question.slice(0, 50)}" → ${out.debug.ms}ms via ${out.debug.source}`)
   res.json(out)
 })
 
